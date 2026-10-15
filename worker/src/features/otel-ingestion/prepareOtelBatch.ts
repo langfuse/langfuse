@@ -43,24 +43,38 @@ export async function prepareOtelBatch(params: {
   const { bytes, extractMedia, ...context } = params;
   const startedAt = performance.now();
   let outcome: "native" | "unchanged" | "masking_drop" | "error" = "error";
+  let codepath: "inline_check" | "uv_dispatch" | "disabled" = "disabled";
   let originalInput: ValidatedOtelJson | undefined;
   let maskedInput: ValidatedOtelJson | undefined;
   try {
     if (!isIngestionMaskingEnabled()) {
+      codepath = extractMedia ? "inline_check" : "disabled";
+      const inputStartedAt = performance.now();
       const needsExtraction =
         extractMedia &&
         (bytes.length > MAX_SYNC_MEDIA_CHECK_BYTES ||
           hasOtelMediaCandidate(bytes));
-      const batch = needsExtraction ? await extractOtelMedia(bytes) : null;
+      if (needsExtraction) codepath = "uv_dispatch";
+      const extraction = needsExtraction ? extractOtelMedia(bytes) : null;
+      recordDistribution(
+        "langfuse.ingestion.otel.main_thread_duration_ms",
+        performance.now() - inputStartedAt,
+        { phase: "input_handling", media_path: "early" },
+      );
+      const batch = needsExtraction ? await extraction : null;
       outcome = batch ? "native" : "unchanged";
       return { batch: batch ?? undefined, sourceUnchanged: !batch };
     }
+    codepath = "uv_dispatch";
     originalInput = await validateOtelJson(bytes);
     const masking = await applyIngestionMasking(
       {
         ...context,
         data: {
-          bytes: originalInput.normalizedBytes() ?? bytes,
+          bytes:
+            measureOtelMainThread("native_result", () =>
+              originalInput!.normalizedBytes(),
+            ) ?? bytes,
           validated: originalInput,
         },
       },
@@ -86,7 +100,10 @@ export async function prepareOtelBatch(params: {
             );
             maskedInput = await validateOtelJson(json);
             return {
-              bytes: maskedInput.normalizedBytes() ?? json,
+              bytes:
+                measureOtelMainThread("native_result", () =>
+                  maskedInput!.normalizedBytes(),
+                ) ?? json,
               validated: maskedInput,
             };
           } finally {
@@ -125,6 +142,7 @@ export async function prepareOtelBatch(params: {
       .finally(() => {
         const tags = {
           outcome,
+          codepath,
           extract_media: extractMedia.toString(),
         };
         recordIncrement(
@@ -160,12 +178,31 @@ export async function parsePreparedOtelBatch(
         downloadedBytes.byteLength,
       );
     } else {
-      json = batch.takeJsonBuffer();
+      json = measureOtelMainThread("native_result", () =>
+        batch!.takeJsonBuffer(),
+      );
     }
-    return { resourceSpans: JSON.parse(json.toString("utf8")), batch };
+    return measureOtelMainThread("input_json", () => ({
+      resourceSpans: JSON.parse(json.toString("utf8")),
+      batch,
+    }));
   } catch (error) {
     await batch?.dispose();
     throw error;
+  }
+}
+
+// Measure synchronous result handling; awaited native work stays outside.
+function measureOtelMainThread<T>(phase: string, work: () => T): T {
+  const startedAt = performance.now();
+  try {
+    return work();
+  } finally {
+    recordDistribution(
+      "langfuse.ingestion.otel.main_thread_duration_ms",
+      performance.now() - startedAt,
+      { phase, media_path: "early" },
+    );
   }
 }
 

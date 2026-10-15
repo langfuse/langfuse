@@ -85,9 +85,15 @@
     definitions retain their original creation run.
   - `clickhouse.ts`: current summaries/assignments and immutable definitions.
     Source identity prefers `traceId`; `sessionId` may carry parent context.
-    Facet versions use `(projectId, facetId, version)`. Reads require a time
-    range; replacement includes the source minute, with run/origin suffixes
-    for assignments. Definition bounds retain original creation dates on reuse.
+    Facet versions use `(projectId, facetId, version)`. Data reads require a time
+    range; `hasStoredTopicSummaries(projectId)` checks project onboarding
+    readiness across all stored trace summaries without loading their contents.
+    A positive result is cached per project in Redis for 30 minutes, skipping
+    subsequent ClickHouse probes; cache failures fall back to ClickHouse.
+    Negative results are cached for 30 seconds, bounding the onboarding delay
+    after the first summaries arrive while avoiding repeated empty-project scans.
+    Replacement includes the source minute, with run/origin suffixes for assignments. Definition bounds
+    retain original creation dates on reuse.
     `getLatestFacetSummaries` returns display fields; processing reads use
     `listTopicSummaries` or `getTopicClusteringSummaries` for complete summaries.
   - `execution-store.ts`: one BatchAction per request, compact counters and run references.

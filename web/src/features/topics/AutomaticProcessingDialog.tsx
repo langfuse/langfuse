@@ -11,7 +11,11 @@ import {
   type TopicsModelSlotName,
 } from "@langfuse/shared/topics";
 
+import { type FilterState } from "@langfuse/shared";
+import { TopicAutomaticTraceScope } from "./TopicAutomaticTraceScope";
+
 type AutomaticProcessingDialogProps = {
+  projectId?: string;
   initialEnabled: boolean;
   initialSampling: number;
   traceIdleMs: number;
@@ -28,6 +32,7 @@ const COST_NOTE =
 /** Dialog content; render it from `AutomaticProcessingDialogController`. */
 export function AutomaticProcessingDialog({
   error,
+  projectId,
   initialEnabled,
   initialSampling,
   models,
@@ -44,11 +49,13 @@ export function AutomaticProcessingDialog({
       assignments: [],
     }),
   );
+  const [filters, setFilters] = useState<FilterState>([]);
   const [enabled, setEnabled] = useState(initialEnabled);
   const missingModel = TOPICS_MODEL_SLOTS.some((slot) => !models[slot]);
   return (
     <Dialog
       title="Automatic processing"
+      size="lg"
       actions={[
         {
           label: "Save",
@@ -61,6 +68,12 @@ export function AutomaticProcessingDialog({
     >
       <Dialog.Body>
         <div className="flex flex-col gap-4">
+          <Alert variant="info" icon={Info}>
+            <Alert.Description>
+              Only traces from v4-ready ingestion are processed automatically.
+              Legacy ingestion is not included.
+            </Alert.Description>
+          </Alert>
           <p className="text-sm">
             New traces are summarized with your saved facets and models once
             they have been idle for {idleTimeLabel(traceIdleMs)}. The sampling
@@ -82,12 +95,6 @@ export function AutomaticProcessingDialog({
               </Alert.Description>
             </Alert>
           ) : null}
-          <Alert variant="info" icon={Info}>
-            <Alert.Description>
-              Only traces from v4-ready ingestion are processed automatically.
-              Legacy ingestion is not included.
-            </Alert.Description>
-          </Alert>
           <section className="flex flex-col gap-2">
             <h3 className="text-sm font-bold">Models</h3>
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
@@ -107,6 +114,11 @@ export function AutomaticProcessingDialog({
             store={samplingStore}
             description="The share of new traces Topics summarizes automatically."
             tooltip="Topics summarizes this share of new traces. A lower rate costs less. For manual processing, you set the sampling for each run."
+          />
+          <TopicAutomaticTraceScope
+            projectId={projectId}
+            filters={filters}
+            onFiltersChange={setFilters}
           />
           <SwitchInput
             id="topics-automatic-processing"

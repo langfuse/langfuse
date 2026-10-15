@@ -13,7 +13,7 @@ exports[`golden: sessions simple aggregates family > getSessionTracesFromEvents 
     "sql": "SELECT
     trace_id AS id,
     project_id,
-    COALESCE(
+    coalesce(
         nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
         nullIf(argMaxIf(e.name, e.event_ts, ((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != '')), '')
     ) AS name,

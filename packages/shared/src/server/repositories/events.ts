@@ -40,6 +40,7 @@ import {
   includeDeleted,
   leftUTF8,
   limitBy,
+  literal,
   mapValue,
   medianExact,
   metadataMap,
@@ -134,13 +135,16 @@ import {
 } from "./observations";
 import { convertEventsObservation } from "./observations_converters";
 import {
+  eventsTraceName,
+  OBSERVATION_BY_ID_SELECTS,
+  SESSION_AGGREGATION_SELECTS,
+  TRACE_AGGREGATION_SELECTS,
+} from "./events-selects";
+import {
   EventsQueryBuilder,
   CTEQueryBuilder,
   EventsAggQueryBuilder,
   buildEventsFullTableSplitQuery,
-  EVENTS_AGGREGATION_FIELDS,
-  EVENTS_SESSION_AGGREGATION_FIELDS,
-  eventsFieldSetSelections,
   type QueryWithParams,
   normalizeSessionCounts,
   type SessionEventsField,
@@ -163,7 +167,6 @@ import {
 import { type EventsObservationPublic } from "../queries/createGenerationsQuery";
 import {
   eventsTableCols,
-  eventsTableTraceNameSql,
   normalizeEventsTraceName,
   type NumericEventsTableColumnId,
 } from "../../eventsTable";
@@ -175,6 +178,10 @@ import {
 } from "../../tableDefinitions";
 import { tracesTableCols } from "../../tableDefinitions/tracesTable";
 import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
+import type {
+  SkillsAvailable,
+  SkillsResourceLoaded,
+} from "../../features/skills/trace";
 
 export type EventBatchIOStringOutput = {
   id: string;
@@ -182,6 +189,11 @@ export type EventBatchIOStringOutput = {
   input: string | null;
   output: string | null;
   metadata: MetadataDomain;
+};
+
+export type EventBatchIOSkillFields = {
+  skillsAvailable: SkillsAvailable;
+  skillsResourceLoaded: SkillsResourceLoaded;
 };
 
 /** Raw ClickHouse storage shape: name-less JSON strings, names in the parallel toolCallNames array. */
@@ -198,10 +210,12 @@ export type EventBatchIOWithExperimentOutput = EventBatchIOStringOutput & {
 export type EventBatchIOResult<
   TIncludeExperiment extends boolean,
   TIncludeToolCalls extends boolean,
+  TIncludeSkills extends boolean = false,
 > = (TIncludeExperiment extends true
   ? EventBatchIOWithExperimentOutput
   : EventBatchIOStringOutput) &
-  (TIncludeToolCalls extends true ? EventBatchIOToolCallFields : object);
+  (TIncludeToolCalls extends true ? EventBatchIOToolCallFields : object) &
+  (TIncludeSkills extends true ? EventBatchIOSkillFields : object);
 
 const BATCH_IO_STRING_RENDERING_PROPS: RenderingProps = {
   // Batch I/O truncation is handled in SQL via leftUTF8 for performance.
@@ -663,16 +677,18 @@ export const getObservationMetricsForPromptsFromEvents = async (
       "e.prompt_version as prompt_version",
       eb.fn.min("e.start_time").as("first_observation"),
       eb.fn.max("e.start_time").as("last_observation"),
-      medianExact(sumMapValuesWhereKeyContains("e.usage_details", "input")).as(
-        "median_input_usage",
+      medianExact(
+        sumMapValuesWhereKeyContains(eb.ref("e.usage_details"), "input"),
+      ).as("median_input_usage"),
+      medianExact(
+        sumMapValuesWhereKeyContains(eb.ref("e.usage_details"), "output"),
+      ).as("median_output_usage"),
+      medianExact(mapValue(eb.ref("e.cost_details"), "total")).as(
+        "median_total_cost",
       ),
-      medianExact(sumMapValuesWhereKeyContains("e.usage_details", "output")).as(
-        "median_output_usage",
-      ),
-      medianExact(mapValue("e.cost_details", "total")).as("median_total_cost"),
-      medianExact(dateDiff("millisecond", "e.start_time", "e.end_time")).as(
-        "median_latency_ms",
-      ),
+      medianExact(
+        dateDiff("millisecond", eb.ref("e.start_time"), eb.ref("e.end_time")),
+      ).as("median_latency_ms"),
     ])
     .where("e.is_deleted", "=", 0)
     .groupBy(["e.prompt_id", "e.prompt_version"])
@@ -718,7 +734,7 @@ export const getObservationsWithPromptNameFromEvents = async (
 ) => {
   const builder = getClickhouseKysely()
     .selectFrom("events_core")
-    .select([uniq("span_id").as("count"), "prompt_name"])
+    .select((eb) => [uniq(eb.ref("span_id")).as("count"), "prompt_name"])
     .where("prompt_name", "in", promptNames)
     .where("prompt_name", "!=", "")
     .$if(fromTimestamp != null, (qb) =>
@@ -1090,15 +1106,7 @@ async function getObservationByIdFromEventsTableInternal({
       : db.selectFrom("events_core as e")
   )
     .$call(includeDeleted())
-    // Built per call: events.ts and the builder module import each other.
-    .select(
-      eventsFieldSetSelections(
-        "byIdBase",
-        "byIdModel",
-        "byIdPrompt",
-        "byIdTimestamps",
-      ),
-    )
+    .select(OBSERVATION_BY_ID_SELECTS)
     .$if(fetchWithInputOutput, (qb) =>
       qb.select(observationIoSelects(renderingProps.truncated)),
     )
@@ -1186,7 +1194,7 @@ export const getTraceByIdFromEventsTable = async ({
       : qb.selectFrom("events_full as e");
     return from
       .$call(includeDeleted())
-      .select(traceAggregationSelects() as never)
+      .select(TRACE_AGGREGATION_SELECTS)
       .where("trace_id", "in", [traceId])
       .$if(fromTimestamp != null, (inner) =>
         inner.where(
@@ -1196,12 +1204,12 @@ export const getTraceByIdFromEventsTable = async ({
         ),
       )
       .groupBy(["trace_id", "project_id"])
-      .orderBy(sql`timestamp`, "desc");
+      .orderBy("timestamp", "desc");
   };
 
   const metadataSelect = excludeMetadata
     ? sql`map()`.as("metadata")
-    : sql`t.metadata`;
+    : "t.metadata";
 
   const builder = db
     .with("traces", (qb) =>
@@ -1209,22 +1217,22 @@ export const getTraceByIdFromEventsTable = async ({
     )
     .selectFrom("traces as t")
     .select([
-      sql`t.id`,
-      sql`t.name`,
-      sql`t.user_id`,
-      sql`t.release`,
-      sql`t.version`,
-      sql`t.project_id`,
-      sql`t.environment`,
-      sql`t.public`,
-      sql`t.bookmarked`,
-      sql`t.tags`,
-      sql`t.session_id`,
-      sql`t.timestamp`,
-      sql`t.created_at`,
-      sql`t.updated_at`,
+      "t.id",
+      "t.name",
+      "t.user_id",
+      "t.release",
+      "t.version",
+      "t.project_id",
+      "t.environment",
+      "t.public",
+      "t.bookmarked",
+      "t.tags",
+      "t.session_id",
+      "t.timestamp",
+      "t.created_at",
+      "t.updated_at",
       metadataSelect,
-      sql`0`.as("is_deleted"),
+      literal(0).as("is_deleted"),
       ...traceIoSelects(excludeInputOutput, truncated),
     ])
     .$if(timestamp != null, (qb) =>
@@ -1261,12 +1269,6 @@ export const getTraceByIdFromEventsTable = async ({
   return res.shift();
 };
 
-export function traceAggregationSelects() {
-  return Object.values(EVENTS_AGGREGATION_FIELDS).map((field) =>
-    sql.raw(field),
-  );
-}
-
 /** Earliest start_time an observation of a trace anchored at `anchor` can have. */
 function observationsToTraceLowerBound(anchor: Date): Date {
   return new Date(
@@ -1275,8 +1277,14 @@ function observationsToTraceLowerBound(anchor: Date): Date {
   );
 }
 
-function traceIoSelects(excludeInputOutput: boolean, truncated: boolean) {
-  if (excludeInputOutput) return [sql`''`.as("input"), sql`''`.as("output")];
+function traceIoSelects(
+  excludeInputOutput: boolean,
+  truncated: boolean,
+): ReadonlyArray<
+  "t.input" | "t.output" | AliasedExpression<unknown, "input" | "output">
+> {
+  if (excludeInputOutput)
+    return [literal("").as("input"), literal("").as("output")];
   if (truncated) {
     const charLimit = env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT;
     return [
@@ -1284,7 +1292,7 @@ function traceIoSelects(excludeInputOutput: boolean, truncated: boolean) {
       leftUTF8("t.output", charLimit).as("output"),
     ];
   }
-  return [sql`t.input`, sql`t.output`];
+  return ["t.input", "t.output"];
 }
 
 /**
@@ -2721,6 +2729,7 @@ export const deleteEventsOlderThanDays = async (
 export const getObservationsBatchIOFromEventsTable = async <
   TIncludeExperiment extends boolean = false,
   TIncludeToolCalls extends boolean = false,
+  TIncludeSkills extends boolean = false,
 >(opts: {
   projectId: string;
   observations: Array<{
@@ -2741,8 +2750,11 @@ export const getObservationsBatchIOFromEventsTable = async <
   includeExperimentFields?: TIncludeExperiment;
   /** Opt-in: tool-call arrays can be large; only eval consumers need them. */
   includeToolCallFields?: TIncludeToolCalls;
+  includeSkillFields?: TIncludeSkills;
 }): Promise<
-  Array<EventBatchIOResult<TIncludeExperiment, TIncludeToolCalls>>
+  Array<
+    EventBatchIOResult<TIncludeExperiment, TIncludeToolCalls, TIncludeSkills>
+  >
 > => {
   if (opts.observations.length === 0) {
     return [];
@@ -2805,6 +2817,14 @@ export const getObservationsBatchIOFromEventsTable = async <
         ).as("experiment_item_metadata"),
       ]),
     )
+    .$if(opts.includeSkillFields === true, (qb) =>
+      qb.select([
+        sql.ref<SkillsAvailable>("e.skills_available").as("skills_available"),
+        sql
+          .ref<SkillsResourceLoaded>("e.skills_resource_loaded")
+          .as("skills_resource_loaded"),
+      ]),
+    )
     .$if(opts.includeToolCallFields === true, (qb) =>
       qb.select([
         "e.tool_calls as tool_calls",
@@ -2846,6 +2866,8 @@ export const getObservationsBatchIOFromEventsTable = async <
     input: string | null;
     output: string | null;
     metadata: Record<string, string>;
+    skills_available?: SkillsAvailable;
+    skills_resource_loaded?: SkillsResourceLoaded;
     tool_calls?: string[];
     tool_call_names?: string[];
     experiment_item_expected_output?: string | null;
@@ -2864,6 +2886,12 @@ export const getObservationsBatchIOFromEventsTable = async <
     output: applyBatchIOStringRendering(r.output),
     metadata:
       r.metadata !== undefined ? parseMetadataCHRecordToDomain(r.metadata) : {},
+    ...(opts.includeSkillFields
+      ? {
+          skillsAvailable: r.skills_available ?? [],
+          skillsResourceLoaded: r.skills_resource_loaded ?? [],
+        }
+      : {}),
     ...(opts.includeToolCallFields
       ? {
           toolCalls: r.tool_calls ?? [],
@@ -2879,7 +2907,9 @@ export const getObservationsBatchIOFromEventsTable = async <
               : {},
         }
       : {}),
-  })) as Array<EventBatchIOResult<TIncludeExperiment, TIncludeToolCalls>>;
+  })) as Array<
+    EventBatchIOResult<TIncludeExperiment, TIncludeToolCalls, TIncludeSkills>
+  >;
 };
 
 /**
@@ -3608,11 +3638,11 @@ export const getTraceMetadataByIdsFromEvents = async (props: {
     .selectFrom("events_core as e")
     .select([
       "e.trace_id as id",
-      sql.raw(eventsTableTraceNameSql).as("name"),
+      eventsTraceName.as("name"),
       "e.user_id as user_id",
       "e.tags as tags",
     ])
-    .where(sql<SqlBool>`${sql.raw(eventsTableTraceNameSql)} IS NOT NULL`)
+    .where(eventsTraceName, "is not", null)
     .where("e.trace_id", "in", props.traceIds)
     .$call(limitBy({ count: 1, columns: ["e.trace_id"] }));
 
@@ -3873,11 +3903,7 @@ export const getSessionMetricsFromEvents = async <
   const builder = getClickhouseKysely()
     .selectFrom("events_core as e")
     .$call(includeDeleted())
-    .select(
-      fields.map((field) =>
-        sql.raw(EVENTS_SESSION_AGGREGATION_FIELDS[field]),
-      ) as never,
-    )
+    .select(fields.map((field) => SESSION_AGGREGATION_SELECTS[field]))
     .where("session_id", "in", sessionIds)
     .$if(queryFromTimestamp != null, (qb) =>
       qb.where(

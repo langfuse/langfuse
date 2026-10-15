@@ -46,7 +46,7 @@ describe("ChartLoadingState", () => {
     expect(container.querySelector("svg")).toBeInTheDocument();
     expect(screen.queryByText(SLOW_QUERY_HINT_TEXT)).not.toBeInTheDocument();
 
-    rerender(<></>);
+    rerender(null);
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
     expect(screen.queryByText(SLOW_QUERY_HINT_TEXT)).not.toBeInTheDocument();
 
@@ -71,7 +71,7 @@ describe("ChartLoadingState", () => {
     expect(screen.getByRole("progressbar")).toBeInTheDocument();
     expect(screen.getByText(SLOW_QUERY_HINT_TEXT)).toBeInTheDocument();
 
-    rerender(<></>);
+    rerender(null);
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
 
     rerender(<ChartLoadingState progress={null} hintDelayMs={1500} />);

@@ -9,8 +9,10 @@ import {
   UnscopedRelationError,
 } from "./errors";
 import {
+  arrayExists,
   arrayMap,
   leftUTF8,
+  literal,
   mapValue,
   metadataMap,
   metadataValue,
@@ -208,6 +210,24 @@ describe("arrayMap", () => {
   });
 });
 
+describe("arrayExists", () => {
+  it("names nested lambda parameters apart so the inner one does not shadow", () => {
+    const eb = expressionBuilder<
+      { e: ClickHouseDatabase["events_core"] },
+      "e"
+    >();
+    const nested = arrayExists<string>(
+      (name) =>
+        arrayExists<string>((tag) => eb(tag, "=", name), eb.ref("e.tags")),
+      eb.ref("e.metadata_names"),
+    );
+
+    expect(renderClickhouseExpression(nested)).toBe(
+      "arrayExists(x -> arrayExists(x1 -> x1 = x, e.tags), e.metadata_names)",
+    );
+  });
+});
+
 describe("renderClickhouseExpression", () => {
   const eb = expressionBuilder<{ e: ClickHouseDatabase["events_core"] }, "e">();
   const metadata = metadataMap(
@@ -243,5 +263,15 @@ describe("renderClickhouseExpression", () => {
     expect(() => renderClickhouseExpression(mapValue(metadata, "key"))).toThrow(
       /cannot bind parameters/,
     );
+  });
+});
+
+describe("literal", () => {
+  it("inlines a string with its quotes doubled", () => {
+    expect(renderClickhouseExpression(literal("it's"))).toBe("'it''s'");
+  });
+
+  it("rejects a backslash, which ClickHouse reads as an escape", () => {
+    expect(() => literal("a\\")).toThrow(QueryCompileError);
   });
 });
