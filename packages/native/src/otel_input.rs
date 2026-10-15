@@ -361,7 +361,7 @@ pub fn extract_otel_media(
             .map_err(|error| Error::new(error.code(), error.to_string()))?;
         let normalized = validated.normalized_bytes().is_some();
         let result = validated
-            .compact()
+            .compact_media_candidates()
             .map_err(|error| Error::new(error.code(), error.to_string()))?;
         if result.media.is_empty() && !normalized {
             return Ok(None);
