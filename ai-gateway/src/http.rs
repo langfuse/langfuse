@@ -1,4 +1,4 @@
-use std::{error::Error, sync::Arc, time::Duration};
+use std::{error::Error, ops::Range, sync::Arc, time::Duration};
 
 use axum::{
     Json, Router,
@@ -8,13 +8,14 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use serde_json::value::RawValue;
 use tracing::Instrument;
 
 use crate::{
     correlation::{RequestCorrelation, assign_request_id},
     inference::{InferenceService, RequestPreparationError},
-    providers::{ProviderError, Route, forwarded_query},
+    providers::{ProviderError, Route},
     resolution::{ApiFormat, ResolutionError},
     server::GatewayLifecycleState,
 };
@@ -53,100 +54,201 @@ pub fn router(inference: Option<InferenceService>, lifecycle: GatewayLifecycleSt
 }
 
 async fn handle_responses(State(state): State<InferenceRouteState>, request: Request) -> Response {
-    handle(state, request, Route::OpenAiResponses).await
+    handle_inference(state, request, Route::OpenAiResponses).await
 }
 
 async fn handle_responses_compact(
     State(state): State<InferenceRouteState>,
     request: Request,
 ) -> Response {
-    handle(state, request, Route::OpenAiResponsesCompact).await
+    handle_inference(state, request, Route::OpenAiResponsesCompact).await
 }
 
 async fn handle_chat_completions(
     State(state): State<InferenceRouteState>,
     request: Request,
 ) -> Response {
-    handle(state, request, Route::OpenAiChatCompletions).await
+    handle_inference(state, request, Route::OpenAiChatCompletions).await
 }
 
 async fn handle_openai_models(
     State(state): State<InferenceRouteState>,
     request: Request,
 ) -> Response {
-    handle(state, request, Route::OpenAiModels).await
+    handle_models(state, request, ApiFormat::OpenAiResponses).await
 }
 
 async fn handle_messages(State(state): State<InferenceRouteState>, request: Request) -> Response {
-    handle(state, request, Route::AnthropicMessages).await
+    handle_inference(state, request, Route::AnthropicMessages).await
 }
 
 async fn handle_count_tokens(
     State(state): State<InferenceRouteState>,
     request: Request,
 ) -> Response {
-    handle(state, request, Route::AnthropicCountTokens).await
+    handle_inference(state, request, Route::AnthropicCountTokens).await
 }
 
 async fn handle_anthropic_models(
     State(state): State<InferenceRouteState>,
     request: Request,
 ) -> Response {
-    handle(state, request, Route::AnthropicModels).await
+    handle_models(state, request, ApiFormat::AnthropicMessages).await
 }
 
-async fn handle(state: InferenceRouteState, mut request: Request, route: Route) -> Response {
+async fn handle_inference(
+    state: InferenceRouteState,
+    mut request: Request,
+    route: Route,
+) -> Response {
     let mut correlation = request
         .extensions_mut()
         .remove::<RequestCorrelation>()
         .unwrap_or_default();
-    let mut response = match relay(state, request, route, &mut correlation).await {
+    let result = match prepare_request(&state, request.headers(), route.api_format()) {
+        Ok((inference, gateway_key)) => {
+            relay(&inference, &gateway_key, request, route, &mut correlation).await
+        }
+        Err(error) => Err(error),
+    };
+    finish_response(result, route.api_format(), &correlation)
+}
+
+async fn handle_models(
+    state: InferenceRouteState,
+    mut request: Request,
+    api_format: ApiFormat,
+) -> Response {
+    let correlation = request
+        .extensions_mut()
+        .remove::<RequestCorrelation>()
+        .unwrap_or_default();
+    let result = match prepare_request(&state, request.headers(), api_format) {
+        Ok((inference, gateway_key)) => {
+            models(&inference, &gateway_key, api_format, &correlation).await
+        }
+        Err(error) => Err(error),
+    };
+    finish_response(result, api_format, &correlation)
+}
+
+fn prepare_request(
+    state: &InferenceRouteState,
+    headers: &HeaderMap,
+    api_format: ApiFormat,
+) -> Result<(Arc<InferenceService>, String), InferenceHttpError> {
+    let inference = state
+        .inference
+        .as_ref()
+        .filter(|_| state.lifecycle.is_ready())
+        .cloned()
+        .ok_or(InferenceHttpError::Unavailable)?;
+    let gateway_key = gateway_key(headers, api_format)?.to_owned();
+    Ok((inference, gateway_key))
+}
+
+fn finish_response(
+    result: Result<Response, InferenceHttpError>,
+    api_format: ApiFormat,
+    correlation: &RequestCorrelation,
+) -> Response {
+    let mut response = match result {
         Ok(response) => response,
-        Err(error) => error.into_native_response(route.api_format(), correlation.id()),
+        Err(error) => error.into_native_response(api_format, correlation.id()),
     };
     correlation.apply_generation_headers(response.headers_mut());
     correlation.apply_resolution_headers(response.headers_mut());
     response
 }
 
+async fn models(
+    inference: &InferenceService,
+    gateway_key: &str,
+    api_format: ApiFormat,
+    correlation: &RequestCorrelation,
+) -> Result<Response, InferenceHttpError> {
+    let body = inference
+        .fetch_model_catalog(gateway_key, api_format, correlation)
+        .await
+        .map_err(InferenceHttpError::Resolution)?;
+    Ok(([(header::CONTENT_TYPE, "application/json")], body).into_response())
+}
+
 async fn relay(
-    state: InferenceRouteState,
+    inference: &InferenceService,
+    gateway_key: &str,
     request: Request,
     route: Route,
     correlation: &mut RequestCorrelation,
 ) -> Result<Response, InferenceHttpError> {
-    let inference = state
-        .inference
-        .as_ref()
-        .filter(|_| state.lifecycle.is_ready())
-        .ok_or(InferenceHttpError::Unavailable)?;
-    let gateway_key = gateway_key(request.headers(), route.api_format())?.to_owned();
-    let (permit, context) = inference
-        .resolve_and_admit(&gateway_key, route.api_format(), correlation)
-        .await
-        .map_err(|error| match error {
-            RequestPreparationError::Resolution(error) => InferenceHttpError::Resolution(error),
-            RequestPreparationError::Provider(error) => InferenceHttpError::Provider(error),
-        })?;
-    let query = forwarded_query(route, request.uri().query());
+    // Model extraction and upstream rewriting require an uncompressed JSON body.
+    if !crate::transport::identity_encoding(request.headers()) {
+        return Err(InferenceHttpError::UnsupportedEncoding);
+    }
+    let _body_permit = inference
+        .try_reserve_request_body()
+        .map_err(InferenceHttpError::from)?;
     let (parts, body) = request.into_parts();
-    let bytes = if route.method() == axum::http::Method::GET {
-        Bytes::new()
-    } else {
-        read_request_body(body).await?
-    };
+    let request_body = request_body_and_model(body).await?;
+    let (permit, context) = inference
+        .resolve_and_admit(
+            gateway_key,
+            route.api_format(),
+            &request_body.model,
+            correlation,
+        )
+        .await
+        .map_err(InferenceHttpError::from)?;
     inference
         .forward(
             permit,
             context,
             &parts.headers,
-            bytes,
+            request_body.bytes,
+            request_body.model_range,
             route,
-            query.as_deref(),
             correlation,
         )
         .await
         .map_err(InferenceHttpError::Provider)
+}
+
+struct InferenceRequestBody {
+    bytes: Bytes,
+    model: String,
+    model_range: Range<usize>,
+}
+
+#[derive(Deserialize)]
+struct InferenceRequest<'a> {
+    #[serde(borrow)]
+    model: &'a RawValue,
+}
+
+async fn request_body_and_model(body: Body) -> Result<InferenceRequestBody, InferenceHttpError> {
+    let bytes = read_request_body(body).await?;
+    let request = serde_json::from_slice::<InferenceRequest<'_>>(&bytes)
+        .map_err(|_| InferenceHttpError::InvalidBody)?;
+    let raw_model = request.model.get();
+    let model =
+        serde_json::from_str::<String>(raw_model).map_err(|_| InferenceHttpError::InvalidBody)?;
+    if model.is_empty() {
+        return Err(InferenceHttpError::InvalidBody);
+    }
+    let start = raw_model
+        .as_ptr()
+        .addr()
+        .checked_sub(bytes.as_ptr().addr())
+        .ok_or(InferenceHttpError::InvalidBody)?;
+    let end = start
+        .checked_add(raw_model.len())
+        .filter(|end| *end <= bytes.len())
+        .ok_or(InferenceHttpError::InvalidBody)?;
+    Ok(InferenceRequestBody {
+        bytes,
+        model,
+        model_range: start..end,
+    })
 }
 
 /// Buffer the client body. The wait is mostly the caller's upload, so it gets its
@@ -240,9 +342,19 @@ enum InferenceHttpError {
     AmbiguousCredential,
     TooLarge,
     RequestTimeout,
+    UnsupportedEncoding,
     InvalidBody,
     Resolution(ResolutionError),
     Provider(ProviderError),
+}
+
+impl From<RequestPreparationError> for InferenceHttpError {
+    fn from(error: RequestPreparationError) -> Self {
+        match error {
+            RequestPreparationError::Resolution(error) => Self::Resolution(error),
+            RequestPreparationError::Provider(error) => Self::Provider(error),
+        }
+    }
 }
 
 #[derive(Serialize)]
@@ -282,12 +394,15 @@ impl InferenceHttpError {
             Self::AmbiguousCredential => ("authentication", "ambiguous_credential"),
             Self::TooLarge => ("request", "body_too_large"),
             Self::RequestTimeout => ("request", "body_timeout"),
+            Self::UnsupportedEncoding => ("request", "unsupported_content_encoding"),
             Self::InvalidBody => ("request", "invalid_body"),
             Self::Resolution(error) => (
                 "resolution",
                 match error {
                     R::InvalidCredential | R::Authentication => "authentication",
+                    R::InvalidRequest => "invalid_request",
                     R::Forbidden => "forbidden",
+                    R::ModelNotAllowed => "model_not_allowed",
                     R::NoRoute => "no_route",
                     R::Timeout => "timeout",
                     R::Unavailable => "unavailable",
@@ -330,6 +445,12 @@ impl InferenceHttpError {
                 "permission_error",
                 "permission_denied",
             ),
+            Self::Resolution(R::ModelNotAllowed) => (
+                StatusCode::FORBIDDEN,
+                "Model is not allowed for this provider connection",
+                "permission_error",
+                "model_not_allowed",
+            ),
             Self::Resolution(R::NoRoute) => (
                 StatusCode::NOT_FOUND,
                 "No eligible provider connection",
@@ -348,11 +469,23 @@ impl InferenceHttpError {
                 "invalid_request_error",
                 "request_timeout",
             ),
+            Self::UnsupportedEncoding => (
+                StatusCode::UNSUPPORTED_MEDIA_TYPE,
+                "Unsupported request Content-Encoding",
+                "invalid_request_error",
+                "unsupported_content_encoding",
+            ),
             Self::InvalidBody => (
                 StatusCode::BAD_REQUEST,
                 "Invalid request body",
                 "invalid_request_error",
                 "invalid_body",
+            ),
+            Self::Resolution(R::InvalidRequest) => (
+                StatusCode::BAD_REQUEST,
+                "Invalid gateway model",
+                "invalid_request_error",
+                "invalid_model",
             ),
             Self::Unavailable
             | Self::Resolution(R::Unavailable | R::Configuration)

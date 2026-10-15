@@ -65,7 +65,12 @@ pub(super) struct Uploads {
 }
 
 impl Uploads {
-    pub fn new(uploader: Uploader, slots: usize, retry: RetryPolicy, stats: Arc<Stats>) -> Self {
+    pub(super) fn new(
+        uploader: Uploader,
+        slots: usize,
+        retry: RetryPolicy,
+        stats: Arc<Stats>,
+    ) -> Self {
         Self {
             uploader: Arc::new(uploader),
             slots: Arc::new(Semaphore::new(slots)),

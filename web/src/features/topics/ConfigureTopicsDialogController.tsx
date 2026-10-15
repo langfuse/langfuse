@@ -255,7 +255,6 @@ function ConfigureTopicsSettings({
 
   return (
     <ConfigureTopicsDialog
-      projectId={projectId}
       providerGroups={providerGroups}
       embeddingProviderGroups={embeddingGroups}
       draft={draft}

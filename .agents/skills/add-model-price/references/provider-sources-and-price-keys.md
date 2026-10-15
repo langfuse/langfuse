@@ -1176,6 +1176,17 @@ json_literal    = "<price_per_mtok>e-6"
   `types.ts` is not one of the selectable arrays the audit may edit; report a
   newly released Jev version that should become selectable as unresolved.
 
+- **Jev 1.14.0 found, no pricing-file change needed (confirmed October 15
+  2026)** — `https://docs.typesafe.ai/models` now lists `jev-1.14.0` alongside
+  `jev-1.13.0`, priced identically ($42/Btok = $0.042/MTok input, output free).
+  `jev-preview` now points to `jev-1.14.0`; `jev-latest` still points to
+  `jev-1.13.0`. The existing `jev` entry's matchPattern
+  (`(?i)^(~?typesafe(-ai)?\/)?jev(-[0-9]+(\.[0-9]+)*(-[0-9]{8})?|-latest|-preview)?$`)
+  already accepts `jev-1.14.0` (its `[0-9]+(\.[0-9]+)*` segment matches
+  `1.14.0`) and the price is unchanged, so no pricing-file edit was required.
+  This confirms the generic version-number matchPattern design handles new
+  dotted Jev point releases without per-version entries, as intended.
+
 - **Claude Sonnet 5.5 cache-read price corrected to 0.05x (found October 13 2026)** —
   Anthropic's pricing page cache-hits footnote changed from listing only Claude Opus 5.5
   (and separately Fable 5.1/Mythos 5.1) at a non-standard multiplier to now also including

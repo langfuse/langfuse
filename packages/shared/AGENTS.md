@@ -85,9 +85,15 @@
     definitions retain their original creation run.
   - `clickhouse.ts`: current summaries/assignments and immutable definitions.
     Source identity prefers `traceId`; `sessionId` may carry parent context.
-    Facet versions use `(projectId, facetId, version)`. Reads require a time
-    range; replacement includes the source minute, with run/origin suffixes
-    for assignments. Definition bounds retain original creation dates on reuse.
+    Facet versions use `(projectId, facetId, version)`. Data reads require a time
+    range; `hasStoredTopicSummaries(projectId)` checks project onboarding
+    readiness across all stored trace summaries without loading their contents.
+    A positive result is cached per project in Redis for 30 minutes, skipping
+    subsequent ClickHouse probes; cache failures fall back to ClickHouse.
+    Negative results are cached for 30 seconds, bounding the onboarding delay
+    after the first summaries arrive while avoiding repeated empty-project scans.
+    Replacement includes the source minute, with run/origin suffixes for assignments. Definition bounds
+    retain original creation dates on reuse.
     `getLatestFacetSummaries` returns display fields; processing reads use
     `listTopicSummaries` or `getTopicClusteringSummaries` for complete summaries.
   - `execution-store.ts`: one BatchAction per request, compact counters and run references.
@@ -101,7 +107,9 @@
     execution scope; exact storage reads also require facet/version scope.
   - `text.ts` and `embeddings.ts`: model transport through the project's LLM
     connections (`generateLLMText` / `embedLLMText`), with cached Bedrock text
-    calls using InvokeModel. Text accepts optional internal generation tracing;
+    calls using InvokeModel. Setup probes use the same Topics transport. Topics
+    opts into the native OpenAI Chat provider per call for official hosts; keep
+    saved evaluator routing independent. Text accepts optional generation tracing;
     worker model calls own tracing allowlisting, organization consent, usage,
     cost and vector validation.
   - `model-config.ts`: per-project `topic_configs` (three connection +

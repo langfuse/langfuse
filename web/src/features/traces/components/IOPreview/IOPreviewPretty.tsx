@@ -18,6 +18,10 @@ import {
 import { ChatMessageList } from "../ChatMessageList";
 import { SectionToolDefinitions } from "./components/SectionToolDefinitions";
 import {
+  SectionSkills,
+  type SectionSkillsProps,
+} from "./components/SectionSkills";
+import {
   type ExpansionStateProps,
   type IOPreviewContentMode,
 } from "./IOPreview";
@@ -93,6 +97,7 @@ function JsonInputOutputView({
 }
 
 export interface IOPreviewPrettyProps extends ExpansionStateProps {
+  skills?: SectionSkillsProps["skills"];
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
   status?: ObservationStatusMessage;
@@ -132,6 +137,7 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
  * view, use IOPreviewJSON instead.
  */
 export function IOPreviewPretty({
+  skills,
   input,
   output,
   status,
@@ -281,6 +287,10 @@ export function IOPreviewPretty({
           toolCallsByName={toolCallsByName}
           toolNameToDefinitionNumber={toolNameToDefinitionNumber}
         />
+      ) : null}
+
+      {showData && skills && skills.items.length > 0 ? (
+        <SectionSkills projectId={projectId} skills={skills} />
       ) : null}
 
       {shouldRenderMessages ? (

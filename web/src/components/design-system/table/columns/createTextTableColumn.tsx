@@ -187,22 +187,24 @@ function CopyableText({ value }: { value: string }) {
     <TextWithAction
       value={value}
       action={
-        <IconButton
-          icon={isCopied ? Check : Copy}
-          label={isCopied ? "Copied" : "Copy to clipboard"}
-          size="xs"
-          title="Copy to clipboard"
-          onClick={async (event) => {
-            const button = event.currentTarget;
-            try {
-              await copy(value);
-            } catch {
-              // Clipboard failures are intentionally silent.
-            } finally {
-              button.focus();
-            }
-          }}
-        />
+        <span className="inline-flex translate-y-px">
+          <IconButton
+            icon={isCopied ? Check : Copy}
+            label={isCopied ? "Copied" : "Copy to clipboard"}
+            size="xs"
+            title="Copy to clipboard"
+            onClick={async (event) => {
+              const button = event.currentTarget;
+              try {
+                await copy(value);
+              } catch {
+                // Clipboard failures are intentionally silent.
+              } finally {
+                button.focus();
+              }
+            }}
+          />
+        </span>
       }
     />
   );

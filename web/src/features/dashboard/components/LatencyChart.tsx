@@ -170,30 +170,26 @@ export const GenerationLatencyChart = ({
         tabs={data.map((item) => {
           return {
             tabTitle: item.tabTitle,
-            content: (
-              <>
-                {!isEmptyTimeSeries({ data: item.data }) ? (
-                  // The height is the flex basis (floor); grow lets the chart absorb
-                  // extra tile height. On grid (lg) screens the floor is smaller so
-                  // tiles fit narrow viewports — grow recovers the height above the
-                  // grid's rowHeight floor. (LFE-10813)
-                  <div className="h-80 w-full shrink-0 grow lg:h-56">
-                    <DashboardLineTimeSeriesChart
-                      data={item.data}
-                      label="Latency"
-                      unit="millisecond"
-                      syncId={syncId}
-                      sync={sync}
-                      missingValue="gap"
-                    />
-                  </div>
-                ) : (
-                  <NoDataOrLoading
-                    isLoading={isLoading || latencies.isPending}
-                    className="h-auto grow"
-                  />
-                )}
-              </>
+            content: !isEmptyTimeSeries({ data: item.data }) ? (
+              // The height is the flex basis (floor); grow lets the chart absorb
+              // extra tile height. On grid (lg) screens the floor is smaller so
+              // tiles fit narrow viewports — grow recovers the height above the
+              // grid's rowHeight floor. (LFE-10813)
+              <div className="h-80 w-full shrink-0 grow lg:h-56">
+                <DashboardLineTimeSeriesChart
+                  data={item.data}
+                  label="Latency"
+                  unit="millisecond"
+                  syncId={syncId}
+                  sync={sync}
+                  missingValue="gap"
+                />
+              </div>
+            ) : (
+              <NoDataOrLoading
+                isLoading={isLoading || latencies.isPending}
+                className="h-auto grow"
+              />
             ),
           };
         })}

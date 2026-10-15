@@ -17,11 +17,9 @@ export const BillingPlanPeriodView = () => {
       <BillingCurrentPlanLabel />
       <p>
         Billing period:{" "}
-        {!isLoading && data?.billingPeriod && (
-          <>
-            {`${formatLocalIsoDate(data.billingPeriod.start, false, "day")} - ${formatLocalIsoDate(data.billingPeriod.end, false, "day")}`}
-          </>
-        )}
+        {!isLoading &&
+          data?.billingPeriod &&
+          `${formatLocalIsoDate(data.billingPeriod.start, false, "day")} - ${formatLocalIsoDate(data.billingPeriod.end, false, "day")}`}
       </p>
     </div>
   );

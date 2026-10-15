@@ -6,11 +6,11 @@ import { LLMAdapter } from "@langfuse/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  testModelCall: vi.fn(),
+  generateTopicText: vi.fn(),
   generateTopicEmbeddings: vi.fn(),
 }));
-vi.mock("@langfuse/shared/src/server/llm/testModelCall", () => ({
-  testModelCall: mocks.testModelCall,
+vi.mock("@langfuse/shared/src/server/topics/text", () => ({
+  generateTopicText: mocks.generateTopicText,
 }));
 vi.mock(
   "@langfuse/shared/src/server/topics/embeddings",
@@ -80,7 +80,13 @@ const storedConfig = (projectId: string) =>
   prisma.topicConfig.findUniqueOrThrow({ where: { projectId } });
 
 const modelsWork = () => {
-  mocks.testModelCall.mockResolvedValue(undefined);
+  mocks.generateTopicText.mockImplementation(async ({ model }) => ({
+    output:
+      model.slot === "summary"
+        ? { summary: "Account access", status: "applicable" }
+        : { name: "Account access", description: "Sign-in questions" },
+    usage: {},
+  }));
   mocks.generateTopicEmbeddings.mockImplementation(
     async ({ summaries, dimensions }) => ({
       embeddings: summaries.map(() => Array(dimensions).fill(0.1)),
@@ -88,14 +94,14 @@ const modelsWork = () => {
   );
 };
 const modelsFail = () => {
-  mocks.testModelCall.mockRejectedValue(new Error("Invalid API key."));
+  mocks.generateTopicText.mockRejectedValue(new Error("Invalid API key."));
   mocks.generateTopicEmbeddings.mockRejectedValue(
     new Error("Invalid API key."),
   );
 };
 
 beforeEach(() => {
-  mocks.testModelCall.mockReset();
+  mocks.generateTopicText.mockReset();
   mocks.generateTopicEmbeddings.mockReset();
 });
 
@@ -119,7 +125,7 @@ describe("saveTopicsSetup", () => {
 
     await saveTopicsSetup(projectId, setup);
 
-    expect(mocks.testModelCall).not.toHaveBeenCalled();
+    expect(mocks.generateTopicText).not.toHaveBeenCalled();
     expect(mocks.generateTopicEmbeddings).not.toHaveBeenCalled();
     expect(await storedConfig(projectId)).toMatchObject({ enabled: true });
   });
@@ -133,7 +139,7 @@ describe("saveTopicsSetup", () => {
 
     await saveTopicsSetup(projectId, setup);
 
-    expect(mocks.testModelCall).not.toHaveBeenCalled();
+    expect(mocks.generateTopicText).not.toHaveBeenCalled();
     expect(mocks.generateTopicEmbeddings).not.toHaveBeenCalled();
     expect(await storedConfig(projectId)).toMatchObject({
       enabled: false,
@@ -165,7 +171,7 @@ describe("saveTopicsSetup", () => {
   });
 
   it("tests only the changed models while off", async () => {
-    mocks.testModelCall.mockRejectedValue(new Error("Unknown model."));
+    mocks.generateTopicText.mockRejectedValue(new Error("Unknown model."));
     const { projectId, setup } = await topicsProject();
 
     await expect(
@@ -174,7 +180,7 @@ describe("saveTopicsSetup", () => {
         clustering: { ...setup.clustering, model: "gpt-unknown" },
       }),
     ).rejects.toThrow("Unknown model.");
-    expect(mocks.testModelCall).toHaveBeenCalledOnce();
+    expect(mocks.generateTopicText).toHaveBeenCalledOnce();
     expect(mocks.generateTopicEmbeddings).not.toHaveBeenCalled();
   });
 
@@ -209,7 +215,7 @@ describe("setTopicsAutomaticProcessing", () => {
       { enabled: true, sampling: 0.5 },
     );
 
-    expect(mocks.testModelCall).toHaveBeenCalledTimes(2);
+    expect(mocks.generateTopicText).toHaveBeenCalledTimes(2);
     expect(mocks.generateTopicEmbeddings).toHaveBeenCalledOnce();
     expect(await storedConfig(projectId)).toMatchObject({
       enabled: true,
@@ -261,7 +267,7 @@ describe("setTopicsAutomaticProcessing", () => {
 
     await setTopicsAutomaticProcessing(projectId, { enabled: false });
 
-    expect(mocks.testModelCall).not.toHaveBeenCalled();
+    expect(mocks.generateTopicText).not.toHaveBeenCalled();
     expect(await storedConfig(projectId)).toMatchObject({
       enabled: false,
       ...clearedBlock,
