@@ -6,7 +6,10 @@
 # config can launch subprocesses (for example a `cargo:token-from-stdout`
 # credential provider). This wrapper accepts one fixed argument shape per
 # subcommand, runs the toolchain pinned for the crate, and refuses to run when
-# a Cargo config file the agent could have written would be loaded.
+# a Cargo config or credentials file the agent could have written would be
+# loaded. It is not the sandbox boundary: the agent's npm lane can run code
+# through pnpm lifecycle scripts, so the gh-aw sandbox (network allowlist, no
+# secrets, safe outputs) is what contains a prompt-injected run.
 #
 # The workflow installs this script before the agent starts, in a directory the
 # sandbox mounts read-only. That directory contains:
@@ -29,7 +32,8 @@ usage() {
 }
 
 version_re='[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?'
-spec_re="^[A-Za-z0-9_-]+(@${version_re})?\$"
+# A leading `-` would turn the spec into a Cargo flag.
+spec_re="^[A-Za-z0-9_][A-Za-z0-9_-]*(@${version_re})?\$"
 
 install_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 workspace="${GITHUB_WORKSPACE:?GITHUB_WORKSPACE must be set}"
@@ -73,28 +77,39 @@ if [[ "$subcommand" == update ]]; then
   fi
   cargo_args+=(update --manifest-path "$manifest" --package "$spec" --precise "$target")
 else
-  cargo_args+=(tree --manifest-path "$manifest" --locked --invert "$spec")
+  cargo_args+=(tree --manifest-path "$manifest" --locked --target all --invert "$spec")
 fi
 
 toolchain_bin="$install_dir/toolchains/$slug"
 work_dir="$install_dir/cwd"
 
-# Cargo loads config from $CARGO_HOME and from `.cargo/` in every ancestor of
-# its working directory; none of those may exist.
-config_dirs=("$cargo_home")
+# Cargo merges config and credentials files from $CARGO_HOME, so only the
+# caches Cargo itself creates there may exist.
+if [[ -d "$cargo_home" ]]; then
+  for entry in "$cargo_home"/* "$cargo_home"/.[!.]* "$cargo_home"/..?*; do
+    [[ -e "$entry" || -L "$entry" ]] || continue
+    case "$(basename "$entry")" in
+      registry | git | .global-cache | .package-cache | .package-cache-mutate) ;;
+      *)
+        echo "refusing to run: unexpected entry in CARGO_HOME: $entry" >&2
+        exit 1
+        ;;
+    esac
+  done
+fi
+
+# Cargo also loads config from `.cargo/` in every ancestor of its working
+# directory; none of those may exist.
 dir="$work_dir"
 while :; do
-  config_dirs+=("$dir/.cargo")
-  [[ "$dir" == / ]] && break
-  dir="$(dirname "$dir")"
-done
-for config_dir in "${config_dirs[@]}"; do
   for name in config config.toml; do
-    if [[ -e "$config_dir/$name" ]]; then
-      echo "refusing to run: unexpected Cargo config $config_dir/$name" >&2
+    if [[ -e "$dir/.cargo/$name" ]]; then
+      echo "refusing to run: unexpected Cargo config $dir/.cargo/$name" >&2
       exit 1
     fi
   done
+  [[ "$dir" == / ]] && break
+  dir="$(dirname "$dir")"
 done
 
 mkdir -p "$cargo_home"

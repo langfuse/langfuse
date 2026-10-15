@@ -2,10 +2,10 @@
 #
 # Tests for scripts/ci/cargo-security.sh.
 #
-# The wrapper is the security boundary between the Dependabot security
-# maintainer agent and Cargo, so the rejections matter as much as the happy
-# path: no extra flags, no unknown crate directories, no Cargo config the agent
-# could have written, and no inherited CARGO_* environment.
+# The wrapper stands between the Dependabot security maintainer agent and
+# Cargo, so the rejections matter as much as the happy path: no extra flags, no
+# unknown crate directories, no Cargo config or credentials the agent could
+# have written, and no inherited CARGO_* environment.
 
 set -uo pipefail
 
@@ -97,7 +97,7 @@ fi
 if run tree packages/native tokio@1.2.3; then
   expect_log "tree uses the native toolchain" "toolchain=native"
   expect_log "native loads the clickhouse overlay and tree is locked" \
-    "args=--config $install_dir/native-cargo-config.toml tree --manifest-path /repo/packages/native/Cargo.toml --locked --invert tokio@1.2.3"
+    "args=--config $install_dir/native-cargo-config.toml tree --manifest-path /repo/packages/native/Cargo.toml --locked --target all --invert tokio@1.2.3"
 else
   fail "tree packages/native: wrapper failed"
 fi
@@ -108,13 +108,24 @@ expect_rejected "traversing crate directory" update ai-gateway/../web rustls 1.0
 expect_rejected "extra argument" update ai-gateway rustls 1.0.0 --config x
 expect_rejected "flag as crate spec" tree ai-gateway --config=x
 expect_rejected "flag as version" update ai-gateway rustls --config=x
+expect_rejected "bare flag as tree crate spec" tree ai-gateway --offline
+expect_rejected "bare flag as update crate spec" update ai-gateway --offline 1.0.0
 expect_rejected "non-semver version" update ai-gateway rustls latest
 expect_rejected "missing argument" tree ai-gateway
 
-mkdir -p "$cargo_home"
-touch "$cargo_home/config.toml"
-expect_rejected "CARGO_HOME config present" update ai-gateway rustls 0.23.46
-rm "$cargo_home/config.toml"
+mkdir -p "$cargo_home/registry" "$cargo_home/git"
+touch "$cargo_home/.global-cache" "$cargo_home/.package-cache" "$cargo_home/.package-cache-mutate"
+if run update ai-gateway rustls 0.23.46; then
+  pass "CARGO_HOME caches written by Cargo are allowed"
+else
+  fail "CARGO_HOME caches written by Cargo are allowed"
+fi
+
+for name in config config.toml credentials credentials.toml env.sh .hidden; do
+  touch "$cargo_home/$name"
+  expect_rejected "CARGO_HOME $name present" update ai-gateway rustls 0.23.46
+  rm "$cargo_home/$name"
+done
 
 mkdir -p "$install_dir/.cargo"
 touch "$install_dir/.cargo/config"
