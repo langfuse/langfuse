@@ -78,7 +78,6 @@ export * from "./utils/transforms";
 export * from "./utils/billingCycleHelpers";
 export * from "./utils/compareVersions";
 export * from "./otel/utils";
-export * from "./otel/mainThreadTimings";
 export * from "./clickhouse/client";
 export {
   getClickHouseCompatibilitySettings,

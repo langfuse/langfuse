@@ -58,30 +58,3 @@ preserve the raw object bytes, then replay against local services with an
 explicit routing/configuration context. Running from a bastion is compatible
 with that model, but pointing this test command at production databases or
 queues is not.
-
-## Main-thread telemetry
-
-`langfuse.ingestion.otel.early_media.preparation_duration_ms` retains its elapsed
-preparation scope and adds `codepath`: `inline_check` for small marker-free inputs
-(up to 128 KiB), `uv_dispatch` when extraction or masking dispatches native work,
-and `disabled` when neither is needed. Small inputs with a marker use
-`uv_dispatch` even though the inline check ran first. `outcome=unchanged` means
-original bytes are reused, not that the payload has no media.
-
-`langfuse.ingestion.otel.main_thread_duration_ms` records one accumulated sample
-per measured phase per early-media queue attempt, tagged with `media_path=early` and downstream
-`media_presence` (or `unknown` on unclassified attempts). It covers candidate
-checking, native input copying/dispatch and result materialization, input
-UTF-8 decoding and JSON parsing, legacy/direct
-conversion, schema validation, media scans/JSON/rewrite, decoding/hashing, and
-record serialization/metadata flattening. Repeated media and per-record segments
-are summed before emission. Nested segments count only toward their outer phase.
-
-Reference-path calls are passthroughs: no clocks are read and no main-thread
-phase samples are emitted. Each measured callback is synchronous. Native promises are awaited after its
-timer stops. Download, libuv queue/compute, masking HTTP, uploads/association
-writes, database waits and disposal awaits are excluded. These are coarse
-explicit wall-clock timings of selected synchronous blocks, not a CPU profile:
-GC/OS pauses inside a block are included; small bookkeeping, library-internal
-async continuations, tokenization and deferred writer flushes are not a complete
-accounting of all process CPU. The existing elapsed distributions are unchanged.

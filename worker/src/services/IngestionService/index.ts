@@ -32,7 +32,6 @@ import {
   observationRecordReadSchema,
   PromptService,
   QueueJobs,
-  measureOtelMainThread,
   recordIncrement,
   ScoreEventType,
   DatasetRunItemEventType,
@@ -158,9 +157,7 @@ function withSerializedEventByteLength(
 
   return {
     ...eventWithoutSize,
-    event_bytes: measureOtelMainThread("record_serialization", () =>
-      Buffer.byteLength(JSON.stringify(eventWithoutSize), "utf8"),
-    ),
+    event_bytes: Buffer.byteLength(JSON.stringify(eventWithoutSize), "utf8"),
   };
 }
 
@@ -318,13 +315,8 @@ export class IngestionService {
     // processToEvent can keep normalized input/output as objects so tool data
     // can be extracted before write time. EventRecordInsertType stores both
     // fields as strings, so stringify at this schema boundary.
-    const { input, output } = measureOtelMainThread(
-      "record_serialization",
-      () => ({
-        input: this.stringify(eventData.input),
-        output: this.stringify(eventData.output),
-      }),
-    );
+    const input = this.stringify(eventData.input);
+    const output = this.stringify(eventData.output);
     const modelParameters = parseEventModelParameters(
       eventData.modelParameters,
     );
@@ -385,9 +377,7 @@ export class IngestionService {
     const now = toClickhouseDateTime();
 
     // Flatten raw metadata first (before stringification destroys nested structure)
-    const flattened = measureOtelMainThread("record_serialization", () =>
-      flattenJsonToPathArrays(metadata),
-    );
+    const flattened = flattenJsonToPathArrays(metadata);
     const metadataNames = flattened.names;
     // Defensive: coerce null/undefined to empty string for Array(String) ClickHouse column.
     // Should not be required as convertValueToPlainJavascript() never returns null.

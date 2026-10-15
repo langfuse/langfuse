@@ -9,7 +9,6 @@ import {
 } from "@langfuse/shared";
 import {
   logger,
-  measureOtelMainThread,
   mediaDispatchConcurrency,
   otelMediaUploads,
   recordDistribution,
@@ -52,11 +51,8 @@ async function batchMedia(batch: EarlyOtelBatch): Promise<MediaRegistry> {
     const count = batch.mediaCount();
     const media = new Map<string, ExtractedOtelMedia>();
     for (let offset = 0; offset < count; ) {
-      const page = measureOtelMainThread("native_result", () => {
-        const entries = batch.mediaPage(offset, MEDIA_PAGE_SIZE);
-        for (const entry of entries) media.set(entry.reference, entry);
-        return entries;
-      });
+      const page = batch.mediaPage(offset, MEDIA_PAGE_SIZE);
+      for (const entry of page) media.set(entry.reference, entry);
       const nextOffset = offset + page.length;
       if (nextOffset <= offset)
         throw new Error("native media page returned no progress");

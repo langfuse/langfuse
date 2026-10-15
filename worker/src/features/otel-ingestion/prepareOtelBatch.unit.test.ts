@@ -27,7 +27,6 @@ vi.mock("@langfuse/native", async (importOriginal) => {
 
 vi.mock("@langfuse/shared/src/server", () => ({
   logger: { warn: vi.fn() },
-  measureOtelMainThread: (_phase: string, work: () => unknown) => work(),
   recordDistribution: vi.fn(),
   recordIncrement: vi.fn(),
 }));

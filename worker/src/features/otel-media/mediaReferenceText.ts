@@ -4,10 +4,7 @@ import type {
   MediaRestoreRequest,
 } from "@langfuse/native";
 import { asRecord, defineOwnValue } from "@langfuse/shared";
-import {
-  forEachMedia,
-  measureOtelMainThread,
-} from "@langfuse/shared/src/server";
+import { forEachMedia } from "@langfuse/shared/src/server";
 
 export type MediaRegistry = ReadonlyMap<string, ExtractedOtelMedia>;
 
@@ -85,7 +82,7 @@ export function createMediaReferenceRewriter(
     resolve?: (entry: ExtractedOtelMedia) => Promise<string | undefined>,
   ): Promise<string> => {
     const matches = knownMediaReferenceMatches(value, media);
-    let next = measureOtelMainThread("media_scan", () => matches.next());
+    let next = matches.next();
     if (next.done) return value;
     // Uploads share the decoded-byte pool; restoration read sizes must not
     // serialize successful uploads of large originals.
@@ -120,7 +117,7 @@ export function createMediaReferenceRewriter(
           break;
         group.push(next.value);
         sourceBytes += size;
-        next = measureOtelMainThread("media_scan", () => matches.next());
+        next = matches.next();
       }
       const requests = new Map<string, MediaRestoreRequest>();
       const replacements: Array<string | { key: string }> = [];
@@ -131,9 +128,7 @@ export function createMediaReferenceRewriter(
           continue;
         }
         if (layers === undefined)
-          layers = measureOtelMainThread("media_scan", () =>
-            serializedReferenceLayers(value, media),
-          );
+          layers = serializedReferenceLayers(value, media);
         const depth = layers.get(match.index)!;
         const key = `${match.reference}\u0000${depth}`;
         requests.set(key, { index: match.entry.index, jsonLayers: depth });
@@ -159,12 +154,10 @@ export function createMediaReferenceRewriter(
             : originals.get(replacement.key)!,
         ),
       );
-      measureOtelMainThread("media_scan", () => {
-        for (const [index, match] of group.entries()) {
-          output += value.slice(end, match.index) + values[index]!;
-          end = match.index + match.reference.length;
-        }
-      });
+      for (const [index, match] of group.entries()) {
+        output += value.slice(end, match.index) + values[index]!;
+        end = match.index + match.reference.length;
+      }
     }
     return end === 0 ? value : output + value.slice(end);
   };
@@ -230,16 +223,8 @@ export async function rewriteMediaValues(
     const next = await rewrite(current);
     if (current !== next) defineOwnValue(object, key, next);
   };
-  const iterator = strings();
-  function* measuredStrings() {
-    for (;;) {
-      const next = measureOtelMainThread("media_scan", () => iterator.next());
-      if (next.done) return;
-      yield next.value;
-    }
-  }
-  if (concurrent) await forEachMedia(measuredStrings(), replace);
-  else for (const entry of measuredStrings()) await replace(entry);
+  if (concurrent) await forEachMedia(strings(), replace);
+  else for (const entry of strings()) await replace(entry);
   return value;
 }
 

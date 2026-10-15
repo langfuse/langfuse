@@ -3,7 +3,6 @@ import type { EarlyOtelBatch } from "@langfuse/native";
 import { convertEventRecordToObservationForEval } from "@langfuse/shared";
 import {
   logger,
-  measureOtelMainThread,
   OtelIngestionProcessor,
   traceException,
 } from "@langfuse/shared/src/server";
@@ -61,9 +60,7 @@ export async function processOtelEvents({
   //
   // Both require enriched event records with trace-level attributes
   // (userId, sessionId, tags, release) that processToEvent provides.
-  const eventInputs = measureOtelMainThread("conversion", () =>
-    processor.processToEvent(resourceSpans),
-  );
+  const eventInputs = processor.processToEvent(resourceSpans);
   if (eventInputs.length === 0) {
     return;
   }

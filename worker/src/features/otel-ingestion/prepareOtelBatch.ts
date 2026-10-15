@@ -6,7 +6,6 @@ import {
   type ValidatedOtelJson,
 } from "@langfuse/native";
 import {
-  measureOtelMainThread,
   recordDistribution,
   recordIncrement,
   type ResourceSpan,
@@ -57,12 +56,11 @@ export async function prepareOtelBatch(params: {
             hasOtelMediaCandidate(bytes),
           ));
       if (needsExtraction) codepath = "uv_dispatch";
-      const extraction = needsExtraction
-        ? measureOtelMainThread("native_dispatch", () =>
+      const batch = needsExtraction
+        ? await measureOtelMainThread("native_dispatch", () =>
             extractOtelMedia(bytes),
           )
         : null;
-      const batch = needsExtraction ? await extraction : null;
       outcome = batch ? "native" : "unchanged";
       return { batch: batch ?? undefined, sourceUnchanged: !batch };
     }
@@ -189,16 +187,27 @@ export async function parsePreparedOtelBatch(
         batch!.takeJsonBuffer(),
       );
     }
-    const text = measureOtelMainThread("input_json", () =>
-      json.toString("utf8"),
-    );
-    const resourceSpans = measureOtelMainThread("input_json", () =>
-      JSON.parse(text),
-    );
-    return { resourceSpans, batch };
+    return measureOtelMainThread("input_json", () => ({
+      resourceSpans: JSON.parse(json.toString("utf8")),
+      batch,
+    }));
   } catch (error) {
     await batch?.dispose();
     throw error;
+  }
+}
+
+// Native calls return promises; only their synchronous entry is timed here.
+function measureOtelMainThread<T>(phase: string, work: () => T): T {
+  const startedAt = performance.now();
+  try {
+    return work();
+  } finally {
+    recordDistribution(
+      "langfuse.ingestion.otel.main_thread_duration_ms",
+      performance.now() - startedAt,
+      { phase, media_path: "early" },
+    );
   }
 }
 

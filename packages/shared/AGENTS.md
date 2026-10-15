@@ -130,13 +130,6 @@
     `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS` (empty by default); reads/configuration
     remain feature-flag/RBAC controlled.
 
-- `src/server/otel/mainThreadTimings.ts`: Early-media OTEL queue attempts collect synchronous
-  phase totals through `withOtelMainThreadTimings`, `setOtelMainThreadTimingTags`,
-  and `measureOtelMainThread`, exported from the server barrel. Never pass an
-  async callback to the measurement helper; await native dispatch promises
-  outside it. Reference-path calls and shared callers outside that context
-  read no clocks and emit no timing samples.
-
 - `src/server/transcript`: order minimal `TranscriptObservation` inputs with
   `orderObservations`, then pass the enriched result and optional
   `{ maxCharacters?, onTimings? }` to `assembleTranscript`.

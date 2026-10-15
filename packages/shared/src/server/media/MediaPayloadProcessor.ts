@@ -1,4 +1,3 @@
-import { measureOtelMainThread } from "../otel/mainThreadTimings";
 import { isMediaContentType, type MediaContentType } from "../../domain/media";
 import { defineOwnValue } from "../../utils/objects";
 
@@ -155,21 +154,16 @@ export async function transformMediaPayload(
   let dataUriResult: Awaited<ReturnType<typeof replaceDataUris>> | undefined;
   // `;base64,` is a substantially narrower and cheaper precondition than
   // `data:`. Most ordinary strings therefore avoid the full Data URI scan.
-  if (
-    measureOtelMainThread("media_scan", () => value.includes(BASE64_MARKER))
-  ) {
+  if (value.includes(BASE64_MARKER)) {
     dataUriResult = await replaceDataUris(value, params);
     valueToParse = dataUriResult.value;
   }
 
-  const needsJsonScan = measureOtelMainThread("media_scan", () => {
-    const strippedValue = valueToParse.trimStart();
-    return (
-      (strippedValue.startsWith("{") || strippedValue.startsWith("[")) &&
-      mayContainSerializedMedia(valueToParse)
-    );
-  });
-  if (!needsJsonScan) {
+  const strippedValue = valueToParse.trimStart();
+  if (
+    (!strippedValue.startsWith("{") && !strippedValue.startsWith("[")) ||
+    !mayContainSerializedMedia(valueToParse)
+  ) {
     return dataUriResult ?? { value, bytesRemoved: 0 };
   }
 
@@ -179,9 +173,7 @@ export async function transformMediaPayload(
   );
   let parsedValue: unknown;
   try {
-    parsedValue = measureOtelMainThread("media_scan", () =>
-      JSON.parse(valueToParse),
-    );
+    parsedValue = JSON.parse(valueToParse);
   } catch {
     return dataUriResult ?? { value, bytesRemoved: 0 };
   }
@@ -193,9 +185,7 @@ export async function transformMediaPayload(
   const state = await transformStructuredValue(parsedValue, params, false);
   if (!state.changed) return dataUriResult ?? { value, bytesRemoved: 0 };
 
-  const transformedValue = measureOtelMainThread("media_scan", () =>
-    JSON.stringify(parsedValue),
-  );
+  const transformedValue = JSON.stringify(parsedValue);
   return {
     value: transformedValue,
     bytesRemoved: Math.max(
@@ -215,9 +205,7 @@ async function replaceDataUris(
   params: TransformParams,
 ): Promise<{ value: string; bytesRemoved: number }> {
   params.onDetectionPath("data_uri", Buffer.byteLength(value, "utf8"));
-  const occurrences = measureOtelMainThread("media_scan", () =>
-    findDataUris(value),
-  );
+  const occurrences = findDataUris(value);
   if (occurrences.length === 0) return { value, bytesRemoved: 0 };
 
   let output = "";
@@ -482,73 +470,68 @@ async function transformStructuredValue(
     { value, depth: 1, parent: root, key: "value" },
   ];
 
-  measureOtelMainThread("media_scan", () => {
-    while (stack.length > 0) {
-      const node = stack.pop();
-      if (!node || node.depth > MAX_RECURSION_DEPTH) continue;
+  while (stack.length > 0) {
+    const node = stack.pop();
+    if (!node || node.depth > MAX_RECURSION_DEPTH) continue;
 
-      if (typeof node.value === "string") {
-        state.checkedBytes += Buffer.byteLength(node.value, "utf8");
-        if (node.value.includes(BASE64_MARKER)) {
-          operations.push(async () => {
-            const transformed = await replaceDataUris(
-              node.value as string,
-              params,
-            );
-            if (transformed.value !== node.value) {
-              setTraversalValue(node, transformed.value);
-              state.changed = true;
-              state.bytesRemoved += transformed.bytesRemoved;
-            }
-          });
-        }
-        continue;
-      }
-
-      if (Array.isArray(node.value)) {
-        for (let index = node.value.length - 1; index >= 0; index -= 1) {
-          stack.push({
-            value: node.value[index],
-            depth: node.depth + 1,
-            parent: node.value,
-            key: index,
-          });
-        }
-        continue;
-      }
-      if (!isObject(node.value)) continue;
-
-      const structuredMedia = matchStructuredMedia(node.value);
-      if (structuredMedia) {
-        state.checkedBytes += Buffer.byteLength(
-          structuredMedia.content,
-          "utf8",
-        );
+    if (typeof node.value === "string") {
+      state.checkedBytes += Buffer.byteLength(node.value, "utf8");
+      if (node.value.includes(BASE64_MARKER)) {
         operations.push(async () => {
-          const bytesRemoved = await replaceStructuredMedia(
-            structuredMedia,
+          const transformed = await replaceDataUris(
+            node.value as string,
             params,
           );
-          if (bytesRemoved !== undefined) {
+          if (transformed.value !== node.value) {
+            setTraversalValue(node, transformed.value);
             state.changed = true;
-            state.bytesRemoved += bytesRemoved;
+            state.bytesRemoved += transformed.bytesRemoved;
           }
         });
-        continue;
       }
+      continue;
+    }
 
-      const entries = Object.entries(node.value);
-      for (let index = entries.length - 1; index >= 0; index -= 1) {
-        const [key, nestedValue] = entries[index]!;
+    if (Array.isArray(node.value)) {
+      for (let index = node.value.length - 1; index >= 0; index -= 1) {
         stack.push({
-          value: nestedValue,
+          value: node.value[index],
           depth: node.depth + 1,
           parent: node.value,
-          key,
+          key: index,
         });
       }
+      continue;
     }
-  });
+    if (!isObject(node.value)) continue;
+
+    const structuredMedia = matchStructuredMedia(node.value);
+    if (structuredMedia) {
+      state.checkedBytes += Buffer.byteLength(structuredMedia.content, "utf8");
+      operations.push(async () => {
+        const bytesRemoved = await replaceStructuredMedia(
+          structuredMedia,
+          params,
+        );
+        if (bytesRemoved !== undefined) {
+          state.changed = true;
+          state.bytesRemoved += bytesRemoved;
+        }
+      });
+      continue;
+    }
+
+    const entries = Object.entries(node.value);
+    for (let index = entries.length - 1; index >= 0; index -= 1) {
+      const [key, nestedValue] = entries[index]!;
+      stack.push({
+        value: nestedValue,
+        depth: node.depth + 1,
+        parent: node.value,
+        key,
+      });
+    }
+  }
 
   if (recordStructuredPath) {
     params.onDetectionPath("structured_payload", state.checkedBytes);
