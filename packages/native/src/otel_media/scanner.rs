@@ -6,16 +6,15 @@
 //! ```text
 //! discover -> discover_inner
 //!   |-- structural_walk::scan              select quoted-string ranges
-//!   |-- for each Candidate:
-//!   |    |-- String/Text -> discover_string_token
-//!   |    |    |-- borrow plain text / Jiter::next_str for escapes
-//!   |    |    `-- discover_string
-//!   |    |         |-- try_discover_embedded_document
-//!   |    |         |    validate_json -> discover_inner -> translate_nested_entries
-//!   |    |         `-- discover_data_uri_candidates
-//!   |    |              data_uri::find_data_uri_candidates -> register_candidate
+//!   |-- for each Candidate -> discover_candidate
+//!   |    |-- borrow plain text / Jiter::next_str for escapes
+//!   |    |-- String/Text -> discover_string
+//!   |    |    |-- try_discover_embedded_document
+//!   |    |    |    validate_json -> discover_inner -> translate_nested_entries
+//!   |    |    `-- discover_data_uri_candidates
+//!   |    |         data_uri::find_data_uri_candidates -> register_candidate
 //!   |    `-- Structured -> discover_structured
-//!   |         borrow/decode -> inspect provider body -> register_candidate
+//!   |         inspect provider body -> register_candidate
 //!   `-- sort entries + validate_edit_plan  return non-overlapping source ranges
 //! ```
 //!
@@ -43,6 +42,7 @@ use super::rules::{
     is_media_reference, is_supported_content_type, may_be_serialized_json,
     may_contain_serialized_media, DATA_URI_PREFIX, MIN_EARLY_MEDIA_BYTES,
 };
+use super::structural_walk::Candidate;
 use super::WalkStats;
 
 // Count JSON documents parsed from strings, excluding the outer input, not object/array depth.
@@ -96,19 +96,7 @@ fn discover_inner(
         entries: &mut entries,
     };
     for candidate in candidates {
-        match candidate {
-            super::structural_walk::Candidate::String(token_range) => {
-                discovery.discover_string_token(token_range, true)?;
-            }
-            super::structural_walk::Candidate::Text(token_range) => {
-                discovery.discover_string_token(token_range, false)?;
-            }
-            super::structural_walk::Candidate::Structured {
-                token_range,
-                content_type,
-                kind,
-            } => discovery.discover_structured(token_range, &content_type, kind)?,
-        }
+        discovery.discover_candidate(candidate)?;
     }
 
     entries.sort_by_key(|entry| entry.edit_range.start);
@@ -126,11 +114,11 @@ struct MediaDiscovery<'a, 'state, 'stats> {
 }
 
 impl MediaDiscovery<'_, '_, '_> {
-    fn discover_string_token(
-        &mut self,
-        token_range: Range<usize>,
-        allow_embedded_json: bool,
-    ) -> Result<(), EarlyMediaError> {
+    fn discover_candidate(&mut self, candidate: Candidate) -> Result<(), EarlyMediaError> {
+        let token_range = match &candidate {
+            Candidate::String(range) | Candidate::Text(range) => range,
+            Candidate::Structured { token_range, .. } => token_range,
+        };
         let token = &self.input[token_range.clone()];
         let mut decoder = Jiter::new(token.as_bytes());
         // Plain text is already valid UTF-8; only escapes need Jiter's decoder.
@@ -147,7 +135,15 @@ impl MediaDiscovery<'_, '_, '_> {
         } else {
             value
         };
-        self.discover_string(value, token_range, allow_embedded_json)
+        match candidate {
+            Candidate::String(range) => self.discover_string(value, range, true),
+            Candidate::Text(range) => self.discover_string(value, range, false),
+            Candidate::Structured {
+                token_range,
+                content_type,
+                kind,
+            } => self.discover_structured(value, token_range, &content_type, kind),
+        }
     }
 
     fn discover_string(
@@ -239,21 +235,11 @@ impl MediaDiscovery<'_, '_, '_> {
 
     fn discover_structured(
         &mut self,
+        content: &str,
         token_range: Range<usize>,
         content_type: &str,
         kind: MediaPayloadKind,
     ) -> Result<(), EarlyMediaError> {
-        let token = &self.input[token_range.clone()];
-        let mut decoder = Jiter::new(token.as_bytes());
-        let content = &token[1..token.len() - 1];
-        let content = if content.contains('\\') {
-            let Ok(content) = decoder.next_str() else {
-                return Ok(());
-            };
-            content
-        } else {
-            content
-        };
         if content.starts_with(DATA_URI_PREFIX) {
             let Some(candidate) = parse_data_uri(content, 0) else {
                 return Ok(());
