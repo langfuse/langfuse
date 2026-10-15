@@ -216,7 +216,7 @@ function assertAuthorizeMembershipChange(
 }
 
 /** assertValidOwnershipChange checks ownership permission and preserves an owner under the organization lock. */
-async function assertValidOwnershipChange({
+export async function assertValidOwnershipChange({
   tx,
   context,
   orgId,
@@ -224,7 +224,7 @@ async function assertValidOwnershipChange({
   to,
 }: {
   tx: Prisma.TransactionClient;
-  context: AuthorizationContext;
+  context: AuthorizationContext | undefined;
   orgId: string;
   from: Role | undefined;
   to?: Role;
@@ -237,10 +237,12 @@ async function assertValidOwnershipChange({
   }
 }
 
+/** assertAuthorizeOwnershipChange throws unless the context may grant, change, or remove the OWNER role. */
 function assertAuthorizeOwnershipChange(
-  context: AuthorizationContext,
+  context: AuthorizationContext | undefined,
   orgId: string,
 ) {
+  if (!context) throw new ForbiddenError();
   const organization = OrganizationId(orgId);
   const ownershipAccess = authorize(
     context,
