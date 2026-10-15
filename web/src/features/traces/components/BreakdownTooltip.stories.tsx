@@ -472,10 +472,14 @@ const hiddenCacheUsage = [
     "cache tokens without input",
     { input_cached_tokens: 100, output: 20, total: 120 },
   ],
+  [
+    "inclusive input and cache tokens",
+    { input: 100, cache_read_input_tokens: 80, output: 50, total: 150 },
+  ],
 ] as const;
 
 export const TestHiddenCacheHitRate = meta.story({
-  name: "(Test) Hides cache hit rate without cache data or input tokens",
+  name: "(Test) Hides cache hit rate for incomplete or inconsistent usage",
   render: () => (
     <div className="flex flex-col gap-2">
       {hiddenCacheUsage.map(([label, details]) => (

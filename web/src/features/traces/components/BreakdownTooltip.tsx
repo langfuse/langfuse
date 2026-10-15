@@ -377,10 +377,18 @@ function getCacheHitRate(
   entries: [string, number | undefined][],
   details: Details | Details[],
 ) {
+  const usageDetails = Array.isArray(details) ? details : [details];
+  const hasInconsistentTotal = usageDetails.some(({ total, ...buckets }) => {
+    if (total === undefined) return false;
+    return (
+      !isUsableTokenCount(total) ||
+      sumEntries(Object.entries(buckets)).gt(total)
+    );
+  });
+  if (hasInconsistentTotal) return null;
+
   /** Generic read totals may overlap with each other or with modality counts. */
-  const hasOverlappingCacheReads = (
-    Array.isArray(details) ? details : [details]
-  ).some((detail) => {
+  const hasOverlappingCacheReads = usageDetails.some((detail) => {
     const readKeys = Object.entries(detail)
       .filter(
         ([key, value]) =>
