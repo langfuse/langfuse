@@ -91,6 +91,10 @@ tools:
     - "node .agents/skills/pnpm-upgrade-package/scripts/check-release-age-window.mjs:*"
     # Never raw cargo: it accepts `--config`, which can launch subprocesses.
     # The wrapper validates its arguments (scripts/ci/cargo-security.sh).
+    # This list keeps a well-behaved agent on the intended commands; it is not
+    # the containment boundary, because `pnpm:*` also admits `pnpm exec` and
+    # lifecycle scripts. The sandbox (network allowlist, no repository write
+    # token, safe outputs) contains a prompt-injected run.
     - "cargo-security:*"
     - "git diff:*"
     - "git restore:*"
@@ -272,7 +276,8 @@ The current run's safe-output staged flag is
 - Modify only `package.json` files, `pnpm-workspace.yaml`, `pnpm-lock.yaml`,
   and `Cargo.toml`/`Cargo.lock` in `ai-gateway/` and `packages/native/`. Never
   edit a lockfile manually. Run Cargo only through `cargo-security update` and
-  `cargo-security tree`; raw `cargo` is denied. Never build, check, or test
+  `cargo-security tree`; never run `cargo` any other way, including through
+  `pnpm exec` or `pnpm dlx`. Never build, check, or test
   Rust code, because that executes build scripts. Never create Cargo config
   files; the wrapper refuses to run when one exists. Never change source,
   tests, workflows, or agent instructions. The only allowed release-age policy
