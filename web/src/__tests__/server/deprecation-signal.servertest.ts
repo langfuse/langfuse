@@ -84,6 +84,9 @@ describe("public API deprecation signal", () => {
     expect((response.body as Record<string, unknown>)._deprecation).toEqual(
       OBSERVATIONS_V1_DEPRECATION,
     );
+    expect((response.body as Record<string, unknown>).message).toMatch(
+      / Use GET \/api\/public\/v2\/observations\?.* instead\.$/,
+    );
   });
 
   it("carries the docs URL and the committed sunset date", async () => {

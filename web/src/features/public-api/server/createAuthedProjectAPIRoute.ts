@@ -32,6 +32,7 @@ import {
 } from "./structuredPublicApiErrorContract";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
 import {
+  appendReplacementHint,
   attachDeprecation,
   setDeprecationHeaders,
 } from "@/src/features/public-api/server/deprecations";
@@ -143,6 +144,9 @@ export type AuthedProjectAPIRouteConfig<
   }) => Promise<z.infer<TResponse>>;
 };
 
+/** AUTH_ERROR_STATUSES are statuses a replacement endpoint would not fix. */
+const AUTH_ERROR_STATUSES = new Set([401, 403]);
+
 export const createAuthedProjectAPIRoute = <
   TQuery extends ZodType<any>,
   TBody extends ZodType<any>,
@@ -160,7 +164,15 @@ export const createAuthedProjectAPIRoute = <
     if (deprecation) {
       setDeprecationHeaders(res, deprecation);
       const json = res.json.bind(res);
-      res.json = (body: unknown) => json(attachDeprecation(body, deprecation));
+      res.json = (body: unknown) =>
+        json(
+          attachDeprecation(
+            res.statusCode >= 400 && !AUTH_ERROR_STATUSES.has(res.statusCode)
+              ? appendReplacementHint(body, deprecation)
+              : body,
+            deprecation,
+          ),
+        );
     }
 
     // Short-circuit routes that read from legacy traces/observations tables

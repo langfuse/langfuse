@@ -150,6 +150,31 @@ export function attachDeprecation(
   return stamped;
 }
 
+/** appendReplacementHint ends an error body's `message` with the replacement unless it already names it. */
+export function appendReplacementHint(
+  body: unknown,
+  deprecation: ApiDeprecationInfo,
+): unknown {
+  const replacement = deprecation.replacement;
+  if (
+    !replacement ||
+    !isPlainObject(body) ||
+    typeof body.message !== "string"
+  ) {
+    return body;
+  }
+  const replacementPath = toReplacementPath(replacement);
+  if (replacementPath && body.message.includes(replacementPath)) {
+    return body;
+  }
+  const message = body.message.trimEnd();
+  const separator = /[.!?]$/.test(message) ? " " : ". ";
+  return {
+    ...body,
+    message: `${message}${separator}Use ${replacement} instead.`,
+  };
+}
+
 /** setDeprecationHeaders sets the RFC 9745 `Deprecation`, RFC 8594 `Sunset` and RFC 8288 `Link` headers. */
 export function setDeprecationHeaders(
   res: NextApiResponse,
@@ -160,8 +185,9 @@ export function setDeprecationHeaders(
     res.setHeader("Sunset", toUtcMidnight(deprecation.sunsetAt).toUTCString());
   }
   const links: string[] = [];
-  // "GET /api/public/v2/observations?fromStartTime=..." -> "/api/public/v2/observations"
-  const successorPath = deprecation.replacement?.split(" ")[1]?.split("?")[0];
+  const successorPath = deprecation.replacement
+    ? toReplacementPath(deprecation.replacement)
+    : undefined;
   if (successorPath) {
     links.push(`<${successorPath}>; rel="successor-version"`);
   }
@@ -171,6 +197,11 @@ export function setDeprecationHeaders(
   if (links.length > 0) {
     res.setHeader("Link", links.join(", "));
   }
+}
+
+/** toReplacementPath turns "GET /api/public/v2/observations?from=..." into "/api/public/v2/observations". */
+function toReplacementPath(replacement: string): string | undefined {
+  return replacement.split(" ")[1]?.split("?")[0];
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

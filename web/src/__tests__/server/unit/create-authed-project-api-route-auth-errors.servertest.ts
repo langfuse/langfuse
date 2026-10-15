@@ -353,6 +353,7 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
 
     expect(res.statusCode).toBe(401);
     expect(res._getJSONData()._deprecation).toEqual(deprecation);
+    expect(res._getJSONData().message).toBe("Invalid credentials.");
   });
 
   it("does not apply the organization cutoff outside Langfuse Cloud", async () => {

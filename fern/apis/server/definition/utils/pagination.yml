@@ -10,9 +10,6 @@ types:
   #       docs: limit of items per page
   MetaResponse:
     properties:
-      deprecation:
-        type: optional<MetaDeprecation>
-        docs: Set on list responses of deprecated endpoints.
       page:
         type: integer
         docs: current page number
@@ -25,15 +22,6 @@ types:
       totalPages:
         type: integer
         docs: number of total pages given the current limit
-  MetaDeprecation:
-    docs: Short deprecation signal next to the pagination fields. The full signal is the top-level `_deprecation` key.
-    properties:
-      sunsetAt:
-        type: optional<string>
-        docs: ISO date after which the endpoint may stop working, when a removal date is committed.
-      replacement:
-        type: optional<string>
-        docs: The replacement endpoint, e.g. "GET /api/public/v2/observations".
   CursorMetaResponse:
     docs: Metadata for cursor-based pagination.
     properties:
