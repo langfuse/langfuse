@@ -561,6 +561,67 @@ describe("tenancy injection", () => {
       );
     });
 
+    it("accepts a CTE body that reads its own nested CTE from a deeper subquery", () => {
+      expect(
+        compile(
+          db
+            .with("a", (qb) =>
+              qb
+                .selectFrom(
+                  db
+                    .with("x", (inner) =>
+                      inner.selectFrom("scores").select("trace_id"),
+                    )
+                    .selectFrom((eb) =>
+                      eb.selectFrom("x").select("trace_id").as("s2"),
+                    )
+                    .select("s2.trace_id")
+                    .as("sub"),
+                )
+                .select("sub.trace_id"),
+            )
+            .selectFrom("a")
+            .select("trace_id"),
+        ),
+      ).toBe(
+        "with a as (select sub.trace_id from (with x as (select trace_id from scores where project_id = {p1:String}) select s2.trace_id from (select trace_id from x) as s2) as sub) select trace_id from a",
+      );
+    });
+
+    it("accepts a nested CTE body that reads an enclosing nested CTE", () => {
+      expect(
+        compile(
+          db
+            .with("a", (qb) =>
+              qb
+                .selectFrom(
+                  db
+                    .with("x", (inner) =>
+                      inner.selectFrom("scores").select("trace_id"),
+                    )
+                    .selectFrom(
+                      db
+                        .withTables<{ x: { trace_id: string } }>()
+                        .with("y", (inner) =>
+                          inner.selectFrom("x").select("trace_id"),
+                        )
+                        .selectFrom("y")
+                        .select("trace_id")
+                        .as("s2"),
+                    )
+                    .select("s2.trace_id")
+                    .as("sub"),
+                )
+                .select("sub.trace_id"),
+            )
+            .selectFrom("a")
+            .select("trace_id"),
+        ),
+      ).toBe(
+        "with a as (select sub.trace_id from (with x as (select trace_id from scores where project_id = {p1:String}) select s2.trace_id from (with y as (select trace_id from x) select trace_id from y) as s2) as sub) select trace_id from a",
+      );
+    });
+
     it("does not count a schema-qualified read as a sibling read", () => {
       expect(
         compile(

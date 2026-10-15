@@ -201,6 +201,8 @@ function cteNames(node: WithNode | undefined): Set<string> {
  * FROM a)`: read there, `a` reads the inner `m`. With this rule every name in
  * a CTE body resolves where the CTE is declared, which is what
  * {@link CteScopedTransformer} and the compiler's bind-type scopes assume.
+ * The rule is conservative: it also rejects a nested WITH under which the
+ * enclosing CTE is never read.
  */
 function assertNoRedirectedRead(
   declared: Set<string>,
@@ -209,7 +211,7 @@ function assertNoRedirectedRead(
   for (const name of declared) {
     if (enclosingBodyReads.some((reads) => reads.has(name))) {
       throw new UnscopedRelationError(
-        `A nested WITH may not declare ${name}: an enclosing CTE reads ${name}, and ClickHouse would resolve that read to the nested CTE, so the tenancy pass cannot scope it.`,
+        `A nested WITH may not declare ${name}: an enclosing CTE reads ${name}, and if that CTE is read inside this select, ClickHouse resolves its read to the nested CTE, so the tenancy pass cannot scope it.`,
       );
     }
   }
@@ -220,10 +222,9 @@ function assertNoRedirectedRead(
  * resolves a read of a CTE that is still being resolved as if that CTE were
  * not declared, to an enclosing CTE of that name or else the table, so one
  * reference reads the CTE on one path and something else on another, and no
- * scope can tell a pass which. A body reading its own name is not a cycle.
- * Every unqualified FROM/JOIN name in a body counts as a read, nested selects
- * included, so a cycle is also found when a nested WITH in a body declares the
- * name; that over-approximation can reject a query ClickHouse would resolve.
+ * scope can tell a pass which. A body reading its own name is not a cycle,
+ * and neither is a body reading a CTE it declares itself in a nested WITH:
+ * reads are those {@link relationNames} returns.
  */
 function assertNoSiblingCycle(node: WithNode): void {
   const names = cteNames(node);
