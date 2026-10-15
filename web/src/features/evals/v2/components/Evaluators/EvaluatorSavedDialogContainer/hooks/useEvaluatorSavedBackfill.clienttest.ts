@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { INTERNAL_EVALUATION_ENVIRONMENT_FILTERS } from "@/src/features/evals/v2/constants/experimentAndEvalFilters";
+import { LangfuseInternalTraceEnvironment } from "@langfuse/shared";
 import { useEvaluatorSavedBackfill } from "./useEvaluatorSavedBackfill";
 
 const mocks = vi.hoisted(() => ({
@@ -38,8 +38,20 @@ vi.mock("@/src/utils/trpcErrorToast", () => ({
   trpcErrorToast: vi.fn(),
 }));
 
+const excludedEnvironments = (filter: unknown[]) =>
+  filter.flatMap((condition) => {
+    const { column, operator, value } = condition as {
+      column: string;
+      operator: string;
+      value: unknown;
+    };
+    return column === "environment" && operator === "none of"
+      ? (value as string[])
+      : [];
+  });
+
 describe("useEvaluatorSavedBackfill", () => {
-  it("excludes internal evaluation environments from the estimate and the backfill run", async () => {
+  it("excludes the environments eval execution rejects from the estimate and the backfill run", async () => {
     const scope = {
       filter: [
         {
@@ -65,20 +77,20 @@ describe("useEvaluatorSavedBackfill", () => {
       result.current.schedule(scope, result.current.executionRange),
     );
 
-    expect(mocks.estimate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        filter: [...scope.filter, ...INTERNAL_EVALUATION_ENVIRONMENT_FILTERS],
-      }),
-    );
-    expect(mocks.runEvaluation).toHaveBeenCalledWith(
-      expect.objectContaining({
-        query: expect.objectContaining({
-          filter: expect.arrayContaining([
-            ...scope.filter,
-            ...INTERNAL_EVALUATION_ENVIRONMENT_FILTERS,
-          ]),
-        }),
-      }),
-    );
+    const estimateFilter = mocks.estimate.mock.calls[0]![0].filter;
+    const runFilter = mocks.runEvaluation.mock.calls[0]![0].query.filter;
+    for (const filter of [estimateFilter, runFilter]) {
+      expect(filter).toEqual(expect.arrayContaining(scope.filter));
+      expect(excludedEnvironments(filter)).toEqual(
+        expect.arrayContaining([
+          LangfuseInternalTraceEnvironment.LLMJudge,
+          LangfuseInternalTraceEnvironment.CodeEval,
+          "llm-as-a-judge",
+        ]),
+      );
+      expect(excludedEnvironments(filter)).not.toContain(
+        LangfuseInternalTraceEnvironment.PromptExperiments,
+      );
+    }
   });
 });
