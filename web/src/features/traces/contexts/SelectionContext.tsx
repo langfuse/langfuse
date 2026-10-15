@@ -183,6 +183,7 @@ export function SelectionProvider({
     const pendingId = pendingObservationId.current;
     pendingObservationId.current = undefined;
     if (pendingId === observationId || isMobile) return;
+    if (observationId === null) return;
 
     openDetails();
   }, [currentObservationId, isMobile, openDetails]);

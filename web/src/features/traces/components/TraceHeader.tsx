@@ -23,6 +23,9 @@ import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
 import { cn } from "@/src/utils/tailwind";
+import { Button as DesignButton } from "@/src/components/design-system/Button/Button";
+import { useSelection } from "../contexts/SelectionContext";
+import { traceNodeId } from "../fns/treeBuilding";
 
 const MAX_VISIBLE_TAGS = 3;
 
@@ -66,6 +69,8 @@ function TraceHeaderLoading() {
 
 function LoadedTraceHeader() {
   const { trace, observations, mergedScores } = useTraceData();
+  const { selectNode, defaultObservationId } = useSelection();
+  const handleSelectTrace = () => selectNode(traceNodeId(trace.id));
   const [showAllTags, setShowAllTags] = useState(false);
 
   const aggregatedMetrics = useMemo(
@@ -86,6 +91,14 @@ function LoadedTraceHeader() {
   return (
     <TraceHeaderFrame>
       <CollapsibleBadgeRow>
+        {defaultObservationId !== null && (
+          <DesignButton
+            variant="ghost"
+            size="sm"
+            text="Trace details"
+            onClick={handleSelectTrace}
+          />
+        )}
         {trace.latency != null && (
           <LatencyBadge latencySeconds={trace.latency} />
         )}

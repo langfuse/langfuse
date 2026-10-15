@@ -55,6 +55,17 @@ export function TraceGraphView() {
     },
     [capture, graphViewMode, setGraphViewMode, analyticsDimensions],
   );
+  const handleSelectedObservationChange = useCallback(
+    (id: string | null) => {
+      // Synthetic graph nodes clear selection without opening details.
+      if (id === null) {
+        setSelectedNodeId(null);
+        return;
+      }
+      selectNode(id);
+    },
+    [setSelectedNodeId, selectNode],
+  );
 
   if (isLoading) {
     return (
@@ -72,14 +83,7 @@ export function TraceGraphView() {
     <TraceGraphViewComponent
       selectedObservationId={selectedNodeId}
       defaultObservationId={defaultObservationId}
-      onSelectedObservationChange={(id) => {
-        // Synthetic graph nodes clear selection without opening details.
-        if (id === null) {
-          setSelectedNodeId(null);
-          return;
-        }
-        selectNode(id);
-      }}
+      onSelectedObservationChange={handleSelectedObservationChange}
       agentGraphData={agentGraphData}
       viewMode={graphViewMode}
       onViewModeChange={handleViewModeChange}

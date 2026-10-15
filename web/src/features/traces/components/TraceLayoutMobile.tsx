@@ -49,22 +49,19 @@ export function TraceLayoutMobile({
   // while it's unavailable, fall back to Tree.
   const activeTab: MobileTraceTab =
     mobileTab === "graph" && !showGraph ? "tree" : mobileTab;
+  const handleTabChange = (value: string) => {
+    if (
+      value === "tree" ||
+      value === "timeline" ||
+      value === "graph" ||
+      value === "info"
+    ) {
+      setMobileTab(value);
+    }
+  };
 
   return (
-    <Tabs
-      value={activeTab}
-      onValueChange={(value) => {
-        if (
-          value === "tree" ||
-          value === "timeline" ||
-          value === "graph" ||
-          value === "info"
-        ) {
-          setMobileTab(value);
-        }
-      }}
-      layout="fill"
-    >
+    <Tabs value={activeTab} onValueChange={handleTabChange} layout="fill">
       <Tabs.List variant="underline">
         <Tabs.Trigger value="tree" label="Tree" />
         <Tabs.Trigger value="timeline" label="Timeline" />

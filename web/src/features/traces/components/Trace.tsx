@@ -93,23 +93,24 @@ export function Trace(props: TraceProps | TraceLoadingProps) {
       : traceContext;
   const desktopLayout = DESKTOP_LAYOUTS[desktopLayoutKey];
   const isMobile = useIsMobile();
+  const trace = props.isLoading === true ? null : props.trace;
+  const observations = props.isLoading === true ? null : props.observations;
   const defaultObservationId = useMemo(() => {
     // Only v4 (events-based) traces carry rootObservationType. Their trace
     // summary is already shown in the header, so default to observation details.
     // V3 traces lack this field and keep the trace-level detail view as default.
-    if (props.isLoading === true || !props.trace.rootObservationType)
-      return null;
-    if (props.trace.rootObservationId) return props.trace.rootObservationId;
+    if (!trace?.rootObservationType || !observations) return null;
+    if (trace.rootObservationId) return trace.rootObservationId;
 
     let firstRoot: ObservationReturnTypeWithMetadata | undefined;
-    for (const observation of props.observations) {
+    for (const observation of observations) {
       if (observation.parentObservationId) continue;
       if (!firstRoot || observation.startTime < firstRoot.startTime) {
         firstRoot = observation;
       }
     }
     return firstRoot?.id ?? null;
-  }, [props]);
+  }, [trace, observations]);
 
   return (
     <ViewPreferencesProvider traceContext={traceContext}>
