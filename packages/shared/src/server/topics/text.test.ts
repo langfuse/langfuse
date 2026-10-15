@@ -97,6 +97,63 @@ function bedrockModel(slot: TopicsModel["slot"], model: string): TopicsModel {
 }
 
 describe("generateTopicText", () => {
+  it("clusters with Bedrock Sonnet 5.5 without forcing tool use", async () => {
+    const output = { name: "Account access" };
+    const fetch = vi.fn<typeof globalThis.fetch>(async (...args) => {
+      const body = (await new Request(...args).json()) as {
+        toolConfig?: { toolChoice?: Record<string, unknown> };
+      };
+      if (
+        body.toolConfig?.toolChoice?.any ||
+        body.toolConfig?.toolChoice?.tool
+      ) {
+        return Response.json(
+          {
+            message:
+              'tool_choice: type "tool" and "any" are not supported for this model.',
+          },
+          { status: 400 },
+        );
+      }
+      return Response.json({
+        output: {
+          message: {
+            role: "assistant",
+            content: [{ text: JSON.stringify(output) }],
+          },
+        },
+        stopReason: "end_turn",
+        usage: { inputTokens: 12, outputTokens: 4, totalTokens: 16 },
+        metrics: { latencyMs: 1 },
+      });
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    const result = await generateTopicText({
+      model: bedrockModel("clustering", "us.anthropic.claude-sonnet-5-5"),
+      system: [{ text: "Name the topic." }],
+      input: "Users cannot sign in.",
+      schema: z.object({ name: z.string() }),
+      maxOutputTokens: 256,
+    });
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const body = await new Request(...fetch.mock.calls[0]).json();
+    expect(body).not.toHaveProperty("toolConfig");
+    expect(body).not.toHaveProperty(
+      "additionalModelRequestFields.thinking.type",
+      "disabled",
+    );
+    expect(body).toHaveProperty(
+      "system",
+      expect.arrayContaining([
+        expect.objectContaining({ text: expect.stringContaining('"name"') }),
+      ]),
+    );
+    expect(result.output).toEqual(output);
+    expect(result.usage).toMatchObject({ inputTokens: 12, outputTokens: 4 });
+  });
+
   it.each(["us.openai.gpt-6-luna", "openai.gpt-oss-120b"])(
     "sends structured output through the project's Bedrock connection: %s",
     async (modelId) => {
