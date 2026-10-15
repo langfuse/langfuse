@@ -85,8 +85,7 @@ export function ConnectedGatewayModelsTable({
     <div className="flex h-full min-h-0 flex-col gap-4">
       <Header title="Gateway models" />
       <p className="text-muted-foreground text-sm">
-        Models are discovered from enabled provider credentials and cached for
-        up to five minutes.
+        These models are enabled and available to use through the AI Gateway.
       </p>
 
       {failedProviderCount > 0 ? (
