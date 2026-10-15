@@ -1,18 +1,21 @@
 import {
+  AliasNode,
   OperationNodeTransformer,
+  SelectQueryNode,
+  TableNode,
   type CommonTableExpressionNode,
   type OperationNode,
   type QueryId,
-  type SelectQueryNode,
-  type TableNode,
   type WithNode,
 } from "kysely";
 
+import { UnscopedRelationError } from "./errors";
 import {
   ArrayJoinNode,
   ArrayIndexNode,
   FinalTableNode,
   LimitByNode,
+  unwrapFinalTable,
   type ClickHouseSelectQueryNode,
 } from "./nodes";
 
@@ -146,6 +149,7 @@ export abstract class CteScopedTransformer extends ClickHouseOperationNodeTransf
     node: WithNode,
     queryId?: QueryId,
   ): WithNode {
+    assertNoSiblingCycle(node);
     const full = this.cteScopes.pop() ?? new Set<string>();
     try {
       const expressions = node.expressions.map((expr) => {
@@ -171,4 +175,69 @@ function cteName(expr: CommonTableExpressionNode): string {
 
 function cteNames(node: WithNode | undefined): Set<string> {
   return new Set((node?.expressions ?? []).map(cteName));
+}
+
+/**
+ * Rejects sibling CTEs that read each other (`a` → `b` → `a`). ClickHouse
+ * resolves a read of a CTE that is still being resolved to the table of that
+ * name, so one reference reads the CTE on one path and the table on another,
+ * and no scope can tell a pass which. A body reading its own name is not a
+ * cycle: that read is always the table. Every unqualified FROM/JOIN name in a
+ * body counts as a read, nested selects included, so a nested WITH that
+ * shadows a sibling name is rejected too.
+ */
+function assertNoSiblingCycle(node: WithNode): void {
+  const names = cteNames(node);
+  const reads = new Map(
+    node.expressions.map((expr) => {
+      const name = cteName(expr);
+      const read = relationNames(expr.expression);
+      return [
+        name,
+        [...read].filter((other) => other !== name && names.has(other)),
+      ];
+    }),
+  );
+  const done = new Set<string>();
+  const path: string[] = [];
+  const visit = (name: string) => {
+    if (path.includes(name)) {
+      throw new UnscopedRelationError(
+        `CTEs that read each other (${[...path.slice(path.indexOf(name)), name].join(" → ")}) are rejected: ClickHouse reads the table, not the CTE, on part of the cycle, so the tenancy pass cannot scope it.`,
+      );
+    }
+    if (done.has(name)) return;
+    path.push(name);
+    for (const next of reads.get(name) ?? []) visit(next);
+    path.pop();
+    done.add(name);
+  };
+  for (const name of names) visit(name);
+}
+
+/** Unqualified table names read in FROM/JOIN anywhere under `value`. */
+function relationNames(value: unknown, found = new Set<string>()): Set<string> {
+  if (!value || typeof value !== "object") return found;
+  if (isOperationNode(value) && SelectQueryNode.is(value)) {
+    const relations = [
+      ...(value.from?.froms ?? []),
+      ...(value.joins ?? []).map((join) => join.table),
+    ];
+    for (const relation of relations) {
+      const table = relationTable(relation);
+      if (table && !table.table.schema) found.add(table.table.identifier.name);
+    }
+  }
+  for (const child of Object.values(value)) relationNames(child, found);
+  return found;
+}
+
+function isOperationNode(value: object): value is OperationNode {
+  return "kind" in value && typeof value.kind === "string";
+}
+
+function relationTable(node: OperationNode): TableNode | undefined {
+  if (FinalTableNode.is(node)) return relationTable(unwrapFinalTable(node));
+  if (AliasNode.is(node)) return relationTable(node.node);
+  return TableNode.is(node) ? node : undefined;
 }

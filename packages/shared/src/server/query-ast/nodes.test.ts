@@ -377,6 +377,74 @@ describe("tenancy injection", () => {
       );
     });
 
+    it.each([
+      [
+        "directly",
+        () =>
+          db
+            .with("traces", (qb) =>
+              qb.selectFrom("observations").select("trace_id as id"),
+            )
+            .with("observations", (qb) =>
+              qb.selectFrom("traces").select("id as trace_id"),
+            )
+            .selectFrom("traces")
+            .select("id"),
+      ],
+      [
+        "through a nested subquery",
+        () =>
+          db
+            .with("traces", (qb) =>
+              qb
+                .selectFrom("scores")
+                .select("trace_id as id")
+                .where("trace_id", "in", (eb) =>
+                  eb.selectFrom("observations").select("trace_id"),
+                ),
+            )
+            .with("observations", (qb) =>
+              qb.selectFrom("traces").select("id as trace_id"),
+            )
+            .selectFrom("scores")
+            .select("id"),
+      ],
+      [
+        "through a third CTE",
+        () =>
+          db
+            .with("traces", (qb) =>
+              qb.selectFrom("observations").select("trace_id as id"),
+            )
+            .with("observations", (qb) =>
+              qb.selectFrom("scores").select("trace_id"),
+            )
+            .with("scores", (qb) =>
+              qb.selectFrom("traces").select("id as trace_id"),
+            )
+            .selectFrom("traces")
+            .select("id"),
+      ],
+    ])("rejects sibling CTEs that read each other %s", (_, build) => {
+      expect(() => compile(build())).toThrow(UnscopedRelationError);
+    });
+
+    it("does not count a column qualifier named like a sibling as a read", () => {
+      expect(
+        compile(
+          db
+            .with("a", (qb) =>
+              qb.selectFrom("scores as traces").select("traces.id"),
+            )
+            .with("traces", (qb) => qb.selectFrom("a").select("id"))
+            .selectFrom("traces")
+            .select("id"),
+        ),
+      ).toBe(
+        "with a as (select traces.id from scores as traces where traces.project_id = {p1:String}), traces as (select id from a) select id from traces",
+      );
+    });
+
     it("scopes a schema-qualified table named like a CTE in scope", () => {
       expect(
         compile(

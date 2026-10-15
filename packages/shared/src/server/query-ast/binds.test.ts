@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { compileClickhouseQuery } from "./compile";
 import { getClickhouseKysely } from "./dialect";
+import { UnscopedRelationError } from "./errors";
 import { tupleIn, useFinal } from "./extensions";
 
 const projectId = "proj-1";
@@ -357,20 +358,21 @@ describe("typed params from the column registry", () => {
       );
     });
 
-    it("types CTEs that read each other with the name-only fallback", () => {
-      const { sql } = compile(
-        db
-          .with("observations", (qb) =>
-            qb.selectFrom("traces").select("timestamp as start_time"),
-          )
-          .with("traces", (qb) =>
-            qb.selectFrom("observations").select("start_time as timestamp"),
-          )
-          .selectFrom("traces")
-          .select("timestamp")
-          .where("timestamp", ">=", START),
-      );
-      expect(sql).toMatch(/timestamp >= \{p\d+:DateTime64\(3\)\}$/);
+    it("rejects CTEs that read each other", () => {
+      expect(() =>
+        compile(
+          db
+            .with("observations", (qb) =>
+              qb.selectFrom("traces").select("timestamp as start_time"),
+            )
+            .with("traces", (qb) =>
+              qb.selectFrom("observations").select("start_time as timestamp"),
+            )
+            .selectFrom("traces")
+            .select("timestamp")
+            .where("timestamp", ">=", START),
+        ),
+      ).toThrow(UnscopedRelationError);
     });
   });
 

@@ -402,8 +402,8 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
   /**
    * Lookup of the CTEs `node`'s WITH declares. A body is typed on its first
    * read, against `enclosing` plus {@link withoutCte}, so it can read an
-   * earlier or a later sibling as ClickHouse does. A body that reads itself
-   * through a cycle (`a` → `b` → `a`) sees the name-only fallback.
+   * earlier or a later sibling as ClickHouse does. Siblings never read each
+   * other in a cycle: the transformer passes reject that before compiling.
    */
   private cteLookup(
     node: SelectQueryNode,
@@ -418,7 +418,6 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
       if (!cte) return undefined;
       const known = typed.get(name);
       if (known) return known;
-      typed.set(name, COLUMN_BIND_TYPES);
       const siblings: SelectScope = { cte: lookup, relations: new Map() };
       const columns =
         this.outputBindTypes(cte.expression, [
