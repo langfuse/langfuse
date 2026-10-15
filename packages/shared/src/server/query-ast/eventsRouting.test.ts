@@ -128,6 +128,9 @@ describe("logical events routing", () => {
     ["e.*", sql.raw<string>("e.*")],
     ["tuple(*)", sql<string>`tuple(*)`],
     ["COLUMNS(...)", sql<string>`COLUMNS('^inp')`],
+    ["sql.ref e.*", sql.ref<string>("e.*")],
+    ["tuple(sql.ref e.*)", sql<string>`tuple(${sql.ref("e.*")})`],
+    ["tuple(sql.id e.*)", sql<string>`tuple(${sql.id("e", "*")})`],
   ])("routes a raw %s to events_full", (_, expression) => {
     expect(
       routedTables(

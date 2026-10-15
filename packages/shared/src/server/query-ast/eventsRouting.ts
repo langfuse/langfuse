@@ -12,8 +12,9 @@
  *
  * A reference is truncation-sensitive when any identifier in it is named
  * like a column in {@link EVENTS_CORE_TRUNCATED_COLUMNS} (whichever relation
- * or alias it belongs to), it selects `*`, or it is a raw fragment that
- * mentions such a column. The only exempt shape is a metadata predicate that
+ * or alias it belongs to), it contains a `*` other than `count(*)`, or it is
+ * a raw fragment that mentions such a column, `*`, or `COLUMNS(...)`. The
+ * only exempt shape is a metadata predicate that
  * `metadataFilterIsEventsCoreSafe` accepts, the rule the raw-SQL builders
  * route by:
  *
@@ -24,6 +25,7 @@
  * Physical `events_core` / `events_full` references pass through unchanged.
  */
 import {
+  AggregateFunctionNode,
   AliasNode,
   BinaryOperationNode,
   ColumnNode,
@@ -36,7 +38,7 @@ import {
   RawNode,
   ReferenceNode,
   SelectAllNode,
-  SelectQueryNode,
+  SelectionNode,
   TableNode,
   ValueNode,
   type KyselyPlugin,
@@ -88,7 +90,7 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
     node: T,
     queryId?: QueryId,
   ): T {
-    if (isCoreSafeMetadataPredicate(node)) return node;
+    if (isCoreSafeMetadataPredicate(node) || isCountAll(node)) return node;
 
     if (FromNode.is(node) && node.froms.some(isLogicalEventsRelation)) {
       this.readsLogicalEvents = true;
@@ -100,9 +102,10 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
       // Identifiers rather than columns, so `sql.id("e", "input")` counts too;
       // an alias named like a truncated column over-routes, which is safe.
       (IdentifierNode.is(node) &&
-        EVENTS_CORE_TRUNCATED_COLUMNS.has(node.name)) ||
-      (SelectQueryNode.is(node) &&
-        (node.selections ?? []).some((s) => selectsAll(s.selection))) ||
+        (EVENTS_CORE_TRUNCATED_COLUMNS.has(node.name) || node.name === "*")) ||
+      // `*` / `e.*` anywhere: a select list, a function argument, a raw
+      // parameter.
+      SelectAllNode.is(node) ||
       (RawNode.is(node) &&
         node.sqlFragments.some((fragment) =>
           TRUNCATED_COLUMN_IN_RAW.test(fragment),
@@ -180,14 +183,19 @@ function isLogicalEventsRelation(node: OperationNode): boolean {
   );
 }
 
-/**
- * `*` or `e.*` in a select list. Only called on a select's own selections:
- * `count(*)` wraps its `*` in a selection node too.
- */
-function selectsAll(node: OperationNode): boolean {
+/** `count(*)` reads no column; `eb.fn.countAll()` wraps its `*` in a selection. */
+function isCountAll(node: OperationNode): boolean {
+  if (
+    !AggregateFunctionNode.is(node) ||
+    node.func !== "count" ||
+    node.aggregated.length !== 1
+  ) {
+    return false;
+  }
+  const [arg] = node.aggregated;
   return (
-    SelectAllNode.is(node) ||
-    (ReferenceNode.is(node) && SelectAllNode.is(node.column))
+    SelectAllNode.is(arg) ||
+    (SelectionNode.is(arg) && SelectAllNode.is(arg.selection))
   );
 }
 
