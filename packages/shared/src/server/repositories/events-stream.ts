@@ -2,12 +2,14 @@ import { Readable } from "stream";
 import { normalizeEventsTraceName } from "../../eventsTable";
 import type { FilterCondition } from "../../types";
 import type { TracingSearchType } from "../../interfaces/search";
+import { buildEvalTargetEnvironmentCondition } from "../llm/isInternalEvalEnvironment";
 import { buildEventsStreamQuery } from "../queries";
 import { queryClickhouseStream } from "./clickhouse";
 
 /**
  * Lightweight event stream for batch observation evaluation.
  * Selects the eval field set and maps ClickHouse aliases toward ObservationForEval.
+ * Skips internal eval environments, which the executor would cancel.
  */
 export const getEventsStreamForEval = async (props: {
   projectId: string;
@@ -34,7 +36,10 @@ export const getEventsStreamForEval = async (props: {
     searchType,
     rowLimit,
   });
+  const evalTargetCondition =
+    buildEvalTargetEnvironmentCondition("e.environment");
   const { query, params: queryParams } = queryBuilder
+    .whereRaw(evalTargetCondition.query, evalTargetCondition.params)
     .selectFieldSet("eval")
     .selectIO(false)
     .selectFieldSet("metadata")

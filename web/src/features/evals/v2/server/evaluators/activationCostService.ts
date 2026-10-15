@@ -9,7 +9,7 @@ import {
 import { prisma } from "@langfuse/shared/src/db";
 import {
   getLatestEvaluatorRunCost,
-  getObservationsCountFromEventsTable,
+  getEvalTargetObservationsCountFromEventsTable,
   getObservationsWithModelDataFromEventsTable,
   logger,
 } from "@langfuse/shared/src/server";
@@ -79,7 +79,7 @@ export async function getActivationCostEstimates(params: {
       : []),
   ];
   const [matchingObservations, recentRunCosts] = await Promise.all([
-    getObservationsCountFromEventsTable({
+    getEvalTargetObservationsCountFromEventsTable({
       projectId: params.projectId,
       filter,
       // Required by the shared query shape; the count aggregate ignores paging.

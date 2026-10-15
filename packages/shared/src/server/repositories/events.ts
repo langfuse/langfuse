@@ -28,6 +28,7 @@ import {
   PreferredClickhouseService,
 } from "../clickhouse/client";
 import { recordDistribution } from "../instrumentation";
+import { buildEvalTargetEnvironmentCondition } from "../llm/isInternalEvalEnvironment";
 import { logger } from "../logger";
 import { compileClickhouseQuery } from "../query-ast/compile";
 import { getClickhouseKysely } from "../query-ast/dialect";
@@ -565,6 +566,24 @@ export const getObservationsCountFromEventsTable = async (
 };
 
 /**
+ * Count of observations an eval executor accepts as targets, i.e. the rows
+ * `getEventsStreamForEval` selects for the same filter.
+ */
+export const getEvalTargetObservationsCountFromEventsTable = async (
+  opts: ObservationTableQuery,
+) => {
+  const count = await getObservationsFromEventsTableInternal<{
+    count: string;
+  }>({
+    ...opts,
+    select: "count",
+    evalTargetsOnly: true,
+  });
+
+  return Number(count[0].count);
+};
+
+/**
  * Row count plus approximate distinct trace count over the same filtered set,
  * computed in a single ClickHouse pass. Powers the events-table select-all
  * batch-delete confirmation ("N items spanning M unique traces").
@@ -823,6 +842,7 @@ async function getObservationsFromEventsTableInternal<T>(
       | "trace-delete-cursor";
     selectToolData?: boolean;
     preferredClickhouseService?: PreferredClickhouseService;
+    evalTargetsOnly?: boolean;
   },
 ): Promise<Array<T>> {
   const {
@@ -836,6 +856,7 @@ async function getObservationsFromEventsTableInternal<T>(
     orderBy,
     clickhouseConfigs,
     preferredClickhouseService,
+    evalTargetsOnly = false,
   } = opts;
 
   // Extract positionInTrace filter and build baseFilter without it
@@ -944,6 +965,15 @@ async function getObservationsFromEventsTableInternal<T>(
     queryBuilder.whereRaw(
       "e.span_id IN (SELECT span_id FROM qualifying_obs WHERE _rn = {_posRn: UInt32})",
       { _posRn: Math.max(1, position) },
+    );
+  }
+
+  if (evalTargetsOnly) {
+    const evalTargetCondition =
+      buildEvalTargetEnvironmentCondition("e.environment");
+    queryBuilder.whereRaw(
+      evalTargetCondition.query,
+      evalTargetCondition.params,
     );
   }
 

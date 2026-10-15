@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   findEvaluatorsByIds: vi.fn(),
-  getObservationsCountFromEventsTable: vi.fn(),
+  getEvalTargetObservationsCountFromEventsTable: vi.fn(),
   getObservationsWithModelDataFromEventsTable: vi.fn(),
   getLatestEvaluatorRunCost: vi.fn(),
   testEvaluator: vi.fn(),
@@ -17,8 +17,8 @@ vi.mock("./evaluatorRepository", () => ({
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof SharedServer>()),
-  getObservationsCountFromEventsTable:
-    mocks.getObservationsCountFromEventsTable,
+  getEvalTargetObservationsCountFromEventsTable:
+    mocks.getEvalTargetObservationsCountFromEventsTable,
   getObservationsWithModelDataFromEventsTable:
     mocks.getObservationsWithModelDataFromEventsTable,
   getLatestEvaluatorRunCost: mocks.getLatestEvaluatorRunCost,
@@ -60,7 +60,7 @@ describe("getActivationCostEstimates", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-12T08:00:00.000Z"));
     mocks.findEvaluatorsByIds.mockResolvedValue([evaluator]);
-    mocks.getObservationsCountFromEventsTable.mockResolvedValue(700);
+    mocks.getEvalTargetObservationsCountFromEventsTable.mockResolvedValue(700);
     mocks.getObservationsWithModelDataFromEventsTable.mockResolvedValue([
       {
         id: "observation-id",
@@ -117,7 +117,9 @@ describe("getActivationCostEstimates", () => {
       projectId: "project-id",
       evaluatorIds: ["evaluator-id"],
     });
-    expect(mocks.getObservationsCountFromEventsTable).toHaveBeenCalledWith({
+    expect(
+      mocks.getEvalTargetObservationsCountFromEventsTable,
+    ).toHaveBeenCalledWith({
       projectId: "project-id",
       filter: [
         {
@@ -164,7 +166,9 @@ describe("getActivationCostEstimates", () => {
       timeRange,
     });
 
-    expect(mocks.getObservationsCountFromEventsTable).toHaveBeenCalledWith({
+    expect(
+      mocks.getEvalTargetObservationsCountFromEventsTable,
+    ).toHaveBeenCalledWith({
       projectId: "project-id",
       filter: [
         {
@@ -205,7 +209,9 @@ describe("getActivationCostEstimates", () => {
     });
 
     expect(mocks.findEvaluatorsByIds).toHaveBeenCalledOnce();
-    expect(mocks.getObservationsCountFromEventsTable).toHaveBeenCalledOnce();
+    expect(
+      mocks.getEvalTargetObservationsCountFromEventsTable,
+    ).toHaveBeenCalledOnce();
     expect(mocks.getLatestEvaluatorRunCost).toHaveBeenCalledTimes(2);
     expect(result).toEqual([
       expect.objectContaining({
@@ -411,7 +417,7 @@ describe("getActivationCostEstimates", () => {
   });
 
   it("does not run a test when the rule has no matching observation", async () => {
-    mocks.getObservationsCountFromEventsTable.mockResolvedValue(0);
+    mocks.getEvalTargetObservationsCountFromEventsTable.mockResolvedValue(0);
     mocks.getLatestEvaluatorRunCost.mockResolvedValue(null);
 
     const result = await getActivationCostEstimates({
