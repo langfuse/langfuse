@@ -22,6 +22,10 @@ const state = vi.hoisted(() => ({
   executionId: undefined as string | undefined,
   setQueryParams: vi.fn(),
   currentTopics: vi.fn(),
+  showGenerateCTA: false,
+  hasStoredSummaries: true,
+  resultsDataAvailable: true,
+  openAutomaticProcessing: vi.fn(),
   picker: vi.fn(),
   push: vi.fn(),
   openConfigure: vi.fn(),
@@ -127,7 +131,6 @@ vi.mock("./TopicTraceSelector", () => ({
     reset: vi.fn(),
   }),
 }));
-vi.mock("./TopicSetupNotice", () => ({ TopicSetupNotice: () => null }));
 vi.mock("./ConfigureTopicsDialogController", () => ({
   ConfigureTopicsDialogController: ({
     children,
@@ -140,7 +143,7 @@ vi.mock("./AutomaticProcessingDialogController", () => ({
     children,
   }: {
     children: (control: { openDialog: () => void }) => ReactNode;
-  }) => children({ openDialog: vi.fn() }),
+  }) => children({ openDialog: state.openAutomaticProcessing }),
 }));
 vi.mock("./CurrentTopics", () => ({
   useCurrentTopics: (input: {
@@ -149,18 +152,30 @@ vi.mock("./CurrentTopics", () => ({
     timeRange: { from: Date; to: Date };
   }) => {
     state.currentTopics(input);
-    return { ...input, data: [] };
+    return {
+      ...input,
+      data: state.resultsDataAvailable
+        ? { hasStoredSummaries: state.hasStoredSummaries, facets: [] }
+        : undefined,
+      isLoading: false,
+    };
   },
   CurrentTopics: ({
     result,
+    onGenerateTopics,
   }: {
     result: { running: boolean; refreshAfter: number };
+    onGenerateTopics: () => void;
   }) => (
     <div
       data-testid="current-topics"
       data-running={result.running}
       data-refresh-after={result.refreshAfter}
-    />
+    >
+      {state.showGenerateCTA && (
+        <button onClick={onGenerateTopics}>Generate topics</button>
+      )}
+    </div>
   ),
 }));
 vi.mock("@/src/utils/api", () => ({
@@ -302,6 +317,9 @@ beforeEach(() => {
       disconnect() {}
     },
   );
+  state.showGenerateCTA = false;
+  state.resultsDataAvailable = true;
+  state.hasStoredSummaries = true;
   state.status = "failed";
   state.executionUpdatedAt = 110;
   state.updatedAt = "2026-09-23T12:00:00Z";
@@ -1009,3 +1027,57 @@ it.each([
     ).not.toBeInTheDocument();
   },
 );
+
+it("guides a configured project through processing until its first stored summary exists", () => {
+  state.hasStoredSummaries = false;
+  const view = render(<TopicsPage />);
+  expect(
+    screen.getByRole("button", { name: "Summarize traces & embed" }),
+  ).toBeEnabled();
+  expect(screen.queryByTestId("current-topics")).toBeNull();
+  fireEvent.click(
+    screen.getAllByRole("button", { name: "Automatic processing" }).at(-1)!,
+  );
+  expect(state.openAutomaticProcessing).toHaveBeenCalledWith(false);
+  fireEvent.click(
+    screen.getByRole("button", { name: "Summarize traces & embed" }),
+  );
+  expect(
+    screen.getByRole("dialog", { name: "Manual processing" }),
+  ).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  state.hasStoredSummaries = true;
+  view.rerender(<TopicsPage />);
+  expect(screen.getByTestId("current-topics")).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "Summarize traces & embed" }),
+  ).toBeNull();
+});
+
+it("opens generation directly from the empty topics panel", () => {
+  withSummaries();
+  state.showGenerateCTA = true;
+  render(<TopicsPage />);
+  fireEvent.click(screen.getByRole("button", { name: "Generate topics" }));
+  const dialog = within(
+    screen.getByRole("dialog", { name: "Manual processing" }),
+  );
+  expect(dialog.getByRole("tab", { name: "Generate topics" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  expect(dialog.getByRole("button", { name: "Generate topics" })).toBeEnabled();
+});
+
+it("keeps date controls reachable when a disabled results query has no data", () => {
+  state.resultsDataAvailable = false;
+  state.dateRange = rangeToString({
+    from: new Date("2026-10-10T00:00:00Z"),
+    to: new Date("2026-10-09T00:00:00Z"),
+  });
+  render(<TopicsPage />);
+  expect(
+    screen.getByRole("button", { name: "Select last 30 days" }),
+  ).toBeVisible();
+  expect(screen.queryByText("Start analyzing your traces")).toBeNull();
+});
