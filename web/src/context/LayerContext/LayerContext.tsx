@@ -2,9 +2,10 @@ import * as React from "react";
 
 import { LAYER_ORDER, type LayerName } from "./layers";
 
-const LayerContext = React.createContext<Map<LayerName, HTMLElement> | null>(
-  null,
-);
+export const LayerContext = React.createContext<Map<
+  LayerName,
+  HTMLElement
+> | null>(null);
 
 function ensureLayerContainers(): Map<LayerName, HTMLElement> {
   let root = document.querySelector<HTMLElement>("[data-overlay-root]");

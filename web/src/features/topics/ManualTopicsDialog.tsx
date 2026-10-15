@@ -13,6 +13,7 @@ import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Stepper } from "@/src/features/evals/v2/components/Stepper/Stepper";
+import { ModalPopoverLayer } from "@/src/context/LayerContext/ModalPopoverLayer";
 
 type Model = { model: string; connection: string };
 export type ManualTopicsDialogProps = {
@@ -111,228 +112,238 @@ export function ManualTopicsDialog({
         },
       ]}
     >
-      <Dialog.Body>
-        <div className="ph-no-capture flex flex-col gap-5 text-sm">
-          <Tabs value={operation} onValueChange={handleOperationChange}>
-            <Tabs.List
-              variant="inset"
-              size="md"
-              layout="full"
-              aria-label="Manual processing operation"
-            >
-              <Tabs.Trigger value="process" label="Summarize traces & embed" />
-              <Tabs.Trigger value="update" label="Generate topics" />
-            </Tabs.List>
-          </Tabs>
-          <p className="text-muted-foreground">
-            {operation === "process"
-              ? "Prepare historical or unprocessed traces for topic discovery. New summaries are assigned to existing compatible topics; generate topics afterward to discover new groups."
-              : "Generate topics from stored summaries and embeddings for the selected facets."}
-          </p>
-          <div className="flex flex-col">
-            <Stepper
-              number={1}
-              title="Choose facets"
-              description={
-                <span className="block pt-2">
-                  {operation === "process"
+      <ModalPopoverLayer>
+        <Dialog.Body>
+          <div className="ph-no-capture flex flex-col gap-5 text-sm">
+            <Tabs value={operation} onValueChange={handleOperationChange}>
+              <Tabs.List
+                variant="inset"
+                size="md"
+                layout="full"
+                aria-label="Manual processing operation"
+              >
+                <Tabs.Trigger
+                  value="process"
+                  label="Summarize traces & embed"
+                />
+                <Tabs.Trigger value="update" label="Generate topics" />
+              </Tabs.List>
+            </Tabs>
+            <p className="text-muted-foreground">
+              {operation === "process"
+                ? "Prepare historical or unprocessed traces for topic discovery. New summaries are assigned to existing compatible topics; generate topics afterward to discover new groups."
+                : "Generate topics from stored summaries and embeddings for the selected facets."}
+            </p>
+            <div className="flex flex-col">
+              <Stepper
+                number={1}
+                title="Choose facets"
+                description={
+                  operation === "process"
                     ? "Choose the facets to summarize and embed your traces for."
-                    : "Facets to run clustering and generate topics for."}
-                </span>
-              }
-            >
-              <fieldset className="flex min-w-0 flex-col gap-3">
-                <legend className="sr-only">Choose facets</legend>
-                <div className="flex flex-wrap gap-2">
-                  {facets.map((facet) => (
-                    <FacetToggle
-                      key={facet.id}
-                      facet={facet}
-                      selected={selectedFacetIds.includes(facet.id)}
-                      operation={operation}
-                      onToggleFacet={onToggleFacet}
-                    />
-                  ))}
-                </div>
-                <p className="text-muted-foreground text-xs">
-                  {selectedUpdates.length} of {facets.length} selected
-                </p>
-              </fieldset>
-            </Stepper>
-            <Stepper
-              number={2}
-              title={
-                operation === "process" ? "Select traces" : "Select summaries"
-              }
-              description={
-                operation === "process"
-                  ? "Set your filters or paste trace IDs. Preview matching traces and choose the batch to run. Previewing does not use a model."
-                  : "Time range of stored summaries to use for clustering and topic generation."
-              }
-            >
-              <section hidden={operation !== "process"}>
-                <div className="flex flex-col gap-4">{traceControls}</div>
-              </section>
-              {operation === "update" ? (
-                <section className="flex flex-col gap-2">
-                  <h2 className="font-bold">Time range</h2>
-                  <div className="self-start">
-                    <TimeRangePicker
-                      timeRange={generationTimeRange}
-                      onTimeRangeChange={onGenerationTimeRangeChange}
-                      timeRangePresets={["last1Day", "last7Days", "last30Days"]}
-                      maxRangeMs={30 * 86_400_000}
-                    />
+                    : "Facets to run clustering and generate topics for."
+                }
+              >
+                <fieldset className="flex min-w-0 flex-col gap-3">
+                  <legend className="sr-only">Choose facets</legend>
+                  <div className="flex flex-wrap gap-2">
+                    {facets.map((facet) => (
+                      <FacetToggle
+                        key={facet.id}
+                        facet={facet}
+                        selected={selectedFacetIds.includes(facet.id)}
+                        operation={operation}
+                        onToggleFacet={onToggleFacet}
+                      />
+                    ))}
                   </div>
+                  <p className="text-muted-foreground text-xs">
+                    {selectedUpdates.length} of {facets.length} selected
+                  </p>
+                </fieldset>
+              </Stepper>
+              <Stepper
+                number={2}
+                title={
+                  operation === "process" ? "Select traces" : "Select summaries"
+                }
+                description={
+                  operation === "process"
+                    ? "Set your filters or paste trace IDs. Preview matching traces and choose the batch to run. Previewing does not use a model."
+                    : "Time range of stored summaries to use for clustering and topic generation."
+                }
+              >
+                <section hidden={operation !== "process"}>
+                  <div className="flex flex-col gap-4">{traceControls}</div>
                 </section>
-              ) : null}
-            </Stepper>
-            <Stepper number={3} title="Review & Run">
-              <p role="status" className="ph-no-capture text-muted-foreground">
-                {operation === "process"
-                  ? processingSummary
-                  : `${selectedUpdates.length} facets selected · stored summaries`}
-              </p>
-              {operation === "process" ? (
-                <p>
-                  Summarize and embed the selected traces, then assign them to
-                  existing topics.
+                {operation === "update" ? (
+                  <section className="flex flex-col gap-2">
+                    <h2 className="font-bold">Time range</h2>
+                    <div className="self-start">
+                      <TimeRangePicker
+                        timeRange={generationTimeRange}
+                        onTimeRangeChange={onGenerationTimeRangeChange}
+                        timeRangePresets={[
+                          "last1Day",
+                          "last7Days",
+                          "last30Days",
+                        ]}
+                        maxRangeMs={30 * 86_400_000}
+                      />
+                    </div>
+                  </section>
+                ) : null}
+              </Stepper>
+              <Stepper number={3} title="Review & Run">
+                <p
+                  role="status"
+                  className="ph-no-capture text-muted-foreground"
+                >
+                  {operation === "process"
+                    ? processingSummary
+                    : `${selectedUpdates.length} facets selected · stored summaries`}
                 </p>
-              ) : null}
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                <span className="font-bold">Models</span>
-                <dl className="flex flex-wrap gap-x-4 gap-y-2">
-                  <div className="flex flex-wrap items-baseline gap-1.5">
-                    <dt className="text-muted-foreground">
-                      {operation === "process" ? "Summary:" : "Topic naming:"}
-                    </dt>
-                    <dd
-                      title={
-                        operation === "process"
-                          ? models.summary.connection
-                          : models.clustering.connection
-                      }
-                    >
-                      {operation === "process"
-                        ? models.summary.model
-                        : models.clustering.model}
-                    </dd>
-                  </div>
-                  {operation === "process" ? (
+                {operation === "process" ? (
+                  <p>
+                    Summarize and embed the selected traces, then assign them to
+                    existing topics.
+                  </p>
+                ) : null}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                  <span className="font-bold">Models</span>
+                  <dl className="flex flex-wrap gap-x-4 gap-y-2">
                     <div className="flex flex-wrap items-baseline gap-1.5">
-                      <dt className="text-muted-foreground">Embedding:</dt>
-                      <dd title={models.embedding.connection}>
-                        {models.embedding.model}
+                      <dt className="text-muted-foreground">
+                        {operation === "process" ? "Summary:" : "Topic naming:"}
+                      </dt>
+                      <dd
+                        title={
+                          operation === "process"
+                            ? models.summary.connection
+                            : models.clustering.connection
+                        }
+                      >
+                        {operation === "process"
+                          ? models.summary.model
+                          : models.clustering.model}
                       </dd>
                     </div>
-                  ) : null}
-                </dl>
-                <div className="ml-auto">
-                  <Button
-                    text="Configure Topics"
-                    variant="ghost"
-                    size="sm"
-                    onClick={onConfigure}
-                  />
-                </div>
-              </div>
-              {operation === "process" ? (
-                <>
-                  <div className="flex items-center gap-1 p-1">
-                    <label className="flex items-center gap-2">
-                      <Checkbox
-                        aria-label="Reuse existing summaries and embeddings"
-                        checked={reuse}
-                        onCheckedChange={handleReuseChange}
-                      />
-                      Reuse existing summaries &amp; embeddings
-                    </label>
-                    <Tooltip label="Reuse compatible results for the same facet version and models. Source changes are not checked. Turn off to generate fresh results.">
-                      {({ getTriggerProps }) => (
-                        <IconButton
-                          {...getTriggerProps()}
-                          icon={Info}
-                          label="About reusing summaries and embeddings"
-                          size="sm"
-                        />
-                      )}
-                    </Tooltip>
-                  </div>
-                  <p>
-                    <span className="font-bold">Model costs: </span>
-                    <span className="text-muted-foreground">
-                      {reuse
-                        ? "Only missing or incompatible results incur costs on your linked API keys."
-                        : "Fresh results incur model costs for every selected trace and facet on your linked API keys."}
-                    </span>
-                  </p>
-                </>
-              ) : null}
-              {operation === "update" ? (
-                <>
-                  <p className="text-muted-foreground text-xs">
-                    Topic naming uses your configured model and incurs model
-                    costs. New groups replace your current topics once the run
-                    succeeds.
-                  </p>
-                  <label className="flex items-start justify-between gap-4 rounded-md border p-3">
-                    <span className="flex flex-col gap-1">
-                      <span className="font-bold">Small sample mode</span>
-                      <span className="text-muted-foreground text-xs">
-                        Explore provisional topics with at least 10 summaries
-                        per facet instead of 100.
-                      </span>
-                    </span>
-                    <Switch
-                      aria-label="Small sample mode"
-                      checked={smallSample}
-                      onCheckedChange={onSmallSampleChange}
+                    {operation === "process" ? (
+                      <div className="flex flex-wrap items-baseline gap-1.5">
+                        <dt className="text-muted-foreground">Embedding:</dt>
+                        <dd title={models.embedding.connection}>
+                          {models.embedding.model}
+                        </dd>
+                      </div>
+                    ) : null}
+                  </dl>
+                  <div className="ml-auto">
+                    <Button
+                      text="Configure Topics"
+                      variant="ghost"
+                      size="sm"
+                      onClick={onConfigure}
                     />
-                  </label>
-                  {!disabledReason &&
-                  !noSummaries &&
-                  belowMinimum.length > 0 ? (
-                    <Alert variant="warning" size="sm">
-                      <Alert.Description>
-                        <p>
-                          {belowMinimum.map((facet) => facet.name).join(", ")}{" "}
-                          will be skipped: fewer than {minimum} summaries.
-                          Summarize more traces, widen the time range, or enable
-                          small sample mode.
-                        </p>
-                      </Alert.Description>
-                    </Alert>
-                  ) : null}
-                </>
-              ) : null}
-              {disabledReason ? (
-                <Alert variant="warning" size="sm">
-                  <Alert.Description>
-                    <div className="flex flex-col items-start gap-2">
-                      <p>{disabledReason}</p>
-                      {operation === "update" && noSummaries ? (
-                        <Button
-                          text="Go to Summarize traces & embed"
-                          variant="secondary"
-                          size="sm"
-                          onClick={handleChooseSummarization}
+                  </div>
+                </div>
+                {operation === "process" ? (
+                  <>
+                    <div className="flex items-center gap-1 p-1">
+                      <label className="flex items-center gap-2">
+                        <Checkbox
+                          aria-label="Reuse existing summaries and embeddings"
+                          checked={reuse}
+                          onCheckedChange={handleReuseChange}
                         />
-                      ) : null}
+                        Reuse existing summaries &amp; embeddings
+                      </label>
+                      <Tooltip label="Reuse compatible results for the same facet version and models. Source changes are not checked. Turn off to generate fresh results.">
+                        {({ getTriggerProps }) => (
+                          <IconButton
+                            {...getTriggerProps()}
+                            icon={Info}
+                            label="About reusing summaries and embeddings"
+                            size="sm"
+                          />
+                        )}
+                      </Tooltip>
                     </div>
-                  </Alert.Description>
-                </Alert>
-              ) : null}
-              {error ? (
-                <Alert variant="destructive" size="sm">
-                  <Alert.Description>
-                    <p>{error}</p>
-                  </Alert.Description>
-                </Alert>
-              ) : null}
-            </Stepper>
+                    <p>
+                      <span className="font-bold">Model costs: </span>
+                      <span className="text-muted-foreground">
+                        {reuse
+                          ? "Only missing or incompatible results incur costs on your linked API keys."
+                          : "Fresh results incur model costs for every selected trace and facet on your linked API keys."}
+                      </span>
+                    </p>
+                  </>
+                ) : null}
+                {operation === "update" ? (
+                  <>
+                    <p className="text-muted-foreground text-xs">
+                      Topic naming uses your configured model and incurs model
+                      costs. New groups replace your current topics once the run
+                      succeeds.
+                    </p>
+                    <label className="flex items-start justify-between gap-4 rounded-md border p-3">
+                      <span className="flex flex-col gap-1">
+                        <span className="font-bold">Small sample mode</span>
+                        <span className="text-muted-foreground text-xs">
+                          Explore provisional topics with at least 10 summaries
+                          per facet instead of 100.
+                        </span>
+                      </span>
+                      <Switch
+                        aria-label="Small sample mode"
+                        checked={smallSample}
+                        onCheckedChange={onSmallSampleChange}
+                      />
+                    </label>
+                    {!disabledReason &&
+                    !noSummaries &&
+                    belowMinimum.length > 0 ? (
+                      <Alert variant="warning" size="sm">
+                        <Alert.Description>
+                          <p>
+                            {belowMinimum.map((facet) => facet.name).join(", ")}{" "}
+                            will be skipped: fewer than {minimum} summaries.
+                            Summarize more traces, widen the time range, or
+                            enable small sample mode.
+                          </p>
+                        </Alert.Description>
+                      </Alert>
+                    ) : null}
+                  </>
+                ) : null}
+                {disabledReason ? (
+                  <Alert variant="warning" size="sm">
+                    <Alert.Description>
+                      <div className="flex flex-col items-start gap-2">
+                        <p>{disabledReason}</p>
+                        {operation === "update" && noSummaries ? (
+                          <Button
+                            text="Go to Summarize traces & embed"
+                            variant="secondary"
+                            size="sm"
+                            onClick={handleChooseSummarization}
+                          />
+                        ) : null}
+                      </div>
+                    </Alert.Description>
+                  </Alert>
+                ) : null}
+                {error ? (
+                  <Alert variant="destructive" size="sm">
+                    <Alert.Description>
+                      <p>{error}</p>
+                    </Alert.Description>
+                  </Alert>
+                ) : null}
+              </Stepper>
+            </div>
           </div>
-        </div>
-      </Dialog.Body>
+        </Dialog.Body>
+      </ModalPopoverLayer>
     </Dialog>
   );
 }
