@@ -101,14 +101,6 @@ export const SingleChoice = meta.story({
   },
 });
 
-export const SingleChoiceFourOptions = meta.story({
-  args: {
-    tool: createQuestionnaireTool({ questions: [scheduleQuestion] }),
-    onAnswerQuestionnaire: fn().mockResolvedValue(undefined),
-    onRejectToolCall: fn().mockResolvedValue(undefined),
-  },
-});
-
 export const MultipleChoice = meta.story({
   args: {
     tool: createQuestionnaireTool({ questions: [failureSignalsQuestion] }),
