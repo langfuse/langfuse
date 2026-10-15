@@ -136,7 +136,7 @@ const meta = preview.meta({
       operation: draft.operation,
       summaryCounts: args.facets
         .filter((facet) => draft.selectedFacetIds.includes(facet.id))
-        .map((facet) => facet.summaries),
+        .map((facet) => facet.summaries ?? 0),
       traceCount: count,
       smallSample: draft.smallSample,
     });
@@ -441,6 +441,33 @@ export const ReviewChoices = meta.story({
       }),
     ).not.toBeChecked();
     await expect(view.getByText(args.models.embedding.model)).toBeVisible();
+  },
+});
+
+export const UnknownSummaryCounts = meta.story({
+  name: "(Test) Does not suggest reprocessing while summary counts are unknown",
+  args: {
+    operation: "update",
+    facets: facets.map((facet) => ({ ...facet, summaries: null })),
+    canSubmit: false,
+    disabledReason: "Counting stored summaries…",
+  },
+  play: async ({ canvasElement }) => {
+    const view = within(
+      within(canvasElement.ownerDocument.body).getByRole("dialog", {
+        name: "Manual processing",
+      }),
+    );
+    await waitFor(() =>
+      expect(view.getByText("Counting stored summaries…")).toBeVisible(),
+    );
+    await expect(view.queryAllByText("No summaries")).toHaveLength(0);
+    await expect(
+      view.queryByRole("button", { name: "Go to Summarize traces & embed" }),
+    ).not.toBeInTheDocument();
+    await expect(
+      view.getByRole("button", { name: "Generate topics" }),
+    ).toBeDisabled();
   },
 });
 

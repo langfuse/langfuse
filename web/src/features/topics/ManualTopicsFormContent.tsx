@@ -59,10 +59,13 @@ export function ManualTopicsFormContent({
     version: version.version,
     description: facet.description || version.prompt,
     summaries:
-      summaryCounts.data?.find(
-        (count) =>
-          count.facetId === facet.id && count.facetVersion === version.version,
-      )?.count ?? 0,
+      summaryCounts.data && !summaryCounts.error && !summaryCounts.isFetching
+        ? (summaryCounts.data.find(
+            (count) =>
+              count.facetId === facet.id &&
+              count.facetVersion === version.version,
+          )?.count ?? 0)
+        : null,
   }));
   const selectedFacetIds = facets
     .filter(
@@ -81,7 +84,7 @@ export function ManualTopicsFormContent({
     operation,
     summaryCounts: facets
       .filter((facet) => selectedFacetIds.includes(facet.id))
-      .map((facet) => facet.summaries),
+      .map((facet) => facet.summaries ?? 0),
     traceCount: selection?.count ?? 0,
     smallSample,
   });
@@ -101,10 +104,11 @@ export function ManualTopicsFormContent({
     if (operation === "update" && regenerate.disabledReason)
       return regenerate.disabledReason;
     if (operation === "update") {
-      if (summaryCounts.isPending) return "Counting stored summaries…";
+      if (summaryCounts.isPending || summaryCounts.isFetching)
+        return "Counting stored summaries…";
       if (summaryCounts.error)
         return `Could not count stored summaries: ${summaryCounts.error.message}`;
-      if (!facets.some((facet) => facet.summaries > 0))
+      if (!facets.some((facet) => (facet.summaries ?? 0) > 0))
         return "No trace summaries in the selected time range yet. Summarize traces first, then regenerate.";
     }
     return selectionStatus.disabledReason;

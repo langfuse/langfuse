@@ -21,7 +21,7 @@ export type ManualTopicsDialogProps = {
   facets: {
     id: string;
     name: string;
-    summaries: number;
+    summaries: number | null;
     kind: string;
     version: number;
     description: string;
@@ -73,9 +73,9 @@ export function ManualTopicsDialog({
   );
   const noSummaries =
     selectedUpdates.length > 0 &&
-    !selectedUpdates.some((facet) => facet.summaries > 0);
+    selectedUpdates.every((facet) => facet.summaries === 0);
   const belowMinimum = selectedUpdates.filter(
-    (facet) => facet.summaries < minimum,
+    (facet) => facet.summaries !== null && facet.summaries < minimum,
   );
   const facetLabel = selectedUpdates.length === 1 ? "facet" : "facets";
   const traceLabel = count === 1 ? "trace" : "traces";
@@ -372,11 +372,15 @@ function FacetToggle({
       <span className="font-bold">{facet.name}</span>
       {operation === "update" ? (
         <span className="text-muted-foreground text-xs">
-          {facet.summaries > 0
-            ? `${facet.summaries.toLocaleString()} summaries`
-            : "No summaries"}
+          {summaryLabel(facet.summaries)}
         </span>
       ) : null}
     </label>
   );
+}
+
+function summaryLabel(summaries: number | null) {
+  if (summaries === null) return "Not counted";
+  if (summaries === 0) return "No summaries";
+  return `${summaries.toLocaleString()} summaries`;
 }
