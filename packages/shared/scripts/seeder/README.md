@@ -108,6 +108,53 @@ the date or timing instead of pinning the original date: events include
 `start_time` in their ORDER BY key, so reusing IDs with different timestamps
 leaves both versions in storage.
 
+## Agents RFC
+
+```bash
+NEXTAUTH_URL=http://localhost:3017 pnpm run seed -- agents-rfc --environment production --id-prefix agents-rfc-session-20261015 --managed-skills --dry-run
+NEXTAUTH_URL=http://localhost:3017 pnpm run seed -- agents-rfc --environment production --id-prefix agents-rfc-session-20261015 --managed-skills
+```
+
+This separate fixture preserves the original `agents-view` traces. Its default
+anchor is **2026-10-15 15:00 UTC**, and its printed Agents links select
+**11:00–15:00 UTC**. Fifteen days of history support discovery and comparisons;
+the recent cohort is 14:00–15:00 UTC. All four comparison agents have at least
+20 settled historical sessions and five settled recent sessions, including
+when filtered to production. `--date`, `--end-hour`, `--hours`, and `--days`
+adjust these bounds; changing time flags requires a fresh prefix.
+
+The fixture includes:
+
+- The eight existing agent identities, including the URL/Unicode name.
+- Real Postgres session records, a shared session with multiple traces,
+  repeated invocations, nested agents and a same-name call. Sessions,
+  invocations and traces therefore have different counts.
+- Stable historical behavior and recent higher research cost, longer verify
+  runtime, a 500-observation orchestrator invocation against a 20-observation
+  baseline, and compose sessions with zero executed tools.
+- Model tool requests normalized by the ingestion tool parser, alongside
+  separate executed TOOL observations. Requests can exist without execution.
+- A dormant intake agent, sparse samples, an open invocation, a session
+  crossing the selected boundary, and sessionless activity whose model call
+  deliberately lacks agent attribution.
+- Shared tool capabilities without invented causal links; declared task, area,
+  topic, available-tool and available-skill facets in optional prototype
+  metadata. One explicit cross-session handoff is labeled as an illustrative
+  declaration, separate from observed same-trace ancestry.
+- Observed skill names including unmanaged `résumé-style`. The optional
+  `--managed-skills` flag creates missing exact-name definitions for
+  `task-routing`, `source-discovery`, `evidence-audit`, and `citation-style`
+  through the supported Skills API. Existing definitions are preserved;
+  Unicode names are not silently renamed into catalog entries.
+
+`--managed-skills` requires the matching local web app and the default synthetic
+seed project. Omit it when seeding another project or when the app is not ready.
+The CLI validates the API responses before writing session/event data and
+checks Postgres sessions plus ClickHouse row, identity, tool execution and
+unique model-request counts after insertion. It does not contact a model
+provider. Printed links open the selected window, profiles, tools, skills,
+map and representative sessions on `NEXTAUTH_URL`.
+
 ## Topics
 
 After applying the normal Postgres and ClickHouse migrations, seed either fixture:

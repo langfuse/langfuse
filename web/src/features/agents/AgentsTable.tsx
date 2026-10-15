@@ -1,4 +1,8 @@
 import { useState } from "react";
+import {
+  AgentOverviewList,
+  type AgentOverviewListProps,
+} from "./overview/AgentOverviewCards";
 import { keepPreviousData } from "@tanstack/react-query";
 import isEqual from "lodash/isEqual";
 import {
@@ -68,7 +72,21 @@ function prepareTableData(
   return { status: "loading" };
 }
 
-export function AgentsTable({ projectId }: { projectId: string }) {
+export function AgentsTable({
+  projectId,
+  overview,
+}: {
+  projectId: string;
+  overview?: AgentOverviewListProps;
+}) {
+  return overview ? (
+    <AgentOverviewList {...overview} />
+  ) : (
+    <AgentExplorerTable projectId={projectId} />
+  );
+}
+
+function AgentExplorerTable({ projectId }: { projectId: string }) {
   const [pagination, setPagination] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),

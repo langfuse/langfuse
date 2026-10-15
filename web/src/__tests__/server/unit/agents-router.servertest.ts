@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   skills: vi.fn(async () => undefined),
   map: vi.fn(async () => undefined),
   hasAny: vi.fn(async () => false),
+  projection: vi.fn(async () => undefined),
 }));
 
 vi.mock("@/src/server/auth", () => ({ getServerAuthSession: vi.fn() }));
@@ -28,6 +29,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   getAgentSkillsFromEventsTable: mocks.skills,
   getAgentMapSkeleton: mocks.map,
   hasAnyAgentFromEventsTable: mocks.hasAny,
+  getAgentSessionProjectionFromEventsTable: mocks.projection,
 }));
 
 function createCaller(projectId = "agent-project") {
@@ -104,6 +106,11 @@ describe("agent router bounds and project access", () => {
       () => caller.byNameFromEvents({ ...scope, agentName: "planner" }),
       () => caller.skillsFromEvents({ ...scope, agentName: "planner" }),
       () => caller.mapSkeletonFromEvents({ ...scope, agentName: "planner" }),
+      () =>
+        caller.sessionProjectionFromEvents({
+          ...scope,
+          agentNames: ["planner"],
+        }),
     ];
     for (const read of reads) {
       await expect(read()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
@@ -139,6 +146,39 @@ describe("agent router bounds and project access", () => {
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
     for (const mock of Object.values(mocks))
       expect(mock).not.toHaveBeenCalled();
+  });
+
+  it("bounds session discovery and forwards anchored comparison controls without unrelated time filters", async () => {
+    const caller = createCaller();
+    await caller.sessionProjectionFromEvents({
+      ...scope,
+      agentNames: ["planner"],
+      baselineDays: 7,
+    });
+    expect(mocks.projection).toHaveBeenCalledExactlyOnceWith({
+      ...scope,
+      agentNames: ["planner"],
+      baselineDays: 7,
+    });
+    for (const invalid of [
+      { agentNames: Array.from({ length: 26 }, (_, i) => `agent-${i}`) },
+      { from: new Date("2026-08-01T00:00:00Z") },
+      { from: scope.to },
+      {
+        filter: [
+          {
+            column: "Timestamp",
+            type: "datetime" as const,
+            operator: ">=" as const,
+            value: scope.from,
+          },
+        ],
+      },
+    ])
+      await expect(
+        caller.sessionProjectionFromEvents({ ...scope, ...invalid }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(mocks.projection).toHaveBeenCalledTimes(1);
   });
 
   it("requires text and measures the supported metadata name boundary in Unicode characters", async () => {

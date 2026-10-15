@@ -1,12 +1,14 @@
 import { z } from "zod";
 import {
   MAX_AGENT_NAME_LENGTH,
+  AGENT_PROJECTION_LIMITS,
   singleFilterList,
   type AgentListResult,
   type FilterCondition,
 } from "@langfuse/shared";
 import {
   getAgentMapSkeleton,
+  getAgentSessionProjectionFromEventsTable,
   getAgentMetricsFromEventsTable,
   getAgentSkillsFromEventsTable,
   getAgentStatsFromEventsTable,
@@ -72,6 +74,46 @@ const namedAgentScope = agentScope
   .refine(validWindow, windowError);
 
 export const agentsRouter = createTRPCRouter({
+  sessionProjectionFromEvents: protectedProjectProcedure
+    .input(
+      agentScope
+        .extend({
+          agentNames: z
+            .array(agentName)
+            .max(AGENT_PROJECTION_LIMITS.agents)
+            .optional(),
+          baselineDays: z.union([z.literal(7), z.literal(14)]).default(14),
+        })
+        .refine(
+          (scope) =>
+            scope.from < scope.to &&
+            scope.to.getTime() - scope.from.getTime() <=
+              AGENT_PROJECTION_LIMITS.maxWindowDays * 86_400_000,
+          {
+            message: "Select a nonempty window of at most 30 days.",
+            path: ["from"],
+          },
+        )
+        .refine(
+          (scope) =>
+            !scope.filter ||
+            scope.filter.every((filter) =>
+              ["Environment", "environment"].includes(filter.column),
+            ),
+          {
+            message:
+              "Session projections support environment filters; from/to define the activity window.",
+            path: ["filter"],
+          },
+        ),
+    )
+    .query(({ input, ctx }) =>
+      getAgentSessionProjectionFromEventsTable({
+        ...input,
+        projectId: ctx.session.projectId,
+      }),
+    ),
+
   hasAnyFromEvents: protectedProjectProcedure
     .input(agentScope.refine(validWindow, windowError))
     .query(({ input }) => hasAnyAgentFromEventsTable(input)),

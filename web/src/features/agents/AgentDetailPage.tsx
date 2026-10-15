@@ -5,7 +5,14 @@ import {
   useQueryParams,
   withDefault,
 } from "use-query-params";
-import { LayoutDashboard, List, Network, Wrench } from "lucide-react";
+import {
+  LayoutDashboard,
+  List,
+  Network,
+  Wrench,
+  MessagesSquare,
+  BookOpen,
+} from "lucide-react";
 import {
   AGENT_NAME_METADATA_KEY,
   MAX_AGENT_NAME_LENGTH,
@@ -17,6 +24,7 @@ import Page from "@/src/components/layouts/page";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import { ObservationsEventsTable } from "@/src/features/events/components";
 import { EventsOutlierStrip } from "@/src/features/events/components/outlier-strip/EventsOutlierStrip";
@@ -31,10 +39,22 @@ import {
   rangeToString,
   type AbsoluteTimeRange,
 } from "@/src/utils/date-range-utils";
+import { api } from "@/src/utils/api";
 import { AgentsFeatureGate } from "./AgentsFeatureGate";
 import { AgentStats } from "./AgentStats";
 import { AgentSkills } from "./AgentSkills";
 import { AgentMap } from "./agent-map/AgentMap";
+import { AgentIdentity, AgentAppearancePicker } from "./appearance";
+import {
+  PrototypeOptions,
+  useAgentsPrototypeOptions,
+} from "./prototype-options";
+import { AgentSessions } from "./profile/AgentSessions";
+import { AgentTools } from "./profile/AgentTools";
+import { AgentProfileChart } from "./profile/AgentProfileChart";
+import { AgentComparison } from "./profile/AgentComparison";
+import { AgentCoverage } from "./profile/AgentCoverage";
+import { type AgentProfileTab } from "./profile/prepareAgentProfile";
 import { buildAgentProfilePath } from "./lib/buildAgentProfilePath";
 
 const RUN_FILTER: FilterState = [
@@ -45,7 +65,14 @@ const RUN_FILTER: FilterState = [
     value: ["AGENT"],
   },
 ];
-const TABS = ["runs", "observations", "skills", "map"] as const;
+const TABS: readonly AgentProfileTab[] = [
+  "sessions",
+  "tools",
+  "skills",
+  "runs",
+  "observations",
+  "map",
+];
 
 export default function AgentDetailPage() {
   const route = useReadyRouteParams(["projectId", "agentName"]);
@@ -68,7 +95,10 @@ function AgentDetailView({
   agentName: string;
 }) {
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
-  const [, setPagination] = useQueryParams({ page: NumberParam });
+  const [, setPagination] = useQueryParams({
+    page: NumberParam,
+    peek: StringParam,
+  });
   const router = useRouter();
   const scopeFilter = decodeFiltersGeneric(
     typeof router.query.filter === "string" ? router.query.filter : "",
@@ -90,19 +120,42 @@ function AgentDetailView({
   const dashboardQuery = new URLSearchParams({
     filter: encodeFiltersGeneric([...scopeFilter, ...filter]),
   });
-  if (window) dashboardQuery.set("dateRange", rangeToString(window));
+  const overviewQuery = new URLSearchParams();
+  if (scopeFilter.length)
+    overviewQuery.set("filter", encodeFiltersGeneric(scopeFilter));
+  if (window) {
+    dashboardQuery.set("dateRange", rangeToString(window));
+    overviewQuery.set("dateRange", rangeToString(window));
+  }
   const unsupportedName =
     agentName.trim().length === 0 ||
     [...agentName].length > MAX_AGENT_NAME_LENGTH;
-
   return (
     <Page
       headerProps={{
         title: agentName,
-        breadcrumb: [{ name: "Agents", href: `/project/${projectId}/agents` }],
+        titleBadges: (
+          <AgentIdentity
+            projectId={projectId}
+            agentName={agentName}
+            size="md"
+            showName={false}
+          />
+        ),
+        breadcrumb: [
+          {
+            name: "Agents",
+            href: `/project/${projectId}/agents?${overviewQuery}`,
+          },
+        ],
         actionButtonsRight: (
           <>
             <InternalFeatureBadge />
+            <AgentAppearancePicker
+              projectId={projectId}
+              agentName={agentName}
+            />
+            <PrototypeOptions projectId={projectId} />
             <Button
               text="Dashboard"
               variant="secondary"
@@ -113,11 +166,11 @@ function AgentDetailView({
         ),
       }}
     >
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto md:overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         <TableHeaderControls
           timeRange={timeRange}
           setTimeRange={(next) => {
-            setPagination({ page: 1 });
+            setPagination({ page: 1, peek: undefined });
             setTimeRange(next);
           }}
         />
@@ -127,9 +180,8 @@ function AgentDetailView({
               <Alert.Title>Unsupported agent name</Alert.Title>
               <Alert.Description>
                 Agent names must contain text and be at most{" "}
-                {MAX_AGENT_NAME_LENGTH} characters. Longer names cannot be
-                grouped reliably in observation metadata. Record a shorter
-                stable name to use this view.
+                {MAX_AGENT_NAME_LENGTH} characters. Record a shorter stable name
+                to use this view.
               </Alert.Description>
             </Alert>
           </div>
@@ -147,7 +199,7 @@ function AgentDetailView({
             <Alert>
               <Alert.Title>Choose a time range</Alert.Title>
               <Alert.Description>
-                Agent statistics are calculated only for a selected time window.
+                Agent statistics require a selected time window.
               </Alert.Description>
             </Alert>
           </div>
@@ -169,18 +221,35 @@ function AgentProfile({
   filter: FilterState;
 }) {
   const router = useRouter();
+  const { options } = useAgentsPrototypeOptions(projectId);
   const [{ tab }, setParams] = useQueryParams({
-    tab: withDefault(StringParam, "runs"),
+    tab: withDefault(StringParam, "sessions"),
     page: NumberParam,
     dateRange: StringParam,
+    peek: StringParam,
+    agentSignal: StringParam,
+    agentTool: StringParam,
+    agentSkill: StringParam,
   });
-  const onSelectRange = (range: AbsoluteTimeRange) => {
-    setParams({ dateRange: rangeToString(range), page: 1 });
-  };
-  const onTabChange = (next: string) => {
-    setParams({ tab: next, page: 1 });
-  };
-  const currentTab = TABS.find((value) => value === tab) ?? "runs";
+  const currentTab = TABS.find((value) => value === tab) ?? "sessions";
+  const projection = api.agents.sessionProjectionFromEvents.useQuery(
+    {
+      projectId,
+      agentNames: [agentName],
+      ...window,
+      filter,
+      baselineDays: options.baselineDays,
+    },
+    {
+      trpc: { context: { skipBatch: true } },
+      refetchOnWindowFocus: false,
+      staleTime: 30_000,
+    },
+  );
+  const onSelectRange = (range: AbsoluteTimeRange) =>
+    setParams({ dateRange: rangeToString(range), page: 1, peek: undefined });
+  const onTabChange = (next: string) =>
+    setParams({ tab: next, page: 1, peek: undefined });
   const pulseFilter: FilterState = [
     ...filter,
     {
@@ -206,83 +275,165 @@ function AgentProfile({
 
   return (
     <>
-      <AgentStats
-        projectId={projectId}
-        agentName={agentName}
-        {...window}
-        filter={filter}
-      />
-      <div className="shrink-0 border-t">
-        <div className="flex items-baseline justify-between gap-2 px-4 pt-2">
-          <h2 className="text-sm font-bold">Agent runs over time</h2>
-          <span className="text-muted-foreground text-xs">
-            Select a bar to zoom; use Back to restore the window.
-          </span>
+      {projection.isPending && (
+        <div className="grid grid-cols-3 gap-4 p-4">
+          {Array.from({ length: 6 }, (_, index) => (
+            <Skeleton key={index} className="h-14" />
+          ))}
         </div>
-        <EventsOutlierStrip
-          projectId={projectId}
-          filterState={pulseFilter}
-          fromTimestamp={window.from}
-          toTimestamp={window.to}
-          fixedMetric="count"
-          onSelectRange={onSelectRange}
-        />
-      </div>
-      <div className="flex min-h-[32rem] shrink-0 flex-col md:min-h-0 md:flex-1 md:shrink">
-        <Tabs value={currentTab} onValueChange={onTabChange} layout="fill">
-          <div className="shrink-0 overflow-x-auto">
-            <Tabs.List variant="underline" aria-label="Agent views">
-              <Tabs.Trigger value="runs" label="Runs" icon={List} />
-              <Tabs.Trigger value="observations" label="Observations" />
-              <Tabs.Trigger value="skills" label="Skills" icon={Wrench} />
-              <Tabs.Trigger
-                value="map"
-                label="Agent map · Experimental"
-                icon={Network}
+      )}
+      {projection.isError && (
+        <div className="p-4">
+          <Alert variant="destructive">
+            <Alert.Title>Agent activity could not be loaded</Alert.Title>
+            <Alert.Description>
+              Try a smaller window or retry.
+              <Button
+                text="Retry"
+                variant="secondary"
+                onClick={() => {
+                  projection.refetch();
+                }}
               />
-            </Tabs.List>
+            </Alert.Description>
+          </Alert>
+        </div>
+      )}
+      {projection.data && (
+        <>
+          <AgentStats agentName={agentName} projection={projection.data} />
+          {options.showAttention && (
+            <AgentComparison
+              projectId={projectId}
+              agentName={agentName}
+              projection={projection.data}
+              onSelectSignal={(kind) =>
+                setParams({
+                  tab: "sessions",
+                  agentSignal: kind,
+                  page: 1,
+                  peek: undefined,
+                })
+              }
+            />
+          )}
+          <AgentCoverage coverage={projection.data.coverage} />
+        </>
+      )}
+      <Tabs value={currentTab} onValueChange={onTabChange} layout="fill">
+        <div className="shrink-0 overflow-x-auto border-t">
+          <Tabs.List variant="underline" aria-label="Agent views">
+            <Tabs.Trigger
+              value="sessions"
+              label="Sessions"
+              icon={MessagesSquare}
+            />
+            <Tabs.Trigger value="tools" label="Tools" icon={Wrench} />
+            <Tabs.Trigger value="skills" label="Skills" icon={BookOpen} />
+            <Tabs.Trigger value="runs" label="Invocations" icon={List} />
+            <Tabs.Trigger value="observations" label="Observations" />
+            <Tabs.Trigger value="map" label="Relationships" icon={Network} />
+          </Tabs.List>
+        </div>
+        {options.profileChart === "contextual" && projection.data && (
+          <AgentProfileChart
+            projection={projection.data}
+            agentName={agentName}
+            tab={currentTab}
+            onSelectRange={onSelectRange}
+          />
+        )}
+        {options.profileChart === "pulse" && (
+          <div className="shrink-0 border-t">
+            <h2 className="px-4 pt-2 text-sm font-bold">
+              Agent invocations over time
+            </h2>
+            <EventsOutlierStrip
+              projectId={projectId}
+              filterState={pulseFilter}
+              fromTimestamp={window.from}
+              toTimestamp={window.to}
+              fixedMetric="count"
+              onSelectRange={onSelectRange}
+            />
           </div>
-          <Tabs.Content value="runs" layout="fill">
-            <ObservationsEventsTable
+        )}
+        <Tabs.Content value="sessions" layout="fill">
+          {projection.data && (
+            <AgentSessions
+              key={`${agentName}:${window.from.getTime()}:${window.to.getTime()}`}
               projectId={projectId}
               agentName={agentName}
-              externalDateRange={window}
-              externalFilterState={[...filter, ...RUN_FILTER]}
-              hideControls
-              enablePeekView
-              isolateTableState
+              projection={projection.data}
             />
-          </Tabs.Content>
-          <Tabs.Content value="observations" layout="fill">
-            <ObservationsEventsTable
-              projectId={projectId}
+          )}
+        </Tabs.Content>
+        <Tabs.Content value="tools" layout="fill">
+          {projection.data && (
+            <AgentTools
               agentName={agentName}
-              externalDateRange={window}
-              externalFilterState={filter}
-              hideControls
-              enablePeekView
-              isolateTableState
+              projection={projection.data}
+              onSelectTool={(name) =>
+                setParams({
+                  tab: "sessions",
+                  agentTool: name,
+                  agentSkill: undefined,
+                  agentSignal: undefined,
+                  page: 1,
+                })
+              }
             />
-          </Tabs.Content>
-          <Tabs.Content value="skills" layout="fill">
-            <AgentSkills
-              projectId={projectId}
-              agentName={agentName}
-              {...window}
-              filter={filter}
-            />
-          </Tabs.Content>
-          <Tabs.Content value="map" layout="fill">
-            <AgentMap
-              projectId={projectId}
-              agentName={agentName}
-              {...window}
-              filter={filter}
-              onSelectRuns={selectRuns}
-            />
-          </Tabs.Content>
-        </Tabs>
-      </div>
+          )}
+        </Tabs.Content>
+        <Tabs.Content value="skills" layout="fill">
+          <AgentSkills
+            projectId={projectId}
+            agentName={agentName}
+            {...window}
+            filter={filter}
+            onSelectSkill={(name) =>
+              setParams({
+                tab: "sessions",
+                agentSkill: name,
+                agentTool: undefined,
+                agentSignal: undefined,
+                page: 1,
+              })
+            }
+          />
+        </Tabs.Content>
+        <Tabs.Content value="runs" layout="fill">
+          <ObservationsEventsTable
+            projectId={projectId}
+            agentName={agentName}
+            externalDateRange={window}
+            externalFilterState={[...filter, ...RUN_FILTER]}
+            hideControls
+            enablePeekView
+            isolateTableState
+          />
+        </Tabs.Content>
+        <Tabs.Content value="observations" layout="fill">
+          <ObservationsEventsTable
+            projectId={projectId}
+            agentName={agentName}
+            externalDateRange={window}
+            externalFilterState={filter}
+            hideControls
+            enablePeekView
+            isolateTableState
+          />
+        </Tabs.Content>
+        <Tabs.Content value="map" layout="fill">
+          <AgentMap
+            projectId={projectId}
+            agentName={agentName}
+            {...window}
+            filter={filter}
+            onSelectRuns={selectRuns}
+          />
+        </Tabs.Content>
+      </Tabs>
     </>
   );
 }

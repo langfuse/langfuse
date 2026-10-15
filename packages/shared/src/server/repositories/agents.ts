@@ -26,6 +26,8 @@ import {
   queryClickhouse,
 } from "./clickhouse";
 
+export { getAgentSessionProjectionFromEventsTable } from "./agents-projection";
+
 // The identity projection is the replacement seam for dedicated agent columns.
 export const AGENT_NAME_EXPR = `e.metadata_values[indexOf(e.metadata_names, '${AGENT_NAME_METADATA_KEY}')]`;
 export const HAS_AGENT_EXPR = `has(e.metadata_names, '${AGENT_NAME_METADATA_KEY}')`;

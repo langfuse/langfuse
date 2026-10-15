@@ -11,17 +11,33 @@ import { createNumberTableColumn } from "@/src/components/design-system/table/co
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { createTableColumn } from "@/src/components/design-system/table/columns/utils/createTableColumn";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
-export function AgentSkills(input: {
+export function AgentSkills({
+  onSelectSkill,
+  ...input
+}: {
   projectId: string;
   agentName: string;
   from: Date;
   to: Date;
   filter: FilterState;
+  onSelectSkill: (name: string) => void;
 }) {
   const query = api.agents.skillsFromEvents.useQuery(input, {
     trpc: { context: { skipBatch: true } },
   });
+  const canReadDefinitions = useHasProjectAccess({
+    projectId: input.projectId,
+    scope: "skills:read",
+  });
+  const definitions = api.skills.all.useQuery(
+    { projectId: input.projectId, page: 1, limit: 100 },
+    { enabled: canReadDefinitions, refetchOnWindowFocus: false },
+  );
+  const managedNames = new Set(
+    definitions.data?.data.map((skill) => skill.name) ?? [],
+  );
   type Skill = NonNullable<typeof query.data>["skills"][number];
   const columns = [
     createTextTableColumn<Skill>({
@@ -29,6 +45,23 @@ export function AgentSkills(input: {
       header: "Skill",
       size: 220,
       cellClassName: "ph-no-capture",
+    }),
+    createTableColumn<Skill, string>({
+      accessorKey: "skillName",
+      id: "definition",
+      header: "Definition",
+      size: 200,
+      renderCell: (name) =>
+        name && managedNames.has(name) ? (
+          <Link
+            className="text-primary ph-no-capture underline-offset-2 hover:underline"
+            href={`/project/${input.projectId}/skills/${encodeURIComponent(name)}`}
+          >
+            Managed definition
+          </Link>
+        ) : (
+          <span className="text-muted-foreground">Observed name</span>
+        ),
     }),
     createNumberTableColumn<Skill>({
       accessorKey: "invocations",
@@ -77,7 +110,9 @@ export function AgentSkills(input: {
       <p className="text-muted-foreground mt-2 text-sm">
         Matched from tool names such as skill_read and load_skill. Names come
         from span attributes or tool input, which may be truncated. This preview
-        will use native skill tracking when available.
+        will use native skill tracking when available. A linked managed
+        definition matches the exact observed name; it does not establish the
+        loaded version or which skills were available to this agent.
       </p>
       {query.isError && (
         <div className="mt-4">
@@ -110,6 +145,7 @@ export function AgentSkills(input: {
             columns={columns}
             data={{ status: "success", data: query.data.skills }}
             rowHeight="m"
+            onRowClick={(row) => onSelectSkill(row.skillName)}
           />
           {query.data.hasMore && (
             <p className="text-muted-foreground mt-2 text-xs">
@@ -119,6 +155,14 @@ export function AgentSkills(input: {
           )}
         </div>
       )}
+      {canReadDefinitions &&
+        definitions.data &&
+        definitions.data.meta.totalItems > 100 && (
+          <p className="text-muted-foreground mt-2 text-xs">
+            Definition links match the first 100 catalog names. Other observed
+            names remain unresolved.
+          </p>
+        )}
     </div>
   );
 }

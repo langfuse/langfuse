@@ -24,6 +24,7 @@ import {
   getAgentsCountFromEventsTable,
   getAgentsFromEventsTable,
   hasAnyAgentFromEventsTable,
+  getAgentSessionProjectionFromEventsTable,
 } from "./agents";
 import { parseClickhouseUTCDateTimeFormat } from "./clickhouse";
 import { type EventsTableFilterState, type FilterState } from "../../types";
@@ -38,6 +39,265 @@ const captureQuery = () => {
 };
 
 const baseOpts = { projectId: "proj-1", page: 1, limit: 50 } as const;
+
+describe("agent session projection", () => {
+  const scope = {
+    projectId: "projection-project",
+    from: new Date("2026-10-15T11:00:00Z"),
+    to: new Date("2026-10-15T15:00:00Z"),
+    agentNames: ["planner"],
+    baselineDays: 14 as const,
+  };
+  const event = (values: Record<string, unknown> = {}) => ({
+    trace_id: "trace-1",
+    span_id: "agent-1",
+    parent_span_id: "",
+    session_id: "session-1",
+    agent_name: "planner",
+    type: "AGENT",
+    name: "planner",
+    start_time: "2026-10-15 14:00:00.000",
+    end_time: "2026-10-15 14:00:01.000",
+    event_ts: "2026-10-15 14:01:00.000",
+    is_deleted: 0,
+    cost: "0",
+    tokens: "0",
+    input: "",
+    skill_name: "",
+    available_tools: [],
+    declared_tools: "",
+    available_skills: "",
+    task: "",
+    area: "",
+    topic: "",
+    parent_session_id: "",
+    parent_agent_name: "",
+    ...values,
+  });
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockQueryClickhouse.mockResolvedValue([]);
+    vi.mocked(parseClickhouseUTCDateTimeFormat).mockImplementation(
+      (value) => new Date(value.replace(" ", "T") + "Z"),
+    );
+  });
+
+  it("counts real sessions, includes zero-tool units, and keeps fallback cost outside session averages", async () => {
+    const rows = [
+      event(),
+      event({ span_id: "agent-2", trace_id: "trace-2" }),
+      event({ span_id: "tool", type: "TOOL", name: "search", cost: "1" }),
+      event({ span_id: "model", type: "GENERATION", cost: "2", tokens: "5" }),
+      event({
+        span_id: "writer",
+        agent_name: "writer",
+        type: "GENERATION",
+        cost: "99",
+        end_time: "2026-10-15 14:02:00.000",
+      }),
+      event({
+        span_id: "zero",
+        trace_id: "zero-trace",
+        session_id: "zero-session",
+      }),
+      event({
+        span_id: "fallback",
+        trace_id: "fallback-trace",
+        session_id: "",
+        type: "GENERATION",
+        cost: "10",
+      }),
+    ];
+    mockQueryClickhouse.mockResolvedValueOnce(rows).mockResolvedValueOnce(rows);
+    const result = await getAgentSessionProjectionFromEventsTable(scope);
+    expect(result.agents[0].current).toMatchObject({
+      sessions: 2,
+      invocations: 3,
+      toolInvocations: 1,
+      cost: 13,
+      averageCostPerSession: 1.5,
+      averageToolsPerSession: 0.5,
+    });
+    expect(
+      result.sessions.find((row) => row.sessionId === "session-1"),
+    ).toMatchObject({
+      traceCount: 2,
+      cost: 3,
+      sessionElapsedMs: 120_000,
+      participatingAgentNames: ["planner", "writer"],
+      completePerSession: true,
+    });
+    expect(result.sessions.find((row) => row.kind === "trace")).toMatchObject({
+      sessionId: null,
+      cost: 10,
+      completePerSession: false,
+      completenessReason: "missing-session-id",
+    });
+    expect(result.coverage.missingSessionTraces).toBe(1);
+    for (const [request] of mockQueryClickhouse.mock.calls) {
+      expect(request.query).toContain("e.project_id = {projectId: String}");
+      expect(request.query).toContain("e.event_ts DESC");
+      expect(request.query).not.toContain(" FINAL");
+      expect(request.clickhouseSettings.max_execution_time).toBe(10);
+    }
+  });
+
+  it("uses the latest identity/type and tombstone before attributing a rewritten observation", async () => {
+    mockQueryClickhouse.mockResolvedValueOnce([
+      event({ cost: "50" }),
+      event({
+        agent_name: "writer",
+        type: "TOOL",
+        event_ts: "2026-10-15 14:02:00.000",
+      }),
+      event({ span_id: "deleted", cost: "20", is_deleted: 1 }),
+    ]);
+    const result = await getAgentSessionProjectionFromEventsTable(scope);
+    expect(result.agents[0].current).toMatchObject({
+      sessions: 0,
+      cost: 0,
+      observations: 0,
+    });
+    expect(result.sessions).toEqual([]);
+  });
+
+  it("compares complete per-session cohorts in disjoint anchored windows, including zero tools", async () => {
+    const rows = Array.from({ length: 25 }, (_, i) => {
+      const start_time =
+        i < 20 ? "2026-10-10 12:00:00.000" : "2026-10-15 14:30:00.000";
+      const end_time =
+        i < 20 ? "2026-10-10 12:00:01.000" : "2026-10-15 14:30:01.000";
+      const common = {
+        trace_id: `trace-${i}`,
+        session_id: `session-${i}`,
+        start_time,
+        end_time,
+      };
+      return [
+        event({ ...common, span_id: `agent-${i}` }),
+        ...(i < 20
+          ? [0, 1].map((tool) =>
+              event({
+                ...common,
+                span_id: `tool-${i}-${tool}`,
+                type: "TOOL",
+                name: "search",
+              }),
+            )
+          : []),
+      ];
+    }).flat();
+    mockQueryClickhouse.mockResolvedValueOnce(rows).mockResolvedValueOnce(rows);
+    const result = await getAgentSessionProjectionFromEventsTable(scope);
+    expect(result.recentWindow.from).toEqual(new Date("2026-10-15T14:00:00Z"));
+    expect(result.baselineWindow.to).toEqual(result.recentWindow.from);
+    expect(result.agents[0]).toMatchObject({
+      comparisonStatus: "ready",
+      baseline: { sessions: 20, averageToolsPerSession: 2 },
+      recent: { sessions: 5, averageToolsPerSession: 0, zeroToolSessions: 5 },
+    });
+    expect(result.agents[0].signals.map((signal) => signal.kind)).toContain(
+      "missing-tools",
+    );
+  });
+
+  it("keeps selected-window accounting and drilldowns separate from whole-session history", async () => {
+    const current = event({ cost: "1" });
+    const earlier = event({
+      span_id: "earlier",
+      type: "TOOL",
+      name: "old-search",
+      cost: "5",
+      start_time: "2026-10-15 10:00:00.000",
+      end_time: "2026-10-15 10:00:01.000",
+    });
+    mockQueryClickhouse
+      .mockResolvedValueOnce([current])
+      .mockResolvedValueOnce([current, earlier]);
+    const result = await getAgentSessionProjectionFromEventsTable(scope);
+    expect(result.agents[0].current).toMatchObject({
+      cost: 1,
+      observations: 1,
+      toolInvocations: 0,
+    });
+    expect(result.sessions[0]).toMatchObject({
+      cost: 6,
+      toolInvocations: 1,
+      windowCost: 1,
+      windowToolInvocations: 0,
+      windowObservationCount: 1,
+      toolNames: [],
+      completePerSession: true,
+    });
+    expect(mockQueryClickhouse.mock.calls[1][0].params.projectionFrom).toBe(
+      "1970-01-01 00:00:00.000",
+    );
+    expect(
+      mockQueryClickhouse.mock.calls[1][0].params.projectionSessionIds,
+    ).toEqual(["session-1"]);
+  });
+
+  it("decodes escaped skill names and distinguishes available tools from executed tools", async () => {
+    const rows = [
+      event({
+        span_id: "skill",
+        type: "TOOL",
+        name: "namespace.load_skill",
+        input: '{"name":"r\\u00e9sum\\u00e9"}',
+        declared_tools: '["unused"]',
+      }),
+      event({ span_id: "not-skill", type: "TOOL", name: "upskill" }),
+    ];
+    mockQueryClickhouse.mockResolvedValueOnce(rows).mockResolvedValueOnce(rows);
+    const result = await getAgentSessionProjectionFromEventsTable(scope);
+    expect(result.skills).toMatchObject([
+      { name: "résumé", invocations: 1, available: false },
+    ]);
+    expect(result.tools.find((row) => row.name === "unused")).toMatchObject({
+      invocations: 0,
+      available: true,
+    });
+    expect(result.tools.find((row) => row.name === "upskill")).toMatchObject({
+      invocations: 1,
+      available: false,
+    });
+    expect(result.sessions[0].skillNames).toEqual(["résumé"]);
+  });
+
+  it("never turns open or capped session history into a ready comparison", async () => {
+    const rows = [event({ end_time: null })];
+    mockQueryClickhouse.mockResolvedValueOnce(rows).mockResolvedValueOnce(rows);
+    const open = await getAgentSessionProjectionFromEventsTable(scope);
+    expect(open.sessions[0]).toMatchObject({
+      completePerSession: false,
+      completenessReason: "open-span",
+    });
+    expect(open.agents[0]).toMatchObject({
+      comparisonStatus: "incomplete-cohort",
+      signals: [],
+    });
+
+    const many = Array.from({ length: 501 }, (_, i) =>
+      event({
+        session_id: `session-${i}`,
+        trace_id: `trace-${i}`,
+        span_id: `span-${i}`,
+      }),
+    );
+    mockQueryClickhouse.mockResolvedValueOnce(many).mockResolvedValueOnce(many);
+    const capped = await getAgentSessionProjectionFromEventsTable(scope);
+    expect(capped.coverage).toMatchObject({
+      sessionsTruncated: true,
+      historyComplete: false,
+    });
+    expect(capped.sessions).toHaveLength(500);
+    expect(capped.sessions.every((row) => !row.completePerSession)).toBe(true);
+    expect(capped.agents[0]).toMatchObject({
+      comparisonStatus: "incomplete-cohort",
+      signals: [],
+    });
+  });
+});
 
 describe("getObservationsV2FromEventsTableForPublicApi query shape", () => {
   beforeEach(() => {

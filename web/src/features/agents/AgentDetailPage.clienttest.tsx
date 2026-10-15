@@ -13,6 +13,9 @@ const mocks = vi.hoisted(() => ({
   push: vi.fn(),
   persistedPicks: vi.fn(),
   paramsUpdates: vi.fn(),
+  projection: vi.fn(),
+  sessions: vi.fn(),
+  initialTab: "runs",
   setWindow: (_window: { from: Date; to: Date }) => {},
 }));
 
@@ -72,7 +75,7 @@ vi.mock("use-query-params", async () => {
     useQueryParam: () => useState("runs"),
     NumberParam: {},
     useQueryParams: () => {
-      const [tab, setTab] = useState("runs");
+      const [tab, setTab] = useState(mocks.initialTab);
       return [
         { tab },
         (params: { tab?: string; page?: number; dateRange?: string }) => {
@@ -92,6 +95,50 @@ vi.mock("./AgentStats", () => ({
     mocks.stats(props);
     return <span>Stats</span>;
   },
+}));
+vi.mock("@/src/utils/api", () => ({
+  api: {
+    agents: {
+      sessionProjectionFromEvents: {
+        useQuery: (input: unknown) => {
+          mocks.projection(input);
+          return {
+            data: { window: input, coverage: {} },
+            isPending: false,
+            isError: false,
+          };
+        },
+      },
+    },
+  },
+}));
+vi.mock("./appearance", () => ({
+  AgentIdentity: () => <span>Identity</span>,
+  AgentAppearancePicker: () => <span>Appearance</span>,
+}));
+vi.mock("./prototype-options", () => ({
+  PrototypeOptions: () => <span>Options</span>,
+  useAgentsPrototypeOptions: () => ({
+    options: { baselineDays: 14, profileChart: "pulse", showAttention: false },
+  }),
+}));
+vi.mock("./profile/AgentCoverage", () => ({
+  AgentCoverage: () => <span>Coverage</span>,
+}));
+vi.mock("./profile/AgentComparison", () => ({
+  AgentComparison: () => <span>Comparison</span>,
+}));
+vi.mock("./profile/AgentProfileChart", () => ({
+  AgentProfileChart: () => <span>Chart</span>,
+}));
+vi.mock("./profile/AgentSessions", () => ({
+  AgentSessions: (props: unknown) => {
+    mocks.sessions(props);
+    return <span>Session rows</span>;
+  },
+}));
+vi.mock("./profile/AgentTools", () => ({
+  AgentTools: () => <span>Tool rows</span>,
 }));
 vi.mock("./AgentSkills", () => ({
   AgentSkills: (props: unknown) => {
@@ -134,6 +181,7 @@ vi.mock(
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.route.filter = "";
+  mocks.initialTab = "runs";
 });
 
 async function selectTab(name: string) {
@@ -151,11 +199,11 @@ async function selectTab(name: string) {
 
 test("zoom updates statistics, rows, skills and map to one bounded window", async () => {
   render(<AgentDetailPage />);
-  expect(mocks.stats).toHaveBeenLastCalledWith(
+  expect(mocks.projection).toHaveBeenLastCalledWith(
     expect.objectContaining(outerWindow),
   );
   fireEvent.click(screen.getByRole("button", { name: "Zoom into runs" }));
-  expect(mocks.stats).toHaveBeenLastCalledWith(
+  expect(mocks.projection).toHaveBeenLastCalledWith(
     expect.objectContaining(innerWindow),
   );
   expect(mocks.table).toHaveBeenLastCalledWith(
@@ -175,7 +223,7 @@ test("zoom updates statistics, rows, skills and map to one bounded window", asyn
   expect(mocks.skills).toHaveBeenLastCalledWith(
     expect.objectContaining(innerWindow),
   );
-  await selectTab("Agent map · Experimental");
+  await selectTab("Relationships");
   expect(mocks.map).toHaveBeenLastCalledWith(
     expect.objectContaining(innerWindow),
   );
@@ -192,7 +240,7 @@ test("environment scope from the agent list applies to every profile surface", a
   ];
   mocks.route.filter = encodeFiltersGeneric(filter);
   render(<AgentDetailPage />);
-  expect(mocks.stats).toHaveBeenLastCalledWith(
+  expect(mocks.projection).toHaveBeenLastCalledWith(
     expect.objectContaining({ filter }),
   );
   expect(mocks.table).toHaveBeenLastCalledWith(
@@ -207,7 +255,7 @@ test("environment scope from the agent list applies to every profile surface", a
   expect(mocks.skills).toHaveBeenLastCalledWith(
     expect.objectContaining({ filter }),
   );
-  await selectTab("Agent map · Experimental");
+  await selectTab("Relationships");
   expect(mocks.map).toHaveBeenLastCalledWith(
     expect.objectContaining({ filter }),
   );
@@ -216,7 +264,7 @@ test("environment scope from the agent list applies to every profile surface", a
 test("edge drilldown encodes the callee as one route segment and preserves the window", async () => {
   render(<AgentDetailPage />);
   fireEvent.click(screen.getByRole("button", { name: "Zoom into runs" }));
-  await selectTab("Agent map · Experimental");
+  await selectTab("Relationships");
   fireEvent.click(screen.getByRole("button", { name: "Explore callee runs" }));
   const url = new URL(
     mocks.push.mock.calls[0]?.[0] as string,
@@ -249,6 +297,7 @@ test("changing the profile tab resets the embedded table to its first page", asy
   expect(mocks.paramsUpdates).toHaveBeenLastCalledWith({
     tab: "observations",
     page: 1,
+    peek: undefined,
   });
 });
 
@@ -258,5 +307,32 @@ test("date picker retains intentional default persistence and resets pagination"
     screen.getByRole("button", { name: "Pick a smaller window" }),
   );
   expect(mocks.persistedPicks).toHaveBeenCalledWith(innerWindow);
-  expect(mocks.paramsUpdates).toHaveBeenLastCalledWith({ page: 1 });
+  expect(mocks.paramsUpdates).toHaveBeenLastCalledWith({
+    page: 1,
+    peek: undefined,
+  });
+});
+
+test("session and invocation tabs retain distinct meanings", async () => {
+  mocks.initialTab = "sessions";
+  render(<AgentDetailPage />);
+  expect(screen.getByRole("tab", { name: "Sessions" })).toHaveAttribute(
+    "data-state",
+    "active",
+  );
+  expect(mocks.sessions).toHaveBeenCalled();
+  expect(mocks.table).not.toHaveBeenCalled();
+  await selectTab("Invocations");
+  expect(mocks.table).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      externalFilterState: expect.arrayContaining([
+        {
+          column: "type",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["AGENT"],
+        },
+      ]),
+    }),
+  );
 });

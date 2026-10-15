@@ -16,6 +16,7 @@ pnpm run seed -- deep-chain --v4  # 1401 sequential generations in ONE parent ch
 pnpm run seed -- agent-timeline --turns 6 --v4  # realistic agent flow-with-loop over a timeline (graph view)
 pnpm run seed -- agents-view --environment production  # Agents table/profile: 20 pipelines + 2 name-only traces, eight agents with two skills each, nested citation runs, Unicode/URL names; v4 on, 08:00–12:00 UTC today
 pnpm run seed -- agents-view --environment production --date YYYY-MM-DD --id-prefix original-prefix  # enrich an existing fixture using its original UTC date, prefix and timing; printed links pin the window
+NEXTAUTH_URL=http://localhost:3017 pnpm run seed -- agents-rfc --environment production --id-prefix agents-rfc-session-20261015 --managed-skills  # true shared sessions, 15-day cohorts, recent deviations and optional managed skills; fixed Oct15 11:00–15:00 UTC view
 pnpm run seed -- agent-graph --v4  # graph-DENSE trace: ~1,350 distinct node-pair connections from 350 observations (trace-graph layout stress)
 pnpm run seed -- agent-timeline --turns 120 --turn-gap-ms 60000 --v4  # ~2.5h wall clock: idle between turns, so the work is a few percent of the trace
 pnpm run seed -- timeline-shapes --v4  # a dozen SMALL traces, one per timeline morphology (retry backoff, human wait, fan-out, slow tool, in-flight, instants, ...)
@@ -50,6 +51,14 @@ trace count and timing flags unchanged. A different date or timing needs a fresh
 `--id-prefix` because events retain rows under different `start_time` keys.
 The [Agents fixture walkthrough](README.md#agents-view) describes skill coverage
 and the window-pinned list/profile links.
+
+Use the separate `agents-rfc` scenario for session semantics and prototype
+comparisons. Its default end is fixed at 2026-10-15 15:00 UTC, with 15 days of
+history and a four-hour selected window. `--managed-skills` uses the supported
+local Skills API and default synthetic project key; start the matching web app
+first. Reuse the same time flags for idempotent reruns, or choose a new prefix
+when changing them. It preserves `agents-view` fixtures. See
+[RFC fixture coverage](README.md#agents-rfc).
 
 ## Layout
 

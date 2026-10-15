@@ -1,89 +1,53 @@
-import { type AgentMetrics, type FilterState } from "@langfuse/shared";
-import { api } from "@/src/utils/api";
+import { type AgentSessionProjection } from "@langfuse/shared";
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
-import { Skeleton } from "@/src/components/ui/skeleton";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { Button } from "@/src/components/design-system/Button/Button";
+import { formatAgentDuration } from "./profile/prepareAgentProfile";
 
-export function AgentStats(input: {
-  projectId: string;
+export function AgentStats({
+  agentName,
+  projection,
+}: {
   agentName: string;
-  from: Date;
-  to: Date;
-  filter: FilterState;
+  projection: AgentSessionProjection;
 }) {
-  const query = api.agents.byNameFromEvents.useQuery(input, {
-    trpc: { context: { skipBatch: true } },
-  });
-  if (query.isError) {
-    return (
-      <div className="p-4">
-        <Alert variant="destructive">
-          <Alert.Title>Statistics could not be loaded</Alert.Title>
-          <Alert.Description>
-            <Button
-              text="Retry"
-              variant="secondary"
-              onClick={() => {
-                query.refetch();
-              }}
-            />
-          </Alert.Description>
-        </Alert>
-      </div>
-    );
-  }
-  if (!query.data) {
-    return (
-      <div
-        aria-label="Loading agent statistics"
-        className="grid shrink-0 grid-cols-2 gap-4 p-4 sm:grid-cols-3 xl:grid-cols-6"
-      >
-        {Array.from({ length: 6 }, (_, index) => (
-          <Skeleton key={index} className="h-14" />
-        ))}
-      </div>
-    );
-  }
-  return <AgentStatsView metrics={query.data} />;
-}
-
-function AgentStatsView({ metrics }: { metrics: AgentMetrics }) {
+  const agent = projection.agents.find((item) => item.agentName === agentName);
+  const current = agent?.current;
+  const skills = projection.skills.filter(
+    (skill) => skill.agentName === agentName,
+  ).length;
   const items = [
     {
-      label: "Traces",
-      value: compactNumberFormatter(metrics.totalTraces),
-      description: "Distinct traces containing this agent.",
-    },
-    {
-      label: "Runs",
-      value: compactNumberFormatter(metrics.totalRuns),
-      description: "Agent observations carrying this name.",
-    },
-    {
-      label: "Observations",
-      value: compactNumberFormatter(metrics.totalObservations),
-      description: "All observation types carrying this name.",
-    },
-    {
-      label: "Total tokens",
-      value: compactNumberFormatter(metrics.totalTokens),
-      description: "Tokens on observations carrying this name.",
-    },
-    {
-      label: "Total cost",
-      value: usdFormatter(metrics.sumCalculatedTotalCost),
+      label: "Sessions",
+      value: compactNumberFormatter(current?.sessions ?? 0),
       description:
-        "Exclusive cost of named observations; sub-agent cost is excluded.",
+        "Distinct instrumented sessions containing this agent in the selected window.",
     },
     {
-      label: "Avg. cost / trace",
-      value:
-        metrics.totalTraces > 0n
-          ? usdFormatter(metrics.averageCostPerTrace)
-          : "—",
+      label: "Tool calls",
+      value: compactNumberFormatter(current?.toolInvocations ?? 0),
       description:
-        "Total exclusive cost divided by distinct traces, not by agent runs.",
+        "Executed TOOL observations explicitly attributed to this agent.",
+    },
+    {
+      label: "Observed skills",
+      value: String(skills),
+      description:
+        "Distinct observed skill names, matched from skill-loading tools.",
+    },
+    {
+      label: "Avg. session duration",
+      value: formatAgentDuration(current?.averageSessionDurationMs ?? null),
+      description:
+        "Mean whole-session observed wall-clock duration for qualifying session-backed activity.",
+    },
+    {
+      label: "Attributed cost",
+      value: usdFormatter(current?.cost ?? 0),
+      description: "Exclusive cost on observations carrying this agent name.",
+    },
+    {
+      label: "Tokens",
+      value: compactNumberFormatter(current?.tokens ?? 0),
+      description: "Tokens on observations carrying this agent name.",
     },
   ];
   return (
@@ -101,22 +65,18 @@ function AgentStatsView({ metrics }: { metrics: AgentMetrics }) {
       </dl>
       <div className="text-muted-foreground mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs">
         <span>
-          First seen in window: {metrics.firstSeen?.toLocaleString() ?? "—"}
+          {compactNumberFormatter(current?.invocations ?? 0)} invocations ·{" "}
+          {compactNumberFormatter(current?.traces ?? 0)} traces ·{" "}
+          {compactNumberFormatter(current?.observations ?? 0)} observations
         </span>
         <span>
-          Last seen in window: {metrics.lastSeen?.toLocaleString() ?? "—"}
+          Last known activity: {agent?.lastSeen?.toLocaleString() ?? "—"}
         </span>
       </div>
       <p className="text-muted-foreground mt-2 text-xs">
-        Cost and tokens include only observations carrying this agent name.
-        Propagate the name to generations and tools; sub-agent cost is excluded.
+        Cost belongs to explicitly named observations; sub-agent cost is
+        excluded. Sessions may be shared by several agents.
       </p>
-      {metrics.totalObservations === 0n && (
-        <p className="mt-2 text-sm">
-          No activity for this agent in the selected window. Choose a wider time
-          range to explore earlier runs.
-        </p>
-      )}
     </section>
   );
 }

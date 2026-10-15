@@ -24,6 +24,7 @@ export type LineChartSeries = {
   color: string;
   /** Area fill; falls back to `color`. */
   fillColor?: string;
+  lineStyle?: "solid" | "dashed";
 };
 
 type ConfiguredLineChartSeries = LineChartSeries & {
@@ -870,6 +871,9 @@ function LineChartContent(
                   d={path ?? undefined}
                   fill="none"
                   stroke={item.color}
+                  strokeDasharray={
+                    item.lineStyle === "dashed" ? "3 4" : undefined
+                  }
                   strokeOpacity={areaVariant && dimmed ? 0.2 : undefined}
                   strokeWidth={
                     item.emphasis === "emphasized" || proximityEmphasized
