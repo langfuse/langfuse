@@ -85,7 +85,7 @@ impl FakeWeb {
 )]
 fn response(value: Value) -> Response<Body> {
     Response::builder()
-        .header(header::CONTENT_TYPE, "application/json")
+        .header(CONTENT_TYPE, "application/json")
         .body(Body::from(value.to_string()))
         .unwrap()
 }
@@ -119,8 +119,8 @@ async fn signs_the_exact_key_and_sends_api_format_and_model() {
     let web = FakeWeb::start(|request| async move {
         assert_eq!(request.method(), "POST");
         assert_eq!(request.uri(), "/api/internal/ai-gateway/v1/resolve");
-        assert_eq!(request.headers()[header::AUTHORIZATION], "Bearer gw_test_alice");
-        assert_eq!(request.headers()[header::CONTENT_TYPE], "application/json");
+        assert_eq!(request.headers()[AUTHORIZATION], "Bearer gw_test_alice");
+        assert_eq!(request.headers()[CONTENT_TYPE], "application/json");
         assert_eq!(request.headers()["langfuse-gateway-request-id"], REQUEST_ID);
         assert_eq!(request.headers()["langfuse-gateway-authorization"],
             "HMAC timestamp=1800000000,signature=e104b6baa50d9b766b036e27876683aa1f4bff7f31bb6af66dce6b636a53b2bd");
@@ -182,10 +182,7 @@ async fn fetches_models_from_the_control_plane() {
             request.uri(),
             "/api/internal/ai-gateway/v1/models?api_format=openai.responses"
         );
-        assert_eq!(
-            request.headers()[header::AUTHORIZATION],
-            "Bearer gw_test_alice"
-        );
+        assert_eq!(request.headers()[AUTHORIZATION], "Bearer gw_test_alice");
         assert!(
             request
                 .headers()
@@ -448,7 +445,7 @@ async fn rejects_a_grant_that_expires_while_resolving_across_a_second_boundary()
 #[tokio::test]
 async fn concurrent_resolutions_keep_credentials_and_contexts_isolated() {
     let web = FakeWeb::start(|request| async move {
-        let key = request.headers()[header::AUTHORIZATION].to_str().unwrap();
+        let key = request.headers()[AUTHORIZATION].to_str().unwrap();
         match key {
             "Bearer gw_test_alice" => {
                 tokio::time::sleep(Duration::from_millis(20)).await;

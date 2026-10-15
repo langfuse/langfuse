@@ -106,7 +106,7 @@ pub(crate) struct ExecutionCapture {
 }
 
 impl ExecutionCapture {
-    pub fn unobserved() -> Self {
+    pub(crate) fn unobserved() -> Self {
         Self {
             span: tracing::Span::current(),
             protocol: None,
@@ -124,7 +124,7 @@ impl ExecutionCapture {
         }
     }
 
-    pub fn for_request(
+    pub(crate) fn for_request(
         api_format: ApiFormat,
         context: &ResolvedRequestContext,
         headers: &HeaderMap,
@@ -180,7 +180,7 @@ impl ExecutionCapture {
         }
     }
 
-    pub fn deliver_to(
+    pub(crate) fn deliver_to(
         &mut self,
         telemetry: telemetry::Telemetry,
         context: &ResolvedRequestContext,
@@ -200,18 +200,18 @@ impl ExecutionCapture {
         self.delivery = Some((telemetry, delivery));
     }
 
-    pub fn set_provider_model(&mut self, model: &str) {
+    pub(crate) fn set_provider_model(&mut self, model: &str) {
         self.provider_model = bounded_string(model);
     }
 
-    pub fn record_response(&mut self, status: u16, headers: &HeaderMap) {
+    pub(crate) fn record_response(&mut self, status: u16, headers: &HeaderMap) {
         if let Some(protocol) = &mut self.protocol {
             self.http_status = Some(status);
             protocol.record_response(headers);
         }
     }
 
-    pub fn push_bytes(&mut self, bytes: &[u8]) {
+    pub(crate) fn push_bytes(&mut self, bytes: &[u8]) {
         if let Some(protocol) = &mut self.protocol {
             if !bytes.is_empty() {
                 self.first_byte_ms
@@ -224,13 +224,13 @@ impl ExecutionCapture {
         }
     }
 
-    pub fn end_body(&mut self) {
+    pub(crate) fn end_body(&mut self) {
         if let Some(protocol) = &mut self.protocol {
             protocol.end_body();
         }
     }
 
-    pub fn finish(&mut self, outcome: RelayOutcome) {
+    pub(crate) fn finish(&mut self, outcome: RelayOutcome) {
         let span = self.span.clone();
         let _entered = span.enter();
         let Some(protocol) = self.protocol.take() else {

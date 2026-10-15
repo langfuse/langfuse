@@ -41,7 +41,7 @@ pub(super) enum ExportError {
 }
 
 impl ExportError {
-    pub fn reason(&self) -> &'static str {
+    pub(super) fn reason(&self) -> &'static str {
         match self {
             Self::Expired => "expired_grant",
             Self::Payload => "payload",
@@ -52,7 +52,7 @@ impl ExportError {
         }
     }
 
-    pub fn is_transient(&self) -> bool {
+    pub(super) fn is_transient(&self) -> bool {
         match self {
             Self::Transport => true,
             Self::Rejected { status, .. } => matches!(status, 408 | 429 | 500 | 502 | 503 | 504),
@@ -60,7 +60,7 @@ impl ExportError {
         }
     }
 
-    pub fn retry_after(&self) -> Option<Duration> {
+    pub(super) fn retry_after(&self) -> Option<Duration> {
         match self {
             Self::Rejected { retry_after, .. } => *retry_after,
             _ => None,
@@ -69,7 +69,7 @@ impl ExportError {
 }
 
 impl Uploader {
-    pub fn new(config: &ControlPlaneConfig) -> Result<Self, ResolutionError> {
+    pub(super) fn new(config: &ControlPlaneConfig) -> Result<Self, ResolutionError> {
         let client = Client::builder()
             .redirect(reqwest::redirect::Policy::none())
             .retry(reqwest::retry::never())
@@ -90,7 +90,7 @@ impl Uploader {
         })
     }
 
-    pub async fn export(&self, grant: &Grant, payload: &Payload) -> Result<(), ExportError> {
+    pub(super) async fn export(&self, grant: &Grant, payload: &Payload) -> Result<(), ExportError> {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|_| ExportError::Expired)?;
@@ -176,7 +176,7 @@ impl Uploader {
 pub(super) struct Payload(Bytes);
 
 impl Payload {
-    pub fn encode(spans: &[impl Serialize]) -> Result<Self, ExportError> {
+    pub(super) fn encode(spans: &[impl Serialize]) -> Result<Self, ExportError> {
         let payload = json!({"resourceSpans": [{
             "resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "langfuse-ai-gateway"}}]},
             "scopeSpans": [{"scope": {"name": "langfuse-ai-gateway", "version": env!("CARGO_PKG_VERSION")}, "spans": spans}]

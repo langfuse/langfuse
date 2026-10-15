@@ -72,7 +72,7 @@ async fn invalid_model_rewrite_never_reaches_the_provider() {
             Bytes::from_static(br#"{"model":"requested"}"#),
             100..110,
             Route::OpenAiResponses,
-            &mut crate::correlation::RequestCorrelation::default(),
+            &mut RequestCorrelation::default(),
         )
         .await;
 
@@ -701,7 +701,7 @@ async fn compact_posts_compact_path_and_captures_ingestion() {
             Bytes::from_static(COMPACT),
             model_range(COMPACT).unwrap(),
             Route::OpenAiResponsesCompact,
-            &mut crate::correlation::RequestCorrelation::default(),
+            &mut RequestCorrelation::default(),
         )
         .await
         .unwrap();
@@ -906,7 +906,7 @@ async fn sends_the_x_api_key_credential_and_forwards_the_open_anthropic_header_f
             Bytes::from_static(REQUEST),
             model_range(REQUEST).unwrap(),
             Route::AnthropicMessages,
-            &mut crate::correlation::RequestCorrelation::default(),
+            &mut RequestCorrelation::default(),
         )
         .await
         .unwrap();
@@ -960,7 +960,7 @@ async fn count_tokens_relays_the_body() {
             Bytes::from_static(br#"{"model":"claude-sonnet-4-5","messages":[]}"#),
             model_range(br#"{"model":"claude-sonnet-4-5","messages":[]}"#).unwrap(),
             Route::AnthropicCountTokens,
-            &mut crate::correlation::RequestCorrelation::default(),
+            &mut RequestCorrelation::default(),
         )
         .await
         .unwrap();
@@ -1078,7 +1078,7 @@ async fn chat_completions_streams_request_usage_and_relay_the_usage_chunk() {
                 Bytes::from_static(request.as_bytes()),
                 model_range(request.as_bytes()).unwrap(),
                 Route::OpenAiChatCompletions,
-                &mut crate::correlation::RequestCorrelation::default(),
+                &mut RequestCorrelation::default(),
             )
             .await
             .unwrap();
@@ -1126,7 +1126,7 @@ async fn chat_completions_rewrite_non_streamed_models() {
             Bytes::from_static(JSON_REQUEST.as_bytes()),
             model_range(JSON_REQUEST.as_bytes()).unwrap(),
             Route::OpenAiChatCompletions,
-            &mut crate::correlation::RequestCorrelation::default(),
+            &mut RequestCorrelation::default(),
         )
         .await
         .unwrap();

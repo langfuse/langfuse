@@ -387,7 +387,7 @@ fn request_id(response: &reqwest::Response) -> String {
 
 /// A request that never reaches the provider has no generation, and names only
 /// its tenant, and only if it was resolved.
-fn assert_pre_upstream_headers(headers: &reqwest::header::HeaderMap, resolved: bool) {
+fn assert_pre_upstream_headers(headers: &HeaderMap, resolved: bool) {
     assert!(!headers.contains_key("langfuse-trace-id"));
     assert!(!headers.contains_key("langfuse-observation-id"));
     for name in ["langfuse-organization-id", "langfuse-project-id"] {
