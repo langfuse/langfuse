@@ -1008,8 +1008,8 @@ async fn a_stalled_request_body_times_out_at_the_read_deadline() {
     let web = FakeServer::start(|_| async { resolution_response("provider") }).await;
     let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
     let service = inference(&web, &provider);
-    // The 32 MiB default keeps the 10 MiB per 30 seconds minimum upload rate.
-    assert_eq!(service.request_read_timeout(), Duration::from_secs(97));
+    // The 16 MiB default keeps the 10 MiB per 30 seconds minimum upload rate.
+    assert_eq!(service.request_read_timeout(), Duration::from_secs(49));
     let gateway = Gateway::start(Some(service)).await;
     let stalled = Body::from_stream(stream::pending::<Result<&'static str, Infallible>>());
     let started = tokio::time::Instant::now();
@@ -1024,7 +1024,7 @@ async fn a_stalled_request_body_times_out_at_the_read_deadline() {
         .expect("the router must bound the body read")
         .unwrap();
     assert_eq!(response.status(), StatusCode::REQUEST_TIMEOUT);
-    assert_eq!(started.elapsed(), Duration::from_secs(97));
+    assert_eq!(started.elapsed(), Duration::from_secs(49));
     let body = to_bytes(response.into_body(), 4096).await.unwrap();
     assert!(String::from_utf8_lossy(&body).contains("request_timeout"));
     assert_eq!(web.calls(), 0);
