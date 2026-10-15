@@ -18,7 +18,7 @@ pub struct GatewayConfig {
 
 const MIB: usize = 1024 * 1024;
 pub const DEFAULT_MAX_REQUEST_BYTES: usize = 32 * MIB;
-const DEFAULT_REQUEST_BUFFER_BYTES: usize = 512 * MIB;
+const DEFAULT_SHARED_REQUEST_BUFFER_BYTES: usize = 512 * MIB;
 /// Longest configurable execution; Web's two-hour ingestion tokens outlive it plus the upload.
 const MAX_EXECUTION_CEILING_SECONDS: u64 = 90 * 60;
 
@@ -27,14 +27,14 @@ const MAX_EXECUTION_CEILING_SECONDS: u64 = 90 * 60;
 pub struct RequestLimits {
     pub max_request_bytes: usize,
     /// Request body bytes all in-flight requests may buffer together.
-    pub buffer_bytes: usize,
+    pub shared_buffer_bytes: usize,
 }
 
 impl Default for RequestLimits {
     fn default() -> Self {
         Self {
             max_request_bytes: DEFAULT_MAX_REQUEST_BYTES,
-            buffer_bytes: DEFAULT_REQUEST_BUFFER_BYTES,
+            shared_buffer_bytes: DEFAULT_SHARED_REQUEST_BUFFER_BYTES,
         }
     }
 }
@@ -96,7 +96,7 @@ impl GatewayConfig {
         )?;
         config.request_limits = request_limits(
             read_env("LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES")?.as_deref(),
-            read_env("LANGFUSE_AI_GATEWAY_REQUEST_BUFFER_BYTES")?.as_deref(),
+            read_env("LANGFUSE_AI_GATEWAY_SHARED_REQUEST_BUFFER_BYTES")?.as_deref(),
         )?;
         config.execution_limits = execution_limits(
             read_env("LANGFUSE_AI_GATEWAY_MAX_EXECUTION_SECONDS")?.as_deref(),
@@ -204,7 +204,7 @@ impl GatewayConfig {
 
 fn request_limits(
     max_request_bytes: Option<&str>,
-    buffer_bytes: Option<&str>,
+    shared_buffer_bytes: Option<&str>,
 ) -> Result<RequestLimits, GatewayConfigError> {
     let defaults = RequestLimits::default();
     // One request reserves its body in a single semaphore acquisition, which takes a u32.
@@ -219,17 +219,17 @@ fn request_limits(
         .ok_or(GatewayConfigError(
             "LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES must be an integer of at least 1048576 (1 MiB) and within a single semaphore reservation",
         ))?;
-    let buffer_bytes = buffer_bytes
-        .map_or(Some(defaults.buffer_bytes), |value| {
+    let shared_buffer_bytes = shared_buffer_bytes
+        .map_or(Some(defaults.shared_buffer_bytes), |value| {
             value.parse::<usize>().ok()
         })
         .filter(|bytes| (max_request_bytes..=tokio::sync::Semaphore::MAX_PERMITS).contains(bytes))
         .ok_or(GatewayConfigError(
-            "LANGFUSE_AI_GATEWAY_REQUEST_BUFFER_BYTES must be an integer of at least LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES within the semaphore capacity",
+            "LANGFUSE_AI_GATEWAY_SHARED_REQUEST_BUFFER_BYTES must be an integer of at least LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES within the semaphore capacity",
         ))?;
     Ok(RequestLimits {
         max_request_bytes,
-        buffer_bytes,
+        shared_buffer_bytes,
     })
 }
 
@@ -483,14 +483,14 @@ mod tests {
             request_limits(None, None).unwrap(),
             RequestLimits {
                 max_request_bytes: 32 * MIB,
-                buffer_bytes: 512 * MIB,
+                shared_buffer_bytes: 512 * MIB,
             }
         );
         assert_eq!(
             request_limits(Some("1048576"), Some("1048576")).unwrap(),
             RequestLimits {
                 max_request_bytes: MIB,
-                buffer_bytes: MIB,
+                shared_buffer_bytes: MIB,
             }
         );
         let largest_reservation = u32::MAX.to_string();
@@ -498,7 +498,7 @@ mod tests {
             request_limits(Some(&largest_reservation), Some(&largest_reservation)).unwrap(),
             RequestLimits {
                 max_request_bytes: usize::try_from(u32::MAX).unwrap(),
-                buffer_bytes: usize::try_from(u32::MAX).unwrap(),
+                shared_buffer_bytes: usize::try_from(u32::MAX).unwrap(),
             }
         );
         let over_reservation = (u64::from(u32::MAX) + 1).to_string();
@@ -519,22 +519,22 @@ mod tests {
             (
                 Some("1073741824"),
                 None,
-                "LANGFUSE_AI_GATEWAY_REQUEST_BUFFER_BYTES",
+                "LANGFUSE_AI_GATEWAY_SHARED_REQUEST_BUFFER_BYTES",
             ),
             (
                 None,
                 Some("33554431"),
-                "LANGFUSE_AI_GATEWAY_REQUEST_BUFFER_BYTES",
+                "LANGFUSE_AI_GATEWAY_SHARED_REQUEST_BUFFER_BYTES",
             ),
             (
                 None,
                 Some(over_capacity.as_str()),
-                "LANGFUSE_AI_GATEWAY_REQUEST_BUFFER_BYTES",
+                "LANGFUSE_AI_GATEWAY_SHARED_REQUEST_BUFFER_BYTES",
             ),
             (
                 None,
                 Some("secret-that-must-not-appear"),
-                "LANGFUSE_AI_GATEWAY_REQUEST_BUFFER_BYTES",
+                "LANGFUSE_AI_GATEWAY_SHARED_REQUEST_BUFFER_BYTES",
             ),
         ] {
             let error = request_limits(max, buffer).err().unwrap().to_string();

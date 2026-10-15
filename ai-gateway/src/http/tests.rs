@@ -1748,7 +1748,7 @@ async fn buffered_request_bytes_are_released_once_sent_to_the_provider() {
     .await;
     let service = inference(&web, &provider).with_request_limits(RequestLimits {
         max_request_bytes: 64,
-        buffer_bytes: 100,
+        shared_buffer_bytes: 100,
     });
     let gateway = Gateway::start(Some(service)).await;
     let body = |size: usize| {
@@ -1800,7 +1800,7 @@ async fn budgeted_service() -> (FakeServer, FakeServer, InferenceService) {
     let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
     let service = inference(&web, &provider).with_request_limits(RequestLimits {
         max_request_bytes: 64,
-        buffer_bytes: 100,
+        shared_buffer_bytes: 100,
     });
     (web, provider, service)
 }

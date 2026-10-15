@@ -95,7 +95,9 @@ impl InferenceService {
                 .with_telemetry(telemetry.clone()),
             request_body_capacity: Arc::new(Semaphore::new(config.max_active_requests)),
             request_limits: config.request_limits,
-            request_bytes_capacity: Arc::new(Semaphore::new(config.request_limits.buffer_bytes)),
+            request_bytes_capacity: Arc::new(Semaphore::new(
+                config.request_limits.shared_buffer_bytes,
+            )),
             model_catalog_capacity: Semaphore::new(max_concurrent_resolutions),
             resolution_capacity: Semaphore::new(max_concurrent_resolutions),
             telemetry: Some(telemetry),
@@ -249,7 +251,9 @@ impl InferenceService {
             provider,
             request_body_capacity: Arc::new(Semaphore::new(resolutions)),
             request_limits: RequestLimits::default(),
-            request_bytes_capacity: Arc::new(Semaphore::new(RequestLimits::default().buffer_bytes)),
+            request_bytes_capacity: Arc::new(Semaphore::new(
+                RequestLimits::default().shared_buffer_bytes,
+            )),
             model_catalog_capacity: Semaphore::new(resolutions),
             resolution_capacity: Semaphore::new(resolutions),
             telemetry: None,
@@ -258,7 +262,7 @@ impl InferenceService {
 
     #[cfg(test)]
     pub(crate) fn with_request_limits(mut self, request_limits: RequestLimits) -> Self {
-        self.request_bytes_capacity = Arc::new(Semaphore::new(request_limits.buffer_bytes));
+        self.request_bytes_capacity = Arc::new(Semaphore::new(request_limits.shared_buffer_bytes));
         self.request_limits = request_limits;
         self
     }
