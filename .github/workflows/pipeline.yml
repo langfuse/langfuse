@@ -200,9 +200,13 @@ jobs:
         run: cargo clippy --locked --all-targets -- -D warnings
       - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
-          tool: cargo-machete@0.9.2
+          tool: cargo-machete@0.9.2,cargo-deny@0.20.2
       - name: Check for unused Rust dependencies
         run: cargo machete
+      # Advisories are checked in ai-gateway-dependency-audit.yml: the RustSec
+      # database changes independently of this repo and must not block merges.
+      - name: Check Rust dependency licenses, bans, and sources
+        run: cargo deny --locked check bans licenses sources
       - name: Run Rust tests
         run: bash "$GITHUB_WORKSPACE/scripts/ci/retry-on-merge-queue.sh" cargo test --locked
       - name: Build runtime image

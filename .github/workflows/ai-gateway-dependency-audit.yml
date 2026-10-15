@@ -1,7 +1,9 @@
-name: AI Gateway Dependency Audit
-# Runs cargo-deny (RustSec advisories, licenses, banned crates, sources) for
-# ai-gateway. Path-filtered so a newly published advisory does not block
-# unrelated PRs; the weekly schedule surfaces new advisories against main.
+name: AI Gateway Security Advisories
+# Checks ai-gateway dependencies against RustSec advisories with cargo-deny.
+# Licenses, bans, and sources are required checks in pipeline.yml
+# (tests-ai-gateway). Advisories live here because the advisory database
+# changes independently of this repo: path filtering keeps a newly published
+# advisory from blocking unrelated PRs, and the weekly run surfaces it on main.
 on:
   workflow_dispatch:
   schedule:
@@ -31,7 +33,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  cargo-deny:
+  cargo-deny-advisories:
     timeout-minutes: 10
     runs-on: ubuntu-latest
     defaults:
@@ -46,5 +48,5 @@ jobs:
       - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
           tool: cargo-deny@0.20.2
-      - name: Check advisories, licenses, bans, and sources
-        run: cargo deny --locked check
+      - name: Check RustSec advisories
+        run: cargo deny --locked check advisories
