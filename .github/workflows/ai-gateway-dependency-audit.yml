@@ -1,0 +1,50 @@
+name: AI Gateway Dependency Audit
+# Runs cargo-deny (RustSec advisories, licenses, banned crates, sources) for
+# ai-gateway. Path-filtered so a newly published advisory does not block
+# unrelated PRs; the weekly schedule surfaces new advisories against main.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1"
+  push:
+    branches:
+      - "main"
+    paths:
+      - "ai-gateway/Cargo.toml"
+      - "ai-gateway/Cargo.lock"
+      - "ai-gateway/deny.toml"
+      - ".github/workflows/ai-gateway-dependency-audit.yml"
+  pull_request:
+    branches:
+      - "main"
+    paths:
+      - "ai-gateway/Cargo.toml"
+      - "ai-gateway/Cargo.lock"
+      - "ai-gateway/deny.toml"
+      - ".github/workflows/ai-gateway-dependency-audit.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cargo-deny:
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ai-gateway
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install --no-self-update
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        with:
+          tool: cargo-deny@0.20.2
+      - name: Check advisories, licenses, bans, and sources
+        run: cargo deny --locked check
