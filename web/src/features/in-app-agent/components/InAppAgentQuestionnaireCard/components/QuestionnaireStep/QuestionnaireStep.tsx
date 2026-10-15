@@ -121,7 +121,7 @@ export function QuestionnaireStep({
   if (!question.allowMultiple) {
     return (
       <div className="flex flex-col px-1.5 pb-1.5" onKeyDown={handleKeyDown}>
-        <div className="border-border flex flex-col border-b pb-0.5">
+        <div className="border-border flex flex-col border-b pb-1">
           {question.options.map((option, optionIndex) => (
             <SingleChoiceRow
               key={optionIndex}
@@ -263,7 +263,7 @@ function MultipleChoiceRow({
 
   return (
     // The wrapper carries the list divider so it stays straight under the rounded hover.
-    <div className="py-0.5">
+    <div className="py-1">
       <label
         htmlFor={id}
         className="hover:bg-muted has-focus-visible:bg-muted flex cursor-pointer items-start gap-3 rounded-lg px-2 py-2 text-sm has-disabled:cursor-not-allowed"
@@ -322,7 +322,7 @@ function OtherAnswerRow({
   children,
 }: OtherAnswerRowProps) {
   return (
-    <div className="pt-0.5">
+    <div className="pt-1">
       <div className="has-focus-visible:bg-muted flex min-h-11 items-center gap-2 rounded-lg px-2 py-1.5">
         {/* The design-system Input is always boxed; this row reads as a list item. */}
         <input
