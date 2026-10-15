@@ -425,8 +425,161 @@ describe("tenancy injection", () => {
             .selectFrom("traces")
             .select("id"),
       ],
+      [
+        "through an aliased read",
+        () =>
+          db
+            .with("traces", (qb) =>
+              qb.selectFrom("observations as o").select("o.trace_id as id"),
+            )
+            .with("observations", (qb) =>
+              qb.selectFrom("traces").select("id as trace_id"),
+            )
+            .selectFrom("traces")
+            .select("id"),
+      ],
+      [
+        "through a FINAL read",
+        () =>
+          db
+            .with("traces", (qb) =>
+              qb
+                .selectFrom("scores")
+                .select("trace_id as id")
+                .$call(useFinal(["scores"])),
+            )
+            .with("scores", (qb) =>
+              qb.selectFrom("traces").select("id as trace_id"),
+            )
+            .selectFrom("traces")
+            .select("id"),
+      ],
+      [
+        "through a JOIN",
+        () =>
+          db
+            .with("traces", (qb) =>
+              qb
+                .selectFrom("scores as s")
+                .innerJoin("observations as o", "o.trace_id", "s.trace_id")
+                .select("s.trace_id as id"),
+            )
+            .with("observations", (qb) =>
+              qb.selectFrom("traces").select("id as trace_id"),
+            )
+            .selectFrom("traces")
+            .select("id"),
+      ],
     ])("rejects sibling CTEs that read each other %s", (_, build) => {
       expect(() => compile(build())).toThrow(UnscopedRelationError);
+    });
+
+    it("rejects a nested WITH that redirects an enclosing CTE body's read", () => {
+      // Read inside `sub`, `traces` reads the inner `observations`, which reads
+      // `a`, which reads `traces` while it is still being resolved: the table.
+      expect(() =>
+        compile(
+          db
+            .with("traces", (qb) =>
+              qb.selectFrom("observations").select("trace_id as id"),
+            )
+            .with("observations", (qb) =>
+              qb.selectFrom("scores").select("trace_id"),
+            )
+            .with("a", (qb) => qb.selectFrom("traces").select("id"))
+            .selectFrom(
+              db
+                .withTables<{ a: { id: string } }>()
+                .with("observations", (qb) =>
+                  qb.selectFrom("a").select("id as trace_id"),
+                )
+                .selectFrom("traces")
+                .select("id")
+                .as("sub"),
+            )
+            .select("sub.id"),
+        ),
+      ).toThrow(UnscopedRelationError);
+    });
+
+    it("rejects a nested WITH that redirects a CTE body's own-name read", () => {
+      // The `traces` CTE inside `a` reads its own name, which escapes to the
+      // `traces` CTE in scope where `a` is read.
+      expect(() =>
+        compile(
+          db
+            .with("a", (qb) =>
+              qb
+                .selectFrom(
+                  db
+                    .with("traces", (inner) =>
+                      inner.selectFrom("traces").select("id"),
+                    )
+                    .selectFrom("traces")
+                    .select("id")
+                    .as("sub"),
+                )
+                .select("sub.id"),
+            )
+            .selectFrom(
+              db
+                .withTables<{ a: { id: string } }>()
+                .with("traces", (qb) =>
+                  qb.selectFrom("scores").select("trace_id as id"),
+                )
+                .selectFrom("a")
+                .select("id")
+                .as("u"),
+            )
+            .select("u.id"),
+        ),
+      ).toThrow(UnscopedRelationError);
+    });
+
+    it("accepts a CTE body that reads its own nested CTE", () => {
+      expect(
+        compile(
+          db
+            .with("a", (qb) =>
+              qb
+                .selectFrom(
+                  db
+                    .with("x", (inner) =>
+                      inner.selectFrom("scores").select("trace_id"),
+                    )
+                    .selectFrom("x")
+                    .select("trace_id")
+                    .as("sub"),
+                )
+                .select("sub.trace_id"),
+            )
+            .selectFrom("a")
+            .select("trace_id"),
+        ),
+      ).toBe(
+        "with a as (select sub.trace_id from (with x as (select trace_id from scores where project_id = {p1:String}) select trace_id from x) as sub) select trace_id from a",
+      );
+    });
+
+    it("does not count a schema-qualified read as a sibling read", () => {
+      expect(
+        compile(
+          db
+            .with("traces", (qb) =>
+              qb
+                .withSchema("default")
+                .selectFrom("observations")
+                .select("trace_id as id"),
+            )
+            .with("observations", (qb) =>
+              qb.selectFrom("traces").select("id as trace_id"),
+            )
+            .selectFrom("observations")
+            .select("trace_id"),
+        ),
+      ).toBe(
+        "with traces as (select trace_id as id from default.observations where project_id = {p1:String}), observations as (select id as trace_id from traces) select trace_id from observations",
+      );
     });
 
     it("does not count a column qualifier named like a sibling as a read", () => {

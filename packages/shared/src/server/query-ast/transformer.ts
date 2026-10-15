@@ -119,6 +119,15 @@ export abstract class CteScopedTransformer extends ClickHouseOperationNodeTransf
    */
   private readonly cteScopes: Set<string>[] = [];
 
+  /**
+   * Names the CTE bodies of each enclosing WITH read in FROM/JOIN, one set
+   * per enclosing select that declares a WITH. ClickHouse resolves a CTE body
+   * where the CTE is read, not where it is declared, so a nested WITH that
+   * declares one of these names would redirect that read. Pushed and popped
+   * with {@link cteScopes}.
+   */
+  private readonly enclosingBodyReads: Set<string>[] = [];
+
   protected abstract rewriteSelect(
     node: ClickHouseSelectQueryNode,
   ): ClickHouseSelectQueryNode;
@@ -135,13 +144,22 @@ export abstract class CteScopedTransformer extends ClickHouseOperationNodeTransf
     queryId?: QueryId,
   ): SelectQueryNode {
     const ctes = cteNames(node.with);
-    if (ctes.size > 0) this.cteScopes.push(ctes);
+    if (ctes.size > 0) {
+      assertNoRedirectedRead(ctes, this.enclosingBodyReads);
+      this.cteScopes.push(ctes);
+      this.enclosingBodyReads.push(
+        relationNames(node.with?.expressions.map((expr) => expr.expression)),
+      );
+    }
     try {
       return this.rewriteSelect(
         super.transformSelectQuery(node, queryId) as ClickHouseSelectQueryNode,
       );
     } finally {
-      if (ctes.size > 0) this.cteScopes.pop();
+      if (ctes.size > 0) {
+        this.cteScopes.pop();
+        this.enclosingBodyReads.pop();
+      }
     }
   }
 
@@ -178,13 +196,34 @@ function cteNames(node: WithNode | undefined): Set<string> {
 }
 
 /**
+ * Rejects a WITH that declares a name a CTE body of an enclosing WITH reads,
+ * e.g. `WITH a AS (SELECT … FROM m) SELECT … FROM (WITH m AS (…) SELECT …
+ * FROM a)`: read there, `a` reads the inner `m`. With this rule every name in
+ * a CTE body resolves where the CTE is declared, which is what
+ * {@link CteScopedTransformer} and the compiler's bind-type scopes assume.
+ */
+function assertNoRedirectedRead(
+  declared: Set<string>,
+  enclosingBodyReads: readonly Set<string>[],
+): void {
+  for (const name of declared) {
+    if (enclosingBodyReads.some((reads) => reads.has(name))) {
+      throw new UnscopedRelationError(
+        `A nested WITH may not declare ${name}: an enclosing CTE reads ${name}, and ClickHouse would resolve that read to the nested CTE, so the tenancy pass cannot scope it.`,
+      );
+    }
+  }
+}
+
+/**
  * Rejects sibling CTEs that read each other (`a` → `b` → `a`). ClickHouse
- * resolves a read of a CTE that is still being resolved to the table of that
- * name, so one reference reads the CTE on one path and the table on another,
- * and no scope can tell a pass which. A body reading its own name is not a
- * cycle: that read is always the table. Every unqualified FROM/JOIN name in a
- * body counts as a read, nested selects included, so a nested WITH that
- * shadows a sibling name is rejected too.
+ * resolves a read of a CTE that is still being resolved as if that CTE were
+ * not declared, to an enclosing CTE of that name or else the table, so one
+ * reference reads the CTE on one path and something else on another, and no
+ * scope can tell a pass which. A body reading its own name is not a cycle.
+ * Every unqualified FROM/JOIN name in a body counts as a read, nested selects
+ * included, so a cycle is also found when a nested WITH in a body declares the
+ * name; that over-approximation can reject a query ClickHouse would resolve.
  */
 function assertNoSiblingCycle(node: WithNode): void {
   const names = cteNames(node);
@@ -215,20 +254,45 @@ function assertNoSiblingCycle(node: WithNode): void {
   for (const name of names) visit(name);
 }
 
-/** Unqualified table names read in FROM/JOIN anywhere under `value`. */
-function relationNames(value: unknown, found = new Set<string>()): Set<string> {
+/**
+ * Unqualified table names read in FROM/JOIN anywhere under `value`, except
+ * reads of a CTE that a select under `value` declares: those always resolve
+ * to that CTE. A CTE body's read of its own name escapes its WITH, so it
+ * counts.
+ */
+function relationNames(
+  value: unknown,
+  found = new Set<string>(),
+  shadowed: ReadonlySet<string> = new Set(),
+): Set<string> {
   if (!value || typeof value !== "object") return found;
-  if (isOperationNode(value) && SelectQueryNode.is(value)) {
-    const relations = [
-      ...(value.from?.froms ?? []),
-      ...(value.joins ?? []).map((join) => join.table),
-    ];
-    for (const relation of relations) {
-      const table = relationTable(relation);
-      if (table && !table.table.schema) found.add(table.table.identifier.name);
+  if (!isOperationNode(value) || !SelectQueryNode.is(value)) {
+    for (const child of Object.values(value)) {
+      relationNames(child, found, shadowed);
+    }
+    return found;
+  }
+  const declared = cteNames(value.with);
+  for (const expr of value.with?.expressions ?? []) {
+    const visible = new Set(declared);
+    visible.delete(cteName(expr));
+    relationNames(expr.expression, found, new Set([...shadowed, ...visible]));
+  }
+  const inner = new Set([...shadowed, ...declared]);
+  const relations = [
+    ...(value.from?.froms ?? []),
+    ...(value.joins ?? []).map((join) => join.table),
+  ];
+  for (const relation of relations) {
+    const table = relationTable(relation);
+    const name = table?.table.identifier.name;
+    if (table && name && !table.table.schema && !inner.has(name)) {
+      found.add(name);
     }
   }
-  for (const child of Object.values(value)) relationNames(child, found);
+  for (const [key, child] of Object.entries(value)) {
+    if (key !== "with") relationNames(child, found, inner);
+  }
   return found;
 }
 
