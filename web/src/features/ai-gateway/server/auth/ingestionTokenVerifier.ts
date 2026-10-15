@@ -12,8 +12,7 @@ import {
 import { requireGatewayEnabledForOrganization } from "../availability";
 import { verifyGatewayRequestSignature } from "./gatewayRequestSignatureVerifier";
 
-/** Ingestion token lifetime; outlives the gateway's 90-minute execution ceiling plus upload batching. */
-export const GATEWAY_INGESTION_TOKEN_TTL_SECONDS = 2 * 60 * 60;
+export const GATEWAY_INGESTION_TOKEN_TTL_SECONDS = 15 * 60;
 
 const GatewayIngestionClaimsSchema = z.strictObject({
   version: z.literal(1),

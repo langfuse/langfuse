@@ -21,7 +21,6 @@ const DEFAULT_CONCURRENCY: usize = 128;
 const SEMAPHORE_CAPACITY: usize = tokio::sync::Semaphore::MAX_PERMITS;
 pub const DEFAULT_MAX_REQUEST_BYTES: usize = 32 * MIB;
 const DEFAULT_SHARED_REQUEST_BUFFER_BYTES: usize = 512 * MIB;
-/// Longest configurable execution; Web's two-hour ingestion tokens outlive it plus the upload.
 const MAX_EXECUTION_CEILING_SECONDS: u64 = 90 * 60;
 
 /// Buffered request body bounds per instance.
