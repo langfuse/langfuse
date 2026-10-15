@@ -166,7 +166,7 @@ function DialogRoot({
 
 function DialogBody({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 text-sm leading-relaxed">
+    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 text-sm leading-relaxed">
       {children}
     </div>
   );
@@ -182,7 +182,7 @@ function DialogFooter({
   return (
     <footer
       className={cn(
-        "bg-modal sticky bottom-0 z-10 flex shrink-0 flex-col gap-3 rounded-b-lg p-4 sm:flex-row sm:items-center sm:justify-end",
+        "bg-modal z-10 flex shrink-0 flex-col gap-3 rounded-b-lg p-4 sm:flex-row sm:items-center sm:justify-end",
         info && "border-t",
       )}
     >

@@ -15,7 +15,7 @@ export function ModalLayerProvider({ children }: ModalLayerProviderProps) {
 
   return (
     <LayerContext.Provider value={layers}>
-      <div className="relative isolate flex min-h-0 flex-1 flex-col">
+      <div className="relative isolate flex max-h-[inherit] min-h-0 flex-1 flex-col">
         {children}
       </div>
       <div data-overlay-root="">

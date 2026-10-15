@@ -164,3 +164,52 @@ export const DestructiveOnlyAutofocus = meta.story({
     );
   },
 });
+
+export const ScrollableBody = meta.story({
+  name: "(Test) Long content scrolls above the footer",
+  render: () => (
+    <DialogController
+      initialState={() => true}
+      renderDialog={() => (
+        <Dialog
+          title="Scrollable dialog"
+          actions={[{ label: "Continue", onClick: fn() }]}
+        >
+          <Dialog.Body>
+            {Array.from({ length: 40 }, (_, index) => (
+              <p key={index}>Dialog content row {index + 1}</p>
+            ))}
+            <p>End of dialog content</p>
+          </Dialog.Body>
+        </Dialog>
+      )}
+    >
+      {() => null}
+    </DialogController>
+  ),
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    const dialog = body.getByRole("dialog", { name: "Scrollable dialog" });
+    const end = within(dialog).getByText("End of dialog content");
+    const scroller = end.parentElement!;
+    const footer = dialog.querySelector("footer")!;
+    function expectSeparateBodyAndFooter() {
+      const bounds = dialog.getBoundingClientRect();
+      const actions = footer.getBoundingClientRect();
+      expect(actions.top).toBeGreaterThanOrEqual(
+        scroller.getBoundingClientRect().bottom - 1,
+      );
+      expect(actions.bottom).toBeLessThanOrEqual(bounds.bottom + 1);
+      expect(scroller.scrollHeight).toBeGreaterThan(scroller.clientHeight);
+    }
+    await waitFor(expectSeparateBodyAndFooter);
+    scroller.scrollTop = scroller.scrollHeight;
+    await waitFor(() => {
+      expectSeparateBodyAndFooter();
+      expect(scroller.scrollTop).toBeGreaterThan(0);
+      expect(end.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+        footer.getBoundingClientRect().top + 1,
+      );
+    });
+  },
+});
