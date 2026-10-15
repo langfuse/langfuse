@@ -13,6 +13,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import {
+  BATCH_EXPORT_ABANDONED_AFTER_MS,
   BatchExportStatus,
   BatchExportTableName,
   CreateBatchExportSchema,
@@ -70,6 +71,10 @@ const assertCanReadAuditLogs = (session: AuthedSession, projectId: string) => {
   });
 };
 
+// Server-rendered into an error message, so the timezone is stated explicitly.
+const formatUtc = (date: Date) =>
+  `${date.toISOString().slice(0, 16).replace("T", " ")} UTC`;
+
 const isDownloadWindowExpired = (batchExport: {
   finishedAt: Date | null;
   expiresAt: Date | null;
@@ -116,6 +121,27 @@ export const batchExportRouter = createTRPCRouter({
 
         logger.info("[BATCH EXPORT] Creating export job", { job: input });
         const userId = ctx.session.user.id;
+
+        const activeExport = await ctx.prisma.batchExport.findFirst({
+          where: {
+            projectId,
+            userId,
+            status: {
+              in: [BatchExportStatus.QUEUED, BatchExportStatus.PROCESSING],
+            },
+            updatedAt: {
+              gte: new Date(Date.now() - BATCH_EXPORT_ABANDONED_AFTER_MS),
+            },
+          },
+          select: { createdAt: true },
+          orderBy: { createdAt: "asc" },
+        });
+        if (activeExport) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: `Your export started at ${formatUtc(activeExport.createdAt)} is still running. Wait for it to finish or cancel it under Settings > Exports.`,
+          });
+        }
 
         // Create export job
         const exportJob = await ctx.prisma.batchExport.create({

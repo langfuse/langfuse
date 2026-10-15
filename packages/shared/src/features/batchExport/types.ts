@@ -19,6 +19,11 @@ export enum BatchExportStatus {
   CANCELLED = "CANCELLED",
 }
 
+// A user runs at most one batch export per project at a time. A QUEUED or
+// PROCESSING export untouched for this long is treated as abandoned (e.g. its
+// worker died) so it cannot block the user forever.
+export const BATCH_EXPORT_ABANDONED_AFTER_MS = 60 * 60 * 1000;
+
 export enum BatchExportFileFormat {
   JSON = "JSON",
   CSV = "CSV",

@@ -18,10 +18,12 @@ import {
 } from "@langfuse/shared/src/server";
 import {
   BatchExportFileFormat,
+  BatchExportStatus,
   BatchExportTableName,
   DatasetStatus,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import { claimExportSlot } from "../features/batchExport/handleBatchExportJob";
 import { getDatabaseReadStreamPaginated } from "../features/database-read-stream/getDatabaseReadStream";
 import { getObservationStream } from "../features/database-read-stream/observation-stream";
 import { getTraceStream } from "../features/database-read-stream/trace-stream";
@@ -5330,5 +5332,96 @@ maybeDescribe("getEventsForBlobStorageExport", () => {
     expect(Object.keys(rows[0]).sort()).toEqual(expectedColumns);
     expect(rows[0].input).toBe("hello");
     expect(rows[0].output).toBe("world");
+  });
+});
+
+describe("batch export per-user concurrency", () => {
+  const createExport = ({
+    projectId,
+    status,
+    userId = "user-1",
+    updatedAt,
+  }: {
+    projectId: string;
+    status: BatchExportStatus;
+    userId?: string;
+    updatedAt?: Date;
+  }) =>
+    prisma.batchExport.create({
+      data: {
+        projectId,
+        userId,
+        name: "export",
+        status,
+        format: BatchExportFileFormat.CSV,
+        query: {},
+        ...(updatedAt ? { updatedAt } : {}),
+      },
+    });
+
+  const claim = (e: { id: string; projectId: string; userId: string }) =>
+    claimExportSlot({
+      projectId: e.projectId,
+      userId: e.userId,
+      batchExportId: e.id,
+    });
+
+  it("lets exactly one of a user's two concurrent exports start", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const exports = await Promise.all([
+      createExport({ projectId, status: BatchExportStatus.QUEUED }),
+      createExport({ projectId, status: BatchExportStatus.QUEUED }),
+    ]);
+
+    const claims = await Promise.all(exports.map(claim));
+
+    expect(claims.filter(Boolean)).toHaveLength(1);
+    const stored = await prisma.batchExport.findMany({ where: { projectId } });
+    expect(stored.map((e) => e.status).sort()).toEqual([
+      BatchExportStatus.PROCESSING,
+      BatchExportStatus.QUEUED,
+    ]);
+  });
+
+  it("lets different users in a project export at the same time", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    await createExport({ projectId, status: BatchExportStatus.PROCESSING });
+    const queued = await createExport({
+      projectId,
+      status: BatchExportStatus.QUEUED,
+      userId: "user-2",
+    });
+
+    await expect(claim(queued)).resolves.toBe(true);
+  });
+
+  it("ignores the user's exports in other projects and abandoned ones", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const { projectId: otherProjectId } = await createOrgProjectAndApiKey();
+    await createExport({
+      projectId: otherProjectId,
+      status: BatchExportStatus.PROCESSING,
+    });
+    await createExport({
+      projectId,
+      status: BatchExportStatus.PROCESSING,
+      updatedAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+    });
+    const queued = await createExport({
+      projectId,
+      status: BatchExportStatus.QUEUED,
+    });
+
+    await expect(claim(queued)).resolves.toBe(true);
+  });
+
+  it("lets a retried export reclaim its own slot", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const running = await createExport({
+      projectId,
+      status: BatchExportStatus.PROCESSING,
+    });
+
+    await expect(claim(running)).resolves.toBe(true);
   });
 });

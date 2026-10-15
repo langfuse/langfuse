@@ -18,6 +18,7 @@ vi.mock("@langfuse/shared/src/db", () => ({
 
 vi.mock("../../features/batchExport/handleBatchExportJob", () => ({
   handleBatchExportJob: mocks.handleBatchExportJob,
+  BatchExportUserBusyError: class extends Error {},
 }));
 
 import { batchExportQueueProcessor } from "../batchExportQueue";
