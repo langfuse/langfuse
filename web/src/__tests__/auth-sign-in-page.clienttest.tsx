@@ -469,7 +469,7 @@ describe("sign-in page last used SSO email", () => {
 
     // The password step appearing is what marks the email as not SSO-backed.
     await waitFor(() => {
-      expect(screen.getByLabelText(/Password/)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Password/)).toHaveFocus();
     });
     expect(storedSsoEmail()).toBe("");
     expect(signInMock).not.toHaveBeenCalled();
@@ -486,7 +486,7 @@ describe("sign-in page last used SSO email", () => {
     continueWithEmail("jane@acme.com");
 
     await waitFor(() => {
-      expect(screen.getByLabelText(/Password/)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Password/)).toHaveFocus();
     });
     expect(storedSsoEmail()).toBe("jane@acme.com");
   });
