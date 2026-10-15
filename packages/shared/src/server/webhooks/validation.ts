@@ -25,6 +25,14 @@ export function whitelistFromEnv(): WebhookValidationWhitelist {
   };
 }
 
+/** webhookWhitelistFromEnv adds the webhook-only positive host list to the shared exemption list. */
+export function webhookWhitelistFromEnv(): WebhookValidationWhitelist {
+  return {
+    ...whitelistFromEnv(),
+    allowedHosts: env.LANGFUSE_WEBHOOK_ALLOWED_HOSTS,
+  };
+}
+
 /**
  * Validates a webhook URL to prevent SSRF attacks by blocking internal/private IP addresses
  * Should be called when saving webhook URLs and before sending webhooks
