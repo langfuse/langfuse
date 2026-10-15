@@ -203,11 +203,12 @@ jobs:
           tool: cargo-machete@0.9.2,cargo-deny@0.20.2
       - name: Check for unused Rust dependencies
         run: cargo machete
-      # Licenses are checked in licencecheck.yml with the other license checks.
-      # Advisories come from Dependabot alerts, remediated by
-      # dependabot-security-maintainer, so a new advisory never blocks merges.
-      - name: Check Rust dependency bans and sources
-        run: cargo deny --locked check bans sources
+      # Licenses also run in licencecheck.yml next to the pnpm license check,
+      # but only all-ci-passed gates merges, so they are enforced here too.
+      # Advisories come from Dependabot alerts, so a new advisory never blocks
+      # merges.
+      - name: Check Rust dependency bans, licenses, and sources
+        run: cargo deny --locked check bans licenses sources
       - name: Run Rust tests
         run: bash "$GITHUB_WORKSPACE/scripts/ci/retry-on-merge-queue.sh" cargo test --locked
       - name: Build runtime image
@@ -296,8 +297,8 @@ jobs:
           tool: cargo-machete@0.9.2,cargo-deny@0.20.2
       - name: check native addon for unused Rust dependencies
         run: pnpm --filter @langfuse/native run rust:unused-deps
-      - name: check native addon Rust dependency bans and sources
-        run: pnpm --filter @langfuse/native run rust:deny bans sources
+      - name: check native addon Rust dependency bans, licenses, and sources
+        run: pnpm --filter @langfuse/native run rust:deny bans licenses sources
       - name: typecheck
         run: pnpm run typecheck --filter=!ai-gateway
 
