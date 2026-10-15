@@ -7,6 +7,7 @@ import {
   getLatestFacetSummaries,
   getPublishedTopicRun,
   getTopicRuns,
+  hasStoredTopicSummaries,
   listTopicFacets,
   readLatestTopicAssignments,
 } from "@langfuse/shared/topics/server";
@@ -49,11 +50,13 @@ export async function currentTopicResults(
   return Promise.all(
     facets.map(async (facet) => {
       const version = facet.versions[0];
-      const [storedAssignments, storedSummaries, run] = await Promise.all([
-        readLatestTopicAssignments(projectId, facet.id, timeRange),
-        getLatestFacetSummaries(projectId, facet.id, undefined, timeRange),
-        getPublishedTopicRun(projectId, facet.id),
-      ]);
+      const [storedAssignments, storedSummaries, run, hasStoredSummaries] =
+        await Promise.all([
+          readLatestTopicAssignments(projectId, facet.id, timeRange),
+          getLatestFacetSummaries(projectId, facet.id, undefined, timeRange),
+          getPublishedTopicRun(projectId, facet.id),
+          hasStoredTopicSummaries(projectId, facet.id),
+        ]);
       const latestSummaries = storedSummaries.filter(
         (row) => row.traceId !== null,
       );
@@ -127,6 +130,7 @@ export async function currentTopicResults(
         facetId: facet.id,
         name: facet.name,
         facetVersion: version?.version ?? null,
+        hasStoredSummaries,
         usableCount: latestSummaries.filter(
           (row) =>
             row.facetVersion === version?.version && row.state === "complete",

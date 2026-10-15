@@ -1,6 +1,7 @@
 import { Sparkles } from "lucide-react";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/design-system/Button/Button";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { SplashScreen } from "@/src/components/ui/splash-screen";
 import { type TopicSetupNoticeState } from "./TopicModelSettings";
 
@@ -11,9 +12,16 @@ type TopicSetupNoticeProps = {
   onConfigure: () => void;
   onKeepOff: () => void;
   onTurnBackOn: () => void;
+  showOnboarding?: boolean;
+  configured?: boolean;
+  canProcess?: boolean;
+  automaticEnabled?: boolean;
+  running?: boolean;
+  onAutomaticProcessing?: () => void;
+  onManualProcessing?: () => void;
 };
 
-/** Setup, paused, and availability notices above the Topics workspace. */
+/** Guides projects to their first summaries and surfaces paused processing. */
 export function TopicSetupNotice({
   notice,
   canWrite,
@@ -21,24 +29,23 @@ export function TopicSetupNotice({
   onConfigure,
   onKeepOff,
   onTurnBackOn,
+  showOnboarding = notice.status?.kind === "setup",
+  configured = false,
+  canProcess = false,
+  automaticEnabled = false,
+  running = false,
+  onAutomaticProcessing,
+  onManualProcessing,
 }: TopicSetupNoticeProps) {
   const { status } = notice;
+  const processingChoiceDescription = automaticEnabled
+    ? "Automatic processing is on for new traces. You can also summarize existing traces in manual batches."
+    : "Enable automatic processing for incoming traces, or summarize existing traces in manual batches of up to 1,000.";
+  const processingDescription = running
+    ? "Your traces are being processed. Summaries will appear here as they become available."
+    : processingChoiceDescription;
   return (
     <>
-      {notice.unavailable ? (
-        <Alert variant="info">
-          <Alert.Title>
-            Topics processing is not enabled for this project
-          </Alert.Title>
-          <Alert.Description>
-            <p>
-              You can configure Topics, but processing traces and automatic
-              processing stay unavailable until Topics is enabled for this
-              project.
-            </p>
-          </Alert.Description>
-        </Alert>
-      ) : null}
       {status?.kind === "paused" ? (
         <Alert variant="warning">
           <Alert.Title>Automatic Topics processing is paused</Alert.Title>
@@ -63,24 +70,33 @@ export function TopicSetupNotice({
           </Alert.Description>
         </Alert>
       ) : null}
-      {status?.kind === "setup" ? (
-        <div className="mx-auto flex w-full max-w-xl flex-col items-center pt-12">
+      {showOnboarding ? (
+        <div className="mx-auto flex w-full max-w-xl flex-col items-center overflow-y-auto pt-12">
           <Sparkles
             aria-hidden="true"
             className="icon-xl text-muted-foreground"
           />
           <SplashScreen
-            title="Find patterns across your traces"
+            title={
+              configured
+                ? "Start analyzing your traces"
+                : "Find patterns across your traces"
+            }
             description="Topics analyzes each trace along the questions you choose, called facets, and clusters similar answers, so you can see what users ask for, how runs end, and which issues come up along the way."
             steps={[
               {
                 title: "Configure Topics",
-                description:
-                  "Pick the models Topics runs on and the facets to analyze, such as intent, outcome, and issues.",
+                badge: configured ? (
+                  <StatusBadge type="completed">Done</StatusBadge>
+                ) : undefined,
+                description: configured
+                  ? "Your project models and facets are ready. You can adjust them at any time."
+                  : "Pick the models Topics runs on and the facets to analyze, such as intent, outcome, and issues.",
                 content: (
                   <Button
                     text="Configure Topics"
                     size="sm"
+                    variant={configured ? "secondary" : "primary"}
                     disabled={!canWrite || !canConfigure}
                     onClick={onConfigure}
                   />
@@ -88,21 +104,26 @@ export function TopicSetupNotice({
               },
               {
                 title: "Analyze traces",
-                description:
-                  "After setup, enable automatic processing for incoming traces or summarize existing traces manually.",
+                description: processingDescription,
                 content: (
                   <div className="flex flex-wrap gap-2">
                     <Button
                       text="Automatic processing"
-                      variant="secondary"
+                      variant={
+                        configured && canProcess && !automaticEnabled
+                          ? "primary"
+                          : "secondary"
+                      }
                       size="sm"
-                      disabled
+                      disabled={!configured || !canProcess}
+                      onClick={onAutomaticProcessing}
                     />
                     <Button
                       text="Summarize traces & embed"
                       variant="secondary"
                       size="sm"
-                      disabled
+                      disabled={!configured || !canProcess || running}
+                      onClick={onManualProcessing}
                     />
                   </div>
                 ),
@@ -124,7 +145,7 @@ export function TopicSetupNotice({
           />
         </div>
       ) : null}
-      {status?.kind === "models" ? (
+      {status?.kind === "models" && !showOnboarding ? (
         <Alert variant="info">
           <Alert.Title>Choose the models Topics runs on</Alert.Title>
           <Alert.Description>

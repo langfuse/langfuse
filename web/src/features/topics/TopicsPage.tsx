@@ -290,6 +290,7 @@ function TopicsWorkspaceContent({
   const results = useCurrentTopics({
     projectId,
     running,
+    pollForSummaries: modelSettings.automaticProcessing.state.status === "on",
     refreshAfter: completedAt,
     timeRange: currentTimeRange,
   });
@@ -357,22 +358,28 @@ function TopicsWorkspaceContent({
   }
 
   return (
-    <DialogController
-      renderDialog={({ closeDialog }) => (
+    <DialogController<TopicOperation>
+      renderDialog={({ closeDialog, state }) => (
         <ManualTopicsFormContent
           {...pipeline.dialogProps}
+          initialOperation={state}
           closeDialog={closeDialog}
         />
       )}
     >
       {({ openDialog }) => {
-        const openManual = () => {
+        const openManual = (operation: TopicOperation) => {
           if (!("from" in generationRange.selection))
             changeGenerationRange(generationRange.selection);
           utils.topics.summaryCounts.invalidate({ projectId });
           pipeline.clearError();
-          openDialog();
+          openDialog(operation);
         };
+        const hasStoredSummaries = Boolean(
+          results.data?.some((facet) => facet.hasStoredSummaries),
+        );
+        const showOnboarding =
+          !results.isLoading && !results.error && !hasStoredSummaries;
         return (
           <Page
             headerProps={{
@@ -388,7 +395,7 @@ function TopicsWorkspaceContent({
                   configured={configured}
                   canWrite={canWrite}
                   manualAvailable={pipeline.available}
-                  openManual={openManual}
+                  openManual={() => openManual("process")}
                   onAutomaticProcessing={openAutomaticProcessingFromHeader}
                   onConfigure={openConfigure}
                   onHistory={openHistory}
@@ -407,7 +414,7 @@ function TopicsWorkspaceContent({
                         ? {
                             label: "Manual processing",
                             disabled: false,
-                            onSelect: openManual,
+                            onSelect: () => openManual("process"),
                           }
                         : null
                     }
@@ -429,16 +436,18 @@ function TopicsWorkspaceContent({
               },
             }}
           >
-            <PageHeaderControlsPortal>
-              <TimeRangePicker
-                timeRange={effectiveTimeRange}
-                onTimeRangeChange={setTimeRange}
-                timeRangePresets={topicsTimeRangePresets}
-                maxRangeMs={maxTimeRangeMs}
-                className="my-0 max-w-full overflow-x-auto"
-                triggerClassName="px-2"
-              />
-            </PageHeaderControlsPortal>
+            {!showOnboarding && (
+              <PageHeaderControlsPortal>
+                <TimeRangePicker
+                  timeRange={effectiveTimeRange}
+                  onTimeRangeChange={setTimeRange}
+                  timeRangePresets={topicsTimeRangePresets}
+                  maxRangeMs={maxTimeRangeMs}
+                  className="my-0 max-w-full overflow-x-auto"
+                  triggerClassName="px-2"
+                />
+              </PageHeaderControlsPortal>
+            )}
             <div className="ph-no-capture flex min-h-0 flex-1 flex-col gap-2 overflow-hidden p-2">
               {isTimeRangeCapped && (
                 <p
@@ -461,6 +470,13 @@ function TopicsWorkspaceContent({
                 onConfigure={openConfigure}
                 onKeepOff={automaticProcessing.clearPause}
                 onTurnBackOn={turnAutomaticProcessingBackOn}
+                showOnboarding={showOnboarding}
+                configured={configured}
+                canProcess={canWrite && !modelSettings.notice.unavailable}
+                automaticEnabled={automaticProcessing.state.status === "on"}
+                running={running}
+                onAutomaticProcessing={turnAutomaticProcessingBackOn}
+                onManualProcessing={() => openManual("process")}
               />
               <Sheet
                 open={historyOpen || executionId !== null}
@@ -532,7 +548,13 @@ function TopicsWorkspaceContent({
                   </div>
                 </SheetContent>
               </Sheet>
-              <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden">
+              <div
+                className={
+                  showOnboarding
+                    ? "contents"
+                    : "flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden"
+                }
+              >
                 <TablePeekViewTraceDetail
                   {...peekNavigation}
                   itemType="TRACE"
@@ -540,7 +562,7 @@ function TopicsWorkspaceContent({
                   defaultWidthTarget={tracePanel}
                   widthStorageKey="topicsPeekViewWidthFraction"
                 />
-                {validTimeRange && (
+                {validTimeRange && !showOnboarding && (
                   <TopicsFilters
                     facets={results.data ?? []}
                     selectedFacetId={selectedFacetId}
@@ -553,6 +575,13 @@ function TopicsWorkspaceContent({
                       selectedFacetId={selectedFacetId}
                       traceFilters={traceFilters}
                       tracePanelRef={setTracePanel}
+                      onGenerateTopics={() => openManual("update")}
+                      canGenerateTopics={
+                        canWrite &&
+                        !modelSettings.notice.unavailable &&
+                        !running &&
+                        configured
+                      }
                     />
                   </TopicsFilters>
                 )}

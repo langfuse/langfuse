@@ -99,6 +99,7 @@ export function useTopicModelSettings({
     automaticProcessing: {
       ...automaticProcessing,
       dialog: {
+        projectId,
         rule,
         stored: settings.data,
         traceIdleMs: readinessSettings.data?.traceIdleMs ?? null,

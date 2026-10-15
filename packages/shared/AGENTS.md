@@ -85,9 +85,11 @@
     definitions retain their original creation run.
   - `clickhouse.ts`: current summaries/assignments and immutable definitions.
     Source identity prefers `traceId`; `sessionId` may carry parent context.
-    Facet versions use `(projectId, facetId, version)`. Reads require a time
-    range; replacement includes the source minute, with run/origin suffixes
-    for assignments. Definition bounds retain original creation dates on reuse.
+    Facet versions use `(projectId, facetId, version)`. Data reads require a time
+    range; `hasStoredTopicSummaries` checks facet readiness across all stored
+    trace summaries without loading their contents. Replacement includes the
+    source minute, with run/origin suffixes for assignments. Definition bounds
+    retain original creation dates on reuse.
     `getLatestFacetSummaries` returns display fields; processing reads use
     `listTopicSummaries` or `getTopicClusteringSummaries` for complete summaries.
   - `execution-store.ts`: one BatchAction per request, compact counters and run references.

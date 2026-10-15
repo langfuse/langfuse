@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   listTopicFacets: vi.fn(),
   readLatestTopicAssignments: vi.fn(),
   getLatestFacetSummaries: vi.fn(),
+  hasStoredTopicSummaries: vi.fn(),
   getPublishedTopicRun: vi.fn(),
   getTopicFacetVersion: vi.fn(),
   createTopicFacet: vi.fn(),
@@ -94,11 +95,16 @@ const input: Extract<TopicExecutionInput, { operation: "process" }> = {
   }),
 };
 
-function caller(role: "ADMIN" | "VIEWER" = "ADMIN", langfuseTopics = true) {
+function caller(
+  role: "ADMIN" | "VIEWER" = "ADMIN",
+  langfuseTopics = true,
+  admin = false,
+) {
   const session = {
     expires: "1",
     user: {
       id: "user-a",
+      admin,
       featureFlags: testFeatureFlags({ langfuseTopics }),
       organizations: [
         {
@@ -205,6 +211,7 @@ beforeEach(() => {
   });
   mocks.readTopicExecutionSummary.mockResolvedValue(execution());
   mocks.getLatestFacetSummaries.mockResolvedValue([summary]);
+  mocks.hasStoredTopicSummaries.mockResolvedValue(false);
   mocks.readTopicExecutionTraceErrors.mockResolvedValue({
     errors: [],
     expired: false,
@@ -829,6 +836,14 @@ describe("Topics local execution access and publication", () => {
     expect(mocks.getTopicSummaryCounts).not.toHaveBeenCalled();
   });
 
+  it("blocks transcript debugging for project admins who are not Langfuse admins", async () => {
+    await expect(caller().inspect(inspectInput)).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+    expect(mocks.listTopicSummaries).not.toHaveBeenCalled();
+    expect(mocks.loadTopicTranscript).not.toHaveBeenCalled();
+  });
+
   it.each([
     { ...summary, projectId: "foreign-project" },
     { ...summary, facetId: "another-facet" },
@@ -837,7 +852,9 @@ describe("Topics local execution access and publication", () => {
     { ...summary, traceId: null, sessionId: "session-a" },
   ])("rejects a foreign or invalid trace summary", async (invalidSummary) => {
     mocks.listTopicSummaries.mockResolvedValue([invalidSummary]);
-    await expect(caller().inspect(inspectInput)).rejects.toMatchObject({
+    await expect(
+      caller("ADMIN", true, true).inspect(inspectInput),
+    ).rejects.toMatchObject({
       code: "NOT_FOUND",
     });
     expect(mocks.loadTopicTranscript).not.toHaveBeenCalled();
@@ -855,7 +872,9 @@ describe("Topics local execution access and publication", () => {
     const traceId = "client/session:trace 1";
     mocks.listTopicSummaries.mockResolvedValue([{ ...summary, traceId }]);
     mocks.loadTopicTranscript.mockResolvedValue(source);
-    expect(await caller().inspect({ ...inspectInput, traceId })).toEqual({
+    expect(
+      await caller("ADMIN", true, true).inspect({ ...inspectInput, traceId }),
+    ).toEqual({
       model: summary.summaryModel,
       transcript: source.transcript,
     });
@@ -882,7 +901,7 @@ describe("Topics local execution access and publication", () => {
       ...source,
       transcript: null,
     });
-    expect(await caller().inspect(inspectInput)).toEqual({
+    expect(await caller("ADMIN", true, true).inspect(inspectInput)).toEqual({
       model: summary.summaryModel,
       transcript: null,
     });
@@ -892,7 +911,7 @@ describe("Topics local execution access and publication", () => {
     mocks.loadTopicTranscript.mockRejectedValue(
       new Error("Trace no longer exists"),
     );
-    expect(await caller().inspect(inspectInput)).toEqual({
+    expect(await caller("ADMIN", true, true).inspect(inspectInput)).toEqual({
       model: summary.summaryModel,
       transcript: null,
     });
@@ -1013,6 +1032,32 @@ describe("Topics local execution access and publication", () => {
 });
 
 describe("Topics current results", () => {
+  it("keeps a facet ready when its stored summaries are outside the selected range", async () => {
+    mocks.listTopicFacets.mockResolvedValue([
+      { id: facetId, name: "Intent", versions: [{ version: facetVersion }] },
+    ]);
+    mocks.getLatestFacetSummaries.mockResolvedValue([]);
+    mocks.readLatestTopicAssignments.mockResolvedValue([]);
+    mocks.getPublishedTopicRun.mockResolvedValue(null);
+    mocks.hasStoredTopicSummaries.mockResolvedValue(true);
+
+    const [result] = await caller("VIEWER").currentResults({
+      projectId,
+      timeRange,
+    });
+
+    expect(result).toMatchObject({
+      hasStoredSummaries: true,
+      rows: [],
+      usableCount: 0,
+      map: null,
+    });
+    expect(mocks.hasStoredTopicSummaries).toHaveBeenCalledExactlyOnceWith(
+      projectId,
+      facetId,
+    );
+  });
+
   it("retains published map descriptions when reprocessed traces await assignment", async () => {
     mocks.listTopicFacets.mockResolvedValue([
       { id: facetId, name: "Intent", versions: [{ version: facetVersion }] },

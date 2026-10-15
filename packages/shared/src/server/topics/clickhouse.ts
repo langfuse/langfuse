@@ -470,6 +470,29 @@ export async function hasTopicEmbeddings(projectId: string): Promise<boolean> {
   return rows.length > 0;
 }
 
+/** Whether this facet has collected trace summaries, independently of the viewed time range. */
+export async function hasStoredTopicSummaries(
+  projectId: string,
+  facetId: string,
+): Promise<boolean> {
+  const rows = await queryClickhouse<{ found: number }>({
+    query: `SELECT 1 AS found FROM topic_facet_summaries
+      WHERE project_id = {projectId:String} AND facet_id = {facetId:String}
+        AND trace_id != '' AND processing_state = 'complete'
+        AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
+        AND environment != {publicLlmJudgeEnvironment:String}
+      LIMIT 1`,
+    params: {
+      projectId,
+      facetId,
+      internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
+      publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
+    },
+    tags: { route: "topics-has-summaries", projectId },
+  });
+  return rows.length > 0;
+}
+
 /** Count current compatible summaries without loading summary text or vectors. */
 export async function getTopicSummaryCounts(
   projectId: string,

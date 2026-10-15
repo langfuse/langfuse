@@ -12,6 +12,7 @@ import { ManualTopicsDialog } from "./ManualTopicsDialog";
 import { manualTopicsSelection } from "./manual-topics-selection";
 
 export function ManualTopicsFormContent({
+  initialOperation = "process",
   projectId,
   canWrite,
   generationTimeRange,
@@ -29,7 +30,7 @@ export function ManualTopicsFormContent({
 }: ManualTopicsFormContentProps) {
   const form = useForm<ManualTopicsDraft>({
     defaultValues: {
-      operation: "process",
+      operation: initialOperation,
       selectionIntent: null,
       reuse: true,
       smallSample: false,
@@ -221,6 +222,7 @@ export function ManualTopicsFormContent({
 }
 
 type ManualTopicsFormContentProps = {
+  initialOperation?: TopicOperation;
   projectId: string;
   canWrite: boolean;
   generationTimeRange: TimeRange;
