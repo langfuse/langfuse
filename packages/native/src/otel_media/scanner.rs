@@ -1,22 +1,21 @@
 //! Find media inside the strings selected by `structural_walk`.
 //!
-//! `ValidatedPayload::compact` calls `discover` with validated JSON bytes. The result
-//! is a `MediaManifest`: an edit plan containing source ranges and media metadata.
+//! `ValidatedPayload` calls `discover` after validation and a positive marker check.
+//! The result is a `MediaManifest`: source ranges and media metadata for compaction.
 //!
 //! ```text
 //! discover -> discover_inner
-//!   |-- may_contain_media_candidate        no markers -> empty edit plan
 //!   |-- structural_walk::scan              select quoted-string ranges
 //!   |-- for each Candidate:
 //!   |    |-- String/Text -> discover_string_token
-//!   |    |    |-- Jiter::next_str          decode the selected JSON string
+//!   |    |    |-- borrow plain text / Jiter::next_str for escapes
 //!   |    |    `-- discover_string
 //!   |    |         |-- try_discover_embedded_document
 //!   |    |         |    validate_json -> discover_inner -> translate_nested_entries
 //!   |    |         `-- discover_data_uri_candidates
 //!   |    |              data_uri::find_data_uri_candidates -> register_candidate
 //!   |    `-- Structured -> discover_structured
-//!   |         Jiter::next_str -> inspect provider body -> register_candidate
+//!   |         borrow/decode -> inspect provider body -> register_candidate
 //!   `-- sort entries + validate_edit_plan  return non-overlapping source ranges
 //! ```
 //!
@@ -42,8 +41,7 @@ use super::payload::{
 };
 use super::rules::{
     is_media_reference, is_supported_content_type, may_be_serialized_json,
-    may_contain_media_candidate, may_contain_serialized_media, DATA_URI_PREFIX,
-    MIN_EARLY_MEDIA_BYTES,
+    may_contain_serialized_media, DATA_URI_PREFIX, MIN_EARLY_MEDIA_BYTES,
 };
 use super::WalkStats;
 
@@ -57,7 +55,7 @@ struct ScanState {
     metadata: HashMap<String, Arc<MediaMetadata>>,
 }
 
-/// Discover media in an already-validated source using an explicit stack.
+/// Discover media in validated text whose media marker check already matched.
 pub(super) fn discover(input: &str) -> Result<MediaManifest, EarlyMediaError> {
     discover_inner(
         input,
@@ -88,19 +86,10 @@ fn discover_inner(
     state: &mut ScanState,
     stats: &mut WalkStats,
 ) -> Result<MediaManifest, EarlyMediaError> {
-    // Most payloads have no media markers. Avoid allocating the structural walk
-    // for those documents.
-    if !may_contain_media_candidate(input) {
-        stats.add_bytes(input.len());
-        return Ok(MediaManifest {
-            entries: Vec::new(),
-        });
-    }
-
     let candidates = super::structural_walk::scan(input.as_bytes(), embedded_depth == 0, stats)?;
     let mut entries = Vec::new();
     let mut discovery = MediaDiscovery {
-        input: input.as_bytes(),
+        input,
         state,
         stats,
         embedded_depth,
@@ -129,7 +118,7 @@ fn discover_inner(
 
 /// One document's scan. Entry offsets refer to `input` until a parent maps them back.
 struct MediaDiscovery<'a, 'state, 'stats> {
-    input: &'a [u8],
+    input: &'a str,
     state: &'state mut ScanState,
     stats: &'stats mut WalkStats,
     embedded_depth: usize,
@@ -142,14 +131,21 @@ impl MediaDiscovery<'_, '_, '_> {
         token_range: Range<usize>,
         allow_embedded_json: bool,
     ) -> Result<(), EarlyMediaError> {
-        let input = self.input;
-        let mut decoder = Jiter::new(&input[token_range.clone()]);
-        let Ok(value) = decoder.next_str() else {
-            // RawValue accepts unpaired escapes such as "\ud800" as JSON syntax,
-            // but Jiter cannot decode them into Rust's Unicode-scalar `str`.
-            // Keep the entire string inline, including any media in it; other
-            // string candidates are still processed.
-            return Ok(());
+        let token = &self.input[token_range.clone()];
+        let mut decoder = Jiter::new(token.as_bytes());
+        // Plain text is already valid UTF-8; only escapes need Jiter's decoder.
+        let value = &token[1..token.len() - 1];
+        let value = if value.contains('\\') {
+            let Ok(value) = decoder.next_str() else {
+                // RawValue accepts unpaired escapes such as "\ud800" as JSON syntax,
+                // but Jiter cannot decode them into Rust's Unicode-scalar `str`.
+                // Keep the entire string inline, including any media in it; other
+                // string candidates are still processed.
+                return Ok(());
+            };
+            value
+        } else {
+            value
         };
         self.discover_string(value, token_range, allow_embedded_json)
     }
@@ -225,7 +221,7 @@ impl MediaDiscovery<'_, '_, '_> {
                 && self
                     .input
                     .get(source_range.clone())
-                    .is_some_and(|source| source.contains(&b'\\'))
+                    .is_some_and(|source| source.contains('\\'))
             {
                 continue;
             }
@@ -247,10 +243,16 @@ impl MediaDiscovery<'_, '_, '_> {
         content_type: &str,
         kind: MediaPayloadKind,
     ) -> Result<(), EarlyMediaError> {
-        let input = self.input;
-        let mut decoder = Jiter::new(&input[token_range.clone()]);
-        let Ok(content) = decoder.next_str() else {
-            return Ok(());
+        let token = &self.input[token_range.clone()];
+        let mut decoder = Jiter::new(token.as_bytes());
+        let content = &token[1..token.len() - 1];
+        let content = if content.contains('\\') {
+            let Ok(content) = decoder.next_str() else {
+                return Ok(());
+            };
+            content
+        } else {
+            content
         };
         if content.starts_with(DATA_URI_PREFIX) {
             let Some(candidate) = parse_data_uri(content, 0) else {
@@ -313,7 +315,7 @@ impl MediaDiscovery<'_, '_, '_> {
         for (index, entry) in entries.iter_mut().enumerate() {
             let parent_range = mapped[index * 2]..mapped[index * 2 + 1];
             if self.embedded_depth > 0
-                && decoded_document.as_bytes().get(entry.edit_range.clone())
+                && decoded_document.get(entry.edit_range.clone())
                     != self.input.get(parent_range.clone())
             {
                 entry.json_decode_layers = entry.original_json_depth;
@@ -338,7 +340,7 @@ impl MediaDiscovery<'_, '_, '_> {
         let same_source_spelling = self
             .input
             .get(source_range.clone())
-            .is_some_and(|bytes| bytes == encoded_data);
+            .is_some_and(|text| text.as_bytes() == encoded_data);
         let Some((reference, sha256_hash)) =
             media_identity_from_encoded(encoded_data, content_type, source, encoding)
         else {
@@ -395,8 +397,8 @@ impl MediaDiscovery<'_, '_, '_> {
         let invalid = |offset, message| EarlyMediaError::InvalidJson { offset, message };
         let content_start = token_range.start + 1;
         let content_end = token_range.end - 1;
-        let raw_content = self
-            .input
+        let input = self.input.as_bytes();
+        let raw_content = input
             .get(content_start..content_end)
             .ok_or_else(|| invalid(token_range.start, "invalid JSON string range"))?;
         let mut boundaries = Vec::with_capacity(decoded_offsets.len());
@@ -417,8 +419,8 @@ impl MediaDiscovery<'_, '_, '_> {
                 if raw_cursor >= content_end {
                     return Err(invalid(raw_cursor, "invalid string boundary"));
                 }
-                if self.input[raw_cursor] == b'\\' {
-                    if self.input.get(raw_cursor + 1) == Some(&b'u') {
+                if input[raw_cursor] == b'\\' {
+                    if input.get(raw_cursor + 1) == Some(&b'u') {
                         let character = decoded
                             .get(decoded_cursor..)
                             .and_then(|text| text.chars().next())
@@ -433,7 +435,7 @@ impl MediaDiscovery<'_, '_, '_> {
                     }
                 } else {
                     let run_end = *plain_run_end.get_or_insert_with(|| {
-                        memchr::memchr(b'\\', &self.input[raw_cursor..content_end])
+                        memchr::memchr(b'\\', &input[raw_cursor..content_end])
                             .map_or(content_end, |length| raw_cursor + length)
                     });
                     let amount = (target - decoded_cursor).min(run_end - raw_cursor);
