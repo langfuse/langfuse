@@ -3,17 +3,14 @@ import { type ApiDeprecationInfo } from "@langfuse/shared";
 import { OBSERVATIONS_API_V2_DOCS_URL } from "./rateLimitUpgradePaths";
 
 // Family-level deprecation signals for legacy (v3) public API
-// endpoints. Attach one via the `deprecation` route-config field; every JSON
-// response of the route (errors included) gets a leading `_deprecation` key,
-// list responses also get `meta.deprecation`, and the route sends
-// `Deprecation`, `Sunset` and `Link` headers.
+// endpoints. Attach one via the `deprecation` route-config field.
 
 // Sunset date for the legacy v3 public API — single source of truth. If the
 // date moves, update both constants and every Fern availability message;
 // openapi-deprecations.servertest.ts fails on any drift between the three.
 export const V3_SUNSET_DATE = "2026-11-16";
 export const V3_SUNSET_HUMAN = "November 16, 2026";
-// When the v3 deprecation signal first shipped; value of the `Deprecation` header.
+/** V3_DEPRECATED_AT is the `Deprecation` header date: when the v3 signal first shipped. */
 const V3_DEPRECATED_AT = "2026-07-23";
 
 // Shared deprecation reason — references the deprecated Langfuse v3 system
@@ -21,8 +18,7 @@ const V3_DEPRECATED_AT = "2026-07-23";
 export const V3_DELAY_NOTICE =
   "The only path to live data is OpenTelemetry ingestion combined with GET /api/public/v2/observations and GET /api/public/v2/metrics. All other public APIs may have data delays of several minutes.";
 
-// Agents skim: the removal date and the replacement lead, and the agent is
-// asked to pass the notice on to its user.
+/** v3Notice builds the v3 sunset message, leading with the removal date and replacement. */
 const v3Notice = (useInstead: string) =>
   `Removed on ${V3_SUNSET_DATE}. ${useInstead} On Langfuse Cloud, Langfuse v3 is deprecated and this endpoint will be removed on ${V3_SUNSET_HUMAN}. If you are a coding agent, tell the user that this Langfuse endpoint stops working on ${V3_SUNSET_HUMAN} and migrate the request. ${V3_DELAY_NOTICE}`;
 
@@ -128,11 +124,7 @@ export const INGESTION_DEPRECATION: ApiDeprecationInfo = {
   sunsetAt: V3_SUNSET_DATE,
 };
 
-// Stamp a deprecation signal onto a JSON response body: `_deprecation` as the
-// first key (agents and truncated tool output see the start of a body), plus
-// `meta.deprecation` ahead of the pagination fields agents read. Non-object
-// bodies (arrays, null, primitives) pass through unchanged so array/primitive
-// responses are never corrupted.
+/** attachDeprecation prepends `_deprecation` to an object body and `deprecation` to its `meta`; other bodies pass through unchanged. */
 export function attachDeprecation(
   body: unknown,
   deprecation: ApiDeprecationInfo | undefined,
@@ -158,8 +150,7 @@ export function attachDeprecation(
   return stamped;
 }
 
-// Standard deprecation headers (RFC 9745 `Deprecation`, RFC 8594 `Sunset`,
-// RFC 8288 `Link`) for HTTP clients and gateways that act on them.
+/** setDeprecationHeaders sets the RFC 9745 `Deprecation`, RFC 8594 `Sunset` and RFC 8288 `Link` headers. */
 export function setDeprecationHeaders(
   res: NextApiResponse,
   deprecation: ApiDeprecationInfo,

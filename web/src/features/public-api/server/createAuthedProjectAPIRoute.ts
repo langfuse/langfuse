@@ -125,7 +125,7 @@ export type AuthedProjectAPIRouteConfig<
    * events_only mode and would silently return stale or empty data.
    */
   rejectInEventsOnlyMode?: boolean;
-  /** Stamps `_deprecation` (and `meta.deprecation`) onto every JSON response and sends deprecation headers. */
+  /** Stamps `_deprecation` onto every JSON response of the route and sets deprecation headers. */
   deprecation?: ApiDeprecationInfo;
   fn: (params: {
     query: z.infer<TQuery>;
@@ -156,8 +156,7 @@ export const createAuthedProjectAPIRoute = <
       ? routeConfig.deprecation
       : undefined;
 
-    // Every JSON body this route writes carries the signal, including auth,
-    // rate-limit and validation errors and errors thrown into withMiddlewares.
+    // Wrapping res.json also covers bodies written by withMiddlewares.
     if (deprecation) {
       setDeprecationHeaders(res, deprecation);
       const json = res.json.bind(res);

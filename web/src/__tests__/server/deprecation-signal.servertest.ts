@@ -54,7 +54,6 @@ describe("public API deprecation signal", () => {
     );
   });
 
-  // Agents parsing in code read `data` and `meta`, not top-level extras.
   it("puts the sunset and replacement into `meta.deprecation` on list responses", async () => {
     const response = await makeZodVerifiedAPICall(
       GetObservationsV1Response,
@@ -72,7 +71,7 @@ describe("public API deprecation signal", () => {
     });
   });
 
-  // Errors thrown by the handler are written by withMiddlewares, not the route.
+  // The 404 is written by withMiddlewares, not by the route.
   it("attaches `_deprecation` to a 404 from the legacy single GET /observations/{id}", async () => {
     const response = await makeAPICall(
       "GET",
