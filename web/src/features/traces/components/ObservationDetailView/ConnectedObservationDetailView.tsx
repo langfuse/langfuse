@@ -404,7 +404,7 @@ export function ConnectedObservationDetailView({
                         onCheckedChange={handleBetaToggle}
                       />
                       <span className="text-muted-foreground text-xs">
-                        Beta
+                        Optimized
                       </span>
                     </div>
                   )}
