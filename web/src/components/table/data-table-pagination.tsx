@@ -36,6 +36,7 @@ interface DataTablePaginationProps<TData> {
   paginationOptions?: number[];
   hideTotalCount?: boolean;
   canJumpPages?: boolean; // if we need a cursor (last_item_id), we can't jump pages
+  resultCountLabel?: string;
   // Approx count for the "Total" footer; undefined = no footer (opt-in).
   approxTotalCount?: number | null;
   isApproxTotalCountLoading?: boolean;
@@ -51,6 +52,7 @@ export function DataTablePagination<TData>({
   paginationOptions = [10, 20, 30, 40, 50],
   hideTotalCount = false,
   canJumpPages = true,
+  resultCountLabel,
   approxTotalCount,
   isApproxTotalCountLoading = false,
   approxTotalCountIsPartialScope = false,
@@ -122,8 +124,16 @@ export function DataTablePagination<TData>({
     "text-muted-foreground hidden text-sm font-normal whitespace-nowrap @min-[640px]/pagination:inline-flex @min-[640px]/pagination:items-center";
 
   return (
-    <div className="@container/pagination flex w-full min-w-0 items-center justify-end">
-      <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-4 gap-y-2 @min-[520px]/pagination:gap-x-6 @min-[720px]/pagination:gap-x-8">
+    <div className="@container/pagination flex w-full min-w-0 items-center justify-end gap-4">
+      {resultCountLabel && (
+        <span
+          className="text-muted-foreground shrink-0 pl-2 text-xs font-normal"
+          role="status"
+        >
+          {resultCountLabel}
+        </span>
+      )}
+      <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-x-4 gap-y-2 @min-[520px]/pagination:gap-x-6 @min-[720px]/pagination:gap-x-8">
         {showExactTotal ? (
           // Result fits on the loaded page(s) — the total is exact, no estimate.
           <span className={totalCountClassName}>

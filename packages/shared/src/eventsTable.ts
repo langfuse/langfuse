@@ -550,10 +550,11 @@ export const isNumericEventsTableColumnId = (
   );
 
 // Subset of columns that are allowed to be used as filters in the MCP observations API
+// listObservations has explicit fromStartTime and toStartTime arguments to bound database scans.
+// A startTime condition in its filter array would replace both bounds, bypassing the 14-day limit.
 const OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMN_IDS = [
   "id",
   "traceId",
-  "startTime",
   "endTime",
   "name",
   "type",

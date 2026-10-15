@@ -837,6 +837,54 @@ describe("AI gateway control plane", () => {
     lookup.mockRestore();
   });
 
+  it("enforces gateway:invoke when API key role enforcement is on", async () => {
+    const originalMigration = env.API_AUTH_MIGRATION;
+    const originalCache = env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED;
+    Object.assign(env, { LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED: "false" });
+    try {
+      const { caller, org } = await prepare();
+      const gatewayKey = await caller.aiGateway.createApiKey({
+        orgId: org.id,
+        metadata: {},
+      });
+      const authenticator = new GatewayApiKeyAuthenticator(prisma);
+      const request = {
+        fastHashedSecretKey: createShaHash(gatewayKey.secretKey, env.SALT),
+        apiFormat: "openai.responses" as const,
+      };
+
+      Object.assign(env, { API_AUTH_MIGRATION: "enforce" });
+      await expect(
+        authenticator.authenticateRequest(request),
+      ).resolves.toMatchObject({
+        organizationId: org.id,
+      });
+
+      await prisma.roleAssignment.updateMany({
+        where: { apiKeyId: gatewayKey.id },
+        data: { systemRole: "INGEST", roleId: "system/INGEST" },
+      });
+      await expect(
+        authenticator.authenticateRequest(request),
+      ).rejects.toMatchObject({
+        status: 403,
+        message: "API key is not allowed to invoke the gateway",
+      });
+
+      Object.assign(env, { API_AUTH_MIGRATION: "legacy" });
+      await expect(
+        authenticator.authenticateRequest(request),
+      ).resolves.toMatchObject({
+        organizationId: org.id,
+      });
+    } finally {
+      Object.assign(env, {
+        API_AUTH_MIGRATION: originalMigration,
+        LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED: originalCache,
+      });
+    }
+  });
+
   it("blocks deletion of the default ingestion project", async () => {
     const { caller, org, project } = await prepare();
     await caller.aiGateway.updateConfig({

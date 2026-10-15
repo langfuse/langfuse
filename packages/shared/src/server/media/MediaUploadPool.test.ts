@@ -226,6 +226,29 @@ describe("MediaUploadPool", () => {
     expect(nextStarted).toBe(true);
   });
 
+  it("drains a large backlog within the concurrency limit", async () => {
+    const pool = new MediaUploadPool(4, 4);
+    const gate = deferred<void>();
+    const first = pool.run(4, async () => gate.promise);
+    let active = 0;
+    let peakActive = 0;
+    let completed = 0;
+    const waiting = Array.from({ length: 2050 }, () =>
+      pool.run(1, async () => {
+        active++;
+        peakActive = Math.max(peakActive, active);
+        await Promise.resolve();
+        active--;
+        completed++;
+      }),
+    );
+
+    gate.resolve();
+    await Promise.all([first, ...waiting]);
+    expect(completed).toBe(2050);
+    expect(peakActive).toBeLessThanOrEqual(4);
+  });
+
   it("does not share reservations between pool calls", async () => {
     const firstPool = new MediaUploadPool(1, 10);
     const secondPool = new MediaUploadPool(1, 10);

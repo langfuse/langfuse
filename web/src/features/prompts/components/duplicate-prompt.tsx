@@ -205,7 +205,7 @@ export const DuplicatePromptButton: React.FC<{
           icon={<Copy className="icon-base" aria-hidden="true" />}
           hasAccess={hasAccess}
           trackingEventName="prompt_detail:duplicate_button_click"
-          variant="outline"
+          variant="ghost"
           title="Duplicate prompt"
           usageLimit={
             typeof promptLimit === "number"

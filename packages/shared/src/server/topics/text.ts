@@ -1,95 +1,275 @@
-import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
-import { fromNodeProviderChain } from "@aws-sdk/credential-providers";
 import { Sha256 } from "@aws-crypto/sha256-js";
 import { SignatureV4 } from "@smithy/signature-v4";
-import { generateText, Output } from "ai";
+import { NoObjectGeneratedError, Output, type LanguageModelUsage } from "ai";
 import { z } from "zod";
+import { decrypt } from "../../encryption";
+import { BedrockConfigSchema } from "../../interfaces/customLLMProviderConfigSchemas";
 import {
   assertValidBedrockRegion,
-  createDefaultBedrockProviderAuth,
+  canUseBedrockDefaultCredentials,
+  resolveBedrockProviderAuth,
 } from "../llm/ai-sdk/providers/bedrock";
-
-/** A system prompt segment; `cache` ends a reusable prefix with a cache breakpoint. */
-export type TopicPromptPart = { text: string; cache?: boolean };
-
-type TopicTextResult = {
-  output: unknown;
-  usage: {
-    inputTokens?: number;
-    outputTokens?: number;
-    totalTokens?: number;
-    cacheReadTokens?: number;
-    cacheWriteTokens?: number;
-  };
-};
+import { generateLLMText } from "../llm/llmText";
+import { LLMAdapter, type TraceSinkParams } from "../llm/types";
+import { logger } from "../logger";
+import { writeInternalTraceViaOtelIngestion } from "../otel/internalTraceOtelWriter";
+import type { TopicsModel } from "./model-config";
 
 const TIMEOUT_MS = 60_000;
 
 /**
- * Uses AWS credentials for Topics structured text. GPT-5.6+ models on Bedrock
- * reuse a shared prompt prefix only with explicit cache breakpoints, which
- * Converse does not accept for them, so cached prompts on OpenAI models use
- * InvokeModel at the same regional endpoint and model ID; others use Converse.
+ * Structured Topics text through the project's LLM connection. GPT-5.6+ models
+ * on Bedrock reuse a shared prompt prefix only with explicit cache breakpoints,
+ * which Converse does not accept for them, so cached prompts on those models
+ * use InvokeModel at the same regional endpoint and model ID.
  */
-export async function generateTopicText<T>(params: {
-  model: string;
-  system: TopicPromptPart[];
-  input: string;
-  schema: z.ZodType<T>;
-  maxOutputTokens: number;
-  region: string;
-  profile?: string;
-}): Promise<TopicTextResult> {
-  assertValidBedrockRegion(params.region);
-  if (/(^|\.)openai\./.test(params.model) && params.system.some((p) => p.cache))
-    return invokeWithCache(params);
+export async function generateTopicText<T>(
+  params: TopicTextParams<T>,
+): Promise<TopicTextResult> {
+  const startTimeISO = new Date().toISOString();
+  let result: TopicTextResult | undefined;
+  let failure: unknown;
+  const recordResponse = (response: TopicTextResult) => {
+    result = response;
+  };
+  try {
+    result =
+      isBedrockGPT(params.model) && params.system.some((part) => part.cache)
+        ? await invokeWithCache(params, recordResponse)
+        : await generateWithConnection(params, recordResponse);
+    return result;
+  } catch (error) {
+    failure = error;
+    if (NoObjectGeneratedError.isInstance(error)) {
+      result = { output: error.text, usage: topicUsage(error.usage) };
+    }
+    throw error;
+  } finally {
+    await writeTopicTrace(params, startTimeISO, result, failure);
+  }
+}
 
-  const provider = createAmazonBedrock({
-    region: params.region,
-    ...createDefaultBedrockProviderAuth({ profile: params.profile }),
-  });
-  const result = await generateText({
-    model: provider(params.model),
-    messages: [
-      {
-        role: "system",
-        content: params.system.map((part) => part.text).join("\n\n"),
-      },
-      { role: "user", content: params.input },
-    ],
-    allowSystemInMessages: true,
-    output: Output.object({ schema: params.schema }),
-    maxOutputTokens: params.maxOutputTokens,
-    providerOptions: {
-      bedrock: {
-        additionalModelRequestFields: { reasoning: { effort: "none" } },
-      },
-    },
-    maxRetries: 0,
-    timeout: TIMEOUT_MS,
-  });
+async function writeTopicTrace<T>(
+  params: TopicTextParams<T>,
+  startTimeISO: string,
+  result: TopicTextResult | undefined,
+  failure: unknown,
+) {
+  const { trace } = params;
+  if (!trace) return;
+  try {
+    /** Validation marks the trace; the caller validates after accounting for usage. */
+    const validation = params.schema.safeParse(result?.output);
+    await writeInternalTraceViaOtelIngestion({
+      rootSpanId: trace.traceId,
+      eventInputs: [
+        {
+          projectId: trace.targetProjectId,
+          traceId: trace.traceId,
+          spanId: trace.traceId,
+          name: trace.traceName,
+          traceName: trace.traceName,
+          type: "GENERATION",
+          environment: trace.environment,
+          startTimeISO,
+          endTimeISO: new Date().toISOString(),
+          modelName: params.model.model,
+          modelParameters: { maxOutputTokens: params.maxOutputTokens },
+          input: JSON.stringify(topicMessages(params)),
+          output: JSON.stringify(result?.output),
+          providedUsageDetails: topicTraceUsage(result?.usage),
+          metadata: trace.metadata ?? {},
+          userId: trace.userId,
+          sessionId: trace.sessionId,
+          ...topicTraceError(failure ?? validation.error),
+        },
+      ],
+    });
+  } catch (error) {
+    logger.error("Failed to publish Topics model trace", {
+      error,
+      traceId: trace.traceId,
+    });
+  }
+}
+
+function topicTraceUsage(usage: TopicTextResult["usage"] | undefined) {
+  if (!usage) return undefined;
+  const details: Record<string, number | undefined> = {
+    input: undefined,
+    output: usage.outputTokens,
+    total: usage.totalTokens,
+    input_cached_tokens: usage.cacheReadTokens,
+    input_cache_creation: usage.cacheWriteTokens,
+  };
+  /** Standard input excludes cached tokens, which have their own prices. */
+  if (usage.inputTokens !== undefined) {
+    details.input = Math.max(
+      0,
+      usage.inputTokens -
+        (usage.cacheReadTokens ?? 0) -
+        (usage.cacheWriteTokens ?? 0),
+    );
+  }
+  return Object.fromEntries(
+    Object.entries(details).filter(
+      (entry): entry is [string, number] => entry[1] !== undefined,
+    ),
+  );
+}
+
+function topicTraceError(failure: unknown) {
+  if (failure === undefined) return {};
   return {
-    output: result.output,
-    usage: {
-      inputTokens: result.usage.inputTokens,
-      outputTokens: result.usage.outputTokens,
-      totalTokens: result.usage.totalTokens,
-    },
+    level: "ERROR" as const,
+    statusMessage: failure instanceof Error ? failure.message : String(failure),
   };
 }
 
-async function invokeWithCache(params: {
-  model: string;
-  system: TopicPromptPart[];
-  input: string;
-  schema: z.ZodType;
-  maxOutputTokens: number;
-  region: string;
-  profile?: string;
-}): Promise<TopicTextResult> {
+function topicMessages(params: { system: TopicPromptPart[]; input: string }) {
+  return [
+    {
+      role: "system" as const,
+      content: params.system.map((part) => part.text).join("\n\n"),
+    },
+    { role: "user" as const, content: params.input },
+  ];
+}
+
+function topicUsage(
+  usage: LanguageModelUsage | undefined,
+): TopicTextResult["usage"] {
+  return {
+    inputTokens: usage?.inputTokens,
+    outputTokens: usage?.outputTokens,
+    totalTokens: usage?.totalTokens,
+    cacheReadTokens: usage?.inputTokenDetails?.cacheReadTokens,
+    cacheWriteTokens: usage?.inputTokenDetails?.cacheWriteTokens,
+  };
+}
+
+async function generateWithConnection<T>(
+  params: TopicTextParams<T>,
+  recordResponse: (result: TopicTextResult) => void,
+): Promise<TopicTextResult> {
+  const result = await generateLLMText({
+    model: { adapter: params.model.adapter, id: params.model.model },
+    connection: params.model.connection,
+    // The static system prompt comes first so providers with automatic prefix
+    // caching can reuse it across traces.
+    messages: topicMessages(params),
+    output: Output.object({ schema: params.schema }),
+    maxOutputTokens: params.maxOutputTokens,
+    reasoning: "none",
+    // Bedrock ignores portable reasoning for OpenAI models; their default effort
+    // is not none.
+    ...(isBedrockGPT(params.model)
+      ? {
+          providerOptions: {
+            bedrock: {
+              additionalModelRequestFields: { reasoning: { effort: "none" } },
+            },
+          },
+        }
+      : {}),
+    // The AI SDK retries 429 and 5xx responses with exponential backoff.
+    maxRetries: 2,
+    timeout: TIMEOUT_MS,
+  });
+  const usage = topicUsage(result.usage);
+  // The SDK's output getter can throw after a response with billable usage.
+  recordResponse({ output: result.text, usage });
+  return {
+    output: result.output,
+    usage,
+  };
+}
+
+function isBedrockGPT(model: TopicsModel): boolean {
+  if (model.adapter !== LLMAdapter.Bedrock) return false;
+  /** Opaque application inference profiles cannot identify the underlying model. */
+  const version = /(?:^|[/.])openai\.gpt-(\d+)(?:\.(\d+))?(?:[-:]|$)/.exec(
+    model.model,
+  );
+  return Boolean(
+    version &&
+    (Number(version[1]) > 5 ||
+      (Number(version[1]) === 5 && Number(version[2] ?? 0) >= 6)),
+  );
+}
+
+function signingCredentials(
+  auth: ReturnType<typeof resolveBedrockProviderAuth>,
+) {
+  const { credentialProvider } = auth;
+  if (credentialProvider)
+    return async () => {
+      const resolved = await credentialProvider();
+      return {
+        accessKeyId: resolved.accessKeyId,
+        secretAccessKey: resolved.secretAccessKey,
+        sessionToken: resolved.sessionToken,
+      };
+    };
+  if (auth.accessKeyId && auth.secretAccessKey)
+    return {
+      accessKeyId: auth.accessKeyId,
+      secretAccessKey: auth.secretAccessKey,
+    };
+  return undefined;
+}
+
+/** SigV4 or bearer-token auth from the connection's stored Bedrock credential. */
+async function bedrockRequestHeaders(
+  model: TopicsModel,
+  url: URL,
+  region: string,
+  body: string,
+): Promise<Record<string, string>> {
+  const headers = {
+    host: url.hostname,
+    "content-type": "application/json",
+    accept: "application/json",
+  };
+  const auth = resolveBedrockProviderAuth({
+    secretKey: decrypt(model.connection.secretKey),
+    allowDefaultCredentials: canUseBedrockDefaultCredentials(
+      model.connection.projectId,
+    ),
+  });
+  if (auth.apiKey)
+    return { ...headers, authorization: `Bearer ${auth.apiKey}` };
+  const credentials = signingCredentials(auth);
+  if (!credentials)
+    throw new Error(
+      "Invalid Bedrock credentials. Expected AWS access key JSON or a Bedrock API key.",
+    );
+  // AWS's own SigV4 signer, as used by the AWS SDK.
+  const signed = await new SignatureV4({
+    credentials,
+    region,
+    service: "bedrock",
+    sha256: Sha256,
+  }).sign({
+    method: "POST",
+    protocol: url.protocol,
+    hostname: url.hostname,
+    path: url.pathname,
+    headers,
+    body,
+  });
+  return signed.headers;
+}
+
+async function invokeWithCache(
+  params: TopicTextParams<unknown>,
+  recordResponse: (result: TopicTextResult) => void,
+): Promise<TopicTextResult> {
+  const { region } = BedrockConfigSchema.parse(params.model.connection.config);
+  assertValidBedrockRegion(region);
   const { $schema: _, ...schema } = z.toJSONSchema(params.schema);
   const url = new URL(
-    `https://bedrock-runtime.${params.region}.amazonaws.com/model/${encodeURIComponent(params.model)}/invoke`,
+    `https://bedrock-runtime.${region}.amazonaws.com/model/${encodeURIComponent(params.model.model)}/invoke`,
   );
   const body = JSON.stringify({
     messages: [
@@ -113,30 +293,10 @@ async function invokeWithCache(params: {
       json_schema: { name: "topics", schema, strict: true },
     },
   });
-  // AWS's own SigV4 signer (as used by the AWS SDK), with the default credential chain.
-  const signed = await new SignatureV4({
-    credentials: fromNodeProviderChain(
-      params.profile ? { profile: params.profile } : {},
-    ),
-    region: params.region,
-    service: "bedrock",
-    sha256: Sha256,
-  }).sign({
-    method: "POST",
-    protocol: url.protocol,
-    hostname: url.hostname,
-    path: url.pathname,
-    headers: {
-      host: url.hostname,
-      "content-type": "application/json",
-      accept: "application/json",
-    },
-    body,
-  });
-  // A single attempt, like the Converse path (maxRetries: 0).
+  // A single attempt; the host is derived from the validated region.
   const response = await fetch(url, {
     method: "POST",
-    headers: signed.headers,
+    headers: await bedrockRequestHeaders(params.model, url, region, body),
     body,
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
@@ -164,14 +324,8 @@ async function invokeWithCache(params: {
     };
   };
   const message = json.choices?.[0]?.message;
-  if (!message?.content || json.choices?.[0]?.finish_reason === "length")
-    throw new Error(
-      message?.refusal
-        ? `The model refused: ${message.refusal}`
-        : "The model returned no complete output.",
-    );
-  return {
-    output: JSON.parse(message.content) as unknown,
+  const result: TopicTextResult = {
+    output: message?.content ?? message?.refusal,
     usage: {
       inputTokens: json.usage?.prompt_tokens,
       outputTokens: json.usage?.completion_tokens,
@@ -180,4 +334,37 @@ async function invokeWithCache(params: {
       cacheWriteTokens: json.usage?.prompt_tokens_details?.cache_write_tokens,
     },
   };
+  // Retain paid usage and the original response if parsing or validation fails.
+  recordResponse(result);
+
+  if (!message?.content || json.choices?.[0]?.finish_reason === "length")
+    throw new Error(
+      message?.refusal
+        ? `The model refused: ${message.refusal}`
+        : "The model returned no complete output.",
+    );
+  return { ...result, output: JSON.parse(message.content) as unknown };
 }
+
+/** A system prompt segment; `cache` ends a reusable prefix with a cache breakpoint. */
+export type TopicPromptPart = { text: string; cache?: boolean };
+
+type TopicTextResult = {
+  output: unknown;
+  usage: {
+    inputTokens?: number;
+    outputTokens?: number;
+    totalTokens?: number;
+    cacheReadTokens?: number;
+    cacheWriteTokens?: number;
+  };
+};
+
+type TopicTextParams<T> = {
+  model: TopicsModel;
+  system: TopicPromptPart[];
+  input: string;
+  schema: z.ZodType<T>;
+  maxOutputTokens: number;
+  trace?: TraceSinkParams;
+};

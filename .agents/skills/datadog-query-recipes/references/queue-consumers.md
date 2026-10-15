@@ -207,7 +207,10 @@ Metric emission and shard handling differ by source:
 - `QueueMetricsRunner` emits `.depth` and `.dlq_oldest_age` only for queue
   instances with a worker registered in the current process. It does not add a
   `shard` tag for a non-sharded queue. For a sharded queue, it emits one series
-  per registered physical shard plus `shard:all`.
+  per registered physical shard plus `shard:all`. Each interval, only one of
+  the workers that consume the same queues polls and emits, so a series'
+  `task_arn` changes between points. Aggregate with `max`, never `sum` across
+  tasks.
 
 For `.depth`, `shard:all` is the sum across registered shards when every poll
 succeeds. If only some shard polls succeed, the runner estimates the total by

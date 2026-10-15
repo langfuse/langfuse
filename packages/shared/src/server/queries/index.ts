@@ -20,6 +20,7 @@ export {
   NullFilter,
   encodeBooleanScoreEntry,
   filtersRequireEventsFull,
+  metadataFilterCanPruneEventsFull,
   metadataFilterIsEventsCoreSafe,
   type ClickhouseOperator,
 } from "./clickhouse-sql/clickhouse-filter";
@@ -57,6 +58,7 @@ export {
   type ApiColumnMapping,
 } from "./public-api-filter-builder";
 export {
+  ALL_SESSION_EVENTS_FIELDS,
   CTEQueryBuilder,
   EventsAggQueryBuilder,
   EventsAggregationQueryBuilder,
@@ -65,10 +67,13 @@ export {
   ExperimentsAggregationQueryBuilder,
   OBSERVATION_FIELD_GROUP_FIELD_NAMES,
   buildEventsFullTableSplitQuery,
+  normalizeSessionCounts,
   type CTESchema,
   type CTEWithSchema,
   type QueryWithParams,
   type ExperimentsAggregationFieldSetName,
+  type SessionEventsField,
+  type SessionEventsFields,
   type SessionEventsMetricsRow,
   type SplitQueryBuilder,
 } from "./clickhouse-sql/event-query-builder";
@@ -91,7 +96,6 @@ export {
   eventsTraceMetadata,
   eventsTracesAggregation,
   eventsTracesScoresAggregation,
-  promptEventsForMetrics,
   scoreBooleansAggregation,
 } from "./clickhouse-sql/query-fragments";
 export {
@@ -112,5 +116,4 @@ export { extractTimeFilter } from "./clickhouse-sql/filter-utils";
 export {
   isSeekEligibleFilter,
   scoreOnlyFiltersAreSeekEligible,
-  scoreOnlyFiltersHaveIndexedLookup,
 } from "./clickhouse-sql/score-seek-eligibility";

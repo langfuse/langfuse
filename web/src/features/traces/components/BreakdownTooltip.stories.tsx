@@ -185,7 +185,7 @@ export const TestLinksMatchedPricingTier = meta.story({
       "href",
       "/project/project-1/settings/models/gpt-5.6%2Fpriority?pricingTier=tier-priority",
     );
-    await expect(link).toHaveClass("text-xs", "italic");
+    await expect(link).toHaveClass("text-xs");
   },
 });
 
@@ -209,7 +209,7 @@ export const TestProvidedAtIngestionLabel = meta.story({
 });
 
 export const TestCostFormattingAndTruncation = meta.story({
-  name: "(Test) Aligns cost precision and hides zero costs",
+  name: "(Test) Flags sub-cent costs, keeps exact values in titles",
   args: {
     details: floatingPointCostDetails,
     children: <span>$0.0001775</span>,
@@ -218,11 +218,12 @@ export const TestCostFormattingAndTruncation = meta.story({
   play: async ({ canvasElement }) => {
     const { content } = await openBreakdownTooltip(canvasElement, "$0.0001775");
 
-    await expect(content.getAllByText("$0.0000275")).toHaveLength(2);
-    await expect(content.getAllByText("$0.0001500")).toHaveLength(2);
-    await expect(content.getByText("$0.0001775")).toBeInTheDocument();
+    await expect(content.getAllByText("<$0.01")).toHaveLength(5);
+    await expect(content.getAllByTitle("$0.0000275")).toHaveLength(2);
+    await expect(content.getAllByTitle("$0.0001500")).toHaveLength(2);
+    await expect(content.getByTitle("$0.0001775")).toBeInTheDocument();
     await expect(
-      content.queryByText("$0.000177499999"),
+      content.queryByTitle("$0.000177499999"),
     ).not.toBeInTheDocument();
     await expect(content.getByText("—")).toBeInTheDocument();
 
@@ -242,14 +243,40 @@ export const TestNearDecimalCostFormatting = meta.story({
   play: async ({ canvasElement }) => {
     const { content } = await openBreakdownTooltip(canvasElement, "$0.058343");
 
-    await expect(content.getAllByText("$0.039065")).toHaveLength(1);
-    await expect(content.getAllByText("$0.003488")).toHaveLength(1);
-    await expect(content.getAllByText("$0.015790")).toHaveLength(2);
-    await expect(content.getByText("$0.042553")).toBeInTheDocument();
-    await expect(content.getByText("$0.058343")).toBeInTheDocument();
+    await expect(content.getAllByText("$0.04")).toHaveLength(2);
+    await expect(content.getByText("<$0.01")).toBeInTheDocument();
+    await expect(content.getAllByText("$0.02")).toHaveLength(2);
+    await expect(content.getByText("$0.06")).toBeInTheDocument();
+    await expect(content.getByTitle("$0.039065")).toBeInTheDocument();
+    await expect(content.getByTitle("$0.003488")).toBeInTheDocument();
+    await expect(content.getAllByTitle("$0.015790")).toHaveLength(2);
+    await expect(content.getByTitle("$0.042553")).toBeInTheDocument();
+    await expect(content.getByTitle("$0.058343")).toBeInTheDocument();
     await expect(
-      content.queryByText("$0.058342999997"),
+      content.queryByTitle("$0.058342999997"),
     ).not.toBeInTheDocument();
+  },
+});
+
+export const TestShareOfTotal = meta.story({
+  name: "(Test) Shows each row's share of the total",
+  args: {
+    details: cacheCostDetails,
+    children: <span>$0.03782809</span>,
+    isCost: true,
+  },
+  play: async ({ canvasElement }) => {
+    const { content } = await openBreakdownTooltip(
+      canvasElement,
+      "$0.03782809",
+    );
+
+    await expect(content.getByText("70%")).toBeInTheDocument();
+    await expect(content.getByText("83%")).toBeInTheDocument();
+    await expect(content.getAllByText("17%")).toHaveLength(2);
+    // Other section: subtotal and its only row.
+    await expect(content.getAllByText("<1%")).toHaveLength(2);
+    await expect(content.getByText("$0.04")).toBeInTheDocument();
   },
 });
 

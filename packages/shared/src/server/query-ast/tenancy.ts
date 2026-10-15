@@ -61,9 +61,11 @@ type Relation =
  * tenanted physical relation that does not already have that predicate, then
  * stamps the tree so {@link ClickHouseQueryCompiler} will compile it.
  *
- * Any `RawNode` whose SQL fragments introduce a relation (`SELECT` / `FROM` /
- * `JOIN`) is rejected — not only FROM/JOIN table sources. Kysely's own
- * keyword fragments (`asc` / `desc`) are not relations and are allowed.
+ * FROM/JOIN sources must be table references or subqueries; anything else,
+ * such as a table function, is rejected. Any `RawNode` whose SQL fragments
+ * introduce a relation (`SELECT` / `FROM` / `JOIN`) is rejected — not only
+ * FROM/JOIN table sources. Kysely's own keyword fragments (`asc` / `desc`) are
+ * not relations and are allowed.
  */
 export class TenancyInjectionPlugin implements KyselyPlugin {
   constructor(private readonly ctx: ExecutionContext) {
@@ -186,6 +188,11 @@ function assertRelationAllowed(relation: Relation): void {
   if (relation.kind === "raw") {
     throw new UnscopedRelationError(
       "Raw SQL table sources are rejected: they can introduce an unscoped relation that the tenancy pass cannot prove. Use a traced table reference instead.",
+    );
+  }
+  if (relation.kind === "other") {
+    throw new UnscopedRelationError(
+      "Only table references and subqueries are accepted as FROM/JOIN sources: a table function such as remote() or merge() reads a relation the tenancy pass cannot scope.",
     );
   }
 }
@@ -368,5 +375,31 @@ function rejectUnscopedRawSql(node: unknown): void {
   }
   for (const value of Object.values(node)) {
     rejectUnscopedRawSql(value);
+  }
+}
+
+/**
+ * Rejects a standalone expression that reads a relation: a subquery, or a raw
+ * fragment that introduces one. Outside a query there is no tenancy scope to
+ * inject into it.
+ */
+export function assertRelationFree(node: OperationNode): void {
+  rejectUnscopedRawSql(node);
+  rejectSubqueries(node);
+}
+
+function rejectSubqueries(node: unknown): void {
+  if (!node || typeof node !== "object") return;
+  if (Array.isArray(node)) {
+    for (const item of node) rejectSubqueries(item);
+    return;
+  }
+  if ("kind" in node && node.kind === "SelectQueryNode") {
+    throw new UnscopedRelationError(
+      "A standalone expression cannot contain a subquery: it has no tenancy scope. Compile the query through compileClickhouseQuery() instead.",
+    );
+  }
+  for (const value of Object.values(node)) {
+    rejectSubqueries(value);
   }
 }

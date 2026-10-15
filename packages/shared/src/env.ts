@@ -44,10 +44,16 @@ const EnvSchema = z.object({
   NEXTAUTH_URL: z.url().optional(),
   // Internal Topics PoC controls; not a supported self-hosting configuration.
   LANGFUSE_TOPICS_ENABLED: z.enum(["true", "false"]).default("false"),
-  // Unset model IDs make Topics model processing unavailable.
-  LANGFUSE_TOPICS_SUMMARY_MODEL: z.string().trim().min(1).optional(),
-  LANGFUSE_TOPICS_EMBEDDING_MODEL: z.string().trim().min(1).optional(),
   LANGFUSE_TOPICS_ENABLED_PROJECT_IDS: z
+    .string()
+    .default("")
+    .transform((value) =>
+      value
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean),
+    ),
+  LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS: z
     .string()
     .default("")
     .transform((value) =>
@@ -300,6 +306,16 @@ const EnvSchema = z.object({
   LANGFUSE_S3_EVENT_UPLOAD_SSE_KMS_KEY_ID: z.string().optional(),
   LANGFUSE_S3_EVENT_KEY_MAX_SEGMENT_BYTES:
     langfuseS3EventKeyMaxSegmentBytesSchema,
+  LANGFUSE_OTEL_MEDIA_UPLOAD_CONCURRENCY: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(100),
+  LANGFUSE_OTEL_MEDIA_UPLOAD_MAX_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(128 * 1024 * 1024),
   LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: z.string().default(""),
   LANGFUSE_S3_MEDIA_UPLOAD_REGION: z.string().optional(),

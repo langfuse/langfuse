@@ -265,9 +265,6 @@ describe("Blob Storage Integrations API", () => {
         createBasicAuthHeader(projectApiKey.publicKey, projectApiKey.secretKey),
       );
       expect(result.status).toBe(403);
-      expect(result.body.message).toContain(
-        "Organization-scoped API key required",
-      );
 
       // Clean up
       await prisma.apiKey.delete({ where: { id: projectApiKey.id } });

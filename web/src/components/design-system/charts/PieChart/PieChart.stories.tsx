@@ -1,6 +1,6 @@
 import preview from "../../../../../.storybook/preview";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
-import { chartColors } from "../constants";
+import { chartFillColors } from "../constants";
 import { PieChart } from "./PieChart";
 
 const data = [
@@ -46,7 +46,7 @@ export const HoverColors = meta.story({
     );
 
     await userEvent.unhover(first);
-    await expect(second).toHaveAttribute("fill", chartColors[1]);
+    await expect(second).toHaveAttribute("fill", chartFillColors[1]);
   },
 });
 

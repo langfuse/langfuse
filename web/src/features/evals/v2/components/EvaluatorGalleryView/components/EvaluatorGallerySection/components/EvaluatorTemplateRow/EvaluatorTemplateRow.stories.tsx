@@ -16,6 +16,7 @@ const managedTemplate = {
   icon: "gauge",
   description: "Assess whether the answer directly addresses the question.",
   maintainer: "langfuse",
+  previewScores: [{ name: "answer_relevance", value: "Relevant" }],
   evaluator: {
     type: EvalTemplateTypeEnum.LLM_AS_JUDGE,
     promptMessages: [

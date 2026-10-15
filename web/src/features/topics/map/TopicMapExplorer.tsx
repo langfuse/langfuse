@@ -70,6 +70,7 @@ export function TopicMapExplorer({
   onSelectTopic,
   onSelectTrace,
   selectedTraceId,
+  matchingTraceIds,
   onOpenTrace,
   fillContainer = false,
 }: TopicMapExplorerProps) {
@@ -158,7 +159,7 @@ export function TopicMapExplorer({
       );
     } else {
       cancelFlight();
-      setCamera(null, id);
+      if (selectedTopic !== null) setCamera(null, id);
     }
     onSelectTopic(id);
   };
@@ -260,6 +261,7 @@ export function TopicMapExplorer({
       !frame ||
       frame.model !== model ||
       frame.readingTopic !== selectedTopic ||
+      frame.matchingTraceIds !== matchingTraceIds ||
       frame.size.width !== size.width ||
       frame.size.height !== size.height ||
       frame.camera.zoom !== intended.zoom ||
@@ -289,7 +291,10 @@ export function TopicMapExplorer({
     const rect = event.currentTarget.getBoundingClientRect();
     const frame = store.getState().frame;
     const point =
-      frame && frame.model === model && frame.readingTopic === selectedTopic
+      frame &&
+      frame.model === model &&
+      frame.readingTopic === selectedTopic &&
+      frame.matchingTraceIds === matchingTraceIds
         ? hitMapNode(frame, {
             x: event.clientX - rect.left,
             y: event.clientY - rect.top,
@@ -432,6 +437,7 @@ export function TopicMapExplorer({
           store={store}
           selectedTopic={selectedTopic}
           selectedTraceId={selectedTraceId}
+          matchingTraceIds={matchingTraceIds}
         />
         <MapLabels
           model={model}
@@ -439,6 +445,7 @@ export function TopicMapExplorer({
           store={store}
           selectedTopic={selectedTopic}
           selectedTraceId={selectedTraceId}
+          matchingTraceIds={matchingTraceIds}
           onSelectTrace={handleSelectTrace}
         />
         {model.points.length === 0 && (
@@ -451,7 +458,11 @@ export function TopicMapExplorer({
             store={store}
             initialCamera={initialCamera}
             scope={selectedTopic}
-            population={model.populationLabel}
+            population={
+              matchingTraceIds
+                ? `${model.points.filter((point) => matchingTraceIds.has(point.traceId)).length.toLocaleString()} of ${model.populationLabel} match`
+                : model.populationLabel
+            }
             missingSummaryCount={data.missingSummaryCount}
             unpositionedCount={data.unpositionedCount}
           />
@@ -538,15 +549,9 @@ function MapLabels({
   store,
   selectedTopic,
   selectedTraceId,
+  matchingTraceIds,
   onSelectTrace,
-}: {
-  model: TopicMapModel;
-  size: Size;
-  store: TopicMapStore;
-  selectedTopic: string | null;
-  selectedTraceId: string | null;
-  onSelectTrace: (id: string) => void;
-}) {
+}: MapLabelsProps) {
   const state = useStore(store);
   const frame = state.frame;
   const hover = getTopicMapHover(state, frame);
@@ -555,7 +560,8 @@ function MapLabels({
     frame.model === model &&
     frame.size.width === size.width &&
     frame.size.height === size.height &&
-    frame.readingTopic === selectedTopic;
+    frame.readingTopic === selectedTopic &&
+    frame.matchingTraceIds === matchingTraceIds;
   const handleTraceClick = (event: ReactMouseEvent<HTMLButtonElement>) => {
     const traceId = event.currentTarget.dataset.traceId;
     if (traceId) onSelectTrace(traceId);
@@ -651,9 +657,11 @@ function MapLabels({
             )}
             style={{
               left: rect.x,
-              top: rect.y,
+              top: rect.anchorY,
               width: rect.width,
-              height: rect.height,
+              maxHeight: rect.height,
+              // Percentages use the rendered height; clamp keeps the card inside its reserved bounds.
+              translate: `0 clamp(${rect.y - rect.anchorY}px, ${-100 * rect.anchorFraction}%, calc(${rect.y + rect.height - rect.anchorY}px - 100%))`,
               borderLeftColor: trace?.point.color ?? zone!.color,
               borderLeftWidth: 2,
             }}
@@ -762,6 +770,7 @@ export type TopicMapExplorerProps = {
   onSelectTopic: (id: string | null) => void;
   onSelectTrace: (traceId: string | null) => void;
   selectedTraceId: string | null;
+  matchingTraceIds?: ReadonlySet<string>;
   onOpenTrace: (traceId: string) => void;
   fillContainer?: boolean;
 };
@@ -773,6 +782,16 @@ type LayoutReadoutProps = {
   population: string;
   missingSummaryCount: number;
   unpositionedCount: number;
+};
+
+type MapLabelsProps = {
+  model: TopicMapModel;
+  size: Size;
+  store: TopicMapStore;
+  selectedTopic: string | null;
+  selectedTraceId: string | null;
+  matchingTraceIds?: ReadonlySet<string>;
+  onSelectTrace: (id: string) => void;
 };
 
 export const __test = { fitMapPoints };

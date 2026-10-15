@@ -36,7 +36,7 @@ export function VerticalBarChart({
   return (
     <DesignSystemBarChart
       data={chartData}
-      color={config?.metric?.color ?? "hsl(var(--chart-1))"}
+      color={config?.metric?.color ?? "hsl(var(--chart-fill-1))"}
       valueFormatter={formatValue}
       hideXAxisLabels={hideXAxisLabels}
       zeroBaseline={zeroBaseline}
