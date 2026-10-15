@@ -55,6 +55,49 @@ describe("OtelIngestionProcessor model parameters", () => {
     });
   });
 
+  it("retains the operation from Vercel AI SDK decide spans", () => {
+    const batch: ResourceSpan[] = [
+      {
+        scopeSpans: [
+          {
+            scope: { name: "ai", version: "7.0.0" },
+            spans: [
+              {
+                traceId: Buffer.from("0123456789abcdef0123456789abcdef", "hex"),
+                spanId: Buffer.from("0123456789abcdef", "hex"),
+                name: "decide gpt-6-luna",
+                kind: 3,
+                startTimeUnixNano: "1752384000000000000",
+                endTimeUnixNano: "1752384001000000000",
+                attributes: [
+                  {
+                    key: "gen_ai.operation.name",
+                    value: { stringValue: "decide" },
+                  },
+                  {
+                    key: "gen_ai.request.model",
+                    value: { stringValue: "gpt-6-luna" },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      },
+    ];
+
+    const events = new OtelIngestionProcessor({
+      projectId: "project-1",
+      publicKey: "pk-test",
+      sdkName: "ai",
+      sdkVersion: "7.0.0",
+    }).processToEvent(batch);
+
+    expect(events).toHaveLength(1);
+    expect(events[0].modelParameters).toMatchObject({ operation: "decide" });
+  });
+
   it("falls back to the OpenAI service tier in Vercel provider metadata", () => {
     const batch: ResourceSpan[] = [
       {

@@ -363,6 +363,7 @@ export function buildDecisionModelTraceInput(params: {
     type: "GENERATION",
     environment: LangfuseInternalTraceEnvironment.LLMJudge,
     modelName: params.evaluation.model,
+    modelParameters: { operation: "decide" },
     input: stringifyValue(params.request),
     output: stringifyValue(params.evaluation.answers),
     ...(usage

@@ -181,6 +181,7 @@ describe("runDecisionModelEvaluation", () => {
             traceId: result.executionTraceId,
             name: "Execute evaluator: Send readiness",
             modelName: "jev-1.13.0",
+            modelParameters: { operation: "decide" },
           }),
         ],
       }),

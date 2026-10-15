@@ -2884,8 +2884,12 @@ export class OtelIngestionProcessor {
         attributes["ai.response.providerMetadata"],
       );
       const responseServiceTier = providerMetadata?.openai?.serviceTier;
+      const operation = attributes["gen_ai.operation.name"];
 
       return {
+        // Pricing tiers match on this, e.g. OpenAI bills `decide` calls at
+        // separate Decisions API rates for the same model name.
+        ...(typeof operation === "string" ? { operation } : {}),
         maxSteps:
           "ai.settings.maxSteps" in attributes
             ? (attributes["ai.settings.maxSteps"]?.toString() ?? null)
