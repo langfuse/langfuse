@@ -9,6 +9,7 @@ import {
 import { JsonTraceSerializer } from "@opentelemetry/otlp-transformer";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import {
+  AlwaysOnSampler,
   BasicTracerProvider,
   InMemorySpanExporter,
   SimpleSpanProcessor,
@@ -331,6 +332,10 @@ export async function writeInternalTraceViaOtelIngestion(trace: {
   const exporter = new InMemorySpanExporter();
   let currentTraceId = eventInputs[0].traceId.toLowerCase();
   const tracerProvider = new BasicTracerProvider({
+    // Always record: this provider captures Langfuse's own product traces, so
+    // it must not inherit OTEL_TRACES_SAMPLER / OTEL_TRACES_SAMPLER_ARG, which
+    // hosts set to sample their own APM telemetry.
+    sampler: new AlwaysOnSampler(),
     resource: resourceFromAttributes({
       [LangfuseOtelSpanAttributes.ENVIRONMENT]: eventInputs[0].environment,
     }),
