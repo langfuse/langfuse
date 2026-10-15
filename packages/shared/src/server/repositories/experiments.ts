@@ -5,15 +5,10 @@ import { env } from "../../env";
 import { type ScoreSourceType } from "../../domain";
 import { type OrderByState } from "../../interfaces/orderBy";
 import { type FilterState } from "../../types";
-import { sql } from "kysely";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { compileClickhouseQuery } from "../query-ast/compile";
 import { getClickhouseKysely } from "../query-ast/dialect";
-import { includeDeleted } from "../query-ast/extensions";
-import {
-  EXPERIMENTS_AGGREGATION_FIELDS,
-  EXPERIMENTS_AGGREGATION_FIELD_SETS,
-} from "../queries/clickhouse-sql/event-query-builder";
+import { avgIf, dateDiff, includeDeleted } from "../query-ast/extensions";
 import {
   FilterList,
   StringOptionsFilter,
@@ -366,12 +361,17 @@ export const getExperimentMetricsFromEvents = async (props: {
   const builder = getClickhouseKysely()
     .selectFrom("events_core as e")
     .$call(includeDeleted())
-    .select(
-      // Same field map as the experiments table builder, so both stay in sync.
-      EXPERIMENTS_AGGREGATION_FIELD_SETS.metrics.map((field) =>
-        sql.raw(EXPERIMENTS_AGGREGATION_FIELDS[field]),
-      ) as never,
-    )
+    .select((eb) => [
+      "e.experiment_id as experiment_id",
+      eb.fn.sum("e.total_cost").as("total_cost"),
+      avgIf(
+        dateDiff("millisecond", eb.ref("e.start_time"), eb.ref("e.end_time")),
+        eb.and([
+          eb("e.span_id", "=", eb.ref("e.experiment_item_root_span_id")),
+          eb("e.end_time", "is not", null),
+        ]),
+      ).as("latency_avg"),
+    ])
     .where("e.experiment_id", "in", experimentIds)
     .where("e.experiment_id", "!=", "")
     .groupBy(["e.project_id", "e.experiment_id"]);

@@ -48,6 +48,7 @@ import {
   streamObservationIOFieldFromEventsTable,
 } from "./events";
 import { getTraceBatchEventStream } from "./trace-batch";
+import { ALL_SESSION_EVENTS_FIELDS } from "../queries/clickhouse-sql/event-query-builder";
 
 const FIXED_PROJECT_ID = "golden-project";
 const FIXED_PROJECT_IDS = ["golden-project", "golden-project-b"] as const;
@@ -351,6 +352,15 @@ describeWithClickhouse("golden: events simple aggregates family", () => {
       sessionIds: FIXED_SESSION_IDS,
       fields: ["session_id", "trace_count"],
       queryFromTimestamp: FIXED_FROM_TIMESTAMP,
+    });
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it("getSessionMetricsFromEvents fields=all", async () => {
+    await getSessionMetricsFromEvents({
+      projectId: FIXED_PROJECT_ID,
+      sessionIds: FIXED_SESSION_IDS,
+      fields: ALL_SESSION_EVENTS_FIELDS,
     });
     expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
   });
