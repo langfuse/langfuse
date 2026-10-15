@@ -527,20 +527,20 @@ describe("AI gateway control plane", () => {
     ).rejects.toThrow();
   });
 
-  it("routes by format and priority and issues a verifiable ingestion token", async () => {
+  it("routes by connection slug and issues a verifiable ingestion token", async () => {
     const { caller, org, project } = await prepare();
     await caller.aiGateway.updateConfig({
       orgId: org.id,
       defaultIngestionProjectId: project.id,
       ingestionMode: "FULL",
     });
-    const openAiPrimary = await caller.aiGateway.createConnection({
+    await caller.aiGateway.createConnection({
       orgId: org.id,
       name: "OpenAI first",
       provider: "OPENAI",
       credential: "sk-test-openai-primary",
     });
-    await caller.aiGateway.createConnection({
+    const openAiSecondary = await caller.aiGateway.createConnection({
       orgId: org.id,
       name: "OpenAI second",
       provider: "OPENAI",
@@ -563,16 +563,17 @@ describe("AI gateway control plane", () => {
     const result = await authenticateRequest({
       fastHashedSecretKey: createShaHash(gatewayKey.secretKey, env.SALT),
       apiFormat,
+      model: "OpenAI second:openai/gpt-4o",
     });
 
-    expect(openAiPrimary.routingPriority).toBe(0);
     expect(result.connection).toEqual({
-      id: openAiPrimary.id,
-      name: "OpenAI first",
+      id: openAiSecondary.id,
+      name: "OpenAI second",
       provider: "openai",
+      provider_model: "openai/gpt-4o",
       api_format: apiFormat,
       base_url: "https://api.openai.com/v1",
-      auth: { type: "Bearer", token: "sk-test-openai-primary" },
+      auth: { type: "Bearer", token: "sk-test-openai-secondary" },
     });
     const ingestionToken = result.ingestion!.access_token;
     const ingestionClaims = jwtVerifier.verify({ token: ingestionToken });
@@ -595,6 +596,132 @@ describe("AI gateway control plane", () => {
     expect(result.ingestion_mode).toBe(rawClaims.ingestion_mode);
     expect(result.ingestion_mode).toBe("full");
     expect(result.ingestion?.expires_at).toBe(ingestionClaims.exp);
+  });
+
+  it("routes unprefixed models by provider and rejects unknown models", async () => {
+    configureGatewayJwtSigning();
+    const { caller, org, project } = await prepare();
+    await caller.aiGateway.updateConfig({
+      orgId: org.id,
+      defaultIngestionProjectId: project.id,
+      ingestionMode: "FULL",
+    });
+    const openAiPrimary = await caller.aiGateway.createConnection({
+      orgId: org.id,
+      name: "OpenAI primary",
+      provider: "OPENAI",
+      credential: "sk-test-openai-primary",
+    });
+    const openAiSecondary = await caller.aiGateway.createConnection({
+      orgId: org.id,
+      name: "OpenAI secondary",
+      provider: "OPENAI",
+      credential: "sk-test-openai-secondary",
+    });
+    const anthropic = await caller.aiGateway.createConnection({
+      orgId: org.id,
+      name: "Anthropic",
+      provider: "ANTHROPIC",
+      credential: "sk-test-anthropic",
+    });
+    const gatewayKey = await caller.aiGateway.createApiKey({
+      orgId: org.id,
+      metadata: {},
+    });
+    const otherOrganization = await prepare();
+    await otherOrganization.caller.aiGateway.createConnection({
+      orgId: otherOrganization.org.id,
+      name: "Unknown",
+      provider: "OPENAI",
+      credential: "sk-other-organization",
+    });
+    const params = {
+      fastHashedSecretKey: createShaHash(gatewayKey.secretKey, env.SALT),
+      apiFormat: "openai.responses" as const,
+    };
+
+    await expect(
+      authenticateRequest({ ...params, model: "gpt-4o" }),
+    ).resolves.toMatchObject({
+      connection: {
+        id: openAiPrimary.id,
+        provider: "openai",
+        provider_model: "gpt-4o",
+      },
+    });
+    await expect(
+      authenticateRequest({
+        ...params,
+        apiFormat: "anthropic.messages",
+        model: "claude-haiku-4-5-20251001",
+      }),
+    ).resolves.toMatchObject({
+      connection: {
+        id: anthropic.id,
+        provider: "anthropic",
+        provider_model: "claude-haiku-4-5-20251001",
+      },
+    });
+    await expect(
+      authenticateRequest({
+        ...params,
+        model: "OpenAI secondary:gpt-4o",
+      }),
+    ).resolves.toMatchObject({
+      connection: {
+        id: openAiSecondary.id,
+        provider: "openai",
+        provider_model: "gpt-4o",
+      },
+    });
+    await expect(
+      authenticateRequest({ ...params, model: "random-model" }),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      authenticateRequest({ ...params, model: "Unknown:gpt-4o" }),
+    ).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("requires connection names to be unique within an organization", async () => {
+    const { caller, org } = await prepare();
+    await expect(
+      caller.aiGateway.createConnection({
+        orgId: org.id,
+        name: "Production:Primary",
+        provider: "OPENAI",
+        credential: "sk-openai",
+      }),
+    ).rejects.toThrow("Connection names cannot contain a colon.");
+
+    await caller.aiGateway.createConnection({
+      orgId: org.id,
+      name: "Production",
+      provider: "OPENAI",
+      credential: "sk-openai",
+    });
+
+    await expect(
+      caller.aiGateway.createConnection({
+        orgId: org.id,
+        name: "Production",
+        provider: "ANTHROPIC",
+        credential: "sk-anthropic",
+      }),
+    ).rejects.toThrow("A provider credential with this name already exists.");
+
+    const backup = await caller.aiGateway.createConnection({
+      orgId: org.id,
+      name: "Backup",
+      provider: "ANTHROPIC",
+      credential: "sk-anthropic",
+    });
+    await expect(
+      caller.aiGateway.updateConnection({
+        orgId: org.id,
+        id: backup.id,
+        name: "Production",
+      }),
+    ).rejects.toThrow("A provider credential with this name already exists.");
   });
 
   it("changes ERROR only for credential auth failures and explicit recovery", async () => {
@@ -787,6 +914,12 @@ describe("AI gateway control plane", () => {
       provider: "OPENAI",
       credential: "sk-test",
     });
+    await caller.aiGateway.createConnection({
+      orgId: org.id,
+      name: "OpenAI backup",
+      provider: "OPENAI",
+      credential: "sk-test-backup",
+    });
     const key = await caller.aiGateway.createApiKey({
       orgId: org.id,
       metadata: {},
@@ -794,6 +927,7 @@ describe("AI gateway control plane", () => {
     const resolveParams = {
       fastHashedSecretKey: createShaHash(key.secretKey, env.SALT),
       apiFormat: "openai.responses" as const,
+      model: "OpenAI:gpt-4o",
     };
     const lookup = vi.spyOn(prisma.gatewayApiKeyAssociation, "findFirst");
 
@@ -802,19 +936,36 @@ describe("AI gateway control plane", () => {
         connection: { auth: { type: "Bearer", token: "sk-test" } },
       });
     }
+    await expect(
+      authenticateRequest({
+        ...resolveParams,
+        model: "OpenAI backup:gpt-4o",
+      }),
+    ).resolves.toMatchObject({
+      connection: { auth: { type: "Bearer", token: "sk-test-backup" } },
+    });
     // The second call must not reach Postgres: this endpoint runs on every LLM
     // request through the gateway.
     expect(lookup).toHaveBeenCalledOnce();
 
-    // Disabling a connection has to take effect now, not when the TTL expires.
+    // Renaming a connection invalidates its old model slugs immediately.
     await caller.aiGateway.updateConnection({
       orgId: org.id,
       id: connection.id,
-      status: "DISABLED",
+      name: "OpenAI renamed",
     });
     await expect(authenticateRequest(resolveParams)).rejects.toEqual(
       expect.objectContaining<Partial<GatewayResolveError>>({ status: 404 }),
     );
+    expect(lookup).toHaveBeenCalledTimes(2);
+    await expect(
+      authenticateRequest({
+        ...resolveParams,
+        model: "OpenAI renamed:gpt-4o",
+      }),
+    ).resolves.toMatchObject({
+      connection: { name: "OpenAI renamed" },
+    });
     expect(lookup).toHaveBeenCalledTimes(2);
     lookup.mockRestore();
   });
@@ -823,6 +974,7 @@ describe("AI gateway control plane", () => {
     const resolveParams = {
       fastHashedSecretKey: createShaHash(`sk-lf-${randomUUID()}`, env.SALT),
       apiFormat: "openai.responses" as const,
+      model: "gpt-4o",
     };
     const lookup = vi.spyOn(prisma.gatewayApiKeyAssociation, "findFirst");
 
@@ -855,7 +1007,7 @@ describe("AI gateway control plane", () => {
 
       Object.assign(env, { API_AUTH_MIGRATION: "enforce" });
       await expect(
-        authenticator.authenticateRequest(request),
+        authenticator.authenticateModelsRequest(request),
       ).resolves.toMatchObject({
         organizationId: org.id,
       });
@@ -865,7 +1017,7 @@ describe("AI gateway control plane", () => {
         data: { systemRole: "INGEST", roleId: "system/INGEST" },
       });
       await expect(
-        authenticator.authenticateRequest(request),
+        authenticator.authenticateModelsRequest(request),
       ).rejects.toMatchObject({
         status: 403,
         message: "API key is not allowed to invoke the gateway",
@@ -873,7 +1025,7 @@ describe("AI gateway control plane", () => {
 
       Object.assign(env, { API_AUTH_MIGRATION: "legacy" });
       await expect(
-        authenticator.authenticateRequest(request),
+        authenticator.authenticateModelsRequest(request),
       ).resolves.toMatchObject({
         organizationId: org.id,
       });
@@ -930,19 +1082,26 @@ describe("AI gateway control plane", () => {
       authenticateRequest({
         fastHashedSecretKey: createShaHash(key.secretKey, env.SALT),
         apiFormat,
+        model: "OpenAI:gpt-4o",
       }),
     ).rejects.toEqual(
       expect.objectContaining<Partial<GatewayResolveError>>({ status: 403 }),
     );
   });
 
-  it("returns a canonical model catalog across enabled compatible connections", async () => {
+  it("returns connection-prefixed models without consolidating connections", async () => {
     const { caller, org } = await prepare();
     await caller.aiGateway.createConnection({
       orgId: org.id,
-      name: "OpenAI",
+      name: "OpenAI primary",
       provider: "OPENAI",
       credential: "sk-openai",
+    });
+    await caller.aiGateway.createConnection({
+      orgId: org.id,
+      name: "OpenAI backup",
+      provider: "OPENAI",
+      credential: "sk-openai-backup",
     });
     await caller.aiGateway.createConnection({
       orgId: org.id,
@@ -1001,7 +1160,7 @@ describe("AI gateway control plane", () => {
     const fastHashedSecretKey = createShaHash(key.secretKey, env.SALT);
     const openAiContext = await new GatewayApiKeyAuthenticator(
       prisma,
-    ).authenticateRequest({
+    ).authenticateModelsRequest({
       fastHashedSecretKey,
       apiFormat: "openai.responses",
     });
@@ -1013,14 +1172,28 @@ describe("AI gateway control plane", () => {
     expect(result).toEqual({
       data: [
         {
-          id: "a-model",
+          id: "OpenAI backup:a-model",
           provider: "OPENAI",
           canonicalSlug: "a-model",
           displayName: "a-model",
           createdAt: "1970-01-01T00:00:10.000Z",
         },
         {
-          id: "shared-model",
+          id: "OpenAI backup:shared-model",
+          provider: "OPENAI",
+          canonicalSlug: "shared-model",
+          displayName: "shared-model",
+          createdAt: "1970-01-01T00:00:15.000Z",
+        },
+        {
+          id: "OpenAI primary:a-model",
+          provider: "OPENAI",
+          canonicalSlug: "a-model",
+          displayName: "a-model",
+          createdAt: "1970-01-01T00:00:10.000Z",
+        },
+        {
+          id: "OpenAI primary:shared-model",
           provider: "OPENAI",
           canonicalSlug: "shared-model",
           displayName: "shared-model",
@@ -1030,7 +1203,7 @@ describe("AI gateway control plane", () => {
     });
     const anthropicContext = await new GatewayApiKeyAuthenticator(
       prisma,
-    ).authenticateRequest({
+    ).authenticateModelsRequest({
       fastHashedSecretKey,
       apiFormat: "anthropic.messages",
     });
@@ -1041,14 +1214,14 @@ describe("AI gateway control plane", () => {
     expect(anthropicResult).toEqual({
       data: [
         {
-          id: "claude-a",
+          id: "Anthropic:claude-a",
           provider: "ANTHROPIC",
           canonicalSlug: "claude-a",
           displayName: "Claude A",
           createdAt: "2026-01-01T00:00:00.000Z",
         },
         {
-          id: "claude-b",
+          id: "Anthropic:claude-b",
           provider: "ANTHROPIC",
           canonicalSlug: "claude-b",
           displayName: "Claude B",
@@ -1056,10 +1229,10 @@ describe("AI gateway control plane", () => {
         },
       ],
     });
-    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(fetcher).toHaveBeenCalledTimes(3);
   });
 
-  it("fails model discovery instead of returning a partial catalog", async () => {
+  it("returns partial catalogs and fails only when every connection fails", async () => {
     const { caller, org } = await prepare();
     await caller.aiGateway.createConnection({
       orgId: org.id,
@@ -1088,12 +1261,32 @@ describe("AI gateway control plane", () => {
 
     const context = await new GatewayApiKeyAuthenticator(
       prisma,
-    ).authenticateRequest({
+    ).authenticateModelsRequest({
       fastHashedSecretKey: createShaHash(key.secretKey, env.SALT),
       apiFormat: "openai.chat-completions",
     });
     await expect(
       new GatewayModelsService(prisma, fetcher, null).list({
+        context,
+        apiFormat: "openai.chat-completions",
+      }),
+    ).resolves.toEqual({
+      data: [
+        {
+          id: "OpenAI fallback:available-model",
+          provider: "OPENAI",
+          canonicalSlug: "available-model",
+          displayName: "available-model",
+          createdAt: "1970-01-01T00:00:10.000Z",
+        },
+      ],
+    });
+
+    const unavailableFetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(null, { status: 500 }));
+    await expect(
+      new GatewayModelsService(prisma, unavailableFetcher, null).list({
         context,
         apiFormat: "openai.chat-completions",
       }),

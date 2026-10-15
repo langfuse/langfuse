@@ -1,7 +1,8 @@
-import type {
-  GatewayConnectionStatus,
-  GatewayProvider,
-  PrismaClient,
+import {
+  Prisma,
+  type GatewayConnectionStatus,
+  type GatewayProvider,
+  type PrismaClient,
 } from "@langfuse/shared/src/db";
 import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
@@ -9,6 +10,7 @@ import { LLMAdapter, testModelCall } from "@langfuse/shared/src/server";
 import { getDisplaySecretKey } from "@langfuse/shared/src/server/auth/apiKeys";
 
 import { auditLog } from "@/src/features/audit-logs/server";
+import { DUPLICATE_GATEWAY_CONNECTION_NAME_ERROR } from "@/src/features/ai-gateway/constants/gatewayConnection";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import {
   type GatewayProviderName,
@@ -17,11 +19,6 @@ import {
 import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { GatewayProviderRepository } from "./gatewayProviderRepository";
 import { GatewayModelCatalogService } from "../models/gatewayModelCatalogService";
-
-type CredentialValidator = (params: {
-  provider: GatewayProviderName;
-  credential: string;
-}) => Promise<void>;
 
 export class GatewayProviderService {
   private readonly repository: GatewayProviderRepository;
@@ -72,15 +69,20 @@ export class GatewayProviderService {
       provider: params.provider,
       credential: params.credential,
     });
-    const connection = await this.repository.createConnection({
-      organizationId: params.organizationId,
-      name: params.name,
-      provider: params.provider,
-      encryptedCredential: encrypt(params.credential),
-      displaySecret: getDisplaySecretKey(params.credential),
-      createdById: params.session.user.id,
-      status: "ENABLED",
-    });
+    let connection;
+    try {
+      connection = await this.repository.createConnection({
+        organizationId: params.organizationId,
+        name: params.name,
+        provider: params.provider,
+        encryptedCredential: encrypt(params.credential),
+        displaySecret: getDisplaySecretKey(params.credential),
+        createdById: params.session.user.id,
+        status: "ENABLED",
+      });
+    } catch (error) {
+      rethrowConnectionMutationError(error);
+    }
     await invalidateGatewayResolveCacheForOrganization(params.organizationId);
     await auditLog(
       {
@@ -124,18 +126,23 @@ export class GatewayProviderService {
       });
     }
 
-    const updated = await this.repository.updateConnection({
-      organizationId: params.organizationId,
-      id: params.id,
-      name: params.name,
-      status: params.credential ? "ENABLED" : params.status,
-      encryptedCredential: params.credential
-        ? encrypt(params.credential)
-        : undefined,
-      displaySecret: params.credential
-        ? getDisplaySecretKey(params.credential)
-        : undefined,
-    });
+    let updated;
+    try {
+      updated = await this.repository.updateConnection({
+        organizationId: params.organizationId,
+        id: params.id,
+        name: params.name,
+        status: params.credential ? "ENABLED" : params.status,
+        encryptedCredential: params.credential
+          ? encrypt(params.credential)
+          : undefined,
+        displaySecret: params.credential
+          ? getDisplaySecretKey(params.credential)
+          : undefined,
+      });
+    } catch (error) {
+      rethrowConnectionMutationError(error);
+    }
     await this.modelCatalogService.clearModelCache(
       params.organizationId,
       params.id,
@@ -222,6 +229,16 @@ export class GatewayProviderService {
   }
 }
 
+function rethrowConnectionMutationError(error: unknown): never {
+  if (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2002"
+  ) {
+    throw new InvalidRequestError(DUPLICATE_GATEWAY_CONNECTION_NAME_ERROR);
+  }
+  throw error;
+}
+
 async function validateGatewayCredential(params: {
   provider: GatewayProviderName;
   credential: string;
@@ -257,3 +274,8 @@ async function validateGatewayCredential(params: {
     throw new InvalidRequestError("Provider credential validation failed");
   }
 }
+
+type CredentialValidator = (params: {
+  provider: GatewayProviderName;
+  credential: string;
+}) => Promise<void>;

@@ -13,16 +13,18 @@ export async function gatewayResolveApiHandler({
   res,
   fastHashedSecretKey,
   apiFormat,
+  model,
 }: {
   req: NextApiRequest;
   res: NextApiResponse;
   fastHashedSecretKey: string;
   apiFormat: GatewayApiFormat;
+  model: string;
 }) {
   try {
     const context = await new GatewayApiKeyAuthenticator(
       prisma,
-    ).authenticateRequest({ fastHashedSecretKey, apiFormat });
+    ).authenticateRequest({ fastHashedSecretKey, apiFormat, model });
     const result = await new GatewayResolveService().resolve({
       context,
       apiFormat,

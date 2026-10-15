@@ -26,6 +26,14 @@ import {
 } from "./provider";
 
 const organizationInput = z.object({ orgId: z.string() });
+const connectionNameSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(200)
+  .refine((name) => !name.includes(":"), {
+    message: "Connection names cannot contain a colon.",
+  });
 const paginatedOrganizationInput = organizationInput.extend({
   cursor: z.string().optional(),
   limit: z.number().int().min(1).max(100).default(50),
@@ -100,7 +108,7 @@ export const aiGatewayRouter = createTRPCRouter({
   createConnection: protectedOrganizationProcedureWithoutTracing
     .input(
       organizationInput.extend({
-        name: z.string().trim().min(1).max(200),
+        name: connectionNameSchema,
         provider: z.enum(GatewayProvider),
         credential: z.string().min(1),
       }),
@@ -121,7 +129,7 @@ export const aiGatewayRouter = createTRPCRouter({
     .input(
       organizationInput.extend({
         id: z.string(),
-        name: z.string().trim().min(1).max(200).optional(),
+        name: connectionNameSchema.optional(),
         credential: z.string().min(1).optional(),
         status: z
           .enum([
