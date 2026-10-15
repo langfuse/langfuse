@@ -1,14 +1,9 @@
 /** Trace metadata, or observation attributes, model parameters and metadata. */
 
 import { useMemo } from "react";
-import {
-  type SkillsAvailable,
-  type SkillsResourceLoaded,
-} from "@langfuse/shared";
 import { type MediaReturnType } from "@/src/features/media";
 
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
 import { cn } from "@/src/utils/tailwind";
 import { IO_SECTIONS_FLUSH_CLASS } from "@/src/features/traces/constants/ioSectionClasses";
 import { type MetadataFilterActions } from "@/src/components/table/ValueCell";
@@ -36,8 +31,6 @@ export function DetailAttributesTab({
     attributes: Record<string, unknown>;
     attributesAnchorTime: Date;
     modelParameters: Record<string, unknown> | null;
-    skillsAvailable?: SkillsAvailable;
-    skillsResourceLoaded?: SkillsResourceLoaded;
   };
   metadata: unknown;
   /** Avoids re-parsing. */
@@ -55,12 +48,6 @@ export function DetailAttributesTab({
     projectId,
     filterTarget: observation ? "observations" : "traces",
   };
-  const internalFeaturesEnabled = useInternalFeaturesEnabled();
-  const skillsAvailable = observation?.skillsAvailable ?? [];
-  const skillsResourceLoaded = observation?.skillsResourceLoaded ?? [];
-  const hasSkills =
-    internalFeaturesEnabled &&
-    (skillsAvailable.length > 0 || skillsResourceLoaded.length > 0);
   const hasAttributes =
     observation && Object.keys(observation.attributes).length > 0;
   const hasMetadata =
@@ -133,24 +120,7 @@ export function DetailAttributesTab({
             )}
           </div>
         ) : null}
-        {hasSkills ? (
-          <>
-            <PrettyJsonView
-              title="Available skills"
-              json={skillsAvailable}
-              currentView={currentView}
-            />
-            <PrettyJsonView
-              title="Loaded resources"
-              json={skillsResourceLoaded}
-              currentView={currentView}
-            />
-          </>
-        ) : null}
-        {!hasSkills &&
-        !hasAttributes &&
-        !observation?.modelParameters &&
-        !hasMetadata ? (
+        {!hasAttributes && !observation?.modelParameters && !hasMetadata ? (
           <p className="text-muted-foreground text-base">
             {observation
               ? "No attributes, model parameters or metadata on this observation."
