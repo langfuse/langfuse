@@ -100,16 +100,19 @@ pub(crate) fn resolution_response_for(
     let connection = match api_format {
         ApiFormat::OpenAiResponses => json!({
             "id": "connection-1", "name": "Production key", "provider": "openai", "api_format": "openai.responses",
+            "provider_model": "provider-model",
             "base_url": "https://api.openai.com/v1",
             "auth": {"type": "Bearer", "token": provider_secret}
         }),
         ApiFormat::OpenAiChatCompletions => json!({
             "id": "connection-1", "name": "Production key", "provider": "openai", "api_format": "openai.chat-completions",
+            "provider_model": "provider-model",
             "base_url": "https://api.openai.com/v1",
             "auth": {"type": "Bearer", "token": provider_secret}
         }),
         ApiFormat::AnthropicMessages => json!({
             "id": "connection-1", "name": "Production key", "provider": "anthropic", "api_format": "anthropic.messages",
+            "provider_model": "provider-model",
             "base_url": "https://api.anthropic.com/v1",
             "auth": {"type": "x-api-key", "header": "x-api-key", "value": provider_secret}
         }),
@@ -170,7 +173,12 @@ pub(crate) async fn resolved_request_context_for(
     })
     .await;
     web.control_plane()
-        .resolve("gateway-secret", api_format, "test-request-id")
+        .resolve(
+            "gateway-secret",
+            api_format,
+            "Production key:provider-model",
+            "test-request-id",
+        )
         .await
         .unwrap()
 }

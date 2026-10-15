@@ -173,14 +173,13 @@ describe("AI gateway live end-to-end", () => {
 
     const connections = await prisma.gatewayAiConnection.findMany({
       where: { organizationId: ORGANIZATION_ID },
-      orderBy: { routingPriority: "asc" },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       select: {
         id: true,
         provider: true,
         status: true,
         encryptedCredential: true,
         displaySecret: true,
-        routingPriority: true,
         updatedAt: true,
       },
     });
@@ -194,11 +193,6 @@ describe("AI gateway live end-to-end", () => {
       }),
     );
 
-    let nextRoutingPriority =
-      Math.max(
-        -1,
-        ...connections.map(({ routingPriority }) => routingPriority),
-      ) + 1;
     for (const provider of ENABLED_PROVIDERS) {
       const credential = PROVIDER_CREDENTIALS[provider];
       const existingConnection = connections.find(
@@ -224,11 +218,9 @@ describe("AI gateway live end-to-end", () => {
             provider,
             encryptedCredential: encrypt(credential),
             displaySecret: getDisplaySecretKey(credential),
-            routingPriority: nextRoutingPriority,
             status: GatewayConnectionStatus.ENABLED,
           },
         });
-        nextRoutingPriority += 1;
         createdConnectionIds.add(connection.id);
         connectionIdsByProvider.set(provider, connection.id);
         continue;
@@ -313,11 +305,17 @@ describe("AI gateway live end-to-end", () => {
       async ({ provider, apiFormat, baseUrl, authType }) => {
         await withGatewayApiKey(
           { provider, apiFormat },
-          async ({ secretKey, id: keyId, providerConnectionId }) => {
+          async ({
+            secretKey,
+            id: keyId,
+            providerConnectionId,
+            providerConnectionName,
+          }) => {
             const resolveBody = await gatewayControlPlaneRequest({
               path: RESOLVE_PATH,
               apiFormat,
               virtualSecretKey: secretKey,
+              model: `${providerConnectionName}:ai-gateway-e2e`,
             });
             const resolved = GatewayResolveResponseSchema.parse(resolveBody);
 
@@ -377,6 +375,7 @@ async function withGatewayApiKey(
     secretKey: string;
     id: string;
     providerConnectionId: string;
+    providerConnectionName: string;
   }) => Promise<void>,
 ) {
   const targetConnectionId = connectionIdsByProvider.get(input.provider);
@@ -386,6 +385,10 @@ async function withGatewayApiKey(
     );
   }
   await selectOnlyConnection(targetConnectionId);
+  const targetConnection = await prisma.gatewayAiConnection.findUniqueOrThrow({
+    where: { id: targetConnectionId },
+    select: { name: true },
+  });
 
   const gatewayKey = await admin.caller.aiGateway.createApiKey({
     orgId: ORGANIZATION_ID,
@@ -410,6 +413,7 @@ async function withGatewayApiKey(
       secretKey: gatewayKey.secretKey,
       id: gatewayKey.id,
       providerConnectionId: targetConnectionId,
+      providerConnectionName: targetConnection.name,
     });
   } finally {
     await admin.caller.aiGateway.revokeApiKey({
@@ -547,6 +551,7 @@ async function gatewayControlPlaneRequest(input: {
   path: string;
   apiFormat: GatewayApiFormat;
   virtualSecretKey: string;
+  model?: string;
 }): Promise<unknown> {
   const timestamp = Math.floor(Date.now() / 1000);
   const canonicalMessage = [
@@ -571,7 +576,7 @@ async function gatewayControlPlaneRequest(input: {
     },
     body: isModelsRequest
       ? undefined
-      : JSON.stringify({ apiFormat: input.apiFormat }),
+      : JSON.stringify({ apiFormat: input.apiFormat, model: input.model }),
   });
   return readJsonResponse(response, 200, input.path);
 }

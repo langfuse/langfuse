@@ -341,10 +341,6 @@ impl OpenAiChatCompletionsCapture {
         self.facts.capture_complete = self.request_complete && self.facts.output_complete;
     }
 
-    pub(super) fn requested_model(&self) -> Option<&str> {
-        self.facts.requested_model.as_deref()
-    }
-
     pub(super) fn into_facts(mut self) -> ProviderFacts {
         if matches!(self.body, ResponseBody::Sse(_)) {
             self.end_body();

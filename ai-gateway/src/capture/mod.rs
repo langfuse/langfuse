@@ -82,14 +82,6 @@ impl ProtocolCapture {
         }
     }
 
-    fn requested_model(&self) -> Option<&str> {
-        match self {
-            Self::OpenAiResponses(capture) => capture.requested_model(),
-            Self::OpenAiChatCompletions(capture) => capture.requested_model(),
-            Self::AnthropicMessages(capture) => capture.requested_model(),
-        }
-    }
-
     fn client_metadata(&self) -> Option<&Map<String, Value>> {
         match self {
             Self::OpenAiResponses(capture) => capture.client_metadata(),
@@ -109,6 +101,7 @@ pub(crate) struct ExecutionCapture {
     completion_start_ms: Option<u128>,
     http_status: Option<u16>,
     metadata: Value,
+    provider_model: Option<String>,
     delivery: Option<(telemetry::Telemetry, telemetry::DeliveryContext)>,
 }
 
@@ -126,6 +119,7 @@ impl ExecutionCapture {
             completion_start_ms: None,
             http_status: None,
             metadata: json!({}),
+            provider_model: None,
             delivery: None,
         }
     }
@@ -181,6 +175,7 @@ impl ExecutionCapture {
                 "key_metadata": key_metadata,
                 "ingestion_mode": if full { "full" } else { "usage" },
             }),
+            provider_model: None,
             delivery: None,
         }
     }
@@ -205,11 +200,8 @@ impl ExecutionCapture {
         self.delivery = Some((telemetry, delivery));
     }
 
-    /// The request's `model`, if the capture could parse it.
-    pub(crate) fn requested_model(&self) -> Option<&str> {
-        self.protocol
-            .as_ref()
-            .and_then(ProtocolCapture::requested_model)
+    pub(crate) fn set_provider_model(&mut self, model: &str) {
+        self.provider_model = bounded_string(model);
     }
 
     pub(crate) fn record_response(&mut self, status: u16, headers: &HeaderMap) {
@@ -244,7 +236,13 @@ impl ExecutionCapture {
         let Some(protocol) = self.protocol.take() else {
             return;
         };
-        let (api_format, inference) = protocol.into_facts();
+        let (api_format, mut inference) = protocol.into_facts();
+        if let Some(provider_model) = self.provider_model.take() {
+            if inference.model == inference.requested_model {
+                inference.model = Some(provider_model.clone());
+            }
+            inference.requested_model = Some(provider_model);
+        }
         let facts = InferenceFacts {
             api_format,
             start_time_unix_ms: self.start_time_unix_ms,
