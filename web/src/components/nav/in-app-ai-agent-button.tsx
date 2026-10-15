@@ -1,5 +1,4 @@
 import { useCallback, useEffect } from "react";
-import { BotMessageSquare } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
@@ -7,6 +6,7 @@ import {
   useInAppAiAgent,
   type InAppAgentEntryPoint,
 } from "@/src/features/in-app-agent";
+import { HaloIcon } from "@/src/features/in-app-agent/components/HaloIcon";
 import { cn } from "@/src/utils/tailwind";
 
 /** Launcher only — the assistant window itself is rendered by
@@ -67,7 +67,7 @@ export const InAppAiAgentButton = ({
       variant="outline"
       // Count lives on the button name — a nested badge aria-label is ignored
       // once the parent already has aria-label.
-      aria-label={`${open ? "Close" : "Open"} assistant${attentionSuffix}`}
+      aria-label={`${open ? "Close" : "Open"} Halo${attentionSuffix}`}
       aria-pressed={open}
       data-ignore-outside-interaction
       onClick={() => toggleAssistant("top_nav")}
@@ -93,9 +93,7 @@ export const InAppAiAgentButton = ({
           "border-primary-accent bg-primary-accent/10 hover:bg-primary-accent/15",
       )}
     >
-      <BotMessageSquare
-        className={cn("icon-base", prominent && open && "text-primary-accent")}
-      />
+      <HaloIcon variant={prominent && open ? "launcherActive" : "launcher"} />
       {/* Conversations still owed a look. Anchored to the button rather than
           the icon so it survives the prominent (icon-only) variant. Visual
           only — accessible name is on the button. */}
@@ -112,7 +110,7 @@ export const InAppAiAgentButton = ({
           reveal in the 640–767px band and overflow the box. */}
       {!prominent && (
         <>
-          <span className="hidden sm:inline">Assistant</span>
+          <span className="hidden sm:inline">Halo</span>
           <span className="hidden md:inline-flex">
             <KeyboardShortcut variant="subtle" keys={["Mod", "I"]} />
           </span>

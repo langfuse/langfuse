@@ -13,7 +13,6 @@ import {
 import {
   ArrowRight,
   ArrowDown,
-  BotMessageSquare,
   ChevronRight,
   History,
   Info,
@@ -83,6 +82,7 @@ import {
 } from "@/src/features/in-app-agent/quickActions";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { HaloIcon } from "@/src/features/in-app-agent/components/HaloIcon";
 
 const AUTO_SCROLL_THRESHOLD_PX = 50;
 const SCROLL_DIRECTION_TOLERANCE_PX = 1;
@@ -133,7 +133,7 @@ function InAppAgentQuickActionPicker({
   return (
     <>
       <p className="text-foreground mt-3 text-sm font-bold">
-        Welcome to the Langfuse Assistant
+        Hi I&apos;m Halo, your Langfuse assistant
       </p>
       <p className="text-muted-foreground mt-1 max-w-xs text-center text-xs leading-relaxed">
         What do you want to do?
@@ -946,7 +946,7 @@ function InAppAgentRateLimitError({
     >
       <span className="space-y-0.5">
         <span className="block font-bold">
-          You&apos;ve reached the assistant request limit
+          You&apos;ve reached the Halo request limit
         </span>
         <span className="block">
           Try again in about {formatApproximateDuration(secondsRemaining)}.
@@ -1135,7 +1135,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
 
   return (
     <section
-      aria-label="Assistant"
+      aria-label="Halo"
       className={cn(
         "bg-background flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-xl border shadow/5",
         // Full-bleed on mobile: the drawer owns the edge, so drop the window chrome.
@@ -1177,11 +1177,8 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               {conversationTitle}
             </p>
           ) : (
-            <p
-              className="shrink-0 truncate text-sm font-bold"
-              title="Assistant"
-            >
-              Assistant
+            <p className="shrink-0 truncate text-sm font-bold" title="Halo">
+              Halo
             </p>
           )}
           {titleActions ? (
@@ -1362,9 +1359,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   className="size-6"
                   // Full-screen has nothing to minimize into, and with no
                   // drag-to-dismiss this is the only way out.
-                  aria-label={
-                    isHandheld ? "Close assistant" : "Minimize assistant"
-                  }
+                  aria-label={isHandheld ? "Close Halo" : "Minimize Halo"}
                   onClick={props.onClose}
                 >
                   {isHandheld ? (
@@ -1375,7 +1370,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                {isHandheld ? "Close assistant" : "Minimize assistant"}
+                {isHandheld ? "Close Halo" : "Minimize Halo"}
               </TooltipContent>
             </Tooltip>
           ) : null}
@@ -1401,7 +1396,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             isSelectedConversationHydrating ? null : messages.length === 0 ? (
               <div className="flex h-full w-full flex-1 flex-col items-center justify-center px-2">
                 <div>
-                  <BotMessageSquare className="text-muted-foreground icon-xl mx-auto" />
+                  <HaloIcon variant="emptyState" />
                 </div>
                 <InAppAgentQuickActionPicker
                   key={`${selectedConversationId ?? "new"}:${quickActionResetKey}`}
@@ -1623,7 +1618,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 }
               }}
               disabled={isComposerDisabled}
-              aria-label="Message the assistant"
+              aria-label="Message Halo"
               placeholder={
                 hasSettledAssistantReply
                   ? "Reply..."

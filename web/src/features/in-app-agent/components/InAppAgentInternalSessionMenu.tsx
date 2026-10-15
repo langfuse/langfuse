@@ -43,7 +43,7 @@ function getOpenSessionItem({
   }
   if (!telemetryProjectId) {
     return unavailable(
-      "Assistant telemetry is not recorded for this organization or instance.",
+      "Halo telemetry is not recorded for this organization or instance.",
     );
   }
   return {
