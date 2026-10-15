@@ -161,15 +161,20 @@ export const SingleQuestionShortcut = meta.story({
 });
 
 export const Dismiss = meta.story({
-  name: "(Test) Dismiss rejects the questionnaire",
+  name: "(Test) Dismiss submits every question as skipped",
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
     await userEvent.click(
       canvas.getByRole("button", { name: "Dismiss questions" }),
     );
-    await expect(args.onRejectToolCall).toHaveBeenCalledWith(
+    await expect(args.onAnswerQuestionnaire).toHaveBeenCalledWith(
       "approval-questionnaire-1",
+      [
+        { selectedOptionIndexes: [], otherText: null },
+        { selectedOptionIndexes: [], otherText: null },
+        { selectedOptionIndexes: [], otherText: null },
+      ],
     );
-    await expect(args.onAnswerQuestionnaire).not.toHaveBeenCalled();
+    await expect(args.onRejectToolCall).not.toHaveBeenCalled();
   },
 });

@@ -63,7 +63,6 @@ export function InAppAgentQuestionnaireCard({
       isSubmitting={tool.approval.status === "submitting"}
       isDisabled={isDisabled}
       onSubmit={onAnswerQuestionnaire}
-      onDismiss={onRejectToolCall}
     />
   );
 }
@@ -74,12 +73,12 @@ type QuestionnaireFormProps = {
   isSubmitting: boolean;
   isDisabled: boolean;
   onSubmit: InAppAgentQuestionnaireCardProps["onAnswerQuestionnaire"];
-  onDismiss: InAppAgentQuestionnaireCardProps["onRejectToolCall"];
 };
 
 /**
  * Answers stay local until the final step, so the model receives every
- * answer in one approval decision.
+ * answer in one approval decision. Dismissing submits every question as
+ * skipped, so the model reads it as "no answer" rather than a declined call.
  */
 function QuestionnaireForm({
   approvalId,
@@ -87,7 +86,6 @@ function QuestionnaireForm({
   isSubmitting,
   isDisabled,
   onSubmit,
-  onDismiss,
 }: QuestionnaireFormProps) {
   const titleId = useId();
   const [stepIndex, setStepIndex] = useState(0);
@@ -147,7 +145,10 @@ function QuestionnaireForm({
   const handleDismiss = () => {
     setIsDismissing(true);
     // The provider surfaces decision errors; the card only resets its state.
-    onDismiss(approvalId)
+    onSubmit(
+      approvalId,
+      toQuestionnaireAnswers(createQuestionnaireFormValues(questions)),
+    )
       .catch(() => undefined)
       .finally(() => {
         setIsDismissing(false);
