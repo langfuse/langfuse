@@ -83,7 +83,7 @@ do not load dotenv files:
 | `LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_BYTES` | `67108864` (64 MiB) | Integer from 4194304 (4 MiB) to 4294967296 (4 GiB); span and credential bytes an instance holds for upload before dropping new records |
 | `LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES` | `33554432` (32 MiB) | Integer from 1048576 (1 MiB) to 4294967295; largest accepted request body |
 | `LANGFUSE_AI_GATEWAY_SHARED_REQUEST_BUFFER_BYTES` | `536870912` (512 MiB) | Integer from the request limit up to Tokio's semaphore capacity; request body bytes all in-flight requests of an instance may buffer together |
-| `LANGFUSE_AI_GATEWAY_MAX_EXECUTION_SECONDS` | `3600` | Integer from 60 to 5400; ceiling from execution admission until the response completes |
+| `LANGFUSE_AI_GATEWAY_MAX_EXECUTION_SECONDS` | `3600` | Integer of at least 60; ceiling from execution admission until the response completes |
 | `LANGFUSE_AI_GATEWAY_STALL_TIMEOUT_SECONDS` | `120`, or the execution ceiling if lower | Integer from 1 to the execution ceiling; longest wait without progress |
 
 The gateway shares `LANGFUSE_LOG_LEVEL` with Web and worker. Values are lowercase;

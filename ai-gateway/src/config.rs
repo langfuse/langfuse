@@ -21,8 +21,8 @@ const DEFAULT_CONCURRENCY: usize = 128;
 const SEMAPHORE_CAPACITY: usize = tokio::sync::Semaphore::MAX_PERMITS;
 pub const DEFAULT_MAX_REQUEST_BYTES: usize = 32 * MIB;
 const DEFAULT_SHARED_REQUEST_BUFFER_BYTES: usize = 512 * MIB;
-const MAX_EXECUTION_CEILING_SECONDS: u64 = 90 * 60;
-
+const DEFAULT_MAX_EXECUTION_SECONDS: u32 = 60 * 60;
+const DEFAULT_STALL_TIMEOUT_SECONDS: u32 = 2 * 60;
 /// Buffered request body bounds per instance.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RequestLimits {
@@ -52,8 +52,8 @@ pub struct ExecutionLimits {
 impl Default for ExecutionLimits {
     fn default() -> Self {
         Self {
-            max_execution: Duration::from_hours(1),
-            stall_timeout: Duration::from_mins(2),
+            max_execution: Duration::from_secs(DEFAULT_MAX_EXECUTION_SECONDS.into()),
+            stall_timeout: Duration::from_secs(DEFAULT_STALL_TIMEOUT_SECONDS.into()),
         }
     }
 }
@@ -234,22 +234,22 @@ fn execution_limits(
     max_execution: Option<&str>,
     stall_timeout: Option<&str>,
 ) -> Result<ExecutionLimits, GatewayConfigError> {
-    let defaults = ExecutionLimits::default();
-    let max_execution = integer_setting(
+    // `u32` seconds keep every deadline far from `Instant` overflow.
+    let max_execution: u32 = integer_setting(
         max_execution,
-        defaults.max_execution.as_secs(),
-        60..=MAX_EXECUTION_CEILING_SECONDS,
-        "LANGFUSE_AI_GATEWAY_MAX_EXECUTION_SECONDS must be an integer from 60 to 5400",
+        DEFAULT_MAX_EXECUTION_SECONDS,
+        60..=u32::MAX,
+        "LANGFUSE_AI_GATEWAY_MAX_EXECUTION_SECONDS must be an integer of at least 60",
     )?;
-    let stall_timeout = integer_setting(
+    let stall_timeout: u32 = integer_setting(
         stall_timeout,
-        defaults.stall_timeout.as_secs().min(max_execution),
+        DEFAULT_STALL_TIMEOUT_SECONDS.min(max_execution),
         1..=max_execution,
         "LANGFUSE_AI_GATEWAY_STALL_TIMEOUT_SECONDS must be an integer from 1 to LANGFUSE_AI_GATEWAY_MAX_EXECUTION_SECONDS",
     )?;
     Ok(ExecutionLimits {
-        max_execution: Duration::from_secs(max_execution),
-        stall_timeout: Duration::from_secs(stall_timeout),
+        max_execution: Duration::from_secs(max_execution.into()),
+        stall_timeout: Duration::from_secs(stall_timeout.into()),
     })
 }
 
@@ -540,10 +540,10 @@ mod tests {
             }
         );
         assert_eq!(
-            execution_limits(Some("5400"), Some("5400")).unwrap(),
+            execution_limits(Some("4294967295"), Some("4294967295")).unwrap(),
             ExecutionLimits {
-                max_execution: Duration::from_mins(90),
-                stall_timeout: Duration::from_mins(90),
+                max_execution: Duration::from_secs(u32::MAX.into()),
+                stall_timeout: Duration::from_secs(u32::MAX.into()),
             }
         );
         assert_eq!(
@@ -560,7 +560,7 @@ mod tests {
                 "LANGFUSE_AI_GATEWAY_MAX_EXECUTION_SECONDS",
             ),
             (
-                Some("5401"),
+                Some("4294967296"),
                 None,
                 "LANGFUSE_AI_GATEWAY_MAX_EXECUTION_SECONDS",
             ),
