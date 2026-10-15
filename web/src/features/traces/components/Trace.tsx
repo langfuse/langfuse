@@ -1,4 +1,5 @@
-import { type TraceDomain, type ScoreDomain } from "@langfuse/shared";
+import { type ScoreDomain } from "@langfuse/shared";
+import { type buildTraceUiData } from "@/src/features/traces/fns/treeBuilding";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import {
@@ -42,10 +43,7 @@ import { SkeletonGroup } from "@/src/components/ui/skeleton";
 export type TraceProps = {
   isLoading?: false;
   observations: Array<ObservationReturnTypeWithMetadata>;
-  trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
-    input: string | null;
-    output: string | null;
-  };
+  trace: Parameters<typeof buildTraceUiData>[0];
   scores: WithStringifiedMetadata<ScoreDomain>[];
   corrections: ScoreDomain[];
   projectId: string;
@@ -94,10 +92,21 @@ export function Trace(props: TraceProps | TraceLoadingProps) {
       ? "peek-observation-focused"
       : traceContext;
   const desktopLayout = DESKTOP_LAYOUTS[desktopLayoutKey];
+  const isMobile = useIsMobile();
+  const trace = props.isLoading === true ? null : props.trace;
+  const observations = props.isLoading === true ? null : props.observations;
+  const defaultObservationId = useMemo(
+    () => resolveDefaultObservationId(trace, observations),
+    [trace, observations],
+  );
 
   return (
     <ViewPreferencesProvider traceContext={traceContext}>
-      <SelectionProvider>
+      <SelectionProvider
+        defaultObservationId={defaultObservationId}
+        isMobile={isMobile}
+        expandDetailOnMount={desktopLayout.expandDetailOnMount}
+      >
         {props.isLoading === true ? (
           <TraceLoading desktopLayout={desktopLayout} />
         ) : (
@@ -394,4 +403,22 @@ function MobileTraceContent({ shouldShowGraph }: { shouldShowGraph: boolean }) {
       info={<TracePanelDetail />}
     />
   );
+}
+
+function resolveDefaultObservationId(
+  trace: TraceProps["trace"] | null,
+  observations: TraceProps["observations"] | null,
+) {
+  /** V4 defaults to observation details; v3 keeps the trace-level view. */
+  if (!trace?.rootObservationType || !observations) return null;
+  if (trace.rootObservationId) return trace.rootObservationId;
+
+  let firstRoot: ObservationReturnTypeWithMetadata | undefined;
+  for (const observation of observations) {
+    if (observation.parentObservationId) continue;
+    if (!firstRoot || observation.startTime < firstRoot.startTime) {
+      firstRoot = observation;
+    }
+  }
+  return firstRoot?.id ?? null;
 }
