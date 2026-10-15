@@ -10,6 +10,7 @@ const labels: Record<DetailTab, string> = {
   preview: "Preview",
   messages: "Messages",
   attributes: "Attributes",
+  skills: "Skills",
   scores: "Scores",
   log: "Log View",
 };
@@ -68,7 +69,7 @@ function LoadedTraceDetailTabsBarList({
             key={tab}
             value={tab}
             label={labels[tab]}
-            internal={tab === "messages"}
+            internal={tab === "messages" || tab === "skills"}
             tooltip={tab === "log" ? logViewDescription : undefined}
           />
         ))}
