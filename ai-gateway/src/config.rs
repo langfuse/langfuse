@@ -21,7 +21,7 @@ pub const DEFAULT_MAX_REQUEST_BYTES: usize = 32 * MIB;
 const DEFAULT_REQUEST_BUFFER_BYTES: usize = 512 * MIB;
 const MAX_REQUEST_BYTES_CEILING: usize = 1024 * MIB;
 const MAX_REQUEST_BUFFER_BYTES: usize = 64 * 1024 * MIB;
-// Web issues ingestion tokens for two hours; this leaves time to upload the generation.
+/// Longest configurable execution; Web's two-hour ingestion tokens outlive it plus the upload.
 const MAX_EXECUTION_CEILING_SECONDS: u64 = 90 * 60;
 
 /// Buffered request body bounds per instance.
