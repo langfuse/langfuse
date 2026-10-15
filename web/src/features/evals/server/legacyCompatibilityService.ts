@@ -895,7 +895,12 @@ export class LegacyEvalCompatibilityService {
         projectId: params.projectId,
         type: { not: EvalTemplateType.FACET },
         ...(search
-          ? { name: { contains: search, mode: "insensitive" as const } }
+          ? {
+              name: {
+                contains: escapeSqlLikePattern(search),
+                mode: "insensitive" as const,
+              },
+            }
           : {}),
       },
       include: {
