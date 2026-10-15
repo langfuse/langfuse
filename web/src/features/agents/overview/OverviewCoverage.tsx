@@ -27,14 +27,14 @@ export function OverviewCoverage({
         {c.missingSessionTraces > 0 &&
           `${c.missingSessionTraces} traces have no session ID and appear separately.`}{" "}
         {c.incompleteSessions > 0 &&
-          `${c.incompleteSessions} incomplete sessions are excluded from comparisons.`}
+          `${c.incompleteSessions} incomplete agent-session contexts are excluded from comparisons.`}
       </p>
       <p className="text-muted-foreground">
         Exclusive attribution from named observations. Invocation = AGENT span;
-        session = distinct nonempty session ID. Skill labels are a tool-name
-        preview.{" "}
+        session = distinct nonempty session ID. Skill evidence uses native
+        references with a labelled tool-name fallback.{" "}
         {c.unlinkedObservations > 0 &&
-          `${c.unlinkedObservations} observations lack a linked session.`}
+          `${c.unlinkedObservations} observations have neither session nor trace IDs.`}
       </p>
     </div>
   );

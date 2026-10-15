@@ -6,13 +6,17 @@ import {
   type FilterState,
 } from "@langfuse/shared";
 import { buildAgentProfilePath } from "../lib/buildAgentProfilePath";
-import { type AgentCardMetric } from "../prototype-options/options";
+import {
+  type AgentCardMetric,
+  type AgentsPrototypeOptions,
+} from "../prototype-options/options";
 
 export type OverviewScope = {
   projectId: string;
   from: Date;
   to: Date;
   filter: FilterState;
+  prototypeOptions: AgentsPrototypeOptions;
 };
 export type OverviewAgent = AgentProjectionSummary & { skillCount: number };
 export type AgentSort = "attention" | "sessions" | "cost" | "name";

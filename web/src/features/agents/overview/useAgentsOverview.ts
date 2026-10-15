@@ -66,15 +66,16 @@ export function useAgentsOverview(projectId: string) {
       isV4: true,
     },
   );
-  const scope = {
+  const queryScope = {
     projectId,
     from,
     to,
     filter: queryFilter.effectiveFilterState,
   };
+  const scope = { ...queryScope, prototypeOptions: prototype.options };
   const searchResult = api.agents.allFromEvents.useQuery(
     {
-      ...scope,
+      ...queryScope,
       from: new Date(to.getTime() - 30 * 86_400_000),
       page: 0,
       limit: 25,
@@ -87,7 +88,7 @@ export function useAgentsOverview(projectId: string) {
   );
   const projection = api.agents.sessionProjectionFromEvents.useQuery(
     {
-      ...scope,
+      ...queryScope,
       baselineDays: prototype.options.baselineDays,
       ...(search
         ? {

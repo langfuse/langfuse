@@ -13,6 +13,7 @@ import { ElkGraphRenderer } from "@/src/features/trace-graph-view/components/Elk
 import { api } from "@/src/utils/api";
 import { buildAgentProfilePath } from "../lib/buildAgentProfilePath";
 import { buildAgentMapData } from "./buildAgentMapData";
+import { type AgentsPrototypeOptions } from "../prototype-options/options";
 
 type ConnectionRow = {
   caller: string;
@@ -31,6 +32,7 @@ export function AgentMap({
   to,
   filter,
   onSelectRuns,
+  prototypeOptions,
 }: {
   projectId: string;
   agentName: string;
@@ -38,6 +40,7 @@ export function AgentMap({
   to: Date;
   filter: FilterState;
   onSelectRuns: (callee: string) => void;
+  prototypeOptions?: AgentsPrototypeOptions;
 }) {
   const router = useRouter();
   const [showAllAgents, setShowAllAgents] = useState(false);
@@ -89,6 +92,7 @@ export function AgentMap({
       from,
       to,
       filter,
+      prototypeOptions,
     });
   };
   const columns = [

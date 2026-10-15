@@ -93,6 +93,29 @@ test("signal drilldown contains only supporting real sessions and respects searc
   expect(rows.map((row) => row.id)).toEqual(["expensive-2"]);
 });
 
+test("explicit comparison evidence remains inspectable outside a narrow selected interval", () => {
+  const sessions = [
+    session("earlier-recent", { inWindow: false }),
+    session("visible"),
+  ];
+  expect(
+    prepareAgentSessionRows({
+      sessions,
+      agentName: "research",
+      search: "",
+      signalSessionIds: ["earlier-recent"],
+    }).map((row) => row.id),
+  ).toEqual(["earlier-recent"]);
+  expect(
+    prepareAgentSessionRows({
+      sessions,
+      agentName: "research",
+      search: "",
+      signalSessionIds: null,
+    }).map((row) => row.id),
+  ).toEqual(["visible"]);
+});
+
 test("contextual charts use the selected unit and retain gaps", () => {
   const activity: AgentProjectionActivity[] = [
     {

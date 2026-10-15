@@ -17,6 +17,11 @@ import {
   relationshipLayout,
 } from "./prepareRelationships";
 import { agent, FROM, projection, session, stats, TO } from "./testFixtures";
+import {
+  DEFAULT_AGENT_OPTIONS,
+  resolveAgentOptions,
+  type AgentsPrototypeOptions,
+} from "../prototype-options/options";
 const tool = (
   agentName: string,
   name: string,
@@ -155,7 +160,13 @@ describe("agent overview preparation", () => {
         value: ["production"],
       },
     ];
-    const scope = { projectId: "p", from: FROM, to: TO, filter };
+    const scope = {
+      projectId: "p",
+      from: FROM,
+      to: TO,
+      filter,
+      prototypeOptions: DEFAULT_AGENT_OPTIONS,
+    };
     const url = new URL(
       agentPath(scope, "..", { tab: "sessions", agentSignal: "tool-change" }),
       "http://local",
@@ -179,6 +190,44 @@ describe("agent overview preparation", () => {
       ),
     ).toContain("/traces/trace");
   });
+  it("preserves effective prototype options from a shared seven-day overview on profile and evidence links", () => {
+    const prototypeOptions: AgentsPrototypeOptions = {
+      ...DEFAULT_AGENT_OPTIONS,
+      baselineDays: 7,
+      profileChart: "none",
+      showIdentityBadges: true,
+      showAttention: false,
+      overviewView: "relationships",
+      relationshipView: "available-tools",
+      cardMetrics: ["sessions", "skills", "cost"],
+    };
+    const scope = {
+      projectId: "p",
+      from: FROM,
+      to: TO,
+      filter: [],
+      prototypeOptions,
+    };
+    const paths = [
+      agentPath(scope, ".."),
+      agentPath(scope, "..", { tab: "sessions", agentSignal: "tool-change" }),
+      sessionPath(scope, session("evidence/session", { agentName: ".." })),
+    ];
+    for (const path of paths) {
+      const url = new URL(path, "http://local");
+      expect(
+        resolveAgentOptions(
+          Object.fromEntries(url.searchParams),
+          DEFAULT_AGENT_OPTIONS,
+        ),
+      ).toEqual(prototypeOptions);
+      expect(url.searchParams.get("dateRange")).toBe(
+        `${FROM.getTime()}-${TO.getTime()}`,
+      );
+      expect(url.searchParams.get("agentName")).toBe("..");
+    }
+  });
+
   it("separates observed execution from shared declared availability, without inferring causality", () => {
     const call = {
       source: "a",

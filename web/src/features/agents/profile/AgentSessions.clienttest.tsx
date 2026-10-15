@@ -1,9 +1,13 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { AgentSessions } from "./AgentSessions";
-import { projection, session } from "../overview/testFixtures";
+import { agent, projection, session } from "../overview/testFixtures";
 
 const mocks = vi.hoisted(() => ({
-  params: {} as { agentTool?: string; agentSkill?: string },
+  params: {} as {
+    agentTool?: string;
+    agentSkill?: string;
+    agentSignal?: string;
+  },
   route: {} as { peek?: string },
   setParams: vi.fn(),
   openPeek: vi.fn(),
@@ -51,6 +55,46 @@ function columnCell(row: HTMLElement, label: string) {
 }
 
 describe("agent sessions table", () => {
+  it("shows complete supporting contributions when a comparison session is outside the selected interval", () => {
+    mocks.params.agentSignal = "cost-outlier";
+    const data = projection({
+      agents: [
+        agent("research", {
+          signals: [
+            {
+              kind: "cost-outlier",
+              message: "Unusual cost",
+              sessionIds: ["outside-window"],
+            },
+          ],
+        }),
+      ],
+      sessions: [
+        session("outside-window", {
+          inWindow: false,
+          cost: 1.25,
+          invocations: 4,
+          toolInvocations: 12,
+          windowCost: 0,
+          windowInvocations: 0,
+          windowToolInvocations: 0,
+        }),
+      ],
+    });
+    render(
+      <AgentSessions projectId="p" agentName="research" projection={data} />,
+    );
+    expect(
+      screen.getByRole("heading", { name: "Supporting comparison sessions" }),
+    ).toBeDefined();
+    const row = tableRow("outside-window");
+    expect(Number(columnCell(row, "Invocations").textContent)).toBe(4);
+    expect(Number(columnCell(row, "Tools").textContent)).toBe(12);
+    expect(columnCell(row, "Agent cost")).toHaveTextContent(/\$1\.25/);
+    expect(
+      screen.getByText(/including activity outside the selected interval/),
+    ).toBeDefined();
+  });
   it("shows selected-window contributions and opens the real session ID rather than the agent-unit key", () => {
     const data = projection({
       sessions: [

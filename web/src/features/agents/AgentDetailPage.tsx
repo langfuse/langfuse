@@ -57,6 +57,7 @@ import { AgentCoverage } from "./profile/AgentCoverage";
 import { type AgentProfileTab } from "./profile/prepareAgentProfile";
 import { buildAgentProfilePath } from "./lib/buildAgentProfilePath";
 import { commitAgentDateRange } from "./lib/commitAgentDateRange";
+import { encodeAgentOptions } from "./prototype-options/options";
 
 const RUN_FILTER: FilterState = [
   {
@@ -96,6 +97,7 @@ function AgentDetailView({
   agentName: string;
 }) {
   const { timeRange } = useTableDateRange(projectId);
+  const { options } = useAgentsPrototypeOptions(projectId);
   const [, setPagination] = useQueryParams({
     page: NumberParam,
     peek: StringParam,
@@ -122,7 +124,7 @@ function AgentDetailView({
   const dashboardQuery = new URLSearchParams({
     filter: encodeFiltersGeneric([...scopeFilter, ...filter]),
   });
-  const overviewQuery = new URLSearchParams();
+  const overviewQuery = new URLSearchParams(encodeAgentOptions(options));
   if (scopeFilter.length)
     overviewQuery.set("filter", encodeFiltersGeneric(scopeFilter));
   if (window) {
@@ -275,6 +277,7 @@ function AgentProfile({
         ...window,
         filter,
         tab: "runs",
+        prototypeOptions: options,
       }),
     );
   };
@@ -443,6 +446,7 @@ function AgentProfile({
             {...window}
             filter={filter}
             onSelectRuns={selectRuns}
+            prototypeOptions={options}
           />
         </Tabs.Content>
       </Tabs>

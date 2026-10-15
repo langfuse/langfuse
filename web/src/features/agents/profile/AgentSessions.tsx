@@ -51,6 +51,7 @@ export function AgentSessions({
     (agent) => agent.agentName === agentName,
   );
   const signal = summary?.signals.find((item) => item.kind === agentSignal);
+  const comparisonEvidence = Boolean(signal?.sessionIds.length);
   const rows = prepareAgentSessionRows({
     sessions: projection.sessions,
     agentName,
@@ -94,17 +95,22 @@ export function AgentSessions({
       size: 85,
     }),
     createNumberTableColumn<AgentProjectionSession>({
-      accessorKey: "windowInvocations",
+      accessorFn: (row) =>
+        comparisonEvidence ? row.invocations : row.windowInvocations,
+      id: "invocations",
       header: "Invocations",
       size: 110,
     }),
     createNumberTableColumn<AgentProjectionSession>({
-      accessorKey: "windowToolInvocations",
+      accessorFn: (row) =>
+        comparisonEvidence ? row.toolInvocations : row.windowToolInvocations,
+      id: "toolInvocations",
       header: "Tools",
       size: 85,
     }),
     createNumberTableColumn<AgentProjectionSession>({
-      accessorKey: "windowCost",
+      accessorFn: (row) => (comparisonEvidence ? row.cost : row.windowCost),
+      id: "cost",
       header: "Agent cost",
       formatter: (value) => usdFormatter(value),
       size: 110,
@@ -159,11 +165,16 @@ export function AgentSessions({
     <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-sm font-bold">Sessions with this agent</h2>
+          <h2 className="text-sm font-bold">
+            {comparisonEvidence
+              ? "Supporting comparison sessions"
+              : "Sessions with this agent"}
+          </h2>
           <p className="text-muted-foreground mt-1 text-xs">
-            A session can contain several agents and repeated invocations. Cost
-            is this agent&apos;s attributed cost; duration is whole-session
-            observed time.
+            {comparisonEvidence
+              ? "Counts and costs show this agent’s whole-session contribution for the comparison evidence, including activity outside the selected interval."
+              : "Counts and costs show this agent’s contribution in the selected interval. A session may contain several agents and repeated invocations."}{" "}
+            Duration is whole-session observed time.
           </p>
         </div>
         <div className="w-64">
@@ -188,6 +199,20 @@ export function AgentSessions({
             onClick={() => setParams({ agentSignal: undefined, page: 1 })}
           />
         </div>
+      )}
+      {agentSignal && !signal && (
+        <p className="text-muted-foreground text-xs">
+          This signal is absent from the current comparison. Showing sessions in
+          the selected interval.
+        </p>
+      )}
+      {comparisonEvidence && (
+        <p className="text-muted-foreground text-xs">
+          Comparison scope: {projection.recentWindow.from.toLocaleString()} –{" "}
+          {projection.recentWindow.to.toLocaleString()}. Sessions are assigned
+          by their last observed session activity; agent participation may begin
+          earlier.
+        </p>
       )}
       {(agentTool || agentSkill) && (
         <div className="ph-no-capture bg-muted/40 flex items-center justify-between gap-3 rounded-md border p-3 text-sm">

@@ -74,7 +74,13 @@ beforeEach(() => {
     setOptions: mocks.setOptions,
     projection: { data, isFetching: false },
     agents: prepareAgents(data, "all", "name"),
-    scope: { projectId: "p", from: FROM, to: TO, filter: [] },
+    scope: {
+      projectId: "p",
+      from: FROM,
+      to: TO,
+      filter: [],
+      prototypeOptions: DEFAULT_AGENT_OPTIONS,
+    },
     timeRange: { from: FROM, to: TO },
     setTimeRange: vi.fn(),
     queryFilter: {

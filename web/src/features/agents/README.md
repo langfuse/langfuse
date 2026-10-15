@@ -58,6 +58,8 @@ visible in coverage. Names with punctuation retain exact identity and URL encodi
 - Cards and session-table counts/costs use the selected interval. Session duration
   describes whole loaded session context. Whole-session cost is never charged to
   every participating agent. Session peeks explicitly show whole-session totals.
+  Explicit signal drill-downs show the comparison cohort even outside a narrow
+  selection and label their whole-session agent contributions separately.
 - Tool calls count executed TOOL observations. Model tool-call requests are a
   separate representation, never an additive second count. Zero-tool sessions
   remain in tools/session denominators.

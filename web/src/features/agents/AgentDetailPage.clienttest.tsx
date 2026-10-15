@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { type ReactNode } from "react";
 import { encodeFiltersGeneric, type FilterState } from "@langfuse/shared";
 import AgentDetailPage from "./AgentDetailPage";
+import { DEFAULT_AGENT_OPTIONS } from "./prototype-options/options";
 
 const mocks = vi.hoisted(() => ({
   route: { projectId: "project", agentName: "research", filter: "" },
@@ -131,7 +132,12 @@ vi.mock("@/src/features/global-time-range/globalDateRangeStore", () => ({
 vi.mock("./prototype-options", () => ({
   PrototypeOptions: () => <span>Options</span>,
   useAgentsPrototypeOptions: () => ({
-    options: { baselineDays: 14, profileChart: "pulse", showAttention: false },
+    options: {
+      ...DEFAULT_AGENT_OPTIONS,
+      baselineDays: 14,
+      profileChart: "pulse",
+      showAttention: false,
+    },
   }),
 }));
 vi.mock("./profile/AgentCoverage", () => ({

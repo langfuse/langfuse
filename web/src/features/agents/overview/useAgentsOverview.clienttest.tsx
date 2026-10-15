@@ -11,7 +11,7 @@ import {
   type FilterState,
 } from "@langfuse/shared";
 import { useAgentsOverview } from "./useAgentsOverview";
-import { DEFAULT_AGENT_OPTIONS } from "../prototype-options/options";
+import { resolveAgentOptions } from "../prototype-options/options";
 import { agent, FROM, projection, TO } from "./testFixtures";
 
 const mocks = vi.hoisted(() => ({
@@ -46,7 +46,7 @@ vi.mock("@/src/features/filters", () => ({
 }));
 vi.mock("../prototype-options", () => ({
   useAgentsPrototypeOptions: () => ({
-    options: DEFAULT_AGENT_OPTIONS,
+    options: resolveAgentOptions(mocks.query),
     setOptions: vi.fn(),
     resetOptions: vi.fn(),
   }),
@@ -184,6 +184,25 @@ describe("overview scope controller", () => {
     unmount();
     client.clear();
   });
+  it("preserves effective shared options in navigation scope without sending them to aggregation requests", async () => {
+    mocks.query.agentBaseline = "7";
+    mocks.query.agentChart = "none";
+    const { result, unmount, client } = setup();
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.scope).toHaveProperty(
+      "prototypeOptions",
+      expect.objectContaining({ baselineDays: 7, profileChart: "none" }),
+    );
+    expect(mocks.project).toHaveBeenCalledWith(
+      expect.objectContaining({ baselineDays: 7 }),
+    );
+    expect(mocks.project.mock.calls[0][0]).not.toHaveProperty(
+      "prototypeOptions",
+    );
+    unmount();
+    client.clear();
+  });
+
   it("pushes a zoom as URL state without persisting a new global default", async () => {
     const { result, unmount, client } = setup();
     await waitFor(() => expect(result.current.loading).toBe(false));

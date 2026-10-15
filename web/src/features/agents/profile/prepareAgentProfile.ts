@@ -78,7 +78,7 @@ export function prepareAgentSessionRows({
     .filter(
       (session) =>
         session.agentName === agentName &&
-        session.inWindow &&
+        (selected !== null || session.inWindow) &&
         (!selected || (session.sessionId && selected.has(session.sessionId))) &&
         (!needle || session.id.toLocaleLowerCase().includes(needle)),
     )
