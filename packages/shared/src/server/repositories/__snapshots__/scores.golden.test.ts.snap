@@ -276,12 +276,13 @@ exports[`golden: scores.getScoresForExperimentItems > experimentIds set 1`] = `
   "params": {
     "param1": 0,
     "param2": "golden-project",
-    "param3": [
+    "param3": 0,
+    "param4": [
       "exp-a",
       "exp-b",
     ],
-    "param4": "",
-    "param5": [
+    "param5": "",
+    "param6": [
       "NUMERIC",
       "BOOLEAN",
       "CATEGORICAL",
@@ -319,11 +320,11 @@ FROM
         e.experiment_id,
         e.trace_id
     FROM events_core AS e
-    WHERE (e.project_id = {param2:String}) AND (e.experiment_id IN ({param3:Array(String)})) AND (e.experiment_id != {param4:String})
+    WHERE (e.project_id = {param2:String}) AND (e.is_deleted = {param3:UInt8}) AND (e.experiment_id IN ({param4:Array(String)})) AND (e.experiment_id != {param5:String})
 ) AS e
 INNER JOIN scores AS s
 FINAL ON (e.trace_id = s.trace_id) AND (e.project_id = s.project_id) AND (s.project_id = {param2:String})
-WHERE s.data_type IN ({param5:Array(String)})
+WHERE s.data_type IN ({param6:Array(String)})
 ORDER BY s.event_ts DESC
 LIMIT 1 BY
     s.id,

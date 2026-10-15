@@ -8,7 +8,7 @@ import { type FilterState } from "../../types";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { compileClickhouseQuery } from "../query-ast/compile";
 import { getClickhouseKysely } from "../query-ast/dialect";
-import { avgIf, dateDiff, includeDeleted } from "../query-ast/extensions";
+import { avgIf, dateDiff } from "../query-ast/extensions";
 import {
   FilterList,
   StringOptionsFilter,
@@ -360,7 +360,6 @@ export const getExperimentMetricsFromEvents = async (props: {
   const { projectId, experimentIds } = props;
   const builder = getClickhouseKysely()
     .selectFrom("events_core as e")
-    .$call(includeDeleted())
     .select((eb) => [
       "e.experiment_id as experiment_id",
       eb.fn.sum("e.total_cost").as("total_cost"),
