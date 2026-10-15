@@ -92,7 +92,10 @@ suffix to run there. Promote it to a required check once it has proven stable.
   `$call(softDeleteAfterLimit())`, so a deletion (a newer row with the flag
   set) wins the pick and is dropped after it, instead of an older live
   version. A select that must see deleted rows opts out with
-  `$call(includeDeleted())`.
+  `$call(includeDeleted())`. Reads without a version pick (lists,
+  aggregates) filter each row on its own: like an updated row under dedup
+  `none`, a deleted row's older live version stays visible until a merge
+  collapses the versions.
 - **Dedup is declared per table and must be an existing production idiom.**
   `events_core` and `events_full` are `none` (immutable at read time — no
   LIMIT BY, no FINAL).
