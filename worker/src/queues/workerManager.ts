@@ -70,6 +70,44 @@ export class WorkerManager {
     return oldest ? nowMs - (oldest.finishedOn ?? oldest.timestamp) : 0;
   }
 
+  // Wait time for the current pickup, i.e. how long the job sat in the queue
+  // before this attempt started. BullMQ (5.x) keeps job.timestamp at creation
+  // time across retries and stall re-runs, so `now - timestamp` on a later
+  // attempt also counts every earlier attempt's runtime plus backoff.
+  //
+  // - First pickup: measured from timestamp + opts.delay, so an intentional
+  //   delay is not counted as wait. job.delay can't be used: BullMQ resets it
+  //   to 0 when it promotes the job from delayed to wait.
+  // - Retries and stall re-runs: BullMQ doesn't persist when the job became
+  //   ready again (processedOn is overwritten on pickup, the delayed-set score
+  //   is gone, finishedOn is only set on terminal failure), so waitMs is
+  //   undefined rather than a number that includes earlier runtime.
+  //
+  // attemptsStarted is incremented on every move to active, so it is 1 on the
+  // first pickup. A stall re-run leaves attemptsMade at 0 but bumps
+  // attemptsStarted and stalledCounter.
+  public static computeWaitTimeMs(
+    job: Pick<
+      Job,
+      | "timestamp"
+      | "opts"
+      | "attemptsMade"
+      | "attemptsStarted"
+      | "stalledCounter"
+    >,
+    nowMs: number,
+  ): { attempt: "first" | "retry"; waitMs: number | undefined } {
+    const isRetry =
+      (job.attemptsMade ?? 0) > 0 ||
+      (job.attemptsStarted ?? 0) > 1 ||
+      (job.stalledCounter ?? 0) > 0;
+    if (isRetry) {
+      return { attempt: "retry", waitMs: undefined };
+    }
+    const readyAt = job.timestamp + Math.max(0, job.opts?.delay ?? 0);
+    return { attempt: "first", waitMs: Math.max(0, nowMs - readyAt) };
+  }
+
   private static metricWrapper(
     processor: Processor,
     queueName: QueueName,
@@ -78,18 +116,25 @@ export class WorkerManager {
 
     return async (job: Job) => {
       const startTime = Date.now();
-      const waitTime = Date.now() - job.timestamp;
+      const { attempt, waitMs } = WorkerManager.computeWaitTimeMs(
+        job,
+        startTime,
+      );
 
       recordIncrement(baseMetric + ".rate", 1, {
         type: "request",
+        attempt,
         ...shardTag,
       });
 
-      recordDistribution(baseMetric + ".time_distribution", waitTime, {
-        type: "wait",
-        unit: "milliseconds",
-        ...shardTag,
-      });
+      if (waitMs !== undefined) {
+        recordDistribution(baseMetric + ".time_distribution", waitMs, {
+          type: "wait",
+          attempt,
+          unit: "milliseconds",
+          ...shardTag,
+        });
+      }
 
       const clickHouseCtx = contextWithLangfuseProps({
         projectId: WorkerManager.extractProjectId(job),
