@@ -54,6 +54,7 @@ const SidePanel = ({
   scrollable = true,
   variant = "default",
   openState,
+  mobileOpenState,
 }: {
   id: string;
   children: ReactNode;
@@ -66,10 +67,16 @@ const SidePanel = ({
     open: boolean;
     onOpenChange: (open: boolean) => void;
   };
+  /** Persist the mobile sheet state externally while retaining built-in toggles. */
+  mobileOpenState?: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+  };
 }) => {
   const isControlled = openState !== undefined;
   const controlledOpen = openState?.open;
   const onOpenChange = openState?.onOpenChange;
+  const onMobileOpenChange = mobileOpenState?.onOpenChange;
   const [uncontrolledOpen, setUncontrolledOpen] = useSessionStorage<boolean>(
     `${id}-showPanel`,
     true,
@@ -95,11 +102,13 @@ const SidePanel = ({
     (open: boolean) => {
       if (isControlled) {
         onOpenChange?.(open);
+      } else if (onMobileOpenChange) {
+        onMobileOpenChange(open);
       } else {
         setMobileSheetOpen(open);
       }
     },
-    [isControlled, onOpenChange],
+    [isControlled, onOpenChange, onMobileOpenChange],
   );
 
   const contextValue = React.useMemo(
@@ -117,7 +126,9 @@ const SidePanel = ({
   if (isMobile) {
     return (
       <Sheet
-        open={isControlled ? showPanel : mobileSheetOpen}
+        open={
+          isControlled ? showPanel : (mobileOpenState?.open ?? mobileSheetOpen)
+        }
         onOpenChange={handleMobileOpenChange}
       >
         {!isControlled && (

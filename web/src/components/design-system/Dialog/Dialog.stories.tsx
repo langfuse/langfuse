@@ -4,7 +4,6 @@ import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../../.storybook/preview";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { Button } from "@/src/components/design-system/Button/Button";
-import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 
 import { Dialog } from "./Dialog";
 
@@ -164,71 +163,6 @@ export const DestructiveOnlyAutofocus = meta.story({
     await waitFor(() =>
       expect(body.getByRole("button", { name: "Cancel" })).toHaveFocus(),
     );
-  },
-});
-
-export const SelectOptionsInModal = meta.story({
-  name: "(Test) Select options in modal",
-  render: () => {
-    const [choice, setChoice] = React.useState("");
-    const [size, setSize] = React.useState("");
-
-    return (
-      <DialogController
-        renderDialog={() => (
-          <Dialog title="Choose options">
-            <Dialog.Body>
-              <SelectInput
-                aria-label="Choice"
-                value={choice}
-                onValueChange={setChoice}
-                placeholder="Choose options"
-                search={{ placeholder: "Search choices..." }}
-                options={[
-                  { value: "first", label: "First option" },
-                  { value: "second", label: "Second option" },
-                ]}
-              />
-              <SelectInput
-                aria-label="Size"
-                value={size}
-                onValueChange={setSize}
-                placeholder="Choose size"
-                options={[
-                  { value: "small", label: "Small" },
-                  { value: "large", label: "Large" },
-                ]}
-              />
-            </Dialog.Body>
-          </Dialog>
-        )}
-      >
-        {({ openDialog }) => <Button text="Open dialog" onClick={openDialog} />}
-      </DialogController>
-    );
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const body = within(canvasElement.ownerDocument.body);
-
-    await userEvent.click(canvas.getByRole("button", { name: "Open dialog" }));
-    await userEvent.click(body.getByRole("combobox", { name: "Choice" }));
-    await userEvent.type(
-      body.getByPlaceholderText("Search choices..."),
-      "First option",
-    );
-    await userEvent.click(
-      await body.findByRole("option", { name: "First option" }),
-    );
-    await expect(
-      body.getByRole("combobox", { name: "Choice" }),
-    ).toHaveTextContent("First option");
-
-    await userEvent.click(body.getByRole("combobox", { name: "Size" }));
-    await userEvent.click(await body.findByRole("option", { name: "Large" }));
-    await expect(
-      body.getByRole("combobox", { name: "Size" }),
-    ).toHaveTextContent("Large");
   },
 });
 

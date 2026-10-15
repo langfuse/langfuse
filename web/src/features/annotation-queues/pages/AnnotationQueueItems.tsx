@@ -1,4 +1,5 @@
 import { api } from "@/src/utils/api";
+import { useState } from "react";
 import { AnnotationQueueItemsTable } from "@/src/features/annotation-queues/components/AnnotationQueueItemsTable";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { ClipboardPen, Lock } from "lucide-react";
@@ -19,6 +20,7 @@ export default function QueueItems({
   projectId: string;
   queueId: string;
 }) {
+  const [mobileSetupOpen, setMobileSetupOpen] = useState(false);
   const queue = api.annotationQueues.byId.useQuery(
     {
       queueId,
@@ -74,6 +76,10 @@ export default function QueueItems({
               id="queue-details"
               scrollable={false}
               variant="sidebar"
+              mobileOpenState={{
+                open: mobileSetupOpen,
+                onOpenChange: setMobileSetupOpen,
+              }}
             >
               <SidePanelHeader>
                 <span className="text-sm font-bold">Queue setup</span>

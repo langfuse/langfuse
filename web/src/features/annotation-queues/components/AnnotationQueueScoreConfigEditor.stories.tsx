@@ -5,12 +5,23 @@ import { AnnotationQueueScoreConfigEditor } from "./AnnotationQueueScoreConfigEd
 
 type EditorProps = ComponentProps<typeof AnnotationQueueScoreConfigEditor>;
 const configs: EditorProps["scoreConfigs"] = [
-  { id: "accuracy", name: "Accuracy", dataType: "NUMERIC", isArchived: false },
+  {
+    id: "accuracy",
+    name: "Accuracy",
+    dataType: "NUMERIC",
+    isArchived: false,
+    minValue: 1,
+    maxValue: 5,
+  },
   {
     id: "helpfulness",
     name: "Helpfulness",
     dataType: "BOOLEAN",
     isArchived: false,
+    categories: [
+      { label: "True", value: 1 },
+      { label: "False", value: 0 },
+    ],
   },
   { id: "feedback", name: "Feedback", dataType: "TEXT", isArchived: false },
   {
@@ -56,6 +67,33 @@ function StatefulEditor(args: EditorProps) {
 const meta = preview.meta({ component: AnnotationQueueScoreConfigEditor });
 
 export const Default = meta.story({ args: baseArgs, render: StatefulEditor });
+export const FieldPreviews = meta.story({
+  args: {
+    ...baseArgs,
+    scoreConfigs: [
+      ...configs,
+      {
+        id: "quality",
+        name: "Quality",
+        dataType: "CATEGORICAL",
+        isArchived: false,
+        description:
+          "How well does the answer address the request, including all the relevant details?\nConsider clarity and completeness.",
+        categories: [
+          { label: "Poor", value: 0 },
+          { label: "Good", value: 1 },
+          { label: "Great", value: 2 },
+        ],
+      },
+    ],
+    value: ["quality", "helpfulness", "accuracy", "feedback"],
+  },
+  render: (args) => (
+    <div className="w-80">
+      <StatefulEditor {...args} />
+    </div>
+  ),
+});
 export const ManyScoreConfigs = meta.story({
   args: {
     ...baseArgs,
@@ -165,7 +203,7 @@ export const TestCancelRemoval = meta.story({
     await waitFor(() =>
       expect(
         canvas.getByRole("button", { name: "Reorder Accuracy" }),
-      ).toBeVisible(),
+      ).toBeInTheDocument(),
     );
     await userEvent.click(
       canvas.getByRole("button", { name: "Remove Accuracy from queue" }),
@@ -182,5 +220,50 @@ export const TestCancelRemoval = meta.story({
     await expect(
       canvas.queryByRole("button", { name: "Reorder Accuracy" }),
     ).not.toBeInTheDocument();
+  },
+});
+
+export const TestDescriptionOverflow = meta.story({
+  name: "(Test) Description Disclosure Follows Available Width",
+  args: {
+    ...baseArgs,
+    scoreConfigs: [
+      {
+        ...configs[0]!,
+        id: "responsive-description",
+        description: "Check correctness and completeness of the answer.",
+      },
+    ],
+    value: ["responsive-description"],
+  },
+  render: (args) => (
+    <div data-testid="responsive-editor" style={{ width: 620 }}>
+      <StatefulEditor {...args} />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const container = canvas.getByTestId("responsive-editor");
+    const toggle = () =>
+      canvas.queryByRole("button", { name: /description for Accuracy/ });
+    await waitFor(() => expect(toggle()).not.toBeInTheDocument());
+    container.style.width = "200px";
+    await waitFor(() => expect(toggle()).toBeInTheDocument());
+    toggle()?.focus();
+    await waitFor(() => expect(toggle()).toBeVisible());
+    const collapse = canvas.queryByRole("button", {
+      name: "Hide description for Accuracy",
+    });
+    if (collapse) await userEvent.click(collapse);
+    container.style.width = "620px";
+    await waitFor(() => expect(toggle()).not.toBeInTheDocument());
+    container.style.width = "200px";
+    await waitFor(() => expect(toggle()).toBeInTheDocument());
+    toggle()?.focus();
+    await waitFor(() =>
+      expect(
+        canvas.getByRole("button", { name: "Show description for Accuracy" }),
+      ).toBeVisible(),
+    );
   },
 });

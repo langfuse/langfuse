@@ -64,6 +64,57 @@ export const Saving = meta.story({
   args: { ...baseArgs, isSubmitting: true },
 });
 
+export const TestLegacyMetadata = meta.story({
+  name: "(Test) Legacy Metadata Does Not Block Score Config Changes",
+  args: {
+    ...baseArgs,
+    initialValues: {
+      ...baseArgs.initialValues,
+      name: "An API-created queue name longer than thirty-five characters",
+      description: "<p>Legacy description</p>",
+    },
+    onSubmit: fn().mockResolvedValue(undefined),
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(
+      canvas.getByRole("tab", { name: "Annotation panel" }),
+    );
+    await userEvent.click(canvas.getByRole("button", { name: "Add score" }));
+    await userEvent.click(body.getByRole("menuitem", { name: /^Feedback \(/ }));
+    const save = canvas.getByRole("button", { name: "Save changes" });
+    await waitFor(() => expect(save).toBeEnabled());
+    await userEvent.click(save);
+    await waitFor(() =>
+      expect(args.onSubmit).toHaveBeenCalledWith(
+        {
+          ...args.initialValues,
+          scoreConfigIds: ["helpfulness", "accuracy", "feedback"],
+        },
+        {
+          name: false,
+          description: false,
+          scoreConfigIds: true,
+          newAssignmentUserIds: false,
+        },
+      ),
+    );
+    await userEvent.click(canvas.getByRole("tab", { name: "Settings" }));
+    const name = canvas.getByRole("textbox", { name: "Name" });
+    await userEvent.type(name, " too long");
+    await expect(save).toBeDisabled();
+    await userEvent.clear(name);
+    await userEvent.type(name, "Valid name");
+    await waitFor(() => expect(save).toBeEnabled());
+    await userEvent.type(
+      canvas.getByRole("textbox", { name: "Description (optional)" }),
+      " edited",
+    );
+    await expect(save).toBeDisabled();
+  },
+});
+
 export const TestSaveAndDiscard = meta.story({
   name: "(Test) Save and Discard Queue Setup",
   args: { ...baseArgs, onSubmit: fn().mockResolvedValue(undefined) },
@@ -126,5 +177,46 @@ export const TestFailedSaveKeepsDraft = meta.story({
     await userEvent.click(canvas.getByRole("button", { name: "Discard" }));
     await expect(name).toHaveValue("Review queue");
     await expect(canvas.queryByRole("alert")).not.toBeInTheDocument();
+  },
+});
+
+export const TestTabsKeepDraft = meta.story({
+  name: "(Test) Tabs Share Queue Setup Draft",
+  args: { ...baseArgs, onSubmit: fn().mockResolvedValue(undefined) },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    const name = canvas.getByRole("textbox", { name: "Name" });
+    await userEvent.clear(name);
+    await userEvent.type(name, "Draft across tabs");
+    await userEvent.click(
+      canvas.getByRole("tab", { name: "Annotation panel" }),
+    );
+    await userEvent.click(canvas.getByRole("button", { name: "Add score" }));
+    await userEvent.click(body.getByRole("menuitem", { name: /^Feedback \(/ }));
+    await userEvent.click(canvas.getByRole("tab", { name: "Settings" }));
+    await expect(canvas.getByRole("textbox", { name: "Name" })).toHaveValue(
+      "Draft across tabs",
+    );
+    await userEvent.click(
+      canvas.getByRole("tab", { name: "Annotation panel" }),
+    );
+    await expect(canvas.getByText("Feedback", { exact: true })).toBeVisible();
+    await userEvent.click(canvas.getByRole("button", { name: "Save changes" }));
+    await waitFor(() =>
+      expect(args.onSubmit).toHaveBeenCalledWith(
+        {
+          ...args.initialValues,
+          name: "Draft across tabs",
+          scoreConfigIds: ["helpfulness", "accuracy", "feedback"],
+        },
+        {
+          name: true,
+          description: false,
+          scoreConfigIds: true,
+          newAssignmentUserIds: false,
+        },
+      ),
+    );
   },
 });

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
+import { SidePanel } from "@/src/components/ui/side-panel";
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 import { AnnotationQueueSetupController } from "./AnnotationQueueSetupController";
 
@@ -14,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   refetch: vi.fn(),
   fetchedAfterMount: false,
   refetchFailed: false,
+  isMobile: false,
   queue: {
     id: "queue",
     name: "Initial name",
@@ -23,6 +25,9 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/src/features/rbac", () => ({ useHasProjectAccess: () => true }));
+vi.mock("@/src/hooks/use-mobile", () => ({
+  useIsMobile: () => mocks.isMobile,
+}));
 vi.mock("@/src/features/posthog-analytics", () => ({
   usePostHogClientCapture: () => mocks.capture,
 }));
@@ -107,6 +112,7 @@ beforeEach(() => {
   mocks.assign.mockResolvedValue(undefined);
   mocks.fetchedAfterMount = false;
   mocks.refetchFailed = false;
+  mocks.isMobile = false;
   mocks.queue = {
     id: "queue",
     name: "Initial name",
@@ -130,6 +136,7 @@ it("waits for initial refresh and retains drafts across panel unmounts and backg
     screen.getByRole("textbox", { name: "Description (optional)" }),
     { target: { value: "Draft description" } },
   );
+  fireEvent.mouseDown(screen.getByRole("tab", { name: "Annotation panel" }));
   fireEvent.click(screen.getByRole("button", { name: "Add existing config" }));
   fireEvent.click(screen.getByRole("button", { name: "Hide setup" }));
   expect(
@@ -144,15 +151,20 @@ it("waits for initial refresh and retains drafts across panel unmounts and backg
   mocks.refetchFailed = true;
   view.rerender(<SetupPanel />);
   fireEvent.click(screen.getByRole("button", { name: "Show setup" }));
+  expect(screen.getByRole("tab", { name: "Annotation panel" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  expect(screen.getByLabelText("Selected config IDs")).toHaveTextContent(
+    "first-config,second-config",
+  );
+  fireEvent.mouseDown(screen.getByRole("tab", { name: "Settings" }));
   expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue(
     "Draft name",
   );
   expect(
     screen.getByRole("textbox", { name: "Description (optional)" }),
   ).toHaveValue("Draft description");
-  expect(screen.getByLabelText("Selected config IDs")).toHaveTextContent(
-    "first-config,second-config",
-  );
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   await waitFor(() =>
     expect(screen.getByRole("button", { name: "Discard" })).toBeEnabled(),
@@ -176,6 +188,7 @@ it("waits for initial refresh and retains drafts across panel unmounts and backg
 it("saves only changed config IDs without overwriting concurrent queue metadata", async () => {
   mocks.fetchedAfterMount = true;
   const view = render(<SetupPanel />);
+  fireEvent.mouseDown(screen.getByRole("tab", { name: "Annotation panel" }));
   fireEvent.click(screen.getByRole("button", { name: "Add existing config" }));
   mocks.queue = {
     ...mocks.queue,
@@ -228,6 +241,63 @@ it("allows a metadata-only save for an initially unconfigured queue", async () =
   );
   expect(mocks.capture).not.toHaveBeenCalled();
 });
+
+it("keeps the mobile setup sheet open when initial data arrives and retains drafts when reopened", async () => {
+  mocks.isMobile = true;
+  const view = render(<MobileSetupPanel />);
+  fireEvent.click(screen.getByTitle("Show queue setup"));
+  expect(screen.getByRole("dialog")).toBeVisible();
+
+  mocks.fetchedAfterMount = true;
+  view.rerender(<MobileSetupPanel />);
+  expect(screen.getByRole("dialog")).toBeVisible();
+  fireEvent.change(screen.getByRole("textbox", { name: "Name" }), {
+    target: { value: "Mobile draft" },
+  });
+  fireEvent.mouseDown(screen.getByRole("tab", { name: "Annotation panel" }));
+  fireEvent.click(screen.getByRole("button", { name: "Add existing config" }));
+  fireEvent.click(screen.getByRole("button", { name: "Close" }));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByTitle("Show queue setup"));
+  expect(screen.getByRole("tab", { name: "Annotation panel" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  expect(screen.getByLabelText("Selected config IDs")).toHaveTextContent(
+    "first-config,second-config",
+  );
+  fireEvent.mouseDown(screen.getByRole("tab", { name: "Settings" }));
+  expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue(
+    "Mobile draft",
+  );
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeEnabled(),
+  );
+});
+
+function MobileSetupPanel() {
+  const [open, onOpenChange] = useState(false);
+  return (
+    <LayerProvider>
+      <TooltipProvider>
+        <AnnotationQueueSetupController
+          projectId="project"
+          queueId="queue"
+          renderLayout={(content) => (
+            <SidePanel
+              id="mobile-queue-setup"
+              mobileTitle="Queue setup"
+              variant="sidebar"
+              mobileOpenState={{ open, onOpenChange }}
+            >
+              {content}
+            </SidePanel>
+          )}
+        />
+      </TooltipProvider>
+    </LayerProvider>
+  );
+}
 
 function SetupPanel() {
   const [visible, setVisible] = useState(true);

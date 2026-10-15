@@ -26,12 +26,14 @@ function SortableRow({
   label,
   disabled,
   compact,
+  variant,
   children,
 }: {
   id: string;
   label: string;
   disabled: boolean;
   compact: boolean;
+  variant: "plain" | "hover-card";
   children: ReactNode;
 }) {
   const {
@@ -43,8 +45,9 @@ function SortableRow({
     transition,
     isDragging,
   } = useSortable({ id, disabled });
+  const plainHandleHeight = compact ? "h-8" : "h-9";
   const style: CSSProperties = {
-    transform: CSS.Transform.toString(transform),
+    transform: CSS.Translate.toString(transform),
     transition,
   };
 
@@ -53,7 +56,10 @@ function SortableRow({
       ref={setNodeRef}
       style={style}
       className={cn(
-        "grid grid-cols-[auto_minmax(0,1fr)] items-start gap-1",
+        "group/sortable",
+        variant === "hover-card"
+          ? "hover:border-border focus-within:border-border relative rounded-md border border-transparent p-2"
+          : "grid grid-cols-[auto_minmax(0,1fr)] items-start gap-1",
         isDragging && "relative z-10 opacity-70",
       )}
     >
@@ -63,7 +69,9 @@ function SortableRow({
         disabled={disabled}
         className={cn(
           "text-muted-foreground hover:text-foreground focus-visible:ring-ring flex w-5 cursor-grab touch-none items-center justify-center rounded focus-visible:ring-2 focus-visible:outline-hidden active:cursor-grabbing disabled:cursor-default disabled:opacity-30",
-          compact ? "h-8" : "h-9",
+          variant === "hover-card"
+            ? "absolute top-2 right-2 h-6 opacity-100 group-focus-within/sortable:opacity-100 group-hover/sortable:opacity-100 [@media(hover:hover)]:opacity-0"
+            : plainHandleHeight,
         )}
         aria-label={`Reorder ${label}`}
         title="Drag to reorder. With a keyboard: Space to pick up or drop, arrow keys to move, Escape to cancel."
@@ -88,6 +96,7 @@ export function SortableList<T>({
   onReorder,
   renderItem,
   gap = "sm",
+  variant = "plain",
   disabled = false,
   "aria-label": ariaLabel,
 }: {
@@ -98,6 +107,7 @@ export function SortableList<T>({
   renderItem: (item: T, index: number) => ReactNode;
   /** Row spacing: `sm` for compact input rows, `md` for cards. */
   gap?: "sm" | "md";
+  variant?: "plain" | "hover-card";
   disabled?: boolean;
   "aria-label"?: string;
 }) {
@@ -145,7 +155,7 @@ export function SortableList<T>({
       <SortableContext items={ids} strategy={verticalListSortingStrategy}>
         <ol
           aria-label={ariaLabel}
-          className={cn("flex flex-col", gap === "md" ? "gap-3" : "gap-1.5")}
+          className={cn("flex flex-col", gap === "md" ? "gap-4" : "gap-1.5")}
         >
           {items.map((item, index) => (
             <SortableRow
@@ -154,6 +164,7 @@ export function SortableList<T>({
               label={getLabel(item, index)}
               disabled={disabled || items.length < 2}
               compact={gap === "sm"}
+              variant={variant}
             >
               {renderItem(item, index)}
             </SortableRow>

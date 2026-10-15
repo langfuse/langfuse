@@ -355,7 +355,7 @@ export function AnnotationFormContent({
             {description}
           </p>
         ) : null}
-        <div className="grid grid-flow-row gap-2.5">
+        <div className="grid grid-flow-row gap-4">
           {fields.map((field, index) => {
             const target = targetFor(field);
             const config = configFor(field);

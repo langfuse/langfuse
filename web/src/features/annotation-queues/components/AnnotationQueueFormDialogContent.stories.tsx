@@ -83,6 +83,14 @@ export const Create = meta.story({
   play: async ({ canvasElement }) => {
     const body = within(canvasElement.ownerDocument.body);
 
+    await userEvent.type(
+      await body.findByRole("textbox", { name: "Name" }),
+      "Review queue draft",
+    );
+    await userEvent.type(
+      body.getByRole("textbox", { name: "Description (optional)" }),
+      "Keep these review instructions",
+    );
     await userEvent.click(
       await body.findByRole("button", { name: "Add score" }),
     );
@@ -96,6 +104,29 @@ export const Create = meta.story({
     await expect(
       body.getByRole("list", { name: "Selected score configs" }),
     ).toHaveTextContent("Correctness");
+
+    await userEvent.click(body.getByRole("button", { name: "Add score" }));
+    await userEvent.type(
+      await body.findByPlaceholderText("Search scores..."),
+      "Another score",
+    );
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(body.queryByRole("menu")).not.toBeInTheDocument();
+      expect(body.getByRole("textbox", { name: "Name" })).toHaveValue(
+        "Review queue draft",
+      );
+      expect(
+        body.getByRole("textbox", { name: "Description (optional)" }),
+      ).toHaveValue("Keep these review instructions");
+      expect(
+        body.getByRole("list", { name: "Selected score configs" }),
+      ).toHaveTextContent("Correctness");
+    });
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(body.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
   },
 });
 

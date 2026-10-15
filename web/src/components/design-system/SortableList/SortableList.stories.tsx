@@ -8,6 +8,55 @@ import { SortableList } from "./SortableList";
 
 const meta = preview.meta({ component: SortableList });
 
+export const TestMixedHeights = meta.story({
+  name: "(Test) Different Height Rows Keep Their Size While Dragging",
+  args: {
+    items: ["Short", "Tall"],
+    getId: String,
+    getLabel: String,
+    onReorder: fn(),
+    renderItem: (item) => (
+      <div className={item === "Tall" ? "h-40 border p-2" : "h-10 border p-2"}>
+        {String(item)}
+      </div>
+    ),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const handle = canvas.getByRole("button", { name: "Reorder Short" });
+    const row = handle.closest("li")!;
+    const target = canvas
+      .getByRole("button", { name: "Reorder Tall" })
+      .closest("li")!;
+    const original = row.getBoundingClientRect();
+    const destination = target.getBoundingClientRect();
+    await userEvent.pointer({
+      target: handle,
+      keys: "[MouseLeft>]",
+      coords: { clientX: original.left + 10, clientY: original.top + 16 },
+    });
+    await userEvent.pointer({
+      target: handle,
+      coords: { clientX: original.left + 10, clientY: original.top + 24 },
+    });
+    await waitFor(() => expect(handle).toHaveAttribute("aria-pressed", "true"));
+    await userEvent.pointer({
+      target,
+      coords: {
+        clientX: original.left + 10,
+        clientY: destination.top + destination.height / 2,
+      },
+    });
+    await waitFor(() =>
+      expect(target.getBoundingClientRect().top).toBeLessThan(destination.top),
+    );
+    await expect(
+      Math.abs(row.getBoundingClientRect().height - original.height),
+    ).toBeLessThan(1);
+    await userEvent.pointer({ keys: "[/MouseLeft]" });
+  },
+});
+
 export const TestKeyboardSortingInDialog = meta.story({
   name: "(Test) Keyboard Sorting Inside a Dialog",
   args: {

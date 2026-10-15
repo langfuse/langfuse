@@ -959,6 +959,76 @@ describe("unified annotation targets", () => {
     expect(mocks.update).not.toHaveBeenCalled();
   });
 
+  it("remembers queue description visibility per score config across reopened items", async () => {
+    const configs = [
+      {
+        ...defaultConfig,
+        id: "description-a",
+        name: "Quality",
+        description: "Judge answer quality.\nConsider relevance and clarity.",
+      },
+      {
+        ...defaultConfig,
+        id: "description-b",
+        name: "Accuracy",
+        description: "Check factual accuracy.",
+      },
+    ];
+    const contentFor = (sessionId: string) => (
+      <AnnotationForm
+        scoreTarget={{ type: "session", sessionId }}
+        serverScores={[]}
+        scoreMetadata={{ projectId: "project", queueId: "queue" }}
+        analyticsData={{
+          type: "session",
+          source: "AnnotationQueue",
+          isV4: true,
+        }}
+        configSelection={{ mode: "fixed", configs }}
+      />
+    );
+    const view = renderContent(contentFor("first-item"));
+    expect(
+      screen.getByText(
+        /Judge answer quality\.\s+Consider relevance and clarity\./,
+      ),
+    ).toBeVisible();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Hide description for Quality" }),
+    );
+    expect(
+      screen.getByRole("button", { name: "Show description for Quality" }),
+    ).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByText("Check factual accuracy.")).toBeVisible();
+    await waitFor(() =>
+      expect(
+        localStorage.getItem(
+          "annotation-score-config-description-description-a",
+        ),
+      ).toBe("false"),
+    );
+    view.rerenderContent(contentFor("next-item"));
+    expect(
+      screen.getByRole("button", { name: "Show description for Quality" }),
+    ).toHaveAttribute("aria-expanded", "false");
+    view.unmount();
+    renderContent(contentFor("reopened-item"));
+    expect(
+      screen.getByRole("button", { name: "Show description for Quality" }),
+    ).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByText("Check factual accuracy.")).toBeVisible();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Show description for Quality" }),
+    );
+    expect(
+      screen.getByText(
+        /Judge answer quality\.\s+Consider relevance and clarity\./,
+      ),
+    ).toBeVisible();
+    expect(mocks.create).not.toHaveBeenCalled();
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
+
   it("preserves fixed queue text and comment drafts through config refresh and applies fields on reopen", async () => {
     const feedback = {
       ...defaultConfig,
