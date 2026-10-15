@@ -153,9 +153,9 @@ export const EscapeDismissesNestedMenu = meta.story({
     await expect(
       body.queryByRole("menu", { name: "Choices" }),
     ).not.toBeInTheDocument();
-    await expect(
-      body.getByRole("dialog", { name: "Create choice" }),
-    ).toBeVisible();
+    await waitFor(() =>
+      expect(body.getByRole("dialog", { name: "Create choice" })).toBeVisible(),
+    );
     await userEvent.keyboard("{Escape}");
     await waitFor(() =>
       expect(
