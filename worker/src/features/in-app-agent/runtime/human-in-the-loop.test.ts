@@ -234,16 +234,20 @@ const questionnaireRequest = {
       {
         question: "Which evaluator type?",
         options: [
-          { label: "LLM-as-a-judge", description: null, recommended: true },
-          { label: "Code", description: null, recommended: false },
+          {
+            label: "LLM-as-a-judge",
+            description: "Model-graded",
+            recommended: true,
+          },
+          { label: "Code", description: "Deterministic", recommended: false },
         ],
         allowMultiple: false,
       },
       {
         question: "Anything else?",
         options: [
-          { label: "Yes", description: null, recommended: false },
-          { label: "No", description: null, recommended: false },
+          { label: "Yes", description: "Daily run", recommended: false },
+          { label: "No", description: "Manual only", recommended: false },
         ],
         allowMultiple: false,
       },

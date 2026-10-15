@@ -61,10 +61,26 @@ const failureSignalsQuestion: InAppAgentQuestionnaireQuestion = {
 const scheduleQuestion: InAppAgentQuestionnaireQuestion = {
   question: "How often should it run?",
   options: [
-    { label: "Every hour", description: null, recommended: false },
-    { label: "Every 6 hours", description: null, recommended: false },
-    { label: "Once a day", description: null, recommended: false },
-    { label: "Once a week", description: null, recommended: false },
+    {
+      label: "Every hour",
+      description: "Catches regressions fastest.",
+      recommended: false,
+    },
+    {
+      label: "Every 6 hours",
+      description: "A few runs per working day.",
+      recommended: false,
+    },
+    {
+      label: "Once a day",
+      description: "Enough for slow-moving traffic.",
+      recommended: false,
+    },
+    {
+      label: "Once a week",
+      description: "Lowest cost, slowest signal.",
+      recommended: false,
+    },
   ],
   allowMultiple: false,
 };
@@ -85,7 +101,7 @@ export const SingleChoice = meta.story({
   },
 });
 
-export const SingleChoiceWithoutDescriptions = meta.story({
+export const SingleChoiceFourOptions = meta.story({
   args: {
     tool: createQuestionnaireTool({ questions: [scheduleQuestion] }),
     onAnswerQuestionnaire: fn().mockResolvedValue(undefined),

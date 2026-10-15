@@ -869,8 +869,16 @@ describe("in-app agent background runs", () => {
           {
             question: "Which evaluator type?",
             options: [
-              { label: "LLM-as-a-judge", description: null, recommended: true },
-              { label: "Code", description: null, recommended: false },
+              {
+                label: "LLM-as-a-judge",
+                description: "Model-graded",
+                recommended: true,
+              },
+              {
+                label: "Code",
+                description: "Deterministic",
+                recommended: false,
+              },
             ],
             allowMultiple: false,
           },

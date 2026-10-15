@@ -22,16 +22,24 @@ const args = {
     {
       question: "Which scores?",
       options: [
-        { label: "Helpfulness", description: null, recommended: false },
-        { label: "Toxicity", description: null, recommended: false },
+        {
+          label: "Helpfulness",
+          description: "Answers the ask",
+          recommended: false,
+        },
+        {
+          label: "Toxicity",
+          description: "Harmful content",
+          recommended: false,
+        },
       ],
       allowMultiple: true,
     },
     {
       question: "Run it on a schedule?",
       options: [
-        { label: "Yes", description: null, recommended: false },
-        { label: "No", description: null, recommended: false },
+        { label: "Yes", description: "Daily run", recommended: false },
+        { label: "No", description: "Manual only", recommended: false },
       ],
       allowMultiple: false,
     },
@@ -135,15 +143,18 @@ describe("InAppAgentQuestionnaireArgsSchema", () => {
     );
   });
 
-  it("rejects a question where only some options have a description", () => {
+  it.each([
+    { name: "a missing description", description: null },
+    { name: "a blank description", description: "  " },
+  ])("rejects an option with $name", ({ description }) => {
     const [firstQuestion] = args.questions;
     const result = InAppAgentQuestionnaireArgsSchema.safeParse({
       questions: [
         {
           ...firstQuestion,
           options: [
-            { ...firstQuestion.options[0], description: null },
-            { ...firstQuestion.options[1], description: "Deterministic" },
+            { ...firstQuestion.options[0], description },
+            firstQuestion.options[1],
           ],
         },
       ],

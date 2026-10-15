@@ -113,8 +113,12 @@ const questionnaireArgs = {
     {
       question: "Which environment?",
       options: [
-        { label: "Production", description: null, recommended: true },
-        { label: "Staging", description: null, recommended: false },
+        { label: "Production", description: "Live traffic", recommended: true },
+        {
+          label: "Staging",
+          description: "Pre-release checks",
+          recommended: false,
+        },
       ],
       allowMultiple: false,
     },
