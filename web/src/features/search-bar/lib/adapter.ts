@@ -309,7 +309,7 @@ function lowerFilterNode(
     }
     if (node.values.length === 0) return;
     const issue =
-      operatorIssue(ref, node.op, node.valueOp ?? "or") ??
+      operatorIssue(ref, node.op, node.valueOp ?? "or", ctx.registry) ??
       (negated ? negationIssue(ref, node.op, node.valueOp ?? "or") : null);
     if (issue) {
       ctx.errors.push(issue);
@@ -398,7 +398,7 @@ function lowerFilter(
     return;
   }
 
-  const opIssue = operatorIssue(ref, node.op, node.valueOp ?? "or");
+  const opIssue = operatorIssue(ref, node.op, node.valueOp ?? "or", registry);
   if (opIssue !== null) {
     errors.push(opIssue);
     return;

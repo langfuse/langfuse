@@ -353,7 +353,7 @@ function parseUnscopedTermNode(
   // adapter agree (fields.operatorIssue).
   const pushOpIssue = (op: CompareOp, valueOp: "or" | "and" = "or") => {
     if (ref === null) return;
-    const issue = operatorIssue(ref, op, valueOp);
+    const issue = operatorIssue(ref, op, valueOp, registry);
     if (issue !== null) {
       diagnostics.push({
         from: span.from,

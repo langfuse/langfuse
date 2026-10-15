@@ -961,7 +961,7 @@ function valueStageSections(input: ValueStageInput): {
       const values = valueOptions(all, typed);
       const ops = typed.length > 0 ? matchOperatorOptions(typed, negated) : [];
       const compareOps =
-        typed.length === 0 && !negated
+        typed.length === 0 && !negated && registry.metadataComparisons
           ? numberOperatorOptions(
               `${ref.namespace ?? "metadata"}.${quoteIfNeeded(ref.key)}`,
               undefined,

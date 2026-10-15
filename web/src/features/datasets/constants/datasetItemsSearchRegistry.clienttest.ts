@@ -26,8 +26,24 @@ describe("dataset item search contract", () => {
     expect(result.status).toBe("invalid");
     if (result.status !== "invalid") throw new Error(result.status);
     expect(result.diagnostics.map((d) => d.message).join(" ")).toContain(
-      "Dataset item metadata supports text matches only",
+      "metadata on this view supports text matches only",
     );
+  });
+
+  it("does not suggest numeric comparisons after a metadata key", () => {
+    const input = "metadata.region:";
+    const plan = planInputCompletions(
+      {
+        input,
+        caret: input.length,
+        observed: { "metadata.region": [{ value: "eu" }] },
+        recents: [],
+        currentQueryText: input,
+      },
+      registry,
+    );
+    const options = plan?.sections.flatMap((section) => section.options) ?? [];
+    expect(options.map((option) => option.label)).toEqual(["eu"]);
   });
 
   it("keeps bare phrases in the ID lane and resets to it when clearing", () => {
