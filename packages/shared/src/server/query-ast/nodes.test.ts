@@ -263,6 +263,145 @@ describe("tenancy injection", () => {
     const matches = compiled.match(/project_id/gi) ?? [];
     expect(matches.length).toBeGreaterThanOrEqual(2);
   });
+
+  describe("CTE named like a tenanted table", () => {
+    const db = getClickhouseKysely();
+    const tracesCte = db.with("traces", (qb) =>
+      qb.selectFrom("scores").select("trace_id as id"),
+    );
+    const compile = (
+      query: Parameters<typeof compileClickhouseQuery>[0],
+    ): string => compileClickhouseQuery(query, projectId).sql;
+
+    it("leaves a scalar subquery's read of an outer CTE unscoped", () => {
+      expect(
+        compile(
+          tracesCte
+            .selectFrom("scores as s")
+            .select((eb) => [
+              eb.selectFrom("traces").select("id").limit(1).as("first_id"),
+            ]),
+        ),
+      ).toBe(
+        "with traces as (select trace_id as id from scores where project_id = {p1:String}) select (select id from traces limit {p2:Int64}) as first_id from scores as s where s.project_id = {p1:String}",
+      );
+    });
+
+    it("leaves IN-subquery, FROM-subquery and UNION reads of an outer CTE unscoped", () => {
+      expect(
+        compile(
+          tracesCte
+            .selectFrom((eb) => eb.selectFrom("traces").select("id").as("sub"))
+            .select("sub.id")
+            .where("sub.id", "in", (eb) => eb.selectFrom("traces").select("id"))
+            .unionAll(db.selectFrom("traces").select("id")),
+        ),
+      ).toBe(
+        "with traces as (select trace_id as id from scores where project_id = {p1:String}) select sub.id from (select id from traces) as sub where sub.id in (select id from traces) union all select id from traces",
+      );
+    });
+
+    it("leaves a nested CTE body's read of an outer CTE unscoped", () => {
+      expect(
+        compile(
+          tracesCte
+            .selectFrom(
+              db
+                .with("inner", (qb) => qb.selectFrom("traces").select("id"))
+                .selectFrom("inner")
+                .select("id")
+                .as("sub"),
+            )
+            .select("sub.id"),
+        ),
+      ).toBe(
+        "with traces as (select trace_id as id from scores where project_id = {p1:String}) select sub.id from (with inner as (select id from traces) select id from inner) as sub",
+      );
+    });
+
+    it("scopes a CTE body's read of its own name, which is the table", () => {
+      expect(
+        compile(
+          db
+            .with("traces", (qb) =>
+              qb
+                .selectFrom("traces")
+                .select("id")
+                .where("id", "in", (eb) =>
+                  eb.selectFrom("traces").select("id"),
+                ),
+            )
+            .selectFrom("traces")
+            .select("id"),
+        ),
+      ).toBe(
+        "with traces as (select id from traces where project_id = {p1:String} and id in (select id from traces where project_id = {p1:String})) select id from traces",
+      );
+    });
+
+    it("resolves a nested CTE body's own name to an outer CTE of that name", () => {
+      expect(
+        compile(
+          tracesCte
+            .selectFrom(
+              db
+                .with("traces", (qb) => qb.selectFrom("traces").select("id"))
+                .selectFrom("traces")
+                .select("id")
+                .as("sub"),
+            )
+            .select("sub.id"),
+        ),
+      ).toBe(
+        "with traces as (select trace_id as id from scores where project_id = {p1:String}) select sub.id from (with traces as (select id from traces) select id from traces) as sub",
+      );
+    });
+
+    it("resolves earlier and later sibling CTE names to the CTE", () => {
+      expect(
+        compile(
+          db
+            .with("before", (qb) => qb.selectFrom("traces").select("id"))
+            .with("traces", (qb) =>
+              qb.selectFrom("scores").select("trace_id as id"),
+            )
+            .with("after", (qb) => qb.selectFrom("traces").select("id"))
+            .selectFrom("before")
+            .innerJoin("after", (join) =>
+              join.onRef("before.id", "=", "after.id"),
+            )
+            .select("before.id"),
+        ),
+      ).toBe(
+        "with before as (select id from traces), traces as (select trace_id as id from scores where project_id = {p1:String}), after as (select id from traces) select before.id from before inner join after on before.id = after.id",
+      );
+    });
+
+    it("scopes the table again once a subquery leaves the CTE's select", () => {
+      expect(
+        compile(
+          db
+            .selectFrom("scores as s")
+            .select("s.id")
+            .where(
+              "s.trace_id",
+              "in",
+              db
+                .with("traces", (qb) =>
+                  qb.selectFrom("scores").select("trace_id as id"),
+                )
+                .selectFrom("traces")
+                .select("id"),
+            )
+            .where("s.trace_id", "in", (eb) =>
+              eb.selectFrom("traces").select("id"),
+            ),
+        ),
+      ).toBe(
+        "select s.id from scores as s where s.project_id = {p1:String} and s.trace_id in (with traces as (select trace_id as id from scores where project_id = {p1:String}) select id from traces) and s.trace_id in (select id from traces where project_id = {p1:String})",
+      );
+    });
+  });
 });
 
 describe("ARRAY JOIN and LIMIT BY nodes", () => {

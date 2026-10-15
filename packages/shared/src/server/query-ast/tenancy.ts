@@ -18,7 +18,6 @@ import {
   type OperationNode,
   type PluginTransformQueryArgs,
   type PluginTransformResultArgs,
-  type QueryId,
   type RootOperationNode,
 } from "kysely";
 
@@ -29,7 +28,7 @@ import {
   type ClickHouseSelectQueryNode,
 } from "./nodes";
 import { TENANTED_TABLES } from "./schema";
-import { ClickHouseOperationNodeTransformer } from "./transformer";
+import { CteScopedTransformer } from "./transformer";
 
 const PROJECT_ID_COLUMN = "project_id";
 
@@ -74,39 +73,22 @@ export class TenancyInjectionPlugin implements KyselyPlugin {
   }
 }
 
-class TenancyInjectionTransformer extends ClickHouseOperationNodeTransformer {
+class TenancyInjectionTransformer extends CteScopedTransformer {
   constructor(private readonly projectId: string) {
     super();
   }
 
-  protected override transformSelectQuery(
-    node: SelectQueryNode,
-    queryId?: QueryId,
-  ): SelectQueryNode {
-    const withChildren = super.transformSelectQuery(
-      node,
-      queryId,
-    ) as ClickHouseSelectQueryNode;
-    return injectSelect(
-      withChildren,
-      this.projectId,
-      collectCteNames(withChildren),
-    );
+  protected rewriteSelect(
+    node: ClickHouseSelectQueryNode,
+  ): ClickHouseSelectQueryNode {
+    return injectSelect(node, this.projectId, (name) => this.isCte(name));
   }
-}
-
-function collectCteNames(node: SelectQueryNode): Set<string> {
-  const names = new Set<string>();
-  for (const expr of node.with?.expressions ?? []) {
-    names.add(tableNameOf(expr.name.table));
-  }
-  return names;
 }
 
 function injectSelect(
   node: ClickHouseSelectQueryNode,
   projectId: string,
-  cteNames: Set<string>,
+  isCte: (name: string) => boolean,
 ): ClickHouseSelectQueryNode {
   const fromRelations = (node.from?.froms ?? []).map(describeRelation);
   const joinRelations = (node.joins ?? []).map((join) => ({
@@ -126,7 +108,7 @@ function injectSelect(
   ): r is Extract<Relation, { kind: "table" }> =>
     r.kind === "table" &&
     TENANTED_TABLES.has(r.tableName) &&
-    !cteNames.has(r.tableName);
+    !isCte(r.tableName);
 
   const tenantedFrom = fromRelations.filter(isTenantedTable);
   const tenantedJoinCount = joinRelations.filter(({ relation }) =>
