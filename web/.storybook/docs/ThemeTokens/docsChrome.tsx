@@ -74,7 +74,7 @@ export function DocsSection({
   title: ReactNode;
   blurb?: ReactNode;
   aside?: ReactNode;
-  children: ReactNode;
+  children?: ReactNode;
 }) {
   return (
     <section className="flex flex-col gap-4 border-t pt-6">

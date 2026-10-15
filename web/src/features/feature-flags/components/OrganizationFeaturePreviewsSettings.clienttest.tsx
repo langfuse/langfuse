@@ -80,7 +80,7 @@ vi.mock("@/src/components/design-system/Switch/Switch", () => ({
 }));
 
 vi.mock("@/src/components/ui/alert-dialog", () => ({
-  AlertDialog: ({ children }: { children: ReactNode }) => <>{children}</>,
+  AlertDialog: ({ children }: { children: ReactNode }) => children,
   AlertDialogContent: ({ children }: { children: ReactNode }) => (
     <div>{children}</div>
   ),

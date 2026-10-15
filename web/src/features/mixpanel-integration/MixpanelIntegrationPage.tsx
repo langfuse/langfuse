@@ -71,7 +71,7 @@ export default function MixpanelIntegrationPage() {
         breadcrumb: [
           { name: "Settings", href: `/project/${projectId}/settings` },
         ],
-        actionButtonsLeft: <>{status && <StatusBadge type={status} />}</>,
+        actionButtonsLeft: status && <StatusBadge type={status} />,
         actionButtonsRight: (
           <Button asChild variant="secondary">
             <Link href="https://langfuse.com/integrations/analytics/mixpanel">
