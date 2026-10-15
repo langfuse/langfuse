@@ -285,7 +285,9 @@ describe("ConnectedOnboardingSurvey on self-hosted", () => {
     clickButton("Skip");
 
     await waitFor(() =>
-      expect(locationAssignMock).toHaveBeenCalledWith("/setup"),
+      expect(locationAssignMock).toHaveBeenCalledWith(
+        `${originalLocation.origin}/setup`,
+      ),
     );
     expect(showErrorToastMock).not.toHaveBeenCalled();
   });

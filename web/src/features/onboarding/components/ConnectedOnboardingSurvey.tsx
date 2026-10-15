@@ -79,8 +79,11 @@ export function ConnectedOnboardingSurvey() {
           warnMessage: "Onboarding redirect failed; loading the page instead",
         });
         // The client-side router just failed, so a full page load is the fallback.
-        // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-        window.location.assign(`${env.NEXT_PUBLIC_BASE_PATH ?? ""}${path}`);
+        const destination = new URL(
+          `${env.NEXT_PUBLIC_BASE_PATH ?? ""}${path}`,
+          window.location.origin,
+        );
+        window.location.assign(destination.href);
       }
     },
     [isLangfuseCloud, router],
