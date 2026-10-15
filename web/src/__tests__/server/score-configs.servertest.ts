@@ -587,7 +587,7 @@ describe("/api/public/score-configs API Endpoint", () => {
         "PATCH",
         `/api/public/score-configs/${configId}`,
         {
-          name: "a".repeat(50), // Exceeds 35 character limit
+          name: "a".repeat(81), // Exceeds 80 character limit
         },
         auth,
       );
