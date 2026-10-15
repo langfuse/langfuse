@@ -5,20 +5,24 @@ import {
 } from "@langfuse/shared";
 import { FileCode2, FileText } from "lucide-react";
 
-import { Accordion } from "@/src/components/design-system/Accordion/Accordion";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { LinkBadge } from "@/src/components/design-system/LinkBadge/LinkBadge";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/src/components/ui/collapsible";
 import { InternalFeatureBadge } from "@/src/features/feature-flags";
 
 export function SectionSkills({ projectId, skills }: SectionSkillsProps) {
-  const [expandedGroup, setExpandedGroup] = useState("");
+  const [isGroupExpanded, setGroupExpanded] = useState(false);
   const [expandedSkillKey, setExpandedSkillKey] = useState("");
   const groups = groupSkills(skills.items);
   const isAvailable = skills.kind === "available";
-  const isGroupExpanded = expandedGroup === "skills";
 
-  function handleGroupChange(value: string) {
-    setExpandedGroup(value);
+  function handleGroupChange(open: boolean) {
+    setGroupExpanded(open);
   }
 
   function handleSkillChange(value: string) {
@@ -35,62 +39,62 @@ export function SectionSkills({ projectId, skills }: SectionSkillsProps) {
         <Badge color="filled" size="sm" text={String(groups.length)} />
         <InternalFeatureBadge />
       </div>
-      <Accordion
-        type="single"
-        collapsible
-        value={expandedGroup}
-        onValueChange={handleGroupChange}
+      <Collapsible
+        open={isGroupExpanded}
+        onOpenChange={handleGroupChange}
+        className="flex flex-col gap-2"
       >
-        <Accordion.Item value="skills" variant="plain">
-          <Accordion.Trigger variant="summary" size="sm">
-            <span className="flex min-w-0 flex-1 items-center gap-2">
-              <FileCode2
-                className="icon-base text-muted-foreground shrink-0"
-                aria-hidden
-              />
-              <span>
-                {groups.length} {isAvailable ? "available" : "loaded"}{" "}
-                {groups.length === 1 ? "skill" : "skills"}
-              </span>
-            </span>
-            <Badge
-              color="filled"
-              size="sm"
-              text={isGroupExpanded ? "hide" : "show"}
+        <CollapsibleTrigger className="hover:bg-muted/20 flex w-full items-center justify-between gap-2 rounded-sm border px-3 py-2 text-left text-sm font-bold">
+          <span className="flex min-w-0 flex-1 items-center gap-2">
+            <FileCode2
+              className="icon-base text-muted-foreground shrink-0"
+              aria-hidden
             />
-          </Accordion.Trigger>
-          <Accordion.Content>
-            <div className="pt-2">
-              <Accordion
-                type="single"
-                collapsible
-                value={expandedSkillKey}
-                onValueChange={handleSkillChange}
-              >
-                <ul className="flex flex-col gap-2">
-                  {groups.map((group) => (
-                    <SkillRow
-                      key={group.key}
-                      projectId={projectId}
-                      group={group}
-                    />
-                  ))}
-                </ul>
-              </Accordion>
-            </div>
-          </Accordion.Content>
-        </Accordion.Item>
-      </Accordion>
+            <span>
+              {groups.length} {isAvailable ? "available" : "loaded"}{" "}
+              {groups.length === 1 ? "skill" : "skills"}
+            </span>
+          </span>
+          <Badge
+            color="filled"
+            size="sm"
+            text={isGroupExpanded ? "hide" : "show"}
+          />
+          <DropdownIndicator direction={isGroupExpanded ? "down" : "right"} />
+        </CollapsibleTrigger>
+        <CollapsibleContent asChild>
+          <ul className="flex flex-col gap-2">
+            {groups.map((group) => (
+              <SkillRow
+                key={group.key}
+                projectId={projectId}
+                group={group}
+                expanded={expandedSkillKey === group.key}
+                onExpandedChange={handleSkillChange}
+              />
+            ))}
+          </ul>
+        </CollapsibleContent>
+      </Collapsible>
     </section>
   );
 }
 
-function SkillRow({ projectId, group }: SkillRowProps) {
+function SkillRow({
+  projectId,
+  group,
+  expanded,
+  onExpandedChange,
+}: SkillRowProps) {
   const { skill, files } = group;
 
+  function handleOpenChange(open: boolean) {
+    onExpandedChange(open ? group.key : "");
+  }
+
   return (
-    <li className="min-w-0 overflow-hidden rounded-sm border">
-      <Accordion.Item value={group.key} variant="plain">
+    <Collapsible asChild open={expanded} onOpenChange={handleOpenChange}>
+      <li className="min-w-0 overflow-hidden rounded-sm border">
         <div className="flex min-w-0 items-center gap-2 px-3 py-1.5">
           <FileCode2
             className="icon-base text-muted-foreground shrink-0"
@@ -112,8 +116,8 @@ function SkillRow({ projectId, group }: SkillRowProps) {
             ) : null}
           </div>
           {files.size > 0 ? (
-            <Accordion.Trigger
-              variant="compact"
+            <CollapsibleTrigger
+              className="hover:bg-muted/20 flex shrink-0 items-center gap-1.5 rounded-sm px-1 py-0.5"
               aria-label={`Files loaded for ${skill.skillName}`}
             >
               <Badge
@@ -121,20 +125,21 @@ function SkillRow({ projectId, group }: SkillRowProps) {
                 size="sm"
                 text={`${files.size} ${files.size === 1 ? "file" : "files"}`}
               />
-            </Accordion.Trigger>
+              <DropdownIndicator direction={expanded ? "down" : "right"} />
+            </CollapsibleTrigger>
           ) : null}
         </div>
         {files.size > 0 ? (
-          <Accordion.Content>
+          <CollapsibleContent asChild>
             <ul className="bg-muted/30 flex flex-col gap-2 border-t px-3 py-3">
               {Array.from(files, (filePath) => (
                 <SkillFileRow key={filePath} filePath={filePath} />
               ))}
             </ul>
-          </Accordion.Content>
+          </CollapsibleContent>
         ) : null}
-      </Accordion.Item>
-    </li>
+      </li>
+    </Collapsible>
   );
 }
 
@@ -179,6 +184,8 @@ export interface SectionSkillsProps {
 type SkillRowProps = {
   projectId: string;
   group: SkillGroup;
+  expanded: boolean;
+  onExpandedChange: (key: string) => void;
 };
 
 type SkillFileRowProps = {

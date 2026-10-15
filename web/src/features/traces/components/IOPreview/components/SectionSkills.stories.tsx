@@ -1,3 +1,5 @@
+import { expect, userEvent, within } from "storybook/test";
+
 import preview from "../../../../../../.storybook/preview";
 import { SectionSkills } from "./SectionSkills";
 
@@ -37,6 +39,7 @@ export const Available = meta.story({
 });
 
 export const Loaded = meta.story({
+  name: "(Test) Loaded",
   args: {
     projectId: "storybook-project",
     skills: {
@@ -63,5 +66,33 @@ export const Loaded = meta.story({
         { skillName: "local-customer-support", filePath: "SKILL.md" },
       ],
     },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const summary = canvas.getByRole("button", {
+      name: "3 loaded skills show",
+    });
+
+    await expect(summary).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(summary);
+    const refundFiles = canvas.getByRole("button", {
+      name: "Files loaded for refund-policy",
+    });
+    await userEvent.click(refundFiles);
+    await expect(canvas.getByText("references/refunds.md")).toBeVisible();
+
+    await userEvent.click(summary);
+    await userEvent.click(summary);
+    await expect(canvas.getByText("references/refunds.md")).toBeVisible();
+
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Files loaded for shipping-policy" }),
+    );
+    await expect(
+      canvas.getByRole("button", { name: "Files loaded for refund-policy" }),
+    ).toHaveAttribute("aria-expanded", "false");
+    await expect(
+      canvas.getByText("references/international-shipping.md"),
+    ).toBeVisible();
   },
 });

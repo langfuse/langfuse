@@ -18,45 +18,26 @@ const accordionVariants = cva("", {
 });
 
 const accordionTriggerVariants = cva(
-  "flex flex-1 items-center justify-between font-bold transition-all hover:no-underline",
+  "flex flex-1 items-center justify-between pt-2 pb-1 font-bold transition-all hover:no-underline [&[data-state=open]>svg]:rotate-180",
   {
     variants: {
-      variant: {
-        default: "pt-2 pb-1 [&[data-state=open]>svg]:rotate-180",
-        summary:
-          "hover:bg-muted/20 gap-2 rounded-sm border px-3 py-2 text-left [&[data-state=open]>svg]:rotate-90",
-        compact:
-          "hover:bg-muted/20 shrink-0 gap-1.5 rounded-sm px-1 py-0.5 [&[data-state=open]>svg]:rotate-90",
-      },
       size: {
         default: "",
         sm: "text-sm",
       },
     },
     defaultVariants: {
-      variant: "default",
       size: "default",
     },
   },
 );
 
-const accordionItemVariants = cva("", {
-  variants: {
-    variant: {
-      default: "border-b",
-      plain: "",
-    },
-  },
-  defaultVariants: { variant: "default" },
-});
-
 type AccordionItemProps = Pick<
   React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Item>,
   "value"
-> &
-  Pick<VariantProps<typeof accordionItemVariants>, "variant"> & {
-    children: React.ReactNode;
-  };
+> & {
+  children: React.ReactNode;
+};
 
 type AccordionRootProps = React.ComponentPropsWithoutRef<
   typeof AccordionPrimitive.Root
@@ -85,12 +66,9 @@ function AccordionRoot({ children, gap, ...props }: AccordionProps) {
   );
 }
 
-function AccordionItem({ children, value, variant }: AccordionItemProps) {
+function AccordionItem({ children, value }: AccordionItemProps) {
   return (
-    <AccordionPrimitive.Item
-      className={accordionItemVariants({ variant })}
-      value={value}
-    >
+    <AccordionPrimitive.Item className="border-b" value={value}>
       {children}
     </AccordionPrimitive.Item>
   );
@@ -98,31 +76,19 @@ function AccordionItem({ children, value, variant }: AccordionItemProps) {
 
 type AccordionTriggerProps = Pick<
   VariantProps<typeof accordionTriggerVariants>,
-  "size" | "variant"
-> &
-  Pick<
-    React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Trigger>,
-    "aria-label"
-  > & {
-    children: React.ReactNode;
-  };
+  "size"
+> & {
+  children: React.ReactNode;
+};
 
-function AccordionTrigger({
-  children,
-  size,
-  variant = "default",
-  "aria-label": ariaLabel,
-}: AccordionTriggerProps) {
+function AccordionTrigger({ children, size }: AccordionTriggerProps) {
   return (
     <AccordionPrimitive.Header className="flex">
       <AccordionPrimitive.Trigger
-        className={accordionTriggerVariants({ size, variant })}
-        aria-label={ariaLabel}
+        className={accordionTriggerVariants({ size })}
       >
         {children}
-        <DropdownIndicator
-          direction={variant === "default" ? "down" : "right"}
-        />
+        <DropdownIndicator />
       </AccordionPrimitive.Trigger>
     </AccordionPrimitive.Header>
   );
