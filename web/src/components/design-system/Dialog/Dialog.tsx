@@ -172,32 +172,14 @@ function DialogBody({ children }: { children: React.ReactNode }) {
   );
 }
 
-function DialogFooter({
-  children,
-  info,
-}: {
-  children: React.ReactNode;
-  info?: React.ReactNode;
-}) {
+function DialogFooter({ children }: { children: React.ReactNode }) {
   return (
-    <footer
-      className={cn(
-        "bg-modal z-10 flex shrink-0 flex-col gap-3 rounded-b-lg p-4 sm:flex-row sm:items-center sm:justify-end",
-        info && "border-t",
-      )}
-    >
-      {info ? <div className="min-w-0 text-sm sm:mr-auto">{info}</div> : null}
-      <div className="flex shrink-0 flex-col-reverse gap-2 sm:flex-row [&>button]:w-full sm:[&>button]:w-auto">
-        {children}
-      </div>
+    <footer className="bg-modal z-10 flex shrink-0 flex-col-reverse gap-2 rounded-b-lg p-4 sm:flex-row sm:justify-end [&>button]:w-full sm:[&>button]:w-auto">
+      {children}
     </footer>
   );
 }
 
-const Dialog = Object.assign(DialogRoot, {
-  Body: DialogBody,
-  Footer: DialogFooter,
-  Close: DialogPrimitive.Close,
-});
+const Dialog = Object.assign(DialogRoot, { Body: DialogBody });
 
 export { Dialog };

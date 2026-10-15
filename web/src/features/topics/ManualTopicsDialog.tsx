@@ -96,7 +96,19 @@ export function ManualTopicsDialog({
     onOperationChange("process");
   }
   return (
-    <Dialog title="Manual processing" size="lg">
+    <Dialog
+      title="Manual processing"
+      size="lg"
+      actions={[
+        {
+          label:
+            operation === "process" ? "Summarize & embed" : "Generate topics",
+          disabled: !canSubmit,
+          loading: isSubmitting,
+          onClick: onSubmit,
+        },
+      ]}
+    >
       <Dialog.Body>
         <div className="ph-no-capture flex flex-col gap-5 text-sm">
           <Tabs value={operation} onValueChange={handleOperationChange}>
@@ -176,6 +188,11 @@ export function ManualTopicsDialog({
               ) : null}
             </Stepper>
             <Stepper number={3} title="Review & Run">
+              <p role="status" className="ph-no-capture text-muted-foreground">
+                {operation === "process"
+                  ? processingSummary
+                  : `${selectedUpdates.length} facets selected · stored summaries`}
+              </p>
               {operation === "process" ? (
                 <p>
                   Summarize and embed the selected traces, then assign them to
@@ -320,27 +337,6 @@ export function ManualTopicsDialog({
           ) : null}
         </div>
       </Dialog.Body>
-      <Dialog.Footer
-        info={
-          <p role="status" className="ph-no-capture text-muted-foreground">
-            {operation === "process"
-              ? processingSummary
-              : `${selectedUpdates.length} facets selected · stored summaries`}
-          </p>
-        }
-      >
-        <Dialog.Close asChild>
-          <Button text="Cancel" variant="secondary" />
-        </Dialog.Close>
-        <Button
-          text={
-            operation === "process" ? "Summarize & embed" : "Generate topics"
-          }
-          disabled={!canSubmit}
-          loading={isSubmitting}
-          onClick={onSubmit}
-        />
-      </Dialog.Footer>
     </Dialog>
   );
 }
