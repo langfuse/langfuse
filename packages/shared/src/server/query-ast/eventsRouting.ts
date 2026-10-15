@@ -12,11 +12,11 @@
  *
  * A reference is truncation-sensitive when any identifier in it is named
  * like a column in {@link EVENTS_CORE_TRUNCATED_COLUMNS} (whichever relation
- * or alias it belongs to), it contains a `*` other than `count(*)`, or it is
- * a raw fragment that mentions such a column, `*`, or `COLUMNS(...)`. The
- * only exempt shape is a metadata predicate that
- * `metadataFilterIsEventsCoreSafe` accepts, the rule the raw-SQL builders
- * route by:
+ * or alias it belongs to), it contains a `*` other than a bare `count(*)`,
+ * or it is a raw fragment that mentions such a column, `*`, or
+ * `COLUMNS(...)`. Besides `count(*)`, the one exempt shape is a metadata
+ * predicate that `metadataFilterIsEventsCoreSafe` accepts, the rule the
+ * raw-SQL builders route by:
  *
  *   metadataValue(e, k) = 'short'        → events_core (< 200 code points)
  *   startsWith(metadataValue(e, k), 'p') → events_core (≤ 200 code points)
@@ -183,12 +183,21 @@ function isLogicalEventsRelation(node: OperationNode): boolean {
   );
 }
 
-/** `count(*)` reads no column; `eb.fn.countAll()` wraps its `*` in a selection. */
+/**
+ * A bare `count(*)`, which reads no column. Its `*` is either a select-all
+ * node or a selection wrapping one. Skipping the node skips its clauses too,
+ * so `distinct`, `filter`, `over`, `order by` and `within group` disqualify it.
+ */
 function isCountAll(node: OperationNode): boolean {
   if (
     !AggregateFunctionNode.is(node) ||
     node.func !== "count" ||
-    node.aggregated.length !== 1
+    node.aggregated.length !== 1 ||
+    node.distinct ||
+    node.filter ||
+    node.over ||
+    node.orderBy ||
+    node.withinGroup
   ) {
     return false;
   }

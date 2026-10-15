@@ -99,6 +99,32 @@ describe("logical events routing", () => {
     ).toEqual(["events_core"]);
   });
 
+  it("routes count(*) with a clause on a truncated column to events_full", () => {
+    expect(
+      routedTables(
+        compile(
+          db
+            .selectFrom("events as e")
+            .select((eb) =>
+              eb.fn.countAll().filterWhere("e.input", "=", "x").as("n"),
+            ),
+        ),
+      ),
+    ).toEqual(["events_full"]);
+    expect(
+      routedTables(
+        compile(
+          db.selectFrom("events as e").select((eb) =>
+            eb.fn
+              .countAll()
+              .over((ob) => ob.partitionBy("e.input"))
+              .as("n"),
+          ),
+        ),
+      ),
+    ).toEqual(["events_full"]);
+  });
+
   it("routes a raw fragment that names a truncated column to events_full", () => {
     expect(
       routedTables(
