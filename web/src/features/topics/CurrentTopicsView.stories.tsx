@@ -310,3 +310,17 @@ export const InternalAdminTranscript = meta.story({
     });
   },
 });
+
+export const ExistingTopicsWithoutAssignments = meta.story({
+  name: "(Test) Empty range keeps existing topics without prompting regeneration",
+  args: { facet: { ...facet, topics: [], rows: [] } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.queryByRole("button", { name: "Generate topics" }),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.getByRole("region", { name: "Topic traces" }),
+    ).toBeVisible();
+  },
+});

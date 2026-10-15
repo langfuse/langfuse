@@ -126,4 +126,29 @@ describe("current Topics query", () => {
     });
     expect(fetchResults).toHaveBeenCalledTimes(4);
   });
+  it("polls waiting automatic processing at ten seconds and stops once ready", async () => {
+    fetchResults
+      .mockReset()
+      .mockResolvedValue({ hasStoredSummaries: false, facets: [] });
+    renderHook(__test.useCurrentTopics, {
+      initialProps: {
+        projectId: "project",
+        running: false,
+        pollForSummaries: true,
+        refreshAfter: 0,
+        timeRange,
+      },
+      wrapper: ({ children }: { children: ReactNode }) =>
+        createElement(QueryClientProvider, { client }, children),
+    });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(fetchResults).toHaveBeenCalledOnce();
+    await act(() => vi.advanceTimersByTimeAsync(9999));
+    expect(fetchResults).toHaveBeenCalledOnce();
+    fetchResults.mockResolvedValue({ hasStoredSummaries: true, facets: [] });
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(fetchResults).toHaveBeenCalledTimes(2);
+    await act(() => vi.advanceTimersByTimeAsync(30000));
+    expect(fetchResults).toHaveBeenCalledTimes(2);
+  });
 });

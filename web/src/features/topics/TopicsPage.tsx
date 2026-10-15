@@ -378,9 +378,19 @@ function TopicsWorkspaceContent({
           pipeline.clearError();
           openDialog(operation);
         };
+        function openManualProcessing() {
+          openManual("process");
+        }
+        function openTopicGeneration() {
+          openManual("update");
+        }
         const hasStoredSummaries = Boolean(results.data?.hasStoredSummaries);
         const showOnboarding =
-          !results.isLoading && !results.error && !hasStoredSummaries;
+          validTimeRange &&
+          results.data !== undefined &&
+          !results.isLoading &&
+          !results.error &&
+          !hasStoredSummaries;
         return (
           <Page
             headerProps={{
@@ -396,7 +406,7 @@ function TopicsWorkspaceContent({
                   configured={configured}
                   canWrite={canWrite}
                   manualAvailable={pipeline.available}
-                  openManual={() => openManual("process")}
+                  openManual={openManualProcessing}
                   onAutomaticProcessing={openAutomaticProcessingFromHeader}
                   onConfigure={openConfigure}
                   onHistory={openHistory}
@@ -415,7 +425,7 @@ function TopicsWorkspaceContent({
                         ? {
                             label: "Manual processing",
                             disabled: false,
-                            onSelect: () => openManual("process"),
+                            onSelect: openManualProcessing,
                           }
                         : null
                     }
@@ -476,8 +486,8 @@ function TopicsWorkspaceContent({
                 canProcess={canWrite && !modelSettings.notice.unavailable}
                 automaticEnabled={automaticProcessing.state.status === "on"}
                 running={running}
-                onAutomaticProcessing={turnAutomaticProcessingBackOn}
-                onManualProcessing={() => openManual("process")}
+                onAutomaticProcessing={openAutomaticProcessingFromHeader}
+                onManualProcessing={openManualProcessing}
               />
               <Sheet
                 open={historyOpen || executionId !== null}
@@ -576,7 +586,7 @@ function TopicsWorkspaceContent({
                       selectedFacetId={selectedFacetId}
                       traceFilters={traceFilters}
                       tracePanelRef={setTracePanel}
-                      onGenerateTopics={() => openManual("update")}
+                      onGenerateTopics={openTopicGeneration}
                       canGenerateTopics={
                         canWrite &&
                         !modelSettings.notice.unavailable &&

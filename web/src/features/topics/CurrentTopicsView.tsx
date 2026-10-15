@@ -148,7 +148,15 @@ export function CurrentTopicsView({
             />
           ))}
         </div>
-        {facet.topics.length === 0 && emptyTopics}
+        {facet.topics.length === 0 &&
+          (facet.map?.topics.length ? (
+            <p className="text-muted-foreground p-6 text-center text-sm">
+              No topic assignments in this time range. Choose a different time
+              range to explore existing topics.
+            </p>
+          ) : (
+            emptyTopics
+          ))}
       </div>
     </section>
   );

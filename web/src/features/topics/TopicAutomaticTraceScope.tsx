@@ -97,11 +97,7 @@ export function TopicAutomaticTraceScope({
   projectId,
   filters,
   onFiltersChange,
-}: {
-  projectId?: string;
-  filters: FilterState;
-  onFiltersChange: (filters: FilterState) => void;
-}) {
+}: TopicAutomaticTraceScopeProps) {
   if (!projectId)
     return (
       <SampleTraceScope filters={filters} onFiltersChange={onFiltersChange} />
@@ -458,3 +454,9 @@ function TraceScopeFrame({
     </div>
   );
 }
+
+type TopicAutomaticTraceScopeProps = {
+  projectId?: string;
+  filters: FilterState;
+  onFiltersChange: (filters: FilterState) => void;
+};

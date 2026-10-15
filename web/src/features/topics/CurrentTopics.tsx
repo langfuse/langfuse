@@ -141,10 +141,12 @@ export function useCurrentTopics({
     queryFn: ({ signal }) =>
       client.topics.currentResults.query({ projectId, timeRange }, { signal }),
     placeholderData: keepPreviousData,
-    refetchInterval: (query) =>
-      running || (pollForSummaries && !query.state.data?.hasStoredSummaries)
-        ? 3000
-        : false,
+    refetchInterval: (query) => {
+      if (running) return 3000;
+      return pollForSummaries && !query.state.data?.hasStoredSummaries
+        ? 10000
+        : false;
+    },
     enabled: isValidTopicTimeRange(timeRange),
     meta: { toastOperation: "topics.load" },
   });
