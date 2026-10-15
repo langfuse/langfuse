@@ -6,11 +6,11 @@ import { compileClickhouseQuery } from "./compile";
 import { getClickhouseKysely } from "./dialect";
 import { tupleIn, useFinal } from "./extensions";
 
-const ctx = { projectId: "proj-1" };
+const projectId = "proj-1";
 const START = new Date("2026-01-01T00:00:00.000Z");
 
 function compile(builder: Parameters<typeof compileClickhouseQuery>[0]) {
-  return compileClickhouseQuery(builder, ctx);
+  return compileClickhouseQuery(builder, projectId);
 }
 
 describe("typed params from the column registry", () => {

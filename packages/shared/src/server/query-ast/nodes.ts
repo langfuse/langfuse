@@ -105,6 +105,8 @@ export const ArrayIndexNode = {
 export type ClickHouseSelectQueryNode = SelectQueryNode & {
   readonly arrayJoins?: ReadonlyArray<ArrayJoinNode>;
   readonly limitBy?: LimitByNode;
+  /** Set by `includeDeleted()`: the soft-delete pass skips this select. */
+  readonly includeDeleted?: true;
 };
 
 export function isClickHouseSelectQueryNode(

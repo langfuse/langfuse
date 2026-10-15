@@ -5,10 +5,10 @@ import { getClickhouseKysely } from "./dialect";
 import { limitBy } from "./extensions";
 import { DEDUP_SPECS } from "./schema";
 
-const ctx = { projectId: "proj-1" };
+const projectId = "proj-1";
 
 function compile(builder: Parameters<typeof compileClickhouseQuery>[0]) {
-  return compileClickhouseQuery(builder, ctx);
+  return compileClickhouseQuery(builder, projectId);
 }
 
 describe("per-table dedup lowering", () => {
