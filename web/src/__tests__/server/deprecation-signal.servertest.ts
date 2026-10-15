@@ -54,6 +54,38 @@ describe("public API deprecation signal", () => {
     );
   });
 
+  // Agents parsing in code read `data` and `meta`, not top-level extras.
+  it("puts the sunset and replacement into `meta.deprecation` on list responses", async () => {
+    const response = await makeZodVerifiedAPICall(
+      GetObservationsV1Response,
+      "GET",
+      "/api/public/observations",
+      undefined,
+      auth,
+    );
+
+    expect(Object.keys(response.body)[0]).toBe("_deprecation");
+    expect(response.body.meta.deprecation).toEqual({
+      sunsetAt: V3_SUNSET_DATE,
+      replacement: OBSERVATIONS_V1_DEPRECATION.replacement,
+    });
+  });
+
+  // Errors thrown by the handler are written by withMiddlewares, not the route.
+  it("attaches `_deprecation` to a 404 from the legacy single GET /observations/{id}", async () => {
+    const response = await makeAPICall(
+      "GET",
+      `/api/public/observations/${randomUUID()}`,
+      undefined,
+      auth,
+    );
+
+    expect(response.status).toBe(404);
+    expect((response.body as Record<string, unknown>)._deprecation).toEqual(
+      OBSERVATIONS_V1_DEPRECATION,
+    );
+  });
+
   it("carries the docs URL and the committed sunset date", async () => {
     const response = await makeZodVerifiedAPICall(
       GetObservationsV1Response,

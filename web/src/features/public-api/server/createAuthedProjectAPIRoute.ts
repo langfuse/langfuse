@@ -31,7 +31,10 @@ import {
   type PublicApiErrorContract,
 } from "./structuredPublicApiErrorContract";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
-import { attachDeprecation } from "@/src/features/public-api/server/deprecations";
+import {
+  attachDeprecation,
+  setDeprecationHeaders,
+} from "@/src/features/public-api/server/deprecations";
 import { applyLegacyApiOrganizationCutoff } from "@/src/features/public-api/server/legacyApiOrganizationCutoff";
 import { type RouteAccessLevel } from "@/src/features/public-api/server/verifyProjectApiKeyAuth";
 import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
@@ -122,7 +125,7 @@ export type AuthedProjectAPIRouteConfig<
    * events_only mode and would silently return stale or empty data.
    */
   rejectInEventsOnlyMode?: boolean;
-  /** Stamps a top-level `_deprecation` object onto responses. */
+  /** Stamps `_deprecation` (and `meta.deprecation`) onto every JSON response and sends deprecation headers. */
   deprecation?: ApiDeprecationInfo;
   fn: (params: {
     query: z.infer<TQuery>;
@@ -153,6 +156,14 @@ export const createAuthedProjectAPIRoute = <
       ? routeConfig.deprecation
       : undefined;
 
+    // Every JSON body this route writes carries the signal, including auth,
+    // rate-limit and validation errors and errors thrown into withMiddlewares.
+    if (deprecation) {
+      setDeprecationHeaders(res, deprecation);
+      const json = res.json.bind(res);
+      res.json = (body: unknown) => json(attachDeprecation(body, deprecation));
+    }
+
     // Short-circuit routes that read from legacy traces/observations tables
     // when the deployment is in events_only mode — those tables are no longer
     // populated, so the response would be stale or empty. Returning 404 keeps
@@ -161,15 +172,10 @@ export const createAuthedProjectAPIRoute = <
       routeConfig.rejectInEventsOnlyMode &&
       env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only"
     ) {
-      res.status(404).json(
-        attachDeprecation(
-          {
-            message:
-              "This endpoint is not available on deployments running in Langfuse v4 events_only mode. Learn more about Langfuse v4 at: https://langfuse.com/docs/v4",
-          },
-          deprecation,
-        ),
-      );
+      res.status(404).json({
+        message:
+          "This endpoint is not available on deployments running in Langfuse v4 events_only mode. Learn more about Langfuse v4 at: https://langfuse.com/docs/v4",
+      });
       return;
     }
 
@@ -368,7 +374,7 @@ export const createAuthedProjectAPIRoute = <
       res.status(statusCode);
 
       try {
-        res.json(attachDeprecation(response || { message: "OK" }, deprecation));
+        res.json(response || { message: "OK" });
       } catch (error) {
         if (isJsonStringTooLargeError(error)) {
           throw new PayloadTooLargeError();

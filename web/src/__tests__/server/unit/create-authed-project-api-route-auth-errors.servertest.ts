@@ -327,6 +327,35 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     expect(mockFindOrganization).not.toHaveBeenCalled();
   });
 
+  it("sends deprecation headers and leads the body with `_deprecation`", async () => {
+    mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
+    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
+
+    const res = await callRoute({ deprecation });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.getHeader("Deprecation")).toBe("@1784764800");
+    expect(res.getHeader("Sunset")).toBe("Mon, 16 Nov 2026 00:00:00 GMT");
+    expect(res.getHeader("Link")).toBe(
+      '</api/public/v2/observations>; rel="successor-version", <https://langfuse.com/docs/api-and-data-platform/features/observations-api>; rel="deprecation"',
+    );
+    expect(Object.keys(res._getJSONData())[0]).toBe("_deprecation");
+  });
+
+  // Agents read error bodies more reliably than successful ones.
+  it("stamps `_deprecation` onto auth errors of deprecated routes", async () => {
+    mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
+    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce({
+      validKey: false,
+      error: "Invalid credentials.",
+    });
+
+    const res = await callRoute({ deprecation });
+
+    expect(res.statusCode).toBe(401);
+    expect(res._getJSONData()._deprecation).toEqual(deprecation);
+  });
+
   it("does not apply the organization cutoff outside Langfuse Cloud", async () => {
     mockEnv.LANGFUSE_API_ORGANIZATION_CUTOFF_ENABLED = "true";
     mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);

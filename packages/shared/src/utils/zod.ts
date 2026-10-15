@@ -151,13 +151,6 @@ export const queryStringZod = z
   .string()
   .transform((val) => decodeURIComponent(val));
 
-export const paginationMetaResponseZod = z.object({
-  page: z.number().int().positive(),
-  limit: z.number().int().positive(),
-  totalItems: z.number().int().nonnegative(),
-  totalPages: z.number().int().nonnegative(),
-});
-
 /**
  * Top-level `_deprecation` metadata returned by legacy public API endpoints.
  * Optional fields are omitted when empty (never null).
@@ -170,6 +163,17 @@ export const deprecationResponseZod = z.object({
 });
 
 export type ApiDeprecationInfo = z.infer<typeof deprecationResponseZod>;
+
+export const paginationMetaResponseZod = z.object({
+  page: z.number().int().positive(),
+  limit: z.number().int().positive(),
+  totalItems: z.number().int().nonnegative(),
+  totalPages: z.number().int().nonnegative(),
+  /** Set on list responses of legacy public API endpoints. */
+  deprecation: deprecationResponseZod
+    .pick({ sunsetAt: true, replacement: true })
+    .optional(),
+});
 
 export const urlRegex = /https?:\/\/[^\s/$.?#].[^\s]*/i;
 export const noUrlCheck = (value: string) => !urlRegex.test(value);

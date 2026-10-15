@@ -14776,11 +14776,32 @@ components:
         totalPages:
           type: integer
           description: number of total pages given the current limit
+        deprecation:
+          $ref: '#/components/schemas/utilsMetaDeprecation'
+          nullable: true
+          description: Set on list responses of deprecated endpoints.
       required:
         - page
         - limit
         - totalItems
         - totalPages
+    utilsMetaDeprecation:
+      title: utilsMetaDeprecation
+      type: object
+      description: >-
+        Short deprecation signal next to the pagination fields. The full signal
+        is the top-level `_deprecation` key.
+      properties:
+        sunsetAt:
+          type: string
+          nullable: true
+          description: >-
+            ISO date after which the endpoint may stop working, when a removal
+            date is committed.
+        replacement:
+          type: string
+          nullable: true
+          description: The replacement endpoint, e.g. "GET /api/public/v2/observations".
     utilsCursorMetaResponse:
       title: utilsCursorMetaResponse
       type: object
