@@ -35,7 +35,6 @@ const multiStepArgs: InAppAgentQuestionnaireArgs = {
         },
       ],
       allowMultiple: false,
-      allowOther: true,
     },
     {
       question: "Which signals should count as a failure?",
@@ -45,7 +44,6 @@ const multiStepArgs: InAppAgentQuestionnaireArgs = {
         { label: "High latency", description: null, recommended: false },
       ],
       allowMultiple: true,
-      allowOther: false,
     },
     {
       question: "How often should it run?",
@@ -54,7 +52,6 @@ const multiStepArgs: InAppAgentQuestionnaireArgs = {
         { label: "Once a day", description: null, recommended: false },
       ],
       allowMultiple: false,
-      allowOther: true,
     },
   ],
 };
@@ -117,9 +114,13 @@ export const AnswerAllSteps = meta.story({
     const canvas = within(canvasElement);
     await expect(canvas.getByText("1/3")).toBeVisible();
 
-    await userEvent.click(canvas.getByLabelText("Other answer"));
+    await userEvent.click(canvas.getByText("Staging"));
+    await userEvent.click(canvas.getByLabelText("Something else"));
     await userEvent.keyboard("Preview environment");
-    await userEvent.click(canvas.getByRole("button", { name: /Next/ }));
+    await expect(
+      canvas.queryByRole("button", { name: "Skip" }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("button", { name: "Next" }));
 
     await expect(canvas.getByText("2/3")).toBeVisible();
     await userEvent.click(canvas.getByText("High latency"));

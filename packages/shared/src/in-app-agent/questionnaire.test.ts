@@ -14,7 +14,6 @@ const args = {
         { label: "Code", description: "Deterministic", recommended: false },
       ],
       allowMultiple: false,
-      allowOther: true,
     },
     {
       question: "Which scores?",
@@ -23,7 +22,6 @@ const args = {
         { label: "Toxicity", description: null, recommended: false },
       ],
       allowMultiple: true,
-      allowOther: false,
     },
     {
       question: "Run it on a schedule?",
@@ -32,7 +30,6 @@ const args = {
         { label: "No", description: null, recommended: false },
       ],
       allowMultiple: false,
-      allowOther: false,
     },
   ],
 };
@@ -44,7 +41,7 @@ describe("resolveInAppAgentQuestionnaireAnswers", () => {
         args,
         answers: [
           { selectedOptionIndexes: [], otherText: "  Human review " },
-          { selectedOptionIndexes: [1, 0], otherText: null },
+          { selectedOptionIndexes: [1, 0], otherText: "Latency" },
           { selectedOptionIndexes: [], otherText: "  " },
         ],
       }),
@@ -60,7 +57,7 @@ describe("resolveInAppAgentQuestionnaireAnswers", () => {
           },
           {
             question: "Which scores?",
-            answer: ["Toxicity", "Helpfulness"],
+            answer: ["Toxicity", "Helpfulness", "Latency"],
             skipped: false,
           },
           { question: "Run it on a schedule?", answer: [], skipped: true },
@@ -87,14 +84,6 @@ describe("resolveInAppAgentQuestionnaireAnswers", () => {
       answers: [
         { selectedOptionIndexes: [0], otherText: "Other" },
         { selectedOptionIndexes: [], otherText: null },
-        { selectedOptionIndexes: [], otherText: null },
-      ],
-    },
-    {
-      name: "custom text where it is not allowed",
-      answers: [
-        { selectedOptionIndexes: [], otherText: null },
-        { selectedOptionIndexes: [0], otherText: "Latency" },
         { selectedOptionIndexes: [], otherText: null },
       ],
     },

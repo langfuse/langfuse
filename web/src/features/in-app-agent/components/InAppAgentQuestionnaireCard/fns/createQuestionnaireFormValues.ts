@@ -6,7 +6,6 @@ export function createQuestionnaireFormValues(
   return {
     answers: questions.map(() => ({
       selectedOptionIndexes: [] as number[],
-      isOtherSelected: false,
       otherText: "",
     })),
   };

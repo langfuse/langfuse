@@ -6,13 +6,12 @@ export function toQuestionnaireAnswers(
 ): InAppAgentQuestionnaireAnswers {
   return values.answers.map((answer) => {
     const otherText = answer.otherText.trim();
-    const hasOtherText = answer.isOtherSelected && otherText.length > 0;
 
     return {
       selectedOptionIndexes: [...answer.selectedOptionIndexes].sort(
         (a, b) => a - b,
       ),
-      otherText: hasOtherText ? otherText : null,
+      otherText: otherText.length > 0 ? otherText : null,
     };
   });
 }

@@ -873,7 +873,6 @@ describe("in-app agent background runs", () => {
               { label: "Code", description: null, recommended: false },
             ],
             allowMultiple: false,
-            allowOther: false,
           },
         ],
       },

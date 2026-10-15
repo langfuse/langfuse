@@ -4,12 +4,11 @@ import type { QuestionnaireFormAnswer } from "./createQuestionnaireFormValues";
 
 type QuestionnaireAnswerAction =
   | { type: "toggleOption"; optionIndex: number }
-  | { type: "toggleOther" }
   | { type: "setOtherText"; otherText: string };
 
 /**
  * Single-choice questions hold one answer at a time, so choosing an option
- * clears "Other" and typing a custom answer clears the chosen option.
+ * clears the custom answer and typing a custom answer clears the chosen option.
  */
 export function updateQuestionnaireAnswer(
   answer: QuestionnaireFormAnswer,
@@ -18,9 +17,6 @@ export function updateQuestionnaireAnswer(
 ): QuestionnaireFormAnswer {
   if (action.type === "toggleOption") {
     return toggleOption(answer, question, action.optionIndex);
-  }
-  if (action.type === "toggleOther") {
-    return toggleOther(answer, question);
   }
   if (action.type === "setOtherText") {
     return setOtherText(answer, question, action.otherText);
@@ -38,9 +34,8 @@ function toggleOption(
 
   if (!question.allowMultiple) {
     return {
-      ...answer,
       selectedOptionIndexes: isSelected ? [] : [optionIndex],
-      isOtherSelected: false,
+      otherText: "",
     };
   }
 
@@ -52,33 +47,16 @@ function toggleOption(
   };
 }
 
-function toggleOther(
-  answer: QuestionnaireFormAnswer,
-  question: InAppAgentQuestionnaireQuestion,
-): QuestionnaireFormAnswer {
-  const isOtherSelected = !answer.isOtherSelected;
-
-  return {
-    ...answer,
-    selectedOptionIndexes:
-      isOtherSelected && !question.allowMultiple
-        ? []
-        : answer.selectedOptionIndexes,
-    isOtherSelected,
-  };
-}
-
 function setOtherText(
   answer: QuestionnaireFormAnswer,
   question: InAppAgentQuestionnaireQuestion,
   otherText: string,
 ): QuestionnaireFormAnswer {
+  const clearsSelection =
+    !question.allowMultiple && otherText.trim().length > 0;
+
   return {
-    ...answer,
-    selectedOptionIndexes: question.allowMultiple
-      ? answer.selectedOptionIndexes
-      : [],
-    isOtherSelected: true,
+    selectedOptionIndexes: clearsSelection ? [] : answer.selectedOptionIndexes,
     otherText,
   };
 }

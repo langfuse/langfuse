@@ -7,7 +7,7 @@ import {
   type KeyboardEvent,
   type SyntheticEvent,
 } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { ChevronDown, ChevronUp, X } from "lucide-react";
 import type {
   InAppAgentQuestionnaireAnswers,
@@ -95,6 +95,11 @@ function QuestionnaireForm({
     defaultValues: createQuestionnaireFormValues(questions),
   });
 
+  const otherText = useWatch({
+    control: form.control,
+    name: `answers.${stepIndex}.otherText`,
+  });
+
   const question = questions[stepIndex];
   const stepCount = questions.length;
   const isLastStep = stepIndex === stepCount - 1;
@@ -167,6 +172,19 @@ function QuestionnaireForm({
       />
     ) : null;
 
+  // A typed answer brings its own submit button next to the input.
+  const nextButton =
+    otherText.trim().length > 0 ? null : (
+      <Button
+        text={nextLabel}
+        size="sm"
+        shortcutKeys={["Mod", "Enter"]}
+        disabled={isDisabled}
+        loading={isSubmitting || form.formState.isSubmitting}
+        onClick={goToNextStep}
+      />
+    );
+
   return (
     <form
       aria-labelledby={titleId}
@@ -207,27 +225,17 @@ function QuestionnaireForm({
             control={form.control}
             question={question}
             questionIndex={stepIndex}
+            submitLabel={nextLabel}
             isDisabled={isBusy}
+            onSkip={handleSkip}
           />
-          <div className="flex items-center gap-2 px-3 pb-3">
-            {backButton}
-            <span className="flex-1" />
-            <Button
-              text="Skip"
-              variant="secondary"
-              size="sm"
-              disabled={isBusy}
-              onClick={handleSkip}
-            />
-            <Button
-              text={nextLabel}
-              size="sm"
-              shortcutKeys={["Mod", "Enter"]}
-              disabled={isDisabled}
-              loading={isSubmitting || form.formState.isSubmitting}
-              onClick={goToNextStep}
-            />
-          </div>
+          {backButton || nextButton ? (
+            <div className="flex items-center gap-2 px-3 pb-3">
+              {backButton}
+              <span className="flex-1" />
+              {nextButton}
+            </div>
+          ) : null}
         </>
       )}
     </form>

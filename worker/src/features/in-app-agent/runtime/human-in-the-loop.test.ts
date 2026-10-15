@@ -238,7 +238,6 @@ const questionnaireRequest = {
           { label: "Code", description: null, recommended: false },
         ],
         allowMultiple: false,
-        allowOther: false,
       },
       {
         question: "Anything else?",
@@ -247,7 +246,6 @@ const questionnaireRequest = {
           { label: "No", description: null, recommended: false },
         ],
         allowMultiple: false,
-        allowOther: false,
       },
     ],
   },

@@ -31,14 +31,11 @@ const InAppAgentQuestionnaireQuestionSchema = z.object({
       { message: "Mark at most one option per question as recommended." },
     )
     .describe(
-      `${IN_APP_AGENT_QUESTIONNAIRE_MIN_OPTIONS} to ${IN_APP_AGENT_QUESTIONNAIRE_MAX_OPTIONS} distinct answer options. Do not add an "Other" option; set allowOther instead.`,
+      `${IN_APP_AGENT_QUESTIONNAIRE_MIN_OPTIONS} to ${IN_APP_AGENT_QUESTIONNAIRE_MAX_OPTIONS} distinct answer options. Do not add an "Other" option; the user can always type a custom answer.`,
     ),
   allowMultiple: z
     .boolean()
     .describe("Whether the user may select more than one option."),
-  allowOther: z
-    .boolean()
-    .describe("Whether the user may type a custom answer besides the options."),
 });
 
 export const InAppAgentQuestionnaireArgsSchema = z.object({
@@ -159,10 +156,6 @@ function resolveAnswer(
   const hasDuplicates =
     new Set(selectedOptionIndexes).size !== selectedOptionIndexes.length;
   if (isOutOfRange || hasDuplicates) {
-    return null;
-  }
-
-  if (otherText !== null && !question.allowOther) {
     return null;
   }
 
