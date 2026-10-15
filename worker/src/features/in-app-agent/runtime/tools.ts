@@ -481,6 +481,7 @@ export function createQuestionnaireTool() {
       `Ask the user up to ${IN_APP_AGENT_QUESTIONNAIRE_MAX_QUESTIONS} short questions in one form when you need decisions you cannot infer from context.`,
       `Give each question ${IN_APP_AGENT_QUESTIONNAIRE_MIN_OPTIONS} to ${IN_APP_AGENT_QUESTIONNAIRE_MAX_OPTIONS} concrete options and mark the best default as recommended. The user can always type a custom answer instead, so do not add an "Other" option. Ask open-ended questions in plain chat instead.`,
       "Batch related questions into a single call instead of asking one at a time.",
+      "Before calling, write one short sentence in chat that tells the user why you are asking, so the form does not appear without context.",
       "The user may skip individual questions or dismiss the form, which skips every question (skipped: true); respect that and do not ask the same questions again.",
     ].join(" "),
     inputSchema: InAppAgentQuestionnaireArgsSchema,
