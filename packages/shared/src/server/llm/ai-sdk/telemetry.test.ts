@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { TraceSinkParams } from "../types";
 import { createAiSdkTelemetryCapture } from "./telemetry";
@@ -28,6 +28,10 @@ const traceSinkParams: TraceSinkParams = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 describe("createAiSdkTelemetryCapture", () => {
@@ -152,5 +156,16 @@ describe("createAiSdkTelemetryCapture", () => {
         ]),
       ),
     ).toMatchObject({ "error.type": "Error" });
+  });
+
+  it("ignores the host's OTEL_TRACES_SAMPLER", async () => {
+    vi.stubEnv("OTEL_TRACES_SAMPLER", "parentbased_traceidratio");
+    vi.stubEnv("OTEL_TRACES_SAMPLER_ARG", "0");
+
+    const capture = createAiSdkTelemetryCapture({ traceSinkParams });
+    await capture!.run(async () => "done");
+    await capture!.flush();
+
+    expect(publishToOtelIngestionQueue).toHaveBeenCalledTimes(1);
   });
 });
