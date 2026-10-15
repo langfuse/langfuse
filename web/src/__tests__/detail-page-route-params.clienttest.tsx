@@ -52,7 +52,51 @@ vi.mock("@/src/utils/api", () => ({
         useQuery: () => ({ data: undefined, refetch: vi.fn() }),
       },
     },
+    slack: {
+      getIntegrationStatus: {
+        useQuery: () => ({ data: undefined, isLoading: false }),
+      },
+    },
   },
+}));
+
+vi.mock("@/src/components/layouts/container-page", () => ({
+  default: ({
+    children,
+    headerProps,
+  }: {
+    children: ReactNode;
+    headerProps?: { actionButtonsRight?: ReactNode };
+  }) => (
+    <div data-testid="slack-page">
+      {headerProps?.actionButtonsRight}
+      {children}
+    </div>
+  ),
+}));
+
+vi.mock("@/src/features/automations", () => ({
+  AutomationButton: ({ projectId }: { projectId: string }) => (
+    <div data-testid="automation-button">{projectId}</div>
+  ),
+}));
+
+vi.mock("@/src/features/slack/components/SlackConnectionCard", () => ({
+  SlackConnectionCard: ({ projectId }: { projectId: string }) => (
+    <div data-testid="slack-connection-card">{projectId}</div>
+  ),
+}));
+
+vi.mock("@/src/features/slack/components/ChannelSelector", () => ({
+  ChannelSelector: () => null,
+}));
+
+vi.mock("@/src/features/slack/components/SlackTestMessageButton", () => ({
+  SlackTestMessageButton: () => null,
+}));
+
+vi.mock("@/src/features/rbac", () => ({
+  useHasProjectAccess: () => true,
 }));
 
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
@@ -108,6 +152,7 @@ import AnnotationQueueItemRoute from "@/src/pages/project/[projectId]/annotation
 import AnnotationQueueItemsIndexRoute from "@/src/pages/project/[projectId]/annotation-queues/[queueId]/index";
 import DatasetExperimentsRoute from "@/src/pages/project/[projectId]/datasets/[datasetId]/experiments/index";
 import NewWidgetRoute from "@/src/pages/project/[projectId]/widgets/new";
+import SlackIntegrationRoute from "@/src/pages/project/[projectId]/settings/integrations/slack";
 
 function mockRouterQuery(query: Record<string, string | string[] | undefined>) {
   (useRouter as Mock).mockReturnValue({
@@ -201,5 +246,19 @@ describe("detail page deep-link route params", () => {
     mockRouterQuery({ projectId: ["p1", "p1"] });
     render(<NewWidgetRoute />);
     expect(screen.queryByTestId("widget-form")).toBeNull();
+  });
+
+  test("slack integration does not mount automations.count while router.query is empty", () => {
+    mockRouterQuery({});
+    render(<SlackIntegrationRoute />);
+    expect(screen.queryByTestId("automation-button")).toBeNull();
+    expect(screen.queryByTestId("slack-connection-card")).toBeNull();
+  });
+
+  test("slack integration mounts once projectId is a string", () => {
+    mockRouterQuery({ projectId: "p1" });
+    render(<SlackIntegrationRoute />);
+    expect(screen.getByTestId("automation-button")).toHaveTextContent("p1");
+    expect(screen.getByTestId("slack-connection-card")).toHaveTextContent("p1");
   });
 });
