@@ -28,6 +28,10 @@
   generation in the full thread.
 - Domain model types: `src/domain/*`
 - Repository layer: `src/server/repositories/*`
+- Billing ledger: the append-only `billable_events` table (created by
+  `clickhouse/scripts/dev-tables.sh`, applied by hand on Cloud, not
+  migration-managed) read via `src/server/repositories/billable-events.ts`.
+  Keep it out of every delete, retention and cleaner path.
 - Queue payload schemas: `src/server/queues.ts`
 - Queue helpers: `src/server/redis/*`
   `getShardIndex` from `src/server/redis/sharding.ts` is exported by the server
@@ -43,11 +47,12 @@
 - Code evaluator dispatcher/error contract: `src/server/evals/codeEvalDispatcherTypes.ts`. Keep provider mappings, user-visible messages, and worker terminal-outcome classification aligned when adding an error code.
 - Dashboard/monitor query feature (data model + server-only builder/executor): `src/features/query/*`
 - Query-builder AST (server half, WIP): `src/server/query-ast/*` — the Kysely
-  ClickHouse dialect (ARRAY JOIN / LIMIT BY / FINAL / metadata indexOf nodes,
-  `ExecutionContext` tenancy injection, per-table dedup lowering, virtual views,
-  catalog parity). Compile only through `compileClickhouseQuery` in
-  `src/server/query-ast/compile.ts`. SQL correctness is proven by a golden-SQL
-  harness (`src/server/repositories/goldenHarness.ts`, capturing at the
+  ClickHouse dialect (ARRAY JOIN / LIMIT BY / FINAL / metadata subscript nodes,
+  single-project tenancy injection, per-table soft-delete filtering and
+  dedup lowering, virtual views, catalog parity). Compile only through
+  `compileClickhouseQuery` in `src/server/query-ast/compile.ts`. SQL
+  correctness is proven by a golden-SQL harness
+  (`src/server/repositories/goldenHarness.ts`, capturing at the
   `src/server/repositories/clickhouse.ts` exec seam and normalizing via
   `clickhouse format`); each migrated call site keeps its `*.golden.test.ts`
   baseline next to the call site (e.g.

@@ -11,8 +11,8 @@ const meta = preview.meta({
       { key: "True", values: { first: 18, second: 10 } },
     ],
     series: [
-      { id: "first", label: "First", color: "hsl(var(--chart-1))" },
-      { id: "second", label: "Second", color: "hsl(var(--chart-2))" },
+      { id: "first", label: "First", color: "hsl(var(--chart-fill-1))" },
+      { id: "second", label: "Second", color: "hsl(var(--chart-fill-2))" },
     ],
   },
   decorators: [

@@ -693,7 +693,7 @@ describe("chbWebhookHandler", () => {
 
       await chbWebhookHandler(post(attachedPlanCreated()));
 
-      expect(seededThresholds()).toEqual([2000, 4000]);
+      expect(seededThresholds()).toEqual([5000]);
     });
 
     it("leaves an org's own alerts alone", async () => {

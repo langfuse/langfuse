@@ -30,6 +30,7 @@ import { tokenCountAsync } from "../../features/tokenisation/async-usage";
 import { tokenCount } from "../../features/tokenisation/usage";
 import { TopicsProviderUnavailable } from "../../features/topics/provider-error";
 import { summarizeAssembledTrace } from "../../features/topics/summarizeAssembledTrace";
+import { enqueueTopicsAutomation } from "../../features/topics/topicsAutomation";
 import {
   getEnabledTopicsModels,
   listTopicFacets,
@@ -65,6 +66,10 @@ vi.mock("../../features/topics/summarizeAssembledTrace", () => ({
     outcome: "unchanged",
     rows: [],
   })),
+}));
+
+vi.mock("../../features/topics/topicsAutomation", () => ({
+  enqueueTopicsAutomation: vi.fn(async () => {}),
 }));
 
 vi.mock("@langfuse/shared/topics/server", () => ({
@@ -820,6 +825,12 @@ describe("trace batch queue", () => {
         .mocked(writeTopicSummaries)
         .mock.lastCall![0].map((row) => row.projectId),
     ).toEqual(["a", "b"]);
+    // Only stored rows are queued for assignment.
+    expect(
+      vi
+        .mocked(enqueueTopicsAutomation)
+        .mock.lastCall![1].map((row) => row.projectId),
+    ).toEqual(["a", "b"]);
 
     // Like ClickhouseWriter, an outage drops the insert once instead of splitting it.
     vi.mocked(recordIncrement).mockClear();
@@ -834,6 +845,7 @@ describe("trace batch queue", () => {
       2,
       { outcome: "failed", reason: "storage" },
     );
+    expect(vi.mocked(enqueueTopicsAutomation).mock.lastCall![1]).toEqual([]);
     vi.mocked(writeTopicSummaries).mockReset();
     vi.mocked(summarizeAssembledTrace).mockImplementation(async () => ({
       outcome: "unchanged",
@@ -841,7 +853,7 @@ describe("trace batch queue", () => {
     }));
   });
 
-  it("stores completed traces' rows before rethrowing a failed stream, so a retry skips them", async () => {
+  it("stores and queues completed traces' rows before rethrowing a failed stream, so a retry skips them", async () => {
     const failure = new Error("query failed");
     const event = (projectId: string) => ({
       project_id: projectId,
@@ -898,6 +910,73 @@ describe("trace batch queue", () => {
     expect(vi.mocked(writeTopicSummaries).mock.calls[0][0]).toEqual([
       { projectId: "a", state: "complete" },
     ]);
+    // A retry skips stored rows, so they are queued before the failure rethrows.
+    expect(enqueueTopicsAutomation).toHaveBeenCalledWith("stream-failure", [
+      { projectId: "a", state: "complete" },
+    ]);
+    vi.mocked(summarizeAssembledTrace).mockImplementation(async () => ({
+      outcome: "unchanged",
+      rows: [],
+    }));
+  });
+
+  it("keeps the batch successful when Topics assignment cannot be queued", async () => {
+    vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
+      yield {
+        project_id: "a",
+        trace_id: "trace",
+        environment: "default",
+        span_id: "span",
+        parent_span_id: null,
+        start_time: "2026-09-11 00:00:00.000000",
+        event_ts: "2026-09-11 00:00:00.000000",
+        type: "GENERATION",
+        name: "generation",
+        input: JSON.stringify([{ role: "user", content: "question" }]),
+        output: JSON.stringify({ role: "assistant", content: "answer" }),
+        metadata: {},
+        level: "DEFAULT",
+        status_message: null,
+        tool_definitions: {},
+        tool_calls: [],
+        tool_call_names: [],
+      };
+    });
+    vi.mocked(summarizeAssembledTrace).mockImplementation(async () => ({
+      outcome: "summarized",
+      rows: [{ projectId: "a", state: "complete" } as TopicSummary],
+    }));
+    vi.mocked(enqueueTopicsAutomation).mockRejectedValueOnce(
+      new Error("Redis unavailable"),
+    );
+    const job = {
+      data: {
+        id: "enqueue-failure",
+        name: QueueJobs.TraceBatch,
+        timestamp: new Date(),
+        payload: {
+          traces: [
+            {
+              projectId: "a",
+              traceId: "trace",
+              minStart: 0,
+              maxStart: 1,
+              revision: "r",
+            },
+          ],
+        },
+      },
+    } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+
+    await expect(traceBatchQueueProcessor(job, undefined)).resolves.toEqual(
+      expect.objectContaining({ traceCount: 1 }),
+    );
+    expect(writeTopicSummaries).toHaveBeenCalledOnce();
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.topics.trace_outcomes",
+      1,
+      { outcome: "summarized" },
+    );
     vi.mocked(summarizeAssembledTrace).mockImplementation(async () => ({
       outcome: "unchanged",
       rows: [],

@@ -483,6 +483,7 @@ export function ConnectedObservationDetailView({
                 onPrettyViewAvailabilityChange={setIsPrettyViewAvailable}
                 previewProps={{
                   observationName: observation.name ?? undefined,
+                  observationType: observation.type,
                   input: observationWithIOCompat.data?.input ?? undefined,
                   output: observationWithIOCompat.data?.output ?? undefined,
                   status: observation.statusMessage

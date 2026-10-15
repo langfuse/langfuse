@@ -2,6 +2,7 @@ import preview from "../../../../../.storybook/preview";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 
 import { HorizontalBarChart } from "./HorizontalBarChart";
+import { chartFillColors } from "../constants";
 
 const meta = preview.meta({
   component: HorizontalBarChart,
@@ -138,8 +139,8 @@ export const CategoryColors = meta.story({
   name: "(Test) Category Colors",
   args: {
     data: [
-      { label: "Alpha", value: 12, color: "#3a3dee" },
-      { label: "Beta", value: 24, color: "#07b9d5" },
+      { label: "Alpha", value: 12, color: chartFillColors[0] },
+      { label: "Beta", value: 24, color: chartFillColors[1] },
     ],
   },
   play: async ({ canvasElement }) => {
@@ -151,7 +152,7 @@ export const CategoryColors = meta.story({
     );
     await expect(tooltip.querySelector("svg rect")).toHaveAttribute(
       "fill",
-      "#07b9d5",
+      chartFillColors[1],
     );
   },
 });

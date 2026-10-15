@@ -181,6 +181,25 @@ traces that arrive meanwhile are not queued. An authentication or billing error
 (HTTP 401, 402, 403) turns the project's automatic processing off with the
 failing slot as the reason, and the rest of the batch skips that project.
 
+After the write, the batch queues its stored complete summaries on
+`topics-automation`, one job per project and 100 traces; a retried batch reuses
+its job IDs. A failed enqueue is logged and does not fail the batch. The job
+rereads those summaries and assigns the ones not yet assigned to their facet's
+compatible serving map with origin `online`; BullMQ retries a failed job three
+times. Each Topics queue has its own `QUEUE_CONSUMER_<QUEUE>_QUEUE_IS_ENABLED`
+switch (`TOPICS`, `TOPICS_UPDATE`, `TOPICS_EMBEDDING`, `TOPICS_AUTOMATION`); set
+them to `false` on fleets that only run trace batches.
+
+A facet version without any map starts one automatic **Update topics** execution
+once it has 100 compatible summaries from the last seven days, while automatic
+processing is on with the embedding model those summaries used. It appears in
+History under the `system:topics` actor. A queued execution is queued again by
+the next job; a failed one is never restarted automatically and is resumed from
+History. An existing map or fit in progress for the version, even an
+incompatible one, blocks discovery; replace it with **Update topics**. Summaries
+stored while the first map is being fitted stay unassigned until the next
+**Update topics**.
+
 Required for a local run, in addition to Postgres, ClickHouse, and Redis:
 
 | Variable                                      | Role                                                                                                                                                                                                                                                 |
@@ -372,8 +391,11 @@ before expanding deployment.
 
 The same classifier determines initial and later memberships. Naming sees its
 effective populations: every member's full facet summary, plus three nearby
-contrasts. Each group gets one naming call with no tool loop. Unique names and
-member evidence references are validated before accepting output.
+contrasts. Each group gets one naming call with no tool loop. If the name is
+already taken in the run, one `topics-naming-conflict` call sees the conflicting
+topic and is asked for a distinguishing name; a name that still repeats is kept,
+since topics are keyed by ID. Member evidence references are validated before
+accepting output.
 The provider schema keeps evidence IDs as strings, avoiding the API's enum-size
 limit for large clusters; local validation still requires genuine member IDs. This checks structural grounding, not factual
 or semantic correctness; inspect the examples to judge usefulness.
@@ -462,8 +484,9 @@ the completed attempt without fitting again. Skipped attempts also resume
 without recomputation, using the previously saved cohort count to distinguish
 no applicable summaries from insufficient data.
 
-There is no automatic discovery schedule or stream producer yet. The planned
-six-hour scheduler should invoke the same update path as the manual button.
+Automatic processing starts only a facet version's first discovery; there is no
+refit schedule yet. The planned six-hour scheduler should invoke the same update
+path as the manual button.
 Large per-project discovery, all-member naming, and distributed stream processing
 remain follow-up work; this is not a 100-million-traces/day throughput validation.
 

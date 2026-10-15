@@ -40,6 +40,8 @@ interface SpanContentProps {
   commentCount?: number;
   onSelect?: () => void;
   onHover?: () => void;
+  /** The row surface behind the content; chips flip their fill on `muted`. */
+  surface?: "default" | "muted";
   className?: string;
 }
 
@@ -73,9 +75,11 @@ function LoadedSpanContent({
   commentCount,
   onSelect,
   onHover,
+  surface = "default",
   className,
 }: SpanContentProps) {
   const { mergedScores } = useTraceData();
+  const chipColor = surface === "muted" ? "filledOnMuted" : "filled";
   const { showDuration, showCostTokens, showScores, showComments } =
     useViewPreferences();
 
@@ -139,7 +143,9 @@ function LoadedSpanContent({
             {/* Comment count */}
             {showComments &&
               commentCount !== undefined &&
-              commentCount !== 0 && <CommentCountIcon count={commentCount} />}
+              commentCount !== 0 && (
+                <CommentCountIcon count={commentCount} color={chipColor} />
+              )}
 
             {/* Level badge */}
             {node.type !== "TRACE" &&
@@ -198,7 +204,11 @@ function LoadedSpanContent({
                 opens a table of all scores. */}
             {shouldRenderScores && (
               <span className="flex min-w-0 items-center gap-1">
-                <GroupedScoreBadges maxVisible={1} scores={nodeScores} />
+                <GroupedScoreBadges
+                  maxVisible={1}
+                  scores={nodeScores}
+                  color={chipColor}
+                />
               </span>
             )}
           </div>

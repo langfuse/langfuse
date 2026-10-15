@@ -1,12 +1,19 @@
+import { useState } from "react";
 import { VirtualizedTree } from "./VirtualizedTree";
-import { VirtualizedTreeNodeWrapper } from "./VirtualizedTreeNodeWrapper";
+import {
+  VirtualizedTreeNodeWrapper,
+  type TreeNodeMetadata,
+} from "./VirtualizedTreeNodeWrapper";
 import { SpanContent } from "./SpanContent";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHandlePrefetchObservation";
 import { useSelectTraceNode } from "@/src/features/traces/hooks/useSelectTraceNode";
 import { type TreeNode } from "../types/treeNode";
-import { metricEmphasisFor } from "@/src/features/traces/fns/metricEmphasis";
+import {
+  metricEmphasisFor,
+  type MetricEmphasisContext,
+} from "@/src/features/traces/fns/metricEmphasis";
 
 /**
  * TraceTree - Composition of VirtualizedTree + TreeNodeWrapper + SpanContent.
@@ -66,35 +73,65 @@ function LoadedTraceTree() {
       selectedNodeId={selectedNodeId}
       onToggleCollapse={toggleCollapsed}
       onSelectNode={handleSelectNode}
-      renderNode={({
-        node,
-        treeMetadata,
-        isSelected,
-        isCollapsed,
-        onToggleCollapse,
-        onSelect,
-      }) => {
+      renderNode={({ node, ...row }) => {
         const typedNode = node as TreeNode;
         return (
-          <VirtualizedTreeNodeWrapper
-            metadata={treeMetadata}
-            nodeType={typedNode.type}
-            hasChildren={typedNode.children.length > 0}
-            isCollapsed={isCollapsed}
-            onToggleCollapse={onToggleCollapse}
-            isSelected={isSelected}
-            onSelect={onSelect}
-          >
-            <SpanContent
-              node={typedNode}
-              emphasis={metricEmphasisFor(typedNode, metricEmphasis)}
-              commentCount={comments.get(typedNode.id)}
-              onSelect={onSelect}
-              onHover={() => handleHover(typedNode)}
-            />
-          </VirtualizedTreeNodeWrapper>
+          <TraceTreeRow
+            {...row}
+            node={typedNode}
+            emphasis={metricEmphasisFor(typedNode, metricEmphasis)}
+            commentCount={comments.get(typedNode.id)}
+            onHover={() => handleHover(typedNode)}
+          />
         );
       }}
     />
+  );
+}
+
+/** One row; tracks hover so the content's chips flip with the row surface. */
+function TraceTreeRow({
+  node,
+  treeMetadata,
+  isSelected,
+  isCollapsed,
+  onToggleCollapse,
+  onSelect,
+  emphasis,
+  commentCount,
+  onHover,
+}: {
+  node: TreeNode;
+  treeMetadata: TreeNodeMetadata;
+  isSelected: boolean;
+  isCollapsed: boolean;
+  onToggleCollapse: () => void;
+  onSelect: () => void;
+  emphasis: MetricEmphasisContext | undefined;
+  commentCount: number | undefined;
+  onHover: () => void;
+}) {
+  const [isHovered, setIsHovered] = useState(false);
+
+  return (
+    <VirtualizedTreeNodeWrapper
+      metadata={treeMetadata}
+      nodeType={node.type}
+      hasChildren={node.children.length > 0}
+      isCollapsed={isCollapsed}
+      onToggleCollapse={onToggleCollapse}
+      isSelected={isSelected}
+      onSelect={onSelect}
+      onHoverChange={setIsHovered}
+    >
+      <SpanContent
+        node={node}
+        emphasis={emphasis}
+        commentCount={commentCount}
+        onSelect={onSelect}
+        onHover={onHover}
+        surface={isSelected || isHovered ? "muted" : "default"}
+      />
+    </VirtualizedTreeNodeWrapper>
   );
 }
