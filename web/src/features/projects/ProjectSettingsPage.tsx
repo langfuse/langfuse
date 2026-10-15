@@ -423,11 +423,12 @@ function ProjectMembersSettings({
 const IntegrationCardHeader = (props: {
   status: Status | undefined;
   isLoading: boolean;
+  hasAccess: boolean;
   children: React.ReactNode;
 }) => (
   <div className="mb-4 flex items-center justify-between gap-2">
     <div className="flex items-center gap-2">{props.children}</div>
-    {!props.isLoading && (
+    {props.hasAccess && !props.isLoading && (
       <StatusBadge type={props.status ?? "not_configured"} />
     )}
   </div>
@@ -459,6 +460,7 @@ const Integrations = (props: { projectId: string }) => {
           <IntegrationCardHeader
             status={posthog.isConfigured ? posthog.status : undefined}
             isLoading={posthog.query.isLoading}
+            hasAccess={hasAccess}
           >
             <PostHogLogo className="text-foreground w-40" />
           </IntegrationCardHeader>
@@ -489,6 +491,7 @@ const Integrations = (props: { projectId: string }) => {
           <IntegrationCardHeader
             status={mixpanel.isConfigured ? mixpanel.status : undefined}
             isLoading={mixpanel.query.isLoading}
+            hasAccess={hasAccess}
           >
             <MixpanelLogo className="text-foreground w-20" />
           </IntegrationCardHeader>
@@ -519,6 +522,7 @@ const Integrations = (props: { projectId: string }) => {
           <IntegrationCardHeader
             status={blobStorage.status}
             isLoading={blobStorage.query.isLoading}
+            hasAccess={hasAccess}
           >
             <span className="font-bold">Blob Storage</span>
           </IntegrationCardHeader>
@@ -553,6 +557,7 @@ const Integrations = (props: { projectId: string }) => {
             <IntegrationCardHeader
               status={externalMediaStorage.status}
               isLoading={externalMediaStorage.query.isLoading}
+              hasAccess={hasAccess}
             >
               <span className="font-bold">External Media Storage</span>
             </IntegrationCardHeader>
@@ -584,6 +589,7 @@ const Integrations = (props: { projectId: string }) => {
           <IntegrationCardHeader
             status={slack.isConfigured ? slack.status : undefined}
             isLoading={slack.query.isLoading}
+            hasAccess={hasAccess}
           >
             <SiSlack className="text-foreground icon-lg" />
             <span className="font-bold">Slack</span>
@@ -607,6 +613,7 @@ const Integrations = (props: { projectId: string }) => {
           <IntegrationCardHeader
             status={webCallouts.status}
             isLoading={webCallouts.query.isLoading}
+            hasAccess={hasAccess}
           >
             <Webhook className="text-foreground icon-lg" />
             <span className="font-bold">Web Callouts</span>
