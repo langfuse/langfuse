@@ -49,25 +49,24 @@ export async function prepareOtelBatch(params: {
   try {
     if (!isIngestionMaskingEnabled()) {
       codepath = extractMedia ? "inline_check" : "disabled";
+      const inputStartedAt = performance.now();
       const needsExtraction =
         extractMedia &&
         (bytes.length > MAX_SYNC_MEDIA_CHECK_BYTES ||
-          measureOtelMainThread("candidate_check", () =>
-            hasOtelMediaCandidate(bytes),
-          ));
+          hasOtelMediaCandidate(bytes));
       if (needsExtraction) codepath = "uv_dispatch";
-      const batch = needsExtraction
-        ? await measureOtelMainThread("native_dispatch", () =>
-            extractOtelMedia(bytes),
-          )
-        : null;
+      const extraction = needsExtraction ? extractOtelMedia(bytes) : null;
+      recordDistribution(
+        "langfuse.ingestion.otel.main_thread_duration_ms",
+        performance.now() - inputStartedAt,
+        { phase: "input_handling", media_path: "early" },
+      );
+      const batch = needsExtraction ? await extraction : null;
       outcome = batch ? "native" : "unchanged";
       return { batch: batch ?? undefined, sourceUnchanged: !batch };
     }
     codepath = "uv_dispatch";
-    originalInput = await measureOtelMainThread("native_dispatch", () =>
-      validateOtelJson(bytes),
-    );
+    originalInput = await validateOtelJson(bytes);
     const masking = await applyIngestionMasking(
       {
         ...context,
@@ -99,9 +98,7 @@ export async function prepareOtelBatch(params: {
             const json = stripResponseJsonBoms(
               Buffer.from(await response.arrayBuffer()),
             );
-            maskedInput = await measureOtelMainThread("native_dispatch", () =>
-              validateOtelJson(json),
-            );
+            maskedInput = await validateOtelJson(json);
             return {
               bytes:
                 measureOtelMainThread("native_result", () =>
@@ -127,9 +124,7 @@ export async function prepareOtelBatch(params: {
     } else {
       await originalInput.dispose();
     }
-    const batch = await measureOtelMainThread("native_dispatch", () =>
-      masking.data.validated.extract(extractMedia),
-    );
+    const batch = await masking.data.validated.extract(extractMedia);
     outcome = "native";
     return {
       batch,
@@ -197,7 +192,7 @@ export async function parsePreparedOtelBatch(
   }
 }
 
-// Native calls return promises; only their synchronous entry is timed here.
+// Measure synchronous result handling; awaited native work stays outside.
 function measureOtelMainThread<T>(phase: string, work: () => T): T {
   const startedAt = performance.now();
   try {
