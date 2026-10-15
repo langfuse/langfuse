@@ -13,7 +13,7 @@ export function PrototypeOptions({ projectId }: { projectId: string }) {
   return (
     <PopoverController
       align="end"
-      contentClassName="w-80 p-4"
+      contentClassName="w-[min(20rem,calc(100vw-2rem))] p-4"
       disabled={false}
       modal={false}
       renderContent={() => (

@@ -16,6 +16,7 @@ import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { usdFormatter } from "@/src/utils/numbers";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { AgentSessionPeek } from "./AgentSessionPeek";
 import {
   formatAgentDuration,
@@ -70,11 +71,14 @@ export function AgentSessions({
       accessorKey: "id",
       header: "Session / trace",
       size: 290,
+      loadingCell: <Skeleton className="h-4 w-32" />,
       renderCell: (id, { row }) => (
         <div className="ph-no-capture flex min-w-0 items-center gap-2">
           <span
             className="truncate font-mono"
-            title={row.original.sessionId ?? row.original.traceId ?? id}
+            title={
+              row.original.sessionId ?? row.original.traceId ?? id ?? undefined
+            }
           >
             {row.original.sessionId ?? row.original.traceId ?? id}
           </span>
@@ -102,7 +106,7 @@ export function AgentSessions({
     createNumberTableColumn<AgentProjectionSession>({
       accessorKey: "windowCost",
       header: "Agent cost",
-      formatter: usdFormatter,
+      formatter: (value) => usdFormatter(value),
       size: 110,
     }),
     createNumberTableColumn<AgentProjectionSession>({
@@ -115,6 +119,7 @@ export function AgentSessions({
       accessorKey: "completePerSession",
       header: "Context",
       size: 140,
+      loadingCell: <Skeleton className="h-4 w-24" />,
       renderCell: (complete, { row }) => (
         <Badge
           color={complete ? "primary" : "yellow"}
@@ -143,12 +148,12 @@ export function AgentSessions({
   const peekRow = projection.sessions.find(
     (session) => session.sessionId === peek && session.agentName === agentName,
   );
-  const traceAgents: Record<string, string[]> = {};
+  const traceAgents = new Map<string, string[]>();
   for (const row of projection.map.rows) {
     if (row.agentName)
-      traceAgents[row.traceId] = [
-        ...new Set([...(traceAgents[row.traceId] ?? []), row.agentName]),
-      ];
+      traceAgents.set(row.traceId, [
+        ...new Set([...(traceAgents.get(row.traceId) ?? []), row.agentName]),
+      ]);
   }
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-4">

@@ -24,12 +24,12 @@ export function AgentCoverage({
           <span className="text-xs">
             {coverage.missingSessionTraces} sessionless traces ·{" "}
             {coverage.incompleteSessions} incomplete session contexts ·{" "}
-            {coverage.unlinkedObservations} observations without agent
-            attribution.{" "}
+            {coverage.unlinkedObservations} observations without session or
+            trace IDs.{" "}
             {limited &&
               "Some results reached a query limit or history boundary; rankings and comparisons are limited to the returned cohort. "}
-            Skills use tool-name matching. Native aggregation can replace this
-            read model.
+            Skill evidence distinguishes native references from legacy tool
+            matching. Native aggregation can replace this read model.
           </span>
         </Alert.Description>
       </Alert>

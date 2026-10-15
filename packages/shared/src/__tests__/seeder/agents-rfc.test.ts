@@ -130,6 +130,36 @@ describe("agents RFC seed fixture", () => {
     }
   });
 
+  it("mirrors native skill availability and resource loads alongside legacy and unmanaged evidence", () => {
+    const fixture = buildAgentsRfcFixture(context, params);
+    const generation = fixture.events.find((row) =>
+      row.span_id.endsWith("-t-baseline-2-1-invoke-model"),
+    );
+    expect(generation?.skills_available).toEqual([
+      { skillName: "source-discovery" },
+      { skillName: "evidence-ranking" },
+    ]);
+    const loaded = fixture.events.find((row) =>
+      row.span_id.endsWith("-t-baseline-2-1-invoke-skill-0"),
+    );
+    expect(loaded?.name).toBe("Skill");
+    expect(loaded?.skills_resource_loaded).toEqual([
+      { skillName: "source-discovery", filePath: "SKILL.md" },
+    ]);
+    const legacy = fixture.events.find((row) =>
+      row.span_id.endsWith("-t-baseline-2-1-invoke-skill-1"),
+    );
+    expect(legacy?.name).toBe("load_skill");
+    expect(legacy?.skills_resource_loaded).toBeUndefined();
+    expect(
+      fixture.events.some((row) =>
+        row.skills_resource_loaded?.some(
+          (skill) => skill.skillName === "résumé-style",
+        ),
+      ),
+    ).toBe(true);
+  });
+
   it("has the 500-vs-20, cost, runtime, dormant, sparse, open and sessionless shapes", () => {
     const fixture = buildAgentsRfcFixture(context, params);
     const baselineRows = fixture.observations.filter((row) =>
@@ -144,7 +174,14 @@ describe("agents RFC seed fixture", () => {
       (row) =>
         row.trace_id?.endsWith("-t-recent-2-1") && row.type === "GENERATION",
     )!;
-    expect(cost.usage_details?.input).toBe(1600);
+    expect(cost.usage_details?.input).toBe(6400);
+    const baselineCost = fixture.observations.find(
+      (row) =>
+        row.trace_id?.endsWith("-t-baseline-2-1") && row.type === "GENERATION",
+    )!;
+    expect(
+      Number(cost.total_cost) - Number(baselineCost.total_cost),
+    ).toBeGreaterThanOrEqual(0.01);
     const slow = fixture.observations.find(
       (row) => row.trace_id?.endsWith("-t-recent-3-1") && row.type === "AGENT",
     )!;
@@ -205,7 +242,8 @@ describe("agents RFC seed fixture", () => {
     ).toContain("web_search");
     expect(research.metadata?.[KEYS.area]).toBe("evidence");
     expect(research.metadata?.[KEYS.topic]).toBe("research");
-    expect(research.metadata?.[KEYS.task]).toBeTruthy();
+    expect(research.metadata?.[KEYS.task]).toBe("Evidence review");
+    expect(verify.metadata?.[KEYS.task]).toBe(research.metadata?.[KEYS.task]);
   });
 
   it("keeps ORDER BY identities stable and performs no writes in CLI dry-run", async () => {

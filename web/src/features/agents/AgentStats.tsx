@@ -12,7 +12,7 @@ export function AgentStats({
   const agent = projection.agents.find((item) => item.agentName === agentName);
   const current = agent?.current;
   const skills = projection.skills.filter(
-    (skill) => skill.agentName === agentName,
+    (skill) => skill.agentName === agentName && skill.invocations > 0,
   ).length;
   const items = [
     {

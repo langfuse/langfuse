@@ -116,6 +116,18 @@ vi.mock("./appearance", () => ({
   AgentIdentity: () => <span>Identity</span>,
   AgentAppearancePicker: () => <span>Appearance</span>,
 }));
+vi.mock("@/src/features/global-time-range/globalDateRangeStore", () => ({
+  useGlobalDateRangeStore: {
+    getState: () => ({
+      actions: {
+        setProjectDefault: (_project: string, encoded: string) => {
+          const [from, to] = encoded.split("-").map(Number);
+          mocks.persistedPicks({ from: new Date(from), to: new Date(to) });
+        },
+      },
+    }),
+  },
+}));
 vi.mock("./prototype-options", () => ({
   PrototypeOptions: () => <span>Options</span>,
   useAgentsPrototypeOptions: () => ({
@@ -221,7 +233,10 @@ test("zoom updates statistics, rows, skills and map to one bounded window", asyn
   );
   await selectTab("Skills");
   expect(mocks.skills).toHaveBeenLastCalledWith(
-    expect.objectContaining(innerWindow),
+    expect.objectContaining({
+      agentName: "research",
+      projection: expect.any(Object),
+    }),
   );
   await selectTab("Relationships");
   expect(mocks.map).toHaveBeenLastCalledWith(
@@ -253,7 +268,10 @@ test("environment scope from the agent list applies to every profile surface", a
   );
   await selectTab("Skills");
   expect(mocks.skills).toHaveBeenLastCalledWith(
-    expect.objectContaining({ filter }),
+    expect.objectContaining({
+      agentName: "research",
+      projection: expect.any(Object),
+    }),
   );
   await selectTab("Relationships");
   expect(mocks.map).toHaveBeenLastCalledWith(
@@ -310,6 +328,7 @@ test("date picker retains intentional default persistence and resets pagination"
   expect(mocks.paramsUpdates).toHaveBeenLastCalledWith({
     page: 1,
     peek: undefined,
+    dateRange: `${innerWindow.from.getTime()}-${innerWindow.to.getTime()}`,
   });
 });
 

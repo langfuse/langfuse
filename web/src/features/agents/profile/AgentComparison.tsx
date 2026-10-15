@@ -75,6 +75,12 @@ export function AgentComparison({
         a change is a prompt to investigate, not a quality score. Times use your
         browser&apos;s timezone.
       </p>
+      {(agent?.excludedSessions ?? 0) > 0 && (
+        <p className="text-muted-foreground mt-1 text-xs">
+          {agent?.excludedSessions} open or incomplete session contexts excluded
+          from comparisons.
+        </p>
+      )}
       {agent && (
         <div className="mt-3">
           <AgentComparisonSparkline

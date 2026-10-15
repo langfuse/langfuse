@@ -11,8 +11,10 @@ import type {
   AgentProjectionActivity,
   AgentProjectionRelationship,
   AgentProjectionSession,
+  AgentProjectionSkill,
   AgentProjectionSignal,
   AgentProjectionStats,
+  AgentProjectionSummary,
   AgentProjectionTool,
   AgentSessionProjection,
 } from "../../features/agents/types";
@@ -56,6 +58,8 @@ type RawEvent = {
   input: string;
   skill_name: string;
   available_tools: string[];
+  native_loaded_names?: string[];
+  native_available_names?: string[];
   declared_tools: string;
   available_skills: string;
   task: string;
@@ -65,7 +69,12 @@ type RawEvent = {
   parent_agent_name: string;
 };
 
-type Event = RawEvent & { start: number; end: number | null; version: number };
+type Event = RawEvent & {
+  start: number;
+  end: number | null;
+  version: number;
+  observedSkills?: string[];
+};
 const DAY = 86_400_000;
 const HOUR = 3_600_000;
 const validName = (name: string) =>
@@ -84,6 +93,7 @@ async function readEvents(
   scope: Scope,
   from: Date,
   sessionIds?: string[],
+  traceIds: string[] = [],
 ): Promise<RawEvent[]> {
   const start = bindUtcDateTimeParam("projectionFrom", from);
   const end = bindUtcDateTimeParam("projectionTo", scope.to);
@@ -106,6 +116,8 @@ async function readEvents(
       "e.input AS input",
       `${metadata("attributes.gen_ai.skill.name")} AS skill_name`,
       `arraySlice(mapKeys(e.tool_definitions), 1, ${limits.groups + 1}) AS available_tools`,
+      "arrayMap(skill -> skill.skillName, e.skills_resource_loaded) AS native_loaded_names",
+      "arrayMap(skill -> skill.skillName, e.skills_available) AS native_available_names",
       `${metadata(metadataKeys.availableTools)} AS declared_tools`,
       `${metadata(metadataKeys.availableSkills)} AS available_skills`,
       `${metadata(metadataKeys.task)} AS task`,
@@ -120,10 +132,10 @@ async function readEvents(
     .whereRaw(`e.start_time <= ${end.placeholder}`, {
       projectionTo: end.value,
     });
-  if (sessionIds)
+  if (sessionIds !== undefined)
     builder.whereRaw(
-      "e.session_id IN ({projectionSessionIds: Array(String)})",
-      { projectionSessionIds: sessionIds },
+      "(e.session_id IN ({projectionSessionIds: Array(String)}) OR e.trace_id IN ({projectionTraceIds: Array(String)}))",
+      { projectionSessionIds: sessionIds, projectionTraceIds: traceIds },
     );
   builder
     .orderBy(
@@ -137,11 +149,19 @@ async function readEvents(
   // Eligibility must follow latest-version selection: filtering identity, type,
   // environment or tombstones first can resurrect an older observation.
   const where = filter.query ? ` AND (${filter.query})` : "";
+  let identity = "";
+  if (sessionIds === undefined)
+    identity = scope.agentNames
+      ? " AND e.agent_name IN ({projectionAgentNames: Array(String)})"
+      : " AND e.agent_name != ''";
   return queryClickhouse<RawEvent>({
-    query: `SELECT * FROM (${snapshot.query}) e WHERE e.is_deleted = 0${where} ORDER BY e.event_ts DESC, e.start_time DESC, e.trace_id ASC, e.span_id ASC LIMIT {projectionLimit: Int32}`,
+    query: `SELECT * FROM (${snapshot.query}) e WHERE e.is_deleted = 0${where}${identity} ORDER BY e.event_ts DESC, e.start_time DESC, e.trace_id ASC, e.span_id ASC LIMIT {projectionLimit: Int32}`,
     params: {
       ...snapshot.params,
       ...filter.params,
+      ...(scope.agentNames && sessionIds === undefined
+        ? { projectionAgentNames: scope.agentNames }
+        : {}),
       projectionLimit: limits.observations + 1,
     },
     preferredClickhouseService: "EventsReadOnly",
@@ -234,6 +254,21 @@ function skillName(row: Event): string | null {
   return row.name;
 }
 
+function observedSkillNames(row: Event): string[] {
+  if (row.observedSkills) return row.observedSkills;
+  if (row.native_loaded_names?.length)
+    return (row.observedSkills = unique(row.native_loaded_names));
+  const fallback = skillName(row);
+  return (row.observedSkills = fallback ? [fallback] : []);
+}
+
+function availableSkillNames(row: Event): string[] {
+  return unique([
+    ...(row.native_available_names ?? []),
+    ...labels(row.available_skills),
+  ]);
+}
+
 function observedDuration(rows: Event[]): number {
   const ranges = rows
     .filter((row) => row.end !== null && row.end >= row.start)
@@ -246,6 +281,17 @@ function observedDuration(rows: Event[]): number {
     end = Math.max(end, nextEnd);
   }
   return total;
+}
+
+function isLegacyTraceWrapper(row: Event): boolean {
+  // The canonical v3 backfill represents trace metadata as an unnamed,
+  // durationless SPAN. It is context, not an unfinished observation.
+  return (
+    row.type === "SPAN" &&
+    !row.agent_name &&
+    !row.parent_span_id &&
+    row.span_id === `t-${row.trace_id}`
+  );
 }
 
 function stats(
@@ -432,10 +478,11 @@ export async function getAgentSessionProjectionFromEventsTable(
     0,
     Math.max(0, limits.sessions - sessionIds.length),
   );
-  const contextRaw = sessionIds.length
-    ? await readEvents(scope, new Date(0), sessionIds)
-    : [];
-  rowsTruncated ||= contextRaw.length > limits.observations;
+  const contextRaw =
+    sessionIds.length || fallbackTraceIds.length
+      ? await readEvents(scope, new Date(0), sessionIds, fallbackTraceIds)
+      : [];
+  rowsTruncated = rowsTruncated || contextRaw.length > limits.observations;
   // The second snapshot can include a newer version than discovery. Reduce them
   // together before attributing any metrics or relationship evidence.
   const merged = latest([
@@ -449,7 +496,7 @@ export async function getAgentSessionProjectionFromEventsTable(
         a.trace_id.localeCompare(b.trace_id) ||
         a.span_id.localeCompare(b.span_id),
     );
-  rowsTruncated ||= merged.length > limits.observations;
+  rowsTruncated = rowsTruncated || merged.length > limits.observations;
   const all = merged.slice(0, limits.observations);
   const historyComplete = !rowsTruncated && !sessionsTruncated;
   const contextBySession = new Map<string, Event[]>();
@@ -499,25 +546,25 @@ export async function getAgentSessionProjectionFromEventsTable(
       const contextFirst = Math.min(...context.map((row) => row.start));
       const contextLast = lastTime(context);
       const open = context.some(
-        (row) => row.end === null || row.end > to || row.end < row.start,
+        (row) =>
+          !isLegacyTraceWrapper(row) &&
+          (row.end === null || row.end > to || row.end < row.start),
       );
       const clipped = contextLast > to - limits.settledMinutes * 60_000;
-      const reason = !sessionId
-        ? "missing-session-id"
-        : !historyComplete
-          ? "row-limit"
-          : open
-            ? "open-span"
-            : clipped
-              ? "window-clipped"
-              : "complete";
+      let reason: AgentProjectionSession["completenessReason"] = "complete";
+      if (!sessionId) reason = "missing-session-id";
+      else if (!historyComplete) reason = "row-limit";
+      else if (open) reason = "open-span";
+      else if (clipped) reason = "window-clipped";
       const complete = reason === "complete";
-      const comparisonPeriod =
-        complete && contextLast >= recentFrom
-          ? "recent"
-          : complete && contextLast >= baselineFrom && contextLast < recentFrom
-            ? "baseline"
-            : null;
+      let comparisonPeriod: AgentProjectionSession["comparisonPeriod"] = null;
+      if (complete && contextLast >= recentFrom) comparisonPeriod = "recent";
+      else if (
+        complete &&
+        contextLast >= baselineFrom &&
+        contextLast < recentFrom
+      )
+        comparisonPeriod = "baseline";
       const unit: AgentProjectionSession = {
         id,
         kind: sessionId ? "session" : "trace",
@@ -566,7 +613,7 @@ export async function getAgentSessionProjectionFromEventsTable(
         skillNames: cappedNames(
           rows
             .filter((row) => inside(row, from, to))
-            .flatMap((row) => skillName(row) ?? []),
+            .flatMap(observedSkillNames),
         ),
         completePerSession: complete,
         completenessReason: reason,
@@ -603,19 +650,13 @@ export async function getAgentSessionProjectionFromEventsTable(
       recentUnits.flatMap((row) => unitRows.get(row.id)!),
       recentUnits,
     );
-    const comparisonStatus =
-      !historyComplete ||
-      ownUnits.some(
-        (row) =>
-          row.sessionId &&
-          !row.completePerSession &&
-          row.sessionLastSeen.getTime() >= baselineFrom,
-      )
-        ? ("incomplete-cohort" as const)
-        : baseline.sessions < limits.baselineSessions ||
-            recent.sessions < limits.recentSessions
-          ? ("insufficient-data" as const)
-          : ("ready" as const);
+    let comparisonStatus: AgentProjectionSummary["comparisonStatus"] = "ready";
+    if (!historyComplete) comparisonStatus = "incomplete-cohort";
+    else if (
+      baseline.sessions < limits.baselineSessions ||
+      recent.sessions < limits.recentSessions
+    )
+      comparisonStatus = "insufficient-data";
     return {
       agentName,
       firstSeen: history.length
@@ -627,6 +668,12 @@ export async function getAgentSessionProjectionFromEventsTable(
       baseline,
       recent,
       comparisonStatus,
+      excludedSessions: ownUnits.filter(
+        (row) =>
+          row.sessionId &&
+          !row.completePerSession &&
+          row.sessionLastSeen.getTime() >= baselineFrom,
+      ).length,
       signals:
         comparisonStatus === "ready"
           ? signals(baselineUnits, recentUnits, baseline, recent)
@@ -634,9 +681,7 @@ export async function getAgentSessionProjectionFromEventsTable(
       tasks: cappedNames(history.flatMap((row) => labels(row.task))),
       areas: cappedNames(history.flatMap((row) => labels(row.area))),
       topics: cappedNames(history.flatMap((row) => labels(row.topic))),
-      availableSkillNames: cappedNames(
-        history.flatMap((row) => labels(row.available_skills)),
-      ),
+      availableSkillNames: cappedNames(history.flatMap(availableSkillNames)),
     };
   });
 
@@ -651,21 +696,20 @@ export async function getAgentSessionProjectionFromEventsTable(
       const available = unique(
         declarations.flatMap((row) =>
           skills
-            ? labels(row.available_skills)
+            ? availableSkillNames(row)
             : [...(row.available_tools ?? []), ...labels(row.declared_tools)],
         ),
       );
       const groups = new Map<string, Event[]>();
       for (const row of rows) {
-        const name = skills
-          ? skillName(row)
-          : row.type === "TOOL"
-            ? row.name
-            : null;
-        if (!name) continue;
-        const group = groups.get(name) ?? [];
-        group.push(row);
-        groups.set(name, group);
+        let names: string[] = [];
+        if (skills) names = observedSkillNames(row);
+        else if (row.type === "TOOL" && row.name) names = [row.name];
+        for (const name of names) {
+          const group = groups.get(name) ?? [];
+          group.push(row);
+          groups.set(name, group);
+        }
       }
       for (const name of available) if (!groups.has(name)) groups.set(name, []);
       const sorted = [...groups].sort(
@@ -688,10 +732,30 @@ export async function getAgentSessionProjectionFromEventsTable(
     return output;
   }
   const tools = toolGroups(false);
-  const skills = toolGroups(true).map((row) => ({
-    ...row,
-    source: "tool-name-preview" as const,
-  }));
+  const skills: AgentProjectionSkill[] = toolGroups(true).map((row) => {
+    const own = current.filter(
+      (event) =>
+        event.agent_name === row.agentName &&
+        observedSkillNames(event).includes(row.name),
+    );
+    const native =
+      own.some((event) => event.native_loaded_names?.includes(row.name)) ||
+      (own.length === 0 &&
+        all.some(
+          (event) =>
+            event.agent_name === row.agentName &&
+            event.native_available_names?.includes(row.name),
+        ));
+    const legacy = own.some((event) => !event.native_loaded_names?.length);
+    let source: AgentProjectionSkill["source"] = "tool-name-preview";
+    if (native && legacy) source = "mixed";
+    else if (native) source = "native";
+    return {
+      ...row,
+      source,
+      sampleTraceIds: unique(own.map((event) => event.trace_id)).slice(0, 5),
+    };
+  });
   const activityBucketMs = Math.max(
     60_000,
     Math.ceil((to - from) / 48 / 60_000) * 60_000,
@@ -717,7 +781,10 @@ export async function getAgentSessionProjectionFromEventsTable(
         invocations: rows.filter((row) => row.type === "AGENT").length,
         toolInvocations: rows.filter((row) => row.type === "TOOL").length,
         observations: rows.length,
-        skillInvocations: rows.filter((row) => skillName(row)).length,
+        skillInvocations: rows.reduce(
+          (total, row) => total + observedSkillNames(row).length,
+          0,
+        ),
         cost: sum(rows, "cost"),
         tokens: sum(rows, "tokens"),
       });

@@ -93,9 +93,9 @@ export function defaultAgentAppearance(
 ): AgentAppearance {
   let hash = 2166136261;
   for (const point of agentAppearanceKey(projectId, agentName)) {
-    hash = Math.imul(hash ^ (point.codePointAt(0) ?? 0), 16777619);
+    hash = (hash * 31 + (point.codePointAt(0) ?? 0)) % 4_294_967_296;
   }
-  const index = hash >>> 0;
+  const index = hash;
   return {
     color: AGENT_COLORS[index % AGENT_COLORS.length].value,
     glyph: { kind: "icon", id: AGENT_ICON_IDS[index % 24] },

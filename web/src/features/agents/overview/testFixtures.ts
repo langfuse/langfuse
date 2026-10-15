@@ -1,0 +1,136 @@
+import {
+  type AgentSessionProjection,
+  type AgentProjectionSummary,
+  type AgentProjectionSession,
+  type AgentProjectionStats,
+} from "@langfuse/shared";
+export const FROM = new Date("2026-10-14T16:00:00Z"),
+  TO = new Date("2026-10-14T20:00:00Z");
+export function stats(
+  patch: Partial<AgentProjectionStats> = {},
+): AgentProjectionStats {
+  return {
+    sessions: 0,
+    invocations: 0,
+    traces: 0,
+    observations: 0,
+    toolInvocations: 0,
+    cost: 0,
+    tokens: 0,
+    averageCostPerSession: null,
+    averageToolsPerSession: null,
+    averageSessionDurationMs: null,
+    completeSessions: 0,
+    zeroToolSessions: 0,
+    ...patch,
+  };
+}
+export function agent(
+  agentName = "research",
+  patch: Partial<AgentProjectionSummary> = {},
+): AgentProjectionSummary {
+  return {
+    agentName,
+    firstSeen: FROM,
+    lastSeen: TO,
+    state: "active",
+    current: stats(),
+    baseline: stats(),
+    recent: stats(),
+    excludedSessions: 0,
+    comparisonStatus: "insufficient-data",
+    signals: [],
+    tasks: [],
+    areas: [],
+    topics: [],
+    availableSkillNames: [],
+    ...patch,
+  };
+}
+export function session(
+  id: string,
+  patch: Partial<AgentProjectionSession> = {},
+): AgentProjectionSession {
+  return {
+    id,
+    kind: "session",
+    agentName: "research",
+    sessionId: id,
+    traceId: null,
+    traceCount: 1,
+    sampleTraceIds: ["trace"],
+    participatingAgentNames: ["research"],
+    firstSeen: FROM,
+    lastSeen: new Date(FROM.getTime() + 1000),
+    sessionFirstSeen: FROM,
+    sessionLastSeen: new Date(FROM.getTime() + 1000),
+    agentObservedDurationMs: 1000,
+    sessionElapsedMs: 1000,
+    invocations: 1,
+    toolInvocations: 1,
+    observationCount: 2,
+    toolNames: [],
+    skillNames: [],
+    cost: 0,
+    tokens: 0,
+    windowCost: 0,
+    windowTokens: 0,
+    windowToolInvocations: 1,
+    windowInvocations: 1,
+    windowObservationCount: 2,
+    completePerSession: true,
+    completenessReason: "complete",
+    inWindow: true,
+    comparisonPeriod: "recent",
+    ...patch,
+  };
+}
+export function projection(
+  patch: Partial<AgentSessionProjection> = {},
+): AgentSessionProjection {
+  return {
+    activityBucketMs: 60_000,
+    window: { from: FROM, to: TO },
+    recentWindow: { from: new Date(TO.getTime() - 3_600_000), to: TO },
+    baselineWindow: {
+      from: new Date(FROM.getTime() - 14 * 86_400_000),
+      to: new Date(TO.getTime() - 3_600_000),
+    },
+    discoveryWindow: { from: new Date(TO.getTime() - 30 * 86_400_000), to: TO },
+    agents: [agent()],
+    sessions: [],
+    activity: [],
+    tools: [],
+    skills: [],
+    relationships: [],
+    map: {
+      rows: [],
+      traceIds: [],
+      traceCount: 0,
+      traceLimit: 100,
+      rowLimit: 20000,
+      rowsTruncated: false,
+      tracesTruncated: false,
+      isTruncated: false,
+      windowBounded: true,
+    },
+    coverage: {
+      source: "metadata-preview",
+      agentLimit: 25,
+      sessionLimit: 1000,
+      rowLimit: 20000,
+      groupsLimit: 5000,
+      agentsTruncated: false,
+      sessionsTruncated: false,
+      rowsTruncated: false,
+      groupsTruncated: false,
+      historyComplete: true,
+      missingSessionTraces: 0,
+      unlinkedObservations: 0,
+      incompleteSessions: 0,
+      inputTruncated: true,
+      settledMinutes: 5,
+    },
+    ...patch,
+  };
+}

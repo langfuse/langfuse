@@ -19,11 +19,13 @@ export function AgentComparisonSparkline({
       <div className="flex items-center justify-between gap-2 text-xs">
         <span className="text-muted-foreground">Tool calls / session</span>
         <span className="text-muted-foreground">
-          {agent.comparisonStatus === "ready"
-            ? "Settled cohorts"
-            : agent.comparisonStatus === "incomplete-cohort"
-              ? "Incomplete history"
-              : "Small sample"}
+          {
+            {
+              ready: "Settled cohorts",
+              "incomplete-cohort": "Incomplete history",
+              "insufficient-data": "Small sample",
+            }[agent.comparisonStatus]
+          }
         </span>
       </div>
       {data.length > 0 ? (

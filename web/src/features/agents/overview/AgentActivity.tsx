@@ -50,7 +50,10 @@ function SessionPreview({
     <div className="ph-no-capture flex w-72 flex-col gap-3 p-4">
       <AgentIdentity projectId={scope.projectId} agentName={row.agentName} />
       <div>
-        <p className="truncate text-xs font-bold">
+        <p
+          className="truncate text-xs font-bold"
+          title={row.sessionId ?? row.traceId ?? undefined}
+        >
           {row.kind === "session" ? "Session" : "Trace without a session"} ·{" "}
           {row.sessionId ?? row.traceId}
         </p>
@@ -201,16 +204,7 @@ function HeatmapLane({
             type="button"
             className="focus-visible:outline-ring h-8 min-w-2 flex-1 rounded-sm border transition-transform hover:z-1 hover:scale-110 focus-visible:outline-2"
             style={{
-              backgroundColor:
-                bucket.count === null
-                  ? undefined
-                  : bucket.count === 0
-                    ? `${appearance.color}0c`
-                    : `${appearance.color}${Math.round(
-                        45 + 210 * Math.sqrt(bucket.count / max),
-                      )
-                        .toString(16)
-                        .padStart(2, "0")}`,
+              backgroundColor: bucketColor(appearance.color, bucket.count, max),
               borderColor: `${appearance.color}30`,
             }}
             title={`${agent.agentName}\n${dateLabel(bucket.from)} – ${dateLabel(bucket.to)}\n${bucket.count === null ? "No complete bucket coverage" : `${bucket.count} AGENT invocations · ${bucket.tools ?? 0} tool calls`}\nSelect to zoom`}
@@ -352,4 +346,16 @@ export function AgentActivity({
       </p>
     </section>
   );
+}
+
+function bucketColor(
+  color: string,
+  count: number | null,
+  max: number,
+): string | undefined {
+  if (count === null) return undefined;
+  if (count === 0) return `${color}0c`;
+  return `${color}${Math.round(45 + 210 * Math.sqrt(count / max))
+    .toString(16)
+    .padStart(2, "0")}`;
 }

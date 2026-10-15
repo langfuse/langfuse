@@ -19,7 +19,11 @@ export function AgentIdentity({
       aria-label={agentName}
     >
       <AgentGlyph appearance={appearance} size={size} />
-      {showName && <span className="truncate">{agentName}</span>}
+      {showName && (
+        <span className="truncate" title={agentName}>
+          {agentName}
+        </span>
+      )}
     </span>
   );
 }

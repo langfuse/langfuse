@@ -14,6 +14,7 @@ import {
   AGENT_PROJECTION_METADATA_KEYS as KEYS,
 } from "../../../src/features/agents/constants";
 import { normalizeToolsForObservation } from "../../../src/server/ingestion/extractToolsBackend";
+import { extractSkillsFromObservation } from "../../../src/server/ingestion/extractSkillsBackend";
 import { observationToEvent, traceToEvent } from "./event-mirror";
 import { generationUsageCost } from "./payload";
 import { jitter } from "./rng";
@@ -52,7 +53,7 @@ const AGENTS = [
   },
   {
     name: "research",
-    task: "Find source evidence",
+    task: "Evidence review",
     area: "evidence",
     topic: "research",
     tools: ["web_search", "read_document"],
@@ -62,7 +63,7 @@ const AGENTS = [
   },
   {
     name: "verify",
-    task: "Audit source evidence",
+    task: "Evidence review",
     area: "evidence",
     topic: "quality",
     tools: ["web_search", "check_fact"],
@@ -160,6 +161,10 @@ export const buildAgentsRfcFixture = (
   const version = Date.now();
   const traces: TraceRecordInsertType[] = [];
   const observations: ObservationRecordInsertType[] = [];
+  const nativeSkillsByObservation = new Map<
+    string,
+    Pick<EventRecordInsertType, "skills_available" | "skills_resource_loaded">
+  >();
   const sessions = new Map<string, RfcSession>();
   const secondaryEnvironment =
     ctx.environment === "staging" ? "production" : "staging";
@@ -261,6 +266,21 @@ export const buildAgentsRfcFixture = (
         ...extra,
       });
       observations.push(observation);
+      if (type === "GENERATION" || name === "Skill") {
+        const nativeSkills = extractSkillsFromObservation({
+          skillsAvailable: agent.skills.map((skillName) => ({ skillName })),
+          observationType: type,
+          name,
+          input: observation.input,
+          output: observation.output,
+          isError: false,
+          projectId: ctx.projectId,
+        });
+        nativeSkillsByObservation.set(observation.id, {
+          skills_available: nativeSkills.skillsAvailable,
+          skills_resource_loaded: nativeSkills.skillsResourceLoaded,
+        });
+      }
     };
     addObservation(
       "",
@@ -353,7 +373,7 @@ export const buildAgentsRfcFixture = (
         addObservation(
           `skill-${index}`,
           "TOOL",
-          "load_skill",
+          index === 0 ? "Skill" : "load_skill",
           1_500 + index * 100,
           start + 1_550 + index * 100,
           {
@@ -413,7 +433,7 @@ export const buildAgentsRfcFixture = (
         index === 0 ? secondaryEnvironment : ctx.environment,
       );
       addInvocation(trace, "invoke", agentIndex, start, {
-        costFactor: agentIndex === 2 ? 8 : 1,
+        costFactor: agentIndex === 2 ? 32 : 1,
         duration: agentIndex === 3 ? 15 * MINUTE : 30_000,
         observationCount: agentIndex === 0 && index === 5 ? 500 : 20,
         zeroTools: agentIndex === 5 || agentIndex === 7,
@@ -485,6 +505,7 @@ export const buildAgentsRfcFixture = (
             observationToEvent(
               observation,
               tracesById.get(observation.trace_id!)!,
+              nativeSkillsByObservation.get(observation.id),
             ),
           ),
         ];
@@ -522,6 +543,11 @@ const run = async (
       (total, row) => total + (row.tool_call_names?.length ?? 0),
       0,
     ),
+    nativeSkillLoads: events.filter((row) => row.skills_resource_loaded?.length)
+      .length,
+    nativeSkillCatalogs: events.filter(
+      (row) => row.type === "GENERATION" && row.skills_available?.length,
+    ).length,
     managedSkills: params["managed-skills"] === true ? 4 : 0,
   };
   const range = `dateRange=${windowStart}-${windowEnd}`;
@@ -637,6 +663,29 @@ const run = async (
       throw new SeedError(
         "Readback mismatch: RFC agent identities did not reach events_core",
       );
+    for (const table of ["events_full", "events_core"]) {
+      const loads = await countRows(
+        table,
+        `${where} AND notEmpty(skills_resource_loaded)`,
+        queryParams,
+        "uniqExact(span_id)",
+      );
+      const catalogs = await countRows(
+        table,
+        `${where} AND type = 'GENERATION' AND notEmpty(skills_available)`,
+        queryParams,
+        "uniqExact(span_id)",
+      );
+      if (
+        loads !== counts.nativeSkillLoads ||
+        catalogs !== counts.nativeSkillCatalogs
+      )
+        throw new SeedError(
+          `Readback mismatch: native skill evidence did not reach ${table}`,
+        );
+      summary.verified[`${table}NativeSkillLoads`] = loads;
+      summary.verified[`${table}NativeSkillCatalogs`] = catalogs;
+    }
   }
   for (const key of [
     "sessions",

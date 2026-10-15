@@ -82,7 +82,7 @@ export function AgentTools({
       />
       {tools.some((tool) => tool.available) && (
         <p className="text-muted-foreground text-xs">
-          Explicitly declared available:{" "}
+          Available-tool declarations seen in discovery history:{" "}
           <span className="ph-no-capture">
             {tools
               .filter((tool) => tool.available)

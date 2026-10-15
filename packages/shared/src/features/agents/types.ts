@@ -91,6 +91,7 @@ export type AgentProjectionSummary = {
   baseline: AgentProjectionStats;
   recent: AgentProjectionStats;
   comparisonStatus: "ready" | "insufficient-data" | "incomplete-cohort";
+  excludedSessions: number;
   signals: AgentProjectionSignal[];
   tasks: string[];
   areas: string[];
@@ -147,7 +148,8 @@ export type AgentProjectionTool = {
 };
 
 export type AgentProjectionSkill = AgentProjectionTool & {
-  source: "tool-name-preview";
+  source: "native" | "tool-name-preview" | "mixed";
+  sampleTraceIds: string[];
 };
 
 export type AgentProjectionActivity = {

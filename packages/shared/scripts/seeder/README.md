@@ -141,7 +141,10 @@ The fixture includes:
   topic, available-tool and available-skill facets in optional prototype
   metadata. One explicit cross-session handoff is labeled as an illustrative
   declaration, separate from observed same-trace ancestry.
-- Observed skill names including unmanaged `résumé-style`. The optional
+- Native skill catalogs and resource loads normalized by the ingestion parser,
+  alongside legacy `load_skill` observations. Both v4 tables verify the native
+  fields after insertion; the v3 observations retain legacy compatibility.
+  Observed names include unmanaged `résumé-style`. The optional
   `--managed-skills` flag creates missing exact-name definitions for
   `task-routing`, `source-discovery`, `evidence-audit`, and `citation-style`
   through the supported Skills API. Existing definitions are preserved;

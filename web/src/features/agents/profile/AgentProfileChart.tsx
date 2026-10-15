@@ -53,6 +53,12 @@ export function AgentProfileChart({
         stepMs={bucketMs}
         widthPx={Math.max(0, (size?.width ?? 0) - 16)}
         heightPx={85}
+        disabledReason={
+          projection.coverage.rowsTruncated ||
+          projection.coverage.sessionsTruncated
+            ? "Activity coverage is partial. Choose a smaller interval to explore reliable buckets."
+            : undefined
+        }
         onSelectBucket={({ fromMs, toMs }) =>
           onSelectRange({
             from: new Date(Math.max(fromMs, projection.window.from.getTime())),

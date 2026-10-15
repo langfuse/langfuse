@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { ArrowUpRight, CircleAlert, Moon } from "lucide-react";
 import { type AgentSessionProjection } from "@langfuse/shared";
+import { Table } from "@/src/components/design-system/table/Table";
+import { createTableColumn } from "@/src/components/design-system/table/columns/utils/createTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import {
   AgentIdentity,
@@ -23,6 +26,7 @@ export type AgentOverviewListProps = {
   agents: OverviewAgent[];
   metrics: AgentCardMetric[];
   projection: AgentSessionProjection;
+  showAttention?: boolean;
 };
 function AgentPreview({
   agent,
@@ -35,7 +39,7 @@ function AgentPreview({
 }) {
   const appearance = useAgentAppearance(scope.projectId, agent.agentName);
   return (
-    <div className="ph-no-capture flex w-80 flex-col gap-3 p-4">
+    <div className="ph-no-capture flex w-[min(20rem,calc(100vw-2rem))] flex-col gap-3 p-4">
       <AgentIdentity projectId={scope.projectId} agentName={agent.agentName} />
       <dl className="grid grid-cols-2 gap-3 text-xs">
         <div>
@@ -43,7 +47,7 @@ function AgentPreview({
           <dd>{agent.firstSeen?.toLocaleString() ?? "Unknown"}</dd>
         </div>
         <div>
-          <dt className="text-muted-foreground">Last observed</dt>
+          <dt className="text-muted-foreground">Last known activity</dt>
           <dd>{agent.lastSeen?.toLocaleString() ?? "Unknown"}</dd>
         </div>
         <div>
@@ -83,6 +87,7 @@ function AgentCard({
   scope,
   metrics,
   projection,
+  showAttention = true,
 }: AgentOverviewListProps & { agent: OverviewAgent }) {
   const appearance = useAgentAppearance(scope.projectId, agent.agentName);
   return (
@@ -157,7 +162,7 @@ function AgentCard({
         />
       </div>
       <div className="flex min-h-11 items-center justify-between gap-2 border-t px-4 py-2 text-xs">
-        {agent.signals.length > 0 ? (
+        {showAttention && agent.signals.length > 0 ? (
           <Link
             href={agentPath(scope, agent.agentName, {
               tab: "sessions",
@@ -201,80 +206,87 @@ export function AgentOverviewList({
   metrics,
   projection,
 }: AgentOverviewListProps) {
+  const columns = [
+    createTableColumn<OverviewAgent, string>({
+      accessorKey: "agentName",
+      header: "Agent",
+      size: 280,
+      loadingCell: null,
+      cellClassName: "ph-no-capture",
+      renderCell: (name, { row }) => (
+        <div className="flex items-center gap-2">
+          <AgentAppearancePicker
+            projectId={scope.projectId}
+            agentName={row.original.agentName}
+          />
+          <HoverCard
+            content={
+              <AgentPreview
+                agent={row.original}
+                scope={scope}
+                projection={projection}
+              />
+            }
+          >
+            {({ getTriggerProps }) => (
+              <Link
+                {...getTriggerProps()}
+                title={name ?? undefined}
+                href={agentPath(scope, row.original.agentName)}
+                className="max-w-72 min-w-0 truncate font-bold hover:underline"
+              >
+                {name}
+              </Link>
+            )}
+          </HoverCard>
+        </div>
+      ),
+    }),
+    ...metrics.map((metric) =>
+      createNumberTableColumn<OverviewAgent>({
+        id: metric,
+        accessorFn: (agent) => metricValue(agent, metric),
+        header: METRIC_LABELS[metric],
+        size: 130,
+        formatter: (value) => formatMetric(metric, value),
+      }),
+    ),
+    createTableColumn<OverviewAgent, string>({
+      accessorKey: "state",
+      header: "Activity",
+      size: 180,
+      loadingCell: null,
+      cellClassName: "ph-no-capture",
+      renderCell: (_, { row: { original: agent } }) => (
+        <Link
+          href={agentPath(scope, agent.agentName, {
+            tab: "sessions",
+            ...(agent.signals[0] ? { agentSignal: agent.signals[0].kind } : {}),
+          })}
+          className={
+            agent.signals.length
+              ? "text-amber-600 hover:underline dark:text-amber-400"
+              : "text-muted-foreground hover:underline"
+          }
+        >
+          {activityStatus(agent)}
+        </Link>
+      ),
+    }),
+  ];
   return (
-    <div className="ph-no-capture overflow-x-auto rounded-lg border">
-      <table className="w-full min-w-[40rem] text-left text-sm">
-        <thead className="text-muted-foreground bg-muted/30 text-xs">
-          <tr>
-            <th className="px-4 py-3 font-medium">Agent</th>
-            {metrics.map((metric) => (
-              <th key={metric} className="px-4 py-3 text-right font-medium">
-                {METRIC_LABELS[metric]}
-              </th>
-            ))}
-            <th className="px-4 py-3 font-medium">Activity</th>
-          </tr>
-        </thead>
-        <tbody>
-          {agents.map((agent) => (
-            <tr key={agent.agentName} className="hover:bg-muted/20 border-t">
-              <td className="px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <AgentAppearancePicker
-                    projectId={scope.projectId}
-                    agentName={agent.agentName}
-                  />
-                  <HoverCard
-                    content={
-                      <AgentPreview
-                        agent={agent}
-                        scope={scope}
-                        projection={projection}
-                      />
-                    }
-                  >
-                    {({ getTriggerProps }) => (
-                      <Link
-                        {...getTriggerProps()}
-                        href={agentPath(scope, agent.agentName)}
-                        className="max-w-72 min-w-0 truncate font-medium hover:underline"
-                      >
-                        {agent.agentName}
-                      </Link>
-                    )}
-                  </HoverCard>
-                </div>
-              </td>
-              {metrics.map((metric) => (
-                <td key={metric} className="px-4 py-3 text-right tabular-nums">
-                  {formatMetric(metric, metricValue(agent, metric))}
-                </td>
-              ))}
-              <td className="px-4 py-3">
-                <Link
-                  href={agentPath(scope, agent.agentName, {
-                    tab: "sessions",
-                    ...(agent.signals[0]
-                      ? { agentSignal: agent.signals[0].kind }
-                      : {}),
-                  })}
-                  className={
-                    agent.signals.length
-                      ? "text-amber-600 hover:underline dark:text-amber-400"
-                      : "text-muted-foreground hover:underline"
-                  }
-                >
-                  {agent.signals.length
-                    ? `${agent.signals.length} to inspect`
-                    : agent.state === "dormant"
-                      ? "Dormant"
-                      : "Active"}
-                </Link>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="ph-no-capture min-h-64 overflow-hidden rounded-lg border">
+      <Table
+        tableName="Agent overview"
+        columns={columns}
+        data={{ status: "success", data: agents }}
+        rowHeight="l"
+      />
     </div>
   );
+}
+
+function activityStatus(agent: OverviewAgent): string {
+  if (agent.signals.length) return `${agent.signals.length} to inspect`;
+  return agent.state === "dormant" ? "Dormant" : "Active";
 }

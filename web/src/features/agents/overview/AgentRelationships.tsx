@@ -56,18 +56,21 @@ function EdgeEvidence({
   scope: OverviewScope;
   mode: RelationshipMode;
 }) {
-  const unit =
-    mode === "calls"
-      ? "calls"
-      : mode === "available-tools"
-        ? "shared available tools"
-        : mode === "tools"
-          ? "shared executed tools"
-          : `shared ${mode}`;
+  const unit = relationshipUnit(mode);
+  const provenance =
+    mode === "available-tools"
+      ? "Explicit tool availability"
+      : {
+          "trace-ancestry": "Trace ancestry",
+          "declared-session-link": "Declared session link",
+          "observed-tools": "Observed executions",
+          "declared-label": "Declared metadata",
+        }[edge.provenance];
   return (
     <li className="ph-no-capture flex flex-col gap-1 rounded-md border p-3">
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <Link
+          title={edge.source}
           href={agentPath(scope, edge.source)}
           className="max-w-60 truncate hover:underline"
         >
@@ -81,6 +84,7 @@ function EdgeEvidence({
           {mode === "calls" ? "→" : "↔"}
         </span>
         <Link
+          title={edge.target}
           href={agentPath(scope, edge.target)}
           className="max-w-60 truncate hover:underline"
         >
@@ -95,15 +99,7 @@ function EdgeEvidence({
         </span>
       </div>
       <p className="text-muted-foreground text-[11px] break-words">
-        {mode === "available-tools"
-          ? "Explicit tool availability"
-          : edge.provenance === "trace-ancestry"
-            ? "Trace ancestry"
-            : edge.provenance === "declared-session-link"
-              ? "Declared session link"
-              : edge.provenance === "observed-tools"
-                ? "Observed executions"
-                : "Declared metadata"}
+        {provenance}
         {edge.evidence.length
           ? ` · ${edge.evidence.slice(0, 8).join(" · ")}${edge.evidence.length > 8 ? ` · +${edge.evidence.length - 8} more` : ""}`
           : ""}
@@ -141,13 +137,7 @@ export function AgentRelationships({
         <div>
           <h2 className="text-sm font-bold">Agent relationships</h2>
           <p className="text-muted-foreground mt-1 text-xs">
-            {mode === "calls"
-              ? "Directed call evidence, with provenance shown for every connection."
-              : mode === "available-tools"
-                ? "Shared tool definitions declared by agents, including tools not executed in this window."
-                : mode === "tools"
-                  ? "Overlap in tools actually executed in the selected window."
-                  : `Overlap in explicitly declared ${mode}. These links do not imply calls.`}
+            {relationshipDescription(mode)}
           </p>
         </div>
         <div className="w-56">
@@ -274,4 +264,20 @@ export function AgentRelationships({
       </p>
     </section>
   );
+}
+
+function relationshipUnit(mode: RelationshipMode): string {
+  if (mode === "calls") return "calls";
+  if (mode === "available-tools") return "shared available tools";
+  if (mode === "tools") return "shared executed tools";
+  return `shared ${mode}`;
+}
+function relationshipDescription(mode: RelationshipMode): string {
+  if (mode === "calls")
+    return "Directed call evidence, with provenance shown for every connection.";
+  if (mode === "available-tools")
+    return "Shared tool definitions declared by agents, including tools not executed in this window.";
+  if (mode === "tools")
+    return "Overlap in tools actually executed in the selected window.";
+  return `Overlap in explicitly declared ${mode}. These links do not imply calls.`;
 }

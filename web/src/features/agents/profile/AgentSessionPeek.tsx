@@ -24,7 +24,7 @@ export function AgentSessionPeek({
   agentName: string;
   closePeek: () => void;
   participants: string[];
-  traceAgents: Record<string, string[]>;
+  traceAgents: ReadonlyMap<string, string[]>;
 }) {
   return (
     <TablePeekView
@@ -64,7 +64,7 @@ function AgentSessionContent({
   sessionId: string;
   agentName: string;
   participants: string[];
-  traceAgents: Record<string, string[]>;
+  traceAgents: ReadonlyMap<string, string[]>;
 }) {
   const router = useRouter();
   const { options } = useAgentsPrototypeOptions(projectId);
@@ -101,10 +101,10 @@ function AgentSessionContent({
   return (
     <div className="ph-no-capture flex min-h-[32rem] flex-col">
       <div className="bg-muted/30 border-b px-4 py-3 text-sm">
-        <span className="font-bold">{agentName}</span> participates in this
-        session. This peek shows the whole session, including activity outside
-        the selected interval and other agents. Totals below belong to the
-        session.
+        Session context opened from{" "}
+        <span className="font-bold">{agentName}</span>. This peek shows the
+        whole session, including activity outside the selected interval and
+        other agents. Totals below belong to the session.
       </div>
       {options.showIdentityBadges && (
         <div className="flex flex-col gap-3 border-b p-4">
@@ -135,7 +135,7 @@ function AgentSessionContent({
               </a>
               <AgentParticipantBadges
                 projectId={projectId}
-                names={traceAgents[trace.id] ?? []}
+                names={traceAgents.get(trace.id) ?? []}
               />
             </div>
           ))}

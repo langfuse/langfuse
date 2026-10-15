@@ -56,6 +56,7 @@ import { AgentComparison } from "./profile/AgentComparison";
 import { AgentCoverage } from "./profile/AgentCoverage";
 import { type AgentProfileTab } from "./profile/prepareAgentProfile";
 import { buildAgentProfilePath } from "./lib/buildAgentProfilePath";
+import { commitAgentDateRange } from "./lib/commitAgentDateRange";
 
 const RUN_FILTER: FilterState = [
   {
@@ -94,10 +95,11 @@ function AgentDetailView({
   projectId: string;
   agentName: string;
 }) {
-  const { timeRange, setTimeRange } = useTableDateRange(projectId);
+  const { timeRange } = useTableDateRange(projectId);
   const [, setPagination] = useQueryParams({
     page: NumberParam,
     peek: StringParam,
+    dateRange: StringParam,
   });
   const router = useRouter();
   const scopeFilter = decodeFiltersGeneric(
@@ -170,8 +172,11 @@ function AgentDetailView({
         <TableHeaderControls
           timeRange={timeRange}
           setTimeRange={(next) => {
-            setPagination({ page: 1, peek: undefined });
-            setTimeRange(next);
+            commitAgentDateRange({
+              projectId,
+              range: next,
+              setQuery: setPagination,
+            });
           }}
         />
         {unsupportedName && (
@@ -230,6 +235,7 @@ function AgentProfile({
     agentSignal: StringParam,
     agentTool: StringParam,
     agentSkill: StringParam,
+    agentSessionSearch: StringParam,
   });
   const currentTab = TABS.find((value) => value === tab) ?? "sessions";
   const projection = api.agents.sessionProjectionFromEvents.useQuery(
@@ -311,6 +317,9 @@ function AgentProfile({
                 setParams({
                   tab: "sessions",
                   agentSignal: kind,
+                  agentTool: undefined,
+                  agentSkill: undefined,
+                  agentSessionSearch: undefined,
                   page: 1,
                   peek: undefined,
                 })
@@ -379,6 +388,7 @@ function AgentProfile({
                   agentTool: name,
                   agentSkill: undefined,
                   agentSignal: undefined,
+                  agentSessionSearch: undefined,
                   page: 1,
                 })
               }
@@ -386,21 +396,23 @@ function AgentProfile({
           )}
         </Tabs.Content>
         <Tabs.Content value="skills" layout="fill">
-          <AgentSkills
-            projectId={projectId}
-            agentName={agentName}
-            {...window}
-            filter={filter}
-            onSelectSkill={(name) =>
-              setParams({
-                tab: "sessions",
-                agentSkill: name,
-                agentTool: undefined,
-                agentSignal: undefined,
-                page: 1,
-              })
-            }
-          />
+          {projection.data && (
+            <AgentSkills
+              projectId={projectId}
+              agentName={agentName}
+              projection={projection.data}
+              onSelectSkill={(name) =>
+                setParams({
+                  tab: "sessions",
+                  agentSkill: name,
+                  agentTool: undefined,
+                  agentSignal: undefined,
+                  agentSessionSearch: undefined,
+                  page: 1,
+                })
+              }
+            />
+          )}
         </Tabs.Content>
         <Tabs.Content value="runs" layout="fill">
           <ObservationsEventsTable

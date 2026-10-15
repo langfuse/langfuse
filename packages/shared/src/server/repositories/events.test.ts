@@ -76,7 +76,7 @@ describe("agent session projection", () => {
   });
   beforeEach(() => {
     vi.clearAllMocks();
-    mockQueryClickhouse.mockResolvedValue([]);
+    mockQueryClickhouse.mockReset().mockResolvedValue([]);
     vi.mocked(parseClickhouseUTCDateTimeFormat).mockImplementation(
       (value) => new Date(value.replace(" ", "T") + "Z"),
     );
@@ -187,12 +187,21 @@ describe("agent session projection", () => {
           : []),
       ];
     }).flat();
+    rows.push(
+      event({
+        trace_id: "open-trace",
+        session_id: "open-session",
+        span_id: "open-span",
+        end_time: null,
+      }),
+    );
     mockQueryClickhouse.mockResolvedValueOnce(rows).mockResolvedValueOnce(rows);
     const result = await getAgentSessionProjectionFromEventsTable(scope);
     expect(result.recentWindow.from).toEqual(new Date("2026-10-15T14:00:00Z"));
     expect(result.baselineWindow.to).toEqual(result.recentWindow.from);
     expect(result.agents[0]).toMatchObject({
       comparisonStatus: "ready",
+      excludedSessions: 1,
       baseline: { sessions: 20, averageToolsPerSession: 2 },
       recent: { sessions: 5, averageToolsPerSession: 0, zeroToolSessions: 5 },
     });
@@ -237,6 +246,28 @@ describe("agent session projection", () => {
     ).toEqual(["session-1"]);
   });
 
+  it("keeps canonical legacy trace wrappers in context without treating them as open executions", async () => {
+    const rows = [
+      event(),
+      event({
+        span_id: "t-trace-1",
+        agent_name: "",
+        type: "SPAN",
+        end_time: null,
+      }),
+    ];
+    mockQueryClickhouse
+      .mockResolvedValueOnce([rows[0]])
+      .mockResolvedValueOnce(rows);
+    const result = await getAgentSessionProjectionFromEventsTable(scope);
+    expect(result.sessions[0]).toMatchObject({
+      completePerSession: true,
+      completenessReason: "complete",
+      sessionElapsedMs: 1000,
+    });
+    expect(result.agents[0].current.observations).toBe(1);
+  });
+
   it("decodes escaped skill names and distinguishes available tools from executed tools", async () => {
     const rows = [
       event({
@@ -264,6 +295,52 @@ describe("agent session projection", () => {
     expect(result.sessions[0].skillNames).toEqual(["résumé"]);
   });
 
+  it("prefers native skill references per observation, preserves multiple names and reports mixed legacy evidence", async () => {
+    const rows = [
+      event({
+        span_id: "native",
+        trace_id: "native-trace",
+        type: "TOOL",
+        name: "load_skill",
+        skill_name: "wrong-fallback",
+        native_loaded_names: ["native-one", "native-one", "native-two"],
+        native_available_names: ["native-one", "unused-native"],
+      }),
+      event({
+        span_id: "legacy",
+        trace_id: "legacy-trace",
+        type: "TOOL",
+        name: "load_skill",
+        skill_name: "native-one",
+      }),
+    ];
+    mockQueryClickhouse.mockResolvedValueOnce(rows).mockResolvedValueOnce(rows);
+    const result = await getAgentSessionProjectionFromEventsTable(scope);
+    expect(
+      result.skills.find((row) => row.name === "native-one"),
+    ).toMatchObject({ invocations: 2, source: "mixed", available: true });
+    expect(
+      result.skills.find((row) => row.name === "native-two"),
+    ).toMatchObject({
+      invocations: 1,
+      source: "native",
+      sampleTraceIds: ["native-trace"],
+    });
+    expect(
+      result.skills.find((row) => row.name === "unused-native"),
+    ).toMatchObject({ invocations: 0, source: "native", available: true });
+    expect(result.skills.some((row) => row.name === "wrong-fallback")).toBe(
+      false,
+    );
+    expect(
+      result.activity.reduce((total, row) => total + row.skillInvocations, 0),
+    ).toBe(3);
+    expect(result.agents[0].availableSkillNames).toEqual([
+      "native-one",
+      "unused-native",
+    ]);
+  });
+
   it("never turns open or capped session history into a ready comparison", async () => {
     const rows = [event({ end_time: null })];
     mockQueryClickhouse.mockResolvedValueOnce(rows).mockResolvedValueOnce(rows);
@@ -273,7 +350,8 @@ describe("agent session projection", () => {
       completenessReason: "open-span",
     });
     expect(open.agents[0]).toMatchObject({
-      comparisonStatus: "incomplete-cohort",
+      comparisonStatus: "insufficient-data",
+      excludedSessions: 1,
       signals: [],
     });
 
@@ -303,7 +381,7 @@ describe("getObservationsV2FromEventsTableForPublicApi query shape", () => {
   beforeEach(() => {
     charCounter = 0;
     vi.clearAllMocks();
-    mockQueryClickhouse.mockResolvedValue([]);
+    mockQueryClickhouse.mockReset().mockResolvedValue([]);
   });
 
   it("skips the io-lane split when a content filter forces base onto events_full", async () => {
@@ -360,7 +438,7 @@ describe("metadata-backed agent queries", () => {
   beforeEach(() => {
     charCounter = 0;
     vi.clearAllMocks();
-    mockQueryClickhouse.mockResolvedValue([]);
+    mockQueryClickhouse.mockReset().mockResolvedValue([]);
     vi.mocked(parseClickhouseUTCDateTimeFormat).mockImplementation(
       (value) => new Date(value.replace(" ", "T") + "Z"),
     );

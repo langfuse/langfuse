@@ -1,157 +1,134 @@
 # Agents prototype
 
-Agents are an observation-level dimension, identified by a stable, case-sensitive
-name. The internal Agents page lists observed agents; it does not create a registry.
-All aggregates require a bounded project time window. List metrics are fetched for
-the visible page, so the list is ordered by trace count with a name tie-breaker.
-Cost sorting is deliberately unavailable until the backend can rank the full result.
+Agents are an observation-level dimension identified by an exact, case-sensitive
+name. This internal prototype discovers instrumented agents; it creates no agent
+registry. The default overview combines cards, explainable activity changes and
+session exploration. Prototype options expose list, activity and relationship
+alternatives for comparison.
 
 ## Owners and data flow
 
-- `AgentsPage` / `AgentsTable`: shared project date range, environment filters,
-  name search, offset pagination, and the two-query list/metrics pattern.
-- `AgentDetailPage`: resolves one closed window for stats, Pulse, runs,
-  observations, skills and the map. Pulse selection changes the URL window without
-  changing the saved project default; browser Back restores it. Explicit date-picker
-  choices persist. Environment filters survive list/profile/map navigation.
-- `AgentStats` and `AgentSkills`: independent queries with loading, empty and retry
-  states; no query results mirrored into local state.
-- `agent-map/buildAgentMapData`: pure trace-scoped ancestry and call counts. The
-  map reuses the trace graph renderer and offers a connection table when the graph
-  becomes too large. Missing ancestors, cycles and unnamed callers stay explicit.
-- `server/agents-router`: project authorization and bounded, validated inputs.
-- Shared `src/server/repositories/agents.ts`: compact-event query builders, project
-  and window bounds, metadata-name prefilter, usage/cost aggregation and sample caps.
-- Shared `OtelIngestionProcessor`: resolves identity independently for each span in
-  both direct and legacy write paths. It does not infer or inherit agent identity.
+- `AgentsPage` → `overview/AgentsOverview` / `useAgentsOverview`: one resolved
+  project, environment and closed time range; bounded discovery, search, refresh,
+  sorting and URL navigation. `AgentsTable` also retains the legacy paged explorer.
+- `overview/prepareOverview` / `prepareRelationships`: pure card metrics, cohorts,
+  session lanes, heatmap buckets and relationship presentation. Cards, list and
+  visualizations share the same returned cohort.
+- `appearance`: deterministic defaults, exact project/name keys, validated local
+  persistence and the icon/emoji/mascot picker. Identity accents are independent
+  of warning/error semantics.
+- `prototype-options`: typed URL choices with project-scoped browser defaults.
+  No new telemetry records names, identifiers, glyphs or search values.
+- `AgentDetailPage`: scope and tab navigation, preserving `tab=runs` as AGENT
+  invocations. Sessions is the default. Tabs precede contextual charts.
+- `profile`: pure chart/session preparation, period-scoped session rows, executed
+  tools, comparison evidence, coverage and genuine session peek. The peek reuses
+  session detail APIs and conversation components; it loads content only on open.
+- `AgentSkills`: native-load/legacy evidence, authorized exact-name catalog links
+  and a separate declaration view. A catalog match does not establish loaded version.
+- `agent-map`: existing trace-local ancestry explorer and graph renderer.
+- `server/agents-router`: project authorization, validated closed windows and
+  environment-only scope. The shared `agents-projection` repository implements
+  the replaceable bounded read model.
 
-## Instrumentation contract
+Fetched data stays in React Query. URL state owns the selected time, tab, filters,
+drill-down and prototype variant. Appearance preferences legitimately cross routes;
+transient pointer state stays local. Query results are never copied into UI state.
 
-The first nonempty string wins independently for each field:
+## Identity and attribution
 
-| Field   | Preferred attribute      | Standard fallback      |
-| ------- | ------------------------ | ---------------------- |
-| Name    | `langfuse.agent.name`    | `gen_ai.agent.name`    |
-| ID      | `langfuse.agent.id`      | `gen_ai.agent.id`      |
-| Version | `langfuse.agent.version` | `gen_ai.agent.version` |
+Resolve each field independently from `langfuse.agent.name/id/version`, then
+`gen_ai.agent.name/id/version`. A nonempty name is required, with a maximum of
+200 Unicode characters. IDs and versions are optional metadata, not grouping keys.
+Reserved normalized keys are `langfuse_agent_name`, `langfuse_agent_id` and
+`langfuse_agent_version`. User metadata cannot counterfeit them.
 
-Names support at most 200 Unicode characters because `events_core` truncates
-metadata values at that boundary. Longer names are omitted instead of being merged
-under a truncated identity. IDs and versions are optional; a valid name is required.
-The ingestion resolver writes reserved observation metadata keys
-`langfuse_agent_name`, `langfuse_agent_id` and `langfuse_agent_version` after user
-metadata. Reserved keys supplied in user/trace metadata are removed so they cannot
-counterfeit identity or leak an ancestor's name to an unnamed observation.
+Every owned generation/tool must carry the agent name. Nested agents carry their
+own identities. Ingestion does not infer identity from ancestors. Cost and tokens
+are exclusive to explicitly attributed observations; missing attribution remains
+visible in coverage. Names with punctuation retain exact identity and URL encoding.
 
-Set the name on every generation, tool and span owned by an agent. A nested agent
-sets its own name on its subtree. Existing `AGENT` type mapping is unchanged; an
-unnamed AGENT span is not listed. A named generation contributes usage and cost
-even without a named AGENT span. No SDK propagation API is added by this change.
+## Metric contract
 
-Current JS SDK manual instrumentation, with a configured Langfuse span processor:
+- An **invocation** is an AGENT observation. A **session** requires a genuine
+  nonempty session ID. Repeated invocations do not inflate session count.
+- A session can contain several agents and traces. System session count is the
+  distinct union, not the sum of agent memberships. Sessionless traces remain
+  accessible and contribute to appropriate totals, but never to session averages.
+- Cards and session-table counts/costs use the selected interval. Session duration
+  describes whole loaded session context. Whole-session cost is never charged to
+  every participating agent. Session peeks explicitly show whole-session totals.
+- Tool calls count executed TOOL observations. Model tool-call requests are a
+  separate representation, never an additive second count. Zero-tool sessions
+  remain in tools/session denominators.
+- Native skill resource references take precedence per observation; duplicate
+  resource files for one skill do not inflate its load count. Legacy skill-tool
+  names/input provide a labelled fallback. Native availability is a declaration,
+  separate from observed loads and project catalog membership.
+- Recent/baseline cohorts use whole observed sessions' last activity timestamps,
+  aggregating each agent's attributed activity. Current cards retain strict period
+  accounting. Overlapping attributed intervals are unioned for active duration.
 
-```ts
-import { startObservation } from "@langfuse/tracing";
+## Comparisons, discovery and coverage
 
-const agent = startObservation("research", {}, { asType: "agent" });
-agent.otelSpan.setAttribute("langfuse.agent.name", "research");
-const generation = agent.startObservation(
-  "answer",
-  {},
-  { asType: "generation" },
-);
-generation.otelSpan.setAttribute("langfuse.agent.name", "research");
-// Record the generation's usage and output before ending it.
-generation.end();
-agent.end();
-```
+The selected activity window, comparison windows and discovery lookback are three
+explicit scopes. Comparisons anchor at the selected end: the most recent hour
+versus the preceding 14 days, optionally seven. Discovery looks back 30 days and
+may find agents with no activity in the selected interval. First/last known times
+refer to that bounded history, never agent creation or lifetime.
 
-Cost is exclusive: it sums observations carrying this exact name and does not
-roll up sub-agents. Frameworks that name only the invocation span have incomplete
-attributed usage/cost. Rewritten event rows can temporarily inflate sums until
-background merges, matching the existing Users queries. No `FINAL` or mutation is
-introduced to hide that storage limitation. Statistics, first/last seen and average
-cost per trace refer to the selected window, never to lifetime totals.
+Comparisons need at least 20 qualifying historical and five recent sessions.
+Open/clipped units are excluded and counted. “Settled observed” means closed
+execution spans and at least five minutes of quiet; it is not an application
+completion signal. The canonical trace mirror wrapper is context, not an open
+execution. Missing/capped history suppresses trustworthy comparisons. Signals
+describe unusual tool usage, missing tools, cost, duration or observation counts;
+they are suggestions to inspect evidence, not health or outcome-quality scores.
 
-The tracing search bar already accepts `metadata.langfuse_agent_name = research`.
-Names with spaces or punctuation should be quoted in the search grammar.
+The projection bounds agents, sessions, rows, tool/skill groups, activity points,
+graph evidence, query time, memory, bytes read and response size. Coverage states
+are part of the UI contract. Rankings describe the returned cohort, not a claimed
+global top-N. Unknown buckets differ from measured zeroes. Comparison sparklines
+use normalized session-cohort progress, not synchronized clock time.
 
-## Bounded previews
+Calls use directed trace-ancestry or explicitly declared handoff evidence. Shared
+observed tools, declared available tools and task/area/topic labels are separate
+undirected similarity views. Seeded illustrative labels/handoffs carry provenance.
+No similarity or co-occurrence creates a causal call. The existing per-agent map
+retains its 100-trace/20,000-row preview limits and unknown ancestry boundaries.
 
-Skills match known skill-tool tokens case-insensitively, including `Skill` and
-`skills`, and extract an attribute/input name with a tool-name fallback. They show
-up to 50 skills, with an explicit limit notice. This is not registry membership or
-version tracking. Tool input is truncated in compact events, so matching is best
-effort and carries a visible preview label.
+## Reproducible walkthrough
 
-The map loads the 100 most recently active traces containing the agent within the
-window, then at most 20,000 skeleton rows from that same window and environment.
-It fetches no input/output. Cap detection reads one extra row and is surfaced in
-the UI. Window boundaries can exclude ancestors; those calls have an unknown
-caller, not an invented root. The nearest AGENT ancestor is the caller, including
-unnamed boundaries. Counts are distinct sampled spans and traces, not a complete
-project-wide graph. Cross-trace calls require a future explicit caller attribute.
-Same-name self-calls keep their counts in Connections and appear as ↻ counts on
-diagram nodes; calls between unnamed agents remain grouped without claiming identity.
-
-## Reproducible review
+Use the official seed CLI and its printed links:
 
 ```sh
-NEXTAUTH_URL=http://localhost:3017 pnpm run seed -- agents-view --environment production --v4
+NEXTAUTH_URL=http://localhost:3017 pnpm run seed -- agents-rfc --environment production --id-prefix agents-rfc-session-20261015 --managed-skills
 NEXTAUTH_URL=http://localhost:3017 LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES=true pnpm --filter web run dev --port 3017
 ```
 
-Use the CLI's printed links and sign in with the seeded demo account. List and
-profile links pin the generated window with `dateRange`. The default fixture
-spans 08:00–12:00 UTC on the current UTC day and includes eight agents, each with
-two meaningful skills, nested citation runs, named generation costs,
-production/staging data, a name-only agent with incomplete cost, and a name with
-URL punctuation. Skill invocations carry their owning agent's identity, so every
-profile has Skills rows with trace coverage and drill-downs. Printed Skills links
-open each profile directly with `tab=skills`.
+The RFC scenario includes real shared/multi-trace sessions, repeated invocations,
+sessionless activity, zero tools, both tool representations, native and legacy
+skills, managed definitions, Unicode names, stable history, recent deviations,
+ongoing/sparse activity, dormant agents and distinct causal/similarity evidence.
+Its default selected range is October 15, 2026, 11:00–15:00 UTC. Existing
+`agents-view` fixtures and their invocation/skills links remain valid. See the
+[seeder catalog](../../../../packages/shared/scripts/seeder/README.md) for options
+and the deterministic prefix/reseed contract.
 
-To enrich an existing demo on another day while preserving its traces and window,
-reuse its original UTC date, prefix and other seed flags:
+Review cards → changed agent → supporting sessions → session peek → Tools/Skills.
+Compare list, timeline/heatmap, calls/similarity and identity treatments. Zoom and
+Back preserve scope. Enable identity badges in prototype options to inspect the
+session/trace badge experiment; missing sampled identity remains unknown.
 
-```sh
-NEXTAUTH_URL=http://localhost:3017 pnpm run seed -- agents-view --environment production --date YYYY-MM-DD --id-prefix original-prefix --v4
-```
+## Production aggregation boundary
 
-Replace the date and prefix placeholders with the original values. Omitted or
-empty `--date` defaults to today; changing the date or timing needs a fresh
-`--id-prefix`. See the [Agents fixture walkthrough](../../../../packages/shared/scripts/seeder/README.md#agents-view)
-for the full reseeding contract.
+Preserve the browser-safe `AgentSessionProjection` contract, its units, provenance
+and coverage while replacing the read adapter. Native agent columns, deduplicated
+materialized aggregates, backend global ranking and scalable historical cohorts
+can land independently of cards/tables/charts. Explicit cross-session handoff
+instrumentation and terminal-session lifecycle need their own contracts.
 
-Review Agents → research → Runs → trace peek; select a Pulse bar and verify stats
-and rows narrow together. Open compose → Skills for citation-style; open verify →
-Agent map for verify-citation edges. Switch to Observations to inspect attributed
-generations. Check the name-only profile and the URL-special name. The prototype
-is gated by the existing internal feature control, including direct page entry.
-
-## Path to production aggregation
-
-Keep the UI-facing `AgentMetrics`, `AgentSkillsResult` and `AgentMapSkeletonResult`
-contracts stable while replacing their repository implementation:
-
-1. Add `agent_name`, `agent_id`, `agent_version` to both event tables and update
-   the TO-table materialized view without dropping it. Coordinate this with the
-   native skill column shape. Reuse the existing per-span resolver; switch
-   `AGENT_NAME_EXPR` / `HAS_AGENT_EXPR` to the native columns. Dual-write the
-   reserved metadata key for one compatibility release so saved filters still work.
-   Backfill historical normalized metadata only if its query cost is acceptable.
-2. Add the native Agent dimension to filter, chart and public metrics registries.
-   An actual observation-table column then uses the same field. The current
-   metadata filter remains a supported compatibility path during transition.
-3. Replace visible-page metrics with a backend-ranked aggregate result before
-   enabling cost/token sorting. Return explicit total/approximation information
-   and define deduplication guarantees; avoid silently sorting only one page.
-4. Replace tool-name skills matching with native loaded/available skills while
-   preserving the window and provenance in the response. Registry versions and
-   custom tool-argument mappings are separate capabilities.
-5. Replace sampled skeletons with backend call aggregation, retaining coverage and
-   truncation fields. Introduce caller identity for cross-trace handoffs. Inclusive
-   subtree cost, step graphs and baseline outliers need their own accounting/data
-   contracts; they must not change the meaning of current exclusive totals.
-
-No migration, new queue, external service, SDK change, ancestor resolution at
-ingestion, or public API contract is required for this prototype.
+Native skill columns from main are consumed directly; older skill evidence keeps
+its fallback label. Shared appearance persistence can replace the local adapter
+without introducing an agent registry. This prototype adds no schema migration,
+queue, external inference pipeline, public API or SDK propagation contract.

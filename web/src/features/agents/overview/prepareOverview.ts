@@ -45,15 +45,13 @@ export function prepareAgents(
       skillCount: skills.get(agent.agentName)?.size ?? 0,
     }))
     .sort((a, b) => {
-      const rank =
-        sort === "sessions"
-          ? b.current.sessions - a.current.sessions
-          : sort === "cost"
-            ? b.current.cost - a.current.cost
-            : sort === "attention"
-              ? b.signals.length - a.signals.length ||
-                b.current.sessions - a.current.sessions
-              : 0;
+      let rank = 0;
+      if (sort === "sessions") rank = b.current.sessions - a.current.sessions;
+      if (sort === "cost") rank = b.current.cost - a.current.cost;
+      if (sort === "attention")
+        rank =
+          b.signals.length - a.signals.length ||
+          b.current.sessions - a.current.sessions;
       return rank || a.agentName.localeCompare(b.agentName);
     });
 }

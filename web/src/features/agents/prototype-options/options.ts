@@ -44,6 +44,17 @@ function choice<T extends string>(
   return choices.find((candidate) => candidate === value) ?? fallback;
 }
 
+function baselineDays(value: unknown, fallback: 7 | 14): 7 | 14 {
+  if (value === 7 || value === "7") return 7;
+  if (value === 14 || value === "14") return 14;
+  return fallback;
+}
+function booleanOption(value: unknown, fallback: boolean): boolean {
+  if (value === "1") return true;
+  if (value === "0") return false;
+  return fallback;
+}
+
 export function resolveAgentOptions(
   raw: Record<string, unknown>,
   defaults = DEFAULT_AGENT_OPTIONS,
@@ -72,24 +83,12 @@ export function resolveAgentOptions(
       ["contextual", "pulse", "none"],
       defaults.profileChart,
     ),
-    baselineDays:
-      raw.agentBaseline === 7 || raw.agentBaseline === "7"
-        ? 7
-        : raw.agentBaseline === 14 || raw.agentBaseline === "14"
-          ? 14
-          : defaults.baselineDays,
-    showAttention:
-      raw.agentAttention === "0"
-        ? false
-        : raw.agentAttention === "1"
-          ? true
-          : defaults.showAttention,
-    showIdentityBadges:
-      raw.agentBadges === "1"
-        ? true
-        : raw.agentBadges === "0"
-          ? false
-          : defaults.showIdentityBadges,
+    baselineDays: baselineDays(raw.agentBaseline, defaults.baselineDays),
+    showAttention: booleanOption(raw.agentAttention, defaults.showAttention),
+    showIdentityBadges: booleanOption(
+      raw.agentBadges,
+      defaults.showIdentityBadges,
+    ),
     cardMetrics: metrics.length > 0 ? metrics : defaults.cardMetrics,
   };
 }
