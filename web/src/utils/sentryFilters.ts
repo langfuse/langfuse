@@ -405,6 +405,37 @@ function isSafariAddMoreClickMessage(value: string): boolean {
 }
 
 /**
+ * Cloudflare Turnstile's exact wording when `reset()` / an internal retry
+ * runs after the widget container is already gone. Auth pages remount the
+ * widget when the siteverify action changes (signup → login / password
+ * reset), and Turnstile also auto-resets a consumed token. Those leftover
+ * calls throw from a Sentry-wrapped `setTimeout` with only `api.js`
+ * frames — expected vendor teardown, not an app bug.
+ *
+ * Requires `TurnstileError` + this exact message + `auto.browser.*` + no
+ * `/_next/` frame so:
+ *  - an app-captured exception that quotes the phrase (`generic`) is KEPT;
+ *  - a different TurnstileError (script failed to load, siteverify) is KEPT;
+ *  - a first-party stack that happens to throw this type is KEPT.
+ */
+const CLOUDFLARE_TURNSTILE_RESET_CONTAINER_MESSAGE =
+  "[Cloudflare Turnstile] Nothing to reset found for provided container";
+
+function isCloudflareTurnstileResetContainerEvent(
+  exceptionType: string | undefined,
+  exceptionValue: string,
+  event: ErrorEvent,
+): boolean {
+  if (exceptionType !== "TurnstileError") return false;
+  if (
+    coreMessage(exceptionValue) !== CLOUDFLARE_TURNSTILE_RESET_CONTAINER_MESSAGE
+  ) {
+    return false;
+  }
+  return !hasFirstPartyChunkFrame(event);
+}
+
+/**
  * True when any stack frame is a first-party Next.js chunk. Used as a
  * negative guard so a future first-party throw that happens to share
  * WebKit's wording still reaches Sentry.
@@ -676,7 +707,7 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
     // exact TypeError for an injected `addMore` that is undefined. Stack is
     // document-attributed global code, not a chunk.
     //
-    // All three are anchored to a Sentry browser-API / global-handler
+    // These are anchored to a Sentry browser-API / global-handler
     // mechanism so an app-captured exception that merely quotes the
     // phrase is KEPT.
     const mechanismType = exception?.mechanism?.type;
@@ -696,6 +727,15 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
         exceptionType === "TypeError" &&
         isSafariAddMoreClickMessage(exceptionValue) &&
         !hasFirstPartyChunkFrame(event)
+      ) {
+        return true;
+      }
+      if (
+        isCloudflareTurnstileResetContainerEvent(
+          exceptionType,
+          exceptionValue,
+          event,
+        )
       ) {
         return true;
       }
