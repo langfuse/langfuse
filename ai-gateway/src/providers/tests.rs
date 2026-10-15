@@ -1238,28 +1238,17 @@ fn assert_chat_upload(payload: &serde_json::Value, request: &str) {
     }
 }
 
-#[tokio::test]
-async fn an_upstream_body_holds_its_reservation_until_its_bytes_are_freed() {
-    use http_body::Body as _;
-    use http_body_util::BodyExt as _;
-
+#[test]
+fn reserved_bytes_hold_their_reservation_until_the_last_reference_is_freed() {
     let reservation = Arc::new(());
-    let mut body = UpstreamBody::new(
+    let body = reserved_bytes(
         Bytes::from_static(b"{}"),
         Some(Box::new(reservation.clone())),
     );
-    assert_eq!(body.size_hint().exact(), Some(2));
-    let queued = body.frame().await.unwrap().unwrap().into_data().unwrap();
-    assert!(body.is_end_stream());
+    let queued = body.clone();
     drop(body);
     assert_eq!(Arc::strong_count(&reservation), 2);
+    assert_eq!(&queued[..], b"{}");
     drop(queued);
     assert_eq!(Arc::strong_count(&reservation), 1);
-
-    let abandoned = Arc::new(());
-    drop(UpstreamBody::new(
-        Bytes::from_static(b"{}"),
-        Some(Box::new(abandoned.clone())),
-    ));
-    assert_eq!(Arc::strong_count(&abandoned), 1);
 }

@@ -1,14 +1,7 @@
 mod chat_completions;
 pub(crate) mod model_list;
 
-use std::{
-    convert::Infallible,
-    ops::Range,
-    pin::Pin,
-    sync::Arc,
-    task::{Context, Poll},
-    time::Duration,
-};
+use std::{ops::Range, sync::Arc, time::Duration};
 
 use axum::{
     body::{Body, Bytes},
@@ -126,49 +119,13 @@ impl AsRef<[u8]> for ReservedBytes {
     }
 }
 
-/// A fixed-length upstream body that cannot be cloned. The client's retry layer clones
-/// reusable bodies and keeps the copy until the response, which would pin the bytes
-/// for a whole non-streamed generation.
-pub(crate) struct UpstreamBody(Option<Bytes>);
-
-impl UpstreamBody {
-    pub(crate) fn new(bytes: Bytes, reservation: Option<BodyReservation>) -> Self {
-        Self(Some(match reservation {
-            Some(reservation) => Bytes::from_owner(ReservedBytes {
-                bytes,
-                _reservation: reservation,
-            }),
-            None => bytes,
-        }))
-    }
-}
-
-impl http_body::Body for UpstreamBody {
-    type Data = Bytes;
-    type Error = Infallible;
-
-    fn poll_frame(
-        self: Pin<&mut Self>,
-        _: &mut Context<'_>,
-    ) -> Poll<Option<Result<http_body::Frame<Bytes>, Infallible>>> {
-        Poll::Ready(
-            self.get_mut()
-                .0
-                .take()
-                .map(|bytes| Ok(http_body::Frame::data(bytes))),
-        )
-    }
-
-    fn is_end_stream(&self) -> bool {
-        self.0.as_ref().is_none_or(Bytes::is_empty)
-    }
-
-    fn size_hint(&self) -> http_body::SizeHint {
-        http_body::SizeHint::with_exact(
-            self.0
-                .as_ref()
-                .map_or(0, |bytes| u64::try_from(bytes.len()).unwrap_or(u64::MAX)),
-        )
+pub(crate) fn reserved_bytes(bytes: Bytes, reservation: Option<BodyReservation>) -> Bytes {
+    match reservation {
+        Some(reservation) => Bytes::from_owner(ReservedBytes {
+            bytes,
+            _reservation: reservation,
+        }),
+        None => bytes,
     }
 }
 
@@ -321,7 +278,12 @@ impl ProviderTransport {
             .headers(transport::request_headers(headers, api_format))
             .header(header::ACCEPT_ENCODING, "identity")
             .header(credential_name, credential);
-        upstream = upstream.body(reqwest::Body::wrap(UpstreamBody::new(body, reservation)));
+        // Wrapped so reqwest cannot clone it: its retry and redirect layers keep a copy
+        // of a reusable body until headers, holding the reservation for a whole
+        // non-streamed generation.
+        upstream = upstream.body(reqwest::Body::wrap(http_body_util::Full::new(
+            reserved_bytes(body, reservation),
+        )));
         // A stream, or a call that does not generate, that goes quiet before its
         // headers is stalled. A non-streamed generation sends nothing until the whole
         // response is generated.
