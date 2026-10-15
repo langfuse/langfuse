@@ -14,6 +14,8 @@ import {
 } from "../../topics";
 
 export const TOPICS_ACTION = "topics";
+// Actor of executions Topics starts on its own, such as automatic discovery.
+export const TOPICS_SYSTEM_USER_ID = "system:topics";
 type BatchMetadata = {
   inputSettings:
     | Extract<TopicExecutionSummary["input"], { operation: "process" }>
