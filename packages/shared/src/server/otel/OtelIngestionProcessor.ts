@@ -1,4 +1,5 @@
 /* eslint-disable no-nested-ternary */
+import { measureOtelMainThread } from "./mainThreadTimings";
 import { randomUUID } from "crypto";
 
 import {
@@ -398,7 +399,9 @@ export class OtelIngestionProcessor {
         span.setAttribute("project_id", this.projectId);
         span.setAttribute(
           "total_span_count",
-          this.getTotalSpanCount(resourceSpans),
+          measureOtelMainThread("conversion", () =>
+            this.getTotalSpanCount(resourceSpans),
+          ),
         );
 
         // Input validation
@@ -813,13 +816,20 @@ export class OtelIngestionProcessor {
           }
 
           // Process all events normally first
-          const allEvents = resourceSpans.flatMap((resourceSpan) => {
-            if (!resourceSpan) return [];
-            return this.processResourceSpan(resourceSpan);
-          });
+          const { allEvents, finalEvents } = measureOtelMainThread(
+            "legacy_conversion",
+            () => {
+              const allEvents = resourceSpans.flatMap((resourceSpan) => {
+                if (!resourceSpan) return [];
+                return this.processResourceSpan(resourceSpan);
+              });
 
-          // Filter out redundant shallow trace events
-          const finalEvents = this.filterRedundantShallowTraces(allEvents);
+              // Filter out redundant shallow trace events
+              const finalEvents = this.filterRedundantShallowTraces(allEvents);
+
+              return { allEvents, finalEvents };
+            },
+          );
 
           span.setAttribute("events_generated", finalEvents.length);
 

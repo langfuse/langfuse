@@ -13,6 +13,9 @@ import {
   OtelIngestionProcessor,
   processEventBatch,
   QueueName,
+  measureOtelMainThread,
+  setOtelMainThreadTimingTags,
+  withOtelMainThreadTimings,
   recordDistribution,
   recordHistogram,
   recordIncrement,
@@ -440,7 +443,7 @@ export const otelIngestionQueueProcessorBuilder = (
       ",",
     ) ?? [];
 
-  return async (
+  const processJob = async (
     job: Job<TQueueJobTypes[QueueName.OtelIngestionQueue]>,
   ): Promise<void> => {
     let earlyBatch: EarlyOtelBatch | undefined;
@@ -510,6 +513,10 @@ export const otelIngestionQueueProcessorBuilder = (
             projectId,
           ));
       mediaPath = earlyMediaEnabled ? "early" : "reference";
+      setOtelMainThreadTimingTags({
+        media_path: mediaPath,
+        media_presence: "unknown",
+      });
       span?.setAttribute("langfuse.ingestion.otel.media_path", mediaPath);
       // Count selection once per queue attempt, including jobs that later fail.
       recordIncrement("langfuse.ingestion.otel.media_path", 1, {
@@ -555,7 +562,9 @@ export const otelIngestionQueueProcessorBuilder = (
         // Download file from blob storage
         const resourceSpans = await eventStorage.download(fileKey);
         const preparationStartedAt = performance.now();
-        inputByteLength = Buffer.byteLength(resourceSpans, "utf8");
+        inputByteLength = measureOtelMainThread("input_json", () =>
+          Buffer.byteLength(resourceSpans, "utf8"),
+        );
 
         recordHistogram(
           "langfuse.ingestion.s3_file_size_bytes",
@@ -567,7 +576,9 @@ export const otelIngestionQueueProcessorBuilder = (
         );
 
         // Parse spans from S3 download
-        parsedSpans = JSON.parse(resourceSpans);
+        parsedSpans = measureOtelMainThread("input_json", () =>
+          JSON.parse(resourceSpans),
+        );
 
         // Apply ingestion masking if enabled (EE feature)
         if (isIngestionMaskingEnabled()) {
@@ -618,25 +629,31 @@ export const otelIngestionQueueProcessorBuilder = (
 
       // Here, we split the events into observations and non-observations.
       // Observations go into the IngestionService directly whereas the non-observations make another run through the processEventBatch method.
-      const traces = events.filter(
-        (e) => getClickhouseEntityType(e.type) !== "observation",
-      );
-      // We need to parse each incoming observation through our ingestion schema to make use of its included transformations.
-      const ingestionSchema = createIngestionEventSchema(isLangfuseInternal);
-      const candidateObservations = events.filter(
-        (e) => getClickhouseEntityType(e.type) === "observation",
-      );
       let firstParseError: z.ZodError | undefined;
-      const observations = candidateObservations
-        .map((o) => ingestionSchema.safeParse(o))
-        .flatMap((o) => {
-          if (!o.success) {
-            if (firstParseError === undefined) {
-              firstParseError = o.error;
-            }
-            return [];
-          }
-          return [o.data];
+      const { traces, candidateObservations, observations } =
+        measureOtelMainThread("conversion", () => {
+          const traces = events.filter(
+            (e) => getClickhouseEntityType(e.type) !== "observation",
+          );
+          // We need to parse each incoming observation through our ingestion schema to make use of its included transformations.
+          const ingestionSchema =
+            createIngestionEventSchema(isLangfuseInternal);
+          const candidateObservations = events.filter(
+            (e) => getClickhouseEntityType(e.type) === "observation",
+          );
+          const observations = candidateObservations
+            .map((o) => ingestionSchema.safeParse(o))
+            .flatMap((o) => {
+              if (!o.success) {
+                if (firstParseError === undefined) {
+                  firstParseError = o.error;
+                }
+                return [];
+              }
+              return [o.data];
+            });
+
+          return { traces, candidateObservations, observations };
         });
 
       // Per-observation parse failures are near-pure noise (customer-sent data
@@ -892,6 +909,11 @@ export const otelIngestionQueueProcessorBuilder = (
       });
       throw e;
     } finally {
+      if (mediaPath)
+        setOtelMainThreadTimingTags({
+          media_path: mediaPath,
+          media_presence: mediaPresence ?? "unknown",
+        });
       await earlyBatch?.dispose();
       setOtelInputPreparationSpanAttributes(span, {
         durationMs: inputPreparationDurationMs,
@@ -906,6 +928,8 @@ export const otelIngestionQueueProcessorBuilder = (
       });
     }
   };
+  return (job) =>
+    withOtelMainThreadTimings(() => processJob(job), recordDistribution);
 };
 
 function combineOtelMediaPresence(

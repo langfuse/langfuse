@@ -1,3 +1,4 @@
+import { measureOtelMainThread } from "./mainThreadTimings";
 import type { MediaContentType, MediaField } from "../../domain/media";
 import { recordDistribution, recordIncrement } from "../instrumentation";
 import { logger } from "../logger";
@@ -194,10 +195,11 @@ async function processCandidate(
 
   let contentBytes: Buffer;
   try {
-    contentBytes =
+    contentBytes = measureOtelMainThread("media_decode_hash", () =>
       candidate.encoding === "base64"
         ? Buffer.from(candidate.encodedData, "base64")
-        : decodePythonBytesLiteral(candidate.encodedData);
+        : decodePythonBytesLiteral(candidate.encodedData),
+    );
     if (contentBytes.length === 0) {
       recordInvalidCandidate(candidate.kind, "empty_payload", context);
       return;

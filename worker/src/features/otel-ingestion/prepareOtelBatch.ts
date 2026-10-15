@@ -6,6 +6,7 @@ import {
   type ValidatedOtelJson,
 } from "@langfuse/native";
 import {
+  measureOtelMainThread,
   recordDistribution,
   recordIncrement,
   type ResourceSpan,
@@ -43,24 +44,40 @@ export async function prepareOtelBatch(params: {
   const { bytes, extractMedia, ...context } = params;
   const startedAt = performance.now();
   let outcome: "native" | "unchanged" | "masking_drop" | "error" = "error";
+  let codepath: "inline_check" | "uv_dispatch" | "disabled" = "disabled";
   let originalInput: ValidatedOtelJson | undefined;
   let maskedInput: ValidatedOtelJson | undefined;
   try {
     if (!isIngestionMaskingEnabled()) {
+      codepath = extractMedia ? "inline_check" : "disabled";
       const needsExtraction =
         extractMedia &&
         (bytes.length > MAX_SYNC_MEDIA_CHECK_BYTES ||
-          hasOtelMediaCandidate(bytes));
-      const batch = needsExtraction ? await extractOtelMedia(bytes) : null;
+          measureOtelMainThread("candidate_check", () =>
+            hasOtelMediaCandidate(bytes),
+          ));
+      if (needsExtraction) codepath = "uv_dispatch";
+      const extraction = needsExtraction
+        ? measureOtelMainThread("native_dispatch", () =>
+            extractOtelMedia(bytes),
+          )
+        : null;
+      const batch = needsExtraction ? await extraction : null;
       outcome = batch ? "native" : "unchanged";
       return { batch: batch ?? undefined, sourceUnchanged: !batch };
     }
-    originalInput = await validateOtelJson(bytes);
+    codepath = "uv_dispatch";
+    originalInput = await measureOtelMainThread("native_dispatch", () =>
+      validateOtelJson(bytes),
+    );
     const masking = await applyIngestionMasking(
       {
         ...context,
         data: {
-          bytes: originalInput.normalizedBytes() ?? bytes,
+          bytes:
+            measureOtelMainThread("native_result", () =>
+              originalInput!.normalizedBytes(),
+            ) ?? bytes,
           validated: originalInput,
         },
       },
@@ -84,9 +101,14 @@ export async function prepareOtelBatch(params: {
             const json = stripResponseJsonBoms(
               Buffer.from(await response.arrayBuffer()),
             );
-            maskedInput = await validateOtelJson(json);
+            maskedInput = await measureOtelMainThread("native_dispatch", () =>
+              validateOtelJson(json),
+            );
             return {
-              bytes: maskedInput.normalizedBytes() ?? json,
+              bytes:
+                measureOtelMainThread("native_result", () =>
+                  maskedInput!.normalizedBytes(),
+                ) ?? json,
               validated: maskedInput,
             };
           } finally {
@@ -107,7 +129,9 @@ export async function prepareOtelBatch(params: {
     } else {
       await originalInput.dispose();
     }
-    const batch = await masking.data.validated.extract(extractMedia);
+    const batch = await measureOtelMainThread("native_dispatch", () =>
+      masking.data.validated.extract(extractMedia),
+    );
     outcome = "native";
     return {
       batch,
@@ -125,6 +149,7 @@ export async function prepareOtelBatch(params: {
       .finally(() => {
         const tags = {
           outcome,
+          codepath,
           extract_media: extractMedia.toString(),
         };
         recordIncrement(
@@ -160,9 +185,17 @@ export async function parsePreparedOtelBatch(
         downloadedBytes.byteLength,
       );
     } else {
-      json = batch.takeJsonBuffer();
+      json = measureOtelMainThread("native_result", () =>
+        batch!.takeJsonBuffer(),
+      );
     }
-    return { resourceSpans: JSON.parse(json.toString("utf8")), batch };
+    const text = measureOtelMainThread("input_json", () =>
+      json.toString("utf8"),
+    );
+    const resourceSpans = measureOtelMainThread("input_json", () =>
+      JSON.parse(text),
+    );
+    return { resourceSpans, batch };
   } catch (error) {
     await batch?.dispose();
     throw error;

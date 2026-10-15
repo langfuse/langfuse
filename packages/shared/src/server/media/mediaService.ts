@@ -1,3 +1,4 @@
+import { measureOtelMainThread } from "../otel/mainThreadTimings";
 import { createHash, randomUUID } from "crypto";
 import { Readable } from "stream";
 
@@ -209,7 +210,9 @@ export async function uploadMediaForTrace(params: {
   } = params;
   const sha256Hash =
     params.sha256Hash ??
-    createHash("sha256").update(contentBytes).digest("base64");
+    measureOtelMainThread("media_decode_hash", () =>
+      createHash("sha256").update(contentBytes).digest("base64"),
+    );
   const mediaId = getMediaId(sha256Hash);
   const existingMedia = await prisma.media.findUnique({
     where: {
