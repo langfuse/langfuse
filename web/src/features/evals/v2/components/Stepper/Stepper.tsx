@@ -14,7 +14,6 @@ export function Stepper({
   number,
   title,
   description,
-  summary,
   compactBottomSpacing = false,
   defaultOpen = true,
   open,
@@ -24,7 +23,6 @@ export function Stepper({
   number: number;
   title: string;
   description?: ReactNode;
-  summary?: ReactNode;
   compactBottomSpacing?: boolean;
   defaultOpen?: boolean;
   open?: boolean;
@@ -69,11 +67,6 @@ export function Stepper({
             )}
           />
           <span className="text-lg font-bold">{title}</span>
-          {summary ? (
-            <span className="text-muted-foreground ml-auto text-sm">
-              {summary}
-            </span>
-          ) : null}
         </button>
         {expanded && (
           <div className="flex flex-col gap-4 pl-5">

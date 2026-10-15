@@ -348,6 +348,42 @@ export const SkippedFacets = meta.story({
   },
 });
 
+export const InsufficientSummaries = meta.story({
+  name: "(Test) Shows one readiness warning inside Review & Run",
+  args: {
+    operation: "update",
+    facets: facets.map((facet) => ({ ...facet, summaries: 24 })),
+  },
+  play: async ({ canvasElement }) => {
+    const view = within(
+      within(canvasElement.ownerDocument.body).getByRole("dialog", {
+        name: "Manual processing",
+      }),
+    );
+    await expect(view.getAllByRole("alert")).toHaveLength(1);
+    await expect(view.getByRole("alert")).toHaveTextContent(
+      "Each selected facet has fewer than 100 summaries.",
+    );
+    await expect(
+      view.getByRole("button", { name: "Generate topics" }),
+    ).toBeDisabled();
+    await userEvent.click(
+      view.getByRole("button", { name: "Step 3: Review & Run" }),
+    );
+    await expect(view.queryByRole("alert")).not.toBeInTheDocument();
+    await userEvent.click(
+      view.getByRole("button", { name: "Step 3: Review & Run" }),
+    );
+    await userEvent.click(
+      view.getByRole("switch", { name: "Small sample mode" }),
+    );
+    await expect(view.queryByRole("alert")).not.toBeInTheDocument();
+    await expect(
+      view.getByRole("button", { name: "Generate topics" }),
+    ).toBeEnabled();
+  },
+});
+
 export const ReviewChoices = meta.story({
   name: "(Test) Review choices across steps and operations",
   play: async ({ canvasElement, args }) => {
@@ -360,8 +396,10 @@ export const ReviewChoices = meta.story({
     await expect(args.onToggleFacet).toHaveBeenCalledWith("intent", false);
     await waitFor(() =>
       expect(
-        view.getByRole("button", { name: "Step 1: Choose facets" }),
-      ).toHaveTextContent("2 of 3 selected"),
+        within(view.getByRole("group", { name: "Choose facets" })).getByText(
+          "2 of 3 selected",
+        ),
+      ).toBeVisible(),
     );
     await userEvent.click(
       view.getByRole("button", { name: "Step 1: Choose facets" }),
@@ -384,6 +422,9 @@ export const ReviewChoices = meta.story({
     await userEvent.click(view.getByRole("tab", { name: "Generate topics" }));
     await expect(args.onOperationChange).toHaveBeenCalledWith("update");
     await expect(
+      view.queryByText(args.models.embedding.model),
+    ).not.toBeInTheDocument();
+    await expect(
       view.getByRole("checkbox", { name: "Intent" }),
     ).not.toBeChecked();
     await userEvent.click(
@@ -399,6 +440,7 @@ export const ReviewChoices = meta.story({
         name: "Reuse existing summaries and embeddings",
       }),
     ).not.toBeChecked();
+    await expect(view.getByText(args.models.embedding.model)).toBeVisible();
   },
 });
 
