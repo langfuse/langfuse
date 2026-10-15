@@ -12,7 +12,8 @@
 
 ## Dependencies
 
-- `deny.toml` configures `cargo deny check`: RustSec advisories, a permissive
+- The repository-root `deny.toml`, shared with `packages/native`, configures
+  `cargo deny check`: RustSec advisories, a permissive
   license allow-list, banned crates, and crates.io as the only source. Run it
   with `pnpm run rust:deny` after changing `Cargo.toml` or `Cargo.lock`.
   In CI, licenses run in `licencecheck.yml` and bans and sources in the

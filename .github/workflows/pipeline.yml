@@ -290,6 +290,14 @@ jobs:
       # above, so they run outside that invocation (ai-gateway in its own job).
       - name: lint native addon (rustfmt, clippy)
         run: pnpm --filter @langfuse/native run lint
+      - name: Install Rust dependency checkers
+        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        with:
+          tool: cargo-machete@0.9.2,cargo-deny@0.20.2
+      - name: check native addon for unused Rust dependencies
+        run: pnpm --filter @langfuse/native run rust:unused-deps
+      - name: check native addon Rust dependency bans and sources
+        run: pnpm --filter @langfuse/native run rust:deny bans sources
       - name: typecheck
         run: pnpm run typecheck --filter=!ai-gateway
 

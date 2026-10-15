@@ -71,21 +71,21 @@ jobs:
 
   rust_license_check:
     # Same policy as license_check, applied to the Rust crates in the
-    # ai-gateway binary; the allow-list lives in ai-gateway/deny.toml.
+    # ai-gateway binary and in the native addon shipped in the worker image;
+    # the shared allow-list lives in the repository-root deny.toml.
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    defaults:
-      run:
-        working-directory: ai-gateway
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - name: Install pinned Rust toolchain
-        run: rustup toolchain install --no-self-update
+      - name: Install pinned Rust toolchains
+        run: |
+          (cd ai-gateway && rustup toolchain install --no-self-update)
+          (cd packages/native && rustup toolchain install --no-self-update)
 
       - name: Install cargo-deny
         uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
@@ -93,4 +93,14 @@ jobs:
           tool: cargo-deny@0.20.2
 
       - name: Check ai-gateway dependency licenses
+        working-directory: ai-gateway
+        run: cargo deny --locked check licenses
+
+      # Cargo.lock is resolved against the patched clickhouse overlay.
+      - name: Prepare patched clickhouse crate for the native addon
+        working-directory: packages/native
+        run: sh scripts/prepare-clickhouse-rs.sh
+
+      - name: Check native addon dependency licenses
+        working-directory: packages/native
         run: cargo deny --locked check licenses

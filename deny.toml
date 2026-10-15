@@ -1,5 +1,8 @@
 # cargo-deny configuration: https://embarkstudios.github.io/cargo-deny/
-# Run with `pnpm --filter ai-gateway run rust:deny` (or `cargo deny check`).
+# Shared by the Rust crates in this repository, ai-gateway and packages/native;
+# cargo-deny finds it by searching parent directories of the crate. Run with
+# `pnpm --filter ai-gateway run rust:deny` or
+# `pnpm --filter @langfuse/native run rust:deny`.
 
 [graph]
 all-features = true
@@ -13,8 +16,9 @@ ignore = []
 [licenses]
 confidence-threshold = 0.93
 # Same policy as .github/workflows/licencecheck.yml for pnpm packages: no weak,
-# strong, or network copyleft (LGPL, MPL, EPL, GPL, AGPL, SSPL, ...), since the
-# gateway is open source and ships as a statically linked binary to self-hosters.
+# strong, or network copyleft (LGPL, MPL, EPL, GPL, AGPL, SSPL, ...), since both
+# crates are open source and ship to self-hosters as binaries: the gateway as a
+# statically linked executable, the native addon inside the worker image.
 # This is an allow-list, so source-available or non-commercial licenses (BUSL,
 # Elastic, CC-BY-NC, ...) and unknown licenses also fail. A dual-licensed crate
 # passes when one of its options is listed here.

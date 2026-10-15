@@ -29,6 +29,15 @@
   `encodeClickhouseEvents()` asynchronously encodes batches of those handles.
   Keep column definitions in `src/native_schema.rs` and JS handles off worker threads.
 
+## Dependencies
+
+- The addon ships inside the worker image, so its crates follow the same
+  repository-root `deny.toml` policy as `ai-gateway`: permissive licenses only,
+  crates.io as the only registry. CI checks licenses in `licencecheck.yml`, and
+  bans, sources, and unused dependencies (`cargo machete`) in the pipeline lint
+  job. Run `pnpm --filter @langfuse/native run rust:deny` and `rust:unused-deps`
+  after changing `Cargo.toml` or `Cargo.lock`.
+
 ## Verification
 
 - `pnpm --filter @langfuse/native run lint` (rustfmt + clippy with
