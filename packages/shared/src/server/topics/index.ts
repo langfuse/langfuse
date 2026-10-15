@@ -3,7 +3,7 @@ export * from "./postgres";
 export * from "./clickhouse";
 export * from "./queue";
 export * from "./embedding-queue";
-export * from "./automatic-queue";
+export * from "./automation-queue";
 export { emitTopicStagingMetrics } from "./staging-metrics";
 export * from "./embeddings";
 export * from "./text";

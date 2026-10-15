@@ -182,12 +182,12 @@ traces that arrive meanwhile are not queued. An authentication or billing error
 failing slot as the reason, and the rest of the batch skips that project.
 
 After the write, the batch queues its stored complete summaries on
-`topics-automatic`, one job per project and 100 traces; a retried batch reuses
+`topics-automation`, one job per project and 100 traces; a retried batch reuses
 its job IDs. A failed enqueue is logged and does not fail the batch. The job
 rereads those summaries and assigns the ones not yet assigned to their facet's
 compatible serving map with origin `online`; BullMQ retries a failed job three
 times. Each Topics queue has its own `QUEUE_CONSUMER_<QUEUE>_QUEUE_IS_ENABLED`
-switch (`TOPICS`, `TOPICS_UPDATE`, `TOPICS_EMBEDDING`, `TOPICS_AUTOMATIC`); set
+switch (`TOPICS`, `TOPICS_UPDATE`, `TOPICS_EMBEDDING`, `TOPICS_AUTOMATION`); set
 them to `false` on fleets that only run trace batches.
 
 A facet version without any map starts one automatic **Update topics** execution

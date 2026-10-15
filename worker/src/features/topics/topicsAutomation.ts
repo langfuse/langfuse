@@ -20,7 +20,7 @@ import {
   readTopicExecutionForRequest,
   TOPICS_SYSTEM_USER_ID,
   TOPICS_TRACE_BATCH_SIZE,
-  TopicsAutomaticQueue,
+  TopicsAutomationQueue,
   writeTopicAssignments,
 } from "@langfuse/shared/topics/server";
 import type {
@@ -33,7 +33,7 @@ import { topicAssignmentRows } from "./assignments";
 import { TopicMetrics } from "./metrics";
 import { topicClusterSettings } from "./numeric";
 
-type AutomaticBatch = TQueueJobTypes[QueueName.TopicsAutomatic]["payload"];
+type AutomationBatch = TQueueJobTypes[QueueName.TopicsAutomation]["payload"];
 
 const DISCOVERY_WINDOW_MS = 7 * 24 * 60 * 60_000;
 const hash = (value: unknown) =>
@@ -43,11 +43,11 @@ const hash = (value: unknown) =>
  * Queues assignment for the complete summaries a trace batch stored, one job per project,
  * vector space and 100 traces. Job IDs repeat for a retried batch, so it queues nothing twice.
  */
-export async function enqueueAutomaticTopicAssignments(
+export async function enqueueTopicsAutomation(
   batchId: string,
   rows: TopicSummary[],
 ): Promise<void> {
-  const queue = TopicsAutomaticQueue.getInstance();
+  const queue = TopicsAutomationQueue.getInstance();
   if (!queue) return;
   for (const batch of groupStoredSummaries(rows).flatMap(splitTraces)) {
     // Facets belong in the ID: a retry can store a facet the first attempt failed.
@@ -59,11 +59,11 @@ export async function enqueueAutomaticTopicAssignments(
       batch.traceIds,
     ]);
     await queue.add(
-      QueueJobs.TopicsAutomatic,
+      QueueJobs.TopicsAutomation,
       {
         id,
         timestamp: new Date(),
-        name: QueueJobs.TopicsAutomatic,
+        name: QueueJobs.TopicsAutomation,
         payload: batch,
       },
       { jobId: id },
@@ -75,8 +75,8 @@ export async function enqueueAutomaticTopicAssignments(
  * Assigns the batch's current complete summaries to each facet's compatible serving map,
  * skipping ones already assigned, or starts the facet's first discovery once enough exist.
  */
-export async function processAutomaticTopicAssignments(
-  batch: AutomaticBatch,
+export async function processTopicsAutomation(
+  batch: AutomationBatch,
 ): Promise<void> {
   const { projectId, embeddingConfig } = batch;
   for (const facet of batch.facets) {
@@ -94,8 +94,8 @@ export async function processAutomaticTopicAssignments(
 }
 
 /** One batch per project and vector space, spanning its summaries' unit start times. */
-function groupStoredSummaries(rows: TopicSummary[]): AutomaticBatch[] {
-  const groups = new Map<string, AutomaticBatch>();
+function groupStoredSummaries(rows: TopicSummary[]): AutomationBatch[] {
+  const groups = new Map<string, AutomationBatch>();
   for (const row of rows) {
     if (row.state !== "complete" || row.traceId === null) continue;
     const embeddingConfig = {
@@ -132,8 +132,8 @@ function groupStoredSummaries(rows: TopicSummary[]): AutomaticBatch[] {
   }));
 }
 
-function splitTraces(batch: AutomaticBatch): AutomaticBatch[] {
-  const batches: AutomaticBatch[] = [];
+function splitTraces(batch: AutomationBatch): AutomationBatch[] {
+  const batches: AutomationBatch[] = [];
   for (
     let index = 0;
     index < batch.traceIds.length;
@@ -146,7 +146,7 @@ function splitTraces(batch: AutomaticBatch): AutomaticBatch[] {
   return batches;
 }
 
-async function currentSummaries(batch: AutomaticBatch, facet: TopicFacetRef) {
+async function currentSummaries(batch: AutomationBatch, facet: TopicFacetRef) {
   const { embeddingConfig } = batch;
   const rows = await listTopicSummaries(
     batch.projectId,
@@ -167,7 +167,7 @@ async function currentSummaries(batch: AutomaticBatch, facet: TopicFacetRef) {
 }
 
 async function assign(
-  batch: AutomaticBatch,
+  batch: AutomationBatch,
   facet: TopicFacetRef,
   summaries: TopicSummary[],
   run: TopicRun,

@@ -10,7 +10,7 @@ import {
   listTopicSummaries,
   readTopicAssignments,
   readTopicExecutionForRequest,
-  TopicsAutomaticQueue,
+  TopicsAutomationQueue,
   writeTopicAssignments,
 } from "@langfuse/shared/topics/server";
 import type {
@@ -19,9 +19,9 @@ import type {
   TopicSummary,
 } from "@langfuse/shared/topics";
 import {
-  enqueueAutomaticTopicAssignments,
-  processAutomaticTopicAssignments,
-} from "./automaticTopics";
+  enqueueTopicsAutomation,
+  processTopicsAutomation,
+} from "./topicsAutomation";
 
 vi.mock("@langfuse/shared/src/db", () => ({
   prisma: { topicClusteringRun: { findFirst: vi.fn(async () => null) } },
@@ -31,7 +31,7 @@ const add = vi.fn();
 vi.mock("@langfuse/shared/topics/server", () => ({
   TOPICS_SYSTEM_USER_ID: "system:topics",
   TOPICS_TRACE_BATCH_SIZE: 100,
-  TopicsAutomaticQueue: { getInstance: vi.fn(() => ({ add })) },
+  TopicsAutomationQueue: { getInstance: vi.fn(() => ({ add })) },
   createTopicExecution: vi.fn(async () => ({ id: "execution" })),
   enqueueTopicExecution: vi.fn(),
   getTopicProcessingMapIds: vi.fn(),
@@ -112,8 +112,8 @@ describe("automatic Topics assignment", () => {
       summary("other", [1, 0], { projectId: "other-project" }),
     ];
 
-    await enqueueAutomaticTopicAssignments("batch", rows);
-    await enqueueAutomaticTopicAssignments("batch", rows);
+    await enqueueTopicsAutomation("batch", rows);
+    await enqueueTopicsAutomation("batch", rows);
 
     const jobs = add.mock.calls.map(([, data, options]) => ({
       jobId: options.jobId,
@@ -130,12 +130,12 @@ describe("automatic Topics assignment", () => {
 
     // A retry that stores a facet the first attempt failed queues a new job.
     add.mockClear();
-    await enqueueAutomaticTopicAssignments("batch", [
+    await enqueueTopicsAutomation("batch", [
       summary("other", [1, 0], { projectId: "other-project" }),
       summary("other", [1, 0], { projectId: "other-project", facetId: "b" }),
     ]);
     expect(add.mock.calls[0][2].jobId).not.toBe(jobs[2].jobId);
-    expect(TopicsAutomaticQueue.getInstance).toHaveBeenCalled();
+    expect(TopicsAutomationQueue.getInstance).toHaveBeenCalled();
   });
 
   it("assigns not-yet-assigned complete summaries onto the compatible serving map", async () => {
@@ -156,7 +156,7 @@ describe("automatic Topics assignment", () => {
     ]);
     vi.mocked(getTopicRun).mockResolvedValue(run);
 
-    await processAutomaticTopicAssignments(batch);
+    await processTopicsAutomation(batch);
 
     expect(
       vi
@@ -182,13 +182,13 @@ describe("automatic Topics assignment", () => {
       { facetId: "facet", facetVersion: 2, count: 99 },
     ]);
 
-    await processAutomaticTopicAssignments(batch);
+    await processTopicsAutomation(batch);
     expect(createTopicExecution).not.toHaveBeenCalled();
 
     vi.mocked(getTopicSummaryCounts).mockResolvedValue([
       { facetId: "facet", facetVersion: 2, count: 100 },
     ]);
-    await processAutomaticTopicAssignments(batch);
+    await processTopicsAutomation(batch);
     expect(createTopicExecution).toHaveBeenCalledWith(
       expect.objectContaining({
         projectId: "project",
@@ -212,15 +212,15 @@ describe("automatic Topics assignment", () => {
       .mockResolvedValueOnce({ id: "failed", status: "failed" } as Awaited<
         ReturnType<typeof readTopicExecutionForRequest>
       >);
-    await processAutomaticTopicAssignments(batch);
-    await processAutomaticTopicAssignments(batch);
+    await processTopicsAutomation(batch);
+    await processTopicsAutomation(batch);
     expect(vi.mocked(enqueueTopicExecution).mock.calls).toEqual([
       ["project", "queued"],
     ]);
     vi.mocked(prisma.topicClusteringRun.findFirst).mockResolvedValueOnce({
       id: "incompatible",
     } as never);
-    await processAutomaticTopicAssignments(batch);
+    await processTopicsAutomation(batch);
     expect(createTopicExecution).not.toHaveBeenCalled();
   });
 
@@ -240,8 +240,8 @@ describe("automatic Topics assignment", () => {
         ]) as Awaited<ReturnType<typeof getEnabledTopicsModels>>,
       );
 
-    await processAutomaticTopicAssignments(batch);
-    await processAutomaticTopicAssignments(batch);
+    await processTopicsAutomation(batch);
+    await processTopicsAutomation(batch);
 
     expect(createTopicExecution).not.toHaveBeenCalled();
   });

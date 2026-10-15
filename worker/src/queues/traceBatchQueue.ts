@@ -39,7 +39,7 @@ import {
 import { TopicMetrics } from "../features/topics/metrics";
 import { isRetryableClickhouseInsertError } from "../services/ClickhouseWriter";
 import { summarizeAssembledTrace } from "../features/topics/summarizeAssembledTrace";
-import { enqueueAutomaticTopicAssignments } from "../features/topics/automaticTopics";
+import { enqueueTopicsAutomation } from "../features/topics/topicsAutomation";
 import { recordTraceBatchTranscript } from "../features/traceBatching/traceBatchTranscript";
 
 type TraceBatchObservation = Observation & { eventTimestamp: string };
@@ -486,7 +486,7 @@ export const traceBatchQueueProcessor: Processor<
         recordTraceBatchActiveReads();
       }
       // Stored summaries skip summarization on retry, so queue them before a failure rethrows.
-      await enqueueAutomaticTopicAssignments(
+      await enqueueTopicsAutomation(
         event.id,
         topicsOutcomes
           .flatMap(({ rows }) => rows)

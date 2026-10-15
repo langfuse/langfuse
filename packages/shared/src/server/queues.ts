@@ -394,7 +394,7 @@ export enum QueueName {
   Topics = "topics",
   TopicsUpdate = "topics-update",
   TopicsEmbedding = "topics-embedding",
-  TopicsAutomatic = "topics-automatic",
+  TopicsAutomation = "topics-automation",
   TraceBatch = "trace-batch",
   TraceUpsert = "trace-upsert", // Ingestion pipeline adds events on each Trace upsert
   TraceDelete = "trace-delete",
@@ -440,7 +440,7 @@ export enum QueueName {
 export enum QueueJobs {
   Topics = "topics",
   TopicsEmbedding = "topics-embedding",
-  TopicsAutomatic = "topics-automatic",
+  TopicsAutomation = "topics-automation",
   TraceBatch = "trace-batch",
   TraceUpsert = "trace-upsert",
   TraceDelete = "trace-delete",
@@ -505,7 +505,7 @@ export const TopicEmbeddingBatchSchema = z.object({
 });
 
 // Summaries one trace batch stored for a project, with the facets and vector space they used.
-export const TopicAutomaticBatchSchema = z.object({
+export const TopicAutomationBatchSchema = z.object({
   projectId: z.string().min(1),
   traceIds: z.array(z.string().min(1)).min(1).max(100),
   facets: z
@@ -568,11 +568,11 @@ export type TQueueJobTypes = {
     name: QueueJobs.TopicsEmbedding;
     payload: z.infer<typeof TopicEmbeddingBatchSchema>;
   };
-  [QueueName.TopicsAutomatic]: {
+  [QueueName.TopicsAutomation]: {
     timestamp: Date;
     id: string;
-    name: QueueJobs.TopicsAutomatic;
-    payload: z.infer<typeof TopicAutomaticBatchSchema>;
+    name: QueueJobs.TopicsAutomation;
+    payload: z.infer<typeof TopicAutomationBatchSchema>;
   };
   [QueueName.TraceBatch]: z.infer<typeof TraceBatchEventSchema>;
   [QueueName.TraceUpsert]: {

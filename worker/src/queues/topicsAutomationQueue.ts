@@ -1,17 +1,17 @@
 import { type Processor } from "bullmq";
 import {
-  TopicAutomaticBatchSchema,
+  TopicAutomationBatchSchema,
   type QueueName,
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
 import { isTopicsProjectEnabled } from "@langfuse/shared/topics/server";
-import { processAutomaticTopicAssignments } from "../features/topics/automaticTopics";
+import { processTopicsAutomation } from "../features/topics/topicsAutomation";
 
-export const topicsAutomaticQueueProcessor: Processor<
-  TQueueJobTypes[QueueName.TopicsAutomatic]
+export const topicsAutomationQueueProcessor: Processor<
+  TQueueJobTypes[QueueName.TopicsAutomation]
 > = async (job) => {
-  const batch = TopicAutomaticBatchSchema.parse(job.data.payload);
+  const batch = TopicAutomationBatchSchema.parse(job.data.payload);
   // A disabled project's traces are caught up by its next Update topics.
   if (!isTopicsProjectEnabled(batch.projectId)) return;
-  await processAutomaticTopicAssignments(batch);
+  await processTopicsAutomation(batch);
 };

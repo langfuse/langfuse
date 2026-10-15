@@ -30,7 +30,7 @@ import { tokenCountAsync } from "../../features/tokenisation/async-usage";
 import { tokenCount } from "../../features/tokenisation/usage";
 import { TopicsProviderUnavailable } from "../../features/topics/provider-error";
 import { summarizeAssembledTrace } from "../../features/topics/summarizeAssembledTrace";
-import { enqueueAutomaticTopicAssignments } from "../../features/topics/automaticTopics";
+import { enqueueTopicsAutomation } from "../../features/topics/topicsAutomation";
 import {
   getEnabledTopicsModels,
   listTopicFacets,
@@ -68,8 +68,8 @@ vi.mock("../../features/topics/summarizeAssembledTrace", () => ({
   })),
 }));
 
-vi.mock("../../features/topics/automaticTopics", () => ({
-  enqueueAutomaticTopicAssignments: vi.fn(async () => {}),
+vi.mock("../../features/topics/topicsAutomation", () => ({
+  enqueueTopicsAutomation: vi.fn(async () => {}),
 }));
 
 vi.mock("@langfuse/shared/topics/server", () => ({
@@ -828,7 +828,7 @@ describe("trace batch queue", () => {
     // Only stored rows are queued for assignment.
     expect(
       vi
-        .mocked(enqueueAutomaticTopicAssignments)
+        .mocked(enqueueTopicsAutomation)
         .mock.lastCall![1].map((row) => row.projectId),
     ).toEqual(["a", "b"]);
 
@@ -845,9 +845,7 @@ describe("trace batch queue", () => {
       2,
       { outcome: "failed", reason: "storage" },
     );
-    expect(
-      vi.mocked(enqueueAutomaticTopicAssignments).mock.lastCall![1],
-    ).toEqual([]);
+    expect(vi.mocked(enqueueTopicsAutomation).mock.lastCall![1]).toEqual([]);
     vi.mocked(writeTopicSummaries).mockReset();
     vi.mocked(summarizeAssembledTrace).mockImplementation(async () => ({
       outcome: "unchanged",
@@ -913,10 +911,9 @@ describe("trace batch queue", () => {
       { projectId: "a", state: "complete" },
     ]);
     // A retry skips stored rows, so they are queued before the failure rethrows.
-    expect(enqueueAutomaticTopicAssignments).toHaveBeenCalledWith(
-      "stream-failure",
-      [{ projectId: "a", state: "complete" }],
-    );
+    expect(enqueueTopicsAutomation).toHaveBeenCalledWith("stream-failure", [
+      { projectId: "a", state: "complete" },
+    ]);
     vi.mocked(summarizeAssembledTrace).mockImplementation(async () => ({
       outcome: "unchanged",
       rows: [],
@@ -949,7 +946,7 @@ describe("trace batch queue", () => {
       outcome: "summarized",
       rows: [{ projectId: "a", state: "complete" } as TopicSummary],
     }));
-    vi.mocked(enqueueAutomaticTopicAssignments).mockRejectedValueOnce(
+    vi.mocked(enqueueTopicsAutomation).mockRejectedValueOnce(
       new Error("Redis unavailable"),
     );
     const job = {

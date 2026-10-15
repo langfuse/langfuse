@@ -5,20 +5,20 @@ import { createBullMQQueueOptionsWithRedis } from "../redis/redis";
 import { isTopicsEnabled } from "./config";
 
 /** Assigns automatically summarized traces to their facet's serving map. */
-export class TopicsAutomaticQueue {
+export class TopicsAutomationQueue {
   private static instance: Queue<
-    TQueueJobTypes[QueueName.TopicsAutomatic]
+    TQueueJobTypes[QueueName.TopicsAutomation]
   > | null = null;
 
   static getInstance() {
     if (!isTopicsEnabled()) return null;
     if (this.instance) return this.instance;
     const options = createBullMQQueueOptionsWithRedis(
-      QueueName.TopicsAutomatic,
+      QueueName.TopicsAutomation,
     );
     if (!options) return null;
-    this.instance = new Queue<TQueueJobTypes[QueueName.TopicsAutomatic]>(
-      QueueName.TopicsAutomatic,
+    this.instance = new Queue<TQueueJobTypes[QueueName.TopicsAutomation]>(
+      QueueName.TopicsAutomation,
       {
         ...options,
         defaultJobOptions: {
@@ -30,7 +30,7 @@ export class TopicsAutomaticQueue {
       },
     );
     this.instance.on("error", (error) =>
-      logger.error("TopicsAutomaticQueue error", error),
+      logger.error("TopicsAutomationQueue error", error),
     );
     return this.instance;
   }

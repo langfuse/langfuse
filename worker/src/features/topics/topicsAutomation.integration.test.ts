@@ -11,7 +11,7 @@ import {
 } from "@langfuse/shared/topics/server";
 import { clickhouseClient } from "@langfuse/shared/src/server/clickhouse";
 import { prisma } from "@langfuse/shared/src/db";
-import { processAutomaticTopicAssignments } from "./automaticTopics";
+import { processTopicsAutomation } from "./topicsAutomation";
 
 // Discovery's queue handoff and model settings are not under test; its execution row is.
 vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
@@ -145,8 +145,8 @@ describe("automatic Topics assignment against storage", () => {
       timeRange,
     };
 
-    await processAutomaticTopicAssignments(batch);
-    await processAutomaticTopicAssignments(batch);
+    await processTopicsAutomation(batch);
+    await processTopicsAutomation(batch);
 
     const assignments = await readTopicAssignments(
       projectId,
@@ -200,8 +200,8 @@ describe("automatic Topics assignment against storage", () => {
     const startedAt = new Date();
 
     await Promise.all([
-      processAutomaticTopicAssignments(batch),
-      processAutomaticTopicAssignments(batch),
+      processTopicsAutomation(batch),
+      processTopicsAutomation(batch),
     ]);
 
     const executions = await prisma.batchAction.findMany({
@@ -216,7 +216,7 @@ describe("automatic Topics assignment against storage", () => {
 
     // Its job was lost: the next job queues the same execution again despite its pending run.
     vi.mocked(enqueueTopicExecution).mockClear();
-    await processAutomaticTopicAssignments(batch);
+    await processTopicsAutomation(batch);
     expect(vi.mocked(enqueueTopicExecution).mock.calls).toEqual([
       [projectId, executions[0].id],
     ]);
@@ -247,7 +247,7 @@ describe("automatic Topics assignment against storage", () => {
     await writeTopicSummaries(rows);
     const startedAt = new Date();
 
-    await processAutomaticTopicAssignments({
+    await processTopicsAutomation({
       projectId,
       traceIds: [rows[0].traceId!],
       facets: [{ facetId: facet.id, version: 1 }],
