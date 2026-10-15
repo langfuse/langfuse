@@ -409,6 +409,62 @@ function formatSqlExpr(expr: string, indent: string): string {
   return lines.join("\n");
 }
 
+const CONDITION_CLAUSE = /^(\s*)(PREWHERE|WHERE|HAVING) (.*)$/;
+
+/**
+ * Put each top-level `AND` condition of a `WHERE`/`PREWHERE`/`HAVING` line on
+ * its own line, so a filter added or removed shows as a one-line diff:
+ *
+ *   WHERE (a = 1) AND (if(b AND c, 1, 0) = 1)
+ *   →
+ *   WHERE (a = 1)
+ *       AND (if(b AND c, 1, 0) = 1)
+ *
+ * Splits only at paren/bracket depth 0 outside quotes. `clickhouse format`
+ * parenthesizes every operand of a mixed `AND`/`OR` and rewrites `BETWEEN` and
+ * `CASE`, so a depth-0 `AND` is always a conjunct of the clause's root.
+ */
+export function splitConditions(sql: string): string {
+  return sql
+    .split("\n")
+    .map((line) => {
+      const match = CONDITION_CLAUSE.exec(line);
+      if (!match) return line;
+      const [, indent, keyword, body] = match;
+      const conditions = splitTopLevelAnd(body);
+      return [
+        `${indent}${keyword} ${conditions[0]}`,
+        ...conditions.slice(1).map((c) => `${indent}${WRAP_INDENT}AND ${c}`),
+      ].join("\n");
+    })
+    .join("\n");
+}
+
+function splitTopLevelAnd(expr: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let quote: string | null = null;
+  let start = 0;
+  for (let i = 0; i < expr.length; i++) {
+    const c = expr[i];
+    if (quote) {
+      if (c === "\\") i++;
+      else if (c === quote) quote = null;
+      continue;
+    }
+    if (c === "'" || c === '"' || c === "`") quote = c;
+    else if (c === "(" || c === "[") depth++;
+    else if (c === ")" || c === "]") depth--;
+    else if (depth === 0 && expr.startsWith(" AND ", i)) {
+      parts.push(expr.slice(start, i));
+      start = i + " AND ".length;
+      i = start - 1;
+    }
+  }
+  parts.push(expr.slice(start));
+  return parts;
+}
+
 function routeOf(tags: unknown): string {
   if (tags && typeof tags === "object" && "route" in tags) {
     const route = (tags as { route?: unknown }).route;
@@ -428,6 +484,11 @@ export function normalizeCapturedQueries(
 ): GoldenQuery[] {
   return captured.map((c) => {
     const { sql, params } = normalizeParams(formatSql(c.query), c.params);
-    return { fn: c.fn, route: routeOf(c.tags), sql: wrapLongSql(sql), params };
+    return {
+      fn: c.fn,
+      route: routeOf(c.tags),
+      sql: splitConditions(wrapLongSql(sql)),
+      params,
+    };
   });
 }

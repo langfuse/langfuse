@@ -38,14 +38,17 @@ FROM
         argMax(s.string_value, s.event_ts) AS string_value,
         argMax(s.metadata, s.event_ts) AS metadata
     FROM scores AS s
-    WHERE (s.project_id = {param1:String}) AND ((s.project_id, toDate(s.timestamp), s.name, s.id) IN (
+    WHERE (s.project_id = {param1:String})
+        AND ((s.project_id, toDate(s.timestamp), s.name, s.id) IN (
         SELECT DISTINCT
             s.project_id,
             toDate(s.timestamp),
             s.name,
             s.id
         FROM scores AS s
-        WHERE (s.project_id = {param1:String}) AND (project_id = {param2:String}) AND (s.trace_id = {param3:String})
+        WHERE (s.project_id = {param1:String})
+            AND (project_id = {param2:String})
+            AND (s.trace_id = {param3:String})
     ))
     GROUP BY
         s.project_id,
@@ -53,7 +56,9 @@ FROM
         s.name,
         s.id
 ) AS s
-WHERE (s.data_type IN ({param4:Array(String)})) AND (project_id = {param2:String}) AND (s.trace_id = {param3:String})",
+WHERE (s.data_type IN ({param4:Array(String)}))
+    AND (project_id = {param2:String})
+    AND (s.trace_id = {param3:String})",
   },
 ]
 `;
@@ -115,14 +120,17 @@ FROM
             s.id AS latest_id,
             max(s.event_ts) AS latest_event_ts
         FROM scores AS s
-        WHERE (s.project_id = {param1:String}) AND ((s.project_id, toDate(s.timestamp), s.name, s.id) IN (
+        WHERE (s.project_id = {param1:String})
+            AND ((s.project_id, toDate(s.timestamp), s.name, s.id) IN (
             SELECT DISTINCT
                 s.project_id,
                 toDate(s.timestamp),
                 s.name,
                 s.id
             FROM scores AS s
-            WHERE (s.project_id = {param1:String}) AND (project_id = {param2:String}) AND (s.trace_id = {param3:String})
+            WHERE (s.project_id = {param1:String})
+                AND (project_id = {param2:String})
+                AND (s.trace_id = {param3:String})
         ))
         GROUP BY
             s.project_id,
@@ -132,7 +140,9 @@ FROM
     ) AS latest ON (
         s.project_id = latest.latest_project_id
     ) AND (toDate(s.timestamp) = latest.latest_date) AND (s.name = latest.latest_name) AND (s.id = latest.latest_id) AND (s.event_ts = latest.latest_event_ts)
-    WHERE (s.data_type IN ({param4:Array(String)})) AND (project_id = {param2:String}) AND (s.trace_id = {param3:String})
+    WHERE (s.data_type IN ({param4:Array(String)}))
+        AND (project_id = {param2:String})
+        AND (s.trace_id = {param3:String})
     LIMIT 1 BY
         s.project_id,
         toDate(s.timestamp),
@@ -191,7 +201,9 @@ FROM
         s.name,
         s.id
 ) AS s
-WHERE (s.data_type IN ({param2:Array(String)})) AND (project_id = {param3:String}) AND (s.value > {param4:Decimal64(12)})",
+WHERE (s.data_type IN ({param2:Array(String)}))
+    AND (project_id = {param3:String})
+    AND (s.value > {param4:Decimal64(12)})",
   },
 ]
 `;
@@ -262,7 +274,9 @@ FROM
     ) AS latest ON (
         s.project_id = latest.latest_project_id
     ) AND (toDate(s.timestamp) = latest.latest_date) AND (s.name = latest.latest_name) AND (s.id = latest.latest_id) AND (s.event_ts = latest.latest_event_ts)
-    WHERE (s.data_type IN ({param2:Array(String)})) AND (project_id = {param3:String}) AND (s.value > {param4:Decimal64(12)})
+    WHERE (s.data_type IN ({param2:Array(String)}))
+        AND (project_id = {param3:String})
+        AND (s.value > {param4:Decimal64(12)})
     LIMIT 1 BY
         s.project_id,
         toDate(s.timestamp),
