@@ -380,10 +380,10 @@ under the active-request admission budget and a shared request-byte budget, then
 model-aware route through Web under a separate budget. A declared `Content-Length` is
 checked against the request limit before reading. The byte budget covers the buffer's
 allocation and grows as bytes arrive, so a client that declares a large body and stalls
-holds only what it sent. It holds the body slot and its bytes until the last 64 KiB
-slice of the body reaches the provider connection, so unsent bytes outside the budget
-stay bounded by the connection's write buffer, and a non-streamed generation that waits
-for headers does not keep counting its body. Model catalogs use another budget so slow catalog discovery
+holds only what it sent. It holds the body slot and its bytes until the upstream copy
+of the body is freed, which happens once the provider connection has written it. A
+non-streamed generation that waits for headers therefore stops counting its body after
+the upload, but an upload the provider stops reading keeps counting. Model catalogs use another budget so slow catalog discovery
 cannot block inference resolution.
 Execution capacity remains reserved through response completion. An exhausted budget
 returns 503 immediately without a waiting queue. Request-body and execution budgets

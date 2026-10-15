@@ -184,8 +184,7 @@ async fn relay(
     if !crate::transport::identity_encoding(request.headers()) {
         return Err(InferenceHttpError::UnsupportedEncoding);
     }
-    // Travels with the body and is released once its last slice reaches the provider
-    // connection.
+    // Travels with the body and is released when its upstream copy is freed.
     let mut body_permit = inference
         .try_reserve_request_body()
         .map_err(InferenceHttpError::from)?;

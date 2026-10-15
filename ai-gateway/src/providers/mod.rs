@@ -107,35 +107,43 @@ pub(crate) struct RequestBody {
     pub model_range: Range<usize>,
     /// The caller asked for a streamed response (`"stream": true`).
     pub streaming: bool,
-    /// Capacity held for the body, released once its last slice reaches the provider
-    /// connection.
+    /// Capacity held for the body, released when its upstream copy is freed.
     pub reservation: Option<BodyReservation>,
 }
 
 pub(crate) type BodyReservation = Box<dyn Send + Sync>;
 
-/// The connection buffers whole frames before checking how much it has queued, so the
-/// body goes out in slices to keep unsent bytes bounded while the reservation is held.
-const UPSTREAM_BODY_SLICE_BYTES: usize = 64 * 1024;
-
-/// A fixed-length upstream body that drops its reservation once its last slice has been
-/// taken or it is abandoned, so a long provider wait does not keep counting it. The
-/// slices share one allocation, which is freed when the last of them has been written.
-pub(crate) struct ReservedBody {
-    remaining: Bytes,
-    reservation: Option<BodyReservation>,
+/// Body bytes that keep their reservation until the allocation itself is freed, so the
+/// budget counts them for as long as any queued frame still references them.
+struct ReservedBytes {
+    bytes: Bytes,
+    _reservation: BodyReservation,
 }
 
-impl ReservedBody {
-    pub(crate) fn new(bytes: Bytes, reservation: Option<BodyReservation>) -> Self {
-        Self {
-            remaining: bytes,
-            reservation,
-        }
+impl AsRef<[u8]> for ReservedBytes {
+    fn as_ref(&self) -> &[u8] {
+        &self.bytes
     }
 }
 
-impl http_body::Body for ReservedBody {
+/// A fixed-length upstream body that cannot be cloned. The client's retry layer clones
+/// reusable bodies and keeps the copy until the response, which would pin the bytes
+/// for a whole non-streamed generation.
+pub(crate) struct UpstreamBody(Option<Bytes>);
+
+impl UpstreamBody {
+    pub(crate) fn new(bytes: Bytes, reservation: Option<BodyReservation>) -> Self {
+        Self(Some(match reservation {
+            Some(reservation) => Bytes::from_owner(ReservedBytes {
+                bytes,
+                _reservation: reservation,
+            }),
+            None => bytes,
+        }))
+    }
+}
+
+impl http_body::Body for UpstreamBody {
     type Data = Bytes;
     type Error = Infallible;
 
@@ -143,26 +151,24 @@ impl http_body::Body for ReservedBody {
         self: Pin<&mut Self>,
         _: &mut Context<'_>,
     ) -> Poll<Option<Result<http_body::Frame<Bytes>, Infallible>>> {
-        let this = self.get_mut();
-        if this.remaining.is_empty() {
-            this.reservation = None;
-            return Poll::Ready(None);
-        }
-        let slice = this
-            .remaining
-            .split_to(this.remaining.len().min(UPSTREAM_BODY_SLICE_BYTES));
-        if this.remaining.is_empty() {
-            this.reservation = None;
-        }
-        Poll::Ready(Some(Ok(http_body::Frame::data(slice))))
+        Poll::Ready(
+            self.get_mut()
+                .0
+                .take()
+                .map(|bytes| Ok(http_body::Frame::data(bytes))),
+        )
     }
 
     fn is_end_stream(&self) -> bool {
-        self.remaining.is_empty()
+        self.0.as_ref().is_none_or(Bytes::is_empty)
     }
 
     fn size_hint(&self) -> http_body::SizeHint {
-        http_body::SizeHint::with_exact(u64::try_from(self.remaining.len()).unwrap_or(u64::MAX))
+        http_body::SizeHint::with_exact(
+            self.0
+                .as_ref()
+                .map_or(0, |bytes| u64::try_from(bytes.len()).unwrap_or(u64::MAX)),
+        )
     }
 }
 
@@ -315,7 +321,7 @@ impl ProviderTransport {
             .headers(transport::request_headers(headers, api_format))
             .header(header::ACCEPT_ENCODING, "identity")
             .header(credential_name, credential);
-        upstream = upstream.body(reqwest::Body::wrap(ReservedBody::new(body, reservation)));
+        upstream = upstream.body(reqwest::Body::wrap(UpstreamBody::new(body, reservation)));
         // A stream, or a call that does not generate, that goes quiet before its
         // headers is stalled. A non-streamed generation sends nothing until the whole
         // response is generated.
