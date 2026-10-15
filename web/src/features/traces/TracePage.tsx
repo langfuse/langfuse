@@ -11,6 +11,11 @@ import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { stripBasePath } from "@/src/utils/redirect";
 import { Badge } from "@/src/components/ui/badge";
+import {
+  RelatedTracesButton,
+  RelatedTracesPopoverController,
+  useRelatedTracesEnabled,
+} from "@/src/features/trace-correlation/components/RelatedTracesButton";
 
 export function TracePage({
   traceId,
@@ -33,6 +38,10 @@ export function TracePage({
   const projectIdForAccessCheck = trace.data?.projectId ?? routeProjectId;
   const hasProjectAccess = useIsAuthenticatedAndProjectMember(
     projectIdForAccessCheck,
+  );
+  const showRelatedTraces = useRelatedTracesEnabled(
+    projectIdForAccessCheck,
+    hasProjectAccess,
   );
 
   if (trace.isUnauthorized)
@@ -114,6 +123,20 @@ export function TracePage({
         breadcrumbBadges: sharedBadge,
         actionButtonsRight: (
           <>
+            {showRelatedTraces && (
+              <RelatedTracesPopoverController
+                projectId={trace.data.projectId}
+                traceId={trace.data.id}
+                timestamp={trace.data.timestamp}
+                observations={trace.data.observations}
+              >
+                {({ relatedCount, Trigger }) => (
+                  <Trigger asChild>
+                    <RelatedTracesButton relatedCount={relatedCount} />
+                  </Trigger>
+                )}
+              </RelatedTracesPopoverController>
+            )}
             <DetailPageNav
               currentId={traceId}
               path={(entry) => {
