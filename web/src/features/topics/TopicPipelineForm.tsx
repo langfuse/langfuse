@@ -4,22 +4,6 @@ import { type TopicFacet, type TopicFacetRef } from "@langfuse/shared/topics";
 import { type ConfigureTopicsSettingsInput } from "./TopicModelSettings";
 import { type RegenerateTopics } from "./useRegenerateTopics";
 import { type TimeRange } from "@/src/utils/date-range-utils";
-import { ManualTopicsFormContent } from "./ManualTopicsFormContent";
-
-export type TopicProcessInput = {
-  projectId: string;
-  operation: "process";
-  facets: TopicFacetRef[];
-  reuseExistingSummaries: boolean;
-} & (
-  | { traceIds: string[] }
-  | {
-      selection: Extract<
-        RouterInputs["topics"]["trigger"],
-        { selection: unknown }
-      >["selection"];
-    }
-);
 
 export function useTopicPipelineForm({
   projectId,
@@ -68,29 +52,42 @@ export function useTopicPipelineForm({
       return null;
     }
   }
+  function clearError() {
+    if (!trigger.isPending) setError(null);
+    regenerate.clearError();
+  }
   return {
     available: facets.length > 0,
-    clearError: () => {
-      if (!trigger.isPending) setError(null);
-      regenerate.clearError();
+    clearError,
+    dialogProps: {
+      projectId,
+      canWrite,
+      generationTimeRange,
+      onGenerationTimeRangeChange,
+      settings,
+      configurationError,
+      regenerate,
+      running,
+      processError: error,
+      processPending: trigger.isPending,
+      submitProcess,
+      onTriggered,
+      onConfigure,
     },
-    renderDialog: (closeDialog: () => void) => (
-      <ManualTopicsFormContent
-        projectId={projectId}
-        canWrite={canWrite}
-        generationTimeRange={generationTimeRange}
-        onGenerationTimeRangeChange={onGenerationTimeRangeChange}
-        settings={settings}
-        configurationError={configurationError}
-        regenerate={regenerate}
-        running={running}
-        processError={error}
-        processPending={trigger.isPending}
-        submitProcess={submitProcess}
-        closeDialog={closeDialog}
-        onTriggered={onTriggered}
-        onConfigure={onConfigure}
-      />
-    ),
   };
 }
+
+export type TopicProcessInput = {
+  projectId: string;
+  operation: "process";
+  facets: TopicFacetRef[];
+  reuseExistingSummaries: boolean;
+} & (
+  | { traceIds: string[] }
+  | {
+      selection: Extract<
+        RouterInputs["topics"]["trigger"],
+        { selection: unknown }
+      >["selection"];
+    }
+);

@@ -15,37 +15,6 @@ import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Stepper } from "@/src/features/evals/v2/components/Stepper/Stepper";
 import { ModalPopoverLayer } from "@/src/context/LayerContext/ModalPopoverLayer";
 
-type Model = { model: string; connection: string };
-export type ManualTopicsDialogProps = {
-  operation: TopicOperation;
-  onOperationChange: (operation: TopicOperation) => void;
-  facets: {
-    id: string;
-    name: string;
-    summaries: number | null;
-    kind: string;
-    version: number;
-    description: string;
-  }[];
-  selectedFacetIds: string[];
-  onToggleFacet: (id: string, selected: boolean) => void;
-  traceControls: ReactNode;
-  count: number;
-  generationTimeRange: TimeRange;
-  onGenerationTimeRangeChange: (range: TimeRange) => void;
-  models: { summary: Model; embedding: Model; clustering: Model };
-  reuse: boolean;
-  onReuseChange: (reuse: boolean) => void;
-  smallSample: boolean;
-  onSmallSampleChange: (value: boolean) => void;
-  canSubmit: boolean;
-  isSubmitting: boolean;
-  disabledReason: string | null;
-  error: string | null;
-  onSubmit: () => void;
-  onConfigure: () => void;
-};
-
 export function ManualTopicsDialog({
   operation,
   onOperationChange,
@@ -342,14 +311,6 @@ export function ManualTopicsDialog({
   );
 }
 
-type FacetToggleProps = Pick<
-  ManualTopicsDialogProps,
-  "operation" | "onToggleFacet"
-> & {
-  facet: ManualTopicsDialogProps["facets"][number];
-  selected: boolean;
-};
-
 function FacetToggle({
   facet,
   selected,
@@ -389,3 +350,42 @@ function summaryLabel(summaries: number | null) {
   if (summaries === 0) return "No summaries";
   return `${summaries.toLocaleString()} summaries`;
 }
+
+type Model = { model: string; connection: string };
+export type ManualTopicsDialogProps = {
+  operation: TopicOperation;
+  onOperationChange: (operation: TopicOperation) => void;
+  facets: {
+    id: string;
+    name: string;
+    summaries: number | null;
+    kind: string;
+    version: number;
+    description: string;
+  }[];
+  selectedFacetIds: string[];
+  onToggleFacet: (id: string, selected: boolean) => void;
+  traceControls: ReactNode;
+  count: number;
+  generationTimeRange: TimeRange;
+  onGenerationTimeRangeChange: (range: TimeRange) => void;
+  models: { summary: Model; embedding: Model; clustering: Model };
+  reuse: boolean;
+  onReuseChange: (reuse: boolean) => void;
+  smallSample: boolean;
+  onSmallSampleChange: (value: boolean) => void;
+  canSubmit: boolean;
+  isSubmitting: boolean;
+  disabledReason: string | null;
+  error: string | null;
+  onSubmit: () => void;
+  onConfigure: () => void;
+};
+
+type FacetToggleProps = Pick<
+  ManualTopicsDialogProps,
+  "operation" | "onToggleFacet"
+> & {
+  facet: ManualTopicsDialogProps["facets"][number];
+  selected: boolean;
+};

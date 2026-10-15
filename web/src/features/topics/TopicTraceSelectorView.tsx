@@ -1,4 +1,4 @@
-import { useState, type ComponentProps } from "react";
+import { useState, type ChangeEvent, type ComponentProps } from "react";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { env } from "@/src/env.mjs";
 import { type ColumnDef } from "@tanstack/react-table";
@@ -21,44 +21,6 @@ import { TimeRangePicker } from "@/src/components/date-picker";
 import { TIME_RANGES, type TimeRange } from "@/src/utils/date-range-utils";
 import { TOPICS_BACKFILL_TRACE_LIMIT } from "./backfill-limit";
 import { isValidTopicTimeRange } from "./time-range";
-
-type PreviewData = RouterOutputs["topics"]["previewTraces"];
-type TracePreview = PreviewData["traces"][number];
-type Range = { from: Date; to: Date };
-type PreviewState =
-  | { status: "idle" | "loading" }
-  | { status: "error"; message: string }
-  | { status: "ready"; data: PreviewData; seed: string };
-
-export type TopicTraceSelectorViewProps = {
-  projectId: string;
-  mode: string;
-  onModeChange: (value: string) => void;
-  filterMode: "builder" | "query";
-  onFilterModeChange: (value: "builder" | "query") => void;
-  filter: FilterState;
-  onFilterChange: (value: FilterState) => void;
-  timeWindow: string;
-  range: Range;
-  onTimeWindowChange: (value: string) => void;
-  onRangeChange: (value: Range) => void;
-  limit: string;
-  onLimitChange: (value: string) => void;
-  sampling: "random" | "latest";
-  onSamplingChange: (value: "random" | "latest") => void;
-  paste: string;
-  onPasteChange: (value: string) => void;
-  pastedCount: number | null;
-  pasteError: string | null;
-  preview: PreviewState;
-  onPreview: () => void;
-  excluded: string[];
-  onExcludedChange: (value: string[]) => void;
-  builderColumns: ComponentProps<typeof ObservationFilterBuilder>["columns"];
-  observed: ComponentProps<typeof TableSearchBar>["observed"];
-  onRequestColumns: ComponentProps<typeof TableSearchBar>["onRequestColumns"];
-  erroredColumns: ComponentProps<typeof TableSearchBar>["erroredColumns"];
-};
 
 const registry = {
   ...RULE_FIELD_REGISTRY,
@@ -140,7 +102,17 @@ export function TopicTraceSelectorView({
     }
     const minutes =
       TIME_RANGES[value.range as keyof typeof TIME_RANGES].minutes;
+    if (minutes === null) return;
     onTimeWindowChange(String(minutes / (24 * 60)));
+  }
+  function handleLimitChange(event: ChangeEvent<HTMLInputElement>) {
+    onLimitChange(event.target.value);
+  }
+  function handleSamplingChange(value: string) {
+    onSamplingChange(value as "random" | "latest");
+  }
+  function handlePasteChange(event: ChangeEvent<HTMLTextAreaElement>) {
+    onPasteChange(event.target.value);
   }
   return (
     <div className="ph-no-capture flex min-w-0 flex-col gap-4">
@@ -179,9 +151,7 @@ export function TopicTraceSelectorView({
                   type="number"
                   min={1}
                   value={limit}
-                  onChange={(event) => {
-                    onLimitChange(event.target.value);
-                  }}
+                  onChange={handleLimitChange}
                 />
               </div>
             </label>
@@ -195,9 +165,7 @@ export function TopicTraceSelectorView({
                   { value: "latest", label: "Newest first" },
                 ]}
                 value={sampling}
-                onValueChange={(value) => {
-                  onSamplingChange(value as "random" | "latest");
-                }}
+                onValueChange={handleSamplingChange}
               />
             </label>
           </div>
@@ -315,7 +283,7 @@ export function TopicTraceSelectorView({
           <Textarea
             aria-label="Trace IDs or links"
             value={paste}
-            onChange={(event) => onPasteChange(event.target.value)}
+            onChange={handlePasteChange}
             placeholder="One trace ID or local trace link per line"
             className="min-h-32 font-mono text-xs"
           />
@@ -366,6 +334,15 @@ function TracePreviewTable({
     if (selectedCount > 0) return "indeterminate";
     return false;
   })();
+  function handleSelectAll(checked: boolean | "indeterminate") {
+    onExcludedChange(checked === true ? [] : traces.map((trace) => trace.id));
+  }
+  function handleRowClick(trace: TracePreview) {
+    openTrace(trace.id);
+  }
+  function handlePageChange(next: { pageIndex: number }) {
+    setPage(next.pageIndex);
+  }
   const columns: ColumnDef<TracePreview>[] = [
     {
       id: "selected",
@@ -376,48 +353,52 @@ function TracePreviewTable({
           aria-label="Select all previewed traces"
           checked={allChecked}
           disabled={traces.length === 0}
-          onCheckedChange={(checked) =>
-            onExcludedChange(
-              checked === true ? [] : traces.map((trace) => trace.id),
-            )
-          }
+          onCheckedChange={handleSelectAll}
         />
       ),
-      cell: ({ row }) => (
-        <Checkbox
-          aria-label={`Select trace ${row.original.id}`}
-          checked={!excludedIds.has(row.original.id)}
-          onCheckedChange={(checked) =>
-            onExcludedChange(
-              checked === true
-                ? excluded.filter((id) => id !== row.original.id)
-                : excluded.concat(row.original.id),
-            )
-          }
-        />
-      ),
+      cell: ({ row }) => {
+        function handleCheckedChange(checked: boolean | "indeterminate") {
+          onExcludedChange(
+            checked === true
+              ? excluded.filter((id) => id !== row.original.id)
+              : excluded.concat(row.original.id),
+          );
+        }
+        return (
+          <Checkbox
+            aria-label={`Select trace ${row.original.id}`}
+            checked={!excludedIds.has(row.original.id)}
+            onCheckedChange={handleCheckedChange}
+          />
+        );
+      },
     },
     {
       accessorKey: "name",
       header: "Trace",
       size: 300,
-      cell: ({ row: { original: trace } }) => (
-        <div className="min-w-0">
-          <TextLink
-            path={`/project/${projectId}/traces/${encodeURIComponent(trace.id)}`}
-            value={trace.name ?? trace.id}
-            onClick={() => openTrace(trace.id)}
-          />
-          {trace.name && (
-            <span
-              title={trace.id}
-              className="text-muted-foreground block truncate font-mono text-xs"
-            >
-              {trace.id}
-            </span>
-          )}
-        </div>
-      ),
+      cell: ({ row: { original: trace } }) => {
+        function handleClick() {
+          openTrace(trace.id);
+        }
+        return (
+          <div className="min-w-0">
+            <TextLink
+              path={`/project/${projectId}/traces/${encodeURIComponent(trace.id)}`}
+              value={trace.name ?? trace.id}
+              onClick={handleClick}
+            />
+            {trace.name && (
+              <span
+                title={trace.id}
+                className="text-muted-foreground block truncate font-mono text-xs"
+              >
+                {trace.id}
+              </span>
+            )}
+          </div>
+        );
+      },
     },
     {
       accessorKey: "timestamp",
@@ -445,7 +426,7 @@ function TracePreviewTable({
           status: "success",
           data: traces.slice(page * 20, (page + 1) * 20),
         }}
-        onRowClick={(trace) => openTrace(trace.id)}
+        onRowClick={handleRowClick}
         noResultsMessage="No traces match these filters and time range."
       />
       {pageCount > 1 && (
@@ -453,10 +434,48 @@ function TracePreviewTable({
           mode="offset"
           totalCount={traces.length}
           state={{ pageIndex: page, pageSize: 20 }}
-          onChange={(next) => setPage(next.pageIndex)}
+          onChange={handlePageChange}
           pageSizeOptions={[20]}
         />
       )}
     </div>
   );
 }
+
+type PreviewData = RouterOutputs["topics"]["previewTraces"];
+type TracePreview = PreviewData["traces"][number];
+type Range = { from: Date; to: Date };
+type PreviewState =
+  | { status: "idle" | "loading" }
+  | { status: "error"; message: string }
+  | { status: "ready"; data: PreviewData; seed: string };
+
+export type TopicTraceSelectorViewProps = {
+  projectId: string;
+  mode: string;
+  onModeChange: (value: string) => void;
+  filterMode: "builder" | "query";
+  onFilterModeChange: (value: "builder" | "query") => void;
+  filter: FilterState;
+  onFilterChange: (value: FilterState) => void;
+  timeWindow: string;
+  range: Range;
+  onTimeWindowChange: (value: string) => void;
+  onRangeChange: (value: Range) => void;
+  limit: string;
+  onLimitChange: (value: string) => void;
+  sampling: "random" | "latest";
+  onSamplingChange: (value: "random" | "latest") => void;
+  paste: string;
+  onPasteChange: (value: string) => void;
+  pastedCount: number | null;
+  pasteError: string | null;
+  preview: PreviewState;
+  onPreview: () => void;
+  excluded: string[];
+  onExcludedChange: (value: string[]) => void;
+  builderColumns: ComponentProps<typeof ObservationFilterBuilder>["columns"];
+  observed: ComponentProps<typeof TableSearchBar>["observed"];
+  onRequestColumns: ComponentProps<typeof TableSearchBar>["onRequestColumns"];
+  erroredColumns: ComponentProps<typeof TableSearchBar>["erroredColumns"];
+};

@@ -52,21 +52,29 @@ export function ManualTopicsFormContent({
         }
       : skipToken,
   );
-  const facets = regenerate.facets.map(({ facet, version }) => ({
-    id: facet.id,
-    name: facet.name,
-    kind: facet.isBuiltIn ? "Built-in" : "Custom",
-    version: version.version,
-    description: facet.description || version.prompt,
-    summaries:
-      summaryCounts.data && !summaryCounts.error && !summaryCounts.isFetching
-        ? (summaryCounts.data.find(
-            (count) =>
-              count.facetId === facet.id &&
-              count.facetVersion === version.version,
-          )?.count ?? 0)
-        : null,
-  }));
+  const availableCounts =
+    summaryCounts.data && !summaryCounts.error && !summaryCounts.isFetching
+      ? summaryCounts.data
+      : null;
+  const facets = regenerate.facets.map(({ facet, version }) => {
+    let summaries: number | null = null;
+    if (availableCounts) {
+      summaries =
+        availableCounts.find(
+          (count) =>
+            count.facetId === facet.id &&
+            count.facetVersion === version.version,
+        )?.count ?? 0;
+    }
+    return {
+      id: facet.id,
+      name: facet.name,
+      kind: facet.isBuiltIn ? "Built-in" : "Custom",
+      version: version.version,
+      description: facet.description || version.prompt,
+      summaries,
+    };
+  });
   const selectedFacetIds = facets
     .filter(
       (facet) => selectionIntent === null || selectionIntent.includes(facet.id),

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { MoreHorizontal, Settings } from "lucide-react";
+import { Settings } from "lucide-react";
 import { type UseQueryResult } from "@tanstack/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
@@ -26,8 +26,6 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/src/components/ui/sheet";
-import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
-import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { PopoverController } from "@/src/components/ui/popover";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { api, type RouterOutputs } from "@/src/utils/api";
@@ -41,11 +39,12 @@ import {
   type TopicTimeRange,
 } from "@langfuse/shared/topics";
 import { useTopicPipelineForm } from "./TopicPipelineForm";
+import { ManualTopicsFormContent } from "./ManualTopicsFormContent";
+import { TopicsHeaderActions } from "./TopicsHeaderActions";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { HeaderActionMenuRow } from "@/src/components/HeaderActionMenuRow";
 import { useRegenerateTopics } from "./useRegenerateTopics";
 import { useTopicModelSettings } from "./TopicModelSettings";
-import { AutomaticProcessingControl } from "./AutomaticProcessingControl";
 import { AutomaticProcessingDialogController } from "./AutomaticProcessingDialogController";
 import { ConfigureTopicsDialogController } from "./ConfigureTopicsDialogController";
 import { TopicSetupNotice } from "./TopicSetupNotice";
@@ -196,20 +195,15 @@ function TopicsWorkspaceContent({
     bounds: { from: new Date(Date.now() - 7 * 86_400_000), to: new Date() },
   }));
   const changeGenerationRange = (selection: TimeRange) => {
-    const to = "from" in selection ? selection.to : new Date();
+    if ("from" in selection) {
+      setGenerationRange({ selection, bounds: selection });
+      return;
+    }
+    const to = new Date();
     const minutes =
-      "from" in selection
-        ? null
-        : TIME_RANGES[selection.range as keyof typeof TIME_RANGES]?.minutes;
-    const bounds =
-      "from" in selection
-        ? selection
-        : {
-            from: minutes
-              ? new Date(to.getTime() - minutes * 60_000)
-              : new Date(to.getTime() - 7 * 86_400_000),
-            to,
-          };
+      TIME_RANGES[selection.range as keyof typeof TIME_RANGES]?.minutes ??
+      TIME_RANGES.last7Days.minutes;
+    const bounds = { from: new Date(to.getTime() - minutes * 60_000), to };
     setGenerationRange({ selection, bounds });
   };
   const { timeRange, setTimeRange } = useGlobalDateRange({
@@ -361,73 +355,15 @@ function TopicsWorkspaceContent({
   function turnAutomaticProcessingBackOn() {
     openAutomaticProcessing(true);
   }
-  const actions = (openManual: () => void) => (
-    <div className="ph-no-capture flex items-center justify-end gap-1">
-      <AutomaticProcessingControl
-        state={automaticProcessing.state}
-        canWrite={canWrite && !automaticProcessing.saving}
-        onOpen={openAutomaticProcessingFromHeader}
-      />
-      {!configured ? (
-        <Button
-          text="Configure Topics"
-          variant={modelSettings.configure.triggerVariant}
-          size="sm"
-          disabled={!modelSettings.configure.settings}
-          onClick={openConfigure}
-        />
-      ) : null}
-      {pipeline.available ? (
-        <Button
-          text="Manual processing"
-          variant="secondary"
-          size="sm"
-          onClick={openManual}
-        />
-      ) : null}
-      <DropdownMenu
-        ariaLabel="Topics actions"
-        placement="bottom-end"
-        items={[
-          ...(configured
-            ? [
-                {
-                  id: "configure",
-                  type: "item" as const,
-                  title: "Configure Topics",
-                  icon: Settings,
-                  onClick: openConfigure,
-                },
-              ]
-            : []),
-          {
-            id: "history",
-            type: "item",
-            title: "History",
-            onClick: openHistory,
-          },
-          {
-            id: "refresh",
-            type: "item",
-            title: "Refresh results",
-            onClick: refreshResults,
-          },
-        ]}
-      >
-        {({ getTriggerProps }) => (
-          <IconButton
-            {...getTriggerProps()}
-            icon={MoreHorizontal}
-            label="Topics actions"
-            size="sm"
-          />
-        )}
-      </DropdownMenu>
-    </div>
-  );
+
   return (
     <DialogController
-      renderDialog={({ closeDialog }) => pipeline.renderDialog(closeDialog)}
+      renderDialog={({ closeDialog }) => (
+        <ManualTopicsFormContent
+          {...pipeline.dialogProps}
+          closeDialog={closeDialog}
+        />
+      )}
     >
       {({ openDialog }) => {
         const openManual = () => {
@@ -445,36 +381,52 @@ function TopicsWorkspaceContent({
                 description:
                   "Explore recurring themes across traces, one facet at a time.",
               },
-              actionButtonsRight: actions(openManual),
-              actionButtonsMenu: ({ closeMenu }) => (
-                <TopicsActionsMenu
-                  triggerAction={
-                    pipeline.available
-                      ? {
-                          label: "Manual processing",
-                          disabled: false,
-                          onSelect: openManual,
-                        }
-                      : null
-                  }
-                  closeMenu={closeMenu}
-                  onOpenHistory={openHistory}
+              actionButtonsRight: (
+                <TopicsHeaderActions
+                  automaticProcessing={automaticProcessing}
+                  configure={modelSettings.configure}
+                  configured={configured}
+                  canWrite={canWrite}
+                  manualAvailable={pipeline.available}
+                  openManual={openManual}
+                  onAutomaticProcessing={openAutomaticProcessingFromHeader}
+                  onConfigure={openConfigure}
+                  onHistory={openHistory}
                   onRefresh={refreshResults}
-                >
-                  {configured ? (
-                    <HeaderActionMenuRow
-                      label="Configure Topics"
-                      icon={
-                        <Settings className="icon-base text-icon-foreground" />
-                      }
-                      onClick={() => {
-                        closeMenu();
-                        openConfigure();
-                      }}
-                    />
-                  ) : null}
-                </TopicsActionsMenu>
+                />
               ),
+              actionButtonsMenu: ({ closeMenu }) => {
+                function handleConfigureFromMenu() {
+                  closeMenu();
+                  openConfigure();
+                }
+                return (
+                  <TopicsActionsMenu
+                    triggerAction={
+                      pipeline.available
+                        ? {
+                            label: "Manual processing",
+                            disabled: false,
+                            onSelect: openManual,
+                          }
+                        : null
+                    }
+                    closeMenu={closeMenu}
+                    onOpenHistory={openHistory}
+                    onRefresh={refreshResults}
+                  >
+                    {configured ? (
+                      <HeaderActionMenuRow
+                        label="Configure Topics"
+                        icon={
+                          <Settings className="icon-base text-icon-foreground" />
+                        }
+                        onClick={handleConfigureFromMenu}
+                      />
+                    ) : null}
+                  </TopicsActionsMenu>
+                );
+              },
             }}
           >
             <PageHeaderControlsPortal>

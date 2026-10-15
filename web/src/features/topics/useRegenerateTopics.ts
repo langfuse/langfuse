@@ -8,17 +8,6 @@ import {
   type TopicTimeRange,
 } from "@langfuse/shared/topics";
 
-type TopicExecutionList = RouterOutputs["topics"]["executions"];
-export type RegenerateRequest = {
-  facets: TopicFacetRef[];
-  exploratory: boolean;
-  minimumTraceCount: number;
-};
-export type RegenerateTopics = ReturnType<typeof useRegenerateTopics>;
-
-const isBusy = (status: TopicExecutionStatus) =>
-  status === "queued" || status === "running";
-
 /**
  * Data and the `topics.trigger` (`operation: "update"`) write behind the
  * Regenerate topics dialog. Facets follow the Topics rule at their latest
@@ -163,3 +152,14 @@ function regenerateDisabledReason({
     return "Turn on at least one facet in Configure Topics.";
   return null;
 }
+
+const isBusy = (status: TopicExecutionStatus) =>
+  status === "queued" || status === "running";
+
+type TopicExecutionList = RouterOutputs["topics"]["executions"];
+export type RegenerateRequest = {
+  facets: TopicFacetRef[];
+  exploratory: boolean;
+  minimumTraceCount: number;
+};
+export type RegenerateTopics = ReturnType<typeof useRegenerateTopics>;
