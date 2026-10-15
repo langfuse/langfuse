@@ -1,19 +1,12 @@
-import type {
-  InAppAgentQuestionnaireAnswers,
-  InAppAgentQuestionnaireQuestion,
-} from "@langfuse/shared/in-app-agent";
+import type { InAppAgentQuestionnaireAnswers } from "@langfuse/shared/in-app-agent";
 import type { QuestionnaireFormValues } from "./createQuestionnaireFormValues";
 
 export function toQuestionnaireAnswers(
   values: QuestionnaireFormValues,
-  questions: readonly InAppAgentQuestionnaireQuestion[],
 ): InAppAgentQuestionnaireAnswers {
-  return questions.map((question, index) => {
-    const answer = values.answers[index];
-    const isFreeText = question.options.length === 0;
+  return values.answers.map((answer) => {
     const otherText = answer.otherText.trim();
-    const hasOtherText =
-      (isFreeText || answer.isOtherSelected) && otherText.length > 0;
+    const hasOtherText = answer.isOtherSelected && otherText.length > 0;
 
     return {
       selectedOptionIndexes: [...answer.selectedOptionIndexes].sort(

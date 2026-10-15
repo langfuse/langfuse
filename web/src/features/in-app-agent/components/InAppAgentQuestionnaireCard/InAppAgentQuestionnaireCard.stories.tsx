@@ -48,10 +48,13 @@ const multiStepArgs: InAppAgentQuestionnaireArgs = {
       allowOther: false,
     },
     {
-      question: "Anything else the evaluator should know?",
-      options: [],
+      question: "How often should it run?",
+      options: [
+        { label: "Every hour", description: null, recommended: false },
+        { label: "Once a day", description: null, recommended: false },
+      ],
       allowMultiple: false,
-      allowOther: false,
+      allowOther: true,
     },
   ],
 };
@@ -83,12 +86,6 @@ export const SingleQuestion = meta.story({
 export const MultipleChoice = meta.story({
   args: {
     tool: createQuestionnaireTool({ questions: [multiStepArgs.questions[1]] }),
-  },
-});
-
-export const FreeText = meta.story({
-  args: {
-    tool: createQuestionnaireTool({ questions: [multiStepArgs.questions[2]] }),
   },
 });
 

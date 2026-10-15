@@ -104,7 +104,7 @@ function QuestionnaireForm({
     isSubmitting || isDismissing || form.formState.isSubmitting || isDisabled;
 
   const submitAnswers = form.handleSubmit(async (values) => {
-    await onSubmit(approvalId, toQuestionnaireAnswers(values, questions));
+    await onSubmit(approvalId, toQuestionnaireAnswers(values));
   });
 
   const goToNextStep = () => {

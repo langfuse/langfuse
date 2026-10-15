@@ -26,8 +26,11 @@ const args = {
       allowOther: false,
     },
     {
-      question: "Anything else?",
-      options: [],
+      question: "Run it on a schedule?",
+      options: [
+        { label: "Yes", description: null, recommended: false },
+        { label: "No", description: null, recommended: false },
+      ],
       allowMultiple: false,
       allowOther: false,
     },
@@ -60,7 +63,7 @@ describe("resolveInAppAgentQuestionnaireAnswers", () => {
             answer: ["Toxicity", "Helpfulness"],
             skipped: false,
           },
-          { question: "Anything else?", answer: [], skipped: true },
+          { question: "Run it on a schedule?", answer: [], skipped: true },
         ],
       },
     });
@@ -111,6 +114,14 @@ describe("resolveInAppAgentQuestionnaireAnswers", () => {
 });
 
 describe("InAppAgentQuestionnaireArgsSchema", () => {
+  it("rejects a free-text question without options", () => {
+    expect(
+      InAppAgentQuestionnaireArgsSchema.safeParse({
+        questions: [{ ...args.questions[0], options: [] }],
+      }).success,
+    ).toBe(false);
+  });
+
   it("rejects more than one recommended option per question", () => {
     const [firstQuestion] = args.questions;
     const result = InAppAgentQuestionnaireArgsSchema.safeParse({

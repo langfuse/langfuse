@@ -242,7 +242,10 @@ const questionnaireRequest = {
       },
       {
         question: "Anything else?",
-        options: [],
+        options: [
+          { label: "Yes", description: null, recommended: false },
+          { label: "No", description: null, recommended: false },
+        ],
         allowMultiple: false,
         allowOther: false,
       },

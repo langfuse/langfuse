@@ -58,21 +58,6 @@ export function QuestionnaireStep({
     );
   };
 
-  if (question.options.length === 0) {
-    return (
-      <div className="px-3 pb-3">
-        <Input
-          aria-label="Your answer"
-          placeholder="Type your answer"
-          maxLength={IN_APP_AGENT_QUESTIONNAIRE_MAX_ANSWER_LENGTH}
-          value={answer.otherText}
-          disabled={isDisabled}
-          onChange={handleOtherTextChange}
-        />
-      </div>
-    );
-  }
-
   const tiles = (
     <>
       {question.options.map((option, optionIndex) => (

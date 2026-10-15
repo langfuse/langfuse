@@ -1,7 +1,8 @@
 import z from "zod";
 
-export const IN_APP_AGENT_QUESTIONNAIRE_MAX_QUESTIONS = 5;
-export const IN_APP_AGENT_QUESTIONNAIRE_MAX_OPTIONS = 6;
+export const IN_APP_AGENT_QUESTIONNAIRE_MAX_QUESTIONS = 4;
+export const IN_APP_AGENT_QUESTIONNAIRE_MIN_OPTIONS = 2;
+export const IN_APP_AGENT_QUESTIONNAIRE_MAX_OPTIONS = 4;
 export const IN_APP_AGENT_QUESTIONNAIRE_MAX_ANSWER_LENGTH = 2000;
 
 // Every field is required (nullable instead of optional) so the schema stays
@@ -23,12 +24,15 @@ const InAppAgentQuestionnaireQuestionSchema = z.object({
   question: z.string().min(1).max(500),
   options: z
     .array(InAppAgentQuestionnaireOptionSchema)
+    .min(IN_APP_AGENT_QUESTIONNAIRE_MIN_OPTIONS)
     .max(IN_APP_AGENT_QUESTIONNAIRE_MAX_OPTIONS)
     .refine(
       (options) => options.filter((option) => option.recommended).length <= 1,
       { message: "Mark at most one option per question as recommended." },
     )
-    .describe("Answer options. Pass [] for a free-text question."),
+    .describe(
+      `${IN_APP_AGENT_QUESTIONNAIRE_MIN_OPTIONS} to ${IN_APP_AGENT_QUESTIONNAIRE_MAX_OPTIONS} distinct answer options. Do not add an "Other" option; set allowOther instead.`,
+    ),
   allowMultiple: z
     .boolean()
     .describe("Whether the user may select more than one option."),
@@ -158,8 +162,7 @@ function resolveAnswer(
     return null;
   }
 
-  const acceptsText = question.allowOther || question.options.length === 0;
-  if (otherText !== null && !acceptsText) {
+  if (otherText !== null && !question.allowOther) {
     return null;
   }
 

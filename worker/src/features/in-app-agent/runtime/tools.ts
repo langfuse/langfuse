@@ -37,7 +37,9 @@ import {
   InAppAgentSandboxWriteArgsSchema,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
   IN_APP_AGENT_SILENT_MCP_OUTPUT_TYPE,
+  IN_APP_AGENT_QUESTIONNAIRE_MAX_OPTIONS,
   IN_APP_AGENT_QUESTIONNAIRE_MAX_QUESTIONS,
+  IN_APP_AGENT_QUESTIONNAIRE_MIN_OPTIONS,
   IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
   InAppAgentQuestionnaireArgsSchema,
   resolveInAppAgentQuestionnaireAnswers,
@@ -477,7 +479,7 @@ export function createQuestionnaireTool() {
     id: IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
     description: [
       `Ask the user up to ${IN_APP_AGENT_QUESTIONNAIRE_MAX_QUESTIONS} short questions in one form when you need decisions you cannot infer from context.`,
-      "Prefer a few concrete options per question and mark the best default as recommended; use options: [] for free text.",
+      `Give each question ${IN_APP_AGENT_QUESTIONNAIRE_MIN_OPTIONS} to ${IN_APP_AGENT_QUESTIONNAIRE_MAX_OPTIONS} concrete options and mark the best default as recommended; set allowOther when a custom answer makes sense. Ask open-ended questions in plain chat instead.`,
       "Batch related questions into a single call instead of asking one at a time.",
       "The user may skip individual questions (skipped: true) or dismiss the form; respect that and do not ask the same questions again.",
     ].join(" "),
