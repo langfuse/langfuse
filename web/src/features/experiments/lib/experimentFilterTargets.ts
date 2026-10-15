@@ -9,14 +9,10 @@ export function groupExperimentFilters(
 ): { groups: { runId: string; filters: FilterState }[]; error?: string } {
   const groups = new Map<string, FilterState>();
   for (const filter of filters) {
-    const ids =
-      filter.target === "all"
-        ? experimentIds
-        : [
-            !filter.target || filter.target === "baseline"
-              ? baselineId
-              : filter.target,
-          ];
+    let targetId: string | undefined =
+      filter.target ?? baselineId ?? experimentIds[0];
+    if (filter.target === "baseline") targetId = baselineId;
+    const ids = filter.target === "all" ? experimentIds : [targetId];
     if (ids.some((id) => !id || !experimentIds.includes(id))) {
       return {
         groups: [],

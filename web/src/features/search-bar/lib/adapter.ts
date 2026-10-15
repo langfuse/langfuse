@@ -427,7 +427,8 @@ function lowerFilter(
         scoreTypes = registry.targeting.scoreTypesForTarget(target.id);
         if (scoreTypes === undefined) {
           errors.push(
-            "Score types for this experiment are still loading; try again when options have loaded",
+            registry.targeting.scoreTypesError ??
+              "Score types for this experiment are still loading; try again when options have loaded",
           );
           return;
         }

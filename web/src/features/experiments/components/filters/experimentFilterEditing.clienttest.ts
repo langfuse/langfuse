@@ -64,6 +64,10 @@ describe("experiment sidebar condition editing", () => {
       experimentFilterToDraft({ ...filters[0], target: undefined }).target,
     ).toBe("baseline");
     expect(experimentFilterToDraft(filters[0]).target).toBe("run-a");
+    expect(
+      experimentFilterToDraft({ ...filters[0], target: undefined }, "run-b")
+        .target,
+    ).toBe("run-b");
   });
 
   it("retains explicit scope and both metadata namespaces when completing a draft", () => {

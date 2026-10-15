@@ -93,6 +93,7 @@ export type FilterTargeting = {
   }[];
   supports: (field: FieldRef) => boolean;
   scoreTypesForTarget?: (targetId: string) => ScoreTypeContext | undefined;
+  scoreTypesError?: string;
   observedForTarget?: (targetId: string) => ObservedOptions | undefined;
 };
 

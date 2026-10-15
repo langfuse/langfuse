@@ -41,11 +41,12 @@ export function newExperimentFilterDraft(
 
 export function experimentFilterToDraft(
   filter: FilterState[number],
+  legacyDefaultTarget = "baseline",
 ): ExperimentFilterDraft {
   return {
     column: filter.column,
     type: filter.type,
-    target: filter.target ?? "baseline",
+    target: filter.target ?? legacyDefaultTarget,
     operator: filter.operator,
     key: "key" in filter ? filter.key : "",
     value: Array.isArray(filter.value)

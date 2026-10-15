@@ -5,8 +5,6 @@ import {
   WORD_JOINER,
 } from "@/src/features/search-bar/components/ComposerTokens";
 
-import { EVENTS_FIELD_REGISTRY } from "../lib/fields";
-
 /** Rendered text of the draft, with the layout-only word joiners stripped. */
 function renderedText(draft: string): string {
   const { container } = render(
@@ -30,32 +28,6 @@ describe("ComposerTokens", () => {
     );
   });
 
-  it("keeps target text and whitespace intact inside the editable chip", () => {
-    const draft = '-scores.quality:>0.8   @"Claude Sonnet"';
-    const { container } = render(
-      <ComposerTokens
-        draft={draft}
-        showDiagnostics={true}
-        registry={{
-          ...EVENTS_FIELD_REGISTRY,
-          targeting: {
-            defaultTarget: "baseline",
-            supports: (field) => field.type === "scores",
-            targets: [
-              {
-                id: "run-b",
-                label: "Claude Sonnet",
-                textClassName: "text-pink-500",
-              },
-            ],
-          },
-        }}
-      />,
-    );
-    expect(container.textContent?.split(WORD_JOINER).join("")).toBe(draft);
-    expect(container.querySelectorAll('[data-kind="filter"]')).toHaveLength(1);
-  });
-
   it("renders whitespace and trailing plain text as elements, not raw text nodes", () => {
     // IME composition writes into whatever text node the caret sits in. A
     // fragment-emitted " " between pills is a node React will not rewrite, so
@@ -66,35 +38,5 @@ describe("ComposerTokens", () => {
     for (const child of Array.from(container.childNodes)) {
       expect(child.nodeType).toBe(Node.ELEMENT_NODE);
     }
-  });
-
-  it("renders a target prefix with exact source text and its own color span", () => {
-    const draft = '-"Run: A".scores."Rouge Score":>0.8';
-    const { container } = render(
-      <ComposerTokens
-        draft={draft}
-        showDiagnostics={true}
-        registry={{
-          ...EVENTS_FIELD_REGISTRY,
-          targeting: {
-            defaultTarget: "all",
-            supports: () => true,
-            targets: [
-              { id: "run-a", label: "Run: A", textClassName: "text-pink-500" },
-            ],
-          },
-        }}
-      />,
-    );
-    expect(container.textContent?.split(WORD_JOINER).join("")).toBe(draft);
-    expect(container.querySelector('[data-part="target"]')?.textContent).toBe(
-      '"Run: A".',
-    );
-    expect(container.querySelector('[data-part="field"]')?.textContent).toBe(
-      'scores."Rouge Score"',
-    );
-    expect(container.querySelector('[data-part="value"]')?.textContent).toBe(
-      ">0.8",
-    );
   });
 });

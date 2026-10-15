@@ -291,6 +291,7 @@ describe("comparison target identity and options", () => {
     ...EXPERIMENT_ITEMS_FIELD_REGISTRY,
     targeting: experimentItemsFilterTargeting({
       baselineId: "run-a",
+      experimentIds: runs.map((run) => run.experimentId),
       experiments: runs,
       colorExperimentIds: runs.map((run) => run.experimentId),
     }),
@@ -327,6 +328,63 @@ describe("comparison target identity and options", () => {
     expect(
       registry.targeting.targets.slice(0, 2).map((target) => target.id),
     ).toEqual(["all", "baseline"]);
+  });
+
+  it("round-trips targetless saved filters on the first comparison when no baseline is selected", () => {
+    const registry = {
+      ...EXPERIMENT_ITEMS_FIELD_REGISTRY,
+      targeting: experimentItemsFilterTargeting({
+        experimentIds: ["run-b", "run-a"],
+        experiments,
+        colorExperimentIds: ["run-a", "run-b"],
+      }),
+    };
+    const legacy: FilterState = [
+      {
+        type: "numberObject",
+        column: "scores_avg",
+        key: "quality",
+        operator: ">",
+        value: 0.8,
+      },
+    ];
+    const query = filterStateToQueryText(legacy, {}, registry);
+    expect(query.skippedFilters).toEqual([]);
+    expect(query.text).toBe('"Run B".scores.quality:>0.8');
+    expect(planCommit(query.text, undefined, registry)).toMatchObject({
+      status: "committed",
+      filters: [{ ...legacy[0], target: "run-b" }],
+    });
+    expect(
+      groupExperimentFilters(legacy, undefined, ["run-b", "run-a"]).groups,
+    ).toEqual([{ runId: "run-b", filters: legacy }]);
+  });
+
+  it("keeps selected runs targetable while their display names are unavailable", () => {
+    const registry = {
+      ...EXPERIMENT_ITEMS_FIELD_REGISTRY,
+      targeting: experimentItemsFilterTargeting({
+        experimentIds: ["older-run", "run-b"],
+        experiments: [experiments[1]],
+        colorExperimentIds: ["older-run", "run-b"],
+      }),
+    };
+    expect(registry.targeting.targets.map(({ id }) => id)).toEqual([
+      "all",
+      "older-run",
+      "run-b",
+    ]);
+    const result = planCommit('"older-run".level:ERROR', undefined, registry);
+    expect(result).toMatchObject({
+      status: "committed",
+      filters: [{ target: "older-run" }],
+    });
+    if (result.status !== "committed") throw new Error("Expected valid target");
+    const reversed = filterStateToQueryText(result.filters, {}, registry);
+    expect(reversed.skippedFilters).toEqual([]);
+    expect(planCommit(reversed.text, undefined, registry)).toMatchObject({
+      filters: result.filters,
+    });
   });
 
   it.each([
@@ -491,6 +549,7 @@ describe("comparison target identity and options", () => {
       ...EXPERIMENT_ITEMS_FIELD_REGISTRY,
       targeting: experimentItemsFilterTargeting({
         baselineId: "run-a",
+        experimentIds: ["run-a", "run-b"],
         experiments,
         colorExperimentIds: ["run-a", "run-b"],
         observedForTarget: optionsFor,

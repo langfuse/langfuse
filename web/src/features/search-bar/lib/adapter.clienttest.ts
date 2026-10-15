@@ -122,6 +122,27 @@ describe("experiment target prefixes", () => {
     });
   });
 
+  it("reports the score-options failure while blocking score commits", () => {
+    const scoped = createFieldRegistry({
+      ...registry,
+      targeting: {
+        ...registry.targeting!,
+        scoreTypesForTarget: () => undefined,
+        scoreTypesError: "Could not load experiment score options. Try again.",
+      },
+    });
+    expect(
+      planCommit('"Run A".scores.rating:1', undefined, scoped),
+    ).toMatchObject({
+      status: "invalid",
+      diagnostics: [
+        expect.objectContaining({
+          message: "Could not load experiment score options. Try again.",
+        }),
+      ],
+    });
+  });
+
   it("round-trips separate metadata namespaces without changing their columns or keys", () => {
     const scoped = createFieldRegistry({
       ...registry,

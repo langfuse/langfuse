@@ -10,11 +10,15 @@ import {
 
 export function useExperimentItemsSearchRegistry({
   baselineId,
+  experimentIds,
   selectedExperiments,
   colorExperimentIds,
   optionsByTarget,
+  optionsError,
 }: {
   baselineId?: string;
+  experimentIds: readonly string[];
+  optionsError: string | null;
   selectedExperiments: readonly {
     experimentId: string;
     experimentName: string;
@@ -40,8 +44,10 @@ export function useExperimentItemsSearchRegistry({
       ...EXPERIMENT_ITEMS_FIELD_REGISTRY,
       targeting: experimentItemsFilterTargeting({
         baselineId,
+        experimentIds,
         experiments: selectedExperiments,
         colorExperimentIds,
+        scoreTypesError: optionsError ?? undefined,
         observedForTarget: (targetId) => observedByTarget[targetId],
         scoreTypesForTarget: (targetId) => {
           const observed = observedByTarget[targetId];
@@ -49,6 +55,13 @@ export function useExperimentItemsSearchRegistry({
         },
       }),
     }),
-    [baselineId, selectedExperiments, colorExperimentIds, observedByTarget],
+    [
+      baselineId,
+      experimentIds,
+      selectedExperiments,
+      colorExperimentIds,
+      observedByTarget,
+      optionsError,
+    ],
   );
 }

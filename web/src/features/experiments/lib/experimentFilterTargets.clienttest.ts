@@ -61,6 +61,12 @@ describe("experiment filter request groups", () => {
     ]);
   });
 
+  it("keeps legacy targetless filters on the first comparison without a baseline", () => {
+    expect(groupExperimentFilters([quality], undefined, ["b", "a"])).toEqual({
+      groups: [{ runId: "b", filters: [quality] }],
+    });
+  });
+
   it("blocks unavailable targets without sending a partial filter set", () => {
     expect(
       groupExperimentFilters(
@@ -73,7 +79,9 @@ describe("experiment filter request groups", () => {
       ),
     ).toMatchObject({ groups: [], error: expect.any(String) });
     expect(
-      groupExperimentFilters([quality], undefined, ["a"]).error,
+      groupExperimentFilters([{ ...quality, target: "baseline" }], undefined, [
+        "a",
+      ]).error,
     ).toBeDefined();
   });
 });

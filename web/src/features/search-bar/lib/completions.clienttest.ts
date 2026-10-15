@@ -171,6 +171,21 @@ describe("experiment target completions", () => {
     );
   });
 
+  it("completes a target rewrite when its value ends with a period", () => {
+    const input = "name:Inc.";
+    const p = targetedPlan(input)!;
+    const option = flattenOptions(p).find(
+      (option) => option.id === "target:run-a",
+    )!;
+    if (option.kind !== "pattern") throw new Error("Expected target option");
+    const next = '"Run A".name:Inc. ';
+    expect(applyPick(option, input, p)).toEqual({
+      next,
+      caret: next.length,
+      keepOpen: true,
+    });
+  });
+
   it("rewrites metadata presence without dropping the selected experiment", () => {
     for (const input of [
       '"Run A".eventMetadata."model name":test',
@@ -1221,6 +1236,23 @@ describe("applyPick", () => {
   // Narrowing helper: applyPick only handles span-local options here.
   const spanLocal = (o: CompletionOption | undefined) =>
     o as Exclude<CompletionOption, { kind: "recent" | "preset" }>;
+
+  it("completes an ordinary observed value ending with a period", () => {
+    const input = "name:";
+    const p = plan(input, input.length, {
+      observed: { name: [{ value: "Inc." }] },
+    });
+    const option = flattenOptions(p).find(
+      (option) => option.kind === "value" && option.value === "Inc.",
+    );
+    expect(option).toBeDefined();
+    const next = "name:Inc. ";
+    expect(applyPick(spanLocal(option), input, p!)).toEqual({
+      next,
+      caret: next.length,
+      keepOpen: true,
+    });
+  });
 
   it("keeps the caret INSIDE the block after picking a numeric operator", () => {
     // LFE-10501 BUG A. Picking `>` for a numeric field must not append a

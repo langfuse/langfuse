@@ -9,10 +9,9 @@ import {
   toClickhouseDateTime,
 } from "../../../src/server";
 import { jitter, utcDayStartMs } from "./rng";
-import { ScenarioDefinition, SeedError, SeedSummary } from "./types";
+import { chunk, ScenarioDefinition, SeedError, SeedSummary } from "./types";
 import { countRows } from "./verify";
 
-const ITEM_COUNT = 60;
 const RUN_NAMES = ["Filter A", "Filter B", "Filter C"];
 const LEVELS = ["DEFAULT", "WARNING", "ERROR"] as const;
 const QUALITY = [0.2, 0.45, 0.65, 0.85, 0.95, null];
@@ -25,6 +24,19 @@ export const experimentFiltersScenario: ScenarioDefinition = {
   supportsV4: true,
   flags: [
     {
+      flag: "items",
+      type: "number",
+      default: 60,
+      description: "dataset item count (use a fresh id-prefix when changing)",
+    },
+    {
+      flag: "extra-score-names",
+      type: "number",
+      default: 0,
+      description:
+        "distinct additional score names for suggestion cardinality tests",
+    },
+    {
       flag: "v4",
       type: "boolean",
       default: true,
@@ -33,13 +45,25 @@ export const experimentFiltersScenario: ScenarioDefinition = {
   ],
   run: async (ctx, params): Promise<SeedSummary> => {
     const startedAt = Date.now();
+    const itemCount = Number(params.items);
+    const extraScoreNames = Number(params["extra-score-names"]);
+    if (
+      !Number.isInteger(itemCount) ||
+      itemCount < 1 ||
+      !Number.isInteger(extraScoreNames) ||
+      extraScoreNames < 0
+    ) {
+      throw new SeedError(
+        "items must be positive and extra-score-names nonnegative integers",
+      );
+    }
     const timestamp = utcDayStartMs();
     const validFrom = new Date(0);
     const datasetId = `${ctx.idPrefix}-dataset`;
     const experimentIds = RUN_NAMES.map(
       (_, index) => `${ctx.idPrefix}-run-${index + 1}`,
     );
-    const items = Array.from({ length: ITEM_COUNT }, (_, index) => ({
+    const items = Array.from({ length: itemCount }, (_, index) => ({
       id: `${ctx.idPrefix}-item-${String(index + 1).padStart(2, "0")}`,
       projectId: ctx.projectId,
       datasetId,
@@ -58,7 +82,7 @@ export const experimentFiltersScenario: ScenarioDefinition = {
       for (const [itemIndex, item] of items.entries()) {
         if (runIndex === 2 && itemIndex % 6 === 5) continue;
 
-        const rowIndex = runIndex * ITEM_COUNT + itemIndex;
+        const rowIndex = runIndex * itemCount + itemIndex;
         const startTime =
           timestamp + rowIndex * 1000 + jitter(ctx.seed, rowIndex, 100);
         const traceId = `${experimentId}-trace-${itemIndex + 1}`;
@@ -129,6 +153,18 @@ export const experimentFiltersScenario: ScenarioDefinition = {
           updated_at: startTime,
           event_ts: startTime,
         };
+        if (extraScoreNames > 0) {
+          scores.push(
+            createTraceScore({
+              ...scoreBase,
+              id: `${spanId}-extra`,
+              observation_id: runIndex === 1 ? null : spanId,
+              name: `metric-${String(itemIndex % extraScoreNames).padStart(4, "0")}`,
+              value: (itemIndex % 100) / 100,
+              data_type: "NUMERIC",
+            }),
+          );
+        }
         if (quality !== null) {
           scores.push(
             createTraceScore({
@@ -174,48 +210,45 @@ export const experimentFiltersScenario: ScenarioDefinition = {
       ctx.log(
         `writing ${counts.experiments} experiments over ${items.length} items`,
       );
-      await prisma.$transaction(async (tx) => {
-        const dataset = {
-          id: datasetId,
-          projectId: ctx.projectId,
-          name: `seed/experiment-filters/${ctx.idPrefix}`,
-          description:
-            "Synthetic filters: 60 items, three variants, shifted scores and missing results.",
-        };
-        await tx.dataset.upsert({
-          where: { id_projectId: { id: datasetId, projectId: ctx.projectId } },
-          create: dataset,
-          update: dataset,
-        });
-        for (const [index, id] of experimentIds.entries()) {
-          const experiment = {
-            id,
+      await prisma.$transaction(
+        async (tx) => {
+          const dataset = {
+            id: datasetId,
             projectId: ctx.projectId,
-            datasetId,
-            name: RUN_NAMES[index],
+            name: `seed/experiment-filters/${ctx.idPrefix}`,
+            description: `Synthetic filters: ${itemCount} items, three variants, shifted scores and missing results.`,
           };
-          await tx.datasetRuns.upsert({
-            where: { id_projectId: { id, projectId: ctx.projectId } },
-            create: experiment,
-            update: experiment,
-          });
-        }
-        for (const item of items) {
-          await tx.datasetItem.upsert({
+          await tx.dataset.upsert({
             where: {
-              id_projectId_validFrom: {
-                id: item.id,
-                projectId: ctx.projectId,
-                validFrom,
-              },
+              id_projectId: { id: datasetId, projectId: ctx.projectId },
             },
-            create: item,
-            update: item,
+            create: dataset,
+            update: dataset,
           });
-        }
-      });
-      await createEventsCh(events);
-      await createScoresCh(scores);
+          for (const [index, id] of experimentIds.entries()) {
+            const experiment = {
+              id,
+              projectId: ctx.projectId,
+              datasetId,
+              name: RUN_NAMES[index],
+            };
+            await tx.datasetRuns.upsert({
+              where: { id_projectId: { id, projectId: ctx.projectId } },
+              create: experiment,
+              update: experiment,
+            });
+          }
+          for (const batch of chunk(items, 1000)) {
+            await tx.datasetItem.createMany({
+              data: batch,
+              skipDuplicates: true,
+            });
+          }
+        },
+        { timeout: 60_000 },
+      );
+      for (const batch of chunk(events, 10_000)) await createEventsCh(batch);
+      for (const batch of chunk(scores, 10_000)) await createScoresCh(batch);
       verified.datasets = await prisma.dataset.count({
         where: { id: datasetId, projectId: ctx.projectId },
       });
@@ -233,8 +266,8 @@ export const experimentFiltersScenario: ScenarioDefinition = {
       );
       verified.scores = await countRows(
         "scores",
-        "project_id = {projectId: String} AND trace_id IN {traceIds: Array(String)}",
-        { projectId: ctx.projectId, traceIds },
+        "project_id = {projectId: String} AND startsWith(trace_id, {tracePrefix: String})",
+        { projectId: ctx.projectId, tracePrefix: `${ctx.idPrefix}-run-` },
         "uniqExact(id)",
       );
       for (const [entity, expected] of Object.entries(counts)) {
@@ -244,20 +277,21 @@ export const experimentFiltersScenario: ScenarioDefinition = {
           );
         }
       }
-      const expectedQualityMatches = [20, 20, 10];
       for (const [runIndex, experimentId] of experimentIds.entries()) {
-        const runTraceIds = events
-          .filter((event) => event.experiment_id === experimentId)
-          .map((event) => event.trace_id);
+        const expectedQualityMatches = items.filter((_, itemIndex) => {
+          if (runIndex === 2 && itemIndex % 6 === 5) return false;
+          const quality = QUALITY[(itemIndex + runIndex * 2) % QUALITY.length];
+          return quality !== null && quality > 0.8;
+        }).length;
         const matches = await countRows(
           "scores",
-          "project_id = {projectId: String} AND trace_id IN {traceIds: Array(String)} AND name = 'quality' AND value > 0.8",
-          { projectId: ctx.projectId, traceIds: runTraceIds },
+          "project_id = {projectId: String} AND startsWith(trace_id, {tracePrefix: String}) AND name = 'quality' AND value > 0.8",
+          { projectId: ctx.projectId, tracePrefix: `${experimentId}-trace-` },
           "uniqExact(id)",
         );
-        if (matches !== expectedQualityMatches[runIndex]) {
+        if (matches !== expectedQualityMatches) {
           throw new SeedError(
-            `Readback mismatch: expected ${expectedQualityMatches[runIndex]} quality > 0.8 matches in ${RUN_NAMES[runIndex]}, found ${matches}`,
+            `Readback mismatch: expected ${expectedQualityMatches} quality > 0.8 matches in ${RUN_NAMES[runIndex]}, found ${matches}`,
           );
         }
         ctx.log(`${RUN_NAMES[runIndex]}: ${matches} quality > 0.8 matches`);

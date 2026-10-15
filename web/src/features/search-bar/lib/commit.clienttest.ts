@@ -1,6 +1,10 @@
 // @vitest-environment node
 
 import { planCommit } from "@/src/features/search-bar/lib/commit";
+import { __test } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import { filterStateToQueryText } from "./filter-state-to-query";
+import { createFieldRegistry, EVENTS_FIELD_REGISTRY } from "./fields";
+import type { FilterState } from "@langfuse/shared";
 
 const experimentAndEvalExclusions = [
   {
@@ -24,6 +28,64 @@ const experimentAndEvalExclusions = [
 ] as const;
 
 describe("planCommit", () => {
+  it("preserves skipped experiment occurrences when editing the same score on another target", () => {
+    const registry = createFieldRegistry({
+      ...EVENTS_FIELD_REGISTRY,
+      targeting: {
+        defaultTarget: "all",
+        supports: () => true,
+        targets: [{ id: "all", label: "all", keyword: true }],
+      },
+    });
+    const missingExperimentFilters: FilterState = [
+      {
+        type: "numberObject",
+        column: "scores_avg",
+        key: "quality",
+        operator: ">",
+        value: 0.5,
+        target: "missing-run",
+      },
+      {
+        type: "numberObject",
+        column: "scores_avg",
+        key: "quality",
+        operator: "<",
+        value: 0.9,
+        target: "missing-run",
+      },
+    ];
+    const { skippedFilters } = filterStateToQueryText(
+      missingExperimentFilters,
+      {},
+      registry,
+    );
+    expect(skippedFilters).toEqual(missingExperimentFilters);
+    const result = planCommit("scores.quality:>0.8", undefined, registry);
+    expect(result.status).toBe("committed");
+    if (result.status !== "committed") throw new Error("Expected commit");
+
+    expect(__test.mergeSkippedFilters(result.filters, skippedFilters)).toEqual([
+      ...result.filters,
+      ...missingExperimentFilters,
+    ]);
+  });
+
+  it("replaces a hidden filter when its target, column, and key are explicitly edited", () => {
+    const hidden = [
+      {
+        type: "stringObject",
+        column: "metadata",
+        key: "region",
+        operator: "does not contain",
+        value: "old",
+        target: "run-a",
+      },
+    ] satisfies FilterState;
+    const edited: FilterState = [{ ...hidden[0], value: "new" }];
+    expect(__test.mergeSkippedFilters(edited, hidden)).toEqual(edited);
+  });
+
   it("lowers a valid draft to filters + search + canonical text", () => {
     const r = planCommit("  level:ERROR timeout  ");
     expect(r.status).toBe("committed");

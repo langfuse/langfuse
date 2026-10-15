@@ -3,6 +3,7 @@
 import { useRouter } from "next/router";
 import { useExperimentResultsState } from "@/src/features/experiments/hooks/useExperimentResultsState";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { DataTableControlsProvider } from "@/src/components/table/data-table-controls";
 import { ExperimentFilterSidebar } from "../filters/ExperimentFilterSidebar";
 import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
@@ -622,6 +623,8 @@ export default function ExperimentItemsTable({
     scoreColumns: serverScoreColumnDefs,
     isLoading: isFilterOptionsLoading,
     optionsByExperiment,
+    error: filterOptionsError,
+    retry: retryFilterOptions,
   } = useExperimentItemsFilterOptions({
     projectId,
     experimentIds: allExperimentIds,
@@ -630,21 +633,27 @@ export default function ExperimentItemsTable({
   const optionsByTarget = useMemo(
     () => ({
       ...optionsByExperiment,
-      all: isFilterOptionsLoading ? undefined : scoreFilterOptions,
+      all:
+        isFilterOptionsLoading || filterOptionsError
+          ? undefined
+          : scoreFilterOptions,
       baseline: baselineId ? optionsByExperiment[baselineId] : undefined,
     }),
     [
       optionsByExperiment,
       isFilterOptionsLoading,
+      filterOptionsError,
       scoreFilterOptions,
       baselineId,
     ],
   );
   const searchRegistry = useExperimentItemsSearchRegistry({
     baselineId,
+    experimentIds: allExperimentIds,
     selectedExperiments: selectedExperimentNames,
     colorExperimentIds,
     optionsByTarget,
+    optionsError: filterOptionsError,
   });
 
   // Use sidebar filter state for the sidebar UI (provides proper facets, options, etc.)
@@ -1995,6 +2004,20 @@ export default function ExperimentItemsTable({
                   {groupedFilters.error}
                 </p>
               )}
+              {filterOptionsError && (
+                <div
+                  role="alert"
+                  className="flex items-center gap-2 px-2 py-2 text-sm"
+                >
+                  <span className="text-destructive">{filterOptionsError}</span>
+                  <Button
+                    text="Retry filter options"
+                    variant="secondary"
+                    size="sm"
+                    onClick={retryFilterOptions}
+                  />
+                </div>
+              )}
             </>
           }
         >
@@ -2011,6 +2034,11 @@ export default function ExperimentItemsTable({
                 }),
               )}
               optionsByTarget={optionsByTarget}
+              legacyDefaultTarget={
+                searchRegistry.targeting?.legacyDefaultTarget ?? "baseline"
+              }
+              optionsError={filterOptionsError}
+              onRetryOptions={retryFilterOptions}
             />
           )}
 

@@ -77,6 +77,8 @@ export type CompletionOption =
       textClassName?: string;
       detail?: string;
       insert: string;
+      /** Incomplete target or field prefixes keep the caret inside the term. */
+      requiresInput?: boolean;
       /** When set, the pick replaces THIS span instead of the plan's — used by
        *  scope rewrites that wrap the whole coalesced free-text run, not just
        *  the token under the caret. */
@@ -1500,6 +1502,7 @@ export function planInputCompletions(
       textClassName: target.textClassName,
       detail: target.id === targetId ? "Current experiment scope" : undefined,
       insert: `${serializeTarget(targetReference(target))}${fieldText}`,
+      requiresInput: indexOfOutsideQuotes(fieldText, ":") === -1,
       replaceSpan: span,
     }));
   return {
@@ -1927,8 +1930,8 @@ export function applyPick(
     // (value stage, next field, or an open `tags:(` group) — keep the popover
     // open so the next pick is immediate.
     keepOpen =
+      (option.kind === "pattern" && option.requiresInput === true) ||
       option.insert.endsWith(":") ||
-      option.insert.endsWith(".") ||
       option.insert.endsWith(" ") ||
       option.insert.endsWith("(");
   }
@@ -1943,8 +1946,8 @@ export function applyPick(
     // the filter (LFE-10501 BUG A). AND/NOT already carry a trailing space, so
     // this only changes the value-stage comparison operators.
     option.kind === "operator" ||
+    (option.kind === "pattern" && option.requiresInput === true) ||
     insert.endsWith(":") ||
-    insert.endsWith(".") ||
     insert.endsWith(" ") ||
     insert.endsWith("(");
   const completesFilterAtEnd =
