@@ -340,43 +340,6 @@ export const TestCacheHitRate = meta.story({
   },
 });
 
-export const TestGeminiCacheHitRate = meta.story({
-  name: "(Test) Counts Gemini cached content as input",
-  args: {
-    details: {
-      input: 20,
-      cached_content_token_count: 80,
-      output: 5,
-      total: 105,
-    },
-    children: <span>105 tokens</span>,
-  },
-  play: async ({ canvasElement }) => {
-    const { content } = await openBreakdownTooltip(canvasElement, "105 tokens");
-    await expect(content.getByText("80.0%")).toBeInTheDocument();
-  },
-});
-
-export const TestCacheWriteOnlyRate = meta.story({
-  name: "(Test) Shows zero for cache writes without reads",
-  args: {
-    details: {
-      input: 90,
-      cache_write_tokens: 10,
-      output: 5,
-      total: 105,
-    },
-    children: <span>105 tokens with writes</span>,
-  },
-  play: async ({ canvasElement }) => {
-    const { content } = await openBreakdownTooltip(
-      canvasElement,
-      "105 tokens with writes",
-    );
-    await expect(content.getByText("0.0%")).toBeInTheDocument();
-  },
-});
-
 export const TestZeroCacheHitRate = meta.story({
   name: "(Test) Shows zero cache hit rate when no tokens were read",
   args: {
@@ -475,6 +438,14 @@ const hiddenCacheUsage = [
   [
     "inclusive input and cache tokens",
     { input: 100, cache_read_input_tokens: 80, output: 50, total: 150 },
+  ],
+  [
+    "unnormalized cached content",
+    { input: 100, cached_content_token_count: 80, output: 10, total: 190 },
+  ],
+  [
+    "unnormalized cache writes",
+    { input: 90, cache_write_tokens: 10, output: 5, total: 105 },
   ],
 ] as const;
 

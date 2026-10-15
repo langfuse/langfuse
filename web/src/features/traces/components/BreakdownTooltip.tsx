@@ -59,7 +59,7 @@ export const BreakdownTooltip = ({
 
   const entries = Object.entries(aggregatedDetails);
   const inputEntries = sortEntriesByValue(
-    entries.filter(([key]) => isInputUsageKey(key)),
+    entries.filter(([key]) => key.includes("input")),
   );
   const outputEntries = sortEntriesByValue(
     entries.filter(([key]) => key.includes("output")),
@@ -67,7 +67,7 @@ export const BreakdownTooltip = ({
   const otherEntries = entries
     .filter(
       ([key]) =>
-        !isInputUsageKey(key) && !key.includes("output") && key !== "total",
+        !key.includes("input") && !key.includes("output") && key !== "total",
     )
     .sort(([, a], [, b]) => (b ?? 0) - (a ?? 0));
   const contributionEntries = inputEntries.concat(outputEntries, otherEntries);
@@ -362,14 +362,6 @@ function CacheHitRateInfo() {
   );
 }
 
-function isInputUsageKey(key: string) {
-  return (
-    key.includes("input") ||
-    key === "cached_content_token_count" ||
-    key === "cache_write_tokens"
-  );
-}
-
 function getCacheHitRate(
   entries: [string, number | undefined][],
   details: Details | Details[],
@@ -389,7 +381,7 @@ function getCacheHitRate(
     const readKeys = Object.entries(detail)
       .filter(
         ([key, value]) =>
-          isInputUsageKey(key) && isCacheReadKey(key) && (value ?? 0) > 0,
+          key.includes("input") && isCacheReadKey(key) && (value ?? 0) > 0,
       )
       .map(([key]) => key);
     return (
