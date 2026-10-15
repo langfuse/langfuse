@@ -21,8 +21,6 @@ import {
   getEventsForBlobStorageExportParquet,
   getCurrentSpan,
   instrumentAsync,
-  recordGauge,
-  recordHistogram,
   recordIncrement,
   BlobStorageIntegrationProcessingQueue,
   queryClickhouse,
@@ -497,7 +495,6 @@ const processBlobStorageExport = async (config: {
       // Outside the try so the catch can distinguish a real upload success from
       // a failure.
       let uploadSucceeded = false;
-      let heartbeat: ReturnType<typeof setInterval> | undefined;
 
       // Per-stage errors so the catch can name the originating cause instead of
       // the bare "aborted" the pipeline teardown propagates to every stage.
@@ -599,26 +596,6 @@ const processBlobStorageExport = async (config: {
               backpressureMs: 0,
             }
           : null;
-
-        const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
-        const heartbeatTags = {
-          table: config.table,
-          projectId: config.projectId,
-        };
-        heartbeat = setInterval(() => {
-          recordGauge(
-            "langfuse.blobstorage.export_heartbeat.rows",
-            sourceStats.rows,
-            heartbeatTags,
-          );
-          recordGauge(
-            "langfuse.blobstorage.export_heartbeat.serialized_bytes",
-            compressedCounter
-              ? compressedCounter.bytes
-              : serializedCounter.bytes,
-            heartbeatTags,
-          );
-        }, HEARTBEAT_INTERVAL_MS);
 
         let fileStream: Readable;
 
@@ -968,10 +945,7 @@ const processBlobStorageExport = async (config: {
               uploadDurationMsFinal ??
               Math.round(performance.now() - uploadStartMs);
             span.setAttribute("blob.uploadDurationMs", totalUploadMs);
-            // Emit stage timings on both success and failure. On failure the
-            // values are partial (the upload aborted mid-stream), so an
-            // `outcome` tag keeps them out of the happy-path percentiles while
-            // still capturing where a failed export spent its time.
+            // On failure the values are partial (the upload aborted mid-stream).
             const finalGzipCpuMs = gzipStats
               ? Math.max(
                   0,
@@ -989,37 +963,6 @@ const processBlobStorageExport = async (config: {
             })();
             span.setAttribute("blob.gzipCpuMs", finalGzipCpuMs);
             span.setAttribute("blob.uploadWaitMs", finalUploadWaitMs);
-            const finalExportFormat = parquetEligible
-              ? BlobExportFormat.PARQUET
-              : resolveBlobExportFormat(config.fileType, config.compressed);
-            const stageTags = {
-              table: config.table,
-              path: exportPath,
-              source: finalExportFormat,
-              outcome: (uploadSucceeded
-                ? "success"
-                : "failure") satisfies BlobTableExportOutcome,
-            };
-            recordHistogram(
-              "langfuse.blob_export.ch_read_ms",
-              finalChReadMs,
-              stageTags,
-            );
-            recordHistogram(
-              "langfuse.blob_export.enrich_ms",
-              finalEnrichMs,
-              stageTags,
-            );
-            recordHistogram(
-              "langfuse.blob_export.gzip_cpu_ms",
-              finalGzipCpuMs,
-              stageTags,
-            );
-            recordHistogram(
-              "langfuse.blob_export.upload_wait_ms",
-              finalUploadWaitMs,
-              stageTags,
-            );
           }
           if (producesUploadStats) {
             span.setAttribute("blob.upload.parts", uploadStats.partsUploaded);
@@ -1050,27 +993,6 @@ const processBlobStorageExport = async (config: {
             span.setAttribute(
               "blob.gzip.throughputMbPerSec",
               Number(throughputMbPerSec.toFixed(2)),
-            );
-
-            const metricTags = {
-              table: config.table,
-              path: exportPath,
-              gzipLevel: gzipStats.level,
-            };
-            recordHistogram(
-              "langfuse.blob_export.gzip.active_ms",
-              activeMs,
-              metricTags,
-            );
-            recordHistogram(
-              "langfuse.blob_export.gzip.ratio",
-              ratio,
-              metricTags,
-            );
-            recordHistogram(
-              "langfuse.blob_export.gzip.throughput_mb_per_sec",
-              throughputMbPerSec,
-              metricTags,
             );
           }
         }
@@ -1103,7 +1025,6 @@ const processBlobStorageExport = async (config: {
         );
         throw error;
       } finally {
-        clearInterval(heartbeat);
         unregisterInFlightBlobExport(inFlightHandle);
 
         // ns → ms; the histogram yields NaN/Infinity with zero samples.
@@ -1113,17 +1034,6 @@ const processBlobStorageExport = async (config: {
         const maxMs = toFiniteMs(eventLoopDelay.max);
         const p99Ms = toFiniteMs(eventLoopDelay.percentile(99));
         const meanMs = toFiniteMs(eventLoopDelay.mean);
-        const delayTags = { table: config.table, unit: "milliseconds" };
-        recordGauge(
-          "langfuse.blobstorage.event_loop_delay.max",
-          maxMs,
-          delayTags,
-        );
-        recordGauge(
-          "langfuse.blobstorage.event_loop_delay.p99",
-          p99Ms,
-          delayTags,
-        );
         span.setAttribute("blob.eventLoopDelay.maxMs", Math.round(maxMs));
         span.setAttribute("blob.eventLoopDelay.p99Ms", Math.round(p99Ms));
         span.setAttribute("blob.eventLoopDelay.meanMs", Math.round(meanMs));

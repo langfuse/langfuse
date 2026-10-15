@@ -37,7 +37,10 @@ vi.mock("@/src/components/ui/LangfuseMediaView", () => ({
 import { ChatMlArraySchema } from "@langfuse/shared";
 
 import { ChatMessage } from "./ChatMessage";
-import { type ChatMlMessage } from "../../../fns/chatMessageUtils";
+import {
+  type ChatMlMessage,
+  getMessageTitle,
+} from "../../../fns/chatMessageUtils";
 import { type IOPreviewContentMode } from "../IOPreview";
 
 function createMemoryStorage(): Storage {
@@ -79,6 +82,7 @@ function renderChatMessage(
   return render(
     <ChatMessage
       message={message}
+      title={getMessageTitle(message)}
       shouldRenderMarkdown={shouldRenderMarkdown}
       currentView="pretty"
       contentMode={contentMode}

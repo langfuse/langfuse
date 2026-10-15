@@ -22,8 +22,15 @@ import { configureOtelReplayEnvironment } from "./otelReplaySetup";
 type OtelReplayStoredRow = Record<string, unknown>;
 
 export type OtelReplayResult = {
+  mode: OtelRawReplayMode;
   storedRows: OtelReplayStoredRow[];
   legacyRows?: Partial<Record<LegacyReplayTable, OtelReplayStoredRow[]>>;
+  sideEffects?: unknown;
+};
+
+export type OtelRawReplayComparison = {
+  originalTs: OtelReplayResult;
+  earlyTs: OtelReplayResult;
 };
 
 type LegacyReplayTable =
@@ -49,8 +56,13 @@ type RunOtelReplayParams = {
   overflowEnabled?: boolean;
   overflowSizeLimitBytes?: number;
   writeMode?: "events_only" | "dual";
+  sdkName?: string;
+  sdkVersion?: string;
   failLegacyQueueProcessing?: boolean;
+  captureSideEffects?: () => unknown;
 };
+
+type OtelRawReplayMode = "original-ts" | "early-ts";
 
 // The legacy processor caches its storage client. Keep this fake's identity stable
 // across sequential replays, but release all file contents after each run.
@@ -90,12 +102,63 @@ const eventStorage = {
   },
 };
 
+const differentialClockFields = new Set([
+  "created_at",
+  "updated_at",
+  "event_ts",
+]);
+
+export function comparableOtelReplayRows(
+  rows: OtelReplayStoredRow[] = [],
+): OtelReplayStoredRow[] {
+  return rows
+    .map((row) =>
+      Object.fromEntries(
+        Object.entries(row).filter(
+          ([key]) => !differentialClockFields.has(key),
+        ),
+      ),
+    )
+    .sort((left, right) =>
+      JSON.stringify(left).localeCompare(JSON.stringify(right)),
+    );
+}
+
+export function expectRawOtelReplayParity(
+  comparison: OtelRawReplayComparison,
+): void {
+  expect(comparableOtelReplayRows(comparison.earlyTs.storedRows)).toEqual(
+    comparableOtelReplayRows(comparison.originalTs.storedRows),
+  );
+}
+
+/** Replay identical unparsed bytes through the original and early-media TS paths. */
+export async function runOtelReplayComparison(
+  params: RunOtelReplayParams,
+): Promise<OtelRawReplayComparison> {
+  const { captureSideEffects, ...replayParams } = params;
+  const originalTs = await runOneOtelReplay({
+    ...replayParams,
+    captureSideEffects,
+    mode: "original-ts",
+    bytes: Buffer.from(params.bytes),
+  });
+  const earlyTs = await runOneOtelReplay({
+    ...replayParams,
+    captureSideEffects,
+    mode: "early-ts",
+    bytes: Buffer.from(params.bytes),
+  });
+
+  return { originalTs, earlyTs };
+}
+
 /**
  * Replay an S3 OTEL document through the production queue and JSON writer, then
  * read its events_full rows from an isolated ClickHouse Memory table.
  */
-export async function runOtelReplay(
-  params: RunOtelReplayParams,
+export async function runOneOtelReplay(
+  params: RunOtelReplayParams & { mode: OtelRawReplayMode },
 ): Promise<OtelReplayResult> {
   const projectId = params.projectId ?? "otel-replay-test";
   const fileKey = params.fileKey ?? "otel-replay/test.json";
@@ -107,6 +170,7 @@ export async function runOtelReplay(
     mediaUploadEnabled: params.mediaUploadEnabled,
     overflowEnabled: params.overflowEnabled,
     overflowSizeLimitBytes: params.overflowSizeLimitBytes,
+    earlyMediaExtractionEnabled: params.mode === "early-ts",
     writeMode,
   });
 
@@ -194,8 +258,8 @@ export async function runOtelReplay(
             },
           },
           ingestionVersion: "4",
-          sdkName: "otel-replay",
-          sdkVersion: "test",
+          sdkName: params.sdkName ?? "otel-replay",
+          sdkVersion: params.sdkVersion ?? "test",
         },
       },
     } as Job<TQueueJobTypes[QueueName.OtelIngestionQueue]>;
@@ -227,8 +291,15 @@ export async function runOtelReplay(
     }
 
     await processor(job, undefined);
-    expect(eventStorage.download).toHaveBeenCalledExactlyOnceWith(fileKey);
-    expect(eventStorage.downloadBytes).not.toHaveBeenCalled();
+    if (params.mode === "original-ts") {
+      expect(eventStorage.download).toHaveBeenCalledExactlyOnceWith(fileKey);
+      expect(eventStorage.downloadBytes).not.toHaveBeenCalled();
+    } else {
+      expect(eventStorage.downloadBytes).toHaveBeenCalledExactlyOnceWith(
+        fileKey,
+      );
+      expect(eventStorage.download).not.toHaveBeenCalled();
+    }
 
     if (writeMode === "dual") {
       const legacyProcessor = ingestionQueueProcessorBuilder(false);
@@ -276,8 +347,10 @@ export async function runOtelReplay(
         : undefined;
 
     replayResult = {
+      mode: params.mode,
       storedRows: (await result.json()) as OtelReplayStoredRow[],
       legacyRows,
+      sideEffects: params.captureSideEffects?.(),
     };
   } catch (error) {
     primaryError = new Error(

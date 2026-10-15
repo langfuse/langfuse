@@ -44,7 +44,7 @@ import {
 } from "@/src/features/analytics-integrations";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { useQueryProject } from "@/src/features/projects";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useMixpanelIntegration } from "@/src/features/mixpanel-integration/useMixpanelIntegration";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -60,28 +60,9 @@ export default function MixpanelIntegrationPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
-  const hasAccess = useHasProjectAccess({
-    projectId,
-    scope: "integrations:CRUD",
-  });
-  const state = api.mixpanelIntegration.get.useQuery(
-    { projectId },
-    {
-      enabled: hasAccess,
-    },
-  );
+  const { hasAccess, query: state, status } = useMixpanelIntegration(projectId);
 
   const { project } = useQueryProject();
-
-  const status = (() => {
-    if (state.isLoading || !hasAccess) {
-      return undefined;
-    }
-    if (state.data?.config?.enabled) {
-      return "active";
-    }
-    return "inactive";
-  })();
 
   return (
     <ContainerPage
@@ -90,7 +71,7 @@ export default function MixpanelIntegrationPage() {
         breadcrumb: [
           { name: "Settings", href: `/project/${projectId}/settings` },
         ],
-        actionButtonsLeft: <>{status && <StatusBadge type={status} />}</>,
+        actionButtonsLeft: status && <StatusBadge type={status} />,
         actionButtonsRight: (
           <Button asChild variant="secondary">
             <Link href="https://langfuse.com/integrations/analytics/mixpanel">

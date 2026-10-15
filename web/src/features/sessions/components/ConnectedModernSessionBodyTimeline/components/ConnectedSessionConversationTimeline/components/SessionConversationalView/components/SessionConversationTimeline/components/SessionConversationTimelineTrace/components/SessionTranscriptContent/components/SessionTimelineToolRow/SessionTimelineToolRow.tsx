@@ -14,6 +14,7 @@ export function SessionTimelineToolRow({
   name,
   input,
   output,
+  outputContent,
   isExpanded,
   onExpandedChange,
   level,
@@ -23,6 +24,7 @@ export function SessionTimelineToolRow({
   name: string;
   input: unknown;
   output: unknown;
+  outputContent?: ReactNode;
   isExpanded: boolean;
   onExpandedChange: (isExpanded: boolean) => void;
   level?: Observation["level"];
@@ -48,44 +50,42 @@ export function SessionTimelineToolRow({
       onExpandedChange={onExpandedChange}
       trailingContent={trailingContent}
       labelTrailingContent={
-        <>
-          {level &&
-          StatusIcon &&
-          (statusMessage || level === "WARNING" || level === "ERROR") ? (
-            <SessionToolTooltip
-              variant="timeline"
-              content={{
-                type: "status",
-                name,
-                level,
-                message: statusMessage || level,
-              }}
-            >
-              {({ getTriggerProps }) => (
-                <span
-                  {...getTriggerProps()}
-                  tabIndex={0}
-                  aria-label={`Tool status: ${level}`}
-                  className={cn(
-                    "ml-1 flex shrink-0 items-center",
-                    (
-                      {
-                        ERROR: "text-destructive",
-                        WARNING: "text-yellow-600 dark:text-yellow-500",
-                        DEFAULT:
-                          "text-muted-foreground invisible group-focus-within/collapsible-row:visible group-hover/collapsible-row:visible group-data-[expanded=true]/collapsible-row:visible",
-                        DEBUG:
-                          "text-muted-foreground invisible group-focus-within/collapsible-row:visible group-hover/collapsible-row:visible group-data-[expanded=true]/collapsible-row:visible",
-                      } satisfies Record<Observation["level"], string>
-                    )[level],
-                  )}
-                >
-                  <StatusIcon className="icon-sm" aria-hidden="true" />
-                </span>
-              )}
-            </SessionToolTooltip>
-          ) : null}
-        </>
+        level &&
+        StatusIcon &&
+        (statusMessage || level === "WARNING" || level === "ERROR") ? (
+          <SessionToolTooltip
+            variant="timeline"
+            content={{
+              type: "status",
+              name,
+              level,
+              message: statusMessage || level,
+            }}
+          >
+            {({ getTriggerProps }) => (
+              <span
+                {...getTriggerProps()}
+                tabIndex={0}
+                aria-label={`Tool status: ${level}`}
+                className={cn(
+                  "ml-1 flex shrink-0 items-center",
+                  (
+                    {
+                      ERROR: "dark:text-dark-red/90 text-red-800",
+                      WARNING: "dark:text-dark-yellow text-yellow-800",
+                      DEFAULT:
+                        "text-muted-foreground opacity-0 group-hover/collapsible-row:opacity-100 group-has-[:focus-visible]/collapsible-row:opacity-100 group-data-[expanded=true]/collapsible-row:opacity-100",
+                      DEBUG:
+                        "text-muted-foreground opacity-0 group-hover/collapsible-row:opacity-100 group-has-[:focus-visible]/collapsible-row:opacity-100 group-data-[expanded=true]/collapsible-row:opacity-100",
+                    } satisfies Record<Observation["level"], string>
+                  )[level],
+                )}
+              >
+                <StatusIcon className="icon-sm" aria-hidden="true" />
+              </span>
+            )}
+          </SessionToolTooltip>
+        ) : null
       }
     >
       <div className="flex min-w-0 flex-col gap-3 pl-[22px]">
@@ -94,22 +94,26 @@ export function SessionTimelineToolRow({
             <span className="text-muted-foreground font-mono text-[10px] font-bold uppercase">
               Input
             </span>
-            <div className="grid max-h-48 min-w-0">
+            <div className="flex max-h-48 min-w-0 flex-col">
               <Codeblock label="Tool input" value={input} allowFormatting />
             </div>
           </div>
         ) : null}
-        {hasPreviewValue(output) ? (
+        {outputContent || hasPreviewValue(output) ? (
           <div className="flex min-w-0 flex-col gap-1">
             <span className="text-muted-foreground font-mono text-[10px] font-bold uppercase">
               Output
             </span>
-            <div className="grid max-h-96 min-w-0">
-              <Codeblock label="Tool output" value={output} allowFormatting />
-            </div>
+            {outputContent ?? (
+              <div className="flex max-h-96 min-w-0 flex-col">
+                <Codeblock label="Tool output" value={output} allowFormatting />
+              </div>
+            )}
           </div>
         ) : null}
-        {!hasPreviewValue(input) && !hasPreviewValue(output) ? (
+        {!hasPreviewValue(input) &&
+        !hasPreviewValue(output) &&
+        !outputContent ? (
           <div className="relative">
             <span className="text-muted-foreground text-xs">
               No input or output

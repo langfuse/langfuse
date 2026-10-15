@@ -13,8 +13,8 @@ const meta = preview.meta({
       { key: "Wednesday", values: { api: 10, worker: 15 } },
     ],
     series: [
-      { id: "api", label: "API", color: "hsl(var(--chart-1))" },
-      { id: "worker", label: "Worker", color: "hsl(var(--chart-2))" },
+      { id: "api", label: "API", color: "hsl(var(--chart-fill-1))" },
+      { id: "worker", label: "Worker", color: "hsl(var(--chart-fill-2))" },
     ],
   },
   decorators: [
@@ -130,7 +130,7 @@ export const LegendHighlight = meta.story({
     );
     await expect(api).toHaveAttribute(
       "fill",
-      "color-mix(in srgb, hsl(var(--chart-1)) 20%, hsl(var(--background)))",
+      "color-mix(in srgb, hsl(var(--chart-fill-1)) 20%, hsl(var(--background)))",
     );
     await userEvent.click(
       canvas.getByRole("button", { name: "Show all series" }),
@@ -145,7 +145,7 @@ export const Empty = meta.story({
 export const SingleSeriesAutoLegend = meta.story({
   name: "(Test) Single Series Auto Legend",
   args: {
-    series: [{ id: "api", label: "API", color: "hsl(var(--chart-1))" }],
+    series: [{ id: "api", label: "API", color: "hsl(var(--chart-fill-1))" }],
     legend: { visibility: "auto", interaction: "highlight", summary: "none" },
   },
   play: async ({ canvasElement }) => {
@@ -160,7 +160,7 @@ export const SingleSeriesAutoLegend = meta.story({
 export const SingleSeriesInitiallyHidden = meta.story({
   name: "(Test) Single Series Initially Hidden",
   args: {
-    series: [{ id: "api", label: "API", color: "hsl(var(--chart-1))" }],
+    series: [{ id: "api", label: "API", color: "hsl(var(--chart-fill-1))" }],
     legend: {
       visibility: "auto",
       interaction: "toggle",

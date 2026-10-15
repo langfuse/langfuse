@@ -1,5 +1,5 @@
 import { memo, useMemo, useState } from "react";
-import { Check, Copy, ListTree } from "lucide-react";
+import { Check, Copy, Highlighter, ListTree } from "lucide-react";
 import hljs from "highlight.js/lib/core";
 import json from "highlight.js/lib/languages/json";
 import javascript from "highlight.js/lib/languages/javascript";
@@ -238,12 +238,24 @@ export const Codeblock = memo(function Codeblock({
             </SelectDropdown>
           ) : null}
           {isLargePreview || displayText.length > MAX_HIGHLIGHT_CHARACTERS ? (
-            <span
-              className="text-muted-foreground text-xs"
-              title="Syntax highlighting is disabled for previews over 10,000 characters."
-            >
-              Plain text (large value)
-            </span>
+            <Tooltip label="Syntax highlighting is disabled for values over 10,000 characters.">
+              {({ getTriggerProps }) => (
+                <span
+                  {...getTriggerProps()}
+                  aria-label="Syntax highlighting is disabled for values over 10,000 characters."
+                  tabIndex={0}
+                  className="focus-visible:ring-ring inline-flex rounded-sm focus-visible:ring-2 focus-visible:outline-hidden"
+                >
+                  <IconButton
+                    icon={Highlighter}
+                    label="Syntax highlighting disabled"
+                    size="sm"
+                    variant="toolbar"
+                    disabled
+                  />
+                </span>
+              )}
+            </Tooltip>
           ) : null}
           {prettyPrintedText !== null ? (
             <Tooltip label="Pretty-print JSON">

@@ -19,7 +19,6 @@ let workerPreloadPromise: Promise<void> | undefined;
 const workerQueue = new PQueue({ concurrency: 1 });
 
 function getWorkerFilename(): string {
-  const distDir = process.env.NEXT_DIST_DIR || ".next";
   const serverEntry = process.argv[1];
   const candidates = [
     ...(serverEntry
@@ -33,7 +32,7 @@ function getWorkerFilename(): string {
     path.join(process.cwd(), "web", "otelIngestionWorker.js"),
     path.join(
       process.cwd(),
-      distDir,
+      ".next",
       "standalone",
       "web",
       "otelIngestionWorker.js",

@@ -1,9 +1,20 @@
+import { EvaluatorBlockReason, Prisma } from "@prisma/client";
 import z from "zod";
 import { prisma } from "../../../db";
 import { ForbiddenError, LangfuseNotFoundError } from "../../../errors";
 import { getClientInitiatedNonStreamingLlmTimeoutMs } from "../../llm/llmText";
 import { LLMAdapter, LLMApiKeySchema, ZodModelConfig } from "../../llm/types";
 import { testModelCall } from "../../llm/testModelCall";
+import {
+  findCompatibleLlmApiKeysForProjects,
+  resolveLlmApiKey,
+} from "../LLMApiKeys";
+import {
+  blockEvaluatorsUsingDefaultModel,
+  EvaluatorBlockSource,
+  finalizeEvaluatorBlocks,
+  type EvaluatorBlockResult,
+} from "../blockEvaluators";
 
 type ValidConfig = {
   provider: string;
@@ -34,15 +45,9 @@ export class DefaultEvalModelService {
     model: string;
     modelParams?: z.infer<typeof ZodModelConfig>;
   }) {
-    const { projectId, provider, adapter, model, modelParams } = params;
+    const { projectId, provider, model, modelParams } = params;
 
-    // Find the LLM API key for the provider
-    const llmApiKey = await prisma.llmApiKeys.findFirst({
-      where: {
-        projectId,
-        provider,
-      },
-    });
+    const llmApiKey = await resolveLlmApiKey({ projectId, provider });
 
     if (!llmApiKey) {
       throw new LangfuseNotFoundError(
@@ -76,7 +81,7 @@ export class DefaultEvalModelService {
       update: {
         llmApiKeyId: llmApiKey.id,
         provider,
-        adapter,
+        adapter: llmApiKey.adapter,
         model,
         modelParams: modelParams ? modelParams : undefined,
       },
@@ -84,11 +89,138 @@ export class DefaultEvalModelService {
         projectId,
         llmApiKeyId: llmApiKey.id,
         provider,
-        adapter,
+        adapter: llmApiKey.adapter,
         model,
         modelParams: modelParams ? modelParams : undefined,
       },
     });
+  }
+
+  /**
+   * Keeps default-model references valid before an LLM connection is deleted.
+   */
+  public static async handleLlmApiKeyDeletion(params: {
+    tx: Prisma.TransactionClient;
+    llmApiKeyId: string;
+    llmApiKeyOwner: {
+      projectId: string | null;
+      organizationId: string | null;
+    };
+    provider: string;
+    adapter: string;
+  }): Promise<
+    Array<{ projectId: string; defaultModelBlock: EvaluatorBlockResult }>
+  > {
+    const { tx, llmApiKeyId, llmApiKeyOwner, provider, adapter } = params;
+    const defaultModels = await tx.defaultLlmModel.findMany({
+      where: {
+        llmApiKeyId,
+        LlmApiKey: llmApiKeyOwner,
+      },
+      select: { id: true, projectId: true },
+    });
+
+    if (defaultModels.length === 0) {
+      return [];
+    }
+
+    const replacements = await findCompatibleLlmApiKeysForProjects({
+      tx,
+      projectIds: defaultModels.map(({ projectId }) => projectId),
+      provider,
+      adapter,
+      excludedLlmApiKeyId: llmApiKeyId,
+    });
+    const modelsWithoutReplacement = [];
+    for (const defaultModel of defaultModels) {
+      const replacement = replacements.get(defaultModel.projectId);
+      if (replacement) {
+        await tx.defaultLlmModel.update({
+          where: { id: defaultModel.id },
+          data: { llmApiKeyId: replacement.id },
+        });
+      } else {
+        modelsWithoutReplacement.push(defaultModel);
+      }
+    }
+
+    const blockResults: Array<{
+      projectId: string;
+      defaultModelBlock: EvaluatorBlockResult;
+    }> = [];
+    for (const { projectId } of modelsWithoutReplacement) {
+      blockResults.push({
+        projectId,
+        defaultModelBlock: await blockEvaluatorsUsingDefaultModel({
+          tx,
+          projectId,
+        }),
+      });
+    }
+
+    await tx.defaultLlmModel.deleteMany({
+      where: {
+        id: { in: modelsWithoutReplacement.map(({ id }) => id) },
+      },
+    });
+
+    return blockResults;
+  }
+
+  /**
+   * Keeps the default-model connection valid after a project changes organization.
+   */
+  public static async reconcileConnectionForProject(
+    projectId: string,
+  ): Promise<void> {
+    const defaultModelBlock = await prisma.$transaction(async (tx) => {
+      const defaultModel = await tx.defaultLlmModel.findUnique({
+        where: { projectId },
+        include: {
+          Project: { select: { orgId: true } },
+          LlmApiKey: {
+            select: { projectId: true, organizationId: true },
+          },
+        },
+      });
+      if (!defaultModel) return null;
+
+      const connectionIsAccessible =
+        defaultModel.LlmApiKey.projectId === projectId ||
+        defaultModel.LlmApiKey.organizationId === defaultModel.Project.orgId;
+      if (connectionIsAccessible) return null;
+
+      const replacements = await findCompatibleLlmApiKeysForProjects({
+        tx,
+        projectIds: [projectId],
+        provider: defaultModel.provider,
+        adapter: defaultModel.adapter,
+        excludedLlmApiKeyId: defaultModel.llmApiKeyId,
+      });
+      const replacement = replacements.get(projectId);
+      if (replacement) {
+        await tx.defaultLlmModel.update({
+          where: { id: defaultModel.id },
+          data: { llmApiKeyId: replacement.id },
+        });
+        return null;
+      }
+
+      const block = await blockEvaluatorsUsingDefaultModel({ tx, projectId });
+      await tx.defaultLlmModel.delete({ where: { id: defaultModel.id } });
+      return block;
+    });
+
+    if (defaultModelBlock) {
+      await finalizeEvaluatorBlocks({
+        projectId,
+        source: EvaluatorBlockSource.DEFAULT_EVAL_MODEL_DELETION,
+        evaluatorIdsByReason: {
+          [EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING]:
+            defaultModelBlock.blockedEvaluatorIds,
+        },
+      });
+    }
   }
 
   /**
@@ -182,12 +314,9 @@ export class DefaultEvalModelService {
       };
     }
 
-    // Check if API key exists for this provider
-    const apiKey = await prisma.llmApiKeys.findFirst({
-      where: {
-        projectId,
-        provider: selectedModel.provider,
-      },
+    const apiKey = await resolveLlmApiKey({
+      projectId,
+      provider: selectedModel.provider,
     });
 
     const parsedKey = LLMApiKeySchema.safeParse(apiKey);
@@ -204,6 +333,7 @@ export class DefaultEvalModelService {
       config: {
         ...selectedModel,
         apiKey: parsedKey.data,
+        adapter: parsedKey.data.adapter,
       },
     };
   }

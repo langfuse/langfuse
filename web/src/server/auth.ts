@@ -60,7 +60,13 @@ import {
   ENTERPRISE_SSO_REQUIRED_MESSAGE,
   MULTI_TENANT_SSO_DOMAIN_MISMATCH_MESSAGE,
   PASSWORD_RESET_REQUIRED_MESSAGE,
+  TURNSTILE_ACTIONS,
+  TURNSTILE_FAILED_MESSAGE,
 } from "@/src/features/auth/constants";
+import {
+  getTurnstileRemoteIp,
+  verifyTurnstileToken,
+} from "@/src/features/auth/server/verifyTurnstile";
 import { z } from "zod";
 import { CloudConfigSchema, projectRoleAccessRights } from "@langfuse/shared";
 import {
@@ -96,13 +102,21 @@ const staticProviders: Provider[] = [
         placeholder: "jsmith@example.com",
       },
       password: { label: "Password", type: "password" },
+      turnstileToken: { label: "Turnstile token", type: "text" },
     },
-    async authorize(credentials, _req) {
+    async authorize(credentials, req) {
       if (!credentials) throw new Error("No credentials");
       if (env.AUTH_DISABLE_USERNAME_PASSWORD === "true")
         throw new Error(
           "Sign in with email and password is disabled for this instance. Please use SSO.",
         );
+
+      const turnstileValid = await verifyTurnstileToken({
+        token: credentials.turnstileToken,
+        action: TURNSTILE_ACTIONS.login,
+        remoteIp: getTurnstileRemoteIp(req.headers),
+      });
+      if (!turnstileValid) throw new Error(TURNSTILE_FAILED_MESSAGE);
 
       const blockedDomains = getSSOBlockedDomains();
       const domain = credentials.email.split("@")[1]?.toLowerCase();
@@ -715,12 +729,20 @@ const createExtendedPrismaAdapter = (signupAttribution?: {
  * @param signupAttribution - per-request marketing attribution (ad-platform
  * click ids) attached to the signup analytics event if the request results
  * in a new user. Only passed by the NextAuth API route.
+ * @param requestContext - captcha material for this request. The email
+ * sign-in route passes the password-reset token; other callers omit it.
  *
  * @see https://next-auth.js.org/configuration/options
  */
-export async function getAuthOptions(signupAttribution?: {
-  adClickIds?: AdClickIds;
-}): Promise<NextAuthOptions> {
+export async function getAuthOptions(
+  signupAttribution?: {
+    adClickIds?: AdClickIds;
+  },
+  requestContext?: {
+    turnstileToken?: unknown;
+    turnstileRemoteIp?: string;
+  },
+): Promise<NextAuthOptions> {
   let dynamicSsoProviders: Provider[] = [];
   try {
     dynamicSsoProviders = await loadSsoProviders();
@@ -1069,6 +1091,15 @@ export async function getAuthOptions(signupAttribution?: {
               return false;
             }
 
+            // Checked before the user lookup so a missing or rejected token
+            // never sends a code, and does not reveal whether the account exists.
+            const turnstileValid = await verifyTurnstileToken({
+              token: requestContext?.turnstileToken,
+              action: TURNSTILE_ACTIONS.passwordReset,
+              remoteIp: requestContext?.turnstileRemoteIp,
+            });
+            if (!turnstileValid) throw new Error(TURNSTILE_FAILED_MESSAGE);
+
             // Codes only reset passwords, so there is nothing to send when
             // password login is disabled.
             if (env.AUTH_DISABLE_USERNAME_PASSWORD === "true") {
@@ -1100,6 +1131,15 @@ export async function getAuthOptions(signupAttribution?: {
               },
             });
             if (user) {
+              // NextAuth stores the new code right after this callback. Codes
+              // are hashed without the email and `token` is globally unique, so
+              // rows left behind make new codes collide. Only the newest code
+              // per account is needed, and expired codes can never be used.
+              await prisma.verificationToken.deleteMany({
+                where: {
+                  OR: [{ identifier: email }, { expires: { lt: new Date() } }],
+                },
+              });
               return true;
             }
             // Add random delay to prevent leaking if user exists as otherwise it would be instant compared to sending an email

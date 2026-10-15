@@ -326,7 +326,6 @@ pnpm run db:seed:examples
   pnpm run dev
   pnpm --filter=web run dev # execute command only in one package
   pnpm tc                   # fast typecheck all packages
-  pnpm build:check          # Full Next.js build to alternate dir (can run parallel with dev server)
   ```
 
   In the root `package.json`, you can find scripts which are executed with turbo e.g. `turbo run dev`. These scripts are executed with the help of Turbo. Turbo executes the commands in all packages taking care of the correct order of execution. Task definitions can be found in the `turbo.config.js` file.
@@ -559,7 +558,7 @@ The background color of the following component will be `hsl(var(--primary))` an
 | --find-match-selected-foreground | Foreground color for selected search matches                       | CodeMirrorEditor                 |
 | --find-match-background          | Background color for search matches                                | CodeMirrorEditor                 |
 | --surface-sunken                 | Off-white panel behind detail content (99%, lighter than zinc-50)  | Trace detail panel, nav sidebar  |
-| --surface-output                 | Background of output blocks in the trace preview (zinc-100)        | IOPreview, MarkdownViewer        |
+| --surface-output                 | Background of output blocks in the trace preview (zinc-100)        | IOPreview, MarkdownViewer, CodeView |
 | --line-dotted                    | Dotted connector lines; dimmed in dark                             | dotted-line-y, prompt timeline   |
 | --surface                        | Sticky table chrome fill; follows --surface-context                | Table headers, footers           |
 | --observation-<type>-line        | Observation type colour for stroked icons and borders              | ItemTypeIcon, graph nodes        |

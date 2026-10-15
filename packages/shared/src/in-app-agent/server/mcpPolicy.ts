@@ -214,7 +214,7 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
   },
   getExternalMediaStorage: {
     approval: "auto",
-    availability: { scope: "project:read" },
+    availability: { scope: "integrations:CRUD" },
   },
   configureExternalMediaStorage: {
     approval: "approval",

@@ -7,11 +7,24 @@ import {
   getLatestFacetSummaries,
   getPublishedTopicRun,
   getTopicRuns,
+  hasStoredTopicSummaries,
   listTopicFacets,
   readLatestTopicAssignments,
 } from "@langfuse/shared/topics/server";
 
-function resolveTopicResult(summary: TopicSummary, stored?: TopicAssignment) {
+function resolveTopicResult(
+  summary: Pick<
+    TopicSummary,
+    | "projectId"
+    | "facetId"
+    | "facetVersion"
+    | "traceId"
+    | "unitStartTime"
+    | "processedAt"
+    | "state"
+  >,
+  stored?: TopicAssignment,
+) {
   const assignment =
     summary.state === "complete" &&
     stored?.projectId === summary.projectId &&
@@ -34,7 +47,10 @@ export async function currentTopicResults(
   timeRange: TopicTimeRange,
 ) {
   const facets = await listTopicFacets(projectId);
-  return Promise.all(
+  const hasStoredSummaries =
+    facets.length > 0 && (await hasStoredTopicSummaries(projectId));
+  if (!hasStoredSummaries) return { hasStoredSummaries, facets: [] };
+  const currentFacets = await Promise.all(
     facets.map(async (facet) => {
       const version = facet.versions[0];
       const [storedAssignments, storedSummaries, run] = await Promise.all([
@@ -152,4 +168,5 @@ export async function currentTopicResults(
       };
     }),
   );
+  return { hasStoredSummaries, facets: currentFacets };
 }

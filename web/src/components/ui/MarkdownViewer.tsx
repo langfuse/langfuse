@@ -42,7 +42,7 @@ import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { MENTION_USER_PREFIX } from "@/src/features/comments/lib/mentionParser";
 import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
-import { Button } from "@/src/components/ui/button";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { getSafeImageUrl, getSafeLinkUrl } from "@/src/components/ui/safe-url";
 import { env } from "@/src/env.mjs";
 import {
@@ -258,7 +258,9 @@ function MarkdownCode({
       theme={theme === "dark" ? "dark" : "light"}
     />
   ) : (
-    <code className="bg-secondary rounded border px-0.5">{codeContent}</code>
+    <code className="bg-secondary rounded border px-0.5 [:is(p,li,td,th)>&]:text-xs">
+      {codeContent}
+    </code>
   );
 }
 
@@ -280,7 +282,7 @@ const markdownUrlTransform: NonNullable<Options["urlTransform"]> = (
 const markdownComponents: NonNullable<Options["components"]> = {
   p({ children, node }) {
     if (isImageNode(node)) {
-      return <>{children}</>;
+      return children;
     }
     return <p className="mb-2 whitespace-pre-wrap last:mb-0">{children}</p>;
   },
@@ -349,7 +351,7 @@ const markdownComponents: NonNullable<Options["components"]> = {
     return <li className="mt-1">{transformListItemChildren(children)}</li>;
   },
   pre({ children }) {
-    return <pre className="rounded p-2">{children}</pre>;
+    return <pre className="py-2">{children}</pre>;
   },
   h1({ children }) {
     return <h1 className="text-2xl font-bold">{children}</h1>;
@@ -578,28 +580,25 @@ export function MarkdownView({
   );
 
   const collapseToggle = shouldBeCollapsible ? (
-    <Button
-      variant="ghost"
-      size="xs"
-      onClick={() => toggleCollapsed("inline")}
-      className="w-fit text-xs underline"
-    >
-      {isCollapsed ? "Expand system prompt" : "Collapse system prompt"}
-    </Button>
+    <div className="flex">
+      <Button
+        variant="text"
+        onClick={() => toggleCollapsed("inline")}
+        text={isCollapsed ? "Expand system prompt" : "Collapse system prompt"}
+      />
+    </div>
   ) : null;
 
   return (
     <div className="group/iosection overflow-hidden" key={theme}>
       {title ? (
-        <>
-          <MarkdownJsonViewHeader
-            title={title}
-            titleIcon={titleIcon}
-            handleOnCopy={handleOnCopy}
-            hoverRevealControls
-            controlButtons={controlButtons}
-          />
-        </>
+        <MarkdownJsonViewHeader
+          title={title}
+          titleIcon={titleIcon}
+          handleOnCopy={handleOnCopy}
+          hoverRevealControls
+          controlButtons={controlButtons}
+        />
       ) : null}
       {afterHeader}
       <div

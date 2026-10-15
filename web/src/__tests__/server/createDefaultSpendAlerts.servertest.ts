@@ -68,9 +68,8 @@ describe("createDefaultSpendAlerts", () => {
       orderBy: { threshold: "asc" },
     });
 
-    expect(alerts).toHaveLength(2);
-    expect(alerts[0].threshold.toNumber()).toBe(2000);
-    expect(alerts[1].threshold.toNumber()).toBe(4000);
+    // The plan threshold already exceeds the universal one, which is skipped
+    expect(alerts.map((alert) => alert.threshold.toNumber())).toEqual([5000]);
   });
 
   it("skips creation if org already has alerts", async () => {
@@ -126,13 +125,13 @@ describe("createDefaultSpendAlerts", () => {
    */
   describe("ClickHouse-billed organizations", () => {
     it.each([
-      ["LANGFUSE_CORE", 200],
-      ["LANGFUSE_PRO", 1000],
-      ["LANGFUSE_PRO_TEAMS", 1000],
-      ["LANGFUSE_ENTERPRISE", 2000],
+      ["LANGFUSE_CORE", [200, 4000]],
+      ["LANGFUSE_PRO", [1000, 4000]],
+      ["LANGFUSE_PRO_TEAMS", [1500, 4000]],
+      ["LANGFUSE_ENTERPRISE", [5000]],
     ] as const)(
-      "creates the plan threshold plus the universal one for %s",
-      async (planCode, expectedThreshold) => {
+      "creates the default thresholds for %s",
+      async (planCode, expectedThresholds) => {
         const { orgId } = await createOrgProjectAndApiKey();
 
         await createDefaultSpendAlerts({
@@ -147,7 +146,7 @@ describe("createDefaultSpendAlerts", () => {
         });
 
         expect(alerts.map((alert) => alert.threshold.toNumber())).toEqual(
-          [...new Set([expectedThreshold, 4000])].sort((a, b) => a - b),
+          expectedThresholds,
         );
       },
     );

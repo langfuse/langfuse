@@ -31,6 +31,10 @@
       "import": "./dist/src/server/index.js",
       "require": "./dist/src/server/index.js"
     },
+    "./src/server/query-ast/schema": {
+      "import": "./dist/src/server/query-ast/schema.js",
+      "require": "./dist/src/server/query-ast/schema.js"
+    },
     "./src/server/transcript/ordering": {
       "import": "./dist/src/server/transcript/ordering.js",
       "require": "./dist/src/server/transcript/ordering.js"
@@ -182,7 +186,6 @@
   },
   "scripts": {
     "build": "tsc",
-    "build:check": "tsc",
     "typecheck": "dotenv -e ../../.env -- tsc --noEmit --incremental --tsBuildInfoFile .tsbuildinfo",
     "dev": "tsc --watch",
     "lint": "eslint . --cache --cache-location dist/.eslintcache --max-warnings 0 --concurrency 2",

@@ -226,5 +226,5 @@ export function ComposerTokens({
     freeTextReason,
     highlightedSegmentId,
   ]);
-  return <>{out}</>;
+  return out;
 }

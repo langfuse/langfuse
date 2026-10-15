@@ -113,4 +113,22 @@ describe("isOpenAICompatibleEndpoint", () => {
   it("does not enable passthrough mode for malformed URLs", () => {
     expect(isOpenAICompatibleEndpoint("localhost:8080")).toBe(false);
   });
+
+  it.each([
+    "https://eu.api.openai.com/v1",
+    "https://us.api.openai.com/v1",
+    "https://au.api.openai.com/v1",
+    "https://ca.api.openai.com/v1",
+    "https://EU.API.OPENAI.COM./v1",
+  ])("uses the native OpenAI provider for %s", (url) => {
+    expect(isOpenAICompatibleEndpoint(url)).toBe(false);
+  });
+
+  it.each([
+    "https://eu.api.openai.com.example.com/v1",
+    "https://notapi.openai.com/v1",
+    "https://openai.com/v1",
+  ])("keeps lookalike hosts on the compatible provider: %s", (url) => {
+    expect(isOpenAICompatibleEndpoint(url)).toBe(true);
+  });
 });

@@ -1,3 +1,4 @@
+import type { JsonValue } from "@langfuse/shared/src/utils/normalized-io";
 import preview from "@/.storybook/preview";
 import { type ComponentProps } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
@@ -75,7 +76,10 @@ const result: Extract<Props["state"], { type: "transcript" }>["result"] = {
                   type: "tool-result",
                   toolCallId: "weather-1",
                   toolName: "weather",
-                  output: { temperature: 12, conditions: "Sunny" },
+                  output: {
+                    type: "json",
+                    value: { temperature: 12, conditions: "Sunny" },
+                  },
                 },
               ],
             },
@@ -158,10 +162,7 @@ function toolPreviewState(
       Thread["currentTurn"]["messages"][number]["parts"][number],
       { type: "tool-call" }
     >["input"];
-    output: Extract<
-      Thread["currentTurn"]["messages"][number]["parts"][number],
-      { type: "tool-result" }
-    >["output"];
+    output: JsonValue;
   }[],
 ): TranscriptState {
   return transcriptState({
@@ -192,7 +193,10 @@ function toolPreviewState(
               type: "tool-result",
               toolCallId: name,
               toolName: name,
-              output,
+              output:
+                typeof output === "string"
+                  ? { type: "text", value: output }
+                  : { type: "json", value: output },
               isError,
             },
           ],
@@ -586,6 +590,94 @@ export const EmptyTranscript = meta.story({
   },
 });
 
+export const Refusal = meta.story({
+  name: "(Test) Refusal",
+  args: {
+    ...commonArgs,
+    state: transcriptState({
+      history: [],
+      messages: [
+        {
+          ...provenance,
+          role: "user",
+          source: "input",
+          parts: [
+            { type: "text", text: "How can I break into someone's account?" },
+          ],
+        },
+        {
+          ...provenance,
+          role: "assistant",
+          source: "output",
+          parts: [
+            {
+              type: "text",
+              refusal: true,
+              text: "I can't help with breaking into someone else's account.",
+            },
+          ],
+        },
+        {
+          ...provenance,
+          role: "user",
+          source: "input",
+          parts: [
+            {
+              type: "text",
+              text: "How can I secure my account and access someone else's?",
+            },
+          ],
+        },
+        {
+          ...provenance,
+          role: "assistant",
+          source: "output",
+          parts: [
+            {
+              type: "text",
+              text: "Use a unique password and enable two-factor authentication to secure your account.",
+            },
+            {
+              type: "text",
+              refusal: true,
+              text: "I can't help with accessing someone else's account.",
+            },
+          ],
+        },
+      ],
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByText(
+        "I can't help with breaking into someone else's account.",
+      ),
+    ).toBeInTheDocument();
+    await expect(
+      canvas.getByText(
+        "Use a unique password and enable two-factor authentication to secure your account.",
+      ),
+    ).toBeInTheDocument();
+    await expect(
+      canvas.getByText("I can't help with accessing someone else's account."),
+    ).toBeInTheDocument();
+    const banners = canvas.getAllByRole("alert");
+    await expect(banners).toHaveLength(2);
+    for (const banner of banners) {
+      await expect(
+        within(banner).getByRole("heading", { name: "Refusal" }),
+      ).toBeInTheDocument();
+    }
+    await expect(banners[0]).toHaveTextContent(
+      "I can't help with breaking into someone else's account.",
+    );
+    await expect(banners[1]).toHaveTextContent(
+      "I can't help with accessing someone else's account.",
+    );
+  },
+});
+
 export const RenderFalsyValues = meta.story({
   name: "(Test) Renders Falsy Message Values",
   args: {
@@ -674,7 +766,7 @@ export const ToolResultOnly = meta.story({
               type: "tool-result",
               toolCallId: "result-only",
               toolName: "get_subscription_details",
-              output: { plan: "annual_pro" },
+              output: { type: "json", value: { plan: "annual_pro" } },
             },
           ],
         },
@@ -738,13 +830,13 @@ export const KeepDifferentToolData = meta.story({
               type: "tool-result",
               toolCallId: "docs",
               toolName: "search_documentation",
-              output: { found: true },
+              output: { type: "json", value: { found: true } },
             },
             {
               type: "tool-result",
               toolCallId: "profile",
               toolName: "get_customer_profile",
-              output: { plan: "annual_pro" },
+              output: { type: "json", value: { plan: "annual_pro" } },
             },
           ],
         },
@@ -864,7 +956,7 @@ export const ToolFailure = meta.story({
               type: "tool-result",
               toolCallId: "timeout",
               toolName: "get_order",
-              output: { code: "TOOL_TIMEOUT" },
+              output: { type: "json", value: { code: "TOOL_TIMEOUT" } },
               isError: true,
             },
           ],
@@ -946,11 +1038,29 @@ export const ToolErrorStatus = meta.story({
     await waitFor(() =>
       expect(overlays.queryByRole("tooltip")).not.toBeInTheDocument(),
     );
-    await userEvent.click(canvas.getByRole("button", { name: "search" }));
-    await expect(canvas.getByRole("button", { name: "search" })).toHaveFocus();
-    await expect(indicator).toBeVisible();
-    await userEvent.tab();
+    const searchButton = canvas.getByRole("button", { name: "search" });
+    if ("__vitest_browser__" in globalThis) {
+      // Real pointer and keyboard events: a mouse click must not pin the
+      // indicator, while keyboard focus still reaches and reveals it.
+      const { userEvent: browserUserEvent } = await import("vitest/browser");
+      // Earlier synthetic clicks left keyboard-style focus on the button.
+      searchButton.blur();
+      await browserUserEvent.click(searchButton);
+      await browserUserEvent.unhover(searchButton);
+      await expect(searchButton).toHaveFocus();
+      if (message.level === "WARNING" || message.level === "ERROR") {
+        await expect(indicator).toBeVisible();
+      } else {
+        await expect(indicator).not.toBeVisible();
+      }
+      await browserUserEvent.keyboard("{Tab}");
+    } else {
+      await userEvent.click(searchButton);
+      await expect(searchButton).toHaveFocus();
+      await userEvent.tab();
+    }
     await expect(indicator).toHaveFocus();
+    await expect(indicator).toBeVisible();
     await expect(await overlays.findByRole("tooltip")).toHaveTextContent(
       message.statusMessage,
     );

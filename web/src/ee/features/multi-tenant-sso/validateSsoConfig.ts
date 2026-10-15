@@ -99,12 +99,13 @@ async function fetchWithSsrfDefense(url: string): Promise<Response> {
   }
 }
 
-/** discoveryWhitelistFromEnv builds the operator-configured exemptions to the internal-address blocklist. */
+/** discoveryWhitelistFromEnv builds the operator exemptions and, when configured, the positive host allowlist. */
 function discoveryWhitelistFromEnv() {
   return {
     hosts: env.LANGFUSE_SSO_DISCOVERY_WHITELISTED_HOST || [],
     ips: env.LANGFUSE_SSO_DISCOVERY_WHITELISTED_IPS || [],
     ip_ranges: env.LANGFUSE_SSO_DISCOVERY_WHITELISTED_IP_SEGMENTS || [],
+    allowedHosts: env.LANGFUSE_SSO_DISCOVERY_ALLOWED_HOSTS,
   };
 }
 
