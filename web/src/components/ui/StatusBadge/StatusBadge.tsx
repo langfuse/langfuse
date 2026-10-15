@@ -139,9 +139,7 @@ export const StatusBadge = ({
   const showDot = isLive && !styles.hideDot;
 
   return (
-    <span
-      className={cn(statusBadgeVariants({ size }), background, styles.text)}
-    >
+    <div className={cn(statusBadgeVariants({ size }), background, styles.text)}>
       {showDot && (
         <span className="relative inline-flex h-2 w-2">
           <span
@@ -164,6 +162,6 @@ export const StatusBadge = ({
         </span>
       )}
       {children}
-    </span>
+    </div>
   );
 };

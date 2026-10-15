@@ -397,7 +397,7 @@ it.each(["stored", "URL"])(
     });
     expect(state.picker).toHaveBeenLastCalledWith({ range: "last90Days" });
     expect(screen.getByTestId("current-topics")).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent(
+    expect(screen.getByRole("status", { name: "" })).toHaveTextContent(
       "Your selection is preserved on other pages.",
     );
     expect(state.setQueryParams).not.toHaveBeenCalled();
@@ -414,7 +414,7 @@ it.each(["stored", "URL"])(
       "30d",
     );
     expect(state.picker).toHaveBeenLastCalledWith({ range: "last30Days" });
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.queryByRole("status", { name: "" })).not.toBeInTheDocument();
   },
 );
 
@@ -434,7 +434,7 @@ it("caps a custom range at its original end and preserves its URL through comple
     expect.objectContaining({ timeRange: expected }),
   );
   expect(state.picker).toHaveBeenLastCalledWith(expected);
-  expect(screen.getByRole("status")).toHaveTextContent(
+  expect(screen.getByRole("status", { name: "" })).toHaveTextContent(
     "final 90 days of your selected range",
   );
 
@@ -460,7 +460,7 @@ it.each([
     state.dateRange = rangeToString(timeRange);
     render(<TopicsPage />);
     expect(state.picker).toHaveBeenLastCalledWith(timeRange);
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.queryByRole("status", { name: "" })).not.toBeInTheDocument();
     expect(state.setQueryParams).not.toHaveBeenCalled();
     expect(screen.getByTestId("current-topics")).toBeInTheDocument();
   },

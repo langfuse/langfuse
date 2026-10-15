@@ -1,9 +1,9 @@
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import { Button } from "@/src/components/design-system/Button/Button";
 import {
   StatusBadge,
   type Status,
 } from "@/src/components/ui/StatusBadge/StatusBadge";
-import { cn } from "@/src/utils/tailwind";
 
 /**
  * Topics header status for automatic processing. Turning it on or off and the
@@ -16,33 +16,38 @@ export function AutomaticProcessingControl({
 }: AutomaticProcessingControlProps) {
   const reason = disabledReason(state, canWrite);
   const button = (
-    <button
-      type="button"
-      className={cn(
-        "ring-offset-background focus-visible:ring-ring inline-flex h-7 shrink-0 items-center rounded-md pr-2 text-xs whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
+    <Button
+      text="Automatic processing"
+      size="sm"
+      variant={
         state.status === "off" || state.status === "paused"
-          ? "bg-primary text-primary-foreground hover:bg-primary/90"
-          : "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-      )}
-      aria-label={`Automatic processing: ${statusLabel(state)}`}
+          ? "primary"
+          : "secondary"
+      }
       disabled={reason !== null}
       onClick={onOpen}
-    >
-      <span aria-hidden className="inline-flex shrink-0">
-        <StatusBadge
-          type={badgeStatus(state)}
-          variant="transparent"
-          showText={false}
-        />
-      </span>
-      Automatic processing
-    </button>
+    />
   );
-  if (!reason) return button;
   return (
-    <Tooltip label={state.status === "paused" ? state.shortLabel : reason}>
-      {({ getTriggerProps }) => <span {...getTriggerProps()}>{button}</span>}
-    </Tooltip>
+    <div className="flex shrink-0 items-center gap-1">
+      <div
+        role="status"
+        aria-label={`Automatic processing: ${statusLabel(state)}`}
+      >
+        <StatusBadge type={badgeStatus(state)} showText={false}>
+          {statusLabel(state)}
+        </StatusBadge>
+      </div>
+      {reason ? (
+        <Tooltip label={state.status === "paused" ? state.shortLabel : reason}>
+          {({ getTriggerProps }) => (
+            <span {...getTriggerProps()}>{button}</span>
+          )}
+        </Tooltip>
+      ) : (
+        button
+      )}
+    </div>
   );
 }
 
