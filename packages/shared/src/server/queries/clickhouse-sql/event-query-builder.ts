@@ -571,7 +571,7 @@ export const EVENTS_AGGREGATION_FIELDS = {
   default_count: "countIf(level = 'DEFAULT') as default_count",
   debug_count: "countIf(level = 'DEBUG') as debug_count",
 
-  tags: "argMaxIf(tags, event_ts, notEmpty(tags)) AS tags",
+  tags: "groupUniqArrayArrayIf(tags, notEmpty(tags)) AS tags",
   release: "argMaxIf(release, event_ts, release <> '') AS release",
 
   // Evaluator execution fields are stamped on every internal evaluation span.

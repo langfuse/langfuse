@@ -12,6 +12,7 @@ import {
   getObservationsCountFromEventsTableForPublicApi,
   updateEvents,
   getTraceByIdFromEventsTable,
+  getTracesFromEventsTableForPublicApi,
   getObservationsBatchIOFromEventsTable,
   getLatestSdkVersionInfoFromEvents,
   getTracesIdentifierForSessionFromEvents,
@@ -4616,6 +4617,42 @@ describe("Clickhouse Events Repository Test", () => {
           }),
         ]);
       });
+    });
+  });
+
+  maybe("Trace tags", () => {
+    it("should return the tags of all observations, not only the latest", async () => {
+      const traceId = randomUUID();
+      const sharedTag = `shared-${traceId}`;
+      const middleTag = `middle-${traceId}`;
+      const start = new Date("2026-01-01T00:00:00.000Z").getTime();
+
+      await createEventsCh(
+        [[sharedTag], [sharedTag, middleTag], [sharedTag]].map((tags, i) => {
+          const id = randomUUID();
+          const timestamp = new Date(start + i * 1000);
+          return createEvent({
+            id,
+            span_id: id,
+            project_id: projectId,
+            trace_id: traceId,
+            tags,
+            start_time: timestamp,
+            event_ts: timestamp,
+          });
+        }),
+      );
+
+      const trace = await getTraceByIdFromEventsTable({ projectId, traceId });
+      expect(trace?.tags.sort()).toEqual([middleTag, sharedTag].sort());
+
+      const traces = await getTracesFromEventsTableForPublicApi({
+        projectId,
+        page: 1,
+        limit: 10,
+        tags: middleTag,
+      });
+      expect(traces.map((t) => t.id)).toEqual([traceId]);
     });
   });
 
