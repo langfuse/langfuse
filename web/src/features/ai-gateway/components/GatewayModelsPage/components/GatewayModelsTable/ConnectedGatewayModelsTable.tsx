@@ -128,6 +128,7 @@ export function ConnectedGatewayModelsTable({
               aria-label="Filter by provider"
               value={provider}
               options={providerOptions}
+              muted={provider === ALL_PROVIDERS}
               onValueChange={(value) => {
                 setProvider(value);
                 setPaginationState((state) => ({ ...state, pageIndex: 0 }));
