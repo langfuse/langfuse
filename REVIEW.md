@@ -81,7 +81,7 @@ Use their technical rules, not their implementation or handoff workflows.
   Replace conditionals deeper than two levels with early returns.
 - Handle every switch variant explicitly. Compare `.length` explicitly.
 - Comments must add information beyond the name. Keep them terse, without
-  commentary or speculation, using `/** X does Y [for Z] */`.
+  commentary or speculation. Do not require a particular comment marker.
 - Put callers above callees. Order `.ts`/`.tsx` files: imports, module constants
   or lookup tables, main export, private subcomponents, custom hooks, helpers,
   helper types, then `export const __test = { ... }` if needed.
@@ -121,6 +121,9 @@ Use their technical rules, not their implementation or handoff workflows.
   design with a concrete consequence. State impact and urgency from the evidence.
 - **Convention:** new violation of an applicable team rule. State the rule and
   offending code; do not imply runtime harm without separate evidence.
+- Treat examples in team rules as illustrations, not additional requirements.
+  Do not infer formatting rules from examples or flag style preferences as
+  Convention findings. Omit preferences that are not explicit team rules.
 - Defects and Convention findings require a fix before merge unless a human
   explicitly accepts them. Their shared merge requirement does not imply equal
   severity. Identify the category in each finding's title.
