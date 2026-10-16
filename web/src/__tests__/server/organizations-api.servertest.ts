@@ -761,7 +761,7 @@ describe("Admin Organizations API", () => {
         label: "wrong-scope legacy role",
         body: { role: "LEGACY_PROJECT_API_KEY" },
       },
-      { label: "admin role", body: { role: "ADMIN" } },
+      { label: "full access role", body: { role: "FULL_ACCESS" } },
       { label: "viewer role", body: { role: "VIEWER" } },
       { label: "ingest role", body: { role: "INGEST" } },
       { label: "scores ingest role", body: { role: "SCORES_INGEST" } },

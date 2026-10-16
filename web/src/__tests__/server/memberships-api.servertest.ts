@@ -596,7 +596,7 @@ describe("Organization membership safeguards", () => {
     ownerId = owner!.id;
     memberId = member!.id;
     const [ownerKey, adminKey] = await Promise.all(
-      (["LEGACY_ORGANIZATION_API_KEY", "ADMIN"] as const).map((role) =>
+      (["LEGACY_ORGANIZATION_API_KEY", "FULL_ACCESS"] as const).map((role) =>
         createApiKey(prisma, {
           owner: OrganizationId(orgId),
           role: SystemRoleId(role),
@@ -666,7 +666,7 @@ describe("Organization membership safeguards", () => {
     ["PUT", "member", Role.OWNER],
     ["PUT", "owner", Role.ADMIN],
     ["DELETE", "owner", undefined],
-  ] as const)("rejects ADMIN %s of %s to %s", async (method, target, role) => {
+  ] as const)("rejects FULL_ACCESS key %s of %s to %s", async (method, target, role) => {
     if (target === "owner") {
       await prisma.organizationMembership.update({
         where: { orgId_userId: { orgId, userId: memberId } },
@@ -680,7 +680,7 @@ describe("Organization membership safeguards", () => {
     expect(await logs()).toEqual([]);
   });
 
-  it("lets ADMIN manage ordinary members and remove the last ADMIN", async () => {
+  it("lets a FULL_ACCESS key manage ordinary members and remove the last ADMIN", async () => {
     expect((await request("PUT", memberId, Role.ADMIN, adminAuth)).status).toBe(
       200,
     );
@@ -931,7 +931,7 @@ describe("Project membership safeguards", () => {
     userId = user.id;
     const key = await createApiKey(prisma, {
       owner: OrganizationId(orgId),
-      role: SystemRoleId("ADMIN"),
+      role: SystemRoleId("FULL_ACCESS"),
       createdBy: UserId(userId),
     });
     adminAuth = createBasicAuthHeader(key.publicKey, key.secretKey);
@@ -942,7 +942,7 @@ describe("Project membership safeguards", () => {
     adminContext = authentication.context;
     const projectKey = await createApiKey(prisma, {
       owner: ProjectId(projectId),
-      role: SystemRoleId("ADMIN"),
+      role: SystemRoleId("FULL_ACCESS"),
       createdBy: UserId(userId),
     });
     projectAdminKeyId = projectKey.id;
@@ -1004,7 +1004,7 @@ describe("Project membership safeguards", () => {
     });
   };
 
-  it("rejects ADMIN promotion to project OWNER", async () => {
+  it("rejects FULL_ACCESS key promotion to project OWNER", async () => {
     expect((await request("PUT", Role.OWNER)).statusCode).toBe(403);
     expect(await membership()).toBeNull();
     expect(await logs()).toEqual([]);
@@ -1018,7 +1018,7 @@ describe("Project membership safeguards", () => {
     ["project", "PUT", Role.OWNER],
     ["project", "DELETE", undefined],
   ] as const)(
-    "rejects %s ADMIN owner %s to %s",
+    "rejects %s FULL_ACCESS key owner %s to %s",
     async (scope, method, role) => {
       const before = await createMembership(Role.OWNER);
       const auth = scope === "project" ? projectAdminAuth : adminAuth;
@@ -1045,7 +1045,7 @@ describe("Project membership safeguards", () => {
     },
   );
 
-  it("allows ordinary project ADMIN mutations and attributes every audit to its caller", async () => {
+  it("allows ordinary project FULL_ACCESS key mutations and attributes every audit to its caller", async () => {
     expect(
       (await request("PUT", Role.VIEWER, projectAdminAuth)).statusCode,
     ).toBe(200);

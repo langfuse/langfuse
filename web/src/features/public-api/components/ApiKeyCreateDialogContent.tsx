@@ -37,7 +37,7 @@ import { roleIcons } from "@/src/features/rbac/components/roleIcons";
 
 type ApiKeyScope = "project" | "organization";
 
-const DEFAULT_ROLE: SystemRole = "ADMIN";
+const DEFAULT_ROLE: SystemRole = "FULL_ACCESS";
 
 /** ApiKeyCreateValues is the resolved create-form payload the button forwards to the create mutation. */
 export type ApiKeyCreateValues = {

@@ -966,7 +966,7 @@ describe("call site: admin API handleUpdateMembership", () => {
     policies: [
       {
         id: "membership-admin",
-        roleId: SystemRoleId("ADMIN"),
+        roleId: SystemRoleId("FULL_ACCESS"),
         tenantId: OrganizationId("org-1"),
         effect: "ALLOW",
         actions: ["organizationMembers:CUD"],
