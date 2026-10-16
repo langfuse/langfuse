@@ -44,6 +44,14 @@ export type ChColumnType =
   | "Map(String, Decimal(18,12))"
   | "Map(String, String)";
 
+/**
+ * Logical TS type of a column: the value a caller binds, and what a result
+ * value means once parsed. Not the wire type — `JSONEachRow` returns
+ * `DateTime64` as a `YYYY-MM-DD hh:mm:ss.ffffff` string, and `UInt64` as a
+ * string on servers that quote 64-bit integers. Rows inferred from a builder
+ * (`InferResult`) therefore do not describe raw query results; read those
+ * through a read schema and converter.
+ */
 type TsTypeOfColumn<T extends ChColumnType> = T extends "String"
   ? string
   : T extends "Nullable(String)"

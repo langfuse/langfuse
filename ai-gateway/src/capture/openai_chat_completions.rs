@@ -272,7 +272,7 @@ fn has_generated_content(delta: &Map<String, Value>) -> bool {
 }
 
 impl OpenAiChatCompletionsCapture {
-    pub fn new(headers: &HeaderMap, body: &[u8], mode: IngestionMode) -> Self {
+    pub(super) fn new(headers: &HeaderMap, body: &[u8], mode: IngestionMode) -> Self {
         let mut capture = Self {
             facts: ProviderFacts::default(),
             mode,
@@ -295,7 +295,7 @@ impl OpenAiChatCompletionsCapture {
         capture
     }
 
-    pub fn record_response(&mut self, headers: &HeaderMap) {
+    pub(super) fn record_response(&mut self, headers: &HeaderMap) {
         self.facts.provider_request_id = headers
             .get("x-request-id")
             .and_then(|v| v.to_str().ok())
@@ -306,7 +306,7 @@ impl OpenAiChatCompletionsCapture {
         }
     }
 
-    pub fn push_bytes(&mut self, bytes: &[u8]) -> bool {
+    pub(super) fn push_bytes(&mut self, bytes: &[u8]) -> bool {
         let mut body = std::mem::replace(&mut self.body, ResponseBody::Unavailable);
         let mut completion_started = false;
         if !body.push(bytes, |event| {
@@ -318,7 +318,7 @@ impl OpenAiChatCompletionsCapture {
         completion_started
     }
 
-    pub fn end_body(&mut self) {
+    pub(super) fn end_body(&mut self) {
         match std::mem::replace(&mut self.body, ResponseBody::Unavailable) {
             ResponseBody::Json(bytes) => match serde_json::from_slice::<Value>(&bytes) {
                 Ok(Value::Object(response)) => {
@@ -341,7 +341,7 @@ impl OpenAiChatCompletionsCapture {
         self.facts.capture_complete = self.request_complete && self.facts.output_complete;
     }
 
-    pub fn into_facts(mut self) -> ProviderFacts {
+    pub(super) fn into_facts(mut self) -> ProviderFacts {
         if matches!(self.body, ResponseBody::Sse(_)) {
             self.end_body();
         }

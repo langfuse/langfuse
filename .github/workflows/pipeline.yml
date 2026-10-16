@@ -270,8 +270,8 @@ jobs:
         run: node --test scripts/github/label-cursor-prs.test.mjs
       - name: merge-queue retry helper tests
         run: bash scripts/ci/retry-on-merge-queue.test.sh
-      - name: security maintainer Cargo wrapper tests
-        run: bash scripts/ci/cargo-security.test.sh
+      - name: vitest CI reporter tests
+        run: node --test scripts/vitest/ci-reporter.test.mjs
       - name: Load default env
         run: |
           cp .env.dev.example .env
@@ -766,6 +766,7 @@ jobs:
       VITEST_MAX_WORKERS: "12"
       NODE_ENV: test
     strategy:
+      fail-fast: false
       matrix:
         node-version: [24]
         postgres-version: [15]
@@ -988,6 +989,7 @@ jobs:
       VITEST_MAX_WORKERS: ${{ matrix.deploy-mode == '-redis-cluster' && '8' || '4' }}
       NODE_ENV: test
     strategy:
+      fail-fast: false
       matrix:
         node-version: [24]
         postgres-version: [15]

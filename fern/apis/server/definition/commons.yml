@@ -205,7 +205,9 @@ types:
     docs: Configuration for a score
     properties:
       id: string
-      name: string
+      name:
+        type: string
+        docs: Score config name. Maximum 80 characters.
       createdAt: datetime
       updatedAt: datetime
       projectId: string

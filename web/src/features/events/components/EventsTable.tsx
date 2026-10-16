@@ -256,6 +256,7 @@ export type EventsTableProps = {
   userId?: string;
   promptName?: string;
   promptVersion?: number;
+  skill?: { name: string; version?: number };
   omittedFilter?: ObservationEventsOmittableFilterColumn[];
   hideControls?: boolean;
   // External control props for embedded preview tables
@@ -309,6 +310,7 @@ export default function ObservationsEventsTable({
   userId,
   promptName,
   promptVersion,
+  skill,
   omittedFilter = [],
   hideControls = false,
   externalFilterState,
@@ -654,6 +656,21 @@ export default function ObservationsEventsTable({
             },
           ]
         : []),
+      ...(skill
+        ? [
+            {
+              column:
+                skill.version === undefined ? "skillNames" : "skillVersions",
+              type: "arrayOptions" as const,
+              operator: "any of" as const,
+              value: [
+                skill.version === undefined
+                  ? skill.name
+                  : `${skill.name}@${skill.version}`,
+              ],
+            },
+          ]
+        : []),
       ...(promptName
         ? [
             {
@@ -675,7 +692,7 @@ export default function ObservationsEventsTable({
           ]
         : []),
     ],
-    [userId, sessionId, promptName, promptVersion],
+    [userId, sessionId, promptName, promptVersion, skill],
   );
 
   const facetRefiningFilter = useMemo(
@@ -893,7 +910,7 @@ export default function ObservationsEventsTable({
   // scoped. Unlike the old gate, an unsupported filter no longer HIDES the
   // chart: the chart forwards what it can and the sidebar + search bar mark the
   // rest as "not applied" (see chartFilterExclusions below).
-  const chartEnabled = !hideControls && !userId && !sessionId;
+  const chartEnabled = !hideControls && !userId && !sessionId && !skill;
 
   // Hide the strip where it would silently diverge from the table: prompt-version scope (not forwardable, no "not applied" affordance) or external date/filter pins.
   const outlierStripEnabled =

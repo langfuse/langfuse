@@ -27,7 +27,7 @@ pub(crate) struct FakeServer {
 }
 
 impl FakeServer {
-    pub async fn start<F, Fut>(handler: F) -> Self
+    pub(crate) async fn start<F, Fut>(handler: F) -> Self
     where
         F: Fn(Request<Body>) -> Fut + Clone + Send + Sync + 'static,
         Fut: Future<Output = Response<Body>> + Send + 'static,
@@ -46,11 +46,11 @@ impl FakeServer {
         Self { url, calls, task }
     }
 
-    pub fn calls(&self) -> usize {
+    pub(crate) fn calls(&self) -> usize {
         self.calls.load(Ordering::SeqCst)
     }
 
-    pub fn control_plane(&self) -> ControlPlaneClient {
+    pub(crate) fn control_plane(&self) -> ControlPlaneClient {
         ControlPlaneClient::new(ControlPlaneConfig::new(&self.url, "test-service-key").unwrap())
             .unwrap()
     }
