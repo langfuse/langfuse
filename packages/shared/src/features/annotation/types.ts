@@ -97,9 +97,13 @@ export type UpdateAnnotationScoreData = z.infer<
 export const CreateQueueData = z.object({
   name: StringNoHTMLNonEmpty.max(35),
   description: StringNoHTML.max(1000).optional(),
-  scoreConfigIds: z.array(z.string()).min(1, {
-    message: "At least 1 score config must be selected",
-  }),
+  // Accept an empty (or omitted) `scoreConfigIds` array so a queue can be used
+  // exclusively for the corrected-output workflow — assign reviewers, collect
+  // `CORRECTION` annotations, and skip score-config wiring. Empty keeps the
+  // schema permissive for direct callers and the corrected-output workflow;
+  // the existing non-empty contract still validates every supplied id via
+  // the service layer. See langfuse/langfuse#15006.
+  scoreConfigIds: z.array(z.string()).default([]),
 });
 
 export const CreateQueueWithAssignmentsData = CreateQueueData.extend({
