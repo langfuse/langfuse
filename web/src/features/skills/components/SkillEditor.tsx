@@ -6,6 +6,7 @@ import {
   useState,
 } from "react";
 import { useMediaQuery } from "react-responsive";
+import dynamic from "next/dynamic";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { MAX_SKILL_FILES } from "@langfuse/shared";
 import { useStore } from "zustand";
@@ -68,6 +69,12 @@ import {
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 
+const SkillAnalytics = dynamic(() =>
+  import("@/src/features/skills/components/SkillAnalytics").then(
+    (module) => module.SkillAnalytics,
+  ),
+);
+
 export function SkillEditor({
   projectId,
   store,
@@ -84,7 +91,12 @@ export function SkillEditor({
   canCreate: boolean;
   view:
     | { kind: "draft"; onDiscard: () => Promise<void> }
-    | { kind: "version"; hasDraft: boolean; onEdit: () => Promise<void> };
+    | {
+        kind: "version";
+        skillId: string;
+        hasDraft: boolean;
+        onEdit: () => Promise<void>;
+      };
   onCreated: (created: { name: string; version: number }) => Promise<void>;
   history:
     | { kind: "new" }
@@ -179,7 +191,9 @@ export function SkillEditor({
     withDefault(StringParam, "files"),
   );
   const activeTab =
-    !isDraft && selectedTab === "linked-traces" ? "linked-traces" : "files";
+    !isDraft && (selectedTab === "linked-traces" || selectedTab === "metrics")
+      ? selectedTab
+      : "files";
   const canEditFiles = isDraft && canCreate && !isSaving;
   const isDesktop = useMediaQuery({ query: "(min-width: 768px)" });
   const [treeState, setTreeState] = useState<SkillFileExplorerState>(() => ({
@@ -662,11 +676,25 @@ export function SkillEditor({
                     <Tabs.List variant="underline">
                       <Tabs.Trigger value="files" label="Files" />
                       <Tabs.Trigger
+                        value="metrics"
+                        label="Metrics"
+                        disabled={isDraft}
+                      />
+                      <Tabs.Trigger
                         value="linked-traces"
-                        label="Traces"
+                        label="Observations"
                         disabled={isDraft}
                       />
                     </Tabs.List>
+                    {view.kind === "version" && baseVersion !== null ? (
+                      <Tabs.Content value="metrics" layout="fill">
+                        <SkillAnalytics
+                          projectId={projectId}
+                          skillId={view.skillId}
+                          paths={Object.keys(store.getState().files).toSorted()}
+                        />
+                      </Tabs.Content>
+                    ) : null}
                     {!isDraft && baseVersion !== null ? (
                       <Tabs.Content value="linked-traces" layout="fill">
                         <SkillLinkedTraces
