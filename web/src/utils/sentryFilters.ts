@@ -405,6 +405,73 @@ function isSafariAddMoreClickMessage(value: string): boolean {
 }
 
 /**
+ * Chromium wording when injected page-world JS reads a property on
+ * undefined. Observed on `/traces` as unhandled rejections:
+ *  - LANGFUSE-63V — `.sort` from `window.getObs` / `window.timeline`
+ *  - LANGFUSE-63W — `.data` from `window.listObs`
+ * Langfuse never assigns those Window properties. `denyUrls` cannot match
+ * anonymous frames.
+ *
+ * Do not run this through {@link coreMessage}: that helper strips a trailing
+ * `(…)` parenthetical, and `(reading 'sort')` / `(reading 'data')` *is*
+ * the signature. Other properties (`map`, `length`) stay KEPT.
+ */
+const CHROMIUM_INJECTED_UNDEFINED_PROPERTY_MESSAGES: readonly string[] = [
+  "Cannot read properties of undefined (reading 'sort')",
+  "Cannot read properties of undefined (reading 'data')",
+];
+
+function isChromiumInjectedUndefinedPropertyMessage(value: string): boolean {
+  return CHROMIUM_INJECTED_UNDEFINED_PROPERTY_MESSAGES.includes(
+    value.trim().replace(/\.$/, "").trim(),
+  );
+}
+
+/**
+ * Chrome reports `window.<name>` (and `async window.<name>`) for functions
+ * assigned onto Window. These names are the traces-page userscript, not
+ * Langfuse app code.
+ */
+const INJECTED_WINDOW_OBS_FUNCTIONS = new Set([
+  "window.getObs",
+  "window.listObs",
+  "window.timeline",
+]);
+
+function isInjectedWindowObsFunction(name: string | undefined): boolean {
+  if (typeof name !== "string") return false;
+  const trimmed = name.trim();
+  const withoutAsync = trimmed.startsWith("async ")
+    ? trimmed.slice("async ".length)
+    : trimmed;
+  return INJECTED_WINDOW_OBS_FUNCTIONS.has(withoutAsync);
+}
+
+/**
+ * True when every stack frame is unattributed (`<anonymous>` or missing
+ * filename). A first-party throw that lost its chunk URL is still KEPT —
+ * that event has no frames, or a named file.
+ */
+function hasOnlyAnonymousFrames(event: ErrorEvent): boolean {
+  const frames = event.exception?.values?.[0]?.stacktrace?.frames;
+  if (!frames || frames.length === 0) return false;
+  return frames.every((frame) => {
+    const filename = frame?.filename;
+    return (
+      typeof filename !== "string" ||
+      filename.length === 0 ||
+      filename === "<anonymous>"
+    );
+  });
+}
+
+function hasInjectedWindowObsFrame(event: ErrorEvent): boolean {
+  const frames = event.exception?.values?.[0]?.stacktrace?.frames;
+  if (!frames || frames.length === 0) return false;
+  return frames.some((frame) => isInjectedWindowObsFunction(frame?.function));
+}
+
+/**
  * True when any stack frame is a first-party Next.js chunk. Used as a
  * negative guard so a future first-party throw that happens to share
  * WebKit's wording still reaches Sentry.
@@ -676,7 +743,12 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
     // exact TypeError for an injected `addMore` that is undefined. Stack is
     // document-attributed global code, not a chunk.
     //
-    // All three are anchored to a Sentry browser-API / global-handler
+    // Injected `window.getObs` / `window.listObs` / `window.timeline`
+    // (LANGFUSE-63V / LANGFUSE-63W) is the same class: Chromium's exact
+    // TypeError, anonymous-only stack, and Window function names Langfuse
+    // never assigns.
+    //
+    // All four are anchored to a Sentry browser-API / global-handler
     // mechanism so an app-captured exception that merely quotes the
     // phrase is KEPT.
     const mechanismType = exception?.mechanism?.type;
@@ -695,6 +767,15 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
       if (
         exceptionType === "TypeError" &&
         isSafariAddMoreClickMessage(exceptionValue) &&
+        !hasFirstPartyChunkFrame(event)
+      ) {
+        return true;
+      }
+      if (
+        exceptionType === "TypeError" &&
+        isChromiumInjectedUndefinedPropertyMessage(exceptionValue) &&
+        hasOnlyAnonymousFrames(event) &&
+        hasInjectedWindowObsFrame(event) &&
         !hasFirstPartyChunkFrame(event)
       ) {
         return true;
