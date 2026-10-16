@@ -12,9 +12,7 @@ export interface SectionToolDefinitionsProps {
 }
 
 /**
- * SectionToolDefinitions renders tool definition cards at the top of IOPreview.
- *
- * Shows available tools with their call counts.
+ * SectionToolDefinitions renders the tool definitions section at the top of IOPreview.
  */
 export function SectionToolDefinitions({
   tools,
@@ -23,16 +21,11 @@ export function SectionToolDefinitions({
 }: SectionToolDefinitionsProps) {
   return (
     <div className="border-border mb-4 border-b pb-4">
-      <div className="io-message-header px-1 py-1 text-base font-bold capitalize">
-        Tools
-      </div>
-      {tools.length > 0 && (
-        <ToolCallDefinitionCard
-          tools={tools}
-          toolCallCounts={toolCallCounts}
-          toolCallsByName={toolCallsByName}
-        />
-      )}
+      <ToolCallDefinitionCard
+        tools={tools}
+        toolCallCounts={toolCallCounts}
+        toolCallsByName={toolCallsByName}
+      />
     </div>
   );
 }

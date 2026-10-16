@@ -1,5 +1,5 @@
 /* eslint-disable @repo/prefer-stories-over-client-tests */
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { vi } from "vitest";
 
 import {
@@ -35,19 +35,19 @@ const makeTool = (name: string): ToolDefinition => ({
 
 function renderTools({
   calledToolCount,
-  availableToolCount,
+  notCalledToolCount,
 }: {
   calledToolCount: number;
-  availableToolCount: number;
+  notCalledToolCount: number;
 }) {
   const calledTools = Array.from({ length: calledToolCount }, (_, index) =>
     makeTool(`called_tool_${index + 1}`),
   );
-  const availableTools = Array.from(
-    { length: availableToolCount },
-    (_, index) => makeTool(`available_tool_${index + 1}`),
+  const notCalledTools = Array.from(
+    { length: notCalledToolCount },
+    (_, index) => makeTool(`not_called_tool_${index + 1}`),
   );
-  const tools = [...calledTools, ...availableTools];
+  const tools = [...calledTools, ...notCalledTools];
   const toolCallCounts = new Map<string, number>();
   const toolCallsByName = new Map<string, ToolCallInvocation[]>();
 
@@ -72,74 +72,80 @@ function renderTools({
   );
 }
 
+// Row buttons are named "N.<tool name>"; the \b keeps called_x from matching not_called_x.
+const rowFor = (toolName: string) =>
+  screen.queryByRole("button", { name: new RegExp(`\\b${toolName}$`) });
+const rowNumberOf = (toolName: string) =>
+  within(rowFor(toolName)!).getByText(/^\d+\.$/).textContent;
+
 describe("ToolCallDefinitionCard", () => {
   beforeEach(() => {
     vi.stubGlobal("localStorage", createMemoryStorage());
-    vi.stubGlobal("sessionStorage", createMemoryStorage());
   });
 
-  it("renders up to five called tools individually", () => {
-    renderTools({ calledToolCount: 5, availableToolCount: 0 });
+  it("shows the Called / Not called switch only when both sides have tools", () => {
+    const both = renderTools({ calledToolCount: 2, notCalledToolCount: 3 });
+    expect(screen.getByRole("tab", { name: "Called 2" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("tab", { name: "Not called 3" }),
+    ).toBeInTheDocument();
+    both.unmount();
 
-    expect(screen.queryByText(/tools were called/i)).not.toBeInTheDocument();
-    expect(screen.getByText(/called_tool_1/)).toBeInTheDocument();
-    expect(screen.getByText(/called_tool_5/)).toBeInTheDocument();
+    const noneCalled = renderTools({
+      calledToolCount: 0,
+      notCalledToolCount: 3,
+    });
+    expect(screen.queryByRole("tab")).not.toBeInTheDocument();
+    expect(rowFor("not_called_tool_3")).toBeInTheDocument();
+    noneCalled.unmount();
+
+    renderTools({ calledToolCount: 2, notCalledToolCount: 0 });
+    expect(screen.queryByRole("tab")).not.toBeInTheDocument();
+    expect(rowFor("called_tool_2")).toBeInTheDocument();
   });
 
-  it("collapses more than five called tools and expands them on click", () => {
-    renderTools({ calledToolCount: 6, availableToolCount: 0 });
+  it("defaults to the Called tab", () => {
+    renderTools({ calledToolCount: 2, notCalledToolCount: 3 });
 
-    expect(screen.getByText(/6 tools were called/i)).toBeInTheDocument();
-    expect(screen.queryByText(/called_tool_1/)).not.toBeInTheDocument();
-
-    const toggle = screen.getByRole("button", { name: /6 tools were called/ });
-    expect(toggle).toHaveAttribute("aria-expanded", "false");
-    fireEvent.click(toggle);
-
-    expect(screen.getByText(/called_tool_1/)).toBeInTheDocument();
-    expect(screen.getByText(/called_tool_6/)).toBeInTheDocument();
-    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("tab", { name: "Called 2" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(rowFor("called_tool_1")).toBeInTheDocument();
+    expect(rowFor("not_called_tool_1")).not.toBeInTheDocument();
   });
 
-  it("persists called tool group expansion in session storage", () => {
-    const { unmount } = renderTools({
-      calledToolCount: 6,
-      availableToolCount: 0,
+  it("numbers each tab from 1", () => {
+    renderTools({ calledToolCount: 2, notCalledToolCount: 3 });
+
+    expect(rowNumberOf("called_tool_1")).toBe("1.");
+
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Not called 3" }), {
+      button: 0,
     });
 
-    fireEvent.click(
-      screen.getByRole("button", { name: /6 tools were called/ }),
-    );
-    unmount();
-
-    renderTools({ calledToolCount: 6, availableToolCount: 0 });
-
-    expect(screen.getByText(/called_tool_1/)).toBeInTheDocument();
+    expect(rowFor("called_tool_1")).not.toBeInTheDocument();
+    expect(rowNumberOf("not_called_tool_1")).toBe("1.");
+    expect(rowNumberOf("not_called_tool_3")).toBe("3.");
   });
 
-  it("renders up to three available tools individually", () => {
-    renderTools({ calledToolCount: 0, availableToolCount: 3 });
+  it("toggles a row's details on click", () => {
+    renderTools({ calledToolCount: 1, notCalledToolCount: 0 });
 
+    const row = rowFor("called_tool_1")!;
+    expect(row).toHaveAttribute("aria-expanded", "false");
     expect(
-      screen.queryByText(/available tools were not called/i),
+      screen.queryByText("called_tool_1 description"),
     ).not.toBeInTheDocument();
-    expect(screen.getByText(/available_tool_1/)).toBeInTheDocument();
-    expect(screen.getByText(/available_tool_3/)).toBeInTheDocument();
-  });
 
-  it("collapses more than three available tools and expands them on click", () => {
-    renderTools({ calledToolCount: 0, availableToolCount: 4 });
+    fireEvent.click(row);
+    expect(row).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("called_tool_1 description")).toBeInTheDocument();
 
+    fireEvent.click(row);
+    expect(row).toHaveAttribute("aria-expanded", "false");
     expect(
-      screen.getByText(/4 available tools were not called/i),
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/available_tool_1/)).not.toBeInTheDocument();
-
-    fireEvent.click(
-      screen.getByRole("button", { name: /4 available tools were not called/ }),
-    );
-
-    expect(screen.getByText(/available_tool_1/)).toBeInTheDocument();
-    expect(screen.getByText(/available_tool_4/)).toBeInTheDocument();
+      screen.queryByText("called_tool_1 description"),
+    ).not.toBeInTheDocument();
   });
 });

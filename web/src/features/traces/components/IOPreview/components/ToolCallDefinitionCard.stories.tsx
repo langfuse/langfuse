@@ -191,7 +191,7 @@ const manyToolNames = [
 ];
 const calledNames = new Set(manyToolNames.slice(12));
 
-/** Both groups collapse: more than five called, more than three not called. */
+/** Both sides have tools, so the header shows the Called / Not called switch. */
 export const ManyTools = meta.story({
   args: {
     tools: manyToolNames.map((name) => ({ name })),
@@ -202,23 +202,38 @@ export const ManyTools = meta.story({
   },
 });
 
-/** The group toggle reveals rows below itself and stays put. */
-export const GroupToggleKeepsPlace = meta.story({
-  name: "(Test) Group Toggle Keeps Place",
+/** Nothing called: no switch, one muted list. */
+export const NoneCalled = meta.story({
+  args: {
+    tools: manyToolNames.map((name) => ({ name })),
+    toolCallCounts: new Map(manyToolNames.map((name) => [name, 0])),
+    toolCallsByName: new Map(),
+  },
+});
+
+/** Everything called: no switch, one list. */
+export const AllCalled = meta.story({
+  args: {
+    tools: manyToolNames.map((name) => ({ name })),
+    toolCallCounts: new Map(manyToolNames.map((name) => [name, 1])),
+    toolCallsByName: new Map(),
+  },
+});
+
+export const NotCalledTab = meta.story({
+  name: "(Test) Not Called Tab",
   args: ManyTools.input.args,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const toggle = canvas.getByRole("button", {
-      name: /12 available tools were not called/,
-    });
-    await expect(toggle).toHaveAttribute("aria-expanded", "false");
-    const topBefore = toggle.getBoundingClientRect().top;
-    await userEvent.click(toggle);
-    await expect(toggle).toHaveAttribute("aria-expanded", "true");
-    await expect(toggle.getBoundingClientRect().top).toBe(topBefore);
-    const firstHidden = canvas.getByText("langfuse_getPrompt");
-    await expect(toggle.compareDocumentPosition(firstHidden)).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING,
+    await expect(canvas.getByRole("tab", { name: "Called 6" })).toHaveAttribute(
+      "aria-selected",
+      "true",
     );
+    await userEvent.click(canvas.getByRole("tab", { name: "Not called 12" }));
+    const firstRow = canvas.getByRole("button", {
+      name: /langfuse_getPrompt$/,
+    });
+    await expect(within(firstRow).getByText("1.")).toBeVisible();
+    await expect(canvas.queryByText("langfuse_getSession")).toBeNull();
   },
 });
