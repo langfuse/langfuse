@@ -8712,6 +8712,218 @@ describe("OTel Resource Span Mapping", () => {
       expect(usageDetails["reasoning.output_tokens"]).toBeUndefined();
     });
 
+    it("should not add semconv per-modality token counts on top of their aggregates", async () => {
+      const traceId = "abcdef1234567890abcdef12345678a1";
+
+      const span = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "opentelemetry.instrumentation.google_genai",
+              version: "1.2b0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcdf1", "hex"),
+                name: "modality-breakdown",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: {
+                      intValue: { low: 1000, high: 0, unsigned: false },
+                    },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_read.input_tokens",
+                    value: { intValue: { low: 400, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.output_tokens",
+                    value: { intValue: { low: 300, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.text.input_tokens",
+                    value: { intValue: { low: 800, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.image.input_tokens",
+                    value: { intValue: { low: 200, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.text.cache_read.input_tokens",
+                    value: { intValue: { low: 400, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.text.output_tokens",
+                    value: { intValue: { low: 300, high: 0, unsigned: false } },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(span, new Set());
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      const usageDetails = observationEvent?.body.usageDetails as Record<
+        string,
+        number
+      >;
+      expect(usageDetails).toEqual({
+        input: 600,
+        input_cached_tokens: 400,
+        output: 300,
+      });
+    });
+
+    it.each([
+      [
+        "input aggregate without a cache-read aggregate",
+        {
+          "gen_ai.usage.input_tokens": 1000,
+          "gen_ai.usage.text.input_tokens": 800,
+          "gen_ai.usage.text.cache_read.input_tokens": 400,
+        },
+        { input: 1000 },
+      ],
+      [
+        "cache-read aggregate without an input aggregate",
+        {
+          "gen_ai.usage.cache_read.input_tokens": 400,
+          "gen_ai.usage.text.cache_read.input_tokens": 400,
+        },
+        { input_cached_tokens: 400 },
+      ],
+      [
+        "zero-valued aggregate",
+        {
+          "gen_ai.usage.output_tokens": 0,
+          "gen_ai.usage.text.output_tokens": 0,
+        },
+        { output: 0 },
+      ],
+      [
+        "legacy aggregate spelling",
+        {
+          "gen_ai.usage.prompt_tokens": 1000,
+          "gen_ai.usage.image.input_tokens": 200,
+        },
+        { input: 1000 },
+      ],
+      [
+        "no aggregates",
+        {
+          "gen_ai.usage.text.input_tokens": 800,
+          "gen_ai.usage.text.cache_read.input_tokens": 400,
+          "gen_ai.usage.image.input_tokens": 200,
+          "gen_ai.usage.text.output_tokens": 300,
+        },
+        {
+          "text.input_tokens": 800,
+          "image.input_tokens": 200,
+          "text.output_tokens": 300,
+        },
+      ],
+      [
+        "a modality cache read without that modality's input",
+        {
+          "gen_ai.usage.image.cache_read.input_tokens": 100,
+          "gen_ai.usage.text.input_tokens": 800,
+        },
+        {
+          "image.cache_read.input_tokens": 100,
+          "text.input_tokens": 800,
+        },
+      ],
+    ])(
+      "should map per-modality token counts with %s",
+      async (_case, usageAttributes, expectedUsageDetails) => {
+        const span = {
+          resource: {
+            attributes: [
+              {
+                key: "service.name",
+                value: { stringValue: "test-service" },
+              },
+            ],
+          },
+          scopeSpans: [
+            {
+              scope: {
+                name: "opentelemetry.instrumentation.google_genai",
+                version: "1.2b0",
+              },
+              spans: [
+                {
+                  traceId: Buffer.from(
+                    "abcdef1234567890abcdef12345678a2",
+                    "hex",
+                  ),
+                  spanId: Buffer.from("1234567890abcdf2", "hex"),
+                  name: "modality-boundary",
+                  kind: 1,
+                  startTimeUnixNano: {
+                    low: 1000000,
+                    high: 406528574,
+                    unsigned: true,
+                  },
+                  endTimeUnixNano: {
+                    low: 2000000,
+                    high: 406528574,
+                    unsigned: true,
+                  },
+                  attributes: Object.entries(usageAttributes).map(
+                    ([key, value]) => ({
+                      key,
+                      value: {
+                        intValue: { low: value, high: 0, unsigned: false },
+                      },
+                    }),
+                  ),
+                  status: {},
+                },
+              ],
+            },
+          ],
+        };
+
+        const events = await convertOtelSpanToIngestionEvent(span, new Set());
+        const observationEvent = events.find(
+          (e) => e.type === "generation-create" || e.type === "span-create",
+        );
+
+        expect(observationEvent?.body.usageDetails).toEqual(
+          expectedUsageDetails,
+        );
+      },
+    );
+
     it("should normalize the official cache-write token attribute", async () => {
       const traceId = "abcdef1234567890abcdef1234567893";
       const officialCacheUsageSpan = {
