@@ -346,6 +346,39 @@ jobs:
       - name: run knip
         run: pnpm exec knip
 
+  internal-leak-scan:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    needs:
+      - pre-job
+    # pre-job only runs on push events; everywhere else it resolves as skipped
+    # at run creation, so this job starts immediately (!cancelled() lets the
+    # condition evaluate despite the skipped dependency).
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+      - name: Scan changed lines and pull request text
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          node --test scripts/ci/scan-internal-leaks.test.mjs
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            BASE_SHA="$PR_BASE_SHA"
+          else
+            BASE_SHA="HEAD~1"
+          fi
+          node scripts/ci/scan-internal-leaks.mjs --base "$BASE_SHA"
+
   prettier-check:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
