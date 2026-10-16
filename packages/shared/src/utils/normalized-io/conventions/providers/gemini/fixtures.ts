@@ -198,7 +198,9 @@ export const geminiSystemInstructionWithGenericMessagesFixture = {
  * Raw Gemini/Vertex wire shapes: keyed parts without a `type` discriminator
  * (bare text, inline_data, file_data), thought parts with thoughtSignature,
  * provider-executed code execution (executable_code / code_execution_result),
- * and the candidate-level finishReason.
+ * and the candidate-level finishReason. generateContent can attach a
+ * thoughtSignature to any part, including the final answer text, so only the
+ * `thought` flag marks reasoning.
  */
 export const geminiMediaAndCodeExecutionFixture = {
   name: "normalizes Gemini media parts and code execution",
@@ -237,7 +239,7 @@ export const geminiMediaAndCodeExecutionFixture = {
               {
                 code_execution_result: { outcome: "OUTCOME_OK", output: "3" },
               },
-              { text: "The sum is 3." },
+              { text: "The sum is 3.", thoughtSignature: "sig_gemini_2" },
             ],
           },
           finishReason: "STOP",
