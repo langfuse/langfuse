@@ -2,11 +2,29 @@ import {
   isRegionProduction,
   type CloudRegionName,
 } from "@/src/features/organizations";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { assertUnreachable } from "@/src/utils/types";
 import { useMemo } from "react";
 
-export const EnvLabelBadge = ({ region }: { region: CloudRegionName }) => {
+/**
+ * Left as a `title` rather than an `aria-label`, so the accessible name stays
+ * the visible text (`PROD-EU`) and this becomes the description. An
+ * `aria-label` would take over the name and the hint would be announced twice.
+ */
+const DISMISS_HINT = "Hide until this tab is closed";
+
+type EnvLabelBadgeProps = {
+  region: CloudRegionName;
+  onDismiss: () => void;
+};
+
+/**
+ * The cloud environment chip in the page header, for Langfuse staff only.
+ * Clicking it hides it, which is how clean product screenshots get taken — so
+ * it renders through `BadgeShell asChild` as a real `<button>` (focusable,
+ * Enter/Space) rather than a `<span>` with a click handler on it.
+ */
+export const EnvLabelBadge = ({ region, onDismiss }: EnvLabelBadgeProps) => {
   const { label, color } = useMemo(() => {
     const isProduction = isRegionProduction(region);
 
@@ -34,5 +52,11 @@ export const EnvLabelBadge = ({ region }: { region: CloudRegionName }) => {
     return assertUnreachable(region);
   }, [region]);
 
-  return <Badge color={color} font="mono" size="sm" text={label} />;
+  return (
+    <BadgeShell asChild color={color} font="mono" size="sm" dismissible>
+      <button type="button" onClick={onDismiss} title={DISMISS_HINT}>
+        {label}
+      </button>
+    </BadgeShell>
+  );
 };
