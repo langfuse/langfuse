@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from "vitest";
 const envMock = vi.hoisted(() => ({
   env: {
     CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION: "auto",
-    CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN: "auto",
     CLICKHOUSE_ENABLE_SKIP_INDEXES_ON_DATA_READ: "auto",
   },
 }));
@@ -21,7 +20,6 @@ const noCompatibilitySettings = {};
 const disableLazyMaterialization = {
   query_plan_optimize_lazy_materialization: 0,
 };
-const disableTopKThroughJoin = { query_plan_top_k_through_join: 0 };
 const enableSkipIndexesOnDataRead = { use_skip_indexes_on_data_read: 1 };
 
 describe("ClickHouse compatibility version parsing", () => {
@@ -71,19 +69,11 @@ describe("resolveClickHouseCompatibility", () => {
       "26.2.0.0",
       { ...disableLazyMaterialization, ...enableSkipIndexesOnDataRead },
     ],
-    // Top-K introduction and the exact fix on each release line.
-    ["26.5.1.650", enableSkipIndexesOnDataRead],
-    [
-      "26.5.1.651",
-      { ...disableTopKThroughJoin, ...enableSkipIndexesOnDataRead },
-    ],
-    ["26.5.6.70", enableSkipIndexesOnDataRead],
-    ["26.6.0.0", { ...disableTopKThroughJoin, ...enableSkipIndexesOnDataRead }],
-    ["26.6.2.108", enableSkipIndexesOnDataRead],
-    ["26.7.0.0", { ...disableTopKThroughJoin, ...enableSkipIndexesOnDataRead }],
-    ["26.7.1.1334", enableSkipIndexesOnDataRead],
-    ["26.7.2.0", { ...disableTopKThroughJoin, ...enableSkipIndexesOnDataRead }],
-    ["26.7.2.11", enableSkipIndexesOnDataRead],
+    // query_plan_top_k_through_join is never sent, including on the
+    // releases affected by ClickHouse #109210.
+    ["26.5.1.651", enableSkipIndexesOnDataRead],
+    ["26.6.0.0", enableSkipIndexesOnDataRead],
+    ["26.7.2.0", enableSkipIndexesOnDataRead],
     ["26.7.99.9999", enableSkipIndexesOnDataRead],
     ["26.8.0.0", enableSkipIndexesOnDataRead],
     ["26.8.1.2041", enableSkipIndexesOnDataRead],
@@ -98,22 +88,13 @@ describe("resolveClickHouseCompatibility", () => {
       version: "26.5.5.8",
     });
 
-    expect(resolved.settings).toEqual({
-      ...disableTopKThroughJoin,
-      ...enableSkipIndexesOnDataRead,
-    });
+    expect(resolved.settings).toEqual(enableSkipIndexesOnDataRead);
     expect(resolved.flags).toEqual([
       expect.objectContaining({
         id: "disable-lazy-materialization-for-patch-parts",
         setting: "query_plan_optimize_lazy_materialization",
         matchesVersionBand: false,
         applied: false,
-      }),
-      expect.objectContaining({
-        id: "disable-top-k-through-join",
-        setting: "query_plan_top_k_through_join",
-        matchesVersionBand: true,
-        applied: true,
       }),
       expect.objectContaining({
         id: "enable-skip-indexes-on-data-read",
@@ -130,13 +111,10 @@ describe("resolveClickHouseCompatibility", () => {
         version: "26.5.5.8",
         overrides: {
           CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION: "true",
-          CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN: "false",
+          CLICKHOUSE_ENABLE_SKIP_INDEXES_ON_DATA_READ: "false",
         },
       }).settings,
-    ).toEqual({
-      ...disableLazyMaterialization,
-      ...enableSkipIndexesOnDataRead,
-    });
+    ).toEqual(disableLazyMaterialization);
   });
 });
 

@@ -200,9 +200,6 @@ const EnvSchema = z.object({
   CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION: z
     .enum(["auto", "true", "false"])
     .default("auto"),
-  CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN: z
-    .enum(["auto", "true", "false"])
-    .default("auto"),
   // Read-time skip-index evaluation, applied only from the version that fixes
   // the patch-part read bug. See the compatibility rule for details.
   CLICKHOUSE_ENABLE_SKIP_INDEXES_ON_DATA_READ: z

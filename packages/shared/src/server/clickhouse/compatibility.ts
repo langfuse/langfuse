@@ -25,7 +25,6 @@ export type ClickHouseVersionBand = {
 
 type ClickHouseCompatibilityEnvKey =
   | "CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION"
-  | "CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN"
   | "CLICKHOUSE_ENABLE_SKIP_INDEXES_ON_DATA_READ";
 
 type ClickHouseCompatibilityEnvValue = "auto" | "true" | "false";
@@ -73,20 +72,6 @@ const CLICKHOUSE_COMPATIBILITY_RULES: ClickHouseCompatibilityRule[] = [
       "Work around ClickHouse #102904, where lazy materialization can lose `_block_number` while reading lightweight-update patch parts.",
     versionBands: [{ minInclusive: "25.4.0.0", maxExclusive: "26.4.1.1005" }],
     overrideEnvKey: "CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION",
-  },
-  {
-    id: "disable-top-k-through-join",
-    setting: "query_plan_top_k_through_join",
-    value: 0,
-    reason:
-      "Work around ClickHouse #109210, where top-K-through-join can leave lazy materialization with a dangling filter input.",
-    versionBands: [
-      { minInclusive: "26.5.1.651", maxExclusive: "26.5.6.70" },
-      { minInclusive: "26.6.0.0", maxExclusive: "26.6.2.108" },
-      { minInclusive: "26.7.0.0", maxExclusive: "26.7.1.1334" },
-      { minInclusive: "26.7.2.0", maxExclusive: "26.7.2.11" },
-    ],
-    overrideEnvKey: "CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN",
   },
   {
     id: "enable-skip-indexes-on-data-read",
