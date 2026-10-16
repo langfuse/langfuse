@@ -280,6 +280,15 @@ const EnvSchema = z.object({
     .number()
     .nonnegative()
     .default(5_000),
+  LANGFUSE_LARGE_PROJECT_IDS: z
+    .string()
+    .default("")
+    .transform((value) =>
+      value
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean),
+    ),
   LANGFUSE_DELETE_SKIP_PROJECT_IDS: z
     .string()
     .optional()
