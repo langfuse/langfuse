@@ -9,7 +9,12 @@ import {
   Terminal,
   Trash,
 } from "lucide-react";
-import { NumberParam, useQueryParams, withDefault } from "use-query-params";
+import {
+  NumberParam,
+  ObjectParam,
+  useQueryParams,
+  withDefault,
+} from "use-query-params";
 import Page from "@/src/components/layouts/page";
 import { Button } from "@/src/components/ui/button";
 import { Button as DesignSystemButton } from "@/src/components/design-system/Button/Button";
@@ -51,6 +56,10 @@ import {
 import { ImportSkillsDialog } from "./ImportSkillsDialog";
 import { InstallSkillDialog } from "./InstallSkillDialog";
 import { useSkillInstallOptions } from "../hooks/useSkillInstallOptions";
+import {
+  DEFAULT_SKILL_LIST_ORDER_BY,
+  SkillListOrderBySchema,
+} from "../constants/skillsSorting";
 
 type SkillRow = RouterOutput["skills"]["all"]["data"][number];
 
@@ -176,16 +185,21 @@ function SkillsList({
 }) {
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
-  const [pagination, setPagination] = useQueryParams({
+  const [tableState, setTableState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
+    orderBy: withDefault(ObjectParam, DEFAULT_SKILL_LIST_ORDER_BY),
   });
+  const parsedOrderBy = SkillListOrderBySchema.safeParse(tableState.orderBy);
+  const orderBy = parsedOrderBy.success
+    ? parsedOrderBy.data
+    : DEFAULT_SKILL_LIST_ORDER_BY;
   const paginationState = {
-    pageIndex: Number.isFinite(pagination.pageIndex)
-      ? Math.max(0, Math.floor(pagination.pageIndex))
+    pageIndex: Number.isFinite(tableState.pageIndex)
+      ? Math.max(0, Math.floor(tableState.pageIndex))
       : 0,
-    pageSize: Number.isFinite(pagination.pageSize)
-      ? Math.max(1, Math.min(100, Math.floor(pagination.pageSize)))
+    pageSize: Number.isFinite(tableState.pageSize)
+      ? Math.max(1, Math.min(100, Math.floor(tableState.pageSize)))
       : 50,
   };
   const { searchQuery, setSearchQuery } = useFullTextSearch({
@@ -204,7 +218,7 @@ function SkillsList({
       sessionFilterContextId: projectId,
       loading: filterOptions.isPending,
       isV4: false,
-      onExplicitFilterStateChange: () => setPagination({ pageIndex: 0 }),
+      onExplicitFilterStateChange: () => setTableState({ pageIndex: 0 }),
     },
   );
   const skills = api.skills.all.useQuery(
@@ -214,6 +228,7 @@ function SkillsList({
       limit: paginationState.pageSize,
       search: searchQuery || undefined,
       filter: queryFilter.filterState,
+      orderBy,
     },
     { enabled: Boolean(projectId) },
   );
@@ -221,7 +236,7 @@ function SkillsList({
     onSuccess: async () => {
       capture("skills:delete");
       if (skills.data?.data.length === 1 && paginationState.pageIndex > 0) {
-        setPagination({ pageIndex: paginationState.pageIndex - 1 });
+        setTableState({ pageIndex: paginationState.pageIndex - 1 });
       }
       await utils.skills.invalidate();
     },
@@ -241,6 +256,7 @@ function SkillsList({
     createLinkTableColumn<SkillRow>({
       accessorKey: "name",
       header: "Name",
+      enableSorting: true,
       size: 220,
       cellClassName: "ph-no-capture",
       getCell: (name) =>
@@ -263,6 +279,7 @@ function SkillsList({
     createNumberTableColumn<SkillRow>({
       accessorKey: "latestVersion",
       header: "Latest version",
+      enableSorting: true,
       size: 100,
       formatter: (version) => `v${version}`,
     }),
@@ -276,12 +293,14 @@ function SkillsList({
     createBadgeListTableColumn<SkillRow>({
       accessorKey: "tags",
       header: "Tags",
+      enableSorting: true,
       size: 120,
       cellClassName: "ph-no-capture",
     }),
     createDateTableColumn<SkillRow>({
       accessorKey: "latestVersionCreatedAt",
       header: "Latest version created",
+      enableSorting: true,
       size: 175,
     }),
   ];
@@ -293,8 +312,9 @@ function SkillsList({
           <div className="md:hidden">
             <FilterToggleButton filterState={queryFilter.filterState} />
           </div>
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1 p-2">
             <TableSearchBar
+              inset
               size="large"
               key={`${projectId}:${queryFilter.draftResetKey}`}
               projectId={projectId}
@@ -311,7 +331,7 @@ function SkillsList({
                 query: searchQuery,
                 type: ["id"],
                 setQuery: (query) => {
-                  setPagination({ pageIndex: 0 });
+                  setTableState({ pageIndex: 0 });
                   setSearchQuery(query);
                 },
               }}
@@ -371,6 +391,17 @@ function SkillsList({
                   tableName="skills"
                   columns={columns}
                   data={tableData}
+                  orderBy={orderBy}
+                  setOrderBy={(nextOrderBy) => {
+                    const parsed =
+                      SkillListOrderBySchema.safeParse(nextOrderBy);
+                    setTableState({
+                      orderBy: parsed.success
+                        ? parsed.data
+                        : DEFAULT_SKILL_LIST_ORDER_BY,
+                      pageIndex: 0,
+                    });
+                  }}
                   loadingRowCount={Math.min(paginationState.pageSize, 8)}
                   noResultsMessage="No skills match your search or filters."
                   actions={(skill) => [
@@ -391,7 +422,7 @@ function SkillsList({
                   mode="offset"
                   totalCount={skills.data?.meta.totalItems ?? null}
                   state={paginationState}
-                  onChange={setPagination}
+                  onChange={setTableState}
                 />
               </div>
             )}

@@ -29,6 +29,7 @@ import {
   authorizeProtectedLabelMutation,
   type ApiKeyProjectContext,
 } from "@/src/features/prompts/server/utils/authorizeProtectedLabelMutation";
+import { type SkillListOrderBy } from "../constants/skillsSorting";
 
 type SkillActor =
   | Pick<ProjectAuthedContext, "session">
@@ -333,7 +334,10 @@ export class SkillService {
 
   async list(params: {
     projectId: string;
-    input: ListSkillsQuery & { filter?: FilterState };
+    input: ListSkillsQuery & {
+      filter?: FilterState;
+      orderBy?: SkillListOrderBy;
+    };
   }) {
     const filters = this.listFilterConditions(params.input.filter ?? []);
     const where: Prisma.SkillWhereInput = {
@@ -373,10 +377,23 @@ export class SkillService {
           }
         : {}),
     };
+    const sortFields = {
+      name: "name",
+      latestVersion: "version",
+      tags: "tags",
+      latestVersionCreatedAt: "createdAt",
+    } satisfies Record<
+      SkillListOrderBy["column"],
+      keyof Prisma.SkillOrderByWithRelationInput
+    >;
+    const sortField = params.input.orderBy
+      ? sortFields[params.input.orderBy.column]
+      : "updatedAt";
+    const sortOrder = params.input.orderBy?.order === "ASC" ? "asc" : "desc";
     const [latestVersions, totalItems] = await Promise.all([
       this.prisma.skill.findMany({
         where,
-        orderBy: [{ updatedAt: "desc" }, { name: "asc" }],
+        orderBy: [{ [sortField]: sortOrder }, { name: "asc" }],
         skip: (params.input.page - 1) * params.input.limit,
         take: params.input.limit,
         select: {
