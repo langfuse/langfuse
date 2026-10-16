@@ -168,6 +168,7 @@ jobs:
         with:
           filters: |
             ai_gateway:
+              - 'ai-gateway/**'
               - 'packages/shared/prisma/migrations/**/*gateway*/**'
               - 'web/src/__e2e__/**/*.gatewaye2e.{ts,tsx}'
               - 'web/src/features/ai-gateway/**'
