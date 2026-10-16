@@ -75,15 +75,32 @@ function mergeInput(base: Input, more: Input): Input {
     // Storybook composes extended decorators innermost-last; base first here
     // because the generator applies the list inner -> outer.
     decorators: [...arr(more.decorators), ...arr(base.decorators)],
+    beforeEach: [...arr(base.beforeEach), ...arr(more.beforeEach)],
   };
 }
 
-/** storyDecorators appends the dark-theme and fullscreen wrappers a story's globals/parameters ask for */
+/** storyDecorators appends the dark-theme, fullscreen and beforeEach wrappers a story asks for */
 function storyDecorators(m: Input): any[] {
   const decorators = [...m.decorators];
   if (m.globals?.theme === "dark") decorators.push(darkDecorator);
   if (m.parameters?.layout === "fullscreen") decorators.push(FullscreenFrame);
+  if (m.beforeEach.length > 0)
+    decorators.push(beforeEachDecorator(m.beforeEach));
   return decorators;
+}
+
+/** beforeEachDecorator runs the meta and story `beforeEach` hooks once before the story first renders */
+function beforeEachDecorator(hooks: Array<() => unknown>) {
+  return function BeforeEach(Story: React.ComponentType) {
+    const [cleanups] = React.useState(() => hooks.map((hook) => hook()));
+    React.useEffect(() => () => cleanups.forEach(runCleanup), [cleanups]);
+    return <Story />;
+  };
+}
+
+/** runCleanup calls a `beforeEach` return value when it is a cleanup function */
+function runCleanup(cleanup: unknown) {
+  if (typeof cleanup === "function") cleanup();
 }
 
 function isSingleStoryCapture(): boolean {

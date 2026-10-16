@@ -1,4 +1,4 @@
-// forked from design-sync lib/dts.mjs - DS ships TS source (no dist/): resolve web's `@/*` tsconfig paths, find @types/react under web/node_modules, and treat web/src/components/design-system/ as the in-package dir.
+// forked from design-sync lib/dts.mjs - DS ships TS source (no dist/): resolve web's `@/*` tsconfig paths, find @types/react under web/node_modules, and treat web/src/ (the DS plus the shared app components it ships) as the in-package dir.
 // .d.ts extraction via ts-morph (real TS checker). Resolves the apparent
 // structural type of each <Name>Props - unwraps Omit/Pick, follows extends
 // chains and intersections, resolves `(typeof X)[number]` / mapped types to
@@ -129,10 +129,10 @@ function projectFor(pkgDir, typesRoot) {
     '[DTS_REACT] \u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n',
   );
   if (existsSync(entry)) project.addSourceFileAtPath(entry);
-  // [fork] pull the TS source graph in, and scope 'in-package' to the DS source dir.
+  // [fork] pull the TS source graph in, and scope 'in-package' to the app source dir.
   project.resolveSourceFileDependencies();
-  const dsDir = join(WEB, 'src/components/design-system').split('\\').join('/') + '/';
-  const ctx = { project, entry, pkgDir: dsDir };
+  const srcDir = join(WEB, 'src').split('\\').join('/') + '/';
+  const ctx = { project, entry, pkgDir: srcDir };
   projects.set(pkgDir, ctx);
   return ctx;
 }
@@ -393,7 +393,10 @@ export function propsBodyFor(name, ctx) {
   // Skip deprecated/legacy/experimental dirs so a stale copy doesn't shadow
   // the live one.
   let decl = null;
-  for (const sf of project.getSourceFiles()) {
+  // [fork] pkgDir spans all of web/src, where `<Name>Props` repeats (ui/input
+  // has its own InputProps) - check the component's declaring file first.
+  const ownFile = project.getSourceFile(entry)?.getExportedDeclarations().get(name)?.[0]?.getSourceFile();
+  for (const sf of [ownFile, ...project.getSourceFiles()].filter(Boolean)) {
     const fp = sf.getFilePath();
     if (!fp.startsWith(pkgDir)) continue;
     if (/\/(deprecated|legacy|experimental)\//i.test(fp)) continue;

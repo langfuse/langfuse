@@ -243,13 +243,69 @@
       "skip": [
         "design-components-codesection--toggles-collapse"
       ]
+    },
+    "Drawer": {
+      "cardMode": "single",
+      "primaryStory": "Compact"
+    },
+    "ItemBadge": {
+      "cardMode": "column"
+    },
+    "KeyValueFilterBuilder": {
+      "cardMode": "column",
+      "skip": [
+        "playground-keyvaluefilterbuilder--test-observed-key-suggestion-preserves-value"
+      ]
+    },
+    "MediaTag": {
+      "cardMode": "single",
+      "primaryStory": "AllKinds"
+    },
+    "MobilePageActionsContent": {
+      "cardMode": "single",
+      "primaryStory": "MixedPageControls"
+    },
+    "OverviewSelectionBar": {
+      "cardMode": "single",
+      "primaryStory": "Default"
+    },
+    "StatusBadge": {
+      "cardMode": "column"
+    },
+    "AppSidebar": {
+      "cardMode": "single",
+      "primaryStory": "Default"
+    },
+    "GroupedScoreBadges": {
+      "skip": [
+        "playground-groupedscorebadges--with-overflow"
+      ]
+    },
+    "MarkdownView": {
+      "skip": [
+        "playground-markdownviewer--header-controls-on-focus"
+      ]
     }
   },
   "extraFonts": [
     "plex-mono.css"
   ],
   "titleMap": {
-    "ChartTooltip": null
+    "ChartTooltip": null,
+    "dropdown-menu": null,
+    "mobile-page-actions-content": "MobilePageActionsContent",
+    "MarkdownViewer": "MarkdownView",
+    "ai-assisted-input": "AIAssistedInput",
+    "drawer": "Drawer"
   },
-  "readmeHeader": ".design-sync/conventions.md"
+  "readmeHeader": ".design-sync/conventions.md",
+  "storyImports": {
+    "shim": [
+      "/components/ui/ai-assisted-input.tsx",
+      "/components/ui/sidebar.tsx",
+      "/components/ui/drawer.tsx",
+      "/components/ui/MarkdownViewer.tsx",
+      "/components/grouped-score-badge.tsx"
+    ]
+  }
 }

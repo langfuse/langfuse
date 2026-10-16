@@ -67,6 +67,36 @@ JS
     | sed 's|^\./||; s|\.tsx$||' | while read -r p; do echo "export * from \"$D/$p\";"; done
   echo "export * from \"$D/charts/constants\";"
   echo "export { ChartLegend } from \"$D/internal/charts/ChartLegend\";"
+  # Shared app components (web/src/components outside design-system) that have
+  # stories. Named exports, not `export *`: their modules also export helpers
+  # and shadcn primitives whose names clash with DS components. Components a
+  # DS component already covers are left out (see NOTES.md "Scope").
+  S=../../web/src/components
+  while read -r mod names; do echo "export { $names } from \"$S/$mod\";"; done <<'EOF'
+CrashModal/CrashModal CrashModal
+EnvLabelBadge EnvLabelBadge
+grouped-score-badge GroupedScoreBadges
+ItemBadge ItemBadge, ItemTypeIcon
+MediaFileCard/MediaFileCard MediaFileCard
+MediaTag/MediaTag MediaTag
+OrganizationDropdownMenu/OrganizationDropdownMenu OrganizationDropdownMenu
+ProjectDropdownMenu/ProjectDropdownMenu ProjectDropdownMenu
+ScoreBadge/ScoreBadge ScoreBadge
+score-tag ScoreTag
+layouts/mobile-page-actions-content MobilePageActionsContent
+nav/AppSidebar/AppSidebar AppSidebar
+onboarding/components/EvaluatorsOnboardingView/EvaluatorsOnboardingView EvaluatorsOnboardingView
+table/ColumnVisibilityHeader ColumnVisibilityHeader
+table/FacetHeader FacetHeader
+table/KeyValueFilterBuilder KeyValueFilterBuilder
+table/OverviewSelectionBar/OverviewSelectionBar OverviewSelectionBar
+table/table-view-presets/components/TableViewPresetsButton TableViewPresetsButton
+ui/MarkdownViewer MarkdownView
+ui/StatusBadge/StatusBadge StatusBadge
+ui/ai-assisted-input AIAssistedInput
+ui/drawer Drawer, DrawerController, DrawerTrigger, DrawerClose, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription
+ui/sidebar SidebarProvider, SidebarInset
+EOF
   echo "export { LangfuseProvider } from \"./LangfuseProvider\";"
   # Icon props (Button/IconButton `icon`, ...) take lucide components; the
   # namespace export avoids clashes with DS names like Table/Tag.

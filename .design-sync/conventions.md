@@ -22,6 +22,10 @@ Dark mode: pass `theme="dark"` - `<LangfuseProvider theme="dark">` - so the `dar
 - Prefer a library component over hand-rolled markup: `Button`, `IconButton`, `TextLink`, `Input`, `SearchInput`, `SelectInput`, `Checkbox`, `Switch`, `Tabs`, `Dialog` + `DialogController`, `Tooltip`, `Badge`, `Tag`, `Alert`, `Callout`, `StatusMessage`, `Codeblock`, `Table`, charts (`LineChart`, `BarChart`, `AreaChart`, `PieChart`, ...).
 - Icons are lucide-react components on `window.LangfuseDS.LucideIcons` (the app's only icon set): `const { Plus, Trash2 } = window.LangfuseDS.LucideIcons;` then `<IconButton icon={Trash2} ... />` / `<Button icon={Plus} ... />`. Never draw inline SVGs or use emoji.
 
+## App components (Playground group)
+
+The `playground` group holds Langfuse app components built for specific screens: `AppSidebar`, `OrganizationDropdownMenu`/`ProjectDropdownMenu`, `Drawer`, `MarkdownView`, `StatusBadge`, `ItemBadge`, `ScoreBadge`/`ScoreTag`/`GroupedScoreBadges`, `EnvLabelBadge`, `MediaTag`/`MediaFileCard`, `AIAssistedInput`, `CrashModal`, `EvaluatorsOnboardingView`, and table chrome (`FacetHeader`, `KeyValueFilterBuilder`, `OverviewSelectionBar`, `TableViewPresetsButton`, `ColumnVisibilityHeader`). Use them when a design shows that exact piece of the app. They predate the design-system rules above, so follow each one's `.d.ts` rather than the idiom - and for generic UI always reach for the design-system component first (`Table` for tables, `Tooltip` for help text, `Badge`/`Tag` for chips, `Button` for actions). `AppSidebar` only renders inside `SidebarProvider`, with the page body in a sibling `SidebarInset`: `<SidebarProvider open><AppSidebar ... /><SidebarInset>...</SidebarInset></SidebarProvider>`.
+
 ## Layout glue: Tailwind v4 utilities with Langfuse tokens
 
 Your own layout markup uses Tailwind classes - but only ones present in the shipped `_ds_bundle.css` (it is precompiled; classes it doesn't contain do nothing). Safe vocabulary:
