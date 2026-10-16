@@ -103,14 +103,16 @@ describe("blobStorageEndpointConnectionValidationOptions", () => {
     ip_ranges: [],
     allowedHosts: ["minio.internal", "s3.us-east-1.amazonaws.com"],
   };
-  const connectAs = (hostname: string) => () =>
-    validateOutboundResolvedIp({
-      hostname,
-      ip: "10.0.0.5",
-      whitelist:
-        blobStorageEndpointConnectionValidationOptions(allowlist)!.whitelist!,
-      logContext: "test",
-    });
+  const connectAs =
+    (hostname: string, ip = "52.216.0.1") =>
+    () =>
+      validateOutboundResolvedIp({
+        hostname,
+        ip,
+        whitelist:
+          blobStorageEndpointConnectionValidationOptions(allowlist)!.whitelist!,
+        logContext: "test",
+      });
 
   it("is off when no list is configured", () => {
     expect(
@@ -127,6 +129,16 @@ describe("blobStorageEndpointConnectionValidationOptions", () => {
     expect(connectAs("exports.minio.internal")).not.toThrow();
     // AWS auto-region signs for us-east-1 and virtual-hosts the bucket there.
     expect(connectAs("exports.s3.us-east-1.amazonaws.com")).not.toThrow();
+  });
+
+  it("keeps the private-address block for bucket names, but not for exact listed hosts", () => {
+    expect(connectAs("minio.internal", "10.0.0.5")).not.toThrow();
+    expect(connectAs("exports.minio.internal", "10.0.0.5")).toThrow(
+      expect.objectContaining({ code: "blocked-ip" }),
+    );
+    expect(connectAs("exports.minio.internal", "169.254.169.254")).toThrow(
+      expect.objectContaining({ code: "blocked-ip" }),
+    );
   });
 
   it("rejects names that are not a bucket under a listed host", () => {

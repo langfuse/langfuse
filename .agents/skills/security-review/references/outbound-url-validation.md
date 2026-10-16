@@ -155,8 +155,10 @@ Every outbound-URL surface MUST apply **all three** of:
   `AWS_ENDPOINT_URL_BEDROCK_RUNTIME` / `AWS_ENDPOINT_URL` when set. For
   external media S3 virtual-hosted addressing, connect-time validation also
   trusts `{bucket}.{allowlisted endpoint host}` for that bucket. Blob storage
-  trusts any bucket-shaped `{bucket}.{listed host}` (`allowedBucketHostParents`),
-  so all blob integrations share one pooled agent policy.
+  accepts any bucket-shaped `{bucket}.{listed host}` (`allowedBucketHostParents`),
+  so all blob integrations share one pooled agent policy. Those names still get
+  the private-address block; only exact listed hosts skip it, because the
+  parent zone's DNS or the bucket name decides where they resolve.
 - `LANGFUSE_OUTBOUND_BLOCKED_IP_SEGMENTS` adds CIDR ranges to the built-in
   private-address block for outbound URL checks that already run. Blob
   storage stays opt-in, so these ranges do not by themselves turn blob
