@@ -367,6 +367,21 @@ const CHROME_EXTENSION_PORT_MESSAGES: readonly string[] = [
 ];
 
 /**
+ * Chromium wording when injected page-world JS (userscript / extension)
+ * references an undeclared `_all_alberto`. Langfuse has no such identifier
+ * — it is a human first name, not minifier output, and it does not appear
+ * in first-party source. Observed as a global-handler ReferenceError with
+ * only `<anonymous>` frames (LANGFUSE-63Y) — `denyUrls` cannot match.
+ *
+ * Whole-message only after {@link coreMessage}. An app error that quotes
+ * the phrase is longer and is KEPT. A first-party `/_next/` frame is
+ * KEPT so a future undeclared identifier in our code still surfaces.
+ *
+ * Stored without a trailing period because {@link coreMessage} strips one.
+ */
+const INJECTED_ALL_ALBERTO_NOT_DEFINED_MESSAGE = "_all_alberto is not defined";
+
+/**
  * Chromium wording when Next.js Pages Router `initialize()` does
  * `window.__NEXT_DATA__ = initialData` and that Window property is
  * getter-only. Observed: LANGFUSE-61R (`/auth/sign-up`, us-prod, 0 users,
@@ -676,7 +691,11 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
     // exact TypeError for an injected `addMore` that is undefined. Stack is
     // document-attributed global code, not a chunk.
     //
-    // All three are anchored to a Sentry browser-API / global-handler
+    // Injected `_all_alberto is not defined` is the same class:
+    // Chromium exact ReferenceError for an undeclared userscript
+    // identifier. Stack is `<anonymous>` only — denyUrls cannot match.
+    //
+    // All four are anchored to a Sentry browser-API / global-handler
     // mechanism so an app-captured exception that merely quotes the
     // phrase is KEPT.
     const mechanismType = exception?.mechanism?.type;
@@ -695,6 +714,14 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
       if (
         exceptionType === "TypeError" &&
         isSafariAddMoreClickMessage(exceptionValue) &&
+        !hasFirstPartyChunkFrame(event)
+      ) {
+        return true;
+      }
+      if (
+        exceptionType === "ReferenceError" &&
+        coreMessage(exceptionValue) ===
+          INJECTED_ALL_ALBERTO_NOT_DEFINED_MESSAGE &&
         !hasFirstPartyChunkFrame(event)
       ) {
         return true;
