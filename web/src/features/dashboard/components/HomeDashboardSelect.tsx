@@ -93,7 +93,7 @@ export function HomeDashboardSelect({
       placeholder={currentDashboardName}
       searchPlaceholder="Search dashboards..."
       emptyText="No dashboards found"
-      className="my-0 w-auto max-w-56"
+      className="my-0 w-auto max-w-60"
       name="home-dashboard"
     />
   );
