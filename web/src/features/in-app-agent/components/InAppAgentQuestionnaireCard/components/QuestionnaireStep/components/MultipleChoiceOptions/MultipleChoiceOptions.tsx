@@ -43,49 +43,43 @@ export function MultipleChoiceOptions({
           key={optionIndex}
           id={`${idPrefix}-${optionIndex}`}
           optionIndex={optionIndex}
-          label={withRecommended(option.label, option.recommended)}
-          description={option.description}
+          option={option}
           isChecked={answer.selectedOptionIndexes.includes(optionIndex)}
           isDisabled={isDisabled}
-          onToggle={onToggleOption}
+          onToggleOption={onToggleOption}
         />
       ))}
       <CheckboxOtherAnswerRow
         id={`${idPrefix}-other`}
-        isOpen={isOtherOpen}
+        isOtherOpen={isOtherOpen}
         otherText={answer.otherText}
         isDisabled={isDisabled}
         otherInputRef={otherInputRef}
-        onToggle={onToggleOther}
+        onToggleOther={onToggleOther}
         onOtherTextChange={onOtherTextChange}
       />
     </div>
   );
 }
 
-type CheckboxOptionRowProps = {
+type CheckboxOptionRowProps = Pick<
+  MultipleChoiceOptionsProps,
+  "isDisabled" | "onToggleOption"
+> & {
   id: string;
   optionIndex: number;
-  label: string;
-  description: string;
+  option: InAppAgentQuestionnaireQuestion["options"][number];
   isChecked: boolean;
-  isDisabled: boolean;
-  onToggle: (optionIndex: number) => void;
 };
 
 function CheckboxOptionRow({
   id,
   optionIndex,
-  label,
-  description,
+  option,
   isChecked,
   isDisabled,
-  onToggle,
+  onToggleOption,
 }: CheckboxOptionRowProps) {
-  const handleCheckedChange = () => {
-    onToggle(optionIndex);
-  };
-
   return (
     <label htmlFor={id} className={OPTION_ROW_CLASS_NAME}>
       <span className={OPTION_CONTROL_CLASS_NAME}>
@@ -93,34 +87,40 @@ function CheckboxOptionRow({
           id={id}
           checked={isChecked}
           disabled={isDisabled}
-          onCheckedChange={handleCheckedChange}
+          onCheckedChange={() => {
+            onToggleOption(optionIndex);
+          }}
         />
       </span>
       <span className={OPTION_TEXT_CLASS_NAME}>
-        <span className="leading-5">{label}</span>
-        <span className="text-muted-foreground">{description}</span>
+        <span className="leading-5">
+          {withRecommended(option.label, option.recommended)}
+        </span>
+        <span className="text-muted-foreground">{option.description}</span>
       </span>
     </label>
   );
 }
 
-type CheckboxOtherAnswerRowProps = {
+type CheckboxOtherAnswerRowProps = Pick<
+  MultipleChoiceOptionsProps,
+  | "isOtherOpen"
+  | "isDisabled"
+  | "otherInputRef"
+  | "onToggleOther"
+  | "onOtherTextChange"
+> & {
   id: string;
-  isOpen: boolean;
   otherText: string;
-  isDisabled: boolean;
-  otherInputRef: Ref<HTMLInputElement>;
-  onToggle: () => void;
-  onOtherTextChange: (otherText: string) => void;
 };
 
 function CheckboxOtherAnswerRow({
   id,
-  isOpen,
+  isOtherOpen,
   otherText,
   isDisabled,
   otherInputRef,
-  onToggle,
+  onToggleOther,
   onOtherTextChange,
 }: CheckboxOtherAnswerRowProps) {
   return (
@@ -128,9 +128,9 @@ function CheckboxOtherAnswerRow({
       <span className={OPTION_CONTROL_CLASS_NAME}>
         <Checkbox
           id={id}
-          checked={isOpen || otherText.trim().length > 0}
+          checked={isOtherOpen || otherText.trim().length > 0}
           disabled={isDisabled}
-          onCheckedChange={onToggle}
+          onCheckedChange={onToggleOther}
         />
       </span>
       <span className={OPTION_TEXT_CLASS_NAME}>
@@ -138,7 +138,7 @@ function CheckboxOtherAnswerRow({
           {OTHER_ANSWER_LABEL}
           <PencilLine aria-hidden className="text-muted-foreground icon-sm" />
         </span>
-        {isOpen ? (
+        {isOtherOpen ? (
           <OtherAnswerInput
             ref={otherInputRef}
             value={otherText}

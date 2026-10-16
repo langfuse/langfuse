@@ -8,10 +8,7 @@ import type { QuestionnaireFormValues } from "@/src/features/in-app-agent/compon
 import { updateQuestionnaireAnswer } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireCard/fns/updateQuestionnaireAnswer";
 import { SingleChoiceOptions } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireCard/components/QuestionnaireStep/components/SingleChoiceOptions/SingleChoiceOptions";
 import { MultipleChoiceOptions } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireCard/components/QuestionnaireStep/components/MultipleChoiceOptions/MultipleChoiceOptions";
-import {
-  QuestionnaireStepFooter,
-  type QuestionnaireStepFooterProps,
-} from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireCard/components/QuestionnaireStep/components/QuestionnaireStepFooter/QuestionnaireStepFooter";
+import { QuestionnaireStepFooter } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireCard/components/QuestionnaireStep/components/QuestionnaireStepFooter/QuestionnaireStepFooter";
 
 type QuestionnaireAnswerAction = Parameters<
   typeof updateQuestionnaireAnswer
@@ -153,10 +150,7 @@ export function QuestionnaireStep({
 }
 
 // Single choice shows Skip until a custom answer is typed, then Submit.
-function getFooterActions(
-  allowMultiple: boolean,
-  hasOtherText: boolean,
-): QuestionnaireStepFooterProps["actions"] {
+function getFooterActions(allowMultiple: boolean, hasOtherText: boolean) {
   if (allowMultiple) {
     return "skipAndSubmit";
   }

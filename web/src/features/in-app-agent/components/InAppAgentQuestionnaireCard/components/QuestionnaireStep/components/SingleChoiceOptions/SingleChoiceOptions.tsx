@@ -79,14 +79,13 @@ export function SingleChoiceOptions({
             key={optionIndex}
             id={`${idPrefix}-${optionIndex}`}
             value={String(optionIndex)}
-            label={withRecommended(option.label, option.recommended)}
-            description={option.description}
+            option={option}
             isDisabled={isDisabled}
           />
         ))}
         <RadioOtherAnswerRow
           id={`${idPrefix}-${OTHER_VALUE}`}
-          isOpen={isOtherOpen}
+          isOtherOpen={isOtherOpen}
           otherText={answer.otherText}
           isDisabled={isDisabled}
           otherInputRef={otherInputRef}
@@ -105,19 +104,16 @@ function radioValue(selectedOptionIndexes: number[], isOtherOpen: boolean) {
   return selected === undefined ? "" : String(selected);
 }
 
-type RadioOptionRowProps = {
+type RadioOptionRowProps = Pick<SingleChoiceOptionsProps, "isDisabled"> & {
   id: string;
   value: string;
-  label: string;
-  description: string;
-  isDisabled: boolean;
+  option: InAppAgentQuestionnaireQuestion["options"][number];
 };
 
 function RadioOptionRow({
   id,
   value,
-  label,
-  description,
+  option,
   isDisabled,
 }: RadioOptionRowProps) {
   return (
@@ -126,25 +122,26 @@ function RadioOptionRow({
         <RadioGroup.Item id={id} value={value} disabled={isDisabled} />
       </span>
       <span className={OPTION_TEXT_CLASS_NAME}>
-        <span className="leading-5">{label}</span>
-        <span className="text-muted-foreground">{description}</span>
+        <span className="leading-5">
+          {withRecommended(option.label, option.recommended)}
+        </span>
+        <span className="text-muted-foreground">{option.description}</span>
       </span>
     </label>
   );
 }
 
-type RadioOtherAnswerRowProps = {
+type RadioOtherAnswerRowProps = Pick<
+  SingleChoiceOptionsProps,
+  "isOtherOpen" | "isDisabled" | "otherInputRef" | "onOtherTextChange"
+> & {
   id: string;
-  isOpen: boolean;
   otherText: string;
-  isDisabled: boolean;
-  otherInputRef: Ref<HTMLInputElement>;
-  onOtherTextChange: (otherText: string) => void;
 };
 
 function RadioOtherAnswerRow({
   id,
-  isOpen,
+  isOtherOpen,
   otherText,
   isDisabled,
   otherInputRef,
@@ -160,7 +157,7 @@ function RadioOtherAnswerRow({
           {OTHER_ANSWER_LABEL}
           <PencilLine aria-hidden className="text-muted-foreground icon-sm" />
         </span>
-        {isOpen ? (
+        {isOtherOpen ? (
           <OtherAnswerInput
             ref={otherInputRef}
             value={otherText}
