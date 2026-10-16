@@ -85,6 +85,17 @@ suffix to run there. Promote it to a required check once it has proven stable.
 - **Never filter `project_id` yourself.** The compile step injects
   `project_id = {projectId}` into every tenanted relation, so call sites pass
   only `projectId` (see `../repositories/environments.ts`).
+- **Read events through the logical `events` relation.**
+  Each `events` relation compiles to `events_core` unless a column reference
+  that resolves to it reads a column `events_core` truncates (`input`,
+  `output`, `metadata_values`, `input_length`, `output_length`); then that
+  relation becomes `events_full`. Metadata `=` / `startsWith` predicates on
+  `metadataValue` stay on `events_core` when
+  `metadataFilterIsEventsCoreSafe` accepts the value, as in the raw-SQL
+  builders. `*` / `e.*` over `events`, raw SQL text in a select that reads
+  it, and an unqualified truncated column with more than one relation in
+  scope are compile errors. Name `events_core` to read the truncated copy on
+  purpose; `events_core` / `events_full` stay selectable by name.
 - **Never filter `is_deleted` on a physical table yourself.** Tables that
   declare `softDelete` in the registry (`events_core`, `events_full`) get
   `is_deleted = 0` on every FROM/JOIN. A latest-version read (ordered by
@@ -142,7 +153,7 @@ db.selectFrom("observations")
 **Write a LIMIT BY** (`limitBy`):
 
 ```ts
-db.selectFrom("events_core")
+db.selectFrom("events")
   .$call(softDeleteAfterLimit())
   .select(["span_id", "project_id"])
   .orderBy("event_ts", "desc")
@@ -160,15 +171,18 @@ db.selectFrom("scores as s")
 // … from scores as s final
 ```
 
-**Select a metadata value** (`metadataValue` — lowers `metadata[key]` to a subscript of `metadataMap`, so the last duplicate key wins; like `mapValue`, a string key is bound and a `literal(...)` key is inlined):
+**Filter on a metadata value** (`metadataValue` — lowers `metadata[key]` to a subscript of `metadataMap`, so the last duplicate key wins; like `mapValue`, a string key is bound and a `literal(...)` key is inlined):
 
 ```ts
 const filterKey: string = input.metadataKey; // caller-supplied, so bound
-db.selectFrom("events_core as e")
-  .select((eb) => [metadataValue("e", literal("my_key")).as("my_val")])
+db.selectFrom("events as e")
+  .select("e.span_id")
   .where((eb) => eb(metadataValue("e", filterKey), "=", "x"));
-// select mapfromarrays(arrayreverse(e.metadata_names), arrayreverse(e.metadata_values))['my_key'] as my_val …
+// select e.span_id from events_core as e where … and mapfromarrays(arrayreverse(e.metadata_names), arrayreverse(e.metadata_values))[{p:String}] = {p:String}
 ```
+
+Selecting `metadataValue(...)` reads the truncated `metadata_values`, so it
+routes that relation to `events_full`.
 
 ## Developing the dialect
 

@@ -229,10 +229,19 @@ export function mapValue<V = number>(
   map: Expression<Record<string, V>>,
   key: string | Expression<string>,
 ): ChExpression<V> {
+  return subscript(map, key, false);
+}
+
+function subscript<V>(
+  map: Expression<Record<string, V>>,
+  key: string | Expression<string>,
+  metadataLookup: boolean,
+): ChExpression<V> {
   return new ExpressionWrapper<ClickHouseDatabase, keyof ClickHouseDatabase, V>(
     ArrayIndexNode.create(
       map.toOperationNode(),
       typeof key === "string" ? ValueNode.create(key) : key.toOperationNode(),
+      metadataLookup,
     ) as unknown as OperationNode,
   );
 }
@@ -370,6 +379,14 @@ export function greatest<T>(...values: Expression<T>[]): ChExpression<T> {
 /** ClickHouse `concat(a, b, …)`. */
 export function concat(...values: Expression<string>[]): ChExpression<string> {
   return functionCall("concat", values);
+}
+
+/** ClickHouse `startsWith(haystack, prefix)`, with `prefix` bound. */
+export function startsWith(
+  haystack: Expression<string>,
+  prefix: string,
+): ChExpression<SqlBool> {
+  return functionCall("startsWith", [haystack, ValueNode.create(prefix)]);
 }
 
 /** ClickHouse `length(array)`. */
@@ -648,9 +665,10 @@ export function metadataValue(
     new ExpressionWrapper<ClickHouseDatabase, "events_core", string[]>(
       qualifiedColumn(tableAlias, name),
     );
-  return mapValue<string>(
+  return subscript<string>(
     metadataMap(column("metadata_names"), column("metadata_values")),
     key,
+    true,
   );
 }
 
