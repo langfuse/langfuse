@@ -225,11 +225,12 @@ export const NotCalledTab = meta.story({
   args: ManyTools.input.args,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("tab", { name: "Called 6" })).toHaveAttribute(
-      "aria-selected",
-      "true",
+    await expect(
+      canvas.getByRole("tab", { name: /^Called\s*6$/ }),
+    ).toHaveAttribute("aria-selected", "true");
+    await userEvent.click(
+      canvas.getByRole("tab", { name: /^Not called\s*12$/ }),
     );
-    await userEvent.click(canvas.getByRole("tab", { name: "Not called 12" }));
     const firstRow = canvas.getByRole("button", {
       name: /langfuse_getPrompt$/,
     });

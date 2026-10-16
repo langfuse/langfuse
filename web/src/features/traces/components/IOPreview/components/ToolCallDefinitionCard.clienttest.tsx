@@ -88,9 +88,11 @@ describe("ToolCallDefinitionCard", () => {
 
   it("shows the Called / Not called switch only when both sides have tools", () => {
     const both = renderTools({ calledToolCount: 2, notCalledToolCount: 3 });
-    expect(screen.getByRole("tab", { name: "Called 2" })).toBeInTheDocument();
     expect(
-      screen.getByRole("tab", { name: "Not called 3" }),
+      screen.getByRole("tab", { name: /^Called\s*2$/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("tab", { name: /^Not called\s*3$/ }),
     ).toBeInTheDocument();
     both.unmount();
 
@@ -110,7 +112,7 @@ describe("ToolCallDefinitionCard", () => {
   it("defaults to the Called tab", () => {
     renderTools({ calledToolCount: 2, notCalledToolCount: 3 });
 
-    expect(screen.getByRole("tab", { name: "Called 2" })).toHaveAttribute(
+    expect(screen.getByRole("tab", { name: /^Called\s*2$/ })).toHaveAttribute(
       "aria-selected",
       "true",
     );
@@ -123,7 +125,7 @@ describe("ToolCallDefinitionCard", () => {
 
     expect(rowNumberOf("called_tool_1")).toBe("1.");
 
-    fireEvent.mouseDown(screen.getByRole("tab", { name: "Not called 3" }), {
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /^Not called\s*3$/ }), {
       button: 0,
     });
 
