@@ -3666,8 +3666,7 @@ export class OtelIngestionProcessor {
     attributes: Record<string, unknown>;
     prefixes: string[];
     excludedKeys?: Set<string>;
-    // Set for structured-metadata SDKs, which JSON-encode every value under
-    // this prefix.
+    /** decodedPrefix holds JSON-encoded values for structured-metadata SDKs */
     decodedPrefix?: string;
   }): Record<string, unknown> {
     const {
@@ -3717,13 +3716,7 @@ export class OtelIngestionProcessor {
     return metadata;
   }
 
-  // Spans exported by a Langfuse SDK major that opts into decoded per-key
-  // metadata. The SDK writes propagated metadata onto spans of every
-  // instrumentation scope, so decoding does not depend on the span's scope.
-  // The language comes from the request header, falling back to the OTel
-  // resource for exports relayed without Langfuse headers. Langfuse SDK spans
-  // carry the SDK version as their scope version; other spans rely on the
-  // request header, so pure OTel exports are never decoded.
+  /** shouldDecodeMetadataValues is true for spans of any scope exported by a structured-metadata Langfuse SDK major, versioned by the scope on langfuse-sdk spans and by the request header otherwise */
   private shouldDecodeMetadataValues(
     scopeSpan: any,
     resourceAttributes: Record<string, unknown>,
