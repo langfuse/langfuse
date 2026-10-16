@@ -7,7 +7,7 @@ import * as React from "react";
 import { Bookmark, Check, Clock, Parentheses, Search } from "lucide-react";
 
 import { cn } from "@/src/utils/tailwind";
-import { ScoreTag } from "@/src/components/score-tag";
+import { ScoreTag } from "@/src/components/ScoreTag";
 import type {
   CompletionOption,
   CompletionPlan,
