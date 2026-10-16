@@ -9,6 +9,7 @@ import {
   createTraceScore,
   deleteEventsByTraceIds,
   deleteScoresByTraceIds,
+  getBillableUnitCountsByProjectInRange,
   getBillableUnitCountsByProjectInWindow,
   queryClickhouse,
 } from "@langfuse/shared/src/server";
@@ -324,5 +325,49 @@ describe("getBillableUnitCountsByProjectInWindow", () => {
     await expect(
       getBillableUnitCountsByProjectInWindow({ windowFrom: T0, windowTo: T0 }),
     ).rejects.toThrow("must end after it starts");
+  });
+});
+
+describe("getBillableUnitCountsByProjectInRange", () => {
+  const T0 = new Date("2026-01-12T00:00:00.000Z");
+  const at = (offsetMs: number) => new Date(T0.getTime() + offsetMs);
+
+  it("sums the 15-minute windows instead of counting one long window", async (ctx) => {
+    await skipUnlessBillableEvents(ctx);
+    const projectId = randomUUID();
+    await insertBillableEvents(projectId, [
+      { eventType: "trace", eventId: "in-two-windows", at: at(MINUTE) },
+      { eventType: "trace", eventId: "in-two-windows", at: at(20 * MINUTE) },
+      // 23h40m before T0: inside the first window's lookback, but not inside
+      // the lookback of the third window (from 23h30m before T0), where it
+      // appears again and is billed. One hour-long window would not bill it.
+      {
+        eventType: "trace",
+        eventId: "outside-later-lookback",
+        at: at(-24 * HOUR + 20 * MINUTE),
+      },
+      {
+        eventType: "trace",
+        eventId: "outside-later-lookback",
+        at: at(30 * MINUTE),
+      },
+    ]);
+
+    expect(
+      await getBillableUnitCountsByProjectInRange({
+        from: T0,
+        to: at(HOUR),
+        projectId,
+      }),
+    ).toEqual([{ projectId, eventType: "trace", count: 2 }]);
+  });
+
+  it("rejects a range off the 15-minute boundaries", async () => {
+    await expect(
+      getBillableUnitCountsByProjectInRange({
+        from: at(5 * MINUTE),
+        to: at(HOUR),
+      }),
+    ).rejects.toThrow("whole 15-minute windows");
   });
 });

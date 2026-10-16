@@ -5,6 +5,9 @@ export type BillableEventType = "observation" | "trace" | "score";
 
 const BILLING_LOOKBACK_MS = 24 * 60 * 60 * 1000;
 
+/** Billing windows are 15 minutes long and start at :00, :15, :30 and :45. */
+export const BILLING_WINDOW_MS = 15 * 60 * 1000;
+
 /**
  * Counts the billable units per project and event type ingested in
  * `[windowFrom, windowTo)` of `billable_events.ingested_at`. Each unit counts
@@ -91,4 +94,61 @@ export const getBillableUnitCountsByProjectInWindow = async ({
     eventType: row.event_type,
     count: Number(row.count),
   }));
+};
+
+/**
+ * Counts the billable units per project and event type in `[from, to)` as the
+ * sum of its 15-minute billing windows. A longer range is never counted as one
+ * window, so an hourly total equals the four 15-minute totals ClickHouse
+ * Billing polls. `from` and `to` must fall on window boundaries.
+ */
+export const getBillableUnitCountsByProjectInRange = async ({
+  from,
+  to,
+  projectId,
+}: {
+  from: Date;
+  to: Date;
+  projectId?: string;
+}): Promise<
+  Array<{ projectId: string; eventType: BillableEventType; count: number }>
+> => {
+  if (
+    from.getTime() % BILLING_WINDOW_MS !== 0 ||
+    to.getTime() % BILLING_WINDOW_MS !== 0 ||
+    to.getTime() <= from.getTime()
+  ) {
+    throw new Error(
+      `Billing range must span whole 15-minute windows, got ${from.toISOString()} to ${to.toISOString()}`,
+    );
+  }
+
+  const totals = new Map<
+    string,
+    { projectId: string; eventType: BillableEventType; count: number }
+  >();
+  // One window at a time, so a range does not multiply concurrent load on
+  // ClickHouse.
+  for (
+    let windowStart = from.getTime();
+    windowStart < to.getTime();
+    windowStart += BILLING_WINDOW_MS
+  ) {
+    const rows = await getBillableUnitCountsByProjectInWindow({
+      windowFrom: new Date(windowStart),
+      windowTo: new Date(windowStart + BILLING_WINDOW_MS),
+      projectId,
+    });
+    for (const row of rows) {
+      const key = `${row.eventType}:${row.projectId}`;
+      const total = totals.get(key);
+      if (total) {
+        total.count += row.count;
+      } else {
+        totals.set(key, { ...row });
+      }
+    }
+  }
+
+  return [...totals.values()];
 };
