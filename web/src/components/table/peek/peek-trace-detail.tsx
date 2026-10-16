@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
 import { useRouter } from "next/router";
 import { useRef } from "react";

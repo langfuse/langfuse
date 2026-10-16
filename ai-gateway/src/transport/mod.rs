@@ -142,6 +142,7 @@ pub(crate) fn identity_encoding(headers: &HeaderMap) -> bool {
 
 pub(crate) fn relay<T: Send + 'static>(
     upstream: reqwest::Response,
+    provider: &'static str,
     deadline: Instant,
     stall_timeout: Duration,
     owner: T,
@@ -157,6 +158,7 @@ pub(crate) fn relay<T: Send + 'static>(
                 }
             })
         }),
+        provider,
         deadline,
         stall_timeout,
         owner,
@@ -168,6 +170,7 @@ pub(crate) fn relay<T: Send + 'static>(
 /// in either direction: no upstream chunk, or a downstream that stopped reading.
 fn relay_stream<S, T>(
     upstream: S,
+    provider: &'static str,
     deadline: Instant,
     stall_timeout: Duration,
     owner: T,
@@ -184,12 +187,14 @@ where
         "provider.stream",
         otel.kind = "internal",
         otel.status_code = tracing::field::Empty,
+        error.type = tracing::field::Empty,
         http.response.body.size = tracing::field::Empty,
         gateway.chunks = tracing::field::Empty,
         gateway.outcome = tracing::field::Empty,
     );
     let resources = Arc::new(StreamResources {
         relay: Mutex::new(Some(Relay {
+            provider,
             owner,
             capture,
             span,
@@ -264,6 +269,7 @@ where
 /// Everything the winning finalizer releases at once: admission and trusted
 /// context, the capture, and the stream span, which ends when it is dropped here.
 struct Relay<T> {
+    provider: &'static str,
     owner: T,
     capture: Option<ExecutionCapture>,
     span: tracing::Span,
@@ -289,23 +295,23 @@ impl<T> StreamResources<T> {
             let taken = relay.take();
             // Only the winning finalizer publishes the body failure. In
             // particular, a deadline racing downstream EOF cannot change it later.
-            if taken.is_some()
-                && matches!(
-                    outcome,
-                    RelayOutcome::Timeout | RelayOutcome::TransportError
-                )
-            {
+            if taken.is_some() && outcome.is_failure() {
                 self.failed.store(true, Ordering::Release);
             }
             (taken, outcome)
         };
         if let Some(Relay {
+            provider,
             owner,
             capture,
             span,
         }) = relay
         {
             self.record_outcome(&span, outcome);
+            crate::observability::response_body_size(
+                provider,
+                u64::try_from(self.bytes.load(Ordering::Relaxed)).unwrap_or(u64::MAX),
+            );
             drop(span);
             drop(owner);
             if let Some(mut capture) = capture {
@@ -323,11 +329,9 @@ impl<T> StreamResources<T> {
         );
         span.record("gateway.chunks", count(self.chunks.load(Ordering::Relaxed)));
         span.record("gateway.outcome", outcome.as_str());
-        if matches!(
-            outcome,
-            RelayOutcome::Timeout | RelayOutcome::TransportError
-        ) {
+        if outcome.is_failure() {
             span.record("otel.status_code", "ERROR");
+            span.record("error.type", outcome.as_str());
         }
     }
 
@@ -400,6 +404,7 @@ mod tests {
         for first in [RelayOutcome::Eof, RelayOutcome::Timeout] {
             let resources = StreamResources {
                 relay: Mutex::new(Some(Relay {
+                    provider: "test",
                     owner: (),
                     capture: None,
                     span: tracing::Span::none(),
@@ -425,6 +430,7 @@ mod tests {
     fn a_panic_while_updating_the_capture_fails_the_relay() {
         let resources = StreamResources {
             relay: Mutex::new(Some(Relay {
+                provider: "test",
                 owner: (),
                 capture: None,
                 span: tracing::Span::none(),
@@ -472,6 +478,7 @@ mod tests {
                 Ok(Bytes::from_static(b"partial")),
                 Err(ProviderError::Transport),
             ]),
+            "test",
             Instant::now() + Duration::from_secs(1),
             Duration::from_secs(10),
             Owner(released.clone()),
@@ -513,6 +520,7 @@ mod tests {
         let released = Arc::new(Notify::new());
         let body = relay_stream(
             upstream,
+            "test",
             Instant::now() + Duration::from_secs(10),
             Duration::from_secs(10),
             Owner(released.clone()),
@@ -532,6 +540,7 @@ mod tests {
         let bytes = Bytes::from_static(b"event: response.output_text.delta\ndata: hello\n\n");
         let body = relay_stream(
             stream::iter([Ok(bytes.clone()), Err(ProviderError::Transport)]),
+            "test",
             Instant::now() + Duration::from_secs(1),
             Duration::from_secs(10),
             Owner(released.clone()),
@@ -552,6 +561,7 @@ mod tests {
         let released = Arc::new(Notify::new());
         let body = relay_stream(
             stream::once(async { Ok(Bytes::from_static(b"final bytes")) }),
+            "test",
             Instant::now() + Duration::from_millis(30),
             Duration::from_secs(10),
             Owner(released.clone()),
@@ -569,6 +579,7 @@ mod tests {
         let started = Instant::now();
         let body = relay_stream(
             stream::once(async { Ok(Bytes::from_static(b"first")) }).chain(stream::pending()),
+            "test",
             started + Duration::from_secs(3600),
             Duration::from_secs(120),
             Owner(released.clone()),
@@ -593,6 +604,7 @@ mod tests {
             });
         let _body = relay_stream(
             upstream,
+            "test",
             started + Duration::from_secs(3600),
             Duration::from_secs(120),
             Owner(released.clone()),

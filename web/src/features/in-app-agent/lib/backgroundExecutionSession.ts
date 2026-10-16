@@ -3,6 +3,7 @@ import type { AgentSubscriber } from "@ag-ui/client";
 import {
   type AgUiContext,
   type AgUiMessage,
+  type InAppAgentToolInputs,
   type InAppAgentToolApprovalRequest,
   AgUiMessageSchema,
   InAppAgentRunErrorCode,
@@ -28,6 +29,7 @@ export type ApprovalDecision = {
   toolCallId: string;
   approved: boolean;
   approvalScope?: "once" | "conversation";
+  toolInputs?: InAppAgentToolInputs;
 };
 
 export type BackgroundExecutionRunView = {

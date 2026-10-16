@@ -23,6 +23,7 @@ import {
   SelectContent,
   SelectTrigger,
 } from "@/src/components/ui/select";
+import { withoutGatewayRole } from "@/src/features/ai-gateway/fns/separateGatewayApiKeys";
 import {
   ApiKeyExpirationInput,
   type ApiKeyExpirationPreset,
@@ -93,7 +94,7 @@ function ApiKeyCreateForm({
   onSubmit,
   isPending,
 }: Extract<ApiKeyCreateDialogContentProps, { type: "form" }>) {
-  const roles = apiKeyRolesForScope(scope);
+  const roles = withoutGatewayRole(apiKeyRolesForScope(scope));
   const { data: session } = useSession();
   const roleSelectionEnabled =
     (scope === "project"

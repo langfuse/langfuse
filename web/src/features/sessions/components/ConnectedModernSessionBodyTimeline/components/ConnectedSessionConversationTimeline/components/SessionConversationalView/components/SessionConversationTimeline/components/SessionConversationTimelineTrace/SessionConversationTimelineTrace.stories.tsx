@@ -3,13 +3,14 @@ import preview from "@/.storybook/preview";
 import { type ComponentProps } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { SessionConversationTimelineTrace } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
+import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
 
 type Props = ComponentProps<typeof SessionConversationTimelineTrace>;
 type TranscriptState = Extract<Props["state"], { type: "transcript" }>;
 type Thread = NonNullable<
   TranscriptState["result"]["transcript"]
 >["threads"][number];
-const trace: Props["trace"] = {
+const trace: EventSessionTrace = {
   id: "trace-1",
   name: "Weather assistant",
   timestamp: new Date("2026-09-24T12:00:00Z"),

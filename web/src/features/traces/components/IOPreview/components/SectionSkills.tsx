@@ -13,7 +13,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/src/components/ui/collapsible";
-import { InternalFeatureBadge } from "@/src/features/feature-flags";
 
 export function SectionSkills({ projectId, skills }: SectionSkillsProps) {
   const [isGroupExpanded, setGroupExpanded] = useState(false);
@@ -37,7 +36,7 @@ export function SectionSkills({ projectId, skills }: SectionSkillsProps) {
       <div className="flex items-center gap-2 px-1 py-1">
         <h3 className="io-message-header text-base font-bold">Skills</h3>
         <Badge color="filled" size="sm" text={String(groups.length)} />
-        <InternalFeatureBadge />
+        <Badge text="Beta" color="blue" size="sm" />
       </div>
       <Collapsible
         open={isGroupExpanded}

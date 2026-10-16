@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import capitalize from "lodash/capitalize";
 import router from "next/router";
 import { useState, useEffect, useMemo, useRef } from "react";

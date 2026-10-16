@@ -30,6 +30,7 @@ import {
 } from "@/src/features/public-api/server";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
+import { MCP_CLICKHOUSE_SETTINGS } from "../../../core/clickhouse-settings";
 import { clampToDataAccessDays } from "@/src/features/entitlements/server";
 import {
   ExpandMetadataKeysSchema,
@@ -52,7 +53,6 @@ const ObservationCursorSchema =
 
 const OBSERVATION_MAX_RANGE_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
 const EXPENSIVE_OBSERVATION_MAX_IO_LIMIT = 50;
-const MCP_OBSERVATIONS_MAX_EXECUTION_TIME_SECONDS = 25;
 
 const OBSERVATION_MCP_FILTER_COLUMN_TYPES = new Map(
   eventsTableCols
@@ -424,9 +424,7 @@ export const [listObservationsTool, handleListObservations] = defineTool({
             ),
           },
           {
-            clickhouseSettings: {
-              max_execution_time: MCP_OBSERVATIONS_MAX_EXECUTION_TIME_SECONDS,
-            },
+            clickhouseSettings: MCP_CLICKHOUSE_SETTINGS,
           },
         );
 

@@ -226,9 +226,7 @@ Required for a local run, in addition to Postgres, ClickHouse, and Redis:
    summaries whose source started in the last seven days. Initial discovery and later updates use this same
    operation. It does not load traces, summarize, or generate embeddings.
 4. Inspect the resulting summaries, names, representative examples, and outliers.
-   The inspector regenerates the shared transcript from current trace data and
-   reports unavailable source data. Non-applicable and insufficient-input
-   results remain separate from outliers.
+   Non-applicable and insufficient-input results remain separate from outliers.
 5. Process subsequent trace batches as they arrive. Update topics manually when
    ready to incorporate new evidence into the clustering and names.
 
@@ -300,7 +298,7 @@ not exact historical batch membership. A late older job may win by timestamp.
 ## Algorithm and queue recovery
 
 The worker loads each trace lazily, shares one in-memory transcript across facets,
-and releases it before the next trace. Worker and inspector use the same assembly.
+and releases it before the next trace.
 Accepted summary references resume without fetching source data; source snapshots,
 transcripts and model request bodies are not persisted.
 

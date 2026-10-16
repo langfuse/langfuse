@@ -8,7 +8,6 @@ import type { DetailTab } from "../contexts/SelectionContext";
 
 const labels: Record<DetailTab, string> = {
   preview: "Preview",
-  messages: "Messages",
   attributes: "Attributes",
   scores: "Scores",
   log: "Log View",
@@ -68,7 +67,6 @@ function LoadedTraceDetailTabsBarList({
             key={tab}
             value={tab}
             label={labels[tab]}
-            internal={tab === "messages"}
             tooltip={tab === "log" ? logViewDescription : undefined}
           />
         ))}

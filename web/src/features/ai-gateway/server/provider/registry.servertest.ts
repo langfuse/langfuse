@@ -38,7 +38,10 @@ describe("AI gateway provider registry", () => {
     const validator = vi
       .fn()
       .mockRejectedValue(new Error("invalid provider credential"));
-    const service = new GatewayProviderService({} as PrismaClient, validator);
+    const prisma = {
+      gatewayAiConnection: { findMany: vi.fn().mockResolvedValue([]) },
+    } as unknown as PrismaClient;
+    const service = new GatewayProviderService(prisma, validator);
 
     await expect(
       service.create({

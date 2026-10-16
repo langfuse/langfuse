@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 import { eventsSearchRegistry } from "../config/eventsSearchRegistry";
 import {
   useEventsSearchBar,

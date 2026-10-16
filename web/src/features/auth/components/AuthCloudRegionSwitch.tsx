@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { env } from "@/src/env.mjs";
 import { CloudRegionPicker } from "@/src/features/auth/components/CloudRegionPicker";
 import {

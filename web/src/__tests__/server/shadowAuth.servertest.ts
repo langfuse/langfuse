@@ -57,8 +57,9 @@ let originalCloudRegion: string | undefined;
 const reqWith = (
   headers: Record<string, string | undefined>,
   query: Record<string, string> = {},
+  url?: string,
 ): NextApiRequest =>
-  ({ headers, method: "GET", query }) as unknown as NextApiRequest;
+  ({ headers, method: "GET", query, url }) as unknown as NextApiRequest;
 
 const setMode = (mode: string) => {
   (env as any).API_AUTH_MIGRATION = mode;
@@ -107,7 +108,11 @@ const projectNestedUnderModes = async (
   action: ProjectAction = "apiKeys:read",
 ) => {
   const params: ShadowAuthParams = {
-    req: reqWith({ authorization }, { projectId: target }),
+    req: reqWith(
+      { authorization },
+      { projectId: target },
+      `/api/public/projects/${target}/apiKeys`,
+    ),
     action,
     allowedAccessLevels: ["organization"],
   };
@@ -517,6 +522,59 @@ describe("shadowAuth maps principals to legacy-identical scopes", () => {
     );
     expect(legacy).toMatchObject({ success: false, error: { httpCode: 403 } });
     expect(enforce).toMatchObject({ success: false, error: { httpCode: 403 } });
+  });
+
+  it("a project ADMIN key on a project-nested route authorizes only its own project in enforce", async () => {
+    const { apiKey, authorization } = await createUnassignedApiKey("PROJECT");
+    await prisma.roleAssignment.create({
+      data: {
+        orgId,
+        projectId,
+        apiKeyId: apiKey.id,
+        ownerId: `project/${projectId}`,
+        principalId: `apiKey/${apiKey.id}`,
+        roleId: "system/ADMIN",
+        systemRole: "ADMIN",
+      },
+    });
+    const sibling = await prisma.project.create({
+      data: { orgId, name: `sibling-${randomUUID()}` },
+    });
+
+    const own = await projectNestedUnderModes(
+      authorization,
+      projectId,
+      "apiKeys:CUD",
+    );
+    expect(scopeOf(own.enforce).projectId).toBe(projectId);
+
+    const foreign = await projectNestedUnderModes(
+      authorization,
+      sibling.id,
+      "apiKeys:CUD",
+    );
+    expect(foreign.legacy).toMatchObject({
+      success: false,
+      error: { httpCode: 403 },
+    });
+    expect(foreign.enforce).toMatchObject({
+      success: false,
+      error: { httpCode: 403 },
+    });
+  });
+
+  it("a project key ignores a query-string projectId naming another project", async () => {
+    const { legacy, enforce } = await resultsUnderModes({
+      req: reqWith(
+        { authorization: projectAuth },
+        { projectId: "llm-app" },
+        "/api/public/ingestion?projectId=llm-app",
+      ),
+      action: "traces:create",
+      allowedAccessLevels: ["project"],
+    });
+    expect(scopeOf(legacy).projectId).toBe(projectId);
+    expect(scopeOf(enforce).projectId).toBe(projectId);
   });
 
   it("an organization key is granted project:read on a project it owns", async () => {

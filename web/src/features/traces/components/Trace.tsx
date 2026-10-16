@@ -39,6 +39,11 @@ import { useHasProjectAccess } from "@/src/features/rbac";
 import { staleProps } from "@/src/features/traces/fns/staleProps";
 import { cn } from "@/src/utils/tailwind";
 import { SkeletonGroup } from "@/src/components/ui/skeleton";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
+import { useReadPath } from "@/src/features/events";
+import { StringParam, useQueryParam } from "use-query-params";
+import { TraceMessagesView } from "./TraceMessagesView/TraceMessagesView";
 
 export type TraceProps = {
   isLoading?: false;
@@ -227,6 +232,12 @@ function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
   const isMobile = useIsMobile();
   const { isGraphViewAvailable } = useTraceGraphData();
   const { isPlaceholderData } = useTraceData();
+  const [traceView, setTraceView] = useQueryParam("traceView", StringParam);
+  const internalFeaturesEnabled = useInternalFeaturesEnabled();
+  const { isV4 } = useReadPath();
+  const showMessagesTab = isV4 && internalFeaturesEnabled;
+  const activeView =
+    showMessagesTab && traceView === "messages" ? "messages" : "trace";
   const stale = staleProps(isPlaceholderData);
 
   const panels = isMobile ? (
@@ -241,7 +252,31 @@ function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
       className={cn(traceContentClassName, stale.className)}
     >
       <TraceHeader />
-      <div className="min-h-0 flex-1">{panels}</div>
+      {showMessagesTab ? (
+        <Tabs
+          value={activeView}
+          onValueChange={(value) => {
+            if (value === "messages") setTraceView("messages", "pushIn");
+            if (value === "trace") setTraceView(undefined, "pushIn");
+          }}
+          layout="fill"
+        >
+          <Tabs.List variant="underline">
+            <Tabs.Trigger value="trace" label="Trace" />
+            <Tabs.Trigger value="messages" label="Messages" internal />
+          </Tabs.List>
+          <Tabs.Content value="trace" layout="fill">
+            {panels}
+          </Tabs.Content>
+          <Tabs.Content value="messages" layout="fill">
+            <div className="min-h-0 flex-1 p-4">
+              <TraceMessagesView />
+            </div>
+          </Tabs.Content>
+        </Tabs>
+      ) : (
+        <div className="min-h-0 flex-1">{panels}</div>
+      )}
     </div>
   );
 }

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 /** Cost and token metrics for the trace, observation and session headers; breakdowns open on hover. */
 
 import { TriangleAlert } from "lucide-react";

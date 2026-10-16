@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { RefreshCw, ChevronDown } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import {

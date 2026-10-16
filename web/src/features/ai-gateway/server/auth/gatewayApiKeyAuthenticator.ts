@@ -1,7 +1,6 @@
 import type { GatewayProvider, PrismaClient } from "@langfuse/shared/src/db";
 import { ApiKeyId, OrganizationId } from "@langfuse/shared/rbac";
 
-import { env } from "@/src/env.mjs";
 import { authorize } from "@/src/features/rbac/authorize";
 import { getRolesForPrincipal } from "@/src/features/rbac/getRolesForPrincipal";
 import { isGatewayEnabledForOrganization } from "@/src/features/ai-gateway/server/availability";
@@ -129,8 +128,8 @@ export class GatewayApiKeyAuthenticator {
       providers: supportedProviders(params.apiFormat),
     });
 
-    const organizationId = row?.apiKey.orgId;
-    const organization = row?.apiKey.organization;
+    const organizationId = row?.orgId;
+    const organization = row?.organization;
     if (!row || !organizationId || !organization) {
       await this.cache.set({
         fastHashedSecretKey: params.fastHashedSecretKey,
@@ -148,8 +147,8 @@ export class GatewayApiKeyAuthenticator {
       project?.orgId === organizationId;
     const context: CachedResolveContext = {
       organizationId,
-      apiKeyId: row.apiKeyId,
-      keyMetadata: toKeyMetadata(row.metadata),
+      apiKeyId: row.id,
+      keyMetadata: toKeyMetadata(row.gatewayAssociation?.metadata),
       ingestionProjectId: projectIsUsable
         ? (gatewayConfig?.defaultIngestionProjectId ?? null)
         : null,
@@ -160,15 +159,15 @@ export class GatewayApiKeyAuthenticator {
       })),
     };
 
-    if (env.API_AUTH_MIGRATION === "enforce") {
-      await assertCanInvokeGateway(this.prisma, row.apiKeyId, organizationId);
-    }
+    // Any organization key may call the gateway when its roles grant
+    // gateway:invoke, so this check must not depend on API_AUTH_MIGRATION.
+    await assertCanInvokeGateway(this.prisma, row.id, organizationId);
 
     await this.cache.set({
       fastHashedSecretKey: params.fastHashedSecretKey,
       apiFormat: params.apiFormat,
       context,
-      expiresAt: row.apiKey.expiresAt,
+      expiresAt: row.expiresAt,
     });
     return context;
   }
