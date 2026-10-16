@@ -647,6 +647,7 @@ describe("Topics definition persistence", () => {
         1,
         embedding,
         oldRange,
+        { maxRows: 1, maxBytes: 1024 * 1024 },
       ),
       getTopicSummaryCounts(
         projectId,

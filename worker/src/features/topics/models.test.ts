@@ -8,7 +8,19 @@ const state = vi.hoisted(() => ({
   increment: vi.fn(),
   project: vi.fn(),
   traceSink: vi.fn(),
+  encoding: null as {
+    encode: ReturnType<typeof vi.fn>;
+    free: ReturnType<typeof vi.fn>;
+  } | null,
 }));
+vi.mock("tiktoken", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("tiktoken")>();
+  return {
+    ...actual,
+    get_encoding: (...args: Parameters<typeof actual.get_encoding>) =>
+      state.encoding ?? actual.get_encoding(...args),
+  };
+});
 vi.mock("@langfuse/shared/src/env", () => ({ env: state.env }));
 vi.mock("@langfuse/shared/src/server", () => ({
   getLangfuseAITraceSinkParams: state.traceSink,
@@ -26,13 +38,28 @@ vi.mock("@langfuse/shared/topics/server", () => ({
 
 import {
   embedTopicSummaries,
-  nameTopicGroup,
+  nameTopicGroup as namePreparedTopicGroup,
+  prepareTopicNamingGroup,
   summarizeTopicTrace,
   summarizeTopicTraceFacets,
 } from "./models";
 import { topicProcessingConfigSchema } from "@langfuse/shared/topics";
 import { LLMAdapter } from "@langfuse/shared";
 import type { TopicsModel, TopicsModels } from "@langfuse/shared/topics/server";
+
+async function nameTopicGroup(
+  models: TopicsModels,
+  group: Parameters<typeof prepareTopicNamingGroup>[0],
+  metadata?: Record<string, unknown>,
+  conflict?: Parameters<typeof namePreparedTopicGroup>[3],
+) {
+  return namePreparedTopicGroup(
+    models,
+    await prepareTopicNamingGroup(group, "naming-test"),
+    metadata,
+    conflict,
+  );
+}
 
 function slot(slot: TopicsModel["slot"], model: string): TopicsModel {
   return {
@@ -67,8 +94,8 @@ const facet = {
 
 const evidence = {
   members: [
-    { id: "member-a", summary: "The user requests an invoice." },
-    { id: "member-b", summary: "The user requests billing corrections." },
+    { id: "m1", summary: "The user requests an invoice." },
+    { id: "m2", summary: "The user requests billing corrections." },
   ],
   contrasts: [{ id: "contrast", summary: "The user requests translation." }],
 };
@@ -81,6 +108,7 @@ beforeEach(() => {
   state.project.mockReset().mockResolvedValue({
     organization: { aiFeaturesEnabled: true, aiTelemetryEnabled: true },
   });
+  state.encoding = null;
   state.traceSink.mockReset().mockImplementation((params) => ({
     targetProjectId: "ai-features",
     traceId: "a".repeat(32),
@@ -391,7 +419,7 @@ describe("Topics naming boundary", () => {
 
   it("names the complete cohort without shortening member summaries", async () => {
     const members = Array.from({ length: 400 }, (_, index) => ({
-      id: String(index).padStart(48, "0"),
+      id: `m${index + 1}`,
       summary: `Request ${index}: ${"Invoice request details. ".repeat(60)} END-${index}`,
     }));
     state.call.mockResolvedValue({
@@ -425,12 +453,189 @@ describe("Topics naming boundary", () => {
     expect(submitted.members).toEqual(members);
   });
 
+  it("names complete sampled summaries, reuses them for renames and rejects omitted citations", async () => {
+    state.encoding = {
+      encode: vi.fn((text: string) => ({
+        length:
+          (text.match(/NAMING_MEMBER/g)?.length ?? 0) * 220_000 + text.length,
+      })),
+      free: vi.fn(),
+    };
+    const makeGroup = () => ({
+      members: Array.from({ length: 12 }, (_, index) => ({
+        summary: `NAMING_MEMBER invoice request ${index}.`,
+      })),
+      contrasts: [],
+    });
+    const group = makeGroup();
+    const prepared = await prepareTopicNamingGroup(group, "run-a/group-a");
+    expect(state.encoding.free).toHaveBeenCalledOnce();
+    expect(prepared.sampled).toBe(true);
+    expect(prepared.members.length).toBeGreaterThan(0);
+    expect(prepared.members.length).toBeLessThan(group.members.length);
+    expect(new Set(prepared.members.map(({ id }) => id)).size).toBe(
+      prepared.members.length,
+    );
+    expect(prepared.members).toEqual(
+      (await prepareTopicNamingGroup(makeGroup(), "run-a/group-a")).members,
+    );
+    expect(prepared.members).not.toEqual(
+      (await prepareTopicNamingGroup(makeGroup(), "run-b/group-a")).members,
+    );
+    for (const member of prepared.members)
+      expect(group.members[Number(member.id.slice(1)) - 1].summary).toBe(
+        member.summary,
+      );
+    state.call.mockImplementation(async ({ input }) => ({
+      output: {
+        name: "Invoice requests",
+        description: "Requests involving invoices.",
+        evidenceSummaryIds: [JSON.parse(input).members[0].id],
+      },
+      usage: {},
+    }));
+    const first = await namePreparedTopicGroup(topicsModels(), prepared);
+    expect(state.call).toHaveBeenCalledOnce();
+    const renamed = await namePreparedTopicGroup(
+      topicsModels(),
+      prepared,
+      undefined,
+      {
+        name: "Billing support",
+        description: "Support for billing problems.",
+        summaries: [
+          "NAMING_MEMBER too large for the retry reserve.",
+          "A billing question.",
+        ],
+      },
+    );
+    const [initialRequest, renameRequest] = state.call.mock.calls.map(
+      ([request]) => JSON.parse(request.input),
+    );
+    expect(initialRequest.members).toEqual(prepared.members);
+    expect(renameRequest.members).toEqual(initialRequest.members);
+    expect(renameRequest.conflictingTopic.summaries).toEqual([
+      "A billing question.",
+    ]);
+    expect(first.usageDetails.naming_input).toBe(prepared.inputTokens);
+    expect(renamed.usageDetails.naming_input).toBeGreaterThan(
+      prepared.inputTokens,
+    );
+    expect(renamed.usageDetails.naming_input).toBeLessThanOrEqual(900_000);
+    expect(first.providedUsageDetails).toEqual({});
+
+    const omittedId = Array.from(
+      { length: group.members.length },
+      (_, index) => `m${index + 1}`,
+    ).find((id) => !prepared.members.some((member) => member.id === id));
+    state.call.mockResolvedValueOnce({
+      output: {
+        name: "Invoice requests",
+        description: "Requests involving invoices.",
+        evidenceSummaryIds: [omittedId],
+      },
+      usage: { inputTokens: 100, outputTokens: 30 },
+    });
+    await expect(
+      namePreparedTopicGroup(topicsModels(), prepared),
+    ).rejects.toThrow("Evidence must cite a submitted cluster member.");
+  });
+
+  it("skips individually oversized members and fails before inference when none fit", async () => {
+    state.encoding = {
+      encode: vi.fn((text: string) => ({
+        length: text.includes("OVERSIZED") ? 1_000_000 : text.length,
+      })),
+      free: vi.fn(),
+    };
+    const prepared = await prepareTopicNamingGroup(
+      {
+        members: [
+          { summary: "OVERSIZED" },
+          { summary: "A complete invoice question." },
+        ],
+        contrasts: [{ id: "contrast", summary: "OVERSIZED" }],
+      },
+      "oversized",
+    );
+    expect(prepared.members.map(({ summary }) => summary)).toEqual([
+      "A complete invoice question.",
+    ]);
+    expect(prepared.contrasts).toEqual([]);
+    await expect(
+      prepareTopicNamingGroup(
+        { members: [{ summary: "OVERSIZED" }], contrasts: [] },
+        "oversized",
+      ),
+    ).rejects.toThrow("No complete cluster member summary fits");
+    expect(state.call).not.toHaveBeenCalled();
+    expect(state.encoding.free).toHaveBeenCalledTimes(2);
+  });
+
+  it("bounds serialized bytes independently of token estimates", async () => {
+    state.encoding = {
+      encode: vi.fn(() => ({ length: 1 })),
+      free: vi.fn(),
+    };
+    const summary = "x".repeat(1024 * 1024);
+    const group = {
+      members: Array.from({ length: 17 }, () => ({ summary })),
+      contrasts: [],
+    };
+    const prepared = await prepareTopicNamingGroup(group, "byte-budget");
+    expect(prepared.sampled).toBe(true);
+    expect(prepared.members.length).toBeGreaterThan(0);
+    expect(prepared.members.length).toBeLessThan(group.members.length);
+    expect(Buffer.byteLength(prepared.input)).toBeLessThanOrEqual(
+      16 * 1024 * 1024,
+    );
+    expect(prepared.members.every((member) => member.summary === summary)).toBe(
+      true,
+    );
+    expect(
+      state.encoding.encode.mock.calls.every(([text]) => text.length <= 4096),
+    ).toBe(true);
+  });
+
+  it("yields while preparing escaped summaries and preserves complete text", async () => {
+    state.encoding = {
+      encode: vi.fn((text: string) => ({ length: text.length })),
+      free: vi.fn(),
+    };
+    let elapsed = 0;
+    const time = vi
+      .spyOn(performance, "now")
+      .mockImplementation(() => (elapsed += 2));
+    let ticked = false;
+    const heartbeat = setImmediate(() => {
+      ticked = true;
+    });
+    const summary = `${"x".repeat(4095)}😀\u0000\n\"\\${"y".repeat(12_000)}`;
+    try {
+      const prepared = await prepareTopicNamingGroup(
+        { members: [{ summary }], contrasts: [] },
+        "yield",
+      );
+      expect(ticked).toBe(true);
+      expect(JSON.parse(prepared.input).members).toEqual([
+        { id: "m1", summary },
+      ]);
+      expect(state.encoding.free).toHaveBeenCalledOnce();
+      expect(
+        state.encoding.encode.mock.calls.every(([text]) => text.length <= 4096),
+      ).toBe(true);
+    } finally {
+      clearImmediate(heartbeat);
+      time.mockRestore();
+    }
+  });
+
   it("traces conflict renames separately and passes the conflicting topic", async () => {
     state.call.mockResolvedValue({
       output: {
         name: "Invoice corrections",
         description: "Requests to correct invoices.",
-        evidenceSummaryIds: ["member-b"],
+        evidenceSummaryIds: ["m2"],
       },
       usage: {},
     });
@@ -453,7 +658,7 @@ describe("Topics naming boundary", () => {
       output: {
         name: " Invoice assistance ",
         description: "Invoice requests.",
-        evidenceSummaryIds: ["member-a"],
+        evidenceSummaryIds: ["m1"],
       },
       usage: {},
     });
@@ -464,14 +669,14 @@ describe("Topics naming boundary", () => {
       output: {
         name: "Invoice assistance",
         description: "   ",
-        evidenceSummaryIds: ["member-a"],
+        evidenceSummaryIds: ["m1"],
       },
       usage: {},
     });
     await expect(nameTopicGroup(topicsModels(), evidence)).rejects.toThrow();
   });
 
-  it.each([["contrast"], ["member-a", "member-b", "member-a", "member-b"]])(
+  it.each([["contrast"], ["m1", "m2", "m1", "m2"]])(
     "rejects contrast or excess evidence: %j",
     async (...evidenceSummaryIds) => {
       state.call.mockResolvedValue({
@@ -520,7 +725,7 @@ describe("Topics naming boundary", () => {
           output: {
             name: "Billing",
             description: "Billing requests.",
-            evidenceSummaryIds: ["member-a"],
+            evidenceSummaryIds: ["m1"],
           },
           usage: {},
         });

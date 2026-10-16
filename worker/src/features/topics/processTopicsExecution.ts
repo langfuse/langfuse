@@ -1,3 +1,4 @@
+import { setImmediate as yieldToEventLoop } from "node:timers/promises";
 import { isInternalEvalEnvironment, logger } from "@langfuse/shared/src/server";
 import {
   isTopicsEnabled,
@@ -41,7 +42,11 @@ import {
 } from "@langfuse/shared/topics";
 import pLimit from "p-limit";
 import { env } from "../../env";
-import { summarizeTopicTrace, nameTopicGroup } from "./models";
+import {
+  summarizeTopicTrace,
+  nameTopicGroup,
+  prepareTopicNamingGroup,
+} from "./models";
 import {
   isRejectedConnection,
   pauseForRejectedConnection,
@@ -347,51 +352,63 @@ async function assignSummaries(
   assignedAt = new Date().toISOString(),
 ) {
   return metrics.measure("assignment", async () => {
-    const rows = topicAssignmentRows({
-      projectId: execution.projectId,
-      facet: { facetId: facet.facetId, version: facet.version },
-      embeddingConfig: execution.input.embeddingConfig,
-      summaries,
-      run,
-      origin: execution.input.operation === "process" ? "online" : "initial",
-      assignedAt,
-      coordinates,
-    });
-    await metrics.measure(
-      "storage",
-      () => writeTopicAssignments(rows),
-      "storage",
-    );
-    const visible =
-      execution.input.operation === "update" && rows.length
-        ? await readTopicAssignments(
-            execution.projectId,
-            { facetId: facet.facetId, version: facet.version },
-            summaries,
-            run.id,
-            summaryTimeRange(summaries),
-          )
-        : [];
-    const visibleByTrace = new Map(visible.map((row) => [row.traceId, row]));
-    if (
-      execution.input.operation === "update" &&
-      rows.some((row) => {
-        const persisted = visibleByTrace.get(row.traceId);
-        return (
-          !persisted ||
-          persisted.topicId !== row.topicId ||
-          persisted.topicVersionId !== row.topicVersionId ||
-          persisted.summaryProcessedAt !== row.summaryProcessedAt
+    let assignedCount = 0;
+    // Keep classification and readback scratch bounded independently of cohort size.
+    for (let start = 0; start < summaries.length; start += 1000) {
+      const batch = summaries.slice(start, start + 1000);
+      const rows: ReturnType<typeof topicAssignmentRows> = [];
+      for (let offset = 0; offset < batch.length; offset += 64) {
+        rows.push(
+          ...topicAssignmentRows({
+            projectId: execution.projectId,
+            facet: { facetId: facet.facetId, version: facet.version },
+            embeddingConfig: execution.input.embeddingConfig,
+            summaries: batch.slice(offset, offset + 64),
+            run,
+            origin:
+              execution.input.operation === "process" ? "online" : "initial",
+            assignedAt,
+            coordinates,
+          }),
         );
-      })
-    )
-      throw new Error(
-        "Topic assignments are not fully visible; map publication is deferred.",
+        await yieldToEventLoop();
+      }
+      await metrics.measure(
+        "storage",
+        () => writeTopicAssignments(rows),
+        "storage",
       );
-    progress.counts.assigned = rows.filter(
-      (row) => row.topicId !== null,
-    ).length;
-    progress.counts.outlier = rows.length - progress.counts.assigned;
+      if (execution.input.operation === "update") {
+        const visible = await readTopicAssignments(
+          execution.projectId,
+          { facetId: facet.facetId, version: facet.version },
+          batch,
+          run.id,
+          summaryTimeRange(batch),
+        );
+        const visibleByTrace = new Map(
+          visible.map((row) => [row.traceId, row]),
+        );
+        if (
+          rows.some((row) => {
+            const persisted = visibleByTrace.get(row.traceId);
+            return (
+              !persisted ||
+              persisted.topicId !== row.topicId ||
+              persisted.topicVersionId !== row.topicVersionId ||
+              persisted.summaryProcessedAt !== row.summaryProcessedAt
+            );
+          })
+        )
+          throw new Error(
+            "Topic assignments are not fully visible; map publication is deferred.",
+          );
+      }
+      assignedCount += rows.filter((row) => row.topicId !== null).length;
+      await yieldToEventLoop();
+    }
+    progress.counts.assigned = assignedCount;
+    progress.counts.outlier = summaries.length - assignedCount;
     metrics.result("assignment", "assigned", progress.counts.assigned);
     metrics.result("assignment", "outlier", progress.counts.outlier);
   });
@@ -482,9 +499,9 @@ async function clusterFacet(
     const prototypes =
       numeric.status === "no_topics"
         ? []
-        : retainPopulatedTopics(
+        : await retainPopulatedTopics(
             summaries,
-            buildTopicPrototypes(summaries, numeric.labels).map(
+            (await buildTopicPrototypes(summaries, numeric.labels)).map(
               (prototype) => ({
                 ...prototype,
                 id: topicHash([run.id, prototype.id]).slice(0, 48),
@@ -530,51 +547,59 @@ async function clusterFacet(
         facetRef,
         previous.id,
         previousTimeRange,
+        env.LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS,
       );
-      const [previousSummaries, previousAssignments] = await Promise.all([
-        listTopicSummaries(
-          execution.projectId,
-          {
-            facetId: facet.facetId,
-            facetVersion: facet.version,
-            traceIds: previousTraceIds,
-          },
-          previousTimeRange,
-        ),
-        readTopicAssignments(
-          execution.projectId,
-          facetRef,
-          previousTraceIds.map((traceId) => ({ traceId, sessionId: null })),
-          previous.id,
-          previousTimeRange,
-        ),
-      ]);
-      const byTrace = new Map(
-        previousSummaries.map((row) => [row.traceId, row]),
-      );
+      const previousMemberships: {
+        traceId: string;
+        topicVersionId: string | null;
+      }[] = [];
+      for (let start = 0; start < previousTraceIds.length; start += 1000) {
+        const traceIds = previousTraceIds.slice(start, start + 1000);
+        const [previousSummaries, previousAssignments] = await Promise.all([
+          listTopicSummaries(
+            execution.projectId,
+            { facetId: facet.facetId, facetVersion: facet.version, traceIds },
+            previousTimeRange,
+          ),
+          readTopicAssignments(
+            execution.projectId,
+            facetRef,
+            traceIds.map((traceId) => ({ traceId, sessionId: null })),
+            previous.id,
+            previousTimeRange,
+          ),
+        ]);
+        const eligible = new Set(previousSummaries.map((row) => row.traceId));
+        for (const row of previousAssignments) {
+          if (row.traceId !== null && eligible.has(row.traceId))
+            previousMemberships.push({
+              traceId: row.traceId,
+              topicVersionId: row.topicVersionId,
+            });
+        }
+      }
+      const candidateMemberships: {
+        traceId: string;
+        topicVersionId: string | null;
+      }[] = [];
+      let yieldedAt = performance.now();
+      for (const summary of summaries) {
+        if (summary.traceId === null)
+          throw new Error("Topics processing requires a trace summary.");
+        candidateMemberships.push({
+          traceId: summary.traceId,
+          topicVersionId: classifyTopic(summary.embedding, prototypes).topicId,
+        });
+        if (performance.now() - yieldedAt >= 8) {
+          await yieldToEventLoop();
+          yieldedAt = performance.now();
+        }
+      }
       candidates = matchTopicContinuity({
         previousTopics: previous.topics,
         candidateTopics: candidates,
-        previousMemberships: previousAssignments.flatMap((row) => {
-          const summary = byTrace.get(row.traceId);
-          return summary && summary.traceId !== null
-            ? [
-                {
-                  traceId: summary.traceId,
-                  topicVersionId: row.topicVersionId,
-                },
-              ]
-            : [];
-        }),
-        candidateMemberships: summaries.map((summary) => {
-          if (summary.traceId === null)
-            throw new Error("Topics processing requires a trace summary.");
-          return {
-            traceId: summary.traceId,
-            topicVersionId: classifyTopic(summary.embedding, prototypes)
-              .topicId,
-          };
-        }),
+        previousMemberships,
+        candidateMemberships,
         exploratory: execution.input.exploratory,
         compatibleEmbeddingSpace: compatiblePrevious,
       });
@@ -596,9 +621,9 @@ async function clusterFacet(
       return candidate;
     });
     // Final version IDs also determine the serving classifier's distance ties.
-    const evidence = buildNamingEvidence(
+    const evidence = await buildNamingEvidence(
       summaries,
-      retainPopulatedTopics(
+      await retainPopulatedTopics(
         summaries,
         candidates.map((candidate) => ({
           id: candidate.topicVersionId,
@@ -626,23 +651,21 @@ async function clusterFacet(
         continue;
       }
       const label = await metrics.measure("naming", async () => {
-        const members = new Map(
-          group.members.map((summary, index) => [`m${index + 1}`, summary]),
-        );
-        const label = await nameGroupAvoidingConflicts(
-          metrics,
-          models,
-          named,
+        const prepared = await prepareTopicNamingGroup(
           {
-            members: Array.from(members, ([id, { summary }]) => ({
-              id,
-              summary,
-            })),
+            members: group.members,
             contrasts: group.contrasts.map((member, index) => ({
               id: `c${index + 1}`,
               summary: member.summary,
             })),
           },
+          topicHash([run.id, group.id]),
+        );
+        const label = await nameGroupAvoidingConflicts(
+          metrics,
+          models,
+          named,
+          prepared,
           {
             facet_id: facet.facetId,
             facet_name: facetName,
@@ -650,13 +673,17 @@ async function clusterFacet(
             execution_id: execution.id,
             run_id: run.id,
             group_id: group.id,
+            effective_member_count: group.count,
+            selected_member_count: prepared.members.length,
           },
         );
         return {
           ...label,
+          selectedMemberCount: prepared.members.length,
+          namingSampled: prepared.sampled,
           representativeSummaries: label.evidenceSummaryIds.map((id) => {
             const { facetId, facetVersion, traceId, sessionId } =
-              members.get(id)!;
+              group.members[Number(id.slice(1)) - 1];
             return {
               facetId,
               facetVersion,
@@ -681,6 +708,8 @@ async function clusterFacet(
         metadata: {
           ...candidate.metadata,
           effectiveMemberCount: group.count,
+          selectedMemberCount: label.selectedMemberCount,
+          namingSampled: label.namingSampled,
           namingModel: models.clustering.model,
         },
       });
@@ -1099,6 +1128,10 @@ async function updateTopics(
         facet.version,
         execution.input.embeddingConfig,
         execution.input.timeRange,
+        {
+          maxRows: env.LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS,
+          maxBytes: env.LANGFUSE_TOPICS_MAX_CLUSTERING_BYTES,
+        },
       );
       countSummaries(progress, summaries);
       progress.counts.requested = summaries.length;

@@ -382,16 +382,32 @@ Numerical results are held in memory until their assignments and coordinates are
 saved in ClickHouse. An unpublished attempt is rerun from scratch after failure.
 
 The synchronous native fit runs in a credential-free Node child process with a
-120-second kill deadline and output limits proportional to cohort size. No trace
-count cap is imposed. Exact neighbor search has quadratic cost; large cohorts
-can exceed the deadline. Map coordinates are repeatable on the same platform
+120-second kill deadline and output limits proportional to cohort size. Discovery
+admission defaults to 20,000 summaries and a 256 MiB input budget per facet,
+controlled by `LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS` and
+`LANGFUSE_TOPICS_MAX_CLUSTERING_BYTES`. A metadata count rejects excessive rows
+or embedding payload before loading vectors; the streamed read also enforces
+rows and bytes to cover large texts and changes after the count. Exceeding a
+limit fails the update with a smaller-window message; discovery never silently
+samples a cohort. These are initial capacity limits, not a guarantee about
+container RSS: parent/child serialization, native fitting, and concurrent queue
+jobs need additional headroom. Exact neighbor search has quadratic cost; admitted
+cohorts can still exceed the deadline. Map coordinates are repeatable on the same platform
 and build, but are not a compatibility contract across backends or architectures.
 Synthetic cohorts do not establish topic quality; validate representative data
 before expanding deployment.
 
 The same classifier determines initial and later memberships. Naming sees its
-effective populations: every member's full facet summary, plus three nearby
-contrasts. Each group gets one naming call with no tool loop. If the name is
+effective populations: all full member summaries that fit the naming request,
+plus up to three nearby contrasts. Oversized groups use a seeded random traversal
+of their members, retaining whole summaries that fit; this is not a sample of
+the numerical fitting population. Variable-length summaries make this a random
+order with a fitting budget, not an equal-probability fixed-size sample. The
+selection is repeatable for the same run/group and reused by the conflict retry.
+Its additional memory is bounded by the selected prompt; no per-trace cache
+survives the request. Vector calculations reuse per-pass scratch space and yield
+between batches so queue timers can run. Each group gets one naming call with no
+tool loop. If the name is
 already taken in the run, one `topics-naming-conflict` call sees the conflicting
 topic and is asked for a distinguishing name; a name that still repeats is kept,
 since topics are keyed by ID. Member evidence references are validated before
@@ -470,7 +486,13 @@ Embedding costs use Bedrock-reported input tokens at $0.12/million. Missing usag
 is logged and omitted from usage/cost maps, never estimated with an OpenAI tokenizer.
 Model prices and token budgets live in [models.ts](models.ts) and the shared
 Topics contracts. Summary input defaults to 120,000 tokens. Oversized naming
-input fails before calling the provider; member summaries are never silently discarded.
+input is limited to 900,000 estimated tokens and 16 MiB of serialized input.
+The token cap is an application ceiling, not a guarantee that every configured
+model supports that context. Selection reserves bounded space for a conflict
+retry; contrast and conflicting examples are omitted whole when they exceed
+their ancillary budgets. Member text is never truncated, and a group with no
+fitting member fails before inference. Definition metadata records the full
+population and the selected count separately.
 Provider calls retry 429 and 5xx responses twice. Embedding queue jobs retry transient failures
 up to three attempts with exponential backoff; authentication and invalid
 input/output failures stop immediately. A manual resume can retry a failed batch
@@ -487,8 +509,10 @@ no applicable summaries from insufficient data.
 Automatic processing starts only a facet version's first discovery; there is no
 refit schedule yet. The planned six-hour scheduler should invoke the same update
 path as the manual button.
-Large per-project discovery, all-member naming, and distributed stream processing
-remain follow-up work; this is not a 100-million-traces/day throughput validation.
+Large per-project fitting and distributed stream processing remain follow-up
+work; this is not a 100-million-traces/day throughput validation. The incoming
+trace path uses bounded batches; naming and discovery limits apply to individual
+project/facet updates. No process-wide summary or embedding cache is used.
 
 Trace deletion removes stored facet summaries (including embeddings), assignments
 and map coordinates through the existing batched ClickHouse deletion path.
