@@ -18,7 +18,7 @@ use super::request::{ErrorOrigin, RequestObservation, Summary};
 /// Instrument application routes; mount health probes outside this router.
 pub fn instrument(router: Router) -> Router {
     router
-        .layer(middleware::from_fn(record_http_duration))
+        .layer(middleware::from_fn(observe_request))
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(|request: &Request<Body>| {
@@ -53,7 +53,7 @@ pub fn instrument(router: Router) -> Router {
         )
 }
 
-async fn record_http_duration(mut request: Request<Body>, next: Next) -> Response {
+async fn observe_request(mut request: Request<Body>, next: Next) -> Response {
     let (method, route) = request_labels(&request);
     let (method, route) = (method.to_owned(), route.to_owned());
     let observation = RequestObservation::default();
