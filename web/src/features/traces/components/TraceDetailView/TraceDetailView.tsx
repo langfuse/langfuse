@@ -310,32 +310,43 @@ function LoadedTraceDetailView({
     setSelectedTab(value as DetailTab);
   };
 
-  const selectedCustomUiData = selectedCustomUi
-    ? buildTraceVisualizationData(
-        selectedCustomUi.definition,
-        {
-          id: trace.id,
-          name: trace.name,
-          timestamp: trace.timestamp,
-          latency: trace.latency,
-          input: parsedInput,
-          output: parsedOutput,
-          metadata: parsedMetadata,
-          environment: trace.environment,
-          tags: trace.tags,
-        },
-        observations.map((observation) => ({
-          id: observation.id,
-          name: observation.name,
-          type: observation.type,
-          startTime: observation.startTime,
-          endTime: observation.endTime,
-          level: observation.level,
-          statusMessage: observation.statusMessage,
-          metadata: observation.metadata,
-        })),
-      )
-    : null;
+  const selectedCustomUiData = useMemo(
+    () =>
+      selectedCustomUi
+        ? buildTraceVisualizationData(
+            selectedCustomUi.definition,
+            {
+              id: trace.id,
+              name: trace.name,
+              timestamp: trace.timestamp,
+              latency: trace.latency,
+              input: parsedInput,
+              output: parsedOutput,
+              metadata: parsedMetadata,
+              environment: trace.environment,
+              tags: trace.tags,
+            },
+            observations.map((observation) => ({
+              id: observation.id,
+              name: observation.name,
+              type: observation.type,
+              startTime: observation.startTime,
+              endTime: observation.endTime,
+              level: observation.level,
+              statusMessage: observation.statusMessage,
+              metadata: observation.metadata,
+            })),
+          )
+        : null,
+    [
+      selectedCustomUi,
+      trace,
+      parsedInput,
+      parsedOutput,
+      parsedMetadata,
+      observations,
+    ],
+  );
 
   return (
     <CommentDrawerController
@@ -643,15 +654,7 @@ function LoadedTraceDetailView({
                 <div className="ph-no-capture min-h-0 flex-1 overflow-auto p-4">
                   {selectedCustomUi && selectedCustomUiData ? (
                     <section className="space-y-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <h3 className="text-sm font-bold">
-                            {selectedCustomUi.definition.title}
-                          </h3>
-                          <p className="text-muted-foreground text-xs">
-                            {selectedCustomUi.definition.summary}
-                          </p>
-                        </div>
+                      <div className="space-y-1">
                         <CustomUiPicker
                           items={traceVisualizations.map((item) => ({
                             versionId: item.versionId,
@@ -659,8 +662,17 @@ function LoadedTraceDetailView({
                             version: item.version,
                           }))}
                           selectedVersionId={selectedCustomUi.versionId}
-                          onSelectedVersionChange={setSelectedCustomUiVersionId}
+                          onSelectedVersionChange={(versionId) => {
+                            if (versionId === null) {
+                              handleTabChange("preview");
+                            } else {
+                              setSelectedCustomUiVersionId(versionId);
+                            }
+                          }}
                         />
+                        <p className="text-muted-foreground text-xs">
+                          {selectedCustomUi.definition.summary}
+                        </p>
                       </div>
                       <VisualizationRenderer
                         definition={selectedCustomUi.definition}

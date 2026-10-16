@@ -168,6 +168,7 @@ export function SessionConversationTimelineTrace({
       {state.type === "transcript" && (
         <SessionTranscriptContent
           {...state}
+          onOpenTrace={onOpenTrace}
           onOpenObservation={onOpenObservation}
           scrollTarget={scrollTarget}
           threadIndex={threadIndex}

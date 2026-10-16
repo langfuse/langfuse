@@ -1,11 +1,18 @@
 import { SessionTimelinePart } from "./components/SessionTimelinePart/SessionTimelinePart";
 import { Codeblock } from "@/src/components/design-system/Codeblock/Codeblock";
 import { assertUnreachable } from "@langfuse/shared";
-import { Fragment, useState, type ComponentProps, type ReactNode } from "react";
+import {
+  Fragment,
+  useMemo,
+  useState,
+  type ComponentProps,
+  type ReactNode,
+} from "react";
 import { type TranscriptMessageGroup } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/groupTranscriptMessages";
 import { getSessionTranscriptRows } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/getSessionTranscriptRows";
 import { getSessionTranscriptThreads } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/getSessionTranscriptThreads";
 import { SessionTimelineToolRow } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTranscriptContent/components/SessionTimelineToolRow/SessionTimelineToolRow";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { Wrench } from "lucide-react";
 import { getSessionToolOutputPreview } from "./components/SessionTimelineToolRow/getSessionToolOutputPreview";
 import { type NormalizedMessage } from "@langfuse/shared/src/utils/normalized-io";
@@ -33,6 +40,7 @@ type SessionVisualization =
 
 export function SessionTranscriptContent({
   result,
+  onOpenTrace,
   onOpenObservation,
   scrollTarget,
   threadIndex: selectedThreadIndex,
@@ -41,6 +49,7 @@ export function SessionTranscriptContent({
 }: {
   threadIndex?: number;
   result: Extract<SessionTraceTranscriptState, { state: "loaded" }>;
+  onOpenTrace: () => void;
   onOpenObservation: (observationId: string) => void;
   scrollTarget: {
     observationId: string;
@@ -98,6 +107,7 @@ export function SessionTranscriptContent({
               </h3>
             )}
             <SessionTranscriptThread
+              onOpenTrace={onOpenTrace}
               rows={rows.filter((row) => row.threadIndex === threadIndex)}
               onOpenObservation={onOpenObservation}
               scrollTarget={scrollTarget}
@@ -112,6 +122,7 @@ export function SessionTranscriptContent({
             {renderSessionObservationVisualizations({
               observation,
               visualizations,
+              onOpenTrace,
             })}
           </Fragment>
         ))}
@@ -130,12 +141,14 @@ type DisplayMessage = NormalizedMessage & {
 
 function SessionTranscriptThread({
   rows,
+  onOpenTrace,
   onOpenObservation,
   scrollTarget,
   visualizations,
   visualizationObservationsById,
 }: {
   rows: ReturnType<typeof getSessionTranscriptRows>;
+  onOpenTrace: () => void;
   onOpenObservation: (observationId: string) => void;
   scrollTarget: {
     observationId: string;
@@ -207,6 +220,7 @@ function SessionTranscriptThread({
         >
           {group.type === "tools" ? (
             <SessionTranscriptToolGroup
+              onOpenTrace={onOpenTrace}
               summary={group.summary}
               title={group.title}
               rows={group.rows}
@@ -233,6 +247,7 @@ function SessionTranscriptThread({
               {renderSessionObservationVisualizations({
                 observation: visualizationObservationsById.get(observationId),
                 visualizations,
+                onOpenTrace,
               })}
             </Fragment>
           ))}
@@ -244,7 +259,9 @@ function SessionTranscriptThread({
 function renderSessionObservationVisualizations({
   observation,
   visualizations,
+  onOpenTrace,
 }: {
+  onOpenTrace: () => void;
   observation: ObservationVisualizationTarget | undefined;
   visualizations: SessionVisualization[];
 }) {
@@ -254,43 +271,90 @@ function renderSessionObservationVisualizations({
   );
   if (matches.length === 0) return null;
   return (
-    <SessionObservationCustomUi observation={observation} matches={matches} />
+    <SessionObservationCustomUi
+      observation={observation}
+      matches={matches}
+      onOpenTrace={onOpenTrace}
+    />
   );
 }
 
 function SessionObservationCustomUi({
   observation,
   matches,
+  onOpenTrace,
 }: {
+  onOpenTrace: () => void;
   observation: ObservationVisualizationTarget;
   matches: SessionVisualization[];
 }) {
-  const [selectedVersionId, setSelectedVersionId] = useState<string>();
+  const [selectedVersionId, setSelectedVersionId] = useState<string | null>();
   const selected =
     matches.find((item) => item.versionId === selectedVersionId) ?? matches[0]!;
+  const data = useMemo(
+    () =>
+      buildObservationVisualizationData(
+        selected.definition,
+        observation,
+        "SESSION",
+      ),
+    [selected.definition, observation],
+  );
   return (
     <section className="ph-no-capture mt-3 space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h3 className="text-xs font-bold">{selected.definition.title}</h3>
         <CustomUiPicker
           items={matches.map((item) => ({
             versionId: item.versionId,
             title: item.definition.title,
             version: item.version,
           }))}
-          selectedVersionId={selected.versionId}
+          selectedVersionId={
+            selectedVersionId === null ? null : selected.versionId
+          }
           onSelectedVersionChange={setSelectedVersionId}
         />
+        <Button
+          text="Open trace"
+          variant="ghost"
+          size="sm"
+          onClick={onOpenTrace}
+        />
       </div>
-      <VisualizationRenderer
-        definition={selected.definition}
-        data={buildObservationVisualizationData(
-          selected.definition,
-          observation,
-          "SESSION",
-        )}
-        deferUntilVisible
-      />
+      {selectedVersionId === null ? (
+        <div className="space-y-3">
+          {observation.input !== undefined && (
+            <div className="space-y-1">
+              <h4 className="text-xs font-bold">Input</h4>
+              <div className="flex max-h-96 min-w-0 flex-col">
+                <Codeblock
+                  label="Input"
+                  value={observation.input}
+                  allowFormatting
+                />
+              </div>
+            </div>
+          )}
+          {observation.output !== undefined && (
+            <div className="space-y-1">
+              <h4 className="text-xs font-bold">Output</h4>
+              <div className="flex max-h-96 min-w-0 flex-col">
+                <Codeblock
+                  label="Output"
+                  value={observation.output}
+                  allowFormatting
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <VisualizationRenderer
+          definition={selected.definition}
+          data={data}
+          deferUntilVisible
+        />
+      )}
     </section>
   );
 }

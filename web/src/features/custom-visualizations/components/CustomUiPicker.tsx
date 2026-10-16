@@ -15,38 +15,39 @@ export function CustomUiPicker({
   onSelectedVersionChange,
 }: {
   items: CustomUiPickerItem[];
-  selectedVersionId: string;
-  onSelectedVersionChange: (versionId: string) => void;
+  selectedVersionId: string | null;
+  onSelectedVersionChange: (versionId: string | null) => void;
 }) {
-  const options = items.map((item) => ({
-    value: item.versionId,
-    label: item.title,
-    badges: [{ text: `v${item.version}`, color: "filled" as const }],
-  }));
-
-  if (items.length <= 1) {
-    return (
-      <span className="text-muted-foreground shrink-0 text-[10px]">
-        v{items[0]?.version ?? 1}
-      </span>
-    );
-  }
+  const standardViewValue = "__standard_view";
+  const options = [
+    { value: standardViewValue, label: "Standard view" },
+    ...items.map((item) => ({
+      value: item.versionId,
+      label: item.title,
+      badges: [{ text: `v${item.version}`, color: "filled" as const }],
+    })),
+  ];
 
   return (
     <SelectDropdown
-      value={selectedVersionId}
+      value={selectedVersionId ?? standardViewValue}
       options={options}
-      onValueChange={onSelectedVersionChange}
-      aria-label="Choose Custom UI"
+      onValueChange={(value) =>
+        onSelectedVersionChange(value === standardViewValue ? null : value)
+      }
+      aria-label="Choose view"
     >
       {({ getTriggerProps, selectedLabel }) => (
         <button
           {...getTriggerProps()}
           type="button"
-          className="text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-ring inline-flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-xs focus-visible:ring-2 focus-visible:outline-hidden"
+          className="text-foreground hover:bg-muted focus-visible:ring-ring inline-flex min-w-52 items-center gap-1.5 rounded-md px-2 py-1 text-xs font-bold focus-visible:ring-2 focus-visible:outline-hidden"
         >
           <Layers3 className="icon-base shrink-0" />
-          <span className="max-w-52 truncate" title={selectedLabel}>
+          <span
+            className="max-w-52 flex-1 truncate text-left"
+            title={selectedLabel}
+          >
             {selectedLabel}
           </span>
           <DropdownIndicator />

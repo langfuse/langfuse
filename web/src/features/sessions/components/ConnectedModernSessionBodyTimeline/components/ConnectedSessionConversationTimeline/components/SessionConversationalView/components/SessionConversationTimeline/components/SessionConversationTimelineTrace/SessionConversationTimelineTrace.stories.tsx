@@ -1,6 +1,8 @@
 import type { JsonValue } from "@langfuse/shared/src/utils/normalized-io";
 import preview from "@/.storybook/preview";
-import { type ComponentProps } from "react";
+import { useState, type ComponentProps } from "react";
+import { Button } from "@/src/components/design-system/Button/Button";
+import { TOOL_STARTER } from "@/src/features/custom-visualizations/types";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { SessionConversationTimelineTrace } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
 
@@ -1355,6 +1357,118 @@ export const HealthyToolGroup = meta.story({
     ).toBeVisible();
     await expect(
       canvas.queryByLabelText(/Tool group:/),
+    ).not.toBeInTheDocument();
+  },
+});
+
+export const CustomUiPreservesExpandedDetail = meta.story({
+  name: "(Test) Custom UI Preserves Expanded Detail",
+  args: {
+    ...commonArgs,
+    onOpenTrace: fn(),
+    state: transcriptState({ messages: [], history: [] }),
+    visualizationObservations: [
+      {
+        id: "generation-1",
+        traceId: trace.id,
+        parentObservationId: null,
+        name: "tool",
+        type: "TOOL",
+        environment: "default",
+        level: "DEFAULT",
+        input: null,
+        output: { answer: "Result stays visible" },
+        metadata: null,
+        startTime: trace.timestamp,
+        endTime: null,
+        statusMessage: null,
+      },
+    ],
+    visualizations: [
+      {
+        id: "custom-ui-1",
+        name: "Structured result",
+        versionId: "custom-ui-version-1",
+        version: 1,
+        definition: {
+          ...TOOL_STARTER,
+          title: "Structured result",
+          placement: {
+            surface: "SESSION",
+            slot: "OBSERVATION_OUTPUT",
+            destinations: ["SESSION"],
+            injection: "AFTER",
+            anchor: {},
+          },
+          spec: {
+            root: "root",
+            elements: {
+              root: {
+                type: "Stack",
+                props: { gap: "md" },
+                children: ["detail"],
+              },
+              detail: {
+                type: "Json",
+                props: {
+                  label: "Result details",
+                  value: { $state: "/data/selectedValue" },
+                  collapsed: true,
+                },
+                children: [],
+              },
+            },
+          },
+        },
+      },
+    ],
+  },
+  render: function Render(args) {
+    const [turnNumber, setTurnNumber] = useState(1);
+    return (
+      <>
+        <Button
+          text="Update turn number"
+          onClick={() => setTurnNumber((value) => value + 1)}
+        />
+        <SessionConversationTimelineTrace {...args} turnNumber={turnNumber} />
+      </>
+    );
+  },
+  play: async ({ canvas, canvasElement, args }) => {
+    const summary = await canvas.findByText("Result details");
+    await userEvent.click(summary);
+    await expect(summary.closest("details")).toHaveAttribute("open");
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Update turn number" }),
+    );
+    await waitFor(() => {
+      expect(
+        canvas.getByText("Result details").closest("details"),
+      ).toHaveAttribute("open");
+    });
+
+    const overlays = within(canvasElement.ownerDocument.body);
+    const picker = canvas.getByRole("combobox", { name: "Choose view" });
+    await userEvent.click(picker);
+    await userEvent.click(
+      await overlays.findByRole("option", { name: "Standard view" }),
+    );
+    await expect(canvas.queryByText("Result details")).not.toBeInTheDocument();
+    await expect(canvas.getByText("Output", { exact: true })).toBeVisible();
+    await expect(picker).toHaveTextContent("Standard view");
+    await userEvent.click(
+      canvas.getAllByRole("button", { name: "Open trace" }).at(-1)!,
+    );
+    await expect(args.onOpenTrace).toHaveBeenCalled();
+
+    await userEvent.click(picker);
+    await userEvent.click(
+      await overlays.findByRole("option", { name: /Structured result/ }),
+    );
+    await expect(await canvas.findByText("Result details")).toBeVisible();
+    await expect(
+      canvas.queryByText("Output", { exact: true }),
     ).not.toBeInTheDocument();
   },
 });

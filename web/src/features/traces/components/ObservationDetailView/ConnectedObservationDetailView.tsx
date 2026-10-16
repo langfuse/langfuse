@@ -345,12 +345,21 @@ export function ConnectedObservationDetailView({
       refetchOnWindowFocus: false,
     },
   );
-  const visualizationObservation = {
-    ...observation,
-    input: parsedInput ?? observationWithIOCompat.data?.input,
-    output: parsedOutput ?? observationWithIOCompat.data?.output,
-    metadata: parsedMetadata ?? observationWithIOCompat.data?.metadata,
-  };
+  const visualizationObservation = useMemo(
+    () => ({
+      ...observation,
+      input: parsedInput ?? observationWithIOCompat.data?.input,
+      output: parsedOutput ?? observationWithIOCompat.data?.output,
+      metadata: parsedMetadata ?? observationWithIOCompat.data?.metadata,
+    }),
+    [
+      observation,
+      parsedInput,
+      parsedOutput,
+      parsedMetadata,
+      observationWithIOCompat.data,
+    ],
+  );
   const observationVisualizations =
     activeVisualizations.data?.filter(({ definition }) =>
       matchesObservationVisualization(
@@ -363,6 +372,17 @@ export function ConnectedObservationDetailView({
     observationVisualizations.find(
       (item) => item.versionId === selectedCustomUiVersionId,
     ) ?? observationVisualizations[0];
+  const selectedCustomUiData = useMemo(
+    () =>
+      selectedCustomUi
+        ? buildObservationVisualizationData(
+            selectedCustomUi.definition,
+            visualizationObservation,
+            "TRACE",
+          )
+        : null,
+    [selectedCustomUi, visualizationObservation],
+  );
   const isCustomVisualizationView =
     selectedTab === "preview" &&
     showCustomVisualization &&
@@ -539,17 +559,9 @@ export function ConnectedObservationDetailView({
             <Tabs.Content value="preview" layout="fill">
               {isCustomVisualizationView ? (
                 <div className="ph-no-capture flex min-h-0 w-full flex-1 flex-col gap-5 overflow-auto p-4">
-                  {selectedCustomUi ? (
+                  {selectedCustomUi && selectedCustomUiData ? (
                     <section className="space-y-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <h3 className="text-sm font-bold">
-                            {selectedCustomUi.definition.title}
-                          </h3>
-                          <p className="text-muted-foreground text-xs">
-                            {selectedCustomUi.definition.summary}
-                          </p>
-                        </div>
+                      <div className="space-y-1">
                         <CustomUiPicker
                           items={observationVisualizations.map((item) => ({
                             versionId: item.versionId,
@@ -557,16 +569,21 @@ export function ConnectedObservationDetailView({
                             version: item.version,
                           }))}
                           selectedVersionId={selectedCustomUi.versionId}
-                          onSelectedVersionChange={setSelectedCustomUiVersionId}
+                          onSelectedVersionChange={(versionId) => {
+                            if (versionId === null) {
+                              setShowCustomVisualization(false);
+                            } else {
+                              setSelectedCustomUiVersionId(versionId);
+                            }
+                          }}
                         />
+                        <p className="text-muted-foreground text-xs">
+                          {selectedCustomUi.definition.summary}
+                        </p>
                       </div>
                       <VisualizationRenderer
                         definition={selectedCustomUi.definition}
-                        data={buildObservationVisualizationData(
-                          selectedCustomUi.definition,
-                          visualizationObservation,
-                          "TRACE",
-                        )}
+                        data={selectedCustomUiData}
                       />
                     </section>
                   ) : null}
