@@ -1,30 +1,41 @@
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { Tag, TagShell } from "@/src/components/design-system/Tag/Tag";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
-import { TagButton } from "@/src/features/tag/components/TagButton";
 import { TagIcon } from "lucide-react";
 
 type TagListProps = {
   selectedTags: string[];
   isLoading: boolean;
   viewOnly?: boolean;
-  isTableCell?: boolean;
 };
 
 const TagList = ({
   selectedTags,
   isLoading,
   viewOnly = false,
-  isTableCell = false,
 }: TagListProps) => {
-  return selectedTags.length > 0 || viewOnly ? (
+  if (viewOnly) {
+    return selectedTags.map((tag) => (
+      <span key={tag} className="inline-flex max-w-40 min-w-0">
+        <Tag text={tag} icon={TagIcon} />
+      </span>
+    ));
+  }
+
+  return selectedTags.length > 0 ? (
     selectedTags.map((tag) => (
-      <TagButton
-        key={tag}
-        tag={tag}
-        loading={isLoading}
-        viewOnly={viewOnly}
-        isTableCell={isTableCell}
-      />
+      <TagShell asChild key={tag}>
+        <button
+          type="button"
+          disabled={isLoading}
+          className="focus-visible:ring-ring hover:bg-accent w-fit max-w-40 min-w-0 focus-visible:ring-2 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <TagIcon className="text-foreground-tertiary icon-sm shrink-0" />
+          <span className="truncate py-0.5" title={tag}>
+            {tag}
+          </span>
+        </button>
+      </TagShell>
     ))
   ) : (
     <Tooltip label="Add tag" hoverableContent={false}>
