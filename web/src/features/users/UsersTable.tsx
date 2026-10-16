@@ -640,6 +640,7 @@ export function UsersTable({
               onColumnOrderChange={handleColumnOrderChange}
               cellPadding="comfortable"
               onRowClick={(row) => {
+                if (!row.userId) return;
                 router.push(userDetailPath(row.userId));
               }}
             />
