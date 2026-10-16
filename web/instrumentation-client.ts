@@ -8,6 +8,7 @@ import {
   isReactDevtoolsInternalEvent,
   isStaleChunkLoadErrorEvent,
   isStaleChunkParseErrorEvent,
+  isWitnessAiLoggerEvent,
   STALE_CHUNK_LOAD_FINGERPRINT,
   STALE_CHUNK_PARSE_FINGERPRINT,
 } from "@/src/utils/sentryFilters";
@@ -72,6 +73,13 @@ Sentry.init({
     // `dom-shim.js`. Same-origin injectors miss `denyUrls`. See
     // isKitesurfInternalEvent.
     if (isKitesurfInternalEvent(event)) {
+      return null;
+    }
+
+    // Drop WitnessAI (wtns.ai) DLP logger flushes that 401 and reject as
+    // `HTTP error! status: N`. Document-attributed stacks miss denyUrls.
+    // See isWitnessAiLoggerEvent.
+    if (isWitnessAiLoggerEvent(event)) {
       return null;
     }
 
