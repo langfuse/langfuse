@@ -171,24 +171,26 @@ describe("range calendar first-click selection (LFE-8156)", () => {
 });
 
 describe("TimeRangePicker calendar", () => {
+  const onTimeRangeChange = vi.fn();
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date(2026, 9, 16, 12));
+    onTimeRangeChange.mockClear();
   });
   afterEach(() => {
     vi.useRealTimers();
   });
 
-  it("keeps a started range across months when the parent re-renders with an equal preset", () => {
-    const onTimeRangeChange = vi.fn();
-    const props = {
-      onTimeRangeChange,
-      timeRangePresets: ["last7Days"],
-      maxRangeMs: 90 * 86_400_000,
-    };
+  const props = {
+    onTimeRangeChange,
+    timeRangePresets: ["last7Days", "last30Days"],
+    maxRangeMs: 90 * 86_400_000,
+  };
+
+  const startRangeOnAugust10 = () => {
     // Callers commonly build `{ range }` inline, so every parent render passes
     // a new object for the same preset.
-    const { rerender } = render(
+    const view = render(
       <TimeRangePicker {...props} timeRange={{ range: "last7Days" }} />,
       { wrapper: TooltipProvider },
     );
@@ -198,6 +200,11 @@ describe("TimeRangePicker calendar", () => {
     fireEvent.click(screen.getByRole("button", { name: /previous month/i }));
     clickDay(/August 10th, 2026/);
     expect(ariaOf(/August 10th, 2026/)).toContain("selected");
+    return view;
+  };
+
+  it("keeps a started range across months when the parent re-renders with an equal preset", () => {
+    const { rerender } = startRangeOnAugust10();
 
     rerender(<TimeRangePicker {...props} timeRange={{ range: "last7Days" }} />);
     expect(ariaOf(/August 10th, 2026/)).toContain("selected");
@@ -210,5 +217,14 @@ describe("TimeRangePicker calendar", () => {
       from: new Date(2026, 7, 10),
       to: new Date(2026, 9, 14, 23, 59, 59, 999),
     });
+  });
+
+  it("drops a started range when the parent switches to a different range", () => {
+    const { rerender } = startRangeOnAugust10();
+
+    rerender(
+      <TimeRangePicker {...props} timeRange={{ range: "last30Days" }} />,
+    );
+    expect(ariaOf(/August 10th, 2026/)).not.toContain("selected");
   });
 });

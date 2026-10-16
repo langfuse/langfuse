@@ -348,9 +348,7 @@ export function TimeRangePicker({
   // Convert TimeRange to DateRange for internal use
   const dateRange = timeRange && "from" in timeRange ? timeRange : undefined;
 
-  // The committed range expressed as a react-day-picker DateRange: a custom
-  // range as-is, a named preset as its current absolute window (presets
-  // re-evaluate to "now"), otherwise none.
+  /** Committed range as a DateRange; a preset resolves to its window ending now. */
   const committedDateRange = useMemo<RDPDateRange | undefined>(() => {
     if (rangeType === "custom") {
       return dateRange;
@@ -365,14 +363,20 @@ export function TimeRangePicker({
     return undefined;
   }, [rangeType, timeRange, dateRange]);
 
-  // The user's edits while the popover is open, shown instead of the committed
-  // range. It is dropped whenever the popover opens or closes, never in
-  // response to props: callers often pass an equal but new `timeRange` object
-  // on every render, which must not clear a half-finished range.
-  const [draftDateRange, setDraftDateRange] = useState<RDPDateRange | null>(
-    null,
-  );
-  const internalDateRange = draftDateRange ?? committedDateRange;
+  /** Committed range by value, so an equal but new `timeRange` object keeps the draft. */
+  const committedKey = dateRange
+    ? `${dateRange.from.getTime()}-${dateRange.to.getTime()}`
+    : (namedRangeValue ?? "");
+
+  /** Uncommitted calendar edits, dropped when the popover toggles or the committed range changes. */
+  const [draft, setDraft] = useState<{
+    committedKey: string;
+    range: RDPDateRange;
+  } | null>(null);
+  const internalDateRange =
+    draft?.committedKey === committedKey ? draft.range : committedDateRange;
+  const setDraftDateRange = (range: RDPDateRange) =>
+    setDraft({ committedKey, range });
 
   // Disable future dates by default, plus any additional disabled prop.
   // When a custom range is mid-selection, also disable days that would complete
@@ -492,9 +496,7 @@ export function TimeRangePicker({
 
   const handleOpenChange = useCallback((open: boolean) => {
     setIsOpen(open);
-    // Each open starts from the committed range, so an abandoned first click
-    // is never extended later.
-    setDraftDateRange(null);
+    setDraft(null);
     if (open) {
       setTab("presets");
     }
