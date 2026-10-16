@@ -11,3 +11,10 @@ scripts/code-eval-runners/
 # path-only, so the whole file is skipped; list further traced *.lock.yml files
 # here individually rather than widening to a glob.
 .github/workflows/dependabot-security-maintainer.lock.yml
+
+# cargo-about templates rendering the plain-text license notices shipped in the
+# Rust images at build time. Triple braces keep crate names and license texts
+# from being HTML-escaped; the output is never served as HTML, so the mustache
+# explicit-unescape XSS rule does not apply.
+ai-gateway/about.hbs
+packages/native/about.hbs

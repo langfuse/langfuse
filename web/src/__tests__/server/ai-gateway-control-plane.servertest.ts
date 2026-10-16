@@ -226,7 +226,7 @@ describe("AI gateway control plane", () => {
   it.each([
     {
       productUrl: "https://staging.langfuse.com",
-      gatewayUrl: "https://gateway.staging.langfuse.com/v1",
+      gatewayUrl: "https://staging.langfuse.com",
     },
     {
       productUrl: "http://localhost:3000",
