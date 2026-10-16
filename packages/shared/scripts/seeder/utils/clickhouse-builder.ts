@@ -96,6 +96,7 @@ export class ClickHouseQueryBuilder {
       idPrefix?: string;
       anchorSeconds?: number;
       seed?: number;
+      traceNameBytes?: number;
     } = { numberOfDays: 1 },
   ): string {
     // Escape file content if provided
@@ -130,7 +131,7 @@ export class ClickHouseQueryBuilder {
       SELECT
         concat('${idPrefix}trace-bulk-', toString(number), '-${idSuffix}') AS id,
         toDateTime(${anchorSeconds} - intDiv(number * ${spreadSeconds}, ${Math.max(count, 1)})) AS timestamp,
-        arrayElement(['chat-completion','summarize-document','extract-entities','embed-documents','classify-intent','generate-title','translate-text','moderate-content','rerank-results','answer-question'], 1 + (number % 10)) AS name,
+        concat(arrayElement(['chat-completion','summarize-document','extract-entities','embed-documents','classify-intent','generate-title','translate-text','moderate-content','rerank-results','answer-question'], 1 + (number % 10)), repeat('x', ${opts.traceNameBytes ?? 0})) AS name,
         if(h1 % 10 < 3, concat('${idPrefix}user_', toString(h1 % 1000)), NULL) AS user_id,
         ${this.buildNestedMetadataMapSql(["'generated'", "'bulk'"])} AS metadata,
         NULL AS release,
