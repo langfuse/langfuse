@@ -951,7 +951,7 @@ jobs:
         # invocation, so they run in their own parallel job below.
         env:
           NODE_COMPILE_CACHE: /tmp/node-compile-cache
-        run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project server --project server-isolated --project server-shared-source --project server-unit --project server-shared-source-unit --maxWorkers="${VITEST_MAX_WORKERS:-8}"
+        run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project 'server*' --maxWorkers="${VITEST_MAX_WORKERS:-8}"
       - name: Langfuse server log
         # The server writes to a file rather than the job log, so surface it
         # when something failed — a test that fails for a server-side reason is
