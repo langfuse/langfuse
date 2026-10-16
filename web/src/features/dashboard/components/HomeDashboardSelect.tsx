@@ -48,7 +48,7 @@ export function HomeDashboardSelect({
       value: d.id,
       label: d.name,
       ...(d.owner === "LANGFUSE" ? { icon: <LangfuseIcon size={14} /> } : {}),
-      ...(d.id === defaultDashboardId ? { badge: "Default" } : {}),
+      ...(d.id === defaultDashboardId ? { badge: "default" } : {}),
     });
     const curated = items.filter((d) => d.owner === "LANGFUSE");
     const project = items.filter((d) => d.owner === "PROJECT");
