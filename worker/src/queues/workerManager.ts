@@ -1,5 +1,5 @@
 import { Job, Processor, Worker, WorkerOptions } from "bullmq";
-import { context as otelContext } from "@opentelemetry/api";
+import { context as otelContext, trace } from "@opentelemetry/api";
 import {
   convertQueueNameToMetricName,
   contextWithLangfuseProps,
@@ -18,6 +18,7 @@ import { WORKER_HOST_ID } from "../utils/hostId";
 import { logRetryableJobFailure } from "./jobFailureLog";
 import { SHARDED_QUEUE_BASE_NAMES } from "./shardedQueueRegistry";
 import { classifyJobFailure } from "./jobFailureReason";
+import { eventLoopBlockMonitor } from "./eventLoopBlockMonitor";
 
 export class WorkerManager {
   private static workers: { [key: string]: Worker } = {};
@@ -91,16 +92,31 @@ export class WorkerManager {
         ...shardTag,
       });
 
+      const projectId = WorkerManager.extractProjectId(job);
+      // The active span is BullMQ's `Worker.run <queue>` consumer span.
+      if (projectId)
+        trace.getActiveSpan()?.setAttribute("langfuse.project.id", projectId);
       const clickHouseCtx = contextWithLangfuseProps({
-        projectId: WorkerManager.extractProjectId(job),
+        projectId,
         clickhouse: {
           surface: "worker",
           route: baseMetric,
         },
       });
-      const result = await otelContext.with(clickHouseCtx, () =>
-        processor(job),
-      );
+      const finishTracking = eventLoopBlockMonitor.track({
+        queueName,
+        baseMetric,
+        shardTag,
+        jobId: job.id,
+        jobName: job.name,
+        projectId,
+      });
+      let result: unknown;
+      try {
+        result = await otelContext.with(clickHouseCtx, () => processor(job));
+      } finally {
+        finishTracking();
+      }
 
       const processingTime = Date.now() - startTime;
       recordDistribution(baseMetric + ".time_distribution", processingTime, {
@@ -117,6 +133,7 @@ export class WorkerManager {
     await Promise.all(
       Object.values(WorkerManager.workers).map((worker) => worker.close()),
     );
+    eventLoopBlockMonitor.stop();
     logger.info("All workers have been closed.");
   }
 
@@ -156,6 +173,7 @@ export class WorkerManager {
     );
     WorkerManager.workers[queueName] = worker;
     markQueueWorkerRegistered();
+    eventLoopBlockMonitor.start();
     logger.info(`${queueName} executor started: ${worker.isRunning()}`);
 
     const { baseMetric, shardTag } = WorkerManager.resolveMetricInfo(queueName);
