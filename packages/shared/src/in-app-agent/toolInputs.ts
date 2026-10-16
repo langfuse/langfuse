@@ -46,7 +46,9 @@ export function isInAppAgentToolWithInputs(
 
 /**
  * Tool inputs are only accepted for an approved call of a tool that takes
- * input, and such a tool cannot be approved without them.
+ * input. Approving such a tool without input stays valid: browser tabs loaded
+ * before the tool existed render it as a plain approval, and the tool then
+ * falls back to its no-input behavior (skipping every questionnaire question).
  */
 export function validateInAppAgentToolInputs(params: {
   toolName: string;
@@ -66,13 +68,9 @@ export function validateInAppAgentToolInputs(params: {
       error: "Tool inputs are only accepted for the approved tool",
     };
   }
-  if (!acceptsInput) {
+  const input = acceptsInput ? toolInputs?.[toolName] : undefined;
+  if (!acceptsInput || input === undefined) {
     return { success: true };
-  }
-
-  const input = toolInputs?.[toolName];
-  if (input === undefined) {
-    return { success: false, error: "This tool requires input to approve" };
   }
   return toolInputValidators[toolName]({ args, input });
 }

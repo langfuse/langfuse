@@ -856,6 +856,27 @@ describe("in-app agent background runs", () => {
     ).toBe(1);
   });
 
+  const questionnaireArgs = {
+    questions: [
+      {
+        question: "Which evaluator type?",
+        options: [
+          {
+            label: "LLM-as-a-judge",
+            description: "Model-graded",
+            recommended: true,
+          },
+          {
+            label: "Code",
+            description: "Deterministic",
+            recommended: false,
+          },
+        ],
+        allowMultiple: false,
+      },
+    ],
+  };
+
   it("validates questionnaire answers against the persisted questions", async () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
@@ -865,26 +886,7 @@ describe("in-app agent background runs", () => {
       userId,
       toolCallId: "tool-call-1",
       toolName: IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
-      args: {
-        questions: [
-          {
-            question: "Which evaluator type?",
-            options: [
-              {
-                label: "LLM-as-a-judge",
-                description: "Model-graded",
-                recommended: true,
-              },
-              {
-                label: "Code",
-                description: "Deterministic",
-                recommended: false,
-              },
-            ],
-            allowMultiple: false,
-          },
-        ],
-      },
+      args: questionnaireArgs,
     });
     const decide = (toolInputs?: InAppAgentToolInputs) =>
       caller.decideToolApproval({
@@ -899,7 +901,6 @@ describe("in-app agent background runs", () => {
       [IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME]: { answers },
     });
 
-    await expect(decide()).rejects.toMatchObject({ code: "BAD_REQUEST" });
     await expect(
       decide(withAnswers([{ selectedOptionIndexes: [2], otherText: null }])),
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
@@ -924,6 +925,36 @@ describe("in-app agent background runs", () => {
       approved: true,
       toolInputs,
     });
+  });
+
+  it("accepts a questionnaire approval without answers from a client that predates the questionnaire card", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const parkedRunId = await parkRunForApproval({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+      toolCallId: "tool-call-1",
+      toolName: IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
+      args: questionnaireArgs,
+    });
+
+    const { runId: continuationRunId } = await caller.decideToolApproval({
+      projectId,
+      conversationId: conversation.id,
+      runId: parkedRunId,
+      toolCallId: "tool-call-1",
+      approved: true,
+    });
+
+    const continuation = await prisma.inAppAgentRun.findFirstOrThrow({
+      where: { id: continuationRunId, projectId },
+    });
+    expect(continuation.request).toMatchObject({
+      kind: "approvalDecision",
+      approved: true,
+    });
+    expect(continuation.request).not.toHaveProperty("toolInputs");
   });
 
   it("rejects tool inputs for a tool that does not take input", async () => {
