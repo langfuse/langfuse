@@ -91,6 +91,7 @@ import {
   isV4UpgradeUiAvailable,
 } from "@/src/features/events/server";
 import { canCreateOrganizations } from "@/src/features/organizations/server";
+import { isSignupOnboardingEnabled } from "@/src/features/onboarding/server";
 
 const staticProviders: Provider[] = [
   CredentialsProvider({
@@ -1180,7 +1181,7 @@ export async function getAuthOptions(
     pages: {
       signIn: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/sign-in`,
       error: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/error`,
-      ...(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+      ...(isSignupOnboardingEnabled()
         ? {
             newUser: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/onboarding`,
           }

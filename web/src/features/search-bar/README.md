@@ -51,6 +51,35 @@ Cross-field OR, negated groups, and other shapes the flat contract cannot
 represent are commit-blocking diagnostics, not silent drops. There is no
 FTS `*` operator: the events tRPC filter contract has none.
 
+**Experiment scopes.** Comparison registries can attach a target to each
+condition, independently of its field and value:
+
+- `"All experiments".scores.quality:>0.8` applies to all currently selected experiments.
+  Unqualified typed filters acquire this visible prefix when committed.
+- `baseline.scores.quality:>0.8` follows the currently selected baseline.
+- `"Run A".scores.quality:<0.6` stays pinned to that experiment.
+- `"Run A".eventMetadata."model name":test` uses the same target syntax for
+  metadata. `itemMetadata.` and `eventMetadata.` map to separate host-declared
+  columns through `metadataNamespaces`.
+- `baseline.has:itemMetadata.region` / `-baseline.has:itemMetadata.region`
+  preserve the sidebar's metadata-key "is set" / "is not set" operators.
+
+`all.` is accepted as a legacy alias and serialized as `"All experiments".`. Experiment names are
+quoted; a real experiment named `baseline` is therefore distinct from the
+symbolic `baseline` keyword. Legacy `field:value @baseline` and
+`field:value @"Run A"` expressions still parse; the serializer emits prefixes.
+The AST stores target and field separately, and lowering resolves the target
+to a stable ID in `FilterState.target`. Targetless persisted filters use the
+registry's `legacyDefaultTarget`, while newly typed unqualified filters use
+`defaultTarget`. Unavailable or ambiguous names block commit.
+
+Target choices augment field/value suggestions when editing a condition. Sidebar
+and search use the same combined options response for the selected experiments.
+Changing the scope changes only the target, not the score's operator or value.
+An unresolved options request blocks score commits. Conditions are AND-joined
+inside each experiment's request group;
+the backend's existing qualification and baseline-visibility rules are unchanged.
+
 **Full-text search.** Each registry declares `defaultSearchType` and
 `searchScopes`. The adapter writes the existing `searchQuery` / `searchType`
 contract; it does not introduce backend filter columns or change matching rules.

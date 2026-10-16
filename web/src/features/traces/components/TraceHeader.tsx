@@ -7,7 +7,7 @@ import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { TagButton } from "@/src/features/tag";
+import { TagList } from "@/src/features/tag";
 import {
   SessionBadge,
   UserIdBadge,
@@ -119,9 +119,7 @@ function LoadedTraceHeader() {
             {traceScores.length > 0 && (
               <GroupedScoreBadges scores={traceScores} />
             )}
-            {visibleTags.map((tag) => (
-              <TagButton key={tag} tag={tag} loading={false} viewOnly />
-            ))}
+            <TagList selectedTags={visibleTags} isLoading={false} viewOnly />
             {hiddenTagCount > 0 && (
               <OverflowCountBadge
                 count={hiddenTagCount}

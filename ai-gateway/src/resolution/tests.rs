@@ -149,13 +149,13 @@ async fn signs_the_exact_key_and_sends_api_format_and_model() {
         context.connection().credential(),
         ProviderCredential::Bearer("private-provider-token")
     ));
-    assert_eq!(context.attribution().project_id(), "project-1");
+    assert_eq!(context.attribution().project_id().as_str(), "project-1");
     assert_eq!(
         context.attribution().provider_connection_id(),
         "connection-1"
     );
     assert_eq!(
-        context.ingestion().access_token(),
+        context.ingestion().access_token().expose_secret(),
         ingestion_token("org-1", "project-1")
     );
     let debug = format!("{context:?}");
@@ -301,6 +301,37 @@ async fn model_policy_rejections_are_distinct_from_other_forbidden_responses() {
 
     assert!(matches!(error, ResolutionError::ModelNotAllowed));
     assert!(!format!("{error:?} {error}").contains("private-upstream-error"));
+}
+
+/// A rejected gateway signature means the service keys disagree, which is the
+/// gateway's fault, not the caller's.
+#[tokio::test]
+async fn rejected_gateway_signatures_are_configuration_errors() {
+    let web = FakeWeb::start(|_| async {
+        Response::builder()
+            .status(StatusCode::UNAUTHORIZED)
+            .header(
+                "langfuse-gateway-error-code",
+                "invalid_gateway_authorization",
+            )
+            .body(Body::empty())
+            .unwrap()
+    })
+    .await;
+
+    let error = web
+        .control_plane()
+        .resolve_at(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiResponses,
+            "primary:gpt-4.1",
+            NOW_TIME,
+            REQUEST_ID,
+        )
+        .await
+        .unwrap_err();
+
+    assert!(matches!(error, ResolutionError::Configuration));
 }
 
 #[tokio::test]
@@ -475,12 +506,12 @@ async fn concurrent_resolutions_keep_credentials_and_contexts_isolated() {
     );
     let alice = alice.unwrap();
     let bob = bob.unwrap();
-    assert_eq!(alice.attribution().project_id(), "project-alice");
+    assert_eq!(alice.attribution().project_id().as_str(), "project-alice");
     assert!(matches!(
         alice.connection().credential(),
         ProviderCredential::Bearer("token-alice")
     ));
-    assert_eq!(bob.attribution().project_id(), "project-bob");
+    assert_eq!(bob.attribution().project_id().as_str(), "project-bob");
     assert!(matches!(
         bob.connection().credential(),
         ProviderCredential::Bearer("token-bob")

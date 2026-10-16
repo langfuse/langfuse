@@ -1543,6 +1543,64 @@ describe("OTel Resource Span Mapping", () => {
       ],
     });
 
+    it.each([
+      [
+        "AI SDK 6 ai.response.msToFirstChunk (milliseconds)",
+        "ai.response.msToFirstChunk",
+        { doubleValue: 250.4 },
+      ],
+      [
+        "AI SDK 7 gen_ai.client.operation.time_to_first_chunk (seconds)",
+        "gen_ai.client.operation.time_to_first_chunk",
+        { doubleValue: 0.2505 },
+      ],
+    ])(
+      "should derive completionStartTime from %s",
+      async (_name, otelAttributeKey, otelAttributeValue) => {
+        const resourceSpan = {
+          scopeSpans: [
+            {
+              scope: { name: "ai" },
+              spans: [
+                {
+                  ...defaultSpanProps,
+                  name: "ai.streamText.doStream",
+                  attributes: [
+                    {
+                      key: "ai.operationId",
+                      value: { stringValue: "ai.streamText.doStream" },
+                    },
+                    { key: "ai.model.id", value: { stringValue: "gpt-4o" } },
+                    { key: otelAttributeKey, value: otelAttributeValue },
+                  ],
+                },
+              ],
+            },
+          ],
+        } as unknown as ResourceSpan;
+
+        const ttftMs = (startTime?: string, completionStartTime?: string) =>
+          new Date(completionStartTime!).getTime() -
+          new Date(startTime!).getTime();
+
+        const ingestionEvents = await convertOtelSpanToIngestionEvent(
+          resourceSpan,
+          new Set(),
+        );
+        const generation = ingestionEvents.find(
+          (event) => event.type === "generation-create",
+        )?.body as { startTime?: string; completionStartTime?: string };
+        expect(
+          ttftMs(generation?.startTime, generation?.completionStartTime),
+        ).toBe(251);
+
+        const [event] = createTestOtelProcessor().processToEvent([
+          resourceSpan,
+        ]);
+        expect(ttftMs(event.startTimeISO, event.completionStartTime)).toBe(251);
+      },
+    );
+
     it("should interpret an empty buffer as an unset parentSpanId", async () => {
       // https://github.com/langchain4j/langchain4j/issues/2328#issuecomment-2686129552
       // Empty buffers where detected as truthy, i.e. behaved like they had a parent span.

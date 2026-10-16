@@ -209,6 +209,10 @@ describe("withGatewayResolveSignatureVerification", () => {
     );
 
     expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.setHeader).toHaveBeenCalledWith(
+      "langfuse-gateway-error-code",
+      "invalid_gateway_authorization",
+    );
     expect(handler).not.toHaveBeenCalled();
   });
 
