@@ -87,6 +87,7 @@ function filterSelect(
         "includeDeleted() and softDeleteAfterLimit() cannot mark the same select.",
       );
     }
+    // The soft-delete tables this select reads directly (FROM and JOINs).
     const relations = [
       ...froms,
       ...joins.map(({ relation }) => relation),
@@ -167,6 +168,7 @@ function filterAfterLimit(
       "softDeleteAfterLimit() cannot wrap a GROUP BY or set operation: the added flag would not match its shape.",
     );
   }
+  // Names of the outputs the outer select lists again; `*` has none.
   const outputs = (node.selections ?? []).map((selection) => {
     const name = outputName(selection.selection);
     if (name === undefined) {
@@ -196,6 +198,7 @@ function filterAfterLimit(
       ),
     ),
   ]);
+  // `select latest.<output>, … from (<inner>) as latest`, without the flag.
   const outer = SelectQueryNode.cloneWithSelections(
     SelectQueryNode.createFrom([
       AliasNode.create(inner, IdentifierNode.create(AFTER_LIMIT_ALIAS)),
@@ -209,6 +212,7 @@ function filterAfterLimit(
       ),
     ),
   );
+  // `where latest.is_deleted = 0` drops the pick if it is a deleted version.
   return {
     ...outer,
     where: WhereNode.create(
