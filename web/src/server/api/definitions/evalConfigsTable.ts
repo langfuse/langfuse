@@ -1,15 +1,13 @@
 import {
-  EvalTargetObject,
   type ColumnDefinition,
+  EvalTargetObjectSchema,
   type JobConfigState,
   JobTimeScopeZod,
 } from "@langfuse/shared";
 
-const evalConfigTargetOptions = Object.values(EvalTargetObject).map(
-  (value) => ({
-    value,
-  }),
-);
+const evalConfigTargetOptions = EvalTargetObjectSchema.options.map((value) => ({
+  value,
+}));
 
 export const evalConfigTargetValues = evalConfigTargetOptions.map(
   (option) => option.value,

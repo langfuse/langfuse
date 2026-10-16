@@ -801,12 +801,54 @@ describe("EvaluatorService", () => {
     });
   });
 
-  it("updates metadata without a version and appends a version for definition changes", async () => {
+  it("invalidates result rules when score names or definitions change", async () => {
     const service = createService();
     const input = llmInput("Version decisions");
     const created = await service.create(input, null);
+    const dependentRule = await prisma.evaluationRule.create({
+      data: {
+        projectId,
+        name: "Dependent rule",
+        status: "ACTIVE",
+        targetObject: EvalTargetObject.SCORE_RESULT,
+        filter: [
+          {
+            scoreName: "quality",
+            dataType: "NUMERIC",
+            operator: ">=",
+            value: 0.8,
+          },
+        ],
+        sampling: 1,
+        delay: 0,
+        triggerEvaluatorId: created.id,
+      },
+    });
 
     const metadataUpdate = await service.update(
+      {
+        ...input,
+        evaluatorId: created.id,
+        description: "Changed only metadata",
+      },
+      null,
+    );
+    expect(metadataUpdate.versions).toHaveLength(1);
+    expect(metadataUpdate).toMatchObject({
+      name: input.name,
+      description: "Changed only metadata",
+    });
+    await expect(
+      prisma.evaluationRule.findUniqueOrThrow({
+        where: { id: dependentRule.id },
+        select: { status: true, ruleInvalidReason: true },
+      }),
+    ).resolves.toEqual({
+      status: "ACTIVE",
+      ruleInvalidReason: null,
+    });
+
+    await service.update(
       {
         ...input,
         evaluatorId: created.id,
@@ -815,10 +857,15 @@ describe("EvaluatorService", () => {
       },
       null,
     );
-    expect(metadataUpdate.versions).toHaveLength(1);
-    expect(metadataUpdate).toMatchObject({
-      name: "Renamed evaluator",
-      description: "Changed only metadata",
+    await expect(
+      prisma.evaluationRule.findUniqueOrThrow({
+        where: { id: dependentRule.id },
+        select: { status: true, ruleInvalidReason: true },
+      }),
+    ).resolves.toEqual({
+      status: "INACTIVE",
+      ruleInvalidReason:
+        "The trigger evaluator changed. Review the score conditions.",
     });
 
     const definitionUpdate = await service.update(
@@ -842,6 +889,16 @@ describe("EvaluatorService", () => {
     expect(definitionUpdate.versions.map((version) => version.version)).toEqual(
       [2],
     );
+    await expect(
+      prisma.evaluationRule.findUniqueOrThrow({
+        where: { id: dependentRule.id },
+        select: { status: true, ruleInvalidReason: true },
+      }),
+    ).resolves.toEqual({
+      status: "INACTIVE",
+      ruleInvalidReason:
+        "The trigger evaluator changed. Review the score conditions.",
+    });
     const firstPage = await service.listVersions({
       projectId,
       evaluatorId: created.id,
@@ -875,6 +932,76 @@ describe("EvaluatorService", () => {
         limit: 1,
       }),
     ).rejects.toThrow("Evaluator not found");
+  });
+
+  it("keeps decision-model result rules active when only the evaluator name changes", async () => {
+    const service = createService();
+    const definition = {
+      type: "DECISION_MODEL" as const,
+      questions: [
+        {
+          id: "quality",
+          scoreName: "quality",
+          type: "noul" as const,
+          instructions: "Is the response high quality?",
+        },
+      ],
+      provider: "typesafe",
+      model: "jev-1.13.0",
+      vars: ["output"],
+      variableMapping: [
+        { templateVariable: "output", selectedColumnId: "output" },
+      ],
+    };
+    const created = await service.create(
+      {
+        projectId,
+        name: "Decision model",
+        description: null,
+        definition,
+      },
+      null,
+    );
+    const dependentRule = await prisma.evaluationRule.create({
+      data: {
+        projectId,
+        name: "Dependent rule",
+        status: "ACTIVE",
+        targetObject: EvalTargetObject.SCORE_RESULT,
+        filter: [
+          {
+            scoreName: "quality",
+            dataType: "NUMERIC",
+            operator: ">=",
+            value: 0.8,
+          },
+        ],
+        sampling: 1,
+        delay: 0,
+        triggerEvaluatorId: created.id,
+      },
+    });
+
+    await service.update(
+      {
+        projectId,
+        evaluatorId: created.id,
+        name: "Renamed decision model",
+        description: null,
+        definition,
+      },
+      null,
+    );
+
+    await expect(
+      prisma.evaluationRule.findUniqueOrThrow({
+        where: { id: dependentRule.id },
+        select: { status: true, ruleInvalidReason: true },
+      }),
+    ).resolves.toEqual({
+      status: "ACTIVE",
+      ruleInvalidReason: null,
+    });
   });
 
   it("changes the prompt without validating or rewriting rule mappings", async () => {

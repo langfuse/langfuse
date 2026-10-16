@@ -1,4 +1,5 @@
 import { createStore } from "zustand/vanilla";
+import { EvalTargetObject, ScoreResultTriggerSchema } from "@langfuse/shared";
 
 import type {
   RuleDraft,
@@ -10,6 +11,8 @@ export function createRuleSetupStore(initialDraft: RuleDraft): RuleSetupStore {
     ...initialDraft,
     initialDraft,
     selectedObservation: null,
+    previewSourceRuleId: null,
+    previewFilter: [],
     actions: {
       setName: (name) => set({ name }),
       setFilter: (filter) => set({ filter }),
@@ -32,6 +35,12 @@ export function createRuleSetupStore(initialDraft: RuleDraft): RuleSetupStore {
         })),
       setSelectedObservation: (selectedObservation) =>
         set({ selectedObservation }),
+      setTargetObject: (targetObject) => set({ targetObject }),
+      setScoreResultTrigger: (scoreResultTrigger) =>
+        set({ scoreResultTrigger }),
+      setPreviewSourceRuleId: (previewSourceRuleId) =>
+        set({ previewSourceRuleId }),
+      setPreviewFilter: (previewFilter) => set({ previewFilter }),
     },
   }));
 }
@@ -44,7 +53,22 @@ export function isRuleDraftDirty(
       name: state.name,
       filter: state.filter,
       sampling: state.sampling,
+      targetObject: state.targetObject,
+      scoreResultTrigger: state.scoreResultTrigger,
       assignments: state.assignments,
     }) !== JSON.stringify(state.initialDraft)
   );
+}
+
+export function isRuleDraftValid(
+  state: ReturnType<RuleSetupStore["getState"]>,
+  requireAssignments = true,
+  allowMissingScoreResultTrigger = false,
+) {
+  if (requireAssignments && state.assignments.length === 0) return false;
+  if (state.targetObject !== EvalTargetObject.SCORE_RESULT) return true;
+  if (allowMissingScoreResultTrigger && state.scoreResultTrigger === null) {
+    return true;
+  }
+  return ScoreResultTriggerSchema.safeParse(state.scoreResultTrigger).success;
 }

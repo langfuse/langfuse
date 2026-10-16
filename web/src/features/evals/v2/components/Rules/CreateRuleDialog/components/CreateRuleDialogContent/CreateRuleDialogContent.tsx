@@ -1,6 +1,10 @@
 /* eslint-disable no-nested-ternary */
 import { showSuccessToast } from "@/src/features/notifications";
-import type { EvalTargetObject, FilterState } from "@langfuse/shared";
+import {
+  EvalTargetObject,
+  type EvalTargetObject as EvalTargetObjectType,
+  type FilterState,
+} from "@langfuse/shared";
 import { useRef, useState } from "react";
 import {
   Dialog,
@@ -25,6 +29,7 @@ import { useProject } from "@/src/features/projects";
 import { prepareNameForSave } from "@/src/features/evals/v2/fns/prepareNameForSave";
 import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFilterAnalyticsProperties";
 import { resolveInitialRuleFilters } from "./resolveInitialRuleFilters";
+import { prepareRuleDraftForSave } from "@/src/features/evals/v2/fns/prepareRuleDraftForSave";
 
 export function CreateRuleDialogContent({
   projectId,
@@ -47,7 +52,7 @@ export function CreateRuleDialogContent({
   initialEvaluator: RuleEvaluatorOption | undefined;
   initialDraft: RuleDraft | undefined;
   initialFilter: FilterState | undefined;
-  targetObject?: Extract<EvalTargetObject, "event" | "experiment">;
+  targetObject?: Extract<EvalTargetObjectType, "event" | "experiment">;
   evaluatorSearch: string;
   successNotification: "toast" | "none";
   onCreated?: () => void;
@@ -64,6 +69,9 @@ export function CreateRuleDialogContent({
       name: initialDraft?.name ?? "",
       filter: initialDraft?.filter ?? resolveInitialRuleFilters(initialFilter),
       sampling: initialDraft?.sampling ?? 1,
+      targetObject:
+        initialDraft?.targetObject ?? targetObject ?? EvalTargetObject.EVENT,
+      scoreResultTrigger: initialDraft?.scoreResultTrigger ?? null,
       assignments:
         initialDraft?.assignments ??
         (initialEvaluator
@@ -102,14 +110,15 @@ export function CreateRuleDialogContent({
   });
 
   const create = async () => {
-    const draft = ruleSetupStore.getState();
+    const draft = prepareRuleDraftForSave(ruleSetupStore.getState());
     const rule = await createRule.mutateAsync({
       projectId,
       name: draft.name.trim(),
       filter: draft.filter,
       sampling: draft.sampling,
       enabled: true,
-      ...(targetObject ? { targetObject } : {}),
+      targetObject: draft.targetObject,
+      scoreResultTrigger: draft.scoreResultTrigger,
       evaluatorAssignments: draft.assignments.map((assignment) => ({
         evaluatorId: assignment.evaluatorId,
         variableMapping: assignment.variableMapping,
@@ -120,6 +129,7 @@ export function CreateRuleDialogContent({
       ...getFilterAnalyticsProperties(draft.filter),
       samplingPercent: Math.round(draft.sampling * 100),
       isEnabled: true,
+      targetObject: draft.targetObject,
     });
     onCreated?.();
     if (successNotification === "toast") {
@@ -160,7 +170,7 @@ export function CreateRuleDialogContent({
         <DialogHeader>
           <DialogTitle>New rule</DialogTitle>
           <DialogDescription>
-            Select which incoming observations should trigger evaluators.
+            Select what should trigger evaluators.
           </DialogDescription>
         </DialogHeader>
         <DialogBody>

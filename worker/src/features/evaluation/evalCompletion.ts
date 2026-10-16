@@ -34,6 +34,7 @@ export async function completeEvalExecution({
   environment,
   executionType,
   deps,
+  onEvaluatorCompleted,
 }: {
   projectId: string;
   jobExecutionId: string;
@@ -43,6 +44,7 @@ export async function completeEvalExecution({
   environment: string;
   executionType: ObservationEvalExecutionType;
   deps: EvalExecutionDeps;
+  onEvaluatorCompleted?: (result: EvalExecutionResult) => Promise<void>;
 }): Promise<{ scoreCount: number }> {
   const scoreWritePayloads = buildEvalScoreWritePayloads({
     scores: result.scores,
@@ -100,6 +102,25 @@ export async function completeEvalExecution({
   logger.debug(
     `Persisted ${scoreWritePayloads.length} score(s) for job ${jobExecutionId}`,
   );
+
+  if (
+    !result.evaluationContext.evaluatorExecutionIsTest &&
+    onEvaluatorCompleted
+  ) {
+    // Evaluator-result triggers are experimental and currently best-effort.
+    // Once scores are persisted, scheduling failures are logged without
+    // retrying or failing the completed upstream evaluation.
+    try {
+      await onEvaluatorCompleted(result);
+    } catch (error) {
+      logger.error("Failed to schedule evaluator result rules", {
+        projectId,
+        jobExecutionId,
+        error,
+      });
+      traceException(error);
+    }
+  }
 
   await deps.updateJobExecution({
     id: jobExecutionId,

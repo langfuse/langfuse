@@ -10,7 +10,10 @@ import type {
   EvaluatorListOrderBy,
 } from "./evaluatorTypes";
 import { EvaluatorVersionConflictError } from "./evaluatorErrors";
-import { setRuleStatus } from "../rules/ruleRepository";
+import {
+  invalidateEvaluatorResultRules,
+  setRuleStatus,
+} from "../rules/ruleRepository";
 import {
   EvalTargetObject,
   eventsEvalFilterColumns,
@@ -795,6 +798,12 @@ export async function deleteEvaluator(params: {
       },
       select: { evaluationRuleId: true },
     });
+  await invalidateEvaluatorResultRules({
+    prisma: params.prisma,
+    projectId: params.projectId,
+    evaluatorId: params.evaluatorId,
+    reason: "The trigger evaluator was deleted.",
+  });
   const result = await params.prisma.evaluator.deleteMany({
     where: {
       id: params.evaluatorId,

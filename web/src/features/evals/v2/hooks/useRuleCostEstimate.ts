@@ -30,10 +30,12 @@ export function useRuleCostEstimate({
   projectId,
   store,
   matchingObservations: matchingObservationsOverride,
+  enabled = true,
 }: {
   projectId: string;
   store: RuleSetupStore;
   matchingObservations?: number;
+  enabled?: boolean;
 }) {
   const { filter, sampling, assignments } = useStore(
     store,
@@ -64,6 +66,15 @@ export function useRuleCostEstimate({
       setState(nextState);
     };
     const currentRequestId = ++requestId.current;
+    if (!enabled) {
+      previousFilter.current = null;
+      updateState({
+        status: "idle",
+        estimates: [],
+        estimatingEvaluatorIds: [],
+      });
+      return;
+    }
     const filterSignature = JSON.stringify(filter);
     const filterChanged = previousFilter.current !== filterSignature;
     previousFilter.current = filterSignature;
@@ -192,7 +203,7 @@ export function useRuleCostEstimate({
     }, ESTIMATE_DEBOUNCE_MS);
 
     return () => window.clearTimeout(timeout);
-  }, [assignments, estimateCost, filter, projectId]);
+  }, [assignments, enabled, estimateCost, filter, projectId]);
 
   return {
     ...state,

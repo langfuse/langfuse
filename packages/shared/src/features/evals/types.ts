@@ -118,12 +118,18 @@ export const EvalTargetObject = {
   DATASET: "dataset",
   EVENT: "event",
   EXPERIMENT: "experiment",
+  SCORE_RESULT: "score_result",
 } as const;
 
 export type EvalTargetObject =
   (typeof EvalTargetObject)[keyof typeof EvalTargetObject];
 
-export const EvalTargetObjectSchema = z.enum(Object.values(EvalTargetObject));
+export const EvalTargetObjectSchema = z.enum([
+  EvalTargetObject.TRACE,
+  EvalTargetObject.DATASET,
+  EvalTargetObject.EVENT,
+  EvalTargetObject.EXPERIMENT,
+]);
 
 // Batch action source tables that support evaluation
 export const BatchEvalSourceTable = {
