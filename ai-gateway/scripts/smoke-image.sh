@@ -13,7 +13,9 @@ cleanup() {
 trap cleanup EXIT
 port="$(docker port "$container" 8080/tcp)"
 for route in health ready; do
-  body="$(curl --fail --silent --show-error --retry 20 --retry-connrefused \
+  # Docker's port proxy can accept and then reset connections until the
+  # gateway listens, which --retry-connrefused alone does not retry.
+  body="$(curl --fail --silent --show-error --retry 20 --retry-all-errors \
     --retry-delay 1 --max-time 2 "http://$port/$route")"
   case "$route:$body" in
     'health:{"status":"ok"}'|'ready:{"status":"ready"}') ;;
