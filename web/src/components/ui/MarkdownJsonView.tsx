@@ -30,6 +30,11 @@ type MarkdownJsonViewHeaderProps = {
   /** Reveal the right-side controls only while hovering the hosting section
       (requires a `group/iosection` ancestor). */
   hoverRevealControls?: boolean;
+  /** Makes the title row (everything but the controls) one toggle button. */
+  toggle?: { expanded: boolean; label: string; onToggle: () => void };
+  /** Rendered after the title, outside the toggle button (e.g. an info
+      tooltip trigger, which may not nest inside a button). */
+  titleAside?: React.ReactNode;
 };
 
 export function MarkdownJsonViewHeader({
@@ -41,6 +46,8 @@ export function MarkdownJsonViewHeader({
   controlButtons,
   hideCopyButton = false,
   hoverRevealControls = false,
+  toggle,
+  titleAside,
 }: MarkdownJsonViewHeaderProps) {
   const [isCopied, setIsCopied] = useState(false);
 
@@ -51,6 +58,27 @@ export function MarkdownJsonViewHeader({
       {title}
     </>
   );
+  // Masked from session recordings: the title can be a customer-provided
+  // message `name` (or tool name) rather than a fixed role string.
+  const titleRow = toggle ? (
+    <>
+      <button
+        type="button"
+        className="ph-no-capture focus-visible:ring-ring flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-sm text-left capitalize focus-visible:ring-2 focus-visible:outline-hidden"
+        aria-expanded={toggle.expanded}
+        aria-label={toggle.label}
+        onClick={toggle.onToggle}
+      >
+        {titleContent}
+      </button>
+      {titleAside}
+    </>
+  ) : (
+    <div className="ph-no-capture flex items-center gap-2">
+      {titleContent}
+      {titleAside}
+    </div>
+  );
 
   return (
     <div
@@ -59,14 +87,10 @@ export function MarkdownJsonViewHeader({
         flush ? "px-0" : "px-1",
       )}
     >
-      {/* Masked from session recordings: the title can be a customer-provided
-          message `name` (or tool name) rather than a fixed role string. */}
-      <div className="ph-no-capture flex items-center gap-2">
-        {titleContent}
-      </div>
+      {titleRow}
       <div
         className={cn(
-          "mr-1 flex min-w-0 shrink flex-row items-center gap-1",
+          "mr-1 flex shrink-0 flex-row items-center gap-1",
           // pointer-coarse: touch devices have no hover, so the controls
           // stay visible there instead of being unreachable.
           hoverRevealControls &&

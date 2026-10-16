@@ -156,6 +156,28 @@ describe("ChatMessage section caret", () => {
     expect(bodies()[0]).toBeVisible();
   });
 
+  it("toggles from the header row, not from its controls", () => {
+    renderChatMessage({
+      role: "user",
+      content: "Where is my refund?",
+    } as ChatMlMessage);
+    const bodies = () => screen.queryAllByText("Where is my refund?");
+
+    // Clicking the title text (inside the row button) collapses.
+    fireEvent.click(screen.getAllByText("user")[0]);
+    bodies().forEach((body) => expect(body).not.toBeVisible());
+
+    fireEvent.click(screen.getAllByText("user")[0]);
+    expect(bodies()[0]).toBeVisible();
+
+    // The copy control sits beside the row button and does not toggle.
+    fireEvent.click(screen.getAllByTitle("Copy to clipboard")[0]);
+    expect(bodies()[0]).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Collapse user" }),
+    ).toHaveAttribute("aria-expanded", "true");
+  });
+
   it("starts collapsed when asked, keeping the header", () => {
     renderChatMessage(
       { role: "user", content: "Where is my refund?" } as ChatMlMessage,

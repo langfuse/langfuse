@@ -16,6 +16,7 @@ vi.mock("@/src/components/ui/PrettyJsonView", () => ({
 
 vi.mock("./components/CorrectedOutputField", () => ({
   CorrectedOutputField: () => <div data-testid="corrected-output" />,
+  CorrectOutputButton: () => null,
 }));
 
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({

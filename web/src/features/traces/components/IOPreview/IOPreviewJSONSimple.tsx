@@ -1,8 +1,12 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type MediaReturnType } from "@/src/features/media";
-import { CorrectedOutputField } from "./components/CorrectedOutputField";
+import {
+  CorrectedOutputField,
+  CorrectOutputButton,
+} from "./components/CorrectedOutputField";
+import { useCorrectionData } from "./hooks/useCorrectionData";
 import { IOSection } from "@/src/components/ui/IOSection";
 import { LargeJsonFieldFallback } from "./components/LargeJsonFieldFallback";
 import {
@@ -135,6 +139,24 @@ export function IOPreviewJSONSimple({
 
   const downloadName = observationId ?? traceId;
 
+  // The "Correct output" pencil lives in the Output header; the field below
+  // opens into its editor from there.
+  const [correctionOpen, setCorrectionOpen] = useState(false);
+  const { effectiveCorrection } = useCorrectionData(
+    outputCorrection,
+    observationId,
+    traceId,
+  );
+  const correctionTrigger = showOutput ? "header" : "inline";
+  // In header mode the field mounts only while open or with a correction.
+  const showCorrectionField =
+    showCorrections &&
+    (correctionTrigger === "inline" || correctionOpen || !!effectiveCorrection);
+  const outputControls =
+    showCorrections && showOutput && !correctionOpen && !effectiveCorrection ? (
+      <CorrectOutputButton onClick={() => setCorrectionOpen(true)} />
+    ) : undefined;
+
   return (
     <div className="space-y-2 pt-3">
       {status ? (
@@ -172,7 +194,7 @@ export function IOPreviewJSONSimple({
         ))}
       {showOutput &&
         (outputTooLarge ? (
-          <IOSection title="Output">
+          <IOSection title="Output" controlButtons={outputControls}>
             <LargeJsonFieldFallback
               title="Output"
               hideTitle
@@ -191,6 +213,7 @@ export function IOPreviewJSONSimple({
             isParsing={isParsing}
             media={media?.filter((m) => m.field === "output") ?? []}
             currentView="json"
+            controlButtons={outputControls}
             externalExpansionState={outputExpanded}
             onExternalExpansionChange={
               onOutputExpandedChange as (
@@ -204,7 +227,7 @@ export function IOPreviewJSONSimple({
           against — an acceptable degradation for payloads too large to render.
           We flag it as too-large so the diff dialog says so, rather than
           reporting "no original output". */}
-      {showCorrections && (
+      {showCorrectionField && (
         <CorrectedOutputField
           actualOutput={effectiveOutput}
           actualOutputTooLarge={outputTooLarge}
@@ -213,6 +236,9 @@ export function IOPreviewJSONSimple({
           projectId={projectId}
           traceId={traceId}
           environment={environment}
+          trigger={correctionTrigger}
+          startEditing={correctionOpen && !effectiveCorrection}
+          onClosed={() => setCorrectionOpen(false)}
         />
       )}
       {showMetadata &&

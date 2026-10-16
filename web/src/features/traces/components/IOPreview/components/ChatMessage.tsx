@@ -39,6 +39,8 @@ export interface ChatMessageProps {
   defaultCollapsed?: boolean;
   /** Section title; the caller decides (role, name, or Input / Output). */
   title: string;
+  /** Extra header controls, after the message's own. */
+  controlButtons?: React.ReactNode;
 }
 
 /**
@@ -59,6 +61,7 @@ export function ChatMessage({
   contentMode = "all",
   defaultCollapsed,
   title,
+  controlButtons: extraControlButtons,
 }: ChatMessageProps) {
   const [showTableView, setShowTableView] = useState(false);
 
@@ -98,6 +101,13 @@ export function ChatMessage({
         )}
       </Button>
     ) : undefined;
+  const controlButtons =
+    passthroughToggleButton || extraControlButtons ? (
+      <>
+        {passthroughToggleButton}
+        {extraControlButtons}
+      </>
+    ) : undefined;
 
   // Placeholder message
   if (isPlaceholderMessage(message)) {
@@ -107,6 +117,7 @@ export function ChatMessage({
           <MarkdownJsonView
             title="Placeholder"
             content={message.name || "Unnamed placeholder"}
+            controlButtons={controlButtons}
             defaultCollapsed={defaultCollapsed}
           />
         </div>
@@ -115,6 +126,7 @@ export function ChatMessage({
             title="Placeholder"
             json={message.name || "Unnamed placeholder"}
             currentView={currentView}
+            controlButtons={controlButtons}
             defaultCollapsed={defaultCollapsed}
           />
         </div>
@@ -130,6 +142,7 @@ export function ChatMessage({
           title={title || (isOutputMessage ? "Output" : "Input")}
           json={message.json}
           currentView={currentView}
+          controlButtons={controlButtons}
           defaultCollapsed={defaultCollapsed}
         />
       </div>
@@ -144,7 +157,7 @@ export function ChatMessage({
           title={title}
           json={message.json}
           currentView="pretty"
-          controlButtons={passthroughToggleButton}
+          controlButtons={controlButtons}
           defaultCollapsed={defaultCollapsed}
         />
       </div>
@@ -168,7 +181,7 @@ export function ChatMessage({
           const rawText = stringify(message, undefined, 2);
           copyTextToClipboard(rawText);
         }}
-        controlButtons={passthroughToggleButton}
+        controlButtons={controlButtons}
         defaultCollapsed={defaultCollapsed}
       >
         <ToolCallInvocationsView
@@ -223,7 +236,7 @@ export function ChatMessage({
             title={title}
             content={message.content || ""}
             audio={message.audio}
-            controlButtons={passthroughToggleButton}
+            controlButtons={controlButtons}
             beforeContent={thinkingBlocks}
             afterContent={toolCallsView}
             isSystemPrompt={isSystemPrompt}
@@ -237,7 +250,7 @@ export function ChatMessage({
             title={title}
             json={message.content}
             currentView={currentView}
-            controlButtons={passthroughToggleButton}
+            controlButtons={controlButtons}
             beforeContent={thinkingBlocks}
             afterContent={toolCallsView}
             isSystemPrompt={isSystemPrompt}
@@ -256,6 +269,7 @@ export function ChatMessage({
           title={title || (isOutputMessage ? "Output" : "Input")}
           json={withoutUnsetFields(message)}
           currentView={currentView}
+          controlButtons={controlButtons}
           defaultCollapsed={defaultCollapsed}
         />
       </div>

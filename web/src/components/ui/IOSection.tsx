@@ -9,6 +9,8 @@ export type IOSectionProps = {
       `title` when that is a string. */
   titleText?: string;
   titleIcon?: React.ReactNode;
+  /** Shown after the title, outside the toggle (e.g. an info tooltip). */
+  titleAside?: React.ReactNode;
   /** Header copy control; omitted when the section has nothing to copy. */
   onCopy?: (event?: React.MouseEvent<HTMLButtonElement>) => void;
   controlButtons?: React.ReactNode;
@@ -27,13 +29,15 @@ export type IOSectionProps = {
 
 /**
  * One I/O section of the trace view: a header row (caret, title, hover
- * controls) over a boxed body. The caret hides the whole body; a collapsed
- * section is just the header row and does not render its children.
+ * controls) over a boxed body. The header row toggles the body (its controls
+ * do not); a collapsed section is just the header row and does not render
+ * its children.
  */
 export function IOSection({
   title,
   titleText,
   titleIcon,
+  titleAside,
   onCopy,
   controlButtons,
   defaultCollapsed = false,
@@ -59,23 +63,23 @@ export function IOSection({
 
   return (
     // overflow-clip (not hidden) so the sticky header can track the panel scroll.
-    // overflow-clip (not hidden) so the sticky header can track the panel scroll.
     <div className="group/iosection flex flex-col overflow-clip">
       <MarkdownJsonViewHeader
         title={title}
         titleIcon={titleIcon}
+        titleAside={titleAside}
         flush
         leading={
-          <button
-            type="button"
-            className="focus-visible:ring-ring flex shrink-0 items-center justify-center rounded-sm focus-visible:ring-2 focus-visible:outline-hidden"
-            aria-expanded={!isCollapsed}
-            aria-label={`${isCollapsed ? "Expand" : "Collapse"} ${label}`}
-            onClick={toggle}
-          >
-            <Caret className="icon-base text-icon-foreground" aria-hidden />
-          </button>
+          <Caret
+            className="icon-base text-icon-foreground shrink-0"
+            aria-hidden
+          />
         }
+        toggle={{
+          expanded: !isCollapsed,
+          label: `${isCollapsed ? "Expand" : "Collapse"} ${label}`,
+          onToggle: toggle,
+        }}
         handleOnCopy={onCopy}
         // A collapsed section offers nothing to copy or act on.
         hideCopyButton={!onCopy || isCollapsed}

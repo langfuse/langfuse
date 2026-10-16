@@ -36,6 +36,8 @@ export interface ChatMessageListProps {
   showSystemPrompt?: boolean;
   /** Title messages Input / Output by side instead of by role. */
   titleBySide?: boolean;
+  /** Header controls for the last output-side message (e.g. Correct output). */
+  outputControls?: React.ReactNode;
 }
 
 /**
@@ -59,6 +61,7 @@ export function ChatMessageList({
   contentMode = "all",
   showSystemPrompt,
   titleBySide = false,
+  outputControls,
 }: ChatMessageListProps) {
   // Filter messages to only those with renderable content
   const messagesToRender = useMemo(
@@ -80,6 +83,12 @@ export function ChatMessageList({
     collapseLongHistory &&
     message.role !== "system" &&
     filteredIndex < messagesToRender.length - EXPANDED_TAIL_LENGTH;
+
+  const lastOutputIndex = messagesToRender.reduce(
+    (last, { originalIndex }, index) =>
+      originalIndex >= (inputMessageCount ?? 0) ? index : last,
+    -1,
+  );
 
   const characterLimit = useMarkdownRenderCharacterLimit();
 
@@ -125,6 +134,9 @@ export function ChatMessageList({
                 isOutputMessage={isOutputMessage}
                 contentMode={contentMode}
                 defaultCollapsed={startsCollapsed(filteredIndex, message)}
+                controlButtons={
+                  filteredIndex === lastOutputIndex ? outputControls : undefined
+                }
               />
             );
           })}

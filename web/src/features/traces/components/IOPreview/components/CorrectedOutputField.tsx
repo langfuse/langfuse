@@ -37,6 +37,38 @@ interface CorrectedOutputFieldProps {
   existingCorrection?: ScoreDomain | null;
   observationId?: string;
   compact?: boolean; // Use smaller font size for JSON Beta view
+  /** `header`: the host renders `CorrectOutputButton` in the Output header
+      and mounts this field only while open or when a correction exists, so
+      the field has no trigger of its own. */
+  trigger?: "inline" | "header";
+  /** Mount straight into the editor (header mode, no correction yet). */
+  startEditing?: boolean;
+  /** Called when the section closes again (correction deleted). */
+  onClosed?: () => void;
+}
+
+/** Pencil for the Output header controls; opens the correction editor. */
+export function CorrectOutputButton({ onClick }: { onClick: () => void }) {
+  const capture = usePostHogClientCapture();
+  return (
+    <Button
+      variant="ghost"
+      size="icon-xs"
+      type="button"
+      title="Correct output"
+      aria-label="Correct output"
+      className="text-muted-foreground hover:text-foreground hover:bg-transparent"
+      onClick={() => {
+        capture("trace_detail:io_section_collapse_toggle", {
+          section: "corrected_output",
+          collapsed: false,
+        });
+        onClick();
+      }}
+    >
+      <Pencil className="icon-base text-icon-foreground" />
+    </Button>
+  );
 }
 
 export function CorrectedOutputField({
@@ -48,6 +80,9 @@ export function CorrectedOutputField({
   traceId,
   environment = "default",
   compact = false,
+  trigger = "inline",
+  startEditing = false,
+  onClosed,
 }: CorrectedOutputFieldProps) {
   const hasAccess = useHasProjectAccess({ projectId, scope: "scores:save" });
   const capture = usePostHogClientCapture();
@@ -61,8 +96,10 @@ export function CorrectedOutputField({
   // Diff dialog state
   const [isDiffDialogOpen, setIsDiffDialogOpen] = useState(false);
 
-  // When no correction exists, keep the section collapsed until it is opened.
-  const [isExpanded, setIsExpanded] = useState(false);
+  // Inline mode: no correction keeps the section behind its link until opened.
+  // Header mode: the host mounts this field only when it should show.
+  const [internalExpanded, setIsExpanded] = useState(false);
+  const isExpanded = trigger === "header" || internalExpanded;
   const editorRef = useRef<ReactCodeMirrorRef | null>(null);
   const focusEditor = () => {
     requestAnimationFrame(() => editorRef.current?.view?.focus());
@@ -99,6 +136,7 @@ export function CorrectedOutputField({
     onSave: handleSave,
     setSaveStatus,
     strictJsonMode,
+    initialEditing: startEditing,
   });
 
   // When not editing, use correctionValue (source of truth from cache/server)
@@ -166,6 +204,7 @@ export function CorrectedOutputField({
     handleDelete();
     setIsEditing(false);
     setIsExpanded(false);
+    onClosed?.();
   };
 
   if (!isExpanded && !effectiveCorrection) {
@@ -352,13 +391,8 @@ export function CorrectedOutputField({
       ) : (
         <div className="pt-2">
           <IOSection
-            title={
-              <>
-                Corrected output
-                {infoIcon}
-              </>
-            }
-            titleText="Corrected output"
+            title="Corrected output"
+            titleAside={infoIcon}
             controlButtons={actions}
           >
             {body}

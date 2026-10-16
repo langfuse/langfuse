@@ -1,5 +1,5 @@
 /* eslint-disable no-nested-ternary */
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   type ObservationType,
   type Prisma,
@@ -24,7 +24,12 @@ import {
   type ExpansionStateProps,
   type IOPreviewContentMode,
 } from "./IOPreview";
-import { CorrectedOutputField } from "./components/CorrectedOutputField";
+import {
+  CorrectedOutputField,
+  CorrectOutputButton,
+} from "./components/CorrectedOutputField";
+import { useCorrectionData } from "./hooks/useCorrectionData";
+import { shouldRenderMessageForContentMode } from "@/src/features/traces/fns/chatMessageUtils";
 import { StatusMessageSection } from "./components/StatusMessageSection";
 import type { ObservationStatusMessage } from "./components/statusMessagePresentation";
 
@@ -45,6 +50,8 @@ interface JsonInputOutputViewProps {
   onOutputExpansionChange?: (
     expansion: Record<string, boolean> | boolean,
   ) => void;
+  /** Extra header controls on the Output section. */
+  outputControls?: React.ReactNode;
 }
 
 function JsonInputOutputView({
@@ -60,6 +67,7 @@ function JsonInputOutputView({
   outputExpansionState,
   onInputExpansionChange,
   onOutputExpansionChange,
+  outputControls,
 }: JsonInputOutputViewProps) {
   const showInput = !hideInput && !(hideIfNull && !parsedInput);
   const showOutput = !hideOutput && !(hideIfNull && !parsedOutput);
@@ -86,6 +94,7 @@ function JsonInputOutputView({
           isParsing={isParsing}
           media={media?.filter((m) => m.field === "output") ?? []}
           currentView="pretty"
+          controlButtons={outputControls}
           externalExpansionState={outputExpansionState}
           onExternalExpansionChange={onOutputExpansionChange}
         />
@@ -266,6 +275,52 @@ export function IOPreviewPretty({
 
   const showData = contentMode !== "conversation";
   const shouldRenderMessages = hasRenderableChatMessages(parserResult);
+
+  // The "Correct output" pencil lives in the Output header; the field below
+  // opens into its editor from there. Without an Output header (no output
+  // message rendered) the field keeps its own inline trigger.
+  const [correctionOpen, setCorrectionOpen] = useState(false);
+  const { effectiveCorrection } = useCorrectionData(
+    outputCorrection,
+    observationId,
+    traceId,
+  );
+  const hasOutputHeader = shouldRenderMessages
+    ? allMessages.some(
+        (message, index) =>
+          index >= (inputMessageCount ?? 0) &&
+          shouldRenderMessageForContentMode(
+            message,
+            contentMode,
+            showSystemPrompt,
+          ),
+      )
+    : !hideOutput && !(hideIfNull && !parsedOutput);
+  const correctionTrigger = hasOutputHeader ? "header" : "inline";
+  const outputControls =
+    showCorrections &&
+    hasOutputHeader &&
+    !correctionOpen &&
+    !effectiveCorrection ? (
+      <CorrectOutputButton onClick={() => setCorrectionOpen(true)} />
+    ) : undefined;
+  // In header mode the field mounts only while open or with a correction.
+  const showCorrectionField =
+    showCorrections &&
+    (correctionTrigger === "inline" || correctionOpen || !!effectiveCorrection);
+  const correctedOutputField = showCorrectionField ? (
+    <CorrectedOutputField
+      actualOutput={parsedOutput}
+      existingCorrection={outputCorrection}
+      observationId={observationId}
+      projectId={projectId}
+      traceId={traceId}
+      environment={environment}
+      trigger={correctionTrigger}
+      startEditing={correctionOpen && !effectiveCorrection}
+      onClosed={() => setCorrectionOpen(false)}
+    />
+  ) : null;
   // Only generations hold a conversation; tools, spans, agents and the rest
   // are titled Input / Output rather than by role. (`isGenerationLike` is
   // wider: it also covers TOOL and AGENT, which carry model usage, not chat.)
@@ -304,31 +359,17 @@ export function IOPreviewPretty({
             contentMode={contentMode}
             showSystemPrompt={showSystemPrompt}
             titleBySide={titleBySide}
+            outputControls={outputControls}
           />
-          {showCorrections && (
-            <CorrectedOutputField
-              actualOutput={parsedOutput}
-              existingCorrection={outputCorrection}
-              observationId={observationId}
-              projectId={projectId}
-              traceId={traceId}
-              environment={environment}
-            />
-          )}
+          {correctedOutputField}
         </div>
       ) : showData ? (
         <div>
-          <JsonInputOutputView {...jsonViewProps} />
-          {showCorrections && (
-            <CorrectedOutputField
-              actualOutput={parsedOutput}
-              existingCorrection={outputCorrection}
-              observationId={observationId}
-              projectId={projectId}
-              traceId={traceId}
-              environment={environment}
-            />
-          )}
+          <JsonInputOutputView
+            {...jsonViewProps}
+            outputControls={outputControls}
+          />
+          {correctedOutputField}
         </div>
       ) : null}
     </div>
