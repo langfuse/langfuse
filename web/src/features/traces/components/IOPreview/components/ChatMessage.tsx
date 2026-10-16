@@ -1,11 +1,8 @@
 /* eslint-disable @repo/no-null-render */
 import { useState } from "react";
-import { Button } from "@/src/components/ui/button";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import {
-  MarkdownJsonView,
-  MarkdownJsonViewHeader,
-} from "@/src/components/ui/MarkdownJsonView";
+import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
+import { IOSection, type IOSectionAction } from "@/src/components/ui/IOSection";
 import { ToolCallInvocationsView } from "@/src/features/traces/components/ToolCallInvocationsView";
 import { ListChevronsDownUp, ListChevronsUpDown } from "lucide-react";
 import { stringify } from "@langfuse/shared";
@@ -37,8 +34,12 @@ export interface ChatMessageProps {
   toolCallNumbers?: number[];
   isOutputMessage?: boolean;
   contentMode?: IOPreviewContentMode;
+  /** Render the message section collapsed to its header. */
+  defaultCollapsed?: boolean;
   /** Section title; the caller decides (role, name, or Input / Output). */
   title: string;
+  /** Extra header actions, after the message's own. */
+  actions?: IOSectionAction[];
 }
 
 /**
@@ -57,7 +58,9 @@ export function ChatMessage({
   toolCallNumbers,
   isOutputMessage,
   contentMode = "all",
+  defaultCollapsed,
   title,
+  actions: extraActions,
 }: ChatMessageProps) {
   const [showTableView, setShowTableView] = useState(false);
 
@@ -78,25 +81,23 @@ export function ChatMessage({
   const isSystemPrompt = message.role === "system";
   const showData = contentMode !== "conversation";
 
-  // Toggle button for passthrough JSON
-  const passthroughToggleButton =
-    showData && hasPassthroughJson(message) ? (
-      <Button
-        variant="ghost"
-        size="icon-xs"
-        onClick={() => setShowTableView((v) => !v)}
-        title={
-          showTableView ? "Show formatted view" : "Show passthrough JSON data"
+  // Toggle between the formatted message and its passthrough JSON
+  const passthroughAction: IOSectionAction | undefined =
+    showData && hasPassthroughJson(message)
+      ? {
+          icon: showTableView ? ListChevronsDownUp : ListChevronsUpDown,
+          label: showTableView
+            ? "Show formatted view"
+            : "Show passthrough JSON data",
+          onClick: () => setShowTableView((v) => !v),
+          active: showTableView,
         }
-        className="hover:bg-border -mr-2"
-      >
-        {showTableView ? (
-          <ListChevronsDownUp className="icon-sm text-primary" />
-        ) : (
-          <ListChevronsUpDown className="icon-sm text-icon-foreground" />
-        )}
-      </Button>
-    ) : undefined;
+      : undefined;
+  const allActions = [
+    ...(passthroughAction ? [passthroughAction] : []),
+    ...(extraActions ?? []),
+  ];
+  const actions = allActions.length > 0 ? allActions : undefined;
 
   // Placeholder message
   if (isPlaceholderMessage(message)) {
@@ -106,6 +107,8 @@ export function ChatMessage({
           <MarkdownJsonView
             title="Placeholder"
             content={message.name || "Unnamed placeholder"}
+            actions={actions}
+            defaultCollapsed={defaultCollapsed}
           />
         </div>
         <div style={{ display: shouldRenderMarkdown ? "none" : "block" }}>
@@ -113,6 +116,8 @@ export function ChatMessage({
             title="Placeholder"
             json={message.name || "Unnamed placeholder"}
             currentView={currentView}
+            actions={actions}
+            defaultCollapsed={defaultCollapsed}
           />
         </div>
       </div>
@@ -127,6 +132,8 @@ export function ChatMessage({
           title={title || (isOutputMessage ? "Output" : "Input")}
           json={message.json}
           currentView={currentView}
+          actions={actions}
+          defaultCollapsed={defaultCollapsed}
         />
       </div>
     );
@@ -140,7 +147,8 @@ export function ChatMessage({
           title={title}
           json={message.json}
           currentView="pretty"
-          controlButtons={passthroughToggleButton}
+          actions={actions}
+          defaultCollapsed={defaultCollapsed}
         />
       </div>
     );
@@ -154,25 +162,24 @@ export function ChatMessage({
     toolCalls.length > 0
   ) {
     return (
-      <div className="group/iosection transition-colors">
-        <MarkdownJsonViewHeader
-          title={title}
-          hoverRevealControls
-          handleOnCopy={() => {
-            // Shared stringify (not raw JSON.stringify) so \uXXXX escapes in
-            // string fields are copied as real characters, like the rendered
-            // view shows them.
-            const rawText = stringify(message, undefined, 2);
-            copyTextToClipboard(rawText);
-          }}
-          controlButtons={passthroughToggleButton}
-        />
+      <IOSection
+        title={title}
+        onCopy={() => {
+          // Shared stringify (not raw JSON.stringify) so \uXXXX escapes in
+          // string fields are copied as real characters, like the rendered
+          // view shows them.
+          const rawText = stringify(message, undefined, 2);
+          copyTextToClipboard(rawText);
+        }}
+        actions={actions}
+        defaultCollapsed={defaultCollapsed}
+      >
         <ToolCallInvocationsView
           message={message}
           toolCallNumbers={toolCallNumbers}
           renderResponse={renderToolResponse}
         />
-      </div>
+      </IOSection>
     );
   }
 
@@ -182,7 +189,7 @@ export function ChatMessage({
     hasThinkingContent(message) ||
     hasRedactedThinkingContent(message)
   ) {
-    // Thinking blocks to render after header
+    // Thinking blocks render at the top of the section box
     const thinkingBlocks = (
       <>
         {hasThinkingContent(message) &&
@@ -200,6 +207,17 @@ export function ChatMessage({
       </>
     );
 
+    // Tool calls render at the bottom of the same section box
+    const toolCallsView =
+      showData && toolCalls.length > 0 ? (
+        <ToolCallInvocationsView
+          className="mt-2"
+          message={message}
+          toolCallNumbers={toolCallNumbers}
+          renderResponse={renderToolResponse}
+        />
+      ) : undefined;
+
     return (
       <div className="transition-colors">
         {/* Markdown view */}
@@ -208,19 +226,12 @@ export function ChatMessage({
             title={title}
             content={message.content || ""}
             audio={message.audio}
-            controlButtons={passthroughToggleButton}
-            afterHeader={thinkingBlocks}
+            actions={actions}
+            beforeContent={thinkingBlocks}
+            afterContent={toolCallsView}
             isSystemPrompt={isSystemPrompt}
+            defaultCollapsed={defaultCollapsed}
           />
-          {showData && toolCalls.length > 0 && (
-            <div className="mt-2">
-              <ToolCallInvocationsView
-                message={message}
-                toolCallNumbers={toolCallNumbers}
-                renderResponse={renderToolResponse}
-              />
-            </div>
-          )}
         </div>
 
         {/* JSON view */}
@@ -229,19 +240,12 @@ export function ChatMessage({
             title={title}
             json={message.content}
             currentView={currentView}
-            controlButtons={passthroughToggleButton}
-            afterHeader={thinkingBlocks}
+            actions={actions}
+            beforeContent={thinkingBlocks}
+            afterContent={toolCallsView}
             isSystemPrompt={isSystemPrompt}
+            defaultCollapsed={defaultCollapsed}
           />
-          {showData && toolCalls.length > 0 && (
-            <div className="mt-2">
-              <ToolCallInvocationsView
-                message={message}
-                toolCallNumbers={toolCallNumbers}
-                renderResponse={renderToolResponse}
-              />
-            </div>
-          )}
         </div>
       </div>
     );
@@ -255,6 +259,8 @@ export function ChatMessage({
           title={title || (isOutputMessage ? "Output" : "Input")}
           json={withoutUnsetFields(message)}
           currentView={currentView}
+          actions={actions}
+          defaultCollapsed={defaultCollapsed}
         />
       </div>
     );

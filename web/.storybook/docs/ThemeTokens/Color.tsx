@@ -86,7 +86,7 @@ const SECTION_MATCHERS: Array<{
   {
     id: "surfaces",
     test: (n) =>
-      /^--(?:background|foreground|foreground-secondary|foreground-tertiary|icon|muted|surface-code(?:-header)?|popover|card|modal|header)(?:-foreground)?$/.test(
+      /^--(?:background|foreground|foreground-secondary|foreground-tertiary|icon|muted|surface-code(?:-header)?|surface-section|popover|card|modal|header)(?:-foreground)?$/.test(
         n,
       ),
   },

@@ -102,7 +102,7 @@ describe("CorrectedOutputField visibility", () => {
       />,
     );
 
-    expect(screen.getByText("Corrected Output")).toBeInTheDocument();
+    expect(screen.getByText("Corrected output")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Correct output" }),
     ).not.toBeInTheDocument();
@@ -131,7 +131,23 @@ describe("CorrectedOutputField visibility", () => {
     expect(
       screen.getByRole("button", { name: "Correct output" }),
     ).toBeInTheDocument();
-    expect(screen.queryByText("Corrected Output")).not.toBeInTheDocument();
+    expect(screen.queryByText("Corrected output")).not.toBeInTheDocument();
+  });
+
+  it("in header mode shows the section without its own link", () => {
+    render(
+      <CorrectedOutputField
+        {...baseProps}
+        existingCorrection={null}
+        trigger="header"
+        startEditing
+      />,
+    );
+
+    expect(screen.getByText("Corrected output")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Correct output" }),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps the section collapsed when no correction exists", () => {

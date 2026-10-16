@@ -1,5 +1,4 @@
-import { useMemo, useState } from "react";
-import { Button } from "@/src/components/design-system/Button/Button";
+import { useMemo } from "react";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import {
   filterAlreadyRenderedMedia,
@@ -19,8 +18,10 @@ import {
 } from "@/src/features/traces/fns/chatMessageUtils";
 import { type MediaReturnType } from "@/src/features/media";
 import { type IOPreviewContentMode } from "@/src/features/traces/components/IOPreview/IOPreview";
+import { type IOSectionAction } from "@/src/components/ui/IOSection";
 
-const COLLAPSE_THRESHOLD = 3;
+/** Only the last N messages start expanded in a long conversation. */
+const EXPANDED_TAIL_LENGTH = 3;
 
 // ChatMessageList props
 export interface ChatMessageListProps {
@@ -36,14 +37,16 @@ export interface ChatMessageListProps {
   showSystemPrompt?: boolean;
   /** Title messages Input / Output by side instead of by role. */
   titleBySide?: boolean;
+  /** Header actions for the last output-side message (e.g. Correct output). */
+  outputActions?: IOSectionAction[];
 }
 
 /**
- * ChatMessageList renders a list of ChatML messages with collapse/expand.
+ * ChatMessageList renders a list of ChatML messages, one section each.
  *
  * Features:
  * - Filters out empty messages
- * - Collapses long history (shows first + last N messages)
+ * - Collapses long history (earlier messages start collapsed)
  * - Renders additional input section
  * - Renders media section
  */
@@ -59,6 +62,7 @@ export function ChatMessageList({
   contentMode = "all",
   showSystemPrompt,
   titleBySide = false,
+  outputActions,
 }: ChatMessageListProps) {
   // Filter messages to only those with renderable content
   const messagesToRender = useMemo(
@@ -75,22 +79,16 @@ export function ChatMessageList({
     [contentMode, messages, showSystemPrompt],
   );
 
-  // Initialize collapsed state based on message count
-  const [isCollapsed, setCollapsed] = useState<boolean | null>(
-    collapseLongHistory && messagesToRender.length > COLLAPSE_THRESHOLD
-      ? true
-      : null,
-  );
+  // System prompts follow their own long-prompt rule, not the history rule.
+  const startsCollapsed = (filteredIndex: number, message: ChatMlMessage) =>
+    collapseLongHistory &&
+    message.role !== "system" &&
+    filteredIndex < messagesToRender.length - EXPANDED_TAIL_LENGTH;
 
-  const visibleMessages = useMemo(
-    () =>
-      messagesToRender.filter(
-        (_, filteredIndex) =>
-          !isCollapsed ||
-          filteredIndex === 0 ||
-          filteredIndex > messagesToRender.length - COLLAPSE_THRESHOLD,
-      ),
-    [isCollapsed, messagesToRender],
+  const lastOutputIndex = messagesToRender.reduce(
+    (last, { originalIndex }, index) =>
+      originalIndex >= (inputMessageCount ?? 0) ? index : last,
+    -1,
   );
 
   const characterLimit = useMarkdownRenderCharacterLimit();
@@ -102,7 +100,7 @@ export function ChatMessageList({
 
     const renderedMediaIds = new Set<string>();
 
-    visibleMessages.forEach(({ message }) => {
+    messagesToRender.forEach(({ message }) => {
       const content = message.content || "";
 
       // Only content that ChatMessage renders through MarkdownView shows its
@@ -117,42 +115,30 @@ export function ChatMessageList({
     });
 
     return filterAlreadyRenderedMedia(media, renderedMediaIds);
-  }, [media, shouldRenderMarkdown, visibleMessages, characterLimit]);
+  }, [media, shouldRenderMarkdown, messagesToRender, characterLimit]);
 
   return (
     <div className="flex max-h-full min-h-0 flex-col gap-2">
-      <div className="flex max-h-full min-h-0 flex-col gap-3">
-        <div className="flex flex-col gap-3">
-          {visibleMessages.map(({ message, originalIndex }) => {
+      <div className="flex max-h-full min-h-0 flex-col gap-2">
+        <div className="flex flex-col gap-2">
+          {messagesToRender.map(({ message, originalIndex }, filteredIndex) => {
             const isOutputMessage = originalIndex >= (inputMessageCount ?? 0);
             const sideTitle = isOutputMessage ? "Output" : "Input";
             return (
-              <div className="flex flex-col" key={originalIndex}>
-                <ChatMessage
-                  message={message}
-                  title={titleBySide ? sideTitle : getMessageTitle(message)}
-                  shouldRenderMarkdown={shouldRenderMarkdown}
-                  currentView={currentView}
-                  toolCallNumbers={messageToToolCallNumbers.get(originalIndex)}
-                  isOutputMessage={isOutputMessage}
-                  contentMode={contentMode}
-                />
-                {/* Show collapse/expand button after first message */}
-                {isCollapsed !== null &&
-                  originalIndex === messagesToRender[0]?.originalIndex && (
-                    <div className="mt-1 mb-2 flex">
-                      <Button
-                        variant="text"
-                        onClick={() => setCollapsed((v) => !v)}
-                        text={
-                          isCollapsed
-                            ? `Show ${messagesToRender.length - COLLAPSE_THRESHOLD} more`
-                            : "Hide history"
-                        }
-                      />
-                    </div>
-                  )}
-              </div>
+              <ChatMessage
+                key={originalIndex}
+                message={message}
+                title={titleBySide ? sideTitle : getMessageTitle(message)}
+                shouldRenderMarkdown={shouldRenderMarkdown}
+                currentView={currentView}
+                toolCallNumbers={messageToToolCallNumbers.get(originalIndex)}
+                isOutputMessage={isOutputMessage}
+                contentMode={contentMode}
+                defaultCollapsed={startsCollapsed(filteredIndex, message)}
+                actions={
+                  filteredIndex === lastOutputIndex ? outputActions : undefined
+                }
+              />
             );
           })}
         </div>

@@ -1,12 +1,24 @@
 import { render, screen } from "@testing-library/react";
 import { vi } from "vitest";
 
-// The dedup under test lives in ChatMessageList; stub the per-message renderer
-// and the media strip to observe only which media survive the filter.
+// The list logic under test lives in ChatMessageList; stub the per-message
+// renderer (recording its collapse default) and the media strip.
 vi.mock(
   "@/src/features/traces/components/IOPreview/components/ChatMessage",
   () => ({
-    ChatMessage: () => null,
+    ChatMessage: ({
+      message,
+      defaultCollapsed,
+    }: {
+      message: { role: string };
+      defaultCollapsed?: boolean;
+    }) => (
+      <div
+        data-testid="chat-message"
+        data-role={message.role}
+        data-collapsed={String(defaultCollapsed)}
+      />
+    ),
   }),
 );
 vi.mock(
@@ -43,6 +55,57 @@ const renderList = (message: ChatMlMessage, mediaIds: string[]) =>
       messageToToolCallNumbers={new Map()}
     />,
   );
+
+describe("ChatMessageList long history", () => {
+  const conversation = [
+    { role: "system", content: "Be brief." },
+    { role: "user", content: "one" },
+    { role: "assistant", content: "two" },
+    { role: "user", content: "three" },
+    { role: "assistant", content: "four" },
+    { role: "user", content: "five" },
+  ] as ChatMlMessage[];
+
+  const collapsedFlags = () =>
+    screen
+      .getAllByTestId("chat-message")
+      .map((el) => el.getAttribute("data-collapsed"));
+
+  it("starts earlier messages collapsed and keeps the last three open", () => {
+    render(
+      <ChatMessageList
+        messages={conversation}
+        shouldRenderMarkdown={true}
+        currentView="pretty"
+        messageToToolCallNumbers={new Map()}
+      />,
+    );
+
+    // system follows its own long-prompt rule, so it is left open here
+    expect(collapsedFlags()).toEqual([
+      "false",
+      "true",
+      "true",
+      "false",
+      "false",
+      "false",
+    ]);
+  });
+
+  it("leaves every message open when history collapsing is off", () => {
+    render(
+      <ChatMessageList
+        messages={conversation}
+        shouldRenderMarkdown={true}
+        currentView="pretty"
+        messageToToolCallNumbers={new Map()}
+        collapseLongHistory={false}
+      />,
+    );
+
+    expect(collapsedFlags()).toEqual(Array(6).fill("false"));
+  });
+});
 
 describe("ChatMessageList media dedup", () => {
   it("filters media that the markdown path renders inline", () => {

@@ -7,6 +7,31 @@ interface UseCorrectionEditorParams {
   setSaveStatus: (status: "idle" | "saving" | "saved") => void;
   debounceMs?: number;
   strictJsonMode?: boolean;
+  /** Mount in edit mode, prefilled from `actualOutput` when there is no
+      correction yet; nothing is saved until the user types. */
+  initialEditing?: boolean;
+}
+
+/** The actual output as the editor's starting text. */
+function serializeActualOutput(actualOutput: unknown): string {
+  try {
+    return typeof actualOutput === "string"
+      ? actualOutput
+      : JSON.stringify(actualOutput);
+  } catch {
+    return String(actualOutput);
+  }
+}
+
+function isValidValue(value: string, strictJsonMode: boolean): boolean {
+  if (!strictJsonMode) return value.trim().length > 0;
+  try {
+    if (!value.trim()) return false;
+    JSON.parse(value);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -19,16 +44,26 @@ export function useCorrectionEditor({
   setSaveStatus,
   debounceMs = 500,
   strictJsonMode = false,
+  initialEditing = false,
 }: UseCorrectionEditorParams) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [value, setValue] = useState(correctionValue);
-  const [isValidJson, setIsValidJson] = useState(true);
+  const [isEditing, setIsEditing] = useState(initialEditing);
+  const [value, setValue] = useState(() =>
+    initialEditing && !correctionValue && actualOutput
+      ? serializeActualOutput(actualOutput)
+      : correctionValue,
+  );
+  const [isValidJson, setIsValidJson] = useState(() =>
+    initialEditing ? isValidValue(value, strictJsonMode) : true,
+  );
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Sync local value with correctionValue from cache/server
   // This includes handling deletions (correctionValue becomes empty string)
+  const syncedCorrectionValue = useRef(correctionValue);
   useEffect(() => {
+    if (syncedCorrectionValue.current === correctionValue) return;
+    syncedCorrectionValue.current = correctionValue;
     setValue(correctionValue);
   }, [correctionValue]);
 

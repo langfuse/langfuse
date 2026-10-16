@@ -3,5 +3,6 @@
 export {
   CorrectionCacheProvider,
   useCorrectionCache,
+  useCorrectionCacheOptional,
 } from "@/src/features/corrections/contexts/CorrectionCacheContext";
 export { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";

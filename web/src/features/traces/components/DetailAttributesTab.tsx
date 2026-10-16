@@ -4,8 +4,9 @@ import { useMemo } from "react";
 import { type MediaReturnType } from "@/src/features/media";
 
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { IOSection } from "@/src/components/ui/IOSection";
 import { cn } from "@/src/utils/tailwind";
-import { IO_SECTIONS_FLUSH_CLASS } from "@/src/features/traces/constants/ioSectionClasses";
+import { IO_STICKY_HEADERS_CLASS } from "@/src/features/traces/constants/ioSectionClasses";
 import { type MetadataFilterActions } from "@/src/components/table/ValueCell";
 import { AttributeRowActions } from "./ObservationDetailView/AttributeRowActions";
 import { LargeJsonFieldFallback } from "@/src/features/traces/components/IOPreview/components/LargeJsonFieldFallback";
@@ -59,8 +60,13 @@ export function DetailAttributesTab({
   const metadataTooLarge = metadataProbe.size > JSON_VIEW_RENDER_CHAR_LIMIT;
 
   return (
-    <div className="flex min-h-0 w-full flex-1 flex-col overflow-auto px-4 pb-4">
-      <div className={cn("space-y-3 pt-3", IO_SECTIONS_FLUSH_CLASS)}>
+    <div
+      className={cn(
+        "flex min-h-0 w-full flex-1 flex-col overflow-auto px-4 pb-4",
+        IO_STICKY_HEADERS_CLASS,
+      )}
+    >
+      <div className="space-y-2 pt-3">
         {observation && hasAttributes ? (
           <PrettyJsonView
             title="Attributes"
@@ -87,13 +93,16 @@ export function DetailAttributesTab({
         {hasMetadata ? (
           <div>
             {metadataTooLarge ? (
-              <LargeJsonFieldFallback
-                title="Metadata"
-                serialized={metadataProbe.serialized}
-                isString={metadataProbe.isString}
-                charCount={metadataProbe.size}
-                downloadFileBase={`metadata-${objectId}`}
-              />
+              <IOSection title="Metadata">
+                <LargeJsonFieldFallback
+                  title="Metadata"
+                  hideTitle
+                  serialized={metadataProbe.serialized}
+                  isString={metadataProbe.isString}
+                  charCount={metadataProbe.size}
+                  downloadFileBase={`metadata-${objectId}`}
+                />
+              </IOSection>
             ) : (
               <PrettyJsonView
                 title="Metadata"

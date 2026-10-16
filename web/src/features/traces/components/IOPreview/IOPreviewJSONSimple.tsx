@@ -1,8 +1,13 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type MediaReturnType } from "@/src/features/media";
-import { CorrectedOutputField } from "./components/CorrectedOutputField";
+import {
+  CorrectedOutputField,
+  useCorrectOutputAction,
+} from "./components/CorrectedOutputField";
+import { useCorrectionData } from "./hooks/useCorrectionData";
+import { IOSection } from "@/src/components/ui/IOSection";
 import { LargeJsonFieldFallback } from "./components/LargeJsonFieldFallback";
 import {
   JSON_VIEW_RENDER_CHAR_LIMIT,
@@ -10,8 +15,6 @@ import {
 } from "./fns/jsonViewSizeGate";
 import { StatusMessageSection } from "./components/StatusMessageSection";
 import type { ObservationStatusMessage } from "./components/statusMessagePresentation";
-import { IO_SECTIONS_FLUSH_CLASS } from "../../constants/ioSectionClasses";
-import { cn } from "@/src/utils/tailwind";
 
 export interface IOPreviewJSONSimpleProps {
   input?: Prisma.JsonValue;
@@ -136,20 +139,44 @@ export function IOPreviewJSONSimple({
 
   const downloadName = observationId ?? traceId;
 
+  // The "Correct output" pencil lives in the Output header; the field below
+  // opens into its editor from there.
+  const [correctionOpen, setCorrectionOpen] = useState(false);
+  const correctOutputAction = useCorrectOutputAction(() =>
+    setCorrectionOpen(true),
+  );
+  const { effectiveCorrection } = useCorrectionData(
+    outputCorrection,
+    observationId,
+    traceId,
+  );
+  const correctionTrigger = showOutput ? "header" : "inline";
+  // In header mode the field mounts only while open or with a correction.
+  const showCorrectionField =
+    showCorrections &&
+    (correctionTrigger === "inline" || correctionOpen || !!effectiveCorrection);
+  const outputActions =
+    showCorrections && showOutput && !correctionOpen && !effectiveCorrection
+      ? [correctOutputAction]
+      : undefined;
+
   return (
-    <div className={cn("pt-3", IO_SECTIONS_FLUSH_CLASS)}>
+    <div className="space-y-2 pt-3">
       {status ? (
         <StatusMessageSection status={status} currentView="json" />
       ) : null}
       {showInput &&
         (inputTooLarge ? (
-          <LargeJsonFieldFallback
-            title="Input"
-            serialized={inputProbe.serialized}
-            isString={inputProbe.isString}
-            charCount={inputProbe.size}
-            downloadFileBase={`input-${downloadName}`}
-          />
+          <IOSection title="Input">
+            <LargeJsonFieldFallback
+              title="Input"
+              hideTitle
+              serialized={inputProbe.serialized}
+              isString={inputProbe.isString}
+              charCount={inputProbe.size}
+              downloadFileBase={`input-${downloadName}`}
+            />
+          </IOSection>
         ) : (
           <PrettyJsonView
             title="Input"
@@ -170,13 +197,16 @@ export function IOPreviewJSONSimple({
         ))}
       {showOutput &&
         (outputTooLarge ? (
-          <LargeJsonFieldFallback
-            title="Output"
-            serialized={outputProbe.serialized}
-            isString={outputProbe.isString}
-            charCount={outputProbe.size}
-            downloadFileBase={`output-${downloadName}`}
-          />
+          <IOSection title="Output" actions={outputActions}>
+            <LargeJsonFieldFallback
+              title="Output"
+              hideTitle
+              serialized={outputProbe.serialized}
+              isString={outputProbe.isString}
+              charCount={outputProbe.size}
+              downloadFileBase={`output-${downloadName}`}
+            />
+          </IOSection>
         ) : (
           <PrettyJsonView
             title="Output"
@@ -186,6 +216,7 @@ export function IOPreviewJSONSimple({
             isParsing={isParsing}
             media={media?.filter((m) => m.field === "output") ?? []}
             currentView="json"
+            actions={outputActions}
             externalExpansionState={outputExpanded}
             onExternalExpansionChange={
               onOutputExpandedChange as (
@@ -199,7 +230,7 @@ export function IOPreviewJSONSimple({
           against — an acceptable degradation for payloads too large to render.
           We flag it as too-large so the diff dialog says so, rather than
           reporting "no original output". */}
-      {showCorrections && (
+      {showCorrectionField && (
         <CorrectedOutputField
           actualOutput={effectiveOutput}
           actualOutputTooLarge={outputTooLarge}
@@ -208,17 +239,23 @@ export function IOPreviewJSONSimple({
           projectId={projectId}
           traceId={traceId}
           environment={environment}
+          trigger={correctionTrigger}
+          startEditing={correctionOpen && !effectiveCorrection}
+          onClosed={() => setCorrectionOpen(false)}
         />
       )}
       {showMetadata &&
         (metadataTooLarge ? (
-          <LargeJsonFieldFallback
-            title="Metadata"
-            serialized={metadataProbe.serialized}
-            isString={metadataProbe.isString}
-            charCount={metadataProbe.size}
-            downloadFileBase={`metadata-${downloadName}`}
-          />
+          <IOSection title="Metadata">
+            <LargeJsonFieldFallback
+              title="Metadata"
+              hideTitle
+              serialized={metadataProbe.serialized}
+              isString={metadataProbe.isString}
+              charCount={metadataProbe.size}
+              downloadFileBase={`metadata-${downloadName}`}
+            />
+          </IOSection>
         ) : (
           <PrettyJsonView
             title="Metadata"

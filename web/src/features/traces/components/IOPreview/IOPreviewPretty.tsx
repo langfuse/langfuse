@@ -1,6 +1,5 @@
 /* eslint-disable no-nested-ternary */
-import { useMemo } from "react";
-import { cn } from "@/src/utils/tailwind";
+import { useMemo, useState } from "react";
 import {
   type ObservationType,
   type Prisma,
@@ -8,6 +7,7 @@ import {
   deepParseJson,
 } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { type IOSectionAction } from "@/src/components/ui/IOSection";
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 import { type MediaReturnType } from "@/src/features/media";
 import { type ChatMLParserResult } from "../../hooks/useChatMLParser";
@@ -25,10 +25,14 @@ import {
   type ExpansionStateProps,
   type IOPreviewContentMode,
 } from "./IOPreview";
-import { CorrectedOutputField } from "./components/CorrectedOutputField";
+import {
+  CorrectedOutputField,
+  useCorrectOutputAction,
+} from "./components/CorrectedOutputField";
+import { useCorrectionData } from "./hooks/useCorrectionData";
+import { shouldRenderMessageForContentMode } from "@/src/features/traces/fns/chatMessageUtils";
 import { StatusMessageSection } from "./components/StatusMessageSection";
 import type { ObservationStatusMessage } from "./components/statusMessagePresentation";
-import { IO_SECTIONS_FLUSH_CLASS } from "../../constants/ioSectionClasses";
 
 interface JsonInputOutputViewProps {
   parsedInput: unknown;
@@ -47,6 +51,8 @@ interface JsonInputOutputViewProps {
   onOutputExpansionChange?: (
     expansion: Record<string, boolean> | boolean,
   ) => void;
+  /** Extra header controls on the Output section. */
+  outputActions?: IOSectionAction[];
 }
 
 function JsonInputOutputView({
@@ -62,6 +68,7 @@ function JsonInputOutputView({
   outputExpansionState,
   onInputExpansionChange,
   onOutputExpansionChange,
+  outputActions,
 }: JsonInputOutputViewProps) {
   const showInput = !hideInput && !(hideIfNull && !parsedInput);
   const showOutput = !hideOutput && !(hideIfNull && !parsedOutput);
@@ -88,6 +95,7 @@ function JsonInputOutputView({
           isParsing={isParsing}
           media={media?.filter((m) => m.field === "output") ?? []}
           currentView="pretty"
+          actions={outputActions}
           externalExpansionState={outputExpansionState}
           onExternalExpansionChange={onOutputExpansionChange}
         />
@@ -268,6 +276,55 @@ export function IOPreviewPretty({
 
   const showData = contentMode !== "conversation";
   const shouldRenderMessages = hasRenderableChatMessages(parserResult);
+
+  // The "Correct output" pencil lives in the Output header; the field below
+  // opens into its editor from there. Without an Output header (no output
+  // message rendered) the field keeps its own inline trigger.
+  const [correctionOpen, setCorrectionOpen] = useState(false);
+  const correctOutputAction = useCorrectOutputAction(() =>
+    setCorrectionOpen(true),
+  );
+  const { effectiveCorrection } = useCorrectionData(
+    outputCorrection,
+    observationId,
+    traceId,
+  );
+  const hasOutputHeader = shouldRenderMessages
+    ? allMessages.some(
+        (message, index) =>
+          index >= (inputMessageCount ?? 0) &&
+          shouldRenderMessageForContentMode(
+            message,
+            contentMode,
+            showSystemPrompt,
+          ),
+      )
+    : !hideOutput && !(hideIfNull && !parsedOutput);
+  const correctionTrigger = hasOutputHeader ? "header" : "inline";
+  const outputActions =
+    showCorrections &&
+    hasOutputHeader &&
+    !correctionOpen &&
+    !effectiveCorrection
+      ? [correctOutputAction]
+      : undefined;
+  // In header mode the field mounts only while open or with a correction.
+  const showCorrectionField =
+    showCorrections &&
+    (correctionTrigger === "inline" || correctionOpen || !!effectiveCorrection);
+  const correctedOutputField = showCorrectionField ? (
+    <CorrectedOutputField
+      actualOutput={parsedOutput}
+      existingCorrection={outputCorrection}
+      observationId={observationId}
+      projectId={projectId}
+      traceId={traceId}
+      environment={environment}
+      trigger={correctionTrigger}
+      startEditing={correctionOpen && !effectiveCorrection}
+      onClosed={() => setCorrectionOpen(false)}
+    />
+  ) : null;
   // Only generations hold a conversation; tools, spans, agents and the rest
   // are titled Input / Output rather than by role. (`isGenerationLike` is
   // wider: it also covers TOOL and AGENT, which carry model usage, not chat.)
@@ -275,7 +332,7 @@ export function IOPreviewPretty({
     observationType !== undefined && observationType !== "GENERATION";
 
   return (
-    <div className={cn("space-y-3 pt-3", IO_SECTIONS_FLUSH_CLASS)}>
+    <div className="space-y-2 pt-3">
       {showData && status ? (
         <StatusMessageSection status={status} currentView="pretty" />
       ) : null}
@@ -306,31 +363,17 @@ export function IOPreviewPretty({
             contentMode={contentMode}
             showSystemPrompt={showSystemPrompt}
             titleBySide={titleBySide}
+            outputActions={outputActions}
           />
-          {showCorrections && (
-            <CorrectedOutputField
-              actualOutput={parsedOutput}
-              existingCorrection={outputCorrection}
-              observationId={observationId}
-              projectId={projectId}
-              traceId={traceId}
-              environment={environment}
-            />
-          )}
+          {correctedOutputField}
         </div>
       ) : showData ? (
         <div>
-          <JsonInputOutputView {...jsonViewProps} />
-          {showCorrections && (
-            <CorrectedOutputField
-              actualOutput={parsedOutput}
-              existingCorrection={outputCorrection}
-              observationId={observationId}
-              projectId={projectId}
-              traceId={traceId}
-              environment={environment}
-            />
-          )}
+          <JsonInputOutputView
+            {...jsonViewProps}
+            outputActions={outputActions}
+          />
+          {correctedOutputField}
         </div>
       ) : null}
     </div>
