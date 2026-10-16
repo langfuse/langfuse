@@ -1,4 +1,4 @@
-import QueueItems from "@/src/features/annotation-queues/pages/AnnotationQueueItems";
+import QueueItems from "@/src/features/annotation-queues/pages/QueueItems";
 import {
   RouteParamsPendingFallback,
   useReadyRouteParams,
