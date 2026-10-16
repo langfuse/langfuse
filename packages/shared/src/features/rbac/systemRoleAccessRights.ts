@@ -149,7 +149,12 @@ export const systemRoleAccessRights: Record<SystemRole, SystemRoleDefinition> =
       name: "Ingestion",
       description: "Create scores and traces from application telemetry.",
       policies: [
-        allow("project", ["traces:create", "scores:save", "media:create"]),
+        allow("project", [
+          "traces:create",
+          "scores:save",
+          "media:create",
+          "project:read",
+        ]),
       ],
       tags: ["principal:apiKey"],
     },

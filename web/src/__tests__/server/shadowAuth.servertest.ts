@@ -280,8 +280,8 @@ describe("shadowAuth maps principals to legacy-identical scopes", () => {
           apiKeyId: apiKey.id,
           ownerId: `project/${projectId}`,
           principalId: `apiKey/${apiKey.id}`,
-          roleId: "system/INGEST",
-          systemRole: "INGEST",
+          roleId: "system/SCORES_INGEST",
+          systemRole: "SCORES_INGEST",
         },
       });
       setMode("enforce");
