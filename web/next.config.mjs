@@ -7,6 +7,15 @@ import { withSentryConfig } from "@sentry/nextjs";
 import { env } from "./src/env.mjs";
 import { renamedRouteRedirects } from "./redirects.mjs";
 
+// Paths that serve the public API's OpenAPI spec (YAML). Clients and coding
+// agents look for it next to the API, so it is reachable at all of these.
+const OPENAPI_SPEC_ALIASES = [
+  "/api/openapi.yaml",
+  "/api/public/openapi.yaml",
+  "/api/public/openapi.yml",
+  "/openapi.yaml",
+];
+
 /**
  * CSP headers
  * img-src https to allow loading images from SSO providers
@@ -201,7 +210,16 @@ const nextConfig = {
   },
 
   async redirects() {
-    return renamedRouteRedirects;
+    return [
+      ...renamedRouteRedirects,
+      // Conventional OpenAPI locations that clients and coding agents try first;
+      // the spec is only published as YAML.
+      ...["/api/public/openapi.json", "/openapi.json"].map((source) => ({
+        source,
+        destination: "/generated/api/openapi.yml",
+        permanent: false,
+      })),
+    ];
   },
 
   async rewrites() {
@@ -210,10 +228,10 @@ const nextConfig = {
         source: "/.well-known/mcp.json",
         destination: "/api/well-known/mcp.json",
       },
-      {
-        source: "/api/openapi.yaml",
+      ...OPENAPI_SPEC_ALIASES.map((source) => ({
+        source,
         destination: "/generated/api/openapi.yml",
-      },
+      })),
     ];
   },
 
@@ -314,8 +332,8 @@ const nextConfig = {
           },
         ],
       },
-      {
-        source: "/api/openapi.yaml",
+      ...OPENAPI_SPEC_ALIASES.map((source) => ({
+        source,
         headers: [
           {
             key: "Access-Control-Allow-Origin",
@@ -326,7 +344,7 @@ const nextConfig = {
             value: "GET",
           },
         ],
-      },
+      })),
     ];
   },
 
