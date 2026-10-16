@@ -29,6 +29,7 @@ import {
   readTopicExecutionForRequest,
   readTopicExecutionSummary,
   readTopicExecutionTraceErrors,
+  getTopicExecutionCosts,
   getTopicSummaryCounts,
   listTopicExecutions,
   listTopicFacets,
@@ -439,16 +440,32 @@ export const topicsRouter = createTRPCRouter({
         input.timeRange,
       );
     }),
-  executions: topicsProcedure.query(async ({ input }) =>
-    Promise.all(
+  executions: topicsProcedure.query(async ({ input }) => {
+    const executions = await Promise.all(
       (await listTopicExecutions(input.projectId)).map(recoverExecutionState),
-    ),
-  ),
-  execution: topicsProcedure
-    .input(executionInput)
-    .query(({ input }) =>
-      executionWithRecovery(input.projectId, input.executionId),
-    ),
+    );
+    const costs = await getTopicExecutionCosts(
+      input.projectId,
+      executions
+        .filter((execution) => execution.input.operation === "process")
+        .map((execution) => execution.id),
+    );
+    return executions.map((execution) => ({
+      ...execution,
+      estimatedCost: costs[execution.id] ?? null,
+    }));
+  }),
+  execution: topicsProcedure.input(executionInput).query(async ({ input }) => {
+    const execution = await executionWithRecovery(
+      input.projectId,
+      input.executionId,
+    );
+    const costs = await getTopicExecutionCosts(
+      input.projectId,
+      execution.input.operation === "process" ? [execution.id] : [],
+    );
+    return { ...execution, estimatedCost: costs[execution.id] ?? null };
+  }),
   traceErrors: topicsProcedure
     .input(executionInput)
     .query(async ({ input }) => {
