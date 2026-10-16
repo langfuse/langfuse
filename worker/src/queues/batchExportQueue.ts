@@ -1,4 +1,4 @@
-import { Job, UnrecoverableError } from "bullmq";
+import { DelayedError, Job, UnrecoverableError } from "bullmq";
 
 import {
   BaseError,
@@ -13,8 +13,13 @@ import {
   logger,
 } from "@langfuse/shared/src/server";
 import { QueueName, TQueueJobTypes } from "@langfuse/shared/src/server";
-import { handleBatchExportJob } from "../features/batchExport/handleBatchExportJob";
+import {
+  BatchExportUserBusyError,
+  handleBatchExportJob,
+} from "../features/batchExport/handleBatchExportJob";
 import { findInCauseChain } from "../features/batchExport/findInCauseChain";
+
+const USER_BUSY_RETRY_DELAY_MS = 30_000;
 
 /**
  * Server-side kills of this query alone: TIMEOUT_EXCEEDED and the per-query
@@ -41,6 +46,11 @@ export const batchExportQueueProcessor = async (
 
     return true;
   } catch (e) {
+    if (e instanceof BatchExportUserBusyError) {
+      logger.info(`[BATCH EXPORT] ${e.message}`);
+      await job.moveToDelayed(Date.now() + USER_BUSY_RETRY_DELAY_MS, job.token);
+      throw new DelayedError();
+    }
     if (e instanceof LangfuseNotFoundError) {
       logger.warn(
         `[BATCH EXPORT] Batch export ${job.data.payload.batchExportId} not found. Job will be skipped.`,
