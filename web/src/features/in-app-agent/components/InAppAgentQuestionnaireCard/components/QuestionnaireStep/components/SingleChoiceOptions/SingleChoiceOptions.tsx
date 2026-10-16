@@ -4,11 +4,9 @@ import type { InAppAgentQuestionnaireQuestion } from "@langfuse/shared/in-app-ag
 import { RadioGroup } from "@/src/components/design-system/RadioGroup/RadioGroup";
 import type { QuestionnaireFormAnswer } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireCard/fns/createQuestionnaireFormValues";
 import { OtherAnswerInput } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireCard/components/QuestionnaireStep/components/OtherAnswerInput/OtherAnswerInput";
+import { OptionList } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireCard/components/QuestionnaireStep/components/OptionList/OptionList";
+import { OptionRowFrame } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireCard/components/QuestionnaireStep/components/OptionRowFrame/OptionRowFrame";
 import {
-  OPTION_CONTROL_CLASS_NAME,
-  OPTION_LIST_CLASS_NAME,
-  OPTION_ROW_CLASS_NAME,
-  OPTION_TEXT_CLASS_NAME,
   OTHER_ANSWER_LABEL,
   withRecommended,
 } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireCard/components/QuestionnaireStep/optionRow";
@@ -69,29 +67,27 @@ export function SingleChoiceOptions({
       value={radioValue(answer.selectedOptionIndexes, isOtherOpen)}
       onValueChange={handleValueChange}
     >
-      <div
-        className={OPTION_LIST_CLASS_NAME}
-        onPointerDown={handlePointerDown}
-        onKeyDown={handleKeyDown}
-      >
-        {question.options.map((option, optionIndex) => (
-          <RadioOptionRow
-            key={optionIndex}
-            id={`${idPrefix}-${optionIndex}`}
-            value={String(optionIndex)}
-            option={option}
+      <OptionList>
+        <div onPointerDown={handlePointerDown} onKeyDown={handleKeyDown}>
+          {question.options.map((option, optionIndex) => (
+            <RadioOptionRow
+              key={optionIndex}
+              id={`${idPrefix}-${optionIndex}`}
+              value={String(optionIndex)}
+              option={option}
+              isDisabled={isDisabled}
+            />
+          ))}
+          <RadioOtherAnswerRow
+            id={`${idPrefix}-${OTHER_VALUE}`}
+            isOtherOpen={isOtherOpen}
+            otherText={answer.otherText}
             isDisabled={isDisabled}
+            otherInputRef={otherInputRef}
+            onOtherTextChange={onOtherTextChange}
           />
-        ))}
-        <RadioOtherAnswerRow
-          id={`${idPrefix}-${OTHER_VALUE}`}
-          isOtherOpen={isOtherOpen}
-          otherText={answer.otherText}
-          isDisabled={isDisabled}
-          otherInputRef={otherInputRef}
-          onOtherTextChange={onOtherTextChange}
-        />
-      </div>
+        </div>
+      </OptionList>
     </RadioGroup>
   );
 }
@@ -117,17 +113,19 @@ function RadioOptionRow({
   isDisabled,
 }: RadioOptionRowProps) {
   return (
-    <label htmlFor={id} className={OPTION_ROW_CLASS_NAME}>
-      <span className={OPTION_CONTROL_CLASS_NAME}>
-        <RadioGroup.Item id={id} value={value} disabled={isDisabled} />
-      </span>
-      <span className={OPTION_TEXT_CLASS_NAME}>
-        <span className="leading-5">
-          {withRecommended(option.label, option.recommended)}
+    <OptionRowFrame>
+      <label htmlFor={id}>
+        <span className="flex h-5 shrink-0 items-center">
+          <RadioGroup.Item id={id} value={value} disabled={isDisabled} />
         </span>
-        <span className="text-muted-foreground">{option.description}</span>
-      </span>
-    </label>
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="leading-5">
+            {withRecommended(option.label, option.recommended)}
+          </span>
+          <span className="text-muted-foreground">{option.description}</span>
+        </span>
+      </label>
+    </OptionRowFrame>
   );
 }
 
@@ -148,24 +146,26 @@ function RadioOtherAnswerRow({
   onOtherTextChange,
 }: RadioOtherAnswerRowProps) {
   return (
-    <label htmlFor={id} className={OPTION_ROW_CLASS_NAME}>
-      <span className={OPTION_CONTROL_CLASS_NAME}>
-        <RadioGroup.Item id={id} value={OTHER_VALUE} disabled={isDisabled} />
-      </span>
-      <span className={OPTION_TEXT_CLASS_NAME}>
-        <span className="flex items-center gap-1.5 leading-5">
-          {OTHER_ANSWER_LABEL}
-          <PencilLine aria-hidden className="text-muted-foreground icon-sm" />
+    <OptionRowFrame>
+      <label htmlFor={id}>
+        <span className="flex h-5 shrink-0 items-center">
+          <RadioGroup.Item id={id} value={OTHER_VALUE} disabled={isDisabled} />
         </span>
-        {isOtherOpen ? (
-          <OtherAnswerInput
-            ref={otherInputRef}
-            value={otherText}
-            isDisabled={isDisabled}
-            onChange={onOtherTextChange}
-          />
-        ) : null}
-      </span>
-    </label>
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="flex items-center gap-1.5 leading-5">
+            {OTHER_ANSWER_LABEL}
+            <PencilLine aria-hidden className="text-muted-foreground icon-sm" />
+          </span>
+          {isOtherOpen ? (
+            <OtherAnswerInput
+              ref={otherInputRef}
+              value={otherText}
+              isDisabled={isDisabled}
+              onChange={onOtherTextChange}
+            />
+          ) : null}
+        </span>
+      </label>
+    </OptionRowFrame>
   );
 }
