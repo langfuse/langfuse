@@ -44,6 +44,22 @@ export interface OutboundUrlValidationWhitelist {
   // Positive host list. Empty or omitted keeps the default-allow behavior:
   // any public host is accepted, and `hosts` only exempts private targets.
   allowedHosts?: string[];
+  // Listed hosts whose S3 virtual-hosted names `{bucket}.{host}` are also
+  // allowed. Only read when `allowedHosts` is non-empty.
+  allowedBucketHostParents?: string[];
+}
+
+/** Bucket names the AWS SDK virtual-hosts as `{bucket}.{endpoint host}`. */
+const DNS_COMPATIBLE_BUCKET_NAME = /^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/;
+const IP_SHAPED_BUCKET_NAME = /(?:\d+\.){3}\d+/;
+const ADJACENT_DOTS = /\.\./;
+
+export function isDnsCompatibleBucketName(bucketName: string): boolean {
+  return (
+    DNS_COMPATIBLE_BUCKET_NAME.test(bucketName) &&
+    !IP_SHAPED_BUCKET_NAME.test(bucketName) &&
+    !ADJACENT_DOTS.test(bucketName)
+  );
 }
 
 export interface ValidateOutboundUrlHostOptions {
@@ -215,9 +231,21 @@ function enforcePositiveAllowlist(
   const allowedHosts = whitelist.allowedHosts ?? [];
   if (allowedHosts.length === 0) return "not-configured";
   if (allowedHosts.includes(hostname)) return "allowed";
+  if (isBucketHostOfAllowedParent(hostname, whitelist)) return "allowed";
   throw new OutboundUrlValidationError(
     "host-not-allowed",
     HOST_NOT_IN_ALLOWLIST_MESSAGE,
+  );
+}
+
+function isBucketHostOfAllowedParent(
+  hostname: string,
+  whitelist: OutboundUrlValidationWhitelist,
+): boolean {
+  return (whitelist.allowedBucketHostParents ?? []).some(
+    (parent) =>
+      hostname.endsWith(`.${parent}`) &&
+      isDnsCompatibleBucketName(hostname.slice(0, -parent.length - 1)),
   );
 }
 

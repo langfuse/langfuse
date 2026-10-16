@@ -417,13 +417,8 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           awsSse: undefined,
           awsSseKmsKeyId: undefined,
           externalEndpoint: undefined,
-          connectionValidation: blobStorageEndpointConnectionValidationOptions({
-            type,
-            endpoint,
-            bucketName,
-            forcePathStyle,
-            region,
-          }),
+          connectionValidation:
+            blobStorageEndpointConnectionValidationOptions(),
         });
 
         // Create a test file

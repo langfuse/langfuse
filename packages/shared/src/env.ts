@@ -549,10 +549,11 @@ const EnvSchema = z.object({
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
   // When non-empty, blob storage export endpoints must use one of these hosts,
-  // and blob endpoint validation is on. S3 exports without a custom endpoint
-  // connect to s3.<region>.amazonaws.com, which must then be listed. GCS
-  // exports always connect to Google and are not checked. Ignored on Langfuse
-  // Cloud.
+  // and blob endpoint validation is on. Bucket names under a listed host
+  // ({bucket}.{host}) are allowed too. S3 exports without a custom endpoint
+  // connect to s3.<region>.amazonaws.com, which must then be listed; region
+  // "auto" first connects to s3.us-east-1.amazonaws.com. GCS exports always
+  // connect to Google and are not checked. Ignored on Langfuse Cloud.
   LANGFUSE_BLOB_STORAGE_ENDPOINT_ALLOWED_HOSTS: optionalCommaSeparatedLowercase,
   LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_WHITELISTED_IPS: z
     .string()

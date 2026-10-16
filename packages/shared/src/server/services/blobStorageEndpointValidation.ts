@@ -1,4 +1,3 @@
-import { type BlobStorageIntegrationType } from "@prisma/client";
 import { env } from "../../env";
 import {
   type OutboundUrlConnectionValidationOptions,
@@ -7,10 +6,6 @@ import {
   parseOutboundUrl,
   validateOutboundUrlHost,
 } from "../outbound-url";
-import {
-  type S3VirtualHostTarget,
-  withS3VirtualHostedBucket,
-} from "./s3VirtualHostedAllowlist";
 
 export const BLOB_STORAGE_ENDPOINT_VALIDATION_LOG_CONTEXT =
   "Blob storage endpoint";
@@ -134,12 +129,7 @@ export function assertGcsBlobStorageBucketAllowed(bucketName: string): void {
   }
 }
 
-export type BlobStorageConnectionTarget = S3VirtualHostTarget & {
-  type: BlobStorageIntegrationType;
-};
-
 export function blobStorageEndpointConnectionValidationOptions(
-  target?: BlobStorageConnectionTarget,
   whitelist: OutboundUrlValidationWhitelist = blobStorageEndpointWhitelistFromEnv(),
 ): OutboundUrlConnectionValidationOptions | undefined {
   const effectiveWhitelist = getEffectiveWhitelist(whitelist);
@@ -149,12 +139,15 @@ export function blobStorageEndpointConnectionValidationOptions(
   }
 
   return {
-    // Azure addresses containers by path, so only S3 connects to a
-    // `{bucket}.{endpoint host}` name.
-    whitelist:
-      target && target.type !== "AZURE_BLOB_STORAGE"
-        ? withS3VirtualHostedBucket(effectiveWhitelist, target)
-        : effectiveWhitelist,
+    // S3 connects to `{bucket}.{endpoint host}` unless path-style is forced,
+    // and follows region redirects to `{bucket}.s3.<region>.amazonaws.com`.
+    // A rule over all listed hosts, rather than the integration's own bucket,
+    // keeps one pooled agent policy per deployment; the bucket name is the
+    // project owner's choice either way.
+    whitelist: {
+      ...effectiveWhitelist,
+      allowedBucketHostParents: effectiveWhitelist.allowedHosts,
+    },
     logContext: BLOB_STORAGE_ENDPOINT_VALIDATION_LOG_CONTEXT,
   };
 }
