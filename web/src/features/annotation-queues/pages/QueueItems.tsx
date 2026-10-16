@@ -1,4 +1,3 @@
-/* eslint-disable @repo/component-file-structure */
 import { api } from "@/src/utils/api";
 import { useState } from "react";
 import { AnnotationQueueItemsTable } from "@/src/features/annotation-queues/components/AnnotationQueueItemsTable";
