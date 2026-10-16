@@ -1,12 +1,8 @@
-/* eslint-disable @repo/component-file-structure */
-import { createContext, useContext, type ReactNode } from "react";
+import { type ReactNode } from "react";
 
 import { DEFAULT_MARKDOWN_RENDER_CHARACTER_LIMIT } from "@/src/components/ui/markdown-render-limits";
 import { api } from "@/src/utils/api";
-
-const MarkdownRenderCharacterLimitContext = createContext<number>(
-  DEFAULT_MARKDOWN_RENDER_CHARACTER_LIMIT,
-);
+import { MarkdownRenderCharacterLimitContext } from "./MarkdownRenderCharacterLimitContext";
 
 /**
  * Provides the character count above which trace/observation I/O is rendered
@@ -39,8 +35,4 @@ export function MarkdownRenderCharacterLimitProvider({
       {children}
     </MarkdownRenderCharacterLimitContext.Provider>
   );
-}
-
-export function useMarkdownRenderCharacterLimit(): number {
-  return useContext(MarkdownRenderCharacterLimitContext);
 }
