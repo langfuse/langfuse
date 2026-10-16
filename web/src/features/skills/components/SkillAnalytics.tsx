@@ -192,10 +192,6 @@ function SkillAnalyticsDashboard({
       <section className="flex flex-col gap-3 rounded-lg border pt-4">
         <div className="flex flex-col gap-1 px-4">
           <h3 className="text-sm font-bold">File usage</h3>
-          <p className="text-muted-foreground text-xs">
-            Loads count observations, with repeated loads of the same file
-            counted once per observation.
-          </p>
         </div>
         <div className="ph-no-capture max-h-80 min-h-32 overflow-auto">
           <Table<FileUsage>
