@@ -7,9 +7,11 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
+  CommandShortcut,
 } from "@/src/components/ui/command";
 import { useRouter } from "next/router";
 import {
+  BotMessageSquare,
   Grid2X2,
   LayoutDashboard,
   ListTree,
@@ -33,6 +35,7 @@ import useLocalStorage from "@/src/components/useLocalStorage";
 import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type ProjectScope } from "@langfuse/shared";
 import { useReadPath } from "@/src/features/events";
+import { useInAppAiAgent } from "@/src/features/in-app-agent";
 
 type IdNavigationItem = {
   type: "trace_id" | "observation_id";
@@ -284,22 +287,47 @@ function CreateActionItem({
   );
 }
 
+function AssistantItem({ onDone }: { onDone: () => void }) {
+  const { isAvailable, openAssistant, selectConversation } = useInAppAiAgent();
+
+  if (!isAvailable) return null;
+
+  return (
+    <CommandItem
+      value="Ask Assistant"
+      keywords={["assistant", "ai", "agent", "chat", "new chat", "ask"]}
+      onSelect={() => {
+        onDone();
+        selectConversation(null);
+        openAssistant("command_menu");
+      }}
+    >
+      <BotMessageSquare className="icon-base" />
+      Ask Assistant
+      <CommandShortcut keys={["Mod", "I"]} variant="subtle" />
+    </CommandItem>
+  );
+}
+
 function MainNavigationGroup({
   navItems,
   createActions,
   showCreateActions,
   onNavigate,
+  onDone,
 }: {
   navItems: Array<{ title: string; url: string; icon?: LucideIcon }>;
   createActions: CreateActions;
   showCreateActions: boolean;
   onNavigate: (entry: RecentEntry) => void;
+  onDone: () => void;
 }) {
   const router = useRouter();
   const capture = usePostHogClientCapture();
 
   return (
     <CommandGroup heading="Go to">
+      <AssistantItem onDone={onDone} />
       {navItems.map((item) => (
         <Fragment key={item.url}>
           <CommandItem
@@ -733,6 +761,7 @@ function CommandMenuComponent({
           createActions={createActions}
           showCreateActions={search !== ""}
           onNavigate={handleNavigate}
+          onDone={() => handleNavigate()}
         />
         <ProjectsGroup onNavigate={handleNavigate} />
         <DashboardsGroup onNavigate={handleNavigate} />
