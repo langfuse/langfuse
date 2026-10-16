@@ -82,6 +82,22 @@ export class GatewayProviderRepository {
     return connection ? toSafeConnection(connection) : null;
   }
 
+  async hasConnectionNamedIgnoringCase(params: {
+    organizationId: string;
+    name: string;
+    excludeId?: string;
+  }) {
+    const connection = await this.prisma.gatewayAiConnection.findFirst({
+      where: {
+        organizationId: params.organizationId,
+        name: { equals: params.name, mode: "insensitive" },
+        ...(params.excludeId ? { id: { not: params.excludeId } } : {}),
+      },
+      select: { id: true },
+    });
+    return connection !== null;
+  }
+
   async createConnection(params: {
     organizationId: string;
     name: string;

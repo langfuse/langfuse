@@ -32,8 +32,7 @@ import {
 } from "./provider";
 
 const organizationInput = z.object({ orgId: z.string() });
-// Naming rules live in `parseGatewayConnectionName` so violations reach the
-// client as a plain message the dialog can show on the name field.
+/** Naming rules live in `parseGatewayConnectionName` so the dialog can show them on the field. */
 const connectionNameSchema = z.string().max(1_000);
 const paginatedOrganizationInput = organizationInput.extend({
   cursor: z.string().optional(),

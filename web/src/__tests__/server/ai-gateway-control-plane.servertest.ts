@@ -1050,6 +1050,7 @@ describe("AI gateway control plane", () => {
       ["Production:Primary", GATEWAY_CONNECTION_NAME_ERRORS.invalidCharacters],
       ["OpenAI primary", GATEWAY_CONNECTION_NAME_ERRORS.invalidCharacters],
       ["-openai", GATEWAY_CONNECTION_NAME_ERRORS.invalidCharacters],
+      ["openai.v2", GATEWAY_CONNECTION_NAME_ERRORS.invalidCharacters],
       ["   ", GATEWAY_CONNECTION_NAME_ERRORS.required],
       ["a".repeat(65), GATEWAY_CONNECTION_NAME_ERRORS.tooLong],
       ["FT", GATEWAY_CONNECTION_NAME_ERRORS.reserved],
@@ -1067,11 +1068,11 @@ describe("AI gateway control plane", () => {
     await expect(
       caller.aiGateway.createConnection({
         orgId: org.id,
-        name: " OpenAI_eu.v2 ",
+        name: " OpenAI_eu-v2 ",
         provider: "OPENAI",
         credential: "sk-openai",
       }),
-    ).resolves.toMatchObject({ name: "OpenAI_eu.v2" });
+    ).resolves.toMatchObject({ name: "OpenAI_eu-v2" });
   });
 
   it("keeps a legacy connection name usable until it is renamed", async () => {
@@ -1104,9 +1105,9 @@ describe("AI gateway control plane", () => {
     ).rejects.toThrow(GATEWAY_CONNECTION_NAME_ERRORS.invalidCharacters);
   });
 
-  it("requires connection names to be unique within an organization", async () => {
+  it("requires connection names to be unique within an organization, ignoring case", async () => {
     const { caller, org } = await prepare();
-    await caller.aiGateway.createConnection({
+    const production = await caller.aiGateway.createConnection({
       orgId: org.id,
       name: "Production",
       provider: "OPENAI",
@@ -1116,11 +1117,11 @@ describe("AI gateway control plane", () => {
     await expect(
       caller.aiGateway.createConnection({
         orgId: org.id,
-        name: "Production",
+        name: "production",
         provider: "ANTHROPIC",
         credential: "sk-anthropic",
       }),
-    ).rejects.toThrow("A provider credential with this name already exists.");
+    ).rejects.toThrow(GATEWAY_CONNECTION_NAME_ERRORS.duplicate);
 
     const backup = await caller.aiGateway.createConnection({
       orgId: org.id,
@@ -1132,9 +1133,17 @@ describe("AI gateway control plane", () => {
       caller.aiGateway.updateConnection({
         orgId: org.id,
         id: backup.id,
-        name: "Production",
+        name: "PRODUCTION",
       }),
-    ).rejects.toThrow("A provider credential with this name already exists.");
+    ).rejects.toThrow(GATEWAY_CONNECTION_NAME_ERRORS.duplicate);
+
+    await expect(
+      caller.aiGateway.updateConnection({
+        orgId: org.id,
+        id: production.id,
+        name: "production",
+      }),
+    ).resolves.toMatchObject({ name: "production" });
   });
 
   it("changes ERROR only for credential auth failures and explicit recovery", async () => {

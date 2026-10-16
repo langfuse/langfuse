@@ -21,7 +21,7 @@ import {
   getGatewayProviderDefinition,
 } from "@/src/features/ai-gateway/server/provider/registry";
 import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
-import { parseGatewayConnectionName } from "./gatewayConnectionName";
+import { parseGatewayConnectionName } from "./parseGatewayConnectionName";
 import { GatewayProviderRepository } from "./gatewayProviderRepository";
 import { GatewayModelCatalogService } from "../models/gatewayModelCatalogService";
 
@@ -77,6 +77,10 @@ export class GatewayProviderService {
     session: OrgAuthedContext["session"];
   }) {
     const name = parseGatewayConnectionName(params.name);
+    await this.assertNameAvailable({
+      organizationId: params.organizationId,
+      name,
+    });
     await this.testCredential({
       provider: params.provider,
       credential: params.credential,
@@ -122,12 +126,18 @@ export class GatewayProviderService {
       id: params.id,
     });
     if (!existing) throw new LangfuseNotFoundError("Gateway connection");
-    // Unchanged names skip validation so connections created before the
-    // naming rules existed can still rotate credentials or toggle status.
+    /** Unchanged names skip validation so pre-existing names stay editable. */
     const name =
       params.name === undefined || params.name.trim() === existing.name
         ? undefined
         : parseGatewayConnectionName(params.name);
+    if (name !== undefined) {
+      await this.assertNameAvailable({
+        organizationId: params.organizationId,
+        name,
+        excludeId: existing.id,
+      });
+    }
     if (
       existing.status === "ERROR" &&
       params.status === "ENABLED" &&
@@ -207,6 +217,17 @@ export class GatewayProviderService {
       this.prisma,
     );
     return deleted;
+  }
+
+  /** Names differing only by case read as the same slug prefix, so they count as taken. */
+  private async assertNameAvailable(params: {
+    organizationId: string;
+    name: string;
+    excludeId?: string;
+  }) {
+    if (await this.repository.hasConnectionNamedIgnoringCase(params)) {
+      throw new InvalidRequestError(GATEWAY_CONNECTION_NAME_ERRORS.duplicate);
+    }
   }
 
   async updateAllowedModels(params: {
