@@ -47,12 +47,16 @@ type TraceType = Omit<
   rootObservationId?: string;
 };
 
+type PreparedObservation = ObservationReturnType & {
+  cyclicParentObservationId?: string;
+};
+
 /**
  * Processing node for iterative tree building.
  * Tracks parent-child relationships and processing state for bottom-up traversal.
  */
 interface ProcessingNode {
-  observation: ObservationReturnType;
+  observation: PreparedObservation;
   childrenIds: string[];
   inDegree: number; // Number of unprocessed children (for topological sort)
   depth: number; // Tree depth (calculated during graph building)
@@ -128,11 +132,11 @@ export function dedupeObservationsById<
 
 /**
  * Prepares observations for tree building.
- * De-duplicates colliding ids, cleans orphaned parent references, sorts by
- * startTime. Returns flat array (nesting happens in buildDependencyGraph).
+ * De-duplicates colliding ids, cleans orphaned and cyclic parent references,
+ * and sorts by startTime. Returns flat array (nesting happens in buildDependencyGraph).
  */
 function prepareObservations(list: ObservationReturnType[]): {
-  sortedObservations: ObservationReturnType[];
+  sortedObservations: PreparedObservation[];
 } {
   if (list.length === 0) return { sortedObservations: [] };
 
@@ -157,7 +161,32 @@ function prepareObservations(list: ObservationReturnType[]): {
     (a, b) => a.startTime.getTime() - b.startTime.getTime(),
   );
 
-  return { sortedObservations };
+  const byId = new Map<string, PreparedObservation>(
+    sortedObservations.map((observation) => [observation.id, observation]),
+  );
+  const visited = new Set<string>();
+  for (const observation of sortedObservations) {
+    const ancestors = new Set<string>();
+    let current: PreparedObservation | undefined = observation;
+    while (current && !visited.has(current.id)) {
+      if (ancestors.has(current.id)) {
+        // Break one edge per cycle, preserving the remaining subtree and input rows.
+        byId.set(current.id, {
+          ...current,
+          cyclicParentObservationId: current.parentObservationId!,
+          parentObservationId: null,
+        });
+        break;
+      }
+      ancestors.add(current.id);
+      current = current.parentObservationId
+        ? byId.get(current.parentObservationId)
+        : undefined;
+    }
+    for (const id of ancestors) visited.add(id);
+  }
+
+  return { sortedObservations: Array.from(byId.values()) };
 }
 
 /**
@@ -166,7 +195,7 @@ function prepareObservations(list: ObservationReturnType[]): {
  * Calculates in-degrees for topological sort (children count per node).
  * Calculates depth for each node based on parent relationships.
  */
-function buildDependencyGraph(sortedObservations: ObservationReturnType[]): {
+function buildDependencyGraph(sortedObservations: PreparedObservation[]): {
   nodeRegistry: Map<string, ProcessingNode>;
   leafIds: string[];
 } {
@@ -375,6 +404,7 @@ function buildTreeNodesBottomUp(
       calculatedOutputCost: obs.outputCost,
       calculatedTotalCost: obs.totalCost,
       parentObservationId: obs.parentObservationId,
+      cyclicParentObservationId: obs.cyclicParentObservationId,
       traceId: obs.traceId,
       totalCost,
       subtreeWallClockDurationMs,

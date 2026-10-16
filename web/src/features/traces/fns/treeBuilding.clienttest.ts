@@ -2220,6 +2220,61 @@ describe("getSubtreeDurationOverflowMs", () => {
   });
 });
 
+describe("Cyclic observation parents", () => {
+  it.each([false, true])(
+    "keeps cycles and their descendants searchable (events trace: %s)",
+    (eventsTrace) => {
+      const observations = [
+        createMockObservation({ id: "healthy", totalCost: 1 }),
+        createMockObservation({
+          id: "a",
+          parentObservationId: "b",
+          totalCost: 2,
+        }),
+        createMockObservation({
+          id: "b",
+          parentObservationId: "a",
+          totalCost: 3,
+        }),
+        createMockObservation({
+          id: "child",
+          parentObservationId: "a",
+          totalCost: 4,
+        }),
+        createMockObservation({
+          id: "self",
+          parentObservationId: "self",
+          totalCost: 5,
+        }),
+      ];
+      const trace = createMockTrace(
+        eventsTrace
+          ? { rootObservationType: "SPAN", rootObservationId: "healthy" }
+          : {},
+      );
+
+      const result = buildTraceUiData(trace, observations);
+      const items = result.searchItems.filter((item) => item.observationId);
+
+      expect(items.map((item) => item.observationId).sort()).toEqual([
+        "a",
+        "b",
+        "child",
+        "healthy",
+        "self",
+      ]);
+      expect(result.nodeMap.get("a")?.cyclicParentObservationId).toBe("b");
+      expect(result.nodeMap.get("self")?.cyclicParentObservationId).toBe(
+        "self",
+      );
+      expect(result.nodeMap.get("a")?.totalCost?.toNumber()).toBe(9);
+      expect(result.nodeMap.get("child")?.depth).toBe(1);
+      expect(observations[1].parentObservationId).toBe("b");
+      expect(observations[4].parentObservationId).toBe("self");
+    },
+  );
+});
+
 describe("Duplicate / colliding observation IDs (LFE-10588)", () => {
   // Regression guard for a prod trace crash. Real traces can contain multiple
   // rows that share the same observation id (colliding / reused ids in ingested
