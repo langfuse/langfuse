@@ -938,6 +938,10 @@ function TableRowComponent<TData>({
     <TableRow
       data-row-index={row.index}
       onClick={(e) => {
+        // A cell's overlay (hover card, popover) renders through a portal, so
+        // its clicks bubble up the React tree to this row while living outside
+        // the row in the DOM. They belong to the overlay, not to the row.
+        if (!e.currentTarget.contains(e.target as Node)) return;
         if (shouldIgnoreRowClickTarget(e.target)) return;
         onRowClick?.(row.original, e);
       }}
