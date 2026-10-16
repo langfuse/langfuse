@@ -27,7 +27,9 @@ export function CredentialFields({
             value={name}
             aria-invalid={Boolean(nameError)}
             aria-describedby={
-              nameError ? "gateway-credential-name-error" : undefined
+              nameError
+                ? "gateway-credential-name-error"
+                : "gateway-credential-name-description"
             }
             error={Boolean(nameError)}
             onChange={(event) => onNameChange(event.target.value)}
@@ -40,7 +42,18 @@ export function CredentialFields({
             >
               {nameError}
             </p>
-          ) : null}
+          ) : (
+            <p
+              id="gateway-credential-name-description"
+              className="text-muted-foreground text-sm"
+            >
+              Models are addressed as{" "}
+              <code className="break-all">
+                {name.trim() || "name"}:model-id
+              </code>
+              .
+            </p>
+          )}
         </div>
       </div>
       <div className="ph-no-capture">

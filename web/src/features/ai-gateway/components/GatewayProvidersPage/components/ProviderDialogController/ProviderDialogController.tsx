@@ -15,8 +15,9 @@ import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { CredentialFields } from "@/src/features/ai-gateway/components/GatewayProvidersPage/components/CredentialFields";
 import { ProviderSelect } from "@/src/features/ai-gateway/components/GatewayProvidersPage/components/ProviderSelect";
-import { DUPLICATE_GATEWAY_CONNECTION_NAME_ERROR } from "@/src/features/ai-gateway/constants/gatewayConnection";
+import { isGatewayConnectionNameError } from "@/src/features/ai-gateway/constants/gatewayConnection";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
+import { suggestGatewayConnectionName } from "@/src/features/ai-gateway/fns/suggestGatewayConnectionName";
 import type {
   GatewayConnection,
   GatewayProvider,
@@ -26,9 +27,6 @@ import {
   reportNonTrpcError,
   reportTrpcErrorWithoutToast,
 } from "@/src/utils/api";
-
-const INVALID_CONNECTION_NAME_ERROR =
-  "Connection names cannot contain a colon.";
 
 export function ProviderDialogController({
   organizationId,
@@ -45,10 +43,24 @@ export function ProviderDialogController({
   const [provider, setProvider] = useState<GatewayProvider>(
     connection?.provider ?? "OPENAI",
   );
-  const [name, setName] = useState(connection?.name ?? "");
-  const [nameError, setNameError] = useState<string | null>(null);
+  // `null` until the user types, so the name keeps following the suggestion
+  // for the selected provider.
+  const [nameDraft, setNameDraft] = useState<string | null>(
+    connection?.name ?? null,
+  );
   const [credential, setCredential] = useState("");
   const utils = api.useUtils();
+  // Same input as the providers page, so this reads the already-loaded pages.
+  const connectionsQuery = api.aiGateway.listConnections.useInfiniteQuery(
+    { orgId: organizationId, limit: 50 },
+    { getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined },
+  );
+  const existingNames =
+    connectionsQuery.data?.pages.flatMap((page) =>
+      page.data.map((existing) => existing.name),
+    ) ?? [];
+  const name =
+    nameDraft ?? suggestGatewayConnectionName(provider, existingNames);
   const test = api.aiGateway.testConnection.useMutation({
     onError: (error) =>
       reportTrpcErrorWithoutToast(error, "ai-gateway-providers"),
@@ -64,25 +76,37 @@ export function ProviderDialogController({
   const isSaving = create.isPending || update.isPending;
   const isPending = test.isPending || isSaving;
   const saveError = create.error ?? update.error;
-  const isNameMutationError =
-    saveError?.message === DUPLICATE_GATEWAY_CONNECTION_NAME_ERROR;
-  const isError =
-    test.isError ||
-    ((create.isError || update.isError) && !isNameMutationError);
+  const nameError =
+    saveError && isGatewayConnectionNameError(saveError.message)
+      ? saveError.message
+      : null;
+  const isError = test.isError || (Boolean(saveError) && !nameError);
   const errorTitle = test.isError
     ? "Provider validation failed"
     : "Provider credential could not be saved";
 
+  const resetMutations = () => {
+    test.reset();
+    create.reset();
+    update.reset();
+  };
+
   const reset = () => {
     setProvider("OPENAI");
-    setName("");
-    setNameError(null);
+    setNameDraft(null);
     setCredential("");
+    resetMutations();
+  };
+
+  const updateProvider = (value: GatewayProvider) => {
+    setProvider(value);
+    resetMutations();
   };
 
   const updateName = (value: string) => {
-    setName(value);
-    setNameError(null);
+    setNameDraft(value);
+    create.reset();
+    update.reset();
   };
 
   const testCredential = async (
@@ -103,12 +127,6 @@ export function ProviderDialogController({
     selectedConnection: GatewayConnection | null,
     closeDialog: () => void,
   ) => {
-    if (name.includes(":")) {
-      setNameError(INVALID_CONNECTION_NAME_ERROR);
-      return;
-    }
-    setNameError(null);
-
     try {
       if (selectedConnection) {
         await update.mutateAsync({
@@ -133,13 +151,6 @@ export function ProviderDialogController({
       closeDialog();
       reset();
     } catch (error) {
-      if (
-        error instanceof Error &&
-        error.message === DUPLICATE_GATEWAY_CONNECTION_NAME_ERROR
-      ) {
-        setNameError(DUPLICATE_GATEWAY_CONNECTION_NAME_ERROR);
-        return;
-      }
       reportNonTrpcError(error, "ai-gateway-providers");
     }
   };
@@ -170,7 +181,7 @@ export function ProviderDialogController({
                 />
               </div>
             ) : (
-              <ProviderSelect value={provider} onChange={setProvider} />
+              <ProviderSelect value={provider} onChange={updateProvider} />
             )}
             <CredentialFields
               name={name}
@@ -238,16 +249,16 @@ export function ProviderDialogController({
         children({
           openAddDialog: () => {
             setProvider(connection?.provider ?? "OPENAI");
-            setName(connection?.name ?? "");
-            setNameError(null);
+            setNameDraft(connection?.name ?? null);
             setCredential("");
+            resetMutations();
             openDialog(connection ?? null);
           },
           openEditDialog: (selectedConnection) => {
             setProvider(selectedConnection.provider);
-            setName(selectedConnection.name);
-            setNameError(null);
+            setNameDraft(selectedConnection.name);
             setCredential("");
+            resetMutations();
             openDialog(selectedConnection);
           },
         })

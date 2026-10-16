@@ -14,13 +14,14 @@ import { LLMAdapter, testModelCall } from "@langfuse/shared/src/server";
 import { getDisplaySecretKey } from "@langfuse/shared/src/server/auth/apiKeys";
 
 import { auditLog } from "@/src/features/audit-logs/server";
-import { DUPLICATE_GATEWAY_CONNECTION_NAME_ERROR } from "@/src/features/ai-gateway/constants/gatewayConnection";
+import { GATEWAY_CONNECTION_NAME_ERRORS } from "@/src/features/ai-gateway/constants/gatewayConnection";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import {
   type GatewayProviderName,
   getGatewayProviderDefinition,
 } from "@/src/features/ai-gateway/server/provider/registry";
 import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
+import { parseGatewayConnectionName } from "./gatewayConnectionName";
 import { GatewayProviderRepository } from "./gatewayProviderRepository";
 import { GatewayModelCatalogService } from "../models/gatewayModelCatalogService";
 
@@ -75,6 +76,7 @@ export class GatewayProviderService {
     credential: string;
     session: OrgAuthedContext["session"];
   }) {
+    const name = parseGatewayConnectionName(params.name);
     await this.testCredential({
       provider: params.provider,
       credential: params.credential,
@@ -83,7 +85,7 @@ export class GatewayProviderService {
     try {
       connection = await this.repository.createConnection({
         organizationId: params.organizationId,
-        name: params.name,
+        name,
         provider: params.provider,
         encryptedCredential: encrypt(params.credential),
         displaySecret: getDisplaySecretKey(params.credential),
@@ -120,6 +122,12 @@ export class GatewayProviderService {
       id: params.id,
     });
     if (!existing) throw new LangfuseNotFoundError("Gateway connection");
+    // Unchanged names skip validation so connections created before the
+    // naming rules existed can still rotate credentials or toggle status.
+    const name =
+      params.name === undefined || params.name.trim() === existing.name
+        ? undefined
+        : parseGatewayConnectionName(params.name);
     if (
       existing.status === "ERROR" &&
       params.status === "ENABLED" &&
@@ -141,7 +149,7 @@ export class GatewayProviderService {
       updated = await this.repository.updateConnection({
         organizationId: params.organizationId,
         id: params.id,
-        name: params.name,
+        name,
         status: params.credential ? "ENABLED" : params.status,
         encryptedCredential: params.credential
           ? encrypt(params.credential)
@@ -247,7 +255,7 @@ function rethrowConnectionMutationError(error: unknown): never {
     error instanceof Prisma.PrismaClientKnownRequestError &&
     error.code === "P2002"
   ) {
-    throw new InvalidRequestError(DUPLICATE_GATEWAY_CONNECTION_NAME_ERROR);
+    throw new InvalidRequestError(GATEWAY_CONNECTION_NAME_ERRORS.duplicate);
   }
   throw error;
 }
