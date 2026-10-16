@@ -23,16 +23,12 @@ import {
   TableNode,
   ValueNode,
   WhereNode,
-  type CommonTableExpressionNode,
   type JoinType,
   type KyselyPlugin,
   type OperationNode,
   type PluginTransformQueryArgs,
   type PluginTransformResultArgs,
-  type QueryId,
   type RootOperationNode,
-  type SelectQueryNode,
-  type WithNode,
 } from "kysely";
 
 import { QueryCompileError } from "./errors";
@@ -42,7 +38,7 @@ import {
   type ClickHouseSelectQueryNode,
 } from "./nodes";
 import { SOFT_DELETE_COLUMNS } from "./schema";
-import { ClickHouseOperationNodeTransformer } from "./transformer";
+import { CteScopedTransformer } from "./transformer";
 
 const OUTER_PRESERVING_JOINS = new Set<JoinType>(["RightJoin", "FullJoin"]);
 
@@ -58,77 +54,21 @@ export class SoftDeleteFilterPlugin implements KyselyPlugin {
   }
 }
 
-class SoftDeleteFilterTransformer extends ClickHouseOperationNodeTransformer {
-  /**
-   * CTE names visible to the select being transformed: one set per enclosing
-   * select that declares a WITH. A relation named like a CTE in scope is that
-   * CTE, not the physical table. A CTE body sees every sibling CTE except
-   * itself, matching ClickHouse: `WITH events_core AS (SELECT … FROM
-   * events_core)` reads the table. Under WITH RECURSIVE only the recursive
-   * UNION member reads the CTE; it is still filtered, so ClickHouse rejects
-   * the unknown column instead of the anchor returning deleted rows.
-   * Pushed before a select's children are transformed and popped after, so
-   * it is empty between compiles.
-   */
-  private readonly cteScopes: Set<string>[] = [];
-
-  protected override transformSelectQuery(
-    node: SelectQueryNode,
-    queryId?: QueryId,
-  ): SelectQueryNode {
-    const ctes = cteNames(node.with);
-    if (ctes.size > 0) this.cteScopes.push(ctes);
-    try {
-      const withChildren = super.transformSelectQuery(
-        node,
-        queryId,
-      ) as ClickHouseSelectQueryNode;
-      return filterSelect(withChildren, (name) =>
-        this.cteScopes.some((scope) => scope.has(name)),
-      );
-    } finally {
-      if (ctes.size > 0) this.cteScopes.pop();
-    }
+class SoftDeleteFilterTransformer extends CteScopedTransformer {
+  protected rewriteSelect(
+    node: ClickHouseSelectQueryNode,
+  ): ClickHouseSelectQueryNode {
+    return filterSelect(node, (table) => this.isCte(table));
   }
-
-  protected override transformWith(
-    node: WithNode,
-    queryId?: QueryId,
-  ): WithNode {
-    const full = this.cteScopes.pop() ?? new Set<string>();
-    try {
-      const expressions = node.expressions.map((expr) => {
-        const visible = new Set(full);
-        visible.delete(cteName(expr));
-        this.cteScopes.push(visible);
-        try {
-          return this.transformNode(expr, queryId);
-        } finally {
-          this.cteScopes.pop();
-        }
-      });
-      return { ...node, expressions };
-    } finally {
-      if (full.size > 0) this.cteScopes.push(full);
-    }
-  }
-}
-
-function cteName(expr: CommonTableExpressionNode): string {
-  return expr.name.table.table.identifier.name;
-}
-
-function cteNames(node: WithNode | undefined): Set<string> {
-  return new Set((node?.expressions ?? []).map(cteName));
 }
 
 function filterSelect(
   node: ClickHouseSelectQueryNode,
-  isCte: (name: string) => boolean,
+  isCte: (table: TableNode) => boolean,
 ): ClickHouseSelectQueryNode {
   const describe = (item: OperationNode) => {
     const relation = describeRelation(item);
-    return relation && !isCte(relation.tableName) ? relation : undefined;
+    return relation && !isCte(relation.node) ? relation : undefined;
   };
   const froms = (node.from?.froms ?? []).map(describe);
   const joins = (node.joins ?? []).map((join) => ({
@@ -198,7 +138,7 @@ function describeRelation(node: OperationNode): SoftDeleteRelation | undefined {
   if (TableNode.is(node)) {
     const tableName = node.table.identifier.name;
     const flag = SOFT_DELETE_COLUMNS[tableName];
-    return flag ? { tableName, flag } : undefined;
+    return flag ? { tableName, flag, node } : undefined;
   }
   return undefined;
 }
@@ -222,4 +162,5 @@ type SoftDeleteRelation = {
   tableName: string;
   alias?: string;
   flag: string;
+  node: TableNode;
 };
