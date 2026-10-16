@@ -749,9 +749,9 @@ function ExecutionPanel({
             </span>
           </p>
           <p className="text-muted-foreground text-xs">
-            Approximate USD cost for summaries and embeddings. Excludes topic
-            naming and results without pricing. Estimates can change when data
-            is reprocessed or deleted.
+            Estimated cost for this run’s currently stored summaries and
+            embeddings. Costs may decrease when summaries are reused,
+            reprocessed, or deleted.
           </p>
         </section>
       )}
