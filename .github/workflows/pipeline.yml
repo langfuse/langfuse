@@ -1712,12 +1712,18 @@ jobs:
         if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
         run: exit 1
         working-directory: .
+      # `Failing deploy` above also fails this job when a needed job was merely
+      # cancelled, so that the required check cannot go green on a cancelled
+      # run. That makes step-level `failure()` true for cancellations too,
+      # where there is no failed job for the alert to report — so the alert
+      # matches the needed jobs' results directly. `always()` is required
+      # because a step condition without a status function implies `success()`.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: failure() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v3' || startsWith(github.ref, 'refs/tags/'))
+        if: always() && contains(needs.*.result, 'failure') && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v3' || startsWith(github.ref, 'refs/tags/'))
         with:
           persist-credentials: false
       - name: Notify Slack
-        if: failure() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v3' || startsWith(github.ref, 'refs/tags/'))
+        if: always() && contains(needs.*.result, 'failure') && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v3' || startsWith(github.ref, 'refs/tags/'))
         uses: ./.github/actions/notify-slack-failure
         with:
           message: "❌ CI failed on ${{ github.ref_name }}"
@@ -2173,12 +2179,15 @@ jobs:
       - name: Fail when a release image job failed
         if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
         run: exit 1
+      # As in all-ci-passed: the step above also fails this job for a merely
+      # cancelled dependency, so the alert matches the needed jobs' results
+      # directly rather than `failure()`, which cannot tell the two apart.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: failure()
+        if: always() && contains(needs.*.result, 'failure')
         with:
           persist-credentials: false
       - name: Notify Slack
-        if: failure()
+        if: always() && contains(needs.*.result, 'failure')
         uses: ./.github/actions/notify-slack-failure
         with:
           message: "❌ Docker release failed on ${{ github.ref_name }}"
