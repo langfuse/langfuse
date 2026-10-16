@@ -91,6 +91,8 @@ describe("billable_events materialized views", () => {
     await skipUnlessBillableEvents(ctx);
     const projectId = randomUUID();
     const traceId = randomUUID();
+    // Sorts right after traceId, which keeps the expected row order fixed.
+    const experimentTraceId = `${traceId}-experiment`;
     const backfilledTraceId = randomUUID();
 
     await createEventsCh([
@@ -111,7 +113,33 @@ describe("billable_events materialized views", () => {
         project_id: projectId,
         trace_id: traceId,
         span_id: `t-${traceId}`,
+        source: "ingestion-api-dual-write",
         event_bytes: 7,
+      }),
+      // The experiment backfill derives trace spans the same way.
+      createEvent({
+        project_id: projectId,
+        trace_id: experimentTraceId,
+        span_id: `t-${experimentTraceId}`,
+        source: "ingestion-api-dual-write-experiments",
+        event_bytes: 5,
+      }),
+      // Event propagation writes real observations with a dual-write source.
+      createEvent({
+        project_id: projectId,
+        trace_id: traceId,
+        span_id: "span-dual-write",
+        source: "ingestion-api-dual-write",
+        event_bytes: 30,
+      }),
+      // A client may choose a 't-' span id itself; outside dual-write it is
+      // an observation.
+      createEvent({
+        project_id: projectId,
+        trace_id: traceId,
+        span_id: `t-${traceId}`,
+        source: "otel",
+        event_bytes: 40,
       }),
       // Tombstone: not usage.
       createEvent({
@@ -169,9 +197,20 @@ describe("billable_events materialized views", () => {
         id: observationEventId(traceId, "span-2"),
         bytes: 20,
       },
+      {
+        type: "observation",
+        id: observationEventId(traceId, "span-dual-write"),
+        bytes: 30,
+      },
+      {
+        type: "observation",
+        id: observationEventId(traceId, `t-${traceId}`),
+        bytes: 40,
+      },
       { type: "score", id: "score-correction", bytes: expect.any(Number) },
       { type: "score", id: "score-numeric", bytes: expect.any(Number) },
       { type: "trace", id: traceId, bytes: 7 },
+      { type: "trace", id: experimentTraceId, bytes: 5 },
     ]);
   });
 
