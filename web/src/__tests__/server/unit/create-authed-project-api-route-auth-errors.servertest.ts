@@ -236,7 +236,6 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
       replacementEndpoint: "GET /api/public/v2/observations",
       documentationUrl:
         "https://langfuse.com/docs/api-and-data-platform/features/observations-api",
-      _deprecation: deprecation,
     });
     expect(mockRateLimitRequest).toHaveBeenCalledOnce();
     expect(mockRecordIncrement).toHaveBeenCalledWith(
@@ -320,40 +319,20 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     const res = await callRoute({ deprecation });
 
     expect(res.statusCode).toBe(200);
-    expect(res._getJSONData()).toEqual({
-      ok: true,
-      _deprecation: deprecation,
-    });
+    expect(res._getJSONData()).toEqual({ ok: true });
     expect(mockFindOrganization).not.toHaveBeenCalled();
   });
 
-  it("sends deprecation headers and leads the body with `_deprecation`", async () => {
-    mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
-    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
-
-    const res = await callRoute({ deprecation });
-
-    expect(res.statusCode).toBe(200);
-    expect(res.getHeader("Deprecation")).toBe("@1784764800");
-    expect(res.getHeader("Sunset")).toBe("Mon, 16 Nov 2026 00:00:00 GMT");
-    expect(res.getHeader("Link")).toBe(
-      '</api/public/v2/observations>; rel="successor-version", <https://langfuse.com/docs/api-and-data-platform/features/observations-api>; rel="deprecation"',
-    );
-    expect(Object.keys(res._getJSONData())[0]).toBe("_deprecation");
-  });
-
-  it("stamps `_deprecation` onto auth errors of deprecated routes", async () => {
-    mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
-    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce({
-      validKey: false,
-      error: "Invalid credentials.",
+  it("exposes the route deprecation for withMiddlewares", () => {
+    const handler = createAuthedProjectAPIRoute({
+      name: "Test Route",
+      action: "project:read",
+      responseSchema: z.object({ ok: z.literal(true) }),
+      deprecation,
+      fn: async () => ({ ok: true as const }),
     });
 
-    const res = await callRoute({ deprecation });
-
-    expect(res.statusCode).toBe(401);
-    expect(res._getJSONData()._deprecation).toEqual(deprecation);
-    expect(res._getJSONData().message).toBe("Invalid credentials.");
+    expect(handler.deprecation).toBe(deprecation);
   });
 
   it("does not apply the organization cutoff outside Langfuse Cloud", async () => {

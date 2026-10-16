@@ -22,7 +22,6 @@ import {
   TRACES_DEPRECATION,
   V3_SUNSET_DATE,
 } from "@/src/features/public-api/server/deprecations";
-import { OBSERVATIONS_API_V2_DOCS_URL } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 import { randomUUID } from "crypto";
 
 // Legacy (v3-data-model) endpoints attach a top-level `_deprecation`
@@ -100,7 +99,7 @@ describe("public API deprecation signal", () => {
 
     // docsUrl points at the migration guidance for the endpoint family.
     expect(response.body._deprecation?.docsUrl).toBe(
-      OBSERVATIONS_API_V2_DOCS_URL,
+      "https://langfuse.com/docs/api-and-data-platform/features/public-api#v2",
     );
     // sunsetAt is committed → present.
     expect(response.body._deprecation?.sunsetAt).toBe(V3_SUNSET_DATE);

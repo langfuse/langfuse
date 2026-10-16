@@ -1,6 +1,5 @@
 import { type NextApiResponse } from "next";
 import { type ApiDeprecationInfo } from "@langfuse/shared";
-import { OBSERVATIONS_API_V2_DOCS_URL } from "./rateLimitUpgradePaths";
 
 // Family-level deprecation signals for legacy (v3) public API
 // endpoints. Attach one via the `deprecation` route-config field.
@@ -41,9 +40,10 @@ const REPLACEMENT = {
 // Migration guidance pages; each family points at the page that documents its
 // replacement (all pages also serve markdown to agents via the `.md` routes).
 const DOCS = {
-  observationsV2: OBSERVATIONS_API_V2_DOCS_URL,
+  observationsV2:
+    "https://langfuse.com/docs/api-and-data-platform/features/public-api#v2",
   scoresV3:
-    "https://langfuse.com/docs/api-and-data-platform/features/scores-api",
+    "https://langfuse.com/docs/api-and-data-platform/features/public-api#v3",
   metricsV2: "https://langfuse.com/docs/metrics/features/metrics-api",
   compatibility: "https://langfuse.com/docs/compatibility",
   otel: "https://langfuse.com/integrations/native/opentelemetry",
@@ -124,6 +124,50 @@ export const INGESTION_DEPRECATION: ApiDeprecationInfo = {
   sunsetAt: V3_SUNSET_DATE,
 };
 
+/** LEGACY_WRITES_DEPRECATION covers the single-object trace and observation writes (POST /traces, /spans, /generations, /events, PATCH /spans, /generations). */
+export const LEGACY_WRITES_DEPRECATION: ApiDeprecationInfo = {
+  message: v3Notice(
+    `Use ${REPLACEMENT.otelTraces} instead, or upgrade to the current Python and JS SDKs.`,
+  ),
+  replacement: REPLACEMENT.otelTraces,
+  docsUrl: DOCS.otelMigration,
+  sunsetAt: V3_SUNSET_DATE,
+};
+
+/** AUTH_ERROR_STATUSES are statuses a replacement endpoint would not fix. */
+const AUTH_ERROR_STATUSES = new Set([401, 403]);
+
+/** withDeprecationResponse sets the deprecation headers and returns a view of `res` whose `json` stamps the notice, plus the replacement hint on non-auth 4xx errors. */
+export function withDeprecationResponse(
+  res: NextApiResponse,
+  deprecation: ApiDeprecationInfo,
+): NextApiResponse {
+  setDeprecationHeaders(res, deprecation);
+  const json = (body: unknown) => {
+    const status = res.statusCode;
+    const hinted =
+      status >= 400 && status < 500 && !AUTH_ERROR_STATUSES.has(status)
+        ? appendReplacementHint(body, deprecation)
+        : body;
+    res.json(attachDeprecation(hinted, deprecation));
+  };
+  const response: NextApiResponse = new Proxy(res, {
+    get(target, property) {
+      if (property === "json") return json;
+      // `status` returns the underlying response; keep chained `.json()` on this view.
+      if (property === "status") {
+        return (code: number) => {
+          target.status(code);
+          return response;
+        };
+      }
+      const value: unknown = Reflect.get(target, property, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+  return response;
+}
+
 /** attachDeprecation prepends `_deprecation` to an object body and `deprecation` to its `meta`; other bodies pass through unchanged. */
 export function attachDeprecation(
   body: unknown,
@@ -151,7 +195,7 @@ export function attachDeprecation(
 }
 
 /** appendReplacementHint ends an error body's `message` with the replacement unless it already names it. */
-export function appendReplacementHint(
+function appendReplacementHint(
   body: unknown,
   deprecation: ApiDeprecationInfo,
 ): unknown {

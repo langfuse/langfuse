@@ -22,7 +22,10 @@ import { RateLimitService } from "@/src/features/public-api/server/RateLimitServ
 import { type RateLimitUpgradePath } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 import * as opentelemetry from "@opentelemetry/api";
 import { env } from "@/src/env.mjs";
-import { isZodError } from "@/src/features/public-api/server/withMiddlewares";
+import {
+  isZodError,
+  type RouteHandler,
+} from "@/src/features/public-api/server/withMiddlewares";
 import {
   createStructuredPublicApiAuthError,
   createStructuredPublicApiRequestValidationError,
@@ -31,11 +34,6 @@ import {
   type PublicApiErrorContract,
 } from "./structuredPublicApiErrorContract";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
-import {
-  appendReplacementHint,
-  attachDeprecation,
-  setDeprecationHeaders,
-} from "@/src/features/public-api/server/deprecations";
 import { applyLegacyApiOrganizationCutoff } from "@/src/features/public-api/server/legacyApiOrganizationCutoff";
 import { type RouteAccessLevel } from "@/src/features/public-api/server/verifyProjectApiKeyAuth";
 import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
@@ -126,7 +124,7 @@ export type AuthedProjectAPIRouteConfig<
    * events_only mode and would silently return stale or empty data.
    */
   rejectInEventsOnlyMode?: boolean;
-  /** Stamps `_deprecation` onto every JSON response of the route and sets deprecation headers. */
+  /** Marks the route as deprecated; withMiddlewares stamps it onto every JSON response and sets deprecation headers. */
   deprecation?: ApiDeprecationInfo;
   fn: (params: {
     query: z.infer<TQuery>;
@@ -144,36 +142,18 @@ export type AuthedProjectAPIRouteConfig<
   }) => Promise<z.infer<TResponse>>;
 };
 
-/** AUTH_ERROR_STATUSES are statuses a replacement endpoint would not fix. */
-const AUTH_ERROR_STATUSES = new Set([401, 403]);
-
 export const createAuthedProjectAPIRoute = <
   TQuery extends ZodType<any>,
   TBody extends ZodType<any>,
   TResponse extends ZodType<any>,
 >(
   routeConfig: AuthedProjectAPIRouteConfig<TQuery, TBody, TResponse>,
-): ((req: NextApiRequest, res: NextApiResponse) => Promise<void>) => {
-  return async (req: NextApiRequest, res: NextApiResponse) => {
+): RouteHandler => {
+  const handler = async (req: NextApiRequest, res: NextApiResponse) => {
     // Cloud-only: the sunset date binds Cloud, not self-hosted deployments.
     const deprecation = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
       ? routeConfig.deprecation
       : undefined;
-
-    // Wrapping res.json also covers bodies written by withMiddlewares.
-    if (deprecation) {
-      setDeprecationHeaders(res, deprecation);
-      const json = res.json.bind(res);
-      res.json = (body: unknown) =>
-        json(
-          attachDeprecation(
-            res.statusCode >= 400 && !AUTH_ERROR_STATUSES.has(res.statusCode)
-              ? appendReplacementHint(body, deprecation)
-              : body,
-            deprecation,
-          ),
-        );
-    }
 
     // Short-circuit routes that read from legacy traces/observations tables
     // when the deployment is in events_only mode — those tables are no longer
@@ -395,4 +375,5 @@ export const createAuthedProjectAPIRoute = <
       }
     });
   };
+  return Object.assign(handler, { deprecation: routeConfig.deprecation });
 };
