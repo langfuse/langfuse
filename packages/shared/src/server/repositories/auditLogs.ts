@@ -1,9 +1,15 @@
 import { createHash } from "node:crypto";
 import { v7 as uuidv7 } from "uuid";
-import { prisma, type AuditLogStaging, type Prisma } from "../../db";
+import {
+  prisma,
+  type AuditLog,
+  type AuditLogStaging,
+  type Prisma,
+} from "../../db";
 import {
   AuditLogEventSchema,
   AuditLogStagingPayloadSchema,
+  type AuditLogActor,
   type AuditLogEvent,
   type AuditLogStagingPayload,
 } from "../../domain/auditLogs";
@@ -97,11 +103,122 @@ export function convertAuditLogStagingRowToClickhouse(
       `Staged audit event has unknown fields: ${unknownFields.join(", ")}`,
     );
   }
+  return toAuditLogRecord(row.id, row.createdAt, event);
+}
+
+/**
+ * Maps a row of the Postgres `audit_logs` table to its ClickHouse
+ * `audit_logs` row. It equals the row `auditLog()` stages for the same record,
+ * except that the actor has no name or email, which the Postgres row does not
+ * keep. Throws when the row has no valid actor.
+ */
+export function convertPostgresAuditLogToClickhouse(
+  row: Pick<
+    AuditLog,
+    | "id"
+    | "createdAt"
+    | "type"
+    | "userId"
+    | "apiKeyId"
+    | "userOrgRole"
+    | "userProjectRole"
+    | "orgId"
+    | "projectId"
+    | "resourceType"
+    | "resourceId"
+    | "action"
+    | "before"
+    | "after"
+  >,
+): AuditLogRecordInsertType {
+  const event = AuditLogStagingPayloadSchema.parse({
+    kind: "change",
+    orgId: row.orgId,
+    projectId: row.projectId ?? undefined,
+    actor: toPostgresAuditLogActor(row),
+    resourceType: row.resourceType,
+    resourceId: row.resourceId,
+    resourceRefs: [],
+    action: row.action,
+    outcome: "success",
+    // Serialized JSON in both stores.
+    before: row.before ?? undefined,
+    after: row.after ?? undefined,
+  });
+  return toAuditLogRecord(
+    deriveAuditLogEventId(row.id, row.createdAt),
+    row.createdAt,
+    event,
+  );
+}
+
+// Writes made by Langfuse itself rather than by a user or an API key carry
+// these sentinel actor ids. The Postgres `audit_logs` row keeps them, because
+// its actor type cannot be SYSTEM. The audit event records a SYSTEM actor.
+const SYSTEM_ACTOR_USER_IDS = new Set(["stripe-webhook", "clickhouse-webhook"]);
+const ADMIN_API_KEY_IDS = new Set(["ADMIN_KEY", "ADMIN_API_KEY"]);
+
+/** The SYSTEM actor that a sentinel user id stands for, if it is one. */
+export function getSystemAuditLogActorForUserId(
+  userId: string,
+): AuditLogActor | undefined {
+  return SYSTEM_ACTOR_USER_IDS.has(userId)
+    ? { type: "SYSTEM", name: userId }
+    : undefined;
+}
+
+/** The SYSTEM actor that a sentinel API key id stands for, if it is one. */
+export function getSystemAuditLogActorForApiKeyId(
+  apiKeyId: string,
+): AuditLogActor | undefined {
+  return ADMIN_API_KEY_IDS.has(apiKeyId)
+    ? { type: "SYSTEM", name: "admin-api" }
+    : undefined;
+}
+
+function toPostgresAuditLogActor(
+  row: Pick<
+    AuditLog,
+    "id" | "type" | "userId" | "apiKeyId" | "userOrgRole" | "userProjectRole"
+  >,
+): AuditLogActor {
+  if (row.type === "API_KEY") {
+    if (!row.apiKeyId) {
+      throw new Error(`Audit log ${row.id} is an API key row without a key`);
+    }
+    return (
+      getSystemAuditLogActorForApiKeyId(row.apiKeyId) ?? {
+        type: "API_KEY",
+        apiKeyId: row.apiKeyId,
+        // Set for an in-app agent key: the user it acts for.
+        userId: row.userId ?? undefined,
+      }
+    );
+  }
+
+  if (!row.userId) {
+    throw new Error(`Audit log ${row.id} is a user row without a user`);
+  }
+  return (
+    getSystemAuditLogActorForUserId(row.userId) ?? {
+      type: "USER",
+      userId: row.userId,
+      orgRole: row.userOrgRole ?? undefined,
+      projectRole: row.userProjectRole ?? undefined,
+    }
+  );
+}
+
+function toAuditLogRecord(
+  id: string,
+  timestamp: Date,
+  event: AuditLogStagingPayload,
+): AuditLogRecordInsertType {
   const { actor } = event;
 
   return {
-    id: row.id,
-    timestamp: convertDateToClickhouseDateTime(row.createdAt),
+    id,
+    timestamp: convertDateToClickhouseDateTime(timestamp),
     org_id: event.orgId,
     project_id: event.projectId ?? "",
     event_kind: event.kind,
