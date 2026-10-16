@@ -1,28 +1,30 @@
 /**
  * Logical `events` routing. Runs first in every compile.
  *
- * Call sites read the logical `events` relation; this pass replaces every
- * FROM/JOIN reference to it with `events_core` or `events_full`. One choice
- * per compile: if any expression in the tree could read a truncated
- * `events_core` value differently from `events_full`, every logical
- * reference becomes `events_full`, otherwise `events_core`. Routing to
- * `events_full` only costs performance; routing a truncation-sensitive read
- * to `events_core` silently returns truncated values or drops matches, so any
- * shape the pass does not recognise counts as truncation-sensitive.
- *
- * A reference is truncation-sensitive when any identifier in it is named
- * like a column in {@link EVENTS_CORE_TRUNCATED_COLUMNS} (whichever relation
- * or alias it belongs to), it contains a `*` other than a bare `count(*)`,
- * or it is a raw fragment that mentions such a column, `*`, or
- * `COLUMNS(...)`. Besides `count(*)`, the one exempt shape is a metadata
- * predicate that `metadataFilterIsEventsCoreSafe` accepts, the rule the
- * raw-SQL builders route by:
+ * Call sites read the logical `events` relation; this pass replaces each
+ * FROM/JOIN reference to it with `events_core` or `events_full`, one choice
+ * per relation. A relation goes to `events_full` only when a column reference
+ * resolves to it and names a column in {@link EVENTS_CORE_TRUNCATED_COLUMNS},
+ * outside the metadata predicates `metadataFilterIsEventsCoreSafe` accepts:
  *
  *   metadataValue(e, k) = 'short'        → events_core (< 200 code points)
  *   startsWith(metadataValue(e, k), 'p') → events_core (≤ 200 code points)
  *   e.input = 'x', select e.input        → events_full
  *
- * Physical `events_core` / `events_full` references pass through unchanged.
+ * A qualifier resolves to the innermost FROM/JOIN alias (or unaliased table
+ * name) of that name; an unqualified column resolves to the single relation
+ * of its select. Shapes that cannot be resolved to one relation are rejected
+ * rather than routed to `events_full`, so `events_full` is read only where a
+ * query needs it:
+ * - `*` or `e.*` over a logical relation (`count(*)` reads no column);
+ * - an unqualified truncated column when its select has more than one
+ *   relation, or an enclosing select reads a logical relation;
+ * - raw SQL text (`sql` templates, `sql.raw`, `sql.id`) in or under a select
+ *   that reads a logical relation. `sql.ref` and bound values resolve like
+ *   builder references.
+ *
+ * Callers that want the truncated copy on purpose name `events_core`;
+ * physical `events_core` / `events_full` references pass through unchanged.
  */
 import {
   AggregateFunctionNode,
@@ -36,44 +38,37 @@ import {
   JoinNode,
   OperatorNode,
   RawNode,
-  ReferenceNode,
   SelectAllNode,
   SelectionNode,
   TableNode,
   ValueNode,
   type KyselyPlugin,
   type OperationNode,
+  type OrderByItemNode,
   type PluginTransformQueryArgs,
   type PluginTransformResultArgs,
   type QueryId,
+  type ReferenceNode,
   type RootOperationNode,
+  type SelectQueryNode,
 } from "kysely";
 
 import { metadataFilterIsEventsCoreSafe } from "../queries/clickhouse-sql/events-core-truncation";
 import { QueryCompileError } from "./errors";
-import { ArrayIndexNode } from "./nodes";
+import { ArrayIndexNode, FinalTableNode, unwrapFinalTable } from "./nodes";
 import { EVENTS_CORE_TRUNCATED_COLUMNS } from "./schema";
 import { ClickHouseOperationNodeTransformer } from "./transformer";
 
 const LOGICAL_EVENTS = "events";
-
-type PhysicalEventsTable = "events_core" | "events_full";
-
-// A truncated column by name, or any `*` / `COLUMNS(...)` that can expand to
-// one. Arithmetic `a * b` over-routes, which is safe.
-const TRUNCATED_COLUMN_IN_RAW = new RegExp(
-  `\\b(${[...EVENTS_CORE_TRUNCATED_COLUMNS].join("|")})\\b|\\*|\\bcolumns\\s*\\(`,
-  "i",
-);
 
 export class EventsTableRoutingPlugin implements KyselyPlugin {
   transformQuery(args: PluginTransformQueryArgs): RootOperationNode {
     const analysis = new EventsReadAnalysis();
     analysis.transformNode(args.node);
     if (!analysis.readsLogicalEvents) return args.node;
-    return new EventsTableRouter(
-      analysis.truncationSensitive ? "events_full" : "events_core",
-    ).transformNode(args.node) as RootOperationNode;
+    return new EventsTableRouter(analysis.fullRelations).transformNode(
+      args.node,
+    ) as RootOperationNode;
   }
 
   async transformResult(args: PluginTransformResultArgs) {
@@ -81,37 +76,34 @@ export class EventsTableRoutingPlugin implements KyselyPlugin {
   }
 }
 
-/** Read-only walk; the transformer is used for its traversal only. */
+/** A FROM/JOIN source of one select. */
+type Relation = {
+  /** The FROM item or join table, as the router meets it. */
+  node: OperationNode;
+  /** Alias, or the table name of an unaliased table. */
+  name?: string;
+  logical: boolean;
+};
+
+/**
+ * Read-only walk that resolves column references to relations; the
+ * transformer is used for its traversal only.
+ */
 class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
   readsLogicalEvents = false;
-  truncationSensitive = false;
+  /** Logical relations that read a truncated column. */
+  readonly fullRelations = new Set<OperationNode>();
+  /** Relations of each enclosing select, innermost last. */
+  private readonly scopes: Relation[][] = [];
 
   protected override transformNodeImpl<T extends OperationNode>(
     node: T,
     queryId?: QueryId,
   ): T {
-    if (isCoreSafeMetadataPredicate(node) || isCountAll(node)) return node;
-
-    if (FromNode.is(node) && node.froms.some(isLogicalEventsRelation)) {
-      this.readsLogicalEvents = true;
-    }
-    if (JoinNode.is(node) && isLogicalEventsRelation(node.table)) {
-      this.readsLogicalEvents = true;
-    }
-    if (
-      // Identifiers rather than columns, so `sql.id("e", "input")` counts too;
-      // an alias named like a truncated column over-routes, which is safe.
-      (IdentifierNode.is(node) &&
-        (EVENTS_CORE_TRUNCATED_COLUMNS.has(node.name) || node.name === "*")) ||
-      // `*` / `e.*` anywhere: a select list, a function argument, a raw
-      // parameter.
-      SelectAllNode.is(node) ||
-      (RawNode.is(node) &&
-        node.sqlFragments.some((fragment) =>
-          TRUNCATED_COLUMN_IN_RAW.test(fragment),
-        ))
-    ) {
-      this.truncationSensitive = true;
+    const lookup = coreSafeMetadataLookup(node);
+    if (lookup) {
+      this.transformNode(lookup.index, queryId);
+      return node;
     }
     if (
       CommonTableExpressionNode.is(node) &&
@@ -123,10 +115,134 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
     }
     return super.transformNodeImpl(node, queryId);
   }
+
+  protected override transformSelectQuery(
+    node: SelectQueryNode,
+    queryId?: QueryId,
+  ): SelectQueryNode {
+    const relations = [
+      ...(node.from?.froms ?? []),
+      ...(node.joins ?? []).map((join) => join.table),
+    ].map(describeRelation);
+    if (relations.some((relation) => relation.logical)) {
+      this.readsLogicalEvents = true;
+    }
+    this.scopes.push(relations);
+    try {
+      return super.transformSelectQuery(node, queryId);
+    } finally {
+      this.scopes.pop();
+    }
+  }
+
+  protected override transformReference(
+    node: ReferenceNode,
+    _queryId?: QueryId,
+  ): ReferenceNode {
+    const qualifier = node.table?.table.identifier.name;
+    // `sql.ref("e.*")` parses the star as a column named `*`.
+    if (SelectAllNode.is(node.column) || node.column.column.name === "*") {
+      if (qualifier === undefined) this.rejectUnqualifiedStar();
+      else if (this.resolveQualified(qualifier)?.logical) {
+        throw starError(`${qualifier}.*`);
+      }
+    } else {
+      this.readColumn(node.column.column.name, qualifier);
+    }
+    return node;
+  }
+
+  /** Reached only outside a reference: `selectAll()`, `*` in raw SQL. */
+  protected override transformSelectAll(node: SelectAllNode): SelectAllNode {
+    this.rejectUnqualifiedStar();
+    return node;
+  }
+
+  /** Reached only outside a reference. */
+  protected override transformColumn(node: ColumnNode): ColumnNode {
+    if (node.column.name === "*") this.rejectUnqualifiedStar();
+    else this.readColumn(node.column.name, undefined);
+    return node;
+  }
+
+  /** `count(*)` reads no column; its clauses are walked as usual. */
+  protected override transformAggregateFunction(
+    node: AggregateFunctionNode,
+    queryId?: QueryId,
+  ): AggregateFunctionNode {
+    if (isCountStar(node)) {
+      super.transformAggregateFunction({ ...node, aggregated: [] }, queryId);
+      return node;
+    }
+    return super.transformAggregateFunction(node, queryId);
+  }
+
+  /** The direction is Kysely's own raw `asc` / `desc`. */
+  protected override transformOrderByItem(
+    node: OrderByItemNode,
+    queryId?: QueryId,
+  ): OrderByItemNode {
+    this.transformNode(node.orderBy, queryId);
+    return node;
+  }
+
+  protected override transformRaw(node: RawNode, queryId?: QueryId): RawNode {
+    if (
+      this.scopes.some((relations) => relations.some((r) => r.logical)) &&
+      node.sqlFragments.some((fragment) => fragment.trim() !== "")
+    ) {
+      throw new QueryCompileError(
+        `Raw SQL text cannot appear in a select that reads the logical "${LOGICAL_EVENTS}" relation: it may read a truncated column the routing pass cannot see. Use builder expressions, sql.ref() or bound values.`,
+      );
+    }
+    return super.transformRaw(node, queryId);
+  }
+
+  private readColumn(column: string, qualifier: string | undefined): void {
+    if (!EVENTS_CORE_TRUNCATED_COLUMNS.has(column)) return;
+    const relation =
+      qualifier === undefined
+        ? this.resolveUnqualified(column)
+        : this.resolveQualified(qualifier);
+    if (relation?.logical) this.fullRelations.add(relation.node);
+  }
+
+  private resolveQualified(qualifier: string): Relation | undefined {
+    for (const relations of this.scopes.toReversed()) {
+      const match = relations.find((relation) => relation.name === qualifier);
+      if (match) return match;
+    }
+    return undefined;
+  }
+
+  private resolveUnqualified(column: string): Relation | undefined {
+    const [own, ...enclosing] = this.scopes
+      .toReversed()
+      .filter((relations) => relations.length > 0);
+    if (own?.length === 1 && own[0].logical) return own[0];
+    if ([own ?? [], ...enclosing].some((rs) => rs.some((r) => r.logical))) {
+      throw new QueryCompileError(
+        `Qualify "${column}": it is truncated in events_core, and the routing pass resolves an unqualified column only when the logical "${LOGICAL_EVENTS}" relation is the one relation in scope.`,
+      );
+    }
+    return undefined;
+  }
+
+  private rejectUnqualifiedStar(): void {
+    if (this.scopes.at(-1)?.some((relation) => relation.logical)) {
+      throw starError("*");
+    }
+  }
+}
+
+function starError(star: string): QueryCompileError {
+  return new QueryCompileError(
+    `${star} cannot expand the logical "${LOGICAL_EVENTS}" relation: list the columns, so the routing pass can tell whether it reads a truncated one.`,
+  );
 }
 
 class EventsTableRouter extends ClickHouseOperationNodeTransformer {
-  constructor(private readonly table: PhysicalEventsTable) {
+  constructor(private readonly fullRelations: ReadonlySet<OperationNode>) {
     super();
   }
 
@@ -155,17 +271,39 @@ class EventsTableRouter extends ClickHouseOperationNodeTransformer {
    * the qualifiers later passes add still resolve.
    */
   private routeRelation(node: OperationNode, queryId?: QueryId): OperationNode {
+    const table = TableNode.create(
+      this.fullRelations.has(node) ? "events_full" : "events_core",
+    );
     if (isLogicalEventsTable(node)) {
-      return AliasNode.create(
-        TableNode.create(this.table),
-        IdentifierNode.create(LOGICAL_EVENTS),
-      );
+      return AliasNode.create(table, IdentifierNode.create(LOGICAL_EVENTS));
     }
     if (AliasNode.is(node) && isLogicalEventsTable(node.node)) {
-      return AliasNode.create(TableNode.create(this.table), node.alias);
+      return AliasNode.create(table, node.alias);
     }
     return this.transformNode(node, queryId);
   }
+}
+
+function describeRelation(node: OperationNode): Relation {
+  const source = AliasNode.is(node) ? node.node : node;
+  const table = FinalTableNode.is(source) ? unwrapFinalTable(source) : source;
+  return {
+    node,
+    name: relationName(node, table),
+    logical: isLogicalEventsTable(source),
+  };
+}
+
+function relationName(
+  node: OperationNode,
+  table: OperationNode,
+): string | undefined {
+  if (AliasNode.is(node)) {
+    return IdentifierNode.is(node.alias) ? node.alias.name : undefined;
+  }
+  return TableNode.is(table) && table.table.schema === undefined
+    ? table.table.identifier.name
+    : undefined;
 }
 
 function isLogicalEventsTable(node: OperationNode): boolean {
@@ -176,31 +314,9 @@ function isLogicalEventsTable(node: OperationNode): boolean {
   );
 }
 
-function isLogicalEventsRelation(node: OperationNode): boolean {
-  return (
-    isLogicalEventsTable(node) ||
-    (AliasNode.is(node) && isLogicalEventsTable(node.node))
-  );
-}
-
-/**
- * A bare `count(*)`, which reads no column. Its `*` is either a select-all
- * node or a selection wrapping one. Skipping the node skips its clauses too,
- * so `distinct`, `filter`, `over`, `order by` and `within group` disqualify it.
- */
-function isCountAll(node: OperationNode): boolean {
-  if (
-    !AggregateFunctionNode.is(node) ||
-    node.func !== "count" ||
-    node.aggregated.length !== 1 ||
-    node.distinct ||
-    node.filter ||
-    node.over ||
-    node.orderBy ||
-    node.withinGroup
-  ) {
-    return false;
-  }
+/** `count(*)` with any `distinct`, `filter`, `over`, … clause. */
+function isCountStar(node: AggregateFunctionNode): boolean {
+  if (node.func !== "count" || node.aggregated.length !== 1) return false;
   const [arg] = node.aggregated;
   return (
     SelectAllNode.is(arg) ||
@@ -209,83 +325,41 @@ function isCountAll(node: OperationNode): boolean {
 }
 
 /**
- * `metadataValue(e, k) = v` or `startsWith(metadataValue(e, k), v)` with a
- * bound `v` that `metadataFilterIsEventsCoreSafe` accepts.
+ * The metadata lookup of `metadataValue(e, k) = v` or
+ * `startsWith(metadataValue(e, k), v)`, for a bound `v` that
+ * `metadataFilterIsEventsCoreSafe` accepts.
  */
-function isCoreSafeMetadataPredicate(node: OperationNode): boolean {
+function coreSafeMetadataLookup(
+  node: OperationNode,
+): ArrayIndexNode | undefined {
   if (
     BinaryOperationNode.is(node) &&
     OperatorNode.is(node.operator) &&
     node.operator.operator === "="
   ) {
-    return (
-      isMetadataValue(node.leftOperand) &&
-      isCoreSafeValue("=", node.rightOperand)
-    );
+    return coreSafe(node.leftOperand, "=", node.rightOperand);
   }
   if (
     FunctionNode.is(node) &&
     node.func === "startsWith" &&
     node.arguments.length === 2
   ) {
-    return (
-      isMetadataValue(node.arguments[0]) &&
-      isCoreSafeValue("starts with", node.arguments[1])
-    );
-  }
-  return false;
-}
-
-function isCoreSafeValue(
-  operator: "=" | "starts with",
-  node: OperationNode,
-): boolean {
-  return (
-    ValueNode.is(node) && metadataFilterIsEventsCoreSafe(operator, node.value)
-  );
-}
-
-/**
- * The tree `metadataValue` builds:
- * `mapFromArrays(arrayReverse(t.metadata_names), arrayReverse(t.metadata_values))[k]`,
- * both columns on the same qualifier.
- */
-// Typed `{ kind: string }`: `ArrayIndexNode` is outside Kysely's closed
-// `OperationNode` union, so narrowing an `OperationNode` to it yields `never`.
-function isMetadataValue(node: { kind: string }): boolean {
-  if (!ArrayIndexNode.is(node) || !ValueNode.is(node.index)) return false;
-  const map = node.array;
-  if (
-    !FunctionNode.is(map) ||
-    map.func !== "mapFromArrays" ||
-    map.arguments.length !== 2
-  ) {
-    return false;
-  }
-  const [names, values] = map.arguments.map(reversedColumn);
-  return (
-    names?.column === "metadata_names" &&
-    values?.column === "metadata_values" &&
-    names.qualifier === values.qualifier
-  );
-}
-
-function reversedColumn(
-  node: OperationNode,
-): { column: string; qualifier?: string } | undefined {
-  if (
-    !FunctionNode.is(node) ||
-    node.func !== "arrayReverse" ||
-    node.arguments.length !== 1
-  ) {
-    return undefined;
-  }
-  const ref = node.arguments[0];
-  if (ReferenceNode.is(ref) && ColumnNode.is(ref.column)) {
-    return {
-      column: ref.column.column.name,
-      qualifier: ref.table?.table.identifier.name,
-    };
+    return coreSafe(node.arguments[0], "starts with", node.arguments[1]);
   }
   return undefined;
+}
+
+// `lookup` is typed `{ kind: string }`: `ArrayIndexNode` is outside Kysely's
+// closed `OperationNode` union, so narrowing an `OperationNode` yields `never`.
+function coreSafe(
+  lookup: { kind: string },
+  operator: "=" | "starts with",
+  value: OperationNode,
+): ArrayIndexNode | undefined {
+  return ArrayIndexNode.is(lookup) &&
+    lookup.metadataLookup &&
+    ValueNode.is(value) &&
+    metadataFilterIsEventsCoreSafe(operator, value.value)
+    ? lookup
+    : undefined;
 }

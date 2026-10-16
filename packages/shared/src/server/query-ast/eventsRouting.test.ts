@@ -83,13 +83,13 @@ describe("logical events routing", () => {
     ).toEqual(["events_full"]);
   });
 
-  it("routes select * and select e.* to events_full, but not count(*)", () => {
-    expect(routedTables(compile(db.selectFrom("events").selectAll()))).toEqual([
-      "events_full",
-    ]);
-    expect(
-      routedTables(compile(db.selectFrom("events as e").selectAll("e"))),
-    ).toEqual(["events_full"]);
+  it("rejects select * and select e.*, but not count(*)", () => {
+    expect(() => compile(db.selectFrom("events").selectAll())).toThrow(
+      QueryCompileError,
+    );
+    expect(() => compile(db.selectFrom("events as e").selectAll("e"))).toThrow(
+      QueryCompileError,
+    );
     expect(
       routedTables(
         compile(
@@ -125,44 +125,87 @@ describe("logical events routing", () => {
     ).toEqual(["events_full"]);
   });
 
-  it("routes a raw fragment that names a truncated column to events_full", () => {
+  it("keeps count(*) with a clause on an untruncated column on events_core", () => {
     expect(
       routedTables(
         compile(
           db
             .selectFrom("events as e")
-            .select(sql<number>`lengthUTF8(e.output)`.as("n")),
+            .select((eb) =>
+              eb.fn.countAll().filterWhere("e.name", "=", "x").as("n"),
+            ),
         ),
       ),
-    ).toEqual(["events_full"]);
+    ).toEqual(["events_core"]);
   });
 
-  it("routes a raw identifier that names a truncated column to events_full", () => {
+  it("ignores an alias named like a truncated column", () => {
     expect(
       routedTables(
         compile(
           db
             .selectFrom("events as e")
-            .select(sql<string>`${sql.id("e", "input")}`.as("x")),
+            .select((eb) => eb.fn.count("e.span_id").as("input")),
         ),
       ),
-    ).toEqual(["events_full"]);
+    ).toEqual(["events_core"]);
   });
 
   it.each([
+    ["lengthUTF8(e.output)", sql<string>`lengthUTF8(e.output)`],
+    ["sql.id e.input", sql<string>`${sql.id("e", "input")}`],
     ["*", sql<string>`*`],
     ["e.*", sql.raw<string>("e.*")],
     ["tuple(*)", sql<string>`tuple(*)`],
     ["COLUMNS(...)", sql<string>`COLUMNS('^inp')`],
     ["sql.ref e.*", sql.ref<string>("e.*")],
     ["tuple(sql.ref e.*)", sql<string>`tuple(${sql.ref("e.*")})`],
-    ["tuple(sql.id e.*)", sql<string>`tuple(${sql.id("e", "*")})`],
-  ])("routes a raw %s to events_full", (_, expression) => {
+  ])("rejects raw %s in a select that reads events", (_, expression) => {
+    expect(() =>
+      compile(db.selectFrom("events as e").select(expression.as("x"))),
+    ).toThrow(QueryCompileError);
+  });
+
+  it("resolves sql.ref like a builder reference", () => {
+    const route = (ref: string) =>
+      routedTables(
+        compile(
+          db.selectFrom("events as e").select(sql.ref<string>(ref).as("x")),
+        ),
+      );
+    expect(route("e.input")).toEqual(["events_full"]);
+    expect(route("e.span_id")).toEqual(["events_core"]);
+  });
+
+  it("allows raw SQL in a select over a subquery that reads events", () => {
     expect(
       routedTables(
-        compile(db.selectFrom("events as e").select(expression.as("x"))),
+        compile(
+          db
+            .selectFrom(
+              db.selectFrom("events as e").select("e.span_id").as("x"),
+            )
+            .select(sql<number>`1`.as("one")),
+        ),
       ),
+    ).toEqual(["events_core"]);
+  });
+
+  it("routes an unqualified truncated column of the only relation", () => {
+    expect(
+      routedTables(compile(db.selectFrom("events").select("input"))),
     ).toEqual(["events_full"]);
+  });
+
+  it("rejects an unqualified truncated column with two relations in scope", () => {
+    expect(() =>
+      compile(
+        db
+          .selectFrom("events as a")
+          .innerJoin("events as b", "a.span_id", "b.span_id")
+          .select(sql.ref<string>("input").as("x")),
+      ),
+    ).toThrow(QueryCompileError);
   });
 
   it("keeps an unaliased logical read addressable by its name", () => {
@@ -193,8 +236,9 @@ describe("logical events routing", () => {
     ).toEqual(["events_full"]);
   });
 
-  it("routes every logical relation in the query to one table", () => {
-    // Only the CTE reads `input`, yet both relations go to events_full.
+  it("routes each logical relation by its own reads", () => {
+    // `e` in the CTE and `e` outside are different relations; `io.input`
+    // reads the CTE.
     const query = db
       .with("io", (qb) =>
         qb.selectFrom("events as e").select(["e.span_id", "e.input"]),
@@ -205,8 +249,21 @@ describe("logical events routing", () => {
 
     expect(routedTables(compile(query))).toEqual([
       "events_full",
-      "events_full",
+      "events_core",
     ]);
+  });
+
+  it("routes joined logical relations separately", () => {
+    expect(
+      routedTables(
+        compile(
+          db
+            .selectFrom("events as a")
+            .innerJoin("events as b", "a.span_id", "b.span_id")
+            .select(["a.span_id", "b.input"]),
+        ),
+      ),
+    ).toEqual(["events_core", "events_full"]);
   });
 
   it("leaves physical events tables unchanged", () => {
@@ -274,7 +331,7 @@ describe("logical events routing of metadata predicates", () => {
     ).toEqual(["events_full"]);
   });
 
-  it("routes a metadata map built from two relations to events_full", () => {
+  it("routes the relation whose values a hand-built metadata map reads", () => {
     const query = db
       .selectFrom("events as a")
       .innerJoin("events as b", "a.span_id", "b.span_id")
@@ -294,7 +351,7 @@ describe("logical events routing of metadata predicates", () => {
       );
 
     expect(routedTables(compile(query))).toEqual([
-      "events_full",
+      "events_core",
       "events_full",
     ]);
   });

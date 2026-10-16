@@ -234,7 +234,9 @@ const EVENTS_COLUMNS = {
  * `events_core_mv` keeps the first 200 code points of `input`, `output`, and
  * each `metadata_values` element, and `input_length` / `output_length` are
  * materialized from the truncated copy. Any other read of them needs
- * `events_full`.
+ * `events_full`. Must match the truncations in the latest `events_core_mv`
+ * definition (`clickhouse/migrations/canonical/0053_add_skill_observation_references.up.sql`);
+ * nothing checks this automatically.
  */
 export const EVENTS_CORE_TRUNCATED_COLUMNS: ReadonlySet<string> = new Set([
   "input",

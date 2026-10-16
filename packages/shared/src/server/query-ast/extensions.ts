@@ -656,10 +656,15 @@ export function metadataValue(
     new ExpressionWrapper<ClickHouseDatabase, "events_core", string[]>(
       qualifiedColumn(tableAlias, name),
     );
-  return mapValue<string>(
+  const { array, index } = mapValue<string>(
     metadataMap(column("metadata_names"), column("metadata_values")),
     key,
-  );
+  ).toOperationNode() as unknown as ArrayIndexNode;
+  return new ExpressionWrapper<
+    ClickHouseDatabase,
+    keyof ClickHouseDatabase,
+    string
+  >(ArrayIndexNode.create(array, index, true) as unknown as OperationNode);
 }
 
 // Extract the element type `T` from an array-typed `Expression<T[]>`. `arrayJoin`
