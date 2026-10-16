@@ -122,7 +122,12 @@ describe("DataTable custom row height", () => {
     });
   });
 
-  const pointAt = (handle: HTMLElement, type: string, clientY: number) => {
+  const pointAt = (
+    handle: HTMLElement,
+    type: string,
+    clientY: number,
+    clientX = 0,
+  ) => {
     handle.dispatchEvent(
       new PointerEventPolyfill(type, {
         bubbles: true,
@@ -130,6 +135,7 @@ describe("DataTable custom row height", () => {
         button: 0,
         pointerId: 1,
         clientY,
+        clientX,
       }),
     );
   };
@@ -155,6 +161,7 @@ describe("DataTable custom row height", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   function renderResizableTable(
@@ -202,6 +209,102 @@ describe("DataTable custom row height", () => {
     expect(screen.getAllByRole("slider", { name: "Row height" })).toHaveLength(
       1,
     );
+  });
+
+  // `data-row-resize-armed` is what the row-resize cursor hangs off, so the
+  // handle carrying it is the handle offering the cursor.
+  it("leaves the cursor alone while the pointer travels across a row border", () => {
+    renderResizableTable();
+    vi.useFakeTimers();
+
+    const lowerHalf = document.querySelector<HTMLElement>(
+      'tr[data-row-index="1"] [data-row-resize-edge="below"]',
+    );
+    expect(lowerHalf).not.toBeNull();
+    expect(lowerHalf).not.toHaveClass("cursor-row-resize");
+
+    // Moving between rows crosses the 6px strip in a frame or two.
+    act(() => {
+      pointAt(lowerHalf!, "pointermove", 100);
+    });
+    act(() => {
+      vi.advanceTimersByTime(16);
+      pointAt(lowerHalf!, "pointermove", 104);
+    });
+    act(() => {
+      vi.advanceTimersByTime(16);
+      pointAt(lowerHalf!, "pointerout", 108);
+    });
+    act(() => {
+      vi.advanceTimersByTime(1_000);
+    });
+
+    expect(lowerHalf).not.toHaveAttribute("data-row-resize-armed");
+  });
+
+  it("offers the resize cursor once the pointer rests on the border, and takes it back on exit", () => {
+    renderResizableTable();
+    vi.useFakeTimers();
+
+    const lowerHalf = document.querySelector<HTMLElement>(
+      'tr[data-row-index="1"] [data-row-resize-edge="below"]',
+    );
+    expect(lowerHalf).not.toBeNull();
+
+    act(() => {
+      pointAt(lowerHalf!, "pointermove", 100);
+    });
+    // Drifting past the 2px slop restarts the 120ms wait from the new spot.
+    act(() => {
+      vi.advanceTimersByTime(110);
+      pointAt(lowerHalf!, "pointermove", 104);
+    });
+    act(() => {
+      vi.advanceTimersByTime(110);
+    });
+    expect(lowerHalf).not.toHaveAttribute("data-row-resize-armed");
+
+    // A tremor inside the slop counts as still resting.
+    act(() => {
+      vi.advanceTimersByTime(5);
+      pointAt(lowerHalf!, "pointermove", 105);
+    });
+    act(() => {
+      vi.advanceTimersByTime(5);
+    });
+    expect(lowerHalf).toHaveAttribute("data-row-resize-armed");
+
+    // Leaving hands the cursor back, so coming in again has to earn it.
+    act(() => {
+      pointAt(lowerHalf!, "pointerout", 140);
+    });
+    expect(lowerHalf).not.toHaveAttribute("data-row-resize-armed");
+  });
+
+  it("gives the resize cursor to a press on the border with no wait", () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      () => rect(96),
+    );
+    renderResizableTable();
+
+    // The last row's strip is the 6px one, hanging below its bottom edge.
+    const lastEdge = document.querySelector<HTMLElement>(
+      'tr[data-row-index="1"] [data-row-resize-edge="last"]',
+    );
+    expect(lastEdge).not.toBeNull();
+
+    act(() => {
+      pointAt(lastEdge!, "pointerdown", 100);
+    });
+    expect(lastEdge).toHaveAttribute("data-row-resize-armed");
+
+    act(() => {
+      pointAt(lastEdge!, "pointermove", 180);
+    });
+    for (const box of rowBoxes(1)) {
+      expect(box).toHaveStyle({ height: "176px" });
+    }
+    expect(lastEdge).toHaveAttribute("data-row-resize-armed");
   });
 
   it("resizes the row above when the pointer starts on the lower half of its border", () => {

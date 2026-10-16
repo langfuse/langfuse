@@ -1,7 +1,7 @@
 /* eslint-disable @repo/storybook-play-no-implementation-detail-assertions, no-nested-ternary */
 import preview from "../../../.storybook/preview";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { expect, fireEvent, fn } from "storybook/test";
+import { expect, fireEvent, fn, waitFor } from "storybook/test";
 import {
   type OnChangeFn,
   type PaginationState,
@@ -1864,6 +1864,43 @@ export const CanceledPointersRestoreRowHeight = meta.story({
       await pointAtResizeHandle(handle, "pointerup", 100);
       expect(args.onCustomRowHeightChange).not.toHaveBeenCalled();
     }
+  },
+});
+
+export const RowResizeCursorWaitsForARestingPointer = meta.story({
+  name: "(Test) Row Resize Cursor Waits For A Resting Pointer",
+  args: { rowHeight: "s", onCustomRowHeightChange: fn() },
+  render: (args) => <RowHeightLifecycleStory {...args} />,
+  play: async ({ canvas }) => {
+    const handle = canvas.getByRole("slider", { name: "Row height" });
+    const row = handle.closest("tr");
+    if (!row) throw new globalThis.Error("Missing row for the resize handle");
+    const cursor = () => globalThis.getComputedStyle(handle).cursor;
+    // The strip sits inside the row, so an unclaimed cursor is the row's own.
+    const rowCursor = globalThis.getComputedStyle(row).cursor;
+    expect(rowCursor).not.toBe("row-resize");
+
+    // Travelling between rows crosses the strip and leaves it again.
+    await pointAtResizeHandle(handle, "pointermove", 100);
+    await pointAtResizeHandle(handle, "pointermove", 104);
+    await pointAtResizeHandle(handle, "pointerout", 108);
+    await new Promise<void>((resolve) => {
+      globalThis.setTimeout(resolve, 250);
+    });
+    expect(cursor()).toBe(rowCursor);
+
+    // Coming to rest on the border earns it.
+    await pointAtResizeHandle(handle, "pointermove", 100);
+    await waitFor(() => expect(cursor()).toBe("row-resize"));
+
+    // Leaving hands it straight back.
+    await pointAtResizeHandle(handle, "pointerout", 140);
+    expect(cursor()).toBe(rowCursor);
+
+    // A press claims it with no wait at all.
+    await pointAtResizeHandle(handle, "pointerdown", 0);
+    expect(cursor()).toBe("row-resize");
+    await pointAtResizeHandle(handle, "pointercancel", 0);
   },
 });
 
