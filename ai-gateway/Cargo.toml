@@ -76,12 +76,13 @@ rc_buffer = "deny"
 rc_mutex = "deny"
 
 # `process::exit` and `mem::forget` skip `Drop`, so graceful shutdown and
-# telemetry flushing would not run.
+# telemetry flushing would not run. `clippy::exit` ignores `fn main`, so
+# `clippy.toml` also lists `std::process::exit` under `disallowed-methods`.
 exit = "deny"
 mem_forget = "deny"
 get_unwrap = "deny"
 
-# Oversized async state machines are copied on every poll of a request future.
+# Large futures and stack frames increase memory use and can exhaust the stack.
 large_futures = "warn"
 large_stack_frames = "warn"
 
