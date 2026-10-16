@@ -232,7 +232,6 @@ describe("useChatMLParser", () => {
       toolCallCounts: new Map(),
       toolCallsByName: new Map(),
       messageToToolCallNumbers: new Map(),
-      toolNameToDefinitionNumber: new Map(),
       inputMessageCount: 0,
     };
 

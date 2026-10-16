@@ -6,7 +6,9 @@ import {
   coreDataTableExports,
   mapDashboardToCoreDataRow,
   mapDashboardWidgetToCoreDataRow,
+  mapEvaluationRuleEvaluatorAssignmentToCoreDataRow,
   mapEvaluationRuleToCoreDataRow,
+  mapEvaluatorVersionToCoreDataRow,
   mapJobConfigurationToCoreDataRow,
   mapUserToCoreDataRow,
   uploadTableCoreDataJsonl,
@@ -74,6 +76,7 @@ describe("mapJobConfigurationToCoreDataRow", () => {
       evalTemplateId: "template-1",
       evalTemplateName: "toxicity-v2",
       sampling: 0.5,
+      variableMapping: [],
     });
     expect(JSON.stringify(row)).toContain('"sampling":0.5');
   });
@@ -89,7 +92,35 @@ describe("mapJobConfigurationToCoreDataRow", () => {
       id: "config-2",
       evalTemplateName: null,
       sampling: 1,
+      variableMapping: [],
     });
+  });
+
+  it("exports null variableMapping as an empty array and keeps arrays", () => {
+    const variableMapping = [
+      {
+        langfuseObject: "trace",
+        selectedColumnId: "input",
+        templateVariable: "question",
+      },
+    ];
+
+    expect(
+      mapJobConfigurationToCoreDataRow({
+        id: "config-3",
+        evalTemplate: null,
+        sampling: decimal(1),
+        variableMapping: null,
+      }).variableMapping,
+    ).toStrictEqual([]);
+    expect(
+      mapJobConfigurationToCoreDataRow({
+        id: "config-4",
+        evalTemplate: null,
+        sampling: decimal(1),
+        variableMapping,
+      }).variableMapping,
+    ).toBe(variableMapping);
   });
 });
 
@@ -107,6 +138,78 @@ describe("mapEvaluationRuleToCoreDataRow", () => {
       sampling: 0.25,
     });
     expect(JSON.stringify(row)).toContain('"sampling":0.25');
+  });
+});
+
+describe("mapEvaluatorVersionToCoreDataRow", () => {
+  it("exports null variableMapping as an empty array", () => {
+    const row = mapEvaluatorVersionToCoreDataRow({
+      id: "001a1f0c-45a4-4d4c-b6ef-72bbdd77045e:cmbh3mfmk0082ad072cw2gsuv",
+      evaluatorId: "001a1f0c-45a4-4d4c-b6ef-72bbdd77045e",
+      version: 3,
+      createdByUserId: null,
+      partner: null,
+      model: null,
+      provider: null,
+      vars: ["input", "output"],
+      variableMapping: null,
+      sourceCodeLanguage: null,
+      createdAt: "2025-06-03T22:37:06.332Z",
+    });
+
+    expect(row.variableMapping).toStrictEqual([]);
+    expect(JSON.stringify(row)).toContain('"variableMapping":[]');
+    expect(row.vars).toStrictEqual(["input", "output"]);
+    expect(row.partner).toBeNull();
+  });
+
+  it("keeps an existing variableMapping array", () => {
+    const variableMapping = [
+      {
+        langfuseObject: "trace",
+        selectedColumnId: "output",
+        templateVariable: "answer",
+      },
+    ];
+
+    expect(
+      mapEvaluatorVersionToCoreDataRow({
+        id: "version-1",
+        variableMapping,
+      }).variableMapping,
+    ).toBe(variableMapping);
+  });
+});
+
+describe("mapEvaluationRuleEvaluatorAssignmentToCoreDataRow", () => {
+  it("exports null variableMapping as an empty array", () => {
+    const row = mapEvaluationRuleEvaluatorAssignmentToCoreDataRow({
+      id: "assignment-1",
+      projectId: "project-1",
+      evaluationRuleId: "rule-1",
+      evaluatorId: "evaluator-1",
+      variableMapping: null,
+    });
+
+    expect(row.variableMapping).toStrictEqual([]);
+    expect(JSON.stringify(row)).toContain('"variableMapping":[]');
+  });
+
+  it("keeps an existing variableMapping array", () => {
+    const variableMapping = [
+      {
+        jsonSelector: null,
+        selectedColumnId: "input",
+        templateVariable: "request",
+      },
+    ];
+
+    expect(
+      mapEvaluationRuleEvaluatorAssignmentToCoreDataRow({
+        id: "assignment-2",
+        variableMapping,
+      }).variableMapping,
+    ).toBe(variableMapping);
   });
 });
 

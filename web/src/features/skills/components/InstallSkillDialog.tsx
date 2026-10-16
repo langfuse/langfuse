@@ -39,7 +39,7 @@ export function InstallSkillDialog({
           <h3 className="font-bold">1. Install the CLI</h3>
           <Codeblock
             language="bash"
-            value="npm install -g @langfuse/cli@1.3.0-beta.1"
+            value="npm install -g @langfuse/cli@beta"
           />
         </div>
         <div className="flex flex-col items-start gap-3">

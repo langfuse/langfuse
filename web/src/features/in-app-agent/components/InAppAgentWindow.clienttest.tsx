@@ -135,6 +135,7 @@ function windowElement(
     onNewConversation: vi.fn(),
     onOpenConversationHistory: vi.fn(),
     onRejectToolCall: vi.fn(),
+    onAnswerQuestionnaire: vi.fn(),
     onSelectConversation: vi.fn(),
     onSubmit: vi.fn().mockResolvedValue(true),
     onSubmitFeedback: vi.fn(),

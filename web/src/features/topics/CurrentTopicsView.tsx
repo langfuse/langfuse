@@ -1,11 +1,5 @@
 import { computeSelectedValues, type FilterState } from "@langfuse/shared";
-import {
-  useMemo,
-  useState,
-  type ComponentProps,
-  type MouseEvent,
-  type ReactNode,
-} from "react";
+import { useMemo, useState, type ComponentProps, type ReactNode } from "react";
 import { useMediaQuery } from "react-responsive";
 import { type OnChangeFn, type PaginationState } from "@tanstack/react-table";
 import { DataTable } from "@/src/components/table/data-table";
@@ -40,8 +34,6 @@ export function CurrentTopicsView({
   facet,
   mapResult,
   onOpenTrace,
-  onInspectTranscript,
-  canInspectTranscript,
   peekView,
   tracePanelRef,
   traceFilters,
@@ -192,8 +184,6 @@ export function CurrentTopicsView({
         key={filterKey}
         projectId={projectId}
         onOpenTrace={onOpenTrace}
-        onInspectTranscript={onInspectTranscript}
-        canInspectTranscript={canInspectTranscript}
         peekView={peekView}
         rows={visible}
         totalCount={facet.rows.length}
@@ -345,8 +335,6 @@ function TopicsWorkspaceSplit({
 function CurrentTraceTable({
   projectId,
   onOpenTrace,
-  onInspectTranscript,
-  canInspectTranscript,
   peekView,
   rows,
   totalCount,
@@ -411,14 +399,6 @@ function CurrentTraceTable({
         function openTrace() {
           onOpenTrace(row.original.traceId);
         }
-        function inspectTranscript(event: MouseEvent) {
-          event.stopPropagation();
-          onInspectTranscript({
-            traceId: row.original.traceId,
-            facetVersion: row.original.facetVersion,
-            unitStartTime: row.original.unitStartTime,
-          });
-        }
         return (
           <div className="flex flex-col items-start gap-1">
             {isMobile && (
@@ -440,14 +420,6 @@ function CurrentTraceTable({
             <p className="break-words whitespace-pre-wrap">
               {row.original.summary || "No applicable summary."}
             </p>
-            {canInspectTranscript && (
-              <Button
-                text="Debug transcript"
-                variant="secondary"
-                size="sm"
-                onClick={inspectTranscript}
-              />
-            )}
           </div>
         );
       },
@@ -478,7 +450,7 @@ function CurrentTraceTable({
         }}
         topAlignCells
         className="min-h-0 overscroll-contain"
-        cellPadding="comfortable"
+        cellPadding="relaxed"
         noResultsMessage="No matches. Adjust or clear your filters."
         peekView={peekView}
       />
@@ -510,8 +482,6 @@ type TopicsWorkspaceSplitProps = {
 type CurrentTraceTableProps = {
   projectId: string;
   onOpenTrace: (traceId: string) => void;
-  onInspectTranscript: (source: SummarySource) => void;
-  canInspectTranscript: boolean;
   peekView: DataTablePeekViewProps;
   rows: Facet["rows"];
   totalCount: number;
@@ -534,13 +504,7 @@ type CurrentTopicsViewProps = {
     setSearchQuery: (query: string | null) => void;
   };
   onOpenTrace: (traceId: string) => void;
-  onInspectTranscript: (source: SummarySource) => void;
-  canInspectTranscript: boolean;
   peekView: DataTablePeekViewProps;
 };
 
 type Facet = RouterOutputs["topics"]["currentResults"]["facets"][number];
-type SummarySource = Pick<
-  Facet["rows"][number],
-  "traceId" | "facetVersion" | "unitStartTime"
->;
