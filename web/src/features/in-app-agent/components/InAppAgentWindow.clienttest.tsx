@@ -300,14 +300,14 @@ describe("InAppAgentWindow header", () => {
       }),
     );
 
-    expect(screen.getByText("Assistant")).toBeInTheDocument();
+    expect(screen.getByText("Halo")).toBeInTheDocument();
   });
 
   it("toggles expanded on a header double-click, but not from its actions", () => {
     const onExpandedChange = vi.fn();
     render(windowElement({ onExpandedChange }));
 
-    fireEvent.dblClick(screen.getByText("Assistant"));
+    fireEvent.dblClick(screen.getByText("Halo"));
     expect(onExpandedChange).toHaveBeenCalledWith(true);
 
     fireEvent.dblClick(
@@ -349,7 +349,7 @@ describe("ControlledInAppAgentWindow composer", () => {
     );
 
     const input = screen.getByRole("textbox", {
-      name: "Message the assistant",
+      name: "Message Halo",
     });
     fireEvent.change(input, { target: { value: "Follow up" } });
 
@@ -382,9 +382,7 @@ describe("ControlledInAppAgentWindow composer", () => {
       </TooltipProvider>,
     );
 
-    expect(
-      screen.getByRole("textbox", { name: "Message the assistant" }),
-    ).toBeEnabled();
+    expect(screen.getByRole("textbox", { name: "Message Halo" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Send message" })).toBeDisabled();
     expect(
       screen.getByRole("button", { name: "Start new conversation" }),
@@ -744,7 +742,7 @@ describe("InAppAgentWindow composer", () => {
     const { rerender } = render(windowElement());
 
     expect(
-      screen.getByRole("textbox", { name: "Message the assistant" }),
+      screen.getByRole("textbox", { name: "Message Halo" }),
     ).toHaveAttribute("placeholder", "Let me know what I can do for you...");
 
     rerender(
@@ -768,7 +766,7 @@ describe("InAppAgentWindow composer", () => {
     );
 
     expect(
-      screen.getByRole("textbox", { name: "Message the assistant" }),
+      screen.getByRole("textbox", { name: "Message Halo" }),
     ).toHaveAttribute("placeholder", "Reply...");
   });
 
@@ -819,7 +817,7 @@ describe("InAppAgentWindow composer", () => {
       screen.queryByRole("button", { name: "Good response" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("textbox", { name: "Message the assistant" }),
+      screen.getByRole("textbox", { name: "Message Halo" }),
     ).toHaveAttribute("placeholder", "Let me know what I can do for you...");
 
     fireEvent.click(
@@ -877,7 +875,7 @@ describe("InAppAgentWindow composer", () => {
       screen.getByRole("button", { name: "Copy message" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("textbox", { name: "Message the assistant" }),
+      screen.getByRole("textbox", { name: "Message Halo" }),
     ).toHaveAttribute("placeholder", "Reply...");
   });
 });
