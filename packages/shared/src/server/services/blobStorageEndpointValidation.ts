@@ -1,9 +1,13 @@
+import { type BlobStorageIntegrationType } from "@prisma/client";
 import { env } from "../../env";
 import {
+  isDnsCompatibleBucketName,
   type OutboundUrlConnectionValidationOptions,
   type OutboundUrlValidationWhitelist,
   OutboundUrlValidationError,
   parseOutboundUrl,
+  resolveHost,
+  validateOutboundResolvedIp,
   validateOutboundUrlHost,
 } from "../outbound-url";
 
@@ -85,6 +89,71 @@ export async function validateBlobStorageEndpoint(
       throw new OutboundUrlValidationError(
         error.code,
         `${error.message}${getSelfHostedWhitelistGuidance(error.code)}`,
+      );
+    }
+    throw error;
+  }
+}
+
+export type BlobStorageBucketHostTarget = {
+  type: BlobStorageIntegrationType;
+  endpoint: string | null | undefined;
+  bucketName: string;
+  forcePathStyle: boolean | null | undefined;
+};
+
+/**
+ * With an allowed-hosts list, a listed endpoint host may be private, but the
+ * `{bucket}.{host}` name S3 connects to without path-style still gets the
+ * private-address block. Check that name up front so the integration is
+ * rejected with guidance instead of disabled after its first export.
+ */
+export async function validateBlobStorageBucketHost(
+  target: BlobStorageBucketHostTarget,
+  whitelist: OutboundUrlValidationWhitelist = blobStorageEndpointWhitelistFromEnv(),
+): Promise<void> {
+  const options = blobStorageEndpointConnectionValidationOptions(whitelist);
+  const allowedHosts = options?.whitelist?.allowedHosts ?? [];
+  if (
+    !options?.whitelist ||
+    allowedHosts.length === 0 ||
+    !target.endpoint ||
+    target.forcePathStyle ||
+    target.type === "AZURE_BLOB_STORAGE" ||
+    target.type === "GOOGLE_CLOUD_STORAGE"
+  ) {
+    return;
+  }
+
+  const url = parseOutboundUrl(target.endpoint);
+  const bucketName = target.bucketName.trim();
+  // HTTPS keeps dotted bucket names on the endpoint host so the certificate
+  // still matches.
+  if (
+    !allowedHosts.includes(url.hostname) ||
+    !isDnsCompatibleBucketName(bucketName) ||
+    (url.protocol === "https:" && bucketName.includes("."))
+  ) {
+    return;
+  }
+
+  // No hostname blocklist here: sockets are only checked by resolved address,
+  // so names like `{bucket}.minio.internal` must not be rejected by suffix.
+  const bucketHost = `${bucketName}.${url.hostname}`;
+  try {
+    for (const ip of await resolveHost(bucketHost)) {
+      validateOutboundResolvedIp({
+        hostname: bucketHost,
+        ip,
+        whitelist: options.whitelist,
+        logContext: BLOB_STORAGE_ENDPOINT_VALIDATION_LOG_CONTEXT,
+      });
+    }
+  } catch (error) {
+    if (error instanceof OutboundUrlValidationError) {
+      throw new OutboundUrlValidationError(
+        error.code,
+        `${error.message} for ${bucketHost}. S3 connects to the bucket as a subdomain of the endpoint unless Force Path Style is on. Turn on Force Path Style, or add the address to LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS or LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IP_SEGMENTS.`,
       );
     }
     throw error;

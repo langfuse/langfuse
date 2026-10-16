@@ -1,4 +1,5 @@
-import { afterEach, describe, it, expect } from "vitest";
+import dns from "node:dns/promises";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import {
   OutboundUrlValidationError,
   parseOutboundUrl,
@@ -7,6 +8,7 @@ import {
 import {
   assertGcsBlobStorageBucketAllowed,
   blobStorageEndpointConnectionValidationOptions,
+  validateBlobStorageBucketHost,
   validateBlobStorageEndpoint,
 } from "./blobStorageEndpointValidation";
 import { env } from "../../env";
@@ -93,6 +95,52 @@ describe("validateBlobStorageEndpoint", () => {
         allowedHosts: ["10.0.0.1"],
       }),
     ).resolves.toBeUndefined();
+  });
+});
+
+describe("validateBlobStorageBucketHost", () => {
+  const allowlist = {
+    hosts: [],
+    ips: [],
+    ip_ranges: [],
+    allowedHosts: ["minio.internal"],
+  };
+  const target = {
+    type: "S3_COMPATIBLE" as const,
+    endpoint: "http://minio.internal:9000",
+    bucketName: "exports",
+    forcePathStyle: false,
+  };
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("rejects a virtual-hosted bucket name that resolves to a private address", async () => {
+    vi.spyOn(dns, "resolve4").mockResolvedValue(["10.0.0.5"]);
+    vi.spyOn(dns, "resolve6").mockRejectedValue(new Error("ENODATA"));
+    vi.spyOn(dns, "lookup").mockResolvedValue([
+      { address: "10.0.0.5", family: 4 },
+    ] as never);
+
+    await expect(
+      validateBlobStorageBucketHost(target, allowlist),
+    ).rejects.toMatchObject({
+      code: "blocked-ip",
+      message: expect.stringContaining("Force Path Style"),
+    });
+  });
+
+  it("skips the check when path-style addressing is forced", async () => {
+    const resolve4 = vi.spyOn(dns, "resolve4");
+
+    await expect(
+      validateBlobStorageBucketHost(
+        { ...target, forcePathStyle: true },
+        allowlist,
+      ),
+    ).resolves.toBeUndefined();
+    expect(resolve4).not.toHaveBeenCalled();
   });
 });
 
