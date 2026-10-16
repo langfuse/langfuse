@@ -1607,6 +1607,7 @@ function TracesTableInternal({
                         // still on screen, so page 2 continues where this page
                         // ends even if rows keep arriving.
                         pinOnLeavingFirstPage(
+                          paginationState.pageIndex,
                           next.pageIndex,
                           rows[0]?.timestamp,
                         );
