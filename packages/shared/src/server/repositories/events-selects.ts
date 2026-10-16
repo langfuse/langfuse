@@ -204,9 +204,7 @@ export const TRACE_AGGREGATION_SELECTS = [
   countLevel("ERROR").as("error_count"),
   countLevel("DEFAULT").as("default_count"),
   countLevel("DEBUG").as("debug_count"),
-  argMaxIf(eb.ref("tags"), eb.ref("event_ts"), notEmpty(eb.ref("tags"))).as(
-    "tags",
-  ),
+  groupUniqArrayArrayIf(eb.ref("tags"), notEmpty(eb.ref("tags"))).as("tags"),
   latestNonEmpty("release").as("release"),
   latestNonEmpty("evaluator_id").as("evaluator_id"),
   latestNonEmpty("evaluation_rule_id").as("evaluation_rule_id"),
