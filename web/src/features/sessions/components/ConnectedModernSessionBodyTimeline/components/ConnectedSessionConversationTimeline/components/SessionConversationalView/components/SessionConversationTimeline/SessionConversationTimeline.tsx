@@ -13,8 +13,12 @@ export function SessionConversationTimeline({
   traces: readonly ComponentProps<typeof SessionConversationTimelineTrace>[];
   controller: SessionConversationTimelineController;
   navigation?: {
-    previousTrace?: Pick<ComponentProps<typeof Link>, "href" | "shallow">;
-    nextTrace?: Pick<ComponentProps<typeof Link>, "href" | "shallow">;
+    previousTrace?: Pick<ComponentProps<typeof Link>, "href" | "shallow"> & {
+      count: number;
+    };
+    nextTrace?: Pick<ComponentProps<typeof Link>, "href" | "shallow"> & {
+      count: number;
+    };
   };
 }) {
   const { feedRef, virtualItems, virtualizer } = controller;
@@ -52,11 +56,12 @@ export function SessionConversationTimeline({
               {virtualItem.index === 0 && navigation?.previousTrace && (
                 <div className="flex justify-center pb-4">
                   <Link
-                    {...navigation.previousTrace}
+                    href={navigation.previousTrace.href}
+                    shallow={navigation.previousTrace.shallow}
                     className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring flex w-full items-center justify-center gap-2 rounded-md border border-dashed px-4 py-3 text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
                   >
                     <ArrowUp className="icon-base" />
-                    Previous trace in session
+                    Previous trace in session ({navigation.previousTrace.count})
                   </Link>
                 </div>
               )}
@@ -65,11 +70,12 @@ export function SessionConversationTimeline({
                 navigation?.nextTrace && (
                   <div className="flex justify-center pt-4">
                     <Link
-                      {...navigation.nextTrace}
+                      href={navigation.nextTrace.href}
+                      shallow={navigation.nextTrace.shallow}
                       className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring flex w-full items-center justify-center gap-2 rounded-md border border-dashed px-4 py-3 text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
                     >
                       <ArrowDown className="icon-base" />
-                      Next trace in session
+                      Next trace in session ({navigation.nextTrace.count})
                     </Link>
                   </div>
                 )}

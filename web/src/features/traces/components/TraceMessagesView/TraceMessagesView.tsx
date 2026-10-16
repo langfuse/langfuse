@@ -36,13 +36,18 @@ export function TraceMessagesView() {
   const nextTrace =
     traceIndex >= 0 ? sessionTraces?.[traceIndex + 1] : undefined;
   const [previousTraceLink, nextTraceLink] = [previousTrace, nextTrace].map(
-    (target) => {
+    (target, directionIndex) => {
       if (!target) return undefined;
+      const count =
+        directionIndex === 0
+          ? traceIndex
+          : (sessionTraces?.length ?? 0) - traceIndex - 1;
       if (isPeekMode) {
         const query = { ...router.query };
         delete query.observation;
         delete query.traceId;
         return {
+          count,
           href: {
             pathname: router.pathname,
             query: {
@@ -56,6 +61,7 @@ export function TraceMessagesView() {
         };
       }
       return {
+        count,
         href: {
           pathname: `/project/${trace.projectId}/traces/${target.id}`,
           query: {

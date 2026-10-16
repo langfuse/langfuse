@@ -95,10 +95,12 @@ export const TimelineNavigation = meta.story({
   args: {
     navigation: {
       previousTrace: {
+        count: 3,
         href: "/project/project-1/traces?peek=previous-trace&traceView=messages",
         shallow: true,
       },
       nextTrace: {
+        count: 1,
         href: "/project/project-1/traces?peek=next-trace&traceView=messages",
         shallow: true,
       },
@@ -107,7 +109,7 @@ export const TimelineNavigation = meta.story({
   play: async ({ canvas, args }) => {
     const timeline = canvas.getByLabelText("Session conversation timeline");
     const previous = await canvas.findByRole("link", {
-      name: "Previous trace in session",
+      name: "Previous trace in session (3)",
     });
     const firstTrace = await canvas.findByRole("button", {
       name: /Turn 1.*trace-1/,
@@ -122,7 +124,7 @@ export const TimelineNavigation = meta.story({
     timeline.scrollTop = timeline.scrollHeight;
     timeline.dispatchEvent(new Event("scroll", { bubbles: true }));
     const next = await canvas.findByRole("link", {
-      name: "Next trace in session",
+      name: "Next trace in session (1)",
     });
     const lastTrace = await canvas.findByRole("button", {
       name: /Turn 3.*trace-3/,
