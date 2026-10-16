@@ -305,6 +305,16 @@ const BENIGN_NON_ERROR_REJECTION_VALUE_PREFIXES: readonly string[] = [
 ];
 
 /**
+ * Tauri v2 IPC when a desktop / WKWebView host loads our origin and the
+ * injected bridge invokes a plugin command the remote URL is not allowed
+ * to call. Exact wording: `Command plugin:<name>|<cmd> not allowed by ACL`.
+ * Langfuse is a Next.js web app and never invokes Tauri (LANGFUSE-63P:
+ * Apple Mail / WebKit, no stack, 0 users).
+ */
+const TAURI_PLUGIN_ACL_REJECTION_RE =
+  /^Command plugin:[A-Za-z0-9_-]+\|[A-Za-z0-9_-]+ not allowed by ACL$/;
+
+/**
  * Chromium Android WebView wording when a host-app `@JavascriptInterface`
  * method fails. The method name is a Java identifier; the suffix is fixed.
  * Observed: LANGFUSE-60G (`Error invoking batch: Java bridge method
@@ -630,7 +640,8 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
         BENIGN_NON_ERROR_REJECTION_VALUES.includes(rejectionValue) ||
         BENIGN_NON_ERROR_REJECTION_VALUE_PREFIXES.some((prefix) =>
           rejectionValue.startsWith(prefix),
-        )
+        ) ||
+        TAURI_PLUGIN_ACL_REJECTION_RE.test(rejectionValue)
       ) {
         return true;
       }

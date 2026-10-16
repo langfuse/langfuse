@@ -668,6 +668,26 @@ describe("isDenylistedNoiseEvent", () => {
         ),
       ).toBe(true);
     });
+
+    it("drops Tauri plugin ACL rejections (LANGFUSE-63P)", () => {
+      // Real shape: Apple Mail / WKWebView, no stack. A Tauri host injects
+      // IPC and rejects with this exact string when the remote origin is
+      // not allowed to call the plugin. Langfuse never invokes Tauri.
+      expect(
+        isDenylistedNoiseEvent(
+          nonErrorRejectionEvent(
+            "Command plugin:notification|is_permission_granted not allowed by ACL",
+          ),
+        ),
+      ).toBe(true);
+      expect(
+        isDenylistedNoiseEvent(
+          nonErrorRejectionEvent(
+            "Command plugin:os|hostname not allowed by ACL",
+          ),
+        ),
+      ).toBe(true);
+    });
   });
 
   describe("E. drops environmental storage-access SecurityError (console-captured only)", () => {
@@ -1428,6 +1448,27 @@ describe("isDenylistedNoiseEvent", () => {
         isDenylistedNoiseEvent(
           exceptionEvent(
             "Non-Error promise rejection captured with value: undefined is not a function",
+            "UnhandledRejection",
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a real Error that merely quotes a Tauri ACL phrase", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "Command plugin:notification|is_permission_granted not allowed by ACL",
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a longer UnhandledRejection that quotes a Tauri ACL phrase", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "Non-Error promise rejection captured with value: Failed to save prompt: Command plugin:notification|is_permission_granted not allowed by ACL",
             "UnhandledRejection",
           ),
         ),
