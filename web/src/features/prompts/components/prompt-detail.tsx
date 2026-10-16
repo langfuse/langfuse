@@ -55,7 +55,7 @@ import {
 import { CreateExperimentsForm } from "@/src/features/experiments";
 import { useMemo, useState } from "react";
 import { showSuccessToast } from "@/src/features/notifications";
-import { DuplicatePromptButton } from "@/src/features/prompts/components/duplicate-prompt";
+import { DuplicatePromptButton } from "@/src/features/prompts/components/DuplicatePromptButton";
 import Page from "@/src/components/layouts/page";
 import {
   DropdownMenu,
