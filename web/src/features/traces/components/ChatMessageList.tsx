@@ -1,5 +1,5 @@
+import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
 import { useMemo, useState } from "react";
-import { Button } from "@/src/components/design-system/Button/Button";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import {
   filterAlreadyRenderedMedia,
@@ -82,6 +82,10 @@ export function ChatMessageList({
       : null,
   );
 
+  const handleHistoryExpandedChange = (expanded: boolean) => {
+    setCollapsed(!expanded);
+  };
+
   const visibleMessages = useMemo(
     () =>
       messagesToRender.filter(
@@ -141,14 +145,12 @@ export function ChatMessageList({
                 {isCollapsed !== null &&
                   originalIndex === messagesToRender[0]?.originalIndex && (
                     <div className="mt-1 mb-2 flex">
-                      <Button
-                        variant="text"
-                        onClick={() => setCollapsed((v) => !v)}
-                        text={
-                          isCollapsed
-                            ? `Show ${messagesToRender.length - COLLAPSE_THRESHOLD} more`
-                            : "Hide history"
-                        }
+                      <ExpandToggle
+                        variant="underline"
+                        expanded={!isCollapsed}
+                        onExpandedChange={handleHistoryExpandedChange}
+                        label={`Show ${messagesToRender.length - COLLAPSE_THRESHOLD} more`}
+                        expandedLabel="Hide history"
                       />
                     </div>
                   )}

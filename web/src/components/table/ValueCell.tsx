@@ -1,3 +1,4 @@
+import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
 import { memo, type JSX, useState } from "react";
 import { useRouter } from "next/router";
 import { type Row } from "@tanstack/react-table";
@@ -360,6 +361,12 @@ export const ValueCell = memo(
     const { value, type } = row.original;
     const cellId = `${row.id}-value`;
     const isCellExpanded = expandedCells.has(cellId);
+    const handleExpandedChange = () => {
+      toggleCellExpansion(cellId);
+    };
+    const stopPropagation = (event: React.MouseEvent) => {
+      event.stopPropagation();
+    };
     const [showCopySuccess, setShowCopySuccess] = useState(false);
 
     const handleCopy = async (e: React.MouseEvent) => {
@@ -514,17 +521,15 @@ export const ValueCell = memo(
           {content}
         </span>
         {needsTruncation && !row.original.hasChildren && (
-          <div
-            className="inline cursor-pointer opacity-50"
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleCellExpansion(cellId);
-            }}
-          >
-            {isCellExpanded
-              ? "\n...collapse"
-              : `\n...expand (${getValueStringLength(value) - MAX_CELL_DISPLAY_CHARS} more characters)`}
-          </div>
+          // Keeps the click from reaching the row, which opens the detail view.
+          <span className="ml-1 inline-flex" onClick={stopPropagation}>
+            <ExpandToggle
+              expanded={isCellExpanded}
+              label={`...expand (${getValueStringLength(value) - MAX_CELL_DISPLAY_CHARS} more characters)`}
+              expandedLabel="...collapse"
+              onExpandedChange={handleExpandedChange}
+            />
+          </span>
         )}
 
         {/* Hover affordance: a one-click copy by default, or an actions menu

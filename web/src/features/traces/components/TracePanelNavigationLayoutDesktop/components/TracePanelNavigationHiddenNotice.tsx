@@ -12,6 +12,7 @@
  */
 
 import { ObservationLevel } from "@langfuse/shared";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 
@@ -35,19 +36,12 @@ export function TracePanelNavigationHiddenNotice() {
           {hiddenObservationsCount} hidden observations below{" "}
           {minObservationLevel} level.
         </p>
-        <p
-          className="cursor-pointer underline"
+        <Button
+          variant="text"
+          size="sm"
+          text="Show all"
           onClick={handleShowAll}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              handleShowAll();
-            }
-          }}
-        >
-          Show all
-        </p>
+        />
       </span>
     </div>
   );

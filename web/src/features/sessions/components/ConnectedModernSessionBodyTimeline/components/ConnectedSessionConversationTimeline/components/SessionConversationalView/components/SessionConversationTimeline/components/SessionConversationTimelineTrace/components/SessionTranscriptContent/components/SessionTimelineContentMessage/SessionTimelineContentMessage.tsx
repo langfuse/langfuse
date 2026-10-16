@@ -14,7 +14,7 @@ const rolePresentation = {
     icon: UserRound,
     wrapper: "justify-end",
     container:
-      "bg-blue-50 dark:bg-[color-mix(in_srgb,var(--color-muted)_85%,var(--color-light-blue))] max-w-[min(85%,48rem)] rounded-2xl px-4 py-2.5 [--session-message-toggle-hover:var(--color-blue-100)] dark:[--session-message-toggle-hover:color-mix(in_srgb,var(--color-muted)_75%,var(--color-light-blue))]",
+      "bg-blue-50 dark:bg-[color-mix(in_srgb,var(--color-muted)_85%,var(--color-light-blue))] max-w-[min(85%,48rem)] rounded-2xl px-4 py-2.5",
   },
   assistant: {
     label: "Assistant",

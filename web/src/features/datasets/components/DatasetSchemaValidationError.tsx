@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { ExternalLink } from "lucide-react";
-import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
+import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 
 type ValidationError = {
@@ -41,20 +40,13 @@ export const DatasetSchemaValidationError: React.FC<
                 : `${errorCount} item${errorCount === 1 ? "" : "s"} failed validation.`}
             </p>
 
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsExpanded(!isExpanded)}
-              className="h-auto gap-1 p-0 text-sm font-bold hover:bg-transparent"
-            >
-              {isExpanded ? (
-                <DropdownIndicator nudge />
-              ) : (
-                <DropdownIndicator direction="right" nudge />
-              )}
-              {isExpanded ? "Hide" : "Show"} error details
-            </Button>
+            <ExpandToggle
+              variant="icon"
+              expanded={isExpanded}
+              label="Show error details"
+              expandedLabel="Hide error details"
+              onExpandedChange={setIsExpanded}
+            />
 
             {isExpanded && (
               <div className="border-destructive/20 bg-destructive/5 mt-3 space-y-3 rounded-md border p-3">

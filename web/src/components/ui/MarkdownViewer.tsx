@@ -43,7 +43,7 @@ import { SystemPromptCollapseButton } from "@/src/components/ui/SystemPromptColl
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { MENTION_USER_PREFIX } from "@/src/features/comments/lib/mentionParser";
 import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
-import { Button } from "@/src/components/ui/button";
+import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
 import { getSafeImageUrl, getSafeLinkUrl } from "@/src/components/ui/safe-url";
 import { env } from "@/src/env.mjs";
 import {
@@ -589,14 +589,15 @@ export function MarkdownView({
   const handleCollapseHeader = () => toggleCollapsed("header");
 
   const collapseToggle = shouldBeCollapsible ? (
-    <Button
-      variant="ghost"
-      size="xs"
-      onClick={handleCollapseInline}
-      className="w-fit text-xs underline"
-    >
-      {isCollapsed ? "Expand system prompt" : "Collapse system prompt"}
-    </Button>
+    <div>
+      <ExpandToggle
+        variant="underline"
+        expanded={!isCollapsed}
+        label="Expand system prompt"
+        expandedLabel="Collapse system prompt"
+        onExpandedChange={handleCollapseInline}
+      />
+    </div>
   ) : null;
 
   const headerControlButtons =
