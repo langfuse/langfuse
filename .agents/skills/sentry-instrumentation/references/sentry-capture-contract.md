@@ -113,6 +113,11 @@ A suppression rule is a loaded gun aimed at your own signal. Every rule:
 5. **Has a NEGATIVE fixture** in `sentryFilters.clienttest.ts` proving a real
    error still passes — a 5xx / unknown code / genuine thrown Error must return
    `false` from the predicate.
+6. **Narrows `exception` before use.** `event.exception?.values?.[0]` is
+   `undefined` when the event has no exception value. Read `.type` and
+   `.value` only after an explicit check. `pnpm --filter web run typecheck`
+   is the check CI runs as `web#typecheck`; the client test does not replace
+   it.
 
 Prefer **root-causing the emission** over a filter whenever the source is a
 small, identifiable set of call sites (see Rule 5 / the invalid-href case).
