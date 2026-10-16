@@ -2,6 +2,7 @@ import { useState, type ComponentProps } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../../.storybook/preview";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Table } from "@/src/components/design-system/table/Table";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { AgentProfileWorkspace } from "./AgentProfileWorkspace";
@@ -10,14 +11,16 @@ function WorkspaceDemo(args: ComponentProps<typeof AgentProfileWorkspace>) {
   const [detailsOpen, setDetailsOpen] = useState(args.detailsOpen);
   return (
     <div className="h-[36rem]">
-      <AgentProfileWorkspace
-        {...args}
-        detailsOpen={detailsOpen}
-        onDetailsOpenChange={(open) => {
-          setDetailsOpen(open);
-          args.onDetailsOpenChange(open);
-        }}
-      />
+      <Tabs defaultValue="sessions" layout="fill">
+        <AgentProfileWorkspace
+          {...args}
+          detailsOpen={detailsOpen}
+          onDetailsOpenChange={(open) => {
+            setDetailsOpen(open);
+            args.onDetailsOpenChange(open);
+          }}
+        />
+      </Tabs>
     </div>
   );
 }
@@ -44,7 +47,11 @@ const meta = preview.meta({
 
 const args = {
   navigation: (
-    <span className="text-sm font-bold">Sessions · Tools · Skills</span>
+    <Tabs.List variant="underline" aria-label="Agent views">
+      <Tabs.Trigger value="sessions" label="Sessions" />
+      <Tabs.Trigger value="tools" label="Tools" />
+      <Tabs.Trigger value="skills" label="Skills" />
+    </Tabs.List>
   ),
   status: <Badge color="filled" text="Complete comparison" />,
   details: (

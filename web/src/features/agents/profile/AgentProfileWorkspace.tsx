@@ -25,7 +25,7 @@ export function AgentProfileWorkspace({
       aria-label="Agent workspace"
       className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
     >
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b px-3 py-1">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 px-3">
         <div className="min-w-0 flex-1 overflow-x-auto">{navigation}</div>
         <div className="flex shrink-0 items-center gap-2">
           {status}

@@ -144,6 +144,7 @@ function AgentDetailView({
     <Page
       headerProps={{
         title: agentName,
+        divider: false,
         titleBadges: (
           <AgentIdentity
             projectId={projectId}
