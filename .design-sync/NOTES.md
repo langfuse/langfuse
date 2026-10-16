@@ -70,3 +70,4 @@
 - Play-state skips are by story id; renamed stories silently lose their skip (compare then shows the post-play delta - re-skip).
 - Story caps (Table 120, Tabs 24), Table name collisions, ConfirmationDialogController pairing and HoverCard "(Test) Delayed" timing (see above).
 - A new Storybook framework mock (router, image, font) is invisible to the bundle - a blank or throwing preview usually means one is missing from LangfuseProvider.
+- Previews compile with esbuild `charset: 'utf8'`, so a `"\uFFFD"` string constant anywhere in the import graph lands as a raw U+FFFD and claude.ai flags the file as having unreadable characters. Check with `perl -CSD -ne 'print "$ARGV\n" if /\x{FFFD}/' ds-bundle/_preview/*.js`; fix at the source (e.g. `String.fromCharCode(0xfffd)`, as in `packages/shared/src/domain/auditLogs.ts`).
