@@ -72,9 +72,12 @@ function renderTools({
   );
 }
 
-// Row buttons are named "N.<tool name>"; the \b keeps called_x from matching not_called_x.
+// Row buttons are named "N.<tool name>"; strip the number and match the name exactly.
 const rowFor = (toolName: string) =>
-  screen.queryByRole("button", { name: new RegExp(`\\b${toolName}$`) });
+  screen.queryByRole("button", {
+    name: (accessibleName) =>
+      accessibleName.replace(/^\d+\.\s*/, "") === toolName,
+  });
 const rowNumberOf = (toolName: string) =>
   within(rowFor(toolName)!).getByText(/^\d+\.$/).textContent;
 
