@@ -1,7 +1,7 @@
 /* eslint-disable @repo/storybook-play-no-implementation-detail-assertions, no-nested-ternary */
 import preview from "../../../.storybook/preview";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { expect, fireEvent, fn } from "storybook/test";
+import { expect, fireEvent, fn, waitFor } from "storybook/test";
 import {
   type OnChangeFn,
   type PaginationState,
@@ -1658,6 +1658,11 @@ const settleResize = () =>
     requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
   });
 
+const sleepMs = (ms: number) =>
+  new Promise<void>((resolve) => {
+    globalThis.setTimeout(resolve, ms);
+  });
+
 async function pointAtResizeHandle(
   handle: HTMLElement,
   type: string,
@@ -1864,6 +1869,52 @@ export const CanceledPointersRestoreRowHeight = meta.story({
       await pointAtResizeHandle(handle, "pointerup", 100);
       expect(args.onCustomRowHeightChange).not.toHaveBeenCalled();
     }
+  },
+});
+
+export const RowResizeCursorWaitsForARestingPointer = meta.story({
+  name: "(Test) Row Resize Cursor Waits For A Resting Pointer",
+  args: { rowHeight: "s", onCustomRowHeightChange: fn() },
+  render: (args) => <RowHeightLifecycleStory {...args} />,
+  play: async ({ canvas }) => {
+    const handle = canvas.getByRole("slider", { name: "Row height" });
+    const row = handle.closest("tr");
+    if (!row) throw new globalThis.Error("Missing row for the resize handle");
+    const cursor = () => globalThis.getComputedStyle(handle).cursor;
+    // An unclaimed strip is cursor-default regardless of the row it sits in,
+    // so on this non-clickable table the strip and the row are both default.
+    const rowCursor = globalThis.getComputedStyle(row).cursor;
+    expect(rowCursor).not.toBe("row-resize");
+
+    // Travelling between rows crosses the strip. Every check below is taken
+    // while the pointer is still INSIDE it, because leaving withdraws the
+    // cursor either way — checking after the exit would pass just as well
+    // against a cursor handed over the moment the strip is entered.
+    await pointAtResizeHandle(handle, "pointermove", 100);
+    await pointAtResizeHandle(handle, "pointermove", 104);
+    expect(cursor()).toBe(rowCursor);
+    await sleepMs(60);
+    await pointAtResizeHandle(handle, "pointermove", 110);
+    expect(cursor()).toBe(rowCursor);
+
+    // Still nothing once it has gone.
+    await pointAtResizeHandle(handle, "pointerout", 114);
+    await sleepMs(250);
+    expect(cursor()).toBe(rowCursor);
+
+    // Coming to rest on the border earns it — but not before the wait is up.
+    await pointAtResizeHandle(handle, "pointermove", 100);
+    expect(cursor()).toBe(rowCursor);
+    await waitFor(() => expect(cursor()).toBe("row-resize"));
+
+    // Leaving hands it straight back.
+    await pointAtResizeHandle(handle, "pointerout", 140);
+    expect(cursor()).toBe(rowCursor);
+
+    // A press claims it with no wait at all.
+    await pointAtResizeHandle(handle, "pointerdown", 0);
+    expect(cursor()).toBe("row-resize");
+    await pointAtResizeHandle(handle, "pointercancel", 0);
   },
 });
 

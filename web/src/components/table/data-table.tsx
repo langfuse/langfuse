@@ -965,6 +965,14 @@ function TableRowComponent<TData>({
 /** Each side of the 6px strip centered on the row's bottom border. */
 const ROW_RESIZE_HALF_PX = 3;
 const ROW_BORDER_PX = 1;
+// The strip lies across the path between two rows, so a cursor that follows
+// the hit area alone changes on every boundary a pointer travels over. The
+// resize cursor is offered only once the pointer has come to rest inside the
+// strip: it must stay within ROW_RESIZE_DWELL_SLOP_PX of where it stopped for
+// ROW_RESIZE_DWELL_MS. Travelling through costs nothing, and a press skips
+// the wait entirely.
+const ROW_RESIZE_DWELL_MS = 120;
+const ROW_RESIZE_DWELL_SLOP_PX = 2;
 
 type RowResizeEdge = "above" | "below" | "last";
 
@@ -1053,6 +1061,16 @@ function TableBodyComponent<TData>({
     startY: number;
     startHeight: number;
     rowIndex: number;
+  } | null>(null);
+  /**
+   * The handle a pointer is resting on and where it stopped. A null timer
+   * means the wait is over and that handle is showing the resize cursor.
+   */
+  const dwellRef = useRef<{
+    handle: HTMLDivElement;
+    timer: ReturnType<typeof setTimeout> | null;
+    x: number;
+    y: number;
   } | null>(null);
   const [previewStore] = useState(() =>
     createStore<{ rowIndex: number | null; compact: boolean }>(() => ({
@@ -1149,6 +1167,75 @@ function TableBodyComponent<TData>({
     clearRowHeightPreview();
   }, [clearRowHeightPreview]);
 
+  // The cursor lives on the handle itself rather than in React state: the
+  // table body is memoized against pointer movement, and a hover must not be
+  // the one thing that re-renders every row. dwellRef is the single owner of
+  // that attribute — every path below goes through these three functions, so
+  // at most one handle can carry it and a stray one is always recoverable.
+  const releaseResizeCursor = useCallback(() => {
+    const dwell = dwellRef.current;
+    if (!dwell) return;
+    dwellRef.current = null;
+    if (dwell.timer != null) clearTimeout(dwell.timer);
+    delete dwell.handle.dataset.rowResizeArmed;
+  }, []);
+
+  const armResizeCursor = useCallback(
+    (handle: HTMLDivElement, x: number, y: number) => {
+      releaseResizeCursor();
+      handle.dataset.rowResizeArmed = "";
+      dwellRef.current = { handle, x, y, timer: null };
+    },
+    [releaseResizeCursor],
+  );
+
+  /** Start the wait over from where the pointer is now. */
+  const waitForResizeCursor = (
+    handle: HTMLDivElement,
+    x: number,
+    y: number,
+  ) => {
+    releaseResizeCursor();
+    dwellRef.current = {
+      handle,
+      x,
+      y,
+      // Reads the handle off the dwell rather than closing over it, so a
+      // pointer that crossed a seam is armed where it actually ended up.
+      timer: setTimeout(() => {
+        const dwell = dwellRef.current;
+        if (dwell) armResizeCursor(dwell.handle, dwell.x, dwell.y);
+      }, ROW_RESIZE_DWELL_MS),
+    };
+  };
+
+  const resizeHandleFrom = (node: EventTarget | null) =>
+    node instanceof Element
+      ? node.closest<HTMLDivElement>("[data-row-resize-handle]")
+      : null;
+
+  // A border's strip is split across the two rows that meet at it, and again
+  // across every cell, so neighbouring handles are seams rather than edges.
+  // The row they resize is what identifies the border itself.
+  const sameRowBorder = (
+    handle: HTMLDivElement,
+    other: HTMLDivElement | null,
+  ): other is HTMLDivElement =>
+    other != null &&
+    handle.dataset.rowResizeTarget != null &&
+    handle.dataset.rowResizeTarget === other.dataset.rowResizeTarget;
+
+  /** Move the wait, and the cursor if already earned, onto `next`. */
+  const adoptResizeCursor = (next: HTMLDivElement) => {
+    const dwell = dwellRef.current;
+    if (!dwell || dwell.handle === next) return;
+    if (dwell.timer == null) {
+      delete dwell.handle.dataset.rowResizeArmed;
+      next.dataset.rowResizeArmed = "";
+    }
+    dwell.handle = next;
+  };
+
   // Refreshed values can keep the same DOM frames. Retain the gesture in
   // that case, but cancel before paint if its row/cells or sizing are replaced.
   useLayoutEffect(() => {
@@ -1186,8 +1273,11 @@ function TableBodyComponent<TData>({
   ]);
 
   useLayoutEffect(
-    () => () => cancelRowHeightGesture(),
-    [cancelRowHeightGesture],
+    () => () => {
+      cancelRowHeightGesture();
+      releaseResizeCursor();
+    },
+    [cancelRowHeightGesture, releaseResizeCursor],
   );
 
   const rememberRowAnchor = (rowIndex: number) => {
@@ -1234,6 +1324,47 @@ function TableBodyComponent<TData>({
     setMeasuredPx((current) => (current === rounded ? current : rounded));
   }, [rowResizeEnabled, rowHeight, rowModelRows.length, data.isLoading]);
 
+  const trackResizeCursorDwell = (
+    event: React.PointerEvent<HTMLDivElement>,
+  ) => {
+    // Touch has no cursor to offer, and the strip is reached by pressing it.
+    if (event.pointerType === "touch") return;
+    const handle = event.currentTarget;
+    const dwell = dwellRef.current;
+    if (dwell && sameRowBorder(handle, dwell.handle)) {
+      // Crossing a seam stays on the same border, so the cursor comes along
+      // and an unfinished wait keeps running from where the pointer stopped.
+      if (dwell.timer == null) {
+        adoptResizeCursor(handle);
+        return;
+      }
+      if (
+        Math.abs(event.clientX - dwell.x) <= ROW_RESIZE_DWELL_SLOP_PX &&
+        Math.abs(event.clientY - dwell.y) <= ROW_RESIZE_DWELL_SLOP_PX
+      ) {
+        dwell.handle = handle;
+        return;
+      }
+    }
+    // Any other handle starts over, and releasing first takes the cursor off
+    // whichever handle held it — including one left armed by a lost gesture.
+    waitForResizeCursor(handle, event.clientX, event.clientY);
+  };
+
+  const onResizePointerLeave = (event: React.PointerEvent<HTMLDivElement>) => {
+    const handle = event.currentTarget;
+    // Dragging this handle owns the cursor until the gesture ends, wherever
+    // the pointer wanders. Another pointer's drag says nothing about ours.
+    if (dragRef.current?.handle === handle) return;
+    const entered = resizeHandleFrom(event.relatedTarget);
+    if (sameRowBorder(handle, entered)) {
+      adoptResizeCursor(entered);
+      return;
+    }
+    if (dwellRef.current?.handle === handle) releaseResizeCursor();
+    delete handle.dataset.rowResizeArmed;
+  };
+
   const onResizePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     // button is 0 for a primary press. Some pointers report -1 until the
     // button is known; only an explicit non-primary button should bail.
@@ -1257,6 +1388,11 @@ function TableBodyComponent<TData>({
       startHeight,
       rowIndex,
     };
+    // Aiming at the border is the whole intent of pressing it, so the cursor
+    // is owed with no wait, and has to hold for the length of the drag.
+    if (event.pointerType !== "touch") {
+      armResizeCursor(event.currentTarget, event.clientX, event.clientY);
+    }
     try {
       event.currentTarget.setPointerCapture(event.pointerId);
     } catch {
@@ -1267,7 +1403,11 @@ function TableBodyComponent<TData>({
 
   const onResizePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current;
-    if (!drag || event.pointerId !== drag.pointerId) return;
+    if (!drag) {
+      trackResizeCursorDwell(event);
+      return;
+    }
+    if (event.pointerId !== drag.pointerId) return;
     event.preventDefault();
     previewRowHeight(
       drag.rowIndex,
@@ -1444,6 +1584,7 @@ function TableBodyComponent<TData>({
             announcedPx={announcedPx}
             onResizePointerDown={onResizePointerDown}
             onResizePointerMove={onResizePointerMove}
+            onResizePointerLeave={onResizePointerLeave}
             finishResize={finishResize}
             cancelResize={cancelResize}
             onResizeKeyDown={onResizeKeyDown}
@@ -1489,6 +1630,7 @@ function TableDataRow<TData>({
   announcedPx,
   onResizePointerDown,
   onResizePointerMove,
+  onResizePointerLeave,
   finishResize,
   cancelResize,
   onResizeKeyDown,
@@ -1596,6 +1738,7 @@ function TableDataRow<TData>({
               tabIndex={primary ? 0 : undefined}
               onPointerDown={onResizePointerDown}
               onPointerMove={onResizePointerMove}
+              onPointerLeave={onResizePointerLeave}
               onPointerUp={finishResize}
               onPointerCancel={cancelResize}
               onLostPointerCapture={cancelResize}
@@ -1608,9 +1751,13 @@ function TableDataRow<TData>({
               }}
               style={rowResizeHandleStyle(edge)}
               className={cn(
-                // Invisible. The row-resize cursor is the pointer
-                // affordance; keyboard focus keeps a hairline ring.
-                "absolute inset-x-0 z-[1] cursor-row-resize touch-none bg-transparent select-none",
+                // Invisible when unarmed — explicitly cursor-default so a
+                // pointer passing through a clickable row's strip does not
+                // show the hand cursor and mislead the user into thinking a
+                // click will open the row. Armed, cursor-row-resize takes
+                // over. Keyboard focus keeps a hairline ring.
+                "absolute inset-x-0 z-[1] cursor-default touch-none bg-transparent select-none",
+                "data-[row-resize-armed]:cursor-row-resize",
                 primary &&
                   "focus-visible:ring-ring focus-visible:ring-1 focus-visible:outline-none focus-visible:ring-inset",
               )}
@@ -1726,6 +1873,7 @@ type TableDataRowProps<TData> = Pick<
   announcedPx?: number;
   onResizePointerDown: React.PointerEventHandler<HTMLDivElement>;
   onResizePointerMove: React.PointerEventHandler<HTMLDivElement>;
+  onResizePointerLeave: React.PointerEventHandler<HTMLDivElement>;
   finishResize: React.PointerEventHandler<HTMLDivElement>;
   cancelResize: React.PointerEventHandler<HTMLDivElement>;
   onResizeKeyDown: React.KeyboardEventHandler<HTMLDivElement>;
