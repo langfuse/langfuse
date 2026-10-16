@@ -628,7 +628,7 @@ const createAllIngestionSchemas = ({
       BaseScoreBody.extend(
         z.object({
           value: z.union([z.string(), z.number()]),
-          dataType: z.undefined(),
+          dataType: z.undefined().optional(),
           configId: z.string().nullish(),
         }).shape,
       ),

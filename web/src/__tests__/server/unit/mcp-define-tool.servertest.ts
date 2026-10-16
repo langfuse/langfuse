@@ -1,17 +1,22 @@
-import { describe, expect, it } from "vitest";
+import { ToolSchema } from "@modelcontextprotocol/sdk/types.js";
+import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import { __dangerouslySkipAuthz } from "@/src/features/public-api/server";
 import { defineTool } from "../../../features/mcp/core/define-tool";
+import type { ServerContext } from "../../../features/mcp/types";
 
 describe("defineTool", () => {
-  it("rejects intersection schemas", () => {
-    const schema = z.object({ id: z.string() }).and(
-      z.object({
-        dataType: z.literal("NUMERIC"),
-        value: z.number(),
-      }),
-    );
+  it("rejects intersections that emit allOf", () => {
+    const schema = z
+      .object({ id: z.string() })
+      .describe("Score identifier")
+      .and(
+        z.object({
+          dataType: z.literal("NUMERIC"),
+          value: z.number(),
+        }),
+      );
 
     expect(() =>
       defineTool({
@@ -23,6 +28,73 @@ describe("defineTool", () => {
         handler: async (input) => input,
       }),
     ).toThrow("Union and intersection schemas are not supported");
+  });
+
+  it("publishes flattened schemas and still validates tool inputs", async () => {
+    const schema = z.object({ id: z.string().min(1) }).and(
+      z.object({
+        filter: z
+          .object({ name: z.string().min(1) })
+          .and(z.object({ count: z.number().min(0) })),
+        value: z.union([z.string(), z.number()]),
+      }),
+    );
+    const handler = vi.fn(async (input: z.infer<typeof schema>) => input);
+    const [tool, run] = defineTool({
+      name: "flattenedTool",
+      description: "",
+      action: __dangerouslySkipAuthz,
+      baseSchema: schema,
+      inputSchema: schema,
+      handler,
+    });
+    const context: ServerContext = {
+      projectId: "project-id",
+      orgId: "org-id",
+      apiKeyId: "api-key-id",
+      accessLevel: "project",
+      publicKey: "pk-lf-test",
+      plan: "oss",
+      rateLimitOverrides: [],
+    };
+    const input = {
+      id: "score-id",
+      filter: { name: "score", count: 1 },
+      value: 1,
+    };
+
+    expect(ToolSchema.safeParse(tool).success).toBe(true);
+    expect(tool.inputSchema).toMatchObject({
+      type: "object",
+      required: ["id", "filter", "value"],
+      properties: {
+        id: { type: "string", minLength: 1 },
+        filter: {
+          type: "object",
+          required: ["name", "count"],
+          properties: {
+            name: { type: "string", minLength: 1 },
+            count: { type: "number", minimum: 0 },
+          },
+        },
+        value: { type: ["string", "number"] },
+      },
+    });
+    await expect(run(input, context)).resolves.toEqual(input);
+
+    for (const invalid of [
+      { filter: input.filter, value: input.value },
+      { ...input, id: "" },
+      { ...input, filter: { name: "score" } },
+      { ...input, filter: { name: "score", count: -1 } },
+      { ...input, value: true },
+    ]) {
+      // MCP clients submit unvalidated JSON to the typed handler.
+      await expect(
+        run(invalid as Parameters<typeof run>[0], context),
+      ).rejects.toThrow("Validation failed");
+    }
+    expect(handler).toHaveBeenCalledExactlyOnceWith(input, context);
   });
 
   it("preserves root type: 'object' for plain object schemas", () => {
@@ -80,9 +152,9 @@ describe("defineTool", () => {
     ).toThrow("Union and intersection schemas are not supported");
   });
 
-  it("rejects nested union schemas", () => {
+  it("rejects constrained nested unions that emit anyOf", () => {
     const schema = z.object({
-      filter: z.union([z.string(), z.number()]),
+      filter: z.union([z.string().min(1), z.number()]),
     });
 
     expect(() =>
@@ -97,9 +169,12 @@ describe("defineTool", () => {
     ).toThrow("Union and intersection schemas are not supported");
   });
 
-  it("rejects nested intersection schemas", () => {
+  it("rejects nested intersections that emit allOf", () => {
     const schema = z.object({
-      filter: z.object({ id: z.string() }).and(z.object({ name: z.string() })),
+      filter: z
+        .object({ id: z.string() })
+        .describe("Score identifier")
+        .and(z.object({ name: z.string() })),
     });
 
     expect(() =>

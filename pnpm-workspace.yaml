@@ -109,7 +109,7 @@ overrides:
   # vulnerable 6.28.0; 6.28.1 is the last release of the 6.x line.
   "undici@6": 6.28.1
   "undici@7": 7.29.1
-  zod: 4.3.6
+  zod: 4.6.6
   nanoid: 3.3.18
   katex: ^0.16.21
   tar-fs: ^2.1.2
@@ -194,6 +194,8 @@ publicHoistPattern:
   - "*prisma*"
   - "@aws-sdk/client-s3"
 minimumReleaseAgeExclude:
+  # Zod security fix; eligible after 2026-10-16 16:18 UTC.
+  - zod@4.6.6
   # AI SDK Decisions API (`experimental_decide`); eligible after 2026-10-12 01:47 UTC.
   - ai@7.0.130
   - "@ai-sdk/openai@4.0.86"
