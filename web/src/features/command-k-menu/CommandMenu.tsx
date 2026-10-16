@@ -92,7 +92,7 @@ export const getSearchAnalytics = (search: string) => ({
   queryType: getIdType(search) ?? "other",
 });
 
-const RECENTS_LIMIT = 5;
+const RECENTS_LIMIT = 4;
 
 const RECENT_ICON_BY_TYPE: Record<string, LucideIcon> = {
   create_action: Plus,

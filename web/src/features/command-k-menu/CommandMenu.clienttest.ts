@@ -77,14 +77,13 @@ describe("addRecentEntry", () => {
     ).toEqual(["/b", "/a"]);
   });
 
-  it("keeps the five most recent picks", () => {
-    const recents = ["/1", "/2", "/3", "/4", "/5"].map(entry);
-    expect(addRecentEntry(recents, entry("/6")).map((e) => e.url)).toEqual([
-      "/6",
+  it("keeps the four most recent picks", () => {
+    const recents = ["/1", "/2", "/3", "/4"].map(entry);
+    expect(addRecentEntry(recents, entry("/5")).map((e) => e.url)).toEqual([
+      "/5",
       "/1",
       "/2",
       "/3",
-      "/4",
     ]);
   });
 });
