@@ -683,7 +683,7 @@ async function clusterFacet(
           namingSampled: prepared.sampled,
           representativeSummaries: label.evidenceSummaryIds.map((id) => {
             const { facetId, facetVersion, traceId, sessionId } =
-              group.members[Number(id.slice(1)) - 1];
+              prepared.members.find((member) => member.id === id)!.source;
             return {
               facetId,
               facetVersion,

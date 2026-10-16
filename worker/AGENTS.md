@@ -110,7 +110,7 @@
   Discovery reads pass worker row/byte capacity limits before materializing a
   cohort. Bulk classifier helpers are asynchronous and must be awaited. Naming
   prepares one bounded selection per group and reuses it for conflict retries;
-  source labels refer to the group's owned member array after preparation.
+  selected members carry source references for resolving citations.
 - Tests: `src/__tests__/*`, `src/queues/__tests__/*`
 - Direct-event replay: `pnpm --filter worker run test:otel-replay` compares the
   original and early-media TypeScript paths from identical raw S3 JSON through

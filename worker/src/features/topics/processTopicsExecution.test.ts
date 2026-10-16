@@ -335,11 +335,16 @@ vi.mock("./models", () => ({
   }) => {
     if (state.sampleNaming) group.members.reverse();
     return {
-      ...group,
-      // Packing can skip oversized candidates, leaving gaps in source labels.
+      // Citation IDs are opaque to the caller; packing can skip candidates.
       members: group.members.flatMap((member, index) =>
         !state.sampleNaming || index === 2 || index === 4
-          ? [{ id: `m${index + 1}`, summary: member.summary }]
+          ? [
+              {
+                id: state.sampleNaming ? `selected-${index}` : `m${index + 1}`,
+                summary: member.summary,
+                source: member,
+              },
+            ]
           : [],
       ),
       totalMemberCount: group.members.length,
@@ -1196,16 +1201,6 @@ describe("Topics execution", () => {
       const topics = [...state.runs.values()].at(-1)!.topics;
       expect(topics).toHaveLength(2);
       for (const [index, [group]] of state.name.mock.calls.entries()) {
-        for (const member of group.members)
-          expect(member).toEqual({
-            id: expect.stringMatching(/^m\d+$/),
-            summary: expect.any(String),
-          });
-        for (const contrast of group.contrasts)
-          expect(contrast).toEqual({
-            id: expect.stringMatching(/^c\d+$/),
-            summary: expect.any(String),
-          });
         const source = [...state.summaries.values()].find(
           (summary) => summary.summary === group.members[0].summary,
         )!;

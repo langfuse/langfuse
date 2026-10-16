@@ -399,8 +399,8 @@ before expanding deployment.
 
 The same classifier determines initial and later memberships. Naming sees its
 effective populations: all full member summaries that fit the naming request,
-plus up to three nearby contrasts. Oversized groups use a seeded random traversal
-of their members, retaining whole summaries that fit; this is not a sample of
+plus up to three nearby contrasts. Each group uses one seeded random traversal
+of its members, retaining whole summaries that fit; this is not a sample of
 the numerical fitting population. Variable-length summaries make this a random
 order with a fitting budget, not an equal-probability fixed-size sample. The
 selection is repeatable for the same run/group and reused by the conflict retry.

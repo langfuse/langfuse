@@ -386,13 +386,11 @@ type NamingConflict = {
 type EncodedNamingText = { json: string; tokens: number; bytes: number };
 type EncodedNamingSummary = EncodedNamingText & { value: NamingSummary };
 
-export type PreparedTopicNamingGroup = {
-  members: readonly NamingSummary[];
-  contrasts: readonly NamingSummary[];
+export type PreparedTopicNamingGroup<T = unknown> = {
+  members: readonly (NamingSummary & { source: T })[];
   totalMemberCount: number;
   sampled: boolean;
   input: string;
-  inputTokens: number;
   rawInputTokens: number;
 };
 
@@ -493,13 +491,13 @@ function namingRandom(seed: string) {
 }
 
 /**
- * Keeps complete summaries within the request budget. Overflow shuffles the
- * group's owned member array in place; mN always identifies its final index N-1.
+ * Packs complete summaries in seeded random order within the request budget.
+ * Shuffles the group's owned array in place; selected members retain their source.
  */
 export async function prepareTopicNamingGroup<T extends { summary: string }>(
   group: { members: T[]; contrasts: NamingSummary[] },
   seed: string,
-): Promise<PreparedTopicNamingGroup> {
+): Promise<PreparedTopicNamingGroup<T>> {
   if (!group.members.length)
     throw new Error("Naming requires one non-empty effective group.");
   const counter = namingTokenCounter();
@@ -534,60 +532,42 @@ export async function prepareTopicNamingGroup<T extends { summary: string }>(
       baseTokens -
       NAMING_ANCILLARY_TOKENS;
     const byteBudget = NAMING_INPUT_BYTES - baseBytes - NAMING_ANCILLARY_BYTES;
-    let members: EncodedNamingSummary[] = [];
+    const members: (EncodedNamingSummary & { source: T })[] = [];
     let memberTokens = 0;
     let memberBytes = 0;
-    const append = async (index: number) => {
+    const random = namingRandom(seed);
+    for (let index = 0; index < group.members.length; index++) {
+      const selected =
+        index + Math.floor(random() * (group.members.length - index));
+      [group.members[index], group.members[selected]] = [
+        group.members[selected],
+        group.members[index],
+      ];
+      const source = group.members[index];
       const encoded = await encodeNamingSummary(
-        { id: `m${index + 1}`, summary: group.members[index].summary },
+        { id: `m${index + 1}`, summary: source.summary },
         counter,
         tokenBudget - memberTokens - 1,
         byteBudget - memberBytes - 1,
       );
       await counter.yieldIfNeeded();
-      if (!encoded) return false;
-      members.push(encoded);
+      // Variable lengths can favor shorter examples near the budget boundary.
+      if (!encoded) continue;
+      members.push({ ...encoded, source });
       memberTokens += encoded.tokens + 1;
       memberBytes += encoded.bytes + 1;
-      return true;
-    };
-    let sampled = false;
-    for (let index = 0; index < group.members.length; index++) {
-      if (await append(index)) continue;
-      sampled = true;
-      break;
-    }
-    if (sampled) {
-      members = [];
-      memberTokens = 0;
-      memberBytes = 0;
-      const random = namingRandom(seed);
-      for (let index = 0; index < group.members.length; index++) {
-        const selected =
-          index + Math.floor(random() * (group.members.length - index));
-        [group.members[index], group.members[selected]] = [
-          group.members[selected],
-          group.members[index],
-        ];
-        // Random-order packing keeps whole summaries; variable lengths can favor
-        // shorter remaining examples near the budget boundary.
-        await append(index);
-      }
     }
     if (!members.length)
       throw new TopicsProviderUnavailable(
         "No complete cluster member summary fits the naming request's token and byte limits.",
         "invalid_input",
       );
-    const rawInputTokens = baseTokens + memberTokens;
     return {
-      members: members.map(({ value }) => value),
-      contrasts: contrasts.map(({ value }) => value),
+      members: members.map(({ value, source }) => ({ ...value, source })),
       totalMemberCount: group.members.length,
-      sampled,
+      sampled: members.length < group.members.length,
       input: `{"members":[${members.map(({ json }) => json).join(",")}],"contrasts":[${contrasts.map(({ json }) => json).join(",")}]}`,
-      rawInputTokens,
-      inputTokens: namingInputTokens(rawInputTokens),
+      rawInputTokens: baseTokens + memberTokens,
     };
   } finally {
     counter.free();

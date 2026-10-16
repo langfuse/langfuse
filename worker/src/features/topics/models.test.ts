@@ -422,11 +422,12 @@ describe("Topics naming boundary", () => {
       id: `m${index + 1}`,
       summary: `Request ${index}: ${"Invoice request details. ".repeat(60)} END-${index}`,
     }));
+    const summaries = members.map(({ summary }) => summary);
     state.call.mockResolvedValue({
       output: {
         name: "Invoice assistance",
         description: "Requests involving invoices.",
-        evidenceSummaryIds: [members[399].id],
+        evidenceSummaryIds: ["m400"],
       },
       usage: { inputTokens: 16000, outputTokens: 30 },
     });
@@ -436,7 +437,7 @@ describe("Topics naming boundary", () => {
     });
     expect(result.output).toMatchObject({
       name: "Invoice assistance",
-      evidenceSummaryIds: [members[399].id],
+      evidenceSummaryIds: ["m400"],
     });
     expect(state.call).toHaveBeenCalledOnce();
     expect(state.call.mock.calls[0][0].trace).toMatchObject({
@@ -450,7 +451,15 @@ describe("Topics naming boundary", () => {
     });
     expect(result.costDetails.total).toBeCloseTo(0.03236, 10);
     const submitted = JSON.parse(state.call.mock.calls[0][0].input);
-    expect(submitted.members).toEqual(members);
+    expect(submitted.members).toHaveLength(summaries.length);
+    expect(
+      submitted.members
+        .map(({ summary }: { summary: string }) => summary)
+        .sort(),
+    ).toEqual(summaries.sort());
+    expect(state.call.mock.calls[0][0].trace.metadata.naming_sampled).toBe(
+      false,
+    );
   });
 
   it("names complete sampled summaries, reuses them for renames and rejects omitted citations", async () => {
@@ -464,12 +473,20 @@ describe("Topics naming boundary", () => {
     const makeGroup = () => ({
       members: Array.from({ length: 12 }, (_, index) => ({
         summary: `NAMING_MEMBER invoice request ${index}.`,
+        traceId: `trace-${index}`,
       })),
       contrasts: [],
     });
     const group = makeGroup();
+    const sources = [...group.members];
     const prepared = await prepareTopicNamingGroup(group, "run-a/group-a");
     expect(state.encoding.free).toHaveBeenCalledOnce();
+    for (const source of sources)
+      expect(
+        state.encoding.encode.mock.calls.filter(
+          ([text]) => text === source.summary,
+        ),
+      ).toHaveLength(1);
     expect(prepared.sampled).toBe(true);
     expect(prepared.members.length).toBeGreaterThan(0);
     expect(prepared.members.length).toBeLessThan(group.members.length);
@@ -482,10 +499,12 @@ describe("Topics naming boundary", () => {
     expect(prepared.members).not.toEqual(
       (await prepareTopicNamingGroup(makeGroup(), "run-b/group-a")).members,
     );
-    for (const member of prepared.members)
-      expect(group.members[Number(member.id.slice(1)) - 1].summary).toBe(
-        member.summary,
+    for (const member of prepared.members) {
+      expect(sources.find(({ summary }) => summary === member.summary)).toBe(
+        member.source,
       );
+    }
+    group.members.reverse();
     state.call.mockImplementation(async ({ input }) => ({
       output: {
         name: "Invoice requests",
@@ -512,14 +531,18 @@ describe("Topics naming boundary", () => {
     const [initialRequest, renameRequest] = state.call.mock.calls.map(
       ([request]) => JSON.parse(request.input),
     );
-    expect(initialRequest.members).toEqual(prepared.members);
+    expect(initialRequest.members).toEqual(
+      prepared.members.map(({ id, summary }) => ({ id, summary })),
+    );
     expect(renameRequest.members).toEqual(initialRequest.members);
     expect(renameRequest.conflictingTopic.summaries).toEqual([
       "A billing question.",
     ]);
-    expect(first.usageDetails.naming_input).toBe(prepared.inputTokens);
+    expect(first.usageDetails.naming_input).toBe(
+      state.call.mock.calls[0][0].trace.metadata.naming_input_tokens_estimated,
+    );
     expect(renamed.usageDetails.naming_input).toBeGreaterThan(
-      prepared.inputTokens,
+      first.usageDetails.naming_input!,
     );
     expect(renamed.usageDetails.naming_input).toBeLessThanOrEqual(900_000);
     expect(first.providedUsageDetails).toEqual({});
@@ -561,7 +584,7 @@ describe("Topics naming boundary", () => {
     expect(prepared.members.map(({ summary }) => summary)).toEqual([
       "A complete invoice question.",
     ]);
-    expect(prepared.contrasts).toEqual([]);
+    expect(JSON.parse(prepared.input).contrasts).toEqual([]);
     await expect(
       prepareTopicNamingGroup(
         { members: [{ summary: "OVERSIZED" }], contrasts: [] },
