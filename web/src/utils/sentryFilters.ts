@@ -1004,3 +1004,41 @@ export function isKitesurfInternalEvent(event: ErrorEvent): boolean {
   }
   return sawKitesurfVendorFrame;
 }
+
+/**
+ * Jam (jam.dev) bug-reporting extension. Its content scripts are source-mapped
+ * as `webpack://jam-extension/injected-scripts/…`. Those virtual URLs are not
+ * `chrome-extension://`, so `denyUrls` never matches them.
+ *
+ * Observed as three simultaneous global-handler throws from
+ * `host-additional-hooks.js`, `host-network-events.js`, and
+ * `host-console-events.js` — MobX minified error 35 ("multiple, different
+ * versions of MobX active"). Langfuse does not depend on MobX; Jam injects
+ * several copies that collide with each other.
+ *
+ * Same posture as {@link isPosthogRecorderInternalEvent}: every attributable
+ * frame must be Jam (plus opaque / Sentry-SDK wrappers). A `/_next/` frame
+ * means our code is on the stack and is KEPT.
+ */
+function isJamExtensionFilename(path: string): boolean {
+  return path.includes("webpack://jam-extension/");
+}
+
+export function isJamExtensionInternalEvent(event: ErrorEvent): boolean {
+  const frames = event.exception?.values?.[0]?.stacktrace?.frames;
+  if (!frames || frames.length === 0) return false;
+
+  let sawJamFrame = false;
+  for (const stackFrame of frames) {
+    const filename = stackFrame?.filename;
+    if (typeof filename !== "string" || filename.length === 0) continue;
+    const path = filename.split(/[?#]/)[0];
+    if (isJamExtensionFilename(path)) {
+      sawJamFrame = true;
+      continue;
+    }
+    if (isOpaqueOrSdkFrame(filename)) continue;
+    return false;
+  }
+  return sawJamFrame;
+}

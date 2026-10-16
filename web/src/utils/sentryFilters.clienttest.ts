@@ -2,6 +2,7 @@ import { type ErrorEvent } from "@sentry/nextjs";
 
 import {
   isDenylistedNoiseEvent,
+  isJamExtensionInternalEvent,
   isKitesurfInternalEvent,
   isNoisyHttpClientGatewayEvent,
   isNoisyHttpClientPollEvent,
@@ -2655,6 +2656,187 @@ describe("isKitesurfInternalEvent", () => {
       expect(
         isDenylistedNoiseEvent(exceptionEvent(PROXY_TYPEERROR, "TypeError")),
       ).toBe(false);
+    });
+  });
+});
+
+const MOBX_MINIFIED_35 =
+  "[MobX] minified error nr: 35. Find the full error at: https://github.com/mobxjs/mobx/blob/main/packages/mobx/src/errors.ts";
+
+describe("isJamExtensionInternalEvent", () => {
+  const JAM_HOOKS =
+    "webpack://jam-extension/injected-scripts/host-additional-hooks.js";
+  const JAM_NETWORK =
+    "webpack://jam-extension/injected-scripts/host-network-events.js";
+  const JAM_CONSOLE =
+    "webpack://jam-extension/injected-scripts/host-console-events.js";
+
+  describe("drops errors thrown wholly inside the Jam extension", () => {
+    it("drops the MobX collision from host-additional-hooks.js", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value: MOBX_MINIFIED_35,
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [frame(JAM_HOOKS), frame(JAM_HOOKS, "cH")],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isJamExtensionInternalEvent(event)).toBe(true);
+    });
+
+    it("drops the same MobX collision from host-network-events.js", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value: MOBX_MINIFIED_35,
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [frame(JAM_NETWORK), frame(JAM_NETWORK, "u8")],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isJamExtensionInternalEvent(event)).toBe(true);
+    });
+
+    it("drops the same MobX collision from host-console-events.js", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value: MOBX_MINIFIED_35,
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [frame(JAM_CONSOLE), frame(JAM_CONSOLE, "cW")],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isJamExtensionInternalEvent(event)).toBe(true);
+    });
+
+    it("drops Jam frames plus opaque / Sentry-SDK wrappers", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value: MOBX_MINIFIED_35,
+              stacktrace: {
+                frames: [
+                  frame(
+                    "node_modules/.pnpm/@sentry+browser@10.64.0/node_modules/@sentry/browser/src/helpers.ts",
+                    "r",
+                  ),
+                  frame(JAM_HOOKS, "cH"),
+                  frame("<anonymous>"),
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isJamExtensionInternalEvent(event)).toBe(true);
+    });
+  });
+
+  describe("KEEPS real errors (never masks a genuine app error)", () => {
+    it("keeps the same MobX message when a first-party /_next/ frame is present", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value: MOBX_MINIFIED_35,
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  frame(JAM_HOOKS, "cH"),
+                  frame(
+                    "app:///_next/static/chunks/0r47ep231kqhy.js",
+                    "createStore",
+                  ),
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isJamExtensionInternalEvent(event)).toBe(false);
+    });
+
+    it("keeps a first-party stack with the same MobX message and no Jam frames", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value: MOBX_MINIFIED_35,
+              stacktrace: {
+                frames: [
+                  frame(
+                    "https://us.cloud.langfuse.com/_next/static/chunks/app.js",
+                    "createStore",
+                  ),
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isJamExtensionInternalEvent(event)).toBe(false);
+    });
+
+    it("keeps the MobX message when there is no stack (generic denylist also keeps it)", () => {
+      expect(
+        isJamExtensionInternalEvent(exceptionEvent(MOBX_MINIFIED_35, "Error")),
+      ).toBe(false);
+      expect(isDenylistedNoiseEvent(exceptionEvent(MOBX_MINIFIED_35))).toBe(
+        false,
+      );
+      expect(isJamExtensionInternalEvent(messageEvent(MOBX_MINIFIED_35))).toBe(
+        false,
+      );
+    });
+
+    it("keeps an all-opaque stack with the MobX message (no Jam attribution)", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value: MOBX_MINIFIED_35,
+              stacktrace: {
+                frames: [frame("<anonymous>"), frame("[native code]")],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isJamExtensionInternalEvent(event)).toBe(false);
     });
   });
 });
