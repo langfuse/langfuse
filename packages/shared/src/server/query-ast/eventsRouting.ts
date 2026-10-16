@@ -164,8 +164,8 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
   }
 
   /**
-   * Rejects `columns(…)` like {@link transformFunction}. `count(*)` reads no
-   * column; its clauses are walked as usual.
+   * Checks the name like any function ({@link checkFunctionName}). `count(*)`
+   * reads no column; its clauses are walked as usual.
    */
   protected override transformAggregateFunction(
     node: AggregateFunctionNode,
