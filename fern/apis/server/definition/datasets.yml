@@ -19,6 +19,12 @@ service:
           limit:
             type: optional<integer>
             docs: limit of items per page
+          fromTimestamp:
+            type: optional<datetime>
+            docs: Optional filter to only include datasets created on or after this timestamp.
+          toTimestamp:
+            type: optional<datetime>
+            docs: Optional filter to only include datasets created before this timestamp.
       response: PaginatedDatasets
     get:
       method: GET
