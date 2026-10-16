@@ -43,6 +43,11 @@ describe("GatewayModelRoutingService", () => {
       providerModel: "gpt-6-sol",
     },
     {
+      model: "codex-mini-latest",
+      connectionId: "openai-primary",
+      providerModel: "codex-mini-latest",
+    },
+    {
       model: "ft:gpt-4o-mini-2024-07-18:acme::abc123",
       connectionId: "openai-primary",
       providerModel: "ft:gpt-4o-mini-2024-07-18:acme::abc123",
@@ -63,12 +68,16 @@ describe("GatewayModelRoutingService", () => {
     },
   );
 
-  it.each(["gpt", "claude", "random-model", ":model", "OpenAI primary:"])(
-    "rejects unsupported model %s",
-    (model) => {
-      expect(routingService.resolve(model, connections)).toBeNull();
-    },
-  );
+  it.each([
+    "gpt",
+    "claude",
+    "codex",
+    "random-model",
+    ":model",
+    "OpenAI primary:",
+  ])("rejects unsupported model %s", (model) => {
+    expect(routingService.resolve(model, connections)).toBeNull();
+  });
 
   it("returns a valid unresolved route for a missing connection", () => {
     expect(routingService.resolve("Unknown:gpt-4o", connections)).toEqual({

@@ -132,6 +132,30 @@ describe("soft-delete filtering", () => {
     ).not.toContain("is_deleted");
   });
 
+  it("filters a schema-qualified table named like a CTE in scope", () => {
+    const db = getClickhouseKysely();
+    expect(
+      compile(
+        db
+          .with("events_core", (qb) =>
+            qb.selectFrom("scores").select("trace_id"),
+          )
+          .selectFrom("events_core")
+          .select("trace_id")
+          .where(
+            "trace_id",
+            "in",
+            db
+              .withSchema("default")
+              .selectFrom("events_core")
+              .select("trace_id"),
+          ),
+      ),
+    ).toContain(
+      "(select trace_id from default.events_core where project_id = {p1:String} and events_core.is_deleted = {p2:UInt8})",
+    );
+  });
+
   it("resolves a CTE body's own name to the table, and sibling CTE names to the CTE", () => {
     const sql = compile(
       getClickhouseKysely()

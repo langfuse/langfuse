@@ -687,6 +687,12 @@ export const env = createEnv({
       .nonnegative()
       .default(0),
 
+    // Kill switch for staging audit events for the ClickHouse audit_logs table
+    // on Langfuse Cloud. The Postgres audit_logs row is written either way.
+    LANGFUSE_AUDIT_LOG_STAGING_ENABLED: z
+      .enum(["true", "false"])
+      .default("true"),
+
     // Background-migration env gates. Mirror worker/src/env.ts (names, defaults)
     // so the background-migrations status endpoint can tell dormant, env-gated
     // rows apart from migrations the worker will actually pick up. The worker
@@ -1265,6 +1271,8 @@ export const env = createEnv({
     LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT:
       process.env.LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT,
     LANGFUSE_TRUSTED_PROXY_COUNT: process.env.LANGFUSE_TRUSTED_PROXY_COUNT,
+    LANGFUSE_AUDIT_LOG_STAGING_ENABLED:
+      process.env.LANGFUSE_AUDIT_LOG_STAGING_ENABLED,
     LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL:
       process.env.LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL,
     LANGFUSE_BACKGROUND_MIGRATION_V4_DROP_PID_TID_SORTING_TABLES:

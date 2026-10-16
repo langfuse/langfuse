@@ -35,7 +35,9 @@ export class GatewayModelRoutingService {
     if (model.includes(":")) return null;
 
     let provider: "OPENAI" | "ANTHROPIC" | null = null;
-    if (model.startsWith("gpt-")) provider = "OPENAI";
+    if (model.startsWith("gpt-") || model.startsWith("codex-")) {
+      provider = "OPENAI";
+    }
     if (model.startsWith("claude-")) provider = "ANTHROPIC";
     if (!provider) return null;
 
