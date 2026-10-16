@@ -36,7 +36,6 @@ vi.mock("@opentelemetry/api", () => ({
   context: {
     with: (_context: unknown, callback: () => unknown) => callback(),
   },
-  trace: { getActiveSpan: () => undefined },
   createContextKey: (description: string) => Symbol.for(description),
 }));
 
