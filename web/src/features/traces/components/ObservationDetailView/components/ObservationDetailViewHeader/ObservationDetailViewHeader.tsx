@@ -46,8 +46,6 @@ import {
   type WithStringifiedMetadata,
   type MetadataDomainClient,
 } from "@/src/utils/clientSideDomainTypes";
-import { type AggregatedTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
-import type Decimal from "decimal.js";
 import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { useReadPath } from "@/src/features/events";
@@ -88,8 +86,6 @@ export interface ObservationDetailViewHeaderProps {
     disabled: boolean;
     openDrawer: () => void;
   };
-  subtreeMetrics?: AggregatedTraceMetrics | null;
-  treeNodeTotalCost?: Decimal;
 }
 
 export const ObservationDetailViewHeader = memo(
@@ -102,8 +98,6 @@ export const ObservationDetailViewHeader = memo(
     observationScores,
     commentCount,
     commentDrawerControl,
-    subtreeMetrics,
-    treeNodeTotalCost,
   }: ObservationDetailViewHeaderProps) {
     const { trace, serverScores } = useTraceData();
     const { isAnnotationMode } = useViewPreferences();
@@ -150,22 +144,15 @@ export const ObservationDetailViewHeader = memo(
       date: observation.startTime,
       accuracy: "millisecond",
     });
-    const displayedTotalCost = subtreeMetrics
-      ? (treeNodeTotalCost?.toNumber() ?? subtreeMetrics.totalCost)
-      : totalCost;
-    const displayedCostDetails =
-      subtreeMetrics?.costDetails ?? observation.costDetails;
-    const showsOwnObservationCost = !subtreeMetrics;
     const showsNoCost = isGenerationMissingCost({
       type: observation.type,
       totalUsage,
-      totalCost: displayedTotalCost,
-      costDetails: displayedCostDetails,
+      totalCost,
+      costDetails: observation.costDetails,
     });
     const hasProvidedCostDetails =
       Object.keys(observation.providedCostDetails).length > 0;
     const costSource = resolveObservationCostSource({
-      hasSubtreeMetrics: Boolean(subtreeMetrics),
       hasProvidedCostDetails,
     });
     const priceSource =
@@ -174,8 +161,7 @@ export const ObservationDetailViewHeader = memo(
       observation.model &&
       observation.usagePricingTierId &&
       observation.usagePricingTierName &&
-      !hasProvidedCostDetails &&
-      showsOwnObservationCost
+      !hasProvidedCostDetails
         ? {
             projectId,
             modelId: observation.internalModelId,
@@ -188,11 +174,11 @@ export const ObservationDetailViewHeader = memo(
     const renderCostBadge = () => {
       if (showsNoCost)
         return <CostBadge variant="missing" projectId={projectId} />;
-      if (displayedTotalCost == null || !displayedCostDetails) return null;
+      if (totalCost == null || !observation.costDetails) return null;
       return (
         <CostBadge
-          totalCost={displayedTotalCost}
-          costDetails={displayedCostDetails}
+          totalCost={totalCost}
+          costDetails={observation.costDetails}
           costSource={costSource}
           priceSource={priceSource}
         />
@@ -518,25 +504,15 @@ export const ObservationDetailViewHeader = memo(
                 />
               )}
             {renderCostBadge()}
-            {subtreeMetrics
-              ? subtreeMetrics.hasGenerationLike &&
-                subtreeMetrics.totalUsage > 0 &&
-                subtreeMetrics.usageDetails &&
-                hasBreakdown(subtreeMetrics.usageDetails) && (
-                  <UsageBadge
-                    totalUsage={subtreeMetrics.totalUsage}
-                    usageDetails={subtreeMetrics.usageDetails}
-                  />
-                )
-              : isGenerationLike(observation.type) &&
-                totalUsage > 0 &&
-                observation.usageDetails &&
-                hasBreakdown(observation.usageDetails) && (
-                  <UsageBadge
-                    totalUsage={totalUsage}
-                    usageDetails={observation.usageDetails}
-                  />
-                )}
+            {isGenerationLike(observation.type) &&
+              totalUsage > 0 &&
+              observation.usageDetails &&
+              hasBreakdown(observation.usageDetails) && (
+                <UsageBadge
+                  totalUsage={totalUsage}
+                  usageDetails={observation.usageDetails}
+                />
+              )}
             {observation.model && (
               <ModelBadge
                 model={observation.model}
