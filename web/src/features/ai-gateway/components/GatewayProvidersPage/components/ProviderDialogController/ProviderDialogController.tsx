@@ -67,6 +67,8 @@ export function ProviderDialogController({
       reportTrpcErrorWithoutToast(error, "ai-gateway-providers"),
   });
   const isSaving = create.isPending || update.isPending;
+  /** Stays true until reset, while the dialog awaits the list refetch before closing. */
+  const isSaved = create.isSuccess || update.isSuccess;
   const isPending = test.isPending || isSaving;
   const saveError = create.error ?? update.error;
   const serverNameError =
@@ -80,7 +82,7 @@ export function ProviderDialogController({
 
   /** Skips the live check after saving, as the refetched list already holds the saved name. */
   const getNameError = (selectedConnection: GatewayConnection | null) =>
-    create.isSuccess || update.isSuccess
+    isSaved
       ? null
       : (getLiveConnectionNameError({
           name,
@@ -152,6 +154,8 @@ export function ProviderDialogController({
         });
       }
 
+      /** Pins the autofilled name so the refetched list cannot bump it to the next suffix. */
+      setNameDraft(name);
       await Promise.all([
         utils.aiGateway.listConnections.invalidate({ orgId: organizationId }),
         utils.aiGateway.refreshModels.invalidate({ orgId: organizationId }),
@@ -245,7 +249,8 @@ export function ProviderDialogController({
                   !name.trim() ||
                   Boolean(nameError) ||
                   (!selectedConnection && !credential) ||
-                  isPending
+                  isPending ||
+                  isSaved
                 }
                 loading={isSaving}
                 onClick={() => submit(selectedConnection, closeDialog)}
