@@ -8,11 +8,7 @@ const haloIconClassNames = {
 } as const;
 
 /** Brand icon for Halo, based on the supplied 24px artwork. */
-export function HaloIcon({
-  variant,
-}: {
-  variant: keyof typeof haloIconClassNames;
-}) {
+export function HaloIcon({ variant }: HaloIconProps) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -34,3 +30,7 @@ export function HaloIcon({
     </svg>
   );
 }
+
+type HaloIconProps = {
+  variant: keyof typeof haloIconClassNames;
+};
