@@ -240,6 +240,10 @@ Gateway-specific metrics:
 - `gateway.overhead.duration` (`http.route`, `gateway.provider`): time to response
   headers minus the caller's upload and the provider's wait; recorded only for
   requests that reached the provider.
+- `http.server.request.body.size` (`http.route`, `gateway.provider`) and
+  `http.server.response.body.size` (`gateway.provider`), in bytes: the buffered
+  request body, and the bytes relayed from the provider, including truncated or
+  cancelled streams.
 - `gateway.active`, `gateway.admission.capacity`, and `gateway.active.peak`
   (`phase`): in-flight, configured, and most-held-since-last-export slots for
   model_catalog/resolution/execution.
