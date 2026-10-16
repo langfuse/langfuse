@@ -255,7 +255,7 @@ This repository is MIT licensed, except for the `ee` folders. See [LICENSE](LICE
 
 ## Dependencies
 
-We deploy this code base in Docker containers based on the Linux Alpine Image ([source](https://github.com/nodejs/docker-node)). You may find the Dockerfiles in [web/Dockerfile](web/Dockerfile) and [worker/Dockerfile](worker/Dockerfile).
+We deploy this code base in Docker containers based on Iron Bank's hardened Alpine image. You may find the Dockerfiles in [web/Dockerfile](web/Dockerfile) and [worker/Dockerfile](worker/Dockerfile). The `-fips` image variants for deployments that require FIPS mode build on UBI 9 from [web/src/ee/Dockerfile.fips](web/src/ee/Dockerfile.fips) and [worker/src/ee/Dockerfile.fips](worker/src/ee/Dockerfile.fips), under the enterprise license.
 
 ## ⭐️ Star History
 
