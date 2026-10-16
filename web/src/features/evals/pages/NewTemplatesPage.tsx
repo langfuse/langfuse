@@ -1,4 +1,3 @@
-/* eslint-disable @repo/component-file-structure */
 import Page from "@/src/components/layouts/page";
 import { EvalTemplateForm } from "@/src/features/evals/components/template-form";
 import { useHasProjectAccess } from "@/src/features/rbac";
