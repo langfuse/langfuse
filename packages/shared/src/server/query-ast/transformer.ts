@@ -196,10 +196,17 @@ function cteNames(node: WithNode | undefined): Set<string> {
 }
 
 /**
- * Rejects a WITH that declares a name a CTE body of an enclosing WITH reads,
- * e.g. `WITH a AS (SELECT … FROM m) SELECT … FROM (WITH m AS (…) SELECT …
- * FROM a)`: read there, `a` reads the inner `m`. With this rule every name in
- * a CTE body resolves where the CTE is declared, which is what
+ * Rejects a WITH that declares a name a CTE body of an enclosing WITH reads:
+ *
+ *     WITH a AS (SELECT … FROM m)
+ *     SELECT …
+ *     FROM (
+ *       WITH m AS (…)
+ *       SELECT … FROM a   -- `a` is read here, so its `m` is the inner `m`
+ *     )
+ *
+ * With this rule every name in a CTE body resolves where the CTE is declared,
+ * which is what
  * {@link CteScopedTransformer} and the compiler's bind-type scopes assume.
  * The rule is conservative: it also rejects a nested WITH under which the
  * enclosing CTE is never read.
@@ -260,6 +267,13 @@ function assertNoSiblingCycle(node: WithNode): void {
  * reads of a CTE that a select under `value` declares: those always resolve
  * to that CTE. A CTE body's read of its own name escapes its WITH, so it
  * counts.
+ *
+ *     relationNames(SELECT … FROM a JOIN (WITH x AS (SELECT … FROM b)
+ *                                         SELECT … FROM x) AS s)
+ *       → {a, b}   -- `x` is declared under `value`, so it is not a read
+ *
+ * `shadowed` holds the CTE names declared by the selects between `value`'s
+ * root and the current node.
  */
 function relationNames(
   value: unknown,
@@ -267,18 +281,22 @@ function relationNames(
   shadowed: ReadonlySet<string> = new Set(),
 ): Set<string> {
   if (!value || typeof value !== "object") return found;
+  // Not a select (an array, a WHERE, a join, …): look for selects below it.
   if (!isOperationNode(value) || !SelectQueryNode.is(value)) {
     for (const child of Object.values(value)) {
       relationNames(child, found, shadowed);
     }
     return found;
   }
+  // A CTE body sees its siblings as CTEs, but not itself: inside its body,
+  // its own name is the table or an enclosing CTE.
   const declared = cteNames(value.with);
   for (const expr of value.with?.expressions ?? []) {
-    const visible = new Set(declared);
-    visible.delete(cteName(expr));
-    relationNames(expr.expression, found, new Set([...shadowed, ...visible]));
+    const siblings = new Set(declared);
+    siblings.delete(cteName(expr));
+    relationNames(expr.expression, found, new Set([...shadowed, ...siblings]));
   }
+  // The rest of this select (FROM, JOIN, WHERE, …) sees all of its CTEs.
   const inner = new Set([...shadowed, ...declared]);
   const relations = [
     ...(value.from?.froms ?? []),
@@ -291,6 +309,7 @@ function relationNames(
       found.add(name);
     }
   }
+  // Subqueries anywhere in this select; the WITH bodies were walked above.
   for (const [key, child] of Object.entries(value)) {
     if (key !== "with") relationNames(child, found, inner);
   }

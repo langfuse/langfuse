@@ -377,8 +377,14 @@ describe("tenancy injection", () => {
       );
     });
 
+    // Each case is a cycle between sibling CTEs. Reading `traces` reads
+    // `observations`, which reads `traces` while it is still being resolved,
+    // so ClickHouse reads the physical `traces` table there. The pass treats
+    // that read as the CTE and would leave it unscoped, so the cycle is
+    // rejected whether or not the main select reads it.
     it.each([
       [
+        // traces → observations → traces.
         "directly",
         () =>
           db
@@ -392,6 +398,7 @@ describe("tenancy injection", () => {
             .select("id"),
       ],
       [
+        // traces → observations (in an IN subquery of its body) → traces.
         "through a nested subquery",
         () =>
           db
@@ -410,6 +417,7 @@ describe("tenancy injection", () => {
             .select("id"),
       ],
       [
+        // traces → observations → scores → traces.
         "through a third CTE",
         () =>
           db
@@ -426,6 +434,7 @@ describe("tenancy injection", () => {
             .select("id"),
       ],
       [
+        // traces → observations (read as `o`) → traces.
         "through an aliased read",
         () =>
           db
@@ -439,6 +448,7 @@ describe("tenancy injection", () => {
             .select("id"),
       ],
       [
+        // traces → scores (read with FINAL) → traces.
         "through a FINAL read",
         () =>
           db
@@ -455,6 +465,7 @@ describe("tenancy injection", () => {
             .select("id"),
       ],
       [
+        // traces → observations (the joined side) → traces.
         "through a JOIN",
         () =>
           db
@@ -472,6 +483,32 @@ describe("tenancy injection", () => {
       ],
     ])("rejects sibling CTEs that read each other %s", (_, build) => {
       expect(() => compile(build())).toThrow(UnscopedRelationError);
+    });
+
+    it("scopes a recursive CTE body's read of its own name as the table", () => {
+      expect(
+        compile(
+          db
+            .withRecursive("traces(id)", (qb) =>
+              qb.selectFrom("traces").select("id"),
+            )
+            .selectFrom("traces")
+            .select("id"),
+        ),
+      ).toBe(
+        "with recursive traces(id) as (select id from traces where project_id = {p1:String}) select id from traces",
+      );
+    });
+
+    it("rejects a CTE body written as raw SQL that reads a relation", () => {
+      expect(() =>
+        compile(
+          db
+            .with("a", () => sql<{ id: string }>`select id from traces`)
+            .selectFrom("a")
+            .select("id"),
+        ),
+      ).toThrow(UnscopedRelationError);
     });
 
     it("rejects a nested WITH that redirects an enclosing CTE body's read", () => {

@@ -389,6 +389,9 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
       const columns = TableNode.is(inner)
         ? relationBindTypes(inner, scopes)
         : this.outputBindTypes(inner, scopes);
+      // Register every name a column can qualify the relation with:
+      // `FROM traces` → `traces`; `FROM traces AS t` → `traces` and `t`;
+      // `FROM (SELECT …) AS sub` → `sub` only.
       if (TableNode.is(inner)) {
         scope.relations.set(inner.table.identifier.name, columns);
       }
@@ -402,8 +405,12 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
   /**
    * Lookup of the CTEs `node`'s WITH declares. A body is typed on its first
    * read, against `enclosing` plus {@link withoutCte}, so it can read an
-   * earlier or a later sibling as ClickHouse does. Siblings never read each
-   * other in a cycle: the transformer passes reject that before compiling.
+   * earlier or a later sibling as ClickHouse does.
+   *
+   * Typing a body recurses into the siblings it reads, and each body is typed
+   * without its own name, so the recursion only follows sibling reads. Those
+   * never form a cycle: the transformer passes reject
+   * `WITH a AS (… FROM b), b AS (… FROM a)` before the compiler runs.
    */
   private cteLookup(
     node: SelectQueryNode,
@@ -418,12 +425,12 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
       if (!cte) return undefined;
       const known = typed.get(name);
       if (known) return known;
-      const siblings: SelectScope = { cte: lookup, relations: new Map() };
+      const bodyScope = withoutCte({ cte: lookup, relations: new Map() }, name);
+      // A body that is not a select (raw SQL) has no columns the compiler
+      // can type, so it gets the name-only types, like an opaque relation.
       const columns =
-        this.outputBindTypes(cte.expression, [
-          ...enclosing,
-          withoutCte(siblings, name),
-        ]) ?? COLUMN_BIND_TYPES;
+        this.outputBindTypes(cte.expression, [...enclosing, bodyScope]) ??
+        COLUMN_BIND_TYPES;
       typed.set(name, columns);
       return columns;
     };
