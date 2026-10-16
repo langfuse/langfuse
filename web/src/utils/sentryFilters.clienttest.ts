@@ -1124,6 +1124,65 @@ describe("isDenylistedNoiseEvent", () => {
     });
   });
 
+  describe("L. drops Chromium injected Promise.all .done TypeError", () => {
+    // Real shape: Chrome 153 on /project/[projectId]. Unhandled rejection
+    // whose stack is only `<anonymous>` + `index 4 (async Promise.all)`.
+    // Injected page-world JS read `.done` on a null iterator result.
+    // denyUrls cannot match anonymous frames. A first-party `.done`
+    // throw lives in a /_next/ chunk and is KEPT.
+    const chromiumNullDoneEvent = (
+      value: string,
+      mechanismType = "auto.browser.global_handlers.onunhandledrejection",
+      frames?: { filename: string; function?: string }[],
+    ): ErrorEvent =>
+      ({
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value,
+              mechanism: { type: mechanismType, handled: false },
+              stacktrace: {
+                frames: (
+                  frames ?? [
+                    { filename: "<anonymous>", function: "?" },
+                    {
+                      filename: "<anonymous>",
+                      function: "index 4 (async Promise.all)",
+                    },
+                    { filename: "<anonymous>", function: "?" },
+                  ]
+                ).map((frame) => ({
+                  filename: frame.filename,
+                  function: frame.function ?? "?",
+                })),
+              },
+            },
+          ],
+        },
+      }) as ErrorEvent;
+
+    it("drops the observed anonymous Promise.all .done TypeError", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          chromiumNullDoneEvent(
+            "Cannot read properties of null (reading 'done')",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same wording with a trailing period", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          chromiumNullDoneEvent(
+            "Cannot read properties of null (reading 'done').",
+          ),
+        ),
+      ).toBe(true);
+    });
+  });
+
   // The heart of the safety contract: prove that real / similar-looking errors
   // are NOT dropped. If any of these regress to `true`, a real bug would be
   // hidden from Sentry.
@@ -1786,6 +1845,141 @@ describe("isDenylistedNoiseEvent", () => {
         },
       } as ErrorEvent;
       expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a longer app message that merely quotes reading 'done'", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value:
+                "Search failed: Cannot read properties of null (reading 'done')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  {
+                    filename: "<anonymous>",
+                    function: "index 4 (async Promise.all)",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a different Chromium null-property TypeError", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Cannot read properties of null (reading 'value')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  {
+                    filename: "<anonymous>",
+                    function: "index 4 (async Promise.all)",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps the .done TypeError when a first-party chunk is on the stack", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Cannot read properties of null (reading 'done')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  {
+                    filename:
+                      "https://us.cloud.langfuse.com/_next/static/chunks/pages/project/[projectId]-abc.js",
+                    function: "index 4 (async Promise.all)",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps the .done TypeError without a Promise.all frame", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Cannot read properties of null (reading 'done')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [{ filename: "<anonymous>", function: "?" }],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps an app-captured .done TypeError (not a Sentry browser wrap)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "Cannot read properties of null (reading 'done')",
+            "TypeError",
+          ),
+        ),
+      ).toBe(false);
+      const consoleCaptured = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Cannot read properties of null (reading 'done')",
+              mechanism: {
+                type: "auto.core.capture_console",
+                handled: true,
+              },
+              stacktrace: {
+                frames: [
+                  {
+                    filename: "<anonymous>",
+                    function: "index 4 (async Promise.all)",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(consoleCaptured)).toBe(false);
     });
 
     it("keeps an event with no exception values", () => {
