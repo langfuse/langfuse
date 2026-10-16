@@ -72,7 +72,7 @@ export function SessionTraceActionButtons({
           metadata={trace.data.metadata ?? null}
           analyticsData={{ source: "SessionDetail", isV4 }}
         >
-          {({ getTriggerProps }) => (
+          {({ getTriggerProps, totalCount }) => (
             <Button
               variant="outline"
               size={size}
@@ -81,6 +81,7 @@ export function SessionTraceActionButtons({
             >
               <PlusIcon className="icon-base text-icon-foreground" />
               <span>Add to</span>
+              {totalCount > 0 && <ActionButtonCountBadge count={totalCount} />}
               <DropdownIndicator size="sm" nudge />
             </Button>
           )}
