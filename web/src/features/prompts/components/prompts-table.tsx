@@ -14,7 +14,7 @@ import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { createFolderKeyTableColumn } from "@/src/components/design-system/table/columns/createFolderKeyTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
-import { DeletePrompt } from "@/src/features/prompts/components/delete-prompt";
+import { DeletePrompt } from "@/src/features/prompts/components/DeletePrompt";
 import { DeleteFolder } from "@/src/features/prompts/components/DeleteFolder";
 import { DuplicateFolder } from "@/src/features/prompts/components/duplicate-folder";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
