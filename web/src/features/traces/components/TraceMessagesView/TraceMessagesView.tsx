@@ -123,7 +123,10 @@ export function TraceMessagesView() {
       turnNumber: 1,
       variant: "single-trace",
       state,
-      onOpenTrace: () => selectNode(trace.id),
+      onOpenTrace: () => {
+        setTraceView(undefined, "pushIn");
+        selectNode(trace.id);
+      },
       onOpenObservation: (observationId) => {
         setTraceView(undefined, "pushIn");
         setSelectedTab("preview");
