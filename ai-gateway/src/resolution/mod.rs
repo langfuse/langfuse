@@ -3,14 +3,15 @@ mod contracts;
 pub(crate) mod signing;
 
 pub use contracts::{
-    ApiFormat, IngestionGrant, IngestionMode, MetadataValue, Provider, ProviderConnection,
-    ProviderCredential, RequestAttribution, ResolvedRequestContext,
+    ApiFormat, IngestionGrant, IngestionMode, MetadataValue, OrganizationId, ProjectId, Provider,
+    ProviderConnection, ProviderCredential, RequestAttribution, ResolvedRequestContext,
 };
 use reqwest::{
     Client, Method, Url,
     header::{AUTHORIZATION, CONTENT_TYPE, HeaderValue},
 };
 use reqwest_middleware::{ClientWithMiddleware, RequestBuilder};
+use secrecy::{ExposeSecret, SecretString};
 use std::{
     net::IpAddr,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
@@ -35,7 +36,7 @@ struct ControlPlaneLimits {
 /// Operator-supplied Web base URL and the existing gateway/Web service key.
 pub struct ControlPlaneConfig {
     web_url: Url,
-    service_key: String,
+    service_key: SecretString,
     resolve_limits: ControlPlaneLimits,
     models_limits: ControlPlaneLimits,
 }
@@ -68,7 +69,7 @@ impl ControlPlaneConfig {
         }
         Ok(Self {
             web_url: url,
-            service_key: service_key.to_owned(),
+            service_key: service_key.into(),
             resolve_limits: ControlPlaneLimits {
                 timeout: Duration::from_secs(5),
                 max_response_bytes: 256 * 1024,
@@ -87,7 +88,7 @@ impl ControlPlaneConfig {
         url
     }
 
-    pub(crate) fn service_key(&self) -> &str {
+    pub(crate) fn service_key(&self) -> &SecretString {
         &self.service_key
     }
 }
@@ -217,7 +218,7 @@ impl ControlPlaneClient {
             .map_err(|_| ResolutionError::InvalidCredential)?;
         credential.set_sensitive(true);
         let mut signature = HeaderValue::from_str(&signing::authorization(
-            &self.config.service_key,
+            self.config.service_key.expose_secret(),
             gateway_key,
             timestamp,
         ))
