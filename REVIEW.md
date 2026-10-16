@@ -23,6 +23,11 @@ Use their technical rules, not their implementation or handoff workflows.
 
 ## Team rules
 
+A form shown to illustrate a rule is not a separate requirement; do not report
+it as a finding on its own. A form that is itself the obligation applies as
+written: required names, paths, extensions, and file order. New formatting rules
+belong in `packages/eslint-plugin`.
+
 ### Architecture
 
 - One responsibility and abstraction level per function. The main export reads
@@ -81,7 +86,8 @@ Use their technical rules, not their implementation or handoff workflows.
   Replace conditionals deeper than two levels with early returns.
 - Handle every switch variant explicitly. Compare `.length` explicitly.
 - Comments must add information beyond the name. Keep them terse, without
-  commentary or speculation, using `/** X does Y [for Z] */`.
+  commentary or speculation; `/** X does Y [for Z] */` illustrates the intended
+  length and content. Comment syntax is not a violation by itself.
 - Put callers above callees. Order `.ts`/`.tsx` files: imports, module constants
   or lookup tables, main export, private subcomponents, custom hooks, helpers,
   helper types, then `export const __test = { ... }` if needed.
@@ -119,8 +125,9 @@ Use their technical rules, not their implementation or handoff workflows.
 
 - **Defect:** verified correctness, security, or performance problem, or harmful
   design with a concrete consequence. State impact and urgency from the evidence.
-- **Convention:** new violation of an applicable team rule. State the rule and
-  offending code; do not imply runtime harm without separate evidence.
+- **Convention:** new violation of an applicable team rule; an illustrated form
+  is not a violation. State the rule and offending code; do not imply runtime
+  harm without separate evidence.
 - Defects and Convention findings require a fix before merge unless a human
   explicitly accepts them. Their shared merge requirement does not imply equal
   severity. Identify the category in each finding's title.
