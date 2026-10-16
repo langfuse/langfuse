@@ -170,7 +170,7 @@ export function IOSection({
             message `name` (or tool name) rather than a fixed role string. */}
         <button
           type="button"
-          className="ph-no-capture focus-visible:ring-ring flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-sm text-left capitalize focus-visible:ring-2 focus-visible:outline-hidden"
+          className="ph-no-capture focus-visible:ring-ring flex h-full min-w-0 shrink cursor-pointer items-center gap-2 rounded-sm text-left capitalize focus-visible:ring-2 focus-visible:outline-hidden"
           aria-expanded={!isCollapsed}
           aria-label={`${isCollapsed ? "Expand" : "Collapse"} ${title}`}
           onClick={toggleCollapsed}
@@ -192,6 +192,15 @@ export function IOSection({
           {internal ? <InternalFeatureBadge /> : null}
         </button>
         {info ? <IOSectionInfoButton info={info} /> : null}
+        {/* The rest of the row toggles too; the title button carries the
+            accessible name and state, so this hit area stays out of the tree. */}
+        <button
+          type="button"
+          className="h-full min-w-0 flex-1 cursor-pointer"
+          aria-hidden
+          tabIndex={-1}
+          onClick={toggleCollapsed}
+        />
         <div
           className={cn(
             "mr-1 flex shrink-0 flex-row items-center gap-1",
