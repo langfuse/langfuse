@@ -986,6 +986,37 @@
   );
 }
 
+/* Fades a scrollport's bottom edge while more content is below, and clears
+   it as the end is reached. Browsers without scroll-driven animations show
+   no fade. */
+@property --scroll-fade-b {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@keyframes scroll-fade-b {
+  from {
+    --scroll-fade-b: calc(var(--spacing) * 8);
+  }
+  to {
+    --scroll-fade-b: 0px;
+  }
+}
+
+@utility scroll-fade-b {
+  @supports (animation-timeline: scroll()) {
+    mask-image: linear-gradient(
+      to bottom,
+      black calc(100% - var(--scroll-fade-b)),
+      transparent
+    );
+    animation: scroll-fade-b linear both;
+    animation-timeline: scroll(self);
+    animation-range: calc(100% - var(--spacing) * 8) 100%;
+  }
+}
+
 @utility scrollbar-visible {
   &::-webkit-scrollbar {
     width: 8px;

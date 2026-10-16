@@ -8,6 +8,7 @@ use serde_json::Value;
 use tokio::{sync::OwnedSemaphorePermit, time::Instant};
 
 use super::Grant;
+use crate::resolution::ProjectId;
 
 #[derive(Clone, Copy)]
 pub(super) struct BatchPolicy {
@@ -100,7 +101,7 @@ fn due_at(grant: &Grant, opened: Instant, now: Instant, policy: &BatchPolicy) ->
 
 pub(super) struct Batches {
     policy: BatchPolicy,
-    open: HashMap<String, Batch>,
+    open: HashMap<ProjectId, Batch>,
 }
 
 impl Batches {
@@ -166,7 +167,7 @@ impl Batches {
         self.open.values().map(|batch| batch.due).min()
     }
 
-    fn take_project(&mut self, project: &str) -> Option<Flush> {
+    fn take_project(&mut self, project: &ProjectId) -> Option<Flush> {
         self.open.remove(project).map(Batch::into_flush)
     }
 }

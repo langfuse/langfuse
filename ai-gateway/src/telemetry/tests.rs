@@ -164,7 +164,7 @@ async fn concurrent_projects_keep_their_original_grants_and_attribution() {
     for project in ["project-a", "project-b"] {
         let mut grant = grant().await;
         grant.grant.project_id = project.into();
-        grant.grant.access_token = format!("token-{project}");
+        grant.grant.access_token = format!("token-{project}").into();
         telemetry.record(grant, facts(project));
     }
     telemetry
@@ -304,8 +304,8 @@ fn record_bytes(context: &DeliveryContext, facts: InferenceFacts) -> usize {
     serde_json::to_vec(&mapping::span(facts, &context.generation))
         .unwrap()
         .len()
-        + context.grant.access_token.len()
-        + context.grant.project_id.len()
+        + context.grant.access_token.expose_secret().len()
+        + context.grant.project_id.as_str().len()
 }
 
 fn exported_spans(payload: &Value) -> usize {
@@ -418,7 +418,7 @@ async fn interleaved_projects_never_share_an_upload_or_a_grant() {
         for project in ["project-a", "project-b"] {
             let mut context = grant().await;
             context.grant.project_id = project.into();
-            context.grant.access_token = format!("{project}-token-{round}");
+            context.grant.access_token = format!("{project}-token-{round}").into();
             context.grant.expires_at += round * 10;
             telemetry.record(context, facts(project));
         }
