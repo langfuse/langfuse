@@ -7,6 +7,7 @@ import test from "node:test";
 import {
   collectTypeModelChanges,
   renderAuditSummary,
+  renderPullRequestBody,
 } from "./audit-output-contract.mjs";
 
 const scriptPath = path.join(
@@ -408,6 +409,68 @@ test("removes a retired model listed in several selectable arrays", () => {
   assert.deepEqual(normalizedOutput.changedModels, [`${model} (removed)`]);
 });
 
+test("accepts a Google provider alias for a Gemini selectable-model removal", () => {
+  const model = "gemini-1";
+  const { normalizedOutput, result } = runContract({
+    baseTypes: typesSource({
+      googleAIStudio: ["gemini-2", model],
+      vertexAI: ["gemini-2", model],
+    }),
+    currentTypes: typesSource(),
+    output: {
+      ...structuredOutput([
+        {
+          ...retiredRow(model, {
+            officialSources: ["https://ai.google.dev/gemini-api/docs/models"],
+          }),
+          provider: "Google Gemini",
+        },
+      ]),
+      pullRequestTitle: "chore(pricing): remove retired gemini-1 from pickers",
+    },
+    typesDiff: `-  "${model}",\n-  "${model}",\n`,
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(normalizedOutput.changedModels, [`${model} (removed)`]);
+});
+
+test("ignores an unresolved other-provider note for a removed selectable model", () => {
+  const model = "claude-3-5-sonnet-20240620";
+  const anthropicSource =
+    "https://platform.claude.com/docs/en/about-claude/model-deprecations";
+  const { normalizedOutput, result } = runContract({
+    baseTypes: typesSource({ anthropic: ["claude-sonnet-5", model] }),
+    basePrices: [pricingEntry(model)],
+    currentTypes: typesSource({ anthropic: ["claude-sonnet-5"] }),
+    output: {
+      ...structuredOutput([
+        {
+          ...retiredRow(model, { officialSources: [anthropicSource] }),
+          provider: "Anthropic",
+        },
+        {
+          ...retiredRow(model, {
+            change: "unresolved",
+            officialSources: ["https://aws.amazon.com/bedrock/pricing/"],
+            comments: "Bedrock extended-access SKU is not representable.",
+          }),
+          provider: "AWS Bedrock",
+        },
+      ]),
+      pullRequestTitle: "chore(pricing): remove retired claude-3-5-sonnet",
+    },
+    typesDiff: `-  "${model}",\n`,
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(normalizedOutput.changedModels, [`${model} (removed)`]);
+  const bedrockRow = normalizedOutput.modelsChecked.find(
+    (row) => row.provider === "AWS Bedrock",
+  );
+  assert.equal(bedrockRow.change, "unresolved");
+});
+
 test("rejects a selectable-model removal without official evidence", () => {
   const model = "gpt-4o";
   const { result } = runContract({
@@ -630,6 +693,56 @@ test("escapes backslashes and backticks in the proposed title", () => {
   );
 });
 
+test("limits the pull request body to changed rows, reasons, and sources", () => {
+  const output = {
+    ...structuredOutput([
+      auditRow({ model: "gpt-4o", comments: "Unchanged row detail." }),
+      auditRow({
+        model: "gpt-5",
+        change: "updated",
+        comments: "Cache read lowered from $0.20 to $0.10/MTok.",
+      }),
+    ]),
+    skillReferenceUpdates: ["provider-sources-and-price-keys.md - noted fix"],
+    unresolvedFindings: ["Bedrock SKU still ambiguous"],
+    validation: ["validate-pricing-file.mjs passed"],
+  };
+
+  const body = renderPullRequestBody(output, {
+    reportUrl: "https://github.com/langfuse/langfuse/actions/runs/1",
+  });
+
+  assert.match(body, /### `gpt-5` \(OpenAI\): updated/);
+  assert.match(body, /\*\*Why:\*\* Cache read lowered from \$0\.20/);
+  assert.ok(body.includes(`- ${officialSource}`));
+  assert.ok(body.includes("provider-sources-and-price-keys.md - noted fix"));
+  assert.ok(
+    body.includes(
+      "[workflow run summary](https://github.com/langfuse/langfuse/actions/runs/1)",
+    ),
+  );
+  assert.match(body, /Checked 2 model entries; 1 unresolved finding\./);
+  for (const omitted of [
+    "Unchanged row detail.",
+    "Bedrock SKU still ambiguous",
+    "validate-pricing-file.mjs passed",
+    "| Provider |",
+  ]) {
+    assert.ok(!body.includes(omitted), `body must omit ${omitted}`);
+  }
+
+  const workflow = fs.readFileSync(workflowPath, "utf8");
+  const bodyStep = workflow.slice(
+    workflow.lastIndexOf(
+      "{",
+      workflow.indexOf('> "$RUNNER_TEMP/model-price-audit-pr-body.md"'),
+    ),
+    workflow.indexOf('> "$RUNNER_TEMP/model-price-audit-pr-body.md"'),
+  );
+  assert.match(bodyStep, /render-pull-request-body\.mjs/);
+  assert.doesNotMatch(bodyStep, /claude-model-price-audit\.txt/);
+});
+
 test("runs formatting cleanup before the extracted output contract", () => {
   const workflow = fs.readFileSync(workflowPath, "utf8");
   const cleanupIndex = workflow.indexOf(
@@ -663,4 +776,13 @@ test("runs formatting cleanup before the extracted output contract", () => {
     "guardrail tests must rerun after permitted workflow self-edits",
   );
   assert.doesNotMatch(workflow, /node <<'NODE' \| tee/);
+  assert.match(
+    workflow,
+    /Bash\(node scripts\/model-price-audit\/list-required-audit-rows\.mjs\)/,
+    "the audit must be allowed to list the rows the validator expects",
+  );
+  assert.match(
+    workflow,
+    /run the allowed exact `node scripts\/model-price-audit\/list-required-audit-rows\.mjs` command/,
+  );
 });

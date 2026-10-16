@@ -1,5 +1,7 @@
 const SLOW_TEST_LIMIT = 10;
 const SLOW_FILE_LIMIT = 10;
+/** Caps the Failed tests list so the earlier blocks survive a log tail */
+const FAILED_TEST_LIMIT = 50;
 
 type TestCaseLike = {
   fullName: string;
@@ -166,5 +168,34 @@ export class VitestCiReporter {
           );
         });
     }
+
+    printFailedTests(completedTests);
+  }
+}
+
+/** Lists every non-passed test case; absent on a green run */
+function printFailedTests(completedTests: TestResult[]): void {
+  const failedTests = completedTests.filter((test) => test.state !== "passed");
+
+  if (failedTests.length === 0) {
+    return;
+  }
+
+  const listed = [...failedTests]
+    .sort((left, right) => right.retryCount - left.retryCount)
+    .slice(0, FAILED_TEST_LIMIT);
+  const failedRankWidth = String(listed.length).length;
+
+  console.log(`\nFailed tests (${failedTests.length}):`);
+  listed.forEach((test, index) => {
+    const rank = String(index + 1).padStart(failedRankWidth, " ");
+
+    console.log(
+      `${rank}. retries=${test.retryCount} ${test.file} > ${test.name}`,
+    );
+  });
+
+  if (failedTests.length > listed.length) {
+    console.log(`… and ${failedTests.length - listed.length} more`);
   }
 }

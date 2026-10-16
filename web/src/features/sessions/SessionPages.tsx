@@ -1,8 +1,12 @@
+import { headerActionClassName } from "@/src/features/traces/components/headerActionClassName";
 /* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props, @repo/no-null-render */
 import { cn } from "@/src/utils/tailwind";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { ErrorPage } from "@/src/components/error-page";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { SessionReviewLeading } from "@/src/features/sessions/sessionReviewLeading";
 import { PublishSessionSwitch } from "@/src/components/publish-object-switch";
 import { IOPreview } from "@/src/features/traces";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
@@ -11,7 +15,7 @@ import {
   DetailPageNav,
   useDetailPageLists,
 } from "@/src/features/navigate-detail-pages";
-import { api } from "@/src/utils/api";
+import { api, shouldRetryResourceQuery } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import { getNumberFromMap } from "@/src/utils/map-utils";
 import Link from "next/link";
@@ -112,6 +116,8 @@ import { SessionDetailStoreProvider } from "@/src/features/sessions/SessionDetai
 import { SessionVirtualizedRow } from "@/src/features/sessions/SessionVirtualizedRow";
 import { createSessionDetailStore } from "@/src/features/sessions/sessionDetailStore";
 import { ModernSession } from "@/src/features/sessions/ModernSession";
+import { ConnectedModernSessionBodyTimeline } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/ConnectedModernSessionBodyTimeline";
+import { SessionRedesignBanner } from "@/src/features/sessions/SessionRedesignBanner";
 import { HeaderActionMenuRow } from "@/src/components/HeaderActionMenuRow";
 import { ModernSessionHeaderActionsController } from "@/src/features/sessions/ModernSessionHeaderActionsController";
 import { ConnectedSessionAddToDropdownMenuController } from "@/src/features/sessions/ConnectedSessionAddToDropdownMenuController";
@@ -323,8 +329,6 @@ const SessionScores = ({
   );
 };
 
-const HEADER_ACTION_CLASS =
-  "text-foreground-secondary hover:bg-accent hover:text-foreground-secondary";
 type SessionAnnotatePayload = AnnotateDrawerPayload<{
   type: "session";
   sessionId: string;
@@ -446,14 +450,7 @@ export const SessionPage: React.FC<{
     },
     {
       enabled: Boolean(projectId) && Boolean(sessionId),
-      retry(failureCount, error) {
-        if (
-          error.data?.code === "UNAUTHORIZED" ||
-          error.data?.code === "NOT_FOUND"
-        )
-          return false;
-        return failureCount < 3;
-      },
+      retry: shouldRetryResourceQuery,
     },
   );
   const webCalloutAction = useWebCalloutAction(
@@ -527,8 +524,12 @@ export const SessionPage: React.FC<{
       queryParams: ["observation", "display", "timestamp", "traceId"],
       tableName: "sessions",
       isV4: false,
-      extractParamsValuesFromRow: (row: any) => ({
+      extractParamsValuesFromRow: (row: {
+        timestamp: Date;
+        observationId?: string;
+      }) => ({
         timestamp: row.timestamp.toISOString(),
+        ...(row.observationId ? { observation: row.observationId } : {}),
       }),
     }),
     [projectId],
@@ -643,9 +644,9 @@ export const SessionPage: React.FC<{
                 {!router.query.peek && (
                   <DetailPageNav
                     key="nav"
-                    currentId={encodeURIComponent(sessionId)}
+                    currentId={sessionId}
                     path={(entry) =>
-                      `/project/${projectId}/sessions/${encodeURIComponent(entry.id)}`
+                      `/project/${projectId}/sessions/${entry.id}`
                     }
                     listKey="sessions"
                   />
@@ -776,7 +777,9 @@ export const SessionPage: React.FC<{
                   projectId={projectId}
                   sessionId={sessionId}
                   isPublic={session.data?.public ?? false}
-                  label="Share"
+                  label={
+                    (session.data?.public ?? false) ? "Unshare" : "Make Public"
+                  }
                 />
                 <CopySessionIdButton sessionId={sessionId} layout="menu" />
                 <CommentDrawerController
@@ -996,6 +999,17 @@ export const SessionEventsPage: React.FC<{
   sessionId: string;
   projectId: string;
 }> = ({ sessionId, projectId }) => {
+  const isModernSessionEnabled = useIsFeatureEnabled("sessionViewV2", {
+    enableForAdmins: false,
+    projectId,
+  });
+  const isSessionTimelineEnabled = useIsFeatureEnabled(
+    "sessionViewV2Timeline",
+    {
+      enableForAdmins: false,
+      projectId,
+    },
+  );
   const session = api.sessions.byIdWithScoresFromEvents.useQuery(
     {
       sessionId,
@@ -1003,14 +1017,7 @@ export const SessionEventsPage: React.FC<{
     },
     {
       enabled: !!projectId && !!sessionId,
-      retry(failureCount, error) {
-        if (
-          error.data?.code === "UNAUTHORIZED" ||
-          error.data?.code === "NOT_FOUND"
-        )
-          return false;
-        return failureCount < 3;
-      },
+      retry: shouldRetryResourceQuery,
     },
   );
 
@@ -1018,14 +1025,7 @@ export const SessionEventsPage: React.FC<{
     { projectId, sessionId },
     {
       enabled: !!projectId && !!sessionId,
-      retry(failureCount, error) {
-        if (
-          error.data?.code === "UNAUTHORIZED" ||
-          error.data?.code === "NOT_FOUND"
-        )
-          return false;
-        return failureCount < 3;
-      },
+      retry: shouldRetryResourceQuery,
     },
   );
 
@@ -1044,24 +1044,32 @@ export const SessionEventsPage: React.FC<{
       />
     );
 
+  if (session.error && !session.data && !session.isFetching) {
+    return (
+      <ErrorPage
+        title="Failed to load session"
+        message="The session could not be loaded. Please try again."
+        additionalButton={{
+          label: "Retry",
+          onClick: () => {
+            session.refetch();
+          },
+        }}
+      />
+    );
+  }
+
+  if (!session.data && isModernSessionEnabled && isSessionTimelineEnabled) {
+    return (
+      <SessionEventsLoadingPage projectId={projectId} sessionId={sessionId} />
+    );
+  }
+
   if (!session.data) {
     return (
-      <Page
-        headerProps={{
-          title: sessionId,
-          itemType: "SESSION",
-          breadcrumb: [
-            {
-              name: "Sessions",
-              href: `/project/${projectId}/sessions`,
-            },
-          ],
-        }}
-      >
-        <div className="h-full p-4">
-          <JsonSkeleton className="h-full w-full" numRows={8} />
-        </div>
-      </Page>
+      <div className="flex h-full items-center justify-center">
+        <Spinner size="xl" variant="muted" />
+      </div>
     );
   }
 
@@ -1076,6 +1084,55 @@ export const SessionEventsPage: React.FC<{
   );
 };
 
+const noopOpenPeek = () => {};
+
+function SessionEventsLoadingPage({
+  projectId,
+  sessionId,
+}: {
+  projectId: string;
+  sessionId: string;
+}) {
+  return (
+    <Page
+      headerProps={{
+        title: sessionId,
+        itemType: "SESSION",
+        divider: false,
+        breadcrumb: [
+          { name: "Sessions", href: `/project/${projectId}/sessions` },
+        ],
+      }}
+    >
+      <TraceReviewPanelProvider
+        key={`${projectId}:${sessionId}`}
+        projectId={projectId}
+      >
+        <SessionReviewWorkspace projectId={projectId}>
+          <div className="flex h-full min-h-0 flex-col overflow-hidden">
+            <SessionReviewLeading>
+              <div
+                className="flex gap-2 border-b px-4 pt-1 pb-1.5"
+                aria-label="Loading session details"
+              >
+                <Skeleton className="h-6 w-24" />
+                <Skeleton className="h-6 w-32" />
+                <Skeleton className="h-6 w-24" />
+              </div>
+            </SessionReviewLeading>
+            <ConnectedModernSessionBodyTimeline
+              tracesState={{ type: "loading" }}
+              projectId={projectId}
+              sessionId={sessionId}
+              openPeek={noopOpenPeek}
+            />
+          </div>
+        </SessionReviewWorkspace>
+      </TraceReviewPanelProvider>
+    </Page>
+  );
+}
+
 const LoadedSessionEventsPage: React.FC<{
   sessionId: string;
   projectId: string;
@@ -1087,14 +1144,23 @@ const LoadedSessionEventsPage: React.FC<{
   const { setDetailPageList, detailPagelists } = useDetailPageLists();
   const userSession = useSession();
   const capture = usePostHogClientCapture();
-  const isModernSessionEnabled = useIsFeatureEnabled("modernSession", {
+  const isModernSessionEnabled = useIsFeatureEnabled("sessionViewV2", {
     enableForAdmins: false,
     projectId,
   });
-  const isSessionTimelineEnabled = useIsFeatureEnabled("sessionTimeline", {
-    enableForAdmins: false,
-    projectId,
-  });
+  const isSessionTimelineEnabled = useIsFeatureEnabled(
+    "sessionViewV2Timeline",
+    {
+      enableForAdmins: false,
+      projectId,
+    },
+  );
+  const [isRedesignBannerDismissed, setIsRedesignBannerDismissed] =
+    useLocalStorage("sessionRedesignBannerDismissed", false);
+  const showRedesignBanner =
+    isModernSessionEnabled &&
+    isSessionTimelineEnabled &&
+    !isRedesignBannerDismissed;
   const isMobile = useIsMobile();
   const openAnnotateRef = useRef<(payload: SessionAnnotatePayload) => void>(
     () => {},
@@ -1197,7 +1263,10 @@ const LoadedSessionEventsPage: React.FC<{
       isV4: true,
       // observationId: set by a card's "Open in trace view" on a truncated
       // observation so the peek opens AT that observation (LFE-10958).
-      extractParamsValuesFromRow: (row: any) => ({
+      extractParamsValuesFromRow: (row: {
+        timestamp: Date;
+        observationId?: string;
+      }) => ({
         timestamp: row.timestamp.toISOString(),
         ...(row.observationId ? { observation: row.observationId } : {}),
       }),
@@ -1722,7 +1791,7 @@ const LoadedSessionEventsPage: React.FC<{
                     <Button
                       variant="ghost"
                       size="sm"
-                      className={cn(HEADER_ACTION_CLASS, "gap-1.5")}
+                      className={headerActionClassName}
                       {...getTriggerProps()}
                     >
                       <Plus
@@ -1743,7 +1812,7 @@ const LoadedSessionEventsPage: React.FC<{
                       variant="ghost"
                       size="sm"
                       disabled={disabled}
-                      className={cn(HEADER_ACTION_CLASS, "gap-1.5")}
+                      className={headerActionClassName}
                       onClick={() =>
                         openDrawer({
                           scoreTarget: { type: "session", sessionId },
@@ -1763,9 +1832,9 @@ const LoadedSessionEventsPage: React.FC<{
                       {disabled ? (
                         <LockIcon className="icon-base text-icon-foreground" />
                       ) : (
-                        <Plus className="icon-base text-icon-foreground" />
+                        <SquarePen className="icon-base text-icon-foreground" />
                       )}
-                      Score
+                      Annotate
                       {isModernSessionEnabled && annotationCount > 0 ? (
                         <ActionButtonCountBadge count={annotationCount} />
                       ) : null}
@@ -1783,7 +1852,7 @@ const LoadedSessionEventsPage: React.FC<{
                       variant="ghost"
                       size="sm"
                       disabled={disabled}
-                      className={cn(HEADER_ACTION_CLASS, "gap-1.5")}
+                      className={headerActionClassName}
                       onClick={() =>
                         openDrawer({
                           type: "comments",
@@ -1819,9 +1888,9 @@ const LoadedSessionEventsPage: React.FC<{
                 {!router.query.peek && (
                   <DetailPageNav
                     key="nav"
-                    currentId={encodeURIComponent(sessionId)}
+                    currentId={sessionId}
                     path={(entry) =>
-                      `/project/${projectId}/sessions/${encodeURIComponent(entry.id)}`
+                      `/project/${projectId}/sessions/${entry.id}`
                     }
                     listKey="sessions"
                     compact
@@ -1992,6 +2061,11 @@ const LoadedSessionEventsPage: React.FC<{
                   : "flex h-full flex-col overflow-auto"
               }
             >
+              {showRedesignBanner ? (
+                <SessionRedesignBanner
+                  onDismiss={() => setIsRedesignBannerDismissed(true)}
+                />
+              ) : null}
               {!isModernSessionEnabled && hasSessionControls ? (
                 <SessionControlsBar
                   isMobile={isMobile && !isModernSessionEnabled}
@@ -2120,6 +2194,7 @@ const LoadedSessionEventsPage: React.FC<{
                 </div>
               ) : (
                 <ModernSession
+                  headerDividerTone={showRedesignBanner ? "orange" : "default"}
                   isTimelineEnabled={isSessionTimelineEnabled}
                   session={session}
                   tracesState={

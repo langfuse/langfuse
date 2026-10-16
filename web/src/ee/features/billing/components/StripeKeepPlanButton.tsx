@@ -12,7 +12,8 @@ import {
   DialogTrigger,
 } from "@/src/components/ui/dialog";
 import { api } from "@/src/utils/api";
-import { toast } from "sonner";
+import { showSuccessToast, showToast } from "@/src/features/notifications";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { nanoid } from "nanoid";
 
 export const StripeKeepPlanButton = ({
@@ -30,15 +31,23 @@ export const StripeKeepPlanButton = ({
 
   const clearSchedule = api.cloudBilling.clearPlanSwitchSchedule.useMutation({
     onSuccess: () => {
-      toast.success("Kept current plan");
+      showSuccessToast({
+        operation: "billing_plan.keep",
+        title: "Kept current plan",
+        description: "",
+      });
       onProcessing(null);
       setOpId(null);
       setTimeout(() => window.location.reload(), 500);
     },
-    onError: () => {
+    onError: (error) => {
       onProcessing(null);
       setOpId(null);
-      toast.error("Failed to keep current plan");
+      showToast({
+        type: "ERROR",
+        title: "Failed to keep current plan",
+        analytics: classifyTrpcToastError(error, "billing_plan.keep"),
+      });
     },
   });
 

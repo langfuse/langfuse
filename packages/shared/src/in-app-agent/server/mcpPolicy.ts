@@ -214,7 +214,7 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
   },
   getExternalMediaStorage: {
     approval: "auto",
-    availability: { scope: "project:read" },
+    availability: { scope: "integrations:CRUD" },
   },
   configureExternalMediaStorage: {
     approval: "approval",
@@ -314,7 +314,7 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
   },
   createScore: {
     approval: "approval",
-    availability: { scope: "scores:CUD" },
+    availability: { scope: "scores:save" },
   },
   listScoreConfigs: {
     approval: "auto",

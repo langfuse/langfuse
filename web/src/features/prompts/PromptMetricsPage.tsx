@@ -1,6 +1,9 @@
 /* eslint-disable no-nested-ternary */
 import { DataTable } from "@/src/components/table/data-table";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import {
+  customRowHeightMenu,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useOrderByState } from "@/src/features/orderBy";
@@ -21,7 +24,8 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { type ScoreAggregate } from "@langfuse/shared";
 import Page from "@/src/components/layouts/page";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages";
-import { TruncatedLabels } from "@/src/components/TruncatedLabels";
+import { toPromptLabelListItems } from "@/src/features/prompts/utils";
+import { LabelList } from "@/src/components/design-system/LabelList/LabelList";
 import { getPromptTabs, PROMPT_TABS } from "@/src/features/navigation";
 import {
   useScoreColumns,
@@ -110,7 +114,7 @@ export default function PromptMetricsPage({
     column: "startTime",
     order: "DESC",
   });
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
+  const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
     "promptVersion",
     "s",
   );
@@ -194,17 +198,15 @@ export default function PromptMetricsPage({
       id: "labels",
       header: "Labels",
       isPinnedLeft: true,
-      size: 160,
+      size: 240,
       cell: ({ row }) => {
         const values: string[] = row.getValue("labels");
         return (
           values &&
           values.length > 0 && (
-            <TruncatedLabels
-              labels={values}
-              maxVisibleLabels={3}
-              className="-mr-8 flex max-h-full flex-wrap gap-1"
-              showSimpleBadges={true}
+            <LabelList
+              labels={toPromptLabelListItems(values)}
+              shouldWrap={false}
             />
           )
         );
@@ -416,6 +418,7 @@ export default function PromptMetricsPage({
           setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
           rowHeight={rowHeight}
           setRowHeight={setRowHeight}
+          customRowHeight={customRowHeightMenu(rowHeights)}
           columnVisibility={columnVisibility}
           setColumnVisibility={setColumnVisibilityState}
           columnOrder={columnOrder}
@@ -452,6 +455,9 @@ export default function PromptMetricsPage({
         columnOrder={columnOrder}
         onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
+        customRowHeightPx={rowHeights.activeHeightPx}
+        onCustomRowHeightChange={rowHeights.setCustomPx}
+        onSelectRowHeight={setRowHeight}
       />
     </Page>
   );

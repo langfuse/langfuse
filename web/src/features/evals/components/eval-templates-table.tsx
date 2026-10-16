@@ -611,6 +611,7 @@ export default function EvalsTemplateTable({
               setEditTemplateId(null);
               utils.evals.templateNames.invalidate();
               showSuccessToast({
+                operation: "evaluator.update",
                 title: "Evaluator updated successfully",
                 description: "You can now use this evaluator.",
               });
@@ -664,6 +665,7 @@ export default function EvalsTemplateTable({
               setCloneTemplateId(null);
               utils.evals.templateNames.invalidate();
               showSuccessToast({
+                operation: "evaluator.clone",
                 title: "Evaluator cloned successfully",
                 description:
                   "This evaluator is now available and maintained on project level. ",

@@ -6,6 +6,7 @@ import { TopicsProviderUnavailable } from "./provider-error";
 
 type TopicStage =
   | "execution"
+  | "trace"
   | "transcript"
   | "summary"
   | "embedding"
@@ -24,7 +25,9 @@ type TopicResult =
   | "no_applicable_summaries"
   | "assigned"
   | "awaiting_topics"
-  | "outlier";
+  | "outlier"
+  | "name_conflict"
+  | "duplicate_name";
 type TopicErrorReason =
   | TopicsProviderUnavailable["reason"]
   | "trace_load"

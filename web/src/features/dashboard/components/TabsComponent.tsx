@@ -1,6 +1,6 @@
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { cn } from "@/src/utils/tailwind";
-import { type ReactNode, useState } from "react";
+import { type ChangeEvent, type ReactNode, useState } from "react";
 
 export type TabComponentProps = {
   tabs: {
@@ -12,59 +12,66 @@ export type TabComponentProps = {
 export const TabComponent = ({ tabs }: TabComponentProps) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const capture = usePostHogClientCapture();
+
+  const handleTabChange = (value: string) => {
+    const index = Number(value);
+    setSelectedIndex(index);
+    capture("dashboard:chart_tab_switch", {
+      tabLabel: tabs[index]?.tabTitle,
+    });
+  };
+
+  const handleSelectChange = (e: ChangeEvent<HTMLSelectElement>) => {
+    setSelectedIndex(Number(e.target.value));
+  };
+
   return (
-    // Grows inside the card's flex column so tab content (charts) can absorb
-    // extra tile height on dashboards; min-h-0 lets it also shrink so a
-    // height-aware child can measure the available space. (LFE-10813, LFE-11035)
-    <div className="flex min-h-0 grow flex-col">
-      <div className="sm:hidden">
-        <label htmlFor="tabs" className="sr-only">
-          Select a tab
-        </label>
-        <select
-          id="tabs"
-          name="tabs"
-          className="border-border bg-background focus:border-primary-accent focus:ring-primary-accent block w-full rounded-md py-2 pr-10 pl-3 text-base focus:outline-hidden sm:text-sm"
-          defaultValue={0}
-          onChange={(e) => setSelectedIndex(Number(e.target.selectedIndex))}
-        >
-          {tabs.map((tab) => (
-            <option key={tab.tabTitle}>{tab.tabTitle}</option>
-          ))}
-        </select>
-      </div>
-      <div className="hidden sm:block">
-        <div className="border-border border-b">
-          <nav
-            className="-mb-px flex space-x-2 md:space-x-4 lg:space-x-6 xl:space-x-8"
-            aria-label="Tabs"
+    // Fills the card's flex column so tab content (charts) can absorb extra
+    // tile height on dashboards and a height-aware child can measure it.
+    // -mx-4 bleeds through DashboardCard's p-4 so the divider spans the card.
+    <div className="-mx-4 flex min-h-0 grow flex-col">
+      <Tabs
+        layout="fill"
+        value={String(selectedIndex)}
+        onValueChange={handleTabChange}
+      >
+        <div className="px-4 sm:hidden">
+          <label htmlFor="tabs" className="sr-only">
+            Select a tab
+          </label>
+          <select
+            id="tabs"
+            name="tabs"
+            className="border-border bg-background focus:border-primary-accent focus:ring-primary-accent block w-full rounded-md py-2 pr-10 pl-3 text-base focus:outline-hidden sm:text-sm"
+            value={selectedIndex}
+            onChange={handleSelectChange}
           >
             {tabs.map((tab, index) => (
-              <a
-                key={tab.tabTitle}
-                className={cn(
-                  index === selectedIndex
-                    ? "border-primary-accent text-foreground"
-                    : "text-muted-foreground hover:border-border hover:text-foreground border-transparent",
-                  "cursor-pointer border-b-2 px-1 py-2 text-sm font-bold whitespace-nowrap",
-                )}
-                aria-current={index === selectedIndex ? "page" : undefined}
-                onClick={() => {
-                  setSelectedIndex(index);
-                  capture("dashboard:chart_tab_switch", {
-                    tabLabel: tab.tabTitle,
-                  });
-                }}
-              >
+              <option key={tab.tabTitle} value={index}>
                 {tab.tabTitle}
-              </a>
+              </option>
             ))}
-          </nav>
+          </select>
         </div>
-      </div>
-      <div className="mt-4 flex min-h-0 grow flex-col">
-        {tabs[selectedIndex]?.content}
-      </div>
+        <div className="hidden h-9 shrink-0 items-center border-b sm:flex">
+          <Tabs.List variant="underline" overflow="menu" aria-label="Tabs">
+            {tabs.map((tab, index) => (
+              <Tabs.Trigger
+                key={tab.tabTitle}
+                value={String(index)}
+                label={tab.tabTitle}
+              />
+            ))}
+          </Tabs.List>
+        </div>
+        {tabs.map((tab, index) => (
+          <Tabs.Content key={tab.tabTitle} value={String(index)} layout="fill">
+            <div className="mt-4 flex min-h-0 grow flex-col px-4">
+              {tab.content}
+            </div>
+          </Tabs.Content>
+        ))}
+      </Tabs>
     </div>
   );
 };

@@ -20,6 +20,7 @@ export {
   NullFilter,
   encodeBooleanScoreEntry,
   filtersRequireEventsFull,
+  metadataFilterCanPruneEventsFull,
   metadataFilterIsEventsCoreSafe,
   type ClickhouseOperator,
 } from "./clickhouse-sql/clickhouse-filter";
@@ -57,21 +58,27 @@ export {
   type ApiColumnMapping,
 } from "./public-api-filter-builder";
 export {
+  ALL_SESSION_EVENTS_FIELDS,
   CTEQueryBuilder,
   EventsAggQueryBuilder,
   EventsAggregationQueryBuilder,
   EventsSessionAggregationQueryBuilder,
   EventsQueryBuilder,
   ExperimentsAggregationQueryBuilder,
-  OBSERVATION_FIELD_GROUP_FIELD_NAMES,
   buildEventsFullTableSplitQuery,
+  normalizeSessionCounts,
   type CTESchema,
   type CTEWithSchema,
   type QueryWithParams,
   type ExperimentsAggregationFieldSetName,
-  type SessionEventsMetricsRow,
+  type SessionEventsFields,
   type SplitQueryBuilder,
 } from "./clickhouse-sql/event-query-builder";
+export { OBSERVATION_FIELD_GROUP_FIELD_NAMES } from "../repositories/events-field-sets";
+export type {
+  SessionEventsField,
+  SessionEventsMetricsRow,
+} from "../repositories/events-selects";
 export {
   buildEventsFilterOptionColumnQuery,
   buildEventsFilterOptionsForColumnsQuery,
@@ -91,7 +98,6 @@ export {
   eventsTraceMetadata,
   eventsTracesAggregation,
   eventsTracesScoresAggregation,
-  promptEventsForMetrics,
   scoreBooleansAggregation,
 } from "./clickhouse-sql/query-fragments";
 export {

@@ -2968,20 +2968,29 @@ export const capturedTraceFixtures: NormalizedIOFixture[] = [
             {
               type: "tool-result",
               toolCallId: "call_X0OSgjUukT5inyEQvuZQnHrk",
-              output:
-                "Pun idea: Play on words related to 'programming' - think about homophones or double meanings",
+              output: {
+                type: "text",
+                value:
+                  "Pun idea: Play on words related to 'programming' - think about homophones or double meanings",
+              },
             },
             {
               type: "tool-result",
               toolCallId: "call_WxZcCvSDhGT4RJHlcU01k10x",
-              output:
-                "Dad joke idea: Use a classic setup-punchline format about 'programming' with a groan-worthy twist",
+              output: {
+                type: "text",
+                value:
+                  "Dad joke idea: Use a classic setup-punchline format about 'programming' with a groan-worthy twist",
+              },
             },
             {
               type: "tool-result",
               toolCallId: "call_aRaObiWKKt6GzgDkkUl3bu1Q",
-              output:
-                "One-liner idea: Make a quick, witty observation about 'programming' in a single sentence",
+              output: {
+                type: "text",
+                value:
+                  "One-liner idea: Make a quick, witty observation about 'programming' in a single sentence",
+              },
             },
           ],
           source: "input",

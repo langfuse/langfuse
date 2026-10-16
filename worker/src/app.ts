@@ -20,6 +20,7 @@ import { installProcessErrorHandlers } from "@langfuse/shared/src/server";
 import helmet from "helmet";
 import { cloudUsageMeteringQueueProcessor } from "./queues/cloudUsageMeteringQueue";
 import { cloudSpendAlertQueueProcessor } from "./queues/cloudSpendAlertQueue";
+import { isChbConfigured } from "./ee/cloudSpendAlerts/chbApiClient";
 import { cloudFreeTierUsageThresholdQueueProcessor } from "./queues/cloudFreeTierUsageThresholdQueue";
 import { monitorQueueProcessor } from "./queues/monitorQueue";
 import { inAppAgentRunQueueProcessor } from "./queues/inAppAgentRunQueue";
@@ -40,6 +41,7 @@ import {
   SecondaryOtelIngestionQueue,
   TraceUpsertQueue,
   CloudFreeTierUsageThresholdQueue,
+  CloudSpendAlertQueue,
   CloudUsageMeteringQueue,
   V4LegacyApiUsageQueue,
   EventPropagationQueue,
@@ -105,12 +107,14 @@ import { BatchProjectBlobCleaner } from "./features/batch-project-blob-cleaner";
 import { QueueMetricsRunner } from "./features/queue-metrics-runner";
 import { MonitorRunner } from "./features/monitor-runner";
 import { DeletedMaskCleaner } from "./features/deleted-mask-cleaner";
+import { AuditLogRelay } from "./features/audit-log-relay";
 import { TraceDeleteBatchActionRunner } from "./features/trace-delete-batch-action-runner";
 import { InAppAgentIntegrityRunner } from "./features/in-app-agent-integrity-runner";
 import { InAppAgentDlqRetryRunner } from "./features/in-app-agent-dlq-retry-runner";
 import { isTopicsEnabled } from "@langfuse/shared/topics/server";
 import { topicsQueueProcessor } from "./queues/topicsQueue";
 import { topicsEmbeddingQueueProcessor } from "./queues/topicsEmbeddingQueue";
+import { topicsAutomationQueueProcessor } from "./queues/topicsAutomationQueue";
 
 const app = express();
 
@@ -466,19 +470,28 @@ if (env.QUEUE_CONSUMER_MONITOR_QUEUE_IS_ENABLED === "true") {
 export let inAppAgentDlqRetryRunner: InAppAgentDlqRetryRunner | null = null;
 
 if (isTopicsEnabled()) {
-  WorkerManager.register(QueueName.Topics, topicsQueueProcessor, {
-    concurrency: 1,
-  });
-  WorkerManager.register(QueueName.TopicsUpdate, topicsQueueProcessor, {
-    concurrency: 1,
-  });
-  WorkerManager.register(
-    QueueName.TopicsEmbedding,
-    topicsEmbeddingQueueProcessor,
-    {
-      concurrency: 2,
-    },
-  );
+  if (env.QUEUE_CONSUMER_TOPICS_QUEUE_IS_ENABLED === "true")
+    WorkerManager.register(QueueName.Topics, topicsQueueProcessor, {
+      concurrency: 1,
+    });
+  if (env.QUEUE_CONSUMER_TOPICS_UPDATE_QUEUE_IS_ENABLED === "true")
+    WorkerManager.register(QueueName.TopicsUpdate, topicsQueueProcessor, {
+      concurrency: 1,
+    });
+  if (env.QUEUE_CONSUMER_TOPICS_EMBEDDING_QUEUE_IS_ENABLED === "true")
+    WorkerManager.register(
+      QueueName.TopicsEmbedding,
+      topicsEmbeddingQueueProcessor,
+      {
+        concurrency: 2,
+      },
+    );
+  if (env.QUEUE_CONSUMER_TOPICS_AUTOMATION_QUEUE_IS_ENABLED === "true")
+    WorkerManager.register(
+      QueueName.TopicsAutomation,
+      topicsAutomationQueueProcessor,
+      { concurrency: 2 },
+    );
 }
 
 if (
@@ -503,11 +516,19 @@ if (
   inAppAgentDlqRetryRunner.start();
 }
 
-// Cloud Spend Alert Queue: Only enable in cloud environment with Stripe
+// Cloud Spend Alert Queue: cloud only, and only where at least one billing
+// provider can be reached — Stripe for legacy orgs, ClickHouse Billing for
+// orgs billed through CHB.
 if (
   env.QUEUE_CONSUMER_CLOUD_SPEND_ALERT_QUEUE_IS_ENABLED === "true" &&
-  env.STRIPE_SECRET_KEY
+  (env.STRIPE_SECRET_KEY || isChbConfigured())
 ) {
+  // Instantiate the queue to trigger scheduled jobs — this is what installs
+  // the hourly CHB fan-out. Without it the schedule only ever appeared as a
+  // side effect of the Stripe metering job touching the same queue, so a
+  // CHB-only deployment produced no fan-out at all.
+  CloudSpendAlertQueue.getInstance();
+
   WorkerManager.register(
     QueueName.CloudSpendAlertQueue,
     cloudSpendAlertQueueProcessor,
@@ -848,6 +869,17 @@ export let deletedMaskCleaner: DeletedMaskCleaner | null = null;
 if (env.LANGFUSE_CLICKHOUSE_DELETED_MASK_CLEANER_ENABLED === "true") {
   deletedMaskCleaner = new DeletedMaskCleaner();
   deletedMaskCleaner.start();
+}
+
+// Moves staged audit events from Postgres into ClickHouse audit_logs
+export let auditLogRelay: AuditLogRelay | null = null;
+
+if (
+  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && // Only in cloud deployments
+  env.LANGFUSE_AUDIT_LOG_RELAY_ENABLED === "true"
+) {
+  auditLogRelay = new AuditLogRelay();
+  auditLogRelay.start();
 }
 
 // Queue metrics background reporter

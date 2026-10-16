@@ -124,6 +124,7 @@ function AddDomainButton({ orgId }: { orgId: string }) {
     onSuccess: () => {
       utils.verifiedDomain.list.invalidate({ orgId });
       showSuccessToast({
+        operation: "verified_domain.add",
         title: "Domain added",
         description:
           "Click Verify to view the DNS TXT record, then confirm after adding it.",

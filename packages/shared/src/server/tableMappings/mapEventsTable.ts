@@ -10,6 +10,10 @@ import {
   eventsTableCachedInputCostSql,
   eventsTableCachedInputTokensSql,
   eventsTableTraceNameSql,
+  eventsTableLoadedSkillNamesSql,
+  eventsTableLoadedSkillVersionsSql,
+  eventsTableAvailableSkillNamesSql,
+  eventsTableAvailableSkillVersionsSql,
 } from "../../eventsTable";
 import { tokenCountFilterClickhouseType } from "./tokenCountFilterType";
 
@@ -374,6 +378,42 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "toolCalls",
     clickhouseTableName: "events_proto",
     clickhouseSelect: "length(e.tool_calls)",
+  },
+  {
+    uiTableName: "Loaded Skill Names",
+    uiTableId: "skillsNamesLoaded",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: eventsTableLoadedSkillNamesSql,
+  },
+  {
+    uiTableName: "Loaded Skill Versions",
+    uiTableId: "skillsVersionsLoaded",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: eventsTableLoadedSkillVersionsSql,
+  },
+  {
+    uiTableName: "Available Skill Names",
+    uiTableId: "skillNamesAvailable",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: eventsTableAvailableSkillNamesSql,
+  },
+  {
+    uiTableName: "Available Skill Versions",
+    uiTableId: "skillVersionsAvailable",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: eventsTableAvailableSkillVersionsSql,
+  },
+  {
+    uiTableName: "Skill Names",
+    uiTableId: "skillNames",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: `arrayConcat(${eventsTableLoadedSkillNamesSql}, ${eventsTableAvailableSkillNamesSql})`,
+  },
+  {
+    uiTableName: "Skill Versions",
+    uiTableId: "skillVersions",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: `arrayConcat(${eventsTableLoadedSkillVersionsSql}, ${eventsTableAvailableSkillVersionsSql})`,
   },
   {
     uiTableName: "Tool Names",

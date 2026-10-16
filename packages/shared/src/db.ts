@@ -4,6 +4,7 @@
 import { Prisma, PrismaClient } from "@prisma/client";
 import { env } from "process";
 import { logger } from "./server";
+import { withPostgresApplicationName } from "./server/postgresApplicationName";
 
 export class PrismaClientSingleton {
   private static instance: PrismaClient;
@@ -24,6 +25,7 @@ const createPrismaInstance = () => {
     Prisma.PrismaClientOptions,
     "warn" | "error" | "query"
   >({
+    datasourceUrl: withPostgresApplicationName(env.DATABASE_URL),
     log: [
       { emit: "event", level: "query" },
       { emit: "event", level: "error" },

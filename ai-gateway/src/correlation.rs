@@ -9,7 +9,7 @@ use axum::{
     response::Response,
 };
 
-use crate::resolution::{ProviderConnection, ResolvedRequestContext};
+use crate::resolution::{OrganizationId, ProjectId, ProviderConnection, ResolvedRequestContext};
 
 pub(crate) const REQUEST_ID_HEADER: HeaderName = HeaderName::from_static("langfuse-request-id");
 const TRACE_ID_HEADER: HeaderName = HeaderName::from_static("langfuse-trace-id");
@@ -32,8 +32,8 @@ pub(crate) struct GenerationIds {
 
 #[derive(Clone, Debug)]
 struct Tenant {
-    organization_id: String,
-    project_id: String,
+    organization_id: OrganizationId,
+    project_id: ProjectId,
 }
 
 /// The provider connection and model of an upstream attempt. With several
@@ -48,7 +48,7 @@ pub(crate) struct UpstreamTarget {
 }
 
 impl UpstreamTarget {
-    pub fn for_connection(connection: &ProviderConnection, model: Option<String>) -> Self {
+    pub(crate) fn for_connection(connection: &ProviderConnection, model: Option<String>) -> Self {
         Self {
             provider: connection.provider().as_str(),
             connection_id: connection.id().to_owned(),
@@ -84,7 +84,7 @@ impl Default for RequestCorrelation {
 
 impl RequestCorrelation {
     /// Always a fresh ID; a caller's `x-request-id` is kept only as a separate value.
-    pub fn from_headers(headers: &HeaderMap) -> Self {
+    pub(crate) fn from_headers(headers: &HeaderMap) -> Self {
         let mut values = headers.get_all(CLIENT_REQUEST_ID_HEADER).iter();
         let client_id = match (values.next(), values.next()) {
             (Some(value), None) => value
@@ -107,31 +107,33 @@ impl RequestCorrelation {
         }
     }
 
-    pub fn id(&self) -> &str {
+    pub(crate) fn id(&self) -> &str {
         &self.id
     }
 
-    pub fn client_id(&self) -> Option<&str> {
+    pub(crate) fn client_id(&self) -> Option<&str> {
         self.client_id.as_deref()
     }
 
-    pub fn record_generation(&mut self, ids: GenerationIds) {
+    pub(crate) fn record_generation(&mut self, ids: GenerationIds) {
         self.generation = Some(ids);
     }
 
-    pub fn record_resolution(&mut self, context: &ResolvedRequestContext) {
+    pub(crate) fn record_resolution(&mut self, context: &ResolvedRequestContext) {
         let attribution = context.attribution();
+        self.server_span.record(
+            "langfuse.organization.id",
+            attribution.organization_id().as_str(),
+        );
         self.server_span
-            .record("langfuse.organization.id", attribution.organization_id());
-        self.server_span
-            .record("langfuse.project.id", attribution.project_id());
+            .record("langfuse.project.id", attribution.project_id().as_str());
         self.tenant = Some(Tenant {
-            organization_id: attribution.organization_id().to_owned(),
-            project_id: attribution.project_id().to_owned(),
+            organization_id: attribution.organization_id().clone(),
+            project_id: attribution.project_id().clone(),
         });
     }
 
-    pub fn record_upstream(&mut self, target: UpstreamTarget) {
+    pub(crate) fn record_upstream(&mut self, target: UpstreamTarget) {
         let span = &self.server_span;
         span.record("gateway.provider", target.provider);
         span.record(
@@ -149,7 +151,7 @@ impl RequestCorrelation {
 
     /// Only a resolved request advertises its tenant, and only a request sent
     /// upstream its provider. The connection name and model stay out of responses.
-    pub fn apply_resolution_headers(&self, headers: &mut HeaderMap) {
+    pub(crate) fn apply_resolution_headers(&self, headers: &mut HeaderMap) {
         let Some(tenant) = &self.tenant else {
             return;
         };
@@ -169,7 +171,7 @@ impl RequestCorrelation {
     }
 
     /// Only a request that will produce a Langfuse generation advertises its IDs.
-    pub fn apply_generation_headers(&self, headers: &mut HeaderMap) {
+    pub(crate) fn apply_generation_headers(&self, headers: &mut HeaderMap) {
         let Some(generation) = &self.generation else {
             return;
         };
@@ -194,6 +196,7 @@ pub(crate) async fn assign_request_id(mut request: Request, next: Next) -> Respo
         span.record("gateway.client.request.id", client_id);
     }
     correlation.server_span = span;
+    #[expect(clippy::expect_used, reason = "the gateway-generated UUID is ASCII")]
     let value = HeaderValue::from_str(correlation.id()).expect("a UUID is a valid header value");
     request.extensions_mut().insert(correlation);
     let mut response = next.run(request).await;

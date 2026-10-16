@@ -1,4 +1,8 @@
+import { ServiceUnavailableError } from "../../errors";
+import { recordIncrement } from "../instrumentation";
+
 const MAX_CAUSE_DEPTH = 8;
+const S3_THROTTLE_RETRY_AFTER_SECONDS = 2;
 
 /**
  * S3 throttling (`SlowDown` / "reduce your request rate"). Storage helpers wrap
@@ -30,4 +34,20 @@ function matchesSlowDown(err: object): boolean {
     );
   }
   return false;
+}
+
+/**
+ * Rejects an ingestion request whose upload S3 throttled. A 503 with
+ * `Retry-After` is retried by OTel exporters and SDKs, unlike a 500, and keeps
+ * the rejection in 5xx-based error monitors (429 would read as a customer rate
+ * limit).
+ */
+export function createS3ThrottledIngestionError(
+  source: string,
+): ServiceUnavailableError {
+  recordIncrement("langfuse.ingestion.s3_throttle_rejections", 1, { source });
+  return new ServiceUnavailableError(
+    "Blob storage is throttling uploads, please retry",
+    { retryAfterSeconds: S3_THROTTLE_RETRY_AFTER_SECONDS },
+  );
 }

@@ -1,5 +1,6 @@
 import { readdirSync } from "node:fs";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
@@ -7,10 +8,16 @@ import { createMocks } from "node-mocks-http";
 import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  createAndAddApiKeysToDb,
+  createApiKey,
   createBasicAuthHeader,
   createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
 
 // Pins the public-API authorization seam to legacy: sweeps every route across
 // migration modes and key kinds, recording each cell's status. Shadow and
@@ -130,6 +137,14 @@ const projectRoutes: Route[] = [
 // Org and misc routes call shadowAuth directly from the handler body.
 const orgRoutes: Route[] = [
   { route: "organizations/apiKeys/index", methods: ["GET"] },
+  {
+    route: "organizations/llm-connections/index",
+    methods: ["GET", "PUT"],
+  },
+  {
+    route: "organizations/llm-connections/[id]",
+    methods: ["DELETE"],
+  },
   {
     route: "organizations/memberships/index",
     methods: ["GET", "PUT", "DELETE"],
@@ -346,17 +361,23 @@ describe("public-api auth parity", () => {
     fixtureProjectId = base.projectId;
     keys.project = { publicKey: base.publicKey, secretKey: base.secretKey };
 
-    const org = await createAndAddApiKeysToDb({
-      prisma,
-      entityId: base.orgId,
-      scope: "ORGANIZATION",
+    const orgKeyCreator = await prisma.user.create({
+      data: { email: `apikey-creator-${randomUUID()}@example.com` },
+    });
+    const org = await createApiKey(prisma, {
+      owner: OrganizationId(base.orgId),
+      role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+      createdBy: UserId(orgKeyCreator.id),
     });
     keys.org = { publicKey: org.publicKey, secretKey: org.secretKey };
 
-    const agent = await createAndAddApiKeysToDb({
-      prisma,
-      entityId: base.projectId,
-      scope: "PROJECT",
+    const agentKeyCreator = await prisma.user.create({
+      data: { email: `apikey-creator-${randomUUID()}@example.com` },
+    });
+    const agent = await createApiKey(prisma, {
+      owner: ProjectId(base.projectId),
+      role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+      createdBy: UserId(agentKeyCreator.id),
       isInAppAgentKey: true,
     });
     keys.agent = { publicKey: agent.publicKey, secretKey: agent.secretKey };

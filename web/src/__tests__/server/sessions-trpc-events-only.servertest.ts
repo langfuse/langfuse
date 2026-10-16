@@ -119,6 +119,7 @@ maybe("sessions trpc (events_only write mode)", () => {
       const rows = await getSessionMetricsFromEvents({
         projectId,
         sessionIds: [sessionId],
+        fields: ["session_id"],
       });
       expect(rows[0]?.session_id).toBe(sessionId);
     });

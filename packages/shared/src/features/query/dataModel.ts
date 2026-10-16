@@ -1382,6 +1382,20 @@ export const eventsObservationsView: ViewDeclarationType = {
       type: "string",
       description: "Month of the observation start_time in YYYY-MM format.",
     },
+    skillNamesAvailable: {
+      sql: "arrayDistinct(events_observations.skills_available.skillName)",
+      alias: "skillNamesAvailable",
+      type: "arrayString",
+      explodeArray: true,
+      description: "Names of skills made available.",
+    },
+    skillsNamesLoaded: {
+      sql: "arrayDistinct(events_observations.skills_resource_loaded.skillName)",
+      alias: "skillsNamesLoaded",
+      type: "arrayString",
+      explodeArray: true,
+      description: "Names of skills made available.",
+    },
     toolNames: {
       sql: "mapKeys(events_observations.tool_definitions)",
       alias: "toolNames",

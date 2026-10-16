@@ -89,6 +89,33 @@ const selectableModelArrays = [
   },
 ];
 
+// The audit reports free-form provider labels, and the pricing skill refers to
+// Google as "Google Gemini (AI Studio)" and "Google Gemini (Vertex AI)".
+const providerAliases = new Map([
+  [
+    "google",
+    new Set([
+      "google",
+      "google gemini",
+      "gemini",
+      "google ai studio",
+      "google gemini (ai studio)",
+      "google vertex ai",
+      "google gemini (vertex ai)",
+      "vertex ai",
+    ]),
+  ],
+]);
+
+export const reportedProviderMatches = (reportedProvider, expectedProvider) => {
+  const reported = normalize(reportedProvider).replace(/\s+/gu, " ");
+  const expected = normalize(expectedProvider);
+  return (
+    reported === expected ||
+    (providerAliases.get(expected)?.has(reported) ?? false)
+  );
+};
+
 const readSelectableModelArrays = (source, label) =>
   new Map(
     selectableModelArrays.map(({ name, pattern, provider }) => {
@@ -406,11 +433,24 @@ export function reconcileAuditOutput(
     expectedModelChanges.map((change) => [normalize(change.modelName), change]),
   );
 
+  // A selectable model ID can also carry a standing finding from another
+  // provider, such as an AWS Bedrock SKU note. Those informational rows do not
+  // report the selectable-model change, so they are left out of the match.
+  const rowsForChange = (change) => {
+    const rows = rowsByModel.get(normalize(change.modelName)) ?? [];
+    if (!change.provider || rows.length < 2) return rows;
+    return rows.filter(
+      (row) =>
+        reportedProviderMatches(row.provider, change.provider) ||
+        !["none", "unresolved"].includes(row.change),
+    );
+  };
+
   for (const change of typeModelChanges) {
-    const matchingRows = rowsByModel.get(normalize(change.modelName)) ?? [];
+    const matchingRows = rowsForChange(change);
     if (
       matchingRows.length === 1 &&
-      normalize(matchingRows[0].provider) !== normalize(change.provider)
+      !reportedProviderMatches(matchingRows[0].provider, change.provider)
     ) {
       throw new Error(
         `${change.arrayName} changes require provider ${change.provider}: ${change.modelName}`,
@@ -419,7 +459,7 @@ export function reconcileAuditOutput(
   }
 
   for (const change of expectedChangesByModel.values()) {
-    const matchingRows = rowsByModel.get(normalize(change.modelName)) ?? [];
+    const matchingRows = rowsForChange(change);
     if (matchingRows.length === 0) {
       throw new Error(
         `modelsChecked must report the actual ${change.expectedChange} model entry: ${change.modelName}`,
@@ -543,4 +583,75 @@ export function renderAuditSummary(output) {
     list(output.validation),
     "",
   ].join("\n");
+}
+
+const inlineText = (value) =>
+  String(value ?? "")
+    .replace(/\r?\n+/g, " ")
+    .trim();
+
+const inlineCode = (value) => `\`${inlineText(value).replace(/`/g, "")}\``;
+
+// Pull request bodies stay limited to what changed, why, and the sources; the
+// full per-model report belongs in the workflow run summary.
+export function renderPullRequestBody(output, { reportUrl } = {}) {
+  const changeLabels = {
+    added: "added",
+    updated: "updated",
+    removed: "removed",
+  };
+  const changedRows = output.modelsChecked.filter(
+    (row) => row.change in changeLabels,
+  );
+  const otherUpdates = [
+    ...(output.skillReferenceUpdates ?? []),
+    ...(output.workflowUpdates ?? []),
+  ];
+  const unresolvedCount = output.unresolvedFindings?.length ?? 0;
+
+  const sections = [
+    `Automated default model price audit from ${inlineText(output.auditDate)}.`,
+    "",
+    "## What changed",
+    "",
+  ];
+
+  if (changedRows.length === 0) {
+    sections.push("No model prices or selectable models changed.", "");
+  }
+  for (const row of changedRows) {
+    sections.push(
+      `### ${inlineCode(row.model)} (${inlineText(row.provider)}): ${changeLabels[row.change]}`,
+      "",
+      `**Pricing:** ${inlineText(row.pricingChecked)}`,
+      "",
+      `**Why:** ${inlineText(row.comments) || "No reason reported."}`,
+      "",
+      "**Sources:**",
+      "",
+      ...row.officialSources.map((source) => `- ${new URL(source).href}`),
+      "",
+    );
+  }
+
+  if (otherUpdates.length > 0) {
+    sections.push(
+      "## Reference and workflow updates",
+      "",
+      list(otherUpdates),
+      "",
+    );
+  }
+
+  const reportLink = reportUrl
+    ? `[workflow run summary](${reportUrl})`
+    : "workflow run summary";
+  sections.push(
+    "---",
+    "",
+    `Checked ${output.modelsChecked.length} model entries; ${unresolvedCount} unresolved finding${unresolvedCount === 1 ? "" : "s"}. The full audit report is in the ${reportLink}.`,
+    "",
+  );
+
+  return sections.join("\n");
 }

@@ -152,6 +152,7 @@ export function UpsertModelFormDialogContent({
 
       utils.models.invalidate();
       showSuccessToast({
+        operation: props.action === "edit" ? "model.update" : "model.create",
         title: `Model ${props.action === "edit" ? "updated" : "created"}`,
         description: `The model '${upsertedModel.modelName}' has been successfully ${props.action === "edit" ? "updated" : "created"}. New generations will use these model prices.`,
       });

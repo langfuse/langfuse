@@ -10,7 +10,6 @@ import {
   type PanelImperativeHandle,
 } from "react-resizable-panels";
 import {
-  useState,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -28,6 +27,7 @@ import { TraceReviewLayout } from "./TraceReviewLayout";
 import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
 import { useReadPath } from "@/src/features/events";
 import { resolveEffectiveWidthFraction } from "@/src/components/table/peek/store/peekPanelStore";
+import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 
 const RESIZABLE_PANEL_HANDLE_ID = "trace-layout-handle";
 const RESIZABLE_PANEL_NAVIGATION_ID = "trace-layout-panel-navigation";
@@ -121,7 +121,7 @@ const COLLAPSED_LAYOUT_SHARE_MAX_PCT = collapsedShareMaxForWidth(
 );
 // Used only to seed the collapse flags on mount so `bothPanelsOpen` (and thus
 // the min-width pin) matches the layout the library is about to restore,
-// avoiding a one-frame scrollbar flash (see the useState initializers below).
+// avoiding a one-frame scrollbar flash when restoring a saved layout.
 function isPanelCollapsedInLayout(
   layout: Record<string, number> | undefined,
   panelId: string,
@@ -172,7 +172,6 @@ type TraceLayoutDesktopProps = {
   children: ReactNode;
   groupId: string;
   defaultNavigationCollapsed: boolean;
-  expandDetailOnMount: boolean;
   reviewOpen: boolean;
   reviewPanel: ReactNode;
 };
@@ -203,17 +202,12 @@ function TraceNavigationDetailLayout({
   children,
   groupId,
   defaultNavigationCollapsed,
-  expandDetailOnMount,
   reviewOpen,
   reviewNavigationCollapsed,
   toggleReviewNavigation,
 }: Pick<
   TraceLayoutDesktopProps,
-  | "children"
-  | "groupId"
-  | "defaultNavigationCollapsed"
-  | "expandDetailOnMount"
-  | "reviewOpen"
+  "children" | "groupId" | "defaultNavigationCollapsed" | "reviewOpen"
 > & {
   reviewNavigationCollapsed: boolean;
   toggleReviewNavigation: () => void;
@@ -221,23 +215,17 @@ function TraceNavigationDetailLayout({
   // Peek sizing depends on the drawer width; persistence scope is caller-owned.
   const { isPeekMode } = useViewPreferences();
 
-  // The width the trace container actually opens at, driving the computed
-  // default split. Peek: the drawer width — when expanded (a shared/reloaded
-  // `?peekView=expanded` link) the panel renders at ~viewport width, NOT the
-  // widget fraction — so we must size the split against that, or a first-open
-  // expanded peek on a big screen re-creates the wide-tree bug. Full-page: the
-  // viewport. Sidebar offsets are ignored in both (the nav is width-capped at
-  // these sizes, so the small overestimate only makes the tree slightly
-  // narrower, still within its comfortable band). 0 during SSR. Mount-time
-  // default only (a saved layout wins after the first resize), so it doesn't
-  // track viewport changes.
+  /** Mount-time defaults use the host width; saved inner splits take precedence. */
+  const getPanelWidthPx = usePeekTableState()?.getPanelWidthPx;
   const [peekView] = useQueryParam("peekView", StringParam);
   const isPeekExpanded = isPeekMode && peekView === "expanded";
   const containerWidthPx = useMemo(() => {
     if (typeof window === "undefined") return 0;
-    if (!isPeekMode || isPeekExpanded) return window.innerWidth;
+    if (!isPeekMode) return window.innerWidth;
+    if (getPanelWidthPx) return getPanelWidthPx();
+    if (isPeekExpanded) return window.innerWidth;
     return resolveEffectiveWidthFraction() * window.innerWidth;
-  }, [isPeekMode, isPeekExpanded]);
+  }, [isPeekMode, isPeekExpanded, getPanelWidthPx]);
 
   // Deterministic default split, computed from `containerWidthPx`. Only used on
   // first open (no saved layout); memoized so the Group sees a stable prop.
@@ -253,8 +241,8 @@ function TraceNavigationDetailLayout({
 
   // Restored layout for this group. Read before the collapse flags so we can
   // seed them from what the library is about to restore on mount — otherwise the
-  // first render derives `bothPanelsOpen` purely from the useState defaults
-  // (open), pins the group to 621px even when a persisted layout has a panel on
+  // first render assumes both panels are open and pins the group to 621px
+  // even when a persisted layout has a panel on
   // its 40px rail, and a narrow peek flashes a useless horizontal scrollbar
   // until the Panel's onResize corrects the flag a frame later.
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
@@ -270,28 +258,38 @@ function TraceNavigationDetailLayout({
       ? collapsedShareMaxForWidth(containerWidthPx)
       : COLLAPSED_LAYOUT_SHARE_MAX_PCT;
 
-  const [isNavigationPanelCollapsed, setIsNavigationPanelCollapsed] = useState(
-    () =>
-      (defaultNavigationCollapsed && !defaultLayout) ||
+  const {
+    navigationPanelCollapsed,
+    detailPanelCollapsed,
+    setNavigationPanelCollapsed: setIsNavigationPanelCollapsed,
+    setDetailPanelCollapsed: setIsDetailPanelCollapsed,
+    pendingPanelExpand: pendingExpand,
+    setPendingPanelExpand: setPendingExpand,
+    openDetails,
+    selectedTab,
+  } = useSelection();
+  const isNavigationPanelCollapsed =
+    navigationPanelCollapsed ??
+    ((defaultNavigationCollapsed && !defaultLayout) ||
       isPanelCollapsedInLayout(
         defaultLayout,
         RESIZABLE_PANEL_NAVIGATION_ID,
         collapseSeedMaxSharePct,
-      ),
-  );
+      ));
 
   // Ref to programmatically control the panel
   const panelRef = usePanelRef();
 
-  // Detail (info/preview) panel collapse state + control.
+  // The parent owns collapse state; until sizes are restored, derive visibility
+  // from the same saved layout the panel library will apply.
   const detailPanelRef = usePanelRef();
-  const [isDetailPanelCollapsed, setIsDetailPanelCollapsed] = useState(() =>
+  const isDetailPanelCollapsed =
+    detailPanelCollapsed ??
     isPanelCollapsedInLayout(
       defaultLayout,
       RESIZABLE_PANEL_PREVIEW_ID,
       collapseSeedMaxSharePct,
-    ),
-  );
+    );
 
   // Group ref — drives the whole layout atomically (setLayout) when reopening a
   // collapsed panel, which is more robust than chaining the per-panel
@@ -355,9 +353,6 @@ function TraceNavigationDetailLayout({
   // Without this, expanding while the peek is too narrow for both mins is a
   // silent no-op: the group stays at its current width and the solver refuses to
   // shrink the open panel below its min (the original LFE-10547 symptom).
-  const [pendingExpand, setPendingExpand] = useState<
-    "navigation" | "detail" | null
-  >(null);
 
   // Both panels open (neither collapsed) — drives the min-width pin on the group
   // so a too-narrow peek scrolls horizontally instead of force-collapsing one.
@@ -391,6 +386,14 @@ function TraceNavigationDetailLayout({
   // mins + horizontal scroll); on a wide peek it's a true 50/50.
   useEffect(() => {
     if (!pendingExpand) return;
+    const requestedPanel =
+      pendingExpand === "navigation"
+        ? panelRef.current
+        : detailPanelRef.current;
+    if (requestedPanel && !requestedPanel.isCollapsed()) {
+      setPendingExpand(null);
+      return;
+    }
     if (reviewOpen) {
       setPendingExpand(null);
       return;
@@ -464,22 +467,26 @@ function TraceNavigationDetailLayout({
       cancelAnimationFrame(outerRaf);
       cancelAnimationFrame(innerRaf);
     };
-  }, [pendingExpand, reviewOpen, groupRef, panelRef, detailPanelRef, groupId]);
+  }, [
+    pendingExpand,
+    reviewOpen,
+    groupRef,
+    panelRef,
+    detailPanelRef,
+    groupId,
+    setIsDetailPanelCollapsed,
+    setIsNavigationPanelCollapsed,
+    setPendingExpand,
+  ]);
 
   // Guarded so it's a no-op (not a resize) when already open — safe to call on
   // every row click, which is how re-selecting the same node reopens it.
   const expandDetailPanel = () => {
     if (reviewOpen) return;
     if (!detailPanelRef.current?.isCollapsed()) return;
-    setPendingExpand("detail");
+    openDetails();
   };
 
-  // Selecting another node (timeline/tree) while the detail panel is collapsed
-  // reopens it. Annotation items also reopen it on mount so a collapsed layout
-  // cannot hide the trace overview on the next trace-level queue item. Re-
-  // selecting the same node is handled at the row click via expandDetailPanel,
-  // since the URL param — and thus this effect — doesn't change on re-click.
-  const { selectedNodeId, selectedTab } = useSelection();
   const internalFeaturesEnabled = useInternalFeaturesEnabled();
   const { isV4 } = useReadPath();
   const showMessages =
@@ -488,12 +495,6 @@ function TraceNavigationDetailLayout({
     if (!showMessages || reviewOpen) return;
     panelRef.current?.collapse();
   }, [showMessages, reviewOpen, panelRef]);
-  useEffect(() => {
-    // Guard on selectedNodeId so a deliberately-collapsed panel isn't reopened
-    // on mount/refresh when there's no selection (effects always run once).
-    if (selectedNodeId || expandDetailOnMount) expandDetailPanel();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedNodeId]);
 
   // Apply the caller's first-use default. A restored layout always wins.
   useEffect(() => {

@@ -96,6 +96,7 @@ export type FieldRegistry = {
     | "evalLogs"
     | "prompts"
     | "skills"
+    | "topics"
     | "monitors"
     | "gatewayModels"
     | "experimentItems"

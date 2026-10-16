@@ -92,6 +92,7 @@ describe("trace batch query controls", () => {
             maxBlockSize,
             experimentId: "arm-b",
             queryId: "read-attempt",
+            requestTimeoutMs: 40_000,
           },
         );
         expect(await stream.next()).toEqual({ value: row, done: false });
@@ -100,6 +101,10 @@ describe("trace batch query controls", () => {
         expect(sent).toEqual({
           ...baseline,
           queryId: "read-attempt",
+          clickhouseConfigs: {
+            ...baseline.clickhouseConfigs,
+            request_timeout: 40_000,
+          },
           tags: { ...baseline.tags, experimentId: "arm-b" },
           clickhouseSettings: {
             ...baseline.clickhouseSettings,

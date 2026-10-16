@@ -32,6 +32,7 @@ import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import {
   type SsoConfigRow,
   type SsoConfigTableRow,
@@ -168,6 +169,7 @@ function SsoConfigDialogContent({
     onSuccess: () => {
       utils.ssoConfig.get.invalidate({ orgId });
       showSuccessToast({
+        operation: existing ? "sso.update" : "sso.configure",
         title: existing ? "SSO updated" : "SSO configured",
         description: `Active for @${domain} within 1 hour.`,
       });
@@ -179,6 +181,7 @@ function SsoConfigDialogContent({
       showErrorToast(
         existing ? "Update failed" : "SSO configuration failed",
         err.message,
+        classifyTrpcToastError(err, existing ? "sso.update" : "sso.configure"),
       );
     },
   });
@@ -219,6 +222,11 @@ function SsoConfigDialogContent({
         showErrorToast(
           existing ? "Update failed" : "SSO configuration failed",
           firstIssue.message,
+          {
+            operation: existing ? "sso.update" : "sso.configure",
+            errorOrigin: "frontend",
+            errorCategory: "user_input",
+          },
         );
       }
       return;
@@ -386,33 +394,31 @@ function SsoConfigDialogContent({
                 ) : null}
 
                 {selectedProvider === "custom" ? (
-                  <>
-                    <FormField
-                      control={form.control}
-                      name="authConfig.idToken"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-start space-y-0 space-x-3 rounded-md border p-4">
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value ?? false}
-                              onCheckedChange={(checked) =>
-                                field.onChange(checked === true)
-                              }
-                            />
-                          </FormControl>
-                          <div className="space-y-1 leading-none">
-                            <FormLabel>
-                              Use id_token claims only (skip userinfo)
-                            </FormLabel>
-                            <FormDescription>
-                              Leave off for IdPs that release email only via the
-                              userinfo endpoint.
-                            </FormDescription>
-                          </div>
-                        </FormItem>
-                      )}
-                    />
-                  </>
+                  <FormField
+                    control={form.control}
+                    name="authConfig.idToken"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-y-0 space-x-3 rounded-md border p-4">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value ?? false}
+                            onCheckedChange={(checked) =>
+                              field.onChange(checked === true)
+                            }
+                          />
+                        </FormControl>
+                        <div className="space-y-1 leading-none">
+                          <FormLabel>
+                            Use id_token claims only (skip userinfo)
+                          </FormLabel>
+                          <FormDescription>
+                            Leave off for IdPs that release email only via the
+                            userinfo endpoint.
+                          </FormDescription>
+                        </div>
+                      </FormItem>
+                    )}
+                  />
                 ) : null}
               </DialogBody>
               <DialogFooter>

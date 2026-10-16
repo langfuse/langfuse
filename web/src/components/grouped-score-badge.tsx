@@ -1,4 +1,5 @@
-import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
+import { OverflowCountBadge } from "@/src/components/OverflowCountBadge";
+
 import {
   Popover,
   PopoverContent,
@@ -19,15 +20,18 @@ const MAX_VISIBLE_SCORE_GROUPS = 2;
  * has to RESERVE room for these badges buckets them identically — two copies of
  * the grouping rule are two chances to price a chip that never renders.
  */
-const groupScoresByName = <T extends ChipScore>(
+export const groupScoresByName = <T extends ChipScore>(
   scores: T[],
 ): Record<string, T[]> =>
-  scores.reduce<Record<string, T[]>>((groups, score) => {
-    const bucket = groups[score.name];
-    if (!bucket || !Array.isArray(bucket)) groups[score.name] = [score];
-    else bucket.push(score);
-    return groups;
-  }, {});
+  scores.reduce<Record<string, T[]>>(
+    (groups, score) => {
+      const bucket = groups[score.name];
+      if (!bucket || !Array.isArray(bucket)) groups[score.name] = [score];
+      else bucket.push(score);
+      return groups;
+    },
+    Object.create(null) as Record<string, T[]>,
+  );
 
 const partitionScores = <T extends ChipScore>(
   scores: Record<string, T[]>,
@@ -77,9 +81,12 @@ const ScoreTable = <T extends ChipScore>({ scores }: { scores: T[] }) => {
 export const GroupedScoreBadges = <T extends ChipScore>({
   scores,
   maxVisible = MAX_VISIBLE_SCORE_GROUPS,
+  color,
 }: {
   scores: T[];
   maxVisible?: number;
+  /** `filledOnMuted` on a muted or accent surface such as a selected row. */
+  color?: "filled" | "filledOnMuted";
 }) => {
   const groupedScores = groupScoresByName(scores);
 
@@ -97,17 +104,13 @@ export const GroupedScoreBadges = <T extends ChipScore>({
   const overflow = (
     <Popover>
       <PopoverTrigger asChild>
-        <BadgeShell asChild color="filled" size="md">
-          <button
-            type="button"
-            className="text-muted-foreground cursor-pointer self-center font-mono"
-            aria-label={`Show all ${Object.keys(groupedScores).length} scores`}
-            // Chips render inside clickable rows; opening must not select the row.
-            onClick={(event) => event.stopPropagation()}
-          >
-            +{hiddenScores.length}
-          </button>
-        </BadgeShell>
+        <OverflowCountBadge
+          color={color}
+          count={hiddenScores.length}
+          aria-label={`Show all ${Object.keys(groupedScores).length} scores`}
+          // Chips render inside clickable rows; opening must not select the row.
+          onClick={(event) => event.stopPropagation()}
+        />
       </PopoverTrigger>
       <PopoverContent
         align="start"
@@ -127,6 +130,7 @@ export const GroupedScoreBadges = <T extends ChipScore>({
           name={name}
           scores={scores}
           showLevels={showLevels}
+          color={color}
         />
       ))}
       {Boolean(hiddenScores.length) && overflow}

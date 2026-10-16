@@ -30,31 +30,27 @@ export const EvaluatorForm = (props: {
     isCodeEvalTemplate: isCodeEvalTemplate(props.evalTemplate),
   });
 
-  return (
-    <>
-      {evalCapabilities.isLoading ? (
-        <Skeleton className="h-[30dvh] w-full" />
-      ) : (
-        <InnerEvaluatorForm
-          projectId={props.projectId}
-          disabled={props.disabled}
-          existingEvaluator={props.existingEvaluator}
-          evalTemplate={props.evalTemplate}
-          onFormSuccess={props.onFormSuccess}
-          shouldWrapVariables={props.shouldWrapVariables}
-          hideTargetSection={props.hideTargetSection}
-          hideTargetSelection={props.hideTargetSelection}
-          mode={props.mode}
-          preventRedirect={props.preventRedirect ?? true}
-          preprocessFormValues={props.preprocessFormValues}
-          useDialog={props.useDialog}
-          evalCapabilities={evalCapabilities}
-          defaultRunOnLive={props.defaultRunOnLive}
-          hidePreviewTable={props.hidePreviewTable}
-          defaultTarget={props.defaultTarget}
-        />
-      )}
-    </>
+  return evalCapabilities.isLoading ? (
+    <Skeleton className="h-[30dvh] w-full" />
+  ) : (
+    <InnerEvaluatorForm
+      projectId={props.projectId}
+      disabled={props.disabled}
+      existingEvaluator={props.existingEvaluator}
+      evalTemplate={props.evalTemplate}
+      onFormSuccess={props.onFormSuccess}
+      shouldWrapVariables={props.shouldWrapVariables}
+      hideTargetSection={props.hideTargetSection}
+      hideTargetSelection={props.hideTargetSelection}
+      mode={props.mode}
+      preventRedirect={props.preventRedirect ?? true}
+      preprocessFormValues={props.preprocessFormValues}
+      useDialog={props.useDialog}
+      evalCapabilities={evalCapabilities}
+      defaultRunOnLive={props.defaultRunOnLive}
+      hidePreviewTable={props.hidePreviewTable}
+      defaultTarget={props.defaultTarget}
+    />
   );
 };
 

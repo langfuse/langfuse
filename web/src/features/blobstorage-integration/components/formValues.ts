@@ -8,6 +8,7 @@ import {
   type BlobStorageIntegration,
   type ObservationFieldGroupFull,
   type ExportSourceContext,
+  GCS_USE_DEFAULT_CREDENTIALS,
 } from "@langfuse/shared";
 import type {
   blobStorageIntegrationFormSchema,
@@ -28,16 +29,25 @@ export type BlobStorageFormControl = Control<
 >;
 
 export function buildBlobStorageFormValues(
-  state: Partial<BlobStorageIntegration> | undefined,
+  state:
+    | (Partial<BlobStorageIntegration> & { hasSecretAccessKey?: boolean })
+    | undefined,
   exportSourceCtx: ExportSourceContext,
 ): BlobStorageFormValues {
+  // A saved GCS integration with no stored key uses default credentials;
+  // preselect that so re-saving does not demand a key.
+  const isKeylessGcs =
+    state?.type === BlobStorageIntegrationType.GOOGLE_CLOUD_STORAGE &&
+    state.hasSecretAccessKey === false;
   return {
     type: state?.type || BlobStorageIntegrationType.S3,
     bucketName: state?.bucketName || "",
     endpoint: state?.endpoint || null,
     region: state?.region || "auto",
     accessKeyId: state?.accessKeyId || "",
-    secretAccessKey: state?.secretAccessKey || null,
+    secretAccessKey: isKeylessGcs
+      ? GCS_USE_DEFAULT_CREDENTIALS
+      : state?.secretAccessKey || null,
     prefix: state?.prefix || "",
     exportFrequency: (state?.exportFrequency ||
       "daily") as BlobStorageFormValues["exportFrequency"],

@@ -32,6 +32,7 @@ import {
   FolderOpen,
   FolderPlus,
   Plus,
+  RotateCcw,
   Trash2,
   Upload,
   X,
@@ -86,8 +87,12 @@ export function SkillFileExplorer({
 }) {
   const filePaths = useStore(
     store,
-    useShallow((state) => Object.keys(state.files)),
+    useShallow((state) => [
+      ...Object.keys(state.files),
+      ...Object.keys(state.deletedFiles),
+    ]),
   );
+  const fileCount = useStore(store, (state) => Object.keys(state.files).length);
   const folders = useStore(store, (state) => state.folders);
   const activePath = useStore(store, (state) => state.activePath);
   const actions = useStore(store, (state) => state.actions);
@@ -127,6 +132,11 @@ export function SkillFileExplorer({
       showErrorToast(
         `Could not move ${isFolder ? "folder" : "file"}`,
         "The destination conflicts with an existing file or folder, or the move is invalid.",
+        {
+          operation: isFolder ? "skill_folder.move" : "skill_file.move",
+          errorOrigin: "frontend",
+          errorCategory: "product_state",
+        },
       );
       return;
     }
@@ -186,14 +196,27 @@ export function SkillFileExplorer({
         pendingEntry.kind === "folder"
           ? "Use a single normalized path segment."
           : validationMessage,
+        {
+          operation:
+            pendingEntry.kind === "folder"
+              ? "skill_folder.create"
+              : "skill_file.create",
+          errorOrigin: "frontend",
+          errorCategory: "user_input",
+        },
       );
       return;
     }
 
-    if (pendingEntry.kind === "file" && filePaths.length >= MAX_SKILL_FILES) {
+    if (pendingEntry.kind === "file" && fileCount >= MAX_SKILL_FILES) {
       showErrorToast(
         "Could not add file",
         `A skill can contain at most ${MAX_SKILL_FILES} files.`,
+        {
+          operation: "skill_file.create",
+          errorOrigin: "frontend",
+          errorCategory: "resource_limit",
+        },
       );
       return;
     }
@@ -206,6 +229,14 @@ export function SkillFileExplorer({
       showErrorToast(
         `${pendingEntry.kind === "folder" ? "Folder" : "File"} already exists`,
         path,
+        {
+          operation:
+            pendingEntry.kind === "folder"
+              ? "skill_folder.create"
+              : "skill_file.create",
+          errorOrigin: "frontend",
+          errorCategory: "product_state",
+        },
       );
       return;
     }
@@ -300,6 +331,21 @@ export function SkillFileExplorer({
                 setSelectedFolder(parentFolder(node.path));
               }}
               onDelete={() => actions.deleteFile(node.path)}
+              onRestore={() => {
+                if (actions.restoreFile(node.path)) {
+                  setSelectedFolder(parentFolder(node.path));
+                } else {
+                  showErrorToast(
+                    "Could not restore file",
+                    `A skill can contain at most ${MAX_SKILL_FILES} files. Delete another file before restoring this one.`,
+                    {
+                      operation: "skill_file.restore",
+                      errorOrigin: "frontend",
+                      errorCategory: "resource_limit",
+                    },
+                  );
+                }
+              }}
             />
           );
         }
@@ -450,6 +496,7 @@ function DraggableSkillFile({
   active,
   onSelect,
   onDelete,
+  onRestore,
 }: {
   store: SkillEditorStore;
   path: string;
@@ -458,9 +505,12 @@ function DraggableSkillFile({
   active: boolean;
   onSelect: () => void;
   onDelete: () => void;
+  onRestore: () => void;
 }) {
   const changeStatusId = useId();
+  const deleted = useStore(store, (state) => Boolean(state.deletedFiles[path]));
   const changeStatus = useStore(store, (state) => {
+    if (state.deletedFiles[path]) return null;
     const file = state.files[path];
     if (!file) return null;
     if (file.sourceSha === null) return "new";
@@ -470,7 +520,7 @@ function DraggableSkillFile({
   const indicator = changeStatus ? fileChangeIndicators[changeStatus] : null;
   const IndicatorIcon = indicator?.icon;
   const movable = path !== "SKILL.md";
-  const draggable = movable && !disabled;
+  const draggable = movable && !disabled && !deleted;
   const {
     attributes,
     listeners,
@@ -503,12 +553,13 @@ function DraggableSkillFile({
         aria-describedby={
           [
             draggable ? attributes["aria-describedby"] : undefined,
-            indicator ? changeStatusId : undefined,
+            indicator || deleted ? changeStatusId : undefined,
           ]
             .filter(Boolean)
             .join(" ") || undefined
         }
         onClick={onSelect}
+        disabled={deleted}
         className={cn(
           "flex min-w-0 flex-1 items-center gap-2 px-1.5 py-1.5 text-left",
           draggable && "cursor-grab touch-none active:cursor-grabbing",
@@ -519,9 +570,20 @@ function DraggableSkillFile({
         ) : (
           <File className="icon-base shrink-0" />
         )}
-        <span className="min-w-0 flex-1 truncate" title={path}>
+        <span
+          className={cn(
+            "min-w-0 flex-1 truncate",
+            deleted && "text-muted-foreground line-through",
+          )}
+          title={path}
+        >
           {name}
         </span>
+        {deleted ? (
+          <span id={changeStatusId} className="sr-only">
+            Deleted file
+          </span>
+        ) : null}
         {indicator && IndicatorIcon ? (
           <Tooltip label={indicator.label}>
             {({ getTriggerProps }) => (
@@ -547,11 +609,20 @@ function DraggableSkillFile({
           type="button"
           variant="ghost"
           size="icon-sm"
-          aria-label={`Delete ${path}`}
-          onClick={onDelete}
-          className="mr-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100"
+          aria-label={`${deleted ? "Restore" : "Delete"} ${path}`}
+          title={deleted ? "Restore file" : "Delete file"}
+          onClick={deleted ? onRestore : onDelete}
+          className={cn(
+            "mr-1",
+            !deleted &&
+              "opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100",
+          )}
         >
-          <Trash2 className="icon-base text-icon-foreground" />
+          {deleted ? (
+            <RotateCcw className="icon-base text-icon-foreground" />
+          ) : (
+            <Trash2 className="icon-base text-icon-foreground" />
+          )}
         </Button>
       ) : null}
     </div>

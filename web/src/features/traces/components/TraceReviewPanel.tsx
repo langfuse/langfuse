@@ -16,6 +16,7 @@ import { AnnotationPanelContent } from "@/src/features/scores/components/Annotat
 import { hasBlockingOverlay } from "@/src/features/scores/lib/keyboardShortcuts";
 import { useTraceReviewPanel } from "../contexts/TraceReviewPanelContext";
 import { type TraceReviewPanelStore } from "../state/traceReviewPanelStore";
+import { traceNodeId } from "../fns/treeBuilding";
 
 function closeReviewPanel(store: TraceReviewPanelStore, router: NextRouter) {
   store.getState().actions.close();
@@ -129,7 +130,12 @@ function TraceAnnotationPanel() {
   const { isV4 } = useReadPath();
   const observation = observations.find((item) => item.id === selectedNodeId);
   const active = useRouter().query.annotation === "open";
-  if (selectedNodeId && selectedNodeId !== trace.id && !observation) {
+  if (
+    selectedNodeId &&
+    selectedNodeId !== trace.id &&
+    selectedNodeId !== traceNodeId(trace.id) &&
+    !observation
+  ) {
     return (
       <div className="p-4 text-sm" hidden={!active}>
         Loading annotation…
@@ -191,7 +197,7 @@ export function TraceReviewPanel({ projectId }: { projectId: string }) {
   const commentsKey = useStore(store, (state) => state.comments?.key);
   const hasAnnotation = useStore(store, (state) => state.annotation !== null);
   const { query } = useRouter();
-  const canAnnotate = useHasProjectAccess({ projectId, scope: "scores:CUD" });
+  const canAnnotate = useHasProjectAccess({ projectId, scope: "scores:save" });
   const annotationOpen = query.annotation === "open" && canAnnotate;
   return (
     <ReviewPanel
@@ -214,7 +220,7 @@ export function SessionReviewPanel({ projectId }: { projectId: string }) {
   const active = useStore(store, (state) => state.active);
   const comments = useStore(store, (state) => state.comments);
   const annotation = useStore(store, (state) => state.annotation);
-  const canAnnotate = useHasProjectAccess({ projectId, scope: "scores:CUD" });
+  const canAnnotate = useHasProjectAccess({ projectId, scope: "scores:save" });
   return (
     <ReviewPanel active={active}>
       {comments && (

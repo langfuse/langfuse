@@ -41,6 +41,7 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
     },
     onSuccess: () => {
       showSuccessToast({
+        operation: "export.queue",
         title: "Export queued",
         description: "You will receive an email when the export is ready.",
         duration: 10000,
@@ -91,7 +92,7 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          variant="outline"
+          variant="ghost"
           size="icon"
           title="Export"
           className="hidden md:inline-flex"

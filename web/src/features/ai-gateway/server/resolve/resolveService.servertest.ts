@@ -42,7 +42,10 @@ const serviceWith = (findFirst: () => Promise<unknown>) => {
       fastHashedSecretKey: string;
       apiFormat: GatewayApiFormat;
     }) => {
-      const context = await contextResolver.authenticateRequest(params);
+      const context = await contextResolver.authenticateRequest({
+        ...params,
+        model: "Production OpenAI:gpt-4o",
+      });
       return service.resolve({ context, apiFormat: params.apiFormat });
     },
   };
@@ -73,6 +76,7 @@ const row = (overrides: {
           name: "Production OpenAI",
           provider: "OPENAI",
           encryptedCredential: "encrypted-credential",
+          allowedModels: null,
         },
       ],
     },
@@ -98,6 +102,7 @@ describe("GatewayResolveService", () => {
         id: "connection-1",
         name: "Production OpenAI",
         provider: "openai",
+        provider_model: "gpt-4o",
         api_format: "openai.responses",
         base_url: "https://api.openai.com/v1",
         auth: { type: "Bearer", token: "sk-test" },

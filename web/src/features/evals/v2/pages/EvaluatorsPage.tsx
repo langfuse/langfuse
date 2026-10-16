@@ -13,7 +13,10 @@ import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { useStore } from "zustand";
 import Page from "@/src/components/layouts/page";
 import { DataTable } from "@/src/components/table/data-table";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import {
+  customRowHeightMenu,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
   DataTableControls,
@@ -31,7 +34,7 @@ import { EvaluatorBulkDeleteDialog } from "../components/Evaluators/EvaluatorBul
 import { EvaluatorGalleryDialog } from "../components/EvaluatorGalleryDialog/EvaluatorGalleryDialog";
 import { EvaluatorStatusBadge } from "../components/Evaluators/EvaluatorStatusBadge/EvaluatorStatusBadge";
 import { EvaluatorTypeBadge } from "../components/Evaluators/EvaluatorTypeBadge/EvaluatorTypeBadge";
-import { OverviewSelectionBar } from "../components/OverviewSelectionBar/OverviewSelectionBar";
+import { OverviewSelectionBar } from "@/src/components/table/OverviewSelectionBar/OverviewSelectionBar";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   useColumnOrder,
@@ -188,7 +191,7 @@ export default function EvaluatorsPage() {
     column: "updatedAt",
     order: "DESC",
   });
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
+  const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
     "evaluatorsV2",
     "s",
   );
@@ -330,7 +333,7 @@ export default function EvaluatorsPage() {
   );
   const utils = api.useUtils();
   const deleteMany = api.evalsV2.deleteMany.useMutation({
-    onError: trpcErrorToast,
+    onError: (error) => trpcErrorToast(error, "evaluator.delete"),
     onSuccess: async () => {
       selectionStore.getState().actions.clearSelection();
       setDeleteIds([]);
@@ -344,6 +347,7 @@ export default function EvaluatorsPage() {
         isAllMatching: deleteAll,
       });
       showSuccessToast({
+        operation: "evaluator.bulk_delete",
         title: "Evaluators deleted",
         description: `${deletedCount} evaluator${deletedCount === 1 ? "" : "s"} deleted.`,
       });
@@ -697,6 +701,7 @@ export default function EvaluatorsPage() {
             <SearchableTableFilterLayout
               search={
                 <TableSearchBar
+                  size="large"
                   key={`${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
                   projectId={projectId}
                   tableName={filterConfig.tableName}
@@ -728,6 +733,7 @@ export default function EvaluatorsPage() {
                   setColumnOrder={handleColumnOrderChange}
                   rowHeight={rowHeight}
                   setRowHeight={setRowHeight}
+                  customRowHeight={customRowHeightMenu(rowHeights)}
                   filterState={filterState}
                   orderByState={orderBy}
                   currentSearchQuery={searchQuery ?? ""}
@@ -788,6 +794,9 @@ export default function EvaluatorsPage() {
                   columnOrder={columnOrder}
                   onColumnOrderChange={handleColumnOrderChange}
                   rowHeight={rowHeight}
+                  customRowHeightPx={rowHeights.activeHeightPx}
+                  onCustomRowHeightChange={rowHeights.setCustomPx}
+                  onSelectRowHeight={setRowHeight}
                   orderBy={orderBy}
                   setOrderBy={handleOrderByChange}
                   onRowClick={(row) =>

@@ -39,6 +39,14 @@ const meta = preview.meta({
 
 export const Default = meta.story({});
 
+export const Internal = meta.story({
+  args: {
+    title: undefined,
+    ariaLabel: "Session actions",
+    internal: true,
+  },
+});
+
 export const ManyItems = meta.story({
   args: {
     items: Array.from({ length: 20 }, (_, index) => ({
