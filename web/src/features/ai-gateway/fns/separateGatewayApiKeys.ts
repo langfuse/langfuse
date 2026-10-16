@@ -15,13 +15,21 @@ export function withoutGatewayRole(roles: SystemRole[]): SystemRole[] {
   return roles.filter((role) => role !== GATEWAY_ROLE);
 }
 
-/** withoutGatewayApiKeys drops keys holding the gateway role from an organization API key list. */
+/**
+ * withoutGatewayApiKeys drops gateway-role keys from an organization API key
+ * list. Keys without a gateway association stay listed: the AI Gateway page
+ * does not show them, so this list is their only place to be revoked.
+ */
 export function withoutGatewayApiKeys<
-  T extends { roleAssignments: { systemRole: SystemRole }[] },
+  T extends {
+    roleAssignments: { systemRole: SystemRole }[];
+    gatewayAssociation: unknown;
+  },
 >(apiKeys: T[]): T[] {
   if (!SEPARATE_GATEWAY_API_KEYS) return apiKeys;
   return apiKeys.filter(
     (apiKey) =>
+      apiKey.gatewayAssociation === null ||
       !apiKey.roleAssignments.some(
         (assignment) => assignment.systemRole === GATEWAY_ROLE,
       ),
