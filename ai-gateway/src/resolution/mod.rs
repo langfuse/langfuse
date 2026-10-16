@@ -256,6 +256,14 @@ async fn read_response(
     match response.status().as_u16() {
         200 => {}
         400 => return Err(ResolutionError::InvalidRequest),
+        // Web rejected the gateway's own signature: a service-key mismatch, not the caller.
+        401 if response
+            .headers()
+            .get(ERROR_CODE_HEADER)
+            .is_some_and(|value| value == "invalid_gateway_authorization") =>
+        {
+            return Err(ResolutionError::Configuration);
+        }
         401 => return Err(ResolutionError::Authentication),
         403 if response
             .headers()
@@ -310,6 +318,9 @@ pub enum ResolutionError {
     ModelNotAllowed,
     #[error("no eligible connection")]
     NoRoute,
+    /// The gateway's own resolution or catalog capacity is exhausted.
+    #[error("gateway at capacity")]
+    Busy,
     #[error("resolution unavailable")]
     Unavailable,
     #[error("resolution deadline exceeded")]

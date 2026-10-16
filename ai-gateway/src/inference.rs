@@ -11,6 +11,7 @@ use tracing::Instrument;
 use crate::{
     config::{GatewayConfig, RequestLimits},
     correlation::RequestCorrelation,
+    observability::ErrorOrigin,
     providers::{ProviderError, ProviderTransport, RequestBody, RequestPermit, Route},
     resolution::{
         ApiFormat, ControlPlaneClient, ControlPlaneConfig, ResolutionError, ResolvedRequestContext,
@@ -33,6 +34,44 @@ pub(crate) enum RequestPreparationError {
     Provider(ProviderError),
 }
 
+impl RequestPreparationError {
+    pub(crate) fn origin(&self) -> (ErrorOrigin, &'static str) {
+        match *self {
+            Self::Resolution(error) => resolution_origin(error),
+            Self::Provider(error) => provider_origin(error),
+        }
+    }
+}
+
+/// `error.origin` and `error.reason` for a failed resolution or catalog fetch.
+pub(crate) fn resolution_origin(error: ResolutionError) -> (ErrorOrigin, &'static str) {
+    use ResolutionError as R;
+    match error {
+        R::Configuration => (ErrorOrigin::Gateway, "configuration"),
+        R::Busy => (ErrorOrigin::Gateway, "capacity"),
+        R::InvalidCredential | R::Authentication => (ErrorOrigin::Client, "authentication"),
+        R::InvalidRequest => (ErrorOrigin::Client, "invalid_request"),
+        R::Forbidden => (ErrorOrigin::Client, "forbidden"),
+        R::ModelNotAllowed => (ErrorOrigin::Client, "model_not_allowed"),
+        R::NoRoute => (ErrorOrigin::Client, "no_route"),
+        R::Unavailable => (ErrorOrigin::ControlPlane, "unavailable"),
+        R::Timeout => (ErrorOrigin::ControlPlane, "timeout"),
+        R::Transport => (ErrorOrigin::ControlPlane, "transport"),
+        R::InvalidResponse => (ErrorOrigin::ControlPlane, "invalid_response"),
+        R::ResponseTooLarge => (ErrorOrigin::ControlPlane, "response_too_large"),
+    }
+}
+
+/// `error.origin` and `error.reason` for a provider request that produced no response.
+pub(crate) fn provider_origin(error: ProviderError) -> (ErrorOrigin, &'static str) {
+    match error {
+        ProviderError::Configuration => (ErrorOrigin::Gateway, "configuration"),
+        ProviderError::Busy => (ErrorOrigin::Gateway, "capacity"),
+        ProviderError::Timeout => (ErrorOrigin::ProviderTransport, "timeout"),
+        ProviderError::Transport => (ErrorOrigin::ProviderTransport, "transport"),
+    }
+}
+
 /// One request-body slot plus the body bytes reserved so far from the shared budget.
 /// It is held with the execution and released once the response ends.
 pub(crate) struct RequestBodyPermit {
@@ -45,7 +84,7 @@ impl RequestBodyPermit {
     /// Grow the reservation to `total` body bytes without waiting.
     ///
     /// # Errors
-    /// Returns [`ResolutionError::Unavailable`] when the shared budget cannot cover `total`.
+    /// Returns [`ResolutionError::Busy`] when the shared budget cannot cover `total`.
     pub(crate) fn try_reserve_bytes(&mut self, total: usize) -> Result<(), ResolutionError> {
         let Some(missing) = total
             .checked_sub(self.bytes.num_permits())
@@ -62,7 +101,7 @@ impl RequestBodyPermit {
             })
             .ok_or_else(|| {
                 crate::observability::rejected("request_bytes");
-                ResolutionError::Unavailable
+                ResolutionError::Busy
             })?;
         self.bytes.merge(reserved);
         Ok(())
@@ -88,6 +127,8 @@ impl InferenceService {
         }
         let telemetry =
             crate::telemetry::Telemetry::new(&control_plane, config.telemetry_buffer_bytes)?;
+        crate::observability::record_capacity("model_catalog", max_concurrent_resolutions);
+        crate::observability::record_capacity("resolution", max_concurrent_resolutions);
         Ok(Self {
             control_plane: ControlPlaneClient::new(control_plane)?,
             provider: ProviderTransport::new(config.max_active_requests, config.execution_limits)
@@ -111,7 +152,7 @@ impl InferenceService {
     fn try_reserve_resolution(&self) -> Result<SemaphorePermit<'_>, ResolutionError> {
         self.resolution_capacity.try_acquire().map_err(|_| {
             crate::observability::rejected("resolution");
-            ResolutionError::Unavailable
+            ResolutionError::Busy
         })
     }
 
@@ -122,7 +163,7 @@ impl InferenceService {
             .try_acquire_owned()
             .map_err(|_| {
                 crate::observability::rejected("request_body");
-                RequestPreparationError::Resolution(ResolutionError::Unavailable)
+                RequestPreparationError::Resolution(ResolutionError::Busy)
             })?;
         let bytes = Arc::clone(&self.request_bytes_capacity)
             .try_acquire_many_owned(0)
@@ -157,7 +198,7 @@ impl InferenceService {
     ) -> Result<Vec<u8>, ResolutionError> {
         let _permit = self.model_catalog_capacity.try_acquire().map_err(|_| {
             crate::observability::rejected("model_catalog");
-            ResolutionError::Unavailable
+            ResolutionError::Busy
         })?;
         let _active = crate::observability::Active::new("model_catalog");
         let body = self
@@ -180,13 +221,16 @@ impl InferenceService {
         let span = tracing::info_span!(
             "resolution",
             otel.kind = "internal",
-            gateway.outcome = tracing::field::Empty
+            gateway.outcome = tracing::field::Empty,
+            otel.status_code = tracing::field::Empty,
+            error.type = tracing::field::Empty
         );
         async {
             let prepared = self
                 .prepare(gateway_key, api_format, model, correlation)
                 .await;
-            tracing::Span::current().record(
+            let span = tracing::Span::current();
+            span.record(
                 "gateway.outcome",
                 match &prepared {
                     Ok(_) => "admitted",
@@ -194,6 +238,15 @@ impl InferenceService {
                     Err(RequestPreparationError::Provider(_)) => "busy",
                 },
             );
+            // Caller-caused failures (bad key, forbidden model) stay unset so
+            // Datadog error rates track gateway and control-plane faults only.
+            if let Err(error) = &prepared
+                && let (origin, reason) = error.origin()
+                && origin.is_ours()
+            {
+                span.record("otel.status_code", "ERROR");
+                span.record("error.type", reason);
+            }
             prepared
         }
         .instrument(span)
