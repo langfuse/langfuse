@@ -232,7 +232,10 @@ async function summarizeTrace(
   } else {
     metrics.result("summary", "insufficient_input");
   }
-  return stageSummary(metrics, execution, summary);
+  return stageSummary(metrics, execution, {
+    ...summary,
+    metadata: { ...summary.metadata, executionId: execution.id },
+  });
 }
 
 async function stageSummary(
@@ -323,50 +326,6 @@ function countSummaries(
   progress.counts.insufficientInput = summaries.filter(
     (row) => row.state === "insufficient_input",
   ).length;
-}
-
-function summaryCost(summary: TopicSummary): number | null {
-  if (summary.metadata.summaryReusedFromProcessedAt) return 0;
-  if (
-    summary.state === "insufficient_input" &&
-    !Object.keys(summary.usageDetails).some((key) => key.startsWith("summary_"))
-  )
-    return 0;
-  const input = summary.costDetails.summary_input;
-  const output = summary.costDetails.summary_output;
-  return Number.isFinite(input) && Number.isFinite(output)
-    ? input + output
-    : null;
-}
-
-/** Staged results belong to this batch; current ClickHouse rows can be replaced. */
-async function refreshEmbeddingCosts(state: TopicProcessBatchState) {
-  const { execution } = state;
-  if (!execution.costs) return;
-  let total = 0;
-  for (const ref of state.summaries) {
-    const staged = await readStagedTopicSummary(
-      { projectId: execution.projectId, executionId: execution.id },
-      ref,
-    );
-    if (!staged) {
-      // Expired payloads cannot replace the last complete cost checkpoint.
-      return;
-    }
-    const { summary } = staged;
-    if (
-      summary.state !== "complete" ||
-      summary.metadata.embeddingReusedFromProcessedAt
-    )
-      continue;
-    const cost = summary.costDetails.embedding_input;
-    if (!Number.isFinite(cost)) {
-      execution.costs.embedding = null;
-      return;
-    }
-    total += cost;
-  }
-  execution.costs.embedding = total;
 }
 
 function summaryTimeRange(summaries: TopicSummary[]): TopicTimeRange {
@@ -935,7 +894,7 @@ async function processTraces(
             )
               continue;
             try {
-              const summary = await summarizeTrace(
+              await summarizeTrace(
                 metrics,
                 models,
                 execution,
@@ -944,13 +903,6 @@ async function processTraces(
                 cached.get(facet)!,
                 getTranscript,
               );
-              if (execution.costs) {
-                const cost = summaryCost(summary);
-                execution.costs.summarization =
-                  execution.costs.summarization === null || cost === null
-                    ? null
-                    : execution.costs.summarization + cost;
-              }
               state.summaries.push({
                 facetId: facet.facetId,
                 facetVersion: facet.version,
@@ -985,19 +937,7 @@ async function processTraces(
     await save("embedding");
   }
   if (!state.assignedAt) {
-    try {
-      await awaitEmbeddingBatch(
-        execution,
-        batchId,
-        state.summaries,
-        retryFailed,
-      );
-    } catch (error) {
-      if (!(error instanceof PendingTopicEmbeddings))
-        await refreshEmbeddingCosts(state);
-      throw error;
-    }
-    await refreshEmbeddingCosts(state);
+    await awaitEmbeddingBatch(execution, batchId, state.summaries, retryFailed);
     // This saved timestamp acknowledges the summary insert and fixes assignment
     // ordering across retries, even if the completed embedding job is removed.
     state.assignedAt = new Date().toISOString();
@@ -1224,7 +1164,6 @@ export async function processTopicsExecution({
     throw new Error("Topics batch state does not match its queue payload.");
   const execution: TopicExecution = batchState?.execution ?? {
     ...metadata,
-    ...(processing ? { costs: { summarization: 0, embedding: 0 } } : {}),
     input:
       metadata.input.operation === "process"
         ? { ...metadata.input, traceIds: traceIds! }

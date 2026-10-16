@@ -389,8 +389,6 @@ export interface TopicExecution {
   facets: TopicFacetProgress[];
   traceErrors: { traceId: string; error: string }[];
   error: string | null;
-  /** Recorded processing costs in USD; absent for older runs, null when unpriced. */
-  costs?: { summarization: number | null; embedding: number | null };
 }
 
 /** Retry state for one bounded trace batch, retained with its BullMQ job. */

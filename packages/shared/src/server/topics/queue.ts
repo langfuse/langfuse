@@ -248,12 +248,7 @@ export async function recordTopicProcessBatchProgress(
       local.status === "failed" ||
         local.facets.some((facet) => facet.outcome === "failed"),
     ),
-    "costs:recorded": Number(local.costs !== undefined),
   };
-  for (const stage of ["summarization", "embedding"] as const) {
-    values[`costs:${stage}`] = local.costs?.[stage] ?? 0;
-    values[`costs:${stage}:unknown`] = Number(local.costs?.[stage] === null);
-  }
   for (const facet of local.facets) {
     const prefix = `${JSON.stringify([facet.facetId, facet.facetVersion])}:`;
     for (const [name, value] of Object.entries(facet.counts))
@@ -269,18 +264,13 @@ export async function recordTopicProcessBatchProgress(
     local before = redis.call('HGET', KEYS[1], ARGV[1])
     local next = cjson.decode(ARGV[2])
     local previous = before and cjson.decode(before) or {}
-    local function increment(key, value)
-      local command = (key == 'costs:summarization' or key == 'costs:embedding') and 'HINCRBYFLOAT' or 'HINCRBY'
-      redis.call(command, KEYS[2], key, value)
-    end
     for key, value in pairs(previous) do
-      if next[key] == nil then increment(key, -value) end
+      if next[key] == nil then redis.call('HINCRBY', KEYS[2], key, -value) end
     end
     for key, value in pairs(next) do
-      increment(key, value - (previous[key] or 0))
+      redis.call('HINCRBY', KEYS[2], key, value - (previous[key] or 0))
     end
     redis.call('HSET', KEYS[1], ARGV[1], ARGV[2])
-    redis.call('HSET', KEYS[2], 'costs:batches', redis.call('HLEN', KEYS[1]))
     local cursor = tonumber(redis.call('HGET', KEYS[2], 'next') or '0')
     if next.finished == 0 then cursor = math.min(cursor, tonumber(ARGV[1])) end
     while true do
@@ -308,20 +298,6 @@ export async function recordTopicProcessBatchProgress(
   );
   const done = (totals.get("finished") ?? 0) >= count;
   const failed = (totals.get("failed") ?? 0) > 0;
-  if ((totals.get("costs:recorded") ?? 0) > 0) {
-    const cost = (stage: "summarization" | "embedding") =>
-      (totals.get("costs:recorded") ?? 0) <
-        (totals.get("costs:batches") ?? 0) ||
-      (totals.get(`costs:${stage}:unknown`) ?? 0) > 0
-        ? null
-        : (totals.get(`costs:${stage}`) ?? 0);
-    execution.costs = {
-      summarization: cost("summarization"),
-      embedding: cost("embedding"),
-    };
-  } else {
-    delete execution.costs;
-  }
   execution.facets = execution.facets.map((facet) => {
     const prefix = `${JSON.stringify([facet.facetId, facet.facetVersion])}:`;
     const counts = { ...facet.counts };

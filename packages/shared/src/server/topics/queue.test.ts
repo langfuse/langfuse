@@ -394,10 +394,6 @@ describe("Topics execution queue state", () => {
     ): TopicProcessBatchState => {
       const local = structuredClone(parent);
       local.status = status;
-      local.costs = {
-        summarization: 0.000012,
-        embedding: status === "completed" ? 0.00000012 : null,
-      };
       local.facets[1].counts.requested = 100;
       local.facets[1].counts.complete = status === "completed" ? 50 : 0;
       local.facets[1].outcome = status === "completed" ? "assigned" : "pending";
@@ -420,7 +416,6 @@ describe("Topics execution queue state", () => {
       await recordTopicProcessBatchProgress("0", batch("completed"));
       expect(mocks.write.mock.lastCall?.[0]).toMatchObject({
         status: "running",
-        costs: { summarization: 0.000012, embedding: 0.00000012 },
         facets: [
           { facetVersion: 1, counts: { requested: 200, complete: 100 } },
           { facetVersion: 2, counts: { requested: 200, complete: 50 } },
@@ -430,17 +425,12 @@ describe("Topics execution queue state", () => {
       expect(await client.hget(totalsKey, "next")).toBe("1");
       await recordTopicProcessBatchProgress("1", batch("failed"));
       expect(mocks.write.mock.lastCall?.[0].status).toBe("failed");
-      expect(mocks.write.mock.lastCall?.[0].costs).toEqual({
-        summarization: 0.000024,
-        embedding: null,
-      });
       await recordTopicProcessBatchProgress("1", batch("running"));
       expect(mocks.write.mock.lastCall?.[0].status).toBe("running");
       expect(await client.hget(totalsKey, "next")).toBe("1");
       await recordTopicProcessBatchProgress("1", batch("completed"));
       expect(mocks.write.mock.lastCall?.[0]).toMatchObject({
         status: "completed",
-        costs: { summarization: 0.000024, embedding: 0.00000024 },
         facets: [
           {
             outcome: "awaiting_topics",
@@ -456,13 +446,6 @@ describe("Topics execution queue state", () => {
       expect(mocks.write.mock.calls.map(([, version]) => version)).toEqual([
         1, 2, 3, 4, 5,
       ]);
-      const legacy = batch("completed");
-      delete legacy.execution.costs;
-      await recordTopicProcessBatchProgress("1", legacy);
-      expect(mocks.write.mock.lastCall?.[0].costs).toEqual({
-        summarization: null,
-        embedding: null,
-      });
       for (const key of keys) expect(await client.ttl(key)).toBeGreaterThan(0);
       await client.del(...keys);
       mocks.write.mockClear();

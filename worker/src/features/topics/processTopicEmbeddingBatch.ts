@@ -86,12 +86,7 @@ export async function processTopicEmbeddingBatch(
                 // The call's usage is recorded once, on the trace's first summary.
                 ...(index === 0
                   ? mergeTopicModelUsage(row.summary, result)
-                  : {
-                      costDetails: {
-                        ...row.summary.costDetails,
-                        embedding_input: 0,
-                      },
-                    }),
+                  : {}),
                 processedAt,
               };
               metrics.result("embedding", "generated");

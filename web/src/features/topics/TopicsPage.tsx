@@ -556,8 +556,10 @@ function TopicsWorkspaceContent({
                             <Badge text={executionLabels[execution.status]} />
                             {execution.input.operation === "process" && (
                               <span className="text-muted-foreground w-full tabular-nums">
-                                Recorded cost:{" "}
-                                {recordedExecutionCost(execution.costs)}
+                                Estimated cost:{" "}
+                                {estimatedExecutionCost(
+                                  execution.estimatedCost,
+                                )}
                               </span>
                             )}
                           </button>
@@ -740,30 +742,16 @@ function ExecutionPanel({
       </div>
       {!isUpdate && (
         <section className="flex flex-col gap-2 rounded-md border p-3 text-sm">
-          <h3 className="font-bold">Recorded cost</h3>
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-1">
-            <dt className="text-muted-foreground">Summarization</dt>
-            <dd className="text-right tabular-nums">
-              {execution.costs?.summarization != null
-                ? costFormatter(execution.costs.summarization)
-                : "Unavailable"}
-            </dd>
-            <dt className="text-muted-foreground">Embedding</dt>
-            <dd className="text-right tabular-nums">
-              {execution.costs?.embedding != null
-                ? costFormatter(execution.costs.embedding)
-                : "Unavailable"}
-            </dd>
-            <dt className="font-bold">Total</dt>
-            <dd className="text-right font-bold tabular-nums">
-              {recordedExecutionCost(execution.costs)}
-            </dd>
-          </dl>
+          <p className="flex items-center justify-between gap-3">
+            <span className="font-bold">Estimated cost</span>
+            <span className="tabular-nums">
+              {estimatedExecutionCost(execution.estimatedCost)}
+            </span>
+          </p>
           <p className="text-muted-foreground text-xs">
-            USD, based on recorded model usage. Excludes topic naming and calls
-            without recorded usage.
-            {busy(execution.status) && " Updates after each processing batch."}
-            {!execution.costs && " Costs were not recorded for this run."}
+            Approximate USD cost for summaries and embeddings. Excludes topic
+            naming and results without pricing. Estimates can change when data
+            is reprocessed or deleted.
           </p>
         </section>
       )}
@@ -902,12 +890,8 @@ function ExecutionPanel({
   );
 }
 
-function recordedExecutionCost(
-  costs: RouterOutputs["topics"]["execution"]["costs"],
-) {
-  return costs?.summarization != null && costs.embedding != null
-    ? costFormatter(costs.summarization + costs.embedding)
-    : "Unavailable";
+function estimatedExecutionCost(cost: number | null) {
+  return cost != null ? `~${costFormatter(cost)}` : "Unavailable";
 }
 
 function ErrorMessage({ message }: { message: string }) {

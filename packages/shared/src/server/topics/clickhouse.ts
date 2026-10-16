@@ -522,6 +522,35 @@ export async function hasStoredTopicSummaries(
   return hasSummaries;
 }
 
+/** Approximate processing costs from retained summaries; missing prices are excluded. */
+export async function getTopicExecutionCosts(
+  projectId: string,
+  executionIds: string[],
+): Promise<Record<string, number>> {
+  if (!executionIds.length) return {};
+  const rows = await queryClickhouse<{ executionId: string; cost: string }>({
+    query: `SELECT JSONExtractString(metadata, 'executionId') AS executionId,
+        sum(calculated_total_cost) AS cost
+      FROM topic_facet_summaries FINAL
+      WHERE project_id = {projectId:String}
+        AND executionId IN {executionIds:Array(String)}
+        AND notEmpty(cost_details)
+      GROUP BY executionId`,
+    params: { projectId, executionIds },
+    tags: { route: "topics-execution-costs", projectId },
+  }).catch((error: unknown) => {
+    traceException(error);
+    logger.warn("Failed to estimate Topics execution costs", {
+      projectId,
+      error,
+    });
+    return [];
+  });
+  return Object.fromEntries(
+    rows.map((row) => [row.executionId, Number(row.cost)]),
+  );
+}
+
 /** Count current compatible summaries without loading summary text or vectors. */
 export async function getTopicSummaryCounts(
   projectId: string,

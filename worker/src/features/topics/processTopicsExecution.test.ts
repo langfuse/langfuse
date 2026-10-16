@@ -578,150 +578,6 @@ beforeEach(() => {
 });
 
 describe("Topics execution", () => {
-  it("retains recorded costs through embedding failure, resume and summary reuse", async () => {
-    const summarize = state.summarize.getMockImplementation()!;
-    state.summarize.mockImplementation(async (...args) => ({
-      ...(await summarize(...args)),
-      costDetails: {
-        summary_input: 0.00001,
-        summary_output: 0.000002,
-        total: 0.000012,
-      },
-    }));
-    const embed = state.embed.getMockImplementation()!;
-    const pricedEmbedding = async (...args: unknown[]) => ({
-      ...(await embed(...args)),
-      costDetails: { embedding_input: 0.00000012, total: 0.00000012 },
-    });
-    state.embed
-      .mockImplementation(pricedEmbedding)
-      .mockImplementationOnce(pricedEmbedding)
-      .mockRejectedValueOnce(
-        topicProviderError(
-          { statusCode: 503 },
-          {
-            slot: "embedding",
-            provider: "openai",
-            model: "eu.cohere.embed-v4:0",
-          },
-        ),
-      );
-    await processSelection("costs", 2);
-    expect(state.executions.get("costs")).toMatchObject({
-      status: "failed",
-      costs: { summarization: 0.000024, embedding: 0.00000012 },
-    });
-    await processTopicsExecution({
-      projectId: "project",
-      executionId: "costs",
-    });
-    expect(state.executions.get("costs")).toMatchObject({
-      status: "completed",
-      costs: { summarization: 0.000024, embedding: 0.00000024 },
-    });
-    await processTopicsExecution({
-      projectId: "project",
-      executionId: "costs",
-    });
-    expect(state.executions.get("costs")?.costs).toEqual({
-      summarization: 0.000024,
-      embedding: 0.00000024,
-    });
-    await processSelection("reused-costs", 2, undefined, true);
-    expect(state.executions.get("reused-costs")?.costs).toEqual({
-      summarization: 0,
-      embedding: 0,
-    });
-    expect(state.summarize).toHaveBeenCalledTimes(2);
-    expect(state.embed).toHaveBeenCalledTimes(3);
-  });
-
-  it.each([0.00000024, undefined])(
-    "records a batched embedding call once across facets (cost: %s)",
-    async (cost) => {
-      const summarize = state.summarize.getMockImplementation()!;
-      state.summarize.mockImplementation(async (selected, ...args) => ({
-        ...(await summarize(selected, ...args)),
-        ...(selected.facetId === "issues"
-          ? { output: { status: "not_applicable", summary: "" } }
-          : {}),
-      }));
-      const embed = state.embed.getMockImplementation()!;
-      state.embed.mockImplementation(async (...args) => ({
-        ...(await embed(...args)),
-        costDetails:
-          cost === undefined ? {} : { embedding_input: cost, total: cost },
-      }));
-      const pending = execution("batched-costs", 1, "process", [
-        facet,
-        { ...facet, facetId: "outcome" },
-        { ...facet, facetId: "issues" },
-      ]);
-      state.executions.set(pending.id, pending);
-      await processTopicsExecution({
-        projectId: "project",
-        executionId: pending.id,
-      });
-      expect(state.executions.get(pending.id)).toMatchObject({
-        status: "completed",
-        costs: { embedding: cost ?? null },
-      });
-      expect(state.embed).toHaveBeenCalledTimes(2);
-    },
-  );
-
-  it("reports unavailable prices separately from skipped model calls", async () => {
-    await processSelection("unknown-costs", 1);
-    expect(state.executions.get("unknown-costs")?.costs).toEqual({
-      summarization: null,
-      embedding: null,
-    });
-    state.loadTranscript.mockImplementation(async ({ traceId }) => ({
-      ...traceInput(traceId),
-      transcript: null,
-    }));
-    await processSelection("skipped-costs", 1);
-    expect(state.executions.get("skipped-costs")?.costs).toEqual({
-      summarization: 0,
-      embedding: 0,
-    });
-  });
-
-  it("preserves checkpointed embedding costs when staged payloads expire before resume", async () => {
-    const embed = state.embed.getMockImplementation()!;
-    state.embed
-      .mockImplementationOnce(async (...args) => ({
-        ...(await embed(...args)),
-        costDetails: { embedding_input: 0.00000012, total: 0.00000012 },
-      }))
-      .mockRejectedValueOnce(
-        topicProviderError(
-          { statusCode: 503 },
-          {
-            slot: "embedding",
-            provider: "openai",
-            model: "eu.cohere.embed-v4:0",
-          },
-        ),
-      );
-    await processSelection("expired-costs", 2);
-    expect(state.executions.get("expired-costs")).toMatchObject({
-      status: "failed",
-      costs: { embedding: 0.00000012 },
-    });
-    state.staged.clear();
-    await processTopicsExecution({
-      projectId: "project",
-      executionId: "expired-costs",
-    });
-    expect(state.executions.get("expired-costs")).toMatchObject({
-      status: "failed",
-      error: expect.stringContaining("expired"),
-      costs: { embedding: 0.00000012 },
-    });
-    expect(state.embed).toHaveBeenCalledTimes(2);
-  });
-
   it.each([false, true])(
     "rejects internal traces supplied by ID (cached: %s)",
     async (cached) => {
@@ -989,6 +845,9 @@ describe("Topics execution", () => {
     "reuses only compatible historical summaries ($version)",
     async ({ version, calls, usageDetails }) => {
       await processSelection("first", 1);
+      expect([...state.summaries.values()]).toMatchObject([
+        { metadata: { executionId: "first" } },
+      ]);
       for (const summary of state.summaries.values())
         summary.transcriptVersion = version;
       state.loadTranscript.mockImplementation(async ({ traceId }) => ({
@@ -1004,6 +863,7 @@ describe("Topics execution", () => {
           environment: "staging",
           traceName: "Updated support",
           transcriptVersion: TOPICS_TRANSCRIPT_VERSION,
+          metadata: { executionId: "second" },
         },
       ]);
       expect([...state.summaries.values()][0].usageDetails).toEqual(

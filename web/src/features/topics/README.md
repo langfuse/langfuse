@@ -36,10 +36,6 @@ project permissions. Processing additionally requires the project allowlist.
   while a run's status is open. Execution URL parameters open progress, errors
   and retry controls in the drawer; returning to the run list or closing the
   drawer removes only that parameter. Historical map comparison is not exposed.
-  Process runs show recorded summarization and embedding costs in USD: the
-  combined amount in history and a breakdown in run status. Historical runs
-  without cost tracking and stages without pricing show unavailable, not zero.
-  These amounts exclude topic naming and calls without recorded usage.
   Current results poll while work runs, including a selected run outside recent
   history. Once idle, a status response selects a fresh results query so an older
   in-flight poll cannot satisfy completion. The query retains the tRPC prefix

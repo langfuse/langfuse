@@ -28,7 +28,6 @@ type BatchMetadata = {
   inputHash: string;
   requestHash: string;
   progressVersion?: number;
-  costs?: TopicExecution["costs"] | null;
 };
 type BatchRow = Prisma.BatchActionGetPayload<object>;
 const statuses = {
@@ -96,7 +95,6 @@ function summaryResult(row: BatchRow): TopicExecutionSummary {
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     error: row.log,
-    ...(state.costs ? { costs: state.costs } : {}),
     input:
       state.inputSettings.operation === "update"
         ? {
@@ -292,7 +290,7 @@ export async function listTopicExecutions(
 export async function writeTopicExecution(
   execution: Pick<
     TopicExecutionSummary,
-    "id" | "projectId" | "status" | "phase" | "facets" | "error" | "costs"
+    "id" | "projectId" | "status" | "phase" | "facets" | "error"
   >,
   progressVersion?: number,
 ): Promise<void> {
@@ -337,7 +335,6 @@ export async function writeTopicExecution(
         config: json({
           ...state,
           phase: execution.phase,
-          costs: execution.costs ?? null,
           ...(progressVersion === undefined ? {} : { progressVersion }),
           facets,
         } satisfies BatchMetadata),

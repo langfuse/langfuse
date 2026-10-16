@@ -266,18 +266,8 @@ describe("Topics embedding handoff", () => {
     ]);
     // The finished trace is stored with the call's usage recorded once.
     expect(mocks.write.mock.calls[0][0]).toMatchObject([
-      {
-        facetId: "facet",
-        state: "complete",
-        usageDetails: { total: 38 },
-        costDetails: { embedding_input: 0.000001, total: 0.000101 },
-      },
-      {
-        facetId: "outcome",
-        state: "complete",
-        usageDetails: { total: 30 },
-        costDetails: { embedding_input: 0, total: 0.0001 },
-      },
+      { facetId: "facet", state: "complete", usageDetails: { total: 38 } },
+      { facetId: "outcome", state: "complete", usageDetails: { total: 30 } },
     ]);
     expect(staged.get(topicSourceKey(other))?.state).toBe("summarized");
   });
