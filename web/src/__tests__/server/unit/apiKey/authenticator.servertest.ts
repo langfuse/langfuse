@@ -629,7 +629,7 @@ describe("Authenticator consolidated context cache", () => {
 
     expect(result.success).toBe(true);
     expect(setSpy).toHaveBeenCalledOnce();
-    const ttl = setSpy.mock.calls[0][3] as unknown as number;
+    const ttl = (setSpy.mock.calls[0] as unknown[])[3] as number;
     expect(ttl).toBeGreaterThan(0);
     expect(ttl).toBeLessThanOrEqual(10);
   });

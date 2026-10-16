@@ -4,6 +4,7 @@ import {
   createNewRedisInstance,
   redisQueueRetryOptions,
   getQueuePrefix,
+  toBullMQConnection,
 } from "./redis";
 import { logger } from "../logger";
 
@@ -26,7 +27,7 @@ export class InAppAgentRunQueue {
       ? new Queue<TQueueJobTypes[QueueName.InAppAgentRunQueue]>(
           QueueName.InAppAgentRunQueue,
           {
-            connection: newRedis,
+            connection: toBullMQConnection(newRedis),
             prefix: getQueuePrefix(QueueName.InAppAgentRunQueue),
             defaultJobOptions: {
               removeOnComplete: true,

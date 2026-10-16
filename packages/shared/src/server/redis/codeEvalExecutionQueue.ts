@@ -5,6 +5,7 @@ import {
   createNewRedisInstance,
   redisQueueRetryOptions,
   getQueuePrefix,
+  toBullMQConnection,
 } from "./redis";
 import { getShardIndex } from "./sharding";
 import { env } from "../../env";
@@ -67,7 +68,7 @@ export class CodeEvalExecutionQueue {
     const name = `${QueueName.CodeEvalExecution}${shardIndex > 0 ? `-${shardIndex}` : ""}`;
     const queueInstance = newRedis
       ? new Queue<TQueueJobTypes[QueueName.CodeEvalExecution]>(name, {
-          connection: newRedis,
+          connection: toBullMQConnection(newRedis),
           prefix: getQueuePrefix(name),
           defaultJobOptions: {
             removeOnComplete: true,
