@@ -1,5 +1,5 @@
 use crate::resolution::ControlPlaneConfig;
-use std::{env, error::Error, fmt, net::SocketAddr, time::Duration};
+use std::{env, net::SocketAddr, time::Duration};
 use tracing::level_filters::LevelFilter;
 
 pub struct GatewayConfig {
@@ -20,16 +20,9 @@ pub enum LogFormat {
     Json,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, thiserror::Error)]
+#[error("{0}")]
 pub struct GatewayConfigError(&'static str);
-
-impl fmt::Display for GatewayConfigError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.0)
-    }
-}
-
-impl Error for GatewayConfigError {}
 
 impl GatewayConfig {
     /// Read gateway configuration from the process environment, using defaults for absent values.

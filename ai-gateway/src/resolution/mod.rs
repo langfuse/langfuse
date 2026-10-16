@@ -12,7 +12,6 @@ use reqwest::{
 };
 use reqwest_middleware::{ClientWithMiddleware, RequestBuilder};
 use std::{
-    fmt,
     net::IpAddr,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
@@ -294,42 +293,33 @@ fn valid_token(value: &str) -> bool {
 }
 
 /// Sanitized failure categories. Upstream bodies and transport errors are never retained.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum ResolutionError {
+    #[error("invalid resolver configuration")]
     Configuration,
+    #[error("invalid gateway credential")]
     InvalidCredential,
+    #[error("invalid gateway request")]
     InvalidRequest,
+    #[error("gateway authentication failed")]
     Authentication,
+    #[error("gateway access forbidden")]
     Forbidden,
+    #[error("model is not allowed")]
     ModelNotAllowed,
+    #[error("no eligible connection")]
     NoRoute,
+    #[error("resolution unavailable")]
     Unavailable,
+    #[error("resolution deadline exceeded")]
     Timeout,
+    #[error("resolution transport failed")]
     Transport,
+    #[error("invalid resolution response")]
     InvalidResponse,
+    #[error("resolution response too large")]
     ResponseTooLarge,
 }
-
-impl fmt::Display for ResolutionError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::Configuration => "invalid resolver configuration",
-            Self::InvalidCredential => "invalid gateway credential",
-            Self::InvalidRequest => "invalid gateway request",
-            Self::Authentication => "gateway authentication failed",
-            Self::Forbidden => "gateway access forbidden",
-            Self::ModelNotAllowed => "model is not allowed",
-            Self::NoRoute => "no eligible connection",
-            Self::Unavailable => "resolution unavailable",
-            Self::Timeout => "resolution deadline exceeded",
-            Self::Transport => "resolution transport failed",
-            Self::InvalidResponse => "invalid resolution response",
-            Self::ResponseTooLarge => "resolution response too large",
-        })
-    }
-}
-
-impl std::error::Error for ResolutionError {}
 
 #[cfg(test)]
 mod tests;

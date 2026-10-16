@@ -1,6 +1,5 @@
 //! Bounded byte relay. One task owns upstream reads; the body owns its lifetime.
 use std::{
-    fmt,
     pin::Pin,
     sync::{
         Arc, Mutex,
@@ -25,25 +24,17 @@ use tokio::{
 };
 
 /// Sanitized failures; upstream URLs, bodies and credentials are never retained.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum ProviderError {
+    #[error("invalid provider configuration")]
     Configuration,
+    #[error("gateway execution capacity exhausted")]
     Busy,
+    #[error("provider deadline exceeded")]
     Timeout,
+    #[error("provider transport failed")]
     Transport,
 }
-
-impl fmt::Display for ProviderError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::Configuration => "invalid provider configuration",
-            Self::Busy => "gateway execution capacity exhausted",
-            Self::Timeout => "provider deadline exceeded",
-            Self::Transport => "provider transport failed",
-        })
-    }
-}
-impl std::error::Error for ProviderError {}
 
 // An allowlist prevents gateway credentials, tenant routing overrides and cookies
 // from crossing the boundary. Headers nominated by `Connection` are never end-to-end.
