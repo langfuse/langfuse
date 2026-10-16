@@ -193,7 +193,7 @@ generation routes listed above, when the body is uncompressed JSON of at most 5 
 The span fields are declared empty on the `http.server` span and recorded after
 resolution; child spans do not repeat them. JSON log lines emitted inside the
 request after they are recorded repeat them as top-level keys, like `request_id`.
-They are never metric attributes.
+Apart from the bounded `gateway.provider`, they are never metric attributes.
 
 Each inference request phase has a child span of the server span so a waterfall
 has no unattributed wall time:
@@ -219,17 +219,62 @@ Client spans measure the HTTP send through response headers;
 streaming execution and inference-telemetry delivery are tracked separately.
 
 A small Axum middleware records `http.server.request.duration` through the
-OpenTelemetry SDK, with method, matched route, and HTTP status as its only
-dimensions. The histogram's count supplies request volume and error rates,
-including responses rejected before provider execution. Metrics are independent
-of trace sampling. Health probes are excluded.
+OpenTelemetry SDK, with method, matched route, HTTP status, `error.origin`,
+`error.reason`, and `gateway.provider` as its dimensions. The histogram's count
+supplies request volume and error rates, including responses rejected before
+provider execution. Metrics are independent of trace sampling. Health probes are
+excluded.
 
-Gateway-specific metrics include `gateway.active` (model_catalog/resolution/execution),
-`gateway.phase.duration` (execution/provider.first_byte), `gateway.executions`,
-`gateway.admission.rejected`, and `gateway.telemetry.records`. Durations use seconds;
-first-byte timing measures provider bytes arriving at the gateway, not first-token
-delivery to the caller. Metric attributes contain bounded categories, not tenant
-or request identifiers.
+`error.origin` names who caused a failed response, so an error budget can count
+only the gateway's own faults:
+
+| `error.origin` | Meaning | Example `error.reason` |
+| --- | --- | --- |
+| `none` | Success | `none` |
+| `client` | The caller's credential or request was rejected | `invalid_credential`, `invalid_body`, `model_not_allowed` |
+| `gateway` | Gateway capacity, draining, configuration, or an unclassified 5xx | `capacity`, `unavailable`, `unhandled` |
+| `control_plane` | Web resolution or the model catalog failed | `unavailable`, `timeout`, `transport` |
+| `provider_transport` | The provider was unreachable or missed a deadline | `timeout`, `transport` |
+| `provider` | The provider answered with an error status, relayed unchanged | `provider_rate_limited`, `provider_auth`, `provider_4xx`, `provider_5xx` |
+
+Provider 401/403 is `provider_auth` rather than a caller error: the provider
+credential is stored in the connection, so it usually means the connection is
+broken. The server span carries the same `error.origin` and `error.reason` (as
+`error.type`) on every failed response; it has an error status only for 5xx, and
+the `resolution` span only when the failure is the gateway's or Web's. Caller
+cancellations are counted as `gateway.executions{outcome=cancelled}` and are never
+errors. Gateway 5xx responses log `gateway request rejected` at `warn`, caller 4xx
+at `debug`; relayed provider errors log `provider returned an error status` at
+`warn` for 5xx and `info` for 4xx. A panic logs `gateway panicked` at `error` with
+its source location only.
+
+Gateway-specific metrics, all with bounded attributes and no tenant or request
+identifiers:
+
+| Metric | Attributes | Measures |
+| --- | --- | --- |
+| `gateway.overhead.duration` | `component`, `gateway.provider`, `http.route` | Gateway time excluding the caller's upload and the provider's wait. `component=total` is time to response headers minus `request.body` and `provider.headers`; `resolution` is the Web call within it, `processing` the rest. `stream_processing` (no route) is capture work on the streamed body. Only requests that reached the provider record it. |
+| `gateway.phase.duration` | `phase`, `gateway.provider` | `request.body`, `resolution`, `model_catalog`, `provider.headers`, `provider.first_byte`, `provider.first_token`, `execution` |
+| `gateway.active` | `phase`, `service.instance.id` | In-flight model_catalog/resolution/execution work per task |
+| `gateway.executions` | `outcome`, `gateway.provider` | Finished relays: `complete`, `cancelled`, `timeout`, `transport_error` |
+| `gateway.tokens` | `token.type`, `gateway.provider` | Provider-reported usage: `input` (excluding cached), `cache_read`, `cache_write`, `output`, `reasoning` (a subset of `output`) |
+| `gateway.response.bytes` | `gateway.provider` | Response bytes relayed to callers |
+| `gateway.admission.rejected` | `phase` | Capacity rejections |
+| `gateway.telemetry.records` | `outcome`, `reason` | Inference-telemetry delivery |
+| `gateway.runtime.workers`, `gateway.runtime.alive_tasks`, `gateway.runtime.global_queue_depth` | `service.instance.id` | Tokio runtime gauges |
+| `gateway.runtime.busy_duration` | `service.instance.id` | Cumulative worker busy time; its rate divided by `workers` near 1 means the runtime is saturated |
+
+Durations use seconds. First-byte timing measures provider bytes arriving at the
+gateway, not delivery to the caller. Models are not metric attributes; they stay on
+spans. `service.instance.id` is a per-process UUIDv7, also set as a resource
+attribute, and appears only on gauges, which would otherwise merge across tasks.
+
+Client spans set `resource.name` to `<client> <method>`, e.g. `resolver POST`, so
+Datadog groups them by dependency, and `error.type` to the HTTP status or to
+`timeout`/`transport`. `provider.stream` and `telemetry.batch` record `error.type`
+with their error status. Datadog computes trace metrics only for service-entry and
+measured spans, and span search only covers spans its retention filters index, so
+`provider.stream` can be present in a full trace yet missing from both.
 
 Trace export uses a 512-span queue, batches of up to 64, and a one-second interval.
 Metrics export every 30 seconds. Export calls use a three-second timeout; failures
