@@ -350,8 +350,7 @@ export function TimeRangePicker({
 
   // The committed range expressed as a react-day-picker DateRange: a custom
   // range as-is, a named preset as its current absolute window (presets
-  // re-evaluate to "now"), otherwise none. Reused to reset the editable range
-  // when the popover closes mid-selection.
+  // re-evaluate to "now"), otherwise none.
   const committedDateRange = useMemo<RDPDateRange | undefined>(() => {
     if (rangeType === "custom") {
       return dateRange;
@@ -366,14 +365,14 @@ export function TimeRangePicker({
     return undefined;
   }, [rangeType, timeRange, dateRange]);
 
-  const [internalDateRange, setInternalDateRange] = useState<
-    RDPDateRange | undefined
-  >(committedDateRange);
-
-  // Re-sync the editable range whenever the committed selection changes.
-  useEffect(() => {
-    setInternalDateRange(committedDateRange);
-  }, [committedDateRange]);
+  // The user's edits while the popover is open, shown instead of the committed
+  // range. It is dropped whenever the popover opens or closes, never in
+  // response to props: callers often pass an equal but new `timeRange` object
+  // on every render, which must not clear a half-finished range.
+  const [draftDateRange, setDraftDateRange] = useState<RDPDateRange | null>(
+    null,
+  );
+  const internalDateRange = draftDateRange ?? committedDateRange;
 
   // Disable future dates by default, plus any additional disabled prop.
   // When a custom range is mid-selection, also disable days that would complete
@@ -452,7 +451,7 @@ export function TimeRangePicker({
     };
     if (!isRangeWithinMaxDuration(newRange, maxRangeMs)) return;
 
-    setInternalDateRange(newRange);
+    setDraftDateRange(newRange);
     updateDateRange(newRange);
   };
 
@@ -463,9 +462,9 @@ export function TimeRangePicker({
       newDateTime,
       internalDateRange?.to,
     );
-    if (!isRangeWithinMaxDuration(newRange, maxRangeMs)) return;
+    if (!newRange || !isRangeWithinMaxDuration(newRange, maxRangeMs)) return;
 
-    setInternalDateRange(newRange);
+    setDraftDateRange(newRange);
     updateDateRange(newRange);
   };
 
@@ -476,9 +475,9 @@ export function TimeRangePicker({
       internalDateRange?.from,
       newDateTime,
     );
-    if (!isRangeWithinMaxDuration(newRange, maxRangeMs)) return;
+    if (!newRange || !isRangeWithinMaxDuration(newRange, maxRangeMs)) return;
 
-    setInternalDateRange(newRange);
+    setDraftDateRange(newRange);
     updateDateRange(newRange);
   };
 
@@ -491,19 +490,15 @@ export function TimeRangePicker({
   const [isOpen, setIsOpen] = useState(false);
   const [tab, setTab] = useState<"presets" | "calendar">("presets");
 
-  const handleOpenChange = useCallback(
-    (open: boolean) => {
-      setIsOpen(open);
-      if (open) {
-        setTab("presets");
-      } else if (internalDateRange?.from && !internalDateRange.to) {
-        // Discard an abandoned first click so the next open starts fresh
-        // instead of extending a left-over start (LFE-8156).
-        setInternalDateRange(committedDateRange);
-      }
-    },
-    [internalDateRange, committedDateRange],
-  );
+  const handleOpenChange = useCallback((open: boolean) => {
+    setIsOpen(open);
+    // Each open starts from the committed range, so an abandoned first click
+    // is never extended later (LFE-8156).
+    setDraftDateRange(null);
+    if (open) {
+      setTab("presets");
+    }
+  }, []);
 
   const getDisplayContent = () => {
     if (rangeType === "custom") {
