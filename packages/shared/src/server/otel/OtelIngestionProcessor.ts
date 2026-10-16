@@ -3363,6 +3363,9 @@ export class OtelIngestionProcessor {
       rawUsageDetails["details.cache_creation_input_tokens"] ??
       rawUsageDetails["prompt_details.cache_write"] ??
       rawUsageDetails["input_cache_creation"];
+    // Audio details are included in the emitted prompt token count and are
+    // therefore subtracted from input below to avoid double counting.
+    const inputAudioTokens = rawUsageDetails["prompt_details.audio"];
     // Reasoning/audio details are included in the emitted output token count
     // and are therefore subtracted from output below to avoid double counting.
     const outputReasoningTokens =
@@ -3397,6 +3400,7 @@ export class OtelIngestionProcessor {
             "details.cache_creation_input_tokens",
             "prompt_details.cache_write",
             "input_cache_creation",
+            "prompt_details.audio",
             "reasoning.output_tokens",
             "completion_details.reasoning",
             "completion_details.audio",
@@ -3417,7 +3421,10 @@ export class OtelIngestionProcessor {
 
     if (inputTokens !== undefined) {
       normalizedUsageDetails.input = Math.max(
-        inputTokens - (cacheReadTokens ?? 0) - (cacheCreationTokens ?? 0),
+        inputTokens -
+          (cacheReadTokens ?? 0) -
+          (cacheCreationTokens ?? 0) -
+          (inputAudioTokens ?? 0),
         0,
       );
     }
@@ -3439,6 +3446,10 @@ export class OtelIngestionProcessor {
 
     if (cacheCreationTokens !== undefined) {
       normalizedUsageDetails.input_cache_creation = cacheCreationTokens;
+    }
+
+    if (inputAudioTokens !== undefined) {
+      normalizedUsageDetails.input_audio_tokens = inputAudioTokens;
     }
 
     if (outputReasoningTokens !== undefined) {
