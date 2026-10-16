@@ -1,20 +1,17 @@
 import { api } from "@/src/utils/api";
+import { useState } from "react";
 import { AnnotationQueueItemsTable } from "@/src/features/annotation-queues/components/AnnotationQueueItemsTable";
-import { Button } from "@/src/components/ui/button";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { ClipboardPen, Lock } from "lucide-react";
-import Link from "next/link";
-import { CreateOrEditAnnotationQueueButton } from "@/src/features/annotation-queues/components/CreateOrEditAnnotationQueueButton";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing";
-import { Skeleton } from "@/src/components/ui/skeleton";
 import Page from "@/src/components/layouts/page";
 import {
   SidePanel,
   SidePanelContent,
   SidePanelHeader,
-  SidePanelTitle,
 } from "@/src/components/ui/side-panel";
-import { AnnotationQueueDetails } from "@/src/features/annotation-queues/components/AnnotationQueueDetails";
+import { AnnotationQueueSetupController } from "@/src/features/annotation-queues/components/AnnotationQueueSetupController";
 
 export default function QueueItems({
   projectId,
@@ -23,6 +20,7 @@ export default function QueueItems({
   projectId: string;
   queueId: string;
 }) {
+  const [mobileSetupOpen, setMobileSetupOpen] = useState(false);
   const queue = api.annotationQueues.byId.useQuery(
     {
       queueId,
@@ -54,59 +52,44 @@ export default function QueueItems({
           },
         ],
         actionButtonsRight: !hasWriteAccess ? (
-          <Button disabled>
-            <Lock className="icon-base text-icon-foreground mr-1" />
-            <span className="text-sm">Process queue</span>
-          </Button>
+          <Button disabled icon={Lock} text="Process queue" />
         ) : (
-          <Button asChild>
-            <Link
-              href={`/project/${projectId}/annotation-queues/${queueId}/items`}
-            >
-              <ClipboardPen className="icon-base text-icon-foreground mr-1" />
-              <span className="text-sm">Process queue</span>
-            </Link>
-          </Button>
+          <Button
+            href={`/project/${projectId}/annotation-queues/${queueId}/items`}
+            icon={ClipboardPen}
+            text="Process queue"
+          />
         ),
       }}
     >
-      <div className="grid flex-1 grid-cols-[1fr_auto] overflow-hidden">
-        <div className="flex h-full flex-col overflow-hidden">
+      <div className="grid flex-1 grid-cols-[minmax(0,1fr)_auto] overflow-hidden">
+        <div className="flex h-full min-w-0 flex-col overflow-hidden">
           <AnnotationQueueItemsTable projectId={projectId} queueId={queueId} />
         </div>
-        <SidePanel mobileTitle="Queue details" id="queue-details">
-          <SidePanelHeader>
-            <SidePanelTitle>Details</SidePanelTitle>
-            <CreateOrEditAnnotationQueueButton
-              projectId={projectId}
-              queueId={queueId}
-              variant="ghost"
-              size="sm"
-            />
-          </SidePanelHeader>
-          <SidePanelContent>
-            <div className="w-full min-w-0">
-              <div className="flex justify-end px-4 md:hidden">
-                <CreateOrEditAnnotationQueueButton
-                  projectId={projectId}
-                  queueId={queueId}
-                  variant="ghost"
-                  size="sm"
-                />
-              </div>
-              {queue.isLoading ? (
-                <div className="p-4">
-                  <Skeleton className="h-40 w-full" />
-                </div>
-              ) : (
-                <AnnotationQueueDetails
-                  description={queue.data?.description ?? null}
-                  scoreConfigs={queue.data?.scoreConfigs ?? []}
-                />
-              )}
-            </div>
-          </SidePanelContent>
-        </SidePanel>
+        <AnnotationQueueSetupController
+          key={`${projectId}:${queueId}`}
+          projectId={projectId}
+          queueId={queueId}
+          renderLayout={(content) => (
+            <SidePanel
+              mobileTitle="Queue setup"
+              id="queue-details"
+              scrollable={false}
+              variant="sidebar"
+              mobileOpenState={{
+                open: mobileSetupOpen,
+                onOpenChange: setMobileSetupOpen,
+              }}
+            >
+              <SidePanelHeader>
+                <span className="text-sm font-bold">Queue setup</span>
+              </SidePanelHeader>
+              <SidePanelContent className="isolate min-h-0 flex-1 gap-0">
+                {content}
+              </SidePanelContent>
+            </SidePanel>
+          )}
+        />
       </div>
     </Page>
   );
