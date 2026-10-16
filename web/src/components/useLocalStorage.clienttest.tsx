@@ -71,6 +71,24 @@ describe("useLocalStorage", () => {
     expect(errorSpy).not.toHaveBeenCalled();
   });
 
+  it("removes the stored value when cleared", () => {
+    const { result } = renderHook(() =>
+      useLocalStorage("test-pref-key", "initial"),
+    );
+
+    act(() => {
+      result.current[1]("updated");
+    });
+    expect(localStorage.getItem("test-pref-key")).toBe(
+      JSON.stringify("updated"),
+    );
+
+    act(() => {
+      result.current[2]();
+    });
+
+    expect(result.current[0]).toBe("initial");
+    expect(localStorage.getItem("test-pref-key")).toBeNull();
   // Two instances of the key on one page: setting it from one must reach the
   // other WITHOUT setting state on it mid-render. React runs a state updater
   // during the render phase, so a side effect in there (the same-tab notify)

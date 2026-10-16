@@ -44,6 +44,7 @@ function useLocalStorage<T>(
       return initialValue;
     }
   });
+  const skipPersistenceForValue = useRef<T | undefined>(undefined);
 
   // Helper object to safely interact with localStorage
   // Handles all error cases and provides consistent interface
@@ -72,6 +73,7 @@ function useLocalStorage<T>(
 
   // Function to clear both localStorage and state
   const clearValue = () => {
+    skipPersistenceForValue.current = initialValue;
     safeLocalStorage.remove();
     setValue(initialValue);
   };
@@ -90,6 +92,12 @@ function useLocalStorage<T>(
   // subscriber to this key while a component is rendering: React's "Cannot
   // update a component while rendering a different component".
   useEffect(() => {
+    if (Object.is(skipPersistenceForValue.current, value)) {
+      skipPersistenceForValue.current = undefined;
+      return;
+    }
+    skipPersistenceForValue.current = undefined;
+    safeLocalStorage.set(value);
     const stringified = safeLocalStorage.set(value);
     if (!isOwnWriteRef.current) return;
     isOwnWriteRef.current = false;
