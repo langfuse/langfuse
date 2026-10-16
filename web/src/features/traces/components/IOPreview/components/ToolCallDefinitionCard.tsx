@@ -2,6 +2,7 @@
 import { Wrench } from "lucide-react";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { Button } from "@/src/components/design-system/Button/Button";
+import { Badge } from "@/src/components/ui/badge";
 import { cn } from "@/src/utils/tailwind";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
@@ -162,19 +163,17 @@ function ToolCallStatusBadge({
   statusText: string;
   toolCalls: ToolCallInvocation[];
 }) {
-  // Fixed-width column so "called" and "not called" start at the same x.
   const badge = (
-    <span className="text-muted-foreground flex w-20 items-center gap-1.5 text-xs whitespace-nowrap">
-      {/* mt-px on an items-center row shifts the dot by half a pixel. */}
-      <span
-        className={cn(
-          "size-1.5 shrink-0 rounded-full",
-          isCalled && "mt-px bg-green-500 dark:bg-green-400",
-        )}
-        aria-hidden
-      />
+    <Badge
+      variant={isCalled ? undefined : "secondary"}
+      className={cn(
+        "text-xs font-bold whitespace-nowrap",
+        isCalled &&
+          "bg-light-green text-dark-green hover:bg-light-green border-transparent select-none",
+      )}
+    >
       {statusText}
-    </span>
+    </Badge>
   );
 
   if (!isCalled || toolCalls.length === 0) {
