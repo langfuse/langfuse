@@ -174,7 +174,6 @@ describe("Topics transcript input", () => {
       output: "response".repeat(4_000),
     }));
     const result = await loadRows(...rows);
-    expect(result.transcript?.truncated).toBeFalsy();
     expect(JSON.stringify(result.transcript).length).toBeGreaterThan(96_000);
     expect((await loadRows(...rows.reverse())).transcript).toEqual(
       result.transcript,

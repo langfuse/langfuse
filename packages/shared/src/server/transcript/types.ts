@@ -2,9 +2,6 @@ import type { NormalizedMessage } from "../../utils/normalized-io/types";
 import type { Observation } from "../../domain";
 
 export type TranscriptOptions = {
-  /** Hard limit on JSON.stringify(result).length, including metadata and escaping.
-   * Must be a safe integer >= 4, the serialized size of null. Unlimited by default. */
-  maxCharacters?: number;
   onTimings?: (timings: {
     normalizationMs: number;
     matchingMs: number;
@@ -56,6 +53,4 @@ export type Thread = {
 
 export type Transcript = {
   threads: Thread[];
-  /** The character limit shortened text or omitted messages. */
-  truncated?: true;
 };

@@ -865,7 +865,7 @@ describe("Topics local execution access and publication", () => {
     sessionId: summary.sessionId,
     environment: "production",
     traceName: "Refund request",
-    transcript: { threads: [], truncated: true },
+    transcript: { threads: [] },
   } satisfies Awaited<ReturnType<typeof topicsServer.loadTopicTranscript>>;
 
   it("returns the current transcript for a custom trace ID within its stored facet version", async () => {
