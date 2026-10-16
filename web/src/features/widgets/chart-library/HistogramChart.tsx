@@ -14,7 +14,7 @@ const HistogramChart = ({
   config = {
     count: {
       label: "Count",
-      color: "hsl(var(--chart-1))",
+      color: "hsl(var(--chart-fill-1))",
     },
   },
   metricFormatter = (value, options) => formatMetric(value, options),
@@ -58,7 +58,7 @@ const HistogramChart = ({
   return (
     <DesignSystemHistogramChart
       data={histogramData}
-      color={config.count?.color ?? "hsl(var(--chart-1))"}
+      color={config.count?.color ?? "hsl(var(--chart-fill-1))"}
       valueFormatter={(value) =>
         toFullMetricString(formatMetric(value, { style: "compact" }))
       }

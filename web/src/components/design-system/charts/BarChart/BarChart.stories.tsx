@@ -1,7 +1,7 @@
 import preview from "../../../../../.storybook/preview";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 
-import { chartColors } from "../constants";
+import { chartFillColors } from "../constants";
 import { BarChart } from "./BarChart";
 
 const data = [
@@ -111,13 +111,13 @@ export const CategoryColors = meta.story({
   args: {
     data: data.map((item, index) => ({
       ...item,
-      color: chartColors[index],
+      color: chartFillColors[index],
     })),
     legend: {
       items: data.map((item, index) => ({
         id: item.label,
         label: item.label,
-        color: chartColors[index] ?? "",
+        color: chartFillColors[index] ?? "",
       })),
     },
   },
@@ -128,7 +128,7 @@ export const CategoryColorTooltip = meta.story({
   args: {
     data: data.map((item, index) => ({
       ...item,
-      color: chartColors[index],
+      color: chartFillColors[index],
     })),
   },
   play: async ({ canvasElement }) => {
@@ -139,7 +139,7 @@ export const CategoryColorTooltip = meta.story({
     );
     await expect(tooltip.querySelector("svg rect")).toHaveAttribute(
       "fill",
-      chartColors[0],
+      chartFillColors[0],
     );
   },
 });
@@ -148,7 +148,7 @@ export const CategoryColorsWithoutLegend = meta.story({
   args: {
     data: data.map((item, index) => ({
       ...item,
-      color: chartColors[index],
+      color: chartFillColors[index],
     })),
   },
 });
@@ -160,13 +160,13 @@ export const CompactLegend = meta.story({
     data: data.map((item, index) => ({
       ...item,
       label: `production-evaluation-run-${item.label}-with-a-long-name`,
-      color: chartColors[index],
+      color: chartFillColors[index],
     })),
     legend: {
       items: data.map((item, index) => ({
         id: item.label,
         label: `production-evaluation-run-${item.label}-with-a-long-name`,
-        color: ["#3a3dee", "#07b9d5", "#f18a42"][index] ?? "",
+        color: chartFillColors[index] ?? "",
       })),
     },
   },

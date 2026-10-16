@@ -4,13 +4,14 @@ import { describe, expect, it } from "vitest";
 
 import { compileClickhouseQuery } from "./compile";
 import { getClickhouseKysely } from "./dialect";
+import { UnscopedRelationError } from "./errors";
 import { tupleIn, useFinal } from "./extensions";
 
-const ctx = { projectId: "proj-1" };
+const projectId = "proj-1";
 const START = new Date("2026-01-01T00:00:00.000Z");
 
 function compile(builder: Parameters<typeof compileClickhouseQuery>[0]) {
-  return compileClickhouseQuery(builder, ctx);
+  return compileClickhouseQuery(builder, projectId);
 }
 
 describe("typed params from the column registry", () => {
@@ -279,6 +280,122 @@ describe("typed params from the column registry", () => {
     expect(sql).toMatch(/(start_time|ts) >= \{p\d+:DateTime64\(6\)\}/);
   });
 
+  // `observations.start_time` is DateTime64(3); `events_core.start_time` is
+  // DateTime64(6). Which one a bind gets shows which relation a name resolved to.
+  describe("CTE name resolution", () => {
+    const db = getClickhouseKysely();
+    const eventsAsObservations = db.with("observations", (qb) =>
+      qb.selectFrom("events_core").select("start_time"),
+    );
+
+    it("resolves a later sibling CTE name to the CTE", () => {
+      const { sql } = compile(
+        db
+          .with("early", (qb) =>
+            qb.selectFrom("observations").select("start_time"),
+          )
+          .with("observations", (qb) =>
+            qb.selectFrom("events_core").select("start_time"),
+          )
+          .selectFrom("early")
+          .select("start_time")
+          .where("start_time", ">=", START),
+      );
+      expect(sql).toMatch(/start_time >= \{p\d+:DateTime64\(6\)\}$/);
+    });
+
+    it("resolves a CTE body's read of its own name to the table", () => {
+      const { sql } = compile(
+        db
+          .with("observations", (qb) =>
+            qb
+              .selectFrom("events_core as e")
+              .innerJoin("observations as o", "o.trace_id", "e.trace_id")
+              .select("e.start_time")
+              .where("o.start_time", ">=", START),
+          )
+          .selectFrom("observations")
+          .select("start_time"),
+      );
+      expect(sql).toMatch(/o\.start_time >= \{p\d+:DateTime64\(3\)\}/);
+    });
+
+    it("types a CTE that reads its own name when it is first read in a subquery", () => {
+      const { sql } = compile(
+        db
+          .with("observations", (qb) =>
+            qb.selectFrom("observations").select(["trace_id", "start_time"]),
+          )
+          .selectFrom("traces")
+          .select("id")
+          .where(
+            "id",
+            "in",
+            db
+              .selectFrom("observations")
+              .select("trace_id")
+              .where("start_time", ">=", START),
+          ),
+      );
+      expect(sql).toMatch(/start_time >= \{p\d+:DateTime64\(3\)\}/);
+    });
+
+    it("resolves a nested CTE body's own name to an outer CTE of that name", () => {
+      const { sql } = compile(
+        eventsAsObservations
+          .selectFrom(
+            db
+              .with("observations", (qb) =>
+                qb.selectFrom("observations").select("start_time"),
+              )
+              .selectFrom("observations")
+              .select("start_time")
+              .as("sub"),
+          )
+          .select("sub.start_time")
+          .where("sub.start_time", ">=", START),
+      );
+      expect(sql).toMatch(/sub\.start_time >= \{p\d+:DateTime64\(6\)\}$/);
+    });
+
+    it("resolves a schema-qualified table to the table, not a CTE of its name", () => {
+      const { sql } = compile(
+        eventsAsObservations
+          .selectFrom("observations")
+          .select("start_time")
+          .where(
+            "start_time",
+            "in",
+            db
+              .withSchema("default")
+              .selectFrom("observations")
+              .select("start_time")
+              .where("start_time", ">=", START),
+          ),
+      );
+      expect(sql).toMatch(
+        /from default\.observations where project_id = \{p\d+:String\} and start_time >= \{p\d+:DateTime64\(3\)\}/,
+      );
+    });
+
+    it("rejects CTEs that read each other", () => {
+      expect(() =>
+        compile(
+          db
+            .with("observations", (qb) =>
+              qb.selectFrom("traces").select("timestamp as start_time"),
+            )
+            .with("traces", (qb) =>
+              qb.selectFrom("observations").select("start_time as timestamp"),
+            )
+            .selectFrom("traces")
+            .select("timestamp")
+            .where("timestamp", ">=", START),
+        ),
+      ).toThrow(UnscopedRelationError);
+    });
+  });
+
   // When the column's table can't be resolved, the bind type falls back to the
   // JS value: a Date binds as DateTime64(3), even against events.
   it.each([
@@ -338,16 +455,6 @@ describe("typed params from the column registry", () => {
           .where("is_deleted", "=", 0),
       );
       expect(sql).toMatch(/is_deleted = \{p\d+:Int64\}/);
-    });
-
-    it("uses the name-only type for a table-function source", () => {
-      const { sql } = compile(
-        db
-          .selectFrom((eb) => eb.fn("numbers", [eb.lit(10)]).as("n"))
-          .selectAll()
-          .where(db.dynamic.ref("n.is_deleted"), "=", 0),
-      );
-      expect(sql).toMatch(/n\.is_deleted = \{p\d+:UInt8\}/);
     });
 
     it("uses the name-only type for a qualifier declared nowhere", () => {

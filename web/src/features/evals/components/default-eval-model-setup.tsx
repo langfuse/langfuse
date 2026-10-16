@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
+/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger, @repo/component-file-structure */
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { ModelParameters } from "@/src/components/ModelParameters";
 import { CardContent, Card } from "@/src/components/ui/card";

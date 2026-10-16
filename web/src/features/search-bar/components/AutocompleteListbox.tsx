@@ -130,7 +130,10 @@ export function AutocompleteListbox({
             >
               <OptionIcon kind={o.kind} />
               <span
-                className="max-w-[480px] min-w-0 flex-none truncate"
+                className={cn(
+                  "max-w-[480px] min-w-0 flex-none truncate",
+                  o.kind === "pattern" && o.textClassName,
+                )}
                 title={o.label}
               >
                 {o.label}

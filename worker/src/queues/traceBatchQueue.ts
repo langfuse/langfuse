@@ -39,6 +39,7 @@ import {
 import { TopicMetrics } from "../features/topics/metrics";
 import { isRetryableClickhouseInsertError } from "../services/ClickhouseWriter";
 import { summarizeAssembledTrace } from "../features/topics/summarizeAssembledTrace";
+import { enqueueTopicsAutomation } from "../features/topics/topicsAutomation";
 import { recordTraceBatchTranscript } from "../features/traceBatching/traceBatchTranscript";
 
 type TraceBatchObservation = Observation & { eventTimestamp: string };
@@ -484,6 +485,17 @@ export const traceBatchQueueProcessor: Processor<
         activeReads--;
         recordTraceBatchActiveReads();
       }
+      // Stored summaries skip summarization on retry, so queue them before a failure rethrows.
+      await enqueueTopicsAutomation(
+        event.id,
+        topicsOutcomes
+          .flatMap(({ rows }) => rows)
+          .filter((row) => !droppedRows.has(row)),
+      ).catch((error: unknown) =>
+        logger.warn("Topics assignment could not be queued for trace batch", {
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
     }
     if (summaryFailed) throw summaryError;
 

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { type RouterOutputs } from "@/src/utils/api";
 import { useRef, useEffect } from "react";
 import { PromptVersionDiffDialogContent } from "./PromptVersionDiffDialog";

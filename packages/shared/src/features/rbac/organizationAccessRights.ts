@@ -9,6 +9,7 @@ export const organizationScopes = [
   "organization:delete",
   "organizationLlmApiKeys:read",
   "organizationLlmApiKeys:CUD",
+  "gateway:read",
   "gateway:manage",
   "gateway:invoke",
   "organizationMembers:read",
@@ -31,6 +32,7 @@ export const organizationRoleAccessRights: Record<Role, OrganizationScope[]> = {
     "organization:delete",
     "organizationLlmApiKeys:read",
     "organizationLlmApiKeys:CUD",
+    "gateway:read",
     "gateway:manage",
     "gateway:invoke",
     "organizationMembers:CUD",
@@ -48,6 +50,7 @@ export const organizationRoleAccessRights: Record<Role, OrganizationScope[]> = {
     "organization:update",
     "organizationLlmApiKeys:read",
     "organizationLlmApiKeys:CUD",
+    "gateway:read",
     "gateway:manage",
     "gateway:invoke",
     "organizationMembers:CUD",
@@ -57,8 +60,8 @@ export const organizationRoleAccessRights: Record<Role, OrganizationScope[]> = {
     // used for api keys
     "projects:read",
   ],
-  MEMBER: ["gateway:invoke", "organizationMembers:read"],
-  VIEWER: [],
+  MEMBER: ["gateway:read", "gateway:invoke", "organizationMembers:read"],
+  VIEWER: ["gateway:read"],
   NONE: [],
 };
 

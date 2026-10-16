@@ -49,8 +49,8 @@ vi.mock("@/src/features/notifications/showSuccessToast", () => ({
 }));
 
 vi.mock("@/src/components/ui/popover", () => ({
-  Popover: ({ children }: { children: ReactNode }) => <>{children}</>,
-  PopoverTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
+  Popover: ({ children }: { children: ReactNode }) => children,
+  PopoverTrigger: ({ children }: { children: ReactNode }) => children,
   PopoverContent: ({ children }: { children: ReactNode }) => (
     <div>{children}</div>
   ),

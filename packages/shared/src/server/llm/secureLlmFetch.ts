@@ -5,7 +5,6 @@ import {
   MaxRedirectsExceededError,
   OutboundUrlValidationError,
   RedirectValidationError,
-  type OutboundUrlValidationWhitelist,
   type RequestInitWithDispatcher,
 } from "../outbound-url";
 import {
@@ -17,13 +16,11 @@ import { LLMValidationError } from "./errors";
 const MAX_LLM_REDIRECTS = 10;
 
 type SecureLlmFetchParams = {
-  whitelist?: OutboundUrlValidationWhitelist;
   logContext: string;
   additionalSensitiveHeaders?: string[];
 };
 
 export function createSecureLlmFetch({
-  whitelist = llmBaseUrlWhitelistFromEnv(),
   logContext,
   additionalSensitiveHeaders,
 }: SecureLlmFetchParams): typeof fetch {
@@ -32,7 +29,6 @@ export function createSecureLlmFetch({
       const { url, options } = await normalizeFetchInput(input, init);
 
       return await fetchSecureLlmUrl(url, options, {
-        whitelist,
         logContext,
         additionalSensitiveHeaders,
       });
@@ -56,12 +52,9 @@ export function createSecureLlmFetch({
 export async function fetchSecureLlmUrl(
   url: string,
   options: RequestInit,
-  {
-    whitelist = llmBaseUrlWhitelistFromEnv(),
-    logContext,
-    additionalSensitiveHeaders,
-  }: SecureLlmFetchParams,
+  { logContext, additionalSensitiveHeaders }: SecureLlmFetchParams,
 ): Promise<Response> {
+  const whitelist = llmBaseUrlWhitelistFromEnv();
   await validateLlmConnectionBaseURL(url, whitelist);
   const optionsWithoutDispatcher = stripCallerDispatcher(options);
   // If the operator configured HTTPS_PROXY, attach the NO_PROXY-aware proxy

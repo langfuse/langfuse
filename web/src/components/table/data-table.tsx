@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 /* eslint-disable @repo/no-style-props */
 "use client";
 import { type OrderByState } from "@langfuse/shared";

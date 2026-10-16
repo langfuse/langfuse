@@ -99,26 +99,24 @@ export function EvaluatorStatusBadge({
         </div>
       }
     >
-      {({ getTriggerProps }) => (
-        <>
-          {executionsHref ? (
-            <Link
-              {...getTriggerProps({
-                onClick: (event) => event.stopPropagation(),
-              })}
-              href={executionsHref}
-              aria-label={`View executions: ${status}`}
-              className="focus-visible:ring-ring inline-flex rounded-sm focus-visible:ring-2 focus-visible:outline-none"
-            >
-              {badge}
-            </Link>
-          ) : (
-            <span className="inline-flex" tabIndex={0} {...getTriggerProps()}>
-              {badge}
-            </span>
-          )}
-        </>
-      )}
+      {({ getTriggerProps }) =>
+        executionsHref ? (
+          <Link
+            {...getTriggerProps({
+              onClick: (event) => event.stopPropagation(),
+            })}
+            href={executionsHref}
+            aria-label={`View executions: ${status}`}
+            className="focus-visible:ring-ring inline-flex rounded-sm focus-visible:ring-2 focus-visible:outline-none"
+          >
+            {badge}
+          </Link>
+        ) : (
+          <span className="inline-flex" tabIndex={0} {...getTriggerProps()}>
+            {badge}
+          </span>
+        )
+      }
     </HoverCard>
   );
 }

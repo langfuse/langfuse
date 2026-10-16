@@ -39,7 +39,11 @@ vi.mock("next-auth/react", () => ({
       environment: {
         enableExperimentalFeatures: mocks.experimentalFeaturesEnabled,
       },
-      user: { featureFlags: mocks.userFeatureFlags },
+      user: {
+        admin: false,
+        featureFlags: mocks.userFeatureFlags,
+        v4BetaEnabled: false,
+      },
     },
     update: mocks.updateSession,
   }),
@@ -48,6 +52,19 @@ vi.mock("next-auth/react", () => ({
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => mocks.capture,
 }));
+
+vi.mock("@/src/features/organizations/hooks", () => ({
+  useLangfuseCloudRegion: () => ({
+    isLangfuseCloud: true,
+  }),
+}));
+
+vi.mock(
+  "@/src/features/feature-previews/components/ControlledFeaturePreviewModal",
+  () => ({
+    ControlledFeaturePreviewModal: () => null,
+  }),
+);
 
 vi.mock("@/src/features/notifications/showErrorToast", () => ({
   showErrorToast: vi.fn(),
@@ -80,7 +97,7 @@ vi.mock("@/src/components/design-system/Switch/Switch", () => ({
 }));
 
 vi.mock("@/src/components/ui/alert-dialog", () => ({
-  AlertDialog: ({ children }: { children: ReactNode }) => <>{children}</>,
+  AlertDialog: ({ children }: { children: ReactNode }) => children,
   AlertDialogContent: ({ children }: { children: ReactNode }) => (
     <div>{children}</div>
   ),

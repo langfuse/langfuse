@@ -1,5 +1,4 @@
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
-import { sql } from "kysely";
 import { InvalidRequestError } from "../../errors";
 import { OrderByState } from "../../interfaces/orderBy";
 import { FilterState } from "../../types";
@@ -26,7 +25,7 @@ import {
   eventsSessionScoresAggregation,
 } from "../queries/clickhouse-sql/query-fragments";
 import { queryClickhouse } from "../repositories";
-import { traceAggregationSelects } from "../repositories/events";
+import { TRACE_AGGREGATION_SELECTS } from "../repositories/events-selects";
 import {
   sessionEventsCols,
   sessionEventsOrderByCols,
@@ -52,12 +51,11 @@ export const getSessionTracesFromEvents = async (props: {
   const { projectId, sessionId } = props;
   const builder = getClickhouseKysely()
     .selectFrom("events_full as e")
-    .select(traceAggregationSelects() as never)
+    .select(TRACE_AGGREGATION_SELECTS)
     .where("e.session_id", "=", sessionId)
-    .where("e.is_deleted", "=", 0)
     .groupBy(["trace_id", "project_id"])
-    .orderBy(sql.ref("timestamp"), "asc");
-  const { sql: query, params } = compileClickhouseQuery(builder, { projectId });
+    .orderBy("timestamp", "asc");
+  const { sql: query, params } = compileClickhouseQuery(builder, projectId);
 
   const rows = await queryClickhouse<{
     id: string;

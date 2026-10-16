@@ -6,7 +6,8 @@
  *   - Plugins ({@link ArrayJoinPlugin}, {@link LimitByPlugin}) that attach a
  *     custom operation node (`ArrayJoinNode` / `LimitByNode`) onto the select
  *     node during query transformation; the ClickHouse compiler renders them.
- *   - `$call` helpers ({@link arrayJoin}, {@link limitBy}, {@link useFinal})
+ *   - `$call` helpers ({@link arrayJoin}, {@link limitBy}, {@link useFinal},
+ *     {@link includeDeleted})
  *     that apply those plugins while extending the builder's output row type,
  *     so produced aliases are type-checked and misspelled references are
  *     compile errors.
@@ -170,15 +171,9 @@ export function mapValues<V = string>(column: string): Expression<V[]> {
   return arrayFunction<V>("mapValues", column);
 }
 
-/** ClickHouse `uniq(column)`, an approximate distinct count. */
-export function uniq(
-  column: string,
-): ExpressionWrapper<ClickHouseDatabase, keyof ClickHouseDatabase, string> {
-  return new ExpressionWrapper(
-    AggregateFunctionNode.create("uniq", [
-      columnRef(column),
-    ]) as unknown as OperationNode,
-  );
+/** ClickHouse `uniq(value)`, an approximate distinct count. */
+export function uniq(value: Expression<unknown>): ChExpression<string> {
+  return aggregate("uniq", [value]);
 }
 
 /** ClickHouse `count()`. Kysely's `eb.fn.countAll()` renders `count(*)`. */
@@ -205,12 +200,12 @@ export function medianExact(
 
 type DateDiffUnit = "millisecond" | "second" | "minute" | "hour" | "day";
 
-/** ClickHouse `dateDiff(unit, start, end)` between two columns. */
+/** ClickHouse `dateDiff(unit, start, end)`. */
 export function dateDiff(
   unit: DateDiffUnit,
-  start: string,
-  end: string,
-): Expression<number> {
+  start: Expression<unknown>,
+  end: Expression<unknown>,
+): ChExpression<number> {
   return new ExpressionWrapper<
     ClickHouseDatabase,
     keyof ClickHouseDatabase,
@@ -220,21 +215,24 @@ export function dateDiff(
     // than bound. `DateDiffUnit` keeps it to known keywords.
     FunctionNode.create("dateDiff", [
       ValueNode.createImmediate(unit),
-      columnRef(start),
-      columnRef(end),
+      start.toOperationNode(),
+      end.toOperationNode(),
     ]) as unknown as OperationNode,
   );
 }
 
-/** `map[key]` subscript with a bound key, on a map column or expression. */
+/**
+ * `map[key]` subscript. A string key is bound; pass `literal(...)` for a code
+ * constant so it is inlined.
+ */
 export function mapValue<V = number>(
-  map: string | Expression<Record<string, V>>,
-  key: string,
+  map: Expression<Record<string, V>>,
+  key: string | Expression<string>,
 ): ChExpression<V> {
   return new ExpressionWrapper<ClickHouseDatabase, keyof ClickHouseDatabase, V>(
     ArrayIndexNode.create(
-      typeof map === "string" ? columnRef(map) : map.toOperationNode(),
-      ValueNode.create(key),
+      map.toOperationNode(),
+      typeof key === "string" ? ValueNode.create(key) : key.toOperationNode(),
     ) as unknown as OperationNode,
   );
 }
@@ -245,9 +243,9 @@ export function mapValue<V = number>(
  * The lambda is built as a `->` binary operation; Kysely has no lambda node.
  */
 export function sumMapValuesWhereKeyContains(
-  column: string,
+  map: Expression<Record<string, unknown>>,
   needle: string,
-): Expression<number> {
+): ChExpression<number> {
   const keyMatches = BinaryOperationNode.create(
     FunctionNode.create("positionCaseInsensitive", [
       qualifiedColumn("x", "1"),
@@ -268,7 +266,7 @@ export function sumMapValuesWhereKeyContains(
   >(
     FunctionNode.create("arraySum", [
       FunctionNode.create("mapValues", [
-        FunctionNode.create("mapFilter", [lambda, columnRef(column)]),
+        FunctionNode.create("mapFilter", [lambda, map.toOperationNode()]),
       ]),
     ]) as unknown as OperationNode,
   );
@@ -287,6 +285,173 @@ function functionCall<T>(
   return new ExpressionWrapper(
     FunctionNode.create(fn, args.map(toNode)) as unknown as OperationNode,
   );
+}
+
+function aggregate<T>(
+  fn: string,
+  args: ReadonlyArray<OperationNodeSource>,
+): ChExpression<T> {
+  return new ExpressionWrapper(
+    AggregateFunctionNode.create(
+      fn,
+      args.map(toNode),
+    ) as unknown as OperationNode,
+  );
+}
+
+/**
+ * A constant inlined into the SQL text rather than bound, so code-defined
+ * constants (`level = 'ERROR'`, `span_id != ''`) render as literals. Never
+ * pass user input; bind it instead.
+ */
+export function literal<T extends string | number | boolean | null>(
+  value: T,
+): ChExpression<T> {
+  // Kysely doubles single quotes but leaves backslashes, which ClickHouse
+  // reads as escapes.
+  if (typeof value === "string" && value.includes("\\")) {
+    throw new QueryCompileError(
+      `literal does not accept backslashes, got ${value}.`,
+    );
+  }
+  return new ExpressionWrapper(
+    ValueNode.createImmediate(value) as unknown as OperationNode,
+  );
+}
+
+/** ClickHouse `if(condition, then, otherwise)`. */
+export function ifElse<A, B>(
+  condition: Expression<SqlBool>,
+  then: Expression<A>,
+  otherwise: Expression<B>,
+): ChExpression<A | B> {
+  return functionCall("if", [condition, then, otherwise]);
+}
+
+/** ClickHouse `multiIf(c1, v1, c2, v2, …, otherwise)`. */
+export function multiIf<T>(
+  branches: ReadonlyArray<readonly [Expression<SqlBool>, Expression<T>]>,
+  otherwise: Expression<T>,
+): ChExpression<T> {
+  return functionCall("multiIf", [...branches.flat(), otherwise]);
+}
+
+/** ClickHouse `nullIf(value, other)`. */
+export function nullIf<T>(
+  value: Expression<T>,
+  other: Expression<T>,
+): ChExpression<T | null> {
+  return functionCall("nullIf", [value, other]);
+}
+
+/** ClickHouse `ifNull(value, fallback)`. */
+export function ifNull<T>(
+  value: Expression<T | null>,
+  fallback: Expression<T>,
+): ChExpression<T> {
+  return functionCall("ifNull", [value, fallback]);
+}
+
+/** ClickHouse `toBool(value)`. */
+export function toBool(value: Expression<SqlBool>): ChExpression<boolean> {
+  return functionCall("toBool", [value]);
+}
+
+/** ClickHouse `isNull(value)`. */
+export function isNull(value: Expression<unknown>): ChExpression<SqlBool> {
+  return functionCall("isNull", [value]);
+}
+
+/** ClickHouse `greatest(a, b, …)`. */
+export function greatest<T>(...values: Expression<T>[]): ChExpression<T> {
+  return functionCall("greatest", values);
+}
+
+/** ClickHouse `concat(a, b, …)`. */
+export function concat(...values: Expression<string>[]): ChExpression<string> {
+  return functionCall("concat", values);
+}
+
+/** ClickHouse `length(array)`. */
+export function arrayLength(
+  array: Expression<unknown[]>,
+): ChExpression<string> {
+  return functionCall("length", [array]);
+}
+
+/** ClickHouse `notEmpty(array)`. */
+export function notEmpty(array: Expression<unknown[]>): ChExpression<SqlBool> {
+  return functionCall("notEmpty", [array]);
+}
+
+/**
+ * ClickHouse `arrayExists(x -> predicate, array)`. `predicate` receives the
+ * lambda parameter: `x` at the top level, `x1`, `x2`, … inside nested lambdas.
+ */
+export function arrayExists<T>(
+  predicate: (element: Expression<T>) => Expression<SqlBool>,
+  array: Expression<T[]>,
+): ChExpression<SqlBool> {
+  return functionCall("arrayExists", [lambda("x", predicate), array]);
+}
+
+/** ClickHouse `any(value)`: some value of the group. */
+export function anyValue<T>(value: Expression<T>): ChExpression<T> {
+  return aggregate("any", [value]);
+}
+
+/** ClickHouse `countIf(condition)`. */
+export function countIf(condition: Expression<SqlBool>): ChExpression<string> {
+  return aggregate("countIf", [condition]);
+}
+
+/** ClickHouse `uniqIf(value, condition)`, an approximate distinct count. */
+export function uniqIf(
+  value: Expression<unknown>,
+  condition: Expression<SqlBool>,
+): ChExpression<string> {
+  return aggregate("uniqIf", [value, condition]);
+}
+
+/** ClickHouse `avgIf(value, condition)`. */
+export function avgIf(
+  value: Expression<number>,
+  condition: Expression<SqlBool>,
+): ChExpression<number> {
+  return aggregate("avgIf", [value, condition]);
+}
+
+/** ClickHouse `groupArray(value)`. */
+export function groupArray<T>(value: Expression<T>): ChExpression<T[]> {
+  return aggregate("groupArray", [value]);
+}
+
+/** ClickHouse `groupUniqArray(value)`. */
+export function groupUniqArray<T>(value: Expression<T>): ChExpression<T[]> {
+  return aggregate("groupUniqArray", [value]);
+}
+
+/** ClickHouse `groupUniqArrayIf(value, condition)`. */
+export function groupUniqArrayIf<T>(
+  value: Expression<T>,
+  condition: Expression<SqlBool>,
+): ChExpression<T[]> {
+  return aggregate("groupUniqArrayIf", [value, condition]);
+}
+
+/** ClickHouse `groupUniqArrayArrayIf(array, condition)`. */
+export function groupUniqArrayArrayIf<T>(
+  array: Expression<T[]>,
+  condition: Expression<SqlBool>,
+): ChExpression<T[]> {
+  return aggregate("groupUniqArrayArrayIf", [array, condition]);
+}
+
+/** ClickHouse `sumMap(map)`: per-key sums over the group. */
+export function sumMap<V>(
+  map: Expression<Record<string, V>>,
+): ChExpression<Record<string, V>> {
+  return aggregate("sumMap", [map]);
 }
 
 /**
@@ -369,13 +534,33 @@ export function metadataMap(
   return mapFromArrays(arrayReverse(names), arrayReverse(values));
 }
 
-// Nesting depth of `arrayMap` bodies under construction. Each nesting level
+// Nesting depth of lambda bodies under construction. Each nesting level
 // names its lambda parameter differently, so an inner lambda never shadows
-// an outer one. Zero outside any `arrayMap` call.
-// Module state is safe here: `body` runs synchronously inside `arrayMap`, and
+// an outer one. Zero outside any lambda.
+// Module state is safe here: `body` runs synchronously inside `lambda`, and
 // JavaScript never interleaves another synchronous call with it, so concurrent
 // requests cannot observe each other's depth.
-let arrayMapDepth = 0;
+let lambdaDepth = 0;
+
+/** `p -> body(p)`, with `p` named `base` plus the nesting depth past zero. */
+function lambda<T, U>(
+  base: string,
+  body: (element: Expression<T>) => Expression<U>,
+): OperationNode {
+  const param = ColumnNode.create(
+    lambdaDepth === 0 ? base : `${base}${lambdaDepth}`,
+  );
+  lambdaDepth++;
+  let bodyNode: OperationNode;
+  try {
+    bodyNode = body(
+      new ExpressionWrapper(param as unknown as OperationNode),
+    ).toOperationNode();
+  } finally {
+    lambdaDepth--;
+  }
+  return BinaryOperationNode.create(param, OperatorNode.create("->"), bodyNode);
+}
 
 /**
  * ClickHouse `arrayMap(v -> body, array)`. `body` receives the lambda
@@ -386,24 +571,7 @@ export function arrayMap<T, U>(
   body: (element: Expression<T>) => Expression<U>,
   array: Expression<T[]>,
 ): ChExpression<U[]> {
-  const param = ColumnNode.create(
-    arrayMapDepth === 0 ? "v" : `v${arrayMapDepth}`,
-  );
-  arrayMapDepth++;
-  let bodyNode: OperationNode;
-  try {
-    bodyNode = body(
-      new ExpressionWrapper(param as unknown as OperationNode),
-    ).toOperationNode();
-  } finally {
-    arrayMapDepth--;
-  }
-  const lambda = BinaryOperationNode.create(
-    param,
-    OperatorNode.create("->"),
-    bodyNode,
-  );
-  return functionCall("arrayMap", [lambda, array]);
+  return functionCall("arrayMap", [lambda("v", body), array]);
 }
 
 /**
@@ -435,7 +603,7 @@ function nonEmpty(expression: Expression<string>): ChExpression<SqlBool> {
 }
 
 /** ClickHouse `argMaxIf(value, by, condition)`. */
-function argMaxIf<T>(
+export function argMaxIf<T>(
   value: Expression<T>,
   by: Expression<unknown>,
   condition: Expression<SqlBool>,
@@ -469,12 +637,12 @@ export function traceSessionId(): ChExpression<string> {
 
 /**
  * Lower `metadata[key]` to a subscript of {@link metadataMap}, so the last
- * entry of a duplicated key wins. The key is a bound `ValueNode`, not a SQL
- * literal.
+ * entry of a duplicated key wins. Keys follow {@link mapValue}: a string is
+ * bound, a `literal(...)` is inlined.
  */
 export function metadataValue(
   tableAlias: string,
-  key: string,
+  key: string | Expression<string>,
 ): ChExpression<string> {
   const column = (name: string) =>
     new ExpressionWrapper<ClickHouseDatabase, "events_core", string[]>(
@@ -612,4 +780,27 @@ export function useFinal(tables: ReadonlyArray<keyof ClickHouseDatabase>) {
   return <DB, TB extends keyof DB, O>(
     qb: SelectQueryBuilder<DB, TB, O>,
   ): SelectQueryBuilder<DB, TB, O> => qb.withPlugin(new FinalPlugin(names));
+}
+
+/** Plugin that marks the select so the soft-delete pass leaves it unfiltered. */
+class IncludeDeletedPlugin implements KyselyPlugin {
+  transformQuery(args: PluginTransformQueryArgs): RootOperationNode {
+    if (args.node.kind !== "SelectQueryNode") return args.node;
+    return { ...args.node, includeDeleted: true } as RootOperationNode;
+  }
+
+  async transformResult(args: PluginTransformResultArgs) {
+    return args.result;
+  }
+}
+
+/**
+ * Read soft-deleted rows too: `qb.$call(includeDeleted())`. Applies to this
+ * select's FROM/JOIN relations only; nested selects are still filtered. A
+ * select that reads no soft-delete table fails to compile.
+ */
+export function includeDeleted() {
+  return <DB, TB extends keyof DB, O>(
+    qb: SelectQueryBuilder<DB, TB, O>,
+  ): SelectQueryBuilder<DB, TB, O> => qb.withPlugin(new IncludeDeletedPlugin());
 }

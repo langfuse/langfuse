@@ -182,6 +182,7 @@ async function runCompletion(params: {
   baseURL?: string | null;
   extraHeaders?: Record<string, string>;
   llmConnectionConfig?: Record<string, string | boolean>;
+  openAIChatProvider?: "native";
   output?: ReturnType<typeof createLLMOutput>;
   response: unknown;
   trace?: TraceSinkParams;
@@ -201,6 +202,7 @@ async function runCompletion(params: {
         config: params.llmConnectionConfig,
       },
     }),
+    openAIChatProvider: params.openAIChatProvider,
     timeout: 10_000,
     output: params.output,
     trace: params.trace,
@@ -259,6 +261,7 @@ describe("AI SDK request shapes", () => {
       },
       apiKey: "sk-test",
       llmConnectionConfig: { useResponsesApi: true },
+      openAIChatProvider: "native",
       response: OPENAI_RESPONSES_RESPONSE,
     });
 
@@ -266,6 +269,35 @@ describe("AI SDK request shapes", () => {
     expect(request.headers.get("authorization")).toBe("Bearer sk-test");
     expect(request.body.model).toBe("gpt-4o");
   });
+
+  it.each(["eu.api.openai.com", "api.openai.com."])(
+    "preserves saved evaluator options on %s",
+    async (host) => {
+      const { request } = await runCompletion({
+        modelParams: {
+          provider: "openai",
+          adapter: LLMAdapter.OpenAI,
+          model: "gpt-4o",
+          max_tokens: 128,
+          temperature: 0.2,
+          providerOptions: {
+            seed: 42,
+            response_format: { type: "json_object" },
+          },
+        },
+        apiKey: "sk-test",
+        baseURL: `https://${host}/v1`,
+        response: OPENAI_CHAT_RESPONSE,
+      });
+      expect(request.url).toBe(`https://${host}/v1/chat/completions`);
+      expect(request.body).toMatchObject({
+        max_tokens: 128,
+        temperature: 0.2,
+        seed: 42,
+        response_format: { type: "json_object" },
+      });
+    },
+  );
 
   it("Langfuse AI first-party OpenAI credentials hit /v1/responses", async () => {
     const original = {

@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 /* eslint-disable @repo/no-style-props */
 import { useState, useEffect, useRef, type ReactNode } from "react";
 import { Input } from "@/src/components/ui/input";

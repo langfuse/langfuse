@@ -61,14 +61,22 @@ export const mapUserToCoreDataRow = ({
 type JobConfigurationCoreDataInput = {
   evalTemplate: { name: string } | null;
   sampling: { toNumber: () => number };
+  variableMapping?: unknown;
 } & Record<string, unknown>;
+
+// Airbyte's JSONL schema inference cannot merge null with array for one column.
+// Empty mappings are exported as [] so every row has an array.
+const variableMappingForExport = (variableMapping: unknown) =>
+  variableMapping == null ? [] : variableMapping;
 
 export const mapJobConfigurationToCoreDataRow = ({
   evalTemplate,
   sampling,
+  variableMapping,
   ...jobConfiguration
 }: JobConfigurationCoreDataInput) => ({
   ...jobConfiguration,
+  variableMapping: variableMappingForExport(variableMapping),
   sampling: sampling.toNumber(),
   evalTemplateName: evalTemplate?.name ?? null,
 });
@@ -83,6 +91,30 @@ export const mapEvaluationRuleToCoreDataRow = ({
 }: EvaluationRuleCoreDataInput) => ({
   ...evaluationRule,
   sampling: sampling.toNumber(),
+});
+
+type EvaluatorVersionCoreDataInput = {
+  variableMapping: unknown;
+} & Record<string, unknown>;
+
+export const mapEvaluatorVersionToCoreDataRow = ({
+  variableMapping,
+  ...version
+}: EvaluatorVersionCoreDataInput) => ({
+  ...version,
+  variableMapping: variableMappingForExport(variableMapping),
+});
+
+type EvaluationRuleEvaluatorAssignmentCoreDataInput = {
+  variableMapping: unknown;
+} & Record<string, unknown>;
+
+export const mapEvaluationRuleEvaluatorAssignmentToCoreDataRow = ({
+  variableMapping,
+  ...assignment
+}: EvaluationRuleEvaluatorAssignmentCoreDataInput) => ({
+  ...assignment,
+  variableMapping: variableMappingForExport(variableMapping),
 });
 
 // Widget dimensions/metrics/chart config are persisted as free-form strings
@@ -671,6 +703,7 @@ export const coreDataTableExports: Array<
             createdAt: true,
           },
         }),
+      mapRow: mapEvaluatorVersionToCoreDataRow,
     }),
   (args) =>
     uploadTableCoreDataJsonl({
@@ -717,6 +750,7 @@ export const coreDataTableExports: Array<
             updatedAt: true,
           },
         }),
+      mapRow: mapEvaluationRuleEvaluatorAssignmentToCoreDataRow,
     }),
   (args) =>
     uploadTableCoreDataJsonl({

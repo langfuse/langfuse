@@ -241,7 +241,6 @@ export function MonitorsTable() {
                   selectedTags={row.original.tags ?? []}
                   isLoading={false}
                   viewOnly
-                  isTableCell
                 />
               </div>
             ),

@@ -5,9 +5,15 @@ import { describe, expect, it } from "vitest";
 import { getGatewayBaseUrl } from "@/src/features/ai-gateway/fns/gatewayUrls/getGatewayBaseUrl";
 
 describe("getGatewayBaseUrl", () => {
-  it("prefixes gateway. onto a product host", () => {
+  it("returns the staging product host that serves the gateway", () => {
     expect(getGatewayBaseUrl(new URL("https://staging.langfuse.com/"))).toBe(
-      "https://gateway.staging.langfuse.com/v1",
+      "https://staging.langfuse.com",
+    );
+  });
+
+  it("prefixes gateway. onto a product host", () => {
+    expect(getGatewayBaseUrl(new URL("https://cloud.langfuse.com/"))).toBe(
+      "https://gateway.cloud.langfuse.com/v1",
     );
   });
 

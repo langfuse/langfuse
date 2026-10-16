@@ -1,7 +1,7 @@
 /* The experiment marker's colour is data — which run this is, out of the N
    selected (`getExperimentColorStyles`) — so it arrives as a class rather than
    as a variant, the same way `DiffLabel` takes one. */
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
 import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { EMPTY_VALUE_PLACEHOLDER } from "@/src/components/design-system/table/constants";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
@@ -37,7 +37,6 @@ import { cn } from "@/src/utils/tailwind";
 import Link from "next/link";
 import { type ScoreLevel } from "@/src/components/score-tag";
 import { NotRecordedMetric } from "./NotRecordedMetric";
-import { describeRunComparison } from "@/src/features/experiments/fns/describeRunComparison";
 
 type ExperimentGridCellProps = {
   projectId: string;
@@ -371,12 +370,6 @@ const CellMetadataFooter = ({
                   diff={data.latencyDiff}
                   preferNegativeDiff
                   formatValue={formatLatency}
-                  title={describeRunComparison({
-                    baselineName: data.baselineExperimentName,
-                    baselineText: formatLatency(data.baselineLatencyMs ?? 0),
-                    currentText: formatLatency(data.latencyMs ?? 0),
-                    verb: "took",
-                  })}
                 />
               )}
             </div>
@@ -401,12 +394,6 @@ const CellMetadataFooter = ({
                 diff={data.totalCostDiff}
                 preferNegativeDiff
                 formatValue={formatCost}
-                title={describeRunComparison({
-                  baselineName: data.baselineExperimentName,
-                  baselineText: formatCost(data.baselineTotalCost ?? 0),
-                  currentText: formatCost(data.totalCost ?? 0),
-                  verb: "cost",
-                })}
               />
             )}
           </div>

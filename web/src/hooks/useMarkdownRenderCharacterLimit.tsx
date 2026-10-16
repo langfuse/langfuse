@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { createContext, useContext, type ReactNode } from "react";
 
 import { DEFAULT_MARKDOWN_RENDER_CHARACTER_LIMIT } from "@/src/components/ui/markdown-render-limits";

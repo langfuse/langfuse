@@ -66,6 +66,7 @@ import {
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { useSession } from "next-auth/react";
 import { ObservationPreview } from "./ObservationPreview";
+import type { SectionSkillsProps } from "../IOPreview/components/SectionSkills";
 import {
   useInternalFeaturesEnabled,
   useIsFeatureEnabled,
@@ -406,6 +407,13 @@ export function ConnectedObservationDetailView({
     return null;
   }, [observation.latency, observation.startTime, observation.endTime]);
 
+  const previewSkills = getPreviewSkills({
+    internalFeaturesEnabled,
+    observationType: observation.type,
+    skillsAvailable: observationWithIO?.skillsAvailable,
+    skillsResourceLoaded: observationWithIO?.skillsResourceLoaded,
+  });
+
   return (
     <CommentDrawerController
       projectId={projectId}
@@ -479,7 +487,7 @@ export function ConnectedObservationDetailView({
                         onCheckedChange={handleBetaToggle}
                       />
                       <span className="text-muted-foreground text-xs">
-                        Beta
+                        Optimized
                       </span>
                     </div>
                   )}
@@ -595,6 +603,8 @@ export function ConnectedObservationDetailView({
                   onPrettyViewAvailabilityChange={setIsPrettyViewAvailable}
                   previewProps={{
                     observationName: observation.name ?? undefined,
+                    observationType: observation.type,
+                    skills: previewSkills,
                     input: observationWithIOCompat.data?.input ?? undefined,
                     output: observationWithIOCompat.data?.output ?? undefined,
                     status: observation.statusMessage
@@ -715,3 +725,30 @@ export function ConnectedObservationDetailView({
     </CommentDrawerController>
   );
 }
+
+function getPreviewSkills({
+  internalFeaturesEnabled,
+  observationType,
+  skillsAvailable,
+  skillsResourceLoaded,
+}: PreviewSkillsInput): SectionSkillsProps["skills"] | undefined {
+  if (!internalFeaturesEnabled) return undefined;
+  if (observationType === "GENERATION") {
+    return { kind: "available", items: skillsAvailable ?? [] };
+  }
+  if (observationType === "TOOL") {
+    return { kind: "loaded", items: skillsResourceLoaded ?? [] };
+  }
+  return undefined;
+}
+
+type PreviewSkillsInput = {
+  internalFeaturesEnabled: boolean;
+  observationType: ObservationReturnTypeWithMetadata["type"];
+  skillsAvailable:
+    | ObservationReturnTypeWithMetadata["skillsAvailable"]
+    | undefined;
+  skillsResourceLoaded:
+    | ObservationReturnTypeWithMetadata["skillsResourceLoaded"]
+    | undefined;
+};

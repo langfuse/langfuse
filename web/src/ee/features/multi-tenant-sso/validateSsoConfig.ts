@@ -99,7 +99,7 @@ async function fetchWithSsrfDefense(url: string): Promise<Response> {
   }
 }
 
-/** discoveryWhitelistFromEnv builds the operator-configured exemptions to the internal-address blocklist. */
+/** discoveryWhitelistFromEnv builds the operator exemptions from the internal-address block. */
 function discoveryWhitelistFromEnv() {
   return {
     hosts: env.LANGFUSE_SSO_DISCOVERY_WHITELISTED_HOST || [],

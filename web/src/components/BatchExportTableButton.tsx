@@ -92,7 +92,7 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          variant="outline"
+          variant="ghost"
           size="icon"
           title="Export"
           className="hidden md:inline-flex"

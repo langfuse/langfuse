@@ -65,6 +65,6 @@ type TopicEmbeddingMapProps = {
 };
 
 type Topic = Pick<
-  RouterOutputs["topics"]["currentResults"][number]["topics"][number],
+  RouterOutputs["topics"]["currentResults"]["facets"][number]["topics"][number],
   "id" | "name"
 > & { description?: string };

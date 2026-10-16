@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { parseBlockedCidr } from "./server/webhooks/parseBlockedCidr";
 import { removeEmptyEnvVariables } from "./utils/environment";
 
 // Per-segment byte budget for S3 event keys. Off by default (2048 > 800-byte
@@ -26,6 +27,23 @@ export const redisSocketTimeoutMsSchema = z.coerce
       "REDIS_SOCKET_TIMEOUT_MS must be 0 (disabled) or at least 10000; BullMQ blocking commands idle ~5s between packets",
   })
   .default(30_000);
+
+function commaSeparatedLowercase(value: string | undefined): string[] {
+  if (!value) return [];
+  return value
+    .split(",")
+    .map((part) => part.toLowerCase().trim())
+    .filter((part) => part.length > 0);
+}
+
+const optionalCommaSeparatedLowercase = z
+  .string()
+  .optional()
+  .transform(commaSeparatedLowercase);
+
+function isCidr(value: string): boolean {
+  return parseBlockedCidr(value) !== undefined;
+}
 
 const DEFAULT_LLM_COMPLETION_TIMEOUT_MS = 120_000;
 
@@ -142,6 +160,12 @@ const EnvSchema = z.object({
     .default(20_000),
   LANGFUSE_CACHE_PROMPT_ENABLED: z.enum(["true", "false"]).default("true"),
   LANGFUSE_CACHE_PROMPT_TTL_SECONDS: z.coerce.number().default(3600), // 1h
+  LANGFUSE_CACHE_SKILL_ENABLED: z.enum(["true", "false"]).default("true"),
+  LANGFUSE_CACHE_SKILL_TTL_SECONDS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(3600), // 1h
   CLICKHOUSE_URL: z.url(),
   CLICKHOUSE_READ_ONLY_URL: z.url().optional(),
   CLICKHOUSE_EVENTS_READ_ONLY_URL: z.url().optional(),
@@ -477,6 +501,11 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
+  // When non-empty, webhook URLs must use one of these hosts. Distinct from
+  // LANGFUSE_WEBHOOK_WHITELISTED_HOST, which only exempts a host from the
+  // private-address block. Does not apply to other callers of that exemption
+  // list. Entries are exact hostnames (no scheme or port; IPv6 in brackets).
+  LANGFUSE_WEBHOOK_ALLOWED_HOSTS: optionalCommaSeparatedLowercase,
   LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS: z
     .string()
     .optional()
@@ -495,6 +524,12 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
+  // When non-empty, every outbound LLM request must use one of these hosts,
+  // including provider default hosts and Langfuse AI. Bedrock checks
+  // bedrock-runtime.<region>.<partition>, or the host of
+  // AWS_ENDPOINT_URL_BEDROCK_RUNTIME / AWS_ENDPOINT_URL when one of those is
+  // set. Ignored on Langfuse Cloud, same as the LLM exemption list above.
+  LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS: optionalCommaSeparatedLowercase,
   LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS: z
     .string()
     .optional()
@@ -531,6 +566,10 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
+  // When non-empty, external media storage endpoints must use one of these
+  // hosts. Ignored on Langfuse Cloud.
+  LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_ALLOWED_HOSTS:
+    optionalCommaSeparatedLowercase,
   // Buckets that keyless GOOGLE_CLOUD_STORAGE blob exports (default credentials,
   // no service account key) may write to. Those run as the deployment's own GCP
   // identity (ADC), so without this allowlist any project owner could export into
@@ -565,6 +604,17 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
+  // Extra CIDR ranges merged into the private-address block for outbound URL
+  // checks that already run. Blob storage stays opt-in: these ranges apply
+  // there only when blob endpoint validation is already enabled. Exemptions
+  // in the per-surface *_WHITELISTED_* lists still win.
+  LANGFUSE_OUTBOUND_BLOCKED_IP_SEGMENTS: optionalCommaSeparatedLowercase.refine(
+    (segments) => segments.every(isCidr),
+    {
+      message:
+        "LANGFUSE_OUTBOUND_BLOCKED_IP_SEGMENTS must be a comma-separated list of CIDR ranges",
+    },
+  ),
   SLACK_CLIENT_ID: z.string().optional(),
   SLACK_CLIENT_SECRET: z.string().optional(),
   SLACK_STATE_SECRET: z.string().optional(),

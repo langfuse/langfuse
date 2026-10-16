@@ -16,7 +16,6 @@ import {
   useCompactRows,
   useRowHeightLocalStorage,
 } from "@/src/components/table/data-table-row-height-switch";
-import { CreateOrEditAnnotationQueueButton } from "@/src/features/annotation-queues/components/CreateOrEditAnnotationQueueButton";
 import { ClipboardPen, Lock } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
@@ -193,13 +192,6 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
         const key: RowData["key"] = row.getValue("key");
         return (
           <div className="flex items-center gap-1">
-            <CreateOrEditAnnotationQueueButton
-              projectId={projectId}
-              queueId={key.id}
-              variant="ghost"
-              size="icon-xs"
-              isTableAction
-            />
             <DeleteAnnotationQueueButton
               projectId={projectId}
               queueId={key.id}

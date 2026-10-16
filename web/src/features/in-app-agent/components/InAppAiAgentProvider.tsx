@@ -94,6 +94,7 @@ const EMPTY_BACKGROUND_VIEW: BackgroundExecutionView = {
 export type InAppAgentEntryPoint =
   | "top_nav"
   | "keyboard_shortcut"
+  | "command_menu"
   | "dashboard_widget"
   | "v4_migration"
   | "evaluators_empty_state";
@@ -237,7 +238,7 @@ export function InAppAiAgentProvider({
   const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
 
   if (!projectId || !hasInAppAgentEntitlement) {
-    return <>{children}</>;
+    return children;
   }
 
   return (

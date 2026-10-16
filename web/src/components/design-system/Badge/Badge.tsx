@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import { type LucideIcon } from "lucide-react";
@@ -27,6 +28,9 @@ const badgeVariants = cva(
         green: "border-transparent bg-light-green text-dark-green",
         ghost: "border-0 bg-transparent px-0 text-foreground-secondary",
         filled: "border-transparent bg-muted text-foreground-secondary",
+        /** `filled` for a chip on a muted or accent surface, e.g. a selected or hovered row, where `bg-muted` vanishes. */
+        filledOnMuted:
+          "border-transparent bg-background text-foreground-secondary",
         violetTint:
           "border-category-violet/40 bg-category-violet/10 text-foreground-secondary",
         skyTint:

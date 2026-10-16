@@ -55,6 +55,7 @@ const gcsError = (
 const OUTBOUND_URL_FAULTS = [
   ["blocked-ip", "ssrf_blocked_endpoint"],
   ["blocked-hostname", "ssrf_blocked_endpoint"],
+  ["host-not-allowed", "ssrf_blocked_endpoint"],
   ["invalid-syntax", "invalid_endpoint_url"],
   ["invalid-encoding", "invalid_endpoint_url"],
   ["https-required", "invalid_endpoint_url"],

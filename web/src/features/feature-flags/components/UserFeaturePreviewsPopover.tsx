@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { useId, useState, type ReactNode } from "react";
 import { useSession } from "next-auth/react";

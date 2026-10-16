@@ -1,10 +1,8 @@
 import { LISTABLE_SCORE_TYPES } from "../../domain/scores";
 import { env } from "../../env";
-import {
-  compileClickhouseQuery,
-  type ExecutionContext,
-} from "../query-ast/compile";
+import { compileClickhouseQuery } from "../query-ast/compile";
 import { getClickhouseKysely } from "../query-ast/dialect";
+import { includeDeleted } from "../query-ast/extensions";
 import { queryClickhouse } from "./clickhouse";
 
 export type EnvironmentFilterProps = {
@@ -18,11 +16,9 @@ export const getEnvironmentsForProject = async (
   const { projectId, fromTimestamp } = props;
   const writeMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
   const db = getClickhouseKysely();
-  // Tenancy is applied at compile time: compileClickhouseQuery injects
-  // `project_id = {projectId}` into every tenanted relation and refuses to
-  // compile an unscoped query, so the query bodies below carry no project_id
-  // filter of their own.
-  const ctx: ExecutionContext = { projectId };
+  // The query bodies below carry no project_id filter of their own:
+  // compileClickhouseQuery injects `project_id = {projectId}` into every
+  // tenanted relation.
 
   // In dual/events_only write modes all tracing data lands in events_core (the
   // only populated source under events_only), so one scan covers traces and
@@ -47,6 +43,7 @@ export const getEnvironmentsForProject = async (
           )
       : db
           .selectFrom("events_core")
+          .$call(includeDeleted())
           .select("environment")
           .distinct()
           .$if(fromTimestamp != null, (qb) =>
@@ -62,8 +59,8 @@ export const getEnvironmentsForProject = async (
       qb.where("timestamp", ">=", fromTimestamp!),
     );
 
-  const tracing = compileClickhouseQuery(tracingQuery, ctx);
-  const scores = compileClickhouseQuery(scoresQuery, ctx);
+  const tracing = compileClickhouseQuery(tracingQuery, projectId);
+  const scores = compileClickhouseQuery(scoresQuery, projectId);
 
   // The events read may route to a dedicated ClickHouse service
   // (CLICKHOUSE_EVENTS_READ_ONLY_URL) while scores always read the primary, so
