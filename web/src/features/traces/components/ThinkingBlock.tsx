@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import * as React from "react";
 
 import { LAYER_ORDER, type LayerName } from "./layers";

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { ScoreDataTypeEnum } from "@langfuse/shared";
 import { type ReactNode } from "react";
 

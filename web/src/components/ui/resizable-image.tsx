@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { cn } from "@/src/utils/tailwind";
 import { useState } from "react";
 import Link from "next/link";

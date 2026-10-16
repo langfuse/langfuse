@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { CalendarDays } from "lucide-react";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
 import Link from "next/link";

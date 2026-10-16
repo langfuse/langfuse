@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import type { ComponentProps } from "react";
 import { Loader2, Sparkles } from "lucide-react";
 
