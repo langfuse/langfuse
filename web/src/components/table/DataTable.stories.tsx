@@ -1658,6 +1658,11 @@ const settleResize = () =>
     requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
   });
 
+const sleepMs = (ms: number) =>
+  new Promise<void>((resolve) => {
+    globalThis.setTimeout(resolve, ms);
+  });
+
 async function pointAtResizeHandle(
   handle: HTMLElement,
   type: string,
@@ -1880,17 +1885,25 @@ export const RowResizeCursorWaitsForARestingPointer = meta.story({
     const rowCursor = globalThis.getComputedStyle(row).cursor;
     expect(rowCursor).not.toBe("row-resize");
 
-    // Travelling between rows crosses the strip and leaves it again.
+    // Travelling between rows crosses the strip. Every check below is taken
+    // while the pointer is still INSIDE it, because leaving withdraws the
+    // cursor either way — checking after the exit would pass just as well
+    // against a cursor handed over the moment the strip is entered.
     await pointAtResizeHandle(handle, "pointermove", 100);
     await pointAtResizeHandle(handle, "pointermove", 104);
-    await pointAtResizeHandle(handle, "pointerout", 108);
-    await new Promise<void>((resolve) => {
-      globalThis.setTimeout(resolve, 250);
-    });
+    expect(cursor()).toBe(rowCursor);
+    await sleepMs(60);
+    await pointAtResizeHandle(handle, "pointermove", 110);
     expect(cursor()).toBe(rowCursor);
 
-    // Coming to rest on the border earns it.
+    // Still nothing once it has gone.
+    await pointAtResizeHandle(handle, "pointerout", 114);
+    await sleepMs(250);
+    expect(cursor()).toBe(rowCursor);
+
+    // Coming to rest on the border earns it — but not before the wait is up.
     await pointAtResizeHandle(handle, "pointermove", 100);
+    expect(cursor()).toBe(rowCursor);
     await waitFor(() => expect(cursor()).toBe("row-resize"));
 
     // Leaving hands it straight back.

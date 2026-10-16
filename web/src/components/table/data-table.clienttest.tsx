@@ -140,6 +140,25 @@ describe("DataTable custom row height", () => {
     );
   };
 
+  // React derives onPointerLeave from pointerout, and reads the element being
+  // entered off relatedTarget, so a seam crossing has to be dispatched as one.
+  const pointOut = (
+    handle: HTMLElement,
+    clientY: number,
+    relatedTarget: HTMLElement | null,
+  ) => {
+    handle.dispatchEvent(
+      new PointerEventPolyfill("pointerout", {
+        bubbles: true,
+        cancelable: true,
+        button: 0,
+        pointerId: 1,
+        clientY,
+        relatedTarget,
+      }),
+    );
+  };
+
   const rect = (height: number, top = 0): DOMRect =>
     ({
       x: 0,
@@ -223,7 +242,10 @@ describe("DataTable custom row height", () => {
     expect(lowerHalf).not.toBeNull();
     expect(lowerHalf).not.toHaveClass("cursor-row-resize");
 
-    // Moving between rows crosses the 6px strip in a frame or two.
+    // Moving between rows crosses the 6px strip in a frame or two. Every
+    // assertion here is taken while the pointer is still INSIDE the strip,
+    // because leaving withdraws the cursor either way — a check after the
+    // exit would pass just as well against the unguarded cursor.
     act(() => {
       pointAt(lowerHalf!, "pointermove", 100);
     });
@@ -231,14 +253,17 @@ describe("DataTable custom row height", () => {
       vi.advanceTimersByTime(16);
       pointAt(lowerHalf!, "pointermove", 104);
     });
+    expect(lowerHalf).not.toHaveAttribute("data-row-resize-armed");
     act(() => {
       vi.advanceTimersByTime(16);
-      pointAt(lowerHalf!, "pointerout", 108);
     });
+    expect(lowerHalf).not.toHaveAttribute("data-row-resize-armed");
+
+    // Only now does it leave, and it is still empty-handed afterwards.
     act(() => {
+      pointOut(lowerHalf!, 108, null);
       vi.advanceTimersByTime(1_000);
     });
-
     expect(lowerHalf).not.toHaveAttribute("data-row-resize-armed");
   });
 
@@ -276,9 +301,62 @@ describe("DataTable custom row height", () => {
 
     // Leaving hands the cursor back, so coming in again has to earn it.
     act(() => {
-      pointAt(lowerHalf!, "pointerout", 140);
+      pointOut(lowerHalf!, 140, null);
     });
     expect(lowerHalf).not.toHaveAttribute("data-row-resize-armed");
+  });
+
+  it("carries the wait across the seam between the two halves of one border", () => {
+    renderResizableTable();
+    vi.useFakeTimers();
+
+    const upperHalf = document.querySelector<HTMLElement>(
+      'tr[data-row-index="0"] [data-row-resize-edge="above"]',
+    );
+    const lowerHalf = document.querySelector<HTMLElement>(
+      'tr[data-row-index="1"] [data-row-resize-edge="below"]',
+    );
+    expect(upperHalf).not.toBeNull();
+    expect(lowerHalf).not.toBeNull();
+    // Separate elements, but they resize the same row — one border.
+    expect(upperHalf!.dataset.rowResizeTarget).toBe(
+      lowerHalf!.dataset.rowResizeTarget,
+    );
+
+    // Settle on the upper half, then tremble a pixel across the seam.
+    act(() => {
+      pointAt(upperHalf!, "pointermove", 100);
+    });
+    act(() => {
+      vi.advanceTimersByTime(60);
+      pointOut(upperHalf!, 101, lowerHalf);
+      pointAt(lowerHalf!, "pointermove", 101);
+    });
+    act(() => {
+      vi.advanceTimersByTime(59);
+    });
+    expect(lowerHalf).not.toHaveAttribute("data-row-resize-armed");
+
+    // 120ms of rest, spread across both halves, still earns the cursor.
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(lowerHalf).toHaveAttribute("data-row-resize-armed");
+    expect(upperHalf).not.toHaveAttribute("data-row-resize-armed");
+
+    // And trembling back does not take it away again.
+    act(() => {
+      pointOut(lowerHalf!, 100, upperHalf);
+      pointAt(upperHalf!, "pointermove", 100);
+    });
+    expect(upperHalf).toHaveAttribute("data-row-resize-armed");
+    expect(lowerHalf).not.toHaveAttribute("data-row-resize-armed");
+
+    // Leaving the border for good still hands the cursor back.
+    act(() => {
+      pointOut(upperHalf!, 140, null);
+    });
+    expect(upperHalf).not.toHaveAttribute("data-row-resize-armed");
   });
 
   it("gives the resize cursor to a press on the border with no wait", () => {
