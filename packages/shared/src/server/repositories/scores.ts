@@ -3581,7 +3581,7 @@ export async function listScoresV3ForPublicApi(
         scoreDomainToV3(convertClickhouseScoreToDomain(row), params.fields),
       );
     } catch (error) {
-      logger.error("v3 score row dropped from response: conversion error", {
+      logger.warn("v3 score row dropped from response: conversion error", {
         error,
         scoreId: row.id,
         projectId: params.projectId,
@@ -3590,7 +3590,7 @@ export async function listScoresV3ForPublicApi(
   }
   return {
     data: filterAndValidateV3GetScoreList(items, (error) => {
-      logger.error(
+      logger.warn(
         "v3 score row dropped from response: schema validation error",
         {
           issues: error.issues,

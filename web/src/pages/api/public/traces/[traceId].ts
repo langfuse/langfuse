@@ -23,7 +23,7 @@ import {
   getObservationsForTrace,
   getScoresForTraces,
   getTraceById,
-  traceException,
+  logger,
   traceDeletionProcessor,
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
@@ -152,7 +152,8 @@ export default withMiddlewares(
         // For type consistency, we validate the scores against the v1 schema which requires a traceId
         const validatedScores = filterAndValidateDbLegacyTraceScoreList({
           scores,
-          onParseError: traceException,
+          onParseError: (error) =>
+            logger.warn("Invalid score omitted from response", { error }),
         });
 
         const obsStartTimes = observations

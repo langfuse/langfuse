@@ -6,7 +6,7 @@ import {
 import {
   getObservationsTableWithModelData,
   getScoresForObservations,
-  traceException,
+  logger,
 } from "@langfuse/shared/src/server";
 import { type GetAllGenerationsInput } from "../getAllQueries";
 
@@ -41,7 +41,8 @@ export async function getAllGenerations({
     scores,
     dataTypes: LISTABLE_SCORE_TYPES,
     includeHasMetadata: true,
-    onParseError: traceException,
+    onParseError: (error) =>
+      logger.warn("Invalid score omitted from response", { error }),
   });
 
   const fullGenerations = generations.map((generation) => {
