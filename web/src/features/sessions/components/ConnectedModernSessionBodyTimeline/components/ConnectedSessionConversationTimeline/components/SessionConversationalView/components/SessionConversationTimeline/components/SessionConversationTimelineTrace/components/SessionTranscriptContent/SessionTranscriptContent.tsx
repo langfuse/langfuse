@@ -28,7 +28,7 @@ export function SessionTranscriptContent({
 }: {
   threadIndex?: number;
   result: Extract<SessionTraceTranscriptState, { state: "loaded" }>;
-  onOpenObservation: (observationId: string) => void;
+  onOpenObservation?: (observationId: string) => void;
   scrollTarget: {
     observationId: string;
     rowId?: string;
@@ -84,7 +84,7 @@ function SessionTranscriptThread({
   scrollTarget,
 }: {
   rows: ReturnType<typeof getSessionTranscriptRows>;
-  onOpenObservation: (observationId: string) => void;
+  onOpenObservation?: (observationId: string) => void;
   scrollTarget: {
     observationId: string;
     rowId?: string;
@@ -169,7 +169,7 @@ function SessionTranscriptRow({
   const metadata = (isTool || isSystem) &&
     (timing || row.message.observationId) && (
       <div className="text-muted-foreground flex items-center gap-3 font-mono text-xs opacity-0 group-hover/collapsible-row:opacity-100 group-has-[:focus-visible]/collapsible-row:opacity-100 group-data-[expanded=true]/collapsible-row:opacity-100">
-        {row.message.observationId && (
+        {row.message.observationId && onOpenObservation && (
           <button
             type="button"
             className="hover:text-foreground hover:underline"
@@ -403,7 +403,7 @@ function SessionTranscriptMessage({
 }: {
   message: DisplayMessage;
   trailingContent: ReactNode;
-  onOpenObservation: (observationId: string) => void;
+  onOpenObservation?: (observationId: string) => void;
   expandRequestId?: number;
 }) {
   if (message.role === "system") {
@@ -423,7 +423,7 @@ function SessionTranscriptMessage({
       senderName={message.senderName}
       timestamp={message.timing?.startTime ?? null}
       onOpenObservation={
-        message.observationId
+        message.observationId && onOpenObservation
           ? () => onOpenObservation(message.observationId!)
           : undefined
       }

@@ -10,11 +10,12 @@ import {
   useSessionConversationTimelineController,
   type SessionConversationTimelineScrollTarget,
 } from "@/src/features/sessions/hooks/useSessionConversationTimelineController";
-import { type SessionConversationTimelineTrace } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
 import { getSessionConversationEntries } from "../../fns/getSessionConversationEntries";
 import { type Observation } from "@langfuse/shared";
 
-type TraceProps = ComponentProps<typeof SessionConversationTimelineTrace>;
+type TraceProps = ComponentProps<
+  typeof SessionConversationalView
+>["traces"][number];
 
 type TranscriptState = Extract<TraceProps["state"], { type: "transcript" }>;
 type WorkflowObservation = TranscriptObservation & {

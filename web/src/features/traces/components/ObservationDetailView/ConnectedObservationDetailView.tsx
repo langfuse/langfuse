@@ -486,7 +486,7 @@ export function ConnectedObservationDetailView({
 
             {selectedTab === "messages" && (
               <Tabs.Content value="messages" layout="fill">
-                <div className="min-h-0 flex-1 overflow-auto px-4">
+                <div className="min-h-0 flex-1 overflow-auto p-4">
                   <TraceMessagesView />
                 </div>
               </Tabs.Content>
