@@ -1,4 +1,3 @@
-/* eslint-disable @repo/component-file-structure */
 import { LifeBuoy } from "lucide-react";
 import { SidebarMenuButton, useSidebar } from "@/src/components/ui/sidebar";
 import { useSupportDrawer } from "@/src/features/support-chat";
