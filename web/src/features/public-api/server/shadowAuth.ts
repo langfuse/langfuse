@@ -152,9 +152,30 @@ async function legacyOnly(params: ShadowAuthParams): Promise<ShadowAuthResult> {
   return legacyResult(await runLegacyAuth(params));
 }
 
-/** runNewAuth runs the new pipeline for the request's action and route opt-ins. */
-function runNewAuth(params: ShadowAuthParams): Promise<EnforceAuthResult> {
-  return enforceAuth(params);
+/** runNewAuth runs the new pipeline for the request's action and route opt-ins, refusing project-bound keys on organization routes that target anything but their own project. */
+async function runNewAuth(
+  params: ShadowAuthParams,
+): Promise<EnforceAuthResult> {
+  const result = await enforceAuth(params);
+  if (
+    result.success &&
+    isOrgFamily(params.allowedAccessLevels) &&
+    targetsForeignProject(result.ctx, params.req)
+  ) {
+    return forbiddenError();
+  }
+  return result;
+}
+
+/** targetsForeignProject reports whether a project-bound api key's request names no project or a project other than its own. */
+function targetsForeignProject(
+  ctx: AuthorizationContext,
+  req: NextApiRequest,
+): boolean {
+  if (ctx.principal.kind !== "apiKey") return false;
+  const boundProjectId = ctx.principal.boundResource.projectId;
+  if (boundProjectId === undefined) return false;
+  return req.query.projectId !== boundProjectId;
 }
 
 /** runLegacyAuth dispatches to the legacy verify the route's access levels select. */
