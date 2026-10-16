@@ -12,6 +12,7 @@
  */
 
 import { ObservationLevel } from "@langfuse/shared";
+import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 
@@ -35,19 +36,11 @@ export function TracePanelNavigationHiddenNotice() {
           {hiddenObservationsCount} hidden observations below{" "}
           {minObservationLevel} level.
         </p>
-        <p
-          className="cursor-pointer underline"
-          onClick={handleShowAll}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              handleShowAll();
-            }
-          }}
-        >
-          Show all
-        </p>
+        <ExpandToggle
+          expanded={false}
+          label="Show all"
+          onExpandedChange={handleShowAll}
+        />
       </span>
     </div>
   );

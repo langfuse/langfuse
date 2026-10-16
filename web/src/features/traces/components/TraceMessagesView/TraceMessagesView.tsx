@@ -7,6 +7,7 @@
  * first, then the current turn with links to the observations that emitted it.
  */
 
+import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
 import { useMemo, useState } from "react";
 import { ErrorBoundary } from "@sentry/nextjs";
 import type { NormalizedMessage } from "@langfuse/shared/src/utils/normalized-io";
@@ -121,14 +122,12 @@ function ThreadBlock({
       {thread.conversationHistory.length > 0 && (
         <>
           <SectionLabel>
-            <button
-              type="button"
-              className="hover:text-foreground"
-              onClick={() => setShowHistory((shown) => !shown)}
-            >
-              {showHistory ? "Hide" : "Show"} conversation history (
-              {thread.conversationHistory.length})
-            </button>
+            <ExpandToggle
+              expanded={showHistory}
+              label={`Show conversation history (${thread.conversationHistory.length})`}
+              expandedLabel={`Hide conversation history (${thread.conversationHistory.length})`}
+              onExpandedChange={setShowHistory}
+            />
           </SectionLabel>
           {showHistory && (
             <div className="opacity-70">

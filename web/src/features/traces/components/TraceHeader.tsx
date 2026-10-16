@@ -1,3 +1,4 @@
+import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
 import { OverflowCountBadge } from "@/src/components/OverflowCountBadge";
 /** Trace totals, session/user links and tags, above the panels. */
 
@@ -5,7 +6,6 @@ import { useMemo, useState, type ReactNode } from "react";
 
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
-import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { TagList } from "@/src/features/tag";
 import {
@@ -128,15 +128,11 @@ function LoadedTraceHeader() {
               />
             )}
             {showAllTags && trace.tags.length > MAX_VISIBLE_TAGS && (
-              <Button
-                variant="tertiary"
-                size="icon-sm"
-                className="w-fit"
-                aria-label="Show fewer tags"
-                onClick={() => setShowAllTags(false)}
-              >
-                Show fewer
-              </Button>
+              <ExpandToggle
+                expanded
+                expandedLabel="Show fewer"
+                onExpandedChange={setShowAllTags}
+              />
             )}
           </div>
         )}

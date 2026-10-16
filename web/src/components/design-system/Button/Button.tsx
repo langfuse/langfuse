@@ -72,6 +72,11 @@ type ButtonProps = {
       loading?: boolean;
       onClick?: MouseEventHandler<HTMLButtonElement>;
       type?: "button" | "submit";
+      /** Icon before (default) or after the text. */
+      iconPosition?: "start" | "end";
+      /** For disclosure toggles: whether the content it controls is open. */
+      "aria-expanded"?: boolean;
+      "aria-controls"?: string;
     }
 );
 
@@ -136,6 +141,8 @@ export function Button(props: ButtonProps) {
       onClick={props.loading || props.disabled ? undefined : props.onClick}
       aria-busy={props.loading}
       aria-label={props.text}
+      aria-expanded={props["aria-expanded"]}
+      aria-controls={props["aria-controls"]}
     >
       <span
         className={cn(
@@ -143,8 +150,13 @@ export function Button(props: ButtonProps) {
           props.loading && "invisible",
         )}
       >
-        {Icon ? <Icon className={iconClassName} aria-hidden /> : null}
+        {Icon && props.iconPosition !== "end" ? (
+          <Icon className={iconClassName} aria-hidden />
+        ) : null}
         {props.text}
+        {Icon && props.iconPosition === "end" ? (
+          <Icon className={iconClassName} aria-hidden />
+        ) : null}
       </span>
       {props.loading && (
         <span className="absolute inset-0 flex items-center justify-center">

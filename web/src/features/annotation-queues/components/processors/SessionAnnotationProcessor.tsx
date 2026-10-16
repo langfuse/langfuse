@@ -11,6 +11,7 @@ import {
 } from "@/src/features/sessions";
 import { useState, useMemo, useCallback } from "react";
 import { Button } from "@/src/components/ui/button";
+import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { CopyIdsPopover } from "@/src/features/traces";
@@ -47,6 +48,9 @@ export const SessionAnnotationProcessor: React.FC<
   SessionAnnotationProcessorProps
 > = ({ item, data, configs, projectId }) => {
   const [visibleTraces, setVisibleTraces] = useState(PAGE_SIZE);
+  const handleLoadMoreTraces = () => {
+    setVisibleTraces((prev) => prev + PAGE_SIZE);
+  };
   const { isV4 } = useReadPath();
 
   // Fetch traces separately when v4 beta is enabled (events table path)
@@ -262,12 +266,11 @@ export const SessionAnnotationProcessor: React.FC<
           {(!isV4 || tracesFromEventsQuery.isSuccess) &&
             traces.length > visibleTraces && (
               <div className="flex justify-center py-4">
-                <Button
-                  onClick={() => setVisibleTraces((prev) => prev + PAGE_SIZE)}
-                  variant="ghost"
-                >
-                  {`Load ${Math.min(traces.length - visibleTraces, PAGE_SIZE)} More`}
-                </Button>
+                <ExpandToggle
+                  expanded={false}
+                  label={`Load ${Math.min(traces.length - visibleTraces, PAGE_SIZE)} More`}
+                  onExpandedChange={handleLoadMoreTraces}
+                />
               </div>
             )}
         </div>

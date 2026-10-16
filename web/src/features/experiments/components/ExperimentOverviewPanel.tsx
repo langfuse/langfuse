@@ -1,6 +1,6 @@
+import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 import { useState } from "react";
-import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { ExperimentMetadataSection } from "./ExperimentMetadataSection";
 import {
@@ -95,16 +95,12 @@ export function ExperimentOverviewPanel({
                 <ExperimentOverviewField label="Description">
                   <div className="break-words">{displayDescription}</div>
                   {isLongDescription && (
-                    <Button
-                      variant="link"
-                      size="sm"
-                      className="h-auto p-0 text-xs"
-                      onClick={() =>
-                        setIsDescriptionExpanded(!isDescriptionExpanded)
-                      }
-                    >
-                      {isDescriptionExpanded ? "Show less" : "Show more"}
-                    </Button>
+                    <div>
+                      <ExpandToggle
+                        expanded={isDescriptionExpanded}
+                        onExpandedChange={setIsDescriptionExpanded}
+                      />
+                    </div>
                   )}
                 </ExperimentOverviewField>
               )}
