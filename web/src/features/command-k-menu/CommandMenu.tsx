@@ -427,7 +427,7 @@ function CommandMenuComponent({
     >
       <CommandInput
         placeholder="Search pages, projects, dashboards…"
-        className="border-none focus:border-none focus:ring-0 focus:ring-transparent focus:outline-hidden"
+        className="border-none text-lg focus:border-none focus:ring-0 focus:ring-transparent focus:outline-hidden"
         value={search}
         onValueChange={(value) => {
           setSearch(value);
