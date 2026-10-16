@@ -260,11 +260,13 @@ export function ToolCallDefinitionCard({
             <Tabs.List variant="inset" size="sm">
               <Tabs.Trigger
                 value="called"
-                label={`Called ${calledTools.length}`}
+                label="Called"
+                count={calledTools.length}
               />
               <Tabs.Trigger
                 value="not-called"
-                label={`Not called ${notCalledTools.length}`}
+                label="Not called"
+                count={notCalledTools.length}
               />
             </Tabs.List>
           </Tabs>
