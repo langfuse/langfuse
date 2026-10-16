@@ -166,6 +166,44 @@ describe("Topics naming boundary", () => {
     });
   });
 
+  it("classifies text after a valid cached Bedrock object as invalid output", async () => {
+    const { generateTopicText } = await vi.importActual<
+      typeof import("@langfuse/shared/topics/server")
+    >("@langfuse/shared/topics/server");
+    state.call.mockImplementation(generateTopicText);
+    state.env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          choices: [
+            {
+              finish_reason: "stop",
+              message: {
+                content: `${JSON.stringify(keyed({ summary: "A request.", status: "applicable" }))} assistant {"intent_1":`,
+              },
+            },
+          ],
+          usage: { prompt_tokens: 12, completion_tokens: 4, total_tokens: 16 },
+        }),
+      ),
+    );
+    const models = topicsModels();
+    models.summary.connection.secretKey = encrypt(
+      JSON.stringify({ accessKeyId: "AKIATOPICS", secretAccessKey: "test" }),
+    );
+
+    await expect(
+      summarizeOne(
+        models,
+        "Trace evidence.",
+        topicProcessingConfigSchema.parse({
+          summaryModel: models.summary.model,
+        }),
+      ),
+    ).rejects.toMatchObject({ reason: "invalid_output" });
+  });
+
   it.each([
     ["us.openai.gpt-5.6-luna", 0.00002, 0.000036],
     ["us.openai.gpt-6-luna", 0.000011, 0.0000165],
