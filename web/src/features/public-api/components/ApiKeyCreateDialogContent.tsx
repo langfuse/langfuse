@@ -39,7 +39,7 @@ type ApiKeyScope = "project" | "organization";
 
 const DEFAULT_ROLE: SystemRole = "ADMIN";
 
-/** apiKeyRoleNames relabels roles whose catalog name reads as a member role. */
+/** apiKeyRoleNames renames user roles to be more api-key friendly. */
 const apiKeyRoleNames: Partial<Record<SystemRole, string>> = {
   ADMIN: "Full Access",
 };
