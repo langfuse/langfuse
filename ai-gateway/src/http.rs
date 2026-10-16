@@ -193,15 +193,15 @@ async fn relay(
         return Err(InferenceHttpError::UnsupportedEncoding);
     }
     // Held with the execution and released once the response ends.
-    let mut body_permit = inference
+    let body_permit = inference
         .try_reserve_request_body()
         .map_err(InferenceHttpError::from)?;
     let (parts, body) = request.into_parts();
-    let bytes = read_request_body(
+    let (bytes, body_permit) = read_request_body(
         body,
         &parts.headers,
         inference.max_request_bytes(),
-        &mut body_permit,
+        body_permit,
     )
     .await?;
     let request_body = request_body_and_model(bytes)?;
@@ -285,8 +285,8 @@ async fn read_request_body(
     body: Body,
     headers: &HeaderMap,
     max_bytes: usize,
-    permit: &mut RequestBodyPermit,
-) -> Result<Bytes, InferenceHttpError> {
+    mut permit: RequestBodyPermit,
+) -> Result<(Bytes, RequestBodyPermit), InferenceHttpError> {
     let server = tracing::Span::current();
     let span = tracing::info_span!(
         "request.body",
@@ -331,7 +331,7 @@ async fn read_request_body(
     .instrument(span)
     .await?;
     server.record("http.request.body.size", byte_count(bytes.len()));
-    Ok(bytes)
+    Ok((bytes, permit))
 }
 
 /// The router's body deadline surfaces as a body error.

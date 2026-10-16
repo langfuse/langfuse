@@ -1849,31 +1849,33 @@ async fn a_stalled_upload_holds_only_the_bytes_it_sent() {
     let (_web, _provider, service) = budgeted_service().await;
     let mut headers = HeaderMap::new();
     headers.insert(header::CONTENT_LENGTH, "60".parse().unwrap());
-    let mut stalled = service.try_reserve_request_body().ok().unwrap();
+    let stalled = service.try_reserve_request_body().ok().unwrap();
     let read = read_request_body(
         streamed_body(vec![&[b'x'; 10]], true),
         &headers,
         64,
-        &mut stalled,
+        stalled,
     );
+    tokio::pin!(read);
     assert!(
-        tokio::time::timeout(Duration::from_millis(50), read)
+        tokio::time::timeout(Duration::from_millis(50), &mut read)
             .await
             .is_err()
     );
     let mut next = service.try_reserve_request_body().ok().unwrap();
+    assert!(next.try_reserve_bytes(91).is_err());
     assert!(next.try_reserve_bytes(90).is_ok());
 }
 
 #[tokio::test]
 async fn buffered_bytes_reserve_the_allocation_not_just_the_length() {
     let (_web, _provider, service) = budgeted_service().await;
-    let mut held = service.try_reserve_request_body().ok().unwrap();
-    let bytes = read_request_body(
+    let held = service.try_reserve_request_body().ok().unwrap();
+    let (bytes, _held) = read_request_body(
         streamed_body(vec![&[b'x'; 32], b"x"], false),
         &HeaderMap::new(),
         64,
-        &mut held,
+        held,
     )
     .await
     .ok()
