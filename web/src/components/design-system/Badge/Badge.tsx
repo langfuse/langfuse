@@ -57,6 +57,10 @@ const badgeVariants = cva(
         true: "underline-dotted",
         false: "",
       },
+      dismissible: {
+        true: "cursor-pointer transition-opacity hover:opacity-80 ring-offset-background focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
+        false: "",
+      },
       /** Metric values (latency, cost, timestamps) read in mono. */
       font: {
         sans: "font-sans",
@@ -97,6 +101,7 @@ export function BadgeShell({
   interactive,
   font,
   shouldWrap,
+  dismissible,
   ...props
 }: BadgeShellProps) {
   const Component = asChild ? Slot : "span";
@@ -105,7 +110,14 @@ export function BadgeShell({
     <Component
       className={cn(
         "group/badge",
-        badgeVariants({ color, size, interactive, font, shouldWrap }),
+        badgeVariants({
+          color,
+          size,
+          interactive,
+          font,
+          shouldWrap,
+          dismissible,
+        }),
       )}
       {...props}
     />
