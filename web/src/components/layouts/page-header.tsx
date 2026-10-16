@@ -7,7 +7,7 @@ import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
 import { InAppAiAgentButton } from "@/src/components/nav/InAppAiAgentButton";
 import { TopbarBrand } from "@/src/components/nav/topbar-brand";
-import { useHasAppSidebar } from "@/src/components/nav/sidebar-presence";
+import { useHasAppSidebar } from "@/src/components/nav/SidebarPresenceProvider";
 import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent";
 import { SidebarTrigger } from "@/src/components/ui/sidebar";
 import {
