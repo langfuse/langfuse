@@ -2,6 +2,7 @@ import { afterEach, describe, it, expect } from "vitest";
 import { OutboundUrlValidationError, parseOutboundUrl } from "../outbound-url";
 import {
   assertGcsBlobStorageBucketAllowed,
+  blobStorageEndpointConnectionValidationOptions,
   validateBlobStorageEndpoint,
 } from "./blobStorageEndpointValidation";
 import { env } from "../../env";
@@ -61,6 +62,84 @@ describe("validateBlobStorageEndpoint", () => {
         ip_ranges: [],
       }),
     ).resolves.toBeUndefined();
+  });
+
+  it("rejects a host outside a configured allowed-hosts list", async () => {
+    await expect(
+      validateBlobStorageEndpoint("https://blob.example.com", {
+        hosts: [],
+        ips: [],
+        ip_ranges: [],
+        allowedHosts: ["minio.internal"],
+      }),
+    ).rejects.toMatchObject({
+      code: "host-not-allowed",
+      message: expect.stringContaining(
+        "LANGFUSE_BLOB_STORAGE_ENDPOINT_ALLOWED_HOSTS",
+      ),
+    });
+  });
+
+  it("accepts a listed host even when it is a private address", async () => {
+    await expect(
+      validateBlobStorageEndpoint("http://10.0.0.1:9000", {
+        hosts: [],
+        ips: [],
+        ip_ranges: [],
+        allowedHosts: ["10.0.0.1"],
+      }),
+    ).resolves.toBeUndefined();
+  });
+});
+
+describe("blobStorageEndpointConnectionValidationOptions", () => {
+  const allowlist = {
+    hosts: [],
+    ips: [],
+    ip_ranges: [],
+    allowedHosts: ["minio.internal"],
+  };
+
+  it("is off when no list is configured", () => {
+    expect(
+      blobStorageEndpointConnectionValidationOptions(undefined, {
+        hosts: [],
+        ips: [],
+        ip_ranges: [],
+        allowedHosts: [],
+      }),
+    ).toBeUndefined();
+  });
+
+  it("trusts the virtual-hosted bucket name of an allowlisted S3 endpoint", () => {
+    const options = blobStorageEndpointConnectionValidationOptions(
+      {
+        type: "S3_COMPATIBLE",
+        endpoint: "http://minio.internal:9000",
+        bucketName: "exports",
+        forcePathStyle: false,
+        region: "auto",
+      },
+      allowlist,
+    );
+    expect(options?.whitelist?.allowedHosts).toEqual([
+      "minio.internal",
+      "exports.minio.internal",
+    ]);
+  });
+
+  it("does not add a bucket host for Azure, which addresses containers by path", () => {
+    const options = blobStorageEndpointConnectionValidationOptions(
+      {
+        type: "AZURE_BLOB_STORAGE",
+        endpoint: "http://minio.internal:9000",
+        bucketName: "exports",
+        forcePathStyle: false,
+        region: "auto",
+      },
+      allowlist,
+    );
+    expect(options?.whitelist?.allowedHosts).toEqual(["minio.internal"]);
   });
 });
 
