@@ -3675,6 +3675,8 @@ const traceCostsByIdentifier = (params: {
     identifier: "evaluator" | "rule";
     alias: string;
   }>;
+  /** The ids the caller's HAVING keeps. */
+  identifierIds: string[];
   additionalSelect?: string[];
 }) =>
   new EventsAggQueryBuilder({
@@ -3691,7 +3693,26 @@ const traceCostsByIdentifier = (params: {
     ].join(", "),
   })
     .whereRaw("e.start_time > now() - INTERVAL 7 DAY")
-    .whereRaw("e.is_deleted = 0");
+    .whereRaw("e.is_deleted = 0")
+    // Only a trace with an event carrying one of the ids can pass the
+    // caller's HAVING, so group just those traces instead of the project's
+    // whole week. The identifier bloom filter prunes the subquery.
+    .whereRaw(
+      `e.trace_id IN (
+        SELECT e.trace_id
+        FROM events_core e
+        WHERE e.project_id = {projectId: String}
+          AND e.start_time > now() - INTERVAL 7 DAY
+          AND e.is_deleted = 0
+          AND (${params.identifiers
+            .map(
+              ({ identifier }) =>
+                `${evalExecutionIdentifierColumn(identifier)} IN ({identifierIds: Array(String)})`,
+            )
+            .join(" OR ")})
+      )`,
+      { identifierIds: params.identifierIds },
+    );
 
 const costMetricFields = {
   avgCost: {
@@ -3721,6 +3742,7 @@ const getCostMetricsByIdentifierIds = async <
   const traceCostsBuilder = traceCostsByIdentifier({
     projectId: params.projectId,
     identifiers: [{ identifier: params.identifier, alias: "identifier_id" }],
+    identifierIds: params.identifierIds,
     additionalSelect: [
       `countIf(${evaluatorTestEventCondition}) as test_event_count`,
     ],
@@ -3824,6 +3846,7 @@ export const getLatestEvaluatorRunCost = async (
         alias: "evaluator_id",
       },
     ],
+    identifierIds: [evaluatorId],
     additionalSelect: [
       "max(e.start_time) as timestamp",
       "countIf(e.type = 'GENERATION') as generation_count",

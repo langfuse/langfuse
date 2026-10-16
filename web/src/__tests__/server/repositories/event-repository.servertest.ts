@@ -362,6 +362,37 @@ describe("Clickhouse Events Repository Test", () => {
       ).resolves.toEqual([{ evaluatorId, totalCost: 1.5 }]);
     });
 
+    it("adds the cost of trace events without the evaluator id", async () => {
+      const evaluatorId = randomUUID();
+      const traceId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          type: "SPAN",
+          evaluator_id: evaluatorId,
+          cost_details: { total: 0.25 },
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          cost_details: { total: 0.75 },
+        }),
+        // Another trace in the same week, without the evaluator.
+        createEvent({
+          project_id: projectId,
+          type: "GENERATION",
+          cost_details: { total: 5 },
+        }),
+      ]);
+
+      await expect(
+        getTotalCostByEvaluatorIds(projectId, [evaluatorId]),
+      ).resolves.toEqual([{ evaluatorId, totalCost: 1 }]);
+    });
+
     it("returns the latest evaluator trace cost", async () => {
       const evaluatorId = randomUUID();
       const staleEvaluatorId = randomUUID();

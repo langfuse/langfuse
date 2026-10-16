@@ -1605,7 +1605,17 @@ const getScoresUiGenericFromEvents = async <T>(props: {
   const tracesCTEParams: Record<string, unknown> = {};
 
   if (needsTracesCTE) {
-    const tracesEventsBuilder = eventsTraceMetadata(projectId);
+    // The trace lookup has no time bound of its own, so restrict it to traces
+    // of the scores in the window: only those can join below. Keeps it from
+    // reading the project's whole trace history.
+    const tracesEventsBuilder = eventsTraceMetadata(projectId).whereRaw(
+      `e.trace_id IN (
+        SELECT s.trace_id
+        FROM scores s
+        WHERE s.project_id = {projectId: String}
+        ${innerDatePruneQuery ? `AND ${innerDatePruneQuery}` : ""}
+      )`,
+    );
 
     if (traceFilterState.length > 0) {
       const cteTraceFilters = new FilterList(

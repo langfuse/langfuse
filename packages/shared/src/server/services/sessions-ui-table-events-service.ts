@@ -203,62 +203,90 @@ const getSessionsTableFromEventsGeneric = async <T>(
     filter.some((item) => toolColumns.includes(item.column)) ||
     (orderBy != null && toolColumns.includes(orderBy.column));
 
-  // Build session_data CTE
-  const sessionsBuilder = eventsSessionsAggregation({
-    projectId,
-    fields: ALL_SESSION_EVENTS_FIELDS,
-    sessionIds: sessionIdFilter?.values,
-    startTimeFrom: traceTimestampFilter
-      ? convertDateToClickhouseDateTime(traceTimestampFilter.value)
-      : null,
-    includeMetadata: requiresMetadata,
-    includeTools: requiresTools,
-    fullTable,
-    metadataSessionPrefilter,
-  });
-
-  // Compose query using CTEQueryBuilder
-  let queryBuilder = new CTEQueryBuilder()
-    .withCTEFromBuilder("session_data", sessionsBuilder)
-    .from("session_data", "s");
-
-  // Conditionally add scores CTE
-  if (requiresScoresJoin) {
-    queryBuilder = queryBuilder
-      .withCTE("scores_agg", eventsSessionScoresAggregation({ projectId }))
-      .leftJoin(
-        "scores_agg",
-        "sc",
-        "ON sc.project_id = {projectId: String} AND sc.score_session_id = s.session_id",
-      );
-  }
-
-  if (select === "count") {
-    queryBuilder.select("count(s.session_id) as count");
-  } else {
-    queryBuilder.selectColumns(
-      ...select.fields.map((field) => `s.${field}` as const),
-    );
-  }
-
-  // Apply filters, ordering, and pagination
-  if (sessionsFilterRes.query) {
-    queryBuilder.whereRaw(sessionsFilterRes.query, sessionsFilterRes.params);
-  }
-
   const orderBySql = orderByToClickhouseSql(
     orderBy ?? null,
     sessionEventsOrderByCols,
   );
-  if (orderBySql) {
-    queryBuilder.orderBy(orderBySql);
-  }
 
-  if (limit !== undefined && page !== undefined) {
-    queryBuilder.limit(limit, limit * page);
-  }
+  const buildQuery = (
+    cteName: "session_data" | "page_sessions",
+    columns: FetchSessionsTableFromEventsProps["select"],
+    pageSessions?: { query: string; params: Record<string, unknown> },
+  ) => {
+    // Build the session aggregation CTE
+    const sessionsBuilder = eventsSessionsAggregation({
+      projectId,
+      fields: ALL_SESSION_EVENTS_FIELDS,
+      sessionIds: sessionIdFilter?.values,
+      startTimeFrom: traceTimestampFilter
+        ? convertDateToClickhouseDateTime(traceTimestampFilter.value)
+        : null,
+      includeMetadata: requiresMetadata,
+      includeTools: requiresTools,
+      fullTable,
+      metadataSessionPrefilter,
+    });
+    if (pageSessions) {
+      sessionsBuilder.whereRaw(
+        `session_id IN (${pageSessions.query})`,
+        pageSessions.params,
+      );
+    }
 
-  const { query, params } = queryBuilder.buildWithParams();
+    // Compose query using CTEQueryBuilder
+    let queryBuilder = new CTEQueryBuilder()
+      .withCTEFromBuilder(cteName, sessionsBuilder)
+      .from(cteName, "s");
+
+    // Conditionally add scores CTE
+    if (requiresScoresJoin) {
+      queryBuilder = queryBuilder
+        .withCTE("scores_agg", eventsSessionScoresAggregation({ projectId }))
+        .leftJoin(
+          "scores_agg",
+          "sc",
+          "ON sc.project_id = {projectId: String} AND sc.score_session_id = s.session_id",
+        );
+    }
+
+    if (columns === "count") {
+      queryBuilder.select("count(s.session_id) as count");
+    } else {
+      queryBuilder.selectColumns(
+        ...columns.fields.map((field) => `s.${field}` as const),
+      );
+    }
+
+    // Apply filters, ordering, and pagination
+    if (sessionsFilterRes.query) {
+      queryBuilder.whereRaw(sessionsFilterRes.query, sessionsFilterRes.params);
+    }
+
+    if (orderBySql) {
+      queryBuilder.orderBy(orderBySql);
+    }
+
+    // The page subquery has already applied the pagination.
+    if (!pageSessions && limit !== undefined && page !== undefined) {
+      queryBuilder.limit(limit, limit * page);
+    }
+
+    return queryBuilder.buildWithParams();
+  };
+
+  // A page of rows is read in two steps within one query. The subquery ranks
+  // the sessions selecting only session_id, so ClickHouse computes just the
+  // aggregates that filters and ordering read for every session in the
+  // window. The outer query then computes the requested fields for the
+  // page's sessions only, over the same events, so the values are unchanged.
+  const { query, params } =
+    select !== "count" && limit !== undefined && page !== undefined
+      ? buildQuery(
+          "session_data",
+          select,
+          buildQuery("page_sessions", { fields: ["session_id"] }),
+        )
+      : buildQuery("session_data", select);
 
   const input = {
     params: {
