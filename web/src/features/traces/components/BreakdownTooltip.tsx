@@ -86,6 +86,9 @@ export const BreakdownTooltip = ({
   /** Usage rows show bars and percentages only on the cost breakdown. */
   const showShares = isCost;
   const shareOf = showShares ? createShareOf(contributionEntries) : undefined;
+  const waterfallOffsets = shareOf
+    ? createWaterfallOffsets(contributionEntries, shareOf)
+    : undefined;
   const cacheHitRate = isCost ? null : getCacheHitRate(inputEntries, details);
   const displayedTotal =
     aggregatedDetails.total ??
@@ -94,7 +97,13 @@ export const BreakdownTooltip = ({
   const resolvedCostSource =
     costSource ?? (isCost && priceSource ? "calculated" : undefined);
 
-  const sectionProps = { formatValue, formatExactValue, shareOf, showShares };
+  const sectionProps = {
+    formatValue,
+    formatExactValue,
+    shareOf,
+    waterfallOffsets,
+    showShares,
+  };
 
   return (
     <TooltipProvider>
@@ -230,6 +239,7 @@ function BreakdownRow({
   variant,
   layout = "grid",
   share,
+  offset = 0,
   showShares = false,
 }: {
   label: string;
@@ -239,6 +249,8 @@ function BreakdownRow({
   layout?: BreakdownRowVariants["layout"];
   /** Share of all components in percent; shown as a bar on item rows. */
   share?: number;
+  /** Where the bar starts: the summed share of the rows before it. */
+  offset?: number;
   /** The grid carries bar and share columns. */
   showShares?: boolean;
 }) {
@@ -260,12 +272,12 @@ function BreakdownRow({
       </span>
       {hasBar ? (
         <span
-          className="bg-border relative h-1 w-16 overflow-hidden rounded-sm"
+          className="bg-border relative h-2 w-28 overflow-hidden rounded-sm"
           aria-hidden="true"
         >
           <span
-            className="bg-muted-foreground absolute left-0 h-full rounded-sm"
-            style={{ width: `${share ?? 0}%` }}
+            className="bg-muted-foreground absolute h-full rounded-sm"
+            style={{ left: `${offset}%`, width: `${share ?? 0}%` }}
           />
         </span>
       ) : null}
@@ -291,6 +303,7 @@ interface SectionProps {
   formatExactValue: (value: number | Decimal) => string | undefined;
   /** Omitted when the breakdown shows no shares. */
   shareOf?: (value: number | Decimal) => number;
+  waterfallOffsets?: Map<string, number>;
   showShares: boolean;
   /** Hairline above the section, matching the total row. */
   separated?: boolean;
@@ -303,6 +316,7 @@ const Section = ({
   formatValue,
   formatExactValue,
   shareOf,
+  waterfallOffsets,
   showShares,
   separated = false,
   lastRow,
@@ -332,6 +346,7 @@ const Section = ({
           exactValue={formatExactValue(value ?? 0)}
           variant="item"
           share={shareOf?.(value ?? 0)}
+          offset={waterfallOffsets?.get(key)}
           showShares={showShares}
         />
       ))}
@@ -490,6 +505,21 @@ function createShareOf(entries: [string, number | undefined][]) {
     const numericValue = value instanceof Decimal ? value.toNumber() : value;
     return (Math.max(numericValue, 0) / total) * 100;
   };
+}
+
+/** Each row's bar starts where the previous rows' bars end. */
+function createWaterfallOffsets(
+  entries: [string, number | undefined][],
+  shareOf: (value: number | Decimal) => number,
+) {
+  let cumulative = 0;
+  return new Map(
+    entries.map(([key, value]) => {
+      const offset = cumulative;
+      cumulative += shareOf(value ?? 0);
+      return [key, offset];
+    }),
+  );
 }
 
 function formatShare(share: number) {

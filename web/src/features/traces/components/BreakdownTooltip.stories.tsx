@@ -280,6 +280,32 @@ export const TestShareOfTotal = meta.story({
   },
 });
 
+export const TestWaterfallBars = meta.story({
+  name: "(Test) Cost bars start where the previous row's bar ends",
+  args: {
+    details: cacheCostDetails,
+    children: <span>$0.03782809</span>,
+    isCost: true,
+  },
+  play: async ({ canvasElement }) => {
+    const { tooltip } = await openBreakdownTooltip(
+      canvasElement,
+      "$0.03782809",
+    );
+    const bars = Array.from(
+      tooltip.querySelectorAll<HTMLElement>('[aria-hidden="true"] > span'),
+    );
+
+    await expect(bars).toHaveLength(5);
+    let end = 0;
+    for (const bar of bars) {
+      await expect(parseFloat(bar.style.left)).toBeCloseTo(end, 2);
+      end += parseFloat(bar.style.width);
+    }
+    await expect(end).toBeCloseTo(100, 2);
+  },
+});
+
 export const TestUsageWithoutShares = meta.story({
   name: "(Test) Usage breakdown shows no share column or bars",
   args: {
