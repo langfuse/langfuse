@@ -11,7 +11,7 @@ import {
 } from "@/src/features/sessions";
 import { useState, useMemo, useCallback } from "react";
 import { Button } from "@/src/components/ui/button";
-import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
+import { Button as DsButton } from "@/src/components/design-system/Button/Button";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { CopyIdsPopover } from "@/src/features/traces";
@@ -266,10 +266,11 @@ export const SessionAnnotationProcessor: React.FC<
           {(!isV4 || tracesFromEventsQuery.isSuccess) &&
             traces.length > visibleTraces && (
               <div className="flex justify-center py-4">
-                <ExpandToggle
-                  expanded={false}
-                  label={`Load ${Math.min(traces.length - visibleTraces, PAGE_SIZE)} More`}
-                  onExpandedChange={handleLoadMoreTraces}
+                <DsButton
+                  variant="text"
+                  size="sm"
+                  text={`Load ${Math.min(traces.length - visibleTraces, PAGE_SIZE)} More`}
+                  onClick={handleLoadMoreTraces}
                 />
               </div>
             )}

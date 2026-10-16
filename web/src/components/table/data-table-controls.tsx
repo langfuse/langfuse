@@ -1,4 +1,4 @@
-import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
+import { Button as DsButton } from "@/src/components/design-system/Button/Button";
 /* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements */
 import {
@@ -1911,17 +1911,19 @@ function CategoricalSelectContent({
               {(canShowMore || canShowFewer) && (
                 <div className="mt-1 flex flex-col items-start gap-1 py-1 pl-2">
                   {canShowFewer && (
-                    <ExpandToggle
-                      expanded
-                      expandedLabel="Show fewer values"
-                      onExpandedChange={handleShowFewerValues}
+                    <DsButton
+                      variant="text"
+                      size="sm"
+                      text="Show fewer values"
+                      onClick={handleShowFewerValues}
                     />
                   )}
                   {canShowMore && (
-                    <ExpandToggle
-                      expanded={false}
-                      label="Show more values"
-                      onExpandedChange={handleShowMoreValues}
+                    <DsButton
+                      variant="text"
+                      size="sm"
+                      text="Show more values"
+                      onClick={handleShowMoreValues}
                     />
                   )}
                 </div>

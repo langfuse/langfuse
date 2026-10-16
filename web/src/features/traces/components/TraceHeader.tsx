@@ -1,4 +1,4 @@
-import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { OverflowCountBadge } from "@/src/components/OverflowCountBadge";
 /** Trace totals, session/user links and tags, above the panels. */
 
@@ -67,6 +67,9 @@ function TraceHeaderLoading() {
 function LoadedTraceHeader() {
   const { trace, observations, mergedScores } = useTraceData();
   const [showAllTags, setShowAllTags] = useState(false);
+  const handleShowFewerTags = () => {
+    setShowAllTags(false);
+  };
 
   const aggregatedMetrics = useMemo(
     () => aggregateTraceMetrics(observations),
@@ -128,10 +131,11 @@ function LoadedTraceHeader() {
               />
             )}
             {showAllTags && trace.tags.length > MAX_VISIBLE_TAGS && (
-              <ExpandToggle
-                expanded
-                expandedLabel="Show fewer"
-                onExpandedChange={setShowAllTags}
+              <Button
+                variant="text"
+                size="sm"
+                text="Show fewer"
+                onClick={handleShowFewerTags}
               />
             )}
           </div>

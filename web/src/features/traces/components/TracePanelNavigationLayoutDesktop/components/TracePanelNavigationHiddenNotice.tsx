@@ -12,7 +12,7 @@
  */
 
 import { ObservationLevel } from "@langfuse/shared";
-import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 
@@ -36,10 +36,11 @@ export function TracePanelNavigationHiddenNotice() {
           {hiddenObservationsCount} hidden observations below{" "}
           {minObservationLevel} level.
         </p>
-        <ExpandToggle
-          expanded={false}
-          label="Show all"
-          onExpandedChange={handleShowAll}
+        <Button
+          variant="text"
+          size="sm"
+          text="Show all"
+          onClick={handleShowAll}
         />
       </span>
     </div>
