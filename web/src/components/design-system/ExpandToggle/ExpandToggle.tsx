@@ -9,7 +9,7 @@ type ExpandToggleProps = {
   label?: string;
   /** Shown while expanded. */
   expandedLabel?: string;
-  /** `icon` adds a chevron that flips with the state. */
+  /** `plain` is an underlined link; `icon` swaps the underline for a chevron that flips with the state. */
   variant?: "plain" | "icon";
   /** Which side of the label the icon sits on. */
   iconPosition?: "left" | "right";
@@ -37,6 +37,7 @@ export function ExpandToggle({
   return (
     <Button
       variant="text"
+      underline={variant === "plain"}
       size={size}
       text={expanded ? expandedLabel : label}
       icon={variant === "icon" ? chevron : undefined}

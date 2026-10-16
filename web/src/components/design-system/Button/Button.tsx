@@ -24,6 +24,10 @@ const buttonVariants = cva(
         default: "h-8 px-3 py-1 text-sm",
         sm: "h-7 px-2 text-xs",
       },
+      underline: {
+        true: "",
+        false: "no-underline",
+      },
     },
     compoundVariants: [{ variant: "text", class: "h-auto px-0 py-0" }],
     defaultVariants: {
@@ -50,6 +54,8 @@ const buttonIconVariants = cva("icon-base shrink-0", {
 
 type ButtonProps = {
   text: string;
+  /** Text variant only: `false` drops the underline, e.g. when an icon marks it. */
+  underline?: boolean;
   variant?: "primary" | "secondary" | "destructive" | "ghost" | "text";
   size?: "default" | "sm";
 } & (
@@ -86,6 +92,7 @@ export function Button(props: ButtonProps) {
     buttonVariants({
       variant: props.variant,
       size: props.size,
+      underline: props.underline,
     }),
   );
   const iconClassName = buttonIconVariants({ variant: props.variant });
