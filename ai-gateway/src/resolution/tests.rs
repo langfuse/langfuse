@@ -303,6 +303,37 @@ async fn model_policy_rejections_are_distinct_from_other_forbidden_responses() {
     assert!(!format!("{error:?} {error}").contains("private-upstream-error"));
 }
 
+/// A rejected gateway signature means the service keys disagree, which is the
+/// gateway's fault, not the caller's.
+#[tokio::test]
+async fn rejected_gateway_signatures_are_configuration_errors() {
+    let web = FakeWeb::start(|_| async {
+        Response::builder()
+            .status(StatusCode::UNAUTHORIZED)
+            .header(
+                "langfuse-gateway-error-code",
+                "invalid_gateway_authorization",
+            )
+            .body(Body::empty())
+            .unwrap()
+    })
+    .await;
+
+    let error = web
+        .control_plane()
+        .resolve_at(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiResponses,
+            "primary:gpt-4.1",
+            NOW_TIME,
+            REQUEST_ID,
+        )
+        .await
+        .unwrap_err();
+
+    assert!(matches!(error, ResolutionError::Configuration));
+}
+
 #[tokio::test]
 async fn never_follows_redirects_with_credentials() {
     let destination =
