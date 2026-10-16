@@ -22,6 +22,7 @@ import type { ScoreFieldGroupV3 } from "../../features/scores/interfaces/api/v3/
 import { filterAndValidateV3GetScoreList } from "../../features/scores/interfaces/api/v3/validation";
 import {
   commandClickhouse,
+  type ClickhouseQueryOpts,
   queryClickhouse,
   queryClickhouseStream,
   queryClickhouseExecRaw,
@@ -3532,6 +3533,7 @@ export async function listScoresV3ForPublicApi(
     cursor?: ScoresCursorV3Type;
     fields: ScoreFieldGroupV3[];
   } & ListFilterParams,
+  options?: Pick<ClickhouseQueryOpts, "clickhouseSettings">,
 ): Promise<{ data: APIScoreV3[]; cursor?: string }> {
   const { query: filterClause, params: filterParams } =
     buildDynamicFilters(params);
@@ -3558,6 +3560,7 @@ export async function listScoresV3ForPublicApi(
     ),
     params: input.params,
     tags: input.tags,
+    clickhouseSettings: options?.clickhouseSettings,
     preferredClickhouseService: "ReadOnly",
   });
 

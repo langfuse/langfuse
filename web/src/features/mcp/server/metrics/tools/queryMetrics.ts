@@ -14,6 +14,7 @@ import {
 import { defineTool } from "../../../core/define-tool";
 import { McpAdvancedFilterBaseSchema } from "../../../core/filter-schema";
 import { runMcpTool } from "../../../core/run-mcp-tool";
+import { MCP_CLICKHOUSE_SETTINGS } from "../../../core/clickhouse-settings";
 import { clampToDataAccessDays } from "@/src/features/entitlements/server";
 import { z } from "zod";
 
@@ -198,6 +199,7 @@ export const [queryMetricsTool, handleQueryMetrics] = defineTool({
           queryParams,
           "v2",
           true,
+          { clickhouseSettings: MCP_CLICKHOUSE_SETTINGS },
         );
 
         return { data: result };
