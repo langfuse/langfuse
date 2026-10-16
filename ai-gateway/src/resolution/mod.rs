@@ -3,16 +3,16 @@ mod contracts;
 pub(crate) mod signing;
 
 pub use contracts::{
-    ApiFormat, IngestionGrant, IngestionMode, MetadataValue, Provider, ProviderConnection,
-    ProviderCredential, RequestAttribution, ResolvedRequestContext,
+    ApiFormat, IngestionGrant, IngestionMode, MetadataValue, OrganizationId, ProjectId, Provider,
+    ProviderConnection, ProviderCredential, RequestAttribution, ResolvedRequestContext,
 };
 use reqwest::{
     Client, Method, Url,
     header::{AUTHORIZATION, CONTENT_TYPE, HeaderValue},
 };
 use reqwest_middleware::{ClientWithMiddleware, RequestBuilder};
+use secrecy::{ExposeSecret, SecretString};
 use std::{
-    fmt,
     net::IpAddr,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
@@ -36,7 +36,7 @@ struct ControlPlaneLimits {
 /// Operator-supplied Web base URL and the existing gateway/Web service key.
 pub struct ControlPlaneConfig {
     web_url: Url,
-    service_key: String,
+    service_key: SecretString,
     resolve_limits: ControlPlaneLimits,
     models_limits: ControlPlaneLimits,
 }
@@ -69,7 +69,7 @@ impl ControlPlaneConfig {
         }
         Ok(Self {
             web_url: url,
-            service_key: service_key.to_owned(),
+            service_key: service_key.into(),
             resolve_limits: ControlPlaneLimits {
                 timeout: Duration::from_secs(5),
                 max_response_bytes: 256 * 1024,
@@ -88,7 +88,7 @@ impl ControlPlaneConfig {
         url
     }
 
-    pub(crate) fn service_key(&self) -> &str {
+    pub(crate) fn service_key(&self) -> &SecretString {
         &self.service_key
     }
 }
@@ -218,7 +218,7 @@ impl ControlPlaneClient {
             .map_err(|_| ResolutionError::InvalidCredential)?;
         credential.set_sensitive(true);
         let mut signature = HeaderValue::from_str(&signing::authorization(
-            &self.config.service_key,
+            self.config.service_key.expose_secret(),
             gateway_key,
             timestamp,
         ))
@@ -302,45 +302,36 @@ fn valid_token(value: &str) -> bool {
 }
 
 /// Sanitized failure categories. Upstream bodies and transport errors are never retained.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum ResolutionError {
+    #[error("invalid resolver configuration")]
     Configuration,
+    #[error("invalid gateway credential")]
     InvalidCredential,
+    #[error("invalid gateway request")]
     InvalidRequest,
+    #[error("gateway authentication failed")]
     Authentication,
+    #[error("gateway access forbidden")]
     Forbidden,
+    #[error("model is not allowed")]
     ModelNotAllowed,
+    #[error("no eligible connection")]
     NoRoute,
     /// The gateway's own resolution or catalog capacity is exhausted.
+    #[error("gateway at capacity")]
     Busy,
+    #[error("resolution unavailable")]
     Unavailable,
+    #[error("resolution deadline exceeded")]
     Timeout,
+    #[error("resolution transport failed")]
     Transport,
+    #[error("invalid resolution response")]
     InvalidResponse,
+    #[error("resolution response too large")]
     ResponseTooLarge,
 }
-
-impl fmt::Display for ResolutionError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::Configuration => "invalid resolver configuration",
-            Self::InvalidCredential => "invalid gateway credential",
-            Self::InvalidRequest => "invalid gateway request",
-            Self::Authentication => "gateway authentication failed",
-            Self::Forbidden => "gateway access forbidden",
-            Self::ModelNotAllowed => "model is not allowed",
-            Self::NoRoute => "no eligible connection",
-            Self::Busy => "gateway at capacity",
-            Self::Unavailable => "resolution unavailable",
-            Self::Timeout => "resolution deadline exceeded",
-            Self::Transport => "resolution transport failed",
-            Self::InvalidResponse => "invalid resolution response",
-            Self::ResponseTooLarge => "resolution response too large",
-        })
-    }
-}
-
-impl std::error::Error for ResolutionError {}
 
 #[cfg(test)]
 mod tests;

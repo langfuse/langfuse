@@ -11,7 +11,7 @@ use axum::{
 
 use crate::{
     observability::RequestObservation,
-    resolution::{ProviderConnection, ResolvedRequestContext},
+    resolution::{OrganizationId, ProjectId, ProviderConnection, ResolvedRequestContext},
 };
 
 pub(crate) const REQUEST_ID_HEADER: HeaderName = HeaderName::from_static("langfuse-request-id");
@@ -35,8 +35,8 @@ pub(crate) struct GenerationIds {
 
 #[derive(Clone, Debug)]
 struct Tenant {
-    organization_id: String,
-    project_id: String,
+    organization_id: OrganizationId,
+    project_id: ProjectId,
 }
 
 /// The provider connection and model of an upstream attempt. With several
@@ -131,13 +131,15 @@ impl RequestCorrelation {
 
     pub(crate) fn record_resolution(&mut self, context: &ResolvedRequestContext) {
         let attribution = context.attribution();
+        self.server_span.record(
+            "langfuse.organization.id",
+            attribution.organization_id().as_str(),
+        );
         self.server_span
-            .record("langfuse.organization.id", attribution.organization_id());
-        self.server_span
-            .record("langfuse.project.id", attribution.project_id());
+            .record("langfuse.project.id", attribution.project_id().as_str());
         self.tenant = Some(Tenant {
-            organization_id: attribution.organization_id().to_owned(),
-            project_id: attribution.project_id().to_owned(),
+            organization_id: attribution.organization_id().clone(),
+            project_id: attribution.project_id().clone(),
         });
     }
 
