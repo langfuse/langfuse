@@ -1146,6 +1146,25 @@ describe("AI gateway control plane", () => {
     ).resolves.toMatchObject({ name: "production" });
   });
 
+  it("treats underscores in connection names literally when checking duplicates", async () => {
+    const { caller, org } = await prepare();
+    await caller.aiGateway.createConnection({
+      orgId: org.id,
+      name: "openai-1",
+      provider: "OPENAI",
+      credential: "sk-openai",
+    });
+
+    await expect(
+      caller.aiGateway.createConnection({
+        orgId: org.id,
+        name: "openai_1",
+        provider: "OPENAI",
+        credential: "sk-openai",
+      }),
+    ).resolves.toMatchObject({ name: "openai_1" });
+  });
+
   it("changes ERROR only for credential auth failures and explicit recovery", async () => {
     const { caller, org, session } = await prepare();
     const connection = await caller.aiGateway.createConnection({

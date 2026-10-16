@@ -87,15 +87,19 @@ export class GatewayProviderRepository {
     name: string;
     excludeId?: string;
   }) {
-    const connection = await this.prisma.gatewayAiConnection.findFirst({
+    /** Postgres runs insensitive `equals` as an unescaped `ILIKE`, so `_` matches any character. */
+    const candidates = await this.prisma.gatewayAiConnection.findMany({
       where: {
         organizationId: params.organizationId,
         name: { equals: params.name, mode: "insensitive" },
         ...(params.excludeId ? { id: { not: params.excludeId } } : {}),
       },
-      select: { id: true },
+      select: { name: true },
     });
-    return connection !== null;
+    const lowerName = params.name.toLowerCase();
+    return candidates.some(
+      (candidate) => candidate.name.toLowerCase() === lowerName,
+    );
   }
 
   async createConnection(params: {
