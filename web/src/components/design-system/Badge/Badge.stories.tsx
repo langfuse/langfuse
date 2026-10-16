@@ -134,9 +134,8 @@ export const LongWrappedLabel = meta.story({
   },
 });
 
-export const CentredLabel = meta.story({
-  name: "(Test) Centred Label",
-  args: { text: "Badge" },
+export const CenteredLabel = meta.story({
+  name: "(Test) Centered Label",
   play: async ({ canvas, args }) => {
     const label = canvas.getByText(args.text);
     const badge = label.parentElement!;
@@ -147,11 +146,11 @@ export const CentredLabel = meta.story({
     const text = range.getBoundingClientRect();
     const { borderTopWidth, borderBottomWidth } = getComputedStyle(badge);
 
-    /** Measured inside the border, so a border width change cannot mask a padding one. */
+    // Measured inside the border, so a border width change cannot mask a padding one.
     const above = text.top - (pill.top + parseFloat(borderTopWidth));
     const below = pill.bottom - parseFloat(borderBottomWidth) - text.bottom;
 
-    /** Precision 0 tolerates sub-pixel rounding but not a whole-pixel nudge. */
+    // Precision 0 tolerates sub-pixel rounding but not a whole-pixel nudge.
     await expect(above).toBeCloseTo(below, 0);
   },
 });

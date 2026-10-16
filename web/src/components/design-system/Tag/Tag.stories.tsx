@@ -1,6 +1,6 @@
 import { TagIcon } from "lucide-react";
 import React from "react";
-import { fn } from "storybook/test";
+import { expect, fn } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
 import { Tag } from "./Tag";
@@ -41,4 +41,25 @@ export const Variants = meta.story({
       <Tag text="error" status="error" />
     </div>
   ),
+});
+
+export const CenteredLabel = meta.story({
+  name: "(Test) Centered Label",
+  play: async ({ canvas, args }) => {
+    const label = canvas.getByText(args.text);
+    const chip = label.parentElement!;
+    const range = document.createRange();
+    range.selectNodeContents(label);
+
+    const pill = chip.getBoundingClientRect();
+    const text = range.getBoundingClientRect();
+    const { borderTopWidth, borderBottomWidth } = getComputedStyle(chip);
+
+    // Measured inside the border, so a border width change cannot mask a padding one.
+    const above = text.top - (pill.top + parseFloat(borderTopWidth));
+    const below = pill.bottom - parseFloat(borderBottomWidth) - text.bottom;
+
+    // Precision 0 tolerates sub-pixel rounding but not a whole-pixel nudge.
+    await expect(above).toBeCloseTo(below, 0);
+  },
 });
