@@ -89,8 +89,6 @@ export const getSearchAnalytics = (search: string) => ({
   queryType: getIdType(search) ?? "other",
 });
 
-type RecentEntry = { title: string; url: string; type: string };
-
 const RECENTS_LIMIT = 5;
 
 const RECENT_ICON_BY_TYPE: Record<string, LucideIcon> = {
@@ -101,27 +99,6 @@ const RECENT_ICON_BY_TYPE: Record<string, LucideIcon> = {
   organization_settings: Settings,
   account_settings: Settings,
 };
-
-function useCommandMenuRecents(projectId: string | undefined) {
-  const [recentsByProject, setRecentsByProject] = useLocalStorage<
-    Record<string, RecentEntry[]>
-  >("cmdk-recents", {});
-
-  const recents = projectId ? (recentsByProject[projectId] ?? []) : [];
-
-  const addRecent = (entry: RecentEntry) => {
-    if (!projectId) return;
-    setRecentsByProject((prev) => ({
-      ...prev,
-      [projectId]: [
-        entry,
-        ...(prev[projectId] ?? []).filter((e) => e.url !== entry.url),
-      ].slice(0, RECENTS_LIMIT),
-    }));
-  };
-
-  return { recents, addRecent };
-}
 
 // Each action is offered only while its page is in the sidebar, so it
 // inherits the sidebar's feature, plan and v4 gating.
@@ -157,13 +134,6 @@ const NAV_CREATE_ACTIONS: Array<{
   },
 ];
 
-function flattenNavigation(items: NavigationItem[]): NavigationItem[] {
-  return items.flatMap((item) => [
-    item,
-    ...flattenNavigation(item.items ?? []),
-  ]);
-}
-
 function RecentGroup({
   recents,
   iconByUrl,
@@ -173,81 +143,54 @@ function RecentGroup({
   iconByUrl: Map<string, LucideIcon | undefined>;
   onNavigate: (entry: RecentEntry) => void;
 }) {
-  const router = useRouter();
-  const capture = usePostHogClientCapture();
-
   if (recents.length === 0) return null;
 
   return (
     <CommandGroup heading="Recent">
-      {recents.map((entry) => {
-        const Icon =
-          entry.type === "main_navigation"
-            ? iconByUrl.get(entry.url)
-            : RECENT_ICON_BY_TYPE[entry.type];
-        return (
-          <CommandItem
-            key={entry.url}
-            value={`recent:${entry.url}`}
-            onSelect={() => {
-              router.push(entry.url);
-              capture("cmd_k_menu:navigated", {
-                type: "recent",
-                title: entry.title,
-                url: entry.url,
-              });
-              onNavigate(entry);
-            }}
-          >
-            {Icon && <Icon className="icon-base" />}
-            {entry.title}
-          </CommandItem>
-        );
-      })}
+      {recents.map((entry) => (
+        <RecentItem
+          key={entry.url}
+          entry={entry}
+          icon={
+            entry.type === "main_navigation"
+              ? iconByUrl.get(entry.url)
+              : RECENT_ICON_BY_TYPE[entry.type]
+          }
+          onNavigate={onNavigate}
+        />
+      ))}
     </CommandGroup>
   );
 }
 
-type CreateAction = { title: string; url: string; keywords: string[] };
+function RecentItem({
+  entry,
+  icon: Icon,
+  onNavigate,
+}: {
+  entry: RecentEntry;
+  icon: LucideIcon | undefined;
+  onNavigate: (entry: RecentEntry) => void;
+}) {
+  const router = useRouter();
+  const capture = usePostHogClientCapture();
 
-type CreateActions = {
-  byNavUrl: Map<string, CreateAction[]>;
-  standalone: CreateAction[];
-};
+  const handleSelect = () => {
+    router.push(entry.url);
+    capture("cmd_k_menu:navigated", {
+      type: "recent",
+      title: entry.title,
+      url: entry.url,
+    });
+    onNavigate(entry);
+  };
 
-function useCreateActions(mainNavigation: NavigationItem[]): CreateActions {
-  const session = useSession();
-  const { project } = useQueryProjectOrOrganization();
-
-  if (!project) return { byNavUrl: new Map(), standalone: [] };
-
-  const canCreate = (scope: ProjectScope) =>
-    hasProjectAccess({ session: session.data, scope, projectId: project.id });
-
-  const byNavUrl = new Map<string, CreateAction[]>();
-  for (const navItem of flattenNavigation(mainNavigation)) {
-    const action = NAV_CREATE_ACTIONS.find((a) => a.navHref === navItem.href);
-    if (!action || !navItem.url || !canCreate(action.scope)) continue;
-    byNavUrl.set(navItem.url, [
-      {
-        title: action.title,
-        url: `${navItem.url}/new`,
-        keywords: action.keywords,
-      },
-    ]);
-  }
-
-  const standalone: CreateAction[] = canCreate("automations:CUD")
-    ? [
-        {
-          title: "New automation",
-          url: `/project/${project.id}/automations?view=create`,
-          keywords: ["create", "add", "automation", "webhook", "slack"],
-        },
-      ]
-    : [];
-
-  return { byNavUrl, standalone };
+  return (
+    <CommandItem value={`recent:${entry.url}`} onSelect={handleSelect}>
+      {Icon && <Icon className="icon-base" />}
+      {entry.title}
+    </CommandItem>
+  );
 }
 
 function CreateActionItem({
@@ -260,23 +203,25 @@ function CreateActionItem({
   const router = useRouter();
   const capture = usePostHogClientCapture();
 
+  const handleSelect = () => {
+    router.push(action.url);
+    capture("cmd_k_menu:navigated", {
+      type: "create_action",
+      title: action.title,
+      url: action.url,
+    });
+    onNavigate({
+      title: action.title,
+      url: action.url,
+      type: "create_action",
+    });
+  };
+
   return (
     <CommandItem
       value={action.title}
       keywords={action.keywords}
-      onSelect={() => {
-        router.push(action.url);
-        capture("cmd_k_menu:navigated", {
-          type: "create_action",
-          title: action.title,
-          url: action.url,
-        });
-        onNavigate({
-          title: action.title,
-          url: action.url,
-          type: "create_action",
-        });
-      }}
+      onSelect={handleSelect}
     >
       <Plus className="icon-base" />
       {action.title}
@@ -289,15 +234,17 @@ function AssistantItem({ onDone }: { onDone: () => void }) {
 
   if (!isAvailable) return null;
 
+  const handleSelect = () => {
+    onDone();
+    selectConversation(null);
+    openAssistant("command_menu");
+  };
+
   return (
     <CommandItem
       value="Ask Assistant"
       keywords={["assistant", "ai", "agent", "chat", "new chat", "ask"]}
-      onSelect={() => {
-        onDone();
-        selectConversation(null);
-        openAssistant("command_menu");
-      }}
+      onSelect={handleSelect}
     >
       <BotMessageSquare className="icon-base" />
       Ask Assistant
@@ -319,34 +266,12 @@ function MainNavigationGroup({
   onNavigate: (entry: RecentEntry) => void;
   onDone: () => void;
 }) {
-  const router = useRouter();
-  const capture = usePostHogClientCapture();
-
   return (
     <CommandGroup heading="Go to">
       <AssistantItem onDone={onDone} />
       {navItems.map((item) => (
         <Fragment key={item.url}>
-          <CommandItem
-            value={item.url}
-            keywords={[item.title]}
-            onSelect={() => {
-              router.push(item.url);
-              capture("cmd_k_menu:navigated", {
-                type: "main_navigation",
-                title: item.title,
-                url: item.url,
-              });
-              onNavigate({
-                title: item.title,
-                url: item.url,
-                type: "main_navigation",
-              });
-            }}
-          >
-            {item.icon && <item.icon className="icon-base" />}
-            {item.title}
-          </CommandItem>
+          <MainNavigationItem item={item} onNavigate={onNavigate} />
           {showCreateActions &&
             createActions.byNavUrl
               .get(item.url)
@@ -368,6 +293,38 @@ function MainNavigationGroup({
           />
         ))}
     </CommandGroup>
+  );
+}
+
+function MainNavigationItem({
+  item,
+  onNavigate,
+}: {
+  item: { title: string; url: string; icon?: LucideIcon };
+  onNavigate: (entry: RecentEntry) => void;
+}) {
+  const router = useRouter();
+  const capture = usePostHogClientCapture();
+
+  const handleSelect = () => {
+    router.push(item.url);
+    capture("cmd_k_menu:navigated", {
+      type: "main_navigation",
+      title: item.title,
+      url: item.url,
+    });
+    onNavigate({ title: item.title, url: item.url, type: "main_navigation" });
+  };
+
+  return (
+    <CommandItem
+      value={item.url}
+      keywords={[item.title]}
+      onSelect={handleSelect}
+    >
+      {item.icon && <item.icon className="icon-base" />}
+      {item.title}
+    </CommandItem>
   );
 }
 
@@ -399,7 +356,11 @@ function ProjectsGroup({
                 title: item.title,
                 url: item.url,
               });
-              onNavigate({ title: item.title, url: item.url, type: "project" });
+              onNavigate({
+                title: item.title,
+                url: `/project/${item.projectId}`,
+                type: "project",
+              });
             }}
           >
             <Grid2X2 className="icon-base" />
@@ -691,9 +652,19 @@ function CommandMenuComponent({
     return () => document.removeEventListener("keydown", down);
   }, [capture, setOpen, open]);
 
+  const flatNavigation = flattenNavigation(mainNavigation);
   const iconByUrl = new Map(
-    flattenNavigation(mainNavigation).map((item) => [item.url, item.icon]),
+    flatNavigation.map((item) => [item.url, item.icon]),
   );
+  const visibleRecents = getVisibleRecents(recents, {
+    navUrls: new Set(flatNavigation.map((item) => item.url)),
+    createUrls: new Set(
+      [
+        ...[...createActions.byNavUrl.values()].flat(),
+        ...createActions.standalone,
+      ].map((action) => action.url),
+    ),
+  });
 
   const handleNavigate = (entry?: RecentEntry) => {
     if (entry) addRecent(entry);
@@ -748,7 +719,7 @@ function CommandMenuComponent({
         ) : null}
         {search === "" && (
           <RecentGroup
-            recents={recents}
+            recents={visibleRecents}
             iconByUrl={iconByUrl}
             onNavigate={handleNavigate}
           />
@@ -853,6 +824,7 @@ export const useNavigationItems = () => {
           org.projects.map((proj) => ({
             title: `${org.name} > ${proj.name}`,
             url: getProjectPath(proj.id),
+            projectId: proj.id,
             active: router.query.projectId === proj.id,
             keywords: [
               "project",
@@ -867,4 +839,111 @@ export const useNavigationItems = () => {
     allProjectItems,
     isLoading: !organizations,
   };
+};
+
+function useCommandMenuRecents(projectId: string | undefined) {
+  const [recentsByProject, setRecentsByProject] = useLocalStorage<
+    Record<string, RecentEntry[]>
+  >("cmdk-recents", {});
+
+  const recents = projectId ? (recentsByProject[projectId] ?? []) : [];
+
+  const addRecent = (entry: RecentEntry) => {
+    if (!projectId) return;
+    setRecentsByProject((prev) => ({
+      ...prev,
+      [projectId]: addRecentEntry(prev[projectId] ?? [], entry),
+    }));
+  };
+
+  return { recents, addRecent };
+}
+
+function useCreateActions(mainNavigation: NavigationItem[]): CreateActions {
+  const session = useSession();
+  const { project } = useQueryProjectOrOrganization();
+
+  if (!project) return { byNavUrl: new Map(), standalone: [] };
+
+  return buildCreateActions({
+    navItems: flattenNavigation(mainNavigation),
+    projectId: project.id,
+    canCreate: (scope) =>
+      hasProjectAccess({ session: session.data, scope, projectId: project.id }),
+  });
+}
+
+/** Most recent first, one entry per URL, capped at RECENTS_LIMIT. */
+export function addRecentEntry(
+  recents: RecentEntry[],
+  entry: RecentEntry,
+): RecentEntry[] {
+  return [entry, ...recents.filter((e) => e.url !== entry.url)].slice(
+    0,
+    RECENTS_LIMIT,
+  );
+}
+
+/** Drops saved pages and create actions the live menu no longer offers. */
+export function getVisibleRecents(
+  recents: RecentEntry[],
+  offered: { navUrls: Set<string>; createUrls: Set<string> },
+): RecentEntry[] {
+  return recents.filter((entry) => {
+    if (entry.type === "main_navigation") return offered.navUrls.has(entry.url);
+    if (entry.type === "create_action")
+      return offered.createUrls.has(entry.url);
+    return true;
+  });
+}
+
+export function buildCreateActions({
+  navItems,
+  projectId,
+  canCreate,
+}: {
+  navItems: Pick<NavigationItem, "href" | "url">[];
+  projectId: string;
+  canCreate: (scope: ProjectScope) => boolean;
+}): CreateActions {
+  const byNavUrl = new Map<string, CreateAction[]>();
+  for (const navItem of navItems) {
+    const action = NAV_CREATE_ACTIONS.find((a) => a.navHref === navItem.href);
+    if (!action || !navItem.url || !canCreate(action.scope)) continue;
+    byNavUrl.set(navItem.url, [
+      {
+        title: action.title,
+        url: `${navItem.url}/new`,
+        keywords: action.keywords,
+      },
+    ]);
+  }
+
+  const standalone: CreateAction[] = canCreate("automations:CUD")
+    ? [
+        {
+          title: "New automation",
+          url: `/project/${projectId}/automations?view=create`,
+          keywords: ["create", "add", "automation", "webhook", "slack"],
+        },
+      ]
+    : [];
+
+  return { byNavUrl, standalone };
+}
+
+function flattenNavigation(items: NavigationItem[]): NavigationItem[] {
+  return items.flatMap((item) => [
+    item,
+    ...flattenNavigation(item.items ?? []),
+  ]);
+}
+
+type RecentEntry = { title: string; url: string; type: string };
+
+type CreateAction = { title: string; url: string; keywords: string[] };
+
+type CreateActions = {
+  byNavUrl: Map<string, CreateAction[]>;
+  standalone: CreateAction[];
 };
