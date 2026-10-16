@@ -272,11 +272,11 @@ function BreakdownRow({
       </span>
       {hasBar ? (
         <span
-          className="bg-border relative h-2 w-28 overflow-hidden rounded-sm"
+          className="bg-border relative h-2 w-28 overflow-hidden"
           aria-hidden="true"
         >
           <span
-            className="bg-muted-foreground absolute h-full rounded-sm"
+            className="bg-muted-foreground absolute h-full"
             style={{ left: `${offset}%`, width: `${share ?? 0}%` }}
           />
         </span>
