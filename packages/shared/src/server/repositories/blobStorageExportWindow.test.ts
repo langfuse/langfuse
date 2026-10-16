@@ -97,3 +97,26 @@ describe("blob-storage export window is half-open", () => {
     expect(window2).toContain(">= {minTimestamp");
   });
 });
+
+describe("blob-storage status compatibility", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it.each(["legacy", "events"])(
+    "exports both severity names only for the basic group on %s",
+    async (source) => {
+      for (const basic of [true, false]) {
+        vi.clearAllMocks();
+        const groups = basic ? (["basic"] as const) : (["core"] as const);
+        if (source === "events")
+          getEventsForBlobStorageExport(PROJECT, MIN, MAX, [...groups]);
+        else
+          await getObservationsForBlobStorageExport(PROJECT, MIN, MAX, [
+            ...groups,
+          ]).next();
+        const query = capturedQuery();
+        expect(query.includes("level as status")).toBe(basic);
+        if (basic) expect(query).toMatch(/(?:^|[\s,.])level(?:[\s,]|$)/);
+      }
+    },
+  );
+});

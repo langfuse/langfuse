@@ -149,6 +149,7 @@ describe("batch export test suite", () => {
     }
 
     expect(rows).toHaveLength(3);
+    for (const row of rows) expect(row.status).toBe(row.level);
     expect(rows).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -5094,6 +5095,7 @@ maybeDescribe("getEventsForBlobStorageExport", () => {
       "user_id",
       "session_id",
       "level",
+      "status",
       "status_message",
       "prompt_name",
       "prompt_id",
@@ -5136,6 +5138,7 @@ maybeDescribe("getEventsForBlobStorageExport", () => {
     expect(row.type).toBe("GENERATION");
     expect(row.environment).toBe("default"); // createEvent default
     expect(row.level).toBe("DEFAULT"); // createEvent default
+    expect(row.status).toBe(row.level);
     expect(row.provided_model_name).toBe("gpt-4");
     expect(row.model_id).toBe(modelId);
     expect(row.model_parameters).toBe('{"temperature":0.7}');
@@ -5252,6 +5255,7 @@ maybeDescribe("getEventsForBlobStorageExport", () => {
       "user_id",
       "session_id",
       "level",
+      "status",
       "status_message",
       "prompt_name",
       "prompt_id",

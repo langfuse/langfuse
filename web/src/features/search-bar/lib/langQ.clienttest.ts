@@ -102,13 +102,13 @@ describe("langQ parser", () => {
   it("parses grouped lists, comma lists, comparisons, and quoted values", () => {
     expect(strip(parse("level:(ERROR OR WARNING)").ast)).toEqual({
       kind: "filter",
-      key: "level",
+      key: "status",
       op: "=",
       values: ["ERROR", "WARNING"],
     });
     expect(strip(parse("level:ERROR,WARNING").ast)).toEqual({
       kind: "filter",
-      key: "level",
+      key: "status",
       op: "=",
       values: ["ERROR", "WARNING"],
     });
@@ -150,7 +150,7 @@ describe("langQ parser", () => {
       kind: "and",
       children: [
         { kind: "text", value: "timeout" },
-        { kind: "filter", key: "level", op: "=", values: ["ERROR"] },
+        { kind: "filter", key: "status", op: "=", values: ["ERROR"] },
       ],
     });
   });
@@ -170,7 +170,7 @@ describe("langQ parser", () => {
     });
     expect(strip(parse("NOT level:DEBUG").ast)).toEqual({
       kind: "not",
-      child: { kind: "filter", key: "level", op: "=", values: ["DEBUG"] },
+      child: { kind: "filter", key: "status", op: "=", values: ["DEBUG"] },
     });
   });
 
@@ -295,7 +295,7 @@ describe("langQ parser", () => {
     expect(strip(r.ast)).toEqual({
       kind: "and",
       children: [
-        { kind: "filter", key: "level", op: "=", values: ["ERROR"] },
+        { kind: "filter", key: "status", op: "=", values: ["ERROR"] },
         { kind: "filter", key: "environment", op: "=", values: ["dev"] },
       ],
     });

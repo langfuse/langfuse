@@ -95,6 +95,7 @@ const transformExperimentItemRow = (
       ? parseClickhouseUTCDateTimeFormat(row.end_time)
       : null,
     level: row.level,
+    status: row.level,
     environment: row.environment,
     experimentId: row.experiment_id,
     experimentName: row.experiment_name ?? "",

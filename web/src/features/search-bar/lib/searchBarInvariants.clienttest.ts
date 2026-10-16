@@ -23,6 +23,13 @@ import {
 import { usersEventsFilterConfig } from "@/src/features/filters/config/users-config";
 
 import { EXPERIMENTS_FIELD_REGISTRY } from "@/src/features/experiments/constants/experimentsSearchRegistry";
+import { EXPERIMENT_ITEMS_FIELD_REGISTRY } from "@/src/features/experiments/constants/experimentItemsSearchRegistry";
+import { getTraceFilterConfig } from "@/src/features/filters/config/traces-config";
+import { getObservationsFilterConfig } from "@/src/features/filters/config/observations-config";
+import {
+  observationsFieldRegistry,
+  tracesFieldRegistry,
+} from "@/src/features/filters/config/tracingSearchRegistry";
 import {
   SCORES_FIELD_REGISTRY,
   scoresFieldRegistry,
@@ -45,6 +52,84 @@ import {
   runSearchBarInvariants,
   type RegistryUnderTest,
 } from "./searchBarInvariants";
+
+describe("search bar status compatibility", () => {
+  const registries = [
+    EVENTS_FIELD_REGISTRY,
+    USERS_FIELD_REGISTRY,
+    RULE_FIELD_REGISTRY,
+    EXPERIMENT_ITEMS_FIELD_REGISTRY,
+    tracesFieldRegistry(getTraceFilterConfig()),
+    observationsFieldRegistry(getObservationsFilterConfig()),
+  ];
+
+  it.each(registries)(
+    "uses status as the severity spelling in $id while retaining level queries",
+    (registry) => {
+      const filters: FilterState = [
+        {
+          column: "level",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["ERROR"],
+        },
+      ];
+      for (const query of ["status:ERROR", "level:ERROR"]) {
+        expect(planCommit(query, undefined, registry), query).toMatchObject({
+          status: "committed",
+          filters,
+        });
+      }
+      expect(filterStateToQueryText(filters, {}, registry)).toMatchObject({
+        text: "status:ERROR",
+        skippedFilters: [],
+      });
+    },
+  );
+
+  it.each([EVENTS_FIELD_REGISTRY, RULE_FIELD_REGISTRY])(
+    "keeps statusMessage text filters distinct from severity in $id",
+    (registry) => {
+      expect(
+        planCommit(
+          "status:ERROR statusMessage:rate-limit",
+          undefined,
+          registry,
+        ),
+      ).toMatchObject({
+        status: "committed",
+        filters: [
+          {
+            column: "level",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["ERROR"],
+          },
+          {
+            column: "statusMessage",
+            type: "string",
+            operator: "contains",
+            value: "rate-limit",
+          },
+        ],
+      });
+    },
+  );
+
+  it.each([
+    "status:=ERROR",
+    "-status:ERROR",
+    "status:*ERR*",
+    "status:ERR*",
+    "status:*ERR",
+  ])("keeps the severity storage column for %s", (query) => {
+    const result = planCommit(query, undefined, EVENTS_FIELD_REGISTRY);
+    expect(result.status, JSON.stringify(result)).toBe("committed");
+    if (result.status !== "committed") return;
+    expect(result.filters).toHaveLength(1);
+    expect(result.filters[0]?.column).toBe("level");
+  });
+});
 
 describe("search bar invariants — Scores registry", () => {
   it("preserves parent-owned filters as skipped and rejects conflicting scoped fields", () => {
@@ -645,7 +730,7 @@ describe("search bar invariants — evaluation rules registry", () => {
       filters: [{ column: "promptName", type: "string" }],
     });
     expect(
-      planCommit("status:rate-limit", undefined, RULE_FIELD_REGISTRY),
+      planCommit("statusMessage:rate-limit", undefined, RULE_FIELD_REGISTRY),
     ).toMatchObject({
       status: "committed",
       filters: [{ column: "statusMessage", type: "string" }],

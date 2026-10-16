@@ -54,14 +54,17 @@ const OBSERVATION_MAX_RANGE_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
 const EXPENSIVE_OBSERVATION_MAX_IO_LIMIT = 50;
 const MCP_OBSERVATIONS_MAX_EXECUTION_TIME_SECONDS = 25;
 
-const OBSERVATION_MCP_FILTER_COLUMN_TYPES = new Map(
+const OBSERVATION_MCP_FILTER_COLUMN_TYPES = new Map<
+  string,
+  ColumnDefinition["type"]
+>(
   eventsTableCols
     .filter((column) =>
       OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMNS.has(column.id),
     )
-    .map((column) => [
-      column.id === "traceTags" ? "tags" : column.id,
-      column.type,
+    .flatMap((column) => [
+      [column.id === "traceTags" ? "tags" : column.id, column.type] as const,
+      ...(column.id === "level" ? [["status", column.type] as const] : []),
     ]),
 );
 
@@ -244,10 +247,12 @@ const ObservationMcpFilterSchema = z.preprocess(
       const type =
         filter.type ?? OBSERVATION_MCP_FILTER_COLUMN_TYPES.get(filter.column);
 
-      const reshaped =
-        filter.column === "tags"
-          ? { ...filter, type, column: "traceTags" }
-          : { ...filter, type };
+      const column = filter.column === "status" ? "level" : filter.column;
+      const reshaped = {
+        ...filter,
+        type,
+        column: column === "tags" ? "traceTags" : column,
+      };
       // Legacy `contains ""` presence spelling → `is set` before validation.
       const [coerced] = coerceLegacyEmptyMetadataFilters([
         reshaped,
@@ -266,6 +271,7 @@ const ListObservationsBaseSchema = z.object({
   name: z.string().optional(),
   userId: z.string().optional(),
   level: ObservationLevelDomain.optional(),
+  status: ObservationLevelDomain.optional(),
   traceId: z.string().optional(),
   version: z.string().optional(),
   parentObservationId: z
@@ -336,7 +342,7 @@ export const [listObservationsTool, handleListObservations] = defineTool({
   description: [
     "Find and review observations in the current Langfuse project, such as generations, spans, events, agent steps, and tool calls.",
     "Traces consist of observations. Use this tool when the user asks to inspect traces: pass traceId to page through the observations for a specific trace; those observation records are the trace data returned by the API.",
-    "Use filters to narrow results by trace, name, type, level, environment, time range, or advanced filter conditions. Results are paginated with an opaque cursor.",
+    "Use filters to narrow results by trace, name, type, status, environment, time range, or advanced filter conditions. Results are paginated with an opaque cursor. The level filter remains a compatibility alias; status takes precedence when both are supplied.",
     'For metadata filters, first inspect metadata by passing both fromStartTime and toStartTime with a maximum range of 14 days and fields: ["id", "metadata"]. Then use a discovered key in a stringObject filter.',
     "",
     'By default this returns compact summary fields. Use fields: ["*"] for the full observation, or pass specific field names to limit the response size.',
@@ -395,7 +401,7 @@ export const [listObservationsTool, handleListObservations] = defineTool({
             limit: input.limit,
             traceId: input.traceId,
             userId: input.userId,
-            level: input.level,
+            level: input.status ?? input.level,
             name: input.name,
             type: input.type,
             environment: input.environment,

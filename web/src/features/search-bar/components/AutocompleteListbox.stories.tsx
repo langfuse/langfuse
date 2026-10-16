@@ -22,11 +22,11 @@ const fieldPlan: CompletionPlan = {
       title: "Fields",
       options: [
         {
-          id: "field:level",
+          id: "field:status",
           kind: "field",
-          label: "level",
+          label: "status",
           detail: "Observation status",
-          fieldId: "level",
+          fieldId: "status",
         },
         {
           id: "field:latency",
@@ -45,7 +45,7 @@ const fieldPlan: CompletionPlan = {
           kind: "pattern",
           label: "field:(a OR b)",
           detail: "any of",
-          insert: "level:(ERROR OR WARNING)",
+          insert: "status:(ERROR OR WARNING)",
         },
       ],
     },
@@ -106,7 +106,7 @@ const valuePlan: CompletionPlan = {
           id: "vop:contains",
           kind: "pattern",
           label: "*value*",
-          detail: "contains — e.g. level:*refund*",
+          detail: "contains — e.g. status:*refund*",
           insert: "*refund*",
         },
       ],
@@ -115,7 +115,7 @@ const valuePlan: CompletionPlan = {
 };
 
 export const Fields = meta.story({
-  args: { plan: fieldPlan, highlightedId: "field:level" },
+  args: { plan: fieldPlan, highlightedId: "field:status" },
 });
 
 export const Presets = meta.story({

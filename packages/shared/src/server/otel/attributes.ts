@@ -15,6 +15,7 @@ export enum LangfuseOtelSpanAttributes {
   OBSERVATION_TYPE = "langfuse.observation.type",
   OBSERVATION_METADATA = "langfuse.observation.metadata",
   OBSERVATION_LEVEL = "langfuse.observation.level",
+  OBSERVATION_STATUS = "langfuse.observation.status",
   OBSERVATION_STATUS_MESSAGE = "langfuse.observation.status_message",
   OBSERVATION_INPUT = "langfuse.observation.input",
   OBSERVATION_OUTPUT = "langfuse.observation.output",

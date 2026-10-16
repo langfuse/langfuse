@@ -13,7 +13,7 @@ export const RULE_FIELD_REGISTRY = fieldRegistryFromColumns(
     allowFreeText: false,
     aiFilterPrompt: true,
     searchExamples: [
-      "level:ERROR",
+      "status:ERROR",
       "-env:dev",
       "tags:billing",
       "type:GENERATION",
@@ -21,7 +21,7 @@ export const RULE_FIELD_REGISTRY = fieldRegistryFromColumns(
     metadata: true,
     aiContextFields: [
       { observedOptionsKey: "type", promptLabel: "type" },
-      { observedOptionsKey: "level", promptLabel: "level" },
+      { observedOptionsKey: "level", promptLabel: "status" },
       { observedOptionsKey: "environment", promptLabel: "environment" },
       { observedOptionsKey: "traceName", promptLabel: "traceName" },
       { observedOptionsKey: "name", promptLabel: "name" },
@@ -48,7 +48,7 @@ export const RULE_FIELD_REGISTRY = fieldRegistryFromColumns(
     fields: {
       environment: { aliases: ["env"] },
       statusMessage: {
-        aliases: ["statusmessage", "status_message", "status"],
+        aliases: ["statusmessage", "status_message"],
       },
       providedModelName: {
         aliases: ["providedmodelname", "provided_model_name", "model"],

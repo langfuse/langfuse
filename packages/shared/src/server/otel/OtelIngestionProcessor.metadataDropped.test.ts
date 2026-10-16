@@ -151,6 +151,90 @@ const gatewayRequestIds = {
   upstream: "req_upstream",
 };
 
+describe("observation status attributes", () => {
+  it.each(["v3", "v4"])(
+    "normalizes status and retains level compatibility on %s",
+    async (path) => {
+      for (const [values, expected] of [
+        [{ "langfuse.observation.status": "WARN" }, "WARNING"],
+        [{ "langfuse.observation.level": "ERROR" }, "ERROR"],
+        [
+          {
+            "langfuse.observation.status": "DEBUG",
+            "langfuse.observation.level": "ERROR",
+          },
+          "DEBUG",
+        ],
+        [
+          {
+            "langfuse.observation.status": "invalid",
+            "langfuse.observation.level": "WARNING",
+          },
+          "WARNING",
+        ],
+      ] as const) {
+        const batch = buildBatch(
+          Object.entries(values).map(([key, value]) => ({
+            key,
+            value: { stringValue: value },
+          })),
+        );
+        const processor = createProcessor();
+        const observation =
+          path === "v4"
+            ? processor.processToEvent(batch)[0]
+            : (await processor.processToIngestionEvents(batch)).find(
+                (event) => event.type === "span-create",
+              )?.body;
+        expect(observation).toHaveProperty("level", expected);
+      }
+    },
+  );
+});
+
+describe("status precedence for skill loads", () => {
+  it.each(["v3", "v4"])(
+    "uses the resolved status for skill error handling on %s",
+    async (path) => {
+      for (const [status, level, loaded] of [
+        ["ERROR", "DEFAULT", false],
+        ["DEFAULT", "ERROR", true],
+      ] as const) {
+        const batch = buildBatch(
+          Object.entries({
+            "langfuse.observation.type": "tool",
+            "langfuse.observation.status": status,
+            "langfuse.observation.level": level,
+            "langfuse.observation.skills_available": JSON.stringify([
+              { skillName: "test-skill" },
+            ]),
+            "langfuse.observation.input": JSON.stringify({
+              name: "test-skill",
+            }),
+            "langfuse.observation.output": "loaded",
+          }).map(([key, value]) => ({ key, value: { stringValue: value } })),
+        );
+        const span = batch[0].scopeSpans![0].spans![0];
+        span.name = "Skill";
+        span.status = { code: 2 };
+        const processor = createProcessor();
+        const observation =
+          path === "v4"
+            ? processor.processToEvent(batch)[0]
+            : (await processor.processToIngestionEvents(batch)).find(
+                (event) => event.type === "tool-create",
+              )?.body;
+        expect(observation).toHaveProperty("level", status);
+        if (loaded)
+          expect(observation).toHaveProperty("skillsResourceLoaded", [
+            { skillName: "test-skill", filePath: "SKILL.md" },
+          ]);
+        else expect(observation).not.toHaveProperty("skillsResourceLoaded");
+      }
+    },
+  );
+});
+
 describe("gateway metadata", () => {
   it.each([
     ["v3", "langfuse-ai-gateway"],

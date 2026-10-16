@@ -105,4 +105,5 @@ export const LEGACY_OBSERVATION_EXPORT_FIELDS: ReadonlyArray<{
   { field: "tool_call_names", group: "tools" },
   { field: "tool_definitions", group: "tools" },
   { field: "usage_pricing_tier_name", group: "usage" },
+  { field: "status", group: "basic" },
 ];

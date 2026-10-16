@@ -13,6 +13,18 @@ import {
   convertEventsObservation,
   DEFAULT_RENDERING_PROPS,
 } from "@langfuse/shared/src/server";
+import {
+  GetObservationsV1Query,
+  GetObservationsV2Query,
+  transformDbToApiObservation,
+  transformDbToApiObservationV2,
+} from "@/src/features/public-api/types/observations";
+import {
+  getProjectionFieldGroups,
+  getProjectionFields,
+  ObservationFieldsSchema,
+  projectObservation,
+} from "@/src/features/mcp/server/observations/schema";
 
 const TRACE_CONTEXT_FIELDS = [
   "userId",
@@ -189,5 +201,89 @@ describe("convertEventsObservation", () => {
       expect(explicitZero.inputCost).toBe(0);
       expect(explicitZero.outputCost).toBe(0);
     });
+  });
+});
+
+describe("public observation status compatibility", () => {
+  it("supports status in MCP defaults and explicit field projections", () => {
+    expect(getProjectionFields(undefined)).toEqual(
+      expect.arrayContaining(["level", "status"]),
+    );
+    const fields = getProjectionFields(
+      ObservationFieldsSchema.parse(["id", "status"]),
+    );
+    expect(getProjectionFieldGroups(fields)).toEqual(["core", "basic"]);
+    expect(projectObservation({ id: "obs-1", level: "ERROR" }, fields)).toEqual(
+      {
+        id: "obs-1",
+        status: "ERROR",
+      },
+    );
+  });
+
+  it("returns both status and level when the v2 basic group is selected", () => {
+    const observation = convertEventsObservation(
+      makeRecord({ level: "WARNING" }),
+      DEFAULT_RENDERING_PROPS,
+      false,
+    );
+
+    expect(transformDbToApiObservationV2(observation)).toMatchObject({
+      level: "WARNING",
+      status: "WARNING",
+    });
+  });
+
+  it.each(["core", "usage"])(
+    "omits both status and level when only the v2 %s group is selected",
+    (group) => {
+      const record = makeRecord();
+      delete record.level;
+      if (group === "usage") record.usage_details = { total: 42 };
+      const observation = convertEventsObservation(
+        record,
+        DEFAULT_RENDERING_PROPS,
+        false,
+      );
+      const response = transformDbToApiObservationV2(observation);
+
+      expect(response).not.toHaveProperty("status");
+      expect(response).not.toHaveProperty("level");
+      if (group === "usage") {
+        expect(response).toHaveProperty("usageDetails", { total: 42 });
+      }
+    },
+  );
+
+  it.each(["DEBUG", "DEFAULT", "WARNING", "ERROR"])(
+    "returns status alongside the legacy level for %s observations",
+    (level) => {
+      const observation = convertEventsObservation(
+        makeRecord({ level }),
+        DEFAULT_RENDERING_PROPS,
+        true,
+      );
+
+      const response = transformDbToApiObservation({
+        ...observation,
+        inputPrice: null,
+        outputPrice: null,
+        totalPrice: null,
+      });
+
+      expect(response).toHaveProperty("level", level);
+      expect(response).toHaveProperty("status", level);
+    },
+  );
+
+  it.each([
+    ["v1", GetObservationsV1Query],
+    ["v2", GetObservationsV2Query],
+  ])("accepts status and legacy level filters in %s", (_version, schema) => {
+    expect(schema.parse({ status: "WARNING", level: "ERROR" })).toMatchObject({
+      status: "WARNING",
+      level: "ERROR",
+    });
+    expect(schema.safeParse({ status: "INVALID" }).success).toBe(false);
   });
 });

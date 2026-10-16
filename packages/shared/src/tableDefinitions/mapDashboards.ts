@@ -74,7 +74,7 @@ export const dashboardColumnDefinitions: UiColumnMappings = [
     clickhouseSelect: "o.level",
     uiTableId: "level",
     uiTableName: "Status",
-    aliases: ["Level"],
+    aliases: ["Level", "status"],
   },
   {
     clickhouseTableName: "traces",

@@ -307,38 +307,42 @@ describe("/api/public/v2/observations API Endpoint", () => {
       expect(response2.body.data.length).toBe(5);
     });
 
-    it("should support standard filters (name, type, level, etc.)", async () => {
-      const traceId = randomUUID();
-      const observationId = randomUUID();
-      const timestamp = new Date();
-      const timeValue = timestamp.getTime() * 1000;
+    it.each(["level", "status"])(
+      "should support standard filters with %s",
+      async (severityField) => {
+        const traceId = randomUUID();
+        const observationId = randomUUID();
+        const timestamp = new Date();
+        const timeValue = timestamp.getTime() * 1000;
 
-      // Create observation with specific attributes
-      const observation = createEvent({
-        id: observationId,
-        span_id: observationId,
-        trace_id: traceId,
-        project_id: projectId,
-        name: "unique-observation-name",
-        type: "GENERATION",
-        level: "WARNING",
-        start_time: timeValue,
-      });
+        // Create observation with specific attributes
+        const observation = createEvent({
+          id: observationId,
+          span_id: observationId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "unique-observation-name",
+          type: "GENERATION",
+          level: "WARNING",
+          start_time: timeValue,
+        });
 
-      await createEventsCh([observation]);
+        await createEventsCh([observation]);
 
-      // Test filtering by name
-      const response = await getObservations(
-        `/api/public/v2/observations?fields=basic&name=unique-observation-name`,
-      );
+        // Test filtering by name
+        const response = await getObservations(
+          `/api/public/v2/observations?fields=basic&name=unique-observation-name&${severityField}=WARNING${severityField === "status" ? "&level=ERROR" : ""}`,
+        );
 
-      expect(response.status).toBe(200);
-      const obs = response.body.data.find((o: any) => o.id === observationId);
-      expect(obs).toBeDefined();
-      expect(obs?.name).toBe("unique-observation-name");
-      expect(obs?.type).toBe("GENERATION");
-      expect(obs?.level).toBe("WARNING");
-    });
+        expect(response.status).toBe(200);
+        const obs = response.body.data.find((o: any) => o.id === observationId);
+        expect(obs).toBeDefined();
+        expect(obs?.name).toBe("unique-observation-name");
+        expect(obs?.type).toBe("GENERATION");
+        expect(obs?.level).toBe("WARNING");
+        expect(obs?.status).toBe("WARNING");
+      },
+    );
 
     it("should filter observations by sessionId and prefer advanced filters", async () => {
       const sessionId = `session-${randomUUID()}`;
@@ -1348,6 +1352,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       // basic
       "name",
       "level",
+      "status",
       "statusMessage",
       "version",
       "environment",
@@ -1439,6 +1444,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
     const knownValues: Record<string, unknown> = {
       name: "field-group-contract-obs",
       level: "DEFAULT",
+      status: "DEFAULT",
       statusMessage: "ok",
       version: "1.0",
       environment: "production",
@@ -1462,6 +1468,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       basic: [
         "name",
         "level",
+        "status",
         "statusMessage",
         "version",
         "environment",

@@ -1732,6 +1732,7 @@ export const getTraceIdsForObservations = async (
 // (the domain-level export contract) that are not plain column reads. Every
 // other field selects the table column of the same name.
 const LEGACY_OBSERVATION_EXPORT_SQL_OVERRIDES: Record<string, string> = {
+  status: "level as status",
   latency:
     "if(isNull(end_time), NULL, date_diff('millisecond', start_time, end_time) / 1000) as latency",
   time_to_first_token:
@@ -1967,6 +1968,7 @@ export const getGenerationsForAnalyticsIntegrations = async function* (
       langfuse_version: record.version,
       langfuse_model: record.model,
       langfuse_level: record.level,
+      langfuse_status: record.level,
       langfuse_tags: record.trace_tags,
       langfuse_environment: record.environment,
       langfuse_event_version: "1.0.0",

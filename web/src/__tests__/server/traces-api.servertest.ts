@@ -260,6 +260,8 @@ describe("/api/public/traces API Endpoint", () => {
           name: "observation-name-2",
           input: "input-2",
           output: "output-2",
+          level: "DEFAULT",
+          status: "DEFAULT",
         }),
         expect.objectContaining({
           name: "observation-name",

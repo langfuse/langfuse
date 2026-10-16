@@ -38,6 +38,28 @@ const buildQueryWithFilter = (
     "test-project",
   );
 
+describe("status dimension compatibility", () => {
+  it.each(["v1", "v2"] as const)(
+    "queries status and level from the same storage on %s",
+    async (version) => {
+      for (const column of ["status", "level"]) {
+        const { query } = await buildQueryWithFilter(
+          {
+            column,
+            type: "stringOptions",
+            operator: "any of",
+            value: ["ERROR"],
+          },
+          { dimensions: [{ field: column }] },
+          version,
+        );
+        expect(query).toContain(`.level) as ${column}`);
+        expect(query).toContain(".level IN (");
+      }
+    },
+  );
+});
+
 describe("queryBuilder filter type validation", () => {
   it("exposes only the typed Boolean score value as a dimension", () => {
     const view = getViewDeclaration("scores-boolean", "v2");
