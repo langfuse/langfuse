@@ -191,7 +191,11 @@ export function IOSection({
           ) : null}
           {internal ? <InternalFeatureBadge /> : null}
         </button>
-        {info ? <IOSectionInfoButton info={info} /> : null}
+        {info ? (
+          <div className="flex items-center pl-2">
+            <IOSectionInfoButton info={info} />
+          </div>
+        ) : null}
         {/* The rest of the row toggles too; the title button carries the
             accessible name and state, so this hit area stays out of the tree. */}
         <button
