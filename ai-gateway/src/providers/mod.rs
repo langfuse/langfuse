@@ -305,6 +305,7 @@ impl ProviderTransport {
         *downstream.headers_mut() = transport::response_headers(response.headers(), api_format);
         *downstream.body_mut() = transport::relay(
             response,
+            api_format.provider().as_str(),
             permit.deadline,
             self.limits.execution.stall_timeout,
             (permit, context, reservation),

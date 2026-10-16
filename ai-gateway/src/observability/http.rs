@@ -77,6 +77,9 @@ async fn observe_request(mut request: Request<Body>, next: Next) -> Response {
         },
     );
     record_overhead(&route, &summary, elapsed);
+    if let Some(bytes) = summary.request_bytes {
+        super::metrics::request_body_size(&route, summary.provider, bytes);
+    }
     response
 }
 

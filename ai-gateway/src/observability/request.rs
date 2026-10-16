@@ -68,6 +68,7 @@ struct State {
     provider: Option<&'static str>,
     request_body: Option<Duration>,
     provider_headers: Option<Duration>,
+    request_bytes: Option<u64>,
 }
 
 /// Cheap to clone; the middleware and the handler hold the same state.
@@ -79,6 +80,7 @@ pub(super) struct Summary {
     pub provider: &'static str,
     pub request_body: Option<Duration>,
     pub provider_headers: Option<Duration>,
+    pub request_bytes: Option<u64>,
 }
 
 impl RequestObservation {
@@ -104,12 +106,19 @@ impl RequestObservation {
         });
     }
 
+    pub(crate) fn record_request_bytes(&self, bytes: usize) {
+        self.with_state(|state| {
+            state.request_bytes = Some(u64::try_from(bytes).unwrap_or(u64::MAX));
+        });
+    }
+
     pub(super) fn summary(&self) -> Summary {
         self.with_state(|state| Summary {
             error: state.error,
             provider: state.provider.unwrap_or("none"),
             request_body: state.request_body,
             provider_headers: state.provider_headers,
+            request_bytes: state.request_bytes,
         })
     }
 }

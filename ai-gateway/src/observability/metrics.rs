@@ -19,6 +19,8 @@ use super::request::ErrorOrigin;
 struct Metrics {
     http_duration: Histogram<f64>,
     overhead: Histogram<f64>,
+    request_size: Histogram<u64>,
+    response_size: Histogram<u64>,
     active: UpDownCounter<i64>,
     phases: Histogram<f64>,
     rejections: Counter<u64>,
@@ -28,6 +30,10 @@ struct Metrics {
 
 static METRICS: LazyLock<Metrics> = LazyLock::new(|| {
     let meter = global::meter("ai-gateway");
+    // Chat payloads are kilobytes; long contexts and images reach tens of MiB.
+    let bytes: Vec<f64> = [10, 12, 14, 16, 18, 20, 22, 24, 26]
+        .map(|power| f64::from(1u32 << power))
+        .to_vec();
     let seconds = vec![
         0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0, 120.0, 600.0,
     ];
@@ -47,6 +53,16 @@ static METRICS: LazyLock<Metrics> = LazyLock::new(|| {
                 0.0001, 0.00025, 0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5,
                 1.0, 2.5, 5.0,
             ])
+            .build(),
+        request_size: meter
+            .u64_histogram("http.server.request.body.size")
+            .with_unit("By")
+            .with_boundaries(bytes.clone())
+            .build(),
+        response_size: meter
+            .u64_histogram("http.server.response.body.size")
+            .with_unit("By")
+            .with_boundaries(bytes)
             .build(),
         active: meter.i64_up_down_counter("gateway.active").build(),
         phases: meter
@@ -91,6 +107,24 @@ pub(super) fn overhead(route: &str, provider: &'static str, duration: Duration) 
             KeyValue::new("gateway.provider", provider),
         ],
     );
+}
+
+/// Buffered request bytes, recorded for requests whose body was read in full.
+pub(super) fn request_body_size(route: &str, provider: &'static str, bytes: u64) {
+    METRICS.request_size.record(
+        bytes,
+        &[
+            KeyValue::new("http.route", route.to_owned()),
+            KeyValue::new("gateway.provider", provider),
+        ],
+    );
+}
+
+/// Bytes relayed from the provider, including truncated and cancelled streams.
+pub(crate) fn response_body_size(provider: &'static str, bytes: u64) {
+    METRICS
+        .response_size
+        .record(bytes, &[KeyValue::new("gateway.provider", provider)]);
 }
 
 /// In-use, high-water, and configured slots of one admission semaphore.

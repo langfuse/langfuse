@@ -223,6 +223,7 @@ async fn relay(
         .observation()
         .record_wait(Wait::RequestBody, started.elapsed());
     let (bytes, body_permit) = read?;
+    correlation.observation().record_request_bytes(bytes.len());
     let request_body = request_body_and_model(bytes)?;
     let (permit, context) = inference
         .resolve_and_admit(
