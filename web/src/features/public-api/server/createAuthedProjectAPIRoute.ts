@@ -22,7 +22,10 @@ import { RateLimitService } from "@/src/features/public-api/server/RateLimitServ
 import { type RateLimitUpgradePath } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 import * as opentelemetry from "@opentelemetry/api";
 import { env } from "@/src/env.mjs";
-import { isZodError } from "@/src/features/public-api/server/withMiddlewares";
+import {
+  isZodError,
+  type RouteHandler,
+} from "@/src/features/public-api/server/withMiddlewares";
 import {
   createStructuredPublicApiAuthError,
   createStructuredPublicApiRequestValidationError,
@@ -31,7 +34,6 @@ import {
   type PublicApiErrorContract,
 } from "./structuredPublicApiErrorContract";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
-import { attachDeprecation } from "@/src/features/public-api/server/deprecations";
 import { applyLegacyApiOrganizationCutoff } from "@/src/features/public-api/server/legacyApiOrganizationCutoff";
 import { type RouteAccessLevel } from "@/src/features/public-api/server/verifyProjectApiKeyAuth";
 import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
@@ -122,7 +124,7 @@ export type AuthedProjectAPIRouteConfig<
    * events_only mode and would silently return stale or empty data.
    */
   rejectInEventsOnlyMode?: boolean;
-  /** Stamps a top-level `_deprecation` object onto responses. */
+  /** Marks the route as deprecated; withMiddlewares stamps it onto every JSON response and sets deprecation headers. */
   deprecation?: ApiDeprecationInfo;
   fn: (params: {
     query: z.infer<TQuery>;
@@ -146,8 +148,8 @@ export const createAuthedProjectAPIRoute = <
   TResponse extends ZodType<any>,
 >(
   routeConfig: AuthedProjectAPIRouteConfig<TQuery, TBody, TResponse>,
-): ((req: NextApiRequest, res: NextApiResponse) => Promise<void>) => {
-  return async (req: NextApiRequest, res: NextApiResponse) => {
+): RouteHandler => {
+  const handler = async (req: NextApiRequest, res: NextApiResponse) => {
     // Cloud-only: the sunset date binds Cloud, not self-hosted deployments.
     const deprecation = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
       ? routeConfig.deprecation
@@ -161,15 +163,10 @@ export const createAuthedProjectAPIRoute = <
       routeConfig.rejectInEventsOnlyMode &&
       env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only"
     ) {
-      res.status(404).json(
-        attachDeprecation(
-          {
-            message:
-              "This endpoint is not available on deployments running in Langfuse v4 events_only mode. Learn more about Langfuse v4 at: https://langfuse.com/docs/v4",
-          },
-          deprecation,
-        ),
-      );
+      res.status(404).json({
+        message:
+          "This endpoint is not available on deployments running in Langfuse v4 events_only mode. Learn more about Langfuse v4 at: https://langfuse.com/docs/v4",
+      });
       return;
     }
 
@@ -368,7 +365,7 @@ export const createAuthedProjectAPIRoute = <
       res.status(statusCode);
 
       try {
-        res.json(attachDeprecation(response || { message: "OK" }, deprecation));
+        res.json(response || { message: "OK" });
       } catch (error) {
         if (isJsonStringTooLargeError(error)) {
           throw new PayloadTooLargeError();
@@ -378,4 +375,5 @@ export const createAuthedProjectAPIRoute = <
       }
     });
   };
+  return Object.assign(handler, { deprecation: routeConfig.deprecation });
 };

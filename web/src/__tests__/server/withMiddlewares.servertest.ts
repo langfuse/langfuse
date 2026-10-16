@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import {
   LEGACY_PUBLIC_API_METRICS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE,
+  type RouteHandler,
   withMiddlewares,
 } from "@/src/features/public-api/server/withMiddlewares";
 import {
@@ -22,6 +23,12 @@ import {
 import { createMocks } from "node-mocks-http";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
+import { env } from "@/src/env.mjs";
+
+vi.mock("@/src/env.mjs", async (importOriginal) => {
+  const actual = await importOriginal<{ env: typeof env }>();
+  return { ...actual, env: { ...actual.env } };
+});
 
 // Mock the logger and traceException
 vi.mock("@langfuse/shared/src/server", async () => ({
@@ -606,5 +613,142 @@ describe("withMiddlewares error handling", () => {
         error: "An unknown error occurred",
       });
     });
+  });
+});
+
+describe("withMiddlewares deprecation signal", () => {
+  const deprecation = {
+    message: "Removed on 2026-11-16. Use GET /api/public/v2/observations.",
+    replacement: "GET /api/public/v2/observations?fromStartTime=<from>",
+    docsUrl: "https://langfuse.com/docs/x",
+    sunsetAt: "2026-11-16",
+  };
+  const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+
+  beforeEach(() => {
+    Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "US" });
+  });
+  afterEach(() => {
+    Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalRegion });
+  });
+
+  const deprecated = (fn: RouteHandler): RouteHandler =>
+    Object.assign(fn, { deprecation });
+
+  async function call(
+    handlers: Parameters<typeof withMiddlewares>[0],
+    method: "GET" | "POST",
+  ) {
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method,
+    });
+    await withMiddlewares(handlers)(req, res);
+    return res;
+  }
+
+  it("sends deprecation headers and leads the body with `_deprecation`", async () => {
+    const res = await call(
+      {
+        GET: deprecated(async (_req, res) => {
+          res.status(200).json({ data: [], meta: { page: 1 } });
+        }),
+      },
+      "GET",
+    );
+
+    expect(res._getStatusCode()).toBe(200);
+    expect(res.getHeader("Deprecation")).toBe("@1784764800");
+    expect(res.getHeader("Sunset")).toBe("Mon, 16 Nov 2026 00:00:00 GMT");
+    expect(res.getHeader("Link")).toBe(
+      '</api/public/v2/observations>; rel="successor-version", <https://langfuse.com/docs/x>; rel="deprecation"',
+    );
+    const body = JSON.parse(res._getData());
+    expect(Object.keys(body)[0]).toBe("_deprecation");
+    expect(body.meta).toEqual({
+      deprecation: {
+        sunsetAt: deprecation.sunsetAt,
+        replacement: deprecation.replacement,
+      },
+      page: 1,
+    });
+  });
+
+  it("names the replacement in thrown 4xx errors", async () => {
+    const res = await call(
+      {
+        GET: deprecated(async () => {
+          throw new LangfuseNotFoundError("Observation not found");
+        }),
+      },
+      "GET",
+    );
+
+    expect(res._getStatusCode()).toBe(404);
+    const body = JSON.parse(res._getData());
+    expect(body._deprecation).toEqual(deprecation);
+    expect(body.message).toBe(
+      `Observation not found. Use ${deprecation.replacement} instead.`,
+    );
+  });
+
+  it("stamps a 405 for a method the deprecated route does not have", async () => {
+    const res = await call({ GET: deprecated(async () => {}) }, "POST");
+
+    expect(res._getStatusCode()).toBe(405);
+    expect(res.getHeader("Sunset")).toBe("Mon, 16 Nov 2026 00:00:00 GMT");
+    expect(JSON.parse(res._getData())._deprecation).toEqual(deprecation);
+  });
+
+  it.each([
+    [401, new UnauthorizedError("Invalid credentials.")],
+    [500, new BaseError("Internal", 500, "Database down", false)],
+  ])(
+    "stamps but does not add the replacement to a %i",
+    async (status, error) => {
+      const res = await call(
+        {
+          GET: deprecated(async () => {
+            throw error;
+          }),
+        },
+        "GET",
+      );
+
+      expect(res._getStatusCode()).toBe(status);
+      const body = JSON.parse(res._getData());
+      expect(body._deprecation).toEqual(deprecation);
+      expect(body.message).toBe(error.message);
+    },
+  );
+
+  it("leaves non-deprecated methods of the same route unchanged", async () => {
+    const res = await call(
+      {
+        GET: deprecated(async () => {}),
+        POST: async (_req, res) => {
+          res.status(201).json({ id: "1" });
+        },
+      },
+      "POST",
+    );
+
+    expect(res.getHeader("Deprecation")).toBeUndefined();
+    expect(JSON.parse(res._getData())).toEqual({ id: "1" });
+  });
+
+  it("sends no signal outside Langfuse Cloud", async () => {
+    Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined });
+
+    const res = await call(
+      {
+        GET: deprecated(async (_req, res) => {
+          res.status(200).json({ data: [] });
+        }),
+      },
+      "GET",
+    );
+
+    expect(res.getHeader("Deprecation")).toBeUndefined();
+    expect(JSON.parse(res._getData())).toEqual({ data: [] });
   });
 });
