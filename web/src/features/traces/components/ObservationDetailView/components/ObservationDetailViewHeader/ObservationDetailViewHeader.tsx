@@ -466,6 +466,83 @@ export const ObservationDetailViewHeader = memo(
               </Button>
             </>
           }
+          iconOnlyActions={
+            <>
+              {observationWithIO ? (
+                <ConnectedTraceObservationAddToDropdownMenuController
+                  analyticsData={{ source: "TraceDetail", isV4: isV4Enabled }}
+                  projectId={projectId}
+                  traceId={traceId}
+                  variant="observation"
+                  observationId={observation.id}
+                  input={observationWithIO.input}
+                  output={observationWithIO.output}
+                  metadata={observationWithIO.metadata}
+                  generation={
+                    isGenerationLike(observationWithIO.type)
+                      ? observationWithIO
+                      : undefined
+                  }
+                >
+                  {({ getTriggerProps }) => (
+                    <HeaderActionButton
+                      label="Add to"
+                      icon={<PlusIcon className="icon-base" />}
+                      {...getTriggerProps()}
+                    />
+                  )}
+                </ConnectedTraceObservationAddToDropdownMenuController>
+              ) : (
+                <HeaderActionButton
+                  label="Add to"
+                  icon={<PlusIcon className="icon-base" />}
+                  disabled
+                />
+              )}
+              {!isAnnotationMode && (
+                <AnnotateDrawerController projectId={projectId}>
+                  {({ disabled, openDrawer }) => (
+                    <HeaderActionButton
+                      label="Annotate"
+                      icon={
+                        disabled ? (
+                          <LockIcon className="icon-base" />
+                        ) : (
+                          <SquarePen className="icon-base" />
+                        )
+                      }
+                      disabled={disabled}
+                      onClick={() =>
+                        openDrawer({
+                          ...prepareTraceAnnotation({
+                            traceId,
+                            projectId,
+                            environment: observation.environment,
+                            observationId: observation.id,
+                            scores: observationScores,
+                            isV4: isV4Enabled,
+                          }),
+                          companionTrace,
+                        })
+                      }
+                    />
+                  )}
+                </AnnotateDrawerController>
+              )}
+              <HeaderActionButton
+                label={commentActionLabel}
+                icon={
+                  commentDrawerControl.disabled ? (
+                    <MessageSquareOff className="icon-base" />
+                  ) : (
+                    <MessageSquare className="icon-base" />
+                  )
+                }
+                disabled={commentDrawerControl.disabled}
+                onClick={commentDrawerControl.openDrawer}
+              />
+            </>
+          }
         />
 
         {/* Metadata line */}
