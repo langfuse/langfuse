@@ -792,6 +792,324 @@ describe("automations trpc", () => {
   });
 
   describe("automations.createAutomation", () => {
+    it("creates a score-triggered annotation queue automation", async () => {
+      const { project, caller } = await prepare();
+      const [scoreConfig, queue] = await Promise.all([
+        prisma.scoreConfig.create({
+          data: {
+            projectId: project.id,
+            name: "quality",
+            dataType: "BOOLEAN",
+            categories: [
+              { label: "True", value: 1 },
+              { label: "False", value: 0 },
+            ],
+          },
+        }),
+        prisma.annotationQueue.create({
+          data: { projectId: project.id, name: "Needs review" },
+        }),
+      ]);
+
+      const response = await caller.automations.createAutomation({
+        projectId: project.id,
+        name: "Review quality failures",
+        eventSource: TriggerEventSource.Score,
+        eventAction: ["created", "updated"],
+        filter: [
+          {
+            column: "name",
+            type: "string",
+            operator: "=",
+            value: scoreConfig.name,
+          },
+          {
+            column: "dataType",
+            type: "string",
+            operator: "=",
+            value: scoreConfig.dataType,
+          },
+          { column: "value", type: "number", operator: "=", value: 0 },
+        ],
+        status: JobConfigState.ACTIVE,
+        actionType: "ANNOTATION_QUEUE",
+        actionConfig: {
+          type: "ANNOTATION_QUEUE",
+          queueIds: [queue.id],
+        },
+      });
+
+      expect(response.action).toMatchObject({
+        type: "ANNOTATION_QUEUE",
+        config: { type: "ANNOTATION_QUEUE", queueIds: [queue.id] },
+      });
+      expect(response.trigger).toMatchObject({
+        eventSource: TriggerEventSource.Score,
+        eventActions: ["created", "updated"],
+      });
+    });
+
+    it("creates a score-triggered automation for an inclusive numeric range", async () => {
+      const { project, caller } = await prepare();
+      const [scoreConfig, queue] = await Promise.all([
+        prisma.scoreConfig.create({
+          data: {
+            projectId: project.id,
+            name: "latency",
+            dataType: "NUMERIC",
+          },
+        }),
+        prisma.annotationQueue.create({
+          data: { projectId: project.id, name: "Latency review" },
+        }),
+      ]);
+
+      const response = await caller.automations.createAutomation({
+        projectId: project.id,
+        name: "Review latency range",
+        eventSource: TriggerEventSource.Score,
+        eventAction: ["created", "updated"],
+        filter: [
+          {
+            column: "name",
+            type: "string",
+            operator: "=",
+            value: scoreConfig.name,
+          },
+          {
+            column: "dataType",
+            type: "string",
+            operator: "=",
+            value: scoreConfig.dataType,
+          },
+          { column: "value", type: "number", operator: ">=", value: 0.25 },
+          { column: "value", type: "number", operator: "<=", value: 0.75 },
+        ],
+        status: JobConfigState.ACTIVE,
+        actionType: "ANNOTATION_QUEUE",
+        actionConfig: {
+          type: "ANNOTATION_QUEUE",
+          queueIds: [queue.id],
+        },
+      });
+
+      expect(response.trigger.filter).toEqual([
+        {
+          column: "name",
+          type: "string",
+          operator: "=",
+          value: scoreConfig.name,
+        },
+        {
+          column: "dataType",
+          type: "string",
+          operator: "=",
+          value: scoreConfig.dataType,
+        },
+        { column: "value", type: "number", operator: ">=", value: 0.25 },
+        { column: "value", type: "number", operator: "<=", value: 0.75 },
+      ]);
+    });
+
+    it("creates a score-triggered automation for multiple categorical values", async () => {
+      const { project, caller } = await prepare();
+      const [scoreConfig, queue] = await Promise.all([
+        prisma.scoreConfig.create({
+          data: {
+            projectId: project.id,
+            name: "sentiment",
+            dataType: "CATEGORICAL",
+            categories: [
+              { label: "negative", value: 0 },
+              { label: "neutral", value: 0.5 },
+              { label: "positive", value: 1 },
+            ],
+          },
+        }),
+        prisma.annotationQueue.create({
+          data: { projectId: project.id, name: "Sentiment review" },
+        }),
+      ]);
+
+      const response = await caller.automations.createAutomation({
+        projectId: project.id,
+        name: "Review sentiment",
+        eventSource: TriggerEventSource.Score,
+        eventAction: ["created", "updated"],
+        filter: [
+          {
+            column: "name",
+            type: "string",
+            operator: "=",
+            value: scoreConfig.name,
+          },
+          {
+            column: "dataType",
+            type: "string",
+            operator: "=",
+            value: scoreConfig.dataType,
+          },
+          {
+            column: "stringValue",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["negative", "neutral"],
+          },
+        ],
+        status: JobConfigState.ACTIVE,
+        actionType: "ANNOTATION_QUEUE",
+        actionConfig: {
+          type: "ANNOTATION_QUEUE",
+          queueIds: [queue.id],
+        },
+      });
+
+      expect(response.trigger.filter).toContainEqual({
+        column: "stringValue",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["negative", "neutral"],
+      });
+    });
+
+    it("creates a score-triggered automation for an exact text value", async () => {
+      const { project, caller } = await prepare();
+      const [scoreConfig, queue] = await Promise.all([
+        prisma.scoreConfig.create({
+          data: {
+            projectId: project.id,
+            name: "feedback",
+            dataType: "TEXT",
+          },
+        }),
+        prisma.annotationQueue.create({
+          data: { projectId: project.id, name: "Feedback review" },
+        }),
+      ]);
+
+      const response = await caller.automations.createAutomation({
+        projectId: project.id,
+        name: "Review feedback",
+        eventSource: TriggerEventSource.Score,
+        eventAction: ["created", "updated"],
+        filter: [
+          {
+            column: "name",
+            type: "string",
+            operator: "=",
+            value: scoreConfig.name,
+          },
+          {
+            column: "dataType",
+            type: "string",
+            operator: "=",
+            value: scoreConfig.dataType,
+          },
+          {
+            column: "stringValue",
+            type: "string",
+            operator: "=",
+            value: "Needs improvement",
+          },
+        ],
+        status: JobConfigState.ACTIVE,
+        actionType: "ANNOTATION_QUEUE",
+        actionConfig: {
+          type: "ANNOTATION_QUEUE",
+          queueIds: [queue.id],
+        },
+      });
+
+      expect(response.trigger.filter).toContainEqual({
+        column: "stringValue",
+        type: "string",
+        operator: "=",
+        value: "Needs improvement",
+      });
+    });
+
+    it("rejects an invalid score data type before querying Prisma", async () => {
+      const { project, caller } = await prepare();
+      const queue = await prisma.annotationQueue.create({
+        data: { projectId: project.id, name: "Needs review" },
+      });
+
+      await expect(
+        caller.automations.createAutomation({
+          projectId: project.id,
+          name: "Invalid score type",
+          eventSource: TriggerEventSource.Score,
+          eventAction: ["created", "updated"],
+          filter: [
+            {
+              column: "name",
+              type: "string",
+              operator: "=",
+              value: "quality",
+            },
+            {
+              column: "dataType",
+              type: "string",
+              operator: "=",
+              value: "BOGUS",
+            },
+          ],
+          status: JobConfigState.ACTIVE,
+          actionType: "ANNOTATION_QUEUE",
+          actionConfig: {
+            type: "ANNOTATION_QUEUE",
+            queueIds: [queue.id],
+          },
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
+    it("rejects annotation queues from another project", async () => {
+      const { project, caller } = await prepare();
+      const other = await prepare();
+      const [scoreConfig, queue] = await Promise.all([
+        prisma.scoreConfig.create({
+          data: {
+            projectId: project.id,
+            name: "quality",
+            dataType: "NUMERIC",
+          },
+        }),
+        prisma.annotationQueue.create({
+          data: { projectId: other.project.id, name: "Other project" },
+        }),
+      ]);
+
+      await expect(
+        caller.automations.createAutomation({
+          projectId: project.id,
+          name: "Invalid queue",
+          eventSource: TriggerEventSource.Score,
+          eventAction: ["created", "updated"],
+          filter: [
+            {
+              column: "name",
+              type: "string",
+              operator: "=",
+              value: scoreConfig.name,
+            },
+            {
+              column: "dataType",
+              type: "string",
+              operator: "=",
+              value: scoreConfig.dataType,
+            },
+          ],
+          status: JobConfigState.ACTIVE,
+          actionType: "ANNOTATION_QUEUE",
+          actionConfig: {
+            type: "ANNOTATION_QUEUE",
+            queueIds: [queue.id],
+          },
+        }),
+      ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    });
+
     it("should create a new webhook automation", async () => {
       const { project, caller } = await prepare();
 

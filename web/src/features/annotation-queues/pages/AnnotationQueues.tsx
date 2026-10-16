@@ -6,6 +6,7 @@ import Page from "@/src/components/layouts/page";
 import { AnnotationQueuesOnboarding } from "@/src/components/onboarding/AnnotationQueuesOnboarding";
 import { api } from "@/src/utils/api";
 import { CreateOrEditAnnotationQueueButton } from "@/src/features/annotation-queues/components/CreateOrEditAnnotationQueueButton";
+import { AutomationButton } from "@/src/features/automations";
 
 export default function AnnotationQueues() {
   const router = useRouter();
@@ -43,10 +44,13 @@ export default function AnnotationQueues() {
           href: "https://langfuse.com/docs/evaluation/evaluation-methods/annotation-queues",
         },
         actionButtonsRight: (
-          <CreateOrEditAnnotationQueueButton
-            projectId={projectId}
-            variant="default"
-          />
+          <>
+            {projectId ? <AutomationButton projectId={projectId} /> : null}
+            <CreateOrEditAnnotationQueueButton
+              projectId={projectId}
+              variant="default"
+            />
+          </>
         ),
       }}
       scrollable={showOnboarding}

@@ -32,6 +32,7 @@ describe("InMemoryFilterService", () => {
     cost: 0.0025,
     latency: 1500,
     tokenCount: 250,
+    zero: 0,
   };
 
   // Simple field mapper for testing
@@ -72,6 +73,8 @@ describe("InMemoryFilterService", () => {
         return data.latency;
       case "tokenCount":
         return data.tokenCount;
+      case "zero":
+        return data.zero;
       default:
         return undefined;
     }
@@ -554,6 +557,21 @@ describe("InMemoryFilterService", () => {
               type: "stringOptions",
               operator: "none of",
               value: ["development", "staging"],
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(true);
+
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "zero",
+              type: "stringOptions",
+              operator: "any of",
+              value: ["0"],
             },
           ],
           fieldMapper,

@@ -15,6 +15,8 @@
 
 - Worker registration/lifecycle: `src/queues/workerManager.ts`
 - Queue processors: `src/queues/*`
+- Automation action dispatch: `src/queues/automationExecutionQueue.ts` and
+  `src/features/automations/executeAutomationAction.ts`
 - Feature processors: `src/features/*`
 - Topics pipeline: `src/features/topics/processTopicsExecution.ts`, registered by
   `src/queues/topicsQueue.ts`. Read `src/features/topics/README.md` before changing
