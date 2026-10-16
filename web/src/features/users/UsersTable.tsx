@@ -385,6 +385,11 @@ export function UsersTable({
   const userDetailPath = (userId: string) =>
     `/project/${projectId}/users/${encodeURIComponent(userId)}`;
 
+  const handleRowClick = (row: RowData) => {
+    if (!row.userId) return;
+    router.push(userDetailPath(row.userId));
+  };
+
   const columns: LangfuseColumnDef<RowData>[] = [
     createLinkTableColumn<RowData>({
       accessorKey: "userId",
@@ -639,10 +644,7 @@ export function UsersTable({
               columnOrder={columnOrder}
               onColumnOrderChange={handleColumnOrderChange}
               cellPadding="comfortable"
-              onRowClick={(row) => {
-                if (!row.userId) return;
-                router.push(userDetailPath(row.userId));
-              }}
+              onRowClick={handleRowClick}
             />
           </div>
         </StickySearchableTableFilterLayout>

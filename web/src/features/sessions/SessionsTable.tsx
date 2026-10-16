@@ -573,6 +573,13 @@ export default function SessionsTable({
   const sessionDetailPath = (sessionId: string) =>
     `/project/${projectId}/sessions/${encodeURIComponent(sessionId)}`;
 
+  const handleRowClick = (row: SessionTableRow) => {
+    // A row with an empty id has no detail page, and the ID cell renders no
+    // link for it either.
+    if (!row.id) return;
+    router.push(sessionDetailPath(row.id));
+  };
+
   const columns: LangfuseColumnDef<SessionTableRow>[] = [
     selectActionColumn,
     createLinkTableColumn<SessionTableRow>({
@@ -1011,12 +1018,7 @@ export default function SessionsTable({
               customRowHeightPx={rowHeights.activeHeightPx}
               onCustomRowHeightChange={rowHeights.setCustomPx}
               onSelectRowHeight={setRowHeight}
-              onRowClick={(row) => {
-                // A row with an empty id has no detail page, and the ID cell
-                // renders no link for it either.
-                if (!row.id) return;
-                router.push(sessionDetailPath(row.id));
-              }}
+              onRowClick={handleRowClick}
             />
           </div>
         </StickySearchableTableFilterLayout>
