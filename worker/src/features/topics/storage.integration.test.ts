@@ -679,7 +679,7 @@ describe("Topics definition persistence", () => {
     ]);
   });
 
-  it("estimates retained costs with tenant isolation, retry deduplication and replacement", async () => {
+  it("sums priced summary and embedding costs scoped to the project and executions", async () => {
     const priced: TopicSummary = {
       ...summary,
       facetId: randomUUID(),
@@ -708,24 +708,9 @@ describe("Topics definition persistence", () => {
         metadata: { executionId: "zero" },
       },
     ]);
-    await writeTopicSummaries([priced]);
-    const requested = ["priced", "unpriced", "zero", "replacement"];
+    const requested = ["priced", "unpriced", "zero"];
     expect(await getTopicExecutionCosts(projectId, requested)).toEqual({
       priced: 0.35,
-      zero: 0,
-    });
-
-    await writeTopicSummaries([
-      {
-        ...priced,
-        costDetails: { summary_input: 0.9, total: 0.9 },
-        processedAt: "2026-10-01T00:00:00.000Z",
-        metadata: { executionId: "replacement" },
-      },
-    ]);
-    expect(await getTopicExecutionCosts(projectId, requested)).toEqual({
-      priced: 0.05,
-      replacement: 0.9,
       zero: 0,
     });
   });

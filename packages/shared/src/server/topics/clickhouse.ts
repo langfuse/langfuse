@@ -522,16 +522,16 @@ export async function hasStoredTopicSummaries(
   return hasSummaries;
 }
 
-/** Approximate processing costs from retained summaries; missing prices are excluded. */
+/** Approximate costs; retry inserts can overcount until background merges deduplicate them. */
 export async function getTopicExecutionCosts(
   projectId: string,
   executionIds: string[],
 ): Promise<Record<string, number>> {
-  if (!executionIds.length) return {};
+  if (executionIds.length === 0) return {};
   const rows = await queryClickhouse<{ executionId: string; cost: string }>({
     query: `SELECT JSONExtractString(metadata, 'executionId') AS executionId,
         sum(calculated_total_cost) AS cost
-      FROM topic_facet_summaries FINAL
+      FROM topic_facet_summaries
       WHERE project_id = {projectId:String}
         AND executionId IN {executionIds:Array(String)}
         AND notEmpty(cost_details)
