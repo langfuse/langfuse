@@ -7,6 +7,18 @@ const tester = new RuleTester({
 });
 tester.run("component-file-structure", rule, {
   valid: [
+    {
+      code: "function button() { return <div />; }",
+      filename: "/repo/anything.tsx",
+    },
+    {
+      code: "const renderChip = () => <div />; export const Button = () => renderChip();",
+      filename: "/repo/Button.tsx",
+    },
+    {
+      code: "const button = () => <div />; export { button as Button };",
+      filename: "/repo/Button.tsx",
+    },
     ...[
       "export default function Button() { return <></>; }",
       "export default class Button extends Component {}",
@@ -60,6 +72,8 @@ tester.run("component-file-structure", rule, {
       "export type Value = {};",
       "export interface Value {}",
       "export { Component } from './other';",
+      "import { Button } from './other'; export { Button };",
+      "class Button extends React.Component {} export { Button };",
       "const value = 1; export { type value };",
       "export const { value } = source;",
       "export default 1;",
@@ -136,8 +150,8 @@ tester.run("component-file-structure", rule, {
       errors: [{ messageId: "filename" }],
     },
     {
-      code: "function button() { return <div />; }",
-      filename: "/repo/anything.tsx",
+      code: "export function button() { return <div />; }",
+      filename: "/repo/button.tsx",
       errors: [{ messageId: "pascalCase" }],
     },
     {

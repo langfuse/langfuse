@@ -28,7 +28,6 @@ export default createRule({
   },
   defaultOptions: [],
   create(context) {
-    const declarations: [string, TSESTree.Node][] = [];
     const exports: {
       name: string | undefined;
       value: TSESTree.Node;
@@ -134,16 +133,6 @@ export default createRule({
     }
 
     return {
-      FunctionDeclaration(node) {
-        if (node.id) declarations.push([node.id.name, node]);
-      },
-      ClassDeclaration(node) {
-        if (node.id) declarations.push([node.id.name, node]);
-      },
-      VariableDeclarator(node) {
-        if (node.id.type === N.Identifier)
-          declarations.push([node.id.name, node]);
-      },
       ExportNamedDeclaration(node) {
         if (node.exportKind === "type" || node.source) return;
         const declaration = node.declaration;
@@ -187,17 +176,17 @@ export default createRule({
         exports.push({ name, value, node });
       },
       "Program:exit"() {
-        for (const [name, node] of declarations) {
-          if (
-            !/^[A-Z][a-zA-Z0-9]*$/.test(name) &&
-            isComponent(node, name, new Set())
-          )
-            context.report({ node, messageId: "pascalCase", data: { name } });
-        }
         let component: (typeof exports)[number] | undefined;
         for (const exported of exports) {
           if (!isComponent(exported.value, exported.name ?? "", new Set()))
             continue;
+          if (exported.name && !/^[A-Z][a-zA-Z0-9]*$/.test(exported.name)) {
+            context.report({
+              node: exported.node,
+              messageId: "pascalCase",
+              data: { name: exported.name },
+            });
+          }
           if (component) {
             context.report({ node: exported.node, messageId: "multiple" });
             return;
@@ -209,15 +198,6 @@ export default createRule({
           context.report({ node: component.node, messageId: "anonymous" });
           return;
         }
-        if (
-          !/^[A-Z][a-zA-Z0-9]*$/.test(component.name) &&
-          !declarations.some(([name]) => name === component.name)
-        )
-          context.report({
-            node: component.node,
-            messageId: "pascalCase",
-            data: { name: component.name },
-          });
         const filename = basename(context.filename);
         if (basename(filename, extname(filename)) !== component.name)
           context.report({
