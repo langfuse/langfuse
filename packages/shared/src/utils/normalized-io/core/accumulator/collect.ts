@@ -249,6 +249,14 @@ function collectRecordMessages(
     source === "input" ? findSystemMessageSources(root, source) : [];
   const claimedSources = claimMessages(root, source, parserContext);
   const rootMessages = parseArray(root.messages);
+  const paramsMessages =
+    source === "input"
+      ? parseArray(parseRecord(root.params)?.messages)
+      : undefined;
+  const hasMessageShapedParams = paramsMessages?.some((value) => {
+    const record = asRecord(value);
+    return record !== undefined && isMessageLike(record);
+  });
 
   const messages: NormalizedMessage[] = [];
 
@@ -260,6 +268,15 @@ function collectRecordMessages(
     recordKeyAsParsed(root, "messages");
     collectMessageSequence(
       rootMessages,
+      fallbackRole,
+      parserContext,
+      messages,
+      accumulator,
+    );
+  } else if (paramsMessages && hasMessageShapedParams) {
+    recordKeyAsParsed(root, "params", "messages");
+    collectMessageSequence(
+      paramsMessages,
       fallbackRole,
       parserContext,
       messages,

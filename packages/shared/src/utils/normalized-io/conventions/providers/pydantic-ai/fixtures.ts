@@ -1,5 +1,153 @@
 import type { NormalizedIOFixture } from "../fixture-types";
 
+const structuredResult = { reasoning: "The answer is correct.", score: 1 };
+
+export const agentRunFixture = {
+  name: "extracts Pydantic agent history and model request tools",
+  spanIO: {
+    metadata: undefined,
+    input: { args: ["Evaluate this answer."], kwargs: {} },
+    output: {
+      output: structuredResult,
+      _state: {
+        message_history: [
+          {
+            kind: "request",
+            parts: [
+              { part_kind: "system-prompt", content: "Evaluate carefully." },
+              { part_kind: "user-prompt", content: "Evaluate this answer." },
+            ],
+          },
+          {
+            kind: "response",
+            parts: [
+              { part_kind: "text", content: "Checking the reference." },
+              {
+                part_kind: "tool-call",
+                tool_name: "lookup_reference",
+                tool_call_id: "call_1",
+                args: '{"query":"answer"}',
+              },
+            ],
+          },
+          {
+            kind: "request",
+            parts: [
+              {
+                part_kind: "tool-return",
+                tool_name: "lookup_reference",
+                tool_call_id: "call_1",
+                content: "Verified.",
+              },
+            ],
+          },
+          {
+            kind: "response",
+            parts: [
+              {
+                part_kind: "tool-call",
+                tool_name: "final_result",
+                tool_call_id: "call_2",
+                args: structuredResult,
+              },
+            ],
+          },
+        ],
+        last_model_request_parameters: {
+          function_tools: [
+            {
+              name: "lookup_reference",
+              parameters_json_schema: { type: "object" },
+            },
+          ],
+          output_tools: [
+            {
+              name: "final_result",
+              parameters_json_schema: { type: "object" },
+            },
+          ],
+          builtin_tools: [
+            { kind: "web_search", search_context_size: "medium" },
+            { unsupported_builtin: true },
+          ],
+        },
+      },
+    },
+  },
+  expected: {
+    messages: [
+      {
+        role: "user",
+        source: "input",
+        parts: [
+          {
+            type: "data",
+            value: { args: ["Evaluate this answer."], kwargs: {} },
+          },
+        ],
+      },
+      {
+        role: "system",
+        source: "output",
+        parts: [{ type: "text", text: "Evaluate carefully." }],
+      },
+      {
+        role: "user",
+        source: "output",
+        parts: [{ type: "text", text: "Evaluate this answer." }],
+      },
+      {
+        role: "assistant",
+        source: "output",
+        parts: [
+          { type: "text", text: "Checking the reference." },
+          {
+            type: "tool-call",
+            toolType: "tool-call",
+            toolName: "lookup_reference",
+            toolCallId: "call_1",
+            input: { query: "answer" },
+          },
+        ],
+      },
+      {
+        role: "tool",
+        source: "output",
+        parts: [
+          {
+            type: "tool-result",
+            toolName: "lookup_reference",
+            toolCallId: "call_1",
+            output: "Verified.",
+          },
+        ],
+      },
+      {
+        role: "assistant",
+        source: "output",
+        parts: [
+          {
+            type: "tool-call",
+            toolType: "tool-call",
+            toolName: "final_result",
+            toolCallId: "call_2",
+            input: structuredResult,
+          },
+        ],
+      },
+    ],
+    toolDefinitions: [
+      { name: "lookup_reference", inputSchema: { type: "object" } },
+      { name: "final_result", inputSchema: { type: "object" } },
+      {
+        name: "web_search",
+        type: "web_search",
+        providerMetadata: { search_context_size: "medium" },
+      },
+    ],
+  },
+} satisfies NormalizedIOFixture;
+
 export const pydanticAiProductionShapeFixture = {
   name: "normalizes an anonymized Pydantic AI span",
   otel: {
