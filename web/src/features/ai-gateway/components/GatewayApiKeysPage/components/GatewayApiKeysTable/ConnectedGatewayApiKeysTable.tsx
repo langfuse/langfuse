@@ -54,6 +54,14 @@ export function ConnectedGatewayApiKeysTable({
       onAfterDismiss={revoke.reset}
       onConfirm={async (apiKeyId) => {
         await revoke.mutateAsync({ orgId: organizationId, id: apiKeyId });
+        const remainingCount = (apiKeysQuery.data?.totalCount ?? 1) - 1;
+        const lastPageIndex = Math.max(
+          0,
+          Math.ceil(remainingCount / paginationState.pageSize) - 1,
+        );
+        if (paginationState.pageIndex > lastPageIndex) {
+          setPaginationState({ ...paginationState, pageIndex: lastPageIndex });
+        }
         await utils.aiGateway.listApiKeys.invalidate({ orgId: organizationId });
       }}
     >
