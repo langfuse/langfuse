@@ -14,7 +14,6 @@
 # The workflow installs this script before the agent starts, in a directory the
 # sandbox mounts read-only. That directory contains:
 #   toolchains/<crate-slug>   bin directory of the crate's pinned toolchain
-#   native-cargo-config.toml  clickhouse patch overlay for packages/native
 #   cwd/                      empty working directory for cargo
 #
 # Usage:
@@ -64,9 +63,6 @@ if [[ ! "$spec" =~ $spec_re ]]; then
 fi
 
 cargo_args=()
-if [[ "$slug" == native ]]; then
-  cargo_args+=(--config "$install_dir/native-cargo-config.toml")
-fi
 
 manifest="$workspace/$crate_dir/Cargo.toml"
 if [[ "$subcommand" == update ]]; then

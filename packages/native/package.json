@@ -15,7 +15,6 @@
     "node": "24"
   },
   "scripts": {
-    "prepare-clickhouse-rs": "sh scripts/prepare-clickhouse-rs.sh",
     "build": "pnpm run rust:build",
     "rust:build": "napi build --platform --release",
     "build:debug": "pnpm run rust:build:debug",

@@ -96,11 +96,6 @@ jobs:
         working-directory: ai-gateway
         run: cargo deny --locked check licenses
 
-      # Cargo.lock is resolved against the patched clickhouse overlay.
-      - name: Prepare patched clickhouse crate for the native addon
-        working-directory: packages/native
-        run: sh scripts/prepare-clickhouse-rs.sh
-
       - name: Check native addon dependency licenses
         working-directory: packages/native
         run: cargo deny --locked check licenses
