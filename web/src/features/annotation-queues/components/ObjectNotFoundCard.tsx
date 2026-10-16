@@ -1,4 +1,3 @@
-/* eslint-disable @repo/component-file-structure */
 import { Card } from "@/src/components/ui/card";
 import { SearchXIcon } from "lucide-react";
 
