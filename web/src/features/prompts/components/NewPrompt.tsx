@@ -1,4 +1,3 @@
-/* eslint-disable @repo/component-file-structure */
 import { StringParam, useQueryParam } from "use-query-params";
 import { NewPromptForm } from "@/src/features/prompts/components/NewPromptForm";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
