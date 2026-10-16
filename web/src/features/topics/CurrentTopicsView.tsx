@@ -1,7 +1,6 @@
 import { computeSelectedValues, type FilterState } from "@langfuse/shared";
 import { useMemo, useState, type ComponentProps, type MouseEvent } from "react";
 import { useMediaQuery } from "react-responsive";
-import { cn } from "@/src/utils/tailwind";
 import { type OnChangeFn, type PaginationState } from "@tanstack/react-table";
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -10,6 +9,12 @@ import { type RouterOutputs } from "@/src/utils/api";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+  useDefaultLayout,
+} from "@/src/components/ui/resizable";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { TopicEmbeddingMap } from "./TopicEmbeddingMap";
 import { TopicGroupCard } from "./TopicGroupCard";
@@ -20,6 +25,9 @@ import {
   selectTopicTraceFilters,
 } from "./topic-trace-filters";
 import { TopicsTraceToolbar } from "./TopicsTraceToolbar";
+
+const OVERVIEW_PANEL_IDS = ["map", "groups"];
+const WORKSPACE_PANEL_IDS = ["overview", "traces"];
 
 export function CurrentTopicsView({
   projectId,
@@ -37,6 +45,16 @@ export function CurrentTopicsView({
   const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null);
   const isNarrow = useMediaQuery({ query: "(max-width: 1023px)" });
   const [mobilePanel, setMobilePanel] = useState("traces");
+  const overviewLayout = useDefaultLayout({
+    id: "topics-overview-size",
+    panelIds: OVERVIEW_PANEL_IDS,
+    storage: "local",
+  });
+  const workspaceLayout = useDefaultLayout({
+    id: "topics-workspace-size",
+    panelIds: WORKSPACE_PANEL_IDS,
+    storage: "local",
+  });
   const { filters, setFilters, searchQuery, setSearchQuery } = traceFilters;
   const filterKey = JSON.stringify([filters, searchQuery]);
   const [pageSize, setPageSize] = useState(20);
@@ -89,7 +107,7 @@ export function CurrentTopicsView({
   const mapPanel = (
     <section
       aria-label="Topic map"
-      className="flex min-h-0 min-w-0 flex-col overflow-hidden"
+      className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden"
     >
       {facet.map ? (
         <TopicEmbeddingMap
@@ -132,7 +150,7 @@ export function CurrentTopicsView({
   const groupsPanel = (
     <section
       aria-label="Topic groups"
-      className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border"
+      className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border"
     >
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain p-2">
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
@@ -164,10 +182,7 @@ export function CurrentTopicsView({
     <section
       aria-label="Topic traces"
       ref={isNarrow ? undefined : tracePanelRef}
-      className={cn(
-        "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border lg:col-start-2 lg:row-start-1",
-        facet.map && "lg:row-span-2",
-      )}
+      className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border"
     >
       <TopicsTraceToolbar
         projectId={projectId}
@@ -192,48 +207,82 @@ export function CurrentTopicsView({
       />
     </section>
   );
-  return (
-    <div
-      className={cn(
-        "grid min-h-0 min-w-0 flex-1 gap-2 overflow-hidden lg:grid-cols-2",
-        facet.map
-          ? "grid-rows-[minmax(0,9fr)_minmax(0,11fr)] lg:grid-rows-[minmax(0,3fr)_minmax(0,2fr)]"
-          : "grid-rows-[minmax(0,1fr)]",
-      )}
+  const detailsPanel = isNarrow ? (
+    <Tabs
+      value={mobilePanel}
+      onValueChange={setMobilePanel}
+      layout="fill"
+      ref={tracePanelRef}
     >
-      {facet.map && mapPanel}
-      {isNarrow ? (
-        <Tabs
-          value={mobilePanel}
-          onValueChange={setMobilePanel}
-          layout="fill"
-          ref={tracePanelRef}
+      <div className="mb-2 shrink-0">
+        <Tabs.List
+          variant="inset"
+          size="sm"
+          layout="full"
+          aria-label="Topics panels"
         >
-          <div className="mb-2 shrink-0">
-            <Tabs.List
-              variant="inset"
-              size="sm"
-              layout="full"
-              aria-label="Topics panels"
-            >
-              <Tabs.Trigger value="topics" label="Topics" />
-              <Tabs.Trigger value="traces" label="Traces" />
-            </Tabs.List>
-          </div>
-          <Tabs.Content value="topics" layout="fill">
-            {groupsPanel}
-          </Tabs.Content>
-          <Tabs.Content value="traces" layout="fill">
-            {tracesPanel}
-          </Tabs.Content>
-        </Tabs>
-      ) : (
-        <>
-          {groupsPanel}
-          {tracesPanel}
-        </>
-      )}
-    </div>
+          <Tabs.Trigger value="topics" label="Topics" />
+          <Tabs.Trigger value="traces" label="Traces" />
+        </Tabs.List>
+      </div>
+      <Tabs.Content value="topics" layout="fill">
+        {groupsPanel}
+      </Tabs.Content>
+      <Tabs.Content value="traces" layout="fill">
+        {tracesPanel}
+      </Tabs.Content>
+    </Tabs>
+  ) : (
+    groupsPanel
+  );
+  const overviewPanel = facet.map ? (
+    <ResizablePanelGroup
+      orientation="vertical"
+      defaultLayout={overviewLayout.defaultLayout}
+      onLayoutChanged={overviewLayout.onLayoutChanged}
+      className="min-h-0 min-w-0 flex-1"
+    >
+      <ResizablePanel
+        id="map"
+        defaultSize={isNarrow ? "45%" : "60%"}
+        minSize="20%"
+      >
+        {mapPanel}
+      </ResizablePanel>
+      <ResizableHandle
+        withHandle
+        aria-label="Resize topic map and groups"
+        className="my-1"
+      />
+      <ResizablePanel id="groups" minSize="20%">
+        {detailsPanel}
+      </ResizablePanel>
+    </ResizablePanelGroup>
+  ) : (
+    detailsPanel
+  );
+
+  if (isNarrow) return overviewPanel;
+
+  return (
+    <ResizablePanelGroup
+      orientation="horizontal"
+      defaultLayout={workspaceLayout.defaultLayout}
+      onLayoutChanged={workspaceLayout.onLayoutChanged}
+      className="min-h-0 min-w-0 flex-1"
+    >
+      <ResizablePanel id="overview" defaultSize="50%" minSize="25%">
+        {overviewPanel}
+      </ResizablePanel>
+      <ResizableHandle
+        withHandle
+        aria-label="Resize topic overview and traces"
+        className="mx-1"
+      />
+      <ResizablePanel id="traces" minSize="25%">
+        {tracesPanel}
+      </ResizablePanel>
+    </ResizablePanelGroup>
   );
 }
 

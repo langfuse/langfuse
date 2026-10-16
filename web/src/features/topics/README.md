@@ -10,8 +10,10 @@ project permissions. Processing additionally requires the project allowlist.
   picker, time range and processing action on one row; configuration, history and
   refresh live in the overflow menu. `CurrentTopics.tsx` owns the map query, trace
   navigation and summary inspector; `CurrentTopicsView.tsx` presents the selected
-  facet in independently scrolling panels: map and groups on the left, traces on
-  the right. Narrow views keep the map above Topics/Traces tabs, with readable
+  facet in independently scrolling, resizable panels: map and groups on the left,
+  traces on the right. Both splits use the shared `useDefaultLayout` helper with
+  localStorage preferences shared across facets and projects. Narrow views keep
+  the resizable map above Topics/Traces tabs, with readable
   summary rows on phones and all processing controls in the mobile overflow
   menu. Selecting a group filters traces without changing the active tab.
   `useTopicTraceFilters.ts` owns URL-backed facet selection; filters and search

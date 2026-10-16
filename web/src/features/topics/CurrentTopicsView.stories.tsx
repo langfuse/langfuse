@@ -324,3 +324,74 @@ export const ExistingTopicsWithoutAssignments = meta.story({
     ).toBeVisible();
   },
 });
+
+export const PanelSizesSurviveFacetChanges = meta.story({
+  name: "(Test) Panel sizes survive facet changes",
+  beforeEach: () => {
+    const keys = [
+      "react-resizable-panels:topics-workspace-size:overview:traces",
+      "react-resizable-panels:topics-overview-size:map:groups",
+    ];
+    keys.forEach((key) => localStorage.removeItem(key));
+    return () => keys.forEach((key) => localStorage.removeItem(key));
+  },
+  render: function Render(args) {
+    const [facetId, setFacetId] = useState("intent");
+    return (
+      <div className="flex flex-col gap-2">
+        <Button
+          text="Switch facet"
+          onClick={() =>
+            setFacetId((previous) =>
+              previous === "intent" ? "sentiment" : "intent",
+            )
+          }
+        />
+        <ControlledTopics
+          key={facetId}
+          {...args}
+          facet={{ ...args.facet, facetId }}
+        />
+      </div>
+    );
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const sizes = () => ({
+      map: canvas
+        .getByRole("region", { name: "Topic map" })
+        .getBoundingClientRect().height,
+      groups: canvas
+        .getByRole("region", { name: "Topic groups" })
+        .getBoundingClientRect().height,
+      traces: canvas
+        .getByRole("region", { name: "Topic traces" })
+        .getBoundingClientRect().width,
+    });
+    const before = sizes();
+    canvas
+      .getByRole("separator", { name: "Resize topic overview and traces" })
+      .focus();
+    await userEvent.keyboard("{ArrowRight}{ArrowRight}");
+    canvas
+      .getByRole("separator", { name: "Resize topic map and groups" })
+      .focus();
+    await userEvent.keyboard("{ArrowDown}{ArrowDown}");
+    await waitFor(() => {
+      expect(sizes().map).toBeGreaterThan(before.map);
+      expect(sizes().groups).toBeLessThan(before.groups);
+      expect(sizes().traces).toBeLessThan(before.traces);
+    });
+    const resized = sizes();
+    for (let switchCount = 0; switchCount < 2; switchCount++) {
+      await userEvent.click(
+        canvas.getByRole("button", { name: "Switch facet" }),
+      );
+      await waitFor(() => {
+        expect(sizes().map).toBeCloseTo(resized.map, 0);
+        expect(sizes().groups).toBeCloseTo(resized.groups, 0);
+        expect(sizes().traces).toBeCloseTo(resized.traces, 0);
+      });
+    }
+  },
+});
