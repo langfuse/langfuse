@@ -21,6 +21,7 @@ import {
   instrumentSync,
   recordDistribution,
   UsageDetails,
+  CostDetails,
   normalizeToolsForObservation,
   normalizeToolMetadataForObservation,
   normalizeEnvironment,
@@ -671,9 +672,11 @@ export class OtelIngestionProcessor {
                   providedUsageDetails: usageDetails.success
                     ? usageDetails.data
                     : undefined,
-                  providedCostDetails: skipModelUsageAndCost
-                    ? {}
-                    : this.extractCostDetails(spanAttributes, spanContext),
+                  providedCostDetails: CostDetails.parse(
+                    skipModelUsageAndCost
+                      ? {}
+                      : this.extractCostDetails(spanAttributes, spanContext),
+                  ),
 
                   // Properties
                   tags: this.extractTags(spanAttributes, decodeMetadataValues),
