@@ -1012,6 +1012,9 @@ export default function SessionsTable({
               onCustomRowHeightChange={rowHeights.setCustomPx}
               onSelectRowHeight={setRowHeight}
               onRowClick={(row) => {
+                // A row with an empty id has no detail page, and the ID cell
+                // renders no link for it either.
+                if (!row.id) return;
                 router.push(sessionDetailPath(row.id));
               }}
             />
