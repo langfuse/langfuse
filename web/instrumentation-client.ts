@@ -8,8 +8,10 @@ import {
   isReactDevtoolsInternalEvent,
   isStaleChunkLoadErrorEvent,
   isStaleChunkParseErrorEvent,
+  isTurbopackModuleFactoryUnavailableEvent,
   STALE_CHUNK_LOAD_FINGERPRINT,
   STALE_CHUNK_PARSE_FINGERPRINT,
+  TURBOPACK_MODULE_FACTORY_UNAVAILABLE_FINGERPRINT,
 } from "@/src/utils/sentryFilters";
 import { applyCachedV4BetaEnabledSentryTag } from "@/src/utils/sentryV4BetaTag";
 
@@ -90,6 +92,13 @@ Sentry.init({
     // isStaleChunkLoadErrorEvent.
     if (isStaleChunkLoadErrorEvent(event)) {
       event.fingerprint = [STALE_CHUNK_LOAD_FINGERPRINT];
+    }
+
+    // Turbopack factory-not-available: collapse into ONE issue instead of
+    // one per numeric module-id pair. Grouped, not dropped. See
+    // isTurbopackModuleFactoryUnavailableEvent.
+    if (isTurbopackModuleFactoryUnavailableEvent(event)) {
+      event.fingerprint = [TURBOPACK_MODULE_FACTORY_UNAVAILABLE_FINGERPRINT];
     }
 
     return event;

@@ -518,6 +518,10 @@ export function isReactDevtoolsInternalEvent(event: ErrorEvent): boolean {
  *    `/_next/static/chunks/` URL — same Chrome wording as the extension
  *    family, but our chunks (stale tab / CDN); kept and GROUPED via
  *    {@link isStaleChunkLoadErrorEvent}.
+ *  - Turbopack `Module <id> was instantiated … but the module factory is
+ *    not available` — kept and GROUPED via
+ *    {@link isTurbopackModuleFactoryUnavailableEvent}. Numeric module IDs
+ *    would otherwise mint a new issue per pair.
  *  - an UNCAUGHT `window.__NEXT_DATA__` getter-only TypeError (global
  *    `onerror`) — Next.js Pages Router failed to boot; kept as a diagnostic.
  *    Only the console-captured sibling is dropped (LANGFUSE-61R).
@@ -790,6 +794,15 @@ export const STALE_CHUNK_PARSE_FINGERPRINT = "stale-chunk-parse-error";
  */
 export const STALE_CHUNK_LOAD_FINGERPRINT = "stale-chunk-load-error";
 
+/**
+ * Fingerprint used to collapse Turbopack "module factory is not available"
+ * throws into ONE Sentry issue (see
+ * {@link isTurbopackModuleFactoryUnavailableEvent}). Separate from the load
+ * fingerprint: this is a runtime module-graph miss, not a script URL 404.
+ */
+export const TURBOPACK_MODULE_FACTORY_UNAVAILABLE_FINGERPRINT =
+  "turbopack-module-factory-unavailable";
+
 const NEXT_STATIC_CHUNK_PATH = "/_next/static/";
 const FAILED_TO_LOAD_SCRIPT_MARKER = "Failed to load script:";
 
@@ -861,6 +874,38 @@ export function isStaleChunkLoadErrorEvent(event: ErrorEvent): boolean {
     text.includes(FAILED_TO_LOAD_SCRIPT_MARKER) ||
     text.includes(DYNAMIC_IMPORT_FAILURE_MARKER)
   );
+}
+
+/**
+ * Turbopack's exact throw when `instantiateModule` cannot find a factory
+ * (`factoryNotAvailableMessage` in the browser runtime). The module IDs in
+ * the message change per build, so Sentry minted a new issue per pair
+ * (LANGFUSE-63T on `/auth/sign-in`, LANGFUSE-5XP on evals). The page's
+ * module graph is already unusable; the one-shot reload in
+ * `reloadOnStaleChunk` recovers it. These events are GROUPED under
+ * {@link TURBOPACK_MODULE_FACTORY_UNAVAILABLE_FINGERPRINT} in `beforeSend`,
+ * NOT dropped — a Turbopack runtime that fails factory registration for
+ * everyone still spikes on one issue.
+ *
+ * Whole-message regex after {@link coreMessage}: an app error that merely
+ * quotes the phrase is longer and is KEPT. The numeric/token module id
+ * and the "required from …" source (parent module, runtime chunk, or HMR
+ * update) may vary; the surrounding wording is Turbopack's.
+ */
+const TURBOPACK_MODULE_FACTORY_UNAVAILABLE_RE =
+  /^Module \S+ was instantiated because it was required from .+ but the module factory is not available$/;
+
+export function isTurbopackModuleFactoryUnavailableMessage(
+  value: string,
+): boolean {
+  return TURBOPACK_MODULE_FACTORY_UNAVAILABLE_RE.test(coreMessage(value));
+}
+
+export function isTurbopackModuleFactoryUnavailableEvent(
+  event: ErrorEvent,
+): boolean {
+  const text = eventText(event);
+  return text.length > 0 && isTurbopackModuleFactoryUnavailableMessage(text);
 }
 
 /**

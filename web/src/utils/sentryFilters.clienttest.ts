@@ -9,6 +9,7 @@ import {
   isReactDevtoolsInternalEvent,
   isStaleChunkLoadErrorEvent,
   isStaleChunkParseErrorEvent,
+  isTurbopackModuleFactoryUnavailableEvent,
 } from "@/src/utils/sentryFilters";
 
 /**
@@ -2654,6 +2655,95 @@ describe("isKitesurfInternalEvent", () => {
     it("does not let the generic denylist swallow this TypeError on its own", () => {
       expect(
         isDenylistedNoiseEvent(exceptionEvent(PROXY_TYPEERROR, "TypeError")),
+      ).toBe(false);
+    });
+  });
+});
+
+/**
+ * Turbopack `factoryNotAvailableMessage` as observed on us-prod:
+ * unhandled rejection on `/auth/sign-in` (LANGFUSE-63T) and a console
+ * capture on evals (LANGFUSE-5XP). Module IDs change per build.
+ */
+const TURBOPACK_FACTORY_UNAVAILABLE =
+  "Module 227204 was instantiated because it was required from module 713178, but the module factory is not available.";
+
+describe("isTurbopackModuleFactoryUnavailableEvent", () => {
+  describe("matches Turbopack factory-not-available (grouped, not dropped)", () => {
+    it("matches the unhandled-rejection wording with numeric module ids", () => {
+      expect(
+        isTurbopackModuleFactoryUnavailableEvent(
+          exceptionEvent(TURBOPACK_FACTORY_UNAVAILABLE),
+        ),
+      ).toBe(true);
+    });
+
+    it("matches a different module-id pair (per-build ids must not split issues)", () => {
+      expect(
+        isTurbopackModuleFactoryUnavailableEvent(
+          exceptionEvent(
+            "Module 573243 was instantiated because it was required from module 682265, but the module factory is not available.",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("matches a console-capture message event (LANGFUSE-5XP shape)", () => {
+      expect(
+        isTurbopackModuleFactoryUnavailableEvent(
+          messageEvent(TURBOPACK_FACTORY_UNAVAILABLE),
+        ),
+      ).toBe(true);
+    });
+
+    it("matches a runtime-chunk source, not only a parent module id", () => {
+      expect(
+        isTurbopackModuleFactoryUnavailableEvent(
+          exceptionEvent(
+            "Module 12 was instantiated because it was required from runtime of chunk [turbopack]/browser/runtime/base/dev-base.ts, but the module factory is not available.",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("is grouped by beforeSend, NOT dropped by the denylist", () => {
+      expect(
+        isDenylistedNoiseEvent(exceptionEvent(TURBOPACK_FACTORY_UNAVAILABLE)),
+      ).toBe(false);
+    });
+  });
+
+  describe("NEVER matches unrelated factory / module wording", () => {
+    it("keeps a bare factory-unavailable phrase without the Turbopack prefix", () => {
+      expect(
+        isTurbopackModuleFactoryUnavailableEvent(
+          exceptionEvent("but the module factory is not available"),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps an app error that quotes the phrase inside a longer message", () => {
+      expect(
+        isTurbopackModuleFactoryUnavailableEvent(
+          exceptionEvent(
+            `Failed to render prompt: ${TURBOPACK_FACTORY_UNAVAILABLE}`,
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a first-party chunk load failure on the load predicate, not this one", () => {
+      expect(
+        isTurbopackModuleFactoryUnavailableEvent(
+          exceptionEvent(
+            "Failed to load script: https://us.cloud.langfuse.com/_next/static/chunks/app.js",
+          ),
+        ),
+      ).toBe(false);
+      expect(
+        isStaleChunkLoadErrorEvent(
+          exceptionEvent(TURBOPACK_FACTORY_UNAVAILABLE),
+        ),
       ).toBe(false);
     });
   });
