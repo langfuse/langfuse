@@ -87,25 +87,10 @@ describe("org-family dispatch (allowedAccessLevels ['organization'])", () => {
     mockVerifyScope.mockResolvedValue({ validKey: true, scope: projectScope });
   const legacyInvalid = () =>
     mockVerifyScope.mockResolvedValue({ validKey: false, error: "bad key" });
-  const orgKeyContext: AuthorizationContext = {
-    principal: {
-      kind: "apiKey",
-      apiKeyId: "key_1",
-      userId: null,
-      isInAppAgentKey: false,
-      publicKey: "pk-lf-1",
-      scope: "ORGANIZATION",
-      presentation: "privateKey",
-      organizations: [],
-      boundResource: { orgId: "org_1" },
-    },
-    policies: [],
-  };
   const authzAllows = () =>
     mockEnforceAuth.mockResolvedValue({
       success: true,
       scope: { ...mappedFields, projectId: null, accessLevel: "organization" },
-      ctx: orgKeyContext,
     });
   const authzDenies = () =>
     mockEnforceAuth.mockResolvedValue({
@@ -192,7 +177,6 @@ describe("org-family dispatch (allowedAccessLevels ['organization'])", () => {
           projectId: null,
           accessLevel: "organization",
         },
-        ctx: orgKeyContext,
       });
       expect(mockVerifyScope).not.toHaveBeenCalled();
     });
