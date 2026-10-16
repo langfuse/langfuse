@@ -78,12 +78,15 @@ export function ProviderDialogController({
     ? "Provider validation failed"
     : "Provider credential could not be saved";
 
+  /** Skips the live check after saving, as the refetched list already holds the saved name. */
   const getNameError = (selectedConnection: GatewayConnection | null) =>
-    getLiveConnectionNameError({
-      name,
-      currentName: selectedConnection?.name,
-      existingNames,
-    }) ?? serverNameError;
+    create.isSuccess || update.isSuccess
+      ? null
+      : (getLiveConnectionNameError({
+          name,
+          currentName: selectedConnection?.name,
+          existingNames,
+        }) ?? serverNameError);
 
   const resetMutations = () => {
     test.reset();
