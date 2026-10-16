@@ -21,7 +21,6 @@ import {
   instrumentSync,
   recordDistribution,
   UsageDetails,
-  CostDetails,
   normalizeToolsForObservation,
   normalizeToolMetadataForObservation,
   normalizeEnvironment,
@@ -672,11 +671,9 @@ export class OtelIngestionProcessor {
                   providedUsageDetails: usageDetails.success
                     ? usageDetails.data
                     : undefined,
-                  providedCostDetails: CostDetails.parse(
-                    skipModelUsageAndCost
-                      ? {}
-                      : this.extractCostDetails(spanAttributes, spanContext),
-                  ),
+                  providedCostDetails: skipModelUsageAndCost
+                    ? {}
+                    : this.extractCostDetails(spanAttributes, spanContext),
 
                   // Properties
                   tags: this.extractTags(spanAttributes, decodeMetadataValues),
@@ -3458,25 +3455,43 @@ export class OtelIngestionProcessor {
   private extractCostDetails(
     attributes: Record<string, unknown>,
     context: { spanId: string; traceId: string; source: string },
-  ): Record<string, unknown> {
+  ): Record<string, number> {
     const fromAttribute = this.parseJsonObjectAttribute(
       attributes,
       LangfuseOtelSpanAttributes.OBSERVATION_COST_DETAILS,
       context,
     );
-    if (fromAttribute !== null) return fromAttribute;
+    if (fromAttribute !== null) return this.toNumericEntries(fromAttribute);
 
     const genAiUsageCost = attributes["gen_ai.usage.cost"];
     if (genAiUsageCost != null && genAiUsageCost !== "") {
-      return { total: genAiUsageCost };
+      return this.toNumericEntries({ total: genAiUsageCost });
     }
 
     const openInferenceTotalCost = attributes["llm.cost.total"];
     if (openInferenceTotalCost != null && openInferenceTotalCost !== "") {
-      return { total: openInferenceTotalCost };
+      return this.toNumericEntries({ total: openInferenceTotalCost });
     }
 
     return {};
+  }
+
+  // SDKs send cost maps with non-numeric entries such as `"currency": "USD"`;
+  // numeric strings are kept because some instrumentations stringify costs.
+  private toNumericEntries(
+    details: Record<string, unknown>,
+  ): Record<string, number> {
+    const result: Record<string, number> = {};
+    for (const [key, value] of Object.entries(details)) {
+      const numeric =
+        typeof value === "number"
+          ? value
+          : typeof value === "string" && value.trim() !== ""
+            ? Number(value)
+            : NaN;
+      if (Number.isFinite(numeric)) result[key] = numeric;
+    }
+    return result;
   }
 
   private extractCompletionStartTime(

@@ -1874,9 +1874,12 @@ describe("OTEL to ObservationForEval Schema Validation", () => {
       {
         name: "non-numeric cost entries",
         usage: null,
-        cost: { stringValue: '{"total":0.01,"currency":"USD"}' },
+        cost: {
+          stringValue:
+            '{"total":0.01,"input":"0.004","output":-0.002,"currency":"USD"}',
+        },
         expectedUsage: {},
-        expectedCost: { total: 0.01 },
+        expectedCost: { total: 0.01, input: 0.004, output: -0.002 },
       },
     ])(
       "should handle $name without data corruption",

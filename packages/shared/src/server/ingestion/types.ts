@@ -68,7 +68,7 @@ export const usage = MixedUsage.nullish()
   // ensure output is always of new usage model
   .pipe(Usage.nullish());
 
-export const CostDetails = z
+const CostDetails = z
   .record(z.string(), z.unknown())
   .nullish()
   .transform((val) => {
