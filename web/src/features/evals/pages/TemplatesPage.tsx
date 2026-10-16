@@ -1,4 +1,3 @@
-/* eslint-disable @repo/component-file-structure */
 import Page from "@/src/components/layouts/page";
 import { useRouter } from "next/router";
 import { Button } from "@/src/components/ui/button";
