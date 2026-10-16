@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import { useEffect, memo, useState } from "react";
 import { useSession } from "next-auth/react";
+import { useIsFetching } from "@tanstack/react-query";
+import { getQueryKey } from "@trpc/react-query";
 import { env } from "@/src/env.mjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useDebounce } from "@/src/hooks/useDebounce";
@@ -412,6 +414,7 @@ function CommandMenuComponent({
       (item) => item.href === SESSIONS_NAV_HREF,
     )?.url,
   );
+  const resultsPending = useResultsPending();
 
   const debouncedSearchChange = useDebounce(
     (value: string) => {
@@ -513,16 +516,16 @@ function CommandMenuComponent({
         <MainNavigationGroup navItems={navItems} onNavigate={handleNavigate} />
         <ProjectsGroup onNavigate={handleNavigate} />
         <DashboardsGroup onNavigate={handleNavigate} />
-        {sessionNavigationItem && (
+        <ProjectSettingsGroup onNavigate={handleNavigate} />
+        <OrganizationSettingsGroup onNavigate={handleNavigate} />
+        <AccountSettingsGroup onNavigate={handleNavigate} />
+        {sessionNavigationItem && !resultsPending && (
           <SessionGroup
             item={sessionNavigationItem}
             search={search}
             onNavigate={handleNavigate}
           />
         )}
-        <ProjectSettingsGroup onNavigate={handleNavigate} />
-        <OrganizationSettingsGroup onNavigate={handleNavigate} />
-        <AccountSettingsGroup onNavigate={handleNavigate} />
       </CommandList>
     </CommandDialog>
   );
@@ -626,6 +629,17 @@ export const useNavigationItems = () => {
     isLoading: !organizations,
   };
 };
+
+/**
+ * The session row matches every search, so it renders last and waits for
+ * fetched results. cmdk keeps the highlighted item when later items mount, so
+ * a session row that rendered first would keep Enter after real matches load.
+ */
+function useResultsPending() {
+  return (
+    useIsFetching({ queryKey: getQueryKey(api.dashboard.allDashboards) }) > 0
+  );
+}
 
 function flattenNavigation(items: NavigationItem[]): NavigationItem[] {
   return items.flatMap((item) => [
