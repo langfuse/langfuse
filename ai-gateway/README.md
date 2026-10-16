@@ -197,7 +197,7 @@ generation routes listed above, when the body is uncompressed JSON of at most 5 
 The span fields are declared empty on the `http.server` span and recorded after
 resolution; child spans do not repeat them. JSON log lines emitted inside the
 request after they are recorded repeat them as top-level keys, like `request_id`.
-They are never metric attributes.
+Apart from the bounded `gateway.provider`, they are never metric attributes.
 
 Each inference request phase has a child span of the server span so a waterfall
 has no unattributed wall time:
@@ -223,17 +223,36 @@ Client spans measure the HTTP send through response headers;
 streaming execution and inference-telemetry delivery are tracked separately.
 
 A small Axum middleware records `http.server.request.duration` through the
-OpenTelemetry SDK, with method, matched route, and HTTP status as its only
-dimensions. The histogram's count supplies request volume and error rates,
-including responses rejected before provider execution. Metrics are independent
-of trace sampling. Health probes are excluded.
+OpenTelemetry SDK, with method, matched route, HTTP status, `error.origin`,
+`error.reason`, and `gateway.provider` as its dimensions. The histogram's count
+supplies request volume and error rates, including responses rejected before
+provider execution. Metrics are independent of trace sampling. Health probes are
+excluded.
 
-Gateway-specific metrics include `gateway.active` (model_catalog/resolution/execution),
-`gateway.phase.duration` (execution/provider.first_byte), `gateway.executions`,
-`gateway.admission.rejected`, and `gateway.telemetry.records`. Durations use seconds;
-first-byte timing measures provider bytes arriving at the gateway, not first-token
-delivery to the caller. Metric attributes contain bounded categories, not tenant
-or request identifiers.
+`error.origin` names who caused a failed response: `none`, `client`,
+`gateway`, `control_plane`, `provider_transport`, or `provider` (an error status
+relayed unchanged, with `error.reason` `provider_rate_limited`, `provider_auth`,
+`provider_4xx`, or `provider_5xx`). The server span carries the same origin and
+reason (as `error.type`); it has an error status only for 5xx.
+
+Gateway-specific metrics:
+
+- `gateway.overhead.duration` (`http.route`, `gateway.provider`): time to response
+  headers minus the caller's upload and the provider's wait; recorded only for
+  requests that reached the provider.
+- `http.server.request.body.size` (`http.route`, `gateway.provider`) and
+  `http.server.response.body.size` (`gateway.provider`), in bytes: the buffered
+  request body, and the bytes relayed from the provider, including truncated or
+  cancelled streams.
+- `gateway.active`, `gateway.admission.capacity`, and `gateway.active.peak`
+  (`phase`): in-flight, configured, and most-held-since-last-export slots for
+  model_catalog/resolution/execution.
+- `gateway.phase.duration` (execution/provider.first_byte), `gateway.executions`,
+  `gateway.admission.rejected`, and `gateway.telemetry.records`.
+
+Durations use seconds; first-byte timing measures provider bytes arriving at the
+gateway, not first-token delivery to the caller. Metric attributes contain
+bounded categories, not tenant or request identifiers.
 
 Trace export uses a 512-span queue, batches of up to 64, and a one-second interval.
 Metrics export every 30 seconds. Export calls use a three-second timeout; failures

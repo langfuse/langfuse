@@ -1,5 +1,5 @@
 /* eslint-disable no-nested-ternary */
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { cn } from "@/src/utils/tailwind";
 import {
   type ObservationType,
@@ -15,6 +15,7 @@ import {
   hasRenderableChatMessages,
   useIOPreviewParser,
 } from "../../hooks/useIOPreviewParser";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { ChatMessageList } from "../ChatMessageList";
 import { SectionToolDefinitions } from "./components/SectionToolDefinitions";
 import {
@@ -193,6 +194,19 @@ export function IOPreviewPretty({
     chatMLParserResult,
   );
 
+  const shouldRenderMessages = hasRenderableChatMessages(parserResult);
+
+  useIOParserComparisonCapture({
+    input,
+    output,
+    chatMLParserResult,
+    isLoading,
+    isParsing,
+    observationId,
+    traceId,
+    shouldRenderMessages,
+  });
+
   const {
     allMessages,
     additionalInput,
@@ -267,7 +281,6 @@ export function IOPreviewPretty({
   };
 
   const showData = contentMode !== "conversation";
-  const shouldRenderMessages = hasRenderableChatMessages(parserResult);
   // Only generations hold a conversation; tools, spans, agents and the rest
   // are titled Input / Output rather than by role. (`isGenerationLike` is
   // wider: it also covers TOOL and AGENT, which carry model usage, not chat.)
@@ -335,4 +348,61 @@ export function IOPreviewPretty({
       ) : null}
     </div>
   );
+}
+
+/** Captures the normalization result for each displayed record. */
+function useIOParserComparisonCapture({
+  input,
+  output,
+  chatMLParserResult,
+  isLoading,
+  isParsing,
+  observationId,
+  traceId,
+  shouldRenderMessages,
+}: Pick<
+  IOPreviewPrettyProps,
+  | "input"
+  | "output"
+  | "chatMLParserResult"
+  | "isLoading"
+  | "isParsing"
+  | "observationId"
+  | "traceId"
+> & { shouldRenderMessages: boolean }) {
+  const capture = usePostHogClientCapture();
+  const capturedNormalizationRecord = useRef<string | undefined>(undefined);
+
+  /** Empty payloads are excluded from the normalization success metric. */
+  const hasPayloadToNormalize =
+    (input !== null && input !== undefined) ||
+    (output !== null && output !== undefined);
+
+  useEffect(() => {
+    if (
+      chatMLParserResult !== undefined ||
+      !hasPayloadToNormalize ||
+      isLoading ||
+      isParsing
+    ) {
+      return;
+    }
+
+    const recordKey = `${observationId ? "observation" : "trace"}:${observationId ?? traceId}`;
+    if (capturedNormalizationRecord.current === recordKey) return;
+
+    capturedNormalizationRecord.current = recordKey;
+    capture("trace_detail:io_parser_comparison", {
+      isNormalizedSuccess: shouldRenderMessages,
+    });
+  }, [
+    capture,
+    chatMLParserResult,
+    hasPayloadToNormalize,
+    isLoading,
+    isParsing,
+    observationId,
+    shouldRenderMessages,
+    traceId,
+  ]);
 }

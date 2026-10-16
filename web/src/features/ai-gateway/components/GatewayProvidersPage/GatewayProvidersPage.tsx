@@ -1,11 +1,9 @@
-import { useState } from "react";
 import { Plus } from "lucide-react";
 import { useRouter } from "next/router";
 
 import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
-import { PaginationBar } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { GatewayConnectionModelsPage } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/GatewayConnectionModelsPage";
@@ -28,7 +26,7 @@ export function GatewayProvidersPage({
       ? router.query.connectionId
       : undefined;
   const connectionsQuery = api.aiGateway.listConnections.useInfiniteQuery(
-    { orgId: organizationId, limit: 50 },
+    { orgId: organizationId, limit: 100 },
     {
       enabled: !connectionId,
       getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
@@ -38,7 +36,6 @@ export function GatewayProvidersPage({
     { orgId: organizationId },
     { enabled: !connectionId && connectionsQuery.isSuccess },
   );
-  const [pageIndex, setPageIndex] = useState(0);
   const utils = api.useUtils();
   const retry = api.aiGateway.retryConnection.useMutation();
   const remove = api.aiGateway.deleteConnection.useMutation();
@@ -126,10 +123,8 @@ export function GatewayProvidersPage({
     );
   }
 
-  const pages = connectionsQuery.data?.pages ?? [];
-  const visiblePageIndex = Math.min(pageIndex, Math.max(0, pages.length - 1));
-  const allConnections = pages.flatMap((page) => page.data);
-  const connections = pages[visiblePageIndex]?.data ?? [];
+  const allConnections =
+    connectionsQuery.data?.pages.flatMap((page) => page.data) ?? [];
   const connectionsById = new Map(
     allConnections.map((connection) => [connection.id, connection]),
   );
@@ -196,7 +191,7 @@ export function GatewayProvidersPage({
             {({ openEditDialog }) => (
               <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                 <GatewayProvidersTable
-                  connections={connections}
+                  connections={allConnections}
                   modelCounts={modelCounts}
                   onSelect={selectConnection}
                   onRetry={retryConnection}
@@ -213,26 +208,16 @@ export function GatewayProvidersPage({
           </ProviderDialogController>
         )}
       </ConfirmationDialogController>
-      <PaginationBar
-        mode="cursor"
-        state={{ pageIndex: visiblePageIndex, pageSize: 50 }}
-        hasNextPage={
-          visiblePageIndex < pages.length - 1 ||
-          Boolean(connectionsQuery.hasNextPage)
-        }
-        isLoadingNextPage={connectionsQuery.isFetchingNextPage}
-        onChange={async (nextState) => {
-          if (nextState.pageIndex < pages.length) {
-            setPageIndex(nextState.pageIndex);
-            return;
-          }
-          if (!connectionsQuery.hasNextPage) return;
-          const result = await connectionsQuery.fetchNextPage();
-          if (result.data?.pages[nextState.pageIndex]) {
-            setPageIndex(nextState.pageIndex);
-          }
-        }}
-      />
+      {connectionsQuery.hasNextPage ? (
+        <Button
+          className="w-fit self-center"
+          variant="secondary"
+          loading={connectionsQuery.isFetchingNextPage}
+          onClick={() => connectionsQuery.fetchNextPage()}
+        >
+          Load more
+        </Button>
+      ) : null}
     </div>
   );
 }

@@ -63,6 +63,36 @@ Scenarios compose: e.g. a session where one trace has zero observations is
 two `long-session` runs sharing a `--session-id` with different
 `--id-prefix` values.
 
+### Experiment filter fixture
+
+`NEXTAUTH_URL=http://localhost:3010 pnpm run seed -- experiment-filters --id-prefix experiment-targets`
+creates the runs **Filter A**, **Filter B**, and **Filter C** over 60 shared
+items. Their distinct numeric `quality`, categorical `verdict`, boolean
+`approved`, status, item metadata (`category`, `cohort`) and event metadata
+(`region`, `variant`) make experiment targeting visible. Filter C omits items
+6, 12, …, 60. Each run also omits ten quality scores.
+
+For `quality > 0.8`, the per-experiment matches are:
+
+| Experiment | Matching item numbers, repeated every six items | Count |
+| ---------- | ----------------------------------------------- | ----- |
+| Filter A   | 4, 5                                            | 20    |
+| Filter B   | 2, 3                                            | 20    |
+| Filter C   | 1                                               | 10    |
+
+Adding `level:ERROR` to Filter B narrows its matching items to 2, 8, …, 56
+(10 items). These are per-experiment matches; the comparison table's item
+coverage mode still determines how the sets are combined.
+
+For query-volume and suggestion-cardinality checks, use a fresh prefix:
+
+`pnpm run seed -- experiment-filters --items 12000 --extra-score-names 600 --id-prefix experiment-options-perf`
+
+This creates 34,000 events and 130,000 scores. Each event gets one additional
+numeric score, cycling through 600 names; Filter B places those scores on the
+trace, while A and C place them on the root observation. Readback verifies both
+row counts and the expected quality matches (4,000 / 4,000 / 2,000).
+
 ## Topics
 
 After applying the normal Postgres and ClickHouse migrations, seed either fixture:

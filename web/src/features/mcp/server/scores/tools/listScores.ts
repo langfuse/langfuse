@@ -47,8 +47,18 @@ const ListScoresBaseSchema = z
       .array(z.string())
       .optional()
       .describe("same ID as datasetRunId in createScore"),
-    fromTimestamp: z.iso.datetime({ offset: true }).optional(),
-    toTimestamp: z.iso.datetime({ offset: true }).optional(),
+    fromTimestamp: z.iso
+      .datetime({ offset: true })
+      .optional()
+      .describe(
+        "Optional inclusive lower bound on the score timestamp, as an ISO 8601 timestamp with timezone (Z or an explicit offset). Filters scores by their own timestamp, not the associated observation's startTime.",
+      ),
+    toTimestamp: z.iso
+      .datetime({ offset: true })
+      .optional()
+      .describe(
+        "Optional exclusive upper bound on the score timestamp, as an ISO 8601 timestamp with timezone. For a full calendar day, use midnight at the start of the next day, not 23:59:59.",
+      ),
   })
   .strict();
 
