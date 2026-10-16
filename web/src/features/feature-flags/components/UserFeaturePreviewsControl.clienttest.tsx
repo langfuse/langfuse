@@ -8,7 +8,7 @@ import {
 import type { ComponentProps, ReactNode } from "react";
 import type { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 
-import { UserFeaturePreviewsControl } from "./UserFeaturePreviewsPopover";
+import { UserFeaturePreviewsControl } from "./UserFeaturePreviewsControl";
 import { userFeaturePreviewFlags } from "../available-flags";
 
 const mocks = vi.hoisted(() => ({
