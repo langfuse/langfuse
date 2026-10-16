@@ -7,6 +7,14 @@ const tester = new RuleTester({
 });
 tester.run("component-file-structure", rule, {
   valid: [
+    ...[
+      "export function renderLevelIcon(value: string) { if (!value) return null; return <span />; }",
+      "export function renderFilterIcon(value: string) { return <Icon name={value} />; }",
+      "export const renderCount = (value: number) => <span>{value}</span>;",
+      "export const renderFlag = (value: boolean) => <span>{String(value)}</span>;",
+      "export function Button(props: { text: string }) { return <button>{props.text}</button>; }",
+      "export const Button = () => <button />; export function renderIcon(value: string) { return <Icon name={value} />; }",
+    ].map((code) => ({ code, filename: "/repo/Button.tsx" })),
     {
       code: "function button() { return <div />; }",
       filename: "/repo/anything.tsx",

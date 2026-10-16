@@ -124,6 +124,17 @@ export default createRule({
         node.type !== N.ArrowFunctionExpression
       )
         return false;
+      const props = node.params[0];
+      if (props?.type === N.Identifier) {
+        const annotation = props.typeAnnotation?.typeAnnotation;
+        // React supplies a props object, not a primitive callback argument.
+        if (
+          annotation?.type === N.TSStringKeyword ||
+          annotation?.type === N.TSNumberKeyword ||
+          annotation?.type === N.TSBooleanKeyword
+        )
+          return false;
+      }
       // Nested function returns belong to factories' components, not the factory.
       let hasRender = false;
       visitFunctionReturnExpressions(node, (value) => {
