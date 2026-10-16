@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   createInAppAgentToolPolicy,
+  filterInAppAgentAvailableLangfuseMcpTools,
+  getInAppAgentMcpAllowedToolNames,
   getInAppAgentToolApprovalSource,
   IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES,
 } from "./mcpPolicy";
@@ -24,6 +26,34 @@ describe("createInAppAgentToolPolicy", () => {
     expect(asMember.available.has("listExperiments")).toBe(true);
     expect(asMember.available.has("listExperimentItems")).toBe(true);
   });
+
+  it.each([false, true])(
+    "excludes download links from the sandbox agent even with grants (admin: %s)",
+    (isAdmin) => {
+      const downloadTools = ["downloadFullTrace", "exportObservation"] as const;
+      const policy = createInAppAgentToolPolicy({
+        userAccess: { projectRole: "OWNER", isAdmin },
+        alwaysAllowedTools: downloadTools.map((name) => `langfuse_${name}`),
+      });
+
+      expect(
+        filterInAppAgentAvailableLangfuseMcpTools({
+          tools: {
+            getObservation: {},
+            downloadFullTrace: {},
+            exportObservation: {},
+          },
+          policy,
+        }),
+      ).toEqual({ getObservation: {} });
+      for (const toolName of downloadTools) {
+        expect(policy.autoApproved.has(toolName)).toBe(false);
+        expect(
+          getInAppAgentMcpAllowedToolNames(policy, toolName),
+        ).not.toContain(toolName);
+      }
+    },
+  );
 
   it("drops a stored grant the user's role no longer covers", () => {
     const grants = ["langfuse_createModel"];

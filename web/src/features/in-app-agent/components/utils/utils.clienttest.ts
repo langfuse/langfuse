@@ -4,6 +4,7 @@ import {
 } from "@langfuse/shared/in-app-agent";
 import {
   IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES,
+  IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES,
   IN_APP_AGENT_SANDBOX_TOOL_NAMES,
 } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 import {
@@ -29,9 +30,13 @@ describe("getInAppAgentToolDisplayName", () => {
 });
 
 const KNOWN_IN_APP_AGENT_PROGRESS_TOOLS = [
-  ...[...IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES].map(
-    (toolName) => `langfuse_${toolName}`,
-  ),
+  ...[...IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES]
+    .filter(
+      (toolName) =>
+        IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES[toolName].availability !==
+        false,
+    )
+    .map((toolName) => `langfuse_${toolName}`),
   ...IN_APP_AGENT_SANDBOX_TOOL_NAMES,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
   "langfuseDocs_search",

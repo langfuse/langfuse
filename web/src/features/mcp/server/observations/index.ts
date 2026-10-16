@@ -20,12 +20,22 @@ import {
   handleListObservations,
 } from "./tools/listObservations";
 import { env } from "@/src/env.mjs";
+import {
+  downloadFullTraceTool,
+  handleDownloadFullTrace,
+} from "./tools/downloadFullTrace";
+import {
+  exportObservationTool,
+  handleExportObservation,
+} from "./tools/exportObservation";
 
 export const observationsFeature = {
   name: "observations",
   description:
     "Inspect traces, generations, spans, events, and other observations in Langfuse",
   tools: [
+    { definition: downloadFullTraceTool, handler: handleDownloadFullTrace },
+    { definition: exportObservationTool, handler: handleExportObservation },
     {
       definition: listObservationsTool,
       handler: handleListObservations,
