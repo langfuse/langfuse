@@ -708,6 +708,8 @@ export default function SignInPage({
   const [previewAutoSignInPending, setPreviewAutoSignInPending] = useState(
     previewAutoSignInEnabled,
   );
+  const passwordFocusTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(passwordFocusTimeout.current), []);
   const previewAutoSignInAttempted = useRef(false);
   const sessionStatus = useSession().status;
   useEffect(() => {
@@ -813,7 +815,7 @@ export default function SignInPage({
       setShowPasswordStep(true);
 
       // Auto-focus password input when password step becomes visible
-      setTimeout(() => {
+      passwordFocusTimeout.current = setTimeout(() => {
         // Find and focus the password input
         // Ref did not work, so we use a more specific selector
         const passwordInput = document.querySelector(
