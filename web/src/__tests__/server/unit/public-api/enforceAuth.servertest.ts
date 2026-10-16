@@ -84,8 +84,8 @@ const adminKey = (): AuthorizationContext => ({
   policies: [],
 });
 
-const req = (query = {}, headers = {}) =>
-  ({ query, headers }) as unknown as NextApiRequest;
+const req = (query = {}, headers = {}, url?: string) =>
+  ({ query, headers, url }) as unknown as NextApiRequest;
 
 describe("getOrgId", () => {
   it("resolves the bound org without a header", () => {
@@ -162,17 +162,40 @@ describe.each(["x-langfuse-project-id", "langfuse-project-id"])(
         getProjectId(projectKey(), req({}, { [projectIdHeader]: "prj_2" })),
       ).toEqual({ success: true, projectId: PRJ });
     });
-    it("ignores a URL disagreeing with the bound project", () => {
-      expect(getProjectId(projectKey(), req({ projectId: "prj_2" }))).toEqual({
-        success: true,
-        projectId: PRJ,
-      });
-    });
-    it("ignores conflicting URL and header projects when bound", () => {
+    it("403s a bound key whose path names another project", () => {
       expect(
         getProjectId(
           projectKey(),
-          req({ projectId: "prj_2" }, { [projectIdHeader]: "prj_3" }),
+          req({ projectId: "prj_2" }, {}, "/api/public/projects/prj_2/apiKeys"),
+        ),
+      ).toMatchObject({ success: false, error: expect.any(ForbiddenError) });
+    });
+    it("403s a bound key whose percent-encoded path names another project", () => {
+      expect(
+        getProjectId(
+          projectKey(),
+          req(
+            { projectId: "prj_2" },
+            {},
+            "/api/public/projects/%70rj_2/apiKeys",
+          ),
+        ),
+      ).toMatchObject({ success: false, error: expect.any(ForbiddenError) });
+    });
+    it("403s a bound key whose URL project disagrees when the path is unknown", () => {
+      expect(
+        getProjectId(projectKey(), req({ projectId: "prj_2" })),
+      ).toMatchObject({ success: false, error: expect.any(ForbiddenError) });
+    });
+    it("ignores a query-string project disagreeing with the bound project", () => {
+      expect(
+        getProjectId(
+          projectKey(),
+          req(
+            { projectId: "llm-app" },
+            { [projectIdHeader]: "prj_3" },
+            "/api/public/ingestion?projectId=llm-app",
+          ),
         ),
       ).toEqual({ success: true, projectId: PRJ });
     });
@@ -227,6 +250,7 @@ describe("enforceAuth span metadata", () => {
           "x-langfuse-project-id": "ignored-header-project",
           authorization: "Bearer untrusted-submitted-credential",
         },
+        "/api/public/traces?projectId=ignored-url-project",
       ),
       action: "traces:read",
     });
