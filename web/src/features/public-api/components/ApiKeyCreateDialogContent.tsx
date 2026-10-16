@@ -40,8 +40,8 @@ type ApiKeyScope = "project" | "organization";
 const DEFAULT_ROLE: SystemRole = "ADMIN";
 
 /** apiKeyRoleNames renames user roles to be more api-key friendly. */
-const apiKeyRoleNames: Partial<Record<SystemRole, string>> = {
-  ADMIN: "Full Access",
+const apiKeyRoleNames: Record<string, string> = {
+  Admin: "Full Access",
 };
 
 /** ApiKeyCreateValues is the resolved create-form payload the button forwards to the create mutation. */
@@ -179,7 +179,9 @@ function ApiKeyCreateForm({
                   <div className="flex items-start gap-2 text-left">
                     <SelectedRoleIcon className="icon-base mt-0.5 shrink-0" />
                     <div className="flex flex-col">
-                      <span className="font-bold">{apiKeyRoleName(role)}</span>
+                      <span className="font-bold">
+                        {transformApiKeyRoleName(selectedRoleDef.name)}
+                      </span>
                       <span className="text-muted-foreground text-xs">
                         {selectedRoleDef.description}
                       </span>
@@ -191,7 +193,7 @@ function ApiKeyCreateForm({
                     <RoleSelectItem
                       key={r}
                       role={r}
-                      name={apiKeyRoleName(r)}
+                      transformName={transformApiKeyRoleName}
                       onViewPermissions={openPermissions}
                     />
                   ))}
@@ -220,7 +222,7 @@ function ApiKeyCreateForm({
             open={permissionsOpen}
             onOpenChange={setPermissionsOpen}
             role={permissionsRole}
-            name={apiKeyRoleName(permissionsRole)}
+            transformName={transformApiKeyRoleName}
           />
         )}
       </DialogBody>
@@ -233,8 +235,7 @@ function ApiKeyCreateForm({
   );
 }
 
-/** apiKeyRoleName names a role in the api key permission picker. */
-function apiKeyRoleName(role: SystemRole | null): string | undefined {
-  if (role === null) return undefined;
-  return apiKeyRoleNames[role] ?? systemRoleAccessRights[role].name;
+/** transformApiKeyRoleName maps a role name to its api key display name. */
+function transformApiKeyRoleName(name: string): string {
+  return apiKeyRoleNames[name] ?? name;
 }

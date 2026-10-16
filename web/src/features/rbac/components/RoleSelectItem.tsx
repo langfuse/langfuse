@@ -9,18 +9,18 @@ import { roleIcons } from "@/src/features/rbac/components/roleIcons";
 /** RoleSelectItem adds a permission preview to a role option. */
 export const RoleSelectItem = ({
   role,
-  name,
+  transformName = (name) => name,
   isProjectRole,
   onViewPermissions,
 }: {
   role: SystemRole;
-  /** name overrides the catalog name shown for the role. */
-  name?: string;
+  /** transformName rewrites the role name before it is shown. */
+  transformName?: (name: string) => string;
   isProjectRole?: boolean;
   onViewPermissions: (role: SystemRole) => void;
 }) => {
   const def = systemRoleAccessRights[role];
-  const label = name ?? def.name;
+  const label = transformName(def.name);
   const Icon = roleIcons[role];
   const keepDefaultNote = role === "NONE" && isProjectRole;
 
