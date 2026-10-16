@@ -9,6 +9,13 @@ import {
   CommandSeparator,
 } from "@/src/components/ui/command";
 import { useRouter } from "next/router";
+import {
+  Grid2X2,
+  LayoutDashboard,
+  ListTree,
+  Settings,
+  type LucideIcon,
+} from "lucide-react";
 import { useEffect, memo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { env } from "@/src/env.mjs";
@@ -79,14 +86,14 @@ function MainNavigationGroup({
   navItems,
   onNavigate,
 }: {
-  navItems: Array<{ title: string; url: string }>;
+  navItems: Array<{ title: string; url: string; icon?: LucideIcon }>;
   onNavigate: (item: { title: string; url: string }) => void;
 }) {
   const router = useRouter();
   const capture = usePostHogClientCapture();
 
   return (
-    <CommandGroup heading="Main Navigation">
+    <CommandGroup heading="Go to">
       {navItems.map((item) => (
         <CommandItem
           key={item.url}
@@ -102,6 +109,7 @@ function MainNavigationGroup({
             onNavigate(item);
           }}
         >
+          {item.icon && <item.icon className="icon-base" />}
           {item.title}
         </CommandItem>
       ))}
@@ -136,6 +144,7 @@ function ProjectsGroup({ onNavigate }: { onNavigate: () => void }) {
               onNavigate();
             }}
           >
+            <Grid2X2 className="icon-base" />
             {item.title}
           </CommandItem>
         ))}
@@ -194,6 +203,7 @@ function DashboardsGroup({ onNavigate }: { onNavigate: () => void }) {
               onNavigate();
             }}
           >
+            <LayoutDashboard className="icon-base" />
             {dashboard.name}
           </CommandItem>
         ))}
@@ -221,7 +231,7 @@ function ProjectSettingsGroup({ onNavigate }: { onNavigate: () => void }) {
   return (
     <>
       <CommandSeparator />
-      <CommandGroup heading="Project Settings">
+      <CommandGroup heading="Project settings">
         {projectSettingsItems.map((item) => (
           <CommandItem
             key={item.url}
@@ -237,6 +247,7 @@ function ProjectSettingsGroup({ onNavigate }: { onNavigate: () => void }) {
               onNavigate();
             }}
           >
+            <Settings className="icon-base" />
             {item.title}
           </CommandItem>
         ))}
@@ -264,7 +275,7 @@ function OrganizationSettingsGroup({ onNavigate }: { onNavigate: () => void }) {
   return (
     <>
       <CommandSeparator />
-      <CommandGroup heading="Organization Settings">
+      <CommandGroup heading="Organization settings">
         {orgSettingsItems.map((item) => (
           <CommandItem
             key={item.url}
@@ -280,6 +291,7 @@ function OrganizationSettingsGroup({ onNavigate }: { onNavigate: () => void }) {
               onNavigate();
             }}
           >
+            <Settings className="icon-base" />
             {item.title}
           </CommandItem>
         ))}
@@ -306,7 +318,7 @@ function AccountSettingsGroup({ onNavigate }: { onNavigate: () => void }) {
   return (
     <>
       <CommandSeparator />
-      <CommandGroup heading="Account Settings">
+      <CommandGroup heading="Account settings">
         {accountSettingsItems.map((item) => (
           <CommandItem
             key={item.url}
@@ -322,6 +334,7 @@ function AccountSettingsGroup({ onNavigate }: { onNavigate: () => void }) {
               onNavigate();
             }}
           >
+            <Settings className="icon-base" />
             {item.title}
           </CommandItem>
         ))}
@@ -358,12 +371,14 @@ function CommandMenuComponent({
         return item.items.map((child) => ({
           title: `${item.title} > ${child.title}`,
           url: child.url,
+          icon: item.icon,
         }));
       }
       return [
         {
           title: item.title,
           url: item.url,
+          icon: item.icon,
         },
       ];
     })
@@ -411,7 +426,7 @@ function CommandMenuComponent({
       }}
     >
       <CommandInput
-        placeholder="Type a command or search..."
+        placeholder="Search pages, projects, dashboards…"
         className="border-none focus:border-none focus:ring-0 focus:ring-transparent focus:outline-hidden"
         value={search}
         onValueChange={(value) => {
@@ -433,6 +448,7 @@ function CommandMenuComponent({
                 handleNavigate();
               }}
             >
+              <ListTree className="icon-base" />
               {idNavigationItem.title}
             </CommandItem>
           </CommandGroup>
