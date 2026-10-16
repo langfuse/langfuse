@@ -19,7 +19,7 @@ pub use crate::transport::ProviderError;
 use crate::{
     capture::{ExecutionCapture, RelayOutcome},
     correlation::{RequestCorrelation, UpstreamTarget},
-    observability::{ErrorOrigin, Phase, RequestObservation, provider_status_reason},
+    observability::{ErrorOrigin, RequestObservation, Wait, provider_status_reason},
     resolution::{ApiFormat, Provider, ProviderCredential, ResolvedRequestContext},
     transport,
 };
@@ -257,7 +257,7 @@ impl ProviderTransport {
             })
         });
         let observation = correlation.observation();
-        observation.record_phase(Phase::ProviderHeaders, started.elapsed());
+        observation.record_wait(Wait::ProviderHeaders, started.elapsed());
         let response = match response {
             Ok(response) => response,
             Err(error) => {
@@ -278,13 +278,8 @@ impl ProviderTransport {
         let mut downstream = Response::new(Body::empty());
         *downstream.status_mut() = status;
         *downstream.headers_mut() = transport::response_headers(response.headers(), api_format);
-        *downstream.body_mut() = transport::relay(
-            response,
-            permit.deadline,
-            (permit, context),
-            capture,
-            route.provider().as_str(),
-        );
+        *downstream.body_mut() =
+            transport::relay(response, permit.deadline, (permit, context), capture);
         Ok(downstream)
     }
 

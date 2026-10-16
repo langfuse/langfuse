@@ -27,7 +27,6 @@ dependencies = [
  "flate2",
  "futures-util",
  "hmac",
- "http",
  "http-body",
  "http-body-util",
  "opentelemetry",

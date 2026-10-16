@@ -541,7 +541,7 @@ fn assert_outbound_context(headers: &HeaderMap, span: Option<&opentelemetry_sdk:
         assert!(
             headers
                 .get("tracestate")
-                .is_none_or(http::HeaderValue::is_empty)
+                .is_none_or(axum::http::HeaderValue::is_empty)
         );
         assert_eq!(
             headers["traceparent"],

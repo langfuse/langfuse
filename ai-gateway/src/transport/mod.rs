@@ -4,10 +4,9 @@ use std::{
     pin::Pin,
     sync::{
         Arc, Mutex,
-        atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     },
     task::{Context, Poll},
-    time::Duration,
 };
 
 use crate::{
@@ -154,7 +153,6 @@ pub(crate) fn relay<T: Send + 'static>(
     deadline: Instant,
     owner: T,
     capture: ExecutionCapture,
-    provider: &'static str,
 ) -> Body {
     relay_stream(
         upstream.bytes_stream().map(|chunk| {
@@ -169,7 +167,6 @@ pub(crate) fn relay<T: Send + 'static>(
         deadline,
         owner,
         Some(capture),
-        provider,
     )
 }
 
@@ -178,7 +175,6 @@ fn relay_stream<S, T>(
     deadline: Instant,
     owner: T,
     capture: Option<ExecutionCapture>,
-    provider: &'static str,
 ) -> Body
 where
     S: Stream<Item = Result<Bytes, ProviderError>> + Send + 'static,
@@ -206,8 +202,6 @@ where
         released: Notify::new(),
         bytes: AtomicUsize::new(0),
         chunks: AtomicUsize::new(0),
-        processing_nanos: AtomicU64::new(0),
-        provider,
     });
     let pump_resources = resources.clone();
     let task = tokio::spawn(async move {
@@ -273,9 +267,6 @@ struct StreamResources<T> {
     released: Notify,
     bytes: AtomicUsize,
     chunks: AtomicUsize,
-    /// Time spent in capture code on the relay path: gateway overhead per stream.
-    processing_nanos: AtomicU64,
-    provider: &'static str,
 }
 
 impl<T> StreamResources<T> {
@@ -303,11 +294,6 @@ impl<T> StreamResources<T> {
         {
             self.record_outcome(&span, outcome);
             drop(span);
-            crate::observability::stream_finished(
-                self.provider,
-                self.bytes.load(Ordering::Relaxed),
-                Duration::from_nanos(self.processing_nanos.load(Ordering::Relaxed)),
-            );
             drop(owner);
             if let Some(mut capture) = capture {
                 capture.finish(outcome);
@@ -332,16 +318,12 @@ impl<T> StreamResources<T> {
 
     fn observe(&self, update: impl FnOnce(&mut ExecutionCapture)) {
         // `release` fails a poisoned relay; never update its partial capture.
-        let started = std::time::Instant::now();
         let Ok(mut relay) = self.relay.lock() else {
             return;
         };
         if let Some(capture) = relay.as_mut().and_then(|relay| relay.capture.as_mut()) {
             update(capture);
         }
-        drop(relay);
-        let nanos = u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX);
-        self.processing_nanos.fetch_add(nanos, Ordering::Relaxed);
     }
 }
 
@@ -411,8 +393,6 @@ mod tests {
                 released: Notify::new(),
                 bytes: AtomicUsize::new(0),
                 chunks: AtomicUsize::new(0),
-                processing_nanos: AtomicU64::new(0),
-                provider: "openai",
             };
             resources.release(first);
             resources.release(RelayOutcome::Timeout);
@@ -438,8 +418,6 @@ mod tests {
             released: Notify::new(),
             bytes: AtomicUsize::new(0),
             chunks: AtomicUsize::new(0),
-            processing_nanos: AtomicU64::new(0),
-            provider: "openai",
         };
         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             let _relay = resources.relay.lock();
@@ -482,7 +460,6 @@ mod tests {
             Instant::now() + Duration::from_secs(1),
             Owner(released.clone()),
             None,
-            "openai",
         );
         tokio::time::timeout(Duration::from_secs(1), released.notified())
             .await
@@ -523,7 +500,6 @@ mod tests {
             Instant::now() + Duration::from_secs(10),
             Owner(released.clone()),
             None,
-            "openai",
         );
         tokio::task::yield_now().await;
         assert_eq!(polled.load(Ordering::SeqCst), 1);
@@ -542,7 +518,6 @@ mod tests {
             Instant::now() + Duration::from_secs(1),
             Owner(released.clone()),
             None,
-            "openai",
         );
         // Wait until the pump has published its failure with the successful chunk queued.
         tokio::time::timeout(Duration::from_secs(1), released.notified())
@@ -562,7 +537,6 @@ mod tests {
             Instant::now() + Duration::from_millis(30),
             Owner(released.clone()),
             None,
-            "openai",
         );
         tokio::time::timeout(Duration::from_secs(1), released.notified())
             .await

@@ -53,25 +53,13 @@ pub(crate) fn provider_status_reason(status: u16) -> &'static str {
     }
 }
 
+/// Time spent waiting on the caller or the provider, which is never gateway overhead.
 #[derive(Clone, Copy)]
-pub(crate) enum Phase {
-    /// Buffering the caller's upload; never gateway overhead.
+pub(crate) enum Wait {
+    /// Buffering the caller's upload.
     RequestBody,
-    Resolution,
-    ModelCatalog,
-    /// The provider send through response headers; never gateway overhead.
+    /// The provider send through response headers.
     ProviderHeaders,
-}
-
-impl Phase {
-    fn as_str(self) -> &'static str {
-        match self {
-            Self::RequestBody => "request.body",
-            Self::Resolution => "resolution",
-            Self::ModelCatalog => "model_catalog",
-            Self::ProviderHeaders => "provider.headers",
-        }
-    }
 }
 
 #[derive(Debug, Default)]
@@ -79,7 +67,6 @@ struct State {
     error: Option<(ErrorOrigin, &'static str)>,
     provider: Option<&'static str>,
     request_body: Option<Duration>,
-    resolution: Option<Duration>,
     provider_headers: Option<Duration>,
 }
 
@@ -91,7 +78,6 @@ pub(super) struct Summary {
     pub error: Option<(ErrorOrigin, &'static str)>,
     pub provider: &'static str,
     pub request_body: Option<Duration>,
-    pub resolution: Option<Duration>,
     pub provider_headers: Option<Duration>,
 }
 
@@ -111,16 +97,11 @@ impl RequestObservation {
         self.with_state(|state| state.provider = Some(provider));
     }
 
-    pub(crate) fn record_phase(&self, phase: Phase, duration: Duration) {
-        let provider = self.with_state(|state| {
-            match phase {
-                Phase::RequestBody => state.request_body = Some(duration),
-                Phase::Resolution | Phase::ModelCatalog => state.resolution = Some(duration),
-                Phase::ProviderHeaders => state.provider_headers = Some(duration),
-            }
-            state.provider.unwrap_or("none")
+    pub(crate) fn record_wait(&self, wait: Wait, duration: Duration) {
+        self.with_state(|state| match wait {
+            Wait::RequestBody => state.request_body = Some(duration),
+            Wait::ProviderHeaders => state.provider_headers = Some(duration),
         });
-        super::metrics::phase_finished(phase.as_str(), provider, duration);
     }
 
     pub(super) fn summary(&self) -> Summary {
@@ -128,7 +109,6 @@ impl RequestObservation {
             error: state.error,
             provider: state.provider.unwrap_or("none"),
             request_body: state.request_body,
-            resolution: state.resolution,
             provider_headers: state.provider_headers,
         })
     }

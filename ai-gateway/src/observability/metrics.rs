@@ -10,17 +10,11 @@ use crate::capture::{InferenceFacts, RelayOutcome};
 use opentelemetry::trace::TraceContextExt;
 use opentelemetry::{
     KeyValue, global,
-    metrics::{Counter, Histogram, ObservableCounter, ObservableGauge, UpDownCounter},
+    metrics::{Counter, Histogram, ObservableGauge, UpDownCounter},
 };
-use serde_json::Value;
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 use super::request::ErrorOrigin;
-
-/// Distinguishes tasks on gauges, which would otherwise merge across instances.
-/// Generated per process, so it changes on every restart.
-pub(super) static INSTANCE_ID: LazyLock<String> =
-    LazyLock::new(|| uuid::Uuid::now_v7().hyphenated().to_string());
 
 struct Metrics {
     http_duration: Histogram<f64>,
@@ -30,8 +24,6 @@ struct Metrics {
     rejections: Counter<u64>,
     delivery: Counter<u64>,
     executions: Counter<u64>,
-    tokens: Counter<u64>,
-    response_bytes: Counter<u64>,
 }
 
 static METRICS: LazyLock<Metrics> = LazyLock::new(|| {
@@ -65,11 +57,6 @@ static METRICS: LazyLock<Metrics> = LazyLock::new(|| {
         rejections: meter.u64_counter("gateway.admission.rejected").build(),
         delivery: meter.u64_counter("gateway.telemetry.records").build(),
         executions: meter.u64_counter("gateway.executions").build(),
-        tokens: meter.u64_counter("gateway.tokens").build(),
-        response_bytes: meter
-            .u64_counter("gateway.response.bytes")
-            .with_unit("By")
-            .build(),
     }
 });
 
@@ -96,21 +83,14 @@ pub(super) fn http_response(duration: Duration, response: &HttpResponse<'_>) {
     );
 }
 
-/// `component` is `total`, `resolution`, `processing`, or `stream_processing`.
-pub(super) fn overhead(
-    route: Option<&str>,
-    provider: &'static str,
-    component: &'static str,
-    duration: Duration,
-) {
-    let mut attributes = vec![
-        KeyValue::new("component", component),
-        KeyValue::new("gateway.provider", provider),
-    ];
-    if let Some(route) = route {
-        attributes.push(KeyValue::new("http.route", route.to_owned()));
-    }
-    METRICS.overhead.record(duration.as_secs_f64(), &attributes);
+pub(super) fn overhead(route: &str, provider: &'static str, duration: Duration) {
+    METRICS.overhead.record(
+        duration.as_secs_f64(),
+        &[
+            KeyValue::new("http.route", route.to_owned()),
+            KeyValue::new("gateway.provider", provider),
+        ],
+    );
 }
 
 /// In-use, high-water, and configured slots of one admission semaphore.
@@ -177,7 +157,7 @@ pub(crate) struct Active(&'static str);
 
 impl Active {
     pub(crate) fn new(phase: &'static str) -> Self {
-        METRICS.active.add(1, &active_attributes(phase));
+        METRICS.active.add(1, &[KeyValue::new("phase", phase)]);
         if let Some(slots) = slots(phase) {
             slots.acquire();
         }
@@ -187,28 +167,17 @@ impl Active {
 
 impl Drop for Active {
     fn drop(&mut self) {
-        METRICS.active.add(-1, &active_attributes(self.0));
+        METRICS.active.add(-1, &[KeyValue::new("phase", self.0)]);
         if let Some(slots) = slots(self.0) {
             slots.release();
         }
     }
 }
 
-fn active_attributes(phase: &'static str) -> [KeyValue; 2] {
-    [
-        KeyValue::new("phase", phase),
-        KeyValue::new("service.instance.id", INSTANCE_ID.as_str()),
-    ]
-}
-
-pub(crate) fn phase_finished(phase: &'static str, provider: &'static str, duration: Duration) {
-    METRICS.phases.record(
-        duration.as_secs_f64(),
-        &[
-            KeyValue::new("phase", phase),
-            KeyValue::new("gateway.provider", provider),
-        ],
-    );
+pub(crate) fn phase_finished(phase: &'static str, duration: Duration) {
+    METRICS
+        .phases
+        .record(duration.as_secs_f64(), &[KeyValue::new("phase", phase)]);
 }
 
 pub(crate) fn rejected(phase: &'static str) {
@@ -225,24 +194,6 @@ pub(crate) fn delivery(outcome: &'static str, reason: &'static str, records: u64
     );
 }
 
-/// Bytes relayed to the caller and the gateway's own CPU time spent observing them.
-pub(crate) fn stream_finished(provider: &'static str, bytes: usize, processing: Duration) {
-    METRICS.response_bytes.add(
-        u64::try_from(bytes).unwrap_or(u64::MAX),
-        &[KeyValue::new("gateway.provider", provider)],
-    );
-    overhead(None, provider, "stream_processing", processing);
-}
-
-/// The provider family of a capture's API format, e.g. `openai.responses`.
-fn api_provider(api_format: &str) -> &'static str {
-    match api_format.split('.').next() {
-        Some("openai") => "openai",
-        Some("anthropic") => "anthropic",
-        _ => "none",
-    }
-}
-
 pub(crate) fn execution_finished(facts: &InferenceFacts) {
     let outcome = match facts.outcome {
         RelayOutcome::Eof => "complete",
@@ -250,42 +201,24 @@ pub(crate) fn execution_finished(facts: &InferenceFacts) {
         RelayOutcome::Timeout => "timeout",
         RelayOutcome::TransportError => "transport_error",
     };
-    let provider = api_provider(facts.api_format);
     tracing::Span::current().record("gateway.outcome", facts.outcome.as_str());
-    METRICS.executions.add(
-        1,
-        &[
-            KeyValue::new("outcome", outcome),
-            KeyValue::new("gateway.provider", provider),
-        ],
-    );
-    let millis = |value: u128| Duration::from_millis(u64::try_from(value).unwrap_or(u64::MAX));
+    METRICS
+        .executions
+        .add(1, &[KeyValue::new("outcome", outcome)]);
     if let Some(first_byte_ms) = facts.first_byte_ms {
         tracing::Span::current().record(
             "gateway.first_byte_ms",
             i64::try_from(first_byte_ms).unwrap_or(i64::MAX),
         );
-        phase_finished("provider.first_byte", provider, millis(first_byte_ms));
-    }
-    if let Some(completion_start_ms) = facts.completion_start_ms {
         phase_finished(
-            "provider.first_token",
-            provider,
-            millis(completion_start_ms),
+            "provider.first_byte",
+            Duration::from_millis(u64::try_from(first_byte_ms).unwrap_or(u64::MAX)),
         );
     }
-    phase_finished("execution", provider, millis(facts.duration_ms));
-    if let Some(usage) = &facts.inference.usage_details {
-        for (token_type, count) in token_counts(facts.api_format, usage) {
-            METRICS.tokens.add(
-                count,
-                &[
-                    KeyValue::new("gateway.provider", provider),
-                    KeyValue::new("token.type", token_type),
-                ],
-            );
-        }
-    }
+    phase_finished(
+        "execution",
+        Duration::from_millis(u64::try_from(facts.duration_ms).unwrap_or(u64::MAX)),
+    );
     let context = tracing::Span::current().context();
     let context_span = context.span();
     let ids = context_span.span_context();
@@ -298,58 +231,6 @@ pub(crate) fn execution_finished(facts: &InferenceFacts) {
         span.record("error.origin", ErrorOrigin::ProviderTransport.as_str());
         tracing::warn!(trace_id = %ids.trace_id(), span_id = %ids.span_id(), phase = "provider", outcome, error.origin = ErrorOrigin::ProviderTransport.as_str(), "gateway stream failed");
     }
-}
-
-/// Native usage mapped to bounded token types. `input` excludes cached tokens on
-/// every provider, so `input + cache_read + cache_write` is the whole prompt;
-/// `reasoning` is a subset of `output`.
-fn token_counts(api_format: &str, usage: &Value) -> Vec<(&'static str, u64)> {
-    let get = |path: &[&str]| {
-        path.iter()
-            .try_fold(usage, |value, key| value.get(key))
-            .and_then(Value::as_u64)
-    };
-    let (input, cache_read, cache_write, output, reasoning) = match api_format {
-        "anthropic.messages" => (
-            get(&["input_tokens"]),
-            get(&["cache_read_input_tokens"]),
-            get(&["cache_creation_input_tokens"]),
-            get(&["output_tokens"]),
-            None,
-        ),
-        "openai.chat-completions" => {
-            let cached = get(&["prompt_tokens_details", "cached_tokens"]);
-            (
-                get(&["prompt_tokens"])
-                    .map(|tokens| tokens.saturating_sub(cached.unwrap_or_default())),
-                cached,
-                None,
-                get(&["completion_tokens"]),
-                get(&["completion_tokens_details", "reasoning_tokens"]),
-            )
-        }
-        _ => {
-            let cached = get(&["input_tokens_details", "cached_tokens"]);
-            (
-                get(&["input_tokens"])
-                    .map(|tokens| tokens.saturating_sub(cached.unwrap_or_default())),
-                cached,
-                None,
-                get(&["output_tokens"]),
-                get(&["output_tokens_details", "reasoning_tokens"]),
-            )
-        }
-    };
-    [
-        ("input", input),
-        ("cache_read", cache_read),
-        ("cache_write", cache_write),
-        ("output", output),
-        ("reasoning", reasoning),
-    ]
-    .into_iter()
-    .filter_map(|(token_type, count)| count.filter(|count| *count > 0).map(|c| (token_type, c)))
-    .collect()
 }
 
 /// Keeps the admission callbacks registered for the life of the meter provider.
@@ -369,7 +250,7 @@ pub(super) fn register_admission() -> AdmissionInstruments {
             for slots in &SLOTS {
                 let capacity = slots.capacity.load(Ordering::Relaxed);
                 if capacity > 0 {
-                    observer.observe(capacity, &active_attributes(slots.phase));
+                    observer.observe(capacity, &[KeyValue::new("phase", slots.phase)]);
                 }
             }
         })
@@ -380,7 +261,7 @@ pub(super) fn register_admission() -> AdmissionInstruments {
         .u64_observable_gauge("gateway.active.peak")
         .with_callback(|observer| {
             for slots in &SLOTS {
-                observer.observe(slots.take_peak(), &active_attributes(slots.phase));
+                observer.observe(slots.take_peak(), &[KeyValue::new("phase", slots.phase)]);
             }
         })
         .build();
@@ -390,63 +271,9 @@ pub(super) fn register_admission() -> AdmissionInstruments {
     }
 }
 
-/// Keeps the runtime callbacks registered for the life of the meter provider.
-pub(super) struct RuntimeInstruments {
-    _gauges: [ObservableGauge<u64>; 3],
-    _busy: ObservableCounter<f64>,
-}
-
-/// Fargate exposes no CPU throttling metric. A growing global queue or a busy
-/// ratio (`busy_duration` rate per worker) near 1 shows the runtime is starved.
-pub(super) fn register_runtime(handle: &tokio::runtime::Handle) -> RuntimeInstruments {
-    let meter = global::meter("ai-gateway");
-    let attributes = || [KeyValue::new("service.instance.id", INSTANCE_ID.as_str())];
-    let gauge = |name: &'static str, read: fn(&tokio::runtime::RuntimeMetrics) -> usize| {
-        let handle = handle.clone();
-        meter
-            .u64_observable_gauge(name)
-            .with_callback(move |observer| {
-                let value = read(&handle.metrics());
-                observer.observe(u64::try_from(value).unwrap_or(u64::MAX), &attributes());
-            })
-            .build()
-    };
-    let gauges = [
-        gauge(
-            "gateway.runtime.workers",
-            tokio::runtime::RuntimeMetrics::num_workers,
-        ),
-        gauge(
-            "gateway.runtime.alive_tasks",
-            tokio::runtime::RuntimeMetrics::num_alive_tasks,
-        ),
-        gauge(
-            "gateway.runtime.global_queue_depth",
-            tokio::runtime::RuntimeMetrics::global_queue_depth,
-        ),
-    ];
-    let busy_handle = handle.clone();
-    let busy = meter
-        .f64_observable_counter("gateway.runtime.busy_duration")
-        .with_unit("s")
-        .with_callback(move |observer| {
-            let metrics = busy_handle.metrics();
-            let busy: Duration = (0..metrics.num_workers())
-                .map(|worker| metrics.worker_total_busy_duration(worker))
-                .sum();
-            observer.observe(busy.as_secs_f64(), &attributes());
-        })
-        .build();
-    RuntimeInstruments {
-        _gauges: gauges,
-        _busy: busy,
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{Slots, token_counts};
-    use serde_json::json;
+    use super::Slots;
 
     #[test]
     fn peak_reports_the_interval_burst_then_restarts_from_held_slots() {
@@ -461,49 +288,5 @@ mod tests {
         slots.release();
         assert_eq!(slots.take_peak(), 1);
         assert_eq!(slots.take_peak(), 0);
-    }
-
-    #[test]
-    fn token_types_split_cached_input_consistently_across_providers() {
-        let openai = json!({
-            "input_tokens": 100,
-            "input_tokens_details": {"cached_tokens": 60},
-            "output_tokens": 30,
-            "output_tokens_details": {"reasoning_tokens": 10}
-        });
-        assert_eq!(
-            token_counts("openai.responses", &openai),
-            [
-                ("input", 40),
-                ("cache_read", 60),
-                ("output", 30),
-                ("reasoning", 10)
-            ]
-        );
-        let chat = json!({
-            "prompt_tokens": 19,
-            "completion_tokens": 10,
-            "prompt_tokens_details": {"cached_tokens": 0}
-        });
-        assert_eq!(
-            token_counts("openai.chat-completions", &chat),
-            [("input", 19), ("output", 10)]
-        );
-        let anthropic = json!({
-            "input_tokens": 5,
-            "cache_read_input_tokens": 200,
-            "cache_creation_input_tokens": 50,
-            "output_tokens": 20
-        });
-        assert_eq!(
-            token_counts("anthropic.messages", &anthropic),
-            [
-                ("input", 5),
-                ("cache_read", 200),
-                ("cache_write", 50),
-                ("output", 20)
-            ]
-        );
-        assert!(token_counts("openai.responses", &json!({"input_tokens": "x"})).is_empty());
     }
 }

@@ -225,58 +225,26 @@ supplies request volume and error rates, including responses rejected before
 provider execution. Metrics are independent of trace sampling. Health probes are
 excluded.
 
-`error.origin` names who caused a failed response, so an error budget can count
-only the gateway's own faults:
+`error.origin` names who caused a failed response: `none`, `client`,
+`gateway`, `control_plane`, `provider_transport`, or `provider` (an error status
+relayed unchanged, with `error.reason` `provider_rate_limited`, `provider_auth`,
+`provider_4xx`, or `provider_5xx`). The server span carries the same origin and
+reason (as `error.type`); it has an error status only for 5xx.
 
-| `error.origin` | Meaning | Example `error.reason` |
-| --- | --- | --- |
-| `none` | Success | `none` |
-| `client` | The caller's credential or request was rejected | `invalid_credential`, `invalid_body`, `model_not_allowed` |
-| `gateway` | Gateway capacity, draining, configuration, or an unclassified 5xx | `capacity`, `unavailable`, `unhandled` |
-| `control_plane` | Web resolution or the model catalog failed | `unavailable`, `timeout`, `transport` |
-| `provider_transport` | The provider was unreachable or missed a deadline | `timeout`, `transport` |
-| `provider` | The provider answered with an error status, relayed unchanged | `provider_rate_limited`, `provider_auth`, `provider_4xx`, `provider_5xx` |
+Gateway-specific metrics:
 
-Provider 401/403 is `provider_auth` rather than a caller error: the provider
-credential is stored in the connection, so it usually means the connection is
-broken. The server span carries the same `error.origin` and `error.reason` (as
-`error.type`) on every failed response; it has an error status only for 5xx, and
-the `resolution` span only when the failure is the gateway's or Web's. Caller
-cancellations are counted as `gateway.executions{outcome=cancelled}` and are never
-errors. Gateway 5xx responses log `gateway request rejected` at `warn`, caller 4xx
-at `debug`; relayed provider errors log `provider returned an error status` at
-`warn` for 5xx and `info` for 4xx. A panic logs `gateway panicked` at `error` with
-its source location only.
+- `gateway.overhead.duration` (`http.route`, `gateway.provider`): time to response
+  headers minus the caller's upload and the provider's wait; recorded only for
+  requests that reached the provider.
+- `gateway.active`, `gateway.admission.capacity`, and `gateway.active.peak`
+  (`phase`): in-flight, configured, and most-held-since-last-export slots for
+  model_catalog/resolution/execution.
+- `gateway.phase.duration` (execution/provider.first_byte), `gateway.executions`,
+  `gateway.admission.rejected`, and `gateway.telemetry.records`.
 
-Gateway-specific metrics, all with bounded attributes and no tenant or request
-identifiers:
-
-| Metric | Attributes | Measures |
-| --- | --- | --- |
-| `gateway.overhead.duration` | `component`, `gateway.provider`, `http.route` | Gateway time excluding the caller's upload and the provider's wait. `component=total` is time to response headers minus `request.body` and `provider.headers`; `resolution` is the Web call within it, `processing` the rest. `stream_processing` (no route) is capture work on the streamed body. Only requests that reached the provider record it. |
-| `gateway.phase.duration` | `phase`, `gateway.provider` | `request.body`, `resolution`, `model_catalog`, `provider.headers`, `provider.first_byte`, `provider.first_token`, `execution` |
-| `gateway.active` | `phase`, `service.instance.id` | In-flight model_catalog/resolution/execution work per task |
-| `gateway.admission.capacity` | `phase`, `service.instance.id` | Configured slots per phase: `LANGFUSE_AI_GATEWAY_MAX_CONCURRENT_RESOLUTIONS` for model_catalog and resolution, `LANGFUSE_AI_GATEWAY_MAX_ACTIVE_REQUESTS` for execution. Free slots are `capacity - gateway.active` |
-| `gateway.active.peak` | `phase`, `service.instance.id` | Most slots held at once since the previous 30-second export. Each interval starts from the slots still held, so a long request is not reported as idle |
-| `gateway.executions` | `outcome`, `gateway.provider` | Finished relays: `complete`, `cancelled`, `timeout`, `transport_error` |
-| `gateway.tokens` | `token.type`, `gateway.provider` | Provider-reported usage: `input` (excluding cached), `cache_read`, `cache_write`, `output`, `reasoning` (a subset of `output`) |
-| `gateway.response.bytes` | `gateway.provider` | Response bytes relayed to callers |
-| `gateway.admission.rejected` | `phase` | Capacity rejections |
-| `gateway.telemetry.records` | `outcome`, `reason` | Inference-telemetry delivery |
-| `gateway.runtime.workers`, `gateway.runtime.alive_tasks`, `gateway.runtime.global_queue_depth` | `service.instance.id` | Tokio runtime gauges |
-| `gateway.runtime.busy_duration` | `service.instance.id` | Cumulative worker busy time; its rate divided by `workers` near 1 means the runtime is saturated |
-
-Durations use seconds. First-byte timing measures provider bytes arriving at the
-gateway, not delivery to the caller. Models are not metric attributes; they stay on
-spans. `service.instance.id` is a per-process UUIDv7, also set as a resource
-attribute, and appears only on gauges, which would otherwise merge across tasks.
-
-Client spans set `resource.name` to `<client> <method>`, e.g. `resolver POST`, so
-Datadog groups them by dependency, and `error.type` to the HTTP status or to
-`timeout`/`transport`. `provider.stream` and `telemetry.batch` record `error.type`
-with their error status. Datadog computes trace metrics only for service-entry and
-measured spans, and span search only covers spans its retention filters index, so
-`provider.stream` can be present in a full trace yet missing from both.
+Durations use seconds; first-byte timing measures provider bytes arriving at the
+gateway, not first-token delivery to the caller. Metric attributes contain
+bounded categories, not tenant or request identifiers.
 
 Trace export uses a 512-span queue, batches of up to 64, and a one-second interval.
 Metrics export every 30 seconds. Export calls use a three-second timeout; failures

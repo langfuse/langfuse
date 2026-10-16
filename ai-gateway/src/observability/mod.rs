@@ -6,10 +6,8 @@ mod request;
 
 pub(crate) use client::instrument_client;
 pub use http::instrument;
-pub(crate) use metrics::{
-    Active, delivery, execution_finished, record_capacity, rejected, stream_finished,
-};
-pub(crate) use request::{ErrorOrigin, Phase, RequestObservation, provider_status_reason};
+pub(crate) use metrics::{Active, delivery, execution_finished, record_capacity, rejected};
+pub(crate) use request::{ErrorOrigin, RequestObservation, Wait, provider_status_reason};
 
 use crate::config::{GatewayConfig, LogFormat};
 use opentelemetry::{KeyValue, global, trace::TracerProvider};
@@ -28,7 +26,6 @@ pub struct Observability {
     traces: SdkTracerProvider,
     metrics: Option<SdkMeterProvider>,
     _admission: Option<metrics::AdmissionInstruments>,
-    _runtime: Option<metrics::RuntimeInstruments>,
 }
 
 /// Initialize process logging and optional operational OTLP exports.
@@ -92,11 +89,6 @@ pub fn init(config: &GatewayConfig) -> Result<Observability, Box<dyn Error>> {
         global::set_meter_provider(provider.clone());
         metrics::register_admission()
     });
-    let runtime = metrics.as_ref().and_then(|_| {
-        tokio::runtime::Handle::try_current()
-            .ok()
-            .map(|handle| metrics::register_runtime(&handle))
-    });
     let log_filter = EnvFilter::try_new(format!("warn,ai_gateway={}", config.log_level))?;
     let logger = match config.log_format {
         LogFormat::Json => tracing_subscriber::fmt::layer()
@@ -131,7 +123,6 @@ pub fn init(config: &GatewayConfig) -> Result<Observability, Box<dyn Error>> {
         traces,
         metrics,
         _admission: admission,
-        _runtime: runtime,
     })
 }
 
@@ -148,8 +139,6 @@ fn resource() -> Result<Resource, Box<dyn Error>> {
                 "service.version",
                 setting("BUILD_ID")?.unwrap_or_else(|| env!("CARGO_PKG_VERSION").into()),
             ),
-            // Tells replicas apart on traces; Datadog keeps it off metric tags.
-            KeyValue::new("service.instance.id", metrics::INSTANCE_ID.as_str()),
         ])
         .build())
 }

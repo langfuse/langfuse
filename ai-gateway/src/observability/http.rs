@@ -93,14 +93,7 @@ async fn record_http_duration(mut request: Request<Body>, next: Next) -> Respons
         let total = elapsed
             .saturating_sub(summary.request_body.unwrap_or_default())
             .saturating_sub(provider_headers);
-        let record = |component, duration| {
-            super::metrics::overhead(Some(&route), summary.provider, component, duration);
-        };
-        record("total", total);
-        if let Some(resolution) = summary.resolution {
-            record("resolution", resolution);
-            record("processing", total.saturating_sub(resolution));
-        }
+        super::metrics::overhead(&route, summary.provider, total);
     }
     response
 }

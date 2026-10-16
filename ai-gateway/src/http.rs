@@ -20,7 +20,7 @@ use tracing::Instrument;
 use crate::{
     correlation::{RequestCorrelation, assign_request_id},
     inference::{InferenceService, RequestPreparationError, provider_origin, resolution_origin},
-    observability::{ErrorOrigin, Phase},
+    observability::{ErrorOrigin, Wait},
     providers::{ProviderError, Route},
     resolution::{ApiFormat, ResolutionError},
     server::GatewayLifecycleState,
@@ -209,7 +209,7 @@ async fn relay(
     let request_body = request_body_and_model(body).await;
     correlation
         .observation()
-        .record_phase(Phase::RequestBody, started.elapsed());
+        .record_wait(Wait::RequestBody, started.elapsed());
     let request_body = request_body?;
     let (permit, context) = inference
         .resolve_and_admit(

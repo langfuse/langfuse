@@ -1,5 +1,5 @@
 //! Resolve the caller's credential, then execute using only the trusted context.
-use std::{ops::Range, time::Instant};
+use std::ops::Range;
 
 use axum::{
     body::{Body, Bytes},
@@ -10,7 +10,7 @@ use tracing::Instrument;
 
 use crate::{
     correlation::RequestCorrelation,
-    observability::{ErrorOrigin, Phase},
+    observability::ErrorOrigin,
     providers::{ProviderError, ProviderTransport, RequestPermit, Route},
     resolution::{
         ApiFormat, ControlPlaneClient, ControlPlaneConfig, ResolutionError, ResolvedRequestContext,
@@ -134,15 +134,10 @@ impl InferenceService {
             ResolutionError::Busy
         })?;
         let _active = crate::observability::Active::new("model_catalog");
-        let started = Instant::now();
         let body = self
             .control_plane
             .models(gateway_key, api_format, correlation.id())
-            .await;
-        correlation
-            .observation()
-            .record_phase(Phase::ModelCatalog, started.elapsed());
-        let body = body?;
+            .await?;
         crate::providers::model_list::provider_response(&body, api_format)
     }
 
@@ -203,15 +198,10 @@ impl InferenceService {
             .map_err(RequestPreparationError::Resolution)?;
         let context = {
             let _active = crate::observability::Active::new("resolution");
-            let started = Instant::now();
-            let context = self
-                .control_plane
+            self.control_plane
                 .resolve(gateway_key, api_format, model, correlation.id())
-                .await;
-            correlation
-                .observation()
-                .record_phase(Phase::Resolution, started.elapsed());
-            context.map_err(RequestPreparationError::Resolution)?
+                .await
+                .map_err(RequestPreparationError::Resolution)?
         };
         drop(resolution_permit);
         correlation.record_resolution(&context);
