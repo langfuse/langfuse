@@ -16,6 +16,7 @@ import { default as noSwitchStatements } from "./rules/no-switch-statements.js";
 import { default as noUnnecessaryCn } from "./rules/no-unnecessary-cn.js";
 import { default as storybookPlayRequiresTestName } from "./rules/storybook-play-requires-test-name.js";
 import { default as preferStoriesOverClientTests } from "./rules/prefer-stories-over-client-tests.js";
+import { default as storybookPlayNoImplementationDetailAssertions } from "./rules/storybook-play-no-implementation-detail-assertions.js";
 
 const plugin = {
   rules: {
@@ -24,6 +25,8 @@ const plugin = {
     "no-arbitrary-colors": noArbitraryColors,
     "no-exotic-operators": noExoticOperators,
     "no-in-source-vitest": noInSourceVitest,
+    "storybook-play-no-implementation-detail-assertions":
+      storybookPlayNoImplementationDetailAssertions,
     "no-margin-on-root-elements": noMarginOnRootElements,
     "no-null-render": noNullRender,
     "no-let-assign-in-react": noLetAssignInReact,
