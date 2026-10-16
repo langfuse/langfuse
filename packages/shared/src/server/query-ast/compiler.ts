@@ -389,12 +389,14 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
       const columns = TableNode.is(inner)
         ? relationBindTypes(inner, scopes)
         : this.outputBindTypes(inner, scopes);
-      // Register every name a column can qualify the relation with:
-      // `FROM traces` → `traces`; `FROM traces AS t` → `traces` and `t`;
-      // `FROM (SELECT …) AS sub` → `sub` only.
+      // A table, aliased or not, is reachable by its name:
+      // `FROM traces` and `FROM traces AS t` both register `traces`.
       if (TableNode.is(inner)) {
         scope.relations.set(inner.table.identifier.name, columns);
       }
+      // An aliased relation is also reachable by its alias: `FROM traces AS t`
+      // registers `t`, and `FROM (SELECT …) AS sub`, which has no name of
+      // its own, registers only `sub`.
       if (aliased && IdentifierNode.is(aliased.alias)) {
         scope.relations.set(aliased.alias.name, columns);
       }
