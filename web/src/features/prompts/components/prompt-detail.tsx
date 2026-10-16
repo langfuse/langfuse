@@ -63,7 +63,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/src/components/ui/dropdown-menu";
-import { DeletePromptVersion } from "@/src/features/prompts/components/delete-prompt-version";
+import { DeletePromptVersion } from "@/src/features/prompts/components/DeletePromptVersion";
 import { TagPromptDetailsPopover } from "@/src/features/tag";
 import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
 import {
