@@ -41,6 +41,19 @@ function negate(node: FilterNode): ASTNode {
   return { kind: "not", child: node };
 }
 
+function metadataNamespaceOf(
+  column: string,
+  registry: FieldRegistry,
+): string | null {
+  const id = registry.columnIdOf(column);
+  return (
+    Object.entries(registry.metadataNamespaces ?? {}).find(
+      ([, namespaceColumn]) =>
+        namespaceColumn === column || namespaceColumn === id,
+    )?.[0] ?? (id === "metadata" && registry.metadata ? "metadata" : null)
+  );
+}
+
 function scorePathOf(
   column: string,
   key: string,
@@ -202,11 +215,7 @@ function lowerSingle(
       return filterNode(id, "=", [String(value)]);
     }
     case "stringObject": {
-      const id = registry.columnIdOf(filter.column);
-      const namespace =
-        Object.entries(registry.metadataNamespaces ?? {}).find(
-          ([, column]) => column === filter.column || column === id,
-        )?.[0] ?? (id === "metadata" && registry.metadata ? "metadata" : null);
+      const namespace = metadataNamespaceOf(filter.column, registry);
       if (namespace === null) return null;
       // A key with grammar chars (`:`, space, …) is quoted so it re-lexes as one
       // token (`metadata."my key"`); resolveField unquotes it on the way back.
@@ -228,8 +237,9 @@ function lowerSingle(
       return filterNode(key, op, [filter.value]);
     }
     case "numberObject": {
-      if (registry.columnIdOf(filter.column) === "metadata") {
-        const key = `metadata.${quoteIfNeeded(filter.key)}`;
+      const namespace = metadataNamespaceOf(filter.column, registry);
+      if (namespace !== null) {
+        const key = `${namespace}.${quoteIfNeeded(filter.key)}`;
         const op = filter.operator === "=" ? "=" : filter.operator;
         return filterNode(key, op, [String(filter.value)]);
       }

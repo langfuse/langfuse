@@ -8,6 +8,10 @@ import {
   planInputCompletions,
   runSearchBarInvariants,
 } from "@/src/features/search-bar";
+import {
+  SECTION_COMPARE_OPS,
+  SECTION_VALUES,
+} from "@/src/features/search-bar/lib/completions";
 
 const registry = DATASET_ITEMS_FIELD_REGISTRY;
 const metadataFilter: FilterState = [
@@ -42,8 +46,9 @@ describe("dataset item search contract", () => {
       },
       registry,
     );
-    const options = plan?.sections.flatMap((section) => section.options) ?? [];
-    expect(options.map((option) => option.label)).toEqual(["eu"]);
+    const titles = plan?.sections.map((section) => section.title) ?? [];
+    expect(titles).toContain(SECTION_VALUES);
+    expect(titles).not.toContain(SECTION_COMPARE_OPS);
   });
 
   it("keeps bare phrases in the ID lane and resets to it when clearing", () => {
