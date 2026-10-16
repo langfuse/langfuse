@@ -202,9 +202,10 @@ function ToolGroupSummary({
     ? `${tools.length} ${tools.length === 1 ? "tool was" : "tools were"} called`
     : `${tools.length} available ${tools.length === 1 ? "tool was" : "tools were"} not called`;
 
-  // Quiet reveal row at the bottom of the group, inside the section box.
-  const summaryButton = (
-    <div className="flex w-fit items-center gap-2 text-sm not-first:pt-1.5 not-last:pb-1.5">
+  const toggleText = expanded ? "Show less" : "Show more";
+  // Quiet reveal row at the bottom of the group; padded like a tool row.
+  const summaryRow = (
+    <div className="flex w-fit items-center gap-2 py-1.5 text-sm group-first/tool-row:pt-0 group-last/tool-row:pb-0">
       <span
         className={cn(
           "text-muted-foreground",
@@ -215,14 +216,16 @@ function ToolGroupSummary({
       </span>
       <Button
         variant="text"
-        text={expanded ? "Show less" : "Show more"}
+        text={toggleText}
+        aria-label={`${toggleText}: ${summaryText}`}
+        aria-expanded={expanded}
         onClick={onToggle}
       />
     </div>
   );
 
   if (expanded) {
-    return summaryButton;
+    return <div className="group/tool-row">{summaryRow}</div>;
   }
 
   return (
@@ -243,7 +246,9 @@ function ToolGroupSummary({
       }
     >
       {({ getTriggerProps }) => (
-        <div {...getTriggerProps()}>{summaryButton}</div>
+        <div {...getTriggerProps()} className="group/tool-row">
+          {summaryRow}
+        </div>
       )}
     </HoverCard>
   );
@@ -332,7 +337,11 @@ function ToolDefinitionRow({
     <div className="group/tool-row w-full">
       <button
         type="button"
-        className="hover:bg-muted/20 flex w-full cursor-pointer items-center justify-between gap-2 py-1.5 text-left group-first/tool-row:pt-0 group-last/tool-row:pb-0"
+        className={cn(
+          "hover:bg-muted/20 flex w-full cursor-pointer items-center justify-between gap-2 py-1.5 text-left group-first/tool-row:pt-0",
+          // Expanded details draw their own top border; keep the gap above it.
+          !isExpanded && "group-last/tool-row:pb-0",
+        )}
         onClick={onToggle}
         aria-expanded={isExpanded}
       >

@@ -98,12 +98,12 @@ describe("ToolCallDefinitionCard", () => {
     expect(screen.getByText(/6 tools were called/i)).toBeInTheDocument();
     expect(screen.queryByText(/called_tool_1/)).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Show more" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Show more/ }));
 
     expect(screen.getByText(/called_tool_1/)).toBeInTheDocument();
     expect(screen.getByText(/called_tool_6/)).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Show less" }),
+      screen.getByRole("button", { name: /^Show less/ }),
     ).toBeInTheDocument();
   });
 
@@ -113,7 +113,7 @@ describe("ToolCallDefinitionCard", () => {
       availableToolCount: 0,
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Show more" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Show more/ }));
     unmount();
 
     renderTools({ calledToolCount: 6, availableToolCount: 0 });
@@ -139,7 +139,7 @@ describe("ToolCallDefinitionCard", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText(/available_tool_1/)).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Show more" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Show more/ }));
 
     expect(screen.getByText(/available_tool_1/)).toBeInTheDocument();
     expect(screen.getByText(/available_tool_4/)).toBeInTheDocument();
