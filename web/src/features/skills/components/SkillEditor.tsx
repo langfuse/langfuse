@@ -62,6 +62,7 @@ import {
 import { SkillVersionHistory } from "@/src/features/skills/components/SkillVersionHistory";
 import { SkillFileView } from "@/src/features/skills/components/SkillFileView";
 import { useSkillFileContents } from "@/src/features/skills/hooks/useSkillFileContents";
+import { useLangfuseV4WriteMode } from "@/src/features/organizations/hooks";
 import {
   parseSkillFrontmatterMetadata,
   SKILL_NAME_RULES,
@@ -186,12 +187,16 @@ export function SkillEditor({
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const isDraft = view.kind === "draft";
+  const v4WriteMode = useLangfuseV4WriteMode();
+  const canReadMetrics = v4WriteMode !== null && v4WriteMode !== "legacy";
   const [selectedTab, setSelectedTab] = useQueryParam(
     "tab",
     withDefault(StringParam, "files"),
   );
   const activeTab =
-    !isDraft && (selectedTab === "linked-traces" || selectedTab === "metrics")
+    !isDraft &&
+    (selectedTab === "linked-traces" ||
+      (selectedTab === "metrics" && canReadMetrics))
       ? selectedTab
       : "files";
   const canEditFiles = isDraft && canCreate && !isSaving;
@@ -678,7 +683,7 @@ export function SkillEditor({
                       <Tabs.Trigger
                         value="metrics"
                         label="Metrics"
-                        disabled={isDraft}
+                        disabled={isDraft || !canReadMetrics}
                       />
                       <Tabs.Trigger
                         value="linked-traces"
@@ -686,7 +691,9 @@ export function SkillEditor({
                         disabled={isDraft}
                       />
                     </Tabs.List>
-                    {view.kind === "version" && baseVersion !== null ? (
+                    {canReadMetrics &&
+                    view.kind === "version" &&
+                    baseVersion !== null ? (
                       <Tabs.Content value="metrics" layout="fill">
                         <SkillAnalytics
                           projectId={projectId}
