@@ -180,7 +180,7 @@ function checkAfterLimitShape(
       "softDeleteAfterLimit() cannot wrap a GROUP BY or set operation: the added flag would not match its shape.",
     );
   }
-  // Names of the outputs the outer select lists again; `*` has none.
+  // Names of the outputs the outer select lists again; `*` is rejected below.
   const outputs = (node.selections ?? []).map((selection) => {
     const name = outputName(selection.selection);
     if (name === undefined) {
@@ -208,7 +208,7 @@ function wrapAfterLimit(
   relation: SoftDeleteRelation,
   outputs: ReadonlyArray<string>,
 ): ClickHouseSelectQueryNode {
-  // Adds `<alias>.is_deleted AS is_deleted` as an output for the outer filter.
+  // Adds `<alias>.<flag> AS <flag>` as an output for the outer filter.
   const inner = SelectQueryNode.cloneWithSelections(node, [
     SelectionNode.create(
       AliasNode.create(
@@ -231,7 +231,7 @@ function wrapAfterLimit(
       ),
     ),
   );
-  // `where latest.is_deleted = 0` drops the pick if it is a deleted version.
+  // `where latest.<flag> = 0` drops the pick if it is a deleted version.
   return {
     ...outer,
     where: WhereNode.create(
