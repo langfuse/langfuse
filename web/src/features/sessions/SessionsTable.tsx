@@ -1,4 +1,5 @@
 /* eslint-disable no-nested-ternary */
+import { useRouter } from "next/router";
 import { DataTable } from "@/src/components/table/data-table";
 import { TRACING_PAGE_SIZE_OPTIONS } from "@/src/components/table/data-table-pagination";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -137,6 +138,7 @@ export default function SessionsTable({
   isV4 = false,
   showControlsInPageHeader = false,
 }: SessionTableProps) {
+  const router = useRouter();
   const capture = usePostHogClientCapture();
   const sessionsFilterConfig = useMemo(
     () => getSessionFilterConfig(omittedFilter, isV4),
@@ -568,6 +570,9 @@ export default function SessionsTable({
     },
   ];
 
+  const sessionDetailPath = (sessionId: string) =>
+    `/project/${projectId}/sessions/${encodeURIComponent(sessionId)}`;
+
   const columns: LangfuseColumnDef<SessionTableRow>[] = [
     selectActionColumn,
     createLinkTableColumn<SessionTableRow>({
@@ -581,7 +586,7 @@ export default function SessionsTable({
         return {
           type: "link",
           props: {
-            path: `/project/${projectId}/sessions/${encodeURIComponent(value)}`,
+            path: sessionDetailPath(value),
             value,
           },
         };
@@ -1006,6 +1011,9 @@ export default function SessionsTable({
               customRowHeightPx={rowHeights.activeHeightPx}
               onCustomRowHeightChange={rowHeights.setCustomPx}
               onSelectRowHeight={setRowHeight}
+              onRowClick={(row) => {
+                router.push(sessionDetailPath(row.id));
+              }}
             />
           </div>
         </StickySearchableTableFilterLayout>
