@@ -15,10 +15,13 @@ import {
   Grid2X2,
   LayoutDashboard,
   ListTree,
+  Moon,
   Plus,
   Settings,
+  Sun,
   type LucideIcon,
 } from "lucide-react";
+import { useTheme } from "next-themes";
 import { Fragment, useEffect, memo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { env } from "@/src/env.mjs";
@@ -253,6 +256,33 @@ function AssistantItem({ onDone }: { onDone: () => void }) {
   );
 }
 
+function ThemeItem({ onDone }: { onDone: () => void }) {
+  const { resolvedTheme, setTheme } = useTheme();
+  const capture = usePostHogClientCapture();
+  const nextTheme = resolvedTheme === "dark" ? "light" : "dark";
+  const Icon = nextTheme === "dark" ? Moon : Sun;
+
+  const handleSelect = () => {
+    onDone();
+    setTheme(nextTheme);
+    capture("user_settings:theme_changed", {
+      theme: nextTheme,
+      source: "command_menu",
+    });
+  };
+
+  return (
+    <CommandItem
+      value={`Switch to ${nextTheme} theme`}
+      keywords={["theme", "dark", "light", "mode", "appearance"]}
+      onSelect={handleSelect}
+    >
+      <Icon className="icon-base" />
+      Switch to {nextTheme} theme
+    </CommandItem>
+  );
+}
+
 function MainNavigationGroup({
   navItems,
   createActions,
@@ -292,6 +322,7 @@ function MainNavigationGroup({
             onNavigate={onNavigate}
           />
         ))}
+      {showCreateActions && <ThemeItem onDone={onDone} />}
     </CommandGroup>
   );
 }
