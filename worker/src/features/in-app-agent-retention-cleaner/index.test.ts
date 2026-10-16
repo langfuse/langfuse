@@ -1,0 +1,202 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { InAppAgentRetentionCleaner } from "./index";
+import { Prisma } from "@prisma/client";
+
+const mocks = vi.hoisted(() => ({
+  query: vi.fn(),
+  execute: vi.fn(),
+  findRuns: vi.fn(),
+  updateRuns: vi.fn(),
+  deleteKey: vi.fn(),
+  licensed: vi.fn(),
+  extend: vi.fn(),
+}));
+
+vi.mock("@langfuse/shared/src/db", async () => {
+  const { Prisma } = await import("@prisma/client");
+  return {
+    Prisma,
+    prisma: {
+      $queryRaw: mocks.query,
+      $executeRaw: mocks.execute,
+      inAppAgentRun: {
+        findMany: mocks.findRuns,
+        updateMany: mocks.updateRuns,
+      },
+    },
+  };
+});
+vi.mock("@langfuse/shared/src/server", () => ({
+  logger: { info: vi.fn(), error: vi.fn(), debug: vi.fn() },
+  redis: null,
+  recordIncrement: vi.fn(),
+  traceException: vi.fn(),
+  getCurrentSpan: vi.fn(),
+}));
+vi.mock("@langfuse/shared/src/server/ee/licenseCheck", () => ({
+  isEnterpriseLicenseAvailable: mocks.licensed,
+}));
+vi.mock("@langfuse/shared/src/server/auth/apiKeys", () => ({
+  deleteInAppAgentMcpApiKeyFromDb: mocks.deleteKey,
+}));
+vi.mock("../../utils/RedisLock", () => ({
+  RedisLock: class {
+    key = "test-lock";
+    extend = mocks.extend;
+    async withLock<T>(operation: () => Promise<T>) {
+      return operation();
+    }
+  },
+}));
+
+describe("InAppAgentRetentionCleaner", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    mocks.licensed.mockReturnValue(true);
+    mocks.extend.mockResolvedValue(true);
+    mocks.query.mockResolvedValue([
+      { id: "conversation", projectId: "project" },
+    ]);
+    mocks.findRuns.mockResolvedValue([
+      { id: "run", projectId: "project", mcpApiKeyId: "key" },
+    ]);
+    mocks.execute.mockResolvedValue(1);
+    mocks.updateRuns.mockResolvedValue({ count: 1 });
+    mocks.deleteKey.mockResolvedValue(undefined);
+  });
+
+  it("does not inspect or delete data without a license", async () => {
+    mocks.licensed.mockReturnValue(false);
+    expect(await new InAppAgentRetentionCleaner().processBatch()).toBe(600_000);
+    expect(mocks.query).not.toHaveBeenCalled();
+    expect(mocks.deleteKey).not.toHaveBeenCalled();
+    expect(mocks.execute).not.toHaveBeenCalled();
+  });
+
+  it("revokes keys before clearing pointers and deleting conversations", async () => {
+    expect(await new InAppAgentRetentionCleaner().processBatch()).toBe(0);
+    expect(mocks.deleteKey).toHaveBeenCalledWith({
+      prisma: expect.objectContaining({ $queryRaw: mocks.query }),
+      id: "key",
+      projectId: "project",
+      redis: null,
+    });
+    expect(mocks.updateRuns).toHaveBeenCalledWith({
+      where: { id: "run", projectId: "project", mcpApiKeyId: "key" },
+      data: { mcpApiKeyId: null },
+    });
+    expect(mocks.deleteKey.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.updateRuns.mock.invocationCallOrder[0]!,
+    );
+    expect(mocks.updateRuns.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.execute.mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it("keeps key pointers and conversations retryable when revocation fails", async () => {
+    mocks.deleteKey.mockRejectedValue(new Error("Redis unavailable"));
+    mocks.execute.mockResolvedValue(0);
+    expect(await new InAppAgentRetentionCleaner().processBatch()).toBe(0);
+    expect(mocks.updateRuns).not.toHaveBeenCalled();
+    expect(mocks.execute).toHaveBeenCalledOnce();
+  });
+
+  it("continues revocation and deletion for another project after a key fails", async () => {
+    mocks.query.mockResolvedValue([
+      { id: "failed-conversation", projectId: "failed-project" },
+      { id: "healthy-conversation", projectId: "healthy-project" },
+    ]);
+    mocks.findRuns.mockResolvedValue([
+      {
+        id: "failed-run",
+        projectId: "failed-project",
+        mcpApiKeyId: "failed-key",
+      },
+      {
+        id: "healthy-run",
+        projectId: "healthy-project",
+        mcpApiKeyId: "healthy-key",
+      },
+    ]);
+    mocks.deleteKey.mockRejectedValueOnce(new Error("Revocation failed"));
+
+    expect(await new InAppAgentRetentionCleaner().processBatch()).toBe(0);
+
+    expect(mocks.deleteKey).toHaveBeenCalledTimes(2);
+    expect(mocks.updateRuns).toHaveBeenCalledExactlyOnceWith({
+      where: {
+        id: "healthy-run",
+        projectId: "healthy-project",
+        mcpApiKeyId: "healthy-key",
+      },
+      data: { mcpApiKeyId: null },
+    });
+    expect(mocks.execute).toHaveBeenCalledOnce();
+  });
+
+  it("advances past a failed full batch and retries it after the sweep ends", async () => {
+    const blockedConversations = Array.from({ length: 100 }, (_, index) => ({
+      id: `conversation-${String(index).padStart(3, "0")}`,
+      projectId: "blocked-project",
+    }));
+    mocks.query.mockImplementation(
+      (_strings: TemplateStringsArray, cursor: { values: string[] }) => {
+        if (cursor.values.length === 0) return blockedConversations;
+        if (cursor.values[0] === "conversation-099") {
+          return [{ id: "healthy-conversation", projectId: "healthy-project" }];
+        }
+        return [];
+      },
+    );
+    const failedRuns = [
+      {
+        id: "failed-run",
+        projectId: "blocked-project",
+        mcpApiKeyId: "failed-key",
+      },
+    ];
+    mocks.findRuns
+      .mockResolvedValue(failedRuns)
+      .mockResolvedValueOnce(failedRuns)
+      .mockResolvedValueOnce([]);
+    mocks.deleteKey.mockRejectedValue(new Error("Revocation failed"));
+    mocks.execute.mockResolvedValueOnce(0).mockResolvedValue(1);
+    const cleaner = new InAppAgentRetentionCleaner();
+
+    expect(await cleaner.processBatch()).toBe(0);
+    expect(await cleaner.processBatch()).toBe(0);
+    expect(await cleaner.processBatch()).toBe(600_000);
+    await cleaner.processBatch();
+
+    expect(mocks.query).toHaveBeenCalledTimes(4);
+    expect(mocks.execute).toHaveBeenCalledTimes(3);
+    expect(mocks.deleteKey).toHaveBeenCalledTimes(2);
+    expect(mocks.updateRuns).not.toHaveBeenCalled();
+  });
+
+  it("continues cleanup when the key was already removed", async () => {
+    mocks.deleteKey.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError("Missing key", {
+        code: "P2025",
+        clientVersion: "test",
+      }),
+    );
+    await new InAppAgentRetentionCleaner().processBatch();
+    expect(mocks.updateRuns).toHaveBeenCalledOnce();
+    expect(mocks.execute).toHaveBeenCalledOnce();
+  });
+
+  it("stops destructive work when the lease is lost", async () => {
+    mocks.extend.mockResolvedValue(false);
+    await new InAppAgentRetentionCleaner().processBatch();
+    expect(mocks.deleteKey).not.toHaveBeenCalled();
+    expect(mocks.execute).not.toHaveBeenCalled();
+  });
+
+  it("rechecks the lease before deletion even after key cleanup made progress", async () => {
+    mocks.extend.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    await new InAppAgentRetentionCleaner().processBatch();
+    expect(mocks.updateRuns).toHaveBeenCalledOnce();
+    expect(mocks.execute).not.toHaveBeenCalled();
+  });
+});
