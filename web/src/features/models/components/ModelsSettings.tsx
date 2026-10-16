@@ -1,4 +1,3 @@
-/* eslint-disable @repo/component-file-structure */
 import Header from "@/src/components/layouts/header";
 import { ConnectedModelDefinitionsTable } from "@/src/features/models/ModelDefinitionsTable/ConnectedModelDefinitionsTable";
 
