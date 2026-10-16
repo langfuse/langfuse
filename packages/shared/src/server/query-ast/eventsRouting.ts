@@ -166,6 +166,7 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
     node: AggregateFunctionNode,
     queryId?: QueryId,
   ): AggregateFunctionNode {
+    if (isColumnsMatcher(node.func)) this.rejectStar(`${node.func}(…)`);
     if (isCountStar(node)) {
       super.transformAggregateFunction({ ...node, aggregated: [] }, queryId);
       return node;
@@ -173,7 +174,10 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
     return super.transformAggregateFunction(node, queryId);
   }
 
-  /** The direction is raw `asc` / `desc`: the typed `orderBy` writes no other. */
+  /**
+   * The direction is raw `asc` / `desc`, so it is not walked: the
+   * `no-deprecated` lint rule keeps `orderBy` from taking an expression.
+   */
   protected override transformOrderByItem(
     node: OrderByItemNode,
     queryId?: QueryId,
@@ -186,9 +190,7 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
     node: FunctionNode,
     queryId?: QueryId,
   ): FunctionNode {
-    if (node.func.toLowerCase() === "columns") {
-      this.rejectStar(`${node.func}(…)`);
-    }
+    if (isColumnsMatcher(node.func)) this.rejectStar(`${node.func}(…)`);
     return super.transformFunction(node, queryId);
   }
 
@@ -328,6 +330,11 @@ function isLogicalEventsTable(node: OperationNode): boolean {
     node.table.schema === undefined &&
     node.table.identifier.name === LOGICAL_EVENTS
   );
+}
+
+/** ClickHouse's `COLUMNS('regexp')` matcher, which expands like `*`. */
+function isColumnsMatcher(func: string): boolean {
+  return func.toLowerCase() === "columns";
 }
 
 /** `count(*)` with any `distinct`, `filter`, `over`, … clause. */

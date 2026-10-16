@@ -205,6 +205,15 @@ describe("logical events routing", () => {
           .select((eb) => eb.fn<string>("COLUMNS", [eb.val("^inp")]).as("x")),
       ),
     ).toThrow(QueryCompileError);
+    expect(() =>
+      compile(
+        db
+          .selectFrom("events as e")
+          .select((eb) =>
+            eb.fn.agg<string>("columns", [eb.val("^inp")]).as("x"),
+          ),
+      ),
+    ).toThrow(QueryCompileError);
   });
 
   it.each([
@@ -218,6 +227,19 @@ describe("logical events routing", () => {
         db.selectFrom("events as e").select(sql.ref<string>(ref).as("x")),
       ),
     ).toThrow(QueryCompileError);
+  });
+
+  it("keeps a physical events qualifier when no logical relation is in scope", () => {
+    expect(
+      routedTables(
+        compile(
+          db
+            .selectFrom("events_core as c")
+            .$call(includeDeleted())
+            .select(sql.ref<string>("events_core.input").as("x")),
+        ),
+      ),
+    ).toEqual(["events_core"]);
   });
 
   it("resolves sql.ref like a builder reference", () => {
@@ -290,6 +312,19 @@ describe("logical events routing", () => {
               .select(sql.ref<string>("input").as("i"))
               .limit(1)
               .as("x"),
+          ]),
+      ),
+    ).toThrow(QueryCompileError);
+  });
+
+  it("rejects an unqualified truncated column in a subquery with no FROM under a select that reads events", () => {
+    expect(() =>
+      compile(
+        db
+          .selectFrom("events")
+          .select([
+            "span_id",
+            db.selectNoFrom(sql.ref<string>("input").as("i")).as("x"),
           ]),
       ),
     ).toThrow(QueryCompileError);
