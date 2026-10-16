@@ -4,6 +4,7 @@ import { cn } from "@/src/utils/tailwind";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import useLocalStorage from "@/src/components/useLocalStorage";
+import useSessionStorage from "@/src/components/useSessionStorage";
 import { useMemo, useState } from "react";
 import type { ToolCallInvocation } from "../../../hooks/useChatMLParser";
 
@@ -23,6 +24,9 @@ export interface ToolCallDefinitionCardProps {
 }
 
 type ToolTab = "called" | "not-called";
+
+/** Above this many tools the section starts collapsed. */
+const TOOLS_COLLAPSE_THRESHOLD = 5;
 
 function parseToolCallArguments(argumentsValue: unknown): unknown {
   if (typeof argumentsValue !== "string") {
@@ -209,8 +213,9 @@ function ToolDefinitionRow({
 
 /**
  * ToolCallDefinitionCard renders the Tools section: a header with a
- * Called / Not called switch (only when both sides have tools) and the
- * active tab's tools as expandable rows numbered from 1.
+ * collapse caret and a Called / Not called switch (only when both sides
+ * have tools), and the active tab's tools as expandable rows numbered
+ * from 1. Long lists start collapsed; the user's choice lasts the session.
  */
 export function ToolCallDefinitionCard({
   tools,
@@ -220,6 +225,9 @@ export function ToolCallDefinitionCard({
 }: ToolCallDefinitionCardProps) {
   const [expandedToolKey, setExpandedToolKey] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ToolTab>("called");
+  const [collapsedPreference, setCollapsedPreference] = useSessionStorage<
+    boolean | null
+  >("toolsSectionCollapsed", null);
   const [currentView, setCurrentView] = useLocalStorage<"formatted" | "json">(
     "toolCallPillViewPreference",
     "formatted",
@@ -247,12 +255,28 @@ export function ToolCallDefinitionCard({
   const hasSwitch = calledTools.length > 0 && notCalledTools.length > 0;
   const tabTools = activeTab === "called" ? calledTools : notCalledTools;
   const visibleTools = hasSwitch ? tabTools : tools;
+  const isCollapsed =
+    collapsedPreference ?? tools.length > TOOLS_COLLAPSE_THRESHOLD;
+  const Caret = isCollapsed ? ChevronRight : ChevronDown;
+
+  const handleCollapseToggle = () => setCollapsedPreference(!isCollapsed);
 
   return (
     <div className={cn("flex flex-col", className)}>
       <div className="io-message-header flex items-center justify-between gap-2 px-1 py-1">
-        <span className="text-base font-bold capitalize">Tools</span>
-        {hasSwitch && (
+        <button
+          type="button"
+          onClick={handleCollapseToggle}
+          aria-expanded={!isCollapsed}
+          className="focus-visible:ring-ring flex items-center gap-1.5 rounded-sm text-base font-bold focus-visible:ring-2 focus-visible:outline-hidden"
+        >
+          <Caret
+            aria-hidden="true"
+            className="icon-base text-icon-foreground shrink-0"
+          />
+          Tools
+        </button>
+        {hasSwitch && !isCollapsed && (
           <Tabs
             value={activeTab}
             onValueChange={(value) => setActiveTab(value as ToolTab)}
@@ -272,29 +296,31 @@ export function ToolCallDefinitionCard({
           </Tabs>
         )}
       </div>
-      <div className="divide-border flex flex-col divide-y">
-        {visibleTools.map((tool, index) => {
-          const toolKey = `${activeTab}-${tool.name}-${index}`;
+      {!isCollapsed && (
+        <div className="divide-border flex flex-col divide-y">
+          {visibleTools.map((tool, index) => {
+            const toolKey = `${activeTab}-${tool.name}-${index}`;
 
-          return (
-            <ToolDefinitionRow
-              key={toolKey}
-              tool={tool}
-              isExpanded={expandedToolKey === toolKey}
-              onToggle={() =>
-                setExpandedToolKey((current) =>
-                  current === toolKey ? null : toolKey,
-                )
-              }
-              isCalled={(toolCallCounts.get(tool.name) ?? 0) > 0}
-              toolCalls={toolCallsByName?.get(tool.name) ?? []}
-              rowNumber={index + 1}
-              currentView={currentView}
-              setCurrentView={setCurrentView}
-            />
-          );
-        })}
-      </div>
+            return (
+              <ToolDefinitionRow
+                key={toolKey}
+                tool={tool}
+                isExpanded={expandedToolKey === toolKey}
+                onToggle={() =>
+                  setExpandedToolKey((current) =>
+                    current === toolKey ? null : toolKey,
+                  )
+                }
+                isCalled={(toolCallCounts.get(tool.name) ?? 0) > 0}
+                toolCalls={toolCallsByName?.get(tool.name) ?? []}
+                rowNumber={index + 1}
+                currentView={currentView}
+                setCurrentView={setCurrentView}
+              />
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

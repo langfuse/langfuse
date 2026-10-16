@@ -84,6 +84,37 @@ const rowNumberOf = (toolName: string) =>
 describe("ToolCallDefinitionCard", () => {
   beforeEach(() => {
     vi.stubGlobal("localStorage", createMemoryStorage());
+    vi.stubGlobal("sessionStorage", createMemoryStorage());
+  });
+
+  it("starts long lists collapsed and keeps the user's choice for the session", () => {
+    const first = renderTools({ calledToolCount: 2, notCalledToolCount: 4 });
+    const header = screen.getByRole("button", { name: "Tools" });
+
+    expect(header).toHaveAttribute("aria-expanded", "false");
+    expect(rowFor("called_tool_1")).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab")).not.toBeInTheDocument();
+
+    fireEvent.click(header);
+    expect(header).toHaveAttribute("aria-expanded", "true");
+    expect(rowFor("called_tool_1")).toBeInTheDocument();
+    first.unmount();
+
+    renderTools({ calledToolCount: 2, notCalledToolCount: 4 });
+    expect(screen.getByRole("button", { name: "Tools" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    expect(rowFor("called_tool_1")).toBeInTheDocument();
+  });
+
+  it("starts short lists expanded", () => {
+    renderTools({ calledToolCount: 2, notCalledToolCount: 3 });
+
+    expect(screen.getByRole("button", { name: "Tools" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
   });
 
   it("shows the Called / Not called switch only when both sides have tools", () => {

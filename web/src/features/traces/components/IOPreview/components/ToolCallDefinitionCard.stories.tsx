@@ -191,8 +191,17 @@ const manyToolNames = [
 ];
 const calledNames = new Set(manyToolNames.slice(12));
 
+const TOOLS_COLLAPSED_KEY = "toolsSectionCollapsed";
+
+/** Opens the section so stories with many tools show their rows. */
+const startExpanded = () => {
+  sessionStorage.setItem(TOOLS_COLLAPSED_KEY, "false");
+  return () => sessionStorage.removeItem(TOOLS_COLLAPSED_KEY);
+};
+
 /** Both sides have tools, so the header shows the Called / Not called switch. */
 export const ManyTools = meta.story({
+  beforeEach: startExpanded,
   args: {
     tools: manyToolNames.map((name) => ({ name })),
     toolCallCounts: new Map(
@@ -204,6 +213,7 @@ export const ManyTools = meta.story({
 
 /** Nothing called: no switch, one muted list. */
 export const NoneCalled = meta.story({
+  beforeEach: startExpanded,
   args: {
     tools: manyToolNames.map((name) => ({ name })),
     toolCallCounts: new Map(manyToolNames.map((name) => [name, 0])),
@@ -213,6 +223,7 @@ export const NoneCalled = meta.story({
 
 /** Everything called: no switch, one list. */
 export const AllCalled = meta.story({
+  beforeEach: startExpanded,
   args: {
     tools: manyToolNames.map((name) => ({ name })),
     toolCallCounts: new Map(manyToolNames.map((name) => [name, 1])),
@@ -222,6 +233,7 @@ export const AllCalled = meta.story({
 
 export const NotCalledTab = meta.story({
   name: "(Test) Not Called Tab",
+  beforeEach: startExpanded,
   args: ManyTools.input.args,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -236,5 +248,25 @@ export const NotCalledTab = meta.story({
     });
     await expect(within(firstRow).getByText("1.")).toBeVisible();
     await expect(canvas.queryByText("langfuse_getSession")).toBeNull();
+  },
+});
+
+/** More than five tools: the section starts collapsed to its header. */
+export const CollapsedByDefault = meta.story({
+  name: "(Test) Collapsed By Default",
+  beforeEach: () => sessionStorage.removeItem(TOOLS_COLLAPSED_KEY),
+  args: ManyTools.input.args,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const header = canvas.getByRole("button", { name: "Tools" });
+    await expect(header).toHaveAttribute("aria-expanded", "false");
+    await expect(canvas.queryByRole("tab")).toBeNull();
+
+    await userEvent.click(header);
+    await expect(header).toHaveAttribute("aria-expanded", "true");
+    await expect(
+      canvas.getByRole("tab", { name: /^Called\s*6$/ }),
+    ).toBeVisible();
+    sessionStorage.removeItem(TOOLS_COLLAPSED_KEY);
   },
 });
