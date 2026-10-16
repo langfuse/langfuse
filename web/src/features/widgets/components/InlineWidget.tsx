@@ -23,7 +23,10 @@ import {
   getWidgetMissingBucketValue,
   type WidgetChartConfig,
 } from "@/src/features/widgets/utils";
-import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
+import {
+  isTimeSeriesChart,
+  prepareTagCountDataPoint,
+} from "@/src/features/widgets/chart-library/utils";
 import { useReadPath } from "@/src/features/events";
 import { cn } from "@/src/utils/tailwind";
 
@@ -231,6 +234,19 @@ export function WidgetContent({
 
       const isTimeSeries = isTimeSeriesChart(chartType);
       const dimensionValue = item[dimensionField];
+
+      if (
+        dimensionField === "tags" &&
+        metricField === "count_count" &&
+        Array.isArray(dimensionValue)
+      ) {
+        return prepareTagCountDataPoint({
+          tags: dimensionValue,
+          count: Number(metricValue || 0),
+          timeDimension: xAxisValue,
+          isTimeSeries,
+        });
+      }
 
       // A gap-filled empty bucket arrives as a row with no dimension and the
       // metric column's type default: NULL for nullable aggregations
