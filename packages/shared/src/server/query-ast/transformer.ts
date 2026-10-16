@@ -187,7 +187,7 @@ export abstract class CteScopedTransformer extends ClickHouseOperationNodeTransf
   }
 }
 
-function cteName(expr: CommonTableExpressionNode): string {
+export function cteName(expr: CommonTableExpressionNode): string {
   return expr.name.table.table.identifier.name;
 }
 

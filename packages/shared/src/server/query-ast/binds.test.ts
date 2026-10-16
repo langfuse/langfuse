@@ -320,6 +320,26 @@ describe("typed params from the column registry", () => {
       expect(sql).toMatch(/o\.start_time >= \{p\d+:DateTime64\(3\)\}/);
     });
 
+    it("types a CTE that reads its own name when it is first read in a subquery", () => {
+      const { sql } = compile(
+        db
+          .with("observations", (qb) =>
+            qb.selectFrom("observations").select(["trace_id", "start_time"]),
+          )
+          .selectFrom("traces")
+          .select("id")
+          .where(
+            "id",
+            "in",
+            db
+              .selectFrom("observations")
+              .select("trace_id")
+              .where("start_time", ">=", START),
+          ),
+      );
+      expect(sql).toMatch(/start_time >= \{p\d+:DateTime64\(3\)\}/);
+    });
+
     it("resolves a nested CTE body's own name to an outer CTE of that name", () => {
       const { sql } = compile(
         eventsAsObservations

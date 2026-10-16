@@ -35,6 +35,7 @@ import {
 import { QueryCompileError } from "./errors";
 import { COLUMN_BIND_TYPES, TABLE_BIND_TYPES } from "./schema";
 import { assertTenancyStamped } from "./tenancy";
+import { cteName } from "./transformer";
 
 const ARRAY_JOIN_SQL: Record<ArrayJoinNode["variant"], string> = {
   default: "array join",
@@ -114,23 +115,6 @@ function relationBindTypes(
     }
   }
   return TABLE_BIND_TYPES[name];
-}
-
-function cteName(node: CommonTableExpressionNode): string {
-  return node.name.table.table.identifier.name;
-}
-
-/**
- * The scope a body of CTE `name` sees in place of its declaring SELECT: every
- * sibling CTE but itself, as ClickHouse resolves `WITH traces AS (SELECT …
- * FROM traces)` to the table, or to an enclosing CTE of that name. The
- * declaring SELECT's FROM relations are not visible to the body.
- */
-function withoutCte(scope: SelectScope, name: string): SelectScope {
-  return {
-    cte: (other) => (other === name ? undefined : scope.cte(other)),
-    relations: new Map(),
-  };
 }
 
 /**
@@ -421,6 +405,9 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     const bodies = new Map(
       (node.with?.expressions ?? []).map((cte) => [cteName(cte), cte]),
     );
+    // `enclosing` may be the compiler's live scope stack; a body typed on a
+    // later read must not see the scopes pushed since this SELECT's own.
+    const outer = [...enclosing];
     const typed = new Map<string, ColumnBindTypes>();
     const lookup = (name: string): ColumnBindTypes | undefined => {
       const cte = bodies.get(name);
@@ -431,7 +418,7 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
       // A body that is not a select (raw SQL) has no columns the compiler
       // can type, so it gets the name-only types, like an opaque relation.
       const columns =
-        this.outputBindTypes(cte.expression, [...enclosing, bodyScope]) ??
+        this.outputBindTypes(cte.expression, [...outer, bodyScope]) ??
         COLUMN_BIND_TYPES;
       typed.set(name, columns);
       return columns;
@@ -735,4 +722,17 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     this.namedParameters[name] = serializeParamValue(value);
     return `{${name}:${inferred}}`;
   }
+}
+
+/**
+ * The scope a body of CTE `name` sees in place of its declaring SELECT: every
+ * sibling CTE but itself, as ClickHouse resolves `WITH traces AS (SELECT …
+ * FROM traces)` to the table, or to an enclosing CTE of that name. The
+ * declaring SELECT's FROM relations are not visible to the body.
+ */
+function withoutCte(scope: SelectScope, name: string): SelectScope {
+  return {
+    cte: (other) => (other === name ? undefined : scope.cte(other)),
+    relations: new Map(),
+  };
 }
