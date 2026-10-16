@@ -177,4 +177,20 @@ describe("writeInternalTraceViaOtelIngestion", () => {
 
     expect(publishToOtelIngestionQueue).not.toHaveBeenCalled();
   });
+
+  it("ignores the host's OTEL_TRACES_SAMPLER", async () => {
+    vi.stubEnv("OTEL_TRACES_SAMPLER", "parentbased_traceidratio");
+    vi.stubEnv("OTEL_TRACES_SAMPLER_ARG", "0");
+
+    try {
+      await writeInternalTraceViaOtelIngestion({
+        rootSpanId: TRACE_ID,
+        eventInputs: [codeEvalRootInput],
+      });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+
+    expect(await processPublishedSpans()).toHaveLength(1);
+  });
 });
