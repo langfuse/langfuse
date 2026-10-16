@@ -3,28 +3,26 @@
 import {
   useId,
   useRef,
+  useState,
   type ChangeEvent,
   type KeyboardEvent,
   type ReactNode,
-  type Ref,
 } from "react";
-import { ArrowRight, ArrowUp, PencilLine } from "lucide-react";
+import { flushSync } from "react-dom";
 import { useController, type Control } from "react-hook-form";
 import {
   IN_APP_AGENT_QUESTIONNAIRE_MAX_ANSWER_LENGTH,
   type InAppAgentQuestionnaireQuestion,
 } from "@langfuse/shared/in-app-agent";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/design-system/Button/Button";
-import {
-  Checkbox,
-  type CheckedState,
-} from "@/src/components/design-system/Checkbox/Checkbox";
+import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
+import { Input } from "@/src/components/design-system/Input/Input";
+import { RadioGroup } from "@/src/components/design-system/RadioGroup/RadioGroup";
 import type { QuestionnaireFormValues } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireCard/fns/createQuestionnaireFormValues";
 import { updateQuestionnaireAnswer } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireCard/fns/updateQuestionnaireAnswer";
-import { cn } from "@/src/utils/tailwind";
 
 const OTHER_ANSWER_LABEL = "Something else";
+const OTHER_VALUE = "other";
 
 export type QuestionnaireStepProps = {
   control: Control<QuestionnaireFormValues>;
@@ -32,14 +30,13 @@ export type QuestionnaireStepProps = {
   questionIndex: number;
   submitLabel: string;
   isDisabled: boolean;
-  onAdvance: () => void;
   onSkip: () => void;
 };
 
 /**
- * Single-choice questions advance as soon as an option is picked, like a
- * menu. Multi-choice questions collect toggles and advance from the footer.
- * Number keys pick or toggle the matching option while focus is in the step.
+ * Options and the custom answer form one divided list, picked with a radio or
+ * a checkbox. Every step confirms from the footer. Number keys pick or toggle
+ * the matching option while focus is in the step.
  */
 export function QuestionnaireStep({
   control,
@@ -47,33 +44,73 @@ export function QuestionnaireStep({
   questionIndex,
   submitLabel,
   isDisabled,
-  onAdvance,
   onSkip,
 }: QuestionnaireStepProps) {
+  const idPrefix = useId();
+  const otherInputRef = useRef<HTMLInputElement>(null);
   const { field } = useController({
     control,
     name: `answers.${questionIndex}`,
   });
   const answer = field.value;
   const hasOtherText = answer.otherText.trim().length > 0;
+  const [isOtherOpen, setIsOtherOpen] = useState(hasOtherText);
+  const selectedCount =
+    answer.selectedOptionIndexes.length + (hasOtherText ? 1 : 0);
 
-  const handleSelectOption = (optionIndex: number) => {
+  const openOther = () => {
+    flushSync(() => {
+      setIsOtherOpen(true);
+    });
+    otherInputRef.current?.focus();
+  };
+
+  const handlePickOption = (optionIndex: number) => {
+    if (question.allowMultiple) {
+      field.onChange(
+        updateQuestionnaireAnswer(answer, question, {
+          type: "toggleOption",
+          optionIndex,
+        }),
+      );
+      return;
+    }
     field.onChange(
       updateQuestionnaireAnswer(answer, question, {
         type: "selectOption",
         optionIndex,
       }),
     );
-    onAdvance();
+    setIsOtherOpen(false);
   };
 
-  const handleToggleOption = (optionIndex: number) => {
+  const handlePickOther = () => {
+    field.onChange(
+      updateQuestionnaireAnswer(answer, question, { type: "selectOther" }),
+    );
+    openOther();
+  };
+
+  const handleToggleOther = () => {
+    if (!isOtherOpen) {
+      openOther();
+      return;
+    }
     field.onChange(
       updateQuestionnaireAnswer(answer, question, {
-        type: "toggleOption",
-        optionIndex,
+        type: "setOtherText",
+        otherText: "",
       }),
     );
+    setIsOtherOpen(false);
+  };
+
+  const handleRadioValueChange = (value: string) => {
+    if (value === OTHER_VALUE) {
+      handlePickOther();
+      return;
+    }
+    handlePickOption(Number(value));
   };
 
   const handleOtherTextChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -81,15 +118,6 @@ export function QuestionnaireStep({
       updateQuestionnaireAnswer(answer, question, {
         type: "setOtherText",
         otherText: event.target.value,
-      }),
-    );
-  };
-
-  const handleClearOtherText = () => {
-    field.onChange(
-      updateQuestionnaireAnswer(answer, question, {
-        type: "setOtherText",
-        otherText: "",
       }),
     );
   };
@@ -109,97 +137,102 @@ export function QuestionnaireStep({
       return;
     }
     event.preventDefault();
-    if (question.allowMultiple) {
-      handleToggleOption(optionIndex);
-    } else {
-      handleSelectOption(optionIndex);
-    }
+    handlePickOption(optionIndex);
   };
 
-  const submitButton = (
-    <Button
-      text={submitLabel}
-      icon={ArrowUp}
-      size="sm"
-      type="submit"
-      disabled={isDisabled}
-    />
-  );
-  const skipButton = (
-    <Button
-      text="Skip"
-      variant="outline"
-      size="sm"
-      disabled={isDisabled}
-      onClick={onSkip}
-    />
-  );
-
-  if (!question.allowMultiple) {
-    return (
-      <div
-        className="flex flex-col gap-1.5 px-3 pt-1.5 pb-3"
-        onKeyDown={handleKeyDown}
-      >
-        {question.options.map((option, optionIndex) => (
-          <SingleChoiceRow
-            key={optionIndex}
-            optionIndex={optionIndex}
-            label={option.label}
-            description={option.description}
-            isRecommended={option.recommended}
-            isSelected={answer.selectedOptionIndexes.includes(optionIndex)}
-            // A typed answer replaces the options, so they recede.
-            isDimmed={hasOtherText}
-            isDisabled={isDisabled}
-            onSelect={handleSelectOption}
-          />
-        ))}
-        <OtherAnswerRow
-          value={answer.otherText}
-          isDisabled={isDisabled}
-          onChange={handleOtherTextChange}
-        >
-          {hasOtherText ? submitButton : skipButton}
-        </OtherAnswerRow>
-      </div>
-    );
-  }
-
-  const selectedCount =
-    answer.selectedOptionIndexes.length + (hasOtherText ? 1 : 0);
+  const optionId = (key: number | string) => `${idPrefix}-${key}`;
+  const otherInput = isOtherOpen ? (
+    <div className="pt-1.5">
+      <Input
+        ref={otherInputRef}
+        aria-label="Custom answer"
+        placeholder="Type your own answer"
+        maxLength={IN_APP_AGENT_QUESTIONNAIRE_MAX_ANSWER_LENGTH}
+        value={answer.otherText}
+        disabled={isDisabled}
+        onChange={handleOtherTextChange}
+      />
+    </div>
+  ) : null;
 
   return (
     <div onKeyDown={handleKeyDown}>
-      <div className="flex flex-col px-1.5 pb-1.5">
-        {question.options.map((option, optionIndex) => (
-          <MultipleChoiceRow
-            key={optionIndex}
-            optionIndex={optionIndex}
-            label={option.label}
-            description={option.description}
-            isRecommended={option.recommended}
-            isSelected={answer.selectedOptionIndexes.includes(optionIndex)}
-            isDisabled={isDisabled}
-            onToggle={handleToggleOption}
-          />
-        ))}
-        <MultipleChoiceOtherRow
-          value={answer.otherText}
-          isChecked={hasOtherText}
-          isDisabled={isDisabled}
-          onChange={handleOtherTextChange}
-          onClear={handleClearOtherText}
+      {question.allowMultiple ? (
+        <div className="divide-border divide-y">
+          {question.options.map((option, optionIndex) => (
+            <MultipleChoiceRow
+              key={optionIndex}
+              id={optionId(optionIndex)}
+              optionIndex={optionIndex}
+              label={option.label}
+              description={option.description}
+              isRecommended={option.recommended}
+              isChecked={answer.selectedOptionIndexes.includes(optionIndex)}
+              isDisabled={isDisabled}
+              onToggle={handlePickOption}
+            />
+          ))}
+          <OptionRow
+            htmlFor={optionId(OTHER_VALUE)}
+            label={OTHER_ANSWER_LABEL}
+            below={otherInput}
+          >
+            <Checkbox
+              size="sm"
+              id={optionId(OTHER_VALUE)}
+              checked={isOtherOpen || hasOtherText}
+              disabled={isDisabled}
+              onCheckedChange={handleToggleOther}
+            />
+          </OptionRow>
+        </div>
+      ) : (
+        <RadioGroup
+          spacing="none"
+          value={radioValue(answer.selectedOptionIndexes, isOtherOpen)}
+          onValueChange={handleRadioValueChange}
+        >
+          <div className="divide-border divide-y">
+            {question.options.map((option, optionIndex) => (
+              <OptionRow
+                key={optionIndex}
+                htmlFor={optionId(optionIndex)}
+                label={withRecommended(option.label, option.recommended)}
+                description={option.description}
+              >
+                <RadioGroup.Item
+                  size="sm"
+                  id={optionId(optionIndex)}
+                  value={String(optionIndex)}
+                  disabled={isDisabled}
+                />
+              </OptionRow>
+            ))}
+            <OptionRow
+              htmlFor={optionId(OTHER_VALUE)}
+              label={OTHER_ANSWER_LABEL}
+              below={otherInput}
+            >
+              <RadioGroup.Item
+                size="sm"
+                id={optionId(OTHER_VALUE)}
+                value={OTHER_VALUE}
+                disabled={isDisabled}
+              />
+            </OptionRow>
+          </div>
+        </RadioGroup>
+      )}
+      <div className="flex items-center justify-end gap-2 px-4 pt-0.5 pb-2.5">
+        <Button
+          text="Skip"
+          variant="outline"
+          size="sm"
+          disabled={isDisabled}
+          onClick={onSkip}
         />
-      </div>
-      <div className="border-border flex items-center gap-2 border-t px-3 py-2">
-        <span className="text-muted-foreground flex-1 text-xs">
-          {selectedCount} selected
-        </span>
-        {skipButton}
         <Button
           text={submitLabel}
-          icon={ArrowUp}
           size="sm"
           type="submit"
           disabled={isDisabled || selectedCount === 0}
@@ -209,255 +242,90 @@ export function QuestionnaireStep({
   );
 }
 
-type SingleChoiceRowProps = {
-  optionIndex: number;
-  label: string;
-  description: string;
-  isRecommended: boolean;
-  isSelected: boolean;
-  isDimmed: boolean;
-  isDisabled: boolean;
-  onSelect: (optionIndex: number) => void;
-};
+function radioValue(selectedOptionIndexes: number[], isOtherOpen: boolean) {
+  if (isOtherOpen) {
+    return OTHER_VALUE;
+  }
+  const [selected] = selectedOptionIndexes;
+  return selected === undefined ? "" : String(selected);
+}
 
-function SingleChoiceRow({
-  optionIndex,
-  label,
-  description,
-  isRecommended,
-  isSelected,
-  isDimmed,
-  isDisabled,
-  onSelect,
-}: SingleChoiceRowProps) {
-  const handleClick = () => {
-    onSelect(optionIndex);
-  };
-
-  return (
-    <button
-      type="button"
-      aria-pressed={isSelected}
-      data-dimmed={isDimmed}
-      disabled={isDisabled}
-      className="group border-border hover:bg-muted focus-visible:bg-muted aria-pressed:bg-muted flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left text-sm transition-opacity focus-visible:outline-hidden disabled:cursor-not-allowed data-[dimmed=true]:opacity-50"
-      onClick={handleClick}
-    >
-      <OptionText
-        label={label}
-        description={description}
-        isRecommended={isRecommended}
-      />
-      <ArrowRight
-        aria-hidden
-        className="text-muted-foreground icon-base invisible shrink-0 group-hover:visible group-focus-visible:visible group-aria-pressed:visible"
-      />
-    </button>
-  );
+function withRecommended(label: string, isRecommended: boolean) {
+  return isRecommended ? `${label} (Recommended)` : label;
 }
 
 type MultipleChoiceRowProps = {
+  id: string;
   optionIndex: number;
   label: string;
   description: string;
   isRecommended: boolean;
-  isSelected: boolean;
+  isChecked: boolean;
   isDisabled: boolean;
   onToggle: (optionIndex: number) => void;
 };
 
 function MultipleChoiceRow({
+  id,
   optionIndex,
   label,
   description,
   isRecommended,
-  isSelected,
+  isChecked,
   isDisabled,
   onToggle,
 }: MultipleChoiceRowProps) {
-  const id = useId();
-
   const handleCheckedChange = () => {
     onToggle(optionIndex);
   };
 
   return (
-    <label
+    <OptionRow
       htmlFor={id}
-      className="hover:bg-muted has-focus-visible:bg-muted flex cursor-pointer items-start gap-3 rounded-lg px-2 py-2 text-sm has-disabled:cursor-not-allowed"
+      label={withRecommended(label, isRecommended)}
+      description={description}
     >
-      <span className="flex h-5 shrink-0 items-center">
-        <Checkbox
-          id={id}
-          checked={isSelected}
-          disabled={isDisabled}
-          onCheckedChange={handleCheckedChange}
-        />
-      </span>
-      <OptionText
-        label={label}
-        description={description}
-        isRecommended={isRecommended}
+      <Checkbox
+        size="sm"
+        id={id}
+        checked={isChecked}
+        disabled={isDisabled}
+        onCheckedChange={handleCheckedChange}
       />
-    </label>
+    </OptionRow>
   );
 }
 
-type OptionTextProps = {
+type OptionRowProps = {
+  htmlFor: string;
   label: string;
-  description: string;
-  isRecommended: boolean;
+  description?: string;
+  /** Shown under the label inside the row, like the custom answer field. */
+  below?: ReactNode;
+  /** The radio or checkbox. */
+  children: ReactNode;
 };
 
-function OptionText({ label, description, isRecommended }: OptionTextProps) {
-  return (
-    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-      <span className="flex flex-wrap items-center gap-1.5">
-        {label}
-        {isRecommended ? (
-          <Badge text="Recommended" size="sm" color="green" />
-        ) : null}
-      </span>
-      <span className="text-muted-foreground text-xs">{description}</span>
-    </span>
-  );
-}
-
-type OtherAnswerRowProps = {
-  value: string;
-  isDisabled: boolean;
-  onChange: (event: ChangeEvent<HTMLInputElement>) => void;
-  children?: ReactNode;
-};
-
-function OtherAnswerRow({
-  value,
-  isDisabled,
-  onChange,
+function OptionRow({
+  htmlFor,
+  label,
+  description,
+  below,
   children,
-}: OtherAnswerRowProps) {
+}: OptionRowProps) {
   return (
-    <label className="border-border focus-within:border-ring flex items-center gap-3 rounded-lg border px-3 py-2 text-sm transition-colors">
-      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="flex items-center gap-1.5">
-          {OTHER_ANSWER_LABEL}
-          <PencilLine aria-hidden className="text-muted-foreground icon-sm" />
-        </span>
-        <OtherAnswerInput
-          value={value}
-          placeholder="Click to type your own answer…"
-          size="xs"
-          isDisabled={isDisabled}
-          onChange={onChange}
-        />
-      </span>
-      {children}
-    </label>
-  );
-}
-
-type MultipleChoiceOtherRowProps = {
-  value: string;
-  isChecked: boolean;
-  isDisabled: boolean;
-  onChange: (event: ChangeEvent<HTMLInputElement>) => void;
-  onClear: () => void;
-};
-
-/**
- * The checkbox mirrors whether a custom answer is typed: checking it focuses
- * the input, unchecking it clears the text.
- */
-function MultipleChoiceOtherRow({
-  value,
-  isChecked,
-  isDisabled,
-  onChange,
-  onClear,
-}: MultipleChoiceOtherRowProps) {
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const handleCheckedChange = (checked: CheckedState) => {
-    if (checked === true) {
-      inputRef.current?.focus();
-      return;
-    }
-    onClear();
-  };
-
-  return (
-    <div className="hover:bg-muted has-focus-visible:bg-muted flex items-center gap-3 rounded-lg px-2 py-2">
-      <span className="flex h-5 shrink-0 items-center">
-        <Checkbox
-          aria-label="Use a custom answer"
-          checked={isChecked}
-          disabled={isDisabled}
-          onCheckedChange={handleCheckedChange}
-        />
-      </span>
-      <span className="relative flex min-w-0 flex-1">
-        <OtherAnswerInput
-          ref={inputRef}
-          value={value}
-          placeholder={OTHER_ANSWER_LABEL}
-          size="sm"
-          isDisabled={isDisabled}
-          onChange={onChange}
-        />
-        {value === "" ? <OtherAnswerPlaceholderIcon /> : null}
-      </span>
-    </div>
-  );
-}
-
-/**
- * Marks the unboxed field as editable. An invisible copy of the placeholder
- * pushes the pen to where the placeholder text ends.
- */
-function OtherAnswerPlaceholderIcon() {
-  return (
-    <span
-      aria-hidden
-      className="pointer-events-none absolute inset-y-0 left-0 flex items-center gap-1.5 text-sm leading-5"
+    <label
+      htmlFor={htmlFor}
+      className="hover:bg-muted/50 has-focus-visible:bg-muted/50 flex cursor-pointer items-start gap-3 px-4 py-2 text-xs has-disabled:cursor-not-allowed"
     >
-      <span className="invisible">{OTHER_ANSWER_LABEL}</span>
-      <PencilLine className="text-muted-foreground icon-sm" />
-    </span>
-  );
-}
-
-type OtherAnswerInputProps = {
-  ref?: Ref<HTMLInputElement>;
-  value: string;
-  placeholder: string;
-  size: "sm" | "xs";
-  isDisabled: boolean;
-  onChange: (event: ChangeEvent<HTMLInputElement>) => void;
-};
-
-function OtherAnswerInput({
-  ref,
-  value,
-  placeholder,
-  size,
-  isDisabled,
-  onChange,
-}: OtherAnswerInputProps) {
-  return (
-    // Bare input: both rows frame it themselves, which the always-boxed
-    // design-system Input cannot do.
-    <input
-      ref={ref}
-      aria-label={OTHER_ANSWER_LABEL}
-      placeholder={placeholder}
-      maxLength={IN_APP_AGENT_QUESTIONNAIRE_MAX_ANSWER_LENGTH}
-      value={value}
-      disabled={isDisabled}
-      className={cn(
-        "placeholder:text-muted-foreground min-w-0 flex-1 border-0 bg-transparent p-0 focus:ring-0 focus:outline-hidden disabled:cursor-not-allowed",
-        size === "sm" ? "text-sm leading-5" : "text-xs leading-4",
-      )}
-      onChange={onChange}
-    />
+      <span className="flex h-5 shrink-0 items-center">{children}</span>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="leading-5">{label}</span>
+        {description ? (
+          <span className="text-muted-foreground text-xs">{description}</span>
+        ) : null}
+        {below}
+      </span>
+    </label>
   );
 }

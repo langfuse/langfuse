@@ -143,8 +143,8 @@ export const MalformedArguments = meta.story({
   },
 });
 
-export const SingleChoiceAutoSubmits = meta.story({
-  name: "(Test) Single choice submits as soon as an option is picked",
+export const SingleChoiceConfirms = meta.story({
+  name: "(Test) Single choice submits once the pick is confirmed",
   args: {
     tool: createQuestionnaireTool({ questions: [environmentQuestion] }),
     onAnswerQuestionnaire: fn().mockResolvedValue(undefined),
@@ -152,11 +152,12 @@ export const SingleChoiceAutoSubmits = meta.story({
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
-    await expect(
-      canvas.queryByRole("button", { name: "Submit" }),
-    ).not.toBeInTheDocument();
+    const submit = canvas.getByRole("button", { name: "Submit" });
+    await expect(submit).toBeDisabled();
 
     await userEvent.click(canvas.getByText("Staging"));
+    await expect(args.onAnswerQuestionnaire).not.toHaveBeenCalled();
+    await userEvent.click(submit);
 
     await expect(args.onAnswerQuestionnaire).toHaveBeenCalledWith(
       "approval-questionnaire-1",
@@ -166,7 +167,7 @@ export const SingleChoiceAutoSubmits = meta.story({
 });
 
 export const SingleChoiceNumberKey = meta.story({
-  name: "(Test) Single choice submits with a number key",
+  name: "(Test) Single choice picks with a number key and confirms with the shortcut",
   args: {
     tool: createQuestionnaireTool({ questions: [scheduleQuestion] }),
     onAnswerQuestionnaire: fn().mockResolvedValue(undefined),
@@ -176,8 +177,12 @@ export const SingleChoiceNumberKey = meta.story({
     const canvas = within(canvasElement);
     await expect(canvas.queryByText("1 of 1")).not.toBeInTheDocument();
 
-    canvas.getByRole("button", { name: /Every hour/ }).focus();
+    canvas.getByRole("radio", { name: /^Every hour/ }).focus();
     await userEvent.keyboard("4");
+    await expect(
+      canvas.getByRole("radio", { name: /^Once a week/ }),
+    ).toBeChecked();
+    await userEvent.keyboard("{Meta>}{Enter}{/Meta}");
 
     await expect(args.onAnswerQuestionnaire).toHaveBeenCalledWith(
       "approval-questionnaire-1",
@@ -187,7 +192,7 @@ export const SingleChoiceNumberKey = meta.story({
 });
 
 export const SingleChoiceCustomAnswer = meta.story({
-  name: "(Test) Single choice turns Skip into Submit for a custom answer",
+  name: "(Test) Single choice takes a custom answer",
   args: {
     tool: createQuestionnaireTool({ questions: [environmentQuestion] }),
     onAnswerQuestionnaire: fn().mockResolvedValue(undefined),
@@ -195,15 +200,16 @@ export const SingleChoiceCustomAnswer = meta.story({
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("button", { name: "Skip" })).toBeVisible();
-
-    await userEvent.type(
-      canvas.getByLabelText("Something else"),
-      "Preview environment",
-    );
     await expect(
-      canvas.queryByRole("button", { name: "Skip" }),
+      canvas.queryByLabelText("Custom answer"),
     ).not.toBeInTheDocument();
+
+    await userEvent.click(
+      canvas.getByRole("radio", { name: "Something else" }),
+    );
+    await expect(canvas.getByLabelText("Custom answer")).toHaveFocus();
+    await expect(canvas.getByRole("button", { name: "Submit" })).toBeDisabled();
+    await userEvent.keyboard("Preview environment");
     await userEvent.click(canvas.getByRole("button", { name: "Submit" }));
 
     await expect(args.onAnswerQuestionnaire).toHaveBeenCalledWith(
@@ -225,7 +231,6 @@ export const MultipleChoiceShortcut = meta.story({
     await expect(canvas.getByRole("button", { name: "Submit" })).toBeDisabled();
 
     await userEvent.click(canvas.getByText("Empty output"));
-    await expect(canvas.getByText("1 selected")).toBeVisible();
     await userEvent.keyboard("{Meta>}{Enter}{/Meta}");
 
     await expect(args.onAnswerQuestionnaire).toHaveBeenCalledWith(
@@ -236,7 +241,7 @@ export const MultipleChoiceShortcut = meta.story({
 });
 
 export const MultipleChoiceCustomAnswer = meta.story({
-  name: "(Test) Multiple choice checks the custom answer while it has text",
+  name: "(Test) Multiple choice opens and clears the custom answer",
   args: {
     tool: createQuestionnaireTool({ questions: [failureSignalsQuestion] }),
     onAnswerQuestionnaire: fn().mockResolvedValue(undefined),
@@ -245,21 +250,22 @@ export const MultipleChoiceCustomAnswer = meta.story({
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
     const customAnswerCheckbox = canvas.getByRole("checkbox", {
-      name: "Use a custom answer",
+      name: "Something else",
     });
     await expect(customAnswerCheckbox).not.toBeChecked();
 
     await userEvent.click(customAnswerCheckbox);
-    await expect(canvas.getByLabelText("Something else")).toHaveFocus();
+    await expect(canvas.getByLabelText("Custom answer")).toHaveFocus();
     await userEvent.keyboard("Timeouts");
     await expect(customAnswerCheckbox).toBeChecked();
-    await expect(canvas.getByText("1 selected")).toBeVisible();
 
     await userEvent.click(customAnswerCheckbox);
-    await expect(canvas.getByLabelText("Something else")).toHaveValue("");
-    await expect(canvas.getByText("0 selected")).toBeVisible();
+    await expect(
+      canvas.queryByLabelText("Custom answer"),
+    ).not.toBeInTheDocument();
 
-    await userEvent.type(canvas.getByLabelText("Something else"), "Timeouts");
+    await userEvent.click(customAnswerCheckbox);
+    await userEvent.keyboard("Timeouts");
     await userEvent.click(canvas.getByRole("button", { name: "Submit" }));
     await expect(args.onAnswerQuestionnaire).toHaveBeenCalledWith(
       "approval-questionnaire-1",
@@ -279,25 +285,25 @@ export const AnswerAllSteps = meta.story({
     const canvas = within(canvasElement);
     await expect(canvas.getByText("1 of 3")).toBeVisible();
 
-    await userEvent.click(canvas.getByLabelText("Something else"));
+    await userEvent.click(
+      canvas.getByRole("radio", { name: "Something else" }),
+    );
     await userEvent.keyboard("Preview environment");
     await userEvent.click(canvas.getByRole("button", { name: "Next" }));
 
     await expect(canvas.getByText("2 of 3")).toBeVisible();
     await userEvent.click(canvas.getByText("High latency"));
-    await userEvent.click(canvas.getByText("Tool errors"));
-    await expect(canvas.getByText("2 selected")).toBeVisible();
+    await userEvent.click(canvas.getByText("Tool errors (Recommended)"));
 
     await userEvent.click(
       canvas.getByRole("button", { name: "Previous question" }),
     );
-    await expect(canvas.getByLabelText("Something else")).toHaveValue(
+    await expect(canvas.getByLabelText("Custom answer")).toHaveValue(
       "Preview environment",
     );
-    // Picking an option replaces the typed answer and moves on.
+    // Picking an option replaces the typed answer.
     await userEvent.click(canvas.getByText("Staging"));
-
-    await expect(canvas.getByText("2 selected")).toBeVisible();
+    await userEvent.click(canvas.getByRole("button", { name: "Next" }));
     await userEvent.click(canvas.getByRole("button", { name: "Next" }));
 
     await expect(canvas.getByText("3 of 3")).toBeVisible();

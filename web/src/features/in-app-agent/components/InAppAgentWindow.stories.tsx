@@ -778,6 +778,80 @@ export const ToolApprovalRequired = meta.story({
   },
 });
 
+export const PendingQuestionnaire = meta.story({
+  args: {
+    isAssistantTurnInProgress: true,
+    isAwaitingApproval: true,
+    selectedConversationId: "conversation-1",
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: { type: "text", text: "Set up a hallucination evaluator." },
+      },
+      {
+        id: "assistant-intro",
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "A few quick questions before I set it up.",
+        },
+      },
+      {
+        id: "assistant-questionnaire",
+        role: "assistant",
+        content: {
+          type: "toolGroup",
+          tools: [
+            {
+              type: "tool",
+              name: IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
+              status: "running",
+              args: JSON.stringify({
+                questions: [
+                  {
+                    question: "Which environment should it run on?",
+                    options: [
+                      {
+                        label: "Production",
+                        description: "Score live traffic as it arrives.",
+                        recommended: true,
+                      },
+                      {
+                        label: "Staging",
+                        description: "Try it on pre-release traces first.",
+                        recommended: false,
+                      },
+                    ],
+                    allowMultiple: false,
+                  },
+                  {
+                    question: "Which signals count as a failure?",
+                    options: [
+                      {
+                        label: "Unsupported claims",
+                        description: "Statements the context does not back.",
+                        recommended: true,
+                      },
+                      {
+                        label: "Made-up citations",
+                        description: "Sources that do not exist.",
+                        recommended: false,
+                      },
+                    ],
+                    allowMultiple: true,
+                  },
+                ],
+              }),
+              approval: { id: "approval-questionnaire-1", status: "pending" },
+            },
+          ],
+        },
+      },
+    ],
+  },
+});
+
 export const AnsweredQuestionnaire = meta.story({
   name: "(Test) Answered questionnaire",
   args: {

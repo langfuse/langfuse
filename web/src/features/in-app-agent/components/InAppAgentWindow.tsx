@@ -1286,12 +1286,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
           </div>
         </ConversationScroller>
         {pendingToolCalls.length > 0 ? (
-          <div
-            className={cn(
-              "shrink-0 pt-1.5",
-              isExpanded ? "px-1.5 pb-2" : "px-3 pb-2",
-            )}
-          >
+          <div className="shrink-0 px-1.5 pt-1.5 pb-2">
             <div
               className={cn(
                 "flex flex-col gap-2",
@@ -1377,7 +1372,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               rounded corners. */}
           <form
             className={cn(
-              "border-border bg-card focus-within:border-border-contrast relative flex w-full cursor-text flex-col overflow-hidden rounded-xl border shadow-sm transition-colors",
+              "border-border bg-card focus-within:border-border-contrast relative flex w-full cursor-text flex-col overflow-hidden rounded-md border shadow-sm transition-colors",
               isExpanded && "mx-auto max-w-3xl",
             )}
             onClick={() => {

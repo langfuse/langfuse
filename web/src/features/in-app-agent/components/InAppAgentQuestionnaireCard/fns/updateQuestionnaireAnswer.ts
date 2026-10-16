@@ -5,11 +5,13 @@ import type { QuestionnaireFormAnswer } from "./createQuestionnaireFormValues";
 type QuestionnaireAnswerAction =
   | { type: "selectOption"; optionIndex: number }
   | { type: "toggleOption"; optionIndex: number }
+  | { type: "selectOther" }
   | { type: "setOtherText"; otherText: string };
 
 /**
  * Single-choice questions hold one answer at a time, so choosing an option
- * clears the custom answer and typing a custom answer clears the chosen option.
+ * clears the custom answer, and choosing or typing a custom answer clears the
+ * chosen option.
  * Multi-choice questions keep every toggled option next to the custom answer.
  */
 export function updateQuestionnaireAnswer(
@@ -22,6 +24,11 @@ export function updateQuestionnaireAnswer(
   }
   if (action.type === "toggleOption") {
     return toggleOption(answer, action.optionIndex);
+  }
+  if (action.type === "selectOther") {
+    return question.allowMultiple
+      ? answer
+      : { selectedOptionIndexes: [], otherText: answer.otherText };
   }
   if (action.type === "setOtherText") {
     return setOtherText(answer, question, action.otherText);

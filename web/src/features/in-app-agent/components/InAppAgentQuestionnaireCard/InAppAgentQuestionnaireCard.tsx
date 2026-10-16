@@ -98,6 +98,11 @@ function QuestionnaireForm({
   const isBusy =
     isSubmitting || isDismissing || form.formState.isSubmitting || isDisabled;
 
+  const currentAnswer = form.watch(`answers.${stepIndex}`);
+  const hasAnswer =
+    currentAnswer.selectedOptionIndexes.length > 0 ||
+    currentAnswer.otherText.trim().length > 0;
+
   const submitAnswers = form.handleSubmit(async (values) => {
     await onSubmit(approvalId, toQuestionnaireAnswers(values));
   });
@@ -113,9 +118,16 @@ function QuestionnaireForm({
     setStepIndex(stepIndex + 1);
   };
 
+  // Next and Submit confirm a choice; Skip advances without one.
+  const confirmStep = () => {
+    if (hasAnswer) {
+      goToNextStep();
+    }
+  };
+
   const handleFormSubmit = (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault();
-    goToNextStep();
+    confirmStep();
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLFormElement>) => {
@@ -123,7 +135,7 @@ function QuestionnaireForm({
       return;
     }
     event.preventDefault();
-    goToNextStep();
+    confirmStep();
   };
 
   const handlePreviousStep = () => {
@@ -156,12 +168,15 @@ function QuestionnaireForm({
   return (
     <form
       aria-labelledby={titleId}
-      className="bg-card text-foreground border-border rounded-xl border shadow-xs"
+      className="bg-card text-foreground border-border overflow-hidden rounded-md border shadow-xs"
       onSubmit={handleFormSubmit}
       onKeyDown={handleKeyDown}
     >
-      <div className="flex items-start gap-2 px-3 pt-2.5 pb-1">
-        <h3 id={titleId} className="min-w-0 flex-1 text-sm leading-5 font-bold">
+      <div className="bg-muted flex items-start gap-2 py-2 pr-2 pl-4">
+        <h3
+          id={titleId}
+          className="min-w-0 flex-1 py-0.5 text-xs leading-5 font-bold"
+        >
           {question.question}
         </h3>
         {stepCount > 1 ? (
@@ -200,7 +215,6 @@ function QuestionnaireForm({
         questionIndex={stepIndex}
         submitLabel={nextLabel}
         isDisabled={isBusy}
-        onAdvance={goToNextStep}
         onSkip={handleSkip}
       />
     </form>
