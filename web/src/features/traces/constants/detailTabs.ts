@@ -1,6 +1,5 @@
 export const DETAIL_TABS = [
   "preview",
-  "messages",
   "attributes",
   "scores",
   "log",

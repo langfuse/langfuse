@@ -17,7 +17,6 @@ export function getDetailTabs({
 }) {
   const visibility: Record<DetailTab, boolean> = {
     preview: true,
-    messages: isV4 && internalFeaturesEnabled,
     attributes: true,
     scores: canViewScores && !isAnnotationMode,
     log: (target === "trace" || isV4) && hasObservations && !isAnnotationMode,

@@ -60,7 +60,7 @@ export function SessionConversationTimeline({
                       query: {
                         timestamp:
                           navigation.previousTrace.timestamp.toISOString(),
-                        traceTab: "messages",
+                        traceView: "messages",
                       },
                     }}
                   >
@@ -80,7 +80,7 @@ export function SessionConversationTimeline({
                         query: {
                           timestamp:
                             navigation.nextTrace.timestamp.toISOString(),
-                          traceTab: "messages",
+                          traceView: "messages",
                         },
                       }}
                     >

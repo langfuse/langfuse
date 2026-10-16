@@ -71,7 +71,6 @@ import {
   useInternalFeaturesEnabled,
   useIsFeatureEnabled,
 } from "@/src/features/feature-flags";
-import { TraceMessagesView } from "../TraceMessagesView/TraceMessagesView";
 import { DetailAttributesTab } from "../DetailAttributesTab";
 import { buildModelParameters } from "@/src/features/traces/fns/buildModelParameters";
 import { buildObservationAttributes } from "@/src/features/traces/fns/buildObservationAttributes";
@@ -484,13 +483,6 @@ export function ConnectedObservationDetailView({
               }
             />
 
-            {selectedTab === "messages" && (
-              <Tabs.Content value="messages" layout="fill">
-                <div className="min-h-0 flex-1 overflow-auto p-4">
-                  <TraceMessagesView />
-                </div>
-              </Tabs.Content>
-            )}
             <Tabs.Content value="preview" layout="fill">
               <ObservationPreview
                 currentView={currentView}
