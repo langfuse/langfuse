@@ -5,3 +5,4 @@ export {
   useCorrectionCache,
 } from "@/src/features/corrections/contexts/CorrectionCacheContext";
 export { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
+export { getCorrectionsForObservation } from "@/src/features/corrections/utils/getCorrectionsForObservation";
