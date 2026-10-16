@@ -4,7 +4,7 @@ use axum::{
     Router,
     body::Body,
     extract::MatchedPath,
-    http::{HeaderMap, Request},
+    http::{HeaderMap, Request, StatusCode},
     middleware::{self, Next},
     response::Response,
 };
@@ -13,7 +13,7 @@ use tower_http::trace::TraceLayer;
 use tracing::Span;
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 
-use super::request::{ErrorOrigin, RequestObservation};
+use super::request::{ErrorOrigin, RequestObservation, Summary};
 
 /// Instrument application routes; mount health probes outside this router.
 pub fn instrument(router: Router) -> Router {
@@ -63,20 +63,8 @@ async fn record_http_duration(mut request: Request<Body>, next: Next) -> Respons
     let elapsed = start.elapsed();
     let status = response.status();
     let summary = observation.summary();
-    let (origin, reason) = summary.error.unwrap_or_else(|| match status.as_u16() {
-        // Responses the handler did not classify, such as router 404/405.
-        400..=499 => (ErrorOrigin::Client, "unhandled"),
-        500.. => (ErrorOrigin::Gateway, "unhandled"),
-        _ => (ErrorOrigin::None, "none"),
-    });
-    if origin != ErrorOrigin::None {
-        let span = Span::current();
-        span.record("error.origin", origin.as_str());
-        span.record("error.type", reason);
-        if status.is_server_error() {
-            span.record("otel.status_description", reason);
-        }
-    }
+    let (origin, reason) = summary.error.unwrap_or_else(|| fallback_error(status));
+    record_span_error(origin, reason, status);
     super::metrics::http_response(
         elapsed,
         &super::metrics::HttpResponse {
@@ -88,14 +76,39 @@ async fn record_http_duration(mut request: Request<Body>, next: Next) -> Respons
             provider: summary.provider,
         },
     );
-    // Overhead is only defined for requests that waited on a provider.
+    record_overhead(&route, &summary, elapsed);
+    response
+}
+
+/// Classifies responses the handler did not, such as router 404/405.
+fn fallback_error(status: StatusCode) -> (ErrorOrigin, &'static str) {
+    match status.as_u16() {
+        400..=499 => (ErrorOrigin::Client, "unhandled"),
+        500.. => (ErrorOrigin::Gateway, "unhandled"),
+        _ => (ErrorOrigin::None, "none"),
+    }
+}
+
+fn record_span_error(origin: ErrorOrigin, reason: &'static str, status: StatusCode) {
+    if origin == ErrorOrigin::None {
+        return;
+    }
+    let span = Span::current();
+    span.record("error.origin", origin.as_str());
+    span.record("error.type", reason);
+    if status.is_server_error() {
+        span.record("otel.status_description", reason);
+    }
+}
+
+/// Overhead is only defined for requests that waited on a provider.
+fn record_overhead(route: &str, summary: &Summary, elapsed: Duration) {
     if let Some(provider_headers) = summary.provider_headers {
         let total = elapsed
             .saturating_sub(summary.request_body.unwrap_or_default())
             .saturating_sub(provider_headers);
-        super::metrics::overhead(&route, summary.provider, total);
+        super::metrics::overhead(route, summary.provider, total);
     }
-    response
 }
 
 fn request_labels(request: &Request<Body>) -> (&str, &str) {
