@@ -1124,6 +1124,100 @@ describe("isDenylistedNoiseEvent", () => {
     });
   });
 
+  describe("L. drops Safari injected querySelectorAll.find.click (document-attributed)", () => {
+    // Real shape: Safari 26.6 on project settings. Injected page-world JS
+    // does Array.from(document.querySelectorAll("a")).find(...).click()
+    // looking for a link whose innerText is "API Keys". Settings nav items
+    // without href are <span>s, so find() is undefined. WebKit's TypeError
+    // includes the expression. Stack is document-attributed global code —
+    // no /_next/ chunk — so denyUrls cannot match. Langfuse never writes
+    // this querySelectorAll + find + click pattern.
+    const safariQuerySelectorAllFindClickEvent = (
+      value: string,
+      mechanismType = "auto.browser.global_handlers.onerror",
+      frames?: { filename: string; function?: string }[],
+    ): ErrorEvent =>
+      ({
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value,
+              mechanism: { type: mechanismType, handled: false },
+              ...(frames
+                ? {
+                    stacktrace: {
+                      frames: frames.map((frame) => ({
+                        filename: frame.filename,
+                        function: frame.function ?? "?",
+                      })),
+                    },
+                  }
+                : {}),
+            },
+          ],
+        },
+      }) as ErrorEvent;
+
+    const observedValue =
+      'undefined is not an object (evaluating \'Array.from(document.querySelectorAll("a")).find(e=>e.innerText.trim()==="API Keys").click\')';
+
+    it("drops the observed WebKit querySelectorAll.find.click TypeError", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          safariQuerySelectorAllFindClickEvent(observedValue),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the null WebKit variant and a trailing period", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          safariQuerySelectorAllFindClickEvent(
+            'null is not an object (evaluating \'Array.from(document.querySelectorAll("a")).find(e=>e.innerText.trim()==="API Keys").click\').',
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same wording with click()", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          safariQuerySelectorAllFindClickEvent(
+            'undefined is not an object (evaluating \'Array.from(document.querySelectorAll("a")).find(e=>e.innerText.trim()==="API Keys").click()\')',
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same pattern for a different link label", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          safariQuerySelectorAllFindClickEvent(
+            'undefined is not an object (evaluating \'Array.from(document.querySelectorAll("a")).find(e=>e.innerText.trim()==="Settings").click\')',
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same wording with document-attributed frames", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          safariQuerySelectorAllFindClickEvent(
+            observedValue,
+            "auto.browser.global_handlers.onerror",
+            [
+              {
+                filename: "app:///project/example/settings",
+                function: "global code",
+              },
+            ],
+          ),
+        ),
+      ).toBe(true);
+    });
+  });
+
   // The heart of the safety contract: prove that real / similar-looking errors
   // are NOT dropped. If any of these regress to `true`, a real bug would be
   // hidden from Sentry.
@@ -1768,6 +1862,80 @@ describe("isDenylistedNoiseEvent", () => {
             {
               type: "TypeError",
               value: "undefined is not an object (evaluating 'addMore.click')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  {
+                    filename:
+                      "https://us.cloud.langfuse.com/_next/static/chunks/pages/project/[projectId]/settings/[page]-abc.js",
+                    function: "onClick",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a longer app message that merely quotes querySelectorAll.find.click", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value:
+                'Failed to open settings: undefined is not an object (evaluating \'Array.from(document.querySelectorAll("a")).find(e=>e.innerText.trim()==="API Keys").click\')',
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps an app-captured querySelectorAll.find.click TypeError (not a Sentry browser wrap)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            'undefined is not an object (evaluating \'Array.from(document.querySelectorAll("a")).find(e=>e.innerText.trim()==="API Keys").click\')',
+            "TypeError",
+          ),
+        ),
+      ).toBe(false);
+      const consoleCaptured = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value:
+                'undefined is not an object (evaluating \'Array.from(document.querySelectorAll("a")).find(e=>e.innerText.trim()==="API Keys").click\')',
+              mechanism: {
+                type: "auto.core.capture_console",
+                handled: true,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(consoleCaptured)).toBe(false);
+    });
+
+    it("keeps the Safari querySelectorAll.find.click TypeError when a first-party chunk is on the stack", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value:
+                'undefined is not an object (evaluating \'Array.from(document.querySelectorAll("a")).find(e=>e.innerText.trim()==="API Keys").click\')',
               mechanism: {
                 type: "auto.browser.global_handlers.onerror",
                 handled: false,
