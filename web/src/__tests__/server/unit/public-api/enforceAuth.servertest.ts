@@ -245,6 +245,7 @@ describe("enforceAuth span metadata", () => {
       ["langfuse.api_key.id", "key_2"],
       ["langfuse.api_key.public_key", "pk-lf-1"],
       ["langfuse.project.id", PRJ],
+      ["langfuse.project.size", "unknown"],
       ["langfuse.org.id", ORG],
     ]);
   });
@@ -281,6 +282,7 @@ describe("enforceAuth span metadata", () => {
         ["langfuse.api_key.id", "key_1"],
         ["langfuse.api_key.public_key", "pk-lf-1"],
         ["langfuse.project.id", PRJ],
+        ["langfuse.project.size", "unknown"],
         ["langfuse.org.id", ORG],
       ]);
     },
@@ -310,6 +312,7 @@ describe("enforceAuth span metadata", () => {
       ["langfuse.api_key.id", "key_1"],
       ["langfuse.api_key.public_key", "pk-lf-1"],
       ["langfuse.project.id", "foreign"],
+      ["langfuse.project.size", "unknown"],
     ]);
   });
 
@@ -364,6 +367,7 @@ describe("enforceAuth span metadata", () => {
       ["langfuse.api_key.id", "key_2"],
       ["langfuse.api_key.public_key", "pk-lf-1"],
       ["langfuse.project.id", PRJ],
+      ["langfuse.project.size", "unknown"],
       ["langfuse.org.id", ORG],
     ]);
   });
@@ -394,6 +398,7 @@ describe("enforceAuth span metadata", () => {
       expect(authSpan.setAttribute.mock.calls).toEqual([
         ["langfuse.authz.action", "traces:read"],
         ["langfuse.project.id", PRJ],
+        ["langfuse.project.size", "unknown"],
         ...(missing ? [] : [["langfuse.org.id", ORG]]),
       ]);
     },
