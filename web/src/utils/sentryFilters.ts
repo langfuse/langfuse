@@ -1004,3 +1004,43 @@ export function isKitesurfInternalEvent(event: ErrorEvent): boolean {
   }
   return sawKitesurfVendorFrame;
 }
+
+/**
+ * Jam (jam.dev) bug-reporting extension injects page-world scripts whose
+ * webpack virtual filenames are `webpack://jam-extension/injected-scripts/…`.
+ * Those miss `denyUrls`, which only matches `chrome-extension://` and siblings.
+ *
+ * Observed as MobX minified error nr 35 ("There are multiple, different
+ * versions of MobX active") from `host-console-events.js`,
+ * `host-network-events.js`, and `host-additional-hooks.js` in one session.
+ * Langfuse does not depend on MobX; each Jam injector bundles its own copy.
+ *
+ * Same posture as {@link isPosthogRecorderInternalEvent}: drop only when every
+ * attributable frame is Jam. A mixed stack (Jam + `/_next/`) is KEPT. The
+ * MobX message alone is never enough — an app-chunk throw of the same wording
+ * still reaches Sentry.
+ */
+const JAM_EXTENSION_WEBPACK_PREFIX = "webpack://jam-extension/";
+
+function isJamExtensionFilename(filename: string): boolean {
+  const path = filename.split(/[?#]/)[0];
+  return path.startsWith(JAM_EXTENSION_WEBPACK_PREFIX);
+}
+
+export function isJamExtensionInternalEvent(event: ErrorEvent): boolean {
+  const frames = event.exception?.values?.[0]?.stacktrace?.frames;
+  if (!frames || frames.length === 0) return false;
+
+  let sawJamFrame = false;
+  for (const stackFrame of frames) {
+    const filename = stackFrame?.filename;
+    if (typeof filename !== "string" || filename.length === 0) continue;
+    if (isJamExtensionFilename(filename)) {
+      sawJamFrame = true;
+      continue;
+    }
+    if (isOpaqueOrSdkFrame(filename)) continue;
+    return false;
+  }
+  return sawJamFrame;
+}
