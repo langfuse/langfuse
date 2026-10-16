@@ -21,6 +21,7 @@ import {
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
   type InAppAgentQuestionnaireAnswers,
+  type InAppAgentToolInputs,
 } from "@langfuse/shared/in-app-agent";
 import {
   createInAppAgentConversationId,
@@ -885,19 +886,22 @@ describe("in-app agent background runs", () => {
         ],
       },
     });
-    const decide = (answers?: InAppAgentQuestionnaireAnswers) =>
+    const decide = (toolInputs?: InAppAgentToolInputs) =>
       caller.decideToolApproval({
         projectId,
         conversationId: conversation.id,
         runId: parkedRunId,
         toolCallId: "tool-call-1",
         approved: true,
-        answers,
+        toolInputs,
       });
+    const withAnswers = (answers: InAppAgentQuestionnaireAnswers) => ({
+      [IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME]: { answers },
+    });
 
     await expect(decide()).rejects.toMatchObject({ code: "BAD_REQUEST" });
     await expect(
-      decide([{ selectedOptionIndexes: [2], otherText: null }]),
+      decide(withAnswers([{ selectedOptionIndexes: [2], otherText: null }])),
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
     expect(
       (
@@ -907,8 +911,10 @@ describe("in-app agent background runs", () => {
       ).status,
     ).toBe(InAppAgentRunStatus.AWAITING_APPROVAL);
 
-    const answers = [{ selectedOptionIndexes: [1], otherText: null }];
-    const { runId: continuationRunId } = await decide(answers);
+    const toolInputs = withAnswers([
+      { selectedOptionIndexes: [1], otherText: null },
+    ]);
+    const { runId: continuationRunId } = await decide(toolInputs);
 
     const continuation = await prisma.inAppAgentRun.findFirstOrThrow({
       where: { id: continuationRunId, projectId },
@@ -916,11 +922,11 @@ describe("in-app agent background runs", () => {
     expect(continuation.request).toMatchObject({
       kind: "approvalDecision",
       approved: true,
-      answers,
+      toolInputs,
     });
   });
 
-  it("rejects answers for a tool that is not a questionnaire", async () => {
+  it("rejects tool inputs for a tool that does not take input", async () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
     const parkedRunId = await parkRunForApproval({
@@ -937,7 +943,7 @@ describe("in-app agent background runs", () => {
         runId: parkedRunId,
         toolCallId: "tool-call-1",
         approved: true,
-        answers: [],
+        toolInputs: { [IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME]: { answers: [] } },
       }),
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });

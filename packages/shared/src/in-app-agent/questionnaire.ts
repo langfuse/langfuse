@@ -54,19 +54,22 @@ export type InAppAgentQuestionnaireArgs = z.infer<
 export type InAppAgentQuestionnaireQuestion =
   InAppAgentQuestionnaireArgs["questions"][number];
 
+const InAppAgentQuestionnaireAnswerSchema = z.object({
+  selectedOptionIndexes: z
+    .array(z.number().int().nonnegative())
+    .max(IN_APP_AGENT_QUESTIONNAIRE_MAX_OPTIONS)
+    .refine((indexes) => new Set(indexes).size === indexes.length, {
+      message: "Select each option at most once.",
+    }),
+  otherText: z
+    .string()
+    .max(IN_APP_AGENT_QUESTIONNAIRE_MAX_ANSWER_LENGTH)
+    .nullable(),
+});
+
 /** One entry per question, in question order. An empty entry means skipped. */
 export const InAppAgentQuestionnaireAnswersSchema = z
-  .array(
-    z.object({
-      selectedOptionIndexes: z
-        .array(z.number().int().nonnegative())
-        .max(IN_APP_AGENT_QUESTIONNAIRE_MAX_OPTIONS),
-      otherText: z
-        .string()
-        .max(IN_APP_AGENT_QUESTIONNAIRE_MAX_ANSWER_LENGTH)
-        .nullable(),
-    }),
-  )
+  .array(InAppAgentQuestionnaireAnswerSchema)
   .max(IN_APP_AGENT_QUESTIONNAIRE_MAX_QUESTIONS);
 
 export type InAppAgentQuestionnaireAnswers = z.infer<
@@ -92,6 +95,45 @@ export type InAppAgentQuestionnaireResult = z.infer<
 >;
 
 /**
+ * Answers schema bound to the questions the model asked. Parsing checks every
+ * answer against its question and outputs the tool result the model reads.
+ */
+export function createInAppAgentQuestionnaireAnswersSchema(
+  questions: readonly InAppAgentQuestionnaireQuestion[],
+) {
+  return InAppAgentQuestionnaireAnswersSchema.length(questions.length, {
+    message: "Expected exactly one answer entry per question.",
+  })
+    .superRefine((answers, ctx) => {
+      if (answers.length !== questions.length) {
+        return;
+      }
+      for (const [index, question] of questions.entries()) {
+        if (!isValidAnswer(question, answers[index])) {
+          ctx.addIssue({
+            code: "custom",
+            path: [index],
+            message: `Invalid answer for question ${index + 1}.`,
+          });
+        }
+      }
+    })
+    .transform(
+      (answers): InAppAgentQuestionnaireResult => ({
+        type: "questionnaireAnswers",
+        answers: questions.map((question, index) => {
+          const answer = toAnswerLabels(question, answers[index]);
+          return {
+            question: question.question,
+            answer,
+            skipped: answer.length === 0,
+          };
+        }),
+      }),
+    );
+}
+
+/**
  * Validates user answers against the questions the model asked and turns
  * them into the tool result the model reads. Shared by the decision endpoint
  * (to reject bad input early) and the worker tool execution.
@@ -110,64 +152,49 @@ export function resolveInAppAgentQuestionnaireAnswers({
     return { success: false, error: "Invalid questionnaire questions." };
   }
 
-  const parsedAnswers = InAppAgentQuestionnaireAnswersSchema.safeParse(answers);
+  const parsedAnswers = createInAppAgentQuestionnaireAnswersSchema(
+    parsedArgs.data.questions,
+  ).safeParse(answers);
   if (!parsedAnswers.success) {
-    return { success: false, error: "Invalid questionnaire answers." };
-  }
-
-  const { questions } = parsedArgs.data;
-  if (parsedAnswers.data.length !== questions.length) {
     return {
       success: false,
-      error: "Expected exactly one answer entry per question.",
+      error:
+        parsedAnswers.error.issues[0]?.message ??
+        "Invalid questionnaire answers.",
     };
   }
 
-  const resolved: InAppAgentQuestionnaireResult["answers"] = [];
-  for (const [index, question] of questions.entries()) {
-    const answer = resolveAnswer(question, parsedAnswers.data[index]);
-    if (answer === null) {
-      return {
-        success: false,
-        error: `Invalid answer for question ${index + 1}.`,
-      };
-    }
-    resolved.push({
-      question: question.question,
-      answer,
-      skipped: answer.length === 0,
-    });
-  }
-
-  return {
-    success: true,
-    result: { type: "questionnaireAnswers", answers: resolved },
-  };
+  return { success: true, result: parsedAnswers.data };
 }
 
-function resolveAnswer(
+function getOtherText(answer: InAppAgentQuestionnaireAnswer): string | null {
+  return answer.otherText?.trim() || null;
+}
+
+function isValidAnswer(
   question: InAppAgentQuestionnaireQuestion,
   answer: InAppAgentQuestionnaireAnswer,
-): string[] | null {
+): boolean {
   const { selectedOptionIndexes } = answer;
-  const otherText = answer.otherText?.trim() || null;
-
   const isOutOfRange = selectedOptionIndexes.some(
     (optionIndex) => optionIndex >= question.options.length,
   );
-  const hasDuplicates =
-    new Set(selectedOptionIndexes).size !== selectedOptionIndexes.length;
-  if (isOutOfRange || hasDuplicates) {
-    return null;
+  if (isOutOfRange) {
+    return false;
   }
 
-  const answerCount = selectedOptionIndexes.length + (otherText ? 1 : 0);
-  if (!question.allowMultiple && answerCount > 1) {
-    return null;
-  }
+  const answerCount =
+    selectedOptionIndexes.length + (getOtherText(answer) ? 1 : 0);
+  return question.allowMultiple || answerCount <= 1;
+}
 
-  const labels = selectedOptionIndexes.map(
+function toAnswerLabels(
+  question: InAppAgentQuestionnaireQuestion,
+  answer: InAppAgentQuestionnaireAnswer,
+): string[] {
+  const labels = answer.selectedOptionIndexes.map(
     (optionIndex) => question.options[optionIndex].label,
   );
+  const otherText = getOtherText(answer);
   return otherText === null ? labels : [...labels, otherText];
 }

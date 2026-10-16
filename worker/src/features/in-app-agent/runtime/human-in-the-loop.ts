@@ -4,6 +4,9 @@ import {
   type AgUiEvent,
   type AgUiMessage,
   type InAppAgentToolApprovalRequest,
+  type InAppAgentToolInputs,
+  type InAppAgentToolWithInputs,
+  isInAppAgentToolWithInputs,
 } from "@langfuse/shared/in-app-agent";
 import { toAgUiToolResultContent } from "@langfuse/shared/in-app-agent/server/toolResults";
 import type { AgUiRunAgentInput, ResumeForwardedProps } from "./types";
@@ -17,11 +20,13 @@ const MANUAL_TOOL_APPROVAL_REJECTION_ERROR = JSON.stringify({
 
 type DeveloperGuidanceMessage = Extract<AgUiMessage, { role: "developer" }>;
 
-/** Resume payload a tool reads as Mastra's `context.agent.resumeData`. */
-export type ManualToolApprovalResumeData = Pick<
-  ResumeForwardedProps["command"]["resume"],
-  "answers"
->;
+/**
+ * The approved tool's own entry of the decision's tool inputs, which the tool
+ * reads as Mastra's `context.agent.resumeData`.
+ */
+export type ManualToolApprovalResumeData =
+  | InAppAgentToolInputs[InAppAgentToolWithInputs]
+  | undefined;
 
 type ExecuteApprovedToolCall = (
   approvalRequest: InAppAgentToolApprovalRequest,
@@ -49,7 +54,8 @@ export async function createManualToolApprovalRunInput(params: {
     return { input: params.input, syntheticEvents: [] };
   }
 
-  const { approved, approvalRequest, answers } = forwardedProps.command.resume;
+  const { approved, approvalRequest, toolInputs } =
+    forwardedProps.command.resume;
   if (!approved) {
     const assistantMessage =
       createManualToolCallAssistantMessage(approvalRequest);
@@ -89,7 +95,7 @@ export async function createManualToolApprovalRunInput(params: {
   const { toolResult, modelToolResult, toolError } =
     await executeApprovedToolCall({
       approvalRequest,
-      resumeData: { answers },
+      resumeData: getToolResumeData(approvalRequest.toolName, toolInputs),
       executeToolCall: params.executeToolCall,
     });
   await params.onApprovedToolCallExecuted?.();
@@ -172,6 +178,15 @@ async function executeApprovedToolCall(params: {
 
     return { toolResult: toolError, modelToolResult: toolError, toolError };
   }
+}
+
+function getToolResumeData(
+  toolName: string,
+  toolInputs: InAppAgentToolInputs | undefined,
+): ManualToolApprovalResumeData {
+  return isInAppAgentToolWithInputs(toolName)
+    ? toolInputs?.[toolName]
+    : undefined;
 }
 
 function getResumeForwardedProps(

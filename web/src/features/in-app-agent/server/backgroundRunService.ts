@@ -19,13 +19,11 @@ import {
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
   InAppAgentRunStatusSchema,
-  IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
   parseInAppAgentApprovalDecisionEvent,
   parseInAppAgentInterruptEvent,
-  resolveInAppAgentQuestionnaireAnswers,
+  validateInAppAgentToolInputs,
   type AgUiContext,
-  type InAppAgentQuestionnaireAnswers,
-  type InAppAgentToolApprovalRequest,
+  type InAppAgentToolInputs,
 } from "@langfuse/shared/in-app-agent";
 import { getInAppAgentPrefixedToolName } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 import { createInAppAgentMessageId, createInAppAgentRunId } from "../ids";
@@ -369,7 +367,7 @@ export async function decideBackgroundApproval(params: {
   toolCallId: string;
   approved: boolean;
   approvalScope?: "once" | "conversation";
-  answers?: InAppAgentQuestionnaireAnswers;
+  toolInputs?: InAppAgentToolInputs;
   userId: string;
   model: string | undefined;
 }) {
@@ -403,11 +401,15 @@ export async function decideBackgroundApproval(params: {
     throw new LangfuseNotFoundError("Approval request not found");
   }
 
-  assertValidQuestionnaireAnswers({
-    approvalRequest,
+  const toolInputsValidation = validateInAppAgentToolInputs({
+    toolName: approvalRequest.toolName,
+    args: approvalRequest.args,
     approved: params.approved,
-    answers: params.answers,
+    toolInputs: params.toolInputs,
   });
+  if (!toolInputsValidation.success) {
+    throw new InvalidRequestError(toolInputsValidation.error);
+  }
 
   // Resolve the granted tool from the persisted interrupt, never client input.
   const alwaysAllowToolName =
@@ -424,7 +426,7 @@ export async function decideBackgroundApproval(params: {
     toolCallId: params.toolCallId,
     approved: params.approved,
     alwaysAllowToolName,
-    answers: params.answers,
+    toolInputs: params.toolInputs,
     decidedByUserId: params.userId,
     model: params.model,
   });
@@ -436,32 +438,6 @@ export async function decideBackgroundApproval(params: {
   });
 
   return { runId: continuationRun.id };
-}
-
-// Answers are only meaningful for an approved questionnaire and must match
-// the questions the model persisted, so the worker never sees bad input.
-function assertValidQuestionnaireAnswers(params: {
-  approvalRequest: InAppAgentToolApprovalRequest;
-  approved: boolean;
-  answers: InAppAgentQuestionnaireAnswers | undefined;
-}) {
-  const isQuestionnaire =
-    params.approvalRequest.toolName === IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME;
-
-  if (!isQuestionnaire || !params.approved) {
-    if (params.answers !== undefined) {
-      throw new InvalidRequestError("Answers are only accepted for questions");
-    }
-    return;
-  }
-
-  const resolved = resolveInAppAgentQuestionnaireAnswers({
-    args: params.approvalRequest.args,
-    answers: params.answers,
-  });
-  if (!resolved.success) {
-    throw new InvalidRequestError(resolved.error);
-  }
 }
 
 function getPendingToolApprovals(

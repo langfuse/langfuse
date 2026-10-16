@@ -98,10 +98,14 @@ describe("createManualToolApprovalRunInput", () => {
 
   it("hands questionnaire answers to the tool and returns them to the model", async () => {
     const toolMessage = await approveQuestionnaire({
-      answers: [
-        { selectedOptionIndexes: [1], otherText: null },
-        { selectedOptionIndexes: [], otherText: null },
-      ],
+      toolInputs: {
+        [IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME]: {
+          answers: [
+            { selectedOptionIndexes: [1], otherText: null },
+            { selectedOptionIndexes: [], otherText: null },
+          ],
+        },
+      },
     });
 
     expect(toolMessage).not.toHaveProperty("error");

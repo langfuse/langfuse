@@ -18,12 +18,14 @@ import { useRouter } from "next/router";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { createInAppAgentConversationId } from "../ids";
 import {
+  IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
   AgUiMessageSchema,
   dropEmptyAssistantMessages,
   dropUnpairedAssistantToolCalls,
   type AgUiMessage,
   type InAppAgentQuestionnaireAnswers,
+  type InAppAgentToolInputs,
   type InAppAgentToolApprovalRequest,
 } from "@langfuse/shared/in-app-agent";
 import { isActiveInAppAgentRunStatus } from "../watchFrames";
@@ -893,7 +895,7 @@ function InAppAiAgentProviderInner({
             toolCallId: input.toolCallId,
             approved: input.approved,
             approvalScope: input.approvalScope,
-            answers: input.answers,
+            toolInputs: input.toolInputs,
           }),
         onHydratedSnapshot: ({ messages }) => {
           performToolSideEffectsForCompletedToolCalls({
@@ -1340,7 +1342,7 @@ function InAppAiAgentProviderInner({
       approval: InAppAgentPendingToolApproval;
       approved: boolean;
       approvalScope: "once" | "conversation";
-      answers?: InAppAgentQuestionnaireAnswers;
+      toolInputs?: InAppAgentToolInputs;
       conversationId: string;
     }) => {
       const runId =
@@ -1363,7 +1365,7 @@ function InAppAiAgentProviderInner({
           toolCallId: params.approval.approvalRequest.toolCallId,
           approved: params.approved,
           approvalScope: params.approvalScope,
-          answers: params.answers,
+          toolInputs: params.toolInputs,
         });
         return true;
       } catch (error) {
@@ -1379,7 +1381,7 @@ function InAppAiAgentProviderInner({
       approvalId: string,
       approved: boolean,
       approvalScope: "once" | "conversation" = "once",
-      answers?: InAppAgentQuestionnaireAnswers,
+      toolInputs?: InAppAgentToolInputs,
     ) => {
       const approval = effectivePendingToolApprovals.find(
         (approval) => approval.id === approvalId,
@@ -1398,7 +1400,7 @@ function InAppAiAgentProviderInner({
         approval,
         approved,
         approvalScope,
-        answers,
+        toolInputs,
         conversationId: selectedConversationId,
       });
       if (decisionAccepted) {
@@ -1465,7 +1467,9 @@ function InAppAiAgentProviderInner({
 
   const answerQuestionnaire = useCallback(
     (approvalId: string, answers: InAppAgentQuestionnaireAnswers) =>
-      resumeToolApproval(approvalId, true, "once", answers),
+      resumeToolApproval(approvalId, true, "once", {
+        [IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME]: { answers },
+      }),
     [resumeToolApproval],
   );
 

@@ -43,6 +43,7 @@ import {
   IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
   InAppAgentQuestionnaireArgsSchema,
   resolveInAppAgentQuestionnaireAnswers,
+  InAppAgentToolInputsSchema,
 } from "@langfuse/shared/in-app-agent";
 import {
   isSilentInAppAgentMcpToolOutput,
@@ -472,8 +473,8 @@ export function createRedirectActionTool({
   });
 }
 
-// Always gated behind a human decision: the answers arrive as the approval's
-// resume data, so the tool only turns them into a model-facing result.
+// Always gated behind a human decision: the answers arrive as the tool's
+// entry of the approval's tool inputs, so the tool only turns them into a model-facing result.
 export function createQuestionnaireTool() {
   return createTool({
     id: IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
@@ -514,15 +515,11 @@ export function createQuestionnaireTool() {
 }
 
 function getQuestionnaireResumeAnswers(resumeData: unknown) {
-  if (
-    typeof resumeData !== "object" ||
-    resumeData === null ||
-    !("answers" in resumeData)
-  ) {
-    return undefined;
-  }
-
-  return resumeData.answers;
+  const parsed =
+    InAppAgentToolInputsSchema.shape[
+      IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME
+    ].safeParse(resumeData);
+  return parsed.success ? parsed.data?.answers : undefined;
 }
 
 function getRedirectActionToolResult({
