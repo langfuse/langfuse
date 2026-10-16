@@ -405,6 +405,45 @@ function isSafariAddMoreClickMessage(value: string): boolean {
 }
 
 /**
+ * Chromium wording when injected page-world JS reads `.length` on
+ * undefined. Observed as an unhandled rejection whose stack is only
+ * `<anonymous>` frames — no `/_next/` chunk, so `denyUrls` cannot
+ * match. App code lives in hashed chunks; a first-party `.length`
+ * throw carries `/_next/` and is KEPT by {@link hasFirstPartyChunkFrame}.
+ *
+ * Whole-message only. Do not run through {@link coreMessage}: that
+ * helper strips a trailing `(…)` and would collapse this to the
+ * generic `Cannot read properties of undefined`.
+ */
+const CHROMIUM_UNDEFINED_LENGTH_MESSAGE =
+  "Cannot read properties of undefined (reading 'length')";
+
+function isChromiumUndefinedLengthMessage(value: string): boolean {
+  return (
+    value.trim().replace(/\.$/, "").trim() === CHROMIUM_UNDEFINED_LENGTH_MESSAGE
+  );
+}
+
+/**
+ * True when every stack frame is unattributed (`<anonymous>` or missing
+ * filename). Used with the exact Chromium `.length` wording so a
+ * first-party throw that lost its chunk URL is still KEPT — that event
+ * has no frames, or a named file.
+ */
+function hasOnlyAnonymousFrames(event: ErrorEvent): boolean {
+  const frames = event.exception?.values?.[0]?.stacktrace?.frames;
+  if (!frames || frames.length === 0) return false;
+  return frames.every((frame) => {
+    const filename = frame?.filename;
+    return (
+      typeof filename !== "string" ||
+      filename.length === 0 ||
+      filename === "<anonymous>"
+    );
+  });
+}
+
+/**
  * True when any stack frame is a first-party Next.js chunk. Used as a
  * negative guard so a future first-party throw that happens to share
  * WebKit's wording still reaches Sentry.
@@ -676,7 +715,11 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
     // exact TypeError for an injected `addMore` that is undefined. Stack is
     // document-attributed global code, not a chunk.
     //
-    // All three are anchored to a Sentry browser-API / global-handler
+    // Chromium injected-script `.length` on undefined is the same class:
+    // V8's exact TypeError, stack is only `<anonymous>` frames, not a
+    // chunk.
+    //
+    // All four are anchored to a Sentry browser-API / global-handler
     // mechanism so an app-captured exception that merely quotes the
     // phrase is KEPT.
     const mechanismType = exception?.mechanism?.type;
@@ -695,6 +738,14 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
       if (
         exceptionType === "TypeError" &&
         isSafariAddMoreClickMessage(exceptionValue) &&
+        !hasFirstPartyChunkFrame(event)
+      ) {
+        return true;
+      }
+      if (
+        exceptionType === "TypeError" &&
+        isChromiumUndefinedLengthMessage(exceptionValue) &&
+        hasOnlyAnonymousFrames(event) &&
         !hasFirstPartyChunkFrame(event)
       ) {
         return true;
