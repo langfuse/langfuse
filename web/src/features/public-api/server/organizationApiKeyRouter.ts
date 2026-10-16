@@ -12,7 +12,7 @@ import { LangfuseNotFoundError } from "@langfuse/shared";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import { apiKeyCreationRoleSchema } from "@/src/features/public-api/server/apiKeyCreationRoleSchema";
-import { excludeGatewayApiKeys } from "@/src/features/ai-gateway/fns/separateGatewayApiKeys";
+import { excludeGatewayApiKeys } from "@/src/features/ai-gateway/server/apiKey/excludeGatewayApiKeys";
 
 export const organizationApiKeysRouter = createTRPCRouter({
   byOrganizationId: protectedOrganizationProcedure
