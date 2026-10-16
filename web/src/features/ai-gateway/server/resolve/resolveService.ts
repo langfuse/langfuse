@@ -14,6 +14,7 @@ import { GatewayControlPlaneError as GatewayResolveError } from "@/src/features/
 import {
   type GatewayApiFormat,
   type GatewayProviderId,
+  type GatewayResolveResponse,
   getGatewayProviderDefinition,
 } from "@/src/features/ai-gateway/server/provider";
 
@@ -66,7 +67,7 @@ export class GatewayResolveService {
   async resolve(params: {
     context: GatewayApiKeyAuthContext;
     apiFormat: GatewayApiFormat;
-  }) {
+  }): Promise<GatewayResolveResponse> {
     return instrumentAsync({ name: "gateway-resolve" }, async (span) => {
       span.setAttribute(
         "langfuse.organization.id",
@@ -80,13 +81,12 @@ export class GatewayResolveService {
           403,
         );
       }
-      if (!context.connection) {
+      if (!context.connection || !context.providerModel) {
         throw new GatewayResolveError(
           "No enabled gateway connection supports this API format",
           404,
         );
       }
-
       const provider = getGatewayProviderDefinition(
         context.connection.provider,
       );
@@ -98,6 +98,7 @@ export class GatewayResolveService {
           name: context.connection.name,
           provider:
             context.connection.provider.toLowerCase() as GatewayProviderId,
+          provider_model: context.providerModel,
           api_format: params.apiFormat,
           base_url: provider.baseUrl,
           auth:

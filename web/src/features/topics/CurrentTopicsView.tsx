@@ -27,9 +27,12 @@ export function CurrentTopicsView({
   mapResult,
   onOpenTrace,
   onInspectTranscript,
+  canInspectTranscript,
   peekView,
   tracePanelRef,
   traceFilters,
+  onGenerateTopics,
+  canGenerateTopics,
 }: CurrentTopicsViewProps) {
   const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null);
   const isNarrow = useMediaQuery({ query: "(max-width: 1023px)" });
@@ -41,11 +44,18 @@ export function CurrentTopicsView({
     setSelectedTraceId(null);
     setFilters(selectTopicTraceFilters(filters, topicId));
   }
-  const visible = filterTopicTraces(facet.rows, filters, searchQuery);
-  const isFiltered = filters.length > 0 || Boolean(searchQuery?.trim());
-  const matchingTraceKey = isFiltered
-    ? JSON.stringify([...new Set(visible.map((row) => row.traceId))].sort())
-    : null;
+  const { visible, matchingTraceKey } = useMemo(() => {
+    const isFiltered = filters.length > 0 || Boolean(searchQuery?.trim());
+    const visible = isFiltered
+      ? filterTopicTraces(facet.rows, filters, searchQuery)
+      : facet.rows;
+    return {
+      visible,
+      matchingTraceKey: isFiltered
+        ? JSON.stringify([...new Set(visible.map((row) => row.traceId))].sort())
+        : null,
+    };
+  }, [facet.rows, filters, searchQuery]);
   /** Frame identity changes only when matching IDs change, preserving hover and focus across refreshes. */
   const matchingTraceIds = useMemo(
     () =>
@@ -76,13 +86,6 @@ export function CurrentTopicsView({
           topics.map((topic) => topic.id),
         ),
   );
-  const counts = (
-    <p className="text-muted-foreground text-xs">
-      {facet.rows.length.toLocaleString()} traces · {facet.topics.length} topics
-      {facet.awaitingCount > 0 &&
-        ` · ${facet.awaitingCount.toLocaleString()} awaiting a map or updated assignment`}
-    </p>
-  );
   const mapPanel = (
     <section
       aria-label="Topic map"
@@ -107,24 +110,31 @@ export function CurrentTopicsView({
           }
           fillContainer
         />
-      ) : (
-        <div className="flex flex-col gap-1 rounded-md border p-2">
-          {counts}
-          <p className="text-muted-foreground text-xs">
-            {facet.usableCount.toLocaleString()} usable summaries collected for
-            v{facet.facetVersion ?? 1}. Run Update topics to cluster stored
-            summaries. You can configure the minimum there.
-          </p>
-        </div>
-      )}
+      ) : null}
     </section>
+  );
+  const emptyTopics = (
+    <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
+      <h3 className="text-lg font-bold">Find patterns in your summaries</h3>
+      <p className="text-muted-foreground max-w-sm text-sm">
+        Generate topics to group similar summaries and discover recurring themes
+        for this facet. Choose a time range and the facets to include in Manual
+        processing.
+      </p>
+      <Button
+        text="Generate topics"
+        size="sm"
+        disabled={!canGenerateTopics}
+        onClick={onGenerateTopics}
+      />
+    </div>
   );
   const groupsPanel = (
     <section
       aria-label="Topic groups"
       className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border"
     >
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain p-2">
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
           {facet.topics.map((topic) => (
             <TopicGroupCard
@@ -138,12 +148,15 @@ export function CurrentTopicsView({
             />
           ))}
         </div>
-        {facet.topics.length === 0 && (
-          <p className="text-muted-foreground text-xs">
-            No topics yet. Inspect the collected summaries or update topics to
-            find recurring groups.
-          </p>
-        )}
+        {facet.topics.length === 0 &&
+          (facet.map?.topics.length ? (
+            <p className="text-muted-foreground p-6 text-center text-sm">
+              No topic assignments in this time range. Choose a different time
+              range to explore existing topics.
+            </p>
+          ) : (
+            emptyTopics
+          ))}
       </div>
     </section>
   );
@@ -151,7 +164,10 @@ export function CurrentTopicsView({
     <section
       aria-label="Topic traces"
       ref={isNarrow ? undefined : tracePanelRef}
-      className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border lg:col-start-2 lg:row-span-2 lg:row-start-1"
+      className={cn(
+        "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border lg:col-start-2 lg:row-start-1",
+        facet.map && "lg:row-span-2",
+      )}
     >
       <TopicsTraceToolbar
         projectId={projectId}
@@ -166,6 +182,7 @@ export function CurrentTopicsView({
         projectId={projectId}
         onOpenTrace={onOpenTrace}
         onInspectTranscript={onInspectTranscript}
+        canInspectTranscript={canInspectTranscript}
         peekView={peekView}
         rows={visible}
         totalCount={facet.rows.length}
@@ -181,10 +198,10 @@ export function CurrentTopicsView({
         "grid min-h-0 min-w-0 flex-1 gap-2 overflow-hidden lg:grid-cols-2",
         facet.map
           ? "grid-rows-[minmax(0,9fr)_minmax(0,11fr)] lg:grid-rows-[minmax(0,3fr)_minmax(0,2fr)]"
-          : "grid-rows-[auto_minmax(0,1fr)]",
+          : "grid-rows-[minmax(0,1fr)]",
       )}
     >
-      {mapPanel}
+      {facet.map && mapPanel}
       {isNarrow ? (
         <Tabs
           value={mobilePanel}
@@ -224,6 +241,7 @@ function CurrentTraceTable({
   projectId,
   onOpenTrace,
   onInspectTranscript,
+  canInspectTranscript,
   peekView,
   rows,
   totalCount,
@@ -317,12 +335,14 @@ function CurrentTraceTable({
             <p className="break-words whitespace-pre-wrap">
               {row.original.summary || "No applicable summary."}
             </p>
-            <Button
-              text="Debug transcript"
-              variant="secondary"
-              size="sm"
-              onClick={inspectTranscript}
-            />
+            {canInspectTranscript && (
+              <Button
+                text="Debug transcript"
+                variant="secondary"
+                size="sm"
+                onClick={inspectTranscript}
+              />
+            )}
           </div>
         );
       },
@@ -365,6 +385,7 @@ type CurrentTraceTableProps = {
   projectId: string;
   onOpenTrace: (traceId: string) => void;
   onInspectTranscript: (source: SummarySource) => void;
+  canInspectTranscript: boolean;
   peekView: DataTablePeekViewProps;
   rows: Facet["rows"];
   totalCount: number;
@@ -376,6 +397,8 @@ type CurrentTraceTableProps = {
 type CurrentTopicsViewProps = {
   projectId: string;
   facet: Facet;
+  onGenerateTopics: () => void;
+  canGenerateTopics: boolean;
   mapResult: ComponentProps<typeof TopicEmbeddingMap>["query"];
   tracePanelRef?: (element: HTMLElement | null) => void;
   traceFilters: {
@@ -386,10 +409,11 @@ type CurrentTopicsViewProps = {
   };
   onOpenTrace: (traceId: string) => void;
   onInspectTranscript: (source: SummarySource) => void;
+  canInspectTranscript: boolean;
   peekView: DataTablePeekViewProps;
 };
 
-type Facet = RouterOutputs["topics"]["currentResults"][number];
+type Facet = RouterOutputs["topics"]["currentResults"]["facets"][number];
 type SummarySource = Pick<
   Facet["rows"][number],
   "traceId" | "facetVersion" | "unitStartTime"

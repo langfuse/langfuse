@@ -242,24 +242,21 @@ export function DataTablePagination<TData>({
             ) : (
               `Page ${currentPage}`
             )}
-            {!hideTotalCount && (
-              <>
-                {pageCount !== -1 ? (
-                  <span>of {pageCount}</span>
-                ) : (
-                  <span>
-                    of{" "}
-                    {isLoading ? (
-                      <span className="ml-1 inline-flex align-middle">
-                        <Spinner size="xxs" variant="muted" display="inline" />
-                      </span>
-                    ) : (
-                      1
-                    )}
-                  </span>
-                )}
-              </>
-            )}
+            {!hideTotalCount &&
+              (pageCount !== -1 ? (
+                <span>of {pageCount}</span>
+              ) : (
+                <span>
+                  of{" "}
+                  {isLoading ? (
+                    <span className="ml-1 inline-flex align-middle">
+                      <Spinner size="xxs" variant="muted" display="inline" />
+                    </span>
+                  ) : (
+                    1
+                  )}
+                </span>
+              ))}
           </div>
 
           <div className="flex items-center gap-2">

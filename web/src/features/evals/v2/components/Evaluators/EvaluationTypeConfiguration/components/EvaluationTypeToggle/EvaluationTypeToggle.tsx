@@ -1,4 +1,3 @@
-import { Code2, Scale, Sparkles } from "lucide-react";
 import { EvalTemplateTypeEnum, type EvalTemplateType } from "@langfuse/shared";
 
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
@@ -9,22 +8,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
+import { getEvaluatorMethodIcon } from "@/src/features/evals/v2/fns/templateGallery/evaluatorMethodPresentation";
 
 const evaluationTypes = [
   {
     value: EvalTemplateTypeEnum.LLM_AS_JUDGE,
     label: "LLM-as-a-judge",
-    icon: Sparkles,
+    icon: getEvaluatorMethodIcon(EvalTemplateTypeEnum.LLM_AS_JUDGE),
   },
   {
     value: EvalTemplateTypeEnum.CODE,
     label: "Code evaluator",
-    icon: Code2,
+    icon: getEvaluatorMethodIcon(EvalTemplateTypeEnum.CODE),
   },
   {
     value: EvalTemplateTypeEnum.DECISION_MODEL,
     label: "Decision model",
-    icon: Scale,
+    icon: getEvaluatorMethodIcon(EvalTemplateTypeEnum.DECISION_MODEL),
   },
 ] as const;
 

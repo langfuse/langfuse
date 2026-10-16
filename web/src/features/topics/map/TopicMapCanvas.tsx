@@ -244,13 +244,17 @@ function drawMap(
     context.globalAlpha = opacity;
     context.fillStyle = point.color;
     context.fill();
-    context.globalAlpha = node.backgroundOpacity * Math.min(1, opacity + 0.2);
-    context.fillStyle = surface;
-    context.fill();
-    context.globalAlpha = (node.strokeOpacity * 0.4 + active * 0.6) * opacity;
-    context.strokeStyle = point.color;
-    context.lineWidth = 1 + active;
-    context.stroke();
+    if (node.backgroundOpacity > 0) {
+      context.globalAlpha = node.backgroundOpacity * Math.min(1, opacity + 0.2);
+      context.fillStyle = surface;
+      context.fill();
+    }
+    if (node.strokeOpacity > 0 || active > 0) {
+      context.globalAlpha = (node.strokeOpacity * 0.4 + active * 0.6) * opacity;
+      context.strokeStyle = point.color;
+      context.lineWidth = 1 + active;
+      context.stroke();
+    }
     if (active > 0.001) {
       context.globalAlpha = active * 0.7;
       context.lineWidth = 1.5;

@@ -5,6 +5,7 @@ import {
   type ExtractedOtelMedia,
   type MediaRestoreRequest,
 } from "@langfuse/native";
+import * as otelMediaUploads from "../../../../packages/shared/src/server/media/otelMediaUploads";
 
 const mocks = vi.hoisted(() => {
   const span = { setAttributes: vi.fn() };
@@ -24,6 +25,7 @@ const mocks = vi.hoisted(() => {
 });
 
 vi.mock("@langfuse/shared/src/server", () => ({
+  ...otelMediaUploads,
   getClickhouseEntityType: (eventType: string) =>
     eventType === "trace-create" ? "trace" : "observation",
   instrumentAsync: mocks.instrumentAsync,
@@ -77,6 +79,14 @@ const MEDIA_DESTINATION = {
   mediaBucket: "media-bucket",
   mediaPrefix: "media/",
 } as const;
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((promiseResolve) => {
+    resolve = promiseResolve;
+  });
+  return { promise, resolve };
+}
 
 function createTestDescriptors(
   count: number,
@@ -208,7 +218,7 @@ describe("processOtelEventMedia", () => {
     };
     const processMedia = vi.fn().mockResolvedValue(processResult);
 
-    await processOtelEventMedia({
+    const mediaPresence = await processOtelEventMedia({
       targets: createDirectOtelMediaTargets([
         eventInput,
         { traceId: "trace-id", spanId: "without-media-fields" },
@@ -221,6 +231,7 @@ describe("processOtelEventMedia", () => {
       processMedia,
     });
 
+    expect(mediaPresence).toBe("present");
     expect(processMedia).toHaveBeenCalledWith(
       expect.objectContaining({
         targets: [
@@ -277,14 +288,18 @@ describe("processOtelEventMedia", () => {
     expect(mocks.recordDistribution).toHaveBeenCalledWith(
       "langfuse.ingestion.otel.media.processing_duration_ms",
       expect.any(Number),
-      { write_path: "direct", media_path: "reference" },
+      {
+        write_path: "direct",
+        media_path: "reference",
+        media_presence: "present",
+      },
     );
   });
 
   it("does not create a processing span when there are no media fields", async () => {
     const processMedia = vi.fn();
 
-    await processOtelEventMedia({
+    const mediaPresence = await processOtelEventMedia({
       targets: createDirectOtelMediaTargets([
         { traceId: "trace-id", spanId: "observation-id" },
       ]),
@@ -294,6 +309,7 @@ describe("processOtelEventMedia", () => {
       processMedia,
     });
 
+    expect(mediaPresence).toBe("absent");
     expect(processMedia).not.toHaveBeenCalled();
     expect(mocks.instrumentAsync).not.toHaveBeenCalled();
   });
@@ -315,12 +331,16 @@ describe("processOtelEventMedia", () => {
         fileKey: "file-key",
         processMedia,
       }),
-    ).resolves.toBeUndefined();
+    ).resolves.toBe("unknown");
 
     expect(mocks.recordDistribution).toHaveBeenCalledWith(
       "langfuse.ingestion.otel.media.processing_duration_ms",
       expect.any(Number),
-      { write_path: "direct", media_path: "reference" },
+      {
+        write_path: "direct",
+        media_path: "reference",
+        media_presence: "unknown",
+      },
     );
     expect(mocks.recordDistribution).not.toHaveBeenCalledWith(
       "langfuse.ingestion.otel.media.batch_byte_length",
@@ -527,6 +547,112 @@ describe("processOtelEventMedia", () => {
     });
   });
 
+  it.each([
+    { name: "nested values", oneString: false },
+    { name: "all references in one string", oneString: true },
+  ])(
+    "reserves upload capacity before decoding media: $name",
+    async ({ oneString }) => {
+      const reservedBytes = 64 * 1024 * 1024;
+      const descriptors = createTestDescriptors(3, "weighted", reservedBytes);
+      const { batch, mediaBody } = createFakeMediaBatch({
+        entries: descriptors,
+      });
+      mediaBody.mockImplementation((index: number) =>
+        Promise.resolve(Buffer.from([index])),
+      );
+      const gates = Array.from({ length: 3 }, () =>
+        deferred<{ outcome: "uploaded"; mediaId: string }>(),
+      );
+      const uploadIndexes: number[] = [];
+      mocks.uploadMediaForTrace.mockImplementation(
+        async ({ contentBytes }: { contentBytes: Buffer }) => {
+          const index = contentBytes[0]!;
+          uploadIndexes.push(index);
+          return gates[index]!.promise;
+        },
+      );
+      const references = descriptors.map((entry) => entry.reference);
+      const payload = {
+        traceId: "trace-id",
+        spanId: "observation-id",
+        input: oneString
+          ? references.join(" ")
+          : [references[0], { nested: references.slice(1) }],
+      };
+      const resolving = resolveExtractedMedia({
+        batch,
+        targets: createDirectOtelMediaTargets([payload]),
+        ...MEDIA_DESTINATION,
+        writePath: "direct",
+      });
+      try {
+        await vi.waitFor(() => expect(uploadIndexes).toHaveLength(2));
+        expect(uploadIndexes).toEqual([0, 1]);
+        expect(mediaBody.mock.calls.map(([index]) => index)).toEqual([0, 1]);
+
+        gates[0]!.resolve({ outcome: "uploaded", mediaId: "uploaded-0" });
+        await vi.waitFor(() => expect(mediaBody).toHaveBeenCalledTimes(3));
+        expect(mediaBody.mock.calls.map(([index]) => index)).toEqual([0, 1, 2]);
+
+        gates[2]!.resolve({ outcome: "uploaded", mediaId: "uploaded-2" });
+        gates[1]!.resolve({ outcome: "uploaded", mediaId: "uploaded-1" });
+        await expect(resolving).resolves.toMatchObject({
+          uploaded: 3,
+          reused: 0,
+          failed: 0,
+        });
+      } finally {
+        for (const gate of gates)
+          gate.resolve({ outcome: "uploaded", mediaId: "cleanup" });
+        await resolving.catch(() => undefined);
+      }
+    },
+  );
+
+  it.each([
+    {
+      name: "five strings",
+      input: Array.from({ length: 5 }, () =>
+        Array(5).fill(DEFAULT_MEDIA_REFERENCE).join(" "),
+      ),
+    },
+    {
+      name: "one string",
+      input: Array(25).fill(DEFAULT_MEDIA_REFERENCE).join(" "),
+    },
+  ])(
+    "bounds concurrent links for repeated early references: $name",
+    async ({ input }) => {
+      const { batch } = createFakeMediaBatch();
+      const releaseLinks = deferred<void>();
+      let activeLinks = 0;
+      let peakLinks = 0;
+      mocks.linkMediaToTraceOrObservation.mockImplementation(async () => {
+        activeLinks++;
+        peakLinks = Math.max(peakLinks, activeLinks);
+        try {
+          await releaseLinks.promise;
+        } finally {
+          activeLinks--;
+        }
+      });
+      const payload = {
+        traceId: "trace-id",
+        spanId: "observation-id",
+        input,
+      };
+      const resolving = resolveTarget(batch, payload);
+      try {
+        await vi.waitFor(() => expect(peakLinks).toBeGreaterThanOrEqual(5));
+        expect(peakLinks).toBe(5);
+      } finally {
+        releaseLinks.resolve();
+        await resolving;
+      }
+    },
+  );
+
   it("uploads a descriptor without reading the batch media registry", async () => {
     const { batch, mediaBody: loadBody, readMedia } = createFakeMediaBatch();
     readMedia.mockImplementation(() => {
@@ -542,6 +668,7 @@ describe("processOtelEventMedia", () => {
       mediaPrefix: "media/",
       sha256Hash: "hash",
       contentType: "image/png",
+      byteLengthUpperBound: 5,
       loadBody,
     });
 
@@ -681,8 +808,8 @@ describe("processOtelEventMedia", () => {
       const result = await resolveTarget(batch, target);
       expect(result).toMatchObject({ failed: 2, uploaded: 0, reused: 0 });
       expect(target.input).toEqual(input);
-      // A failed upload is evicted, so the next occurrence can retry independently.
-      expect(mocks.uploadMediaForTrace).toHaveBeenCalledTimes(2);
+      // Distinct spellings share one failed attempt, then restore independently.
+      expect(mocks.uploadMediaForTrace).toHaveBeenCalledOnce();
     });
   });
 

@@ -11,11 +11,14 @@ export const ScoreBadge = <
   name,
   scores,
   showLevels,
+  color = "filled",
 }: {
   name: string;
   scores: T[];
   /** Render this group's level tags when the selection mixes score levels. */
   showLevels?: boolean;
+  /** `filledOnMuted` on a muted or accent surface such as a selected row. */
+  color?: "filled" | "filledOnMuted";
 }) => {
   const levels = showLevels
     ? Array.from(new Set(scores.map((score) => scoreLevelFromScore(score))))
@@ -26,7 +29,7 @@ export const ScoreBadge = <
       {levels.map((level) => (
         <ScoreTag key={level} level={level} />
       ))}
-      <BadgeShell color="filled" size="md">
+      <BadgeShell color={color} size="md">
         <span className="text-muted-foreground flex min-w-0 flex-1 font-mono">
           <span className="truncate py-0.5" title={name}>
             {name}

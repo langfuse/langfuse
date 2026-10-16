@@ -4,6 +4,7 @@ import type {
   MediaRestoreRequest,
 } from "@langfuse/native";
 import { asRecord, defineOwnValue } from "@langfuse/shared";
+import { forEachMedia, recordDistribution } from "@langfuse/shared/src/server";
 
 export type MediaRegistry = ReadonlyMap<string, ExtractedOtelMedia>;
 
@@ -80,11 +81,29 @@ export function createMediaReferenceRewriter(
     value: string,
     resolve?: (entry: ExtractedOtelMedia) => Promise<string | undefined>,
   ): Promise<string> => {
+    const matches = knownMediaReferenceMatches(value, media);
+    let next = matches.next();
+    if (next.done) return value;
+    // Uploads share the decoded-byte pool; restoration read sizes must not
+    // serialize successful uploads of large originals.
+    const uploadResults: Array<string | undefined> = [];
+    if (resolve) {
+      let index = 0;
+      // Scan references twice: this pass starts uploads, and the other replaces
+      // them in order. Keeping every match saves little time below roughly 10k
+      // references, but holds an extra object for each one.
+      await forEachMedia(
+        knownMediaReferenceMatches(value, media),
+        async ({ entry }) => {
+          const position = index++;
+          uploadResults[position] = await resolve(entry);
+        },
+      );
+    }
+    let resultIndex = 0;
     let layers: Map<number, number> | undefined;
     let output = "";
     let end = 0;
-    const matches = knownMediaReferenceMatches(value, media);
-    let next = matches.next();
     while (!next.done) {
       const group: KnownMediaReferenceMatch[] = [];
       let sourceBytes = 0;
@@ -103,7 +122,7 @@ export function createMediaReferenceRewriter(
       const requests = new Map<string, MediaRestoreRequest>();
       const replacements: Array<string | { key: string }> = [];
       for (const match of group) {
-        const replacement = await resolve?.(match.entry);
+        const replacement = uploadResults[resultIndex++];
         if (replacement !== undefined) {
           replacements.push(replacement);
           continue;
@@ -135,10 +154,16 @@ export function createMediaReferenceRewriter(
             : originals.get(replacement.key)!,
         ),
       );
+      const resultStartedAt = performance.now();
       for (const [index, match] of group.entries()) {
         output += value.slice(end, match.index) + values[index]!;
         end = match.index + match.reference.length;
       }
+      recordDistribution(
+        "langfuse.ingestion.otel.main_thread_duration_ms",
+        performance.now() - resultStartedAt,
+        { phase: "media_reference_results", media_path: "early" },
+      );
     }
     return end === 0 ? value : output + value.slice(end);
   };
@@ -148,10 +173,12 @@ export function createMediaReferenceRewriter(
  * Rewrite actual object values in place. Actual object keys are not visited;
  * opaque string values are rewritten as source text, including JSON keys
  * contained inside those strings.
+ * Concurrent rewriting requires an owned JSON tree without shared object nodes.
  */
 export async function rewriteMediaValues(
   value: unknown,
   rewrite: (text: string) => Promise<string>,
+  concurrent = false,
 ): Promise<unknown> {
   if (typeof value === "string") return rewrite(value);
   if (typeof value !== "object" || value === null) return value;
@@ -173,22 +200,37 @@ export async function rewriteMediaValues(
     });
   };
   push(value);
-  while (stack.length > 0) {
-    const frame = stack[stack.length - 1]!;
-    if (frame.next === frame.length) {
-      stack.pop();
-      continue;
-    }
-    const index = frame.next++;
-    const key = frame.keys ? frame.keys[index]! : index;
-    const current = frame.object[key];
-    if (typeof current === "string") {
-      const next = await rewrite(current);
-      if (current !== next) defineOwnValue(frame.object, key, next);
-    } else if (typeof current === "object" && current !== null) {
-      push(current);
+  function* strings() {
+    while (stack.length > 0) {
+      const frame = stack[stack.length - 1]!;
+      if (frame.next === frame.length) {
+        stack.pop();
+        continue;
+      }
+      const index = frame.next++;
+      const key = frame.keys ? frame.keys[index]! : index;
+      const current = frame.object[key];
+      if (typeof current === "string") {
+        yield { object: frame.object, key, current };
+      } else if (typeof current === "object" && current !== null) {
+        push(current);
+      }
     }
   }
+  const replace = async ({
+    object,
+    key,
+    current,
+  }: {
+    object: Record<string, unknown>;
+    key: string | number;
+    current: string;
+  }) => {
+    const next = await rewrite(current);
+    if (current !== next) defineOwnValue(object, key, next);
+  };
+  if (concurrent) await forEachMedia(strings(), replace);
+  else for (const entry of strings()) await replace(entry);
   return value;
 }
 

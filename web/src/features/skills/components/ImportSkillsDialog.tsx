@@ -9,11 +9,13 @@ import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { Input } from "@/src/components/design-system/Input/Input";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { showSuccessToast } from "@/src/features/notifications";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api, getTrpcErrorCode, type RouterOutputs } from "@/src/utils/api";
 
 import { LocalSkillImportSource } from "./LocalSkillImportSource";
+import { CliSkillImportInstructions } from "./CliSkillImportInstructions";
 import type { ComparedSkill, SkillImportDiscovery } from "./skillImportTypes";
 import { compareImportedSkills } from "../utils/compare-imported-skills";
 
@@ -30,6 +32,7 @@ export function ImportSkillsDialog({
 }) {
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
+  const [tab, setTab] = useState("local");
   const [discovery, setDiscovery] = useState<
     Pick<SkillImportDiscovery, "source" | "commitMessage"> & {
       skills: ComparedSkill[];
@@ -232,6 +235,7 @@ export function ImportSkillsDialog({
   const createOpenHandler = (openDialog: () => void) => {
     return function handleOpenDialog() {
       reset();
+      setTab("local");
       capture("skills:import_open");
       openDialog();
     };
@@ -243,8 +247,9 @@ export function ImportSkillsDialog({
       renderDialog={({ closeDialog }) => (
         <Dialog
           title="Import skills"
+          size="lg"
           actions={
-            discovery
+            tab === "local" && discovery
               ? [
                   {
                     label: `Import ${selectedSkills.length} ${selectedSkills.length === 1 ? "skill" : "skills"}`,
@@ -257,144 +262,182 @@ export function ImportSkillsDialog({
           }
         >
           <Dialog.Body>
-            <LocalSkillImportSource busy={busy} onScan={scan} onReset={reset} />
-            {scanError ? (
-              <p role="alert" className="ph-no-capture text-destructive">
-                {scanError}
-              </p>
-            ) : null}
-            {discovery && skills.length === 0 ? (
-              <p role="status" className="text-muted-foreground">
-                No SKILL.md files found in this source.
-              </p>
-            ) : null}
-            {discovery && skills.length > 0 ? (
-              <>
-                <div className="ph-no-capture">
-                  <Input
-                    aria-label="Search skills"
-                    placeholder="Search skills by name, description, or path"
-                    value={search}
-                    onChange={handleSearchChange}
-                  />
-                </div>
-                <div className="flex items-center justify-between gap-2">
-                  <p role="status">
-                    {searchTerm ? `${visibleSkills.length} of ` : ""}
-                    {skills.length} {skills.length === 1 ? "skill" : "skills"}{" "}
-                    {searchTerm ? "shown" : "found"}
-                    {" · "}
-                    {selectedSkills.length} selected
-                  </p>
-                  <Button
-                    text={`${allVisibleSelected ? "Deselect all" : "Select all"}${searchTerm ? " shown" : ""}`}
-                    variant="ghost"
-                    size="sm"
-                    disabled={busy || visibleSelectable.length === 0}
-                    onClick={toggleVisibleSelection}
-                  />
-                </div>
-                {visibleSkills.length === 0 ? (
-                  <p role="status" className="text-muted-foreground">
-                    No skills match your search.
-                  </p>
-                ) : null}
-                <ul className="ph-no-capture flex flex-col divide-y rounded-md border">
-                  {visibleSkills.map((skill, index) => {
-                    const result = results[skill.path];
-                    const error =
-                      skill.error ||
-                      (result?.status === "error" ? result.message : null);
-                    const imported = result?.status === "success";
-                    const existingStatus = skill.hasChanges
-                      ? "New version"
-                      : "Already up to date";
-                    return (
-                      <li
-                        key={skill.path}
-                        className="flex items-start gap-3 p-3"
+            <Tabs value={tab} onValueChange={setTab}>
+              <Tabs.List
+                variant="inset"
+                size="md"
+                layout="full"
+                aria-label="Import method"
+              >
+                <Tabs.Trigger
+                  value="local"
+                  label="Upload files"
+                  disabled={busy}
+                />
+                <Tabs.Trigger value="cli" label="CLI" disabled={busy} />
+              </Tabs.List>
+              <div className="pt-4">
+                <Tabs.Content value="cli">
+                  <CliSkillImportInstructions projectId={projectId} />
+                </Tabs.Content>
+                <Tabs.Content value="local">
+                  <div className="flex flex-col gap-4">
+                    <LocalSkillImportSource
+                      busy={busy}
+                      onScan={scan}
+                      onReset={reset}
+                    />
+                    {scanError ? (
+                      <p
+                        role="alert"
+                        className="ph-no-capture text-destructive"
                       >
-                        <div className="pt-0.5">
-                          <Checkbox
-                            id={`import-skill-${index}`}
-                            checked={selected.has(skill.path)}
-                            disabled={
-                              busy ||
-                              Boolean(skill.error) ||
-                              imported ||
-                              (skill.exists && !skill.hasChanges)
-                            }
-                            onCheckedChange={createSkillSelectHandler(
-                              skill.path,
-                            )}
+                        {scanError}
+                      </p>
+                    ) : null}
+                    {discovery && skills.length === 0 ? (
+                      <p role="status" className="text-muted-foreground">
+                        No SKILL.md files found in this source.
+                      </p>
+                    ) : null}
+                    {discovery && skills.length > 0 ? (
+                      <>
+                        <div className="ph-no-capture">
+                          <Input
+                            aria-label="Search skills"
+                            placeholder="Search skills by name, description, or path"
+                            value={search}
+                            onChange={handleSearchChange}
                           />
                         </div>
-                        <label
-                          htmlFor={`import-skill-${index}`}
-                          className="flex min-w-0 flex-1 cursor-pointer flex-col gap-1"
-                        >
-                          <span className="flex flex-wrap items-center gap-2">
-                            <span className="font-bold break-words">
-                              {skill.name}
-                            </span>
-                            {!skill.error ? (
-                              <Badge
-                                text={skill.exists ? existingStatus : "Import"}
-                                color={
-                                  skill.exists && !skill.hasChanges
-                                    ? "yellow"
-                                    : "blue"
-                                }
-                                size="sm"
-                              />
-                            ) : null}
-                            {!skill.error ? (
-                              <Badge
-                                text={`${skill.files.length} ${skill.files.length === 1 ? "file" : "files"}`}
-                                color="primary"
-                                size="sm"
-                              />
-                            ) : null}
-                          </span>
-                          {skill.exists && !skill.error ? (
-                            <span className="text-muted-foreground text-xs">
-                              {skill.hasChanges
-                                ? "Files differ from the latest saved version. Import to create a new version."
-                                : "Files match the latest saved version."}
-                            </span>
-                          ) : null}
-                          <span className="text-muted-foreground text-xs break-all">
-                            {skill.path}
-                          </span>
-                          {skill.description ? (
-                            <span className="text-muted-foreground text-sm break-words">
-                              {skill.description}
-                            </span>
-                          ) : null}
-                          {error ? (
-                            <span
-                              className="text-destructive text-sm"
-                              role="alert"
-                            >
-                              {error}
-                            </span>
-                          ) : null}
-                          {result?.status === "success" ? (
-                            <span className="text-sm" role="status">
-                              Imported as v{result.version}
-                            </span>
-                          ) : null}
-                        </label>
-                      </li>
-                    );
-                  })}
-                </ul>
-                <p className="text-muted-foreground text-xs">
-                  Skills with an existing name will get a new version.
-                  Production labels stay unchanged.
-                </p>
-              </>
-            ) : null}
+                        <div className="flex items-center justify-between gap-2">
+                          <p role="status">
+                            {searchTerm ? `${visibleSkills.length} of ` : ""}
+                            {skills.length}{" "}
+                            {skills.length === 1 ? "skill" : "skills"}{" "}
+                            {searchTerm ? "shown" : "found"}
+                            {" · "}
+                            {selectedSkills.length} selected
+                          </p>
+                          <Button
+                            text={`${allVisibleSelected ? "Deselect all" : "Select all"}${searchTerm ? " shown" : ""}`}
+                            variant="ghost"
+                            size="sm"
+                            disabled={busy || visibleSelectable.length === 0}
+                            onClick={toggleVisibleSelection}
+                          />
+                        </div>
+                        {visibleSkills.length === 0 ? (
+                          <p role="status" className="text-muted-foreground">
+                            No skills match your search.
+                          </p>
+                        ) : null}
+                        <ul className="ph-no-capture flex flex-col divide-y rounded-md border">
+                          {visibleSkills.map((skill, index) => {
+                            const result = results[skill.path];
+                            const error =
+                              skill.error ||
+                              (result?.status === "error"
+                                ? result.message
+                                : null);
+                            const imported = result?.status === "success";
+                            const existingStatus = skill.hasChanges
+                              ? "New version"
+                              : "Already up to date";
+                            return (
+                              <li
+                                key={skill.path}
+                                className="flex items-start gap-3 p-3"
+                              >
+                                <div className="pt-0.5">
+                                  <Checkbox
+                                    id={`import-skill-${index}`}
+                                    checked={selected.has(skill.path)}
+                                    disabled={
+                                      busy ||
+                                      Boolean(skill.error) ||
+                                      imported ||
+                                      (skill.exists && !skill.hasChanges)
+                                    }
+                                    onCheckedChange={createSkillSelectHandler(
+                                      skill.path,
+                                    )}
+                                  />
+                                </div>
+                                <label
+                                  htmlFor={`import-skill-${index}`}
+                                  className="flex min-w-0 flex-1 cursor-pointer flex-col gap-1"
+                                >
+                                  <span className="flex flex-wrap items-center gap-2">
+                                    <span className="font-bold break-words">
+                                      {skill.name}
+                                    </span>
+                                    {!skill.error ? (
+                                      <Badge
+                                        text={
+                                          skill.exists
+                                            ? existingStatus
+                                            : "Import"
+                                        }
+                                        color={
+                                          skill.exists && !skill.hasChanges
+                                            ? "yellow"
+                                            : "blue"
+                                        }
+                                        size="sm"
+                                      />
+                                    ) : null}
+                                    {!skill.error ? (
+                                      <Badge
+                                        text={`${skill.files.length} ${skill.files.length === 1 ? "file" : "files"}`}
+                                        color="primary"
+                                        size="sm"
+                                      />
+                                    ) : null}
+                                  </span>
+                                  {skill.exists && !skill.error ? (
+                                    <span className="text-muted-foreground text-xs">
+                                      {skill.hasChanges
+                                        ? "Files differ from the latest saved version. Import to create a new version."
+                                        : "Files match the latest saved version."}
+                                    </span>
+                                  ) : null}
+                                  <span className="text-muted-foreground text-xs break-all">
+                                    {skill.path}
+                                  </span>
+                                  {skill.description ? (
+                                    <span className="text-muted-foreground text-sm break-words">
+                                      {skill.description}
+                                    </span>
+                                  ) : null}
+                                  {error ? (
+                                    <span
+                                      className="text-destructive text-sm"
+                                      role="alert"
+                                    >
+                                      {error}
+                                    </span>
+                                  ) : null}
+                                  {result?.status === "success" ? (
+                                    <span className="text-sm" role="status">
+                                      Imported as v{result.version}
+                                    </span>
+                                  ) : null}
+                                </label>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                        <p className="text-muted-foreground text-xs">
+                          Skills with an existing name will get a new version.
+                          Production labels stay unchanged.
+                        </p>
+                      </>
+                    ) : null}
+                  </div>
+                </Tabs.Content>
+              </div>
+            </Tabs>
           </Dialog.Body>
         </Dialog>
       )}

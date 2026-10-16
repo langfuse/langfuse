@@ -27,6 +27,11 @@ struct Gateway {
 }
 
 impl Gateway {
+    #[expect(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "test helper outside #[test]; a panic fails the test"
+    )]
     fn start(endpoint: &str, shutdown_seconds: &str, level: &str) -> Self {
         let mut child = Command::new(env!("CARGO_BIN_EXE_ai-gateway"))
             .env_clear()
@@ -69,6 +74,10 @@ impl Gateway {
         }
     }
 
+    #[expect(
+        clippy::unwrap_used,
+        reason = "test helper outside #[test]; a panic fails the test"
+    )]
     async fn request(&self, sampled: bool) -> String {
         let response = reqwest::Client::new()
             .post(format!(
@@ -103,6 +112,11 @@ impl Gateway {
         id
     }
 
+    #[expect(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "test helper outside #[test]; a panic fails the test"
+    )]
     async fn stop(&mut self) {
         assert!(
             Command::new("/bin/kill")
@@ -208,6 +222,10 @@ async fn exports_otlp_traces_metrics_and_correlated_content_free_logs() {
     assert_http_metrics(&metrics);
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "test helper outside #[test]; a panic fails the test"
+)]
 fn assert_operational_traces(traces: &[ResourceSpans], logs: &[Value]) {
     let spans: Vec<_> = traces
         .iter()
@@ -253,6 +271,10 @@ fn assert_operational_traces(traces: &[ResourceSpans], logs: &[Value]) {
 
 /// Every log line emitted while serving a request repeats its gateway request ID at
 /// the top level, and the operational server span carries it as an attribute.
+#[expect(
+    clippy::panic,
+    reason = "test helper outside #[test]; a panic fails the test"
+)]
 fn assert_request_correlation(traces: &[ResourceSpans], logs: &[Value], request_ids: &[String]) {
     let spans: Vec<_> = traces
         .iter()
@@ -300,6 +322,12 @@ fn assert_request_correlation(traces: &[ResourceSpans], logs: &[Value], request_
     }
 }
 
+#[expect(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test helper outside #[test]; a panic fails the test"
+)]
 fn assert_http_metrics(metrics: &[ResourceMetrics]) {
     let http_duration = metrics
         .iter()

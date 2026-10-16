@@ -81,9 +81,12 @@ const ScoreTable = <T extends ChipScore>({ scores }: { scores: T[] }) => {
 export const GroupedScoreBadges = <T extends ChipScore>({
   scores,
   maxVisible = MAX_VISIBLE_SCORE_GROUPS,
+  color,
 }: {
   scores: T[];
   maxVisible?: number;
+  /** `filledOnMuted` on a muted or accent surface such as a selected row. */
+  color?: "filled" | "filledOnMuted";
 }) => {
   const groupedScores = groupScoresByName(scores);
 
@@ -102,6 +105,7 @@ export const GroupedScoreBadges = <T extends ChipScore>({
     <Popover>
       <PopoverTrigger asChild>
         <OverflowCountBadge
+          color={color}
           count={hiddenScores.length}
           aria-label={`Show all ${Object.keys(groupedScores).length} scores`}
           // Chips render inside clickable rows; opening must not select the row.
@@ -126,6 +130,7 @@ export const GroupedScoreBadges = <T extends ChipScore>({
           name={name}
           scores={scores}
           showLevels={showLevels}
+          color={color}
         />
       ))}
       {Boolean(hiddenScores.length) && overflow}

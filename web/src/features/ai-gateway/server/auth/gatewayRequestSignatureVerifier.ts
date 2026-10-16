@@ -10,15 +10,19 @@ import { createShaHash } from "@langfuse/shared/src/server/auth/apiKeys";
 
 import { GatewayApiFormatSchema, type GatewayApiFormat } from "../provider";
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
+import { GatewayModelRoutingService } from "@/src/features/ai-gateway/server/routing/gatewayModelRoutingService";
 
 const RESOLVE_METHOD = "POST";
 const MODELS_METHOD = "GET";
 const SIGNATURE_DOMAIN = "gateway-web-v1";
 const SIGNATURE_MAX_AGE_SECONDS = 5 * 60;
+const modelRoutingService = new GatewayModelRoutingService();
 const resolveBodySchema = z
   .object({
     apiFormat: GatewayApiFormatSchema,
-    model: z.string().min(1).optional(),
+    model: z
+      .string()
+      .refine((model) => modelRoutingService.resolve(model, []) !== null),
   })
   .strict();
 const modelsQuerySchema = z
@@ -38,6 +42,7 @@ type GatewayControlPlaneHandlerParams = {
 type GatewayResolveHandler = (
   params: GatewayControlPlaneHandlerParams & {
     apiFormat: GatewayApiFormat;
+    model: string;
   },
 ) => Promise<unknown>;
 
@@ -104,7 +109,12 @@ export function withGatewayResolveSignatureVerification(
   handler: GatewayResolveHandler,
 ) {
   return withGatewayControlPlaneAuth(
-    ({ body, ...params }) => handler({ ...params, apiFormat: body.apiFormat }),
+    ({ body, ...params }) =>
+      handler({
+        ...params,
+        apiFormat: body.apiFormat,
+        model: body.model,
+      }),
     resolveBodySchema,
   );
 }

@@ -8,7 +8,7 @@ import { useIsMobile } from "@/src/hooks/use-mobile";
 import { cn } from "@/src/utils/tailwind";
 
 type PageContainerProps = {
-  children: React.ReactNode;
+  children?: React.ReactNode;
   headerProps: Omit<PageHeaderProps, "container">;
   scrollable?: boolean;
   withPadding?: boolean;

@@ -177,7 +177,7 @@ export function DatasetRunItemsByRunTable(props: {
       cell: ({ row }) => {
         const latency: DatasetRunItemByRunRowData["latency"] =
           row.getValue("latency");
-        return <>{!!latency ? formatIntervalSeconds(latency) : null}</>;
+        return !!latency ? formatIntervalSeconds(latency) : null;
       },
     },
     createNumberTableColumn<DatasetRunItemByRunRowData>({

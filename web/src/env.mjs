@@ -315,6 +315,11 @@ export const env = createEnv({
     OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default("http://localhost:4318"),
     OTEL_SERVICE_NAME: z.string().default("web"),
     OTEL_TRACE_SAMPLING_RATIO: z.coerce.number().gt(0).lte(1).default(1),
+    // Stamps ECS task/cluster (aws.ecs.*, cloud.*) and container.id resource
+    // attributes onto every exported span.
+    OTEL_CONTAINER_RESOURCE_DETECTORS_ENABLED: z
+      .enum(["true", "false"])
+      .default("false"),
 
     // OTel Masking
     LANGFUSE_INGESTION_MASKING_PROPAGATED_HEADERS: z
@@ -469,6 +474,19 @@ export const env = createEnv({
       .date()
       .optional()
       .transform((date) => (date ? new Date(date) : null)),
+    // Comma-separated Langfuse organization ids whose first-time upgrade routes
+    // to CHB regardless of the cutoff, for testing the CHB flow on a single org
+    // before the global rollout. Orgs already billed by Stripe stay on Stripe.
+    // Keep in sync with worker/src/env.ts.
+    LANGFUSE_CLOUD_BILLING_CHB_OPT_IN_ORG_IDS: z
+      .string()
+      .default("")
+      .transform((value) =>
+        value
+          .split(",")
+          .map((id) => id.trim())
+          .filter(Boolean),
+      ),
     // Bearer secret CHB's metering pipeline presents to GET /api/billing/metrics.
     // Unset disables the endpoint (it 500s) rather than leaving it open.
     CLICKHOUSE_BILLING_METRICS_API_KEY: z.string().optional(),
@@ -657,6 +675,16 @@ export const env = createEnv({
       .int()
       .positive()
       .default(150_000),
+
+    // Reverse proxies in front of the web container that append the client
+    // address to X-Forwarded-For. Audit events take the client IP from the
+    // N-th entry from the right, since entries further left are client-supplied.
+    // 0 ignores X-Forwarded-For and uses the socket peer address.
+    LANGFUSE_TRUSTED_PROXY_COUNT: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .default(0),
 
     // Background-migration env gates. Mirror worker/src/env.ts (names, defaults)
     // so the background-migrations status endpoint can tell dormant, env-gated
@@ -1014,6 +1042,8 @@ export const env = createEnv({
     OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
     OTEL_SERVICE_NAME: process.env.OTEL_SERVICE_NAME,
     OTEL_TRACE_SAMPLING_RATIO: process.env.OTEL_TRACE_SAMPLING_RATIO,
+    OTEL_CONTAINER_RESOURCE_DETECTORS_ENABLED:
+      process.env.OTEL_CONTAINER_RESOURCE_DETECTORS_ENABLED,
 
     LANGFUSE_INGESTION_MASKING_PROPAGATED_HEADERS:
       process.env.LANGFUSE_INGESTION_MASKING_PROPAGATED_HEADERS,
@@ -1136,6 +1166,8 @@ export const env = createEnv({
     STRIPE_WEBHOOK_SIGNING_SECRET: process.env.STRIPE_WEBHOOK_SIGNING_SECRET,
     LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE:
       process.env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE,
+    LANGFUSE_CLOUD_BILLING_CHB_OPT_IN_ORG_IDS:
+      process.env.LANGFUSE_CLOUD_BILLING_CHB_OPT_IN_ORG_IDS,
     CLICKHOUSE_BILLING_METRICS_API_KEY:
       process.env.CLICKHOUSE_BILLING_METRICS_API_KEY,
     CLICKHOUSE_BILLING_EVENT_BUS_ARN:
@@ -1229,6 +1261,7 @@ export const env = createEnv({
       process.env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
     LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT:
       process.env.LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT,
+    LANGFUSE_TRUSTED_PROXY_COUNT: process.env.LANGFUSE_TRUSTED_PROXY_COUNT,
     LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL:
       process.env.LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL,
     LANGFUSE_BACKGROUND_MIGRATION_V4_DROP_PID_TID_SORTING_TABLES:

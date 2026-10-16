@@ -320,6 +320,22 @@ const meta = preview.meta({
 
 export const Default = meta.story({});
 
+export const SummaryLengths = meta.story({
+  args: {
+    data: {
+      ...data,
+      points: [
+        data.points[0],
+        {
+          ...data.points[1],
+          summary:
+            "The customer asks how to connect a new integration, configure its authentication credentials, and verify that events arrive in the correct project. The assistant walks through setup, explains how to troubleshoot missing events, and confirms that the connection is working before ending the conversation.",
+        },
+      ],
+    },
+  },
+});
+
 export const SelectedTopic = meta.story({
   args: { selectedTopic: "billing", selectedTraceId: "trace-billing" },
 });
