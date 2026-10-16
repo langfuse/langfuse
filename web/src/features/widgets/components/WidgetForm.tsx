@@ -12,6 +12,7 @@ import { WidgetImporter } from "@/src/features/widgets/components/WidgetImporter
 import { type ImportedWidgetFormSnapshot } from "@/src/features/widgets/utils/import-export-utils";
 import {
   buildWidgetOrderBy,
+  getDimensionAggregateValue,
   getResultUnit,
   getValidAggregationsForMeasureType,
   isV2BreakdownChart,
@@ -1159,6 +1160,13 @@ export function WidgetForm({
                   missingValue={getWidgetMissingBucketValue(
                     selectedAggregation,
                   )}
+                  breakdownAggregateValue={getDimensionAggregateValue({
+                    view: selectedView,
+                    version: viewVersion,
+                    dimension: values.dimensions[0]?.field,
+                    measure: selectedMeasure,
+                    aggregation: selectedAggregation,
+                  })}
                 />
                 {chartLoadingState.isLoading && (
                   <ChartLoadingState
