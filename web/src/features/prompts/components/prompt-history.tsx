@@ -1,7 +1,7 @@
 /* eslint-disable @repo/component-file-structure */
 import { type RouterOutputs } from "@/src/utils/api";
 import { useRef, useEffect } from "react";
-import { PromptVersionDiffDialogContent } from "./PromptVersionDiffDialog";
+import { PromptVersionDiffDialogContent } from "./PromptVersionDiffDialogContent";
 import { Timeline } from "@/src/components/design-system/Timeline/Timeline";
 import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
