@@ -32,9 +32,9 @@ export const Text = meta.story({
   args: { label: "Show all 15 templates", expandedLabel: "Show fewer" },
 });
 
-export const Caret = meta.story({
+export const WithIcon = meta.story({
   args: {
-    variant: "caret",
+    variant: "icon",
     label: "Show error details",
     expandedLabel: "Hide error details",
   },
@@ -58,32 +58,32 @@ export const Overview = meta.story({
         onExpandedChange={fn()}
         expandedLabel="Show fewer"
       />
-      <span>caret</span>
+      <span>icon</span>
       <ExpandToggle
         expanded={false}
         onExpandedChange={fn()}
-        variant="caret"
+        variant="icon"
         label="Show error details"
       />
       <ExpandToggle
         expanded
         onExpandedChange={fn()}
-        variant="caret"
+        variant="icon"
         expandedLabel="Hide error details"
       />
-      <span>caret, end</span>
+      <span>icon, right</span>
       <ExpandToggle
         expanded={false}
         onExpandedChange={fn()}
-        variant="caret"
-        caretPosition="end"
+        variant="icon"
+        iconPosition="right"
         label="Show error details"
       />
       <ExpandToggle
         expanded
         onExpandedChange={fn()}
-        variant="caret"
-        caretPosition="end"
+        variant="icon"
+        iconPosition="right"
         expandedLabel="Hide error details"
       />
       <span>size default</span>

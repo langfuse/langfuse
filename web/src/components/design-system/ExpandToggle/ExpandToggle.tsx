@@ -9,10 +9,10 @@ type ExpandToggleProps = {
   label?: string;
   /** Shown while expanded. */
   expandedLabel?: string;
-  /** `caret` adds a chevron that flips with the state. */
-  variant?: "plain" | "caret";
-  /** Which side of the label the caret sits on. */
-  caretPosition?: "start" | "end";
+  /** `icon` adds a chevron that flips with the state. */
+  variant?: "plain" | "icon";
+  /** Which side of the label the icon sits on. */
+  iconPosition?: "left" | "right";
   size?: "default" | "sm";
   /** Id of the element it shows and hides. */
   controls?: string;
@@ -25,22 +25,22 @@ export function ExpandToggle({
   label = "Show more",
   expandedLabel = "Show less",
   variant = "plain",
-  caretPosition = "start",
+  iconPosition = "left",
   size = "sm",
   controls,
 }: ExpandToggleProps) {
   const handleClick = () => {
     onExpandedChange(!expanded);
   };
-  const caret = expanded ? ChevronUp : ChevronDown;
+  const chevron = expanded ? ChevronUp : ChevronDown;
 
   return (
     <Button
       variant="text"
       size={size}
       text={expanded ? expandedLabel : label}
-      icon={variant === "caret" ? caret : undefined}
-      iconPosition={caretPosition}
+      icon={variant === "icon" ? chevron : undefined}
+      iconPosition={iconPosition}
       aria-expanded={expanded}
       aria-controls={controls}
       onClick={handleClick}

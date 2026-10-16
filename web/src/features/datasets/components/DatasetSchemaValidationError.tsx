@@ -41,7 +41,7 @@ export const DatasetSchemaValidationError: React.FC<
             </p>
 
             <ExpandToggle
-              variant="caret"
+              variant="icon"
               expanded={isExpanded}
               label="Show error details"
               expandedLabel="Hide error details"

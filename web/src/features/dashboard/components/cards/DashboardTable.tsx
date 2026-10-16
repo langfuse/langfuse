@@ -101,7 +101,7 @@ export const DashboardTable = ({
           {collapse && rows.length > (collapsedCount ?? collapse.collapsed) ? (
             <div className="mt-2 flex justify-center">
               <ExpandToggle
-                variant="caret"
+                variant="icon"
                 expanded={isExpanded}
                 onExpandedChange={setExpanded}
                 label={

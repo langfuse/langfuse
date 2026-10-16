@@ -72,8 +72,8 @@ type ButtonProps = {
       loading?: boolean;
       onClick?: MouseEventHandler<HTMLButtonElement>;
       type?: "button" | "submit";
-      /** Icon before (default) or after the text. */
-      iconPosition?: "start" | "end";
+      /** Icon left (default) or right of the text. */
+      iconPosition?: "left" | "right";
       /** For disclosure toggles: whether the content it controls is open. */
       "aria-expanded"?: boolean;
       "aria-controls"?: string;
@@ -150,11 +150,11 @@ export function Button(props: ButtonProps) {
           props.loading && "invisible",
         )}
       >
-        {Icon && props.iconPosition !== "end" ? (
+        {Icon && props.iconPosition !== "right" ? (
           <Icon className={iconClassName} aria-hidden />
         ) : null}
         {props.text}
-        {Icon && props.iconPosition === "end" ? (
+        {Icon && props.iconPosition === "right" ? (
           <Icon className={iconClassName} aria-hidden />
         ) : null}
       </span>
