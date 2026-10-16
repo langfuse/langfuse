@@ -6,6 +6,7 @@ import { z } from "zod";
 import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  compareWithBillingLedger,
   getObservationCountsByProjectInCreationInterval,
   getScoreCountsByProjectInCreationInterval,
   getTraceCountsByProjectInCreationInterval,
@@ -147,6 +148,22 @@ export async function chbMetricsApiHandler(req: NextRequest) {
         projectId: resourceId,
       }),
     ]);
+
+    // Not awaited, so the comparison never delays CHB's poll, and it never
+    // throws. CHB polls single 15-minute windows; other windows are skipped.
+    if (env.LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED === "true") {
+      compareWithBillingLedger({
+        source: "chb_metrics_api",
+        from: start,
+        to: end,
+        projectId: resourceId,
+        legacy: {
+          traces: traceCounts,
+          observations: observationCounts,
+          scores: scoreCounts,
+        },
+      });
+    }
 
     return NextResponse.json(
       {
