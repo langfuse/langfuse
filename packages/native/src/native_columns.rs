@@ -45,6 +45,8 @@ pub(crate) trait NativeColumn: Sized {
     fn build(values: &[&Self]) -> Result<Column, NativeColumnError>;
 }
 
+trait NullableColumn: NativeColumn + Default {}
+
 pub(crate) fn column_type<T: NativeColumn>() -> ChType {
     T::ch_type()
 }
@@ -147,6 +149,11 @@ impl NativeColumn for DateTime64Micros {
     }
 }
 
+impl NullableColumn for String {}
+impl NullableColumn for u16 {}
+impl NullableColumn for u32 {}
+impl NullableColumn for DateTime64Micros {}
+
 impl NativeColumn for Decimal64 {
     fn ch_type() -> ChType {
         ChType::Decimal {
@@ -171,7 +178,7 @@ impl NativeColumn for Decimal64 {
 
 impl<T> NativeColumn for Option<T>
 where
-    T: NativeColumn + Default,
+    T: NullableColumn,
 {
     fn ch_type() -> ChType {
         ChType::Nullable(Box::new(T::ch_type()))
