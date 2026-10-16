@@ -282,17 +282,57 @@ describe("chatCompletionHandler", () => {
     });
   });
 
-  it("preserves upstream provider 5xx status codes", async () => {
+  it("maps provider 5xx to 400 so the client httpClient integration does not capture them", async () => {
     mocks.generate.mockRejectedValue(
       createProviderApiError("Provider unavailable", 500),
     );
 
     const response = await chatCompletionHandler(createRequest(baseBody));
 
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({
       error: "AI_APICallError",
       message: "Provider unavailable",
+    });
+  });
+
+  it("preserves upstream provider 4xx status codes", async () => {
+    mocks.generate.mockRejectedValue(
+      createProviderApiError("Rate limit reached", 429),
+    );
+
+    const response = await chatCompletionHandler(createRequest(baseBody));
+
+    expect(response.status).toBe(429);
+    await expect(response.json()).resolves.toEqual({
+      error: "AI_APICallError",
+      message: "Rate limit reached",
+    });
+  });
+
+  it("maps classified timeout errors to 400", async () => {
+    const timeout = new Error("The operation timed out");
+    timeout.name = "TimeoutError";
+    mocks.generate.mockRejectedValue(timeout);
+
+    const response = await chatCompletionHandler(createRequest(baseBody));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "TimeoutError",
+      message: "The operation timed out",
+    });
+  });
+
+  it("keeps unmapped application errors as 500 without leaking the message", async () => {
+    mocks.generate.mockRejectedValue(new Error("database password leaked"));
+
+    const response = await chatCompletionHandler(createRequest(baseBody));
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({
+      error: "InternalServerError",
+      message: "An internal error occurred",
     });
   });
 });
