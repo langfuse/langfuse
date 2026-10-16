@@ -179,35 +179,32 @@ function RecentGroup({
   if (recents.length === 0) return null;
 
   return (
-    <>
-      <CommandGroup heading="Recent">
-        {recents.map((entry) => {
-          const Icon =
-            entry.type === "main_navigation"
-              ? iconByUrl.get(entry.url)
-              : RECENT_ICON_BY_TYPE[entry.type];
-          return (
-            <CommandItem
-              key={entry.url}
-              value={`recent:${entry.url}`}
-              onSelect={() => {
-                router.push(entry.url);
-                capture("cmd_k_menu:navigated", {
-                  type: "recent",
-                  title: entry.title,
-                  url: entry.url,
-                });
-                onNavigate(entry);
-              }}
-            >
-              {Icon && <Icon className="icon-base" />}
-              {entry.title}
-            </CommandItem>
-          );
-        })}
-      </CommandGroup>
-      <CommandSeparator />
-    </>
+    <CommandGroup heading="Recent">
+      {recents.map((entry) => {
+        const Icon =
+          entry.type === "main_navigation"
+            ? iconByUrl.get(entry.url)
+            : RECENT_ICON_BY_TYPE[entry.type];
+        return (
+          <CommandItem
+            key={entry.url}
+            value={`recent:${entry.url}`}
+            onSelect={() => {
+              router.push(entry.url);
+              capture("cmd_k_menu:navigated", {
+                type: "recent",
+                title: entry.title,
+                url: entry.url,
+              });
+              onNavigate(entry);
+            }}
+          >
+            {Icon && <Icon className="icon-base" />}
+            {entry.title}
+          </CommandItem>
+        );
+      })}
+    </CommandGroup>
   );
 }
 
