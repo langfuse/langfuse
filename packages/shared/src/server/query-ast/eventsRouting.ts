@@ -16,12 +16,16 @@
  * of its select. Shapes that cannot be resolved to one relation are rejected
  * rather than routed to `events_full`, so `events_full` is read only where a
  * query needs it:
- * - `*` or `e.*` over a logical relation (`count(*)` reads no column);
+ * - `*`, `e.*` or `COLUMNS(…)` over a logical relation (`count(*)` reads no
+ *   column);
  * - an unqualified truncated column when its select has more than one
  *   relation, or an enclosing select reads a logical relation;
- * - raw SQL text (`sql` templates, `sql.raw`, `sql.id`) in or under a select
- *   that reads a logical relation. `sql.ref` and bound values resolve like
- *   builder references.
+ * - a column qualified by `events_core` / `events_full` that names no
+ *   relation in scope: ClickHouse resolves a qualifier by table name even
+ *   when the table is aliased, so it would reach the routed relation;
+ * - raw SQL text or identifiers (`sql` templates, `sql.raw`, `sql.id`,
+ *   `sql.table`) in or under a select that reads a logical relation.
+ *   `sql.ref` and bound values resolve like builder references.
  *
  * Callers that want the truncated copy on purpose name `events_core`;
  * physical `events_core` / `events_full` references pass through unchanged.
@@ -60,6 +64,7 @@ import { EVENTS_CORE_TRUNCATED_COLUMNS } from "./schema";
 import { ClickHouseOperationNodeTransformer } from "./transformer";
 
 const LOGICAL_EVENTS = "events";
+const PHYSICAL_EVENTS = new Set(["events_core", "events_full"]);
 
 export class EventsTableRoutingPlugin implements KyselyPlugin {
   transformQuery(args: PluginTransformQueryArgs): RootOperationNode {
@@ -75,15 +80,6 @@ export class EventsTableRoutingPlugin implements KyselyPlugin {
     return args.result;
   }
 }
-
-/** A FROM/JOIN source of one select. */
-type Relation = {
-  /** The FROM item or join table, as the router meets it. */
-  node: OperationNode;
-  /** Alias, or the table name of an unaliased table. */
-  name?: string;
-  logical: boolean;
-};
 
 /**
  * Read-only walk that resolves column references to relations; the
@@ -142,7 +138,7 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
     const qualifier = node.table?.table.identifier.name;
     // `sql.ref("e.*")` parses the star as a column named `*`.
     if (SelectAllNode.is(node.column) || node.column.column.name === "*") {
-      if (qualifier === undefined) this.rejectUnqualifiedStar();
+      if (qualifier === undefined) this.rejectStar("*");
       else if (this.resolveQualified(qualifier)?.logical) {
         throw starError(`${qualifier}.*`);
       }
@@ -154,13 +150,13 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
 
   /** Reached only outside a reference: `selectAll()`, `*` in raw SQL. */
   protected override transformSelectAll(node: SelectAllNode): SelectAllNode {
-    this.rejectUnqualifiedStar();
+    this.rejectStar("*");
     return node;
   }
 
   /** Reached only outside a reference. */
   protected override transformColumn(node: ColumnNode): ColumnNode {
-    if (node.column.name === "*") this.rejectUnqualifiedStar();
+    if (node.column.name === "*") this.rejectStar("*");
     else this.readColumn(node.column.name, undefined);
     return node;
   }
@@ -177,7 +173,7 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
     return super.transformAggregateFunction(node, queryId);
   }
 
-  /** The direction is Kysely's own raw `asc` / `desc`. */
+  /** The direction is raw `asc` / `desc`: the typed `orderBy` writes no other. */
   protected override transformOrderByItem(
     node: OrderByItemNode,
     queryId?: QueryId,
@@ -186,13 +182,24 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
     return node;
   }
 
+  protected override transformFunction(
+    node: FunctionNode,
+    queryId?: QueryId,
+  ): FunctionNode {
+    if (node.func.toLowerCase() === "columns") {
+      this.rejectStar(`${node.func}(…)`);
+    }
+    return super.transformFunction(node, queryId);
+  }
+
   protected override transformRaw(node: RawNode, queryId?: QueryId): RawNode {
     if (
-      this.scopes.some((relations) => relations.some((r) => r.logical)) &&
-      node.sqlFragments.some((fragment) => fragment.trim() !== "")
+      this.readsLogicalInScope() &&
+      (node.sqlFragments.some((fragment) => fragment.trim() !== "") ||
+        node.parameters.some((p) => IdentifierNode.is(p) || TableNode.is(p)))
     ) {
       throw new QueryCompileError(
-        `Raw SQL text cannot appear in a select that reads the logical "${LOGICAL_EVENTS}" relation: it may read a truncated column the routing pass cannot see. Use builder expressions, sql.ref() or bound values.`,
+        `Raw SQL text or identifiers cannot appear in a select that reads the logical "${LOGICAL_EVENTS}" relation: they may read a truncated column the routing pass cannot see. Use builder expressions, sql.ref() or bound values.`,
       );
     }
     return super.transformRaw(node, queryId);
@@ -212,25 +219,33 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
       const match = relations.find((relation) => relation.name === qualifier);
       if (match) return match;
     }
-    return undefined;
-  }
-
-  private resolveUnqualified(column: string): Relation | undefined {
-    const [own, ...enclosing] = this.scopes
-      .toReversed()
-      .filter((relations) => relations.length > 0);
-    if (own?.length === 1 && own[0].logical) return own[0];
-    if ([own ?? [], ...enclosing].some((rs) => rs.some((r) => r.logical))) {
+    if (PHYSICAL_EVENTS.has(qualifier) && this.readsLogicalInScope()) {
       throw new QueryCompileError(
-        `Qualify "${column}": it is truncated in events_core, and the routing pass resolves an unqualified column only when the logical "${LOGICAL_EVENTS}" relation is the one relation in scope.`,
+        `Qualify by the relation's alias, not "${qualifier}": ClickHouse also resolves a table name to an aliased relation, so it may reach the logical "${LOGICAL_EVENTS}" relation after routing.`,
       );
     }
     return undefined;
   }
 
-  private rejectUnqualifiedStar(): void {
+  private resolveUnqualified(column: string): Relation | undefined {
+    const own = this.scopes.at(-1) ?? [];
+    if (own.length === 1 && own[0].logical) return own[0];
+    if (this.readsLogicalInScope()) {
+      throw new QueryCompileError(
+        `Qualify "${column}": it is truncated in events_core, and the routing pass resolves an unqualified column only when the logical "${LOGICAL_EVENTS}" relation is the one relation of its select.`,
+      );
+    }
+    return undefined;
+  }
+
+  /** Whether the current select or an enclosing one reads a logical relation. */
+  private readsLogicalInScope(): boolean {
+    return this.scopes.some((relations) => relations.some((r) => r.logical));
+  }
+
+  private rejectStar(star: string): void {
     if (this.scopes.at(-1)?.some((relation) => relation.logical)) {
-      throw starError("*");
+      throw starError(star);
     }
   }
 }
@@ -284,22 +299,23 @@ class EventsTableRouter extends ClickHouseOperationNodeTransformer {
   }
 }
 
+// FINAL wraps the aliased item: `scores as s FINAL`.
 function describeRelation(node: OperationNode): Relation {
-  const source = AliasNode.is(node) ? node.node : node;
-  const table = FinalTableNode.is(source) ? unwrapFinalTable(source) : source;
+  const item = FinalTableNode.is(node) ? unwrapFinalTable(node) : node;
+  const table = AliasNode.is(item) ? item.node : item;
   return {
     node,
-    name: relationName(node, table),
-    logical: isLogicalEventsTable(source),
+    name: relationName(item, table),
+    logical: isLogicalEventsTable(table),
   };
 }
 
 function relationName(
-  node: OperationNode,
+  item: OperationNode,
   table: OperationNode,
 ): string | undefined {
-  if (AliasNode.is(node)) {
-    return IdentifierNode.is(node.alias) ? node.alias.name : undefined;
+  if (AliasNode.is(item)) {
+    return IdentifierNode.is(item.alias) ? item.alias.name : undefined;
   }
   return TableNode.is(table) && table.table.schema === undefined
     ? table.table.identifier.name
@@ -363,3 +379,12 @@ function coreSafe(
     ? lookup
     : undefined;
 }
+
+/** A FROM/JOIN source of one select. */
+type Relation = {
+  /** The FROM item or join table, as the router meets it. */
+  node: OperationNode;
+  /** Alias, or the table name of an unaliased table. */
+  name?: string;
+  logical: boolean;
+};

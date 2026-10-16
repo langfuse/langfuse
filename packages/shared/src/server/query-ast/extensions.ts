@@ -229,10 +229,19 @@ export function mapValue<V = number>(
   map: Expression<Record<string, V>>,
   key: string | Expression<string>,
 ): ChExpression<V> {
+  return subscript(map, key, false);
+}
+
+function subscript<V>(
+  map: Expression<Record<string, V>>,
+  key: string | Expression<string>,
+  metadataLookup: boolean,
+): ChExpression<V> {
   return new ExpressionWrapper<ClickHouseDatabase, keyof ClickHouseDatabase, V>(
     ArrayIndexNode.create(
       map.toOperationNode(),
       typeof key === "string" ? ValueNode.create(key) : key.toOperationNode(),
+      metadataLookup,
     ) as unknown as OperationNode,
   );
 }
@@ -656,15 +665,11 @@ export function metadataValue(
     new ExpressionWrapper<ClickHouseDatabase, "events_core", string[]>(
       qualifiedColumn(tableAlias, name),
     );
-  const { array, index } = mapValue<string>(
+  return subscript<string>(
     metadataMap(column("metadata_names"), column("metadata_values")),
     key,
-  ).toOperationNode() as unknown as ArrayIndexNode;
-  return new ExpressionWrapper<
-    ClickHouseDatabase,
-    keyof ClickHouseDatabase,
-    string
-  >(ArrayIndexNode.create(array, index, true) as unknown as OperationNode);
+    true,
+  );
 }
 
 // Extract the element type `T` from an array-typed `Expression<T[]>`. `arrayJoin`

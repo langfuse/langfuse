@@ -17,10 +17,12 @@ import { getClickhouseKysely } from "./dialect";
 import { QueryCompileError } from "./errors";
 import {
   includeDeleted,
+  limitBy,
   mapValue,
   metadataMap,
   metadataValue,
   startsWith,
+  useFinal,
 } from "./extensions";
 import type { ClickHouseDatabase } from "./schema";
 
@@ -154,15 +156,67 @@ describe("logical events routing", () => {
   it.each([
     ["lengthUTF8(e.output)", sql<string>`lengthUTF8(e.output)`],
     ["sql.id e.input", sql<string>`${sql.id("e", "input")}`],
+    ["sql.id input", sql<string>`${sql.id("input")}`],
+    ["sql.table input", sql<string>`${sql.table("input")}`],
     ["*", sql<string>`*`],
     ["e.*", sql.raw<string>("e.*")],
     ["tuple(*)", sql<string>`tuple(*)`],
     ["COLUMNS(...)", sql<string>`COLUMNS('^inp')`],
     ["sql.ref e.*", sql.ref<string>("e.*")],
+    ["sql.ref *", sql.ref<string>("*")],
     ["tuple(sql.ref e.*)", sql<string>`tuple(${sql.ref("e.*")})`],
   ])("rejects raw %s in a select that reads events", (_, expression) => {
     expect(() =>
       compile(db.selectFrom("events as e").select(expression.as("x"))),
+    ).toThrow(QueryCompileError);
+  });
+
+  it("rejects a raw identifier in the where clause of a select that reads events", () => {
+    expect(() =>
+      compile(
+        db
+          .selectFrom("events as e")
+          .select("e.span_id")
+          .where(sql<string>`${sql.id("input")}`, "=", "x"),
+      ),
+    ).toThrow(QueryCompileError);
+  });
+
+  it("rejects raw SQL in a select nested under one that reads events", () => {
+    expect(() =>
+      compile(
+        db.selectFrom("events as e").select((eb) => [
+          "e.span_id",
+          eb
+            .selectFrom("scores as s")
+            .select(sql<number>`1`.as("one"))
+            .limit(1)
+            .as("x"),
+        ]),
+      ),
+    ).toThrow(QueryCompileError);
+  });
+
+  it("rejects COLUMNS() in a select that reads events", () => {
+    expect(() =>
+      compile(
+        db
+          .selectFrom("events as e")
+          .select((eb) => eb.fn<string>("COLUMNS", [eb.val("^inp")]).as("x")),
+      ),
+    ).toThrow(QueryCompileError);
+  });
+
+  it.each([
+    "events_core.input",
+    "default.events_core.input",
+    "events_full.input",
+  ])("rejects the physical qualifier %s over a logical relation", (ref) => {
+    // ClickHouse resolves a qualifier by table name even when the table is aliased.
+    expect(() =>
+      compile(
+        db.selectFrom("events as e").select(sql.ref<string>(ref).as("x")),
+      ),
     ).toThrow(QueryCompileError);
   });
 
@@ -195,6 +249,68 @@ describe("logical events routing", () => {
     expect(
       routedTables(compile(db.selectFrom("events").select("input"))),
     ).toEqual(["events_full"]);
+  });
+
+  it("routes a table-qualified read of an unaliased logical relation", () => {
+    expect(
+      routedTables(compile(db.selectFrom("events").select("events.input"))),
+    ).toEqual(["events_full"]);
+  });
+
+  it("routes an unqualified limit by column of the only relation", () => {
+    expect(
+      routedTables(
+        compile(
+          db
+            .selectFrom("events")
+            .select("span_id")
+            .$call(limitBy({ count: 1, columns: ["input"] })),
+        ),
+      ),
+    ).toEqual(["events_full"]);
+    expect(() =>
+      compile(
+        db
+          .selectFrom("events")
+          .select("span_id")
+          .$call(limitBy({ count: 1, columns: ["*"] })),
+      ),
+    ).toThrow(QueryCompileError);
+  });
+
+  it("rejects an unqualified truncated column in a subquery under a select that reads events", () => {
+    expect(() =>
+      compile(
+        db
+          .selectFrom("events as e")
+          .select((eb) => [
+            "e.span_id",
+            eb
+              .selectFrom("scores as s")
+              .select(sql.ref<string>("input").as("i"))
+              .limit(1)
+              .as("x"),
+          ]),
+      ),
+    ).toThrow(QueryCompileError);
+  });
+
+  it("resolves a qualifier to an inner FINAL relation before an outer one", () => {
+    expect(
+      routedTables(
+        compile(
+          db.selectFrom("events as s").select((eb) => [
+            "s.span_id",
+            eb
+              .selectFrom("scores as s")
+              .$call(useFinal(["scores"]))
+              .select(sql.ref<string>("s.input").as("i"))
+              .limit(1)
+              .as("x"),
+          ]),
+        ),
+      ),
+    ).toEqual(["events_core"]);
   });
 
   it("rejects an unqualified truncated column with two relations in scope", () => {
@@ -308,6 +424,20 @@ describe("logical events routing of metadata predicates", () => {
     expect(route(() => startsWith(metadataValue("e", "k"), "x"))).toEqual([
       "events_core",
     ]);
+  });
+
+  it("keeps a short `=` on events_core under a plugin that rewrites the select", () => {
+    expect(
+      routedTables(
+        compile(
+          db
+            .selectFrom("events as e")
+            .select("e.span_id")
+            .where((eb) => eb(metadataValue("e", "k"), "=", "x"))
+            .$call(limitBy({ count: 1, columns: ["e.span_id"] })),
+        ),
+      ),
+    ).toEqual(["events_core"]);
   });
 
   it("keeps a negated short `=` on events_core", () => {
