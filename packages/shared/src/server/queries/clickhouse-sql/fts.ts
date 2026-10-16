@@ -18,6 +18,8 @@ const FTS_MATCH_TARGET_ERROR =
 
 const FTS_TEXT_NORMALIZER = "lower";
 const FTS_HAS_ALL_TOKENS_MAX_SEARCH_TOKENS = 64;
+const FTS_SUBSTRING_FALLBACK_SCRIPTS =
+  /[\p{Script=Thai}\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
 
 export const FTS_EVENTS_TABLES: ReadonlySet<string> = new Set(
   EVENTS_TABLE_NAMES,
@@ -100,6 +102,11 @@ export const isFtsAcceleratedIoOperator = (operator: string): boolean =>
 export const hasFtsSearchToken = (value: string): boolean =>
   /[\p{L}\p{N}]/u.test(value);
 
+// ClickHouse's splitByNonAlpha tokenizer keeps these scripts as one long token,
+// so a token prefilter would drop valid substring matches inside the sentence.
+export const shouldUseFtsTokenPrefilter = (value: string): boolean =>
+  hasFtsSearchToken(value) && !FTS_SUBSTRING_FALLBACK_SCRIPTS.test(value);
+
 const normalizeFtsTextExpr = (expr: string): string =>
   `${FTS_TEXT_NORMALIZER}(${expr})`;
 
@@ -137,6 +144,12 @@ const ftsTextIndexedSubstringCondition = (
 ): string =>
   `(position(${normalizeFtsTextExpr(fieldExpr)}, ${normalizeFtsTextExpr(valueParam)}) > 0 AND ${ftsTextTokenPredicate(fieldExpr, valueParam)})`;
 
+const ftsTextSubstringCondition = (
+  fieldExpr: string,
+  valueParam: string,
+): string =>
+  `position(${normalizeFtsTextExpr(fieldExpr)}, ${normalizeFtsTextExpr(valueParam)}) > 0`;
+
 const ftsMetadataArrayTokenConjunct = (
   arrayExpr: string,
   valueParam: string,
@@ -170,6 +183,13 @@ const ftsMetadataArrayIndexedSubstringCondition = ({
 }: FtsMetadataArrayConditionContext): string =>
   `${hasKey} AND ${ftsMetadataArrayTokenConjunct(valuesColumn, valueParam)} AND (position(${valueAccessor}, ${valueParam}) > 0)`;
 
+const ftsMetadataArraySubstringCondition = ({
+  hasKey,
+  valueAccessor,
+  valueParam,
+}: FtsMetadataArrayConditionContext): string =>
+  `${hasKey} AND (position(${valueAccessor}, ${valueParam}) > 0)`;
+
 type FtsOperatorDescriptors = {
   [operator in FtsAcceleratedStringOperator]: FtsOperatorDescriptor;
 };
@@ -192,9 +212,14 @@ export const FTS_OPERATOR_DESCRIPTORS = {
         : `${hasKey} AND (${valueAccessor} = ${valueParam})`,
   },
   [FTS_MATCH_OPERATOR]: {
-    textCondition: (fieldExpr, valueParam, _exactCondition, _hasToken) =>
-      ftsTextIndexedSubstringCondition(fieldExpr, valueParam),
-    metadataArrayCondition: ftsMetadataArrayIndexedSubstringCondition,
+    textCondition: (fieldExpr, valueParam, _exactCondition, hasToken) =>
+      hasToken
+        ? ftsTextIndexedSubstringCondition(fieldExpr, valueParam)
+        : ftsTextSubstringCondition(fieldExpr, valueParam),
+    metadataArrayCondition: (ctx) =>
+      ctx.hasToken
+        ? ftsMetadataArrayIndexedSubstringCondition(ctx)
+        : ftsMetadataArraySubstringCondition(ctx),
   },
 } satisfies FtsOperatorDescriptors;
 
