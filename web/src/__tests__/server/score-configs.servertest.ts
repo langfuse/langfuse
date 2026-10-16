@@ -8,7 +8,10 @@ import {
   PostScoreConfigResponse,
   PutScoreConfigResponse,
 } from "@/src/features/public-api/types/score-configs";
-import { ScoreConfigDataType } from "@langfuse/shared";
+import {
+  SCORE_CONFIG_NAME_MAX_LENGTH,
+  ScoreConfigDataType,
+} from "@langfuse/shared";
 import { type ScoreConfig, prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
@@ -587,7 +590,7 @@ describe("/api/public/score-configs API Endpoint", () => {
         "PATCH",
         `/api/public/score-configs/${configId}`,
         {
-          name: "a".repeat(50), // Exceeds 35 character limit
+          name: "a".repeat(SCORE_CONFIG_NAME_MAX_LENGTH + 1), // Exceeds the maximum length
         },
         auth,
       );

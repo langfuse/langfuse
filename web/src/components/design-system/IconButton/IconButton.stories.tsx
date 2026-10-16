@@ -1,4 +1,4 @@
-import { Copy } from "lucide-react";
+import { Copy, Trash2 } from "lucide-react";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
@@ -16,6 +16,14 @@ const meta = preview.meta({
 });
 
 export const Default = meta.story({});
+
+export const OutlinedDestructive = meta.story({
+  args: {
+    icon: Trash2,
+    label: "Delete",
+    variant: "outlineDestructive",
+  },
+});
 
 export const TestClick = meta.story({
   name: "(Test) Click",

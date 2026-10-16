@@ -1,5 +1,6 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Plus } from "lucide-react";
+import { useRouter } from "next/router";
 
 import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
@@ -7,9 +8,12 @@ import { ConfirmationDialogController } from "@/src/components/design-system/Con
 import { PaginationBar } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { GatewayConnectionModelsPage } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/GatewayConnectionModelsPage";
 import { ProviderDialogController } from "@/src/features/ai-gateway/components/GatewayProvidersPage/components/ProviderDialogController/ProviderDialogController";
-import { ConnectedGatewayProvidersTable } from "@/src/features/ai-gateway/components/GatewayProvidersPage/components/GatewayProvidersTable/ConnectedGatewayProvidersTable";
+import { GatewayProvidersTable } from "@/src/features/ai-gateway/components/GatewayProvidersPage/components/GatewayProvidersTable/GatewayProvidersTable";
 import { buildGatewayModelsUrl } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayModelsUrl";
+import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
+import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatewayAllowedModelsSet";
 import type { GatewayConnection } from "@/src/features/ai-gateway/types/gatewayProvider";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 
@@ -18,40 +22,41 @@ export function GatewayProvidersPage({
 }: {
   organizationId: string;
 }) {
+  const router = useRouter();
+  const connectionId =
+    typeof router.query.connectionId === "string"
+      ? router.query.connectionId
+      : undefined;
   const connectionsQuery = api.aiGateway.listConnections.useInfiniteQuery(
     { orgId: organizationId, limit: 50 },
-    { getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined },
+    {
+      enabled: !connectionId,
+      getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    },
   );
   const modelsQuery = api.aiGateway.refreshModels.useQuery(
     { orgId: organizationId },
-    { enabled: connectionsQuery.isSuccess },
+    { enabled: !connectionId && connectionsQuery.isSuccess },
   );
-  const [retriedModelCounts, setRetriedModelCounts] = useState<
-    Record<string, number>
-  >({});
   const [pageIndex, setPageIndex] = useState(0);
-  const [isReordering, setIsReordering] = useState(false);
-  const reorderLock = useRef(false);
   const utils = api.useUtils();
-  const reorder = api.aiGateway.reorderConnections.useMutation();
   const retry = api.aiGateway.retryConnection.useMutation();
   const remove = api.aiGateway.deleteConnection.useMutation();
 
   const retryConnection = async (connection: GatewayConnection) => {
     try {
-      const result = await retry.mutateAsync({
+      await retry.mutateAsync({
         orgId: organizationId,
         id: connection.id,
       });
-      if (result.success) {
-        setRetriedModelCounts((current) => ({
-          ...current,
-          [connection.id]: result.models.length,
-        }));
-      }
-      await utils.aiGateway.listConnections.invalidate({
-        orgId: organizationId,
-      });
+      await Promise.all([
+        utils.aiGateway.listConnections.invalidate({
+          orgId: organizationId,
+        }),
+        utils.aiGateway.refreshModels.invalidate({
+          orgId: organizationId,
+        }),
+      ]);
     } catch (error) {
       reportNonTrpcError(error, "ai-gateway-providers");
     }
@@ -63,14 +68,38 @@ export function GatewayProvidersPage({
         orgId: organizationId,
         id: connection.id,
       });
-      await utils.aiGateway.listConnections.invalidate({
-        orgId: organizationId,
-      });
+      await Promise.all([
+        utils.aiGateway.listConnections.invalidate({
+          orgId: organizationId,
+        }),
+        utils.aiGateway.refreshModels.invalidate({
+          orgId: organizationId,
+        }),
+      ]);
+      if (connection.id === connectionId) {
+        await router.push(
+          `/organization/${encodeURIComponent(organizationId)}/settings/ai-gateway-providers`,
+        );
+      }
     } catch (error) {
       reportNonTrpcError(error, "ai-gateway-providers");
       throw error;
     }
   };
+
+  const selectConnection = (connection: GatewayConnection) =>
+    router.push(buildGatewayModelsUrl(organizationId, connection.id));
+
+  if (connectionId) {
+    return (
+      <GatewayConnectionModelsPage
+        organizationId={organizationId}
+        connectionId={connectionId}
+        isDeleting={remove.isPending}
+        onDelete={deleteConnection}
+      />
+    );
+  }
 
   if (connectionsQuery.isPending) {
     return <ProvidersSkeleton />;
@@ -101,10 +130,13 @@ export function GatewayProvidersPage({
   const visiblePageIndex = Math.min(pageIndex, Math.max(0, pages.length - 1));
   const allConnections = pages.flatMap((page) => page.data);
   const connections = pages[visiblePageIndex]?.data ?? [];
-  const pageOffset = pages
-    .slice(0, visiblePageIndex)
-    .reduce((count, page) => count + page.data.length, 0);
-  const modelCounts: Record<string, number | "loading"> = modelsQuery.isPending
+  const connectionsById = new Map(
+    allConnections.map((connection) => [connection.id, connection]),
+  );
+  const modelCounts: Record<
+    string,
+    { enabled: number; total: number } | "loading"
+  > = modelsQuery.isPending
     ? Object.fromEntries(
         allConnections
           .filter((connection) => connection.status === "ENABLED")
@@ -113,12 +145,25 @@ export function GatewayProvidersPage({
     : Object.fromEntries(
         (modelsQuery.data ?? [])
           .filter((result) => result.success)
-          .map((result) => [result.connectionId, result.models.length]),
+          .flatMap((result) => {
+            const connection = connectionsById.get(result.connectionId);
+            if (!connection) return [];
+            const allowedModels = toGatewayAllowedModelsSet(
+              connection.allowedModels,
+            );
+            const enabled = result.models.filter((model) =>
+              isGatewayModelAllowed(allowedModels, model),
+            ).length;
+            return [
+              [
+                result.connectionId,
+                { enabled, total: result.models.length },
+              ] as const,
+            ];
+          }),
       );
-  Object.assign(modelCounts, retriedModelCounts);
-
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex h-full min-h-0 flex-col gap-4">
       <Header
         title="Provider credentials"
         actionButtons={
@@ -133,9 +178,8 @@ export function GatewayProvidersPage({
         }
       />
       <p className="text-muted-foreground text-sm">
-        Requests use the first compatible enabled credential in routing priority
-        order. Credentials are validated against the provider when they are
-        saved.
+        Model names are prefixed with their connection name. Credentials are
+        validated against the provider when they are saved.
       </p>
       <ConfirmationDialogController<GatewayConnection>
         title="Delete provider credential"
@@ -150,59 +194,11 @@ export function GatewayProvidersPage({
         {({ openDialog: openDeleteDialog }) => (
           <ProviderDialogController organizationId={organizationId}>
             {({ openEditDialog }) => (
-              <div className="flex max-h-[60dvh] flex-col overflow-hidden">
-                <ConnectedGatewayProvidersTable
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                <GatewayProvidersTable
                   connections={connections}
-                  pageOffset={pageOffset}
-                  previousConnectionId={allConnections[pageOffset - 1]?.id}
-                  nextConnectionId={
-                    allConnections[pageOffset + connections.length]?.id
-                  }
                   modelCounts={modelCounts}
-                  getModelsUrl={(connection) =>
-                    buildGatewayModelsUrl(organizationId, connection.id)
-                  }
-                  canReorder={!connectionsQuery.hasNextPage && !isReordering}
-                  onReorder={async (sourceId, targetId) => {
-                    if (reorderLock.current) return false;
-                    const sourceIndex = allConnections.findIndex(
-                      (connection) => connection.id === sourceId,
-                    );
-                    const targetIndex = allConnections.findIndex(
-                      (connection) => connection.id === targetId,
-                    );
-                    if (sourceIndex < 0 || targetIndex < 0) return false;
-                    reorderLock.current = true;
-                    setIsReordering(true);
-                    const connectionIds = allConnections.map(
-                      (connection) => connection.id,
-                    );
-                    const [movedId] = connectionIds.splice(sourceIndex, 1);
-                    if (!movedId) return false;
-                    connectionIds.splice(targetIndex, 0, movedId);
-                    try {
-                      await reorder.mutateAsync({
-                        orgId: organizationId,
-                        connectionIds,
-                      });
-                      await utils.aiGateway.listConnections.invalidate({
-                        orgId: organizationId,
-                      });
-                      if (
-                        Math.floor(sourceIndex / 50) !==
-                        Math.floor(targetIndex / 50)
-                      ) {
-                        setPageIndex(Math.floor(targetIndex / 50));
-                      }
-                      return true;
-                    } catch (error) {
-                      reportNonTrpcError(error, "ai-gateway-providers");
-                      return false;
-                    } finally {
-                      reorderLock.current = false;
-                      setIsReordering(false);
-                    }
-                  }}
+                  onSelect={selectConnection}
                   onRetry={retryConnection}
                   retryDisabled={
                     retry.isPending

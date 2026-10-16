@@ -136,7 +136,7 @@ export const promptRouter = createTRPCRouter({
 
       const additionalConditions = input.searchType?.includes("id")
         ? [
-            Prisma.sql`EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${input.searchQuery}%`})`,
+            Prisma.sql`EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${escapeSqlLikePattern(input.searchQuery ?? "")}%`})`,
           ]
         : [];
 
@@ -229,7 +229,7 @@ export const promptRouter = createTRPCRouter({
 
       const additionalConditions = input.searchType?.includes("id")
         ? [
-            Prisma.sql`EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${input.searchQuery}%`})`,
+            Prisma.sql`EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${escapeSqlLikePattern(input.searchQuery ?? "")}%`})`,
           ]
         : [];
 

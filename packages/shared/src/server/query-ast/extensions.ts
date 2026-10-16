@@ -221,15 +221,18 @@ export function dateDiff(
   );
 }
 
-/** `map[key]` subscript with a bound key. */
+/**
+ * `map[key]` subscript. A string key is bound; pass `literal(...)` for a code
+ * constant so it is inlined.
+ */
 export function mapValue<V = number>(
   map: Expression<Record<string, V>>,
-  key: string,
+  key: string | Expression<string>,
 ): ChExpression<V> {
   return new ExpressionWrapper<ClickHouseDatabase, keyof ClickHouseDatabase, V>(
     ArrayIndexNode.create(
       map.toOperationNode(),
-      ValueNode.create(key),
+      typeof key === "string" ? ValueNode.create(key) : key.toOperationNode(),
     ) as unknown as OperationNode,
   );
 }
@@ -347,6 +350,11 @@ export function ifNull<T>(
   fallback: Expression<T>,
 ): ChExpression<T> {
   return functionCall("ifNull", [value, fallback]);
+}
+
+/** ClickHouse `toBool(value)`. */
+export function toBool(value: Expression<SqlBool>): ChExpression<boolean> {
+  return functionCall("toBool", [value]);
 }
 
 /** ClickHouse `isNull(value)`. */
@@ -629,12 +637,12 @@ export function traceSessionId(): ChExpression<string> {
 
 /**
  * Lower `metadata[key]` to a subscript of {@link metadataMap}, so the last
- * entry of a duplicated key wins. The key is a bound `ValueNode`, not a SQL
- * literal.
+ * entry of a duplicated key wins. Keys follow {@link mapValue}: a string is
+ * bound, a `literal(...)` is inlined.
  */
 export function metadataValue(
   tableAlias: string,
-  key: string,
+  key: string | Expression<string>,
 ): ChExpression<string> {
   const column = (name: string) =>
     new ExpressionWrapper<ClickHouseDatabase, "events_core", string[]>(
