@@ -406,6 +406,25 @@ export const datasetRouter = createTRPCRouter({
         },
       });
     }),
+  allNamesAndIds: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:read",
+      });
+
+      return ctx.prisma.dataset.findMany({
+        where: { projectId: input.projectId },
+        select: { id: true, name: true },
+        orderBy: { updatedAt: "desc" },
+      });
+    }),
   allDatasets: protectedProjectProcedure
     .input(
       z.object({
