@@ -23,6 +23,7 @@ import {
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { EntityTitle } from "@/src/components/EntityTitle";
 import { DetailViewHeaderShell } from "@/src/features/traces/components/DetailViewHeaderShell";
+import { DetailViewHeaderTitleRow } from "@/src/features/traces/components/DetailViewHeaderTitleRow";
 import { AnnotateDrawerController } from "@/src/features/scores";
 import { ConnectedTraceObservationAddToDropdownMenuController } from "@/src/features/traces/components/ConnectedTraceObservationAddToDropdownMenuController";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
@@ -223,158 +224,192 @@ export const ObservationDetailViewHeader = memo(
 
     return (
       <DetailViewHeaderShell>
-        {/* Title row with actions */}
-        <div className="grid w-full grid-cols-1 items-center gap-2 @md:grid-cols-[minmax(0,1fr)_auto]">
-          <div className="flex w-full min-w-0 flex-row items-center gap-2">
+        <DetailViewHeaderTitleRow
+          alwaysFold={isMobile}
+          actionsKey={`${observation.id}|${commentCount ?? 0}|${commentDrawerControl.disabled}|${isAnnotationMode}|${Boolean(observationWithIO)}`}
+          title={
             <EntityTitle
               as="span"
               type={observation.type as ObservationType}
               title={observation.name || observation.id}
               level={observation.level}
             />
-            {isMobile && (
-              <ConnectedTraceObservationAddToDropdownMenuController
-                analyticsData={{ source: "TraceDetail", isV4: isV4Enabled }}
-                projectId={projectId}
-                traceId={traceId}
-                variant="observation"
-                observationId={observation.id}
-                input={observationWithIO?.input ?? null}
-                output={observationWithIO?.output ?? null}
-                metadata={observationWithIO?.metadata ?? null}
-                generation={
-                  observationWithIO && isGenerationLike(observationWithIO.type)
-                    ? observationWithIO
-                    : undefined
-                }
-                renderMenu={(addToItems) => (
-                  <AnnotateDrawerController projectId={projectId}>
-                    {({ disabled: annotationDisabled, openDrawer }) => (
-                      <ConnectedDetailHeaderActionsMenuController
-                        idItems={[
-                          { id: traceId, name: "Trace ID" },
-                          { id: observation.id, name: "Observation ID" },
-                        ]}
-                        observationType={observation.type}
-                        projectId={projectId}
-                        observation={
-                          isV4Enabled
-                            ? {
-                                id: observation.id,
-                                traceId,
-                                startTime: observation.startTime,
-                              }
-                            : undefined
-                        }
-                        spanName={observation.name ?? ""}
-                        webCallout={{
-                          traceId,
-                          observationId: observation.id,
-                          sessionId: observation.sessionId ?? null,
-                        }}
-                        renderMenu={(utilityItems) => (
-                          <DropdownMenu
-                            placement="bottom-end"
-                            maxHeight="min(24rem, calc(100dvh - 2rem))"
-                            items={[
-                              ...(!isAnnotationMode
-                                ? [
-                                    {
-                                      type: "item" as const,
-                                      id: "annotate",
-                                      title: "Annotate",
-                                      icon: annotationDisabled
-                                        ? LockIcon
-                                        : SquarePen,
-                                      disabled: annotationDisabled
-                                        ? {
-                                            reason:
-                                              "You don't have permission to annotate.",
-                                          }
-                                        : undefined,
-                                      onClick: () => {
-                                        mobileActionsTriggerRef.current?.focus({
-                                          preventScroll: true,
-                                        });
-                                        openDrawer({
-                                          ...prepareTraceAnnotation({
-                                            traceId,
-                                            projectId,
-                                            environment:
-                                              observation.environment,
-                                            observationId: observation.id,
-                                            scores: observationScores,
-                                            isV4: isV4Enabled,
-                                          }),
-                                          companionTrace,
-                                        });
-                                      },
+          }
+          options={
+            <ConnectedDetailHeaderActionsMenuController
+              idItems={[
+                { id: traceId, name: "Trace ID" },
+                { id: observation.id, name: "Observation ID" },
+              ]}
+              observationType={observation.type}
+              projectId={projectId}
+              observation={
+                isV4Enabled
+                  ? {
+                      id: observation.id,
+                      traceId,
+                      startTime: observation.startTime,
+                    }
+                  : undefined
+              }
+              spanName={observation.name ?? ""}
+              webCallout={{
+                traceId,
+                observationId: observation.id,
+                sessionId: observation.sessionId ?? null,
+              }}
+            >
+              {({ getTriggerProps }) => (
+                <HeaderActionButton
+                  label="Options"
+                  icon={
+                    <EllipsisVertical className="icon-base text-icon-foreground" />
+                  }
+                  {...getTriggerProps()}
+                />
+              )}
+            </ConnectedDetailHeaderActionsMenuController>
+          }
+          foldedActions={
+            <ConnectedTraceObservationAddToDropdownMenuController
+              analyticsData={{ source: "TraceDetail", isV4: isV4Enabled }}
+              projectId={projectId}
+              traceId={traceId}
+              variant="observation"
+              observationId={observation.id}
+              input={observationWithIO?.input ?? null}
+              output={observationWithIO?.output ?? null}
+              metadata={observationWithIO?.metadata ?? null}
+              generation={
+                observationWithIO && isGenerationLike(observationWithIO.type)
+                  ? observationWithIO
+                  : undefined
+              }
+              renderMenu={(addToItems) => (
+                <AnnotateDrawerController projectId={projectId}>
+                  {({ disabled: annotationDisabled, openDrawer }) => (
+                    <ConnectedDetailHeaderActionsMenuController
+                      idItems={[
+                        { id: traceId, name: "Trace ID" },
+                        { id: observation.id, name: "Observation ID" },
+                      ]}
+                      observationType={observation.type}
+                      projectId={projectId}
+                      observation={
+                        isV4Enabled
+                          ? {
+                              id: observation.id,
+                              traceId,
+                              startTime: observation.startTime,
+                            }
+                          : undefined
+                      }
+                      spanName={observation.name ?? ""}
+                      webCallout={{
+                        traceId,
+                        observationId: observation.id,
+                        sessionId: observation.sessionId ?? null,
+                      }}
+                      renderMenu={(utilityItems) => (
+                        <DropdownMenu
+                          placement="bottom-end"
+                          maxHeight="min(24rem, calc(100dvh - 2rem))"
+                          items={[
+                            ...(!isAnnotationMode
+                              ? [
+                                  {
+                                    type: "item" as const,
+                                    id: "annotate",
+                                    title: "Annotate",
+                                    icon: annotationDisabled
+                                      ? LockIcon
+                                      : SquarePen,
+                                    disabled: annotationDisabled
+                                      ? {
+                                          reason:
+                                            "You don't have permission to annotate.",
+                                        }
+                                      : undefined,
+                                    onClick: () => {
+                                      mobileActionsTriggerRef.current?.focus({
+                                        preventScroll: true,
+                                      });
+                                      openDrawer({
+                                        ...prepareTraceAnnotation({
+                                          traceId,
+                                          projectId,
+                                          environment: observation.environment,
+                                          observationId: observation.id,
+                                          scores: observationScores,
+                                          isV4: isV4Enabled,
+                                        }),
+                                        companionTrace,
+                                      });
                                     },
-                                  ]
-                                : []),
-                              {
-                                type: "item",
-                                id: "comments",
-                                title: mobileCommentActionLabel,
-                                icon: commentDrawerControl.disabled
-                                  ? MessageSquareOff
-                                  : MessageSquare,
-                                disabled: commentDrawerControl.disabled
-                                  ? {
-                                      reason:
-                                        "You don't have permission to comment.",
-                                    }
-                                  : undefined,
-                                onClick: () => {
-                                  mobileActionsTriggerRef.current?.focus({
-                                    preventScroll: true,
-                                  });
-                                  commentDrawerControl.openDrawer();
-                                },
+                                  },
+                                ]
+                              : []),
+                            {
+                              type: "item",
+                              id: "comments",
+                              title: mobileCommentActionLabel,
+                              icon: commentDrawerControl.disabled
+                                ? MessageSquareOff
+                                : MessageSquare,
+                              disabled: commentDrawerControl.disabled
+                                ? {
+                                    reason:
+                                      "You don't have permission to comment.",
+                                  }
+                                : undefined,
+                              onClick: () => {
+                                mobileActionsTriggerRef.current?.focus({
+                                  preventScroll: true,
+                                });
+                                commentDrawerControl.openDrawer();
                               },
-                              ...(observationWithIO
-                                ? [
-                                    {
-                                      type: "submenu" as const,
-                                      id: "add-to",
-                                      title: "Add to",
-                                      icon: PlusIcon,
-                                      items: addToItems,
-                                    },
-                                  ]
-                                : []),
-                              {
-                                id: "review-actions-separator",
-                                type: "separator",
-                              },
-                              ...utilityItems,
-                            ]}
-                          >
-                            {({ getTriggerProps }) => (
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                aria-label="More actions"
-                                className="ml-auto shrink-0"
-                                {...getTriggerProps({
-                                  ref: mobileActionsTriggerRef,
-                                })}
-                              >
-                                <EllipsisVertical className="icon-base text-icon-foreground" />
-                              </Button>
-                            )}
-                          </DropdownMenu>
-                        )}
-                      />
-                    )}
-                  </AnnotateDrawerController>
-                )}
-              />
-            )}
-          </div>
-          {/* Action buttons (desktop inline cluster) */}
-          {!isMobile && (
-            <div className="flex flex-wrap content-start items-center justify-start gap-1 @md:justify-end">
+                            },
+                            ...(observationWithIO
+                              ? [
+                                  {
+                                    type: "submenu" as const,
+                                    id: "add-to",
+                                    title: "Add to",
+                                    icon: PlusIcon,
+                                    items: addToItems,
+                                  },
+                                ]
+                              : []),
+                            {
+                              id: "review-actions-separator",
+                              type: "separator",
+                            },
+                            ...utilityItems,
+                          ]}
+                        >
+                          {({ getTriggerProps }) => (
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              aria-label="More actions"
+                              className="ml-auto shrink-0"
+                              {...getTriggerProps({
+                                ref: mobileActionsTriggerRef,
+                              })}
+                            >
+                              <EllipsisVertical className="icon-base text-icon-foreground" />
+                            </Button>
+                          )}
+                        </DropdownMenu>
+                      )}
+                    />
+                  )}
+                </AnnotateDrawerController>
+              )}
+            />
+          }
+          actions={
+            <>
               {observationWithIO ? (
                 <ConnectedTraceObservationAddToDropdownMenuController
                   analyticsData={{ source: "TraceDetail", isV4: isV4Enabled }}
@@ -452,42 +487,86 @@ export const ObservationDetailViewHeader = memo(
                   </>
                 )}
               </Button>
-              <ConnectedDetailHeaderActionsMenuController
-                idItems={[
-                  { id: traceId, name: "Trace ID" },
-                  { id: observation.id, name: "Observation ID" },
-                ]}
-                observationType={observation.type}
-                projectId={projectId}
-                observation={
-                  isV4Enabled
-                    ? {
-                        id: observation.id,
-                        traceId,
-                        startTime: observation.startTime,
+            </>
+          }
+          iconOnlyActions={
+            <>
+              {observationWithIO ? (
+                <ConnectedTraceObservationAddToDropdownMenuController
+                  analyticsData={{ source: "TraceDetail", isV4: isV4Enabled }}
+                  projectId={projectId}
+                  traceId={traceId}
+                  variant="observation"
+                  observationId={observation.id}
+                  input={observationWithIO.input}
+                  output={observationWithIO.output}
+                  metadata={observationWithIO.metadata}
+                  generation={
+                    isGenerationLike(observationWithIO.type)
+                      ? observationWithIO
+                      : undefined
+                  }
+                >
+                  {({ getTriggerProps }) => (
+                    <HeaderActionButton
+                      label="Add to"
+                      icon={<PlusIcon className="icon-base" />}
+                      {...getTriggerProps()}
+                    />
+                  )}
+                </ConnectedTraceObservationAddToDropdownMenuController>
+              ) : (
+                <HeaderActionButton
+                  label="Add to"
+                  icon={<PlusIcon className="icon-base" />}
+                  disabled
+                />
+              )}
+              {!isAnnotationMode && (
+                <AnnotateDrawerController projectId={projectId}>
+                  {({ disabled, openDrawer }) => (
+                    <HeaderActionButton
+                      label="Annotate"
+                      icon={
+                        disabled ? (
+                          <LockIcon className="icon-base" />
+                        ) : (
+                          <SquarePen className="icon-base" />
+                        )
                       }
-                    : undefined
+                      disabled={disabled}
+                      onClick={() =>
+                        openDrawer({
+                          ...prepareTraceAnnotation({
+                            traceId,
+                            projectId,
+                            environment: observation.environment,
+                            observationId: observation.id,
+                            scores: observationScores,
+                            isV4: isV4Enabled,
+                          }),
+                          companionTrace,
+                        })
+                      }
+                    />
+                  )}
+                </AnnotateDrawerController>
+              )}
+              <HeaderActionButton
+                label={commentActionLabel}
+                icon={
+                  commentDrawerControl.disabled ? (
+                    <MessageSquareOff className="icon-base" />
+                  ) : (
+                    <MessageSquare className="icon-base" />
+                  )
                 }
-                spanName={observation.name ?? ""}
-                webCallout={{
-                  traceId,
-                  observationId: observation.id,
-                  sessionId: observation.sessionId ?? null,
-                }}
-              >
-                {({ getTriggerProps }) => (
-                  <HeaderActionButton
-                    label="Options"
-                    icon={
-                      <EllipsisVertical className="icon-base text-icon-foreground" />
-                    }
-                    {...getTriggerProps()}
-                  />
-                )}
-              </ConnectedDetailHeaderActionsMenuController>
-            </div>
-          )}
-        </div>
+                disabled={commentDrawerControl.disabled}
+                onClick={commentDrawerControl.openDrawer}
+              />
+            </>
+          }
+        />
 
         {/* Metadata line */}
         {isAnnotationMode ? (
