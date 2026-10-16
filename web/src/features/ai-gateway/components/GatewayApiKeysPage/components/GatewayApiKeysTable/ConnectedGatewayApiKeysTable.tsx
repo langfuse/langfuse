@@ -1,8 +1,8 @@
-import { useState } from "react";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
 import { CreateGatewayApiKeyDialogController } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/CreateGatewayApiKeyDialogController";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
+import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { api } from "@/src/utils/api";
 import { GatewayApiKeysTable } from "./GatewayApiKeysTable";
 
@@ -11,11 +11,15 @@ export function ConnectedGatewayApiKeysTable({
 }: {
   organizationId: string;
 }) {
-  const apiKeysQuery = api.aiGateway.listApiKeys.useInfiniteQuery(
-    { orgId: organizationId, limit: 50 },
-    { getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined },
-  );
-  const [pageIndex, setPageIndex] = useState(0);
+  const [paginationState, setPaginationState] = usePaginationState(0, 10, {
+    page: "pageIndex",
+    limit: "pageSize",
+  });
+  const apiKeysQuery = api.aiGateway.listApiKeys.useQuery({
+    orgId: organizationId,
+    page: paginationState.pageIndex,
+    limit: paginationState.pageSize,
+  });
   const utils = api.useUtils();
   const revoke = api.aiGateway.revokeApiKey.useMutation();
 
@@ -38,9 +42,6 @@ export function ConnectedGatewayApiKeysTable({
       </div>
     );
   }
-
-  const pages = apiKeysQuery.data?.pages ?? [];
-  const currentPageIndex = Math.min(pageIndex, Math.max(0, pages.length - 1));
 
   return (
     <ConfirmationDialogController<string>
@@ -66,29 +67,14 @@ export function ConnectedGatewayApiKeysTable({
                     ? { status: "loading" }
                     : {
                         status: "success",
-                        data: pages[currentPageIndex]?.data ?? [],
+                        data: apiKeysQuery.data.data,
                       }
                 }
                 pagination={{
-                  mode: "cursor",
-                  state: { pageIndex: currentPageIndex, pageSize: 50 },
-                  pageSizeOptions: [50],
-                  hasNextPage:
-                    currentPageIndex < pages.length - 1 ||
-                    Boolean(apiKeysQuery.hasNextPage),
-                  isLoadingNextPage: apiKeysQuery.isFetchingNextPage,
-                  onChange: (state) => {
-                    if (state.pageIndex < pages.length) {
-                      setPageIndex(state.pageIndex);
-                      return;
-                    }
-                    if (!apiKeysQuery.hasNextPage) return;
-                    apiKeysQuery.fetchNextPage().then((result) => {
-                      if (result.data?.pages[state.pageIndex]) {
-                        setPageIndex(state.pageIndex);
-                      }
-                    });
-                  },
+                  mode: "offset",
+                  totalCount: apiKeysQuery.data?.totalCount ?? null,
+                  state: paginationState,
+                  onChange: setPaginationState,
                 }}
                 createAction={openDialog}
                 onRevoke={openRevokeDialog}
