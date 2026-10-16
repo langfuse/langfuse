@@ -3,7 +3,6 @@ import { useState } from "react";
 import { useSession } from "next-auth/react";
 
 import Header from "@/src/components/layouts/header";
-import { Button } from "@/src/components/design-system/Button/Button";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import {
   AlertDialog,
@@ -24,6 +23,8 @@ import {
   isOrganizationOnlyFeaturePreviewFlag,
   type FeaturePreviewFlag,
 } from "@/src/features/feature-flags/available-flags";
+import { OrganizationFeaturePreviewIntro } from "./OrganizationFeaturePreviewIntro";
+import { PersonalEnablementWarning } from "./PersonalEnablementWarning";
 import { canOpenPersonalFeaturePreviews } from "@/src/features/feature-previews/canOpenPersonalFeaturePreviews";
 import { ControlledFeaturePreviewModal } from "@/src/features/feature-previews/components/ControlledFeaturePreviewModal";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
@@ -58,6 +59,12 @@ export function OrganizationFeaturePreviewsSettings({
       source,
     });
     setPersonalPreviewsOpen(true);
+  };
+  const handleOpenFromDescription = () => {
+    openPersonalPreviews("description");
+  };
+  const handleOpenFromPreviewRow = () => {
+    openPersonalPreviews("preview_row");
   };
   const utils = api.useUtils();
   const defaultsQuery = api.organizations.getFeatureFlagOrgDefaults.useQuery({
@@ -111,22 +118,10 @@ export function OrganizationFeaturePreviewsSettings({
     <div className="flex flex-col gap-4">
       <div>
         <Header title="Feature Previews" />
-        <div className="flex flex-col gap-1">
-          <p className="text-muted-foreground text-sm">
-            Enable previews for everyone while they are using this organization.
-            New members inherit these defaults automatically.
-          </p>
-          {canOpenPersonalPreviews ? (
-            <p className="text-muted-foreground text-sm">
-              Some previews apply only to your account and are not listed here.{" "}
-              <Button
-                variant="text"
-                text="Open personal feature previews"
-                onClick={() => openPersonalPreviews("description")}
-              />
-            </p>
-          ) : null}
-        </div>
+        <OrganizationFeaturePreviewIntro
+          canOpenPersonalPreviews={canOpenPersonalPreviews}
+          onOpenPersonalPreviews={handleOpenFromDescription}
+        />
       </div>
 
       {experimentalFeaturesEnabled ? (
@@ -167,20 +162,10 @@ export function OrganizationFeaturePreviewsSettings({
                   </p>
                 ) : null}
                 {requiresPersonalEnablement ? (
-                  <p className="text-destructive text-xs">
-                    Enable this preview in your{" "}
-                    {canOpenPersonalPreviews ? (
-                      <Button
-                        variant="text"
-                        size="sm"
-                        text="personal Feature Preview settings"
-                        onClick={() => openPersonalPreviews("preview_row")}
-                      />
-                    ) : (
-                      "personal Feature Preview settings"
-                    )}{" "}
-                    before enabling it for the organization.
-                  </p>
+                  <PersonalEnablementWarning
+                    canOpenPersonalPreviews={canOpenPersonalPreviews}
+                    onOpenPersonalPreviews={handleOpenFromPreviewRow}
+                  />
                 ) : null}
               </div>
               <Switch

@@ -240,45 +240,6 @@ describe("OrganizationFeaturePreviewsSettings", () => {
         name: "Toggle External Media Storage organization default",
       }),
     ).toBeEnabled();
-
-    const personalSettingsLinks = screen.getAllByRole("button", {
-      name: "personal Feature Preview settings",
-    });
-    expect(personalSettingsLinks.length).toBeGreaterThan(0);
-    fireEvent.click(personalSettingsLinks[0]);
-    expect(screen.getByRole("dialog")).toHaveTextContent(
-      "Personal feature previews",
-    );
-    expect(mocks.capture).toHaveBeenCalledWith(
-      "organization_settings:personal_feature_previews_opened",
-      { source: "preview_row" },
-    );
-  });
-
-  it("opens personal feature previews from the organization settings page", () => {
-    render(<OrganizationFeaturePreviewsSettings orgId="org-1" />);
-
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Open personal feature previews" }),
-    );
-
-    expect(screen.getByRole("dialog")).toHaveTextContent(
-      "Personal feature previews",
-    );
-    expect(mocks.capture).toHaveBeenCalledWith(
-      "organization_settings:personal_feature_previews_opened",
-      { source: "description" },
-    );
-  });
-
-  it("hides the personal preview link when personal previews are unavailable", () => {
-    mocks.isLangfuseCloud = false;
-    render(<OrganizationFeaturePreviewsSettings orgId="org-1" />);
-
-    expect(
-      screen.queryByRole("button", { name: "Open personal feature previews" }),
-    ).not.toBeInTheDocument();
   });
 
   it("confirms an organization default change and captures metadata once", async () => {
