@@ -24,18 +24,7 @@ const TagList = ({
 
   return selectedTags.length > 0 ? (
     selectedTags.map((tag) => (
-      <TagShell asChild key={tag}>
-        <button
-          type="button"
-          disabled={isLoading}
-          className="focus-visible:ring-ring hover:bg-accent w-fit max-w-40 min-w-0 focus-visible:ring-2 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <TagIcon className="text-foreground-tertiary icon-sm shrink-0" />
-          <span className="truncate py-0.5" title={tag}>
-            {tag}
-          </span>
-        </button>
-      </TagShell>
+      <EditableTag key={tag} tag={tag} disabled={isLoading} />
     ))
   ) : (
     <Tooltip label="Add tag" hoverableContent={false}>
@@ -52,3 +41,21 @@ const TagList = ({
 };
 
 export default TagList;
+
+/** Opens the tag editor; the surrounding popover trigger handles the click. */
+function EditableTag({ tag, disabled }: { tag: string; disabled: boolean }) {
+  return (
+    <TagShell asChild>
+      <button
+        type="button"
+        disabled={disabled}
+        className="focus-visible:ring-ring hover:bg-accent w-fit max-w-40 min-w-0 focus-visible:ring-2 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <TagIcon className="text-foreground-tertiary icon-sm shrink-0" />
+        <span className="truncate py-0.5" title={tag}>
+          {tag}
+        </span>
+      </button>
+    </TagShell>
+  );
+}
