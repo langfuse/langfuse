@@ -32,7 +32,13 @@ vi.mock("@langfuse/shared/encryption", () => ({
 
 const serviceWith = (findFirst: () => Promise<unknown>) => {
   const prisma = {
-    gatewayApiKeyAssociation: { findFirst },
+    apiKey: { findFirst },
+    roleAssignment: {
+      findMany: () =>
+        Promise.resolve([
+          { systemRole: "AI_GATEWAY", orgId: "org-1", projectId: null },
+        ]),
+    },
   } as unknown as PrismaClient;
   const contextResolver = new GatewayApiKeyAuthenticator(prisma);
   const service = new GatewayResolveService();
@@ -56,30 +62,30 @@ const row = (overrides: {
   projectOrgId?: string;
   metadata?: unknown;
 }) => ({
-  apiKeyId: "key-1",
-  metadata: overrides.metadata,
-  apiKey: {
-    orgId: "org-1",
-    organization: {
-      gatewayConfig: {
-        defaultIngestionProjectId: "project-1",
-        ingestionMode: overrides.ingestionMode ?? "USAGE",
-        defaultIngestionProject: {
-          id: "project-1",
-          orgId: overrides.projectOrgId ?? "org-1",
-          deletedAt: null,
-        },
+  id: "key-1",
+  orgId: "org-1",
+  expiresAt: null,
+  gatewayAssociation:
+    overrides.metadata === undefined ? null : { metadata: overrides.metadata },
+  organization: {
+    gatewayConfig: {
+      defaultIngestionProjectId: "project-1",
+      ingestionMode: overrides.ingestionMode ?? "USAGE",
+      defaultIngestionProject: {
+        id: "project-1",
+        orgId: overrides.projectOrgId ?? "org-1",
+        deletedAt: null,
       },
-      gatewayAiConnections: [
-        {
-          id: "connection-1",
-          name: "Production OpenAI",
-          provider: "OPENAI",
-          encryptedCredential: "encrypted-credential",
-          allowedModels: null,
-        },
-      ],
     },
+    gatewayAiConnections: [
+      {
+        id: "connection-1",
+        name: "Production OpenAI",
+        provider: "OPENAI",
+        encryptedCredential: "encrypted-credential",
+        allowedModels: null,
+      },
+    ],
   },
 });
 
@@ -146,6 +152,19 @@ describe("GatewayResolveService", () => {
     });
   });
 
+  it("resolves a key without a gateway association with empty metadata", async () => {
+    const service = serviceWith(() => Promise.resolve(row({})));
+
+    await expect(
+      service.resolve({
+        fastHashedSecretKey: "hashed-secret-key",
+        apiFormat: "openai.responses",
+      }),
+    ).resolves.toMatchObject({
+      attribution: { key_id: "key-1", key_metadata: {} },
+    });
+  });
+
   it("refuses to resolve when the ingestion project belongs to another organization", async () => {
     const service = serviceWith(() =>
       Promise.resolve(row({ projectOrgId: "org-other" })),
@@ -173,11 +192,11 @@ describe("GatewayResolveService", () => {
   it("rejects gateway keys from organizations outside the allowlist", async () => {
     const service = serviceWith(() =>
       Promise.resolve({
-        apiKeyId: "key-1",
-        apiKey: {
-          orgId: "org-not-allowed",
-          organization: { gatewayConfig: null, gatewayAiConnections: [] },
-        },
+        id: "key-1",
+        orgId: "org-not-allowed",
+        expiresAt: null,
+        gatewayAssociation: null,
+        organization: { gatewayConfig: null, gatewayAiConnections: [] },
       }),
     );
 

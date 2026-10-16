@@ -35,7 +35,11 @@ import {
 import { createEs256JwtVerifier } from "@/src/server/utils/jwt";
 import { prisma, Role } from "@langfuse/shared/src/db";
 import { decrypt } from "@langfuse/shared/encryption";
-import { createShaHash } from "@langfuse/shared/src/server/auth/apiKeys";
+import {
+  createApiKey,
+  createShaHash,
+} from "@langfuse/shared/src/server/auth/apiKeys";
+import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 
 const cleanupOrganizations: string[] = [];
 const cleanupUsers: string[] = [];
@@ -1286,7 +1290,7 @@ describe("AI gateway control plane", () => {
       apiFormat: "openai.responses" as const,
       model: "OpenAI:gpt-4o",
     };
-    const lookup = vi.spyOn(prisma.gatewayApiKeyAssociation, "findFirst");
+    const lookup = vi.spyOn(prisma.apiKey, "findFirst");
 
     for (let attempt = 0; attempt < 2; attempt++) {
       await expect(authenticateRequest(resolveParams)).resolves.toMatchObject({
@@ -1333,7 +1337,7 @@ describe("AI gateway control plane", () => {
       apiFormat: "openai.responses" as const,
       model: "gpt-4o",
     };
-    const lookup = vi.spyOn(prisma.gatewayApiKeyAssociation, "findFirst");
+    const lookup = vi.spyOn(prisma.apiKey, "findFirst");
 
     for (let attempt = 0; attempt < 3; attempt++) {
       await expect(authenticateRequest(resolveParams)).rejects.toEqual(
@@ -1346,7 +1350,7 @@ describe("AI gateway control plane", () => {
     lookup.mockRestore();
   });
 
-  it("enforces gateway:invoke when API key role enforcement is on", async () => {
+  it("enforces gateway:invoke regardless of API key role enforcement", async () => {
     const originalMigration = env.API_AUTH_MIGRATION;
     const originalCache = env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED;
     Object.assign(env, { LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED: "false" });
@@ -1362,7 +1366,6 @@ describe("AI gateway control plane", () => {
         apiFormat: "openai.responses" as const,
       };
 
-      Object.assign(env, { API_AUTH_MIGRATION: "enforce" });
       await expect(
         authenticator.authenticateModelsRequest(request),
       ).resolves.toMatchObject({
@@ -1373,22 +1376,46 @@ describe("AI gateway control plane", () => {
         where: { apiKeyId: gatewayKey.id },
         data: { systemRole: "INGEST", roleId: "system/INGEST" },
       });
-      await expect(
-        authenticator.authenticateModelsRequest(request),
-      ).rejects.toMatchObject({
-        status: 403,
-        message: "API key is not allowed to invoke the gateway",
-      });
-
-      Object.assign(env, { API_AUTH_MIGRATION: "legacy" });
-      await expect(
-        authenticator.authenticateModelsRequest(request),
-      ).resolves.toMatchObject({
-        organizationId: org.id,
-      });
+      for (const migration of ["enforce", "legacy"] as const) {
+        Object.assign(env, { API_AUTH_MIGRATION: migration });
+        await expect(
+          authenticator.authenticateModelsRequest(request),
+        ).rejects.toMatchObject({
+          status: 403,
+          message: "API key is not allowed to invoke the gateway",
+        });
+      }
     } finally {
       Object.assign(env, {
         API_AUTH_MIGRATION: originalMigration,
+        LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED: originalCache,
+      });
+    }
+  });
+
+  it("accepts organization keys granted gateway:invoke without a gateway association", async () => {
+    const originalCache = env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED;
+    Object.assign(env, { LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED: "false" });
+    try {
+      const { org, user } = await prepare();
+      const adminKey = await createApiKey(prisma, {
+        owner: OrganizationId(org.id),
+        role: SystemRoleId("ADMIN"),
+        createdBy: UserId(user.id),
+      });
+
+      await expect(
+        new GatewayApiKeyAuthenticator(prisma).authenticateModelsRequest({
+          fastHashedSecretKey: createShaHash(adminKey.secretKey, env.SALT),
+          apiFormat: "openai.responses",
+        }),
+      ).resolves.toMatchObject({
+        organizationId: org.id,
+        apiKeyId: adminKey.id,
+        keyMetadata: {},
+      });
+    } finally {
+      Object.assign(env, {
         LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED: originalCache,
       });
     }
