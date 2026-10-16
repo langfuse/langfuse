@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { useCallback, useEffect } from "react";
 import { BotMessageSquare } from "lucide-react";
 

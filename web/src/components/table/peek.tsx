@@ -1,5 +1,5 @@
 import { type PeekOpenOptions } from "./peek/hooks/usePeekNavigation";
-/* eslint-disable @repo/no-null-render */
+/* eslint-disable @repo/no-null-render, @repo/component-file-structure */
 import * as SheetPrimitive from "@radix-ui/react-dialog";
 import { Sheet, SheetPortal } from "@/src/components/ui/sheet";
 import { Drawer, DrawerContent, DrawerTitle } from "@/src/components/ui/drawer";

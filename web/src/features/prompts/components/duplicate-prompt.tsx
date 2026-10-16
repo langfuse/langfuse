@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger */
+/* eslint-disable @repo/no-abstracted-overlay-trigger, @repo/component-file-structure */
 import { useRouter } from "next/router";
 import { Button } from "@/src/components/ui/button";
 import { api, reportNonTrpcError } from "@/src/utils/api";

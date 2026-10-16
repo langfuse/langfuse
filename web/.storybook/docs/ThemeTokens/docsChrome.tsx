@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 /**
  * Shared presentational chrome for the Design reference pages (Color,
  * Typography, Layout, Charts).

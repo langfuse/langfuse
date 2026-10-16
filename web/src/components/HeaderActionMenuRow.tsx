@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import * as React from "react";
 
 import { type DropdownMenuItemDefinition } from "@/src/components/design-system/DropdownMenu/DropdownMenu";

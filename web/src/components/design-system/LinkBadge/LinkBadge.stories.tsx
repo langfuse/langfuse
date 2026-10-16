@@ -43,3 +43,31 @@ export const RendersALink = meta.story({
     await expect(link?.textContent).toContain("prompt:");
   },
 });
+
+export const WrapsALongValue = meta.story({
+  name: "(Test) Wraps A Long Value",
+  args: {
+    href: "https://langfuse.com/self-hosting/oss-newsletter",
+    label: undefined,
+    text: "https://langfuse.com/self-hosting/oss-newsletter",
+    shouldWrap: true,
+  },
+  render: (args) => (
+    <div className="w-40">
+      <LinkBadge {...args} />
+    </div>
+  ),
+  play: async ({ canvas, args }) => {
+    const value = canvas.getByText(args.text);
+    // The badge clips overflow, so measure the text itself: it must stay inside the box, on several lines.
+    const text = document.createRange();
+    text.selectNodeContents(value);
+    await expect(text.getClientRects().length).toBeGreaterThan(1);
+    await expect(text.getBoundingClientRect().right).toBeLessThanOrEqual(
+      value.getBoundingClientRect().right + 1,
+    );
+    await expect(
+      value.closest("a")?.getBoundingClientRect().width,
+    ).toBeLessThanOrEqual(160);
+  },
+});

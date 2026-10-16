@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { type ChangeEvent, type ReactNode, useState } from "react";

@@ -2756,7 +2756,7 @@ export class OtelIngestionProcessor {
         "ai.telemetry.metadata.tags",
         "ai.telemetry.metadata.langfusePrompt",
       ]),
-      decodeValues,
+      decodedPrefix: decodeValues ? metadataKeyPrefix : undefined,
     });
 
     const metadata = {
@@ -3553,11 +3553,17 @@ export class OtelIngestionProcessor {
       // Fallthrough
     }
 
-    // Vercel AI SDK
+    // Vercel AI SDK: <= v6 reports milliseconds, v7 reports the GenAI
+    // semconv metric name in seconds.
     try {
+      const secondsToFirstChunk =
+        attributes["gen_ai.client.operation.time_to_first_chunk"];
       const msToFirstChunk =
         attributes["ai.response.msToFirstChunk"] ??
-        attributes["ai.stream.msToFirstChunk"];
+        attributes["ai.stream.msToFirstChunk"] ??
+        (secondsToFirstChunk != null && secondsToFirstChunk !== ""
+          ? Number(secondsToFirstChunk) * 1000
+          : undefined);
       if (msToFirstChunk && startTimeISO) {
         const msToFirstChunkNumber = Math.ceil(Number(msToFirstChunk));
 
@@ -3724,14 +3730,14 @@ export class OtelIngestionProcessor {
     attributes: Record<string, unknown>;
     prefixes: string[];
     excludedKeys?: Set<string>;
-    // Set for structured-metadata SDKs, which JSON-encode every value.
-    decodeValues?: boolean;
+    /** decodedPrefix holds JSON-encoded values for structured-metadata SDKs */
+    decodedPrefix?: string;
   }): Record<string, unknown> {
     const {
       attributes,
       prefixes,
       excludedKeys = new Set<string>(),
-      decodeValues,
+      decodedPrefix,
     } = params;
     const metadata: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(attributes)) {
@@ -3745,7 +3751,7 @@ export class OtelIngestionProcessor {
           continue;
         }
 
-        if (!decodeValues || typeof value !== "string") {
+        if (prefix !== decodedPrefix || typeof value !== "string") {
           metadata[metadataKey] = value;
           continue;
         }
@@ -3774,16 +3780,11 @@ export class OtelIngestionProcessor {
     return metadata;
   }
 
-  // Langfuse SDK spans from a major that opts into decoded per-key metadata.
-  // The language comes from the request header, falling back to the OTel
-  // resource for exports relayed without Langfuse headers.
+  /** shouldDecodeMetadataValues is true for spans of any scope exported by a structured-metadata Langfuse SDK major, versioned by the scope on langfuse-sdk spans and by the request header otherwise */
   private shouldDecodeMetadataValues(
     scopeSpan: any,
     resourceAttributes: Record<string, unknown>,
   ): boolean {
-    if (!scopeSpan?.scope?.name?.startsWith("langfuse-sdk")) {
-      return false;
-    }
     const sdkName =
       normalizeIngestionSdkName(this.sdkName) ??
       OTEL_SDK_LANGUAGE_TO_SDK_NAME.get(
@@ -3792,7 +3793,9 @@ export class OtelIngestionProcessor {
       null;
     return isStructuredMetadataSdkVersion({
       sdkName,
-      sdkVersion: scopeSpan.scope.version,
+      sdkVersion: scopeSpan?.scope?.name?.startsWith("langfuse-sdk")
+        ? scopeSpan.scope.version
+        : this.sdkVersion,
     });
   }
 

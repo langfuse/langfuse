@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
 import { EnvLabelBadge } from "@/src/components/EnvLabelBadge";
 import { useEnvLabel } from "@/src/hooks/useEnvLabel";
 import { type LangfuseItemType } from "@/src/components/ItemBadge";

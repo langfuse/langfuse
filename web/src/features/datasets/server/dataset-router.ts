@@ -169,7 +169,7 @@ const resolveSearchCondition = (searchQuery?: string | null) => {
   if (!searchQuery || searchQuery.trim() === "") return Prisma.empty;
 
   // Add case-insensitive search condition
-  return Prisma.sql`AND d.name ILIKE ${`%${searchQuery}%`}`;
+  return Prisma.sql`AND d.name ILIKE ${`%${escapeSqlLikePattern(searchQuery)}%`}`;
 };
 
 const buildPathPrefixFilter = (pathPrefix?: string): Prisma.Sql => {

@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-margin-on-root-elements */
+/* eslint-disable @repo/no-margin-on-root-elements, @repo/component-file-structure */
 "use client";
 import { type LucideIcon } from "lucide-react";
 import {

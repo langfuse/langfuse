@@ -44,6 +44,7 @@ import {
   mapValue,
   medianExact,
   metadataMap,
+  metadataValue,
   sumMapValuesWhereKeyContains,
   toDate,
   toJSONString,
@@ -135,10 +136,14 @@ import {
 } from "./observations";
 import { convertEventsObservation } from "./observations_converters";
 import {
+  EVENTS_METRICS_SECONDS_SELECTS,
+  EVENTS_ROW_FIELD_SELECTS,
   eventsTraceName,
   OBSERVATION_BY_ID_SELECTS,
   SESSION_AGGREGATION_SELECTS,
   TRACE_AGGREGATION_SELECTS,
+  type SessionEventsField,
+  type SessionEventsMetricsRow,
 } from "./events-selects";
 import {
   EventsQueryBuilder,
@@ -147,12 +152,10 @@ import {
   buildEventsFullTableSplitQuery,
   type QueryWithParams,
   normalizeSessionCounts,
-  type SessionEventsField,
   type SessionEventsFields,
-  type SessionEventsMetricsRow,
   OrderByEntry,
-  EVENTS_METADATA_MAP_SQL,
 } from "../queries/clickhouse-sql/event-query-builder";
+import { eventsFieldSetKeys } from "./events-field-sets";
 import {
   buildEventsFilterOptionColumnQuery,
   buildEventsFilterOptionsForColumnsQuery,
@@ -178,6 +181,7 @@ import {
 } from "../../tableDefinitions";
 import { tracesTableCols } from "../../tableDefinitions/tracesTable";
 import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
+import { escapeSqlLikePattern } from "../utils/sqlLike";
 import type {
   SkillsAvailable,
   SkillsResourceLoaded,
@@ -683,7 +687,7 @@ export const getObservationMetricsForPromptsFromEvents = async (
       medianExact(
         sumMapValuesWhereKeyContains(eb.ref("e.usage_details"), "output"),
       ).as("median_output_usage"),
-      medianExact(mapValue(eb.ref("e.cost_details"), "total")).as(
+      medianExact(mapValue(eb.ref("e.cost_details"), literal("total"))).as(
         "median_total_cost",
       ),
       medianExact(
@@ -2233,11 +2237,13 @@ const queryEventsFilterOptionRows = async (
     | BuiltEventsFilterOptionColumnQuery
     | BuiltEventsFilterOptionsForColumnsQuery
     | BuiltEventsExactFilterOptionsForColumnsQuery,
+  clickhouseSettings?: ClickHouseSettings,
 ) => {
   return queryClickhouse<EventFilterOptionRow>({
     query: queryWithParams.query,
     params: queryWithParams.params,
     tags: { projectId },
+    clickhouseSettings,
     preferredClickhouseService: "EventsReadOnly",
   });
 };
@@ -2275,6 +2281,7 @@ const queryEventsFilterOptionColumn = async (params: {
   offset?: number;
   scope?: EventFilterOptionScope;
   sampleRows?: number;
+  clickhouseSettings?: ClickHouseSettings;
 }) => {
   const queryWithParams = buildEventsFilterOptionColumnQuery({
     projectId: params.projectId,
@@ -2290,7 +2297,11 @@ const queryEventsFilterOptionColumn = async (params: {
     return [];
   }
 
-  return queryEventsFilterOptionRows(params.projectId, queryWithParams);
+  return queryEventsFilterOptionRows(
+    params.projectId,
+    queryWithParams,
+    params.clickhouseSettings,
+  );
 };
 
 export const getEventsFilterOptionsForColumns = async (params: {
@@ -2337,6 +2348,7 @@ export const getEventsFilterOptionValuesPage = async (params: {
   column: EventFilterOptionColumn;
   limit: number;
   offset: number;
+  clickhouseSettings?: ClickHouseSettings;
 }) =>
   queryEventsFilterOptionColumn({
     projectId: params.projectId,
@@ -2344,6 +2356,7 @@ export const getEventsFilterOptionValuesPage = async (params: {
     column: params.column,
     limit: params.limit,
     offset: params.offset,
+    clickhouseSettings: params.clickhouseSettings,
   });
 
 /** EventsMetadataOptionRow is one metadata key or value with its event count. */
@@ -2427,6 +2440,7 @@ export const getEventsNumericStatsByFilterColumn = async (
     NumericEventsTableColumnId,
     "inputTokens" | "outputTokens" | "inputCost" | "outputCost"
   >,
+  clickhouseSettings?: ClickHouseSettings,
 ) => {
   const column = eventsTableCols.find((col) => col.id === columnId);
 
@@ -2464,6 +2478,7 @@ export const getEventsNumericStatsByFilterColumn = async (
     query,
     params,
     tags: { projectId },
+    clickhouseSettings,
     preferredClickhouseService: "EventsReadOnly",
   });
   const range = res[0];
@@ -2639,8 +2654,8 @@ export async function getAgentGraphDataFromEventsTable(params: {
         "e.name as name",
         "e.start_time as start_time",
         "e.end_time as end_time",
-        mapValue<string>(metadata, "langgraph_node").as("node"),
-        mapValue<string>(metadata, "langgraph_step").as("step"),
+        mapValue<string>(metadata, literal("langgraph_node")).as("node"),
+        mapValue<string>(metadata, literal("langgraph_step")).as("step"),
       ];
     })
     .where("e.trace_id", "=", traceId)
@@ -3211,7 +3226,7 @@ export const getUsersFromEventsTable = async (
     .whereRaw("e.is_deleted = 0")
     .when(Boolean(searchQuery), (b) =>
       b.whereRaw("e.user_id ILIKE {searchQuery: String}", {
-        searchQuery: `%${searchQuery}%`,
+        searchQuery: `%${escapeSqlLikePattern(searchQuery ?? "")}%`,
       }),
     )
     .orderBy("ORDER BY count DESC")
@@ -3260,7 +3275,9 @@ export const getUsersCountFromEventsTable = async (
     params: {
       projectId,
       ...appliedEventsFilter.params,
-      ...(searchQuery ? { searchQuery: `%${searchQuery}%` } : {}),
+      ...(searchQuery
+        ? { searchQuery: `%${escapeSqlLikePattern(searchQuery)}%` }
+        : {}),
     },
     tags: { projectId },
     preferredClickhouseService: "EventsReadOnly",
@@ -3381,22 +3398,11 @@ export const hasAnyUserFromEventsTable = async (
 };
 
 /**
- * Streams events from ClickHouse for blob storage export.
- * Uses EventsQueryBuilder for consistent query construction.
+ * Query for the events blob export. Full I/O reads events_full; everything
+ * else reads events_core. `convertLatencyToSecondsInSql` can be set by the paths
+ * that skip the JS row enrichment (raw passthrough, Parquet), so they select
+ * latency and time to first token in seconds instead of milliseconds.
  */
-// metrics field set emits latency / time_to_first_token in MILLISECONDS. The
-// raw-passthrough path (LFE-10402) cannot convert ms→s in JS, so when requested
-// it selects the seconds-converted expressions directly in SQL instead. The
-// standard path keeps ms here and converts conditionally in JS, so it stays
-// byte-for-byte unchanged.
-const EVENTS_EXPORT_METRICS_SECONDS_SQL = [
-  "if(isNull(e.end_time), NULL, date_diff('millisecond', e.start_time, e.end_time) / 1000) as latency",
-  "if(isNull(e.completion_start_time), NULL, date_diff('millisecond', e.start_time, e.completion_start_time) / 1000) as \"time_to_first_token\"",
-];
-
-// Shared SQL+params builder for the events blob-export. `convertLatencyToSecondsInSql`
-// is only set by the raw-passthrough path; the standard path leaves it false so
-// its output is identical to today.
 const buildEventsForBlobStorageExportQuery = (
   projectId: string,
   minTimestamp: Date,
@@ -3404,37 +3410,33 @@ const buildEventsForBlobStorageExportQuery = (
   fieldGroups: ObservationFieldGroupFull[],
   convertLatencyToSecondsInSql: boolean,
 ) => {
-  const queryBuilder = new EventsQueryBuilder({ projectId });
-
   // core is always required (provides id, trace_id, start/end_time used for cursor and deduplication)
   const effectiveGroups = fieldGroups.includes("core")
     ? fieldGroups
     : (["core", ...fieldGroups] as ObservationFieldGroupFull[]);
+  const includeIO = effectiveGroups.includes("io");
+  const metricsInSeconds =
+    convertLatencyToSecondsInSql && effectiveGroups.includes("metrics");
+  const fieldSets = effectiveGroups.flatMap((group) => {
+    if (group === "io" || (group === "metrics" && metricsInSeconds)) return [];
+    // "model_export" is the field set name for the "model" group
+    return group === "model" ? ["model_export" as const] : [group];
+  });
 
-  for (const group of effectiveGroups) {
-    if (group === "io") {
-      queryBuilder.selectIO(false); // Full I/O, no truncation
-    } else if (group === "model") {
-      queryBuilder.selectFieldSet("model_export"); // "model_export" is the SQL field set name for the "model" group
-    } else if (group === "metrics" && convertLatencyToSecondsInSql) {
-      queryBuilder.selectRaw(...EVENTS_EXPORT_METRICS_SECONDS_SQL);
-    } else {
-      queryBuilder.selectFieldSet(group);
-    }
-  }
-
-  queryBuilder
-    .whereRaw(
-      "e.start_time >= {minTimestamp: DateTime64(3)} AND e.start_time < {maxTimestamp: DateTime64(3)}",
-      {
-        minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
-        maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
-      },
+  const builder = getClickhouseKysely()
+    .selectFrom(includeIO ? "events_full as e" : "events_core as e")
+    .select(
+      eventsFieldSetKeys(...fieldSets).map(
+        (key) => EVENTS_ROW_FIELD_SELECTS[key],
+      ),
     )
-    .whereRaw("e.is_deleted = 0")
-    .limitBy("e.span_id", "e.project_id");
+    .$if(includeIO, (qb) => qb.select(["input", "output"]))
+    .$if(metricsInSeconds, (qb) => qb.select(EVENTS_METRICS_SECONDS_SELECTS))
+    .where("e.start_time", ">=", minTimestamp)
+    .where("e.start_time", "<", maxTimestamp)
+    .$call(limitBy({ count: 1, columns: ["e.span_id", "e.project_id"] }));
 
-  const { query, params } = queryBuilder.buildWithParams();
+  const { sql: query, params } = compileClickhouseQuery(builder, projectId);
 
   return {
     query,
@@ -3513,7 +3515,6 @@ export const getEventsForBlobStorageExportParquet = function (
 
 /**
  * Streams events from ClickHouse for analytics integrations (PostHog, Mixpanel).
- * Uses EventsQueryBuilder for consistent query construction.
  * All fields come directly from the events table (which has denormalized trace-level data).
  */
 export const getEventsForAnalyticsIntegrations = async function* (
@@ -3522,31 +3523,34 @@ export const getEventsForAnalyticsIntegrations = async function* (
   minTimestamp: Date,
   maxTimestamp: Date,
 ) {
-  const queryBuilder = new EventsQueryBuilder({ projectId })
+  const builder = getClickhouseKysely()
+    .selectFrom("events_core as e")
     // Use export field set for most fields (id, traceId, name, type, level, version,
     // environment, userId, sessionId, tags, release, traceName, totalCost, latency, etc.)
-    .selectFieldSet("export")
+    .select(
+      eventsFieldSetKeys("export").map((key) => EVENTS_ROW_FIELD_SELECTS[key]),
+    )
     // Add analytics-specific computed fields
-    .selectRaw(
+    .select((eb) => [
       // Token counts from usage/cost details
-      "e.usage_details['input'] as input_tokens",
-      "e.usage_details['output'] as output_tokens",
-      "e.usage_details['total'] as total_tokens",
+      mapValue(eb.ref("e.usage_details"), literal("input")).as("input_tokens"),
+      mapValue(eb.ref("e.usage_details"), literal("output")).as(
+        "output_tokens",
+      ),
+      mapValue(eb.ref("e.usage_details"), literal("total")).as("total_tokens"),
       // Analytics integration session IDs from metadata (constructed from array columns)
-      `${EVENTS_METADATA_MAP_SQL}['$posthog_session_id'] as posthog_session_id`,
-      `${EVENTS_METADATA_MAP_SQL}['$mixpanel_session_id'] as mixpanel_session_id`,
-    )
-    .whereRaw(
-      "e.start_time >= {minTimestamp: DateTime64(3)} AND e.start_time < {maxTimestamp: DateTime64(3)}",
-      {
-        minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
-        maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
-      },
-    )
-    .whereRaw("e.is_deleted = 0")
-    .limitBy("e.span_id", "e.project_id");
+      metadataValue("e", literal("$posthog_session_id")).as(
+        "posthog_session_id",
+      ),
+      metadataValue("e", literal("$mixpanel_session_id")).as(
+        "mixpanel_session_id",
+      ),
+    ])
+    .where("e.start_time", ">=", minTimestamp)
+    .where("e.start_time", "<", maxTimestamp)
+    .$call(limitBy({ count: 1, columns: ["e.span_id", "e.project_id"] }));
 
-  const { query, params } = queryBuilder.buildWithParams();
+  const { sql: query, params } = compileClickhouseQuery(builder, projectId);
 
   const records = queryClickhouseStream<Record<string, unknown>>({
     query,
@@ -3565,7 +3569,7 @@ export const getEventsForAnalyticsIntegrations = async function* (
       timestamp: record.start_time,
       langfuse_observation_name: record.name,
       // The row type here is Record<string, unknown>; the column is a String
-      // projection (eventsTableTraceNameSelectSql).
+      // projection ('' when the event has no trace name).
       langfuse_trace_name: normalizeEventsTraceName(
         record.trace_name as string | null | undefined,
       ),

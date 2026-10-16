@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { useRouter } from "next/router";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 

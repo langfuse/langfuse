@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { v7 as uuidv7 } from "uuid";
 import { prisma, type AuditLogStaging, type Prisma } from "../../db";
 import {
@@ -41,6 +42,43 @@ export async function stageAuditLogEvents(
   await (tx ?? prisma).auditLogStaging.createMany({ data: rows });
 
   return rows.map((row) => row.id);
+}
+
+/**
+ * The audit event id of a row in the Postgres `audit_logs` table, whose own
+ * id is a cuid. It is a UUIDv7 that carries the row's `created_at` as its
+ * timestamp and the first bits of a SHA-256 of the cuid as its random bits.
+ * The same row therefore always maps to the same id, so the ClickHouse
+ * `audit_logs` table collapses its copies.
+ */
+export function deriveAuditLogEventId(
+  auditLogId: string,
+  createdAt: Date,
+): string {
+  const timestampMs = createdAt.getTime();
+  if (
+    !Number.isInteger(timestampMs) ||
+    timestampMs < 0 ||
+    timestampMs >= 2 ** 48
+  ) {
+    throw new Error(`Audit log ${auditLogId} has an invalid created_at`);
+  }
+
+  const bytes = createHash("sha256").update(auditLogId).digest();
+  bytes.writeUIntBE(timestampMs, 0, 6);
+  // Version 7 in the high nibble of byte 6, the RFC 9562 variant (0b10) in
+  // the top two bits of byte 8.
+  bytes[6] = 0x70 + (bytes[6] % 0x10);
+  bytes[8] = 0x80 + (bytes[8] % 0x40);
+
+  const hex = bytes.subarray(0, 16).toString("hex");
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    hex.slice(12, 16),
+    hex.slice(16, 20),
+    hex.slice(20, 32),
+  ].join("-");
 }
 
 /**

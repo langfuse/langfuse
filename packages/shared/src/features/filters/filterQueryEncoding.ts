@@ -98,7 +98,7 @@ export const MAX_URL_FILTER_QUERY_LENGTH = 4000;
 
 /**
  * Encodes FilterState to the legacy semicolon-delimited format
- * Format: columnId;type;key;operator;value
+ * Format: columnId;type;key;operator;value[;target]
  * Multiple filters separated by commas
  * Array values joined with |
  */
@@ -138,7 +138,7 @@ export function encodeFiltersGeneric(filters: FilterState): string {
             encodedValue = encodeURIComponent(String(f.value));
           }
 
-          return `${f.column};${f.type};${key};${f.operator};${encodedValue}`;
+          return `${f.column};${f.type};${key};${f.operator};${encodedValue}${f.target ? `;${encodeURIComponent(f.target)}` : ""}`;
         })
         .filter((s): s is string => s !== null),
       ",",
@@ -148,7 +148,7 @@ export function encodeFiltersGeneric(filters: FilterState): string {
 
 /**
  * Decodes the legacy semicolon-delimited format to FilterState
- * Format: column;type;key;operator;value
+ * Format: column;type;key;operator;value[;target]
  */
 export function decodeFiltersGeneric(query: string): FilterState {
   if (!query.trim()) return [];
@@ -161,7 +161,8 @@ export function decodeFiltersGeneric(query: string): FilterState {
   for (const filterString of decoded) {
     if (!filterString) continue;
 
-    const [column, type, key, operator, encodedValue] = filterString.split(";");
+    const [column, type, key, operator, encodedValue, target] =
+      filterString.split(";");
 
     if (!column || !type || !operator || encodedValue === undefined) {
       continue;
@@ -208,6 +209,7 @@ export function decodeFiltersGeneric(query: string): FilterState {
       type,
       operator: decodedOperator,
       value: parsedValue,
+      ...(target ? { target: decodeURIComponent(target) } : {}),
     };
 
     // Add key field for types that need it

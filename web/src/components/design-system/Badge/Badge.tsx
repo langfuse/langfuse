@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import { type LucideIcon } from "lucide-react";

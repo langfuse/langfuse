@@ -19,6 +19,13 @@ export type OverviewScope = {
   prototypeOptions: AgentsPrototypeOptions;
 };
 export type OverviewAgent = AgentProjectionSummary & { skillCount: number };
+export type AgentOverviewListProps = {
+  scope: OverviewScope;
+  agents: OverviewAgent[];
+  metrics: AgentCardMetric[];
+  projection: AgentSessionProjection;
+  showAttention?: boolean;
+};
 export type AgentSort = "attention" | "sessions" | "cost" | "name";
 export const METRIC_LABELS: Record<AgentCardMetric, string> = {
   sessions: "Sessions",

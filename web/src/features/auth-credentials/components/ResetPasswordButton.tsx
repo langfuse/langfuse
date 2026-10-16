@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { signIn, useSession } from "next-auth/react";
 import { Button } from "@/src/components/ui/button";
 import { useEffect, useRef, useState } from "react";

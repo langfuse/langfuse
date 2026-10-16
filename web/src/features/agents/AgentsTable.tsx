@@ -1,8 +1,6 @@
 import { useState } from "react";
-import {
-  AgentOverviewList,
-  type AgentOverviewListProps,
-} from "./overview/AgentOverviewCards";
+import { AgentOverviewList } from "./overview/AgentOverviewList";
+import { type AgentOverviewListProps } from "./overview/prepareOverview";
 import { keepPreviousData } from "@tanstack/react-query";
 import isEqual from "lodash/isEqual";
 import {

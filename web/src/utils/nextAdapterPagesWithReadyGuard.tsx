@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import NextAdapterPages from "next-query-params/pages";
 import { useRouter } from "next/router";
 import type {

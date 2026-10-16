@@ -1,3 +1,4 @@
+/* eslint-disable @repo/storybook-play-no-implementation-detail-assertions */
 import * as React from "react";
 import {
   expect,

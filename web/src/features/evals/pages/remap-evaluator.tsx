@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 import { useState, useMemo } from "react";
 import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/page";

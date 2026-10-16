@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 import { eventsSearchRegistry } from "../config/eventsSearchRegistry";
 import {
   useEventsSearchBar,
@@ -259,6 +259,7 @@ export type EventsTableProps = {
   agentName?: string;
   promptName?: string;
   promptVersion?: number;
+  skill?: { name: string; version?: number };
   omittedFilter?: ObservationEventsOmittableFilterColumn[];
   hideControls?: boolean;
   /** Allow a scoped profile table to open observations while hiding its toolbar. */
@@ -315,6 +316,7 @@ export default function ObservationsEventsTable({
   agentName,
   promptName,
   promptVersion,
+  skill,
   omittedFilter = [],
   hideControls = false,
   enablePeekView = !hideControls,
@@ -677,6 +679,21 @@ export default function ObservationsEventsTable({
             },
           ]
         : []),
+      ...(skill
+        ? [
+            {
+              column:
+                skill.version === undefined ? "skillNames" : "skillVersions",
+              type: "arrayOptions" as const,
+              operator: "any of" as const,
+              value: [
+                skill.version === undefined
+                  ? skill.name
+                  : `${skill.name}@${skill.version}`,
+              ],
+            },
+          ]
+        : []),
       ...(promptName
         ? [
             {
@@ -698,7 +715,7 @@ export default function ObservationsEventsTable({
           ]
         : []),
     ],
-    [userId, agentName, sessionId, promptName, promptVersion],
+    [userId, agentName, sessionId, promptName, promptVersion, skill],
   );
 
   const facetRefiningFilter = useMemo(
@@ -917,7 +934,8 @@ export default function ObservationsEventsTable({
   // scoped. Unlike the old gate, an unsupported filter no longer HIDES the
   // chart: the chart forwards what it can and the sidebar + search bar mark the
   // rest as "not applied" (see chartFilterExclusions below).
-  const chartEnabled = !hideControls && !userId && !agentName && !sessionId;
+  const chartEnabled =
+    !hideControls && !userId && !agentName && !sessionId && !skill;
 
   // Hide the strip where it would silently diverge from the table: prompt-version scope (not forwardable, no "not applied" affordance) or external date/filter pins.
   const outlierStripEnabled =
@@ -2029,8 +2047,8 @@ export default function ObservationsEventsTable({
               // This is a table-internal sticky band below PageHeader. Using
               // top-banner-offset here pushes the band down by the viewport
               // header/banner offset and leaves a large blank gap above it.
-              // pb-1.5 gives the band a bit more breathing room above the table.
-              searchBarMode && "bg-background sticky top-0 z-30 pb-1.5",
+              // pb-3 gives the band breathing room above the table.
+              searchBarMode && "bg-background sticky top-0 z-30 pb-3",
             )}
           >
             {/* Search bar row: full-width query composer. In bar mode it sticks
@@ -2066,6 +2084,7 @@ export default function ObservationsEventsTable({
                     onRequestColumns={requestColumns}
                     aiDataContext={aiDataContext}
                     aiScoreNames={aiScoreNames}
+                    className="px-3 pt-3"
                   />
                 </div>
               </div>
@@ -2073,6 +2092,7 @@ export default function ObservationsEventsTable({
             {/* Toolbar spanning full width */}
             <DataTableToolbar
               columns={columns}
+              className={searchBarMode ? "px-3" : undefined}
               rowClassName={searchBarMode ? "my-1" : undefined}
               filterState={queryFilter.explicitFilterState}
               tableName={eventsFilterConfig.tableName}

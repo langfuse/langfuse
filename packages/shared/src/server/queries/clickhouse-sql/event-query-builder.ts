@@ -1,18 +1,27 @@
-import {
-  OBSERVATION_FIELD_GROUPS_PUBLIC_API,
-  type ObservationFieldGroupPublicApi,
-} from "../../../domain/observation-field-groups";
-import {
-  eventsTableIsRootObservationSql,
-  eventsTableTraceNameAggregationSql,
-  eventsTableTraceNameSelectSql,
-} from "../../../eventsTable";
+import { eventsTableTraceNameAggregationSql } from "../../../eventsTable";
 import { expressionBuilder } from "kysely";
 
 import { renderClickhouseExpression } from "../../query-ast/compile";
-import { metadataMap, traceSessionId } from "../../query-ast/extensions";
+import {
+  metadataMap,
+  toBool,
+  traceSessionId,
+} from "../../query-ast/extensions";
 import type { ClickHouseDatabase } from "../../query-ast/schema";
 import { OBSERVATIONS_TO_TRACE_INTERVAL } from "../../repositories/constants";
+import {
+  FIELD_SETS,
+  orderedFieldKeys,
+  type EventsFieldKey,
+  type FieldSetName,
+} from "../../repositories/events-field-sets";
+import {
+  eventsTraceNameOrEmpty,
+  eventsIsRootObservation,
+  millisecondsSinceStart,
+  type SessionEventsField,
+  type SessionEventsMetricsRow,
+} from "../../repositories/events-selects";
 import {
   FilterList,
   StringFilter,
@@ -29,8 +38,7 @@ const eventsMetadataMap = metadataMap(
   eventsRef.ref("e.metadata_values"),
 );
 
-export const EVENTS_METADATA_MAP_SQL =
-  renderClickhouseExpression(eventsMetadataMap);
+const EVENTS_METADATA_MAP_SQL = renderClickhouseExpression(eventsMetadataMap);
 
 const TRACE_SESSION_ID_SQL = renderClickhouseExpression(traceSessionId());
 
@@ -146,7 +154,7 @@ const EVENTS_FIELDS = {
   environment: "e.environment as environment",
   type: "e.type as type",
   parentObservationId: "e.parent_span_id as parent_observation_id",
-  isRootObservation: `toBool(${eventsTableIsRootObservationSql}) as "is_root_observation"`,
+  isRootObservation: `${renderClickhouseExpression(toBool(eventsIsRootObservation))} as "is_root_observation"`,
   isAppRoot: "e.is_app_root as is_app_root",
   name: "e.name as name",
   level: "e.level as level",
@@ -156,8 +164,7 @@ const EVENTS_FIELDS = {
   public: "e.public as public",
   userId: "e.user_id as user_id",
   sessionId: "e.session_id as session_id",
-  // String-typed on purpose; see eventsTableTraceNameSelectSql (LFE-14924).
-  traceName: `${eventsTableTraceNameSelectSql} as "trace_name"`,
+  traceName: `${renderClickhouseExpression(eventsTraceNameOrEmpty)} as "trace_name"`,
 
   // Time fields
   startTime: "e.start_time as start_time",
@@ -227,285 +234,9 @@ const EVENTS_FIELDS = {
   experimentItemVersion: "e.experiment_item_version as experiment_item_version",
 
   // Calculated fields
-  latency:
-    "if(isNull(e.end_time), NULL, date_diff('millisecond', e.start_time, e.end_time)) as latency",
-  timeToFirstToken:
-    "if(isNull(e.completion_start_time), NULL, date_diff('millisecond', e.start_time, e.completion_start_time)) as \"time_to_first_token\"",
-} as const;
-
-const EVENTS_FIELD_ORDER_INDEX = new Map(
-  Object.keys(EVENTS_FIELDS).map((key, index) => [key, index]),
-);
-
-/**
- * Predefined field sets for common query patterns
- * Maps set names to arrays of field keys from EVENTS_FIELDS
- */
-const FIELD_SETS = {
-  // Aggregates
-  count: ["count"],
-  countWithUniqueTraces: ["count", "uniqueTraceCount"],
-
-  // List query field sets (for getObservationsWithModelDataFromEventsTable)
-  base: [
-    "id",
-    "type",
-    "projectId",
-    "name",
-    "modelParameters",
-    "startTime",
-    "endTime",
-    "traceId",
-    "completionStartTime",
-    "providedUsageDetails",
-    "usageDetails",
-    "providedCostDetails",
-    "costDetails",
-    "level",
-    "environment",
-    "bookmarked",
-    "public",
-    "statusMessage",
-    "version",
-    "parentObservationId",
-    "createdAt",
-    "updatedAt",
-    "providedModelName",
-    "totalCost",
-    "usagePricingTierId",
-    "usagePricingTierName",
-    "promptId",
-    "promptName",
-    "promptVersion",
-    "internalModelId",
-    "userId",
-    "sessionId",
-    "traceName",
-    "release",
-    "tags",
-    "toolDefinitions",
-    "toolCalls",
-    "toolCallNames",
-  ],
-  baseWithoutTools: [
-    "id",
-    "type",
-    "projectId",
-    "name",
-    "modelParameters",
-    "startTime",
-    "endTime",
-    "traceId",
-    "completionStartTime",
-    "providedUsageDetails",
-    "usageDetails",
-    "providedCostDetails",
-    "costDetails",
-    "level",
-    "environment",
-    "bookmarked",
-    "public",
-    "statusMessage",
-    "version",
-    "parentObservationId",
-    "createdAt",
-    "updatedAt",
-    "providedModelName",
-    "totalCost",
-    "usagePricingTierId",
-    "usagePricingTierName",
-    "promptId",
-    "promptName",
-    "promptVersion",
-    "internalModelId",
-    "userId",
-    "sessionId",
-    "traceName",
-    "release",
-    "tags",
-    // Keep lightweight tool names available even when heavy tool payloads are omitted.
-    "toolCallNames",
-  ],
-  calculated: ["latency", "timeToFirstToken"],
-  io: ["input", "output"],
-  metadata: ["metadata"],
-  tools: ["toolDefinitions", "toolCalls", "toolCallNames"],
-  trace_context: ["tags", "release", "traceName"],
-  model_export: ["providedModelName", "modelId", "modelParameters"],
-  eventTs: ["eventTs"],
-  publicApiExperimentItemCore: [
-    "id",
-    "projectId",
-    "traceId",
-    "startTime",
-    "endTime",
-    "level",
-    "environment",
-    "experimentId",
-    "experimentName",
-    "experimentItemId",
-  ],
-  publicApiExperimentItemDataset: [
-    "experimentDatasetId",
-    "experimentItemVersion",
-  ],
-  publicApiExperimentItemExpectedOutput: ["experimentItemExpectedOutput"],
-  publicApiExperimentItemMetadataFields: ["experimentItemMetadata"],
-  publicApiExperimentItemExperimentMetadata: [
-    "experimentMetadata",
-    "experimentDescription",
-  ],
-  // Public API v2 field sets (field groups for selective fetching)
-  core: [
-    "id",
-    "traceId",
-    "startTime",
-    "endTime",
-    "projectId",
-    "parentObservationId",
-    "type",
-  ],
-  basic: [
-    "name",
-    "level",
-    "statusMessage",
-    "version",
-    "environment",
-    "bookmarked",
-    "public",
-    "userId",
-    "sessionId",
-    "isRootObservation",
-  ],
-  time: ["completionStartTime", "createdAt", "updatedAt"],
-  model: ["providedModelName", "internalModelId", "modelParameters"],
-  usage: [
-    "usageDetails",
-    "costDetails",
-    "totalCost",
-    "usagePricingTierId",
-    "usagePricingTierName",
-  ],
-  prompt: ["promptId", "promptName", "promptVersion"],
-  metrics: ["latency", "timeToFirstToken"],
-
-  // Batch export field set (all fields needed for CSV/JSON exports)
-  export: [
-    "id",
-    "traceId",
-    "projectId",
-    "startTime",
-    "endTime",
-    "name",
-    "type",
-    "environment",
-    "version",
-    "userId",
-    "sessionId",
-    "level",
-    "statusMessage",
-    "promptName",
-    "promptId",
-    "promptVersion",
-    "modelId",
-    "providedModelName",
-    "modelParameters",
-    "usageDetails",
-    "costDetails",
-    "totalCost",
-    "completionStartTime",
-    "latency",
-    "timeToFirstToken",
-    "tags",
-    "release",
-    "traceName",
-    "parentObservationId",
-    "bookmarked",
-    "public",
-    "createdAt",
-    "updatedAt",
-    "toolDefinitions",
-    "toolCalls",
-    "toolCallNames",
-    "usagePricingTierId",
-    "usagePricingTierName",
-  ],
-
-  eval: [
-    "id",
-    "traceId",
-    "projectId",
-    "parentObservationId",
-    "isAppRoot",
-    "type",
-    "name",
-    "environment",
-    "version",
-    "level",
-    "statusMessage",
-    "traceName",
-    "userId",
-    "sessionId",
-    "tags",
-    "release",
-    "providedModelName",
-    "modelParameters",
-    "promptId",
-    "promptName",
-    "promptVersion",
-    "providedUsageDetails",
-    "usageDetails",
-    "providedCostDetails",
-    "costDetails",
-    "toolDefinitions",
-    "toolCalls",
-    "toolCallNames",
-    "experimentId",
-    "experimentName",
-    "experimentItemRootSpanId",
-    "experimentItemExpectedOutput",
-    "experimentItemMetadata",
-  ],
-
-  // Experiment items field set
-  experimentItems: [
-    "id", // span_id (observation_id)
-    "traceId",
-    "input",
-    "output",
-    "startTime",
-    "level",
-
-    // Experiment metadata
-    "experimentId",
-    "experimentName",
-    "experimentDatasetId",
-
-    // Experiment item metadata
-    "experimentItemId",
-    "experimentItemRootSpanId",
-    "experimentItemVersion",
-    "experimentItemExpectedOutput",
-    "experimentItemMetadata",
-
-    // Event metadata
-    "metadata",
-  ],
-} as const;
-
-export type FieldSetName = keyof typeof FIELD_SETS;
-
-// Canonicalize by EVENTS_FIELDS declaration order so SELECT column order does
-// not follow caller field-set order. Clustered ClickHouse reads align result
-// blocks by position; incompatible Map types (cost_details vs metadata) 500
-// when those columns swap places.
-function orderedFieldKeys<K extends string>(fieldKeys: readonly K[]): K[] {
-  return [...new Set(fieldKeys)].sort(
-    (a, b) =>
-      (EVENTS_FIELD_ORDER_INDEX.get(a) ?? Number.MAX_SAFE_INTEGER) -
-      (EVENTS_FIELD_ORDER_INDEX.get(b) ?? Number.MAX_SAFE_INTEGER),
-  );
-}
+  latency: `${renderClickhouseExpression(millisecondsSinceStart("e.end_time"))} as latency`,
+  timeToFirstToken: `${renderClickhouseExpression(millisecondsSinceStart("e.completion_start_time"))} as "time_to_first_token"`,
+} as const satisfies Record<EventsFieldKey, string>;
 
 function eventsFieldSelectExpressions(fieldKeys: readonly string[]): string[] {
   return orderedFieldKeys(fieldKeys).flatMap((fieldKey) => {
@@ -513,15 +244,6 @@ function eventsFieldSelectExpressions(fieldKeys: readonly string[]): string[] {
     return fieldExpr ? [fieldExpr] : [];
   });
 }
-
-export const OBSERVATION_FIELD_GROUP_FIELD_NAMES = Object.fromEntries(
-  OBSERVATION_FIELD_GROUPS_PUBLIC_API.map((group) => [
-    group,
-    FIELD_SETS[group],
-  ]),
-) as {
-  [K in ObservationFieldGroupPublicApi]: (typeof FIELD_SETS)[K];
-};
 
 /**
  * Aggregation fields for trace-level queries
@@ -1435,33 +1157,6 @@ export class EventsAggregationQueryBuilder extends BaseEventsQueryBuilder<
     };
   }
 }
-
-/**
- * ClickHouse row type for session-level metrics queries from the events table.
- * Matches the columns produced by EVENTS_SESSION_AGGREGATION_FIELDS below.
- */
-export type SessionEventsMetricsRow = {
-  session_id: string;
-  max_timestamp: string;
-  min_timestamp: string;
-  trace_ids: string[];
-  user_ids: string[];
-  trace_count: number;
-  trace_tags: string[];
-  environment?: string;
-  total_observations: number;
-  duration: number;
-  session_usage_details: Record<string, number>;
-  session_cost_details: Record<string, number>;
-  session_input_cost: string;
-  session_output_cost: string;
-  session_total_cost: string;
-  session_input_usage: string;
-  session_output_usage: string;
-  session_total_usage: string;
-};
-
-export type SessionEventsField = keyof SessionEventsMetricsRow;
 
 /**
  * ClickHouse returns the UInt64 counts as strings.

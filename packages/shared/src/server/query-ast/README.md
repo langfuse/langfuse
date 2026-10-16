@@ -109,6 +109,10 @@ suffix to run there. Promote it to a required check once it has proven stable.
   `eb("level", "=", literal("ERROR"))` renders `level = 'ERROR'`; a value that
   comes from a caller is a plain bind, `eb("level", "=", level)`. `literal`
   rejects backslashes and must never receive user input.
+- **Registry types are logical, not wire types.** `DateTime64` is `Date` and
+  `UInt64` is `number` so binds type-check, but query results arrive as raw
+  JSON (dates as strings). Type rows with a read schema and convert them; do
+  not type results with the builder's `InferResult`.
 - **ClickHouse-only clauses use `$call(helper())`** — not fluent builder
   methods, so they compose inside CTEs, subqueries, and views. See the recipes
   below.
@@ -148,13 +152,14 @@ db.selectFrom("scores as s")
 // … from scores as s final
 ```
 
-**Select a metadata value** (`metadataValue` — lowers `metadata[key]` to a bound subscript of `metadataMap`, so the last duplicate key wins):
+**Select a metadata value** (`metadataValue` — lowers `metadata[key]` to a subscript of `metadataMap`, so the last duplicate key wins; like `mapValue`, a string key is bound and a `literal(...)` key is inlined):
 
 ```ts
+const filterKey: string = input.metadataKey; // caller-supplied, so bound
 db.selectFrom("events_core as e")
-  .select((eb) => [metadataValue("e", "my_key").as("my_val")])
-  .where((eb) => eb(metadataValue("e", "my_key"), "=", "x"));
-// select mapfromarrays(arrayreverse(e.metadata_names), arrayreverse(e.metadata_values))[{p:String}] as my_val …
+  .select((eb) => [metadataValue("e", literal("my_key")).as("my_val")])
+  .where((eb) => eb(metadataValue("e", filterKey), "=", "x"));
+// select mapfromarrays(arrayreverse(e.metadata_names), arrayreverse(e.metadata_values))['my_key'] as my_val …
 ```
 
 ## Developing the dialect
@@ -174,7 +179,7 @@ preserve it:
 | ARRAY JOIN         | Plugin attaches `ArrayJoinNode` as an extra field on `SelectQueryNode`. `ClickHouseOperationNodeTransformer` preserves it. `ClickHouseQueryCompiler.visitSelectQuery` emits it after JOINs / before WHERE. | no    |
 | LIMIT BY           | Plugin attaches `LimitByNode` the same way. Compiler emits it after ORDER BY / before LIMIT.                                                                                                               | no    |
 | FINAL              | Plugin wraps a FROM/JOIN table expression in `FinalTableNode`. Compiler emits `final` after that expression (`scores as s final`). `$call(useFinal(["scores"]))`. Tables declared `dedup: none` throw.     | no    |
-| metadata subscript | Helper builds an `ArrayIndexNode` over the `metadataMap` `FunctionNode`, indexed by a bound `ValueNode` key. Transformer + compiler special-case the node. No plugin.                                      | no    |
+| metadata subscript | Helper builds an `ArrayIndexNode` over the `metadataMap` `FunctionNode`, indexed by a string key expression (a bound value or a `literal(...)`). Transformer + compiler special-case the node. No plugin.  | no    |
 | Virtual view       | Plugin rewrites `selectFrom(viewName)` into a WITH CTE. Outer types only expose the view's selected columns.                                                                                               | no    |
 
 These are real node objects whose children are traced Kysely

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import * as React from "react";
 import { addMinutes } from "date-fns";
 import {
