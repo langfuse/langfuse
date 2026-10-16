@@ -405,6 +405,45 @@ function isSafariAddMoreClickMessage(value: string): boolean {
 }
 
 /**
+ * Chromium wording when injected page-world JS calls `.find` on a value
+ * named `list` that is not an array. Observed as an unhandled rejection
+ * whose stack is only `<anonymous>` frames — no `/_next/` chunk, so
+ * `denyUrls` cannot match. Production app chunks minify locals; a
+ * first-party `.find` throw carries `/_next/` and is KEPT by
+ * {@link hasFirstPartyChunkFrame}.
+ *
+ * Whole-message only. An app error that quotes the phrase is longer
+ * and is KEPT.
+ */
+const CHROMIUM_LIST_FIND_NOT_A_FUNCTION_MESSAGE = "list.find is not a function";
+
+function isChromiumListFindNotAFunctionMessage(value: string): boolean {
+  return (
+    value.trim().replace(/\.$/, "").trim() ===
+    CHROMIUM_LIST_FIND_NOT_A_FUNCTION_MESSAGE
+  );
+}
+
+/**
+ * True when every stack frame is unattributed (`<anonymous>` or missing
+ * filename). Used with the exact Chromium `list.find` wording so a
+ * first-party throw that lost its chunk URL is still KEPT — that event
+ * has no frames, or a named file.
+ */
+function hasOnlyAnonymousFrames(event: ErrorEvent): boolean {
+  const frames = event.exception?.values?.[0]?.stacktrace?.frames;
+  if (!frames || frames.length === 0) return false;
+  return frames.every((frame) => {
+    const filename = frame?.filename;
+    return (
+      typeof filename !== "string" ||
+      filename.length === 0 ||
+      filename === "<anonymous>"
+    );
+  });
+}
+
+/**
  * True when any stack frame is a first-party Next.js chunk. Used as a
  * negative guard so a future first-party throw that happens to share
  * WebKit's wording still reaches Sentry.
@@ -676,7 +715,11 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
     // exact TypeError for an injected `addMore` that is undefined. Stack is
     // document-attributed global code, not a chunk.
     //
-    // All three are anchored to a Sentry browser-API / global-handler
+    // Chromium injected-script `list.find` on a non-array is the same
+    // class: V8's exact TypeError, stack is only `<anonymous>` frames,
+    // not a chunk.
+    //
+    // All four are anchored to a Sentry browser-API / global-handler
     // mechanism so an app-captured exception that merely quotes the
     // phrase is KEPT.
     const mechanismType = exception?.mechanism?.type;
@@ -695,6 +738,14 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
       if (
         exceptionType === "TypeError" &&
         isSafariAddMoreClickMessage(exceptionValue) &&
+        !hasFirstPartyChunkFrame(event)
+      ) {
+        return true;
+      }
+      if (
+        exceptionType === "TypeError" &&
+        isChromiumListFindNotAFunctionMessage(exceptionValue) &&
+        hasOnlyAnonymousFrames(event) &&
         !hasFirstPartyChunkFrame(event)
       ) {
         return true;
