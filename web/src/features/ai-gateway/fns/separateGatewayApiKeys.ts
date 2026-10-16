@@ -1,9 +1,9 @@
-import { type SystemRole } from "@langfuse/shared/src/db";
+import { type Prisma, type SystemRole } from "@langfuse/shared/src/db";
 
 /**
  * Gateway keys are created and listed only on the AI Gateway settings page.
  * Set to false to offer and list them in organization API keys again. The
- * API still accepts and returns them either way.
+ * public API still accepts and returns them either way.
  */
 const SEPARATE_GATEWAY_API_KEYS = true;
 
@@ -16,22 +16,17 @@ export function withoutGatewayRole(roles: SystemRole[]): SystemRole[] {
 }
 
 /**
- * withoutGatewayApiKeys drops gateway-role keys from an organization API key
- * list. Keys without a gateway association stay listed: the AI Gateway page
- * does not show them, so this list is their only place to be revoked.
+ * excludeGatewayApiKeys filters gateway-role keys out of the organization API
+ * key settings list. Keys without a gateway association stay listed: the AI
+ * Gateway page does not show them, so this list is their only place to be
+ * revoked.
  */
-export function withoutGatewayApiKeys<
-  T extends {
-    roleAssignments: { systemRole: SystemRole }[];
-    gatewayAssociation: unknown;
-  },
->(apiKeys: T[]): T[] {
-  if (!SEPARATE_GATEWAY_API_KEYS) return apiKeys;
-  return apiKeys.filter(
-    (apiKey) =>
-      apiKey.gatewayAssociation === null ||
-      !apiKey.roleAssignments.some(
-        (assignment) => assignment.systemRole === GATEWAY_ROLE,
-      ),
-  );
-}
+export const excludeGatewayApiKeys: Prisma.ApiKeyWhereInput =
+  SEPARATE_GATEWAY_API_KEYS
+    ? {
+        NOT: {
+          roleAssignments: { some: { systemRole: GATEWAY_ROLE } },
+          gatewayAssociation: { isNot: null },
+        },
+      }
+    : {};
