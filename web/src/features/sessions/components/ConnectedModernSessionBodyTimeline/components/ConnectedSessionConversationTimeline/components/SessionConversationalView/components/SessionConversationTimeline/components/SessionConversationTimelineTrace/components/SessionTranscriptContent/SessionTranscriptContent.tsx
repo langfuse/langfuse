@@ -25,7 +25,9 @@ export function SessionTranscriptContent({
   onOpenObservation,
   scrollTarget,
   threadIndex: selectedThreadIndex,
+  variant,
 }: {
+  variant?: ComponentProps<typeof SessionTimelineContentMessage>["variant"];
   threadIndex?: number;
   result: Extract<SessionTraceTranscriptState, { state: "loaded" }>;
   onOpenObservation?: (observationId: string) => void;
@@ -59,6 +61,7 @@ export function SessionTranscriptContent({
               </h3>
             )}
             <SessionTranscriptThread
+              variant={variant}
               rows={rows.filter((row) => row.threadIndex === threadIndex)}
               onOpenObservation={onOpenObservation}
               scrollTarget={scrollTarget}
@@ -80,10 +83,12 @@ type DisplayMessage = NormalizedMessage & {
 
 function SessionTranscriptThread({
   rows,
+  variant,
   onOpenObservation,
   scrollTarget,
 }: {
   rows: ReturnType<typeof getSessionTranscriptRows>;
+  variant?: ComponentProps<typeof SessionTimelineContentMessage>["variant"];
   onOpenObservation?: (observationId: string) => void;
   scrollTarget: {
     observationId: string;
@@ -131,6 +136,7 @@ function SessionTranscriptThread({
     >
       {group.type === "tools" ? (
         <SessionTranscriptToolGroup
+          variant={variant}
           summary={group.summary}
           title={group.title}
           rows={group.rows}
@@ -139,6 +145,7 @@ function SessionTranscriptThread({
         />
       ) : (
         <SessionTranscriptRow
+          variant={variant}
           item={group.row}
           onOpenObservation={onOpenObservation}
           scrollTarget={scrollTarget}
@@ -150,6 +157,7 @@ function SessionTranscriptThread({
 
 function SessionTranscriptRow({
   item,
+  variant,
   onOpenObservation,
   scrollTarget,
 }: {
@@ -207,6 +215,7 @@ function SessionTranscriptRow({
         <SessionTranscriptTool row={row} trailingContent={metadata} />
       ) : (
         <SessionTranscriptMessage
+          variant={variant}
           expandRequestId={scrollRequestId}
           message={row.message}
           trailingContent={isSystem ? metadata : null}
@@ -397,11 +406,13 @@ function SessionTranscriptTool({
 
 function SessionTranscriptMessage({
   message,
+  variant,
   trailingContent,
   onOpenObservation,
   expandRequestId,
 }: {
   message: DisplayMessage;
+  variant?: ComponentProps<typeof SessionTimelineContentMessage>["variant"];
   trailingContent: ReactNode;
   onOpenObservation?: (observationId: string) => void;
   expandRequestId?: number;
@@ -417,6 +428,7 @@ function SessionTranscriptMessage({
   }
   return (
     <SessionTimelineContentMessage
+      variant={variant}
       expandRequestId={expandRequestId}
       role={message.role}
       parts={message.parts}

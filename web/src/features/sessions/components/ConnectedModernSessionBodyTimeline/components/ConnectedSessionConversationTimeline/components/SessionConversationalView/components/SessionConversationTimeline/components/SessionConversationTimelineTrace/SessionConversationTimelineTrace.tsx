@@ -165,6 +165,7 @@ export function SessionConversationTimelineTrace({
       )}
       {state.type === "transcript" && (
         <SessionTranscriptContent
+          variant={variant}
           {...state}
           onOpenObservation={onOpenObservation}
           scrollTarget={scrollTarget}
