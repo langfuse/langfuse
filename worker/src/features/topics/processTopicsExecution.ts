@@ -84,6 +84,10 @@ const errorMessage = (error: unknown) =>
 const isExecutionFailure = (error: unknown) =>
   error instanceof TopicsProviderUnavailable ||
   error instanceof TopicEmbeddingFailure;
+// Like trace-batch, a rejected input or unusable output fails only that trace.
+const isTraceModelFailure = (error: unknown) =>
+  error instanceof TopicsProviderUnavailable &&
+  (error.reason === "invalid_output" || error.reason === "invalid_input");
 
 async function saveProgress(
   metrics: TopicMetrics,
@@ -940,7 +944,7 @@ async function processTraces(
             );
           } catch (error) {
             metrics.error("summary", error);
-            if (isExecutionFailure(error)) {
+            if (isExecutionFailure(error) && !isTraceModelFailure(error)) {
               aborted = true;
               throw error;
             }

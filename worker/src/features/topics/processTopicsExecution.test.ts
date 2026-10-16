@@ -20,7 +20,10 @@ import {
   topicExecutionInputSchema,
   topicSourceKey,
 } from "@langfuse/shared/topics";
-import { topicProviderError } from "./provider-error";
+import {
+  TopicsProviderUnavailable,
+  topicProviderError,
+} from "./provider-error";
 
 const state = vi.hoisted(() => ({
   batches: new Map<string, TopicProcessBatchState>(),
@@ -1041,6 +1044,19 @@ describe("Topics execution", () => {
       state.executions.get("source-failure")?.facets[0].counts,
     ).toMatchObject({ complete: 2, failed: 1 });
     expect(state.summarize).toHaveBeenCalledTimes(2);
+  });
+
+  it("fails only the trace whose model output is unusable", async () => {
+    state.summarize.mockRejectedValueOnce(
+      new TopicsProviderUnavailable("No object generated.", "invalid_output"),
+    );
+    await processSelection("invalid-output", 3);
+    expect(state.executions.get("invalid-output")?.status).toBe(
+      "completed_with_errors",
+    );
+    expect(
+      state.executions.get("invalid-output")?.facets[0].counts,
+    ).toMatchObject({ complete: 2, failed: 1 });
   });
 
   it("restarts a failed update with fresh membership and naming while preserving the published map", async () => {
