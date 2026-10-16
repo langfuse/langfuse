@@ -1,10 +1,8 @@
 //! The insertable part of `events_full` and its prepared Rust row.
 //!
 //! The macro invocation below is the only per-column declaration. It drives the prepared row,
-//! column type metadata, JS reads, and typed Native column writes.
+//! column type metadata, JS reads, and typed Native column construction.
 
-use clickhouse::native::builder::BlockBuilder;
-use clickhouse::native::encode::Encode;
 use napi::bindgen_prelude::{Object, Unknown};
 
 use crate::native_codec::{DateTime64Micros, Decimal64, SkillReference, SkillResourceLoaded};
@@ -157,29 +155,32 @@ macro_rules! clickhouse_table_schema {
                 vec![$(
                     (
                         schema_column_name!($field $(as $name)?).to_owned(),
-                        <$ty as Encode>::produces().to_string(),
+                        crate::native_columns::column_type::<$ty>().to_string(),
                         $policy != DefaultPolicy::None,
                     ),
                 )*]
             }
 
-            /// Write shared prepared rows through clickhouse-rs's typed `Encode` implementations.
-            pub(crate) fn encode_arcs(
-                builder: &mut BlockBuilder,
+            /// Build one owned columnar batch from the shared prepared rows.
+            pub(crate) fn to_col_batch(
                 rows: &[std::sync::Arc<Self>],
-            ) -> Result<(), String> {
-                $(
-                    let name = schema_column_name!($field $(as $name)?);
-                    let mut column = builder
-                        .upsert_column::<&$ty>(name)
-                        .map_err(|error| format!("cannot add column {name}: {error}"))?;
-                    for row in rows {
-                        column
-                            .add(&row.$field)
-                            .map_err(|error| format!("cannot encode column {name}: {error}"))?;
-                    }
-                )*
-                Ok(())
+            ) -> Result<ch_core_rs::batch::ColBatch, String> {
+                let schema = ch_core_rs::schema::Schema::new(vec![
+                    $(
+                        ch_core_rs::schema::Field {
+                            name: schema_column_name!($field $(as $name)?).to_owned(),
+                            ch_type: crate::native_columns::column_type::<$ty>(),
+                        },
+                    )*
+                ]);
+                let columns = vec![
+                    $(
+                        crate::native_columns::build_column::<$ty, _>(
+                            rows.iter().map(|row| &row.$field),
+                        )?,
+                    )*
+                ];
+                Ok(ch_core_rs::batch::ColBatch::new(schema, columns, rows.len()))
             }
         }
     };

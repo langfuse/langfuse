@@ -2,15 +2,9 @@
 //!
 //! Encoding receives typed, owned fields from the direct JS adapter in `native_js`.
 
-use std::error::Error as StdError;
 use std::sync::Arc;
 
-use bytes::Bytes;
 use chrono::{DateTime, NaiveDateTime, Utc};
-use clickhouse::native::builder::BlockBuilder;
-use clickhouse::native::encode::{Encode, ValueWriter};
-use clickhouse::native::DataTypeNode;
-use clickhouse_types::data_types::{DateTimePrecision, DecimalType};
 use rust_decimal::{Decimal, RoundingStrategy};
 
 use crate::native_schema::PreparedEventRow;
@@ -20,60 +14,18 @@ const DECIMAL_LIMIT: i128 = 1_000_000_000_000_000_000;
 const DECIMAL_CLAMPED_MAX: i64 = 999_999_999_999_000_000;
 const DECIMAL_CLAMPED_MIN: i64 = -DECIMAL_CLAMPED_MAX;
 const DECIMAL_OVERFLOW_LIMIT: f64 = 1_000_000.0;
-type EncodeError = Box<dyn StdError + Send + Sync>;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct DateTime64Micros(pub(crate) i64);
-
-impl Encode for DateTime64Micros {
-    fn produces() -> DataTypeNode {
-        DataTypeNode::DateTime64(DateTimePrecision::Precision6, None)
-    }
-
-    fn encode(&self, writer: &mut ValueWriter<'_>) -> Result<(), EncodeError> {
-        // clickhouse-rs has no DateTime64 Encode implementation. Keep the DateTime64(6) type tag
-        // while writing ClickHouse's signed microsecond representation as a fixed-width value.
-        writer.write_fixed(&self.0.to_le_bytes())?;
-        Ok(())
-    }
-}
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Decimal64(pub(crate) i64);
-
-impl Encode for Decimal64 {
-    fn produces() -> DataTypeNode {
-        DataTypeNode::Decimal(18, 12, DecimalType::Decimal64)
-    }
-
-    fn encode(&self, writer: &mut ValueWriter<'_>) -> Result<(), EncodeError> {
-        // rust_decimal supplies the policy and coefficient; clickhouse-rs has no Decimal Encode
-        // implementation, so retain the Decimal(18,12) type tag and write its Int64 coefficient.
-        writer.write_fixed(&self.0.to_le_bytes())?;
-        Ok(())
-    }
-}
 
 #[derive(Debug)]
 pub(crate) struct SkillReference {
     pub(crate) langfuse_skill_id: Option<String>,
     pub(crate) skill_version: Option<u32>,
     pub(crate) skill_name: String,
-}
-
-impl Encode for SkillReference {
-    fn produces() -> DataTypeNode {
-        <(Option<String>, Option<u32>, String)>::produces()
-    }
-
-    fn encode(&self, writer: &mut ValueWriter<'_>) -> Result<(), EncodeError> {
-        (
-            &self.langfuse_skill_id,
-            &self.skill_version,
-            &self.skill_name,
-        )
-            .encode(writer)
-    }
 }
 
 #[derive(Debug)]
@@ -84,29 +36,13 @@ pub(crate) struct SkillResourceLoaded {
     pub(crate) file_path: String,
 }
 
-impl Encode for SkillResourceLoaded {
-    fn produces() -> DataTypeNode {
-        <(Option<String>, Option<u32>, String, String)>::produces()
-    }
-
-    fn encode(&self, writer: &mut ValueWriter<'_>) -> Result<(), EncodeError> {
-        (
-            &self.langfuse_skill_id,
-            &self.skill_version,
-            &self.skill_name,
-            &self.file_path,
-        )
-            .encode(writer)
-    }
-}
-
 /// An owned ClickHouse Native-format block and its row count.
 ///
 /// Ownership is part of the transport contract: the later JS transport can retry this complete
 /// block after the encoder and source rows have gone out of scope.
 #[derive(Debug)]
 pub struct EncodedBlock {
-    pub bytes: Bytes,
+    pub bytes: Vec<u8>,
     pub row_count: usize,
 }
 
@@ -138,15 +74,13 @@ pub(crate) fn encode_v4_native_blocks(
         .collect()
 }
 
-fn encode_block(rows: &[Arc<PreparedEventRow>]) -> Result<Bytes, String> {
-    let mut builder = BlockBuilder::new();
-    PreparedEventRow::encode_arcs(&mut builder, rows)?;
-
-    builder
-        .build()
-        .map_err(|error| error.to_string())?
-        .encode()
-        .map_err(|error| error.to_string())
+fn encode_block(rows: &[Arc<PreparedEventRow>]) -> Result<Vec<u8>, String> {
+    let batch = PreparedEventRow::to_col_batch(rows)?;
+    ch_core_rs::native::encode::encode_block(
+        &batch,
+        &ch_core_rs::native::encode::EncodeOptions::default(),
+    )
+    .map_err(|error| error.to_string())
 }
 
 /// Parse the UTC-only datetime values produced by the ingestion pipeline. A ClickHouse datetime
