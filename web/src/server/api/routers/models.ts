@@ -275,108 +275,116 @@ export const modelRouter = createTRPCRouter({
 
       const modelId = providedModelId ?? uuidv4();
 
-      const result = await ctx.prisma.$transaction(async (tx) => {
-        // Check whether model belongs to project
-        // This check is important to prevent users from updating prices for models that they do not have access to
-        const existingModel = await tx.model.findUnique({
-          where: {
-            id: modelId,
-          },
-        });
-
-        if (existingModel && existingModel.projectId !== projectId) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Model not found",
-          });
-        }
-
-        // Check if model name is unique within the project
-        // Note: The database has a uniqueness constraint on (projectId, modelName, startDate, unit),
-        // but this constraint is not enforced when startDate or unit are NULL.
-        // We do an explicit check here to ensure uniqueness on just (projectId, modelName).
-        // TODO(LFE-3229): After models table cleanup, enforce uniqueness constraint directly on (projectId, modelName)
-        const existingModelName = await tx.model.findFirst({
-          where: {
-            projectId,
-            modelName,
-          },
-        });
-
-        if (existingModelName && modelId !== existingModelName.id) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: `Model name '${modelName}' already exists in project`,
-          });
-        }
-
-        const upsertedModel = await tx.model.upsert({
-          where: {
-            id: modelId,
-            projectId: projectId,
-          },
-          create: {
-            id: modelId,
-            projectId,
-            modelName,
-            matchPattern,
-            tokenizerConfig,
-            tokenizerId,
-            startDate: new Date("2010-01-01"), // Set fix start date for uniqueness constraint to work. TODO: drop after cleanup of models table in LFE-3229
-            unit: ModelUsageUnit.Tokens, // Set fix unit for uniqueness constraint to work. TODO: drop after cleanup of models table in LFE-3229
-          },
-          update: {
-            matchPattern,
-            tokenizerConfig,
-            tokenizerId,
-          },
-        });
-
-        // Delete all existing pricing tiers
-        await tx.pricingTier.deleteMany({
-          where: {
-            modelId: upsertedModel.id,
-          },
-        });
-
-        // Create new pricing tiers
-        for (const tier of pricingTiers) {
-          const createdTier = await tx.pricingTier.create({
-            data: {
-              modelId: upsertedModel.id,
-              name: tier.name,
-              isDefault: tier.isDefault,
-              priority: tier.priority,
-              conditions: tier.conditions,
+      const result = await ctx.prisma.$transaction(
+        async (tx) => {
+          // Check whether model belongs to project
+          // This check is important to prevent users from updating prices for models that they do not have access to
+          const existingModel = await tx.model.findUnique({
+            where: {
+              id: modelId,
             },
           });
 
-          // Create prices for this tier
-          await Promise.all(
-            Object.entries(tier.prices).map(([usageType, price]) =>
-              tx.price.create({
-                data: {
-                  modelId: upsertedModel.id,
-                  projectId: upsertedModel.projectId,
-                  pricingTierId: createdTier.id,
-                  usageType,
-                  price,
-                },
-              }),
-            ),
-          );
-        }
+          if (existingModel && existingModel.projectId !== projectId) {
+            throw new TRPCError({
+              code: "NOT_FOUND",
+              message: "Model not found",
+            });
+          }
 
-        await auditLog({
-          session: ctx.session,
-          resourceType: "model",
-          resourceId: upsertedModel.id,
-          action: providedModelId ? "update" : "create",
-          after: { model: upsertedModel, pricingTiers },
-        });
+          // Check if model name is unique within the project
+          // Note: The database has a uniqueness constraint on (projectId, modelName, startDate, unit),
+          // but this constraint is not enforced when startDate or unit are NULL.
+          // We do an explicit check here to ensure uniqueness on just (projectId, modelName).
+          // TODO(LFE-3229): After models table cleanup, enforce uniqueness constraint directly on (projectId, modelName)
+          const existingModelName = await tx.model.findFirst({
+            where: {
+              projectId,
+              modelName,
+            },
+          });
 
-        return upsertedModel;
-      });
+          if (existingModelName && modelId !== existingModelName.id) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: `Model name '${modelName}' already exists in project`,
+            });
+          }
+
+          const upsertedModel = await tx.model.upsert({
+            where: {
+              id: modelId,
+              projectId: projectId,
+            },
+            create: {
+              id: modelId,
+              projectId,
+              modelName,
+              matchPattern,
+              tokenizerConfig,
+              tokenizerId,
+              startDate: new Date("2010-01-01"), // Set fix start date for uniqueness constraint to work. TODO: drop after cleanup of models table in LFE-3229
+              unit: ModelUsageUnit.Tokens, // Set fix unit for uniqueness constraint to work. TODO: drop after cleanup of models table in LFE-3229
+            },
+            update: {
+              matchPattern,
+              tokenizerConfig,
+              tokenizerId,
+            },
+          });
+
+          // Delete all existing pricing tiers
+          await tx.pricingTier.deleteMany({
+            where: {
+              modelId: upsertedModel.id,
+            },
+          });
+
+          // Create new pricing tiers
+          for (const tier of pricingTiers) {
+            const createdTier = await tx.pricingTier.create({
+              data: {
+                modelId: upsertedModel.id,
+                name: tier.name,
+                isDefault: tier.isDefault,
+                priority: tier.priority,
+                conditions: tier.conditions,
+              },
+            });
+
+            // Create prices for this tier
+            await Promise.all(
+              Object.entries(tier.prices).map(([usageType, price]) =>
+                tx.price.create({
+                  data: {
+                    modelId: upsertedModel.id,
+                    projectId: upsertedModel.projectId,
+                    pricingTierId: createdTier.id,
+                    usageType,
+                    price,
+                  },
+                }),
+              ),
+            );
+          }
+
+          await auditLog({
+            session: ctx.session,
+            resourceType: "model",
+            resourceId: upsertedModel.id,
+            action: providedModelId ? "update" : "create",
+            after: { model: upsertedModel, pricingTiers },
+          });
+
+          return upsertedModel;
+        },
+        {
+          // Interactive transactions default to 5s. This write replaces
+          // pricing tiers and records an audit log on one pooled connection;
+          // a brief lock or pool wait then 500s the save.
+          timeout: 30_000,
+        },
+      );
 
       // Clear model cache for the project after successful upsert
       await clearModelCacheForProject(projectId);
