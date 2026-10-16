@@ -666,19 +666,22 @@ describe("Organization membership safeguards", () => {
     ["PUT", "member", Role.OWNER],
     ["PUT", "owner", Role.ADMIN],
     ["DELETE", "owner", undefined],
-  ] as const)("rejects FULL_ACCESS key %s of %s to %s", async (method, target, role) => {
-    if (target === "owner") {
-      await prisma.organizationMembership.update({
-        where: { orgId_userId: { orgId, userId: memberId } },
-        data: { role: Role.OWNER },
-      });
-    }
-    const userId = target === "owner" ? ownerId : memberId;
-    const before = await membership(userId);
-    expect((await request(method, userId, role, adminAuth)).status).toBe(403);
-    expect(await membership(userId)).toEqual(before);
-    expect(await logs()).toEqual([]);
-  });
+  ] as const)(
+    "rejects FULL_ACCESS key %s of %s to %s",
+    async (method, target, role) => {
+      if (target === "owner") {
+        await prisma.organizationMembership.update({
+          where: { orgId_userId: { orgId, userId: memberId } },
+          data: { role: Role.OWNER },
+        });
+      }
+      const userId = target === "owner" ? ownerId : memberId;
+      const before = await membership(userId);
+      expect((await request(method, userId, role, adminAuth)).status).toBe(403);
+      expect(await membership(userId)).toEqual(before);
+      expect(await logs()).toEqual([]);
+    },
+  );
 
   it("lets a FULL_ACCESS key manage ordinary members and remove the last ADMIN", async () => {
     expect((await request("PUT", memberId, Role.ADMIN, adminAuth)).status).toBe(

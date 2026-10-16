@@ -135,13 +135,7 @@ describe("REST API key creation schemas", () => {
       scope: "organization",
       schema: organizationApiKeyCreationSchema,
       legacyRole: "LEGACY_ORGANIZATION_API_KEY",
-      roles: [
-        "FULL_ACCESS",
-        "VIEWER",
-        "INGEST",
-        "SCORES_INGEST",
-        "AI_GATEWAY",
-      ],
+      roles: ["FULL_ACCESS", "VIEWER", "INGEST", "SCORES_INGEST", "AI_GATEWAY"],
       invalidRoles: [
         "LEGACY_PROJECT_API_KEY",
         "LEGACY_ORGANIZATION_API_KEY",
