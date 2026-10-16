@@ -1,6 +1,6 @@
 import z from "zod";
 
-import { IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME } from "./toolNames";
+import { IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME } from "./constants";
 import {
   InAppAgentQuestionnaireAnswersSchema,
   resolveInAppAgentQuestionnaireAnswers,

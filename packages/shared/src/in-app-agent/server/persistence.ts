@@ -7,7 +7,7 @@ import {
   InAppAgentRunStatus,
 } from "../../features/inAppAgent/types";
 import { ChatMessageRole, ChatMessageType, logger } from "../../server";
-import { isSettledInAppAgentRunStatus } from "../constants";
+import { isSettledInAppAgentRunStatus } from "../../features/inAppAgent/types";
 import { recordRunTerminalOutcome } from "./runMetrics";
 import { Prisma } from "../../db";
 import type { InAppAgentConversation, PrismaClient } from "../../db";

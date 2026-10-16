@@ -13,14 +13,12 @@ import type { AgUiEvent } from "../schema";
 import type { InAppAgentToolInputs } from "../toolInputs";
 import type { InAppAgentPrefixedLangfuseMcpToolName } from "./mcpPolicy";
 import {
+  IN_APP_AGENT_UNSETTLED_RUN_STATUSES,
   InAppAgentRunRequestSchema,
+  isSettledInAppAgentRunStatus,
   resolveInAppAgentRootRunId,
   type InAppAgentRunRequest,
 } from "../../features/inAppAgent/types";
-import {
-  IN_APP_AGENT_UNSETTLED_RUN_STATUSES,
-  isSettledInAppAgentRunStatus,
-} from "../constants";
 import {
   ACTIVE_RUN_CONFLICT_MESSAGE,
   lockConversation,

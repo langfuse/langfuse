@@ -21,6 +21,36 @@ export enum InAppAgentRunStatus {
 
 export const InAppAgentRunStatusSchema = z.enum(InAppAgentRunStatus);
 
+/** Runs that are not yet in a terminal state, including parked approvals. */
+export const IN_APP_AGENT_UNSETTLED_RUN_STATUSES = [
+  InAppAgentRunStatus.QUEUED,
+  InAppAgentRunStatus.RUNNING,
+  InAppAgentRunStatus.AWAITING_APPROVAL,
+] as const;
+
+export type UnsettledInAppAgentRunStatus =
+  (typeof IN_APP_AGENT_UNSETTLED_RUN_STATUSES)[number];
+
+/** Complement of `IN_APP_AGENT_UNSETTLED_RUN_STATUSES`. */
+export type SettledInAppAgentRunStatus = Exclude<
+  InAppAgentRunStatus,
+  UnsettledInAppAgentRunStatus
+>;
+
+export function isUnsettledInAppAgentRunStatus(
+  status: InAppAgentRunStatus,
+): status is UnsettledInAppAgentRunStatus {
+  return (
+    IN_APP_AGENT_UNSETTLED_RUN_STATUSES as readonly InAppAgentRunStatus[]
+  ).includes(status);
+}
+
+export function isSettledInAppAgentRunStatus(
+  status: InAppAgentRunStatus,
+): status is SettledInAppAgentRunStatus {
+  return !isUnsettledInAppAgentRunStatus(status);
+}
+
 /**
  * Terminal error codes of an in-app agent run (`in_app_agent_runs.error_code`).
  *
