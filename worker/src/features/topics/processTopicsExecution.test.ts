@@ -48,6 +48,7 @@ const state = vi.hoisted(() => ({
   summarize: vi.fn(),
   embed: vi.fn(),
   name: vi.fn(),
+  sampleNaming: false,
   numeric: vi.fn(),
 }));
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
@@ -328,6 +329,28 @@ vi.mock("./models", () => ({
       results.push(await state.embed(summary, dimensions));
     return { ...results[0], embeddings: results.map((r) => r.embedding) };
   },
+  prepareTopicNamingGroup: async (group: {
+    members: { summary: string }[];
+    contrasts: { id: string; summary: string }[];
+  }) => {
+    if (state.sampleNaming) group.members.reverse();
+    return {
+      // Citation IDs are opaque to the caller; packing can skip candidates.
+      members: group.members.flatMap((member, index) =>
+        !state.sampleNaming || index === 2 || index === 4
+          ? [
+              {
+                id: state.sampleNaming ? `selected-${index}` : `m${index + 1}`,
+                summary: member.summary,
+                source: member,
+              },
+            ]
+          : [],
+      ),
+      totalMemberCount: group.members.length,
+      sampled: state.sampleNaming,
+    };
+  },
   nameTopicGroup: (_models: unknown, ...args: unknown[]) => state.name(...args),
 }));
 vi.mock("./numeric", async (importOriginal) => ({
@@ -522,6 +545,7 @@ beforeEach(() => {
   state.assignments.clear();
   state.facets.clear();
   state.visible = true;
+  state.sampleNaming = false;
   state.loadTranscript.mockImplementation(async ({ traceId }) =>
     traceInput(traceId),
   );
@@ -1168,35 +1192,34 @@ describe("Topics execution", () => {
     expect(state.name).not.toHaveBeenCalled();
   });
 
-  it("maps local naming citations back to their scoped source references", async () => {
-    await processSelection("source", 100);
-    await updateSelection("named");
-    const topics = [...state.runs.values()].at(-1)!.topics;
-    expect(topics).toHaveLength(2);
-    for (const [index, [group]] of state.name.mock.calls.entries()) {
-      for (const member of group.members)
-        expect(member).toEqual({
-          id: expect.stringMatching(/^m\d+$/),
-          summary: expect.any(String),
+  it.each([false, true])(
+    "maps local naming citations back to their scoped source references (sampled: %s)",
+    async (sampled) => {
+      state.sampleNaming = sampled;
+      await processSelection("source", 100);
+      await updateSelection("named");
+      const topics = [...state.runs.values()].at(-1)!.topics;
+      expect(topics).toHaveLength(2);
+      for (const [index, [group]] of state.name.mock.calls.entries()) {
+        const source = [...state.summaries.values()].find(
+          (summary) => summary.summary === group.members[0].summary,
+        )!;
+        expect(topics[index].metadata).toMatchObject({
+          effectiveMemberCount: 50,
+          selectedMemberCount: sampled ? 2 : 50,
+          namingSampled: sampled,
         });
-      for (const contrast of group.contrasts)
-        expect(contrast).toEqual({
-          id: expect.stringMatching(/^c\d+$/),
-          summary: expect.any(String),
-        });
-      const source = [...state.summaries.values()].find(
-        (summary) => summary.summary === group.members[0].summary,
-      )!;
-      expect(topics[index].representativeSummaries).toEqual([
-        {
-          facetId: source.facetId,
-          facetVersion: source.facetVersion,
-          traceId: source.traceId,
-          sessionId: null,
-        },
-      ]);
-    }
-  });
+        expect(topics[index].representativeSummaries).toEqual([
+          {
+            facetId: source.facetId,
+            facetVersion: source.facetVersion,
+            traceId: source.traceId,
+            sessionId: null,
+          },
+        ]);
+      }
+    },
+  );
 
   it.each([0, 3])(
     "recovers a skipped cohort of %s after a lost progress acknowledgement",
@@ -1372,6 +1395,32 @@ describe("Topics execution", () => {
       ).toHaveLength(persists ? 2 : 1);
     },
   );
+
+  it("bounds assignment writes and verifies every batch before publication", async () => {
+    await processSelection("source", 1);
+    const template = [...state.summaries.values()][0];
+    for (let index = 1; index < 2001; index++) {
+      const summary = { ...template, traceId: `trace${index}` };
+      state.summaries.set(topicSourceKey(summary), summary);
+    }
+    state.numeric.mockImplementation(async (vectors: number[][]) => ({
+      status: "no_topics",
+      labels: vectors.map(() => -1),
+      coordinates: vectors.map(() => [0, 0]),
+    }));
+    state.assignmentWrites.mockImplementation(async () => {
+      // A late visibility failure must prevent publication of the whole map.
+      if (state.assignmentWrites.mock.calls.length === 3) state.visible = false;
+    });
+    await updateSelection("batched");
+    expect(
+      state.assignmentWrites.mock.calls.map(([rows]) => rows.length),
+    ).toEqual([1000, 1000, 1]);
+    expect([...state.runs.values()].at(-1)?.status).toBe("failed");
+    expect(state.executions.get("batched")?.facets[0].error).toContain(
+      "not fully visible",
+    );
+  });
 
   it("defers publication when assignments are not visible", async () => {
     await processSelection("source", 100);

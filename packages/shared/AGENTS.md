@@ -96,6 +96,10 @@
     retain original creation dates on reuse.
     `getLatestFacetSummaries` returns display fields; processing reads use
     `listTopicSummaries` or `getTopicClusteringSummaries` for complete summaries.
+    Discovery passes `{ maxRows, maxBytes }` to `getTopicClusteringSummaries`;
+    preflight and streamed limits reject the whole cohort rather than sample it.
+    Bound previous-map identities with `readTopicRunTraceIds(..., maxRows)`.
+    These limits cover admitted data, not total process or native-fit memory.
   - `execution-store.ts`: one BatchAction per request, compact counters and run references.
     Writes accept progress only; immutable settings stay in the stored request.
     Trace inputs and paid outputs belong outside the execution store.

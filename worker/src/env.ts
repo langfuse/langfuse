@@ -187,6 +187,17 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(20),
+  // Admission policy for full-cohort fitting; excludes child-process and runtime overhead.
+  LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(20_000),
+  LANGFUSE_TOPICS_MAX_CLUSTERING_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(256 * 1024 * 1024),
   LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE: z.coerce
     .number()
     .int()
