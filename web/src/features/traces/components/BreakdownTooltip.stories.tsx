@@ -280,6 +280,32 @@ export const TestShareOfTotal = meta.story({
   },
 });
 
+export const TestUsageWithoutShares = meta.story({
+  name: "(Test) Usage breakdown shows no share column or bars",
+  args: {
+    details: {
+      input: 120,
+      output: 35,
+      output_reasoning_tokens: 10,
+      total: 165,
+    },
+    children: <span>165 tokens</span>,
+  },
+  play: async ({ canvasElement }) => {
+    const { content, tooltip } = await openBreakdownTooltip(
+      canvasElement,
+      "165 tokens",
+    );
+
+    await expect(content.getByText("Usage breakdown")).toBeInTheDocument();
+    await expect(content.getByText("165")).toBeInTheDocument();
+    await expect(tooltip.textContent ?? "").not.toContain("%");
+    await expect(
+      tooltip.querySelector('[aria-hidden="true"].bg-border'),
+    ).toBeNull();
+  },
+});
+
 export const TestCacheHitRate = meta.story({
   name: "(Test) Shows cache hit rate after input usage details",
   args: {
