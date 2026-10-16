@@ -17,7 +17,7 @@ export function AgentComparison({
   const appearance = useAgentAppearance(projectId, agentName);
   const agent = projection.agents.find((item) => item.agentName === agentName);
   return (
-    <div className="mx-4 mb-2">
+    <div className="pb-3">
       <AgentComparisonView
         agent={agent ?? null}
         recentWindow={projection.recentWindow}

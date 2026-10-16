@@ -7,7 +7,6 @@ import { createTextTableColumn } from "@/src/components/design-system/table/colu
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { BarChart } from "@/src/components/design-system/charts/BarChart/BarChart";
 
 export function AgentTools({
   agentName,
@@ -47,33 +46,16 @@ export function AgentTools({
       size: 180,
     }),
   ];
-  const top = [...tools]
-    .sort((a, b) => b.invocations - a.invocations)
-    .slice(0, 8);
-  const chart = top.map((tool) => ({
-    label: tool.name,
-    value: tool.invocations,
-  }));
   return (
-    <div className="flex flex-1 flex-col gap-4 overflow-auto p-4">
-      <div className="flex items-center gap-2">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-3">
+      <div className="flex shrink-0 flex-wrap items-center gap-2">
         <h2 className="text-sm font-bold">Observed tools</h2>
         <Badge text="Executed TOOL observations" color="filled" />
       </div>
-      <p className="text-muted-foreground text-sm">
-        Includes skill-loading tools. Model tool-call requests are not added to
-        executed calls. Available tools require explicit definition evidence.
+      <p className="text-muted-foreground shrink-0 text-xs">
+        Select a tool to inspect its supporting sessions.
       </p>
-      {chart.length > 0 && (
-        <div className="ph-no-capture h-40">
-          <BarChart
-            data={chart}
-            ariaLabel="Most frequently executed tools"
-            tooltipValueLabel="Executed calls"
-          />
-        </div>
-      )}
-      <div className="flex min-h-48 flex-1 flex-col">
+      <div className="flex min-h-0 flex-1 flex-col">
         <Table
           tableName="Agent tools"
           columns={columns}
@@ -82,20 +64,8 @@ export function AgentTools({
           onRowClick={(tool) => onSelectTool(tool.name)}
         />
       </div>
-      {tools.some((tool) => tool.available) && (
-        <p className="text-muted-foreground text-xs">
-          Available-tool declarations seen in discovery history:{" "}
-          <span className="ph-no-capture">
-            {tools
-              .filter((tool) => tool.available)
-              .map((tool) => tool.name)
-              .join(", ")}
-          </span>
-          .
-        </p>
-      )}
       {projection.coverage.groupsTruncated && (
-        <p className="text-muted-foreground text-xs">
+        <p className="text-muted-foreground shrink-0 text-xs">
           Showing up to {projection.coverage.groupsLimit} tool groups per agent.
         </p>
       )}

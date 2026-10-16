@@ -6,6 +6,7 @@ import {
   Network,
   RefreshCw,
 } from "lucide-react";
+import { Accordion } from "@/src/components/design-system/Accordion/Accordion";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
@@ -27,6 +28,7 @@ import { AgentActivity } from "./AgentActivity";
 import { AgentRelationships } from "./AgentRelationships";
 import { OverviewCoverage } from "./OverviewCoverage";
 import { useAgentsOverview } from "./useAgentsOverview";
+import { coverageIncomplete } from "./prepareOverview";
 
 export function AgentsOverview({ projectId }: { projectId: string }) {
   const state = useAgentsOverview(projectId);
@@ -185,6 +187,48 @@ function OverviewContent({
         )}
       />
     );
+  if (state.options.overviewView === "list") {
+    const coverage =
+      coverageIncomplete(projection) || state.searchTruncated
+        ? "partial coverage"
+        : "coverage";
+    return (
+      <>
+        <OverviewView
+          state={state}
+          projectId={projectId}
+          projection={projection}
+        />
+        <div className="shrink-0">
+          <Accordion type="single" collapsible>
+            <Accordion.Item value="context">
+              <Accordion.Trigger size="sm">
+                {state.agents.length} agents · {coverage}
+                {state.options.showAttention ? " and insights" : ""}
+              </Accordion.Trigger>
+              <Accordion.Content>
+                <div className="flex max-h-80 flex-col gap-4 overflow-y-auto py-3">
+                  <OverviewCoverage projection={projection} />
+                  {state.searchTruncated && (
+                    <p className="text-muted-foreground text-xs">
+                      Showing up to 25 matching agents from the discovery
+                      window. Refine the name search to find a specific agent.
+                    </p>
+                  )}
+                  {state.options.showAttention && (
+                    <AgentAttention
+                      projection={{ ...projection, agents: state.agents }}
+                      scope={state.scope}
+                    />
+                  )}
+                </div>
+              </Accordion.Content>
+            </Accordion.Item>
+          </Accordion>
+        </div>
+      </>
+    );
+  }
   return (
     <>
       <OverviewCoverage projection={projection} />
@@ -195,8 +239,7 @@ function OverviewContent({
         </p>
       )}
       {state.options.showAttention &&
-        (state.options.overviewView === "cards" ||
-          state.options.overviewView === "list") && (
+        state.options.overviewView === "cards" && (
           <AgentAttention
             projection={{ ...projection, agents: state.agents }}
             scope={state.scope}

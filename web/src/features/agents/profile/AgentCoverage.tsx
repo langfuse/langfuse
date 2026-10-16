@@ -14,7 +14,7 @@ export function AgentCoverage({
     coverage.groupsTruncated ||
     !coverage.historyComplete;
   return (
-    <div className="shrink-0 px-4 pb-2">
+    <div className="shrink-0 pb-2">
       <Accordion type="single" collapsible>
         <Accordion.Item value="coverage">
           <Accordion.Trigger size="sm">

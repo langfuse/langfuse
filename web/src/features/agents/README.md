@@ -20,13 +20,17 @@ alternatives for comparison.
 - `prototype-options`: typed URL choices with project-scoped browser defaults.
   No new telemetry records names, identifiers, glyphs or search values.
 - `AgentDetailPage`: scope and tab navigation, preserving `tab=runs` as AGENT
-  invocations. Sessions is the default. Tabs precede contextual charts. A minimum
-  workspace height protects table rows; the page scrolls when context grows.
+  invocations. Sessions is the default. Tabs sit immediately above the data
+  workspace, which fills the remaining page height. `AgentProfileWorkspace`
+  keeps statistics, charts, comparisons and coverage in an independently scrolling
+  Agent details sidebar, closed by default. Narrow screens replace the body with
+  details when requested; they never stack details above the table.
 - `profile`: pure chart/session preparation, period-scoped session rows, executed
   tools, comparison evidence, coverage and genuine session peek. The peek reuses
   session detail APIs and conversation components; it loads content only on open.
-  Comparison and coverage details expand on demand, retaining compact summaries
-  and visible comparison status above the table workspace.
+  Tool breakdowns and available tool/skill declarations live in the sidebar.
+  Signal and partial-coverage indicators remain beside the tabs; inspection
+  closes details and returns to supporting sessions.
 - `AgentSkills`: native-load/legacy evidence, authorized exact-name catalog links
   and a separate declaration view. A catalog match does not establish loaded version.
 - `agent-map`: existing trace-local ancestry explorer and graph renderer.
@@ -36,7 +40,9 @@ alternatives for comparison.
 
 Fetched data stays in React Query. URL state owns the selected time, tab, filters,
 drill-down and prototype variant. Appearance preferences legitimately cross routes;
-transient pointer state stays local. Query results are never copied into UI state.
+transient pointer state and details disclosure stay local. Query results are never
+copied into UI state. The overview List uses compact rows in a bounded table owner;
+its rankings and coverage details expand below the table instead of preceding it.
 
 ## Identity and attribution
 

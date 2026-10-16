@@ -26,9 +26,9 @@ export function PrototypeOptions({ projectId }: { projectId: string }) {
             </p>
           </div>
           <label className="flex flex-col gap-1.5 text-xs">
-            Profile chart
+            Agent details chart
             <SelectInput
-              placeholder="Profile chart"
+              placeholder="Agent details chart"
               value={options.profileChart}
               onValueChange={(profileChart) => setOptions({ profileChart })}
               options={[

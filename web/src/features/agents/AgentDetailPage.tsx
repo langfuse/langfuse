@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useRouter } from "next/router";
 import {
   NumberParam,
@@ -12,6 +13,7 @@ import {
   Wrench,
   MessagesSquare,
   BookOpen,
+  CircleAlert,
 } from "lucide-react";
 import {
   AGENT_NAME_METADATA_KEY,
@@ -24,6 +26,7 @@ import Page from "@/src/components/layouts/page";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import { ObservationsEventsTable } from "@/src/features/events/components";
@@ -43,6 +46,7 @@ import { api } from "@/src/utils/api";
 import { AgentsFeatureGate } from "./AgentsFeatureGate";
 import { AgentStats } from "./AgentStats";
 import { AgentSkills } from "./AgentSkills";
+import { AgentSkillsContext } from "./AgentSkillsContext";
 import { AgentMap } from "./agent-map/AgentMap";
 import { AgentIdentity, AgentAppearancePicker } from "./appearance";
 import {
@@ -51,9 +55,11 @@ import {
 } from "./prototype-options";
 import { AgentSessions } from "./profile/AgentSessions";
 import { AgentTools } from "./profile/AgentTools";
+import { AgentToolsContext } from "./profile/AgentToolsContext";
 import { AgentProfileChart } from "./profile/AgentProfileChart";
 import { AgentComparison } from "./profile/AgentComparison";
 import { AgentCoverage } from "./profile/AgentCoverage";
+import { AgentProfileWorkspace } from "./profile/AgentProfileWorkspace";
 import { type AgentProfileTab } from "./profile/prepareAgentProfile";
 import { buildAgentProfilePath } from "./lib/buildAgentProfilePath";
 import { commitAgentDateRange } from "./lib/commitAgentDateRange";
@@ -170,7 +176,7 @@ function AgentDetailView({
         ),
       }}
     >
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <TableHeaderControls
           timeRange={timeRange}
           setTimeRange={(next) => {
@@ -228,6 +234,7 @@ function AgentProfile({
   filter: FilterState;
 }) {
   const router = useRouter();
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const { options } = useAgentsPrototypeOptions(projectId);
   const [{ tab }, setParams] = useQueryParams({
     tab: withDefault(StringParam, "sessions"),
@@ -256,8 +263,10 @@ function AgentProfile({
   );
   const onSelectRange = (range: AbsoluteTimeRange) =>
     setParams({ dateRange: rangeToString(range), page: 1, peek: undefined });
-  const onTabChange = (next: string) =>
+  const onTabChange = (next: string) => {
+    setDetailsOpen(false);
     setParams({ tab: next, page: 1, peek: undefined });
+  };
   const pulseFilter: FilterState = [
     ...filter,
     {
@@ -281,98 +290,156 @@ function AgentProfile({
       }),
     );
   };
+  const agent = projection.data?.agents.find(
+    (item) => item.agentName === agentName,
+  );
+  const signalCount = options.showAttention ? (agent?.signals.length ?? 0) : 0;
+  const coverage = projection.data?.coverage;
+  const partialCoverage =
+    coverage &&
+    (coverage.agentsTruncated ||
+      coverage.sessionsTruncated ||
+      coverage.rowsTruncated ||
+      coverage.groupsTruncated ||
+      !coverage.historyComplete);
+  const selectSignal = (kind: string) => {
+    setDetailsOpen(false);
+    setParams({
+      tab: "sessions",
+      agentSignal: kind,
+      agentTool: undefined,
+      agentSkill: undefined,
+      agentSessionSearch: undefined,
+      page: 1,
+      peek: undefined,
+    });
+  };
+  const pulseChart =
+    options.profileChart === "pulse" ? (
+      <div className="shrink-0 border-t">
+        <h2 className="px-4 pt-2 text-sm font-bold">
+          Agent invocations over time
+        </h2>
+        <EventsOutlierStrip
+          projectId={projectId}
+          filterState={pulseFilter}
+          fromTimestamp={window.from}
+          toTimestamp={window.to}
+          fixedMetric="count"
+          onSelectRange={onSelectRange}
+        />
+      </div>
+    ) : null;
 
   return (
     <>
-      <div className="shrink-0">
-        {projection.isPending && (
-          <div className="grid grid-cols-3 gap-4 p-4">
-            {Array.from({ length: 6 }, (_, index) => (
-              <Skeleton key={index} className="h-14" />
-            ))}
-          </div>
-        )}
-        {projection.isError && (
-          <div className="p-4">
-            <Alert variant="destructive">
-              <Alert.Title>Agent activity could not be loaded</Alert.Title>
-              <Alert.Description>
-                Try a smaller window or retry.
+      {projection.isPending && (
+        <div className="shrink-0 px-4 py-2">
+          <Skeleton className="h-5 w-40" />
+        </div>
+      )}
+      {projection.isError && (
+        <div className="shrink-0 p-3">
+          <Alert variant="destructive">
+            <Alert.Description>
+              Agent activity could not be loaded. Try a smaller window or retry.
+              <Button
+                text="Retry"
+                variant="secondary"
+                onClick={() => {
+                  projection.refetch();
+                }}
+              />
+            </Alert.Description>
+          </Alert>
+        </div>
+      )}
+      <Tabs value={currentTab} onValueChange={onTabChange} layout="fill">
+        <AgentProfileWorkspace
+          detailsOpen={detailsOpen}
+          onDetailsOpenChange={setDetailsOpen}
+          status={
+            <>
+              {signalCount > 0 && (
                 <Button
-                  text="Retry"
+                  text={`${signalCount} change${signalCount === 1 ? "" : "s"}`}
+                  icon={CircleAlert}
                   variant="secondary"
-                  onClick={() => {
-                    projection.refetch();
-                  }}
+                  size="sm"
+                  onClick={() => setDetailsOpen(true)}
                 />
-              </Alert.Description>
-            </Alert>
-          </div>
-        )}
-        {projection.data && (
-          <>
-            <AgentStats agentName={agentName} projection={projection.data} />
-            {options.showAttention && (
-              <AgentComparison
-                projectId={projectId}
-                agentName={agentName}
-                projection={projection.data}
-                onSelectSignal={(kind) =>
-                  setParams({
-                    tab: "sessions",
-                    agentSignal: kind,
-                    agentTool: undefined,
-                    agentSkill: undefined,
-                    agentSessionSearch: undefined,
-                    page: 1,
-                    peek: undefined,
-                  })
-                }
-              />
-            )}
-            <AgentCoverage coverage={projection.data.coverage} />
-          </>
-        )}
-      </div>
-      <div className="flex min-h-[32rem] flex-1 flex-col">
-        <Tabs value={currentTab} onValueChange={onTabChange} layout="fill">
-          <div className="shrink-0 overflow-x-auto border-t">
-            <Tabs.List variant="underline" aria-label="Agent views">
-              <Tabs.Trigger
-                value="sessions"
-                label="Sessions"
-                icon={MessagesSquare}
-              />
-              <Tabs.Trigger value="tools" label="Tools" icon={Wrench} />
-              <Tabs.Trigger value="skills" label="Skills" icon={BookOpen} />
-              <Tabs.Trigger value="runs" label="Invocations" icon={List} />
-              <Tabs.Trigger value="observations" label="Observations" />
-              <Tabs.Trigger value="map" label="Relationships" icon={Network} />
-            </Tabs.List>
-          </div>
-          {options.profileChart === "contextual" && projection.data && (
-            <AgentProfileChart
-              projection={projection.data}
-              agentName={agentName}
-              tab={currentTab}
-              onSelectRange={onSelectRange}
-            />
-          )}
-          {options.profileChart === "pulse" && (
-            <div className="shrink-0 border-t">
-              <h2 className="px-4 pt-2 text-sm font-bold">
-                Agent invocations over time
-              </h2>
-              <EventsOutlierStrip
-                projectId={projectId}
-                filterState={pulseFilter}
-                fromTimestamp={window.from}
-                toTimestamp={window.to}
-                fixedMetric="count"
-                onSelectRange={onSelectRange}
-              />
+              )}
+              {partialCoverage && <Badge color="yellow" text="Partial data" />}
+            </>
+          }
+          details={
+            projection.data ? (
+              <div className="flex flex-col gap-5">
+                <AgentStats
+                  agentName={agentName}
+                  projection={projection.data}
+                />
+                {options.profileChart === "contextual" && (
+                  <AgentProfileChart
+                    projection={projection.data}
+                    agentName={agentName}
+                    tab={currentTab}
+                    onSelectRange={onSelectRange}
+                  />
+                )}
+                {pulseChart}
+                {currentTab === "tools" && (
+                  <AgentToolsContext
+                    agentName={agentName}
+                    projection={projection.data}
+                  />
+                )}
+                {currentTab === "skills" && (
+                  <AgentSkillsContext
+                    agentName={agentName}
+                    projection={projection.data}
+                  />
+                )}
+                {options.showAttention && (
+                  <AgentComparison
+                    projectId={projectId}
+                    agentName={agentName}
+                    projection={projection.data}
+                    onSelectSignal={selectSignal}
+                  />
+                )}
+                <AgentCoverage coverage={projection.data.coverage} />
+              </div>
+            ) : (
+              <div className="flex flex-col gap-4">
+                <p className="text-muted-foreground text-sm">
+                  Agent details load with the selected interval.
+                </p>
+                {pulseChart}
+              </div>
+            )
+          }
+          navigation={
+            <div className="shrink-0 overflow-x-auto">
+              <Tabs.List variant="underline" aria-label="Agent views">
+                <Tabs.Trigger
+                  value="sessions"
+                  label="Sessions"
+                  icon={MessagesSquare}
+                />
+                <Tabs.Trigger value="tools" label="Tools" icon={Wrench} />
+                <Tabs.Trigger value="skills" label="Skills" icon={BookOpen} />
+                <Tabs.Trigger value="runs" label="Invocations" icon={List} />
+                <Tabs.Trigger value="observations" label="Observations" />
+                <Tabs.Trigger
+                  value="map"
+                  label="Relationships"
+                  icon={Network}
+                />
+              </Tabs.List>
             </div>
-          )}
+          }
+        >
           <Tabs.Content value="sessions" layout="fill">
             {projection.data && (
               <AgentSessions
@@ -388,7 +455,8 @@ function AgentProfile({
               <AgentTools
                 agentName={agentName}
                 projection={projection.data}
-                onSelectTool={(name) =>
+                onSelectTool={(name) => {
+                  setDetailsOpen(false);
                   setParams({
                     tab: "sessions",
                     agentTool: name,
@@ -396,8 +464,8 @@ function AgentProfile({
                     agentSignal: undefined,
                     agentSessionSearch: undefined,
                     page: 1,
-                  })
-                }
+                  });
+                }}
               />
             )}
           </Tabs.Content>
@@ -407,7 +475,8 @@ function AgentProfile({
                 projectId={projectId}
                 agentName={agentName}
                 projection={projection.data}
-                onSelectSkill={(name) =>
+                onSelectSkill={(name) => {
+                  setDetailsOpen(false);
                   setParams({
                     tab: "sessions",
                     agentSkill: name,
@@ -415,8 +484,8 @@ function AgentProfile({
                     agentSignal: undefined,
                     agentSessionSearch: undefined,
                     page: 1,
-                  })
-                }
+                  });
+                }}
               />
             )}
           </Tabs.Content>
@@ -452,8 +521,8 @@ function AgentProfile({
               prototypeOptions={options}
             />
           </Tabs.Content>
-        </Tabs>
-      </div>
+        </AgentProfileWorkspace>
+      </Tabs>
     </>
   );
 }

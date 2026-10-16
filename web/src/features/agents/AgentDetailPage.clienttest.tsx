@@ -17,6 +17,8 @@ const mocks = vi.hoisted(() => ({
   projection: vi.fn(),
   sessions: vi.fn(),
   initialTab: "runs",
+  showAttention: false,
+  projectionError: false,
   setWindow: (_window: { from: Date; to: Date }) => {},
 }));
 
@@ -104,9 +106,20 @@ vi.mock("@/src/utils/api", () => ({
         useQuery: (input: unknown) => {
           mocks.projection(input);
           return {
-            data: { window: input, coverage: {} },
+            data: mocks.projectionError
+              ? undefined
+              : {
+                  window: input,
+                  coverage: { historyComplete: true },
+                  agents: [
+                    {
+                      agentName: "research",
+                      signals: [{ kind: "cost-outlier" }],
+                    },
+                  ],
+                },
             isPending: false,
-            isError: false,
+            isError: mocks.projectionError,
           };
         },
       },
@@ -136,7 +149,7 @@ vi.mock("./prototype-options", () => ({
       ...DEFAULT_AGENT_OPTIONS,
       baselineDays: 14,
       profileChart: "pulse",
-      showAttention: false,
+      showAttention: mocks.showAttention,
     },
   }),
 }));
@@ -144,7 +157,21 @@ vi.mock("./profile/AgentCoverage", () => ({
   AgentCoverage: () => <span>Coverage</span>,
 }));
 vi.mock("./profile/AgentComparison", () => ({
-  AgentComparison: () => <span>Comparison</span>,
+  AgentComparison: ({
+    onSelectSignal,
+  }: {
+    onSelectSignal: (kind: string) => void;
+  }) => (
+    <button onClick={() => onSelectSignal("cost-outlier")}>
+      Inspect cost signal
+    </button>
+  ),
+}));
+vi.mock("./profile/AgentToolsContext", () => ({
+  AgentToolsContext: () => <span>Tool context</span>,
+}));
+vi.mock("./AgentSkillsContext", () => ({
+  AgentSkillsContext: () => <span>Skill context</span>,
 }));
 vi.mock("./profile/AgentProfileChart", () => ({
   AgentProfileChart: () => <span>Chart</span>,
@@ -200,7 +227,13 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.route.filter = "";
   mocks.initialTab = "runs";
+  mocks.showAttention = false;
+  mocks.projectionError = false;
 });
+
+function openDetails() {
+  fireEvent.click(screen.getByRole("button", { name: "Agent details" }));
+}
 
 async function selectTab(name: string) {
   fireEvent.mouseDown(screen.getByRole("tab", { name }), {
@@ -220,6 +253,7 @@ test("zoom updates statistics, rows, skills and map to one bounded window", asyn
   expect(mocks.projection).toHaveBeenLastCalledWith(
     expect.objectContaining(outerWindow),
   );
+  openDetails();
   fireEvent.click(screen.getByRole("button", { name: "Zoom into runs" }));
   expect(mocks.projection).toHaveBeenLastCalledWith(
     expect.objectContaining(innerWindow),
@@ -261,6 +295,7 @@ test("environment scope from the agent list applies to every profile surface", a
   ];
   mocks.route.filter = encodeFiltersGeneric(filter);
   render(<AgentDetailPage />);
+  openDetails();
   expect(mocks.projection).toHaveBeenLastCalledWith(
     expect.objectContaining({ filter }),
   );
@@ -287,6 +322,7 @@ test("environment scope from the agent list applies to every profile surface", a
 
 test("edge drilldown encodes the callee as one route segment and preserves the window", async () => {
   render(<AgentDetailPage />);
+  openDetails();
   fireEvent.click(screen.getByRole("button", { name: "Zoom into runs" }));
   await selectTab("Relationships");
   fireEvent.click(screen.getByRole("button", { name: "Explore callee runs" }));
@@ -308,11 +344,65 @@ test("edge drilldown encodes the callee as one route segment and preserves the w
 
 test("Pulse zoom changes only the URL window and resets pagination", () => {
   render(<AgentDetailPage />);
+  openDetails();
   fireEvent.click(screen.getByRole("button", { name: "Zoom into runs" }));
   expect(mocks.persistedPicks).not.toHaveBeenCalled();
   expect(mocks.paramsUpdates).toHaveBeenLastCalledWith(
     expect.objectContaining({ page: 1 }),
   );
+});
+
+test("independent Pulse zoom can recover when bounded profile details fail", () => {
+  mocks.projectionError = true;
+  render(<AgentDetailPage />);
+  expect(screen.getByText("Rows")).toBeInTheDocument();
+  openDetails();
+  fireEvent.click(screen.getByRole("button", { name: "Zoom into runs" }));
+  expect(mocks.projection).toHaveBeenLastCalledWith(
+    expect.objectContaining(innerWindow),
+  );
+  expect(mocks.table).toHaveBeenLastCalledWith(
+    expect.objectContaining({ externalDateRange: innerWindow }),
+  );
+});
+
+test("agent details stay off the data workspace until opened and signal inspection returns to sessions", async () => {
+  mocks.initialTab = "sessions";
+  mocks.showAttention = true;
+  render(<AgentDetailPage />);
+  expect(screen.getByText("Session rows")).toBeInTheDocument();
+  expect(screen.queryByText("Stats")).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Zoom into runs" }),
+  ).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Agent details" })).toHaveAttribute(
+    "aria-expanded",
+    "false",
+  );
+  openDetails();
+  expect(screen.getByText("Stats")).toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "Zoom into runs" }),
+  ).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Inspect cost signal" }));
+  expect(screen.getByRole("button", { name: "Agent details" })).toHaveAttribute(
+    "aria-expanded",
+    "false",
+  );
+  expect(screen.queryByText("Stats")).not.toBeInTheDocument();
+  expect(mocks.paramsUpdates).toHaveBeenLastCalledWith({
+    tab: "sessions",
+    agentSignal: "cost-outlier",
+    agentTool: undefined,
+    agentSkill: undefined,
+    agentSessionSearch: undefined,
+    page: 1,
+    peek: undefined,
+  });
+  openDetails();
+  await selectTab("Tools");
+  expect(screen.queryByText("Stats")).not.toBeInTheDocument();
+  expect(screen.getByText("Tool rows")).toBeInTheDocument();
 });
 
 test("changing the profile tab resets the embedded table to its first page", async () => {

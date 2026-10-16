@@ -31,7 +31,7 @@ export function AgentStats({
       label: "Observed skills",
       value: String(skills),
       description:
-        "Distinct observed skill names, matched from skill-loading tools.",
+        "Distinct skill names with native resource-load references or legacy skill-loading tool evidence.",
     },
     {
       label: "Avg. session duration",
@@ -53,17 +53,19 @@ export function AgentStats({
   return (
     <section
       aria-label="Agent statistics for the selected window"
-      className="shrink-0 p-4"
+      className="flex shrink-0 flex-col gap-3"
     >
-      <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-5">
         {items.map(({ label, value, description }) => (
-          <div key={label} title={description}>
+          <div key={label} title={description} className="min-w-0">
             <dt className="text-muted-foreground text-xs">{label}</dt>
-            <dd className="mt-1 font-mono text-xl tabular-nums">{value}</dd>
+            <dd className="mt-1 font-mono text-xl break-words tabular-nums">
+              {value}
+            </dd>
           </div>
         ))}
       </dl>
-      <div className="text-muted-foreground mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+      <div className="text-muted-foreground flex flex-col gap-1 text-xs">
         <span>
           {compactNumberFormatter(current?.invocations ?? 0)} invocations ·{" "}
           {compactNumberFormatter(current?.traces ?? 0)} traces ·{" "}
@@ -73,7 +75,7 @@ export function AgentStats({
           Last known activity: {agent?.lastSeen?.toLocaleString() ?? "—"}
         </span>
       </div>
-      <p className="text-muted-foreground mt-2 text-xs">
+      <p className="text-muted-foreground text-xs">
         Cost belongs to explicitly named observations; sub-agent cost is
         excluded. Sessions may be shared by several agents.
       </p>

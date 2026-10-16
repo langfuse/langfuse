@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { type ReactNode } from "react";
 import { AgentsOverview } from "./AgentsOverview";
 import { DEFAULT_AGENT_OPTIONS } from "../prototype-options/options";
@@ -140,6 +146,42 @@ describe("rendered overview modes", () => {
       within(table).getByRole("columnheader", { name: "Skills used" }),
     ).toBeDefined();
   });
+  it("shows every loaded agent before optional list context and restores that context on request", async () => {
+    const data = projection({
+      agents: Array.from({ length: 8 }, (_, index) =>
+        agent(`Agent ${index + 1}`, {
+          current: stats({ sessions: index + 1, cost: index + 1 }),
+        }),
+      ),
+    });
+    mocks.state.projection = { data, isFetching: false };
+    mocks.state.agents = prepareAgents(data, "all", "name");
+    view("list", { showAttention: true });
+    render(<AgentsOverview projectId="p" />);
+    const table = screen.getByRole("table", { name: "Agent overview" });
+    expect(within(table).getAllByRole("row")).toHaveLength(9);
+    expect(screen.queryByText(/Exclusive attribution/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Highest cost in loaded agents"),
+    ).not.toBeInTheDocument();
+    const details = screen.getByRole("button", { name: /8 agents.*coverage/i });
+    expect(table.compareDocumentPosition(details)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(details).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(details);
+    expect(await screen.findByText(/Exclusive attribution/)).toBeVisible();
+    expect(screen.getByText("Highest cost in loaded agents")).toBeVisible();
+    expect(within(table).getAllByRole("row")).toHaveLength(9);
+    fireEvent.click(details);
+    await waitFor(() =>
+      expect(
+        screen.queryByText("Highest cost in loaded agents"),
+      ).not.toBeInTheDocument(),
+    );
+    expect(within(table).getAllByRole("row")).toHaveLength(9);
+  });
+
   it("makes session drilldown and heatmap zoom real actions while keeping an isolated relationship node navigable", () => {
     view("activity");
     const { rerender } = render(<AgentsOverview projectId="p" />);

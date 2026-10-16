@@ -89,12 +89,12 @@ export function AgentOverviewList({
     }),
   ];
   return (
-    <div className="ph-no-capture min-h-64 overflow-hidden rounded-lg border">
+    <div className="ph-no-capture flex min-h-64 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border">
       <Table
         tableName="Agent overview"
         columns={columns}
         data={{ status: "success", data: agents }}
-        rowHeight="l"
+        rowHeight="s"
       />
     </div>
   );
