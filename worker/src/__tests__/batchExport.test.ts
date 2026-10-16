@@ -23,7 +23,10 @@ import {
   DatasetStatus,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { claimExportSlot } from "../features/batchExport/handleBatchExportJob";
+import {
+  claimExportSlot,
+  touchRunningExport,
+} from "../features/batchExport/handleBatchExportJob";
 import { getDatabaseReadStreamPaginated } from "../features/database-read-stream/getDatabaseReadStream";
 import { getObservationStream } from "../features/database-read-stream/observation-stream";
 import { getTraceStream } from "../features/database-read-stream/trace-stream";
@@ -5423,5 +5426,32 @@ describe("batch export per-user concurrency", () => {
     });
 
     await expect(claim(running)).resolves.toBe(true);
+  });
+
+  it("keeps a long-running export holding its slot through the heartbeat", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const longAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    const running = await createExport({
+      projectId,
+      status: BatchExportStatus.PROCESSING,
+      updatedAt: longAgo,
+    });
+    const cancelled = await createExport({
+      projectId,
+      status: BatchExportStatus.CANCELLED,
+      updatedAt: longAgo,
+    });
+    await touchRunningExport({ projectId, batchExportId: running.id });
+    await touchRunningExport({ projectId, batchExportId: cancelled.id });
+
+    const queued = await createExport({
+      projectId,
+      status: BatchExportStatus.QUEUED,
+    });
+    await expect(claim(queued)).resolves.toBe(false);
+    const untouched = await prisma.batchExport.findUnique({
+      where: { id: cancelled.id },
+    });
+    expect(untouched?.updatedAt).toEqual(longAgo);
   });
 });

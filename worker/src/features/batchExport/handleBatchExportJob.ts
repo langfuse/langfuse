@@ -2,6 +2,7 @@
 import { pipeline, Transform } from "stream";
 import {
   BATCH_EXPORT_ABANDONED_AFTER_MS,
+  BATCH_EXPORT_HEARTBEAT_INTERVAL_MS,
   BatchExportFileFormat,
   BatchExportQuerySchema,
   BatchExportStatus,
@@ -9,7 +10,7 @@ import {
   exportOptions,
   LangfuseNotFoundError,
 } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
+import { type BatchExport, prisma } from "@langfuse/shared/src/db";
 import {
   StorageServiceFactory,
   sendBatchExportSuccessEmail,
@@ -146,6 +147,26 @@ export const handleBatchExportJob = async (
     throw new BatchExportUserBusyError(batchExportId);
   }
 
+  const stopHeartbeat = startExportHeartbeat({ projectId, batchExportId });
+  try {
+    await runExport({ projectId, batchExportId, jobDetails, span });
+  } finally {
+    stopHeartbeat();
+  }
+};
+
+/** Streams the export to blob storage, marks it COMPLETED and emails the user. */
+const runExport = async ({
+  projectId,
+  batchExportId,
+  jobDetails,
+  span,
+}: {
+  projectId: string;
+  batchExportId: string;
+  jobDetails: BatchExport;
+  span: ReturnType<typeof getCurrentSpan>;
+}) => {
   // Parse query from job
   const parsedQuery = BatchExportQuerySchema.safeParse(jobDetails.query);
   if (!parsedQuery.success) {
@@ -379,6 +400,40 @@ export const handleBatchExportJob = async (
     );
   }
 };
+
+/** Refreshes a running export's updatedAt until stopped, so it keeps holding its slot. */
+const startExportHeartbeat = (params: {
+  projectId: string;
+  batchExportId: string;
+}) => {
+  const timer = setInterval(() => {
+    touchRunningExport(params).catch((error) =>
+      logger.warn(
+        `[BATCH EXPORT] Heartbeat failed for ${params.batchExportId}`,
+        error,
+      ),
+    );
+  }, BATCH_EXPORT_HEARTBEAT_INTERVAL_MS);
+  timer.unref();
+  return () => clearInterval(timer);
+};
+
+/** Bumps updatedAt of the export if it is still PROCESSING. */
+export const touchRunningExport = ({
+  projectId,
+  batchExportId,
+}: {
+  projectId: string;
+  batchExportId: string;
+}) =>
+  prisma.batchExport.updateMany({
+    where: {
+      id: batchExportId,
+      projectId,
+      status: BatchExportStatus.PROCESSING,
+    },
+    data: { updatedAt: new Date() },
+  });
 
 /** Claims the user's per-project export slot, serialized across workers by an advisory lock. */
 export const claimExportSlot = async ({
