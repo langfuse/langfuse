@@ -48,7 +48,6 @@ export function SessionConversationTimelineTrace({
   } | null;
 }) {
   const showHeader = variant === "session" || (threadCount ?? 0) > 1;
-  const showObservationLinks = variant === "session";
   const hiddenThreadCount =
     state.type === "transcript"
       ? getSessionTranscriptThreads(state.result.transcript).hiddenThreadCount
@@ -167,9 +166,7 @@ export function SessionConversationTimelineTrace({
       {state.type === "transcript" && (
         <SessionTranscriptContent
           {...state}
-          onOpenObservation={
-            showObservationLinks ? onOpenObservation : undefined
-          }
+          onOpenObservation={onOpenObservation}
           scrollTarget={scrollTarget}
           threadIndex={threadIndex}
         />

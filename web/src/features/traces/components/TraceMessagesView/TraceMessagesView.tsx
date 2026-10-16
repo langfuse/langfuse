@@ -1,5 +1,6 @@
 import { type ComponentProps } from "react";
 import { useRouter } from "next/router";
+import { StringParam, useQueryParam } from "use-query-params";
 import { ErrorBoundary } from "@sentry/nextjs";
 import { api } from "@/src/utils/api";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
@@ -11,7 +12,8 @@ import { useSessionConversationTimelineController } from "@/src/features/session
 
 export function TraceMessagesView() {
   const { trace } = useTraceData();
-  const { selectNode } = useSelection();
+  const { selectNode, setSelectedTab } = useSelection();
+  const [, setTraceView] = useQueryParam("traceView", StringParam);
   const router = useRouter();
   const { isPeekMode } = useViewPreferences();
   const { data: sessionTraces } = api.sessions.tracesFromEvents.useQuery(
@@ -96,7 +98,11 @@ export function TraceMessagesView() {
       variant: "single-trace",
       state,
       onOpenTrace: () => selectNode(trace.id),
-      onOpenObservation: (observationId) => selectNode(observationId),
+      onOpenObservation: (observationId) => {
+        setTraceView(undefined, "pushIn");
+        setSelectedTab("preview");
+        selectNode(observationId);
+      },
       scrollTarget: null,
     }));
   const controller = useSessionConversationTimelineController(traces);
