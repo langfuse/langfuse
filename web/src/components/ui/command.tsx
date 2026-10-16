@@ -49,11 +49,10 @@ const CommandDialog = ({
           commandDialogSurfaceClass,
           // `dark` scopes the dark tokens to the menu, so it is a dark
           // surface in both themes.
-          "dark border-border-contrast/70 top-[calc(var(--banner-offset)+clamp(4rem,20dvh,12rem))] translate-y-0 overflow-hidden border p-0 shadow-[0_32px_96px_-28px_hsl(var(--background)/0.95),0_16px_40px_-24px_hsl(var(--background)/0.9),0_0_0_1px_hsl(var(--foreground)/0.1)]",
+          "dark border-border-contrast/70 top-[calc(var(--banner-offset)+clamp(4rem,20dvh,12rem))] translate-y-0 overflow-hidden border p-0 scheme-dark shadow-[0_32px_96px_-28px_hsl(var(--background)/0.95),0_16px_40px_-24px_hsl(var(--background)/0.9),0_0_0_1px_hsl(var(--foreground)/0.1)]",
         )}
         closeOnInteractionOutside
-        overlayMode="invisible"
-        overlayClassName="bg-black/10 backdrop-blur-[1px] dark:bg-black/45"
+        overlayMode="soft"
         showCloseButton={false}
       >
         <DialogHeader className="sr-only p-0">
@@ -64,7 +63,7 @@ const CommandDialog = ({
             filter={filter}
             className={cn(
               commandDialogSurfaceClass,
-              "**:[[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-item]_svg]:icon-base [&_[cmdk-item]_svg]:text-muted-foreground [&_[cmdk-item][data-selected=true]]:text-primary pb-1 [&_.cmdk-input-wrapper>svg]:left-4 [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-item]]:py-2.5 **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group]]:px-2 **:[[cmdk-input]]:h-11 **:[[cmdk-input]]:pl-8.5 **:[[cmdk-list]]:max-h-96",
+              "**:[[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-item]_svg]:icon-base [&_[cmdk-item]_svg]:text-muted-foreground [&_[cmdk-item][data-selected=true]]:text-primary pb-1 [&_.cmdk-input-wrapper>svg]:left-4 [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-item]]:py-2.5 **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:font-normal **:[[cmdk-group]]:px-2 **:[[cmdk-input]]:h-11 **:[[cmdk-input]]:pl-8.5 **:[[cmdk-list]]:max-h-96",
             )}
           >
             {children}

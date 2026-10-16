@@ -27,10 +27,11 @@ DialogPortal.displayName = "DialogPortal";
 
 const DialogClose = DialogPrimitive.Close;
 
-type DialogOverlayMode = "subtle" | "invisible" | "blocking";
+type DialogOverlayMode = "subtle" | "invisible" | "blocking" | "soft";
 
 const dialogOverlayClasses: Record<DialogOverlayMode, string> = {
   invisible: "bg-transparent",
+  soft: "bg-black/10 backdrop-blur-[1px] dark:bg-black/45",
   subtle: "bg-black/25 dark:bg-black/45",
   blocking: "bg-black/50 dark:bg-black/65",
 };
