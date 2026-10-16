@@ -186,7 +186,10 @@
 - `@langfuse/shared/in-app-agent` via `src/in-app-agent/index.ts`:
   client-safe durable in-app-agent contracts: AG-UI messages/events/context,
   run requests/status/errors, approval events, constants, message helpers,
-  and interrupt parsing. Never re-export server code here.
+  interrupt parsing, and the questionnaire tool contract (`questionnaire.ts`:
+  args, positional answers carried on `approvalDecision` requests, result, and
+  the shared resolver web and worker both validate with). Never re-export
+  server code here.
 - In-app-agent server contracts use explicit subpaths only:
   `persistence`, `runLifecycle`, `tunables`, `eventCompaction`, `mcpPolicy`,
   `toolResults`, `toolErrors`, `systemPrompt`, and `modelProvider`. These are
