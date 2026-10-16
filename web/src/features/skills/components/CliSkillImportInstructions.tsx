@@ -18,10 +18,7 @@ export function CliSkillImportInstructions({
       </p>
       <div className="flex flex-col gap-2">
         <h3 className="font-bold">1. Install or update the CLI</h3>
-        <Codeblock
-          language="bash"
-          value="npm install -g @langfuse/cli@1.3.0-beta.1"
-        />
+        <Codeblock language="bash" value="npm install -g @langfuse/cli@beta" />
       </div>
       <div className="flex flex-col items-start gap-2">
         <h3 className="font-bold">2. Configure your project</h3>
