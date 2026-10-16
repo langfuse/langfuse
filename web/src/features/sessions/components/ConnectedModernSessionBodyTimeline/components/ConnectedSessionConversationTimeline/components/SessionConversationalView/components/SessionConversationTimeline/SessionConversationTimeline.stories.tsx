@@ -1,13 +1,15 @@
 import preview from "@/.storybook/preview";
+import { type ComponentProps } from "react";
 import { expect, fn, userEvent, waitFor } from "storybook/test";
 import { SessionConversationTimeline } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/SessionConversationTimeline";
 import { useSessionConversationTimelineController } from "@/src/features/sessions/hooks/useSessionConversationTimelineController";
 
 function SessionConversationTimelineStory({
   dynamicContent,
+  navigation,
 }: {
   dynamicContent: boolean;
-}) {
+} & Pick<ComponentProps<typeof SessionConversationTimeline>, "navigation">) {
   const traces = Array.from(
     { length: dynamicContent ? 40 : 3 },
     (_, index) => ({
@@ -73,7 +75,11 @@ function SessionConversationTimelineStory({
   const controller = useSessionConversationTimelineController(traces);
   return (
     <div className="h-[200px]">
-      <SessionConversationTimeline traces={traces} controller={controller} />
+      <SessionConversationTimeline
+        traces={traces}
+        controller={controller}
+        navigation={navigation}
+      />
     </div>
   );
 }
@@ -83,6 +89,46 @@ const meta = preview.meta({
   args: { dynamicContent: false },
 });
 export default meta;
+
+export const TimelineNavigation = meta.story({
+  name: "(Test) Navigation Before And After Messages",
+  args: {
+    navigation: {
+      projectId: "project-1",
+      previousTrace: {
+        id: "previous-trace",
+        timestamp: new Date("2026-09-24T11:00:00Z"),
+      },
+      nextTrace: {
+        id: "next-trace",
+        timestamp: new Date("2026-09-24T13:00:00Z"),
+      },
+    },
+  },
+  play: async ({ canvas }) => {
+    const timeline = canvas.getByLabelText("Session conversation timeline");
+    const previous = await canvas.findByRole("link", {
+      name: "Previous trace in session",
+    });
+    const firstTrace = await canvas.findByRole("button", {
+      name: /Turn 1.*trace-1/,
+    });
+    expect(previous.compareDocumentPosition(firstTrace)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    timeline.scrollTop = timeline.scrollHeight;
+    timeline.dispatchEvent(new Event("scroll", { bubbles: true }));
+    const next = await canvas.findByRole("link", {
+      name: "Next trace in session",
+    });
+    const lastTrace = await canvas.findByRole("button", {
+      name: /Turn 3.*trace-3/,
+    });
+    expect(lastTrace.compareDocumentPosition(next)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  },
+});
 
 export const ScrollableTimeline = meta.story({
   name: "(Test) Scrollable Timeline",

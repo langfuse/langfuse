@@ -10,6 +10,27 @@ import { useSessionConversationTimelineController } from "@/src/features/session
 export function TraceMessagesView() {
   const { trace } = useTraceData();
   const { selectNode } = useSelection();
+  const { data: sessionTraces } = api.sessions.tracesFromEvents.useQuery(
+    { projectId: trace.projectId, sessionId: trace.sessionId ?? "" },
+    {
+      enabled: Boolean(trace.sessionId),
+      staleTime: (query) => {
+        const latestTrace = query.state.data?.at(-1);
+        if (!latestTrace) return 30 * 1_000;
+        const sessionInactive =
+          Date.now() - latestTrace.timestamp.getTime() >= 30 * 60 * 1_000;
+        return sessionInactive ? 10 * 60 * 1_000 : 30 * 1_000;
+      },
+      gcTime: 10 * 60 * 1_000,
+      refetchOnWindowFocus: false,
+    },
+  );
+  const traceIndex =
+    sessionTraces?.findIndex(({ id }) => id === trace.id) ?? -1;
+  const previousTrace =
+    traceIndex > 0 ? sessionTraces?.[traceIndex - 1] : undefined;
+  const nextTrace =
+    traceIndex >= 0 ? sessionTraces?.[traceIndex + 1] : undefined;
   const { data, isLoading, error } = api.events.transcriptByTraceId.useQuery({
     projectId: trace.projectId,
     traceId: trace.id,
@@ -55,7 +76,11 @@ export function TraceMessagesView() {
             part of the transcript.
           </div>
         )}
-        <SessionConversationTimeline traces={traces} controller={controller} />
+        <SessionConversationTimeline
+          traces={traces}
+          controller={controller}
+          navigation={{ projectId: trace.projectId, previousTrace, nextTrace }}
+        />
       </div>
     </ErrorBoundary>
   );

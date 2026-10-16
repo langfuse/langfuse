@@ -1,4 +1,7 @@
 import { type ComponentProps } from "react";
+import Link from "next/link";
+import { ArrowUp, ArrowDown } from "lucide-react";
+import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
 import { SessionConversationTimelineTrace } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
 import { type SessionConversationTimelineController } from "@/src/features/sessions/hooks/useSessionConversationTimelineController";
 import styles from "./SessionConversationTimeline.module.css";
@@ -6,9 +9,15 @@ import styles from "./SessionConversationTimeline.module.css";
 export function SessionConversationTimeline({
   traces,
   controller,
+  navigation,
 }: {
   traces: readonly ComponentProps<typeof SessionConversationTimelineTrace>[];
   controller: SessionConversationTimelineController;
+  navigation?: {
+    projectId: string;
+    previousTrace?: Pick<EventSessionTrace, "id" | "timestamp">;
+    nextTrace?: Pick<EventSessionTrace, "id" | "timestamp">;
+  };
 }) {
   const { feedRef, virtualItems, virtualizer } = controller;
 
@@ -42,7 +51,44 @@ export function SessionConversationTimeline({
                 width: "100%",
               }}
             >
+              {virtualItem.index === 0 && navigation?.previousTrace && (
+                <div className="flex justify-center pb-4">
+                  <Link
+                    className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring flex w-full items-center justify-center gap-2 rounded-md border border-dashed px-4 py-3 text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
+                    href={{
+                      pathname: `/project/${navigation.projectId}/traces/${navigation.previousTrace.id}`,
+                      query: {
+                        timestamp:
+                          navigation.previousTrace.timestamp.toISOString(),
+                        traceTab: "messages",
+                      },
+                    }}
+                  >
+                    <ArrowUp className="icon-base" />
+                    Previous trace in session
+                  </Link>
+                </div>
+              )}
               <SessionConversationTimelineTrace {...traceProps} />
+              {virtualItem.index === traces.length - 1 &&
+                navigation?.nextTrace && (
+                  <div className="flex justify-center pt-4">
+                    <Link
+                      className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring flex w-full items-center justify-center gap-2 rounded-md border border-dashed px-4 py-3 text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
+                      href={{
+                        pathname: `/project/${navigation.projectId}/traces/${navigation.nextTrace.id}`,
+                        query: {
+                          timestamp:
+                            navigation.nextTrace.timestamp.toISOString(),
+                          traceTab: "messages",
+                        },
+                      }}
+                    >
+                      <ArrowDown className="icon-base" />
+                      Next trace in session
+                    </Link>
+                  </div>
+                )}
             </div>
           );
         })}
