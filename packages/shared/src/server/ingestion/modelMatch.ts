@@ -9,6 +9,7 @@ import {
 } from "../";
 import { LocalCache } from "../cache";
 import { env } from "../../env";
+import { isModelDefinitionsEnabled } from "../modelDefinitions";
 import { Decimal } from "decimal.js";
 import { prisma } from "../../db";
 import type { PricingTierWithPrices } from "../pricing-tiers";
@@ -48,6 +49,14 @@ export async function findModel(p: ModelMatchProps): Promise<ModelWithPrices> {
       traceScope: "model-match",
     },
     async (span) => {
+      // The instance-wide switch short-circuits before any cache or database
+      // read. Returning no model is what stops cost calculation and
+      // tokenization downstream, so callers need no flag of their own.
+      if (!isModelDefinitionsEnabled()) {
+        span.setAttribute("model_match_source", "disabled");
+        return { model: null, pricingTiers: [] };
+      }
+
       if (logger.isLevelEnabled("debug")) {
         logger.debug(
           formatModelMatchDebugMessage("Resolving model match", {
