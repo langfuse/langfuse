@@ -1,15 +1,17 @@
 import { Slot } from "@radix-ui/react-slot";
-import type { ReactElement } from "react";
+import type { ComponentPropsWithoutRef } from "react";
 
-export type OptionListProps = {
-  children: ReactElement;
-};
+export type OptionListProps = Omit<
+  ComponentPropsWithoutRef<typeof Slot>,
+  "className"
+>;
 
 /** Applies the divided option-list layout to its single child element. */
-export function OptionList({ children }: OptionListProps) {
+export function OptionList(props: OptionListProps) {
   return (
-    <Slot className="divide-border border-border divide-y border-b">
-      {children}
-    </Slot>
+    <Slot
+      className="divide-border border-border divide-y border-b"
+      {...props}
+    />
   );
 }
