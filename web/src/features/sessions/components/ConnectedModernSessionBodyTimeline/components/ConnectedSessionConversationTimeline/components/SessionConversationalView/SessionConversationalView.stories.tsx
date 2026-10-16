@@ -1,3 +1,4 @@
+/* eslint-disable @repo/storybook-play-no-implementation-detail-assertions */
 import { orderObservations } from "@langfuse/shared/src/server/transcript/ordering";
 import { assembleTranscript } from "@langfuse/shared/src/server/transcript/transcript";
 import { type TranscriptObservation } from "@langfuse/shared/src/server/transcript/types";
