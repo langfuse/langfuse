@@ -17,7 +17,6 @@ import { type SystemRole } from "@langfuse/shared/src/db";
 export const roleIcons: Record<SystemRole, LucideIcon> = {
   OWNER: ShieldCheck,
   ADMIN: ShieldCheck,
-  FULL_ACCESS: ShieldCheck,
   MEMBER: User,
   VIEWER: Eye,
   NONE: Ban,

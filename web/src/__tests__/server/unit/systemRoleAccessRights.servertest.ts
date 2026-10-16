@@ -145,21 +145,10 @@ describe("systemRoleAccessRights", () => {
     }
   });
 
-  it("grants FULL_ACCESS exactly the ADMIN policies", () => {
-    expect(systemRoleAccessRights.FULL_ACCESS.policies).toEqual(
-      systemRoleAccessRights.ADMIN.policies,
-    );
-  });
-
   it("tags api-key roles and user roles disjointly", () => {
     const tagsFor = (role: keyof typeof systemRoleAccessRights) =>
       systemRoleAccessRights[role].tags;
-    for (const role of [
-      "FULL_ACCESS",
-      "SCORES_INGEST",
-      "INGEST",
-      "AI_GATEWAY",
-    ] as const) {
+    for (const role of ["SCORES_INGEST", "INGEST", "AI_GATEWAY"] as const) {
       expect(tagsFor(role)).toEqual(["principal:apiKey"]);
     }
     for (const role of [
@@ -177,6 +166,5 @@ describe("systemRoleAccessRights", () => {
     ] as const) {
       expect(tagsFor(role)).toContain("principal:user");
     }
-    expect(tagsFor("ADMIN")).not.toContain("principal:apiKey");
   });
 });

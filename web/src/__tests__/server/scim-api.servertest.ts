@@ -1852,7 +1852,7 @@ describe("SCIM ownership boundary", () => {
     secondOwnerId = secondOwner!.id;
     memberId = member!.id;
     const [adminKey, ownerKey] = await Promise.all(
-      (["FULL_ACCESS", "LEGACY_ORGANIZATION_API_KEY"] as const).map((role) =>
+      (["ADMIN", "LEGACY_ORGANIZATION_API_KEY"] as const).map((role) =>
         createApiKey(prisma, {
           owner: OrganizationId(orgId),
           role: SystemRoleId(role),
@@ -1910,7 +1910,7 @@ describe("SCIM ownership boundary", () => {
       })
     )?.role;
 
-  it("rejects a FULL_ACCESS key creating an OWNER via POST", async () => {
+  it("rejects an ADMIN key creating an OWNER via POST", async () => {
     const email = `${randomUUID()}@example.com`;
     createdEmails.push(email);
     const status = await call(scimUsersRoute, "POST", {
@@ -1950,17 +1950,17 @@ describe("SCIM ownership boundary", () => {
     expect(await roleOf(ownerId)).toBe("OWNER");
   });
 
-  it("rejects a FULL_ACCESS key demoting an OWNER via PUT", async () => {
+  it("rejects an ADMIN key demoting an OWNER via PUT", async () => {
     expect(await putUser(ownerId, ["MEMBER"])).toBe(403);
     expect(await roleOf(ownerId)).toBe("OWNER");
   });
 
-  it("rejects a FULL_ACCESS key promoting a member to OWNER via PUT", async () => {
+  it("rejects an ADMIN key promoting a member to OWNER via PUT", async () => {
     expect(await putUser(memberId, ["OWNER"])).toBe(403);
     expect(await roleOf(memberId)).toBe("MEMBER");
   });
 
-  it("rejects a FULL_ACCESS key provisioning a non-member as OWNER via PUT", async () => {
+  it("rejects an ADMIN key provisioning a non-member as OWNER via PUT", async () => {
     const outsider = await prisma.user.create({
       data: { email: `${randomUUID()}@example.com` },
     });
@@ -1986,7 +1986,7 @@ describe("SCIM ownership boundary", () => {
       },
     ],
   ] as const)(
-    "rejects a FULL_ACCESS key deprovisioning an OWNER via %s",
+    "rejects an ADMIN key deprovisioning an OWNER via %s",
     async (method, body) => {
       expect(await call(scimUserRoute, method, body, ownerId)).toBe(403);
       expect(await roleOf(ownerId)).toBe("OWNER");
@@ -2026,7 +2026,7 @@ describe("SCIM ownership boundary", () => {
     expect(await roleOf(memberId)).toBe("OWNER");
   });
 
-  it("lets a FULL_ACCESS key manage non-owner members", async () => {
+  it("lets an ADMIN key manage non-owner members", async () => {
     const email = `${randomUUID()}@example.com`;
     createdEmails.push(email);
     expect(

@@ -268,7 +268,6 @@ model ApiKey {
 enum SystemRole {
   OWNER
   ADMIN
-  FULL_ACCESS
   MEMBER
   VIEWER
   NONE

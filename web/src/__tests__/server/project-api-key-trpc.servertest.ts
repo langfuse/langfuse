@@ -210,7 +210,7 @@ describe("project API keys trpc", () => {
       ).resolves.toBe(0);
     });
 
-    it.each(["FULL_ACCESS", "VIEWER", "INGEST", "SCORES_INGEST"] as const)(
+    it.each(["ADMIN", "VIEWER", "INGEST", "SCORES_INGEST"] as const)(
       "creates a project key with %s when role selection is enabled",
       async (role) => {
         Object.assign(env, { API_KEY_PROJECT_ROLES_ENABLE: "true" });
@@ -273,12 +273,7 @@ describe("project API keys trpc", () => {
             "invalid",
           ];
           if (migration !== "enforce" || enabled === "false")
-            rejectedRoles.push(
-              "FULL_ACCESS",
-              "VIEWER",
-              "INGEST",
-              "SCORES_INGEST",
-            );
+            rejectedRoles.push("ADMIN", "VIEWER", "INGEST", "SCORES_INGEST");
           for (const role of rejectedRoles) {
             await expect(
               caller.projectApiKeys.create({ projectId, role: role as never }),

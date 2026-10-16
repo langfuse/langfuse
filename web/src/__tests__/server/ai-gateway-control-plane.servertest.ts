@@ -1480,7 +1480,7 @@ describe("AI gateway control plane", () => {
       const { org, user } = await prepare();
       const adminKey = await createApiKey(prisma, {
         owner: OrganizationId(org.id),
-        role: SystemRoleId("FULL_ACCESS"),
+        role: SystemRoleId("ADMIN"),
         createdBy: UserId(user.id),
       });
 

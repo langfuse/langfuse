@@ -37,7 +37,16 @@ import { roleIcons } from "@/src/features/rbac/components/roleIcons";
 
 type ApiKeyScope = "project" | "organization";
 
-const DEFAULT_ROLE: SystemRole = "FULL_ACCESS";
+const DEFAULT_ROLE: SystemRole = "ADMIN";
+
+/** apiKeyRoleNames relabels roles whose catalog name reads as a member role. */
+const apiKeyRoleNames: Partial<Record<SystemRole, string>> = {
+  ADMIN: "Full Access",
+};
+
+/** apiKeyRoleName is the name a role is shown under when picking an api key's permissions. */
+const apiKeyRoleName = (role: SystemRole): string =>
+  apiKeyRoleNames[role] ?? systemRoleAccessRights[role].name;
 
 /** ApiKeyCreateValues is the resolved create-form payload the button forwards to the create mutation. */
 export type ApiKeyCreateValues = {
@@ -174,7 +183,7 @@ function ApiKeyCreateForm({
                   <div className="flex items-start gap-2 text-left">
                     <SelectedRoleIcon className="icon-base mt-0.5 shrink-0" />
                     <div className="flex flex-col">
-                      <span className="font-bold">{selectedRoleDef.name}</span>
+                      <span className="font-bold">{apiKeyRoleName(role)}</span>
                       <span className="text-muted-foreground text-xs">
                         {selectedRoleDef.description}
                       </span>
@@ -186,6 +195,7 @@ function ApiKeyCreateForm({
                     <RoleSelectItem
                       key={r}
                       role={r}
+                      name={apiKeyRoleName(r)}
                       onViewPermissions={openPermissions}
                     />
                   ))}
@@ -214,6 +224,7 @@ function ApiKeyCreateForm({
             open={permissionsOpen}
             onOpenChange={setPermissionsOpen}
             role={permissionsRole}
+            name={permissionsRole ? apiKeyRoleName(permissionsRole) : undefined}
           />
         )}
       </DialogBody>

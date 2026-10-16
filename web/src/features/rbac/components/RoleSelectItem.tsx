@@ -9,14 +9,18 @@ import { roleIcons } from "@/src/features/rbac/components/roleIcons";
 /** RoleSelectItem adds a permission preview to a role option. */
 export const RoleSelectItem = ({
   role,
+  name,
   isProjectRole,
   onViewPermissions,
 }: {
   role: SystemRole;
+  /** name overrides the catalog name shown for the role. */
+  name?: string;
   isProjectRole?: boolean;
   onViewPermissions: (role: SystemRole) => void;
 }) => {
   const def = systemRoleAccessRights[role];
+  const label = name ?? def.name;
   const Icon = roleIcons[role];
   const keepDefaultNote = role === "NONE" && isProjectRole;
 
@@ -29,7 +33,7 @@ export const RoleSelectItem = ({
         <Icon className="icon-base mt-0.5 shrink-0" />
         <div className="flex flex-col">
           <span className="font-bold">
-            {def.name}
+            {label}
             {keepDefaultNote ? " (keep default role)" : ""}
           </span>
           <span className="text-muted-foreground text-xs">
@@ -48,7 +52,7 @@ export const RoleSelectItem = ({
                 e.stopPropagation();
                 onViewPermissions(role);
               }}
-              aria-label={`View ${def.name} permissions`}
+              aria-label={`View ${label} permissions`}
               className="text-muted-foreground hover:bg-background hover:text-foreground ml-auto flex h-6 w-6 shrink-0 items-center justify-center self-center rounded-full opacity-0 group-hover:opacity-100 group-data-highlighted:opacity-100 focus-visible:opacity-100"
             >
               <SquareArrowOutUpRight className="icon-base" />

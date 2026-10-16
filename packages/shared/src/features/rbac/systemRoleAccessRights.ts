@@ -104,14 +104,7 @@ export const systemRoleAccessRights: Record<SystemRole, SystemRoleDefinition> =
       name: "Admin",
       description: "All read and write privileges.",
       policies: userRoleAccessRights("ADMIN"),
-      tags: ["principal:user"],
-    },
-    FULL_ACCESS: {
-      id: "FULL_ACCESS",
-      name: "Full Access",
-      description: "All read and write privileges.",
-      policies: userRoleAccessRights("ADMIN"),
-      tags: ["principal:apiKey"],
+      tags: ["principal:user", "principal:apiKey"],
     },
     MEMBER: {
       id: "MEMBER",

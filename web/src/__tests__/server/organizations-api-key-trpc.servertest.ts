@@ -638,7 +638,7 @@ describe("organization API keys trpc", () => {
 
       const key = await ownerCallerForOrg(orgId).organizationApiKeys.create({
         orgId,
-        role: "FULL_ACCESS",
+        role: "ADMIN",
       });
 
       const projectResources = (
@@ -652,7 +652,7 @@ describe("organization API keys trpc", () => {
     });
 
     it.each([
-      "FULL_ACCESS",
+      "ADMIN",
       "VIEWER",
       "INGEST",
       "SCORES_INGEST",
@@ -738,7 +738,7 @@ describe("organization API keys trpc", () => {
           ];
           if (migration !== "enforce" || enabled === "false")
             rejectedRoles.push(
-              "FULL_ACCESS",
+              "ADMIN",
               "VIEWER",
               "INGEST",
               "SCORES_INGEST",

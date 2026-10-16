@@ -524,7 +524,7 @@ describe("shadowAuth maps principals to legacy-identical scopes", () => {
     expect(enforce).toMatchObject({ success: false, error: { httpCode: 403 } });
   });
 
-  it("a project FULL_ACCESS key on a project-nested route authorizes only its own project in enforce", async () => {
+  it("a project ADMIN key on a project-nested route authorizes only its own project in enforce", async () => {
     const { apiKey, authorization } = await createUnassignedApiKey("PROJECT");
     await prisma.roleAssignment.create({
       data: {
@@ -533,8 +533,8 @@ describe("shadowAuth maps principals to legacy-identical scopes", () => {
         apiKeyId: apiKey.id,
         ownerId: `project/${projectId}`,
         principalId: `apiKey/${apiKey.id}`,
-        roleId: "system/FULL_ACCESS",
-        systemRole: "FULL_ACCESS",
+        roleId: "system/ADMIN",
+        systemRole: "ADMIN",
       },
     });
     const sibling = await prisma.project.create({
