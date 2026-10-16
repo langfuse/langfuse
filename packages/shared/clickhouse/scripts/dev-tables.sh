@@ -148,31 +148,32 @@ ORDER BY (project_id, toStartOfFifteenMinutes(ingested_at), event_type, event_id
 -- of historic rows that keep their created_at (v4 backfills, updates) are not
 -- new usage. Rows with is_deleted = 1 are tombstones, not usage.
 
--- MV: events_full -> billable_events (observations). Dual-write trace spans
--- (span_id 't-<trace_id>') only count as a trace. Span ids are only unique
--- within their trace, and ingestion API clients choose them, so event_id is
--- '<length(trace_id)>:<trace_id><span_id>'. The length prefix keeps distinct
--- (trace_id, span_id) pairs from concatenating to the same id.
+-- MV: events_full -> billable_events (observations). A trace span that an
+-- internal writer derived from a trace only
+-- counts as a trace. Span ids are only unique within their trace, and ingestion API
+-- clients choose them, so event_id is '<length(trace_id)>:<trace_id>:<span_id>'.
+-- The length prefix keeps distinct (trace_id, span_id) pairs from
+-- concatenating to the same id.
 CREATE MATERIALIZED VIEW IF NOT EXISTS billable_events_observations_mv
 TO billable_events AS
 SELECT
     now() AS ingested_at,
     project_id,
     'observation' AS event_type,
-    concat(toString(length(trace_id)), ':', trace_id, span_id) AS event_id,
+    concat(toString(length(trace_id)), ':', trace_id, ':', span_id) AS event_id,
     start_time AS event_time,
     event_bytes
 FROM events_full
 WHERE is_deleted = 0
-  AND (
-    span_id != concat('t-', trace_id)
-    AND source NOT LIKE '%-dual-write'
+  AND NOT (
+    span_id = concat('t-', trace_id)
+    AND (source LIKE '%-dual-write%' OR source LIKE '%-backfill')
   )
   AND created_at >= now() - INTERVAL 48 HOUR;
 
 -- MV: events_full -> billable_events (traces), one row per trace per insert
--- block. event_bytes carries the dual-write trace span, which has no
--- observation row, so event_bytes over all rows adds up to events_full.
+-- block. event_bytes carries the derived trace span, which has no observation
+-- row, so event_bytes over all rows adds up to events_full.
 CREATE MATERIALIZED VIEW IF NOT EXISTS billable_events_traces_mv
 TO billable_events AS
 SELECT
@@ -181,7 +182,11 @@ SELECT
     'trace' AS event_type,
     trace_id AS event_id,
     min(start_time) AS event_time,
-    sumIf(event_bytes, span_id = concat('t-', trace_id)) AS event_bytes
+    sumIf(
+        event_bytes,
+        span_id = concat('t-', trace_id)
+          AND (source LIKE '%-dual-write%' OR source LIKE '%-backfill')
+    ) AS event_bytes
 FROM events_full
 WHERE is_deleted = 0
   AND trace_id != ''
