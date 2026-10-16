@@ -38,7 +38,10 @@ import useLocalStorage from "@/src/components/useLocalStorage";
 import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type ProjectScope } from "@langfuse/shared";
 import { useReadPath } from "@/src/features/events";
-import { useInAppAiAgent } from "@/src/features/in-app-agent";
+import {
+  useInAppAiAgent,
+  useIsInAppAgentLauncherVisible,
+} from "@/src/features/in-app-agent";
 
 type IdNavigationItem = {
   type: "trace_id" | "observation_id";
@@ -233,9 +236,10 @@ function CreateActionItem({
 }
 
 function AssistantItem({ onDone }: { onDone: () => void }) {
-  const { isAvailable, openAssistant, selectConversation } = useInAppAiAgent();
+  const { openAssistant, selectConversation } = useInAppAiAgent();
+  const isLauncherVisible = useIsInAppAgentLauncherVisible();
 
-  if (!isAvailable) return null;
+  if (!isLauncherVisible) return null;
 
   const handleSelect = () => {
     onDone();
