@@ -15,18 +15,8 @@ export function withoutGatewayRole(roles: SystemRole[]): SystemRole[] {
   return roles.filter((role) => role !== GATEWAY_ROLE);
 }
 
-/**
- * excludeGatewayApiKeys filters gateway-role keys out of the organization API
- * key settings list. Keys without a gateway association stay listed: the AI
- * Gateway page does not show them, so this list is their only place to be
- * revoked.
- */
+/** excludeGatewayApiKeys filters gateway-role keys out of the organization API key settings list. */
 export const excludeGatewayApiKeys: Prisma.ApiKeyWhereInput =
   SEPARATE_GATEWAY_API_KEYS
-    ? {
-        NOT: {
-          roleAssignments: { some: { systemRole: GATEWAY_ROLE } },
-          gatewayAssociation: { isNot: null },
-        },
-      }
+    ? { roleAssignments: { none: { systemRole: GATEWAY_ROLE } } }
     : {};

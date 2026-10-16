@@ -242,21 +242,18 @@ describe("organization API keys trpc", () => {
       );
     });
 
-    it("filters AI Gateway keys managed on the gateway page", async () => {
+    it("filters AI Gateway keys", async () => {
       const gatewayKey = await createApiKey(prisma, {
         owner: OrganizationId(organizationId),
         role: SystemRoleId("AI_GATEWAY"),
         createdBy: UserId("user-1"),
         name: "Gateway key",
       });
-      await prisma.gatewayApiKeyAssociation.create({
-        data: { apiKeyId: gatewayKey.id },
-      });
-      const unassociatedGatewayKey = await createApiKey(prisma, {
+      const ingestKey = await createApiKey(prisma, {
         owner: OrganizationId(organizationId),
-        role: SystemRoleId("AI_GATEWAY"),
+        role: SystemRoleId("INGEST"),
         createdBy: UserId("user-1"),
-        name: "Gateway-role key without association",
+        name: "Ingestion key",
       });
 
       const apiKeys = await ownerCaller.organizationApiKeys.byOrganizationId({
@@ -265,7 +262,7 @@ describe("organization API keys trpc", () => {
       const ids = apiKeys.map((key) => key.id);
 
       expect(ids).not.toContain(gatewayKey.id);
-      expect(ids).toContain(unassociatedGatewayKey.id);
+      expect(ids).toContain(ingestKey.id);
     });
 
     it("regular member cannot fetch organization API keys", async () => {
