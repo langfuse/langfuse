@@ -45,6 +45,7 @@ import { CteScopedTransformer } from "./transformer";
 
 const OUTER_PRESERVING_JOINS = new Set<JoinType>(["RightJoin", "FullJoin"]);
 const AFTER_LIMIT_ALIAS = "latest";
+const AFTER_LIMIT_JOINS = new Set<JoinType>(["InnerJoin", "CrossJoin"]);
 
 export class SoftDeleteFilterPlugin implements KyselyPlugin {
   transformQuery(args: PluginTransformQueryArgs): RootOperationNode {
@@ -178,6 +179,24 @@ function checkAfterLimitShape(
   if (node.groupBy || node.setOperations) {
     throw new QueryCompileError(
       "softDeleteAfterLimit() cannot wrap a GROUP BY or set operation: the added flag would not match its shape.",
+    );
+  }
+  // The added flag would join the DISTINCT key and change which rows survive.
+  const distinct =
+    node.distinctOn ||
+    node.frontModifiers?.some(({ modifier }) => modifier === "Distinct");
+  if (distinct) {
+    throw new QueryCompileError(
+      "softDeleteAfterLimit() cannot wrap a DISTINCT: the added flag would change its key.",
+    );
+  }
+  // The outer filter would drop rows an outer join preserves; an ON filter keeps them.
+  const outerJoin = node.joins?.find(
+    ({ joinType }) => !AFTER_LIMIT_JOINS.has(joinType),
+  );
+  if (outerJoin) {
+    throw new QueryCompileError(
+      `softDeleteAfterLimit() cannot wrap a ${outerJoin.joinType}: the outer filter would drop its preserved rows.`,
     );
   }
   // Names of the outputs the outer select lists again; `*` is rejected below.

@@ -434,6 +434,26 @@ describe("soft-delete filtering", () => {
       /reads 2/,
     );
     rejects(
+      getClickhouseKysely()
+        .selectFrom("scores as s")
+        .leftJoin("events_core as e", (join) =>
+          join.onRef("e.trace_id", "=", "s.trace_id"),
+        )
+        .$call(softDeleteAfterLimit())
+        .select("s.id")
+        .limit(1),
+      /cannot wrap a LeftJoin/,
+    );
+    rejects(
+      marked()
+        .rightJoin("scores as s", (join) =>
+          join.onRef("s.trace_id", "=", "e.trace_id"),
+        )
+        .select("s.id"),
+      /cannot wrap a RightJoin/,
+    );
+    rejects(marked().distinct().select("e.span_id"), /cannot wrap a DISTINCT/);
+    rejects(
       marked().$call(includeDeleted()).select("e.span_id"),
       /cannot mark the same select/,
     );
