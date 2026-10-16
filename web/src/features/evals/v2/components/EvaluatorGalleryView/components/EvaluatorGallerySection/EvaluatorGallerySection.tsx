@@ -99,6 +99,7 @@ function GalleryShowAllToggle({
   return (
     <div className={isProjectRows ? "-mt-3" : undefined}>
       <ExpandToggle
+        variant="underline"
         expanded={expanded}
         label={`Show all ${totalCount} templates`}
         expandedLabel="Show fewer"

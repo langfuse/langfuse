@@ -591,6 +591,7 @@ export function MarkdownView({
   const collapseToggle = shouldBeCollapsible ? (
     <div>
       <ExpandToggle
+        variant="underline"
         expanded={!isCollapsed}
         label="Expand system prompt"
         expandedLabel="Collapse system prompt"

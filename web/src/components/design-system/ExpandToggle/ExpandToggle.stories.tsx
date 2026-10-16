@@ -28,8 +28,16 @@ const meta = preview.meta({
   render: StatefulExpandToggle,
 });
 
-export const Text = meta.story({
-  args: { label: "Show all 15 templates", expandedLabel: "Show fewer" },
+export const Plain = meta.story({
+  args: { label: "Show more", expandedLabel: "Show less" },
+});
+
+export const Underline = meta.story({
+  args: {
+    variant: "underline",
+    label: "Show all 15 templates",
+    expandedLabel: "Show fewer",
+  },
 });
 
 export const WithIcon = meta.story({
@@ -48,14 +56,19 @@ export const Overview = meta.story({
       <span className="text-muted-foreground">Collapsed</span>
       <span className="text-muted-foreground">Expanded</span>
       <span>plain</span>
+      <ExpandToggle expanded={false} onExpandedChange={fn()} />
+      <ExpandToggle expanded onExpandedChange={fn()} />
+      <span>underline</span>
       <ExpandToggle
         expanded={false}
         onExpandedChange={fn()}
+        variant="underline"
         label="Show all 15 templates"
       />
       <ExpandToggle
         expanded
         onExpandedChange={fn()}
+        variant="underline"
         expandedLabel="Show fewer"
       />
       <span>icon</span>
@@ -86,9 +99,9 @@ export const Overview = meta.story({
         iconPosition="right"
         expandedLabel="Hide error details"
       />
-      <span>size default</span>
-      <ExpandToggle expanded={false} onExpandedChange={fn()} size="default" />
-      <ExpandToggle expanded onExpandedChange={fn()} size="default" />
+      <span>size sm (13px)</span>
+      <ExpandToggle expanded={false} onExpandedChange={fn()} size="sm" />
+      <ExpandToggle expanded onExpandedChange={fn()} size="sm" />
     </div>
   ),
 });

@@ -9,11 +9,12 @@ type ExpandToggleProps = {
   label?: string;
   /** Shown while expanded. */
   expandedLabel?: string;
-  /** `plain` is an underlined link; `icon` swaps the underline for a chevron that flips with the state. */
-  variant?: "plain" | "icon";
+  /** `plain` is muted text, `underline` adds an underline, `icon` adds a chevron that flips with the state. */
+  variant?: "plain" | "underline" | "icon";
   /** Which side of the label the icon sits on. */
   iconPosition?: "left" | "right";
-  size?: "default" | "sm";
+  /** Matches the text size: `xs` 12px (default), `sm` 13px. */
+  size?: "xs" | "sm";
   /** Id of the element it shows and hides. */
   controls?: string;
 };
@@ -26,7 +27,7 @@ export function ExpandToggle({
   expandedLabel = "Show less",
   variant = "plain",
   iconPosition = "left",
-  size = "sm",
+  size = "xs",
   controls,
 }: ExpandToggleProps) {
   const handleClick = () => {
@@ -37,8 +38,8 @@ export function ExpandToggle({
   return (
     <Button
       variant="text"
-      underline={variant === "plain"}
-      size={size}
+      underline={variant === "underline"}
+      size={size === "sm" ? "default" : "sm"}
       text={expanded ? expandedLabel : label}
       icon={variant === "icon" ? chevron : undefined}
       iconPosition={iconPosition}

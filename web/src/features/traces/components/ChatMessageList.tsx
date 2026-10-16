@@ -146,6 +146,7 @@ export function ChatMessageList({
                   originalIndex === messagesToRender[0]?.originalIndex && (
                     <div className="mt-1 mb-2 flex">
                       <ExpandToggle
+                        variant="underline"
                         expanded={!isCollapsed}
                         onExpandedChange={handleHistoryExpandedChange}
                         label={`Show ${messagesToRender.length - COLLAPSE_THRESHOLD} more`}

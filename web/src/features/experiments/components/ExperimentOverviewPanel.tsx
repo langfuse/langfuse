@@ -97,6 +97,7 @@ export function ExperimentOverviewPanel({
                   {isLongDescription && (
                     <div>
                       <ExpandToggle
+                        variant="underline"
                         expanded={isDescriptionExpanded}
                         onExpandedChange={setIsDescriptionExpanded}
                       />
