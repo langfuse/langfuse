@@ -553,10 +553,13 @@ const EnvSchema = z.object({
   // addresses. Bucket names under a listed host ({bucket}.{host}) are allowed
   // too, but still may not resolve to a private address unless it is in
   // LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS / _IP_SEGMENTS; private
-  // S3-compatible stores can use path-style instead. S3 exports without a custom endpoint
-  // connect to s3.<region>.amazonaws.com, which must then be listed; region
-  // "auto" first connects to s3.us-east-1.amazonaws.com. GCS exports always
-  // connect to Google and are not checked. Ignored on Langfuse Cloud.
+  // S3-compatible stores can use path-style instead. S3 exports without a
+  // custom endpoint connect to s3.<region>.amazonaws.com, which must then be
+  // listed; region "auto" first connects to s3.us-east-1.amazonaws.com. S3
+  // exports using host credentials (web identity or an assumed role) also
+  // call sts.<region>.amazonaws.com through the same check, so list it too.
+  // GCS exports always connect to Google and are not checked. Ignored on
+  // Langfuse Cloud.
   LANGFUSE_BLOB_STORAGE_ENDPOINT_ALLOWED_HOSTS: optionalCommaSeparatedLowercase,
   LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_WHITELISTED_IPS: z
     .string()
