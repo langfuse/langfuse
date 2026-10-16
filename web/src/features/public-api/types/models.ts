@@ -131,6 +131,8 @@ export function prismaToApiModelDefinition({
 // GET /models
 export const GetModelsV1Query = z.object({
   ...publicApiPaginationZod,
+  fromTimestamp: z.coerce.date().nullish(),
+  toTimestamp: z.coerce.date().nullish(),
 });
 export const GetModelsV1Response = z
   .object({
