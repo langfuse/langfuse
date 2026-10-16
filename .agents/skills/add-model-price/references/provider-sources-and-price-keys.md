@@ -1298,6 +1298,56 @@ json_literal    = "<price_per_mtok>e-6"
   already-tracked October 23, 2026 "Legacy GPT model snapshots" batch (see
   the October 9 2026 entry above) — do not conflate the two shutdown dates or
   model lists when a future audit processes either one.
+- **October 16 2026 audit: full re-fetch found no price or catalog drift; the
+  October 23, 2026 "Legacy GPT model snapshots" batch composition confirmed
+  wider than previously tracked (still not yet actionable)** — Re-fetched the
+  full Anthropic pricing page (model table, cache-hits footnote, Fast mode and
+  Batch tables) and the Anthropic model-deprecations page's "Model status"
+  table, the OpenAI aggregate Standard pricing table (every `gpt-6`/`gpt-5.6`/
+  `gpt-5.x`/`gpt-4.1`/`gpt-4o`/`gpt-5.3-codex` row individually re-quoted) and
+  `developers.openai.com/api/docs/deprecations`, the Gemini 3.x pricing page
+  (`ai.google.dev/gemini-api/docs/pricing`) and the Gemini 2.5-family page
+  (`ai.google.dev/pricing`) plus the Gemini models catalog, and the TypeSafe
+  Jev models page. Every price already in the file — including every
+  `gpt-6-astra`/`gpt-6-sol`/`gpt-6.1-sol`/`gpt-6-luna`, every `claude-*-5.5`
+  tier, and `gemini-4-argon`/`gemini-3.6/3.7/3.8-flash`'s introductory rates —
+  matched verbatim; no updates were needed. `claude-haiku-4-5-20251001`'s
+  tentative retirement date ("Not sooner than October 15, 2026") has now
+  passed with still no firm announced date (model status still `Active`,
+  `Deprecated: N/A` on the deprecations page) — left unchanged in
+  `anthropicModels`, consistent with the removal criteria (no firm date means
+  no action). One refinement: a verbatim row-by-row re-quote of the "2026-04-22:
+  Legacy GPT model snapshots" section (all shutdown October 23, 2026) confirms
+  the batch is wider than the 10 IDs previously tracked in the October 9 2026
+  entry above. Full confirmed list: `gpt-3.5-turbo-0125` (alias
+  `gpt-3.5-turbo`, `gpt-3.5-turbo-completions`), `gpt-4-0613` (aliases `gpt-4`,
+  `gpt-4-0613-completions`, `gpt-4-completions`), `gpt-4-1106-preview`,
+  `gpt-4-turbo` (alias `gpt-4-turbo-2024-04-09`, `gpt-4-turbo-completions`),
+  `gpt-4.1-nano` (alias `gpt-4.1-nano-2025-04-14`), `gpt-4o-2024-05-13`,
+  **`gpt-image-1`** (an image-generation model, out of this pricing file's
+  text/chat scope), `o1-2024-12-17` (alias `o1`), `o1-pro-2025-03-19` (alias
+  `o1-pro`), `o3-mini-2025-01-31` (alias `o3-mini`), and
+  `o4-mini-2025-04-16` (alias `o4-mini`) — plus fine-tuned-only rows
+  `ft-gpt-3.5-turbo`, `ft-gpt-4`, `ft-gpt-4.1-nano-2025-04-14`,
+  `ft-o4-mini-2025-04-16`, `ft-babbage-002`, and `ft-davinci-002` (none of
+  which are ever selectable-array entries). October 23, 2026 is still 7 days
+  after this run's date — not yet actionable. Of the base (non-`ft`,
+  non-image) IDs above, only `gpt-3.5-turbo`/`gpt-3.5-turbo-0125`, `gpt-4`/
+  `gpt-4-0613`, `gpt-4-1106-preview`, `gpt-4.1-nano`/`gpt-4.1-nano-2025-04-14`,
+  `o3-mini`/`o3-mini-2025-01-31`, and `o4-mini`/`o4-mini-2025-04-16` are
+  currently present in `openAIModels`; `gpt-4-turbo`/`gpt-4-turbo-2024-04-09`,
+  `gpt-4o-2024-05-13`, `o1`/`o1-2024-12-17`, and `o1-pro`/`o1-pro-2025-03-19`
+  are not in the array and need no action regardless of date. Re-check
+  `developers.openai.com/api/docs/deprecations` on or after October 23, 2026
+  and remove exactly those six present IDs (and their dated-snapshot pairs)
+  from `openAIModels` once the page confirms the shutdown has passed (keep
+  all pricing entries). Lesson: a first, non-verbatim fetch of this same
+  section omitted `o4-mini`/`o4-mini-2025-04-16` entirely while a second,
+  differently-worded non-verbatim fetch included it — only a targeted
+  verbatim row-by-row re-quote, followed by a dedicated string-search fetch
+  for "o4-mini", resolved the contradiction. Treat any single non-verbatim
+  summary of this page's batch membership as unreliable; always confirm with
+  a verbatim quote before trusting which IDs a dated batch includes.
 
 ## Provider Usage Keys
 
