@@ -1,3 +1,5 @@
+import { expect, userEvent, within } from "storybook/test";
+
 import preview from "../../../../../../.storybook/preview";
 import {
   ToolCallDefinitionCard,
@@ -217,5 +219,27 @@ export const ManyTools = meta.story({
     toolNameToDefinitionNumber: new Map(
       manyToolNames.map((name, index) => [name, index + 1]),
     ),
+  },
+});
+
+/** Show more reveals rows below the summary; the toggle itself stays put. */
+export const ShowMoreKeepsTogglePlace = meta.story({
+  name: "(Test) Show More Keeps Toggle Place",
+  args: ManyTools.input.args,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const showMore = canvas.getByRole("button", {
+      name: /^Show more: 12 available/,
+    });
+    const topBefore = showMore.getBoundingClientRect().top;
+    await userEvent.click(showMore);
+    const showLess = await canvas.findByRole("button", {
+      name: /^Show less: 12 available/,
+    });
+    await expect(showLess.getBoundingClientRect().top).toBe(topBefore);
+    const firstHidden = canvas.getByText("langfuse_getPrompt");
+    await expect(showLess.compareDocumentPosition(firstHidden)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
   },
 });

@@ -431,7 +431,7 @@ export function ToolCallDefinitionCard({
 
   return (
     <div className={cn("divide-border flex flex-col divide-y", className)}>
-      {showCalledTools && renderToolRows(calledTools, "called")}
+      {/* Summary stays above the rows it reveals so the toggle never moves. */}
       {calledToolsShouldCollapse && (
         <ToolGroupSummary
           kind="called"
@@ -445,8 +445,8 @@ export function ToolCallDefinitionCard({
           }
         />
       )}
+      {showCalledTools && renderToolRows(calledTools, "called")}
 
-      {showAvailableTools && renderToolRows(availableTools, "available")}
       {availableToolsShouldCollapse && (
         <ToolGroupSummary
           kind="available"
@@ -460,6 +460,7 @@ export function ToolCallDefinitionCard({
           }
         />
       )}
+      {showAvailableTools && renderToolRows(availableTools, "available")}
     </div>
   );
 }
