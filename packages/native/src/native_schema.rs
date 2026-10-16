@@ -7,7 +7,7 @@ use clickhouse::native::builder::BlockBuilder;
 use clickhouse::native::encode::Encode;
 use napi::bindgen_prelude::{Object, Unknown};
 
-use crate::native_codec::{DateTime64Micros, Decimal64};
+use crate::native_codec::{DateTime64Micros, Decimal64, SkillReference, SkillResourceLoaded};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum DefaultPolicy {
@@ -251,6 +251,8 @@ clickhouse_table_schema! {
     tags: Vec<String> => DefaultPolicy::None,
     tool_calls: Vec<String> => DefaultPolicy::None,
     tool_call_names: Vec<String> => DefaultPolicy::None,
+    skills_available: Vec<SkillReference> => DefaultPolicy::None,
+    skills_resource_loaded: Vec<SkillResourceLoaded> => DefaultPolicy::None,
     metadata_names: Vec<String> => @metadata_names DefaultPolicy::None,
     metadata_values: Vec<String> => @metadata_values DefaultPolicy::None,
     experiment_metadata_names: Vec<String> => DefaultPolicy::None,

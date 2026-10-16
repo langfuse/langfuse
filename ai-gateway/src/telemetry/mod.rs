@@ -9,7 +9,7 @@ mod worker;
 use std::{
     io::{self, Write},
     sync::{
-        Arc, Mutex,
+        Arc, Mutex, PoisonError,
         atomic::{AtomicU64, Ordering},
     },
     time::{Duration, SystemTime, UNIX_EPOCH},
@@ -67,7 +67,7 @@ pub(crate) struct DeliveryContext {
 }
 
 impl DeliveryContext {
-    pub fn from_resolved(
+    pub(crate) fn from_resolved(
         context: &ResolvedRequestContext,
         headers: &HeaderMap,
         client_metadata: Option<&Map<String, Value>>,
@@ -82,7 +82,7 @@ impl DeliveryContext {
         }
     }
 
-    pub fn generation_ids(&self) -> crate::correlation::GenerationIds {
+    pub(crate) fn generation_ids(&self) -> crate::correlation::GenerationIds {
         crate::correlation::GenerationIds {
             trace_id: self.generation.trace_id.clone(),
             observation_id: self.generation.observation_id.clone(),
@@ -198,9 +198,8 @@ impl Telemetry {
         let credentials = context.grant.access_token.len() + context.grant.project_id.len();
         let limit = self.0.record_limit.saturating_sub(credentials);
         let acquire = |bytes: usize| {
-            self.0.retained.clone().try_acquire_many_owned(
-                u32::try_from(bytes + credentials).expect("bounded record bytes"),
-            )
+            let permits = u32::try_from(bytes + credentials).ok()?;
+            self.0.retained.clone().try_acquire_many_owned(permits).ok()
         };
         let mut size = serialized_size(&span, limit);
         if size.is_none() && mapping::omit_input(&mut span, InputOmissionReason::RecordLimit) {
@@ -210,13 +209,13 @@ impl Telemetry {
             self.0.stats.record_dropped(1, "size");
             return;
         };
-        let mut retained = acquire(bytes).ok();
+        let mut retained = acquire(bytes);
         if retained.is_none()
             && mapping::omit_input(&mut span, InputOmissionReason::TelemetryBuffer)
             && let Some(reduced) = serialized_size(&span, limit)
         {
             bytes = reduced;
-            retained = acquire(bytes).ok();
+            retained = acquire(bytes);
         }
         let Some(retained) = retained else {
             self.0.stats.record_dropped(1, "bytes");
@@ -232,15 +231,12 @@ impl Telemetry {
 
     /// Stop accepting work, flush open batches, and finish uploads within the existing
     /// process drain deadline.
-    ///
-    /// # Panics
-    /// Panics if the worker handle lock was poisoned.
     pub async fn shutdown(&self, deadline: Instant) {
         let worker = self
             .0
             .worker
             .lock()
-            .expect("telemetry worker lock poisoned")
+            .unwrap_or_else(PoisonError::into_inner)
             .take();
         let Some(worker) = worker else {
             return;

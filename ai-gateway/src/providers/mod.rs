@@ -1,10 +1,11 @@
 mod chat_completions;
+pub(crate) mod model_list;
 
-use std::{sync::Arc, time::Duration};
+use std::{ops::Range, sync::Arc, time::Duration};
 
 use axum::{
     body::{Body, Bytes},
-    http::{HeaderMap, HeaderName, HeaderValue, Method, Response, header},
+    http::{HeaderMap, HeaderName, HeaderValue, Response, header},
 };
 use reqwest::Client;
 use reqwest_middleware::ClientWithMiddleware;
@@ -27,22 +28,17 @@ pub(crate) enum Route {
     OpenAiResponses,
     OpenAiResponsesCompact,
     OpenAiChatCompletions,
-    OpenAiModels,
     AnthropicMessages,
     AnthropicCountTokens,
-    AnthropicModels,
 }
 
 impl Route {
     pub(crate) fn provider(self) -> Provider {
         match self {
-            Self::OpenAiResponses
-            | Self::OpenAiResponsesCompact
-            | Self::OpenAiChatCompletions
-            | Self::OpenAiModels => Provider::OpenAi,
-            Self::AnthropicMessages | Self::AnthropicCountTokens | Self::AnthropicModels => {
-                Provider::Anthropic
+            Self::OpenAiResponses | Self::OpenAiResponsesCompact | Self::OpenAiChatCompletions => {
+                Provider::OpenAi
             }
+            Self::AnthropicMessages | Self::AnthropicCountTokens => Provider::Anthropic,
         }
     }
 
@@ -56,19 +52,11 @@ impl Route {
         }
     }
 
-    pub(crate) fn method(self) -> Method {
-        match self {
-            Self::OpenAiModels | Self::AnthropicModels => Method::GET,
-            _ => Method::POST,
-        }
-    }
-
     fn path(self) -> &'static str {
         match self {
             Self::OpenAiResponses => "/responses",
             Self::OpenAiResponsesCompact => "/responses/compact",
             Self::OpenAiChatCompletions => "/chat/completions",
-            Self::OpenAiModels | Self::AnthropicModels => "/models",
             Self::AnthropicMessages => "/messages",
             Self::AnthropicCountTokens => "/messages/count_tokens",
         }
@@ -82,13 +70,6 @@ impl Route {
                 | Self::OpenAiChatCompletions
                 | Self::AnthropicMessages
         )
-    }
-
-    pub(crate) fn forwarded_query_parameters(self) -> &'static [&'static str] {
-        match self {
-            Self::AnthropicModels => &["limit", "after_id", "before_id"],
-            _ => &[],
-        }
     }
 }
 
@@ -181,6 +162,7 @@ impl ProviderTransport {
 
     /// # Errors
     /// See [`Self::forward_route`].
+    #[cfg(test)]
     pub async fn forward(
         &self,
         permit: RequestPermit,
@@ -188,13 +170,14 @@ impl ProviderTransport {
         headers: &HeaderMap,
         body: Bytes,
     ) -> Result<Response<Body>, ProviderError> {
+        let model_range = model_range(&body)?;
         self.forward_route(
             permit,
             context,
             headers,
             body,
+            model_range,
             Route::OpenAiResponses,
-            None,
             &mut RequestCorrelation::from_headers(headers),
         )
         .await
@@ -210,13 +193,14 @@ impl ProviderTransport {
         context: ResolvedRequestContext,
         headers: &HeaderMap,
         body: Bytes,
+        model_range: Range<usize>,
         route: Route,
-        query: Option<&str>,
         correlation: &mut RequestCorrelation,
     ) -> Result<Response<Body>, ProviderError> {
         let api_format = route.api_format();
         let (credential_name, mut credential) = provider_credential(&context)?;
         credential.set_sensitive(true);
+        let provider_model = context.connection().provider_model();
         let mut capture = if route.captures_generation() {
             let mut capture = ExecutionCapture::for_request(api_format, &context, headers, &body);
             if let Some(telemetry) = &self.telemetry {
@@ -226,26 +210,32 @@ impl ProviderTransport {
         } else {
             ExecutionCapture::unobserved()
         };
-        // The capture keeps the caller's own request; only the upstream copy asks for usage.
+        // Capture the caller's body shape, but keep upstream-only changes out of the input.
         let body = match route {
             Route::OpenAiChatCompletions => {
-                chat_completions::request_stream_usage(headers, &body).unwrap_or(body)
+                match chat_completions::request_stream_usage(&body, provider_model) {
+                    Some(rewritten) => {
+                        drop(body);
+                        rewritten
+                    }
+                    None => rewrite_model(body, model_range, provider_model)?,
+                }
             }
-            _ => body,
+            _ => rewrite_model(body, model_range, provider_model)?,
         };
-        // The relay forwards the caller's `model` unchanged; only a captured route has parsed it.
-        let model = capture.requested_model().map(str::to_owned);
-        correlation.record_upstream(UpstreamTarget::for_connection(context.connection(), model));
+        capture.set_provider_model(provider_model);
+        correlation.record_upstream(UpstreamTarget::for_connection(
+            context.connection(),
+            Some(provider_model.to_owned()),
+        ));
         let mut upstream = self
             .client
-            .request(route.method(), self.request_url(route, query))
+            .post(self.request_url(route))
             .with_extension(DisableOtelPropagation)
             .headers(transport::request_headers(headers, api_format))
             .header(header::ACCEPT_ENCODING, "identity")
             .header(credential_name, credential);
-        if route.method() != Method::GET {
-            upstream = upstream.body(body);
-        }
+        upstream = upstream.body(body);
         let response = tokio::time::timeout_at(
             permit
                 .deadline
@@ -286,7 +276,7 @@ impl ProviderTransport {
         Ok(downstream)
     }
 
-    fn request_url(&self, route: Route, query: Option<&str>) -> String {
+    fn request_url(&self, route: Route) -> String {
         let base = self
             .origin_override
             .as_deref()
@@ -295,10 +285,6 @@ impl ProviderTransport {
         let mut url = String::with_capacity(base.len() + route.path().len());
         url.push_str(base);
         url.push_str(route.path());
-        if let Some(query) = query.filter(|query| !query.is_empty()) {
-            url.push('?');
-            url.push_str(query);
-        }
         url
     }
 
@@ -310,6 +296,50 @@ impl ProviderTransport {
     }
 }
 
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "ownership releases the caller body when rewriting returns, before the upstream wait"
+)]
+fn rewrite_model(
+    body: Bytes,
+    model_range: Range<usize>,
+    provider_model: &str,
+) -> Result<Bytes, ProviderError> {
+    if model_range.start > model_range.end || model_range.end > body.len() {
+        return Err(ProviderError::Configuration);
+    }
+    let model = serde_json::to_vec(provider_model).map_err(|_| ProviderError::Configuration)?;
+    let capacity = body.len() - model_range.len() + model.len();
+    let mut rewritten = Vec::with_capacity(capacity);
+    rewritten.extend_from_slice(&body[..model_range.start]);
+    rewritten.extend_from_slice(&model);
+    rewritten.extend_from_slice(&body[model_range.end..]);
+    Ok(Bytes::from(rewritten))
+}
+
+#[cfg(test)]
+pub(crate) fn model_range(body: &[u8]) -> Result<Range<usize>, ProviderError> {
+    #[derive(serde::Deserialize)]
+    struct ModelMember<'a> {
+        #[serde(borrow)]
+        model: &'a serde_json::value::RawValue,
+    }
+
+    let request = serde_json::from_slice::<ModelMember<'_>>(body)
+        .map_err(|_| ProviderError::Configuration)?;
+    let model = request.model.get();
+    let start = model
+        .as_ptr()
+        .addr()
+        .checked_sub(body.as_ptr().addr())
+        .ok_or(ProviderError::Configuration)?;
+    let end = start
+        .checked_add(model.len())
+        .filter(|end| *end <= body.len())
+        .ok_or(ProviderError::Configuration)?;
+    Ok(start..end)
+}
+
 fn provider_credential(
     context: &ResolvedRequestContext,
 ) -> Result<(HeaderName, HeaderValue), ProviderError> {
@@ -319,19 +349,6 @@ fn provider_credential(
     };
     let value = HeaderValue::from_str(&value).map_err(|_| ProviderError::Configuration)?;
     Ok((name, value))
-}
-
-pub(crate) fn forwarded_query(route: Route, query: Option<&str>) -> Option<String> {
-    let allowed = route.forwarded_query_parameters();
-    let query = query?;
-    let kept: Vec<&str> = query
-        .split('&')
-        .filter(|pair| {
-            let key = pair.split('=').next().unwrap_or("");
-            allowed.contains(&key)
-        })
-        .collect();
-    (!kept.is_empty()).then(|| kept.join("&"))
 }
 
 #[cfg(test)]

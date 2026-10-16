@@ -159,6 +159,8 @@ const RAIL_SQUARE_MAX = 5;
  * clipped to a sliver exactly on the deeply-nested spans.
  */
 const RAIL_WIDTH = RAIL_MAX_DEPTH * RAIL_INDENT + RAIL_SQUARE_MAX + 2;
+/** Left inset of the open gutter, matching the tree rows' `pl-2`. */
+const GUTTER_INSET = 8;
 /** Indent per level once the gutter is open, matching the production gutter. */
 const GUTTER_INDENT = 14;
 /** Type icon size in the gutter, same as the tree rows. */
@@ -170,7 +172,7 @@ const GUTTER_NAME_MIN = 48;
  * the spine reads as descending from the icon that owns it. Hugging the icon's
  * left edge instead left the elbow pointing at nothing in particular.
  */
-const GUTTER_RAIL = GUTTER_ICON / 2;
+const GUTTER_RAIL = GUTTER_INSET + GUTTER_ICON / 2;
 /** Stable empty set, so an absent `collapsed` prop does not break a memo. */
 const EMPTY_COLLAPSED: ReadonlySet<string> = new Set<string>();
 /**
@@ -1842,7 +1844,10 @@ function GutterContent({
   // is the one the gutter can afford, leaving room for the icon and a name.
   const depthCap = showName
     ? Math.max(
-        Math.floor((width - GUTTER_ICON - GUTTER_NAME_MIN) / GUTTER_INDENT),
+        Math.floor(
+          (width - GUTTER_INSET - GUTTER_ICON - GUTTER_NAME_MIN) /
+            GUTTER_INDENT,
+        ),
         0,
       )
     : RAIL_MAX_DEPTH;
@@ -1855,7 +1860,7 @@ function GutterContent({
     2,
   );
   const indent = showName
-    ? depth * GUTTER_INDENT
+    ? GUTTER_INSET + depth * GUTTER_INDENT
     : Math.min(depth * RAIL_INDENT + 1, Math.max(width - squareSize - 1, 0));
   /** x of this row's own rail, and of its parent's. */
   const railX = depth * GUTTER_INDENT + GUTTER_RAIL;

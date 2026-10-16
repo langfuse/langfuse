@@ -10,6 +10,10 @@ use ai_gateway::{
 use tokio::net::TcpListener;
 
 #[tokio::main]
+#[expect(
+    clippy::print_stderr,
+    reason = "the tracing subscriber may not exist or may already be shut down"
+)]
 async fn main() -> ExitCode {
     match run().await {
         Ok(()) => ExitCode::SUCCESS,
@@ -110,7 +114,7 @@ async fn bind_listener(
 }
 
 #[cfg(unix)]
-fn shutdown_signal() -> std::io::Result<impl Future<Output = ()> + Send> {
+fn shutdown_signal() -> io::Result<impl Future<Output = ()> + Send> {
     use tokio::signal::unix::{SignalKind, signal};
     let mut terminate = signal(SignalKind::terminate())?;
     let mut interrupt = signal(SignalKind::interrupt())?;

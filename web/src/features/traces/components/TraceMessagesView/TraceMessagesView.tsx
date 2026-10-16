@@ -19,7 +19,6 @@ import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { toIOPreview } from "@/src/features/traces/parsers/toIOPreview";
 import { IO_SECTIONS_FLUSH_CLASS } from "@/src/features/traces/constants/ioSectionClasses";
-import { useDesktopLayoutContextOptional } from "../TraceLayoutDesktop";
 
 type Transcript = NonNullable<
   RouterOutputs["events"]["transcriptByTraceId"]["transcript"]
@@ -95,8 +94,7 @@ function ThreadBlock({
   projectId: string;
   traceId: string;
 }) {
-  const { setSelectedNodeId } = useSelection();
-  const layout = useDesktopLayoutContextOptional();
+  const { selectNode } = useSelection();
   // History is context, not the point of the view; start folded.
   const [showHistory, setShowHistory] = useState(false);
   // Media of the emitting observations, so inline references resolve the way
@@ -114,8 +112,7 @@ function ThreadBlock({
   const media = mediaQueries.flatMap((query) => query.data ?? []);
 
   const selectObservation = (id: string) => {
-    setSelectedNodeId(id);
-    layout?.expandDetailPanel();
+    selectNode(id);
   };
 
   return (

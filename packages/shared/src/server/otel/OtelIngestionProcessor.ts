@@ -1,6 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import { randomUUID } from "crypto";
-
+import { extractSkillsFromObservation } from "../ingestion/extractSkillsBackend";
 import {
   ForbiddenError,
   ObservationLevel,
@@ -38,6 +38,7 @@ import {
 } from "./attributes";
 import {
   isClaudeManagedAgentSessionCreation,
+  isClaudeManagedAgentSpan,
   ObservationTypeMapperRegistry,
 } from "./ObservationTypeMapper";
 import { env } from "../../env";
@@ -582,18 +583,33 @@ export class OtelIngestionProcessor {
                 const canLinkPrompt =
                   observationType === ObservationType.GENERATION;
 
+                const name = this.extractName(
+                  span.name,
+                  spanAttributes,
+                  observationType,
+                  scopeSpan.scope?.name,
+                );
+
+                const level =
+                  parseObservationLevel(
+                    spanAttributes[
+                      LangfuseOtelSpanAttributes.OBSERVATION_LEVEL
+                    ],
+                  ) ??
+                  (span.status?.code === 2
+                    ? ObservationLevel.ERROR
+                    : scopeSpan?.scope?.name === "livekit-agents" &&
+                        LIVEKIT_DEBUG_SPAN_NAMES.has(span.name)
+                      ? ObservationLevel.DEBUG
+                      : ObservationLevel.DEFAULT);
+
                 events.push({
                   projectId: this.projectId,
                   traceId,
                   spanId,
                   parentSpanId,
 
-                  name: this.extractName(
-                    span.name,
-                    spanAttributes,
-                    observationType,
-                    scopeSpan.scope?.name,
-                  ),
+                  name,
                   type: observationType,
                   environment: this.extractEnvironment(
                     spanAttributes,
@@ -607,18 +623,7 @@ export class OtelIngestionProcessor {
                   startTimeISO,
                   endTimeISO,
 
-                  level:
-                    parseObservationLevel(
-                      spanAttributes[
-                        LangfuseOtelSpanAttributes.OBSERVATION_LEVEL
-                      ],
-                    ) ??
-                    (span.status?.code === 2
-                      ? ObservationLevel.ERROR
-                      : scopeSpan?.scope?.name === "livekit-agents" &&
-                          LIVEKIT_DEBUG_SPAN_NAMES.has(span.name)
-                        ? ObservationLevel.DEBUG
-                        : ObservationLevel.DEFAULT),
+                  level,
                   statusMessage:
                     spanAttributes[
                       LangfuseOtelSpanAttributes.OBSERVATION_STATUS_MESSAGE
@@ -626,6 +631,18 @@ export class OtelIngestionProcessor {
                     span.status?.message ??
                     null,
 
+                  ...extractSkillsFromObservation({
+                    skillsAvailable:
+                      spanAttributes[
+                        LangfuseOtelSpanAttributes.OBSERVATION_SKILLS_AVAILABLE
+                      ],
+                    observationType,
+                    name,
+                    input,
+                    output,
+                    isError: level === ObservationLevel.ERROR,
+                    projectId: this.projectId,
+                  }),
                   promptName: canLinkPrompt
                     ? (spanAttributes?.[
                         LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_NAME
@@ -672,6 +689,7 @@ export class OtelIngestionProcessor {
                   sessionId: this.extractSessionId(
                     spanAttributes,
                     decodeMetadataValues,
+                    scopeSpan.scope?.name,
                   ),
                   release:
                     (spanAttributes?.[
@@ -1155,7 +1173,11 @@ export class OtelIngestionProcessor {
           resourceAttributes?.[LangfuseOtelSpanAttributes.RELEASE] ??
           null,
         userId: this.extractUserId(attributes, decodeMetadataValues),
-        sessionId: this.extractSessionId(attributes, decodeMetadataValues),
+        sessionId: this.extractSessionId(
+          attributes,
+          decodeMetadataValues,
+          instrumentationScopeName,
+        ),
         public: this.extractPublic(attributes),
         tags: this.extractTags(attributes, decodeMetadataValues),
         environment: this.extractEnvironment(attributes, resourceAttributes),
@@ -1195,7 +1217,12 @@ export class OtelIngestionProcessor {
           resourceAttributes?.[LangfuseOtelSpanAttributes.RELEASE] ??
           null,
         userId: this.extractUserId(attributes, decodeMetadataValues),
-        sessionId: this.extractSessionId(attributes, decodeMetadataValues),
+        /** CMA session inference belongs to root traces and individual observations. */
+        sessionId: this.extractSessionId(
+          attributes,
+          decodeMetadataValues,
+          undefined,
+        ),
         public: this.extractPublic(attributes),
         tags: this.extractTags(attributes, decodeMetadataValues),
         environment: this.extractEnvironment(attributes, resourceAttributes),
@@ -1298,16 +1325,28 @@ export class OtelIngestionProcessor {
     // Prompts can only be linked to GENERATION observations
     const canLinkPrompt = mappedObservationType === ObservationType.GENERATION;
 
+    const name = this.extractName(
+      span.name,
+      attributes,
+      mappedObservationType,
+      instrumentationScopeName,
+    );
+    const level =
+      parseObservationLevel(
+        attributes[LangfuseOtelSpanAttributes.OBSERVATION_LEVEL],
+      ) ??
+      (span.status?.code === 2
+        ? ObservationLevel.ERROR
+        : scopeSpan?.scope?.name === "livekit-agents" &&
+            LIVEKIT_DEBUG_SPAN_NAMES.has(span.name)
+          ? ObservationLevel.DEBUG
+          : ObservationLevel.DEFAULT);
+
     const observation = {
       id: this.parseId(span.spanId?.data ?? span.spanId),
       traceId,
       parentObservationId,
-      name: this.extractName(
-        span.name,
-        attributes,
-        mappedObservationType,
-        instrumentationScopeName,
-      ),
+      name,
       startTime: startTimeISO,
       endTime: endTimeISO,
       environment: this.extractEnvironment(attributes, resourceAttributes),
@@ -1316,16 +1355,7 @@ export class OtelIngestionProcessor {
         startTimeISO,
       ),
       metadata: normalizedToolMetadata.metadata,
-      level:
-        parseObservationLevel(
-          attributes[LangfuseOtelSpanAttributes.OBSERVATION_LEVEL],
-        ) ??
-        (span.status?.code === 2
-          ? ObservationLevel.ERROR
-          : scopeSpan?.scope?.name === "livekit-agents" &&
-              LIVEKIT_DEBUG_SPAN_NAMES.has(span.name)
-            ? ObservationLevel.DEBUG
-            : ObservationLevel.DEFAULT),
+      level,
       statusMessage:
         attributes[LangfuseOtelSpanAttributes.OBSERVATION_STATUS_MESSAGE] ??
         span.status?.message ??
@@ -1341,6 +1371,16 @@ export class OtelIngestionProcessor {
       model: skipModelUsageAndCost
         ? undefined
         : this.extractModelName(attributes),
+      ...extractSkillsFromObservation({
+        skillsAvailable:
+          attributes[LangfuseOtelSpanAttributes.OBSERVATION_SKILLS_AVAILABLE],
+        observationType: mappedObservationType,
+        name,
+        input,
+        output,
+        isError: level === ObservationLevel.ERROR,
+        projectId: this.projectId,
+      }),
       promptName: canLinkPrompt
         ? (attributes?.[LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_NAME] ??
           attributes["langfuse.prompt.name"] ??
@@ -1884,6 +1924,7 @@ export class OtelIngestionProcessor {
       LangfuseOtelSpanAttributes.TRACE_OUTPUT,
       LangfuseOtelSpanAttributes.OBSERVATION_INPUT,
       LangfuseOtelSpanAttributes.OBSERVATION_OUTPUT,
+      LangfuseOtelSpanAttributes.OBSERVATION_SKILLS_AVAILABLE,
       // Vercel AI SDK
       "ai.prompt.messages",
       "ai.prompt",
@@ -2736,12 +2777,19 @@ export class OtelIngestionProcessor {
   private extractSessionId(
     attributes: Record<string, unknown>,
     decodeMetadataValues: boolean,
+    instrumentationScopeName: string | undefined,
   ): string | undefined {
+    const sessionIdKeys = ["langfuse.session.id", "session.id"];
+
+    /** Claude Managed Agents sessions span multiple threads; conversation IDs identify individual threads. */
+    if (isClaudeManagedAgentSpan(attributes, instrumentationScopeName)) {
+      sessionIdKeys.push("anthropic.session.id");
+    }
+
     return this.extractStringAttribute(
       attributes,
       [
-        "langfuse.session.id",
-        "session.id",
+        ...sessionIdKeys,
         "gen_ai.conversation.id",
         `${LangfuseOtelSpanAttributes.OBSERVATION_METADATA}.langfuse_session_id`,
         `${LangfuseOtelSpanAttributes.TRACE_METADATA}.langfuse_session_id`,

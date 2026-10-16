@@ -38,7 +38,7 @@ pub(super) struct Pending {
 }
 
 impl Pending {
-    pub fn new(
+    pub(super) fn new(
         span: Value,
         bytes: usize,
         link: SpanContext,
@@ -104,14 +104,14 @@ pub(super) struct Batches {
 }
 
 impl Batches {
-    pub fn new(policy: BatchPolicy) -> Self {
+    pub(super) fn new(policy: BatchPolicy) -> Self {
         Self {
             policy,
             open: HashMap::new(),
         }
     }
 
-    pub fn push_record(&mut self, grant: Grant, item: Pending, now: Instant) -> Vec<Flush> {
+    pub(super) fn push_record(&mut self, grant: Grant, item: Pending, now: Instant) -> Vec<Flush> {
         let mut ready = Vec::new();
         let project = grant.project_id.clone();
         if self
@@ -148,21 +148,21 @@ impl Batches {
         ready
     }
 
-    pub fn take_due(&mut self, now: Instant) -> Vec<Flush> {
+    pub(super) fn take_due(&mut self, now: Instant) -> Vec<Flush> {
         self.open
             .extract_if(|_, batch| batch.due <= now)
             .map(|(_, batch)| batch.into_flush())
             .collect()
     }
 
-    pub fn take_all(&mut self) -> Vec<Flush> {
+    pub(super) fn take_all(&mut self) -> Vec<Flush> {
         self.open
             .drain()
             .map(|(_, batch)| batch.into_flush())
             .collect()
     }
 
-    pub fn next_due(&self) -> Option<Instant> {
+    pub(super) fn next_due(&self) -> Option<Instant> {
         self.open.values().map(|batch| batch.due).min()
     }
 

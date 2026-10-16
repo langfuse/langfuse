@@ -10,8 +10,7 @@ import {
   getClientInitiatedNonStreamingLlmTimeoutMs,
   type LLMConnection,
 } from "../llm/llmText";
-import { testModelCall } from "../llm/testModelCall";
-import { LLMAdapter, type LLMApiKeySchema } from "../llm/types";
+import { LLMAdapter } from "../llm/types";
 import { findCompatibleLlmApiKeysForProjects } from "../services/LLMApiKeys";
 import {
   TOPICS_MODEL_SLOT_DETAILS,
@@ -21,6 +20,7 @@ import {
 } from "../../topics";
 import { hasTopicEmbeddings } from "./clickhouse";
 import { generateTopicEmbeddings } from "./embeddings";
+import { generateTopicText } from "./text";
 import { invalidateTopicsProcessingActive } from "./processing-gate";
 import { z } from "zod";
 
@@ -596,19 +596,27 @@ async function testTopicsModelSlots(
         return;
       }
       try {
-        if (name !== "embedding") {
-          await testModelCall({
-            provider: llmApiKey.provider,
-            model: slot.model,
-            apiKey: llmApiKey as z.infer<typeof LLMApiKeySchema>,
-            structuredOutputSchema: TEST_SCHEMAS[name],
-            timeout: getClientInitiatedNonStreamingLlmTimeoutMs(),
-          });
-          return;
-        }
         const resolved = resolveSlot(name, llmApiKey, slot.model);
         if (!resolved) {
           errors[name] = "LLM connection not found in this project.";
+          return;
+        }
+        if (name !== "embedding") {
+          const schema: z.ZodType = TEST_SCHEMAS[name];
+          const result = await generateTopicText({
+            model: resolved,
+            system: [
+              {
+                text: "Return a brief example matching the schema.",
+                cache: true,
+              },
+            ],
+            input: "The user needs help signing in.",
+            schema,
+            maxOutputTokens: 512,
+            timeoutMs: getClientInitiatedNonStreamingLlmTimeoutMs(),
+          });
+          schema.parse(result.output);
           return;
         }
         // Two texts, because processing embeds a trace's facets in one call.

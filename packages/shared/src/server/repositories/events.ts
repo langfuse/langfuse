@@ -29,26 +29,27 @@ import {
 } from "../clickhouse/client";
 import { recordDistribution } from "../instrumentation";
 import { logger } from "../logger";
-import {
-  compileClickhouseQuery,
-  type ExecutionContext,
-} from "../query-ast/compile";
+import { compileClickhouseQuery } from "../query-ast/compile";
 import { getClickhouseKysely } from "../query-ast/dialect";
 import { promptGenerationEvents } from "./prompt-events";
 import {
-  argMaxIf,
   arrayMap,
   byteLength,
   count,
   dateDiff,
+  includeDeleted,
   leftUTF8,
   limitBy,
+  literal,
   mapValue,
   medianExact,
   metadataMap,
-  nonEmpty,
+  metadataValue,
   sumMapValuesWhereKeyContains,
+  toDate,
   toJSONString,
+  toStartOfMinute,
+  traceSessionId,
   tupleIn,
   uniq,
   xxHash32,
@@ -135,20 +136,26 @@ import {
 } from "./observations";
 import { convertEventsObservation } from "./observations_converters";
 import {
+  EVENTS_METRICS_SECONDS_SELECTS,
+  EVENTS_ROW_FIELD_SELECTS,
+  eventsTraceName,
+  OBSERVATION_BY_ID_SELECTS,
+  SESSION_AGGREGATION_SELECTS,
+  TRACE_AGGREGATION_SELECTS,
+  type SessionEventsField,
+  type SessionEventsMetricsRow,
+} from "./events-selects";
+import {
   EventsQueryBuilder,
   CTEQueryBuilder,
   EventsAggQueryBuilder,
   buildEventsFullTableSplitQuery,
-  EVENTS_AGGREGATION_FIELDS,
-  EVENTS_SESSION_AGGREGATION_FIELDS,
-  eventsFieldSetSelectExpressions,
   type QueryWithParams,
   normalizeSessionCounts,
-  type SessionEventsField,
   type SessionEventsFields,
-  type SessionEventsMetricsRow,
   OrderByEntry,
 } from "../queries/clickhouse-sql/event-query-builder";
+import { eventsFieldSetKeys } from "./events-field-sets";
 import {
   buildEventsFilterOptionColumnQuery,
   buildEventsFilterOptionsForColumnsQuery,
@@ -163,7 +170,6 @@ import {
 import { type EventsObservationPublic } from "../queries/createGenerationsQuery";
 import {
   eventsTableCols,
-  eventsTableTraceNameSql,
   normalizeEventsTraceName,
   type NumericEventsTableColumnId,
 } from "../../eventsTable";
@@ -175,6 +181,10 @@ import {
 } from "../../tableDefinitions";
 import { tracesTableCols } from "../../tableDefinitions/tracesTable";
 import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
+import type {
+  SkillsAvailable,
+  SkillsResourceLoaded,
+} from "../../features/skills/trace";
 
 export type EventBatchIOStringOutput = {
   id: string;
@@ -182,6 +192,11 @@ export type EventBatchIOStringOutput = {
   input: string | null;
   output: string | null;
   metadata: MetadataDomain;
+};
+
+export type EventBatchIOSkillFields = {
+  skillsAvailable: SkillsAvailable;
+  skillsResourceLoaded: SkillsResourceLoaded;
 };
 
 /** Raw ClickHouse storage shape: name-less JSON strings, names in the parallel toolCallNames array. */
@@ -198,10 +213,12 @@ export type EventBatchIOWithExperimentOutput = EventBatchIOStringOutput & {
 export type EventBatchIOResult<
   TIncludeExperiment extends boolean,
   TIncludeToolCalls extends boolean,
+  TIncludeSkills extends boolean = false,
 > = (TIncludeExperiment extends true
   ? EventBatchIOWithExperimentOutput
   : EventBatchIOStringOutput) &
-  (TIncludeToolCalls extends true ? EventBatchIOToolCallFields : object);
+  (TIncludeToolCalls extends true ? EventBatchIOToolCallFields : object) &
+  (TIncludeSkills extends true ? EventBatchIOSkillFields : object);
 
 const BATCH_IO_STRING_RENDERING_PROPS: RenderingProps = {
   // Batch I/O truncation is handled in SQL via leftUTF8 for performance.
@@ -663,21 +680,23 @@ export const getObservationMetricsForPromptsFromEvents = async (
       "e.prompt_version as prompt_version",
       eb.fn.min("e.start_time").as("first_observation"),
       eb.fn.max("e.start_time").as("last_observation"),
-      medianExact(sumMapValuesWhereKeyContains("e.usage_details", "input")).as(
-        "median_input_usage",
+      medianExact(
+        sumMapValuesWhereKeyContains(eb.ref("e.usage_details"), "input"),
+      ).as("median_input_usage"),
+      medianExact(
+        sumMapValuesWhereKeyContains(eb.ref("e.usage_details"), "output"),
+      ).as("median_output_usage"),
+      medianExact(mapValue(eb.ref("e.cost_details"), literal("total"))).as(
+        "median_total_cost",
       ),
-      medianExact(sumMapValuesWhereKeyContains("e.usage_details", "output")).as(
-        "median_output_usage",
-      ),
-      medianExact(mapValue("e.cost_details", "total")).as("median_total_cost"),
-      medianExact(dateDiff("millisecond", "e.start_time", "e.end_time")).as(
-        "median_latency_ms",
-      ),
+      medianExact(
+        dateDiff("millisecond", eb.ref("e.start_time"), eb.ref("e.end_time")),
+      ).as("median_latency_ms"),
     ])
     .where("e.is_deleted", "=", 0)
     .groupBy(["e.prompt_id", "e.prompt_version"])
     .orderBy("e.prompt_version", "desc");
-  const { sql: query, params } = compileClickhouseQuery(builder, { projectId });
+  const { sql: query, params } = compileClickhouseQuery(builder, projectId);
   const rows = await queryClickhouse<{
     count: string;
     prompt_id: string;
@@ -718,18 +737,17 @@ export const getObservationsWithPromptNameFromEvents = async (
 ) => {
   const builder = getClickhouseKysely()
     .selectFrom("events_core")
-    .select([uniq("span_id").as("count"), "prompt_name"])
+    .select((eb) => [uniq(eb.ref("span_id")).as("count"), "prompt_name"])
     .where("prompt_name", "in", promptNames)
     .where("prompt_name", "!=", "")
-    .where("is_deleted", "=", 0)
     .$if(fromTimestamp != null, (qb) =>
-      qb.where("start_time", ">=", chDateTime(fromTimestamp!)),
+      qb.where("start_time", ">=", fromTimestamp!),
     )
     .$if(toTimestamp != null, (qb) =>
-      qb.where("start_time", "<=", chDateTime(toTimestamp!)),
+      qb.where("start_time", "<=", toTimestamp!),
     )
     .groupBy("prompt_name");
-  const { sql: query, params } = compileClickhouseQuery(builder, { projectId });
+  const { sql: query, params } = compileClickhouseQuery(builder, projectId);
   const rows = await queryClickhouse<{ count: string; prompt_name: string }>({
     query,
     params,
@@ -1055,19 +1073,6 @@ export const getObservationByIdFromEventsTable = async ({
   return mapped.shift();
 };
 
-const EVENTS_METADATA_MAP_SQL =
-  "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))";
-
-/** ClickHouse DateTime binds stay strings; the column type is Date. */
-function dateTimeParam(value: string): Date {
-  return value as unknown as Date;
-}
-
-/** `date` as a ClickHouse DateTime string bind. */
-function chDateTime(date: Date): Date {
-  return dateTimeParam(convertDateToClickhouseDateTime(date));
-}
-
 async function getObservationByIdFromEventsTableInternal({
   id,
   projectId,
@@ -1095,10 +1100,6 @@ async function getObservationByIdFromEventsTableInternal({
   // an observation may start slightly before its anchor (e.g. the parent
   // trace).
   const db = getClickhouseKysely();
-  const ioSelects = observationIoSelects(
-    fetchWithInputOutput,
-    renderingProps.truncated,
-  );
   const needsFullTable =
     fetchWithInputOutput && renderingProps.truncated !== true;
 
@@ -1107,16 +1108,18 @@ async function getObservationByIdFromEventsTableInternal({
       ? db.selectFrom("events_full as e")
       : db.selectFrom("events_core as e")
   )
-    .select([...observationByIdSelects(), ...ioSelects] as never)
+    .$call(includeDeleted())
+    .select(OBSERVATION_BY_ID_SELECTS)
+    .$if(fetchWithInputOutput, (qb) =>
+      qb.select(observationIoSelects(renderingProps.truncated)),
+    )
     .where("span_id", "=", id)
     .$if(startTime != null, (qb) =>
       qb.where((eb) =>
         eb(
-          eb.fn("toStartOfMinute", ["start_time"]),
+          toStartOfMinute(eb.ref("start_time")),
           "=",
-          eb.fn("toStartOfMinute", [
-            eb.val(convertDateToClickhouseDateTime(startTime!)),
-          ]),
+          toStartOfMinute(startTime!),
         ),
       ),
     )
@@ -1133,9 +1136,7 @@ async function getObservationByIdFromEventsTableInternal({
     .orderBy("event_ts", "desc")
     .limit(1);
 
-  const { sql: query, params } = compileClickhouseQuery(builder, {
-    projectId,
-  });
+  const { sql: query, params } = compileClickhouseQuery(builder, projectId);
 
   return await queryClickhouse<EventsObservationRecordReadType>({
     query,
@@ -1145,34 +1146,18 @@ async function getObservationByIdFromEventsTableInternal({
   });
 }
 
+/** `input`/`output`, capped to the server-side char limit on a truncated read. */
 function observationIoSelects(
-  fetchWithInputOutput: boolean,
   truncated: boolean | undefined,
-) {
-  if (!fetchWithInputOutput) return [];
-  if (truncated) {
-    const charLimit = env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT;
-    return [
-      sql.raw(`leftUTF8(input, ${charLimit})`).as("input"),
-      sql.raw(`leftUTF8(output, ${charLimit})`).as("output"),
-    ];
-  }
-  return [sql`input`, sql`output`];
-}
-
-/**
- * Raw select expressions (`expr as alias`) taken from the legacy builder field
- * maps, so the AST and the builders still serving other call sites cannot drift.
- * Lazy: events.ts sits in an import cycle with the builder module, so the maps
- * can still be undefined while this module initializes.
- */
-function observationByIdSelects() {
-  return eventsFieldSetSelectExpressions(
-    "byIdBase",
-    "byIdModel",
-    "byIdPrompt",
-    "byIdTimestamps",
-  ).map((field) => sql.raw(field));
+): ReadonlyArray<
+  "input" | "output" | AliasedExpression<string, "input" | "output">
+> {
+  if (!truncated) return ["input", "output"];
+  const charLimit = env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT;
+  return [
+    leftUTF8("input", charLimit).as("input"),
+    leftUTF8("output", charLimit).as("output"),
+  ];
 }
 
 /**
@@ -1211,7 +1196,8 @@ export const getTraceByIdFromEventsTable = async ({
       ? qb.selectFrom("events_core as e")
       : qb.selectFrom("events_full as e");
     return from
-      .select(traceAggregationSelects() as never)
+      .$call(includeDeleted())
+      .select(TRACE_AGGREGATION_SELECTS)
       .where("trace_id", "in", [traceId])
       .$if(fromTimestamp != null, (inner) =>
         inner.where(
@@ -1221,12 +1207,12 @@ export const getTraceByIdFromEventsTable = async ({
         ),
       )
       .groupBy(["trace_id", "project_id"])
-      .orderBy(sql`timestamp`, "desc");
+      .orderBy("timestamp", "desc");
   };
 
   const metadataSelect = excludeMetadata
     ? sql`map()`.as("metadata")
-    : sql`t.metadata`;
+    : "t.metadata";
 
   const builder = db
     .with("traces", (qb) =>
@@ -1234,41 +1220,33 @@ export const getTraceByIdFromEventsTable = async ({
     )
     .selectFrom("traces as t")
     .select([
-      sql`t.id`,
-      sql`t.name`,
-      sql`t.user_id`,
-      sql`t.release`,
-      sql`t.version`,
-      sql`t.project_id`,
-      sql`t.environment`,
-      sql`t.public`,
-      sql`t.bookmarked`,
-      sql`t.tags`,
-      sql`t.session_id`,
-      sql`t.timestamp`,
-      sql`t.created_at`,
-      sql`t.updated_at`,
+      "t.id",
+      "t.name",
+      "t.user_id",
+      "t.release",
+      "t.version",
+      "t.project_id",
+      "t.environment",
+      "t.public",
+      "t.bookmarked",
+      "t.tags",
+      "t.session_id",
+      "t.timestamp",
+      "t.created_at",
+      "t.updated_at",
       metadataSelect,
-      sql`0`.as("is_deleted"),
+      literal(0).as("is_deleted"),
       ...traceIoSelects(excludeInputOutput, truncated),
     ])
     .$if(timestamp != null, (qb) =>
       qb.where((eb) =>
-        eb(
-          eb.fn("toDate", [eb.ref("t.timestamp")]),
-          "=",
-          eb.fn("toDate", [
-            eb.val(convertDateToClickhouseDateTime(timestamp!)),
-          ]),
-        ),
+        eb(toDate(eb.ref("t.timestamp")), "=", toDate(timestamp!)),
       ),
     )
     .orderBy("t.timestamp", "desc")
     .limit(1);
 
-  const { sql: query, params } = compileClickhouseQuery(builder, {
-    projectId,
-  });
+  const { sql: query, params } = compileClickhouseQuery(builder, projectId);
 
   const records = await queryClickhouse<TraceRecordReadType>({
     query,
@@ -1294,12 +1272,6 @@ export const getTraceByIdFromEventsTable = async ({
   return res.shift();
 };
 
-export function traceAggregationSelects() {
-  return Object.values(EVENTS_AGGREGATION_FIELDS).map((field) =>
-    sql.raw(field),
-  );
-}
-
 /** Earliest start_time an observation of a trace anchored at `anchor` can have. */
 function observationsToTraceLowerBound(anchor: Date): Date {
   return new Date(
@@ -1308,16 +1280,22 @@ function observationsToTraceLowerBound(anchor: Date): Date {
   );
 }
 
-function traceIoSelects(excludeInputOutput: boolean, truncated: boolean) {
-  if (excludeInputOutput) return [sql`''`.as("input"), sql`''`.as("output")];
+function traceIoSelects(
+  excludeInputOutput: boolean,
+  truncated: boolean,
+): ReadonlyArray<
+  "t.input" | "t.output" | AliasedExpression<unknown, "input" | "output">
+> {
+  if (excludeInputOutput)
+    return [literal("").as("input"), literal("").as("output")];
   if (truncated) {
     const charLimit = env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT;
     return [
-      sql.raw(`leftUTF8(t.input, ${charLimit})`).as("input"),
-      sql.raw(`leftUTF8(t.output, ${charLimit})`).as("output"),
+      leftUTF8("t.input", charLimit).as("input"),
+      leftUTF8("t.output", charLimit).as("output"),
     ];
   }
-  return [sql`t.input`, sql`t.output`];
+  return ["t.input", "t.output"];
 }
 
 /**
@@ -1409,7 +1387,6 @@ function compileHasAnyFromEventsTable(opts: {
   kind: HasAnyEventsKind;
 }) {
   const db = getClickhouseKysely();
-  const ctx: ExecutionContext = { projectId: opts.projectId };
 
   const query = db
     .selectFrom("events_core")
@@ -1420,10 +1397,9 @@ function compileHasAnyFromEventsTable(opts: {
     .$if(opts.kind === "session", (qb) =>
       qb.where("session_id", "is not", null).where("session_id", "!=", ""),
     )
-    .where("is_deleted", "=", 0)
     .limit(1);
 
-  return compileClickhouseQuery(query, ctx);
+  return compileClickhouseQuery(query, opts.projectId);
 }
 
 /**
@@ -2644,32 +2620,40 @@ export const deleteEventsByProjectId = async (
 export async function getAgentGraphDataFromEventsTable(params: {
   projectId: string;
   traceId: string;
-  chMinStartTime: string;
-  chMaxStartTime: string;
+  minStartTime: Date;
+  maxStartTime: Date;
 }) {
-  const { projectId, traceId, chMinStartTime, chMaxStartTime } = params;
+  const { projectId, traceId, minStartTime, maxStartTime } = params;
 
   const db = getClickhouseKysely();
 
   const builder = db
     .selectFrom("events_core as e")
-    .select([
-      "e.span_id as id",
-      "e.parent_span_id as parent_observation_id",
-      "e.type as type",
-      "e.name as name",
-      "e.start_time as start_time",
-      "e.end_time as end_time",
-      sql.raw(`${EVENTS_METADATA_MAP_SQL}['langgraph_node']`).as("node"),
-      sql.raw(`${EVENTS_METADATA_MAP_SQL}['langgraph_step']`).as("step"),
-    ])
+    .$call(includeDeleted())
+    .select((eb) => {
+      const metadata = metadataMap(
+        eb.ref("e.metadata_names"),
+        eb.ref("e.metadata_values"),
+      );
+      return [
+        "e.span_id as id",
+        "e.parent_span_id as parent_observation_id",
+        "e.type as type",
+        "e.name as name",
+        "e.start_time as start_time",
+        "e.end_time as end_time",
+        mapValue<string>(metadata, literal("langgraph_node")).as("node"),
+        mapValue<string>(metadata, literal("langgraph_step")).as("step"),
+      ];
+    })
     .where("e.trace_id", "=", traceId)
-    .where("e.start_time", ">=", dateTimeParam(chMinStartTime))
-    .where("e.start_time", "<=", dateTimeParam(chMaxStartTime));
+    .where("e.start_time", ">=", minStartTime)
+    .where("e.start_time", "<=", maxStartTime);
 
-  const { sql: query, params: queryParams } = compileClickhouseQuery(builder, {
+  const { sql: query, params: queryParams } = compileClickhouseQuery(
+    builder,
     projectId,
-  });
+  );
 
   return queryClickhouse({
     query,
@@ -2748,6 +2732,7 @@ export const deleteEventsOlderThanDays = async (
 export const getObservationsBatchIOFromEventsTable = async <
   TIncludeExperiment extends boolean = false,
   TIncludeToolCalls extends boolean = false,
+  TIncludeSkills extends boolean = false,
 >(opts: {
   projectId: string;
   observations: Array<{
@@ -2768,8 +2753,11 @@ export const getObservationsBatchIOFromEventsTable = async <
   includeExperimentFields?: TIncludeExperiment;
   /** Opt-in: tool-call arrays can be large; only eval consumers need them. */
   includeToolCallFields?: TIncludeToolCalls;
+  includeSkillFields?: TIncludeSkills;
 }): Promise<
-  Array<EventBatchIOResult<TIncludeExperiment, TIncludeToolCalls>>
+  Array<
+    EventBatchIOResult<TIncludeExperiment, TIncludeToolCalls, TIncludeSkills>
+  >
 > => {
   if (opts.observations.length === 0) {
     return [];
@@ -2814,6 +2802,7 @@ export const getObservationsBatchIOFromEventsTable = async <
   // for exact trace/observation matching.
   const builder = getClickhouseKysely()
     .selectFrom(truncated ? "events_core as e" : "events_full as e")
+    .$call(includeDeleted())
     .select((eb) => [
       "e.span_id as id",
       "e.trace_id as trace_id",
@@ -2829,6 +2818,14 @@ export const getObservationsBatchIOFromEventsTable = async <
           eb.ref("e.experiment_item_metadata_names"),
           capEachOnFullRead(eb.ref("e.experiment_item_metadata_values")),
         ).as("experiment_item_metadata"),
+      ]),
+    )
+    .$if(opts.includeSkillFields === true, (qb) =>
+      qb.select([
+        sql.ref<SkillsAvailable>("e.skills_available").as("skills_available"),
+        sql
+          .ref<SkillsResourceLoaded>("e.skills_resource_loaded")
+          .as("skills_resource_loaded"),
       ]),
     )
     .$if(opts.includeToolCallFields === true, (qb) =>
@@ -2852,26 +2849,19 @@ export const getObservationsBatchIOFromEventsTable = async <
       qb.where("e.trace_id", "in", (eb) =>
         eb
           .selectFrom("events_core")
+          .$call(includeDeleted())
           .select("trace_id")
           .where("trace_id", "in", traceIds)
           .groupBy("trace_id")
-          .having(
-            (eb) =>
-              argMaxIf(
-                eb.ref("session_id"),
-                eb.ref("event_ts"),
-                nonEmpty(eb.ref("session_id")),
-              ),
-            "=",
-            opts.sessionId!,
-          ),
+          .having(traceSessionId(), "=", opts.sessionId!),
       ),
     )
-    .where("e.start_time", ">=", chDateTime(minTimestamp))
-    .where("e.start_time", "<=", chDateTime(maxTimestamp));
-  const { sql: query, params } = compileClickhouseQuery(builder, {
-    projectId: opts.projectId,
-  });
+    .where("e.start_time", ">=", minTimestamp)
+    .where("e.start_time", "<=", maxTimestamp);
+  const { sql: query, params } = compileClickhouseQuery(
+    builder,
+    opts.projectId,
+  );
 
   const results = await queryClickhouse<{
     id: string;
@@ -2879,6 +2869,8 @@ export const getObservationsBatchIOFromEventsTable = async <
     input: string | null;
     output: string | null;
     metadata: Record<string, string>;
+    skills_available?: SkillsAvailable;
+    skills_resource_loaded?: SkillsResourceLoaded;
     tool_calls?: string[];
     tool_call_names?: string[];
     experiment_item_expected_output?: string | null;
@@ -2897,6 +2889,12 @@ export const getObservationsBatchIOFromEventsTable = async <
     output: applyBatchIOStringRendering(r.output),
     metadata:
       r.metadata !== undefined ? parseMetadataCHRecordToDomain(r.metadata) : {},
+    ...(opts.includeSkillFields
+      ? {
+          skillsAvailable: r.skills_available ?? [],
+          skillsResourceLoaded: r.skills_resource_loaded ?? [],
+        }
+      : {}),
     ...(opts.includeToolCallFields
       ? {
           toolCalls: r.tool_calls ?? [],
@@ -2912,7 +2910,9 @@ export const getObservationsBatchIOFromEventsTable = async <
               : {},
         }
       : {}),
-  })) as Array<EventBatchIOResult<TIncludeExperiment, TIncludeToolCalls>>;
+  })) as Array<
+    EventBatchIOResult<TIncludeExperiment, TIncludeToolCalls, TIncludeSkills>
+  >;
 };
 
 /**
@@ -2956,10 +2956,10 @@ function compileObservationIOFieldRead<A extends string>(
   select: (field: AliasableExpression<string>) => AliasedExpression<unknown, A>,
 ) {
   const db = getClickhouseKysely();
-  const ctx: ExecutionContext = { projectId: opts.projectId };
 
   const query = db
     .selectFrom("events_full as e")
+    .$call(includeDeleted())
     .select((eb) =>
       select(
         opts.field === "metadata"
@@ -2974,20 +2974,12 @@ function compileObservationIOFieldRead<A extends string>(
     )
     .where("e.trace_id", "=", opts.traceId)
     .where("e.span_id", "=", opts.observationId)
-    .where(
-      "e.start_time",
-      ">=",
-      chDateTime(new Date(opts.startTime.getTime() - 1000)),
-    )
-    .where(
-      "e.start_time",
-      "<=",
-      chDateTime(new Date(opts.startTime.getTime() + 1000)),
-    )
+    .where("e.start_time", ">=", new Date(opts.startTime.getTime() - 1000))
+    .where("e.start_time", "<=", new Date(opts.startTime.getTime() + 1000))
     .orderBy("e.event_ts", "desc")
     .limit(1);
 
-  return compileClickhouseQuery(query, ctx);
+  return compileClickhouseQuery(query, opts.projectId);
 }
 
 /**
@@ -3084,9 +3076,9 @@ export const getObservationFullIOForSessionFromEventsTable = async (opts: {
   const maxTimestamp = new Date(opts.startTime.getTime() + 1000);
 
   const db = getClickhouseKysely();
-  const ctx: ExecutionContext = { projectId: opts.projectId };
   const builder = db
     .selectFrom("events_full as e")
+    .$call(includeDeleted())
     .select((eb) => [
       "e.span_id as id",
       "e.input as input",
@@ -3101,11 +3093,14 @@ export const getObservationFullIOForSessionFromEventsTable = async (opts: {
     )
     .where("e.trace_id", "=", opts.traceId)
     .where("e.span_id", "=", opts.observationId)
-    .where("e.start_time", ">=", chDateTime(minTimestamp))
-    .where("e.start_time", "<=", chDateTime(maxTimestamp))
+    .where("e.start_time", ">=", minTimestamp)
+    .where("e.start_time", "<=", maxTimestamp)
     .orderBy("e.event_ts", "desc")
     .limit(1);
-  const { sql: query, params } = compileClickhouseQuery(builder, ctx);
+  const { sql: query, params } = compileClickhouseQuery(
+    builder,
+    opts.projectId,
+  );
 
   const rows = await queryClickhouse<{
     id: string;
@@ -3153,12 +3148,14 @@ export const getObservationsTraceIdsFromEventsTable = async (opts: {
 
   const builder = db
     .selectFrom("events_core as e")
+    .$call(includeDeleted())
     .select(["e.trace_id as trace_id", "e.span_id as span_id"])
     .where("e.span_id", "in", observationIds);
 
-  const { sql: query, params: queryParams } = compileClickhouseQuery(builder, {
+  const { sql: query, params: queryParams } = compileClickhouseQuery(
+    builder,
     projectId,
-  });
+  );
 
   const result = await queryClickhouse<{
     trace_id: string;
@@ -3387,22 +3384,11 @@ export const hasAnyUserFromEventsTable = async (
 };
 
 /**
- * Streams events from ClickHouse for blob storage export.
- * Uses EventsQueryBuilder for consistent query construction.
+ * Query for the events blob export. Full I/O reads events_full; everything
+ * else reads events_core. `convertLatencyToSecondsInSql` can be set by the paths
+ * that skip the JS row enrichment (raw passthrough, Parquet), so they select
+ * latency and time to first token in seconds instead of milliseconds.
  */
-// metrics field set emits latency / time_to_first_token in MILLISECONDS. The
-// raw-passthrough path (LFE-10402) cannot convert ms→s in JS, so when requested
-// it selects the seconds-converted expressions directly in SQL instead. The
-// standard path keeps ms here and converts conditionally in JS, so it stays
-// byte-for-byte unchanged.
-const EVENTS_EXPORT_METRICS_SECONDS_SQL = [
-  "if(isNull(e.end_time), NULL, date_diff('millisecond', e.start_time, e.end_time) / 1000) as latency",
-  "if(isNull(e.completion_start_time), NULL, date_diff('millisecond', e.start_time, e.completion_start_time) / 1000) as \"time_to_first_token\"",
-];
-
-// Shared SQL+params builder for the events blob-export. `convertLatencyToSecondsInSql`
-// is only set by the raw-passthrough path; the standard path leaves it false so
-// its output is identical to today.
 const buildEventsForBlobStorageExportQuery = (
   projectId: string,
   minTimestamp: Date,
@@ -3410,37 +3396,33 @@ const buildEventsForBlobStorageExportQuery = (
   fieldGroups: ObservationFieldGroupFull[],
   convertLatencyToSecondsInSql: boolean,
 ) => {
-  const queryBuilder = new EventsQueryBuilder({ projectId });
-
   // core is always required (provides id, trace_id, start/end_time used for cursor and deduplication)
   const effectiveGroups = fieldGroups.includes("core")
     ? fieldGroups
     : (["core", ...fieldGroups] as ObservationFieldGroupFull[]);
+  const includeIO = effectiveGroups.includes("io");
+  const metricsInSeconds =
+    convertLatencyToSecondsInSql && effectiveGroups.includes("metrics");
+  const fieldSets = effectiveGroups.flatMap((group) => {
+    if (group === "io" || (group === "metrics" && metricsInSeconds)) return [];
+    // "model_export" is the field set name for the "model" group
+    return group === "model" ? ["model_export" as const] : [group];
+  });
 
-  for (const group of effectiveGroups) {
-    if (group === "io") {
-      queryBuilder.selectIO(false); // Full I/O, no truncation
-    } else if (group === "model") {
-      queryBuilder.selectFieldSet("model_export"); // "model_export" is the SQL field set name for the "model" group
-    } else if (group === "metrics" && convertLatencyToSecondsInSql) {
-      queryBuilder.selectRaw(...EVENTS_EXPORT_METRICS_SECONDS_SQL);
-    } else {
-      queryBuilder.selectFieldSet(group);
-    }
-  }
-
-  queryBuilder
-    .whereRaw(
-      "e.start_time >= {minTimestamp: DateTime64(3)} AND e.start_time < {maxTimestamp: DateTime64(3)}",
-      {
-        minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
-        maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
-      },
+  const builder = getClickhouseKysely()
+    .selectFrom(includeIO ? "events_full as e" : "events_core as e")
+    .select(
+      eventsFieldSetKeys(...fieldSets).map(
+        (key) => EVENTS_ROW_FIELD_SELECTS[key],
+      ),
     )
-    .whereRaw("e.is_deleted = 0")
-    .limitBy("e.span_id", "e.project_id");
+    .$if(includeIO, (qb) => qb.select(["input", "output"]))
+    .$if(metricsInSeconds, (qb) => qb.select(EVENTS_METRICS_SECONDS_SELECTS))
+    .where("e.start_time", ">=", minTimestamp)
+    .where("e.start_time", "<", maxTimestamp)
+    .$call(limitBy({ count: 1, columns: ["e.span_id", "e.project_id"] }));
 
-  const { query, params } = queryBuilder.buildWithParams();
+  const { sql: query, params } = compileClickhouseQuery(builder, projectId);
 
   return {
     query,
@@ -3519,7 +3501,6 @@ export const getEventsForBlobStorageExportParquet = function (
 
 /**
  * Streams events from ClickHouse for analytics integrations (PostHog, Mixpanel).
- * Uses EventsQueryBuilder for consistent query construction.
  * All fields come directly from the events table (which has denormalized trace-level data).
  */
 export const getEventsForAnalyticsIntegrations = async function* (
@@ -3528,31 +3509,34 @@ export const getEventsForAnalyticsIntegrations = async function* (
   minTimestamp: Date,
   maxTimestamp: Date,
 ) {
-  const queryBuilder = new EventsQueryBuilder({ projectId })
+  const builder = getClickhouseKysely()
+    .selectFrom("events_core as e")
     // Use export field set for most fields (id, traceId, name, type, level, version,
     // environment, userId, sessionId, tags, release, traceName, totalCost, latency, etc.)
-    .selectFieldSet("export")
+    .select(
+      eventsFieldSetKeys("export").map((key) => EVENTS_ROW_FIELD_SELECTS[key]),
+    )
     // Add analytics-specific computed fields
-    .selectRaw(
+    .select((eb) => [
       // Token counts from usage/cost details
-      "e.usage_details['input'] as input_tokens",
-      "e.usage_details['output'] as output_tokens",
-      "e.usage_details['total'] as total_tokens",
+      mapValue(eb.ref("e.usage_details"), literal("input")).as("input_tokens"),
+      mapValue(eb.ref("e.usage_details"), literal("output")).as(
+        "output_tokens",
+      ),
+      mapValue(eb.ref("e.usage_details"), literal("total")).as("total_tokens"),
       // Analytics integration session IDs from metadata (constructed from array columns)
-      "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['$posthog_session_id'] as posthog_session_id",
-      "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['$mixpanel_session_id'] as mixpanel_session_id",
-    )
-    .whereRaw(
-      "e.start_time >= {minTimestamp: DateTime64(3)} AND e.start_time < {maxTimestamp: DateTime64(3)}",
-      {
-        minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
-        maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
-      },
-    )
-    .whereRaw("e.is_deleted = 0")
-    .limitBy("e.span_id", "e.project_id");
+      metadataValue("e", literal("$posthog_session_id")).as(
+        "posthog_session_id",
+      ),
+      metadataValue("e", literal("$mixpanel_session_id")).as(
+        "mixpanel_session_id",
+      ),
+    ])
+    .where("e.start_time", ">=", minTimestamp)
+    .where("e.start_time", "<", maxTimestamp)
+    .$call(limitBy({ count: 1, columns: ["e.span_id", "e.project_id"] }));
 
-  const { query, params } = queryBuilder.buildWithParams();
+  const { sql: query, params } = compileClickhouseQuery(builder, projectId);
 
   const records = queryClickhouseStream<Record<string, unknown>>({
     query,
@@ -3571,7 +3555,7 @@ export const getEventsForAnalyticsIntegrations = async function* (
       timestamp: record.start_time,
       langfuse_observation_name: record.name,
       // The row type here is Record<string, unknown>; the column is a String
-      // projection (eventsTableTraceNameSelectSql).
+      // projection ('' when the event has no trace name).
       langfuse_trace_name: normalizeEventsTraceName(
         record.trace_name as string | null | undefined,
       ),
@@ -3644,18 +3628,18 @@ export const getTraceMetadataByIdsFromEvents = async (props: {
     .selectFrom("events_core as e")
     .select([
       "e.trace_id as id",
-      sql.raw(eventsTableTraceNameSql).as("name"),
+      eventsTraceName.as("name"),
       "e.user_id as user_id",
       "e.tags as tags",
     ])
-    .where(sql<SqlBool>`${sql.raw(eventsTableTraceNameSql)} IS NOT NULL`)
-    .where("e.is_deleted", "=", 0)
+    .where(eventsTraceName, "is not", null)
     .where("e.trace_id", "in", props.traceIds)
     .$call(limitBy({ count: 1, columns: ["e.trace_id"] }));
 
-  const { sql: query, params } = compileClickhouseQuery(builder, {
-    projectId: props.projectId,
-  });
+  const { sql: query, params } = compileClickhouseQuery(
+    builder,
+    props.projectId,
+  );
 
   return queryClickhouse<{
     id: string;
@@ -3908,23 +3892,20 @@ export const getSessionMetricsFromEvents = async <
   const { projectId, sessionIds, fields, queryFromTimestamp } = props;
   const builder = getClickhouseKysely()
     .selectFrom("events_core as e")
-    .select(
-      fields.map((field) =>
-        sql.raw(EVENTS_SESSION_AGGREGATION_FIELDS[field]),
-      ) as never,
-    )
+    .$call(includeDeleted())
+    .select(fields.map((field) => SESSION_AGGREGATION_SELECTS[field]))
     .where("session_id", "in", sessionIds)
     .$if(queryFromTimestamp != null, (qb) =>
       qb.where(
         "start_time",
         ">=",
-        chDateTime(observationsToTraceLowerBound(queryFromTimestamp!)),
+        observationsToTraceLowerBound(queryFromTimestamp!),
       ),
     )
     .where("session_id", "!=", "")
     .groupBy("session_id")
     .limit(sessionIds.length);
-  const { sql: query, params } = compileClickhouseQuery(builder, { projectId });
+  const { sql: query, params } = compileClickhouseQuery(builder, projectId);
 
   const rows = await queryClickhouse<Pick<SessionEventsMetricsRow, F>>({
     query,
@@ -3966,7 +3947,6 @@ export async function getLatestSdkVersionInfoFromEvents(params: {
   const { projectId } = params;
 
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  const since = chDateTime(sevenDaysAgo);
   const builder = getClickhouseKysely()
     .selectFrom("events_core as e")
     .select((eb) => [
@@ -3977,26 +3957,22 @@ export async function getLatestSdkVersionInfoFromEvents(params: {
       eb.fn.max("e.start_time").as("last_seen"),
       count().as("event_count"),
     ])
-    .where("e.start_time", ">=", since)
+    .where("e.start_time", ">=", sevenDaysAgo)
     .where((eb) =>
-      eb(
-        eb.fn("toDate", ["e.start_time"]),
-        ">=",
-        eb.fn("toDate", [eb.val(since)]),
-      ),
+      eb(toDate(eb.ref("e.start_time")), ">=", toDate(sevenDaysAgo)),
     )
     .where((eb) => eb.fn<SqlBool>("startsWith", ["e.source", eb.val("otel")]))
     .where("e.ingestion_sdk_name", "not in", [...INTERNAL_INGESTION_SDK_NAMES])
-    .where("e.is_deleted", "=", 0)
     .groupBy([
       "e.ingestion_sdk_name",
       "e.ingestion_sdk_version",
       "e.telemetry_sdk_language",
     ])
     .orderBy("last_seen", "desc");
-  const { sql: query, params: queryParams } = compileClickhouseQuery(builder, {
+  const { sql: query, params: queryParams } = compileClickhouseQuery(
+    builder,
     projectId,
-  });
+  );
   const result = await queryClickhouse<{
     ingestion_sdk_name: string;
     ingestion_sdk_version: string;

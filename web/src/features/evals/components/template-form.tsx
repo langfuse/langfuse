@@ -753,32 +753,30 @@ const InnerEvalTemplateForm = (props: {
                   control={form.control}
                   name="prompt"
                   render={({ field }) => (
-                    <>
-                      <FormItem>
-                        <FormLabel>Evaluation prompt</FormLabel>
-                        <FormDescription>
-                          Define your llm-as-a-judge evaluation template. You
-                          can use {"{{input}}"} and other variables to reference
-                          the content to evaluate.
-                        </FormDescription>
-                        <FormControl>
-                          <CodeMirrorEditor
-                            value={field.value ?? ""}
-                            onChange={field.onChange}
-                            editable={props.isEditing}
-                            mode="prompt"
-                            minHeight={200}
-                            maxHeight="50dvh"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                        {extractedVariables?.length ? (
-                          <PromptVariableListPreview
-                            variables={extractedVariables}
-                          />
-                        ) : null}
-                      </FormItem>
-                    </>
+                    <FormItem>
+                      <FormLabel>Evaluation prompt</FormLabel>
+                      <FormDescription>
+                        Define your llm-as-a-judge evaluation template. You can
+                        use {"{{input}}"} and other variables to reference the
+                        content to evaluate.
+                      </FormDescription>
+                      <FormControl>
+                        <CodeMirrorEditor
+                          value={field.value ?? ""}
+                          onChange={field.onChange}
+                          editable={props.isEditing}
+                          mode="prompt"
+                          minHeight={200}
+                          maxHeight="50dvh"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                      {extractedVariables?.length ? (
+                        <PromptVariableListPreview
+                          variables={extractedVariables}
+                        />
+                      ) : null}
+                    </FormItem>
                   )}
                 />
               </div>

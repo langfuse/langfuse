@@ -1,5 +1,4 @@
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
-import { sql } from "kysely";
 import { InvalidRequestError } from "../../errors";
 import { OrderByState } from "../../interfaces/orderBy";
 import { FilterState } from "../../types";
@@ -11,6 +10,8 @@ import {
   DateTimeFilter,
   FilterList,
   StringOptionsFilter,
+  filtersRequireEventsFull,
+  metadataFilterCanPruneEventsFull,
   orderByToClickhouseSql,
   type SessionEventsField,
   type SessionEventsFields,
@@ -24,7 +25,7 @@ import {
   eventsSessionScoresAggregation,
 } from "../queries/clickhouse-sql/query-fragments";
 import { queryClickhouse } from "../repositories";
-import { traceAggregationSelects } from "../repositories/events";
+import { TRACE_AGGREGATION_SELECTS } from "../repositories/events-selects";
 import {
   sessionEventsCols,
   sessionEventsOrderByCols,
@@ -50,12 +51,11 @@ export const getSessionTracesFromEvents = async (props: {
   const { projectId, sessionId } = props;
   const builder = getClickhouseKysely()
     .selectFrom("events_full as e")
-    .select(traceAggregationSelects() as never)
+    .select(TRACE_AGGREGATION_SELECTS)
     .where("e.session_id", "=", sessionId)
-    .where("e.is_deleted", "=", 0)
     .groupBy(["trace_id", "project_id"])
-    .orderBy(sql.ref("timestamp"), "asc");
-  const { sql: query, params } = compileClickhouseQuery(builder, { projectId });
+    .orderBy("timestamp", "asc");
+  const { sql: query, params } = compileClickhouseQuery(builder, projectId);
 
   const rows = await queryClickhouse<{
     id: string;
@@ -194,6 +194,10 @@ const getSessionsTableFromEventsGeneric = async <T>(
     (filter) =>
       filter.clickhouseTable === "events_proto" && filter.field === "metadata",
   );
+  const fullTable = filtersRequireEventsFull(sessionFilters);
+  const metadataSessionPrefilter = fullTable
+    ? buildMetadataSessionPrefilter(filter)
+    : null;
   const toolColumns = ["toolNames", "calledToolNames", "toolCalls"];
   const requiresTools =
     filter.some((item) => toolColumns.includes(item.column)) ||
@@ -209,6 +213,8 @@ const getSessionsTableFromEventsGeneric = async <T>(
       : null,
     includeMetadata: requiresMetadata,
     includeTools: requiresTools,
+    fullTable,
+    metadataSessionPrefilter,
   });
 
   // Compose query using CTEQueryBuilder
@@ -269,4 +275,31 @@ const getSessionsTableFromEventsGeneric = async <T>(
     clickhouseConfigs,
     preferredClickhouseService: "EventsReadOnly",
   });
+};
+
+// Keeps only metadata filters an events_full skip index can prune on, so the
+// prefilter subquery stays bounded. Any subset of the conjuncts is still a
+// necessary condition for the outer filter. Returns null when none qualify.
+const buildMetadataSessionPrefilter = (filter: FilterState) => {
+  const prunableMetadataFilters = filter.filter(
+    (item) =>
+      item.type === "stringObject" &&
+      findUiColumnMapping(sessionEventsCols, item.column)?.uiTableId ===
+        "metadata" &&
+      metadataFilterCanPruneEventsFull(item.operator, item.value),
+  );
+  if (prunableMetadataFilters.length === 0) {
+    return null;
+  }
+  return new FilterList(
+    createFilterFromFilterState(
+      prunableMetadataFilters,
+      sessionEventsCols.map((column) =>
+        column.uiTableId === "metadata"
+          ? { ...column, queryPrefix: "m" }
+          : column,
+      ),
+      sessionsEventsViewCols,
+    ),
+  ).apply();
 };

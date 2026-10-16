@@ -6,22 +6,22 @@ import { compileClickhouseQuery } from "./compile";
 import { getClickhouseKysely } from "./dialect";
 import { tupleIn, useFinal } from "./extensions";
 
-const ctx = { projectId: "proj-1" };
+const projectId = "proj-1";
 const START = new Date("2026-01-01T00:00:00.000Z");
 
 function compile(builder: Parameters<typeof compileClickhouseQuery>[0]) {
-  return compileClickhouseQuery(builder, ctx);
+  return compileClickhouseQuery(builder, projectId);
 }
 
 describe("typed params from the column registry", () => {
-  it("binds an integer compared to total_cost as Float64, not Int64", () => {
+  it("binds an integer compared to a Float column as Float64, not Int64", () => {
     const { sql, params } = compile(
       getClickhouseKysely()
-        .selectFrom("events_core")
-        .select("span_id")
-        .where("total_cost", ">", 1),
+        .selectFrom("scores")
+        .select("id")
+        .where("value", ">", 1),
     );
-    expect(sql).toMatch(/total_cost > \{p\d+:Float64\}/);
+    expect(sql).toMatch(/value > \{p\d+:Float64\}/);
     expect(sql).not.toMatch(/\{p\d+:Int64\}/);
     expect(Object.values(params)).toContain(1);
   });
@@ -29,11 +29,21 @@ describe("typed params from the column registry", () => {
   it("binds an IN list against a Float column as Array(Float64)", () => {
     const { sql } = compile(
       getClickhouseKysely()
+        .selectFrom("scores")
+        .select("id")
+        .where("value", "in", [1, 2]),
+    );
+    expect(sql).toMatch(/value in \(\{p\d+:Array\(Float64\)\}\)/);
+  });
+
+  it("binds a number compared to total_cost as Decimal(18, 12)", () => {
+    const { sql } = compile(
+      getClickhouseKysely()
         .selectFrom("events_core")
         .select("span_id")
-        .where("total_cost", "in", [1, 2]),
+        .where("total_cost", ">", 1),
     );
-    expect(sql).toMatch(/total_cost in \(\{p\d+:Array\(Float64\)\}\)/);
+    expect(sql).toMatch(/total_cost > \{p\d+:Decimal\(18, 12\)\}/);
   });
 
   it("wraps an IN list against an Array column as Array(Array(...))", () => {
@@ -50,7 +60,6 @@ describe("typed params from the column registry", () => {
   });
 
   it("keeps the column's DateTime precision through toStartOfMinute / toDate", () => {
-    const start = "2026-01-01 00:00:00.000";
     const { sql: minuteSql } = compile(
       getClickhouseKysely()
         .selectFrom("events_core")
@@ -59,7 +68,7 @@ describe("typed params from the column registry", () => {
           eb(
             eb.fn("toStartOfMinute", ["start_time"]),
             "=",
-            eb.fn("toStartOfMinute", [eb.val(start)]),
+            eb.fn("toStartOfMinute", [eb.val(START)]),
           ),
         ),
     );
@@ -75,12 +84,31 @@ describe("typed params from the column registry", () => {
           eb(
             eb.fn("toDate", [eb.ref("t.timestamp")]),
             "=",
-            eb.fn("toDate", [eb.val(start)]),
+            eb.fn("toDate", [eb.val(START)]),
           ),
         ),
     );
     expect(dateSql).toMatch(
       /toDate\(t\.timestamp\) = toDate\(\{p\d+:DateTime64\(3\)\}\)/,
+    );
+  });
+
+  // Rows are written as UTC wall-clock strings that ClickHouse parses in the
+  // server timezone; Date binds must take the same form to match them.
+  it("binds a Date as the UTC wall-clock string ingestion writes", () => {
+    const { sql, params } = compile(
+      getClickhouseKysely()
+        .selectFrom("events_core")
+        .select("span_id")
+        .where("start_time", ">=", new Date(-1000))
+        .where("start_time", "<=", START),
+    );
+    expect(sql).toMatch(/start_time >= \{p\d+:DateTime64\(6\)\}/);
+    expect(Object.values(params)).toEqual(
+      expect.arrayContaining([
+        "1969-12-31 23:59:59.000",
+        "2026-01-01 00:00:00.000",
+      ]),
     );
   });
 
@@ -310,16 +338,6 @@ describe("typed params from the column registry", () => {
           .where("is_deleted", "=", 0),
       );
       expect(sql).toMatch(/is_deleted = \{p\d+:Int64\}/);
-    });
-
-    it("uses the name-only type for a table-function source", () => {
-      const { sql } = compile(
-        db
-          .selectFrom((eb) => eb.fn("numbers", [eb.lit(10)]).as("n"))
-          .selectAll()
-          .where(db.dynamic.ref("n.is_deleted"), "=", 0),
-      );
-      expect(sql).toMatch(/n\.is_deleted = \{p\d+:UInt8\}/);
     });
 
     it("uses the name-only type for a qualifier declared nowhere", () => {

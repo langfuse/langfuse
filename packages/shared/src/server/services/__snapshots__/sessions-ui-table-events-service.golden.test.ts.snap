@@ -6,14 +6,14 @@ exports[`golden: sessions simple aggregates family > getSessionTracesFromEvents 
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param2": "golden-session",
-      "param3": 0,
+      "param2": 0,
+      "param3": "golden-session",
     },
     "route": "unknown",
     "sql": "SELECT
     trace_id AS id,
     project_id,
-    COALESCE(
+    coalesce(
         nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
         nullIf(argMaxIf(e.name, e.event_ts, ((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != '')), '')
     ) AS name,
@@ -63,7 +63,7 @@ exports[`golden: sessions simple aggregates family > getSessionTracesFromEvents 
     argMaxIf(evaluation_rule_id, event_ts, evaluation_rule_id != '') AS evaluation_rule_id,
     any(experiment_id) AS experiment_id
 FROM events_full AS e
-WHERE (e.project_id = {param1:String}) AND (e.session_id = {param2:String}) AND (e.is_deleted = {param3:UInt8})
+WHERE (e.project_id = {param1:String}) AND (e.is_deleted = {param2:UInt8}) AND (e.session_id = {param3:String})
 GROUP BY
     trace_id,
     project_id

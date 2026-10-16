@@ -26,20 +26,18 @@ export const ExecutionCountTooltip = ({
   });
 
   return (
-    <>
-      <span className="text-sm leading-none font-bold peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-        (
-        {isLoading ? (
-          <span className="inline-block font-mono">...</span>
-        ) : (
-          compactNumberFormatter(
-            !globalConfig.data || (totalCount && totalCount < globalConfig.data)
-              ? totalCount
-              : globalConfig.data,
-          )
-        )}
-        {isTraceTarget ? " traces" : " dataset run items"})
-      </span>
-    </>
+    <span className="text-sm leading-none font-bold peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+      (
+      {isLoading ? (
+        <span className="inline-block font-mono">...</span>
+      ) : (
+        compactNumberFormatter(
+          !globalConfig.data || (totalCount && totalCount < globalConfig.data)
+            ? totalCount
+            : globalConfig.data,
+        )
+      )}
+      {isTraceTarget ? " traces" : " dataset run items"})
+    </span>
   );
 };

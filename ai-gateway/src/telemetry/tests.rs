@@ -224,7 +224,7 @@ async fn upload_response_failures_are_classified_per_attempt() {
     }
     // Streaming without Content-Length must obey the response bound too.
     let web = FakeServer::start(|_| async move {
-        let chunks = futures_util::stream::iter([Ok::<_, std::io::Error>(vec![b' '; 65 * 1024])]);
+        let chunks = futures_util::stream::iter([Ok::<_, io::Error>(vec![b' '; 65 * 1024])]);
         response(200, Body::from_stream(chunks))
     })
     .await;

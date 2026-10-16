@@ -133,7 +133,8 @@ const PAGE_TOKEN_MATCHERS: Array<{
 }> = [
   {
     page: "charts",
-    test: (n) => /^--(?:chart-\d+|chart-grid|color-\d+)$/.test(n),
+    test: (n) =>
+      /^--(?:chart-\d+|chart-fill-\d+|chart-grid|color-\d+)$/.test(n),
   },
   { page: "typography", test: (n) => /^--(?:font-|text-)/.test(n) },
   {

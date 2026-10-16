@@ -270,8 +270,13 @@ struct StreamResources<T> {
 
 impl<T> StreamResources<T> {
     fn release(&self, outcome: RelayOutcome) {
-        let relay = {
-            let mut relay = self.relay.lock().expect("relay owner lock poisoned");
+        let (relay, outcome) = {
+            // A poisoned lock means capture code panicked mid-update: the body
+            // is truncated and the capture is partial, so the relay failed.
+            let (mut relay, outcome) = match self.relay.lock() {
+                Ok(relay) => (relay, outcome),
+                Err(poisoned) => (poisoned.into_inner(), RelayOutcome::TransportError),
+            };
             let taken = relay.take();
             // Only the winning finalizer publishes the body failure. In
             // particular, a deadline racing downstream EOF cannot change it later.
@@ -283,7 +288,7 @@ impl<T> StreamResources<T> {
             {
                 self.failed.store(true, Ordering::Release);
             }
-            taken
+            (taken, outcome)
         };
         if let Some(Relay {
             owner,
@@ -318,13 +323,11 @@ impl<T> StreamResources<T> {
     }
 
     fn observe(&self, update: impl FnOnce(&mut ExecutionCapture)) {
-        if let Some(capture) = self
-            .relay
-            .lock()
-            .expect("relay owner lock poisoned")
-            .as_mut()
-            .and_then(|relay| relay.capture.as_mut())
-        {
+        // `release` fails a poisoned relay; never update its partial capture.
+        let Ok(mut relay) = self.relay.lock() else {
+            return;
+        };
+        if let Some(capture) = relay.as_mut().and_then(|relay| relay.capture.as_mut()) {
             update(capture);
         }
     }
@@ -407,6 +410,37 @@ mod tests {
             );
             assert!(resources.relay.lock().unwrap().is_none());
         }
+    }
+
+    #[test]
+    fn a_panic_while_updating_the_capture_fails_the_relay() {
+        let resources = StreamResources {
+            relay: Mutex::new(Some(Relay {
+                owner: (),
+                capture: None,
+                span: tracing::Span::none(),
+            })),
+            failed: AtomicBool::new(false),
+            released: Notify::new(),
+            bytes: AtomicUsize::new(0),
+            chunks: AtomicUsize::new(0),
+        };
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _relay = resources.relay.lock();
+            panic!("capture update panicked");
+        }));
+        assert!(resources.relay.is_poisoned());
+
+        resources.release(RelayOutcome::Eof);
+
+        assert!(resources.failed.load(Ordering::Acquire));
+        assert!(
+            resources
+                .relay
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .is_none()
+        );
     }
 
     #[tokio::test]

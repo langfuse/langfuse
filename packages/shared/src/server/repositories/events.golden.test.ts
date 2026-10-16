@@ -8,6 +8,7 @@ import {
   vi,
 } from "vitest";
 
+import { OBSERVATION_FIELD_GROUPS_FULL } from "../../domain/observation-field-groups";
 import { env } from "../../env";
 import { LangfuseNotFoundError } from "../../errors";
 import {
@@ -28,6 +29,10 @@ vi.mock("./clickhouse", async (importOriginal) => {
 
 import {
   getAgentGraphDataFromEventsTable,
+  getEventsForAnalyticsIntegrations,
+  getEventsForBlobStorageExport,
+  getEventsForBlobStorageExportParquet,
+  getEventsForBlobStorageExportRaw,
   getLastTraceTimestampsByProjectsFromEventsTable,
   getLatestSdkVersionInfoFromEvents,
   getObservationByIdFromEventsTable,
@@ -36,6 +41,7 @@ import {
   getObservationIOFieldByteLengthFromEventsTable,
   getObservationsBatchIOFromEventsTable,
   getObservationsTraceIdsFromEventsTable,
+  getObservationsV2FromEventsTableForPublicApi,
   getObservationsWithPromptNameFromEvents,
   getSessionMetricsFromEvents,
   getTraceByIdFromEventsTable,
@@ -45,6 +51,8 @@ import {
   hasAnyUserFromEventsTable,
   streamObservationIOFieldFromEventsTable,
 } from "./events";
+import { getTraceBatchEventStream } from "./trace-batch";
+import { ALL_SESSION_EVENTS_FIELDS } from "../queries/clickhouse-sql/event-query-builder";
 
 const FIXED_PROJECT_ID = "golden-project";
 const FIXED_PROJECT_IDS = ["golden-project", "golden-project-b"] as const;
@@ -52,8 +60,7 @@ const FIXED_TRACE_ID = "golden-trace";
 const FIXED_OBSERVATION_ID = "golden-span";
 const FIXED_START_TIME = new Date("2026-01-01T00:00:00.000Z");
 const FIXED_FROM_TIMESTAMP = new Date("2025-12-01T00:00:00.000Z");
-const FIXED_CH_MIN = "2026-01-01 00:00:00.000";
-const FIXED_CH_MAX = "2026-01-01 01:00:00.000";
+const FIXED_AGENT_GRAPH_MAX = new Date("2026-01-01T01:00:00.000Z");
 const FIXED_TO_TIMESTAMP = new Date("2026-01-02T00:00:00.000Z");
 const FIXED_PROMPT_NAMES = ["golden-prompt", "golden-prompt-b"];
 const FIXED_PROMPT_IDS = ["golden-prompt-id", "golden-prompt-id-b"];
@@ -129,8 +136,8 @@ describeWithClickhouse("golden: events point-reads & existence family", () => {
     await getAgentGraphDataFromEventsTable({
       projectId: FIXED_PROJECT_ID,
       traceId: FIXED_TRACE_ID,
-      chMinStartTime: FIXED_CH_MIN,
-      chMaxStartTime: FIXED_CH_MAX,
+      minStartTime: FIXED_START_TIME,
+      maxStartTime: FIXED_AGENT_GRAPH_MAX,
     });
     expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
   });
@@ -353,6 +360,15 @@ describeWithClickhouse("golden: events simple aggregates family", () => {
     expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
   });
 
+  it("getSessionMetricsFromEvents fields=all", async () => {
+    await getSessionMetricsFromEvents({
+      projectId: FIXED_PROJECT_ID,
+      sessionIds: FIXED_SESSION_IDS,
+      fields: ALL_SESSION_EVENTS_FIELDS,
+    });
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
   it("getLatestSdkVersionInfoFromEvents", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(FIXED_START_TIME);
@@ -397,13 +413,14 @@ describeWithClickhouse("golden: events IO payload reads family", () => {
     expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
   });
 
-  it("getObservationsBatchIOFromEventsTable full+ioCharLimit+experiment+toolCalls", async () => {
+  it("getObservationsBatchIOFromEventsTable full+ioCharLimit+experiment+toolCalls+skills", async () => {
     await getObservationsBatchIOFromEventsTable({
       ...batchBase,
       truncated: false,
       ioCharLimit: 5000.7,
       includeExperimentFields: true,
       includeToolCallFields: true,
+      includeSkillFields: true,
     });
     expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
   });
@@ -457,4 +474,160 @@ describeWithClickhouse("golden: events IO payload reads family", () => {
     });
     expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
   });
+});
+
+describeWithClickhouse(
+  "golden: events metadata map and session resolution",
+  () => {
+    beforeEach(() => {
+      resetCaptures();
+    });
+
+    it("getObservationsV2FromEventsTableForPublicApi fields=core+metadata expandMetadataKeys=set", async () => {
+      await getObservationsV2FromEventsTableForPublicApi({
+        projectId: FIXED_PROJECT_ID,
+        page: 1,
+        limit: 50,
+        fields: ["core", "metadata"],
+        expandMetadataKeys: ["golden-key"],
+      });
+      expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+    });
+
+    it("getObservationsV2FromEventsTableForPublicApi fields=basic+metrics+trace_context", async () => {
+      await getObservationsV2FromEventsTableForPublicApi({
+        projectId: FIXED_PROJECT_ID,
+        page: 1,
+        limit: 50,
+        fields: ["basic", "metrics", "trace_context"],
+      });
+      expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+    });
+
+    it("getEventsForAnalyticsIntegrations", async () => {
+      for await (const _ of getEventsForAnalyticsIntegrations(
+        FIXED_PROJECT_ID,
+        "golden-project-name",
+        FIXED_FROM_TIMESTAMP,
+        FIXED_START_TIME,
+      )) {
+        // The harness streams no rows.
+      }
+      expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+    });
+
+    it("getTraceBatchEventStream", async () => {
+      for await (const _ of getTraceBatchEventStream({
+        traces: [
+          {
+            projectId: FIXED_PROJECT_ID,
+            traceId: FIXED_TRACE_ID,
+            minStart: FIXED_FROM_TIMESTAMP.getTime(),
+            maxStart: FIXED_START_TIME.getTime(),
+          },
+        ],
+      })) {
+        // The harness streams no rows.
+      }
+      expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+    });
+  },
+);
+
+describeWithClickhouse("golden: events export streams family", () => {
+  beforeEach(() => {
+    resetCaptures();
+  });
+
+  // The harness only records a stream's query once it is iterated.
+  async function drain(rows: AsyncIterable<unknown>) {
+    for await (const _ of rows) {
+      // The harness streams no rows.
+    }
+  }
+
+  it("getEventsForBlobStorageExport fieldGroups=default", async () => {
+    await drain(
+      getEventsForBlobStorageExport(
+        FIXED_PROJECT_ID,
+        FIXED_FROM_TIMESTAMP,
+        FIXED_TO_TIMESTAMP,
+      ),
+    );
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it.each(OBSERVATION_FIELD_GROUPS_FULL)(
+    "getEventsForBlobStorageExport fieldGroups=%s",
+    async (group) => {
+      await drain(
+        getEventsForBlobStorageExport(
+          FIXED_PROJECT_ID,
+          FIXED_FROM_TIMESTAMP,
+          FIXED_TO_TIMESTAMP,
+          [group],
+        ),
+      );
+      expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+    },
+  );
+
+  it("getEventsForBlobStorageExport fieldGroups=empty", async () => {
+    await drain(
+      getEventsForBlobStorageExport(
+        FIXED_PROJECT_ID,
+        FIXED_FROM_TIMESTAMP,
+        FIXED_TO_TIMESTAMP,
+        [],
+      ),
+    );
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it("getEventsForBlobStorageExport fieldGroups=reversed", async () => {
+    await drain(
+      getEventsForBlobStorageExport(
+        FIXED_PROJECT_ID,
+        FIXED_FROM_TIMESTAMP,
+        FIXED_TO_TIMESTAMP,
+        [...OBSERVATION_FIELD_GROUPS_FULL].reverse(),
+      ),
+    );
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it.each([
+    ["default", undefined, undefined],
+    ["default", true, [...OBSERVATION_FIELD_GROUPS_FULL]],
+    ["metrics", true, ["metrics"]],
+    ["core+io", true, ["core", "io"]],
+  ] as const)(
+    "getEventsForBlobStorageExportRaw fieldGroups=%s convertLatencyToSeconds=%s",
+    async (_name, convertLatencyToSeconds, fieldGroups) => {
+      await drain(
+        getEventsForBlobStorageExportRaw(
+          FIXED_PROJECT_ID,
+          FIXED_FROM_TIMESTAMP,
+          FIXED_TO_TIMESTAMP,
+          fieldGroups ? [...fieldGroups] : undefined,
+          convertLatencyToSeconds,
+        ),
+      );
+      expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+    },
+  );
+
+  it.each([false, true])(
+    "getEventsForBlobStorageExportParquet convertLatencyToSeconds=%s",
+    async (convertLatencyToSeconds) => {
+      await getEventsForBlobStorageExportParquet(
+        FIXED_PROJECT_ID,
+        FIXED_FROM_TIMESTAMP,
+        FIXED_TO_TIMESTAMP,
+        undefined,
+        convertLatencyToSeconds,
+      );
+      expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+    },
+  );
 });

@@ -7,12 +7,12 @@ import {
   EventsAggQueryBuilder,
   EventsQueryBuilder,
   EventsSessionAggregationQueryBuilder,
-  type SessionEventsField,
   type SessionEventsFields,
   ExperimentsAggregationFieldSetName,
   ExperimentsAggregationQueryBuilder,
   type CTEWithSchema,
 } from "./event-query-builder";
+import type { SessionEventsField } from "../../repositories/events-selects";
 import { AGGREGATABLE_SCORE_TYPES } from "../../../domain/scores";
 import {
   OBSERVATIONS_TO_TRACE_INTERVAL,
@@ -314,10 +314,13 @@ export const eventsSessionsAggregation = (params: {
   startTimeFrom?: string | null;
   includeMetadata?: boolean;
   includeTools?: boolean;
+  fullTable?: boolean;
+  metadataSessionPrefilter?: ClickhouseFilter | null;
 }): EventsSessionAggregationQueryBuilder => {
   return new EventsSessionAggregationQueryBuilder({
     projectId: params.projectId,
   })
+    .withFullTable(Boolean(params.fullTable))
     .selectSessionFields(params.fields)
     .when(Boolean(params.includeMetadata), (builder) =>
       builder.selectFieldSet("metadata"),
@@ -327,6 +330,10 @@ export const eventsSessionsAggregation = (params: {
     )
     .withSessionIds(params.sessionIds)
     .withStartTimeFrom(params.startTimeFrom)
+    .withMetadataSessionPrefilter(
+      params.metadataSessionPrefilter ?? null,
+      params.startTimeFrom,
+    )
     .whereRaw("session_id != ''");
 };
 
