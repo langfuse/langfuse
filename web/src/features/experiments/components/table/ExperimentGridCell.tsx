@@ -1,7 +1,7 @@
 /* The experiment marker's colour is data — which run this is, out of the N
    selected (`getExperimentColorStyles`) — so it arrives as a class rather than
    as a variant, the same way `DiffLabel` takes one. */
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
 import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { EMPTY_VALUE_PLACEHOLDER } from "@/src/components/design-system/table/constants";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";

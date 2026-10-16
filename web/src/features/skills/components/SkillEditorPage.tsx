@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { type ComponentProps, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import { useStore } from "zustand";

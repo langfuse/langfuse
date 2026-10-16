@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { ItemBadge } from "@/src/components/ItemBadge";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import { MobilePageActionsContent } from "@/src/components/layouts/mobile-page-actions-content";

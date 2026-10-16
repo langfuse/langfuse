@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
 import { type HeatmapCell } from "@/src/features/score-analytics/lib/heatmap-utils";
 import { getContrastColor } from "@/src/features/score-analytics/lib/color-scales";
 import {

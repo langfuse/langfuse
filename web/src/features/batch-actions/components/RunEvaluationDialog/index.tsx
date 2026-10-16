@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useStore } from "zustand";

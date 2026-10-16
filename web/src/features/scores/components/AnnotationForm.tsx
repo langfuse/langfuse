@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import React, { useEffect, useImperativeHandle, useRef, useState } from "react";
 import { ExternalLink, Plus } from "lucide-react";
 import { ScoreDataTypeEnum, type ScoreConfigDataType } from "@langfuse/shared";

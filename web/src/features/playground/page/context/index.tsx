@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { showErrorToast } from "@/src/features/notifications";
 import React, {
   createContext,

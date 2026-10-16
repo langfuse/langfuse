@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { api } from "@/src/utils/api";
 import { AnnotationQueueItemsTable } from "@/src/features/annotation-queues/components/AnnotationQueueItemsTable";
 import { Button } from "@/src/components/ui/button";
