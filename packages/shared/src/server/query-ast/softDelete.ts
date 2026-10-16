@@ -187,6 +187,7 @@ function filterAfterLimit(
     );
   }
 
+  // Adds `<alias>.is_deleted AS is_deleted` as an output for the outer filter.
   const inner = SelectQueryNode.cloneWithSelections(node, [
     SelectionNode.create(
       AliasNode.create(
