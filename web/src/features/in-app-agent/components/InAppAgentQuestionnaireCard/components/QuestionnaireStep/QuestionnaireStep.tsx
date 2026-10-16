@@ -252,7 +252,7 @@ export function QuestionnaireStep({
         {showsSkip ? (
           <Button
             text="Skip"
-            variant="outline"
+            variant="secondary"
             size="sm"
             disabled={isDisabled}
             onClick={onSkip}
