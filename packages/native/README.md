@@ -84,7 +84,12 @@ the checksum-verified standalone Rust installer into its UBI9 builder stage;
 `turbo run build --filter=worker...` compiles the addon for glibc, and
 `pnpm deploy` copies the `.node` file into the runtime image next to the
 loader. Each architecture builds on a native runner, so no cross
-compilation is involved. The runtime image gains only the compiled library.
+compilation is involved. The runtime image gains only the compiled library and
+its third-party license notices at
+`/usr/share/licenses/langfuse-native/THIRD_PARTY_LICENSES.txt`, rendered by
+[cargo-about](https://github.com/EmbarkStudios/cargo-about) from `about.hbs`.
+`about.toml` lists the accepted licenses; the worker image build fails when a
+dependency uses any other license.
 CI jobs that build the worker need no extra setup: rustup on the runner
 installs the pinned toolchain the first time `cargo` runs in this directory.
 The Rust lint runs as its own step in the lint job, outside the ESLint turbo

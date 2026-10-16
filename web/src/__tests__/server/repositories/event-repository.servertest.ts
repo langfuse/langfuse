@@ -24,6 +24,8 @@ import {
   getTotalCostByRule,
   createScoresCh,
   createTraceScore,
+  getUsersFromEventsTable,
+  getUsersCountFromEventsTable,
   type EventFilterOptionColumn,
 } from "@langfuse/shared/src/server";
 import {
@@ -5837,5 +5839,55 @@ describe("Clickhouse Events Repository Test", () => {
       expect(traceScoreCategoryLabels).toContain(traceCategoryName);
       expect(traceScoreCategoryLabels).not.toContain(observationCategoryName);
     });
+  });
+});
+
+describe("users search on the events table", () => {
+  it("matches LIKE wildcard characters in the search query literally", async () => {
+    const projectId = randomUUID();
+    const userIds = [
+      "gpt_4-user",
+      "gpt-4-user",
+      "save 100% user",
+      "save 1000 user",
+      "C:\\home",
+    ];
+    await createEventsCh(
+      userIds.map((userId) =>
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          trace_id: randomUUID(),
+          project_id: projectId,
+          user_id: userId,
+        }),
+      ),
+    );
+
+    const search = async (searchQuery: string) => {
+      const users = await getUsersFromEventsTable(
+        projectId,
+        [],
+        searchQuery,
+        50,
+        0,
+      );
+      const [count] = await getUsersCountFromEventsTable(
+        projectId,
+        [],
+        searchQuery,
+      );
+      return {
+        users: users.map((u) => u.user),
+        count: Number(count.totalCount),
+      };
+    };
+
+    expect(await search("gpt_4")).toEqual({ users: ["gpt_4-user"], count: 1 });
+    expect(await search("100%")).toEqual({
+      users: ["save 100% user"],
+      count: 1,
+    });
+    expect(await search("C:\\")).toEqual({ users: ["C:\\home"], count: 1 });
   });
 });

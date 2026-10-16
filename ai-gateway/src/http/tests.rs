@@ -1,14 +1,17 @@
 use super::*;
 use crate::{
+    config::{DEFAULT_MAX_REQUEST_BYTES as MAX_REQUEST_BYTES, ExecutionLimits, RequestLimits},
     providers::{ProviderLimits, ProviderTransport},
     resolution::ApiFormat,
     test_support::{FakeServer, resolution_response, resolution_response_for},
 };
+use axum::body::to_bytes;
 use futures_util::{StreamExt, stream};
 use std::{
     convert::Infallible,
     io::Write,
     sync::atomic::{AtomicBool, Ordering},
+    time::Duration,
 };
 use tokio::{net::TcpListener, sync::oneshot, task::JoinHandle};
 use tower::ServiceExt;
@@ -1002,12 +1005,29 @@ async fn slow_resolution_has_a_bounded_wait() {
 
 #[tokio::test(start_paused = true)]
 async fn a_stalled_request_body_times_out_at_the_read_deadline() {
+    let web = FakeServer::start(|_| async { resolution_response("provider") }).await;
+    let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
+    let service = inference(&web, &provider);
+    // The 16 MiB default keeps the 10 MiB per 30 seconds minimum upload rate.
+    assert_eq!(service.request_read_timeout(), Duration::from_secs(49));
+    let gateway = Gateway::start(Some(service)).await;
     let stalled = Body::from_stream(stream::pending::<Result<&'static str, Infallible>>());
     let started = tokio::time::Instant::now();
-    let result = read_request_body(stalled).await;
-    assert!(matches!(result, Err(InferenceHttpError::RequestTimeout)));
-    assert_eq!(started.elapsed(), REQUEST_READ_TIMEOUT);
-    assert_eq!(REQUEST_READ_TIMEOUT, Duration::from_secs(30));
+    let request = gateway.app.clone().oneshot(
+        Request::post("/openai/v1/responses")
+            .header(header::AUTHORIZATION, "Bearer stalled-upload")
+            .body(stalled)
+            .unwrap(),
+    );
+    let response = tokio::time::timeout(Duration::from_secs(120), request)
+        .await
+        .expect("the router must bound the body read")
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::REQUEST_TIMEOUT);
+    assert_eq!(started.elapsed(), Duration::from_secs(49));
+    let body = to_bytes(response.into_body(), 4096).await.unwrap();
+    assert!(String::from_utf8_lossy(&body).contains("request_timeout"));
+    assert_eq!(web.calls(), 0);
 }
 
 #[tokio::test]
@@ -1042,7 +1062,10 @@ async fn pre_header_provider_failures_export_the_status_returned_to_the_caller()
         let provider = ProviderTransport::for_test(
             upstream_url,
             ProviderLimits {
-                headers_timeout: Duration::from_millis(100),
+                execution: ExecutionLimits {
+                    stall_timeout: Duration::from_millis(100),
+                    ..ExecutionLimits::default()
+                },
                 ..ProviderLimits::default()
             },
         )
@@ -1056,7 +1079,7 @@ async fn pre_header_provider_failures_export_the_status_returned_to_the_caller()
         let response = gateway
             .post()
             .bearer_auth("gateway-key")
-            .body(r#"{"model":"requested","input":"hello"}"#)
+            .body(r#"{"model":"requested","input":"hello","stream":true}"#)
             .send()
             .await
             .unwrap();
@@ -1302,7 +1325,7 @@ async fn active_admission_is_held_through_stream_and_shutdown_drains_it() {
             .status(),
         StatusCode::SERVICE_UNAVAILABLE
     );
-    assert_eq!(web.calls(), 2);
+    assert_eq!(web.calls(), 1);
     assert_eq!(provider.calls(), 1);
     gateway.shutdown.take().unwrap().send(()).unwrap();
     assert!(!gateway.task.is_finished());
@@ -1746,4 +1769,205 @@ async fn anthropic_routes_share_the_request_body_limit() {
         assert_eq!(body["error"]["type"], "request_too_large");
     }
     assert_eq!(provider.calls(), 2);
+}
+
+#[tokio::test]
+async fn buffered_request_bytes_are_released_once_the_response_ends() {
+    let (release, released) = tokio::sync::watch::channel(false);
+    let web = FakeServer::start(|_| async { resolution_response("provider") }).await;
+    let provider = FakeServer::start(move |request: Request| {
+        let mut released = released.clone();
+        async move {
+            to_bytes(request.into_body(), usize::MAX).await.unwrap();
+            released.wait_for(|done| *done).await.unwrap();
+            Response::new(Body::empty())
+        }
+    })
+    .await;
+    let service = inference(&web, &provider).with_request_limits(RequestLimits {
+        max_request_bytes: 64,
+        shared_buffer_bytes: 100,
+    });
+    let gateway = Gateway::start(Some(service)).await;
+    let body = |size: usize| {
+        let prefix = r#"{"model":"Production key:test","padding":""#;
+        format!("{prefix}{}\"}}", "x".repeat(size - prefix.len() - 2))
+    };
+    let oversized = gateway.post().bearer_auth("key").body(body(65)).send();
+    assert_eq!(
+        oversized.await.unwrap().status(),
+        StatusCode::PAYLOAD_TOO_LARGE
+    );
+    // Two 60-byte calls do not fit the 100-byte budget at once.
+    let first = tokio::spawn(gateway.post().bearer_auth("key").body(body(60)).send());
+    while provider.calls() == 0 {
+        tokio::task::yield_now().await;
+    }
+    let second = gateway.post().bearer_auth("key").body(body(60)).send();
+    let second = tokio::time::timeout(Duration::from_secs(5), second)
+        .await
+        .expect("the first call still holds its bytes while it waits for headers");
+    assert_eq!(second.unwrap().status(), StatusCode::SERVICE_UNAVAILABLE);
+    release.send(true).unwrap();
+    let first = first.await.unwrap().unwrap();
+    assert_eq!(first.status(), StatusCode::OK);
+    first.bytes().await.unwrap();
+    tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            let next = gateway.post().bearer_auth("key").body(body(60)).send();
+            if next.await.unwrap().status() == StatusCode::OK {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("the first call's bytes are released once its response ends");
+}
+
+async fn budgeted_service() -> (FakeServer, FakeServer, InferenceService) {
+    let web = FakeServer::start(|_| async { resolution_response("provider") }).await;
+    let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
+    let service = inference(&web, &provider).with_request_limits(RequestLimits {
+        max_request_bytes: 64,
+        shared_buffer_bytes: 100,
+    });
+    (web, provider, service)
+}
+
+fn streamed_body(chunks: Vec<&'static [u8]>, stall: bool) -> Body {
+    let chunks = stream::iter(chunks.into_iter().map(Ok::<_, Infallible>));
+    if stall {
+        Body::from_stream(chunks.chain(stream::pending()))
+    } else {
+        Body::from_stream(chunks)
+    }
+}
+
+#[tokio::test]
+async fn a_stalled_upload_holds_only_the_bytes_it_sent() {
+    let (_web, _provider, service) = budgeted_service().await;
+    let mut headers = HeaderMap::new();
+    headers.insert(header::CONTENT_LENGTH, "60".parse().unwrap());
+    let stalled = service.try_reserve_request_body().ok().unwrap();
+    let read = read_request_body(
+        streamed_body(vec![&[b'x'; 10]], true),
+        &headers,
+        64,
+        stalled,
+    );
+    tokio::pin!(read);
+    assert!(
+        tokio::time::timeout(Duration::from_millis(50), &mut read)
+            .await
+            .is_err()
+    );
+    let mut next = service.try_reserve_request_body().ok().unwrap();
+    assert!(next.try_reserve_bytes(91).is_err());
+    assert!(next.try_reserve_bytes(90).is_ok());
+}
+
+#[tokio::test]
+async fn buffered_bytes_reserve_the_allocation_not_just_the_length() {
+    let (_web, _provider, service) = budgeted_service().await;
+    let held = service.try_reserve_request_body().ok().unwrap();
+    let (bytes, _held) = read_request_body(
+        streamed_body(vec![&[b'x'; 32], b"x"], false),
+        &HeaderMap::new(),
+        64,
+        held,
+    )
+    .await
+    .ok()
+    .unwrap();
+    assert_eq!(bytes.len(), 33);
+    let mut next = service.try_reserve_request_body().ok().unwrap();
+    assert!(next.try_reserve_bytes(37).is_err());
+    assert!(next.try_reserve_bytes(36).is_ok());
+}
+
+#[test]
+fn only_a_literal_true_stream_member_marks_a_streamed_call() {
+    for (body, streaming) in [
+        (r#"{"model":"m","stream":true}"#, true),
+        (r#"{"model":"m","stream":false}"#, false),
+        (r#"{"model":"m","stream":"true"}"#, false),
+        (r#"{"model":"m","stream":null}"#, false),
+        (r#"{"model":"m"}"#, false),
+    ] {
+        let request = request_body_and_model(Bytes::from_static(body.as_bytes()))
+            .ok()
+            .unwrap();
+        assert_eq!(request.streaming, streaming, "{body}");
+        assert_eq!(&body.as_bytes()[request.model_range], br#""m""#);
+    }
+    for body in [
+        r#"{"model":"m","model":"n"}"#,
+        r#"{"model":"m","stream":true,"stream":true}"#,
+        r#"{"stream":true}"#,
+    ] {
+        assert!(
+            request_body_and_model(Bytes::from_static(body.as_bytes())).is_err(),
+            "{body}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn only_non_streamed_generations_wait_past_the_stall_for_provider_headers() {
+    let web = FakeServer::start(|_| async {
+        resolution_response_for(ApiFormat::AnthropicMessages, "provider-anthropic")
+    })
+    .await;
+    let provider = FakeServer::start(|_| async {
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        Response::new(Body::from("{}"))
+    })
+    .await;
+    let service = InferenceService::for_test(
+        web.control_plane(),
+        ProviderTransport::for_test(
+            format!("{}/v1", provider.url),
+            ProviderLimits {
+                execution: ExecutionLimits {
+                    stall_timeout: Duration::from_millis(100),
+                    ..ExecutionLimits::default()
+                },
+                ..ProviderLimits::default()
+            },
+        ),
+        128,
+    );
+    let gateway = Gateway::start(Some(service)).await;
+    let client = reqwest::Client::new();
+    for (path, body, status) in [
+        (
+            "messages",
+            r#"{"model":"Production key:test"}"#,
+            StatusCode::OK,
+        ),
+        (
+            "messages",
+            r#"{"model":"Production key:test","stream":false}"#,
+            StatusCode::OK,
+        ),
+        (
+            "messages",
+            r#"{"model":"Production key:test","stream":true}"#,
+            StatusCode::GATEWAY_TIMEOUT,
+        ),
+        (
+            "messages/count_tokens",
+            r#"{"model":"Production key:test"}"#,
+            StatusCode::GATEWAY_TIMEOUT,
+        ),
+    ] {
+        let response = client
+            .post(format!("{}/anthropic/v1/{path}", gateway.url))
+            .header("x-api-key", "gateway-anthropic")
+            .body(body)
+            .send()
+            .await;
+        assert_eq!(response.unwrap().status(), status, "{path} {body}");
+    }
 }

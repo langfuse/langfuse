@@ -27,13 +27,14 @@ use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 use crate::{
     capture::{InferenceFacts, InputOmissionReason},
-    resolution::{ControlPlaneConfig, ResolutionError, ResolvedRequestContext},
+    resolution::{ControlPlaneConfig, ProjectId, ResolutionError, ResolvedRequestContext},
 };
 use batch::{BatchPolicy, Batches, Pending};
 use context::GenerationContext;
 pub(crate) use context::take_agent_client_metadata;
 use otlp::Uploader;
 use retry::RetryPolicy;
+use secrecy::{ExposeSecret, SecretString};
 use worker::{Message, Uploads};
 
 const MAX_UPLOADS: usize = 32;
@@ -47,8 +48,8 @@ pub(crate) const DEFAULT_RETAINED_BYTES: usize = 64 * 1024 * 1024;
 const MAX_QUEUED_RECORDS: usize = 1024;
 
 struct Grant {
-    project_id: String,
-    access_token: String,
+    project_id: ProjectId,
+    access_token: SecretString,
     expires_at: u64,
 }
 
@@ -74,8 +75,8 @@ impl DeliveryContext {
     ) -> Self {
         Self {
             grant: Grant {
-                project_id: context.attribution().project_id().to_owned(),
-                access_token: context.ingestion().access_token().to_owned(),
+                project_id: context.attribution().project_id().clone(),
+                access_token: context.ingestion().access_token().clone(),
                 expires_at: context.ingestion().expires_at(),
             },
             generation: GenerationContext::from_request(headers, client_metadata),
@@ -195,7 +196,8 @@ impl Telemetry {
             .span_context()
             .clone();
         let mut span = mapping::span(facts, &context.generation);
-        let credentials = context.grant.access_token.len() + context.grant.project_id.len();
+        let credentials = context.grant.access_token.expose_secret().len()
+            + context.grant.project_id.as_str().len();
         let limit = self.0.record_limit.saturating_sub(credentials);
         let acquire = |bytes: usize| {
             let permits = u32::try_from(bytes + credentials).ok()?;

@@ -481,7 +481,7 @@ export const DataTableRowHeightSwitch = ({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          variant="outline"
+          variant="ghost"
           size="icon"
           title={customActive ? "Row height: Custom" : "Row height"}
         >

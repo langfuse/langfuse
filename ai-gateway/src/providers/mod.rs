@@ -18,6 +18,7 @@ use tokio::{
 pub use crate::transport::ProviderError;
 use crate::{
     capture::{ExecutionCapture, RelayOutcome},
+    config::ExecutionLimits,
     correlation::{RequestCorrelation, UpstreamTarget},
     resolution::{ApiFormat, Provider, ProviderCredential, ResolvedRequestContext},
     transport,
@@ -75,18 +76,14 @@ impl Route {
 
 pub(crate) struct ProviderLimits {
     pub active: usize,
-    pub execution_timeout: Duration,
-    pub headers_timeout: Duration,
-    pub read_timeout: Duration,
+    pub execution: ExecutionLimits,
 }
 
 impl Default for ProviderLimits {
     fn default() -> Self {
         Self {
             active: 128,
-            execution_timeout: Duration::from_secs(600),
-            headers_timeout: Duration::from_secs(120),
-            read_timeout: Duration::from_secs(120),
+            execution: ExecutionLimits::default(),
         }
     }
 }
@@ -96,6 +93,18 @@ pub struct RequestPermit {
     _active: crate::observability::Active,
     deadline: Instant,
 }
+
+/// The validated caller body and the facts the relay needs about it.
+pub(crate) struct RequestBody {
+    pub bytes: Bytes,
+    pub model_range: Range<usize>,
+    /// The caller asked for a streamed response (`"stream": true`).
+    pub streaming: bool,
+    /// Capacity held for the body, released with the execution once the response ends.
+    pub reservation: Option<BodyReservation>,
+}
+
+pub(crate) type BodyReservation = Box<dyn Send + Sync>;
 
 pub struct ProviderTransport {
     client: ClientWithMiddleware,
@@ -108,10 +117,13 @@ pub struct ProviderTransport {
 impl ProviderTransport {
     /// # Errors
     /// Returns [`ProviderError::Configuration`] when the HTTPS client cannot be initialized.
-    pub fn new(max_active_requests: usize) -> Result<Self, ProviderError> {
+    pub fn new(
+        max_active_requests: usize,
+        execution: ExecutionLimits,
+    ) -> Result<Self, ProviderError> {
         Self::with_limits(ProviderLimits {
             active: max_active_requests,
-            ..ProviderLimits::default()
+            execution,
         })
     }
 
@@ -127,8 +139,9 @@ impl ProviderTransport {
             .no_brotli()
             .no_deflate()
             .no_zstd()
+            // No client read timeout: it would also cut a non-streaming call while the
+            // provider generates before sending headers. The relay bounds stalls instead.
             .connect_timeout(Duration::from_secs(5))
-            .read_timeout(limits.read_timeout)
             .pool_max_idle_per_host(16)
             .build()
             .map_err(|_| ProviderError::Configuration)?;
@@ -156,10 +169,12 @@ impl ProviderTransport {
         Ok(RequestPermit {
             _permit: permit,
             _active: crate::observability::Active::new("execution"),
-            deadline: Instant::now() + self.limits.execution_timeout,
+            deadline: Instant::now() + self.limits.execution.max_execution_time,
         })
     }
 
+    /// Forward as a streamed `OpenAI` Responses call.
+    ///
     /// # Errors
     /// See [`Self::forward_route`].
     #[cfg(test)]
@@ -175,28 +190,33 @@ impl ProviderTransport {
             permit,
             context,
             headers,
-            body,
-            model_range,
+            RequestBody {
+                bytes: body,
+                model_range,
+                streaming: true,
+                reservation: None,
+            },
             Route::OpenAiResponses,
             &mut RequestCorrelation::from_headers(headers),
         )
         .await
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "each argument is a distinct per-request input of the relay"
-    )]
     pub(crate) async fn forward_route(
         &self,
         permit: RequestPermit,
         context: ResolvedRequestContext,
         headers: &HeaderMap,
-        body: Bytes,
-        model_range: Range<usize>,
+        request: RequestBody,
         route: Route,
         correlation: &mut RequestCorrelation,
     ) -> Result<Response<Body>, ProviderError> {
+        let RequestBody {
+            bytes: body,
+            model_range,
+            streaming,
+            reservation,
+        } = request;
         let api_format = route.api_format();
         let (credential_name, mut credential) = provider_credential(&context)?;
         credential.set_sensitive(true);
@@ -236,23 +256,28 @@ impl ProviderTransport {
             .header(header::ACCEPT_ENCODING, "identity")
             .header(credential_name, credential);
         upstream = upstream.body(body);
-        let response = tokio::time::timeout_at(
+        // A stream, or a call that does not generate, that goes quiet before its
+        // headers is stalled. A non-streamed generation sends nothing until the whole
+        // response is generated.
+        let headers_deadline = if streaming || !route.captures_generation() {
             permit
                 .deadline
-                .min(Instant::now() + self.limits.headers_timeout),
-            upstream.send(),
-        )
-        .await
-        .map_err(|_| ProviderError::Timeout)
-        .and_then(|result| {
-            result.map_err(|error| {
-                if error.is_timeout() {
-                    ProviderError::Timeout
-                } else {
-                    ProviderError::Transport
-                }
-            })
-        });
+                .min(Instant::now() + self.limits.execution.stall_timeout)
+        } else {
+            permit.deadline
+        };
+        let response = tokio::time::timeout_at(headers_deadline, upstream.send())
+            .await
+            .map_err(|_| ProviderError::Timeout)
+            .and_then(|result| {
+                result.map_err(|error| {
+                    if error.is_timeout() {
+                        ProviderError::Timeout
+                    } else {
+                        ProviderError::Transport
+                    }
+                })
+            });
         let response = match response {
             Ok(response) => response,
             Err(error) => {
@@ -271,8 +296,13 @@ impl ProviderTransport {
         let mut downstream = Response::new(Body::empty());
         *downstream.status_mut() = response.status();
         *downstream.headers_mut() = transport::response_headers(response.headers(), api_format);
-        *downstream.body_mut() =
-            transport::relay(response, permit.deadline, (permit, context), capture);
+        *downstream.body_mut() = transport::relay(
+            response,
+            permit.deadline,
+            self.limits.execution.stall_timeout,
+            (permit, context, reservation),
+            capture,
+        );
         Ok(downstream)
     }
 
