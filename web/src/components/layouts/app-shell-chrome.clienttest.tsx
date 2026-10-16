@@ -11,7 +11,7 @@ import { APP_SHELL_CHROME_ROW_TEST_ID } from "@/src/components/layouts/app-shell
 import { MobilePageTitle } from "@/src/components/layouts/mobile-page-title";
 import PageHeader from "@/src/components/layouts/page-header";
 import { AppSidebar } from "@/src/components/nav/AppSidebar/AppSidebar";
-import { SidebarPresenceProvider } from "@/src/components/nav/sidebar-presence";
+import { SidebarPresenceProvider } from "@/src/components/nav/SidebarPresenceProvider";
 import { SidebarProvider } from "@/src/components/ui/sidebar";
 
 vi.mock("next/router", () => ({
