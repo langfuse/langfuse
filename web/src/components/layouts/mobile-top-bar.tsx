@@ -4,7 +4,7 @@ import { useSession } from "next-auth/react";
 import { Menu } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { useSidebar } from "@/src/components/ui/sidebar";
-import { TopbarBrand } from "@/src/components/nav/topbar-brand";
+import { TopbarBrand } from "@/src/components/nav/TopbarBrand";
 import { useHasAppSidebar } from "@/src/components/nav/SidebarPresenceProvider";
 import { TopbarAccount } from "@/src/components/nav/TopbarAccount";
 import { InAppAiAgentButton } from "@/src/components/nav/InAppAiAgentButton";

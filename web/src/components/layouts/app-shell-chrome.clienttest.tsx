@@ -51,7 +51,7 @@ vi.mock("@/src/features/projects/hooks", () => ({
   }),
 }));
 
-vi.mock("@/src/components/nav/in-app-ai-agent-button", () => ({
+vi.mock("@/src/components/nav/InAppAiAgentButton", () => ({
   InAppAiAgentButton: () => null,
 }));
 
@@ -59,7 +59,7 @@ vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
   useIsInAppAgentLauncherVisible: () => true,
 }));
 
-vi.mock("@/src/components/nav/topbar-brand", () => ({
+vi.mock("@/src/components/nav/TopbarBrand", () => ({
   TopbarBrand: () => null,
 }));
 
