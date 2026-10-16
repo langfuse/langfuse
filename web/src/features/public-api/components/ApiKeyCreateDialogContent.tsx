@@ -44,10 +44,6 @@ const apiKeyRoleNames: Partial<Record<SystemRole, string>> = {
   ADMIN: "Full Access",
 };
 
-/** apiKeyRoleName is the name a role is shown under when picking an api key's permissions. */
-const apiKeyRoleName = (role: SystemRole): string =>
-  apiKeyRoleNames[role] ?? systemRoleAccessRights[role].name;
-
 /** ApiKeyCreateValues is the resolved create-form payload the button forwards to the create mutation. */
 export type ApiKeyCreateValues = {
   name: string;
@@ -224,7 +220,7 @@ function ApiKeyCreateForm({
             open={permissionsOpen}
             onOpenChange={setPermissionsOpen}
             role={permissionsRole}
-            name={permissionsRole ? apiKeyRoleName(permissionsRole) : undefined}
+            name={apiKeyRoleName(permissionsRole)}
           />
         )}
       </DialogBody>
@@ -235,4 +231,10 @@ function ApiKeyCreateForm({
       </DialogFooter>
     </DialogContent>
   );
+}
+
+/** apiKeyRoleName names a role in the api key permission picker. */
+function apiKeyRoleName(role: SystemRole | null): string | undefined {
+  if (role === null) return undefined;
+  return apiKeyRoleNames[role] ?? systemRoleAccessRights[role].name;
 }
