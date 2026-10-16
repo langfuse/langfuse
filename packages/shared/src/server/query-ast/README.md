@@ -109,6 +109,10 @@ suffix to run there. Promote it to a required check once it has proven stable.
   `eb("level", "=", literal("ERROR"))` renders `level = 'ERROR'`; a value that
   comes from a caller is a plain bind, `eb("level", "=", level)`. `literal`
   rejects backslashes and must never receive user input.
+- **Registry types are logical, not wire types.** `DateTime64` is `Date` and
+  `UInt64` is `number` so binds type-check, but query results arrive as raw
+  JSON (dates as strings). Type rows with a read schema and convert them; do
+  not type results with the builder's `InferResult`.
 - **ClickHouse-only clauses use `$call(helper())`** — not fluent builder
   methods, so they compose inside CTEs, subqueries, and views. See the recipes
   below.
