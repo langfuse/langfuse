@@ -1,4 +1,3 @@
-/* eslint-disable @repo/component-file-structure */
 import { useCallback, useEffect } from "react";
 
 import { Button } from "@/src/components/ui/button";

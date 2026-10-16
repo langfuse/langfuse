@@ -1,6 +1,6 @@
 import { fireEvent, render } from "@testing-library/react";
 
-import { InAppAiAgentButton } from "./in-app-ai-agent-button";
+import { InAppAiAgentButton } from "./InAppAiAgentButton";
 
 const mocks = vi.hoisted(() => ({
   open: false,
