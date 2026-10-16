@@ -133,13 +133,11 @@ export function ControlledInAppAgentWindow(
   // user decides, until the watch reports the resumed run, which would leave the
   // drawer claiming to wait on someone who already answered. Pending approvals
   // alone are not enough either: an always-allowed tool carries one and keeps
-  // executing. An answered questionnaire stays listed as submitting until its
-  // result arrives, but nobody is waiting on the user for it any more.
+  // executing.
   const isAwaitingApproval =
     execution.run?.status === InAppAgentRunStatus.AWAITING_APPROVAL &&
-    [...pendingToolApprovals, ...displayedPendingToolApprovals].some(
-      (approval) => approval.status === "pending",
-    );
+    (pendingToolApprovals.length > 0 ||
+      displayedPendingToolApprovals.length > 0);
   const screenContextDescription = useMemo(
     () => getInAppAgentScreenContextDescription(router.asPath),
     [router.asPath],

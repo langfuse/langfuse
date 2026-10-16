@@ -10,7 +10,6 @@ import {
   InAppAgentRunStatus,
   parseInAppAgentInterruptEvent,
 } from "@langfuse/shared/in-app-agent";
-import { getApprovalsAwaitingResult } from "../fns/getApprovalsAwaitingResult";
 import { createInAppAgentMessageId } from "../ids";
 import { BackgroundExecutionConnectionError } from "./backgroundExecutionErrors";
 import {
@@ -183,11 +182,6 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
         ...this.view,
         currentRun,
         attachment: hasSettled ? { status: "detached" } : this.view.attachment,
-        pendingToolApprovals: isCancellableBackgroundRun(currentRun.status)
-          ? this.view.pendingToolApprovals
-          : this.view.pendingToolApprovals.filter(
-              (pending) => pending.status !== "submitting",
-            ),
       });
       if (hasSettled) {
         // Status follows all persisted events and is authoritative even if the
@@ -355,12 +349,7 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
       this.setApprovalStatus(input.toolCallId, "pending");
       throw error;
     }
-    // An approval answered with input stays visible as submitting until its
-    // tool result arrives; dropping it here would leave a gap in which the
-    // transcript has nothing to show for the input.
-    if (!(input.approved && input.toolInputs)) {
-      this.resolveApproval(input.toolCallId);
-    }
+    this.resolveApproval(input.toolCallId);
     await this.refreshAttachmentAfterCommand(attachmentGeneration);
   }
 
@@ -516,14 +505,6 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
     this.agent.setCursor(hydrated.eventCursor);
     this.setView({
       ...hydrated,
-      pendingToolApprovals: [
-        ...hydrated.pendingToolApprovals,
-        ...getApprovalsAwaitingResult({
-          approvals: this.view.pendingToolApprovals,
-          hydrated,
-          isRunExecuting: isExecutingRun(hydrated.currentRun),
-        }),
-      ],
       liveMessageRevision: this.view.liveMessageRevision,
       cancelStatus: "idle",
       attachment: { status: "detached" },
