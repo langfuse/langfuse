@@ -363,7 +363,6 @@ function CurrentTraceTable({
       header: "Trace ID",
       size: 132,
       minSize: 100,
-      cellClassName: "py-2",
       cell: ({ row }) => {
         function openTrace() {
           onOpenTrace(row.original.traceId);
@@ -382,7 +381,6 @@ function CurrentTraceTable({
       header: "Topic",
       size: 148,
       minSize: 100,
-      cellClassName: "py-2",
       cell: ({ row }) => (
         <TopicBadge
           row={row.original}
@@ -397,7 +395,6 @@ function CurrentTraceTable({
       size: 300,
       minSize: 180,
       isFlexWidth: true,
-      cellClassName: "py-2",
       cell: ({ row }) => {
         function openTrace() {
           onOpenTrace(row.original.traceId);
@@ -453,7 +450,7 @@ function CurrentTraceTable({
         }}
         topAlignCells
         className="min-h-0 overscroll-contain"
-        cellPadding="comfortable"
+        cellPadding="relaxed"
         noResultsMessage="No matches. Adjust or clear your filters."
         peekView={peekView}
       />
