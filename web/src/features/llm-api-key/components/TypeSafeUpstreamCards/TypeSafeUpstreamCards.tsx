@@ -11,7 +11,7 @@ const UPSTREAM_DESCRIPTIONS: Record<TypeSafeUpstreamId, string> = {
   typesafe: "Direct connection, billed by TypeSafe.",
   "vercel-ai-gateway": "Routed and billed through your AI Gateway.",
   openrouter: "Routed and billed through OpenRouter.",
-  custom: "Your own TypeSafe-compatible gateway.",
+  custom: "Your own TypeSafe-compatible gateway, e.g. LiteLLM.",
 };
 
 type TypeSafeUpstreamCardsProps = {
