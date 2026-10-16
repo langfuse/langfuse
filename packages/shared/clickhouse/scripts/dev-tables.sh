@@ -149,12 +149,9 @@ ORDER BY (project_id, toStartOfFifteenMinutes(ingested_at), event_type, event_id
 -- new usage. Rows with is_deleted = 1 are tombstones, not usage.
 
 -- MV: events_full -> billable_events (observations). A trace span that an
--- internal writer derived from a trace (span_id 't-<trace_id>' from a
--- '*-dual-write', '*-dual-write-experiments' or '*-backfill' source) only
--- counts as a trace. Every other row is an observation, including the
--- dual-write rows of real observations and a 't-' span id a client chose
--- itself. Span ids are only unique within their trace, and ingestion API
--- clients choose them, so event_id is '<length(trace_id)>:<trace_id><span_id>'.
+-- internal writer derived from a trace only
+-- counts as a trace. Span ids are only unique within their trace, and ingestion API
+-- clients choose them, so event_id is '<length(trace_id)>:<trace_id>:<span_id>'.
 -- The length prefix keeps distinct (trace_id, span_id) pairs from
 -- concatenating to the same id.
 CREATE MATERIALIZED VIEW IF NOT EXISTS billable_events_observations_mv
@@ -163,7 +160,7 @@ SELECT
     now() AS ingested_at,
     project_id,
     'observation' AS event_type,
-    concat(toString(length(trace_id)), ':', trace_id, span_id) AS event_id,
+    concat(toString(length(trace_id)), ':', trace_id, ':', span_id) AS event_id,
     start_time AS event_time,
     event_bytes
 FROM events_full
