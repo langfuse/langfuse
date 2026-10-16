@@ -6,6 +6,11 @@ import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { assertUnreachable } from "@/src/utils/types";
 import { useMemo } from "react";
 
+/**
+ * Left as a `title` rather than an `aria-label`, so the accessible name stays
+ * the visible text (`PROD-EU`) and this becomes the description. An
+ * `aria-label` would take over the name and the hint would be announced twice.
+ */
 const DISMISS_HINT = "Hide until this tab is closed";
 
 /**
@@ -54,7 +59,6 @@ export const EnvLabelBadge = ({
         type="button"
         onClick={onDismiss}
         title={DISMISS_HINT}
-        aria-label={`${label}. ${DISMISS_HINT}.`}
         className="ring-offset-background focus-visible:ring-ring cursor-pointer transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden"
       >
         {label}
