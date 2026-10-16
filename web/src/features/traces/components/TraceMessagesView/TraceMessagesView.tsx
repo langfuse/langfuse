@@ -20,7 +20,7 @@ export function TraceMessagesView() {
   const { selectNode, setSelectedTab } = useSelection();
   const [, setTraceView] = useQueryParam("traceView", StringParam);
   const router = useRouter();
-  const { isPeekMode } = useViewPreferences();
+  const { isPeekMode, isAnnotationMode } = useViewPreferences();
   const { data: sessionTraces } = api.sessions.tracesFromEvents.useQuery(
     { projectId: trace.projectId, sessionId: trace.sessionId ?? "" },
     {
@@ -64,7 +64,7 @@ export function TraceMessagesView() {
   }, [isPlaceholderData, previousTrace, nextTrace, trace.projectId, utils]);
   const [previousTraceLink, nextTraceLink] = [previousTrace, nextTrace].map(
     (target, directionIndex) => {
-      if (!target) return undefined;
+      if (isAnnotationMode || !target) return undefined;
       const count =
         directionIndex === 0
           ? traceIndex
@@ -72,14 +72,13 @@ export function TraceMessagesView() {
       if (isPeekMode) {
         const query = { ...router.query };
         delete query.observation;
-        delete query.traceId;
         return {
           count,
           href: {
             pathname: router.pathname,
             query: {
               ...query,
-              peek: target.id,
+              traceId: target.id,
               timestamp: target.timestamp.toISOString(),
               traceView: "messages",
             },
@@ -134,7 +133,7 @@ export function TraceMessagesView() {
       state,
       onOpenTrace: () => {
         setTraceView(undefined, "pushIn");
-        selectNode(trace.id);
+        selectNode(null);
       },
       onOpenObservation: (observationId) => {
         setTraceView(undefined, "pushIn");
