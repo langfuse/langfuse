@@ -370,6 +370,67 @@ function LoadedTraceDetailViewHeader({
             </Button>
           </>
         }
+        iconOnlyActions={
+          <>
+            <ConnectedTraceObservationAddToDropdownMenuController
+              analyticsData={{ source: "TraceDetail", isV4 }}
+              projectId={projectId}
+              traceId={trace.id}
+              variant="trace"
+              input={trace.input}
+              output={trace.output}
+              metadata={trace.metadata}
+            >
+              {({ getTriggerProps }) => (
+                <HeaderActionButton
+                  label="Add to"
+                  icon={<PlusIcon className="icon-base" />}
+                  {...getTriggerProps()}
+                />
+              )}
+            </ConnectedTraceObservationAddToDropdownMenuController>
+            {!isAnnotationMode && (
+              <AnnotateDrawerController projectId={projectId}>
+                {({ disabled, openDrawer }) => (
+                  <HeaderActionButton
+                    label="Annotate"
+                    icon={
+                      disabled ? (
+                        <LockIcon className="icon-base" />
+                      ) : (
+                        <SquarePen className="icon-base" />
+                      )
+                    }
+                    disabled={disabled}
+                    onClick={() =>
+                      openDrawer(
+                        prepareTraceAnnotation({
+                          traceId: trace.id,
+                          projectId,
+                          environment: trace.environment,
+                          scores: traceScores,
+                          isV4,
+                        }),
+                      )
+                    }
+                  />
+                )}
+              </AnnotateDrawerController>
+            )}
+            <HeaderActionButton
+              label={commentActionLabel}
+              icon={
+                commentDrawerControl.disabled ? (
+                  <MessageSquareOff className="icon-base" />
+                ) : (
+                  <MessageSquare className="icon-base" />
+                )
+              }
+              disabled={commentDrawerControl.disabled}
+              onClick={commentDrawerControl.openDrawer}
+            />
+          </>
+        }
       />
 
       {/* Metadata badges */}

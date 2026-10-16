@@ -21,8 +21,15 @@ export type DetailViewHeaderTitleRowProps = {
   options: ReactNode;
   /** Takes the place of `options` once the actions fold, and holds them. */
   foldedActions: ReactNode;
-  /** The inline action cluster. Mounted only while it is not folded. */
+  /** The inline action cluster (full labels). Mounted only while it is not folded. */
   actions: ReactNode;
+  /**
+   * Icon-only variant of the action cluster (icons with tooltips, no labels).
+   * When provided the planner inserts an intermediate `"icon-only"` step
+   * between `"below"` and `"folded"`, so the header degrades progressively:
+   * full labels → icon-only → ellipsis menu.
+   */
+  iconOnlyActions?: ReactNode;
   /**
    * Changes whenever the cluster's content changes width — a comment count, a
    * hidden Annotate, a different entity. A folded cluster is unmounted and so
@@ -37,7 +44,8 @@ export type DetailViewHeaderTitleRowProps = {
 /**
  * Title row shared by the trace and observation detail headers: the entity
  * title, and the action cluster placed from the header's own measured width —
- * beside the title, below it, or folded into the title row's overflow menu.
+ * beside the title, below it, icon-only, or folded into the title row's
+ * overflow menu.
  *
  * See {@link planDetailViewHeaderActions}. The cluster never wraps, so a
  * trailing button can never end up on a row of its own.
@@ -47,15 +55,18 @@ export function DetailViewHeaderTitleRow({
   options,
   foldedActions,
   actions,
+  iconOnlyActions,
   actionsKey,
   alwaysFold,
 }: DetailViewHeaderTitleRowProps) {
   // The row's width is the pane's, so a resize of either re-renders and replans.
   const [rowRef, rowSize] = useElementSize<HTMLDivElement>();
   const actionsRef = useRef<HTMLDivElement>(null);
+  const iconOnlyActionsRef = useRef<HTMLDivElement>(null);
   // A folded cluster has no element to measure, so its last natural width is
   // kept here and goes on feeding the planner until it is back on screen.
   const actionsWidthRef = useRef<number | undefined>(undefined);
+  const iconOnlyActionsWidthRef = useRef<number | undefined>(undefined);
   const followFocusRef = useRef(false);
   const [placement, setPlacement] =
     useState<DetailViewHeaderActionsPlacement>("beside");
@@ -67,6 +78,7 @@ export function DetailViewHeaderTitleRow({
   if (measuredKey !== actionsKey) {
     setMeasuredKey(actionsKey);
     actionsWidthRef.current = undefined;
+    iconOnlyActionsWidthRef.current = undefined;
     setPlacement("beside");
   }
 
@@ -76,8 +88,14 @@ export function DetailViewHeaderTitleRow({
   // arriving or annotation mode hiding Annotate changes it with no resize.
   useLayoutEffect(() => {
     if (alwaysFold) return;
-    if (placement !== "folded" && actionsRef.current) {
-      actionsWidthRef.current = actionsRef.current.offsetWidth;
+    if (placement !== "folded") {
+      if (actionsRef.current) {
+        actionsWidthRef.current = actionsRef.current.offsetWidth;
+      }
+      if (iconOnlyActionsRef.current) {
+        iconOnlyActionsWidthRef.current =
+          iconOnlyActionsRef.current.offsetWidth;
+      }
     }
     const headerWidth =
       rowRef.current?.getBoundingClientRect().width ?? rowSize?.width;
@@ -87,20 +105,22 @@ export function DetailViewHeaderTitleRow({
     const next = planDetailViewHeaderActions({
       headerWidth,
       actionsWidth,
+      iconOnlyActionsWidth: iconOnlyActionsWidthRef.current,
       minTitleWidth: MIN_TITLE_PX,
       gap: TITLE_ACTIONS_GAP_PX,
     });
-    // Folding unmounts the cluster. If the keyboard was in it, follow it to the
-    // menu that now holds the same actions rather than dropping to <body>.
+    // Folding unmounts both clusters. If the keyboard was in either, follow it
+    // to the menu that now holds the same actions rather than dropping to <body>.
     if (
       next === "folded" &&
       placement !== "folded" &&
-      actionsRef.current?.contains(document.activeElement)
+      (actionsRef.current?.contains(document.activeElement) ||
+        iconOnlyActionsRef.current?.contains(document.activeElement))
     ) {
       followFocusRef.current = true;
     }
     setPlacement((previous) => (previous === next ? previous : next));
-  }, [actions, alwaysFold, placement, rowRef, rowSize?.width]);
+  }, [actions, iconOnlyActions, alwaysFold, placement, rowRef, rowSize?.width]);
 
   useLayoutEffect(() => {
     if (!followFocusRef.current) return;
@@ -114,6 +134,7 @@ export function DetailViewHeaderTitleRow({
 
   const actionsFolded = alwaysFold || placement === "folded";
   const actionsBeside = !actionsFolded && placement === "beside";
+  const actionsIconOnly = !actionsFolded && placement === "icon-only";
 
   return (
     <div
@@ -132,18 +153,40 @@ export function DetailViewHeaderTitleRow({
       {actionsFolded ? null : (
         <div
           className={cn(
-            "flex items-center",
+            "relative flex items-center",
             actionsBeside ? "justify-end" : "justify-start",
           )}
         >
-          {/* Shrink-to-fit and never wrapping, so `offsetWidth` above is the
-              cluster's natural width whichever row it is on. */}
+          {/* Full-label cluster — shrink-to-fit and never wrapping, so
+              `offsetWidth` above is the cluster's natural width whichever row
+              it is on. Hidden (but still in the DOM for measurement) while the
+              icon-only cluster is active. */}
           <div
             ref={actionsRef}
-            className="flex shrink-0 flex-nowrap items-center gap-1"
+            className={cn(
+              "flex shrink-0 flex-nowrap items-center gap-1",
+              actionsIconOnly && "invisible absolute",
+            )}
+            aria-hidden={actionsIconOnly || undefined}
           >
             {actions}
           </div>
+          {/* Icon-only cluster — shown instead of the full cluster once the
+              header is too narrow for labeled buttons but wide enough for icons.
+              Hidden (but still in the DOM for measurement) while the full
+              cluster is active. */}
+          {iconOnlyActions != null && (
+            <div
+              ref={iconOnlyActionsRef}
+              className={cn(
+                "flex shrink-0 flex-nowrap items-center gap-1",
+                !actionsIconOnly && "invisible absolute",
+              )}
+              aria-hidden={!actionsIconOnly || undefined}
+            >
+              {iconOnlyActions}
+            </div>
+          )}
         </div>
       )}
     </div>

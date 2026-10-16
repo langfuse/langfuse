@@ -3,12 +3,13 @@ import { render, screen } from "@testing-library/react";
 
 import { DetailViewHeaderTitleRow } from "@/src/features/traces/components/DetailViewHeaderTitleRow";
 
-// jsdom lays nothing out, so the two measurements the row takes are stubbed:
-// the row reports `headerWidth` from its bounding rect, and the action cluster
-// reports `clusterWidth` from `offsetWidth`. Each is recognised by the marker
-// element the test renders inside it.
+// jsdom lays nothing out, so the measurements the row takes are stubbed:
+// the row reports `headerWidth` from its bounding rect; the full cluster and
+// icon-only cluster each report their width from `offsetWidth`, identified by
+// their respective marker elements.
 let headerWidth = 0;
 let clusterWidth = 0;
+let iconOnlyClusterWidth = 0;
 
 const realRect = Element.prototype.getBoundingClientRect;
 const realOffsetWidth = Object.getOwnPropertyDescriptor(
@@ -36,9 +37,11 @@ beforeEach(() => {
   Object.defineProperty(HTMLElement.prototype, "offsetWidth", {
     configurable: true,
     get(this: HTMLElement) {
-      return this.querySelector('[data-testid="cluster-marker"]')
-        ? clusterWidth
-        : 0;
+      if (this.querySelector('[data-testid="cluster-marker"]'))
+        return clusterWidth;
+      if (this.querySelector('[data-testid="icon-only-cluster-marker"]'))
+        return iconOnlyClusterWidth;
+      return 0;
     },
   });
 });
@@ -53,7 +56,13 @@ afterEach(() => {
   }
 });
 
-function Row({ actionsKey }: { actionsKey: string }) {
+function Row({
+  actionsKey,
+  withIconOnly = false,
+}: {
+  actionsKey: string;
+  withIconOnly?: boolean;
+}) {
   return (
     <DetailViewHeaderTitleRow
       alwaysFold={false}
@@ -65,6 +74,13 @@ function Row({ actionsKey }: { actionsKey: string }) {
         <span data-testid="cluster-marker">
           <button aria-label="Annotate" />
         </span>
+      }
+      iconOnlyActions={
+        withIconOnly ? (
+          <span data-testid="icon-only-cluster-marker">
+            <button aria-label="Annotate icon-only" />
+          </span>
+        ) : undefined
       }
     />
   );
@@ -127,5 +143,63 @@ describe("DetailViewHeaderTitleRow", () => {
 
     expect(screen.getByLabelText("Options")).toBeInTheDocument();
     expect(screen.getByTestId("cluster-marker")).toBeInTheDocument();
+  });
+
+  describe("icon-only intermediate step", () => {
+    it("shows icon-only buttons when the full cluster overflows but icon-only fits", () => {
+      headerWidth = PANE_FLOOR_HEADER_WIDTH;
+      clusterWidth = 344;
+      iconOnlyClusterWidth = 100;
+
+      render(<Row actionsKey="a" withIconOnly />);
+
+      // foldedActions (More actions) must NOT be shown.
+      expect(screen.queryByLabelText("More actions")).not.toBeInTheDocument();
+      // The icon-only cluster must be accessible.
+      expect(screen.getByLabelText("Annotate icon-only")).toBeInTheDocument();
+      // The icon-only cluster container must NOT be aria-hidden.
+      expect(
+        screen.getByTestId("icon-only-cluster-marker").closest("[aria-hidden]"),
+      ).toBeNull();
+      // The full cluster is still in the DOM (for measurement) but must be
+      // aria-hidden so AT does not present its buttons alongside the icon-only
+      // equivalents.
+      expect(
+        screen
+          .getByTestId("cluster-marker")
+          .closest("[aria-hidden]")
+          ?.getAttribute("aria-hidden"),
+      ).toBe("true");
+    });
+
+    it("folds to ellipsis when even icon-only does not fit", () => {
+      headerWidth = 80;
+      clusterWidth = 344;
+      iconOnlyClusterWidth = 100;
+
+      render(<Row actionsKey="a" withIconOnly />);
+
+      expect(screen.getByLabelText("More actions")).toBeInTheDocument();
+      expect(screen.queryByTestId("cluster-marker")).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("icon-only-cluster-marker"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("restores full labels from icon-only when the key changes and cluster narrows", () => {
+      headerWidth = PANE_FLOOR_HEADER_WIDTH;
+      clusterWidth = 344;
+      iconOnlyClusterWidth = 100;
+
+      const { rerender } = render(<Row actionsKey="a" withIconOnly />);
+      expect(screen.getByLabelText("Annotate icon-only")).toBeInTheDocument();
+
+      // Switching entity brings a narrower full cluster — full labels come back.
+      clusterWidth = 312;
+      rerender(<Row actionsKey="b" withIconOnly />);
+
+      expect(screen.getByLabelText("Options")).toBeInTheDocument();
+      expect(screen.getByTestId("cluster-marker")).toBeInTheDocument();
+    });
   });
 });
