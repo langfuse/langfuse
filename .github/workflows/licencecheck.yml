@@ -11,11 +11,13 @@ on:
 
 permissions:
   contents: read
-  checks: write # Needed to create a check run for the license compliance check results
 
 jobs:
   license_check:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write # Needed to create a check run for the license compliance check results
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -66,3 +68,58 @@ jobs:
         run: echo "::error::${STEPS_LICENSE_CHECK_REPORT_OUTPUTS_REPORT}"
         env:
           STEPS_LICENSE_CHECK_REPORT_OUTPUTS_REPORT: ${{ steps.license_check_report.outputs.report }}
+
+  rust_license_check:
+    # Same policy as license_check, applied to the Rust crates in the
+    # ai-gateway binary and in the native addon shipped in the worker image;
+    # the shared allow-list lives in the repository-root deny.toml.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchains
+        run: |
+          (cd ai-gateway && rustup toolchain install --no-self-update)
+          (cd packages/native && rustup toolchain install --no-self-update)
+
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        with:
+          tool: cargo-deny@0.20.2
+
+      - name: Check ai-gateway dependency licenses
+        working-directory: ai-gateway
+        run: cargo deny --locked check licenses
+
+      # Cargo.lock is resolved against the patched clickhouse overlay.
+      - name: Prepare patched clickhouse crate for the native addon
+        working-directory: packages/native
+        run: sh scripts/prepare-clickhouse-rs.sh
+
+      - name: Check native addon dependency licenses
+        working-directory: packages/native
+        run: cargo deny --locked check licenses
+
+  # License checks are not required for merging, so a failure on main would
+  # otherwise go unnoticed. PR failures already show on the PR.
+  notify_failure:
+    needs: [license_check, rust_license_check]
+    if: ${{ failure() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read # notify-slack-failure reads the failed jobs' logs
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Notify Slack
+        uses: ./.github/actions/notify-slack-failure
+        with:
+          message: "❌ License check failed on ${{ github.ref_name }}"
+          webhook-url: ${{ secrets.SLACK_CI_FAILURE_WORKFLOW_WEBHOOK_URL }}
