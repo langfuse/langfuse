@@ -84,6 +84,16 @@ export async function createMediaUploadUrl(params: {
         existingMedia.uploadHttpStatus === 201) &&
       existingMedia.contentType === contentType
     ) {
+      // A stored 200 is itself a client attestation (see
+      // verifyMediaUploadCompletion). Re-verify against storage before letting
+      // this upload link to the existing asset, so a row marked complete with
+      // mismatched or missing content cannot capture a colleague's upload.
+      await verifyMediaUploadCompletion({
+        projectId,
+        mediaId: existingMedia.id,
+        uploadHttpStatus: existingMedia.uploadHttpStatus,
+      });
+
       await linkUploadedMedia(mediaId);
 
       return GetMediaUploadUrlResponseSchema.parse({
@@ -175,6 +185,68 @@ export async function getMedia(params: { projectId: string; mediaId: string }) {
   });
 }
 
+/**
+ * Server-side completion check for a media upload. The client attests the HTTP
+ * status of its own PUT to object storage; the status alone must never mark an
+ * asset complete, because a project key can PUT arbitrary bytes under the SAS
+ * URL (Azure binds neither content length nor checksum in the SAS) and then
+ * attest success. Verifying at completion means the blob must exist in the
+ * bucket and match the declared content length before the media row can be
+ * linked into (projectId, sha256Hash, contentType) dedup.
+ *
+ * Returns the verified content length, or undefined when the client did not
+ * report success (nothing to verify).
+ */
+export async function verifyMediaUploadCompletion(params: {
+  projectId: string;
+  mediaId: string;
+  uploadHttpStatus: number;
+}): Promise<number | undefined> {
+  const { projectId, mediaId, uploadHttpStatus } = params;
+  if (uploadHttpStatus !== 200 && uploadHttpStatus !== 201) {
+    return undefined;
+  }
+
+  const media = await prisma.media.findUnique({
+    where: {
+      projectId_id: {
+        projectId,
+        id: mediaId,
+      },
+    },
+  });
+  if (!media) {
+    throw new LangfuseNotFoundError(
+      `Media asset ${mediaId} not found in project ${projectId}`,
+    );
+  }
+
+  const actualLength = await getMediaStorageServiceClient(
+    media.bucketName,
+  ).getObjectContentLength(media.bucketPath);
+
+  if (actualLength === undefined) {
+    logger.warn(
+      `Media upload completion verified against a missing blob: ${media.bucketPath} (media ${mediaId})`,
+    );
+    throw new InternalServerError(
+      `Media upload for ${mediaId} reported success, but the object is absent from storage`,
+    );
+  }
+
+  const declaredLength = media.contentLength;
+  if (actualLength !== Number(declaredLength)) {
+    logger.warn(
+      `Media upload completion length mismatch: media ${mediaId} declared ${declaredLength} bytes, storage reports ${actualLength}`,
+    );
+    throw new InternalServerError(
+      `Media upload for ${mediaId} reported success, but the stored object length (${actualLength}) does not match the declared length (${declaredLength})`,
+    );
+  }
+
+  return actualLength;
+}
+
 export async function updateMediaUploadStatus(params: {
   projectId: string;
   mediaId: string;
@@ -184,6 +256,10 @@ export async function updateMediaUploadStatus(params: {
   const { uploadedAt, uploadHttpStatus, uploadHttpError, uploadTimeMs } = body;
 
   try {
+    // The client's status is an attestation, not evidence. Only a storage HEAD
+    // that confirms existence and declared length lets a success status land.
+    await verifyMediaUploadCompletion({ projectId, mediaId, uploadHttpStatus });
+
     await prisma.media.update({
       where: {
         projectId_id: {
@@ -211,6 +287,11 @@ export async function updateMediaUploadStatus(params: {
       });
     }
   } catch (error) {
+    // Langfuse base errors carry their own status and message; rethrow them
+    // instead of masking them as generic 500s.
+    if (error instanceof LangfuseNotFoundError) {
+      throw error;
+    }
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2025"
