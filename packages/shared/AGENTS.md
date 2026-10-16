@@ -129,7 +129,7 @@
     project's Topics config, Topics rule or facet evaluators calls
     `invalidateTopicsProcessingActive` after it commits;
     `invalidateProjectEvalConfigCaches` already does.
-  - `loadTopicTranscript`: shared in-memory source assembly for worker and inspector.
+  - `loadTopicTranscript`: in-memory source assembly for worker inference.
     Returns the shared `Transcript | null`, capped at 10,000 serialized characters.
     Historical reuse must match `TOPICS_TRANSCRIPT_VERSION`; accepted Redis results
     retain their original version. Token counting belongs to worker model calls.

@@ -35,8 +35,6 @@
   `topics.modelSettings` / `saveSetup`). Configure Topics loads and saves idle time
   through the project's tracing readiness setting; triggers stamp the configured
   summary and embedding models into the frozen request.
-  The source inspector returns `loadTopicTranscript`'s shared `Transcript | null`
-  directly, using the same character cap as worker inference.
 - Reusable UI components: `src/components/*`
 - Tests:
   - Server integration tests: `src/__tests__/server/*.servertest.ts`

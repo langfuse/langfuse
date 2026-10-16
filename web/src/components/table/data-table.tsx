@@ -240,6 +240,8 @@ const getCellPaddingClassName = (padding: DataTableCellPadding) => {
   switch (padding) {
     case "comfortable":
       return "p-1";
+    case "relaxed":
+      return "px-1 py-2";
     case "none":
       return "p-0 first:pl-0";
     case "compact":
