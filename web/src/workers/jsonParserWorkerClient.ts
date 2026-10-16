@@ -46,8 +46,24 @@ export const PARSE_IN_WEBWORKER_THRESHOLD = 100_000; // 100KB
  * this covers the silent deaths — OOM, a killed thread, an extension — where
  * nothing is reported at all. Generous on purpose: it is a liveness check, not
  * a performance budget.
+ *
+ * Megabyte-scale I/O spends most of that window on structured clone and
+ * nested-string reparse. Those payloads use {@link PARSE_DEADLINE_LARGE_MS}
+ * so a still-answering worker is not killed and replaced by the 500KB
+ * main-thread parse.
  */
 export const PARSE_DEADLINE_MS = 30_000;
+
+/** Payloads at or above this size get {@link PARSE_DEADLINE_LARGE_MS}. */
+const PARSE_DEADLINE_LARGE_CHARS = 1_000_000;
+
+export const PARSE_DEADLINE_LARGE_MS = 120_000;
+
+function parseDeadlineMs(payloadChars: number): number {
+  return payloadChars >= PARSE_DEADLINE_LARGE_CHARS
+    ? PARSE_DEADLINE_LARGE_MS
+    : PARSE_DEADLINE_MS;
+}
 
 /**
  * After this many missed deadlines the worker is not started again for the life
@@ -74,6 +90,7 @@ interface QueuedParse {
 
 interface DispatchedParse extends QueuedParse {
   timer: ReturnType<typeof setTimeout>;
+  deadlineMs: number;
 }
 
 let workerInstance: Worker | null = null;
@@ -186,11 +203,13 @@ function pump() {
   }
 
   const next = queue.shift()!;
+  const deadlineMs = parseDeadlineMs(next.payloadChars);
   inFlight = {
     ...next,
+    deadlineMs,
     // Started here, not when the caller asked: a request that spent ten seconds
     // behind another parse has not been ignored for ten seconds.
-    timer: setTimeout(onDeadline, PARSE_DEADLINE_MS),
+    timer: setTimeout(onDeadline, deadlineMs),
   };
   worker.postMessage(next.request);
 }
@@ -242,7 +261,7 @@ function onDeadline() {
   // leave behind was invisible in Sentry by construction.
   reportError(
     new Error(
-      `[${entry.source}] JSON parse worker did not answer within ${PARSE_DEADLINE_MS}ms`,
+      `[${entry.source}] JSON parse worker did not answer within its deadline`,
     ),
     {
       area: "io-parse-worker",
@@ -250,6 +269,7 @@ function onDeadline() {
       extra: {
         workerHook: entry.source,
         payloadChars: entry.payloadChars,
+        deadlineMs: entry.deadlineMs,
         queued: queue.length,
         deadlineMisses,
         workerRetired: workerUnavailable,
