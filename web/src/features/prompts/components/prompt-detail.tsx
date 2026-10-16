@@ -27,7 +27,7 @@ import {
   PromptType,
 } from "@langfuse/shared";
 import { getPromptTabs, PROMPT_TABS } from "@/src/features/navigation";
-import { PromptHistoryNode } from "./prompt-history";
+import { PromptHistoryNode } from "./PromptHistoryNode";
 import { JumpToPlaygroundDropdownMenuController } from "@/src/features/playground";
 import { ChatMlArraySchema } from "@/src/components/schemas/ChatMlSchema";
 import { ObservationsTable as LegacyGenerations } from "@/src/features/tracing-tables";
