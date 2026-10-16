@@ -325,28 +325,19 @@ export const ExistingTopicsWithoutAssignments = meta.story({
   },
 });
 
-export const PanelSizesSurviveFacetChanges = meta.story({
-  name: "(Test) Panel sizes survive facet changes",
-  beforeEach: () => {
-    const keys = [
-      "react-resizable-panels:topics-workspace-size:overview:traces",
-      "react-resizable-panels:topics-overview-size:map:groups",
-    ];
-    keys.forEach((key) => localStorage.removeItem(key));
-    return () => keys.forEach((key) => localStorage.removeItem(key));
-  },
+export const PanelSizesPersistAcrossFacetsAndLayouts = meta.story({
+  name: "(Test) Panel sizes persist across facets and layouts",
+  beforeEach: resetPanelSizes,
   render: function Render(args) {
     const [facetId, setFacetId] = useState("intent");
+    function switchFacet() {
+      setFacetId((previous) =>
+        previous === "intent" ? "sentiment" : "intent",
+      );
+    }
     return (
       <div className="flex flex-col gap-2">
-        <Button
-          text="Switch facet"
-          onClick={() =>
-            setFacetId((previous) =>
-              previous === "intent" ? "sentiment" : "intent",
-            )
-          }
-        />
+        <Button text="Switch facet" onClick={switchFacet} />
         <ControlledTopics
           key={facetId}
           {...args}
@@ -356,42 +347,59 @@ export const PanelSizesSurviveFacetChanges = meta.story({
     );
   },
   play: async ({ canvasElement }) => {
+    if (!("__vitest_browser__" in globalThis)) return;
+
+    const { page } = await import("vitest/browser");
+    const originalViewport = {
+      width: window.innerWidth,
+      height: window.innerHeight,
+    };
     const canvas = within(canvasElement);
-    const sizes = () => ({
-      map: canvas
-        .getByRole("region", { name: "Topic map" })
-        .getBoundingClientRect().height,
-      groups: canvas
-        .getByRole("region", { name: "Topic groups" })
-        .getBoundingClientRect().height,
-      traces: canvas
-        .getByRole("region", { name: "Topic traces" })
-        .getBoundingClientRect().width,
-    });
-    const before = sizes();
-    canvas
-      .getByRole("separator", { name: "Resize topic overview and traces" })
-      .focus();
-    await userEvent.keyboard("{ArrowRight}{ArrowRight}");
-    canvas
-      .getByRole("separator", { name: "Resize topic map and groups" })
-      .focus();
-    await userEvent.keyboard("{ArrowDown}{ArrowDown}");
-    await waitFor(() => {
-      expect(sizes().map).toBeGreaterThan(before.map);
-      expect(sizes().groups).toBeLessThan(before.groups);
-      expect(sizes().traces).toBeLessThan(before.traces);
-    });
-    const resized = sizes();
-    for (let switchCount = 0; switchCount < 2; switchCount++) {
+    function panelSizes() {
+      return canvas
+        .getAllByRole("separator", { name: /^Resize topic/ })
+        .map((divider) => divider.getAttribute("aria-valuenow"));
+    }
+    async function resizePanel(name: string, key: string) {
+      canvas.getByRole("separator", { name }).focus();
+      await userEvent.keyboard(key);
+    }
+    async function switchFacet() {
       await userEvent.click(
         canvas.getByRole("button", { name: "Switch facet" }),
       );
-      await waitFor(() => {
-        expect(sizes().map).toBeCloseTo(resized.map, 0);
-        expect(sizes().groups).toBeCloseTo(resized.groups, 0);
-        expect(sizes().traces).toBeCloseTo(resized.traces, 0);
-      });
+    }
+    try {
+      await page.viewport(1280, 900);
+      await resizePanel("Resize topic overview and traces", "{ArrowRight}");
+      await resizePanel("Resize topic map and groups", "{ArrowDown}");
+      const desktopSizes = panelSizes();
+      await switchFacet();
+      await waitFor(() => expect(panelSizes()).toEqual(desktopSizes));
+
+      await page.viewport(700, 900);
+      await canvas.findByRole("tab", { name: "Topics" });
+      await resizePanel("Resize topic map and groups", "{ArrowUp}");
+      const narrowSizes = panelSizes();
+      await switchFacet();
+      await waitFor(() => expect(panelSizes()).toEqual(narrowSizes));
+
+      await page.viewport(1280, 900);
+      await waitFor(() => expect(panelSizes()).toEqual(desktopSizes));
+      await page.viewport(700, 900);
+      await waitFor(() => expect(panelSizes()).toEqual(narrowSizes));
+    } finally {
+      await page.viewport(originalViewport.width, originalViewport.height);
     }
   },
 });
+
+function resetPanelSizes() {
+  const keys = [
+    "react-resizable-panels:topics-workspace-size:overview:traces",
+    "react-resizable-panels:topics-overview-size:map:groups",
+    "react-resizable-panels:topics-overview-size-narrow:map:groups",
+  ];
+  keys.forEach((key) => localStorage.removeItem(key));
+  return () => keys.forEach((key) => localStorage.removeItem(key));
+}

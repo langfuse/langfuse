@@ -1,5 +1,11 @@
 import { computeSelectedValues, type FilterState } from "@langfuse/shared";
-import { useMemo, useState, type ComponentProps, type MouseEvent } from "react";
+import {
+  useMemo,
+  useState,
+  type ComponentProps,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 import { useMediaQuery } from "react-responsive";
 import { type OnChangeFn, type PaginationState } from "@tanstack/react-table";
 import { DataTable } from "@/src/components/table/data-table";
@@ -45,16 +51,6 @@ export function CurrentTopicsView({
   const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null);
   const isNarrow = useMediaQuery({ query: "(max-width: 1023px)" });
   const [mobilePanel, setMobilePanel] = useState("traces");
-  const overviewLayout = useDefaultLayout({
-    id: "topics-overview-size",
-    panelIds: OVERVIEW_PANEL_IDS,
-    storage: "local",
-  });
-  const workspaceLayout = useDefaultLayout({
-    id: "topics-workspace-size",
-    panelIds: WORKSPACE_PANEL_IDS,
-    storage: "local",
-  });
   const { filters, setFilters, searchQuery, setSearchQuery } = traceFilters;
   const filterKey = JSON.stringify([filters, searchQuery]);
   const [pageSize, setPageSize] = useState(20);
@@ -208,9 +204,46 @@ export function CurrentTopicsView({
     </section>
   );
   const detailsPanel = isNarrow ? (
-    <Tabs
+    <TopicsDetailsTabs
       value={mobilePanel}
       onValueChange={setMobilePanel}
+      tracePanelRef={tracePanelRef}
+      groupsPanel={groupsPanel}
+      tracesPanel={tracesPanel}
+    />
+  ) : (
+    groupsPanel
+  );
+  const overviewPanel = (
+    <TopicsOverviewSplit
+      isNarrow={isNarrow}
+      hasMap={facet.map !== null}
+      mapPanel={mapPanel}
+    >
+      {detailsPanel}
+    </TopicsOverviewSplit>
+  );
+
+  return (
+    <TopicsWorkspaceSplit
+      isNarrow={isNarrow}
+      overviewPanel={overviewPanel}
+      tracesPanel={tracesPanel}
+    />
+  );
+}
+
+function TopicsDetailsTabs({
+  value,
+  onValueChange,
+  tracePanelRef,
+  groupsPanel,
+  tracesPanel,
+}: TopicsDetailsTabsProps) {
+  return (
+    <Tabs
+      value={value}
+      onValueChange={onValueChange}
       layout="fill"
       ref={tracePanelRef}
     >
@@ -232,14 +265,28 @@ export function CurrentTopicsView({
         {tracesPanel}
       </Tabs.Content>
     </Tabs>
-  ) : (
-    groupsPanel
   );
-  const overviewPanel = facet.map ? (
+}
+
+function TopicsOverviewSplit({
+  isNarrow,
+  hasMap,
+  mapPanel,
+  children,
+}: TopicsOverviewSplitProps) {
+  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
+    id: isNarrow ? "topics-overview-size-narrow" : "topics-overview-size",
+    panelIds: OVERVIEW_PANEL_IDS,
+    storage: "local",
+  });
+
+  if (!hasMap) return children;
+
+  return (
     <ResizablePanelGroup
       orientation="vertical"
-      defaultLayout={overviewLayout.defaultLayout}
-      onLayoutChanged={overviewLayout.onLayoutChanged}
+      defaultLayout={defaultLayout}
+      onLayoutChanged={onLayoutChanged}
       className="min-h-0 min-w-0 flex-1"
     >
       <ResizablePanel
@@ -255,20 +302,29 @@ export function CurrentTopicsView({
         className="my-1"
       />
       <ResizablePanel id="groups" minSize="20%">
-        {detailsPanel}
+        {children}
       </ResizablePanel>
     </ResizablePanelGroup>
-  ) : (
-    detailsPanel
   );
+}
 
+function TopicsWorkspaceSplit({
+  isNarrow,
+  overviewPanel,
+  tracesPanel,
+}: TopicsWorkspaceSplitProps) {
+  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
+    id: "topics-workspace-size",
+    panelIds: WORKSPACE_PANEL_IDS,
+    storage: "local",
+  });
   if (isNarrow) return overviewPanel;
 
   return (
     <ResizablePanelGroup
       orientation="horizontal"
-      defaultLayout={workspaceLayout.defaultLayout}
-      onLayoutChanged={workspaceLayout.onLayoutChanged}
+      defaultLayout={defaultLayout}
+      onLayoutChanged={onLayoutChanged}
       className="min-h-0 min-w-0 flex-1"
     >
       <ResizablePanel id="overview" defaultSize="50%" minSize="25%">
@@ -429,6 +485,27 @@ function CurrentTraceTable({
     </div>
   );
 }
+
+type TopicsDetailsTabsProps = {
+  value: string;
+  onValueChange: (value: string) => void;
+  tracePanelRef: CurrentTopicsViewProps["tracePanelRef"];
+  groupsPanel: ReactNode;
+  tracesPanel: ReactNode;
+};
+
+type TopicsOverviewSplitProps = {
+  isNarrow: boolean;
+  hasMap: boolean;
+  mapPanel: ReactNode;
+  children: ReactNode;
+};
+
+type TopicsWorkspaceSplitProps = {
+  isNarrow: boolean;
+  overviewPanel: ReactNode;
+  tracesPanel: ReactNode;
+};
 
 type CurrentTraceTableProps = {
   projectId: string;
