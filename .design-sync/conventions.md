@@ -11,7 +11,7 @@ const { LangfuseProvider } = window.LangfuseDS;
 root.render(<LangfuseProvider><App /></LangfuseProvider>);
 ```
 
-Dark mode: wrap a subtree in `<div className="dark bg-background text-foreground">` - every token flips under `.dark`.
+Dark mode: pass `theme="dark"` - `<LangfuseProvider theme="dark">` - so the `dark` class lands on `<html>` and portalled dialogs, menus, tooltips and code highlighting switch too. A `<div className="dark bg-background text-foreground">` wrapper only flips inline content inside it, never overlays.
 
 ## Component API idiom
 

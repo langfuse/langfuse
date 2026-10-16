@@ -237,6 +237,21 @@ function isOwnProp(p, pkgDir, styleSystemDirs) {
   return true;
 }
 
+// [fork] Keys a Props declaration names in `Pick<T, K>` are deliberate API,
+// even when T is a React DOM attribute type that isOwnProp would filter.
+function pickedKeysOf(at) {
+  const keys = new Set();
+  for (const ref of at.getDescendantsOfKind(ts.SyntaxKind.TypeReference)) {
+    if (ref.getTypeName().getText() !== 'Pick') continue;
+    const k = ref.getTypeArguments()[1]?.getType();
+    if (!k) continue;
+    for (const u of k.isUnion() ? k.getUnionTypes() : [k]) {
+      if (u.isStringLiteral()) keys.add(u.getLiteralValue());
+    }
+  }
+  return keys;
+}
+
 // Keep well-known aliases as-written instead of expanding to their full union.
 const KEEP_ALIAS = /^(ReactNode|ReactElement|CSSProperties|JSX\.Element|Key|Ref|RefObject)$/;
 
@@ -426,8 +441,9 @@ function emitBody(type, at, generics, pkgDir) {
       `[DTS_STYLE_SYSTEM] filtering ${pkg} props (>${bar} CSS-shorthand-named props) \u2014 override a component with cfg.dtsPropsFor.<Name> if these are real API`,
     );
   }
+  const picked = pickedKeysOf(at);
   for (const p of props) {
-    if (!isOwnProp(p, pkgDir, styleSystemDirs)) continue;
+    if (!picked.has(p.getName()) && !isOwnProp(p, pkgDir, styleSystemDirs)) continue;
     const optional = p.hasFlags(ts.SymbolFlags.Optional) ? '?' : '';
     const pt = p.getTypeAtLocation(at);
     let tt = typeText(pt, at);

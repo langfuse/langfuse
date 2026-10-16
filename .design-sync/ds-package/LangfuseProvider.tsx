@@ -42,13 +42,7 @@ export function LangfuseProvider({
   children,
   theme = "light",
   fullHeight = isSingleStoryCapture(),
-}: {
-  children?: ReactNode;
-  /** Forced color theme; toggles the `dark` class on <html>. */
-  theme?: "light" | "dark";
-  /** Gives `#__next` a 100vh height so `h-full` chains resolve; on for `?story=` captures. */
-  fullHeight?: boolean;
-}) {
+}: LangfuseProviderProps) {
   return (
     <RouterContext.Provider value={stubRouter}>
       <LayerProvider>
@@ -89,3 +83,12 @@ function isSingleStoryCapture(): boolean {
     return false;
   }
 }
+
+/** LangfuseProviderProps configures the app-level context LangfuseProvider mounts */
+type LangfuseProviderProps = {
+  children?: ReactNode;
+  /** Forced color theme; toggles the `dark` class on <html>. */
+  theme?: "light" | "dark";
+  /** Gives `#__next` a 100vh height so `h-full` chains resolve; on for `?story=` captures. */
+  fullHeight?: boolean;
+};

@@ -12,22 +12,36 @@
 // captures, matching Storybook's unpadded fullscreen canvas.
 import * as React from "react";
 
-type Input = Record<string, any>;
-
 const arr = (d: unknown): any[] => (d == null ? [] : ([] as any[]).concat(d));
 
-function mergeInput(base: Input, more: Input): Input {
-  return {
-    ...base,
-    ...more,
-    args: { ...(base.args ?? {}), ...(more.args ?? {}) },
-    argTypes: { ...(base.argTypes ?? {}), ...(more.argTypes ?? {}) },
-    parameters: { ...(base.parameters ?? {}), ...(more.parameters ?? {}) },
-    globals: { ...(base.globals ?? {}), ...(more.globals ?? {}) },
-    // Storybook composes extended decorators innermost-last; base first here
-    // because the generator applies the list inner -> outer.
-    decorators: [...arr(more.decorators), ...arr(base.decorators)],
-  };
+const preview = {
+  meta(metaInput: Input) {
+    return {
+      input: metaInput,
+      ...metaInput,
+      story: (input: Input = {}) =>
+        makeStory(
+          metaInput,
+          typeof input === "function" ? { render: input } : input,
+        ),
+    };
+  },
+};
+
+export default preview;
+
+/** FullscreenFrame drops the card's body padding while a single `?story=` capture renders */
+function FullscreenFrame(Story: React.ComponentType) {
+  React.useLayoutEffect(() => {
+    if (!isSingleStoryCapture()) return;
+    const body = document.body;
+    const prev = body.style.padding;
+    body.style.padding = "0";
+    return () => {
+      body.style.padding = prev;
+    };
+  }, []);
+  return <Story />;
 }
 
 const darkDecorator = (Story: any) => (
@@ -50,26 +64,26 @@ function makeStory(meta: Input, input: Input): any {
   return story;
 }
 
+function mergeInput(base: Input, more: Input): Input {
+  return {
+    ...base,
+    ...more,
+    args: { ...(base.args ?? {}), ...(more.args ?? {}) },
+    argTypes: { ...(base.argTypes ?? {}), ...(more.argTypes ?? {}) },
+    parameters: { ...(base.parameters ?? {}), ...(more.parameters ?? {}) },
+    globals: { ...(base.globals ?? {}), ...(more.globals ?? {}) },
+    // Storybook composes extended decorators innermost-last; base first here
+    // because the generator applies the list inner -> outer.
+    decorators: [...arr(more.decorators), ...arr(base.decorators)],
+  };
+}
+
 /** storyDecorators appends the dark-theme and fullscreen wrappers a story's globals/parameters ask for */
 function storyDecorators(m: Input): any[] {
   const decorators = [...m.decorators];
   if (m.globals?.theme === "dark") decorators.push(darkDecorator);
   if (m.parameters?.layout === "fullscreen") decorators.push(FullscreenFrame);
   return decorators;
-}
-
-/** FullscreenFrame drops the card's body padding while a single `?story=` capture renders */
-function FullscreenFrame(Story: React.ComponentType) {
-  React.useLayoutEffect(() => {
-    if (!isSingleStoryCapture()) return;
-    const body = document.body;
-    const prev = body.style.padding;
-    body.style.padding = "0";
-    return () => {
-      body.style.padding = prev;
-    };
-  }, []);
-  return <Story />;
 }
 
 function isSingleStoryCapture(): boolean {
@@ -80,18 +94,4 @@ function isSingleStoryCapture(): boolean {
   }
 }
 
-const preview = {
-  meta(metaInput: Input) {
-    return {
-      input: metaInput,
-      ...metaInput,
-      story: (input: Input = {}) =>
-        makeStory(
-          metaInput,
-          typeof input === "function" ? { render: input } : input,
-        ),
-    };
-  },
-};
-
-export default preview;
+type Input = Record<string, any>;
