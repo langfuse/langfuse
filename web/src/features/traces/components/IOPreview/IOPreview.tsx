@@ -1,6 +1,10 @@
 /* eslint-disable no-nested-ternary */
 import { useEffect } from "react";
-import { type ScoreDomain, type Prisma } from "@langfuse/shared";
+import {
+  type ObservationType,
+  type ScoreDomain,
+  type Prisma,
+} from "@langfuse/shared";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePreserveRelativeScroll } from "@/src/features/traces/hooks/usePreserveRelativeScroll";
@@ -16,6 +20,7 @@ import {
 import { IOPreviewJSON, type IOPreviewJSONProps } from "./IOPreviewJSON";
 import { IOPreviewJSONSimple } from "./IOPreviewJSONSimple";
 import { IOPreviewPretty } from "./IOPreviewPretty";
+import type { SectionSkillsProps } from "./components/SectionSkills";
 import { type ChatMLParserResult } from "../../hooks/useChatMLParser";
 import { Button } from "@/src/components/ui/button";
 import { ActionButton } from "@/src/components/ActionButton";
@@ -58,6 +63,7 @@ export interface ExpansionStateProps {
 }
 
 export interface IOPreviewProps extends ExpansionStateProps {
+  skills?: SectionSkillsProps["skills"];
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
   status?: ObservationStatusMessage;
@@ -69,6 +75,7 @@ export interface IOPreviewProps extends ExpansionStateProps {
   parsedMetadata?: unknown;
   chatMLParserResult?: ChatMLParserResult;
   observationName?: string;
+  observationType?: ObservationType;
   isLoading?: boolean;
   isParsing?: boolean;
   hideIfNull?: boolean;
@@ -107,6 +114,7 @@ export interface IOPreviewProps extends ExpansionStateProps {
  * - Pre-parsed data from Web Worker eliminates duplicate parsing
  */
 export function IOPreview({
+  skills,
   input,
   output,
   status,
@@ -117,6 +125,7 @@ export function IOPreview({
   parsedMetadata,
   chatMLParserResult,
   observationName,
+  observationType,
   isLoading = false,
   isParsing = false,
   hideIfNull = false,
@@ -182,6 +191,7 @@ export function IOPreview({
 
   // Shared props for both view components
   const sharedProps = {
+    skills,
     input,
     output,
     status,
@@ -204,6 +214,7 @@ export function IOPreview({
     onOutputExpansionChange,
     onMetadataExpansionChange,
     observationId,
+    observationType,
     projectId,
     traceId,
     environment,

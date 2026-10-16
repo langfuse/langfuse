@@ -521,14 +521,22 @@
     --find-match-selected-background: 60 100% 50%;
     --find-match-selected-foreground: 0 0% 0%;
 
-    --chart-1: 239 84% 66%;
-    --chart-2: 188 94% 30%;
-    --chart-3: 240 4% 48%;
-    --chart-4: 271 91% 61%;
-    --chart-5: 48 96% 29%;
-    --chart-6: 0 84% 50%;
-    --chart-7: 84 81% 28%;
-    --chart-8: 330 81% 49%;
+    --chart-1: 237 60% 61%; /* indigo */
+    --chart-2: 28 100% 41%; /* orange */
+    --chart-3: 171 100% 29%; /* teal */
+    --chart-4: 271 48% 55%; /* violet */
+    --chart-5: 38 100% 36%; /* amber */
+    --chart-6: 213 80% 55%; /* blue */
+    --chart-7: 115 63% 34%; /* green */
+    --chart-8: 322 46% 49%; /* magenta */
+    --chart-fill-1: 234 90% 77%;
+    --chart-fill-2: 25 87% 64%;
+    --chart-fill-3: 173 100% 37%;
+    --chart-fill-4: 269 68% 73%;
+    --chart-fill-5: 40 72% 54%;
+    --chart-fill-6: 212 100% 72%;
+    --chart-fill-7: 115 38% 56%;
+    --chart-fill-8: 325 61% 68%;
     --chart-grid: var(--muted-gray);
     --color-1: oklch(66.2% 0.225 25.9);
     --color-2: oklch(60.4% 0.26 302);
@@ -742,14 +750,22 @@
     --find-match-selected-background: 60 100% 50%;
     --find-match-selected-foreground: 0 0% 0%;
 
-    --chart-1: 239 96% 69%;
-    --chart-2: 188 94% 30%;
-    --chart-3: 240 4% 48%;
-    --chart-4: 271 91% 61%;
-    --chart-5: 48 96% 29%;
-    --chart-6: 0 84% 50%;
-    --chart-7: 84 81% 28%;
-    --chart-8: 330 81% 49%;
+    --chart-1: 236 75% 68%; /* indigo */
+    --chart-2: 30 100% 43%; /* orange */
+    --chart-3: 172 100% 32%; /* teal */
+    --chart-4: 270 59% 62%; /* violet */
+    --chart-5: 39 100% 39%; /* amber */
+    --chart-6: 213 90% 60%; /* blue */
+    --chart-7: 115 50% 41%; /* green */
+    --chart-8: 323 53% 56%; /* magenta */
+    --chart-fill-1: 235 44% 56%;
+    --chart-fill-2: 30 97% 36%;
+    --chart-fill-3: 172 100% 27%;
+    --chart-fill-4: 269 37% 52%;
+    --chart-fill-5: 40 100% 32%;
+    --chart-fill-6: 213 57% 50%;
+    --chart-fill-7: 115 46% 35%;
+    --chart-fill-8: 323 39% 47%;
     --chart-grid: var(--muted-gray);
     --color-1: oklch(66.2% 0.225 25.9);
     --color-2: oklch(60.4% 0.26 302);
@@ -968,6 +984,37 @@
     black calc(100% - var(--spacing) * 3),
     transparent
   );
+}
+
+/* Fades a scrollport's bottom edge while more content is below, and clears
+   it as the end is reached. Browsers without scroll-driven animations show
+   no fade. */
+@property --scroll-fade-b {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@keyframes scroll-fade-b {
+  from {
+    --scroll-fade-b: calc(var(--spacing) * 8);
+  }
+  to {
+    --scroll-fade-b: 0px;
+  }
+}
+
+@utility scroll-fade-b {
+  @supports (animation-timeline: scroll()) {
+    mask-image: linear-gradient(
+      to bottom,
+      black calc(100% - var(--scroll-fade-b)),
+      transparent
+    );
+    animation: scroll-fade-b linear both;
+    animation-timeline: scroll(self);
+    animation-range: calc(100% - var(--spacing) * 8) 100%;
+  }
 }
 
 @utility scrollbar-visible {

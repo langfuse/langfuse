@@ -94,6 +94,7 @@ export default [
     files: ["src/**/*.stories.{ts,tsx}"],
     rules: {
       "@repo/storybook-play-requires-test-name": "error",
+      "@repo/storybook-play-no-implementation-detail-assertions": "warn",
     },
   },
   {

@@ -60,7 +60,10 @@ const defaultArgs: ComponentProps<typeof CurrentTopicsView> = {
     setSearchQuery: fn(),
   },
   onOpenTrace: fn(),
+  onGenerateTopics: fn(),
+  canGenerateTopics: true,
   onInspectTranscript: fn(),
+  canInspectTranscript: false,
   peekView: {
     itemType: "TRACE",
     tableName: "topics-current-traces",
@@ -76,6 +79,44 @@ const meta = preview.meta({
 });
 
 export const Default = meta.story({});
+
+export const LongTopicNames = meta.story({
+  args: {
+    facet: {
+      ...facet,
+      topics: [
+        { ...topic, name: "Unresolved issue handling failures" },
+        {
+          ...topic,
+          id: "results",
+          name: "Unsupported or incomplete final task results",
+        },
+      ],
+      rows: [
+        {
+          ...rows[0],
+          topicName: "Unresolved issue handling failures",
+          summary:
+            "The troubleshooting step claimed success without verifying that sending messages worked.",
+        },
+        {
+          ...rows[1],
+          topicId: "results",
+          topicName: "Unsupported or incomplete final task results",
+          outcome: "assigned",
+        },
+        { ...rows[2], topicId: null, topicName: null, outcome: "outlier" },
+        {
+          ...rows[3],
+          topicId: null,
+          topicName: null,
+          outcome: "insufficient_input",
+          summary: "",
+        },
+      ],
+    },
+  },
+});
 
 export const FilteringResetsPagination = meta.story({
   name: "(Test) Filtering Resets Pagination and Shares Map Matches",
@@ -261,3 +302,142 @@ async function afterPaint() {
 }
 
 type ControlledTopicsProps = ComponentProps<typeof CurrentTopicsView>;
+
+export const SummariesWithoutTopics = meta.story({
+  name: "(Test) Summaries without topics open generation",
+  args: {
+    facet: {
+      ...facet,
+      map: null,
+      topics: [],
+      rows: rows.map((row) => ({
+        ...row,
+        topicId: null,
+        topicName: null,
+        outcome: "awaiting_map",
+      })),
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.queryByRole("button", { name: "Debug transcript" }),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.getByRole("region", { name: "Topic traces" }),
+    ).toBeVisible();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Generate topics" }),
+    );
+    await expect(args.onGenerateTopics).toHaveBeenCalledOnce();
+  },
+});
+
+export const InternalAdminTranscript = meta.story({
+  name: "(Test) Langfuse admins can debug transcripts",
+  args: { canInspectTranscript: true },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      canvas.getAllByRole("button", { name: "Debug transcript" })[0],
+    );
+    await expect(args.onInspectTranscript).toHaveBeenCalledWith({
+      traceId: "trace-0",
+      facetVersion: 1,
+      unitStartTime: "2026-10-01T00:00:00.000Z",
+    });
+  },
+});
+
+export const ExistingTopicsWithoutAssignments = meta.story({
+  name: "(Test) Empty range keeps existing topics without prompting regeneration",
+  args: { facet: { ...facet, topics: [], rows: [] } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.queryByRole("button", { name: "Generate topics" }),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.getByRole("region", { name: "Topic traces" }),
+    ).toBeVisible();
+  },
+});
+
+export const PanelSizesPersistAcrossFacetsAndLayouts = meta.story({
+  name: "(Test) Panel sizes persist across facets and layouts",
+  beforeEach: resetPanelSizes,
+  render: function Render(args) {
+    const [facetId, setFacetId] = useState("intent");
+    function switchFacet() {
+      setFacetId((previous) =>
+        previous === "intent" ? "sentiment" : "intent",
+      );
+    }
+    return (
+      <div className="flex flex-col gap-2">
+        <Button text="Switch facet" onClick={switchFacet} />
+        <ControlledTopics
+          key={facetId}
+          {...args}
+          facet={{ ...args.facet, facetId }}
+        />
+      </div>
+    );
+  },
+  play: async ({ canvasElement }) => {
+    if (!("__vitest_browser__" in globalThis)) return;
+
+    const { page } = await import("vitest/browser");
+    const originalViewport = {
+      width: window.innerWidth,
+      height: window.innerHeight,
+    };
+    const canvas = within(canvasElement);
+    function panelSizes() {
+      return canvas
+        .getAllByRole("separator", { name: /^Resize topic/ })
+        .map((divider) => divider.getAttribute("aria-valuenow"));
+    }
+    async function resizePanel(name: string, key: string) {
+      canvas.getByRole("separator", { name }).focus();
+      await userEvent.keyboard(key);
+    }
+    async function switchFacet() {
+      await userEvent.click(
+        canvas.getByRole("button", { name: "Switch facet" }),
+      );
+    }
+    try {
+      await page.viewport(1280, 900);
+      await resizePanel("Resize topic overview and traces", "{ArrowRight}");
+      await resizePanel("Resize topic map and groups", "{ArrowDown}");
+      const desktopSizes = panelSizes();
+      await switchFacet();
+      await waitFor(() => expect(panelSizes()).toEqual(desktopSizes));
+
+      await page.viewport(700, 900);
+      await canvas.findByRole("tab", { name: "Topics" });
+      await resizePanel("Resize topic map and groups", "{ArrowUp}");
+      const narrowSizes = panelSizes();
+      await switchFacet();
+      await waitFor(() => expect(panelSizes()).toEqual(narrowSizes));
+
+      await page.viewport(1280, 900);
+      await waitFor(() => expect(panelSizes()).toEqual(desktopSizes));
+      await page.viewport(700, 900);
+      await waitFor(() => expect(panelSizes()).toEqual(narrowSizes));
+    } finally {
+      await page.viewport(originalViewport.width, originalViewport.height);
+    }
+  },
+});
+
+function resetPanelSizes() {
+  const keys = [
+    "react-resizable-panels:topics-workspace-size:overview:traces",
+    "react-resizable-panels:topics-overview-size:map:groups",
+    "react-resizable-panels:topics-overview-size-narrow:map:groups",
+  ];
+  keys.forEach((key) => localStorage.removeItem(key));
+  return () => keys.forEach((key) => localStorage.removeItem(key));
+}

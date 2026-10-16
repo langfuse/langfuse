@@ -10,8 +10,11 @@ project permissions. Processing additionally requires the project allowlist.
   picker, time range and processing action on one row; configuration, history and
   refresh live in the overflow menu. `CurrentTopics.tsx` owns the map query, trace
   navigation and summary inspector; `CurrentTopicsView.tsx` presents the selected
-  facet in independently scrolling panels: map and groups on the left, traces on
-  the right. Narrow views keep the map above Topics/Traces tabs, with readable
+  facet in independently scrolling, resizable panels: map and groups on the left,
+  traces on the right. Both splits use the shared `useDefaultLayout` helper with
+  localStorage preferences shared across facets and projects, with separate
+  map-height preferences for desktop and narrow layouts. Narrow views keep
+  the resizable map above Topics/Traces tabs, with readable
   summary rows on phones and all processing controls in the mobile overflow
   menu. Selecting a group filters traces without changing the active tab.
   `useTopicTraceFilters.ts` owns URL-backed facet selection; filters and search
@@ -41,23 +44,44 @@ project permissions. Processing additionally requires the project allowlist.
   in-flight poll cannot satisfy completion. The query retains the tRPC prefix
   for mutation and manual invalidation.
   The polling/completion race is covered directly by a frontend hook test.
-  Configure Topics opens a side sheet for models, facets, and which traces to run.
+  Configure Topics opens a dialog for models, facets, and which traces to run.
   Saving it stores the models, creates the four built-in facets as evaluators
   with a first version, and saves one rule for the filter, idle time, and
   sampling rate. A project can have only one Topics rule.
-  Process traces or Update topics opens its own run dialog. Overlay owners stay
-  outside the responsive header menu. Facet versions contain only prompts;
+  Manual processing opens a shared dialog with Summarize traces & embed and
+  Generate topics tabs. `DialogController` owns the overlay above the page and
+  the mobile actions menu. Once models are configured, Configure Topics lives
+  in the overflow menu. `ManualTopicsDialog` is the presentational layout shared
+  by the app and its isolated `ManualTopicsDialog.stories.tsx` stories.
+  `TopicTraceSelectorView` renders the same filters, batch controls and preview
+  table in both places; stories supply fixture results without private API calls.
+  `ManualTopicsFormContent` owns the draft and uses the real trace selector.
+  `manualTopicsSelection` owns selection readiness for both operations, shared
+  by the application and Storybook interaction tests. `useTopicPipelineForm` owns process writes;
+  `useRegenerateTopics` owns active/latest facet counts and generate writes.
+  Mutation errors and request IDs outlive dialog dismissal, so retrying an
+  unchanged request does not create a second run. Submission closes the dialog
+  and opens the existing execution progress drawer. Permission, setup, pause,
+  availability and running-state gates disable submissions; generation also
+  requires compatible stored summaries. Facet versions contain only prompts;
   processing settings and embedding dimensions are frozen on executions.
   Built-in facets are read-only; custom facets are added on their own page.
-- `useTopicPipelineForm` owns the run dialog, operation, facet versions and
-  submission. The workspace renders its header action and dialog separately;
-  closing the dialog preserves the current results and selection. Its state
-  stays mounted when the dialog closes. Preview trace clicks close the run
-  dialog before opening the trace peek in the panel layer.
-  Every available facet starts selected. Process traces is the default operation:
-  it summarizes, embeds, and assigns only the selected batch to current topics.
+- Manual processing defaults to all active built-in and custom facets in the
+  Topics rule at their latest version. Summarize traces & embed is the default
+  tab: it summarizes, embeds, and assigns only the previewed batch to current
+  topics. Trace selection includes filters, IDs, time ranges, a maximum batch size,
+  and exclusions. Stored summary and embedding reuse is enabled by default in Review & Run.
+  The dialog uses the evaluator stepper: Choose facets, Select traces, and
+  Review & Run. Generate topics uses Select trace summaries for the second step;
+  its time range filters by the trace start time. Both manual-processing pickers
+  limit custom ranges to 90 days, matching the Topics header.
+  All steps start expanded; model details and reuse settings live in review.
+  Preview trace clicks open a new tab, preserving the run dialog and selection.
   Without a compatible map, summaries wait for an explicit Update topics run.
-  Update topics reads compatible stored summaries directly; each selected facet
+  Generate topics defaults to compatible summaries from the past seven days,
+  with its picker limited to a maximum thirty-day range. Its own time-range
+  picker uses the same frozen range for counts and submission, independently of
+  the page and raw trace filters. Generate topics reads compatible stored summaries directly; each selected facet
   shows its available summary count. It has clustering settings but no trace
   picker, source-execution selector, or target-map selector. Embedding dimensions
   are configured per execution; updates select matching stored embeddings and
@@ -69,8 +93,9 @@ project permissions. Processing additionally requires the project allowlist.
   choice. Sampling and its limit stay specific to each execution.
   These local PoC operations add no product analytics event.
 - `useTopicTraceSelector` reuses the eval filter builder and query editor, with
-  a time range, all matching traces selected by default, and optional random/latest
-  sampling with a user-chosen size. Changing the operation resets the
+  a time range and random/latest sampling with a user-chosen size. Manual runs
+  default to at most 1,000 traces, enforced at the web API boundary for filters
+  and pasted IDs. `backfill-limit.ts` owns this fixed PoC limit. Changing the operation resets the
   trace-selection draft while retaining sampling settings; dates stay specific
   to each execution.
   The hook supplies selection, criteria and controls so the dialog can unmount
@@ -79,7 +104,7 @@ project permissions. Processing additionally requires the project allowlist.
   The form submits reviewed criteria and exclusions. Paste IDs remains available.
   `server/traceSelection.ts` applies canonical observation filters within a
   maximum 93-day window, then deduplicates traces before counting and optional
-  sampling. There is no total trace cap. Preview rows and current results render
+  sampling. Manual processing is capped at 1,000 traces per run. Preview rows and current results render
   in pages of 20; selected IDs are frozen by the server at submission. All predicates match
   the same observation; the worker reads the
   whole containing trace, including observations outside the selection window.

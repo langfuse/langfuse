@@ -26,6 +26,11 @@ vi.mock("../otel/OtelIngestionProcessor", () => ({
   },
 }));
 
+// Request-shape tests use the real SDK and replace the separately tested secure transport.
+vi.mock("../llm/secureLlmFetch", () => ({
+  createSecureLlmFetch: () => globalThis.fetch,
+}));
+
 const trace: TraceSinkParams = {
   targetProjectId: "ai-features-project",
   traceId: "0af7651916cd43dd8448eb211c80319c",
@@ -92,6 +97,63 @@ function bedrockModel(slot: TopicsModel["slot"], model: string): TopicsModel {
 }
 
 describe("generateTopicText", () => {
+  it("clusters with Bedrock Sonnet 5.5 without forcing tool use", async () => {
+    const output = { name: "Account access" };
+    const fetch = vi.fn<typeof globalThis.fetch>(async (...args) => {
+      const body = (await new Request(...args).json()) as {
+        toolConfig?: { toolChoice?: Record<string, unknown> };
+      };
+      if (
+        body.toolConfig?.toolChoice?.any ||
+        body.toolConfig?.toolChoice?.tool
+      ) {
+        return Response.json(
+          {
+            message:
+              'tool_choice: type "tool" and "any" are not supported for this model.',
+          },
+          { status: 400 },
+        );
+      }
+      return Response.json({
+        output: {
+          message: {
+            role: "assistant",
+            content: [{ text: JSON.stringify(output) }],
+          },
+        },
+        stopReason: "end_turn",
+        usage: { inputTokens: 12, outputTokens: 4, totalTokens: 16 },
+        metrics: { latencyMs: 1 },
+      });
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    const result = await generateTopicText({
+      model: bedrockModel("clustering", "us.anthropic.claude-sonnet-5-5"),
+      system: [{ text: "Name the topic." }],
+      input: "Users cannot sign in.",
+      schema: z.object({ name: z.string() }),
+      maxOutputTokens: 256,
+    });
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const body = await new Request(...fetch.mock.calls[0]).json();
+    expect(body).not.toHaveProperty("toolConfig");
+    expect(body).not.toHaveProperty(
+      "additionalModelRequestFields.thinking.type",
+      "disabled",
+    );
+    expect(body).toHaveProperty(
+      "system",
+      expect.arrayContaining([
+        expect.objectContaining({ text: expect.stringContaining('"name"') }),
+      ]),
+    );
+    expect(result.output).toEqual(output);
+    expect(result.usage).toMatchObject({ inputTokens: 12, outputTokens: 4 });
+  });
+
   it.each(["us.openai.gpt-6-luna", "openai.gpt-oss-120b"])(
     "sends structured output through the project's Bedrock connection: %s",
     async (modelId) => {
@@ -273,14 +335,19 @@ describe("generateTopicText", () => {
   });
 
   it.each([
-    { model: "gpt-6-luna", baseURL: undefined },
-    { model: "gpt-6-luna", baseURL: "https://eu.api.openai.com/v1" },
-    { model: "gpt-5.6-terra", baseURL: "https://eu.api.openai.com/v1" },
-    { model: "gpt-5-mini", baseURL: "https://eu.api.openai.com/v1" },
-    { model: "gpt-6-luna", baseURL: "https://us.api.openai.com/v1" },
-  ])(
-    "sends the completion token limit, records cache usage, and tolerates tracing failures for $model at $baseURL",
-    async ({ model, baseURL }) => {
+    [undefined, "gpt-6-luna", "none", true],
+    ["https://eu.api.openai.com/v1", "gpt-5-mini", "minimal", true],
+    ["https://EU.API.OPENAI.COM./v1", "gpt-5.6-terra", "none", true],
+    ["https://eu.api.openai.com/v1", "gpt-4o", undefined, false],
+    [
+      "https://eu.api.openai.com.example.com/v1",
+      "gpt-6-luna",
+      undefined,
+      false,
+    ],
+  ] as const)(
+    "generates and traces Topics on %s / %s",
+    async (baseURL, model, reasoning, completionTokens) => {
       publishToOtelIngestionQueue.mockRejectedValueOnce(
         new Error("queue down"),
       );
@@ -318,7 +385,11 @@ describe("generateTopicText", () => {
           provider: "openai-topics",
           adapter: LLMAdapter.OpenAI,
           model,
-          connection: { secretKey: encrypt("sk-test"), baseURL },
+          connection: {
+            secretKey: encrypt("sk-test"),
+            baseURL,
+            config: { useResponsesApi: false },
+          },
         },
         system: [{ text: "System prompt and facets.", cache: true }],
         input: "I cannot sign in.",
@@ -327,6 +398,17 @@ describe("generateTopicText", () => {
         trace,
       });
 
+      const request = new Request(...vi.mocked(globalThis.fetch).mock.calls[0]);
+      expect(request.url).toBe(
+        `${new URL(baseURL ?? "https://api.openai.com/v1")}/chat/completions`,
+      );
+      const body = (await request.json()) as Record<string, unknown>;
+      expect(body.max_completion_tokens).toBe(
+        completionTokens ? 256 : undefined,
+      );
+      expect(body.max_tokens).toBe(completionTokens ? undefined : 256);
+      expect(body.reasoning_effort).toBe(reasoning);
+      expect(body.response_format).toMatchObject({ type: "json_schema" });
       expect(tracedGeneration()).toMatchObject({
         "langfuse.observation.output": JSON.stringify({
           summary: "Account access",
@@ -343,14 +425,6 @@ describe("generateTopicText", () => {
         inputTokens: 3000,
         cacheReadTokens: 2560,
       });
-      const fetch = vi.mocked(globalThis.fetch);
-      const request = new Request(...fetch.mock.calls[0]);
-      expect(request.url).toBe(
-        `${baseURL ?? "https://api.openai.com/v1"}/chat/completions`,
-      );
-      const body = (await request.json()) as Record<string, unknown>;
-      expect(body.max_tokens).toBeUndefined();
-      expect(body.max_completion_tokens).toBe(256);
     },
   );
   it("retains SDK usage when no output is generated", async () => {

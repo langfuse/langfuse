@@ -585,7 +585,6 @@ async function seedAiGateway(params: {
           encryptedCredential: encrypt("sk-seed-openai-not-valid"),
           displaySecret: getDisplaySecretKey("sk-seed-openai-not-valid"),
           createdById: params.userId,
-          routingPriority: 0,
           status: "ENABLED",
         },
         {
@@ -596,7 +595,6 @@ async function seedAiGateway(params: {
           encryptedCredential: encrypt("sk-ant-seed-not-valid"),
           displaySecret: getDisplaySecretKey("sk-ant-seed-not-valid"),
           createdById: params.userId,
-          routingPriority: 1,
           status: "ENABLED",
         },
       ],

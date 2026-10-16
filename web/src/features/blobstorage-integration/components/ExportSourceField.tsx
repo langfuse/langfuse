@@ -81,7 +81,7 @@ export const ExportSourceField = ({
                     ))}
                     <div className="border-t pt-2">
                       <a
-                        href="https://langfuse.com/docs/integrations/export-sources"
+                        href="https://langfuse.com/docs/api-and-data-platform/features/export-to-blob-storage#upgrade-path"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 text-xs hover:underline"

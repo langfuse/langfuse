@@ -16,7 +16,7 @@ use opentelemetry_sdk::{
     propagation::TraceContextPropagator,
     trace::{BatchConfigBuilder, BatchSpanProcessor, Sampler, SdkTracerProvider},
 };
-use std::{env, error::Error, time::Duration};
+use std::{env, time::Duration};
 use tokio::time::Instant;
 use tracing_subscriber::{EnvFilter, Layer, filter::filter_fn, prelude::*};
 
@@ -25,12 +25,31 @@ pub struct Observability {
     metrics: Option<SdkMeterProvider>,
 }
 
+/// Sanitized startup failures; supplied values and exporter errors are never retained.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum ObservabilityError {
+    #[error("observability configuration must be Unicode")]
+    NonUnicodeSetting,
+    #[error("OTEL_TRACES_SAMPLER_ARG must be a number from 0 to 1")]
+    InvalidSamplingRatio,
+    #[error("invalid OTEL_EXPORTER_OTLP_ENDPOINT")]
+    InvalidOtlpEndpoint,
+    #[error("failed to initialize operational trace exporter")]
+    TraceExporter,
+    #[error("failed to initialize operational metric exporter")]
+    MetricExporter,
+    #[error("invalid gateway log filter")]
+    LogFilter,
+    #[error("failed to initialize gateway logging")]
+    Logging,
+}
+
 /// Initialize process logging and optional operational OTLP exports.
 ///
 /// # Errors
-/// Returns a sanitized error for invalid settings, exporter construction, or an
+/// Returns an [`ObservabilityError`] for invalid settings, exporter construction, or an
 /// already installed tracing subscriber.
-pub fn init(config: &GatewayConfig) -> Result<Observability, Box<dyn Error>> {
+pub fn init(config: &GatewayConfig) -> Result<Observability, ObservabilityError> {
     let service = setting("OTEL_SERVICE_NAME")?.unwrap_or_else(|| "ai-gateway".into());
     let resource = Resource::builder()
         .with_service_name(service)
@@ -53,16 +72,16 @@ pub fn init(config: &GatewayConfig) -> Result<Observability, Box<dyn Error>> {
         ))));
     let metrics = if let Some(endpoint) = setting("OTEL_EXPORTER_OTLP_ENDPOINT")? {
         let endpoint =
-            reqwest::Url::parse(&endpoint).map_err(|_| "invalid OTEL_EXPORTER_OTLP_ENDPOINT")?;
+            reqwest::Url::parse(&endpoint).map_err(|_| ObservabilityError::InvalidOtlpEndpoint)?;
         if !matches!(endpoint.scheme(), "http" | "https") || endpoint.host_str().is_none() {
-            return Err("invalid OTEL_EXPORTER_OTLP_ENDPOINT".into());
+            return Err(ObservabilityError::InvalidOtlpEndpoint);
         }
         let exporter = opentelemetry_otlp::SpanExporter::builder()
             .with_http()
             .with_protocol(Protocol::HttpBinary)
             .with_timeout(Duration::from_secs(3))
             .build()
-            .map_err(|_| "failed to initialize operational trace exporter")?;
+            .map_err(|_| ObservabilityError::TraceExporter)?;
         traces = traces.with_span_processor(
             BatchSpanProcessor::builder(exporter)
                 .with_batch_config(
@@ -79,7 +98,7 @@ pub fn init(config: &GatewayConfig) -> Result<Observability, Box<dyn Error>> {
             .with_protocol(Protocol::HttpBinary)
             .with_timeout(Duration::from_secs(3))
             .build()
-            .map_err(|_| "failed to initialize operational metric exporter")?;
+            .map_err(|_| ObservabilityError::MetricExporter)?;
         Some(
             SdkMeterProvider::builder()
                 .with_resource(resource)
@@ -98,7 +117,8 @@ pub fn init(config: &GatewayConfig) -> Result<Observability, Box<dyn Error>> {
     if let Some(metrics) = &metrics {
         global::set_meter_provider(metrics.clone());
     }
-    let log_filter = EnvFilter::try_new(format!("warn,ai_gateway={}", config.log_level))?;
+    let log_filter = EnvFilter::try_new(format!("warn,ai_gateway={}", config.log_level))
+        .map_err(|_| ObservabilityError::LogFilter)?;
     let logger = match config.log_format {
         LogFormat::Json => tracing_subscriber::fmt::layer()
             .json()
@@ -126,7 +146,7 @@ pub fn init(config: &GatewayConfig) -> Result<Observability, Box<dyn Error>> {
         .with(spans)
         .with(logs::CorrelationSpans)
         .try_init()
-        .map_err(|_| "failed to initialize gateway logging")?;
+        .map_err(|_| ObservabilityError::Logging)?;
     Ok(Observability { traces, metrics })
 }
 
@@ -154,24 +174,22 @@ impl Observability {
     }
 }
 
-fn setting(name: &str) -> Result<Option<String>, Box<dyn Error>> {
+fn setting(name: &str) -> Result<Option<String>, ObservabilityError> {
     match env::var(name) {
         Ok(value) if value.trim().is_empty() => Ok(None),
         Ok(value) => Ok(Some(value)),
         Err(env::VarError::NotPresent) => Ok(None),
-        Err(env::VarError::NotUnicode(_)) => {
-            Err("observability configuration must be Unicode".into())
-        }
+        Err(env::VarError::NotUnicode(_)) => Err(ObservabilityError::NonUnicodeSetting),
     }
 }
 
-fn sampling_ratio(value: Option<&str>) -> Result<f64, Box<dyn Error>> {
+fn sampling_ratio(value: Option<&str>) -> Result<f64, ObservabilityError> {
     value
         .unwrap_or("1")
         .parse::<f64>()
         .ok()
         .filter(|value| (0.0..=1.0).contains(value))
-        .ok_or_else(|| "OTEL_TRACES_SAMPLER_ARG must be a number from 0 to 1".into())
+        .ok_or(ObservabilityError::InvalidSamplingRatio)
 }
 
 #[cfg(test)]

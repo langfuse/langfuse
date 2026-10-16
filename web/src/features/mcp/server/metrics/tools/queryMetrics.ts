@@ -123,8 +123,16 @@ const MetricsQueryObjectV2BaseSchema = z.object({
       granularity: publicGranularities,
     })
     .optional(),
-  fromTimestamp: z.iso.datetime({ offset: true }),
-  toTimestamp: z.iso.datetime({ offset: true }),
+  fromTimestamp: z.iso
+    .datetime({ offset: true })
+    .describe(
+      "Required start of the analytics time range, as an ISO 8601 timestamp with timezone (Z or an explicit offset). Must be before toTimestamp.",
+    ),
+  toTimestamp: z.iso
+    .datetime({ offset: true })
+    .describe(
+      "Required end of the analytics time range, as an ISO 8601 timestamp with timezone. Must be after fromTimestamp. timeDimension.granularity controls aggregation buckets; it does not replace these explicit time bounds.",
+    ),
   orderBy: z
     .array(
       z.object({

@@ -68,7 +68,8 @@ export const MobilePageTitle = ({
     <div
       className={cn(
         "bg-background px-3 pt-2",
-        tabsProps ? "pb-0" : "border-b pb-3",
+        tabsProps ? "pb-0" : "pb-3",
+        !tabsProps && headerProps.divider !== false && "border-b",
       )}
     >
       {/* Context line: org / project switcher plus any page-supplied

@@ -1,18 +1,9 @@
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
-import { cn } from "@/src/utils/tailwind";
-
-export type AutomaticProcessingState =
-  | { status: "unconfigured" }
-  | { status: "unavailable" }
-  | { status: "off" }
-  | { status: "on" }
-  | { status: "paused"; shortLabel: string };
-
-type AutomaticProcessingControlProps = {
-  state: AutomaticProcessingState;
-  canWrite: boolean;
-  onOpen: () => void;
-};
+import { Button } from "@/src/components/design-system/Button/Button";
+import {
+  StatusBadge,
+  type Status,
+} from "@/src/components/ui/StatusBadge/StatusBadge";
 
 /**
  * Topics header status for automatic processing. Turning it on or off and the
@@ -25,40 +16,45 @@ export function AutomaticProcessingControl({
 }: AutomaticProcessingControlProps) {
   const reason = disabledReason(state, canWrite);
   const button = (
-    // Matches the secondary header buttons; the live dot is StatusBadge's.
-    <button
-      type="button"
-      className="bg-secondary text-secondary-foreground hover:bg-secondary/80 ring-offset-background focus-visible:ring-ring inline-flex h-7 shrink-0 items-center gap-2 rounded-md px-2 text-xs whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50"
-      aria-label={`Automatic processing: ${statusLabel(state)}`}
+    <Button
+      text="Automatic processing"
+      size="sm"
+      variant={
+        state.status === "off" || state.status === "paused"
+          ? "primary"
+          : "secondary"
+      }
       disabled={reason !== null}
       onClick={onOpen}
-    >
-      <span aria-hidden className="relative inline-flex size-2 shrink-0">
-        {state.status === "on" ? (
-          <span className="bg-dark-green absolute inline-flex size-full animate-ping rounded-full opacity-75" />
-        ) : null}
-        <span
-          className={cn(
-            "relative inline-flex size-2 rounded-full",
-            dotClass(state),
-          )}
-        />
-      </span>
-      Automatic processing
-    </button>
+    />
   );
-  if (!reason) return button;
   return (
-    <Tooltip label={state.status === "paused" ? state.shortLabel : reason}>
-      {({ getTriggerProps }) => <span {...getTriggerProps()}>{button}</span>}
-    </Tooltip>
+    <div className="flex shrink-0 items-center gap-1">
+      <div
+        role="status"
+        aria-label={`Automatic processing: ${statusLabel(state)}`}
+      >
+        <StatusBadge type={badgeStatus(state)} showText={false}>
+          {statusLabel(state)}
+        </StatusBadge>
+      </div>
+      {reason ? (
+        <Tooltip label={state.status === "paused" ? state.shortLabel : reason}>
+          {({ getTriggerProps }) => (
+            <span {...getTriggerProps()}>{button}</span>
+          )}
+        </Tooltip>
+      ) : (
+        button
+      )}
+    </div>
   );
 }
 
-function dotClass(state: AutomaticProcessingState) {
-  if (state.status === "on") return "bg-dark-green";
-  if (state.status === "paused") return "bg-dark-yellow";
-  return "bg-muted-foreground";
+function badgeStatus(state: AutomaticProcessingState): Status {
+  if (state.status === "on") return "active";
+  if (state.status === "paused") return "paused";
+  return "inactive";
 }
 
 function statusLabel(state: AutomaticProcessingState) {
@@ -74,3 +70,16 @@ function disabledReason(state: AutomaticProcessingState, canWrite: boolean) {
   if (!canWrite) return "You need permission to edit Topics.";
   return null;
 }
+
+export type AutomaticProcessingState =
+  | { status: "unconfigured" }
+  | { status: "unavailable" }
+  | { status: "off" }
+  | { status: "on" }
+  | { status: "paused"; shortLabel: string };
+
+type AutomaticProcessingControlProps = {
+  state: AutomaticProcessingState;
+  canWrite: boolean;
+  onOpen: () => void;
+};
