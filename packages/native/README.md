@@ -34,9 +34,10 @@ type checks and tooling work without a Rust toolchain. `*.node` binaries and
 The encoder uses the pinned `ch-core-rs` Git dependency for ClickHouse Native
 format encoding. The HTTP transport remains in the worker.
 
-When updating a checkout that used the patched encoder, remove the generated
-`[patch.crates-io]` entry for `clickhouse` from `packages/native/.cargo/config.toml`
-before building; it points to the old local source copy.
+The `rust:*` scripts remove the obsolete generated `.cargo/config.toml` from
+checkouts that used the patched encoder. Modified configs are preserved; remove
+the old `clickhouse` patch entry manually if warned. Direct Cargo commands bypass
+this cleanup.
 
 ## Building
 
