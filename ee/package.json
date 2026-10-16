@@ -26,7 +26,7 @@
   },
   "dependencies": {
     "@langfuse/shared": "workspace:*",
-    "zod": "^4.6.6"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",
