@@ -8,6 +8,18 @@ const tester = new RuleTester({
 tester.run("component-file-structure", rule, {
   valid: [
     ...[
+      "export const Button = () => <button />; export default Button;",
+      "export default unknown;",
+      "export function Button() { return <button />; } export default Button;",
+      "const Button = () => <button />; export { Button, Button as default };",
+      "export default function Button() { return <button />; } export { Button };",
+      "export default memo(function Button() { return <button />; });",
+      "export default React.forwardRef(function Button() { return <button />; });",
+      "export default memo(forwardRef(function Button() { return <button />; }));",
+      "function Button() { return <button />; } export default Object.assign(Button, {});",
+      "export default Object.assign(function Button() { return <button />; }, {});",
+    ].map((code) => ({ code, filename: "/repo/Button.tsx" })),
+    ...[
       "export function Button() { const content = <div />; return content; }",
       "export function createButton() { const Button = () => <div />; return Button; }",
       "export function value(content) { return content; }",
@@ -140,6 +152,35 @@ tester.run("component-file-structure", rule, {
     },
   ],
   invalid: [
+    {
+      code: "export const Button = () => <button />; export default Button; export const Other = () => <span />;",
+      filename: "/repo/Button.tsx",
+      errors: [{ messageId: "multiple" }],
+    },
+    {
+      code: "export const Button = () => <button />; export default Button;",
+      filename: "/repo/Other.tsx",
+      errors: [{ messageId: "filename" }],
+    },
+    ...[
+      "export default memo(function Button() { return <button />; });",
+      "export default forwardRef(function Button() { return <button />; });",
+      "export default Object.assign(function Button() { return <button />; }, {});",
+    ].map((code) => ({
+      code,
+      filename: "/repo/Other.tsx",
+      errors: [{ messageId: "filename" as const }],
+    })),
+    {
+      code: "export default memo(function button() { return <button />; });",
+      filename: "/repo/button.tsx",
+      errors: [{ messageId: "pascalCase" }],
+    },
+    {
+      code: "export default memo(() => <button />);",
+      filename: "/repo/Button.tsx",
+      errors: [{ messageId: "anonymous" }],
+    },
     {
       code: "export function Wrong() { const content = <div />; return content; }",
       filename: "/repo/Other.tsx",
