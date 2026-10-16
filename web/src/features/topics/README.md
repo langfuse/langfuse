@@ -173,10 +173,9 @@ project permissions. Processing additionally requires the project allowlist.
   in the persisted discovery cohort’s order. It returns only map points and counts for
   missing or unpositioned summaries, never embedding vectors.
   History and detail reads reconcile interrupted/queued retries with the queue.
-  Current results return summaries and their applicable assignments; inspection
-  accepts a saved summary identity scoped to the project. Maps read their original
-  discovery cohort and coordinates while summary text reflects the latest stored
-  result. These reads survive transient job state expiry.
+  Current results return summaries and their applicable assignments. Maps read
+  their original discovery cohort and coordinates while summary text reflects the
+  latest stored result. These reads survive transient job state expiry.
   Resume requeues retained job inputs; if they have expired, start a new run.
   Facet prompt edits are a separate page from this setup.
 - `parse-trace-input.ts` validates pasted trace IDs and links without fetching.
