@@ -21,9 +21,6 @@ const mocks = vi.hoisted(() => ({
       }
     | undefined,
   experimentalFeaturesEnabled: false,
-  isAdmin: false,
-  isLangfuseCloud: true,
-  v4BetaEnabled: false,
   userFeatureFlags: {
     sessionViewV2: false,
   } as Record<string, boolean>,
@@ -43,9 +40,9 @@ vi.mock("next-auth/react", () => ({
         enableExperimentalFeatures: mocks.experimentalFeaturesEnabled,
       },
       user: {
-        admin: mocks.isAdmin,
+        admin: false,
         featureFlags: mocks.userFeatureFlags,
-        v4BetaEnabled: mocks.v4BetaEnabled,
+        v4BetaEnabled: false,
       },
     },
     update: mocks.updateSession,
@@ -58,15 +55,14 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
 
 vi.mock("@/src/features/organizations/hooks", () => ({
   useLangfuseCloudRegion: () => ({
-    isLangfuseCloud: mocks.isLangfuseCloud,
+    isLangfuseCloud: true,
   }),
 }));
 
 vi.mock(
   "@/src/features/feature-previews/components/ControlledFeaturePreviewModal",
   () => ({
-    ControlledFeaturePreviewModal: ({ open }: { open: boolean }) =>
-      open ? <div role="dialog">Personal feature previews</div> : null,
+    ControlledFeaturePreviewModal: () => null,
   }),
 );
 
@@ -168,9 +164,6 @@ describe("OrganizationFeaturePreviewsSettings", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.experimentalFeaturesEnabled = false;
-    mocks.isAdmin = false;
-    mocks.isLangfuseCloud = true;
-    mocks.v4BetaEnabled = false;
     mocks.userFeatureFlags = {
       sessionViewV2: false,
     };
