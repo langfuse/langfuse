@@ -131,7 +131,6 @@ describe("applyObservationFieldOverflow", () => {
     );
     expect(mocks.span.setAttributes).toHaveBeenCalledWith({
       "langfuse.project.id": "project-id",
-      "langfuse.project.size": "unknown",
       "langfuse.trace.id": "trace-id",
       "langfuse.observation.id": "observation-id",
       "langfuse.ingestion.observation_field_overflow.candidates": 3,

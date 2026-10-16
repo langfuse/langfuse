@@ -1,5 +1,4 @@
 import {
-  getProjectSize,
   type EventRecordInsertType,
   instrumentAsync,
   logger,
@@ -66,7 +65,6 @@ export async function applyObservationFieldOverflow(
           );
 
           span.setAttributes({
-            "langfuse.project.size": getProjectSize(eventRecord.project_id),
             "langfuse.project.id": eventRecord.project_id,
             "langfuse.trace.id": eventRecord.trace_id,
             "langfuse.observation.id": eventRecord.span_id,

@@ -9,7 +9,6 @@ import {
   type JobConfiguration,
 } from "@prisma/client";
 import {
-  getProjectSize,
   QueueJobs,
   QueueName,
   EvalExecutionEvent,
@@ -313,7 +312,6 @@ export const createEvalJobs = async ({
   const span = getCurrentSpan();
   if (span) {
     span.setAttribute("messaging.bullmq.job.input.projectId", event.projectId);
-    span.setAttribute("langfuse.project.size", getProjectSize(event.projectId));
   }
 
   // TRACE/DATASET rules are stored in the evaluator v2 model. The executor
@@ -995,7 +993,6 @@ export async function runLLMAsJudgeEvaluation({
     { name: "eval.execute-llm-as-judge" },
     async (span) => {
       span.setAttribute("langfuse.project.id", projectId);
-      span.setAttribute("langfuse.project.size", getProjectSize(projectId));
       span.setAttribute("eval.job_execution.id", jobExecutionId);
       span.setAttribute("eval.template.name", template.name);
       span.setAttribute("eval.template.id", template.id);
@@ -1116,10 +1113,6 @@ export async function runLLMAsJudgeEvaluation({
               { name: "eval.call-llm" },
               async (llmSpan) => {
                 llmSpan.setAttribute("langfuse.project.id", projectId);
-                llmSpan.setAttribute(
-                  "langfuse.project.size",
-                  getProjectSize(projectId),
-                );
                 llmSpan.setAttribute("eval.job_execution.id", jobExecutionId);
                 llmSpan.setAttribute(
                   "eval.execution.trace_id",

@@ -1,6 +1,5 @@
 import { Job, Processor } from "bullmq";
 import {
-  getProjectSize,
   deleteEventsByProjectId,
   deleteMediaLinkRowsByProjectId,
   deleteMediaFiles,
@@ -31,10 +30,6 @@ export const projectDeleteProcessor: Processor = async (
     span.setAttribute(
       "messaging.bullmq.job.input.projectId",
       job.data.payload.projectId,
-    );
-    span.setAttribute(
-      "langfuse.project.size",
-      getProjectSize(job.data.payload.projectId),
     );
     span.setAttribute(
       "messaging.bullmq.job.input.orgId",

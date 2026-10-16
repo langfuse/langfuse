@@ -11,7 +11,6 @@ import {
   traceException,
 } from "../instrumentation";
 import { logger } from "../logger";
-import { getProjectSize } from "../projectSize";
 import {
   assertDispatchInputWithinLimits,
   assertDispatchResultWithinByteLimit,
@@ -211,7 +210,6 @@ export class AwsLambdaCodeEvalDispatcher implements CodeEvalDispatcher {
       "eval.template.id": input.scope.evaluatorId,
       "langfuse.code_eval.lambda.function_name": functionName,
       "langfuse.org.id": input.scope.organizationId,
-      "langfuse.project.size": getProjectSize(input.scope.projectId),
       "langfuse.project.id": input.scope.projectId,
     });
 

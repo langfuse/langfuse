@@ -3,7 +3,6 @@ import { monitorEventLoopDelay } from "perf_hooks";
 import { Job, UnrecoverableError } from "bullmq";
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  getProjectSize,
   QueueName,
   TQueueJobTypes,
   logger,
@@ -438,10 +437,6 @@ const processBlobStorageExport = async (config: {
     async (span) => {
       span.setAttribute("blob.table", config.table);
       span.setAttribute("blob.projectId", config.projectId);
-      span.setAttribute(
-        "langfuse.project.size",
-        getProjectSize(config.projectId),
-      );
       span.setAttribute("blob.compressed", config.compressed);
       span.setAttribute("blob.fileType", config.fileType);
       span.setAttribute(
@@ -1147,7 +1142,6 @@ export const handleBlobStorageIntegrationProjectJob = async (
   if (span) {
     span.setAttribute("messaging.bullmq.job.input.jobId", job.data.id);
     span.setAttribute("messaging.bullmq.job.input.projectId", projectId);
-    span.setAttribute("langfuse.project.size", getProjectSize(projectId));
     // BullMQ job id (distinct from the payload id above) + attempt count.
     if (job.id !== undefined) {
       span.setAttribute("messaging.bullmq.job.id", job.id);

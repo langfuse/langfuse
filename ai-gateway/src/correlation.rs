@@ -137,10 +137,6 @@ impl RequestCorrelation {
         );
         self.server_span
             .record("langfuse.project.id", attribution.project_id().as_str());
-        self.server_span.record(
-            "langfuse.project.size",
-            crate::observability::project_size(attribution.project_id().as_str()),
-        );
         self.tenant = Some(Tenant {
             organization_id: attribution.organization_id().clone(),
             project_id: attribution.project_id().clone(),

@@ -5,7 +5,6 @@ const mocks = vi.hoisted(() => ({
   processor: undefined as
     | ((job: { data: unknown; timestamp: number }) => Promise<unknown>)
     | undefined,
-  addUserToSpan: vi.fn(),
   legacyRecordGauge: vi.fn(),
   legacyRecordHistogram: vi.fn(),
   recordDistribution: vi.fn(),
@@ -47,7 +46,6 @@ vi.mock("@langfuse/shared/src/server", async () => {
     QueueName: {
       TraceDelete: "trace-delete",
     },
-    addUserToSpan: mocks.addUserToSpan,
     contextWithLangfuseProps: vi.fn(() => ({})),
     convertQueueNameToMetricName: (queueName: string) =>
       `langfuse.queue.${queueName.replace(/-/g, "_").replace(/_queue$/, "")}`,
@@ -90,45 +88,6 @@ describe("WorkerManager queue metrics", () => {
     mocks.processor = undefined;
     vi.clearAllMocks();
   });
-
-  it.each([
-    {
-      name: "project",
-      payload: { projectId: "project-a" },
-      projectId: "project-a",
-    },
-    {
-      name: "ingestion",
-      payload: { authCheck: { scope: { projectId: "project-b" } } },
-      projectId: "project-b",
-    },
-    {
-      name: "batch",
-      payload: {
-        traces: [{ projectId: "project-a" }, { projectId: "project-b" }],
-      },
-      projectId: undefined,
-    },
-  ])(
-    "attributes the active $name job before processing",
-    async ({ name, payload, projectId }) => {
-      const processor = vi.fn(async () => {
-        if (projectId) {
-          expect(mocks.addUserToSpan).toHaveBeenCalledExactlyOnceWith({
-            projectId,
-          });
-        } else {
-          expect(mocks.addUserToSpan).not.toHaveBeenCalled();
-        }
-        return "processed";
-      });
-      WorkerManager.register(`attribution-${name}` as never, processor);
-      await expect(
-        mocks.processor!({ data: { payload }, timestamp: Date.now() }),
-      ).resolves.toBe("processed");
-      expect(processor).toHaveBeenCalledOnce();
-    },
-  );
 
   it("emits only tagged rate and time metrics", async () => {
     WorkerManager.register("trace-delete" as never, async () => "processed");

@@ -658,7 +658,6 @@ fn assert_request_correlation(
     assert_attribute(server, "gateway.request.id", request_id.to_owned());
     assert_attribute(server, "gateway.client.request.id", "client-request-canary");
     assert_attribute(server, "provider_request_id", "req_upstream");
-    assert_attribute(server, "langfuse.project.size", "unknown");
     let resolution = [
         ("langfuse.organization.id", "organization_id", "org-1"),
         ("langfuse.project.id", "project_id", "project-1"),

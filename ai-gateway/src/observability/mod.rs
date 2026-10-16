@@ -21,7 +21,7 @@ use opentelemetry_sdk::{
     propagation::TraceContextPropagator,
     trace::{BatchConfigBuilder, BatchSpanProcessor, Sampler, SdkTracerProvider},
 };
-use std::{collections::HashSet, env, sync::LazyLock, time::Duration};
+use std::{env, time::Duration};
 use tokio::time::Instant;
 use tracing_subscriber::{EnvFilter, Layer, filter::filter_fn, prelude::*};
 
@@ -207,27 +207,6 @@ impl Observability {
     }
 }
 
-/// Use the same deployment cohort as Web and worker, cached for this process.
-pub(crate) fn project_size(project_id: &str) -> &'static str {
-    static LARGE_PROJECT_IDS: LazyLock<HashSet<String>> = LazyLock::new(|| {
-        parse_large_project_ids(&env::var("LANGFUSE_LARGE_PROJECT_IDS").unwrap_or_default())
-    });
-    if LARGE_PROJECT_IDS.contains(project_id) {
-        "large"
-    } else {
-        "unknown"
-    }
-}
-
-fn parse_large_project_ids(value: &str) -> HashSet<String> {
-    value
-        .split(',')
-        .map(str::trim)
-        .filter(|id| !id.is_empty())
-        .map(str::to_owned)
-        .collect()
-}
-
 fn setting(name: &str) -> Result<Option<String>, ObservabilityError> {
     match env::var(name) {
         Ok(value) if value.trim().is_empty() => Ok(None),
@@ -248,17 +227,7 @@ fn sampling_ratio(value: Option<&str>) -> Result<f64, ObservabilityError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_large_project_ids, sampling_ratio};
-
-    #[test]
-    fn large_project_ids_match_the_shared_comma_separated_cohort_contract() {
-        let ids = parse_large_project_ids(" project-a, ,project-b,project-a, ");
-        assert_eq!(ids.len(), 2);
-        assert!(ids.contains("project-a"));
-        assert!(ids.contains("project-b"));
-        assert!(!ids.contains("project-c"));
-        assert!(parse_large_project_ids("").is_empty());
-    }
+    use super::sampling_ratio;
 
     #[test]
     fn sampling_rejects_nonfinite_out_of_range_and_sensitive_values() {

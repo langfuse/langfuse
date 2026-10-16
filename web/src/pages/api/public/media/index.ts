@@ -7,7 +7,7 @@ import {
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { ForbiddenError, InvalidRequestError } from "@langfuse/shared";
-import { getProjectSize, instrumentAsync } from "@langfuse/shared/src/server";
+import { instrumentAsync } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
@@ -47,7 +47,6 @@ export default withMiddlewares({
         { name: "media-create-upload-url" },
         async (span) => {
           span.setAttribute("projectId", projectId);
-          span.setAttribute("langfuse.project.size", getProjectSize(projectId));
           span.setAttribute("traceId", traceId ?? "");
           span.setAttribute("observationId", observationId ?? "");
           span.setAttribute("datasetId", datasetId ?? "");

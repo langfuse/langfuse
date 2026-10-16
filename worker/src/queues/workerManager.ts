@@ -1,7 +1,6 @@
 import { Job, Processor, Worker, WorkerOptions } from "bullmq";
 import { context as otelContext } from "@opentelemetry/api";
 import {
-  addUserToSpan,
   convertQueueNameToMetricName,
   contextWithLangfuseProps,
   createBullMQWorkerOptionsWithRedis,
@@ -92,18 +91,16 @@ export class WorkerManager {
         ...shardTag,
       });
 
-      const projectId = WorkerManager.extractProjectId(job);
       const clickHouseCtx = contextWithLangfuseProps({
-        projectId,
+        projectId: WorkerManager.extractProjectId(job),
         clickhouse: {
           surface: "worker",
           route: baseMetric,
         },
       });
-      const result = await otelContext.with(clickHouseCtx, () => {
-        if (projectId) addUserToSpan({ projectId });
-        return processor(job);
-      });
+      const result = await otelContext.with(clickHouseCtx, () =>
+        processor(job),
+      );
 
       const processingTime = Date.now() - startTime;
       recordDistribution(baseMetric + ".time_distribution", processingTime, {

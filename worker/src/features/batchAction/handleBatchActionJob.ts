@@ -1,6 +1,5 @@
 /* eslint-disable no-nested-ternary */
 import {
-  getProjectSize,
   BatchActionProcessingEventType,
   CreateEvalQueue,
   getEventsStreamForEval,
@@ -211,10 +210,6 @@ export const handleBatchActionJob = async (
     span.setAttribute(
       "messaging.bullmq.job.input.projectId",
       batchActionEvent.projectId,
-    );
-    span.setAttribute(
-      "langfuse.project.size",
-      getProjectSize(batchActionEvent.projectId),
     );
     span.setAttribute(
       "messaging.bullmq.job.input.actionId",

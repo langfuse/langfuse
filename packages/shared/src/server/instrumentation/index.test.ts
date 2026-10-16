@@ -2,7 +2,6 @@ import {
   context,
   propagation,
   ROOT_CONTEXT,
-  trace,
   type Span,
 } from "@opentelemetry/api";
 import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
@@ -13,14 +12,6 @@ import {
 } from "../clickhouse/queryTags";
 import { contextWithLangfuseProps } from "../headerPropagation";
 import { addUserToSpan, instrumentAsync, instrumentSync } from ".";
-
-vi.mock("../../env", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../../env")>();
-  return {
-    ...actual,
-    env: { ...actual.env, LANGFUSE_LARGE_PROJECT_IDS: ["project-large"] },
-  };
-});
 
 describe("instrumentation baggage propagation", () => {
   // Baggage only propagates through context.with once a manager is registered.
@@ -33,50 +24,6 @@ describe("instrumentation baggage propagation", () => {
 
   afterAll(() => {
     context.disable();
-  });
-
-  it.each([
-    ["project-large", "large"],
-    ["project-unknown", "unknown"],
-  ])(
-    "reclassifies both procedure and request spans for %s",
-    (projectId, size) => {
-      const procedure = { setAttribute: vi.fn() } as unknown as Span;
-      const request = { setAttribute: vi.fn() } as unknown as Span;
-      const inherited = contextWithLangfuseProps({
-        projectId:
-          projectId === "project-large" ? "project-unknown" : "project-large",
-      });
-      const scoped = context.with(trace.setSpan(inherited, procedure), () =>
-        addUserToSpan({ projectId }, request),
-      );
-
-      for (const span of [procedure, request]) {
-        expect(span.setAttribute).toHaveBeenCalledWith(
-          "langfuse.project.id",
-          projectId,
-        );
-        expect(span.setAttribute).toHaveBeenCalledWith(
-          "langfuse.project.size",
-          size,
-        );
-      }
-      const baggage = propagation.getBaggage(scoped!);
-      expect(baggage?.getEntry("langfuse.project.id")?.value).toBe(projectId);
-      expect(baggage?.getEntry("langfuse.project.size")?.value).toBe(size);
-    },
-  );
-
-  it("tags the active span without a separate request span", () => {
-    const span = { setAttribute: vi.fn() } as unknown as Span;
-    context.with(trace.setSpan(ROOT_CONTEXT, span), () =>
-      addUserToSpan({ projectId: "project-large" }),
-    );
-    expect(span.setAttribute).toHaveBeenCalledWith(
-      "langfuse.project.size",
-      "large",
-    );
-    expect(span.setAttribute).toHaveBeenCalledTimes(2);
   });
 
   it("instrumentAsync keeps worker surface/route across startNewTrace", async () => {

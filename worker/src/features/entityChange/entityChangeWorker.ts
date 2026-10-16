@@ -1,5 +1,4 @@
 import {
-  getProjectSize,
   getCurrentSpan,
   logger,
   type EntityChangeEventType,
@@ -25,10 +24,6 @@ export const entityChangeWorker = async (
     if (span) {
       span.setAttribute("entityType", event.entityType);
       span.setAttribute("projectId", event.projectId);
-      span.setAttribute(
-        "langfuse.project.size",
-        getProjectSize(event.projectId),
-      );
       span.setAttribute("promptId", event.promptId);
       span.setAttribute("action", event.action);
     }

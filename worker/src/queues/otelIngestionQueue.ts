@@ -2,7 +2,6 @@ import { Job, Processor } from "bullmq";
 import type { EarlyOtelBatch } from "@langfuse/native";
 import { z } from "zod";
 import {
-  getProjectSize,
   clickhouseClient,
   createIngestionEventSchema,
   getClickhouseEntityType,
@@ -469,10 +468,6 @@ export const otelIngestionQueueProcessorBuilder = (
         span.setAttribute(
           "messaging.bullmq.job.input.projectId",
           job.data.payload.authCheck.scope.projectId,
-        );
-        span.setAttribute(
-          "langfuse.project.size",
-          getProjectSize(job.data.payload.authCheck.scope.projectId),
         );
         span.setAttribute(
           "messaging.bullmq.job.input.fileKey",

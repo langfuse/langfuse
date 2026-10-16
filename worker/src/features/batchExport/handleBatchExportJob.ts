@@ -10,7 +10,6 @@ import {
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  getProjectSize,
   StorageServiceFactory,
   sendBatchExportSuccessEmail,
   streamTransformations,
@@ -68,7 +67,6 @@ export const handleBatchExportJob = async (
       batchExportId,
     );
     span.setAttribute("messaging.bullmq.job.input.projectId", projectId);
-    span.setAttribute("langfuse.project.size", getProjectSize(projectId));
   }
 
   // Get job details from DB
