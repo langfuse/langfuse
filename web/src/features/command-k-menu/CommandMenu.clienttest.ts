@@ -1,4 +1,8 @@
-import { getIdNavigationItem, getSearchAnalytics } from "./CommandMenu";
+import {
+  getIdNavigationItem,
+  getSearchAnalytics,
+  getSessionNavigationItem,
+} from "./CommandMenu";
 
 describe("getIdNavigationItem", () => {
   it("filters traces by an exact 32-character hex ID", () => {
@@ -59,5 +63,24 @@ describe("getIdNavigationItem", () => {
       queryType: "observation_id",
     });
     expect(getSearchAnalytics(search)).not.toHaveProperty("search");
+  });
+});
+
+describe("getSessionNavigationItem", () => {
+  it("opens the session for the trimmed, encoded search", () => {
+    expect(
+      getSessionNavigationItem(" chat/42 ", "/project/p1/sessions"),
+    ).toEqual({
+      type: "session_id",
+      title: "Open session 'chat/42'",
+      url: "/project/p1/sessions/chat%2F42",
+    });
+  });
+
+  it.each([
+    ["  ", "/project/p1/sessions"],
+    ["chat-42", undefined],
+  ])("is not offered for %j with sessions page %j", (search, sessionsUrl) => {
+    expect(getSessionNavigationItem(search, sessionsUrl)).toBeNull();
   });
 });

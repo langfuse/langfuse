@@ -10,6 +10,7 @@ import {
 } from "@/src/components/ui/command";
 import { useRouter } from "next/router";
 import {
+  Clock,
   Grid2X2,
   LayoutDashboard,
   ListTree,
@@ -31,12 +32,16 @@ import { type NavigationItem } from "@/src/components/layouts/utilities/routes";
 import { useReadPath } from "@/src/features/events";
 
 type IdNavigationItem = {
-  type: "trace_id" | "observation_id";
+  type: "trace_id" | "observation_id" | "session_id";
   title: string;
   url: string;
 };
 
-const getIdType = (search: string): IdNavigationItem["type"] | null => {
+const SESSIONS_NAV_HREF = "/project/[projectId]/sessions";
+
+const getIdType = (
+  search: string,
+): Exclude<IdNavigationItem["type"], "session_id"> | null => {
   const id = search.trim();
   if (/^[0-9a-f]{32}$/i.test(id)) return "trace_id";
   if (/^[0-9a-f]{16}$/i.test(id)) return "observation_id";
@@ -75,6 +80,24 @@ export const getIdNavigationItem = (
   }
 
   return null;
+};
+
+/**
+ * Any non-empty search can be a session ID, since session IDs are
+ * user-defined. Opens the detail page, which ignores the table's date range.
+ */
+export const getSessionNavigationItem = (
+  search: string,
+  sessionsUrl?: string,
+): IdNavigationItem | null => {
+  const id = search.trim();
+  if (!sessionsUrl || id.length === 0) return null;
+
+  return {
+    type: "session_id",
+    title: `Open session '${id}'`,
+    url: `${sessionsUrl}/${encodeURIComponent(id)}`,
+  };
 };
 
 export const getSearchAnalytics = (search: string) => ({
@@ -209,6 +232,34 @@ function DashboardsGroup({ onNavigate }: { onNavigate: () => void }) {
         ))}
       </CommandGroup>
     </>
+  );
+}
+
+function SessionGroup({
+  item,
+  search,
+  onNavigate,
+}: {
+  item: IdNavigationItem;
+  search: string;
+  onNavigate: () => void;
+}) {
+  const router = useRouter();
+  const capture = usePostHogClientCapture();
+
+  const handleSelect = () => {
+    router.push(item.url);
+    capture("cmd_k_menu:navigated", { type: item.type });
+    onNavigate();
+  };
+
+  return (
+    <CommandGroup heading="Sessions">
+      <CommandItem value={`${item.title} ${search}`} onSelect={handleSelect}>
+        <Clock className="icon-base" />
+        {item.title}
+      </CommandItem>
+    </CommandGroup>
   );
 }
 
@@ -355,6 +406,12 @@ function CommandMenuComponent({
   const { isV4 } = useReadPath();
   const [search, setSearch] = useState("");
   const idNavigationItem = getIdNavigationItem(search, project?.id, isV4);
+  const sessionNavigationItem = getSessionNavigationItem(
+    search,
+    flattenNavigation(mainNavigation).find(
+      (item) => item.href === SESSIONS_NAV_HREF,
+    )?.url,
+  );
 
   const debouncedSearchChange = useDebounce(
     (value: string) => {
@@ -456,6 +513,13 @@ function CommandMenuComponent({
         <MainNavigationGroup navItems={navItems} onNavigate={handleNavigate} />
         <ProjectsGroup onNavigate={handleNavigate} />
         <DashboardsGroup onNavigate={handleNavigate} />
+        {sessionNavigationItem && (
+          <SessionGroup
+            item={sessionNavigationItem}
+            search={search}
+            onNavigate={handleNavigate}
+          />
+        )}
         <ProjectSettingsGroup onNavigate={handleNavigate} />
         <OrganizationSettingsGroup onNavigate={handleNavigate} />
         <AccountSettingsGroup onNavigate={handleNavigate} />
@@ -562,3 +626,10 @@ export const useNavigationItems = () => {
     isLoading: !organizations,
   };
 };
+
+function flattenNavigation(items: NavigationItem[]): NavigationItem[] {
+  return items.flatMap((item) => [
+    item,
+    ...flattenNavigation(item.items ?? []),
+  ]);
+}
