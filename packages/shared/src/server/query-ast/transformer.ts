@@ -8,6 +8,7 @@ import {
 import {
   ArrayJoinNode,
   ArrayIndexNode,
+  FinalTableNode,
   LimitByNode,
   type ClickHouseSelectQueryNode,
 } from "./nodes";
@@ -17,8 +18,8 @@ import {
  *
  * Kysely's default {@link OperationNodeTransformer.transformSelectQuery}
  * reconstructs a SelectQueryNode from known slots and drops anything else —
- * so without this override, ARRAY JOIN / LIMIT BY / the tenancy stamp would
- * vanish the moment any plugin walked the tree.
+ * so without this override, ARRAY JOIN / LIMIT BY / the `includeDeleted`
+ * opt-out would vanish the moment any plugin walked the tree.
  */
 export class ClickHouseOperationNodeTransformer extends OperationNodeTransformer {
   protected override transformNodeImpl<T extends OperationNode>(
@@ -33,6 +34,9 @@ export class ClickHouseOperationNodeTransformer extends OperationNodeTransformer
       // runtime that `T` is ArrayIndexNode here, so the cast is sound.
       return this.transformArrayIndex(node) as unknown as T;
     }
+    if (FinalTableNode.is(node)) {
+      return this.transformFinalTable(node) as unknown as T;
+    }
     return super.transformNodeImpl(node, queryId);
   }
 
@@ -41,6 +45,10 @@ export class ClickHouseOperationNodeTransformer extends OperationNodeTransformer
       this.transformNode(node.array),
       this.transformNode(node.index),
     );
+  }
+
+  protected transformFinalTable(node: FinalTableNode): FinalTableNode {
+    return FinalTableNode.create(this.transformNode(node.table));
   }
 
   protected override transformSelectQuery(
@@ -62,6 +70,7 @@ export class ClickHouseOperationNodeTransformer extends OperationNodeTransformer
       ...(extra.limitBy
         ? { limitBy: this.transformLimitBy(extra.limitBy) }
         : {}),
+      ...(extra.includeDeleted ? { includeDeleted: true } : {}),
     } as ClickHouseSelectQueryNode;
   }
 

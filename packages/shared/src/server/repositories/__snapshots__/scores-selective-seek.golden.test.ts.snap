@@ -139,7 +139,9 @@ FROM
         s.name,
         s.id
 ) AS s
-ORDER BY s.timestamp DESC",
+ORDER BY
+    s.timestamp DESC,
+    s.id DESC",
   },
 ]
 `;
@@ -267,7 +269,9 @@ FROM
         s.name,
         s.id
 ) AS s
-ORDER BY s.timestamp DESC",
+ORDER BY
+    s.timestamp DESC,
+    s.id DESC",
   },
 ]
 `;

@@ -20,7 +20,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 
 interface ComboboxOption<T extends string | number | boolean | { id: string }> {
   value: T;
@@ -152,9 +152,14 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
             {buttonText}
           </span>
           {selectedOption?.badge && (
-            <Badge variant="secondary" className="ml-1.5 shrink-0">
-              {selectedOption.badge}
-            </Badge>
+            <span className="ml-1.5 flex shrink-0">
+              <Badge
+                color="filled"
+                font="mono"
+                size="sm"
+                text={selectedOption.badge}
+              />
+            </span>
           )}
           <span className="ml-2 flex">
             <DropdownIndicator direction="up-down" />
@@ -207,7 +212,7 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
                     >
                       <Check
                         className={cn(
-                          "mr-2 h-4 w-4",
+                          "icon-base mr-2",
                           isEqual(value as T | undefined, option.value)
                             ? "opacity-100"
                             : "opacity-0",
@@ -220,9 +225,14 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
                       )}
                       {option.label ?? String(option.value)}
                       {option.badge && (
-                        <Badge variant="secondary" className="ml-auto">
-                          {option.badge}
-                        </Badge>
+                        <span className="ml-auto flex shrink-0">
+                          <Badge
+                            color="filled"
+                            font="mono"
+                            size="sm"
+                            text={option.badge}
+                          />
+                        </span>
                       )}
                     </CommandItem>
                   ))}
@@ -258,7 +268,7 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
                   >
                     <Check
                       className={cn(
-                        "mr-2 h-4 w-4",
+                        "icon-base mr-2",
                         isEqual(value as T | undefined, option.value)
                           ? "opacity-100"
                           : "opacity-0",
@@ -271,9 +281,14 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
                     )}
                     {option.label ?? String(option.value)}
                     {option.badge && (
-                      <Badge variant="secondary" className="ml-auto">
-                        {option.badge}
-                      </Badge>
+                      <span className="ml-auto flex shrink-0">
+                        <Badge
+                          color="filled"
+                          font="mono"
+                          size="sm"
+                          text={option.badge}
+                        />
+                      </span>
                     )}
                   </CommandItem>
                 ))}

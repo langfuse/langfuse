@@ -19,10 +19,13 @@ import { Card } from "@/src/components/ui/card";
 import {
   featurePreviewFlags,
   featurePreviewLabels,
+  defaultOnFeaturePreviewFlags,
+  isOrganizationOnlyFeaturePreviewFlag,
   type FeaturePreviewFlag,
 } from "@/src/features/feature-flags/available-flags";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 type ProposedChange = {
   flag: FeaturePreviewFlag;
@@ -56,6 +59,7 @@ export function OrganizationFeaturePreviewsSettings({
         session.update(),
       ]);
       showSuccessToast({
+        operation: "organization_feature_preview.update",
         title: "Feature preview default updated",
         description: `${featurePreviewLabels[variables.flag]} was ${
           variables.enabled ? "enabled" : "disabled"
@@ -64,7 +68,11 @@ export function OrganizationFeaturePreviewsSettings({
     },
     onError: (error) => {
       setProposedChange(null);
-      showErrorToast("Failed to update feature preview", error.message);
+      showErrorToast(
+        "Failed to update feature preview",
+        error.message,
+        classifyTrpcToastError(error, "organization_feature_preview.update"),
+      );
     },
   });
 
@@ -110,7 +118,10 @@ export function OrganizationFeaturePreviewsSettings({
           const selected = selectedDefaults.has(flag);
           const enabledForAdmin =
             session.data?.user?.featureFlags[flag] === true;
-          const requiresPersonalEnablement = !selected && !enabledForAdmin;
+          const requiresPersonalEnablement =
+            !isOrganizationOnlyFeaturePreviewFlag(flag) &&
+            !selected &&
+            !enabledForAdmin;
           return (
             <Card
               key={flag}
@@ -118,6 +129,14 @@ export function OrganizationFeaturePreviewsSettings({
             >
               <div className="flex min-w-0 flex-col gap-1">
                 <h3 className="font-bold">{featurePreviewLabels[flag]}</h3>
+                {defaultOnFeaturePreviewFlags.some(
+                  (defaultFlag) => defaultFlag === flag,
+                ) ? (
+                  <p className="text-muted-foreground text-xs">
+                    Enabled by default on the events-backed view. Turn off to
+                    disable it for this organization.
+                  </p>
+                ) : null}
                 {requiresPersonalEnablement ? (
                   <p className="text-destructive text-xs">
                     Enable this preview in your personal Feature Preview
@@ -144,8 +163,8 @@ export function OrganizationFeaturePreviewsSettings({
       </div>
 
       <p className="text-muted-foreground text-xs">
-        Defaults apply only in this organization. A user&apos;s global personal
-        opt-out always wins.
+        Defaults apply only in this organization. Personal opt-outs apply to
+        user-level previews.
       </p>
 
       <AlertDialog
@@ -169,7 +188,8 @@ export function OrganizationFeaturePreviewsSettings({
               organization defaults.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          {proposedChange?.enabled ? (
+          {proposedChange?.enabled &&
+          !isOrganizationOnlyFeaturePreviewFlag(proposedChange.flag) ? (
             <Alert>
               <Alert.Title>Already enabled for you</Alert.Title>
               <Alert.Description>

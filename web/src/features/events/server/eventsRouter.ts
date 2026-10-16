@@ -1,7 +1,10 @@
 import { type z, z as zodSchema } from "zod";
 import { TRPCError } from "@trpc/server";
 import { env } from "@/src/env.mjs";
-import { hasInternalAccess } from "@/src/features/feature-flags/server";
+import {
+  getContextualFeatureFlags,
+  hasInternalAccess,
+} from "@/src/features/feature-flags/server";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -10,6 +13,8 @@ import {
 } from "@/src/server/api/trpc";
 import {
   type OrderByState,
+  type SkillsAvailable,
+  type SkillsResourceLoaded,
   normalizeOrderByForTable,
   paginationZod,
   singleFilterList,
@@ -34,7 +39,6 @@ import { loadTraceTranscript } from "./loadTraceTranscript";
 import {
   instrumentAsync,
   getScoresAndCorrectionsForTraces,
-  convertDateToClickhouseDateTime,
   getAgentGraphDataFromEventsTable,
   getObservationsForTraceFromEventsTable,
   MAX_OBSERVATIONS_PER_TRACE,
@@ -72,6 +76,8 @@ export type EventBatchIOOutput = {
   input: string | null;
   output: string | null;
   metadata: MetadataDomainClient;
+  skillsAvailable?: SkillsAvailable;
+  skillsResourceLoaded?: SkillsResourceLoaded;
 };
 
 export type GetAllEventsInput = z.infer<typeof GetAllEventsInput>;
@@ -121,6 +127,7 @@ const BatchIOInput = zodSchema.object({
   // rendering anyway (IO_TABLE_CHAR_LIMIT).
   ioCharLimit: zodSchema.number().int().positive().max(10_000).optional(),
   includeToolCalls: zodSchema.boolean().optional(), // Defaults to false; tool-call arrays can be large
+  includeSkills: zodSchema.boolean().optional(),
   // Opts into trace-level auth (public traces) in protectedGetEventsTraceProcedure
   traceId: zodSchema.string().optional(),
 });
@@ -347,6 +354,7 @@ export const eventsRouter = createTRPCRouter({
             truncated: input.truncated,
             ioCharLimit: input.ioCharLimit,
             includeToolCallFields: input.includeToolCalls,
+            includeSkillFields: input.includeSkills,
           });
 
           return batchIO.map(toDomainWithStringifiedMetadata);
@@ -372,6 +380,7 @@ export const eventsRouter = createTRPCRouter({
             truncated: input.truncated,
             ioCharLimit: input.ioCharLimit,
             includeToolCallFields: input.includeToolCalls,
+            includeSkillFields: input.includeSkills,
           });
 
           return batchIO.map(toDomainWithStringifiedMetadata);
@@ -396,6 +405,7 @@ export const eventsRouter = createTRPCRouter({
             ioCharLimit: input.ioCharLimit,
             includeExperimentFields: true,
             includeToolCallFields: input.includeToolCalls,
+            includeSkillFields: input.includeSkills,
           });
 
           return batchIO.map(toDomainWithStringifiedMetadata);
@@ -433,9 +443,8 @@ export const eventsRouter = createTRPCRouter({
     }),
   /**
    * Assemble the message transcript of a trace from its generations and tools,
-   * see `loadTraceTranscript`. Internal surface: Langfuse admins and
-   * deployments with experimental features enabled only, and only where the
-   * events tables are written.
+   * see `loadTraceTranscript`. Available to internal users and Session Timeline
+   * preview users, only where the events tables are written.
    */
   transcriptByTraceId: protectedGetEventsTraceProcedure
     .input(
@@ -443,10 +452,16 @@ export const eventsRouter = createTRPCRouter({
         projectId: zodSchema.string(),
         traceId: zodSchema.string(),
         timestamp: zodSchema.date().optional(),
+        fallbackToRootIO: zodSchema.boolean().default(false),
       }),
     )
     .query(async ({ input, ctx }) => {
+      const isSessionTimelineEnabled =
+        getContextualFeatureFlags(ctx.session?.user, {
+          projectId: input.projectId,
+        })?.sessionViewV2Timeline === true;
       if (
+        !isSessionTimelineEnabled &&
         !hasInternalAccess({
           isAdmin: ctx.session?.user?.admin === true,
           isExperimentalFeaturesEnabled:
@@ -455,7 +470,8 @@ export const eventsRouter = createTRPCRouter({
       ) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "Transcripts are an internal preview.",
+          message:
+            "Transcripts require internal access or the Session Timeline preview.",
         });
       }
       if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy") {
@@ -484,6 +500,7 @@ export const eventsRouter = createTRPCRouter({
             projectId: input.projectId,
             traceId: input.traceId,
             timestamp,
+            fallbackToRootIO: input.fallbackToRootIO,
           });
         },
       );
@@ -551,18 +568,11 @@ export const eventsRouter = createTRPCRouter({
 
           const { traceId, minStartTime, maxStartTime } = input;
 
-          const chMinStartTime = convertDateToClickhouseDateTime(
-            new Date(minStartTime),
-          );
-          const chMaxStartTime = convertDateToClickhouseDateTime(
-            new Date(maxStartTime),
-          );
-
           const records = await getAgentGraphDataFromEventsTable({
             projectId: input.projectId,
             traceId,
-            chMinStartTime,
-            chMaxStartTime,
+            minStartTime: new Date(minStartTime),
+            maxStartTime: new Date(maxStartTime),
           });
 
           // Transform to AgentGraphDataResponse format

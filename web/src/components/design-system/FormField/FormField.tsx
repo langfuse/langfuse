@@ -82,7 +82,7 @@ export function FormField<
                 >
                   <Info
                     aria-hidden
-                    className="text-muted-foreground size-3.5"
+                    className="text-muted-foreground icon-base"
                   />
                 </button>
               ) : null}

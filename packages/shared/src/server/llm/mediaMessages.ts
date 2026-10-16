@@ -262,7 +262,7 @@ export async function compileLangfuseMediaMessages(params: {
           });
           if (!resolved) {
             throw new LLMValidationError({
-              code: "invalid-request",
+              code: "media-not-found",
               message: `Media asset ${match.id} was not found in this project`,
             });
           }

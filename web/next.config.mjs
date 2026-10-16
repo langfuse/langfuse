@@ -31,6 +31,12 @@ const localStorageConnectSrc =
   env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined
     ? "http://localhost:* "
     : "";
+// The self-hosted newsletter step after sign-up checks and subscribes on the
+// bare langfuse.com host, which `https://*.langfuse.com` does not match.
+const newsletterSignupConnectSrc =
+  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined
+    ? "https://langfuse.com "
+    : "";
 // When build output is served from a dedicated asset hostname, that origin has
 // to be allowed everywhere Next.js can emit an asset URL. A host under
 // langfuse.com would already be covered by the wildcards below, but the policy
@@ -54,7 +60,7 @@ const cspHeader = `
   base-uri 'self';
   form-action 'self' https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com;
   frame-ancestors 'none';
-  connect-src 'self' ${localStorageConnectSrc}${mediaUploadConnectSrc}${assetPrefixSrc}https://*.langfuse.com https://*.langfuse.dev https://*.ingest.us.sentry.io https://*.sentry.io https://chat.uk.plain.com https://*.amazonaws.com https://*.blob.core.windows.net https://storage.googleapis.com https://prod-uk-services-attachm-attachmentsuploadbucket2-1l2e4906o2asm.s3.eu-west-2.amazonaws.com https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com https://graph.microsoft.com;
+  connect-src 'self' ${localStorageConnectSrc}${newsletterSignupConnectSrc}${mediaUploadConnectSrc}${assetPrefixSrc}https://*.langfuse.com https://*.langfuse.dev https://*.ingest.us.sentry.io https://*.sentry.io https://chat.uk.plain.com https://*.amazonaws.com https://*.blob.core.windows.net https://storage.googleapis.com https://prod-uk-services-attachm-attachmentsuploadbucket2-1l2e4906o2asm.s3.eu-west-2.amazonaws.com https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com https://graph.microsoft.com;
   media-src 'self' https: http://localhost:*;
   ${env.LANGFUSE_CSP_ENFORCE_HTTPS === "true" ? "upgrade-insecure-requests; block-all-mixed-content;" : ""}
   ${env.SENTRY_CSP_REPORT_URI ? `report-uri ${env.SENTRY_CSP_REPORT_URI}; report-to csp-endpoint;` : ""}
@@ -87,8 +93,6 @@ const nextConfig = {
   // symbolication is handled separately by uploading maps with debug IDs (see
   // `sourcemaps` in withSentryConfig below).
   productionBrowserSourceMaps: true,
-  // Allow building to alternate directory for parallel build checks while dev server runs
-  distDir: process.env.NEXT_DIST_DIR || ".next",
   typescript: {
     // CI test jobs run `pnpm run typecheck` separately and skip duplicate
     // Next.js type checks to keep test builds fast. Production/Docker builds
@@ -164,6 +168,11 @@ const nextConfig = {
     // imports have to stay same-origin. Empty string is a literal prefix, not
     // a fallback: it emits `/_next/...` on the page origin. Unset (undefined)
     // would inherit assetPrefix and break workers on Cloud.
+    //
+    // No worker is started from a bundler URL any more — same-origin is exactly
+    // what pins those chunks to a host that only serves the current build, so
+    // they 404 in a tab that outlives a deploy. This stays as the guard for
+    // anything that reintroduces one.
     turbopackWorkerAssetPrefix: "",
   },
 
@@ -185,6 +194,10 @@ const nextConfig = {
       "./node_modules/@scalar/api-reference/dist/browser/standalone.js",
       "./third-party-licenses/scalar-api-reference.LICENSE.txt",
     ],
+    // elkjs's prebuilt layout worker, served verbatim so the trace graph's
+    // worker URL keeps resolving across a deploy. See
+    // pages/api/workers/elk-worker.ts.
+    "/api/workers/elk-worker": ["./node_modules/elkjs/lib/elk-worker.min.js"],
   },
 
   async redirects() {

@@ -16,6 +16,8 @@ import {
 import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { cn } from "@/src/utils/tailwind";
+import { useQueryProjectOrOrganization } from "@/src/features/projects";
+import { accountSettingsPath } from "@/src/features/settings/accountSettingsPath";
 
 /**
  * Compact account affordance for the mobile top bar: the user's avatar opening
@@ -30,6 +32,7 @@ export const TopbarAccount = ({
   className?: string;
 }) => {
   const showV4Migration = useV4UpgradeUiFlag();
+  const { organization } = useQueryProjectOrOrganization();
 
   const name = user.name ?? "";
   const email = user.email ?? "";
@@ -66,7 +69,7 @@ export const TopbarAccount = ({
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link href="/account/settings">Account settings</Link>
+          <Link href={accountSettingsPath(organization?.id)}>Settings</Link>
         </DropdownMenuItem>
         {showV4Migration ? (
           <DropdownMenuItem asChild>

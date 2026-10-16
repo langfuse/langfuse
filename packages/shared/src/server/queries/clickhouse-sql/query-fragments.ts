@@ -7,10 +7,12 @@ import {
   EventsAggQueryBuilder,
   EventsQueryBuilder,
   EventsSessionAggregationQueryBuilder,
+  type SessionEventsFields,
   ExperimentsAggregationFieldSetName,
   ExperimentsAggregationQueryBuilder,
   type CTEWithSchema,
 } from "./event-query-builder";
+import type { SessionEventsField } from "../../repositories/events-selects";
 import { AGGREGATABLE_SCORE_TYPES } from "../../../domain/scores";
 import {
   OBSERVATIONS_TO_TRACE_INTERVAL,
@@ -34,59 +36,6 @@ export const eventsTraceMetadata = (projectId: string): EventsQueryBuilder =>
     .whereRaw(`${eventsTableTraceNameSql} IS NOT NULL`)
     .whereRaw("e.is_deleted = 0")
     .limitBy("e.trace_id");
-
-export const promptEventsForMetrics = (params: {
-  projectId: string;
-  promptIds: string[];
-  fromTimestamp?: string;
-  toTimestamp?: string;
-}): CTEWithSchema => {
-  const builder = new EventsQueryBuilder({ projectId: params.projectId })
-    .selectRaw(
-      "e.project_id AS project_id",
-      "e.prompt_id AS prompt_id",
-      "e.prompt_version AS prompt_version",
-      "e.trace_id AS trace_id",
-      "e.span_id AS span_id",
-      "e.start_time AS start_time",
-      "e.end_time AS end_time",
-      "e.usage_details AS usage_details",
-      "e.cost_details AS cost_details",
-      "e.is_deleted AS is_deleted",
-    )
-    .whereRaw("e.type = 'GENERATION'")
-    .whereRaw("e.prompt_id IN ({promptIds: Array(String)})", {
-      promptIds: params.promptIds,
-    })
-    .when(Boolean(params.fromTimestamp), (b) =>
-      b.whereRaw("e.start_time >= {fromTimestamp: DateTime64(6)}", {
-        fromTimestamp: params.fromTimestamp,
-      }),
-    )
-    .when(Boolean(params.toTimestamp), (b) =>
-      b.whereRaw("e.start_time <= {toTimestamp: DateTime64(6)}", {
-        toTimestamp: params.toTimestamp,
-      }),
-    )
-    .orderByColumns([{ column: "e.event_ts", direction: "DESC" }])
-    .limitBy("e.span_id", "e.project_id");
-
-  return {
-    ...builder.buildWithParams(),
-    schema: [
-      "project_id",
-      "prompt_id",
-      "prompt_version",
-      "trace_id",
-      "span_id",
-      "start_time",
-      "end_time",
-      "usage_details",
-      "cost_details",
-      "is_deleted",
-    ],
-  };
-};
 
 interface EventsTracesAggregationParams {
   projectId: string;
@@ -360,15 +309,19 @@ export const eventsTracesScoresAggregationFromObservationStart = (
  */
 export const eventsSessionsAggregation = (params: {
   projectId: string;
+  fields: SessionEventsFields<SessionEventsField>;
   sessionIds?: string[];
   startTimeFrom?: string | null;
   includeMetadata?: boolean;
   includeTools?: boolean;
+  fullTable?: boolean;
+  metadataSessionPrefilter?: ClickhouseFilter | null;
 }): EventsSessionAggregationQueryBuilder => {
   return new EventsSessionAggregationQueryBuilder({
     projectId: params.projectId,
   })
-    .selectFieldSet("base")
+    .withFullTable(Boolean(params.fullTable))
+    .selectSessionFields(params.fields)
     .when(Boolean(params.includeMetadata), (builder) =>
       builder.selectFieldSet("metadata"),
     )
@@ -377,6 +330,10 @@ export const eventsSessionsAggregation = (params: {
     )
     .withSessionIds(params.sessionIds)
     .withStartTimeFrom(params.startTimeFrom)
+    .withMetadataSessionPrefilter(
+      params.metadataSessionPrefilter ?? null,
+      params.startTimeFrom,
+    )
     .whereRaw("session_id != ''");
 };
 

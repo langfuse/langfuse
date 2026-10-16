@@ -24,19 +24,19 @@ export function EvaluatorCodeLanguageSelector({
         onValueChange(language as EvalTemplateSourceCodeLanguage)
       }
     >
-      <Tabs.List variant="outline">
+      <Tabs.List variant="inset" size="md">
         <Tabs.Trigger
           value={EvalTemplateSourceCodeLanguageEnum.PYTHON}
           disabled={disabled}
         >
-          <SiPython className="h-3.5 w-3.5 shrink-0" />
+          <SiPython className="icon-base shrink-0" />
           {sourceCodeLanguageLabel(EvalTemplateSourceCodeLanguageEnum.PYTHON)}
         </Tabs.Trigger>
         <Tabs.Trigger
           value={EvalTemplateSourceCodeLanguageEnum.TYPESCRIPT}
           disabled={disabled}
         >
-          <SiTypescript className="h-3.5 w-3.5 shrink-0" />
+          <SiTypescript className="icon-base shrink-0" />
           {sourceCodeLanguageLabel(
             EvalTemplateSourceCodeLanguageEnum.TYPESCRIPT,
           )}

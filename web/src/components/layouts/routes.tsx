@@ -148,6 +148,15 @@ export const ROUTES: Route[] = [
     section: RouteSection.Main,
   },
   {
+    title: "Topics",
+    href: "/project/[projectId]/topics",
+    icon: Grid2X2,
+    featureFlag: "langfuseTopics",
+    projectRbacScopes: ["topics:read"],
+    group: RouteGroup.Observability,
+    section: RouteSection.Main,
+  },
+  {
     title: "Alerts",
     href: "/project/[projectId]/alerts",
     icon: BellRing,
@@ -312,7 +321,7 @@ function CommandMenuTrigger() {
       }}
       className="whitespace-nowrap"
     >
-      <Search className="h-4 w-4" />
+      <Search className="icon-base" />
       Go to...
       <span className="-mr-px ml-auto hidden md:inline-flex">
         <KeyboardShortcut keys={["Mod", "K"]} />

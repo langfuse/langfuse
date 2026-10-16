@@ -29,14 +29,15 @@ export const CachedResolveContext = z.object({
   keyMetadata: GatewayMetadataSchema,
   ingestionProjectId: z.string().nullable(),
   ingestionMode: z.enum(["USAGE", "FULL"]).nullable(),
-  connection: z
-    .object({
+  connections: z.array(
+    z.object({
       id: z.string(),
       name: z.string(),
       provider: z.enum(["OPENAI", "ANTHROPIC"]),
       encryptedCredential: z.string(),
-    })
-    .nullable(),
+      allowedModels: z.array(z.string()).nullable(),
+    }),
+  ),
 });
 export type CachedResolveContext = z.infer<typeof CachedResolveContext>;
 
@@ -92,6 +93,11 @@ export class GatewayResolveCache {
         return null;
       }
 
+      if (parsed.data === GATEWAY_RESOLVE_KEY_NON_EXISTENT) {
+        recordIncrement("langfuse.gateway.resolve.cache_hit", 1);
+        return parsed.data;
+      }
+
       recordIncrement("langfuse.gateway.resolve.cache_hit", 1);
       return parsed.data;
     } catch (error) {
@@ -104,14 +110,26 @@ export class GatewayResolveCache {
     fastHashedSecretKey: string;
     apiFormat: string;
     context: CachedResolveContext | typeof GATEWAY_RESOLVE_KEY_NON_EXISTENT;
+    expiresAt?: Date | null;
   }) {
     if (!this.enabled) return;
 
     const key = contextCacheKey(params.fastHashedSecretKey, params.apiFormat);
-    const ttl = env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS;
+    const configuredTtl = env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS;
+    const now = Date.now();
+    const expirationTimestamp = Math.min(
+      now + configuredTtl * 1000,
+      params.expiresAt?.getTime() ?? Number.POSITIVE_INFINITY,
+    );
+    if (expirationTimestamp <= now) return;
     try {
       if (params.context === GATEWAY_RESOLVE_KEY_NON_EXISTENT) {
-        await this.redis!.set(key, JSON.stringify(params.context), "EX", ttl);
+        await this.redis!.set(
+          key,
+          JSON.stringify(params.context),
+          "PXAT",
+          expirationTimestamp,
+        );
         return;
       }
 
@@ -119,11 +137,16 @@ export class GatewayResolveCache {
       // commands separately instead of wrapping them in one transaction.
       const index = organizationIndexKey(params.context.organizationId);
       await Promise.all([
-        this.redis!.set(key, JSON.stringify(params.context), "EX", ttl),
+        this.redis!.set(
+          key,
+          JSON.stringify(params.context),
+          "PXAT",
+          expirationTimestamp,
+        ),
         this.redis!.sadd(index, key),
         // The index must outlive its entries, otherwise invalidation can miss a
         // cached key that is still live.
-        this.redis!.expire(index, ttl * 2),
+        this.redis!.expire(index, configuredTtl * 2),
       ]);
     } catch (error) {
       logger.error("Error writing gateway resolve cache", error);
@@ -133,7 +156,7 @@ export class GatewayResolveCache {
   /**
    * Drops every cached resolve context for an organization. Call this after any
    * change that alters what /resolve would answer: connections, credentials,
-   * routing priority, connection status, or the gateway config.
+   * connection status, model access, or the gateway config.
    */
   async invalidateOrganization(organizationId: string) {
     if (!this.enabled) return;

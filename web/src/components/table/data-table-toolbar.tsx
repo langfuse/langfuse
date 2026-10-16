@@ -31,6 +31,7 @@ import {
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import {
   DataTableRowHeightSwitch,
+  type CustomRowHeightControl,
   type RowHeight,
 } from "@/src/components/table/data-table-row-height-switch";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
@@ -152,7 +153,12 @@ interface DataTableToolbarProps<TData, TValue> {
   columnOrder?: ColumnOrderState;
   setColumnOrder?: Dispatch<SetStateAction<ColumnOrderState>>;
   rowHeight?: RowHeight;
-  setRowHeight?: Dispatch<SetStateAction<RowHeight>>;
+  setRowHeight?: (rowHeight: RowHeight) => void;
+  /**
+   * Free height alongside the presets. Pass it wherever the switch is shown.
+   * Custom stays hidden until a row has been dragged.
+   */
+  customRowHeight?: CustomRowHeightControl;
   columnsWithCustomSelect?: string[];
   timeRange?: TimeRange;
   setTimeRange?: (timeRange: TimeRange) => void;
@@ -356,6 +362,7 @@ export function DataTableToolbar<TData, TValue>({
   setColumnOrder,
   rowHeight,
   setRowHeight,
+  customRowHeight,
   columnsWithCustomSelect,
   timeRange,
   setTimeRange,
@@ -637,7 +644,7 @@ export function DataTableToolbar<TData, TValue>({
                       size="sm"
                       className="flex h-8 items-center gap-2 text-sm md:hidden"
                     >
-                      <Filter className="h-4 w-4" />
+                      <Filter className="icon-base text-icon-foreground" />
                       <span>Filters</span>
                       {filterState.length > 0 && (
                         <span className="bg-input ml-1 rounded-sm px-1.5 text-xs shadow-xs">
@@ -666,7 +673,7 @@ export function DataTableToolbar<TData, TValue>({
                           emitLegacyMobileFiltersToggled(false, "header");
                         }}
                       >
-                        <X className="h-4 w-4" />
+                        <X className="icon-base text-icon-foreground" />
                       </Button>
                     </div>
                     <div className="shrink-0 border-b px-2 py-2">
@@ -722,6 +729,7 @@ export function DataTableToolbar<TData, TValue>({
               <DataTableRowHeightSwitch
                 rowHeight={rowHeight}
                 setRowHeight={setRowHeight}
+                customRowHeight={customRowHeight}
                 tableName={analyticsTableName}
                 isV4={analyticsIsV4}
               />

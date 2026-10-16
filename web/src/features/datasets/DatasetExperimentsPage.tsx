@@ -114,6 +114,7 @@ function DatasetExperimentsView({
     }
 
     showSuccessToast({
+      operation: "experiment.trigger",
       title: "Experiment triggered successfully",
       description: "Waiting for experiment to complete...",
       link: {
@@ -205,34 +206,32 @@ function DatasetExperimentsView({
             activeTab: DATASET_TABS.EXPERIMENTS,
           },
           actionButtonsRight: (
-            <>
-              <Dialog
-                open={isCreateExperimentDialogOpen}
-                onOpenChange={setIsCreateExperimentDialogOpen}
-              >
-                <DialogTrigger asChild disabled={!hasExperimentWriteAccess}>
-                  <Button
-                    disabled={!hasExperimentWriteAccess}
-                    onClick={() => capture("dataset_run:new_form_open")}
-                  >
-                    <FlaskConical className="h-4 w-4" />
-                    <span className="ml-2 hidden md:block">Run experiment</span>
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
-                  <CreateExperimentsForm
-                    key={`create-experiment-form-${datasetId}`}
-                    projectId={projectId as string}
-                    setFormOpen={setIsCreateExperimentDialogOpen}
-                    defaultValues={{
-                      datasetId,
-                    }}
-                    handleExperimentSuccess={handleExperimentSuccess}
-                    showSDKRunInfoPage
-                  />
-                </DialogContent>
-              </Dialog>
-            </>
+            <Dialog
+              open={isCreateExperimentDialogOpen}
+              onOpenChange={setIsCreateExperimentDialogOpen}
+            >
+              <DialogTrigger asChild disabled={!hasExperimentWriteAccess}>
+                <Button
+                  disabled={!hasExperimentWriteAccess}
+                  onClick={() => capture("dataset_run:new_form_open")}
+                >
+                  <FlaskConical className="icon-base text-icon-foreground" />
+                  <span className="ml-2 hidden md:block">Run experiment</span>
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+                <CreateExperimentsForm
+                  key={`create-experiment-form-${datasetId}`}
+                  projectId={projectId as string}
+                  setFormOpen={setIsCreateExperimentDialogOpen}
+                  defaultValues={{
+                    datasetId,
+                  }}
+                  handleExperimentSuccess={handleExperimentSuccess}
+                  showSDKRunInfoPage
+                />
+              </DialogContent>
+            </Dialog>
           ),
         }}
       >
@@ -279,7 +278,7 @@ function DatasetExperimentsView({
                   disabled={!hasExperimentWriteAccess}
                   onClick={() => capture("dataset_run:new_form_open")}
                 >
-                  <FlaskConical className="h-4 w-4" />
+                  <FlaskConical className="icon-base text-icon-foreground" />
                   <span className="ml-2 hidden md:block">Run experiment</span>
                 </Button>
               </DialogTrigger>
@@ -347,7 +346,7 @@ function DatasetExperimentsView({
                   aria-label="Dataset actions"
                   {...getTriggerProps()}
                 >
-                  <MoreVertical className="h-4 w-4" />
+                  <MoreVertical className="icon-base text-icon-foreground" />
                 </Button>
               )}
             </DatasetActionMenu>

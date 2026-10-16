@@ -1,0 +1,550 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  recordDistribution,
+  recordIncrement,
+  type Transcript,
+} from "@langfuse/shared/src/server";
+import type { TopicFacet, TopicSummary } from "@langfuse/shared/topics";
+import type { TopicsModels } from "@langfuse/shared/topics/server";
+
+const state = vi.hoisted(() => ({
+  facets: vi.fn(),
+  stored: vi.fn(),
+  summarize: vi.fn(),
+  embed: vi.fn(),
+  setAttribute: vi.fn(),
+}));
+
+vi.mock("@langfuse/shared/topics/server", () => ({
+  listTopicSummaries: (...args: unknown[]) => state.stored(...args),
+  TOPICS_TRANSCRIPT_VERSION: "shared-transcript-v3",
+}));
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
+  isInternalEvalEnvironment: (
+    await importOriginal<typeof import("@langfuse/shared/src/server")>()
+  ).isInternalEvalEnvironment,
+  recordDistribution: vi.fn(),
+  recordIncrement: vi.fn(),
+  instrumentAsync: async (
+    _options: unknown,
+    action: (span: {
+      setAttributes: () => void;
+      setAttribute: typeof state.setAttribute;
+    }) => Promise<unknown>,
+  ) => action({ setAttributes: vi.fn(), setAttribute: state.setAttribute }),
+}));
+vi.mock("./models", () => ({
+  summarizeTopicTraceFacets: (...args: unknown[]) => state.summarize(...args),
+  embedTopicSummaries: (...args: unknown[]) => state.embed(...args),
+}));
+
+import { summarizeAssembledTrace } from "./summarizeAssembledTrace";
+
+const transcript: Transcript = {
+  threads: [
+    {
+      conversationHistory: [],
+      currentTurn: {
+        nestingLevel: 0,
+        observations: [],
+        messages: [
+          {
+            observationId: "observation",
+            traceId: "trace-1",
+            startTime: new Date("2026-09-22T12:00:00.000Z"),
+            endTime: new Date("2026-09-22T12:00:01.000Z"),
+            role: "user",
+            source: "input",
+            parts: [{ type: "text", text: "Export monthly sales" }],
+          },
+        ],
+      },
+    },
+  ],
+};
+
+const facet: TopicFacet = {
+  id: "facet-1",
+  projectId: "project-a",
+  name: "Intent",
+  description: "The task requested for this run.",
+  isBuiltIn: true,
+  versions: [
+    {
+      projectId: "project-a",
+      facetId: "facet-1",
+      version: 2,
+      prompt: "Describe only what this run was asked to accomplish.",
+      createdAt: "2026-09-16T00:00:00.000Z",
+    },
+  ],
+};
+
+const slot = (name: "summary" | "embedding" | "clustering", model: string) => ({
+  slot: name,
+  provider: "bedrock",
+  adapter: "bedrock",
+  model,
+  connection: { secretKey: "encrypted" },
+});
+const models = {
+  projectId: "project-a",
+  enabled: true,
+  summary: slot("summary", "us.openai.gpt-5.6-luna"),
+  embedding: { ...slot("embedding", "eu.cohere.embed-v4:0"), dimensions: 1024 },
+  clustering: slot("clustering", "us.openai.gpt-5.6-terra"),
+} as TopicsModels;
+
+const usage = {
+  providedUsageDetails: { summary_input: 20 },
+  usageDetails: { summary_input: 20, summary_output: 8, total: 28 },
+  providedCostDetails: {},
+  costDetails: {
+    summary_input: 0.000004,
+    summary_output: 0.00001,
+    total: 0.000014,
+  },
+};
+
+let summaries: TopicSummary[] = [];
+// Keeps the returned rows for assertions and rethrows a partial failure, as the batch job reports it.
+const summarize = async (
+  input: Parameters<typeof summarizeAssembledTrace>[0],
+) => {
+  const result = await summarizeAssembledTrace(input);
+  summaries = result.rows;
+  if (result.failure !== undefined) throw result.failure;
+  return result.outcome;
+};
+
+beforeEach(() => {
+  vi.mocked(recordDistribution).mockClear();
+  vi.mocked(recordIncrement).mockClear();
+  state.facets.mockReset();
+  state.stored.mockReset();
+  summaries = [];
+  state.summarize.mockReset();
+  state.embed.mockReset();
+  state.setAttribute.mockClear();
+  state.facets.mockReturnValue([facet]);
+  state.stored.mockResolvedValue([]);
+  state.summarize.mockResolvedValue({
+    output: {
+      intent_1: { summary: "Export monthly sales.", status: "applicable" },
+    },
+    ...usage,
+  });
+  state.embed.mockImplementation(async (_model, summaries: string[]) => ({
+    embeddings: summaries.map(() => [0.25]),
+    providedUsageDetails: { embedding_input: 4 },
+    usageDetails: { embedding_input: 4, total: 4 },
+    providedCostDetails: {},
+    costDetails: { embedding_input: 0.00000048, total: 0.00000048 },
+  }));
+});
+
+describe("summarizeAssembledTrace", () => {
+  it("skips internal traces before reading summaries, calling models or writing", async () => {
+    const result = await summarize({
+      projectId: "project-a",
+      traceId: "trace-1",
+      traceTimestamp: "2026-09-22T12:00:00.000Z",
+      jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
+      environment: "langfuse-topics",
+      traceName: "topics-summary",
+      transcript,
+      models,
+      facets: [facet],
+    });
+    expect(result).toBe("disabled");
+    expect(state.stored).not.toHaveBeenCalled();
+    expect(state.summarize).not.toHaveBeenCalled();
+    expect(state.embed).not.toHaveBeenCalled();
+    expect(summaries).toEqual([]);
+  });
+
+  it("skips a finished job retry but summarizes a later redispatch", async () => {
+    await summarize({
+      projectId: "project-a",
+      traceId: "trace-1",
+      traceTimestamp: "2026-09-22T12:00:00.000Z",
+      jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
+      environment: "default",
+      traceName: "agent-turn",
+      transcript,
+      models,
+      facets: state.facets(),
+    });
+    expect(state.summarize).toHaveBeenCalledTimes(1);
+    const submitted = state.summarize.mock.calls[0];
+    expect(submitted[0]).toBe(models);
+    expect(submitted[1]).toEqual([
+      { key: "intent_1", facet: facet.versions[0], builtIn: true },
+    ]);
+    expect(submitted[2]).toContain("Export monthly sales");
+    expect(submitted[2]).not.toContain("observation");
+    expect(submitted[4]).toEqual({
+      source_trace_id: "trace-1",
+      source_environment: "default",
+    });
+    const written = summaries[0];
+    expect(written).toMatchObject({
+      projectId: "project-a",
+      traceId: "trace-1",
+      sessionId: null,
+      facetId: "facet-1",
+      facetVersion: 2,
+      state: "complete",
+      summary: "Export monthly sales.",
+      summaryModel: "us.openai.gpt-5.6-luna",
+      embeddingModel: "eu.cohere.embed-v4:0",
+      environment: "default",
+      traceName: "agent-turn",
+      providedUsageDetails: {
+        summary_input: 20,
+        embedding_input: 4,
+        total: 24,
+      },
+      usageDetails: {
+        summary_input: 20,
+        summary_output: 8,
+        embedding_input: 4,
+        total: 32,
+      },
+    });
+    expect(written.costDetails.total).toBeCloseTo(0.00001448, 12);
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.topics.stage_duration_ms",
+      expect.any(Number),
+      { stage: "trace", outcome: "success", unit: "milliseconds" },
+    );
+    state.stored.mockResolvedValue([
+      { ...written, processedAt: "2026-09-22T12:02:00.000Z" },
+    ]);
+    state.summarize.mockClear();
+    summaries = [];
+    await summarize({
+      projectId: "project-a",
+      traceId: "trace-1",
+      traceTimestamp: "2026-09-22T12:00:00.000Z",
+      jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
+      environment: "default",
+      traceName: "agent-turn",
+      transcript,
+      models,
+      facets: state.facets(),
+    });
+    expect(state.summarize).not.toHaveBeenCalled();
+    expect(summaries).toEqual([]);
+    await summarize({
+      projectId: "project-a",
+      traceId: "trace-1",
+      traceTimestamp: "2026-09-22T12:00:00.000Z",
+      jobEnqueuedAt: new Date("2026-09-22T12:03:00.000Z"),
+      environment: "default",
+      traceName: "agent-turn",
+      transcript,
+      models,
+      facets: state.facets(),
+    });
+    expect(state.summarize).toHaveBeenCalledOnce();
+    expect(summaries).toHaveLength(1);
+    expect(summaries[0].unitStartTime).toBe(written.unitStartTime);
+    expect(state.stored).toHaveBeenCalledTimes(3);
+  });
+
+  it("summarizes and embeds all pending facets in one call each and records their usage once", async () => {
+    const issues: TopicFacet = {
+      ...facet,
+      id: "facet-2",
+      name: "Issues",
+      versions: [{ ...facet.versions[0], facetId: "facet-2", version: 1 }],
+    };
+    const outcome: TopicFacet = {
+      ...facet,
+      id: "facet-3",
+      name: "Outcome",
+      versions: [{ ...facet.versions[0], facetId: "facet-3", version: 1 }],
+    };
+    state.facets.mockReturnValue([facet, issues, outcome]);
+    state.summarize.mockResolvedValue({
+      output: {
+        intent_1: { summary: "Export monthly sales.", status: "applicable" },
+        issues_2: { summary: "", status: "not_applicable" },
+        outcome_3: { summary: "Export completed.", status: "applicable" },
+      },
+      ...usage,
+    });
+    await summarize({
+      projectId: "project-a",
+      traceId: "trace-1",
+      traceTimestamp: "2026-09-22T12:00:00.000Z",
+      jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
+      environment: "default",
+      traceName: "agent-turn",
+      transcript,
+      models,
+      facets: state.facets(),
+    });
+    expect(state.summarize).toHaveBeenCalledOnce();
+    const [intent, issue] = summaries;
+    expect(intent).toMatchObject({ facetId: "facet-1", state: "complete" });
+    expect(intent.usageDetails.summary_input).toBe(20);
+    expect(issue).toMatchObject({
+      facetId: "facet-2",
+      state: "not_applicable",
+      usageDetails: {},
+    });
+  });
+
+  it("stores a not-applicable result that carries stray text instead of failing the trace", async () => {
+    state.summarize.mockResolvedValue({
+      output: {
+        intent_1: { summary: "No problems found.", status: "not_applicable" },
+      },
+      ...usage,
+    });
+    await summarize({
+      projectId: "project-a",
+      traceId: "trace-1",
+      traceTimestamp: "2026-09-22T12:00:00.000Z",
+      jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
+      environment: "default",
+      traceName: "agent-turn",
+      transcript,
+      models,
+      facets: state.facets(),
+    });
+    const [written] = summaries;
+    expect(written).toMatchObject({ state: "not_applicable" });
+    expect(written.summary ?? "").toBe("");
+    expect(state.embed).not.toHaveBeenCalled();
+  });
+
+  it("keeps the other facets when one facet's output is invalid", async () => {
+    const issues: TopicFacet = {
+      ...facet,
+      id: "facet-2",
+      name: "Issues",
+      versions: [{ ...facet.versions[0], facetId: "facet-2", version: 1 }],
+    };
+    state.facets.mockReturnValue([facet, issues]);
+    state.summarize.mockResolvedValue({
+      output: {
+        intent_1: { summary: "", status: "applicable" },
+        issues_2: { summary: "Retried a failed export.", status: "applicable" },
+      },
+      ...usage,
+    });
+    await expect(
+      summarize({
+        projectId: "project-a",
+        traceId: "trace-1",
+        traceTimestamp: "2026-09-22T12:00:00.000Z",
+        jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
+        environment: "default",
+        traceName: "agent-turn",
+        transcript,
+        models,
+        facets: state.facets(),
+      }),
+    ).rejects.toThrow(
+      "Applicable facet summary must contain a concise summary.",
+    );
+    const written = summaries;
+    expect(written).toHaveLength(1);
+    expect(written[0]).toMatchObject({ facetId: "facet-2", state: "complete" });
+    // The shared call's usage moves to the first row that is written.
+    expect(written[0].usageDetails.summary_input).toBe(20);
+    expect(written[0]).not.toHaveProperty("output");
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.topics.stage_duration_ms",
+      expect.any(Number),
+      { stage: "summary", outcome: "failed", unit: "milliseconds" },
+    );
+    expect(
+      vi
+        .mocked(recordIncrement)
+        .mock.calls.filter(([name]) => name === "langfuse.topics.errors"),
+    ).toEqual([
+      [
+        "langfuse.topics.errors",
+        1,
+        { stage: "summary", reason: "invalid_output" },
+      ],
+    ]);
+    expect(state.setAttribute).toHaveBeenCalledWith(
+      "langfuse.topics.trace_outcome",
+      "failed",
+    );
+  });
+
+  it("puts built-in facets before custom facets so the cached prefix stays stable", async () => {
+    const custom: TopicFacet = {
+      ...facet,
+      id: "facet-custom",
+      name: "Language",
+      isBuiltIn: false,
+      versions: [{ ...facet.versions[0], facetId: "facet-custom", version: 1 }],
+    };
+    state.facets.mockReturnValue([custom, facet]);
+    state.summarize.mockResolvedValue({
+      output: {
+        intent_1: { summary: "Export monthly sales.", status: "applicable" },
+        language_2: { summary: "English.", status: "applicable" },
+      },
+      ...usage,
+    });
+    await summarize({
+      projectId: "project-a",
+      traceId: "trace-1",
+      traceTimestamp: "2026-09-22T12:00:00.000Z",
+      jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
+      environment: "default",
+      traceName: "agent-turn",
+      transcript,
+      models,
+      facets: state.facets(),
+    });
+    expect(state.summarize.mock.calls[0][1]).toEqual([
+      { key: "intent_1", facet: facet.versions[0], builtIn: true },
+      { key: "language_2", facet: custom.versions[0], builtIn: false },
+    ]);
+  });
+
+  it("persists successful facets and attributes an embedding failure once", async () => {
+    state.facets.mockReturnValue([
+      facet,
+      {
+        ...facet,
+        id: "facet-2",
+        name: "Issues",
+        versions: [{ ...facet.versions[0], facetId: "facet-2", version: 1 }],
+      },
+    ]);
+    state.summarize.mockResolvedValue({
+      output: {
+        intent_1: { summary: "Export monthly sales.", status: "applicable" },
+        issues_2: { summary: "", status: "not_applicable" },
+      },
+      ...usage,
+    });
+    const error = new Error("embedding provider unavailable");
+    state.embed.mockRejectedValueOnce(error);
+    await expect(
+      summarize({
+        projectId: "project-a",
+        traceId: "trace-1",
+        traceTimestamp: "2026-09-22T12:00:00.000Z",
+        jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
+        environment: "default",
+        traceName: "agent-turn",
+        transcript,
+        models,
+        facets: state.facets(),
+      }),
+    ).rejects.toBe(error);
+    expect(state.summarize).toHaveBeenCalledOnce();
+    expect(summaries).toEqual([
+      expect.objectContaining({
+        facetId: "facet-2",
+        state: "not_applicable",
+        usageDetails: usage.usageDetails,
+      }),
+    ]);
+    expect(
+      vi
+        .mocked(recordIncrement)
+        .mock.calls.filter(([name]) => name === "langfuse.topics.errors"),
+    ).toEqual([
+      ["langfuse.topics.errors", 1, { stage: "embedding", reason: "unknown" }],
+    ]);
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.topics.stage_duration_ms",
+      expect.any(Number),
+      { stage: "embedding", outcome: "failed", unit: "milliseconds" },
+    );
+    expect(state.setAttribute).toHaveBeenCalledWith(
+      "langfuse.topics.trace_outcome",
+      "failed",
+    );
+  });
+
+  it("propagates a provider failure for the trace outcome", async () => {
+    const error = new Error("provider unavailable");
+    state.summarize.mockRejectedValue(error);
+    await expect(
+      summarize({
+        projectId: "project-a",
+        traceId: "trace-1",
+        traceTimestamp: "2026-09-22T12:00:00.000Z",
+        jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
+        environment: "default",
+        traceName: "agent-turn",
+        transcript,
+        models,
+        facets: state.facets(),
+      }),
+    ).rejects.toBe(error);
+    expect(state.setAttribute).toHaveBeenCalledWith(
+      "langfuse.topics.trace_outcome",
+      "failed",
+    );
+    expect(summaries).toEqual([]);
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.topics.stage_duration_ms",
+      expect.any(Number),
+      { stage: "trace", outcome: "failed", unit: "milliseconds" },
+    );
+    // Nested stages report one error, attributed to the failing call.
+    expect(
+      vi
+        .mocked(recordIncrement)
+        .mock.calls.filter(([name]) => name === "langfuse.topics.errors"),
+    ).toEqual([
+      ["langfuse.topics.errors", 1, { stage: "summary", reason: "unknown" }],
+    ]);
+  });
+
+  it("attributes invalid summary output to the failed summary stage", async () => {
+    state.summarize.mockResolvedValue({
+      output: { intent_1: { summary: "  ", status: "applicable" } },
+      ...usage,
+    });
+    await expect(
+      summarize({
+        projectId: "project-a",
+        traceId: "trace-1",
+        traceTimestamp: "2026-09-22T12:00:00.000Z",
+        jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
+        environment: "default",
+        traceName: "agent-turn",
+        transcript,
+        models,
+        facets: state.facets(),
+      }),
+    ).rejects.toMatchObject({ reason: "invalid_output" });
+    expect(state.embed).not.toHaveBeenCalled();
+    expect(summaries).toEqual([]);
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.topics.stage_duration_ms",
+      expect.any(Number),
+      { stage: "summary", outcome: "failed", unit: "milliseconds" },
+    );
+    expect(
+      vi
+        .mocked(recordIncrement)
+        .mock.calls.filter(([name]) => name === "langfuse.topics.errors"),
+    ).toEqual([
+      [
+        "langfuse.topics.errors",
+        1,
+        { stage: "summary", reason: "invalid_output" },
+      ],
+    ]);
+    expect(state.setAttribute).toHaveBeenCalledWith(
+      "langfuse.topics.trace_outcome",
+      "failed",
+    );
+  });
+});

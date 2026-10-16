@@ -1,10 +1,14 @@
 import { useState } from "react";
-import { MediaTag } from "../../MediaTag/MediaTag";
+import { MediaTag, type MediaTagProps } from "../../MediaTag/MediaTag";
 import { useResolvedMedia } from "./useResolvedMedia";
+import { useResolvedExternalMedia } from "./useResolvedExternalMedia";
 import { type MediaDescriptor } from "./mediaUtils";
 import { OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE } from "@langfuse/shared";
+import { useIsFeatureEnabled } from "@/src/features/feature-flags";
+import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 
 type LangfuseRefDescriptor = Extract<MediaDescriptor, { kind: "langfuseRef" }>;
+type S3Descriptor = Extract<MediaDescriptor, { kind: "s3" }>;
 
 /**
  * Container that connects a classified media value to the pure `MediaTag`: it
@@ -13,26 +17,94 @@ type LangfuseRefDescriptor = Extract<MediaDescriptor, { kind: "langfuseRef" }>;
  */
 export function MediaReferenceTag({
   descriptor,
+  label,
+  size,
 }: {
   descriptor: MediaDescriptor;
+  label?: string;
+  size?: MediaTagProps["size"];
 }) {
+  if (descriptor.kind === "s3") {
+    return <S3MediaTag descriptor={descriptor} label={label} size={size} />;
+  }
+
   if (descriptor.kind !== "langfuseRef") {
     return (
       <MediaTag
         contentType={descriptor.contentType}
         status="ready"
         url={descriptor.src}
+        size={size}
       />
     );
   }
 
-  return <LangfuseRefMediaTag descriptor={descriptor} />;
+  return <LangfuseRefMediaTag descriptor={descriptor} size={size} />;
+}
+
+function S3MediaTag({
+  descriptor,
+  label,
+  size,
+}: {
+  descriptor: S3Descriptor;
+  label?: string;
+  size?: MediaTagProps["size"];
+}) {
+  const projectId = useProjectIdFromURL();
+  const isFeatureEnabled = useIsFeatureEnabled("externalMediaStorage", {
+    enableForAdmins: false,
+    projectId,
+  });
+  const [armed, setArmed] = useState(false);
+  const [open, setOpen] = useState(false);
+  const { status, url, refreshIfNeeded } = useResolvedExternalMedia(
+    descriptor,
+    {
+      enabled: isFeatureEnabled && armed,
+    },
+  );
+  const handleOpenChange = (nextOpen: boolean) => {
+    setOpen(nextOpen);
+    if (!nextOpen) return;
+
+    if (armed) {
+      refreshIfNeeded().catch(() => undefined);
+    }
+    setArmed(true);
+  };
+
+  if (!isFeatureEnabled) {
+    return (
+      <span
+        className="inline-block max-w-full min-w-0 truncate align-middle"
+        title={descriptor.uri}
+      >
+        {descriptor.uri}
+      </span>
+    );
+  }
+
+  return (
+    <MediaTag
+      contentType={descriptor.contentType}
+      label={label}
+      size={size}
+      status={status}
+      url={url}
+      errorDetail={descriptor.uri}
+      open={open}
+      onOpenChange={handleOpenChange}
+    />
+  );
 }
 
 function LangfuseRefMediaTag({
   descriptor,
+  size,
 }: {
   descriptor: LangfuseRefDescriptor;
+  size?: MediaTagProps["size"];
 }) {
   const [armed, setArmed] = useState(false);
   const [open, setOpen] = useState(false);
@@ -49,6 +121,7 @@ function LangfuseRefMediaTag({
   return (
     <MediaTag
       contentType={descriptor.contentType}
+      size={size}
       status={status}
       url={url}
       contentLength={contentLength}

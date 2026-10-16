@@ -26,7 +26,8 @@ import { buildAdminOrgContext } from "@/src/features/organizations/server/adminO
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import {
   featurePreviewFlags,
-  filterFeaturePreviewFlags,
+  getOrganizationFeaturePreviewDefaults,
+  isOrganizationOnlyFeaturePreviewFlag,
   setOrganizationFeatureFlagDefault,
   parseFlags,
 } from "@/src/features/feature-flags/server";
@@ -96,7 +97,7 @@ export const organizationsRouter = createTRPCRouter({
       }
 
       return {
-        defaults: filterFeaturePreviewFlags(
+        defaults: getOrganizationFeaturePreviewDefaults(
           organization.featureFlagOrgDefaults,
         ),
         memberCount: organization._count.organizationMemberships,
@@ -129,6 +130,7 @@ export const organizationsRouter = createTRPCRouter({
 
       if (
         input.enabled &&
+        !isOrganizationOnlyFeaturePreviewFlag(input.flag) &&
         env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES !== "true"
       ) {
         const actor = await ctx.prisma.user.findUnique({
@@ -172,7 +174,7 @@ export const organizationsRouter = createTRPCRouter({
       });
 
       return {
-        defaults: result.after,
+        defaults: getOrganizationFeaturePreviewDefaults(result.after),
         flag: input.flag,
         enabled: input.enabled,
       };

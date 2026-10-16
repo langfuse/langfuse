@@ -1,15 +1,52 @@
 import { createTypeSafeAi } from "@ai-sdk/typesafe-ai";
 import {
-  experimental_evaluate as evaluate,
-  type Experimental_EvaluationQuestion as EvaluationQuestion,
+  experimental_decide as decide,
+  type Experimental_DecisionQuestion,
   type JSONValue,
 } from "ai";
 import type {
   DecisionModelAnswer,
   DecisionModelClient,
   DecisionModelEvaluation,
+  DecisionModelRequestQuestion,
 } from "../../evals/decisionModelEvaluatorExecution";
 import { createSecureLlmFetch } from "../secureLlmFetch";
+
+/** TypeSafe reads a description per level, in order. */
+function toTypeSafeQuestion(question: DecisionModelRequestQuestion) {
+  switch (question.type) {
+    case "choice":
+      return {
+        type: "choice" as const,
+        instructions: question.instructions,
+        criteria: Object.fromEntries(
+          question.choices.map((choice) => [
+            choice.value,
+            choice.description ?? null,
+          ]),
+        ),
+      };
+    case "score":
+      return {
+        type: "score" as const,
+        instructions: question.instructions,
+        criteria: question.levels.map((level) => level.description),
+      };
+    case "predicate":
+      return {
+        type: "boolean" as const,
+        instructions: question.instructions,
+        ...(question.criteria
+          ? {
+              criteria: {
+                true: question.criteria.true ?? null,
+                false: question.criteria.false ?? null,
+              },
+            }
+          : {}),
+      };
+  }
+}
 
 export function createTypeSafeDecisionModelClient(params: {
   apiKey: string;
@@ -33,10 +70,15 @@ export function createTypeSafeDecisionModelClient(params: {
 
   return {
     evaluate: async (request) => {
-      const result = await evaluate({
+      const result = await decide({
         model,
         state: request.state as Record<string, JSONValue>,
-        questions: request.questions as Record<string, EvaluationQuestion>,
+        questions: Object.fromEntries(
+          Object.entries(request.questions).map(([id, question]) => [
+            id,
+            toTypeSafeQuestion(question),
+          ]),
+        ) as Record<string, Experimental_DecisionQuestion>,
         maxRetries: 1,
       });
 

@@ -15,7 +15,8 @@ import {
 import { ActionButton } from "@/src/components/ActionButton";
 import { planLabels } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
-import { toast } from "sonner";
+import { showSuccessToast, showToast } from "@/src/features/notifications";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { nanoid } from "nanoid";
 
 export const StripeSwitchPlanButton = ({
@@ -42,15 +43,23 @@ export const StripeSwitchPlanButton = ({
   const mutChangePlan =
     api.cloudBilling.changeStripeSubscriptionProduct.useMutation({
       onSuccess: () => {
-        toast.success("Plan changed successfully");
+        showSuccessToast({
+          operation: "billing_plan.change",
+          title: "Plan changed successfully",
+          description: "",
+        });
         onProcessing(null);
         setOpId(null);
         setTimeout(() => window.location.reload(), 500);
       },
-      onError: () => {
+      onError: (error) => {
         onProcessing(null);
         setOpId(null);
-        toast.error("Failed to change plan");
+        showToast({
+          type: "ERROR",
+          title: "Failed to change plan",
+          analytics: classifyTrpcToastError(error, "billing_plan.change"),
+        });
       },
     });
 

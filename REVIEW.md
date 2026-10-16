@@ -38,14 +38,38 @@ Use their technical rules, not their implementation or handoff workflows.
 
 - Use `web/src/components/design-system/` primitives and their styling rules.
   Add variants instead of custom `className` values.
+- Importing raw primitives (`@radix-ui/*`, cmdk, etc.) in feature code is an
+  exception, only when the design system has no suitable option.
+- Compose triggers and overlay content separately. Overlay owners manage content
+  and open/close state, but must allow callers to supply or replace the trigger.
+  Trigger components must not own the overlay content. Connect triggers through
+  trigger props or controller callbacks rather than hard-coding a button inside
+  the content component. Use `DialogController` for dialogs and follow the
+  render-prop trigger APIs of `Tooltip` and `HoverCard` in
+  `web/src/components/design-system/`.
+  Support triggers nested inside child components by passing trigger props or
+  callbacks—not overlay content.
 - Export one component per file. Match the filename to the component and name
   its props type `<ComponentName>Props`.
-- Use `children` or conditionals, not `renderX` props. Extract nested JSX-returning
-  functions into components. Use a store when extracted components share state.
+- When creating new component APIs, use `children` or conditionals, not `renderX`
+  props. This does not prohibit using existing design-system render-prop APIs.
+  Extract nested JSX-returning functions into components. Use a store when
+  extracted components share state.
 - Name action handlers; no inline functions in JSX.
 - Fetch data in custom hooks, not UI components. Use `react-hook-form` for forms.
-- No `useEffect`, including integration exceptions in older guidance. Do not
-  hide effects in new wrappers or replace them with `useLayoutEffect`.
+- Do not use effects to compute derived state, handle user actions, or synchronize
+  application state when rendering, event handlers, or an existing state owner
+  can express the same behavior directly.
+- Allow narrowly scoped effects to synchronize with external systems: browser
+  APIs, subscriptions, and imperative integrations. Require correct dependencies
+  and cleanup. A focused lifecycle hook is valid abstraction, not inherently
+  a hidden effect; moving avoidable state synchronization into a hook is not a fix.
+- Allow `useLayoutEffect` for DOM measurement or layout correction that must
+  happen before paint. Otherwise prefer `useEffect`. Check for feedback loops
+  and unnecessary blocking work; neither hook is a violation by name alone.
+- Before flagging an effect as avoidable, show a viable alternative preserving
+  the required timing, updates, and cleanup. Do not demand a lifecycle rewrite
+  without establishing that it works for the integration.
 - Use the router for navigation. Preserve existing URL state and local/session
   storage settings.
 
@@ -91,8 +115,13 @@ Use their technical rules, not their implementation or handoff workflows.
 
 ## Findings
 
-- **Important:** verified bug, harmful design, or new team-rule violation.
-  Fix before merge unless a human explicitly accepts it.
+- **Defect:** verified correctness, security, or performance problem, or harmful
+  design with a concrete consequence. State impact and urgency from the evidence.
+- **Convention:** new violation of an applicable team rule. State the rule and
+  offending code; do not imply runtime harm without separate evidence.
+- Defects and Convention findings require a fix before merge unless a human
+  explicitly accepts them. Their shared merge requirement does not imply equal
+  severity. Identify the category in each finding's title.
 - **Nit:** useful but optional improvement beyond team rules. At most two.
 - Omit preferences, speculation, duplicates, and mechanical failures reported by CI.
 
@@ -108,9 +137,9 @@ recoverability, then rule violations. Report serious pre-existing bugs separatel
 they do not block this PR. Prefer local fixes over redesigns.
 
 Give each finding a short title, precise location, evidence, and fix or next check.
-Group repeated causes or rule violations. Report every Important finding.
+Group repeated causes or rule violations. Report every Defect and Convention finding.
 Review generated code and dependency changes for bugs; fix their source.
 
-On re-review, verify fixes and report newly verified Important findings. Do not
+On re-review, verify fixes and report newly verified Defect and Convention findings. Do not
 repeat resolved feedback or add Nits. End with unresolved questions and checks
 actually run. Say when there are no findings; do not claim that proves safety.

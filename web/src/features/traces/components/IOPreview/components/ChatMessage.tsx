@@ -37,6 +37,8 @@ export interface ChatMessageProps {
   toolCallNumbers?: number[];
   isOutputMessage?: boolean;
   contentMode?: IOPreviewContentMode;
+  /** Section title; the caller decides (role, name, or Input / Output). */
+  title: string;
 }
 
 /**
@@ -55,10 +57,20 @@ export function ChatMessage({
   toolCallNumbers,
   isOutputMessage,
   contentMode = "all",
+  title,
 }: ChatMessageProps) {
   const [showTableView, setShowTableView] = useState(false);
 
-  const title = getMessageTitle(message);
+  const renderToolResponse = (response: ChatMlMessage) => (
+    <ChatMessage
+      message={response}
+      title={getMessageTitle(response)}
+      shouldRenderMarkdown={shouldRenderMarkdown}
+      currentView={currentView}
+      contentMode={contentMode}
+    />
+  );
+
   const toolCalls = parseToolCallsFromMessage(message);
   const hasContent = hasRenderableContent(message);
   // Collapse from the raw role: the title is the message `name` when present,
@@ -79,9 +91,9 @@ export function ChatMessage({
         className="hover:bg-border -mr-2"
       >
         {showTableView ? (
-          <ListChevronsDownUp className="text-primary h-3 w-3" />
+          <ListChevronsDownUp className="icon-sm text-primary" />
         ) : (
-          <ListChevronsUpDown className="h-3 w-3" />
+          <ListChevronsUpDown className="icon-sm text-icon-foreground" />
         )}
       </Button>
     ) : undefined;
@@ -158,6 +170,7 @@ export function ChatMessage({
         <ToolCallInvocationsView
           message={message}
           toolCallNumbers={toolCallNumbers}
+          renderResponse={renderToolResponse}
         />
       </div>
     );
@@ -204,6 +217,7 @@ export function ChatMessage({
               <ToolCallInvocationsView
                 message={message}
                 toolCallNumbers={toolCallNumbers}
+                renderResponse={renderToolResponse}
               />
             </div>
           )}
@@ -224,6 +238,7 @@ export function ChatMessage({
               <ToolCallInvocationsView
                 message={message}
                 toolCallNumbers={toolCallNumbers}
+                renderResponse={renderToolResponse}
               />
             </div>
           )}

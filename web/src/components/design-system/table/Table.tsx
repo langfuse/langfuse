@@ -14,6 +14,7 @@ import { type ComponentProps, useMemo } from "react";
 
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { cn } from "@/src/utils/tailwind";
@@ -35,6 +36,7 @@ export interface TableProps<TData> {
   tableName: string;
   columns: ColumnDef<TData>[];
   actions?: (row: TData) => ComponentProps<typeof DropdownMenu>["items"];
+  actionsDisabledReason?: string;
   data: AsyncTableData<TData[]>;
   orderBy?: OrderByState;
   setOrderBy?: (state: OrderByState) => void;
@@ -46,12 +48,15 @@ export interface TableProps<TData> {
   columnOrder?: ColumnOrderState;
   onColumnOrderChange?: OnChangeFn<ColumnOrderState>;
   rowHeight?: "s" | "m" | "l";
+  /** `false` for a table that sits directly under a divider, such as page tabs. */
+  topBorder?: boolean;
 }
 
 export function Table<TData extends object>({
   tableName,
   columns,
   actions,
+  actionsDisabledReason,
   data,
   orderBy,
   setOrderBy,
@@ -63,6 +68,7 @@ export function Table<TData extends object>({
   columnOrder,
   onColumnOrderChange,
   rowHeight,
+  topBorder = true,
 }: TableProps<TData>) {
   const tableColumns = useMemo<ColumnDef<TData>[]>(() => {
     if (!actions) return columns;
@@ -84,32 +90,51 @@ export function Table<TData extends object>({
               className="ml-auto flex size-6 items-center justify-end"
               onClick={(event) => event.stopPropagation()}
             >
-              <DropdownMenu items={items} placement="bottom-end">
-                {({ getTriggerProps }) => (
-                  <IconButton
-                    icon={MoreVertical}
-                    label="Open actions menu"
-                    size="sm"
-                    variant="subtle"
-                    {...getTriggerProps()}
-                    disabled={items.length === 0}
-                  />
-                )}
-              </DropdownMenu>
+              {items.length === 0 && actionsDisabledReason ? (
+                <Tooltip label={actionsDisabledReason}>
+                  {({ getTriggerProps }) => (
+                    <span
+                      {...getTriggerProps()}
+                      className="inline-flex cursor-not-allowed [&>button]:pointer-events-none"
+                    >
+                      <IconButton
+                        icon={MoreVertical}
+                        label="Open actions menu"
+                        size="sm"
+                        variant="subtle"
+                        disabled
+                      />
+                    </span>
+                  )}
+                </Tooltip>
+              ) : (
+                <DropdownMenu items={items} placement="bottom-end">
+                  {({ getTriggerProps }) => (
+                    <IconButton
+                      icon={MoreVertical}
+                      label="Open actions menu"
+                      size="sm"
+                      variant="subtle"
+                      {...getTriggerProps()}
+                      disabled={items.length === 0}
+                    />
+                  )}
+                </DropdownMenu>
+              )}
             </div>
           );
         },
         loadingCell: (
           <div className="ml-auto flex h-4 w-6 items-center justify-center">
             <MoreVertical
-              className="text-muted-foreground/30 size-4 animate-pulse"
+              className="text-muted-foreground/30 icon-base animate-pulse"
               aria-hidden="true"
             />
           </div>
         ),
       },
     ];
-  }, [actions, columns]);
+  }, [actions, actionsDisabledReason, columns]);
   const table = useReactTable({
     data: data.status === "success" ? data.data : [],
     columns: tableColumns,
@@ -124,7 +149,12 @@ export function Table<TData extends object>({
 
   return (
     <div className="flex w-full max-w-full flex-1 flex-col overflow-auto">
-      <div className="relative min-h-full w-full overflow-auto border-t [scrollbar-gutter:stable]">
+      <div
+        className={cn(
+          "relative min-h-full w-full overflow-auto [scrollbar-gutter:stable]",
+          topBorder && "border-t",
+        )}
+      >
         <table
           aria-label={tableName}
           className="w-full table-fixed border-separate border-spacing-0 space-y-4 overflow-auto text-sm"
@@ -202,19 +232,19 @@ export function Table<TData extends object>({
                             </span>
                             {!isSorted && (
                               <ArrowUpDown
-                                className="ml-1.5 size-3 shrink-0 opacity-40 transition-opacity group-hover/sort:opacity-70"
+                                className="icon-sm ml-1.5 shrink-0 opacity-40 transition-opacity group-hover/sort:opacity-70"
                                 aria-hidden="true"
                               />
                             )}
                             {isSorted && orderBy.order === "ASC" && (
                               <ArrowUp
-                                className="ml-1.5 size-3 shrink-0"
+                                className="icon-sm ml-1.5 shrink-0"
                                 aria-hidden="true"
                               />
                             )}
                             {isSorted && orderBy.order === "DESC" && (
                               <ArrowDown
-                                className="ml-1.5 size-3 shrink-0"
+                                className="icon-sm ml-1.5 shrink-0"
                                 aria-hidden="true"
                               />
                             )}
@@ -318,7 +348,7 @@ export function Table<TData extends object>({
                 <tr
                   key={row.id}
                   className={cn(
-                    "hover:bg-accent h-12 transition-colors",
+                    "group/row hover:bg-accent h-12 transition-colors",
                     rowHeight === "m" && "h-24",
                     rowHeight === "l" && "h-64",
                     onRowClick ? "cursor-pointer" : "cursor-default",

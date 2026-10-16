@@ -1,11 +1,15 @@
 /* eslint-disable no-nested-ternary */
 import {
   availableFlags,
+  defaultOnFeaturePreviewFlags,
+  featurePreviewFlags,
   filterFeaturePreviewFlags,
   isRestrictedFlag,
   isInternalFlag,
   isFeaturePreviewFlag,
+  isOrganizationOnlyFeaturePreviewFlag,
   isFeaturePreviewAvailable,
+  isAdminOnlyFeaturePreviewFlag,
   type FeaturePreviewAvailabilityContext,
   type UserFeatureFlag,
 } from "./available-flags";
@@ -60,9 +64,28 @@ export const parseFlags = (
 
     if (
       isFeaturePreviewFlag(flag) &&
+      isOrganizationOnlyFeaturePreviewFlag(flag)
+    ) {
+      parsedFlags[flag] = false;
+      return;
+    }
+
+    if (
+      (isFeaturePreviewFlag(flag) || isAdminOnlyFeaturePreviewFlag(flag)) &&
       dbFlags.includes(getFeaturePreviewOptOutFlag(flag))
     ) {
       parsedFlags[flag] = false;
+      return;
+    }
+
+    if (
+      defaultOnFeaturePreviewFlags.some(
+        (defaultFlag) => defaultFlag === flag,
+      ) &&
+      isFeaturePreviewFlag(flag) &&
+      isFeaturePreviewAvailable(flag, context)
+    ) {
+      parsedFlags[flag] = true;
       return;
     }
 
@@ -78,8 +101,8 @@ export const parseFlags = (
     parsedFlags[flag] = dbFlags.includes(flag);
   });
 
-  if (!parsedFlags.modernSession) {
-    parsedFlags.sessionTimeline = false;
+  if (!parsedFlags.sessionViewV2) {
+    parsedFlags.sessionViewV2Timeline = false;
   }
 
   return parsedFlags;
@@ -96,7 +119,19 @@ export const parseFlagsWithOrganizationDefaults = (
   const featurePreviewDefaults =
     filterFeaturePreviewFlags(organizationDefaults);
 
-  return parseFlags(dbFlags.concat(featurePreviewDefaults), context);
+  const organizationOptOuts = defaultOnFeaturePreviewFlags
+    .map(getFeaturePreviewOptOutFlag)
+    .filter((flag) => organizationDefaults.includes(flag));
+  const flags = parseFlags(
+    dbFlags.concat(featurePreviewDefaults, organizationOptOuts),
+    context,
+  );
+  for (const flag of featurePreviewFlags) {
+    if (isOrganizationOnlyFeaturePreviewFlag(flag)) {
+      flags[flag] = featurePreviewDefaults.includes(flag);
+    }
+  }
+  return flags;
 };
 
 type ContextualFeatureFlagUser = {

@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import {
   Tooltip,
   TooltipContent,
@@ -8,10 +7,13 @@ import {
 import { useState } from "react";
 import Decimal from "decimal.js";
 import Link from "next/link";
+import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { type Details } from "@/src/features/traces/fns/calculateAggregatedUsage";
-import { ExternalLink } from "lucide-react";
-import { usdFormatter } from "@/src/utils/numbers";
+import { ExternalLink, InfoIcon } from "lucide-react";
+import { centCostFormatter, usdFormatter } from "@/src/utils/numbers";
 import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "@/src/utils/tailwind";
 
 export interface PriceSource {
   projectId: string;
@@ -68,30 +70,29 @@ export const BreakdownTooltip = ({
         !key.includes("input") && !key.includes("output") && key !== "total",
     )
     .sort(([, a], [, b]) => (b ?? 0) - (a ?? 0));
-  const otherTotal = otherEntries.reduce((acc, [, value]) => {
-    if (typeof value !== "number") return acc;
-
-    return acc + value;
-  }, 0);
   const contributionEntries = inputEntries.concat(outputEntries, otherEntries);
   const costFractionDigits = getCostFractionDigits(entries);
   const formatValue = (value: number | Decimal) => {
-    if (!isCost) {
-      const numericValue = value instanceof Decimal ? value.toNumber() : value;
-      return numericValue ? numericValue.toLocaleString() : "0";
-    }
+    const numericValue = value instanceof Decimal ? value.toNumber() : value;
+    if (!isCost) return numericValue ? numericValue.toLocaleString() : "0";
 
-    return new Decimal(value).isZero()
-      ? "—"
-      : usdFormatter(value, costFractionDigits, costFractionDigits);
+    return numericValue === 0 ? "—" : centCostFormatter(numericValue);
   };
-  const waterfallSegments = createWaterfallSegments(contributionEntries);
+  /** Full-precision cost for the value's `title`. */
+  const formatExactValue = (value: number | Decimal) =>
+    isCost && !new Decimal(value).isZero()
+      ? usdFormatter(value, costFractionDigits, costFractionDigits)
+      : undefined;
+  const shareOf = createShareOf(contributionEntries);
+  const cacheHitRate = isCost ? null : getCacheHitRate(inputEntries, details);
   const displayedTotal =
     aggregatedDetails.total ??
     (isCost ? sumEntries(contributionEntries) : new Decimal(0));
 
   const resolvedCostSource =
     costSource ?? (isCost && priceSource ? "calculated" : undefined);
+
+  const sectionProps = { formatValue, formatExactValue, shareOf };
 
   return (
     <TooltipProvider>
@@ -102,15 +103,15 @@ export const BreakdownTooltip = ({
         >
           {children}
         </TooltipTrigger>
-        <TooltipContent className="w-fit max-w-[calc(100vw-2rem)] p-4">
-          <div className="grid min-w-0 grid-cols-[max-content_7rem_max-content] gap-x-3 gap-y-4 max-sm:w-full max-sm:grid-cols-[minmax(0,1fr)_6rem_max-content]">
-            <div className="col-span-3 flex min-w-0 flex-col gap-1">
-              <span className="font-bold">
+        <TooltipContent className="w-fit max-w-[calc(100vw-2rem)] p-3">
+          <div className="grid min-w-0 grid-cols-[repeat(4,max-content)] gap-x-3 gap-y-3 max-sm:w-full max-sm:grid-cols-[minmax(0,1fr)_repeat(3,max-content)]">
+            <div className="col-span-4 flex min-w-0 flex-col gap-0.5">
+              <span className="text-sm font-bold">
                 {isCost ? "Cost breakdown" : "Usage breakdown"}
               </span>
 
               {isCost && resolvedCostSource === "provided" ? (
-                <span className="text-muted-foreground text-xs italic">
+                <span className="text-muted-foreground text-xs">
                   Provided at ingestion
                 </span>
               ) : null}
@@ -118,7 +119,7 @@ export const BreakdownTooltip = ({
               {isCost && resolvedCostSource === "calculated" && priceSource ? (
                 <Link
                   href={`/project/${encodeURIComponent(priceSource.projectId)}/settings/models/${encodeURIComponent(priceSource.modelId)}?pricingTier=${encodeURIComponent(priceSource.pricingTierId)}`}
-                  className="text-muted-foreground flex min-w-0 flex-row gap-1 text-xs italic underline-offset-4 hover:underline"
+                  className="text-muted-foreground inline-flex min-w-0 items-center gap-1 text-xs underline-offset-4 hover:underline"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
@@ -128,18 +129,18 @@ export const BreakdownTooltip = ({
                   >
                     Calculated · {priceSource.pricingTierName} Tier Pricing
                   </span>
-                  <ExternalLink className="h-3 w-3 shrink-0" />
+                  <ExternalLink className="icon-sm shrink-0" />
                 </Link>
               ) : null}
 
               {isCost && resolvedCostSource === "calculated" && !priceSource ? (
-                <span className="text-muted-foreground text-xs italic">
+                <span className="text-muted-foreground text-xs">
                   Calculated from model pricing
                 </span>
               ) : null}
 
               {Array.isArray(details) && details.length > 0 && (
-                <span className="text-muted-foreground text-xs italic">
+                <span className="text-muted-foreground text-xs">
                   Aggregate across {details.length}{" "}
                   {details.length === 1 ? "generation" : "generations"}
                 </span>
@@ -149,50 +150,42 @@ export const BreakdownTooltip = ({
                   label="Pricing Tier:"
                   value={pricingTierName}
                   variant="item"
+                  layout="inline"
                 />
               )}
             </div>
 
-            {/* Input Section */}
             <Section
               title={isCost ? "Input cost" : "Input usage"}
               entries={inputEntries}
-              formatValue={formatValue}
-              waterfallSegments={waterfallSegments}
+              lastRow={
+                cacheHitRate === null ? null : (
+                  <CacheHitRateRow rate={cacheHitRate} />
+                )
+              }
+              {...sectionProps}
             />
 
-            {/* Output Section */}
             <Section
               title={isCost ? "Output cost" : "Output usage"}
               entries={outputEntries}
-              formatValue={formatValue}
-              waterfallSegments={waterfallSegments}
+              separated
+              {...sectionProps}
             />
 
-            {/* Other Section */}
             {otherEntries.length > 0 && (
-              <div className="col-span-3 grid min-w-0 grid-cols-subgrid gap-y-2">
-                <BreakdownRow
-                  label={isCost ? "Other cost" : "Other usage"}
-                  value={formatValue(otherTotal)}
-                  variant="section"
-                />
-                {otherEntries.map(([key, value]) => (
-                  <BreakdownRow
-                    key={key}
-                    label={key}
-                    value={formatValue(value ?? 0)}
-                    variant="item"
-                    waterfallSegment={waterfallSegments.get(key)}
-                  />
-                ))}
-              </div>
+              <Section
+                title={isCost ? "Other cost" : "Other usage"}
+                entries={otherEntries}
+                separated
+                {...sectionProps}
+              />
             )}
 
-            {/* Total */}
             <BreakdownRow
               label={isCost ? "Total cost" : "Total usage"}
               value={formatValue(displayedTotal)}
+              exactValue={formatExactValue(displayedTotal)}
               variant="total"
             />
           </div>
@@ -202,95 +195,76 @@ export const BreakdownTooltip = ({
   );
 };
 
-const breakdownRowVariants = cva("min-w-0 items-center text-xs", {
+const breakdownRowVariants = cva("min-w-0 items-center text-sm leading-5", {
   variants: {
     layout: {
-      default: "col-span-3 flex gap-3",
-      waterfall: "col-span-3 grid grid-cols-subgrid",
+      inline: "flex gap-3",
+      grid: "col-span-4 grid grid-cols-subgrid",
     },
     variant: {
       item: "text-muted-foreground",
-      section: "border-b pb-1 font-bold",
-      total: "border-t border-b-4 border-double py-1 font-bold",
+      section: "font-bold",
+      total: "border-t pt-1.5 font-bold",
     },
   },
   defaultVariants: {
-    layout: "default",
+    layout: "grid",
     variant: "item",
   },
 });
 
-const breakdownLabelVariants = cva("min-w-0 truncate", {
-  variants: {
-    layout: {
-      default: "flex-1",
-      waterfall: "max-w-52",
-    },
-  },
-});
-
-const waterfallSegmentVariants = cva("bg-primary/60 absolute h-full", {
-  variants: {
-    edge: {
-      only: "rounded-sm",
-      first: "rounded-l-sm",
-      middle: "",
-      last: "rounded-r-sm",
-    },
-  },
-});
-
-interface WaterfallSegment {
-  left: number;
-  width: number;
-  edge: NonNullable<VariantProps<typeof waterfallSegmentVariants>["edge"]>;
-}
-
 function BreakdownRow({
   label,
   value,
+  exactValue,
   variant,
-  waterfallSegment,
+  layout = "grid",
+  share,
 }: {
   label: string;
   value: string;
-  variant: NonNullable<VariantProps<typeof breakdownRowVariants>["variant"]>;
-  waterfallSegment?: WaterfallSegment;
+  exactValue?: string;
+  variant: NonNullable<BreakdownRowVariants["variant"]>;
+  layout?: BreakdownRowVariants["layout"];
+  /** Share of all components in percent; shown as a bar on item rows. */
+  share?: number;
 }) {
-  const layout = waterfallSegment ? "waterfall" : "default";
+  const hasBar = layout === "grid" && variant === "item";
 
   return (
-    <div
-      className={breakdownRowVariants({
-        layout,
-        variant,
-      })}
-    >
-      <span className={breakdownLabelVariants({ layout })} title={label}>
+    <div className={breakdownRowVariants({ layout, variant })}>
+      <span
+        className={cn(
+          "min-w-0 truncate",
+          layout === "inline" && "flex-1",
+          layout === "grid" && (hasBar ? "max-w-52" : "col-span-2"),
+        )}
+        title={label}
+      >
         {label}
       </span>
-      {waterfallSegment ? (
+      {hasBar ? (
         <span
-          className="bg-muted relative h-2 overflow-hidden rounded-sm"
+          className="bg-border relative h-1 w-16 overflow-hidden rounded-sm"
           aria-hidden="true"
         >
           <span
-            className={waterfallSegmentVariants({
-              edge: waterfallSegment.edge,
-            })}
-            style={{
-              left: `${waterfallSegment.left}%`,
-              width: `${waterfallSegment.width}%`,
-            }}
+            className="bg-muted-foreground absolute left-0 h-full rounded-sm"
+            style={{ width: `${share ?? 0}%` }}
           />
         </span>
       ) : null}
       <span
-        className="text-right font-mono whitespace-nowrap tabular-nums"
-        title={value}
+        className="text-right font-mono text-xs whitespace-nowrap tabular-nums"
+        title={exactValue ?? value}
       >
         {value}
       </span>
+      {share !== undefined ? (
+        <span className="text-muted-foreground text-right font-mono text-xs font-normal tabular-nums">
+          {formatShare(share)}
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -299,36 +273,151 @@ interface SectionProps {
   title: string;
   entries: [string, number | undefined][];
   formatValue: (value: number | Decimal) => string;
-  waterfallSegments: Map<string, WaterfallSegment>;
+  formatExactValue: (value: number | Decimal) => string | undefined;
+  shareOf: (value: number | Decimal) => number;
+  /** Hairline above the section, matching the total row. */
+  separated?: boolean;
+  lastRow?: React.ReactNode;
 }
 
 const Section = ({
   title,
   entries,
   formatValue,
-  waterfallSegments,
+  formatExactValue,
+  shareOf,
+  separated = false,
+  lastRow,
 }: SectionProps) => {
   const sectionTotal = sumEntries(entries);
 
   return (
-    <div className="col-span-3 grid min-w-0 grid-cols-subgrid gap-y-2">
+    <div
+      className={cn(
+        "col-span-4 grid min-w-0 grid-cols-subgrid gap-y-1",
+        separated && "border-t pt-1.5",
+      )}
+    >
       <BreakdownRow
         label={title}
         value={formatValue(sectionTotal)}
+        exactValue={formatExactValue(sectionTotal)}
         variant="section"
+        share={shareOf(sectionTotal)}
       />
       {entries.map(([key, value]) => (
         <BreakdownRow
           key={key}
           label={key}
           value={formatValue(value ?? 0)}
+          exactValue={formatExactValue(value ?? 0)}
           variant="item"
-          waterfallSegment={waterfallSegments.get(key)}
+          share={shareOf(value ?? 0)}
         />
       ))}
+      {lastRow}
     </div>
   );
 };
+
+function CacheHitRateRow({ rate }: { rate: number }) {
+  return (
+    <div className="text-muted-foreground col-span-4 grid grid-cols-subgrid items-center text-sm leading-5">
+      <span className="col-span-2 inline-flex items-center gap-1">
+        Cache hit rate
+        <CacheHitRateInfo />
+      </span>
+      <span className="text-foreground text-right font-mono text-xs tabular-nums">
+        {formatCacheHitRate(rate)}
+      </span>
+    </div>
+  );
+}
+
+function CacheHitRateInfo() {
+  return (
+    <CustomTooltip
+      placement="top"
+      content={
+        <div className="space-y-1.5">
+          <p>Cache-read tokens divided by total input tokens.</p>
+          <p>
+            For multi-turn interactions, above 90% is common when later turns
+            keep a stable prefix, and about 70% for a single turn with a fixed
+            rubric.
+          </p>
+        </div>
+      }
+    >
+      {({ getTriggerProps }) => (
+        <IconButton
+          {...getTriggerProps()}
+          icon={InfoIcon}
+          label="How cache hit rate is calculated"
+          size="xs"
+          variant="ghost"
+        />
+      )}
+    </CustomTooltip>
+  );
+}
+
+function getCacheHitRate(
+  entries: [string, number | undefined][],
+  details: Details | Details[],
+) {
+  const usageDetails = Array.isArray(details) ? details : [details];
+  const hasInconsistentTotal = usageDetails.some(({ total, ...buckets }) => {
+    if (total === undefined) return false;
+    return (
+      !isUsableTokenCount(total) ||
+      sumEntries(Object.entries(buckets)).gt(total)
+    );
+  });
+  if (hasInconsistentTotal) return null;
+
+  /** Generic read totals may overlap with each other or with modality counts. */
+  const hasOverlappingCacheReads = usageDetails.some((detail) => {
+    const readKeys = Object.entries(detail)
+      .filter(
+        ([key, value]) =>
+          key.includes("input") && isCacheReadKey(key) && (value ?? 0) > 0,
+      )
+      .map(([key]) => key);
+    return (
+      readKeys.length > 1 &&
+      readKeys.some(
+        (key) => !/^input_cached_(text|audio|image)_tokens$/.test(key),
+      )
+    );
+  });
+  if (hasOverlappingCacheReads) return null;
+  if (!entries.some(([key]) => /cache/i.test(key))) return null;
+  if (!entries.some(([key]) => key === "input")) return null;
+  if (entries.some(([, value]) => !isUsableTokenCount(value))) return null;
+
+  const total = sumEntries(entries);
+  if (total.lte(0)) return null;
+
+  const cacheRead = sumEntries(entries.filter(([key]) => isCacheReadKey(key)));
+  if (cacheRead.isNeg()) return null;
+
+  const rate = cacheRead.div(total);
+  return rate.toNumber();
+}
+
+function isUsableTokenCount(value: number | undefined) {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function isCacheReadKey(key: string) {
+  if (/creation|cache_write/i.test(key)) return false;
+  return /cache_read|cached/i.test(key);
+}
+
+function formatCacheHitRate(rate: number) {
+  return `${(rate * 100).toFixed(1)}%`;
+}
 
 function sortEntriesByValue(entries: [string, number | undefined][]) {
   return entries.toSorted(([, a], [, b]) => (b ?? 0) - (a ?? 0));
@@ -369,41 +458,23 @@ function getArtifactFreeFractionDigits(value: number) {
   return 12;
 }
 
-function createWaterfallSegments(
-  entries: [string, number | undefined][],
-): Map<string, WaterfallSegment> {
+/** Percent of the summed components, so bars and shares agree. */
+function createShareOf(entries: [string, number | undefined][]) {
   const total = entries.reduce(
     (sum, [, value]) => sum + Math.max(value ?? 0, 0),
     0,
   );
-  const contributionCount = entries.reduce(
-    (count, [, value]) => count + ((value ?? 0) > 0 ? 1 : 0),
-    0,
-  );
 
-  if (total === 0) return new Map();
-
-  let cumulative = 0;
-  let contributionIndex = 0;
-  return new Map(
-    entries.map(([key, value]) => {
-      const contribution = Math.max(value ?? 0, 0);
-      const edge: WaterfallSegment["edge"] =
-        contributionCount === 1
-          ? "only"
-          : contributionIndex === 0
-            ? "first"
-            : contributionIndex === contributionCount - 1
-              ? "last"
-              : "middle";
-      const segment = {
-        left: (cumulative / total) * 100,
-        width: (contribution / total) * 100,
-        edge,
-      };
-      cumulative += contribution;
-      if (contribution > 0) contributionIndex += 1;
-      return [key, segment];
-    }),
-  );
+  return (value: number | Decimal) => {
+    if (total === 0) return 0;
+    const numericValue = value instanceof Decimal ? value.toNumber() : value;
+    return (Math.max(numericValue, 0) / total) * 100;
+  };
 }
+
+function formatShare(share: number) {
+  const rounded = Math.round(share);
+  return share > 0 && rounded === 0 ? "<1%" : `${rounded}%`;
+}
+
+type BreakdownRowVariants = VariantProps<typeof breakdownRowVariants>;

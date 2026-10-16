@@ -99,123 +99,121 @@ export function ConnectedModelDefinitionsTable({
       )}
     >
       {({ openDialog: openTestMatchDialog }) => (
-        <>
-          <DialogController<{
-            action: "edit" | "clone";
-            model: GetModelResult;
-          }>
-            onBeforeClose={() => editCloseGuard.current()}
-            renderDialog={({ state, closeDialog }) => (
-              <UpsertModelFormDialogContent
-                projectId={projectId}
-                action={state.action}
-                modelData={state.model}
-                closeDialog={closeDialog}
-                closeGuardRef={editCloseGuard}
-              />
-            )}
-          >
-            {({ openDialog }) => {
-              const openCloneDialog = (model: ModelTableRow) => {
-                openDialog({
-                  action: "clone",
-                  model: model.serverResponse,
-                });
-              };
-              const openEditDialog = (model: ModelTableRow) => {
-                openDialog({
-                  action: "edit",
-                  model: model.serverResponse,
-                });
-              };
+        <DialogController<{
+          action: "edit" | "clone";
+          model: GetModelResult;
+        }>
+          onBeforeClose={() => editCloseGuard.current()}
+          renderDialog={({ state, closeDialog }) => (
+            <UpsertModelFormDialogContent
+              projectId={projectId}
+              action={state.action}
+              modelData={state.model}
+              closeDialog={closeDialog}
+              closeGuardRef={editCloseGuard}
+            />
+          )}
+        >
+          {({ openDialog }) => {
+            const openCloneDialog = (model: ModelTableRow) => {
+              openDialog({
+                action: "clone",
+                model: model.serverResponse,
+              });
+            };
+            const openEditDialog = (model: ModelTableRow) => {
+              openDialog({
+                action: "edit",
+                model: model.serverResponse,
+              });
+            };
 
-              return (
-                <UpsertModelFormDialogController
-                  projectId={projectId}
-                  action="create"
-                >
-                  {({ openDialog: openCreateDialog }) => (
-                    <ConfirmationDialogController<GetModelResult>
-                      title="Delete model?"
-                      text="This action permanently deletes this model definition."
-                      confirmLabel="Delete model"
-                      variant="destructive"
-                      loading={deleteModel.isPending}
-                      error={deleteModel.error?.message}
-                      onAfterDismiss={deleteModel.reset}
-                      onConfirm={async (model) => {
-                        capture("models:delete_button_click");
-                        try {
-                          await deleteModel.mutateAsync({
-                            projectId,
-                            modelId: model.id,
-                          });
-                        } catch (error) {
-                          reportTrpcErrorWithoutToast(error, "models");
-                          throw error;
-                        }
-                      }}
-                    >
-                      {({ openDialog: openDeleteDialog }) => (
-                        <ModelDefinitionsTable
-                          data={data}
-                          pagination={{
-                            mode: "offset",
-                            totalCount: models.data?.totalCount ?? null,
-                            onChange: setPaginationState,
-                            state: paginationState,
-                          }}
-                          search={{
-                            value: queryParams.search,
-                            onChange: (search) => setQueryParams({ search }),
-                          }}
-                          rowHeight={rowHeight}
-                          onRowHeightChange={setRowHeight}
-                          priceUnit={priceUnit}
-                          priceUnitMultiplier={priceUnitMultiplier}
-                          priceUnitSelector={<PriceUnitSelector />}
-                          lastUsed={lastUsed.data}
-                          toolbarActions={[
-                            {
-                              id: "test-model-match",
-                              label: "Test Model Match",
-                              variant: "secondary",
-                              icon: <FlaskConical className="h-4 w-4" />,
-                              onClick: openTestMatchDialog,
-                            },
-                            {
-                              id: "add-model-definition",
-                              label: "Add Model Definition",
-                              variant: "secondary",
-                              icon: <PlusIcon className="h-4 w-4" />,
-                              hasAccess: hasWriteAccess,
-                              trackingEventName: "models:new_form_open",
-                              onClick: openCreateDialog,
-                            },
-                          ]}
-                          modelActions={{
-                            canEdit: hasWriteAccess,
-                            onClone: openCloneDialog,
-                            onEdit: openEditDialog,
-                            onDelete: (model) => {
-                              deleteModel.reset();
-                              openDeleteDialog(model.serverResponse);
-                            },
-                          }}
-                          onRowClick={(model) => {
-                            router.push(
-                              `/project/${projectId}/settings/models/${model.modelId}`,
-                            );
-                          }}
-                        />
-                      )}
-                    </ConfirmationDialogController>
-                  )}
-                </UpsertModelFormDialogController>
-              );
-            }}
-          </DialogController>
-        </>
+            return (
+              <UpsertModelFormDialogController
+                projectId={projectId}
+                action="create"
+              >
+                {({ openDialog: openCreateDialog }) => (
+                  <ConfirmationDialogController<GetModelResult>
+                    title="Delete model?"
+                    text="This action permanently deletes this model definition."
+                    confirmLabel="Delete model"
+                    variant="destructive"
+                    loading={deleteModel.isPending}
+                    error={deleteModel.error?.message}
+                    onAfterDismiss={deleteModel.reset}
+                    onConfirm={async (model) => {
+                      capture("models:delete_button_click");
+                      try {
+                        await deleteModel.mutateAsync({
+                          projectId,
+                          modelId: model.id,
+                        });
+                      } catch (error) {
+                        reportTrpcErrorWithoutToast(error, "models");
+                        throw error;
+                      }
+                    }}
+                  >
+                    {({ openDialog: openDeleteDialog }) => (
+                      <ModelDefinitionsTable
+                        data={data}
+                        pagination={{
+                          mode: "offset",
+                          totalCount: models.data?.totalCount ?? null,
+                          onChange: setPaginationState,
+                          state: paginationState,
+                        }}
+                        search={{
+                          value: queryParams.search,
+                          onChange: (search) => setQueryParams({ search }),
+                        }}
+                        rowHeight={rowHeight}
+                        onRowHeightChange={setRowHeight}
+                        priceUnit={priceUnit}
+                        priceUnitMultiplier={priceUnitMultiplier}
+                        priceUnitSelector={<PriceUnitSelector />}
+                        lastUsed={lastUsed.data}
+                        toolbarActions={[
+                          {
+                            id: "test-model-match",
+                            label: "Test Model Match",
+                            variant: "secondary",
+                            icon: <FlaskConical className="icon-base" />,
+                            onClick: openTestMatchDialog,
+                          },
+                          {
+                            id: "add-model-definition",
+                            label: "Add Model Definition",
+                            variant: "secondary",
+                            icon: <PlusIcon className="icon-base" />,
+                            hasAccess: hasWriteAccess,
+                            trackingEventName: "models:new_form_open",
+                            onClick: openCreateDialog,
+                          },
+                        ]}
+                        modelActions={{
+                          canEdit: hasWriteAccess,
+                          onClone: openCloneDialog,
+                          onEdit: openEditDialog,
+                          onDelete: (model) => {
+                            deleteModel.reset();
+                            openDeleteDialog(model.serverResponse);
+                          },
+                        }}
+                        onRowClick={(model) => {
+                          router.push(
+                            `/project/${projectId}/settings/models/${model.modelId}`,
+                          );
+                        }}
+                      />
+                    )}
+                  </ConfirmationDialogController>
+                )}
+              </UpsertModelFormDialogController>
+            );
+          }}
+        </DialogController>
       )}
     </DialogController>
   );

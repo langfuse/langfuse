@@ -44,7 +44,11 @@ import {
 } from "@/src/features/experiments/lib/analytics";
 import { type ColumnGroupTogglePayload } from "@/src/components/table/data-table-column-visibility-filter";
 import { useOrderByState } from "@/src/features/orderBy";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import {
+  customRowHeightMenu,
+  getRowHeightIOCharLimit,
+  useAdjustableRowHeight,
+} from "@/src/components/table/data-table-row-height-switch";
 import {
   useColumnOrder,
   useColumnVisibility,
@@ -54,7 +58,10 @@ import { usdFormatter, latencyFormatter } from "@/src/utils/numbers";
 import { type RowSelectionState } from "@tanstack/react-table";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { ExperimentGridView } from "./ExperimentGridView";
+import {
+  ExperimentGridView,
+  GRID_VIEW_ROW_HEIGHTS,
+} from "./ExperimentGridView";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
@@ -81,7 +88,10 @@ import {
   withPresentScoreKeys,
 } from "@/src/features/scores";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { ExperimentCompareTable } from "./ExperimentCompareTable";
+import {
+  ExperimentCompareTable,
+  LIST_VIEW_ROW_HEIGHTS,
+} from "./ExperimentCompareTable";
 import { useExperimentItemsScoreCache } from "@/src/features/experiments/hooks/useExperimentItemsScoreCache";
 import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
 import {
@@ -347,6 +357,7 @@ const StackedOutputRow = ({
       />
       <ConnectedIOTableCell
         data={output}
+        followRowHeight={false}
         singleLine={singleLine}
         variant="output"
       />
@@ -389,6 +400,7 @@ const ExpectedMatchChip = ({ matches }: { matches: boolean }) => (
 
 /**
  * Cell component that renders stacked output values for each experiment.
+ * Display chooses text or JSON. Row height does not.
  */
 const StackedOutputCell = ({
   outputs,
@@ -438,6 +450,7 @@ const StackedOutputCell = ({
             <ConnectedIOTableCell
               isLoading={false}
               data={expectedOutput ?? null}
+              followRowHeight={false}
               singleLine={singleLine}
             />
           </div>
@@ -477,7 +490,11 @@ const StackedOutputCell = ({
             {isLoading ? (
               <div className="flex h-full min-h-0 min-w-0 items-start">
                 <span className="bg-muted mt-0.5 mr-2 block h-4 w-0.5 shrink-0 rounded-full" />
-                <ConnectedIOTableCell isLoading singleLine={singleLine} />
+                <ConnectedIOTableCell
+                  isLoading
+                  followRowHeight={false}
+                  singleLine={singleLine}
+                />
               </div>
             ) : out?.output ? (
               <StackedOutputRow
@@ -606,10 +623,13 @@ export default function ExperimentItemsTable({
     limit: "pageSize",
   });
 
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
-    "experiment-items-compact",
-    "s",
-  );
+  const {
+    preset: rowHeight,
+    activeHeightPx,
+    setPreset: setRowHeight,
+    setCustomPx,
+    ...adjustableRowHeight
+  } = useAdjustableRowHeight("experiment-items-compact", "s");
   const ioSingleLine = ioRenderMode === "text";
 
   const [orderByState, setOrderByState] = useOrderByState({
@@ -669,6 +689,15 @@ export default function ExperimentItemsTable({
   );
   const filtersByExperiment = groupedFilters.groups;
 
+  // A compact row stays on the short preview. Medium, Large, and a dragged
+  // height at or above this layout's Medium preset ask for the expanded read.
+  const ioCharLimit = getRowHeightIOCharLimit(
+    rowHeight,
+    adjustableRowHeight.mode,
+    activeHeightPx,
+    layout === "grid" ? GRID_VIEW_ROW_HEIGHTS : LIST_VIEW_ROW_HEIGHTS,
+  );
+
   // Use the custom hook for experiment items data fetching
   const { items, totalCount, dataUpdatedAt, ioLoading, isTotalCountLoading } =
     useExperimentItemsTableData({
@@ -686,6 +715,7 @@ export default function ExperimentItemsTable({
         limit: paginationState.pageSize,
       },
       itemVisibility,
+      ioCharLimit,
     });
 
   const { rows: scoreRows, scoreColumns: scoreColumnDefs } =
@@ -1182,6 +1212,8 @@ export default function ExperimentItemsTable({
     defaultHidden: true,
     // An empty expected output used to render as two literal quote characters.
     getCell: (value) => (ioLoading ? { type: "loading" } : value || undefined),
+    // Display chooses text or JSON. Row height does not.
+    followRowHeight: false,
     singleLine: ioSingleLine,
     variant: "output",
   }) as LangfuseColumnDef<ExperimentItemsTableRow>;
@@ -1231,6 +1263,8 @@ export default function ExperimentItemsTable({
       size: 300,
       enableHiding: true,
       getCell: (value) => (ioLoading ? { type: "loading" } : (value ?? null)),
+      // Display chooses text or JSON. Row height does not.
+      followRowHeight: false,
       singleLine: ioSingleLine,
     }),
     // The scores sit between the item's input and its outputs: the input says
@@ -1879,7 +1913,7 @@ export default function ExperimentItemsTable({
           disabledReason: groupedFilters.error
             ? "Fix unavailable filter targets before evaluating items."
             : "Select individual rows to evaluate when experiments have different filters.",
-          icon: <LightbulbIcon className="h-4 w-4 sm:mr-2" />,
+          icon: <LightbulbIcon className="icon-base sm:mr-2" />,
           customDialog: true,
           accessCheck: {
             scope: "evaluationRule:CUD",
@@ -1897,6 +1931,7 @@ export default function ExperimentItemsTable({
           search={
             hideControls ? null : (
               <TableSearchBar
+                size="large"
                 key={`${projectId}:${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
                 projectId={projectId}
                 tableName="experiment-items"
@@ -1933,6 +1968,7 @@ export default function ExperimentItemsTable({
                   orderByState={orderByState}
                   rowHeight={rowHeight}
                   setRowHeight={setRowHeight}
+                  customRowHeight={customRowHeightMenu(adjustableRowHeight)}
                   toolbarSettings={toolbarSettings}
                   multiSelect={{
                     selectAll,
@@ -2064,6 +2100,11 @@ export default function ExperimentItemsTable({
                   isLoading={items.status === "loading" || isViewLoading}
                   ioLoading={ioLoading}
                   rowHeight={rowHeight}
+                  customRowHeightPx={activeHeightPx}
+                  onCustomRowHeightChange={
+                    hideControls ? undefined : setCustomPx
+                  }
+                  onSelectRowHeight={hideControls ? undefined : setRowHeight}
                   showExpectedOutput={showExpectedOutput}
                   pagination={pagination}
                   observationScoreOrder={observationScoreOrder}
@@ -2109,6 +2150,9 @@ export default function ExperimentItemsTable({
                 columnVisibility={columnVisibility}
                 onColumnVisibilityChange={handleColumnVisibilityChange}
                 rowHeight={rowHeight}
+                customRowHeightPx={activeHeightPx}
+                onCustomRowHeightChange={hideControls ? undefined : setCustomPx}
+                onSelectRowHeight={hideControls ? undefined : setRowHeight}
                 peekView={peekConfig}
                 noResultsMessage={
                   !hasSelectedRuns ? (

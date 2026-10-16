@@ -189,6 +189,7 @@ export function NewDatasetItemForm(props: NewDatasetItemFormProps) {
     enabled: datasets.data !== undefined,
     staleTime: Infinity,
     gcTime: 0,
+    meta: { toastOperation: "dataset_item.prepare" },
   });
 
   if (datasets.isError && !datasets.data) {
@@ -283,6 +284,11 @@ function InitializedNewDatasetItemForm({
         showErrorToast(
           "Select a dataset first",
           "Choose a dataset before attaching media.",
+          {
+            operation: "dataset_item_media.upload",
+            errorOrigin: "frontend",
+            errorCategory: "user_input",
+          },
         );
         return null;
       }

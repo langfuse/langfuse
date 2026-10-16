@@ -64,7 +64,7 @@ export function ExpandButton({
       }
       disabled={isToggling}
     >
-      <Icon size={14} />
+      <Icon className="icon-base" />
     </button>
   );
 }

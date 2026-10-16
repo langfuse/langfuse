@@ -364,6 +364,7 @@ const InnerEvalTemplateForm = (props: {
       utils.models.invalidate();
       if (data.updatedConfigCount > 0) {
         showSuccessToast({
+          operation: "evaluator.update",
           title: "Updated evaluators",
           description:
             "Updated referenced evaluators to use new template version.",
@@ -714,7 +715,7 @@ const InnerEvalTemplateForm = (props: {
               {!useDefaultModel &&
                 (!props.isEditing && !isCustomModelValid ? (
                   <div className="text-destructive mt-2 flex items-center space-x-1 text-sm">
-                    <AlertCircle className="h-4 w-4" />
+                    <AlertCircle className="icon-base" />
                     <p>
                       This evaluator is configured to use{" "}
                       {modelParams.provider.value}s models but no API key
@@ -752,32 +753,30 @@ const InnerEvalTemplateForm = (props: {
                   control={form.control}
                   name="prompt"
                   render={({ field }) => (
-                    <>
-                      <FormItem>
-                        <FormLabel>Evaluation prompt</FormLabel>
-                        <FormDescription>
-                          Define your llm-as-a-judge evaluation template. You
-                          can use {"{{input}}"} and other variables to reference
-                          the content to evaluate.
-                        </FormDescription>
-                        <FormControl>
-                          <CodeMirrorEditor
-                            value={field.value ?? ""}
-                            onChange={field.onChange}
-                            editable={props.isEditing}
-                            mode="prompt"
-                            minHeight={200}
-                            maxHeight="50dvh"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                        {extractedVariables?.length ? (
-                          <PromptVariableListPreview
-                            variables={extractedVariables}
-                          />
-                        ) : null}
-                      </FormItem>
-                    </>
+                    <FormItem>
+                      <FormLabel>Evaluation prompt</FormLabel>
+                      <FormDescription>
+                        Define your llm-as-a-judge evaluation template. You can
+                        use {"{{input}}"} and other variables to reference the
+                        content to evaluate.
+                      </FormDescription>
+                      <FormControl>
+                        <CodeMirrorEditor
+                          value={field.value ?? ""}
+                          onChange={field.onChange}
+                          editable={props.isEditing}
+                          mode="prompt"
+                          minHeight={200}
+                          maxHeight="50dvh"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                      {extractedVariables?.length ? (
+                        <PromptVariableListPreview
+                          variables={extractedVariables}
+                        />
+                      ) : null}
+                    </FormItem>
                   )}
                 />
               </div>
@@ -899,7 +898,7 @@ const InnerEvalTemplateForm = (props: {
                                 disabled={!props.isEditing}
                                 onClick={() => remove(index)}
                               >
-                                <Trash className="text-muted-foreground h-4 w-4" />
+                                <Trash className="icon-base text-muted-foreground" />
                               </Button>
                             </div>
                           </div>
@@ -912,7 +911,7 @@ const InnerEvalTemplateForm = (props: {
                         disabled={!props.isEditing}
                         onClick={() => append({ value: "" })}
                       >
-                        <PlusIcon className="mr-1.5 h-4 w-4" />
+                        <PlusIcon className="icon-base text-icon-foreground mr-1.5" />
                         Add category
                       </Button>
                       <FormField

@@ -9,6 +9,7 @@ import type { VisibilityState } from "@tanstack/react-table";
 import type { ComponentProps } from "react";
 import { ExperimentGridCell } from "./ExperimentGridCell";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
+import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 
 const metadataQuery = vi.hoisted(() => vi.fn(() => ({ data: undefined })));
 
@@ -94,6 +95,7 @@ const renderGridCell = (
         {...overrides}
       />
     </TooltipProvider>,
+    { wrapper: LayerProvider },
   );
 
 describe("ExperimentGridCell", () => {
@@ -134,10 +136,13 @@ describe("ExperimentGridCell", () => {
       expect(
         screen.queryByText("← Baseline: Incorrect"),
       ).not.toBeInTheDocument();
-      fireEvent.pointerEnter(screen.getByText("accuracy"));
+      const trigger = screen.getByText("accuracy").closest("[tabindex]");
+      if (!trigger) throw new Error("Score hover trigger not found");
+      fireEvent.mouseEnter(trigger);
       await act(async () => {
         await new Promise((resolve) => setTimeout(resolve, 750));
       });
+      await screen.findByRole("dialog", { name: "Preview" });
       expect(screen.queryByText("← Baseline: Incorrect") !== null).toBe(
         showDiff,
       );
@@ -249,7 +254,9 @@ describe("ExperimentGridCell", () => {
       { projectId: "project-id", id: "score-id" },
       expect.objectContaining({ enabled: false }),
     );
-    fireEvent.pointerEnter(screen.getByText("quality"));
+    fireEvent.mouseEnter(
+      screen.getByText("quality").closest('[aria-haspopup="dialog"]')!,
+    );
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 750));
     });

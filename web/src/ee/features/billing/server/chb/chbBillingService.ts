@@ -7,6 +7,9 @@ import { CloudConfigSchema, parseDbOrg } from "@langfuse/shared";
 import {
   getBillingCycleEnd,
   getBillingCycleStart,
+  getObservationCountsByProjectInCreationInterval,
+  getScoreCountsByProjectInCreationInterval,
+  getTraceCountsByProjectInCreationInterval,
   logger,
 } from "@langfuse/shared/src/server";
 
@@ -74,6 +77,16 @@ export class ChbBillingService {
 
   private returnUrl(orgId: string) {
     return `${env.NEXTAUTH_URL}/organization/${orgId}/settings/billing`;
+  }
+
+  private toBillingPeriod(
+    attachedPlan: ChbAttachedPlan,
+  ): { start: Date; end: Date } | null {
+    const startDate = attachedPlan.period?.startDate;
+    const endDate = attachedPlan.period?.endDate;
+    return startDate && endDate
+      ? { start: new Date(startDate), end: new Date(endDate) }
+      : null;
   }
 
   private toUnixSeconds(value: string | null | undefined): number | null {
@@ -145,19 +158,9 @@ export class ChbBillingService {
       chOrganizationId: chb.organizationId,
     });
 
-    const periodStart = attachedPlan.period?.startDate
-      ? new Date(attachedPlan.period.startDate)
-      : null;
-    const periodEnd = attachedPlan.period?.endDate
-      ? new Date(attachedPlan.period.endDate)
-      : null;
-
     return {
       ...this.mapScheduled(attachedPlan),
-      billingPeriod:
-        periodStart && periodEnd
-          ? { start: periodStart, end: periodEnd }
-          : null,
+      billingPeriod: this.toBillingPeriod(attachedPlan),
       // No promotion-code API on the CHB path yet
       discounts: [],
       hasValidPaymentMethod: attachedPlan.payment?.status === "active",
@@ -629,23 +632,71 @@ export class ChbBillingService {
   }
 
   /**
-   * v1 usage source of truth for CHB orgs is the existing non-Stripe
-   * fallback: billing cycle from the org's anchor + the cached cycle usage
-   * the hourly job maintains. Spend-in-USD can later come from
-   * `GET /invoices?includePreview=true` (the open period's accrued usage).
+   * With an attached plan, usage is counted live over CHB's own billing
+   * period, by ingestion time (`created_at`) and with the same queries the
+   * billing metrics API serves to CHB's metering, so the figure tracks what
+   * CHB invoices. Without an attached plan (or a period on it), usage falls
+   * back to the cached counter the hourly free-tier job maintains for the
+   * org's anchored cycle.
    */
   async getUsage(orgId: string) {
-    const { org } = await this.getParsedOrg(orgId);
+    const { org, parsedOrg } = await this.getParsedOrg(orgId);
+    const chb = parsedOrg.cloudConfig?.clickhouse;
 
-    const now = new Date();
+    const billingPeriod = chb?.attachedPlanId
+      ? this.toBillingPeriod(
+          await this.client.getAttachedPlan({
+            chOrganizationId: chb.organizationId,
+          }),
+        )
+      : null;
+
+    if (!billingPeriod) {
+      const now = new Date();
+      return {
+        usageCount: org.cloudCurrentCycleUsage ?? 0,
+        usageType: "units",
+        billingPeriod: {
+          start: getBillingCycleStart(org, now),
+          end: getBillingCycleEnd(org, now),
+        },
+      };
+    }
+
     return {
-      usageCount: org.cloudCurrentCycleUsage ?? 0,
+      usageCount: await this.countBillableUnits(orgId, billingPeriod),
       usageType: "units",
-      billingPeriod: {
-        start: getBillingCycleStart(org, now),
-        end: getBillingCycleEnd(org, now),
-      },
+      billingPeriod,
     };
+  }
+
+  /**
+   * Billable units (traces + observations + scores) ingested into the org's
+   * live projects since the period start. Soft-deleted projects are left out,
+   * as they are when usage is metered.
+   */
+  private async countBillableUnits(
+    orgId: string,
+    period: { start: Date; end: Date },
+  ): Promise<number> {
+    const projects = await this.ctx.prisma.project.findMany({
+      where: { orgId, deletedAt: null },
+      select: { id: true },
+    });
+    const end = new Date(Math.min(Date.now(), period.end.getTime()));
+    if (projects.length === 0 || period.start >= end) return 0;
+
+    const interval = {
+      start: period.start,
+      end,
+      projectIds: projects.map((project) => project.id),
+    };
+    const counts = await Promise.all([
+      getTraceCountsByProjectInCreationInterval(interval),
+      getObservationCountsByProjectInCreationInterval(interval),
+      getScoreCountsByProjectInCreationInterval(interval),
+    ]);
+    return counts.flat().reduce((sum, row) => sum + row.count, 0);
   }
 
   async applyPromotionCode(

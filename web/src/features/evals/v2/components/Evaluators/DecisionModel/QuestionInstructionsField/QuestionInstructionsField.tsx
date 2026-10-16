@@ -100,7 +100,7 @@ export function QuestionInstructionsField({
             className="text-dark-yellow flex items-center gap-1 rounded border border-dashed px-1.5 py-0.5 font-mono"
             title={`\`${key}\` is not a state field`}
           >
-            <TriangleAlert className="h-3 w-3" />
+            <TriangleAlert className="icon-sm" />
             {key}
           </span>
         ))}

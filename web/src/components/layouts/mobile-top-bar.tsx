@@ -47,14 +47,12 @@ export const MobileTopBar = ({
             aria-label="Open menu"
             onClick={() => toggleSidebar()}
           >
-            <Menu className="size-5" />
+            <Menu className="icon-lg text-icon-foreground" />
           </Button>
         ) : (
           leadingControl
         )}
-        {envLabel.visible && (
-          <EnvLabelBadge region={envLabel.region} onClick={envLabel.dismiss} />
-        )}
+        {envLabel.visible && <EnvLabelBadge region={envLabel.region} />}
       </div>
 
       {/* Center: the Langfuse wordmark. */}

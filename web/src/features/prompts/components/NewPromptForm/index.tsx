@@ -265,7 +265,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                             className="flex flex-row items-center"
                           >
                             Create a new version for it here.
-                            <SquareArrowOutUpRight className="ml-1 h-3 w-3" />
+                            <SquareArrowOutUpRight className="icon-sm ml-1" />
                           </Link>
                         ) : null}
                       </div>
@@ -278,114 +278,112 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
         ) : null}
 
         {/* Prompt content field - text vs. chat */}
-        <>
-          <FormItem>
-            <FormLabel>Prompt</FormLabel>
-            <FormDescription>
-              Define your prompt template. You can use{" "}
-              <code className="text-xs">{"{{variable}}"}</code> to insert
-              variables into your prompt.
-              <b className="font-bold"> Note:</b> Variables must be alphabetical
-              characters or underscores. You can also link other text prompts
-              using the plus button.
-            </FormDescription>
-            <Tabs
-              value={form.watch("type")}
-              onValueChange={(e) => {
-                form.setValue("type", e as PromptType);
-              }}
-            >
-              {!initialPrompt ? (
-                <Tabs.List layout="full">
-                  <span className="flex-1">
-                    <Tabs.Trigger
-                      disabled={
-                        Boolean(initialPromptVariant) &&
-                        initialPromptVariant?.type !== PromptType.Text
-                      }
-                      value={PromptType.Text}
-                      label={capitalize(PromptType.Text)}
-                    />
-                  </span>
-                  <span className="flex-1">
-                    <Tabs.Trigger
-                      disabled={
-                        Boolean(initialPromptVariant) &&
-                        initialPromptVariant?.type !== PromptType.Chat
-                      }
-                      value={PromptType.Chat}
-                      label={capitalize(PromptType.Chat)}
-                    />
-                  </span>
-                </Tabs.List>
-              ) : null}
-              {hadDraft && (
-                <p
-                  className={`text-muted-foreground mb-1 text-right text-xs ${initialPrompt ? "-mt-2" : "mt-1"}`}
+        <FormItem>
+          <FormLabel>Prompt</FormLabel>
+          <FormDescription>
+            Define your prompt template. You can use{" "}
+            <code className="text-xs">{"{{variable}}"}</code> to insert
+            variables into your prompt.
+            <b className="font-bold"> Note:</b> Variables must be alphabetical
+            characters or underscores. You can also link other text prompts
+            using the plus button.
+          </FormDescription>
+          <Tabs
+            value={form.watch("type")}
+            onValueChange={(e) => {
+              form.setValue("type", e as PromptType);
+            }}
+          >
+            {!initialPrompt ? (
+              <Tabs.List variant="inset" size="md" layout="full">
+                <span className="flex-1">
+                  <Tabs.Trigger
+                    disabled={
+                      Boolean(initialPromptVariant) &&
+                      initialPromptVariant?.type !== PromptType.Text
+                    }
+                    value={PromptType.Text}
+                    label={capitalize(PromptType.Text)}
+                  />
+                </span>
+                <span className="flex-1">
+                  <Tabs.Trigger
+                    disabled={
+                      Boolean(initialPromptVariant) &&
+                      initialPromptVariant?.type !== PromptType.Chat
+                    }
+                    value={PromptType.Chat}
+                    label={capitalize(PromptType.Chat)}
+                  />
+                </span>
+              </Tabs.List>
+            ) : null}
+            {hadDraft && (
+              <p
+                className={`text-muted-foreground mb-1 text-right text-xs ${initialPrompt ? "-mt-2" : "mt-1"}`}
+              >
+                Draft restored.{" "}
+                <button
+                  type="button"
+                  className="hover:text-foreground underline"
+                  onClick={() => {
+                    clearDraft();
+                    form.reset(defaultValues);
+                    setInitialMessages(
+                      initialPrompt?.type === PromptType.Chat
+                        ? initialPrompt.prompt
+                        : [],
+                    );
+                  }}
                 >
-                  Draft restored.{" "}
-                  <button
-                    type="button"
-                    className="hover:text-foreground underline"
-                    onClick={() => {
-                      clearDraft();
-                      form.reset(defaultValues);
-                      setInitialMessages(
-                        initialPrompt?.type === PromptType.Chat
-                          ? initialPrompt.prompt
-                          : [],
-                      );
-                    }}
-                  >
-                    Discard
-                  </button>
-                </p>
-              )}
-              <div className="mt-2">
-                <Tabs.Content value={PromptType.Text}>
-                  <FormField
-                    control={form.control}
-                    name="textPrompt"
-                    render={({ field }) => (
-                      <>
-                        <FormControl>
-                          <PromptLinkingEditor
-                            value={field.value}
-                            onChange={field.onChange}
-                            onBlur={field.onBlur}
-                            minHeight={200}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </>
-                    )}
-                  />
-                </Tabs.Content>
-              </div>
-              <div className="mt-2">
-                <Tabs.Content value={PromptType.Chat}>
-                  <FormField
-                    control={form.control}
-                    name="chatPrompt"
-                    render={({ field }) => (
-                      <>
-                        <PromptChatMessages
-                          {...field}
-                          initialMessages={initialMessages}
-                          projectId={projectId}
+                  Discard
+                </button>
+              </p>
+            )}
+            <div className="mt-2">
+              <Tabs.Content value={PromptType.Text}>
+                <FormField
+                  control={form.control}
+                  name="textPrompt"
+                  render={({ field }) => (
+                    <>
+                      <FormControl>
+                        <PromptLinkingEditor
+                          value={field.value}
+                          onChange={field.onChange}
+                          onBlur={field.onBlur}
+                          minHeight={200}
                         />
-                        <FormMessage />
-                      </>
-                    )}
-                  />
-                </Tabs.Content>
-              </div>
-            </Tabs>
-          </FormItem>
-          {currentExtractedVariables.length > 0 && (
-            <PromptVariableListPreview variables={currentExtractedVariables} />
-          )}
-        </>
+                      </FormControl>
+                      <FormMessage />
+                    </>
+                  )}
+                />
+              </Tabs.Content>
+            </div>
+            <div className="mt-2">
+              <Tabs.Content value={PromptType.Chat}>
+                <FormField
+                  control={form.control}
+                  name="chatPrompt"
+                  render={({ field }) => (
+                    <>
+                      <PromptChatMessages
+                        {...field}
+                        initialMessages={initialMessages}
+                        projectId={projectId}
+                      />
+                      <FormMessage />
+                    </>
+                  )}
+                />
+              </Tabs.Content>
+            </div>
+          </Tabs>
+        </FormItem>
+        {currentExtractedVariables.length > 0 && (
+          <PromptVariableListPreview variables={currentExtractedVariables} />
+        )}
 
         {/* Prompt Config field */}
         <FormField

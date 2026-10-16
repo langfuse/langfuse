@@ -52,6 +52,7 @@ export function ConnectedAuditLogsTable(props: AuditLogsTableProps) {
   const createExport = api.batchExport.create.useMutation({
     onSuccess: (_data, variables) => {
       showSuccessToast({
+        operation: "audit_log.export",
         title: "Export queued",
         description: "You will receive an email when the export is ready.",
         duration: 10000,
@@ -69,7 +70,7 @@ export function ConnectedAuditLogsTable(props: AuditLogsTableProps) {
           {
             id: "export",
             label: "Export",
-            icon: <Download className="size-4" />,
+            icon: <Download className="icon-base" />,
             variant: "outline" as const,
             loading: createExport.isPending,
             dropdown: {

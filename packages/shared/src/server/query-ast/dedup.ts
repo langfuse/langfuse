@@ -42,7 +42,12 @@ import {
 } from "kysely";
 
 import { QueryCompileError } from "./errors";
-import { LimitByNode, type ClickHouseSelectQueryNode } from "./nodes";
+import {
+  FinalTableNode,
+  LimitByNode,
+  unwrapFinalTable,
+  type ClickHouseSelectQueryNode,
+} from "./nodes";
 import { DEDUP_SPECS, type DedupSpec } from "./schema";
 import { stampCompiledTree } from "./tenancy";
 import { ClickHouseOperationNodeTransformer } from "./transformer";
@@ -133,6 +138,9 @@ function singlePhysicalFrom(
 }
 
 function describeFrom(node: OperationNode): PhysicalFrom | undefined {
+  if (FinalTableNode.is(node)) {
+    return describeFrom(unwrapFinalTable(node));
+  }
   if (AliasNode.is(node)) {
     const inner = describeFrom(node.node);
     if (!inner) return undefined;

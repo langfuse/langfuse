@@ -45,6 +45,7 @@ export const UserAssignmentSection = ({
         utils.annotationQueueAssignments.invalidate();
         utils.annotationQueues.invalidate();
         showSuccessToast({
+          operation: "annotation_queue_assignment.remove",
           title: "Removed assignment",
           description: "User removed from queue successfully",
         });
@@ -126,7 +127,7 @@ export const UserAssignmentSection = ({
                 className="hover:bg-muted-foreground/20 h-4 w-4 p-0"
                 onClick={onRemove}
               >
-                <X className="h-3 w-3" />
+                <X className="icon-base text-icon-foreground" />
               </Button>
             </div>
           );
@@ -200,7 +201,7 @@ export const UserAssignmentSection = ({
                           }
                           onClick={() => handleUserRemove(user.id)}
                         >
-                          <X className="h-3 w-3" />
+                          <X className="icon-base text-icon-foreground" />
                         </Button>
                       </div>
                       {(index <
@@ -214,7 +215,7 @@ export const UserAssignmentSection = ({
               )}
               {hasMoreAssignedUsers && (
                 <div className="text-muted-foreground flex items-center gap-3 px-3 py-2">
-                  <MoreHorizontal className="h-4 w-4" />
+                  <MoreHorizontal className="icon-base" />
                   <div className="min-w-0 flex-1">
                     <p className="text-xs italic">
                       {queueAssignmentsQuery.data.totalCount -

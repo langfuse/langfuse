@@ -4,7 +4,7 @@ import { type LucideIcon } from "lucide-react";
 import { type ComponentPropsWithoutRef } from "react";
 
 const inputControlVariants = cva(
-  "bg-background ring-offset-background placeholder:text-foreground-tertiary focus-visible:ring-ring disabled:bg-muted/50 h-8 w-full rounded-md border text-sm file:border-0 file:bg-transparent file:text-sm file:font-bold focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
+  "bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring disabled:bg-muted/50 h-8 w-full rounded-md border text-sm file:border-0 file:bg-transparent file:text-sm file:font-bold focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
   {
     variants: {
       contentLayout: {
@@ -92,7 +92,9 @@ export function InputControl({
         <TrailingActionIcon
           aria-hidden="true"
           className={
-            error ? "text-destructive size-4" : "text-muted-foreground size-4"
+            error
+              ? "text-destructive icon-base"
+              : "text-muted-foreground icon-base"
           }
         />
       </button>

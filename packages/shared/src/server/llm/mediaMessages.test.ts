@@ -496,6 +496,7 @@ describe("compileLangfuseMediaMessages", () => {
       }),
     ).rejects.toMatchObject({
       name: "LLMValidationError",
+      code: "media-not-found",
       message: "Media asset image-1 was not found in this project",
     });
     expect(resolver).toHaveBeenCalledWith({

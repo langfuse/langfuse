@@ -142,6 +142,11 @@ export const CreateOrEditLLMToolDialog: React.FC<CreateOrEditLLMToolDialog> = (
       showErrorToast(
         "Failed to prettify JSON",
         "Please verify your input is valid JSON",
+        {
+          operation: "playground_tool.prettify",
+          errorOrigin: "frontend",
+          errorCategory: "user_input",
+        },
         "WARNING",
       );
     }
@@ -224,7 +229,7 @@ export const CreateOrEditLLMToolDialog: React.FC<CreateOrEditLLMToolDialog> = (
                           className="flex items-center"
                         >
                           See JSON Schema examples here
-                          <ArrowUpRight className="h-3 w-3" />
+                          <ArrowUpRight className="icon-sm" />
                         </a>
                       </FormDescription>
                       <FormControl>

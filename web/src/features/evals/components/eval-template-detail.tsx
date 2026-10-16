@@ -111,7 +111,9 @@ export const EvalTemplateDetail = () => {
             {template.data?.projectId ? (
               <>
                 <IconOnlyButton
-                  icon={<TrashIcon className="h-4 w-4" />}
+                  icon={
+                    <TrashIcon className="icon-base text-icon-foreground" />
+                  }
                   label="Delete"
                   aria-label="delete"
                   variant="outline"

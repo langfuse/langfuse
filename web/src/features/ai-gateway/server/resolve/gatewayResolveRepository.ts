@@ -24,6 +24,7 @@ export class GatewayResolveRepository {
         apiKey: {
           select: {
             orgId: true,
+            expiresAt: true,
             organization: {
               select: {
                 gatewayConfig: {
@@ -40,13 +41,13 @@ export class GatewayResolveRepository {
                     provider: { in: params.providers },
                     status: "ENABLED",
                   },
-                  orderBy: { routingPriority: "asc" },
-                  take: 1,
+                  orderBy: [{ createdAt: "asc" }, { id: "asc" }],
                   select: {
                     id: true,
                     name: true,
                     provider: true,
                     encryptedCredential: true,
+                    allowedModels: true,
                   },
                 },
               },

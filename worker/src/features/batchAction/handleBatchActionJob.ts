@@ -619,7 +619,7 @@ export const handleBatchActionJob = async (
       }
     } catch (error) {
       await prisma.batchAction.update({
-        where: { id: batchActionId },
+        where: { id: batchActionId, projectId },
         data: {
           status: BatchActionStatus.Failed,
           finishedAt: new Date(),

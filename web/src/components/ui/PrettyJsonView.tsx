@@ -15,10 +15,12 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { type MediaReturnType } from "@/src/features/media";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
+import { SystemPromptCollapseButton } from "@/src/components/ui/SystemPromptCollapseButton";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { Button } from "@/src/components/ui/button";
 import { useClickWithoutSelection } from "@/src/hooks/useClickWithoutSelection";
+import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
 import {
   ChevronDown,
   ChevronRight,
@@ -97,18 +99,19 @@ const PRETTY_JSON_VIEW_TONE_CLASSES: Record<
     cell: "border-dark-red/20 dark:border-dark-red/15",
   },
   warning: {
-    container: "border-dark-yellow/40 bg-light-yellow/80",
-    row: "hover:bg-light-yellow/80",
-    cell: "border-dark-yellow/20",
+    container:
+      "border-yellow-100 bg-yellow-50 text-yellow-900 dark:border-dark-yellow/20 dark:bg-light-yellow/35 dark:text-yellow-300",
+    row: "hover:bg-light-yellow/50 dark:hover:bg-light-yellow/35",
+    cell: "border-dark-yellow/20 dark:border-dark-yellow/15",
   },
   muted: {
-    container: "border-muted-foreground/15 bg-muted/30 text-muted-foreground",
-    row: "hover:bg-muted/30",
-    cell: "border-muted-foreground/15",
+    container: "border-transparent bg-surface-output text-foreground-secondary",
+    row: "hover:bg-muted",
+    cell: "border-border",
   },
   neutral: {
-    container: "bg-card",
-    row: "hover:bg-card",
+    container: "border-transparent bg-surface-output text-foreground-secondary",
+    row: "hover:bg-muted",
     cell: "border-border",
   },
 };
@@ -504,9 +507,9 @@ function JsonPrettyTable({
               className="text-muted-foreground hover:text-foreground h-4 w-4 p-0 hover:bg-transparent"
             >
               {row.getIsExpanded() ? (
-                <ChevronDown className="h-3 w-3" />
+                <ChevronDown className="icon-base text-icon-foreground" />
               ) : (
-                <ChevronRight className="h-3 w-3" />
+                <ChevronRight className="icon-base text-icon-foreground" />
               )}
             </Button>
           ) : null}
@@ -1155,6 +1158,8 @@ export function PrettyJsonView(props: {
     [onExternalExpansionChange, actualExpansionState],
   );
 
+  const handleCollapseHeader = () => toggleSystemPromptCollapsed("header");
+
   const handleOnCopy = (event?: React.MouseEvent<HTMLButtonElement>) => {
     if (event) {
       event.preventDefault();
@@ -1190,6 +1195,16 @@ export function PrettyJsonView(props: {
       : [];
   const shouldRenderStandaloneMedia =
     isMarkdownMode && standaloneMediaReferenceStrings.length > 0;
+
+  /** Collapse state for a nested MarkdownView that owns no header of its own. */
+  const {
+    shouldBeCollapsible: shouldCollapseSystemPrompt,
+    isCollapsed: isSystemPromptCollapsed,
+    toggleCollapsed: toggleSystemPromptCollapsed,
+  } = useCollapsibleSystemPrompt({
+    isSystemPrompt: Boolean(props.isSystemPrompt),
+    content: markdownContent ?? "",
+  });
   const remainingMarkdownMedia = filterAlreadyRenderedMedia(
     props.media,
     getRenderedInlineMediaIds({
@@ -1205,7 +1220,7 @@ export function PrettyJsonView(props: {
 
   const getBackgroundColorClass = () =>
     ASSISTANT_TITLES.includes(props.title || "")
-      ? "bg-surface-output rounded-md overflow-clip"
+      ? "bg-surface-output rounded-md overflow-clip px-3 pt-1"
       : "";
 
   const body = (
@@ -1387,9 +1402,9 @@ export function PrettyJsonView(props: {
           title={allRowsExpanded ? "Collapse all rows" : "Expand all rows"}
         >
           {allRowsExpanded ? (
-            <FoldVertical className="h-3 w-3" />
+            <FoldVertical className="icon-base text-icon-foreground" />
           ) : (
-            <UnfoldVertical className="h-3 w-3" />
+            <UnfoldVertical className="icon-base text-icon-foreground" />
           )}
         </Button>
       )}
@@ -1402,9 +1417,9 @@ export function PrettyJsonView(props: {
           title={jsonIsCollapsed ? "Expand all" : "Collapse all"}
         >
           {jsonIsCollapsed ? (
-            <UnfoldVertical className="h-3 w-3" />
+            <UnfoldVertical className="icon-base text-icon-foreground" />
           ) : (
-            <FoldVertical className="h-3 w-3" />
+            <FoldVertical className="icon-base text-icon-foreground" />
           )}
         </Button>
       )}
@@ -1428,6 +1443,14 @@ export function PrettyJsonView(props: {
           hoverRevealControls
           controlButtons={
             <>
+              {/* Expanded only, and only when the nested MarkdownView that owns
+                  the inline control is the thing being rendered. */}
+              {shouldCollapseSystemPrompt &&
+              !isSystemPromptCollapsed &&
+              isMarkdownMode &&
+              !shouldRenderStandaloneMedia ? (
+                <SystemPromptCollapseButton onCollapse={handleCollapseHeader} />
+              ) : null}
               {expandCollapseButton}
               {props.controlButtons}
             </>

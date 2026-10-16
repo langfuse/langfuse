@@ -65,7 +65,7 @@ export const ExportSourceField = ({
                 Export Source
                 <Tooltip>
                   <TooltipTrigger>
-                    <Info className="text-muted-foreground h-3.5 w-3.5" />
+                    <Info className="text-muted-foreground icon-base" />
                   </TooltipTrigger>
                   <TooltipContent
                     side="bottom"
@@ -81,13 +81,13 @@ export const ExportSourceField = ({
                     ))}
                     <div className="border-t pt-2">
                       <a
-                        href="https://langfuse.com/docs/integrations/export-sources"
+                        href="https://langfuse.com/docs/api-and-data-platform/features/export-to-blob-storage#upgrade-path"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 text-xs hover:underline"
                       >
                         For further information see
-                        <ExternalLink className="h-3 w-3" />
+                        <ExternalLink className="icon-sm" />
                       </a>
                     </div>
                   </TooltipContent>

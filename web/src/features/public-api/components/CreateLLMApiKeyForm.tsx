@@ -12,7 +12,6 @@ import {
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   TYPESAFE_UPSTREAMS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
-  isDecisionModelAdapter,
   resolveTypeSafeUpstream,
   type TypeSafeUpstream,
 } from "@langfuse/shared";
@@ -40,7 +39,11 @@ import {
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { TypeSafeUpstreamCards } from "@/src/features/llm-api-key/components/TypeSafeUpstreamCards/TypeSafeUpstreamCards";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { api, reportNonTrpcError, type RouterOutputs } from "@/src/utils/api";
+import {
+  api,
+  reportTrpcErrorWithoutToast,
+  type RouterOutputs,
+} from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { type useUiCustomization } from "@/src/ee/features/ui-customization";
 import { DialogFooter, DialogBody } from "@/src/components/ui/dialog";
@@ -58,6 +61,15 @@ const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
  * provider can be added through one of the existing adapters.
  */
 const OTHER_MODEL_OPTION = "other-model";
+
+/**
+ * Picker labels that differ from the stored adapter value. Naming the
+ * `systemone` API tells users that third-party providers serving it can use
+ * the TypeSafe adapter with a custom base URL.
+ */
+const ADAPTER_PICKER_LABELS: Partial<Record<LLMAdapter, string>> = {
+  [LLMAdapter.TypeSafe]: "TypeSafe (System One)",
+};
 
 const isCustomModelsRequired = (adapter: LLMAdapter) =>
   adapter === LLMAdapter.Azure || adapter === LLMAdapter.Bedrock;
@@ -79,7 +91,9 @@ const isMatchingBedrockAuthMethod = (
     (existingAuthMethod === AuthMethod.AccessKeys ||
       existingAuthMethod === AuthMethod.DefaultCredentials));
 
-type LlmApiKeyListItem = RouterOutputs["llmApiKey"]["all"]["data"][number];
+export type LlmApiKeyListItem =
+  | RouterOutputs["llmApiKey"]["all"]["data"][number]
+  | RouterOutputs["organizationLlmApiKey"]["all"]["data"][number];
 
 const getInitialBedrockAuthMethod = (params: {
   mode: "create" | "update";
@@ -270,8 +284,16 @@ const createFormSchema = (params: {
       },
     );
 
+export type LlmConnectionFormOwner =
+  | { scope: "project"; projectId: string }
+  | { scope: "organization"; organizationId: string };
+
+// Save failures render beside the submit button; a local handler replaces the
+// React Query default that would show the same error in a toast.
+const suppressSaveErrorToast = () => undefined;
+
 interface CreateLLMApiKeyFormProps {
-  projectId?: string;
+  owner: LlmConnectionFormOwner;
   onSuccess: () => void;
   customization: ReturnType<typeof useUiCustomization>;
   mode?: "create" | "update";
@@ -279,7 +301,7 @@ interface CreateLLMApiKeyFormProps {
 }
 
 export function CreateLLMApiKeyForm({
-  projectId,
+  owner,
   onSuccess,
   customization,
   mode = "create",
@@ -293,25 +315,62 @@ export function CreateLLMApiKeyForm({
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
 
-  const existingKeys = api.llmApiKey.all.useQuery(
+  const projectExistingKeys = api.llmApiKey.all.useQuery(
     {
-      projectId: projectId as string,
+      projectId: owner.scope === "project" ? owner.projectId : "",
       includeDecisionModels: true,
     },
-    { enabled: Boolean(projectId) },
+    { enabled: owner.scope === "project" },
   );
+  const organizationExistingKeys = api.organizationLlmApiKey.all.useQuery(
+    {
+      orgId: owner.scope === "organization" ? owner.organizationId : "",
+      includeDecisionModels: true,
+    },
+    { enabled: owner.scope === "organization" },
+  );
+  const existingKeys =
+    owner.scope === "project"
+      ? projectExistingKeys.data?.data
+      : organizationExistingKeys.data?.data;
   const adapterOptions = Object.values(LLMAdapter);
 
   const mutCreateLlmApiKey = api.llmApiKey.create.useMutation({
     onSuccess: () => utils.llmApiKey.invalidate(),
+    onError: suppressSaveErrorToast,
   });
 
   const mutUpdateLlmApiKey = api.llmApiKey.update.useMutation({
     onSuccess: () => utils.llmApiKey.invalidate(),
+    onError: suppressSaveErrorToast,
   });
 
   const mutTestLLMApiKey = api.llmApiKey.test.useMutation();
   const mutTestUpdateLLMApiKey = api.llmApiKey.testUpdate.useMutation();
+  const mutCreateOrganizationLlmApiKey =
+    api.organizationLlmApiKey.create.useMutation({
+      onSuccess: async () => {
+        await Promise.all([
+          utils.organizationLlmApiKey.invalidate(),
+          utils.llmApiKey.invalidate(),
+        ]);
+      },
+      onError: suppressSaveErrorToast,
+    });
+  const mutUpdateOrganizationLlmApiKey =
+    api.organizationLlmApiKey.update.useMutation({
+      onSuccess: async () => {
+        await Promise.all([
+          utils.organizationLlmApiKey.invalidate(),
+          utils.llmApiKey.invalidate(),
+        ]);
+      },
+      onError: suppressSaveErrorToast,
+    });
+  const mutTestOrganizationLlmApiKey =
+    api.organizationLlmApiKey.test.useMutation();
+  const mutTestUpdateOrganizationLlmApiKey =
+    api.organizationLlmApiKey.testUpdate.useMutation();
 
   const defaultAdapter: LLMAdapter = customization?.defaultModelAdapter
     ? LLMAdapter[customization.defaultModelAdapter]
@@ -472,7 +531,7 @@ export function CreateLLMApiKeyForm({
                 variant="ghost"
                 onClick={() => remove(index)}
               >
-                <TrashIcon className="h-4 w-4" />
+                <TrashIcon className="icon-base text-icon-foreground" />
               </Button>
             </span>
           ))}
@@ -482,7 +541,10 @@ export function CreateLLMApiKeyForm({
             onClick={() => append({ value: "" })}
             className="w-full"
           >
-            <PlusIcon className="mr-1.5 -ml-0.5 h-5 w-5" aria-hidden="true" />
+            <PlusIcon
+              className="icon-base text-icon-foreground mr-1.5 -ml-0.5"
+              aria-hidden="true"
+            />
             Add custom model name
           </Button>
         </FormItem>
@@ -524,7 +586,7 @@ export function CreateLLMApiKeyForm({
                 variant="ghost"
                 onClick={() => removeHeader(index)}
               >
-                <TrashIcon className="h-4 w-4" />
+                <TrashIcon className="icon-base text-icon-foreground" />
               </Button>
             </div>
           ))}
@@ -535,7 +597,10 @@ export function CreateLLMApiKeyForm({
             onClick={() => appendHeader({ key: "", value: "" })}
             className="w-full"
           >
-            <PlusIcon className="mr-1.5 -ml-0.5 h-5 w-5" aria-hidden="true" />
+            <PlusIcon
+              className="icon-base text-icon-foreground mr-1.5 -ml-0.5"
+              aria-hidden="true"
+            />
             Add Header
           </Button>
         </FormItem>
@@ -550,27 +615,29 @@ export function CreateLLMApiKeyForm({
   };
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    if (!projectId) return console.error("No project ID found.");
-
     if (mode === "create") {
-      if (
-        existingKeys?.data?.data
-          .map((k) => k.provider)
-          .includes(values.provider)
-      ) {
+      if (existingKeys?.map((key) => key.provider).includes(values.provider)) {
         form.setError("provider", {
           type: "manual",
           message: "There already exists an API key for this provider.",
         });
         return;
       }
-      capture("project_settings:llm_api_key_create", {
-        provider: values.provider,
-      });
+      if (owner.scope === "project") {
+        capture("project_settings:llm_api_key_create", {
+          provider: values.provider,
+        });
+      } else {
+        capture("organization_settings:llm_api_key_create");
+      }
     } else {
-      capture("project_settings:llm_api_key_update", {
-        provider: values.provider,
-      });
+      if (owner.scope === "project") {
+        capture("project_settings:llm_api_key_update", {
+          provider: values.provider,
+        });
+      } else {
+        capture("organization_settings:llm_api_key_update");
+      }
     }
 
     let secretKey = values.secretKey;
@@ -636,20 +703,21 @@ export function CreateLLMApiKeyForm({
           : undefined;
     }
 
-    const extraHeaders =
-      values.extraHeaders.length > 0
-        ? values.extraHeaders.reduce(
-            (acc, header) => {
-              acc[header.key] = header.value ?? "";
-              return acc;
-            },
-            {} as Record<string, string>,
-          )
-        : undefined;
+    let extraHeaders: Record<string, string> | undefined;
+    if (values.extraHeaders.length > 0) {
+      extraHeaders = values.extraHeaders.reduce<Record<string, string>>(
+        (headers, header) => {
+          headers[header.key] = header.value ?? "";
+          return headers;
+        },
+        {},
+      );
+    } else if (mode === "update") {
+      extraHeaders = {};
+    }
 
-    const newLlmApiKey = {
+    const connectionInput = {
       id: existingKey?.id ?? "",
-      projectId,
       secretKey: secretKey ?? "",
       provider: values.provider,
       adapter: values.adapter,
@@ -669,10 +737,20 @@ export function CreateLLMApiKeyForm({
     };
 
     try {
-      const testResult =
-        mode === "create"
-          ? await mutTestLLMApiKey.mutateAsync(newLlmApiKey)
-          : await mutTestUpdateLLMApiKey.mutateAsync(newLlmApiKey);
+      let testResult;
+      if (owner.scope === "project") {
+        const input = { ...connectionInput, projectId: owner.projectId };
+        testResult =
+          mode === "create"
+            ? await mutTestLLMApiKey.mutateAsync(input)
+            : await mutTestUpdateLLMApiKey.mutateAsync(input);
+      } else {
+        const input = { ...connectionInput, orgId: owner.organizationId };
+        testResult =
+          mode === "create"
+            ? await mutTestOrganizationLlmApiKey.mutateAsync(input)
+            : await mutTestUpdateOrganizationLlmApiKey.mutateAsync(input);
+      }
 
       if (!testResult.success) throw new Error(testResult.error);
     } catch (error) {
@@ -687,13 +765,36 @@ export function CreateLLMApiKeyForm({
       return;
     }
 
-    return (mode === "create" ? mutCreateLlmApiKey : mutUpdateLlmApiKey)
-      .mutateAsync(newLlmApiKey)
+    let mutation;
+    if (owner.scope === "project") {
+      const input = { ...connectionInput, projectId: owner.projectId };
+      mutation =
+        mode === "create"
+          ? mutCreateLlmApiKey.mutateAsync(input)
+          : mutUpdateLlmApiKey.mutateAsync(input);
+    } else {
+      const input = { ...connectionInput, orgId: owner.organizationId };
+      mutation =
+        mode === "create"
+          ? mutCreateOrganizationLlmApiKey.mutateAsync(input)
+          : mutUpdateOrganizationLlmApiKey.mutateAsync(input);
+    }
+
+    return mutation
       .then(() => {
         form.reset();
         onSuccess();
       })
-      .catch((error) => reportNonTrpcError(error, "llm-api-keys"));
+      .catch((error) => {
+        reportTrpcErrorWithoutToast(error, "llm-api-keys");
+        form.setError("root", {
+          type: "manual",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Could not save the connection.",
+        });
+      });
   }
 
   return (
@@ -754,9 +855,7 @@ export function CreateLLMApiKeyForm({
                   <SelectContent>
                     {adapterOptions.map((provider) => (
                       <SelectItem value={provider} key={provider}>
-                        {isDecisionModelAdapter(provider)
-                          ? `${provider} (experimental)`
-                          : provider}
+                        {ADAPTER_PICKER_LABELS[provider] ?? provider}
                       </SelectItem>
                     ))}
                     {mode === "create" && (
@@ -906,15 +1005,18 @@ export function CreateLLMApiKeyForm({
                                 field.onChange(value as BedrockAuthMethod)
                               }
                             >
-                              <Tabs.List layout="full" gap="sm" size="auto">
+                              <Tabs.List
+                                variant="inset"
+                                layout="full"
+                                gap="sm"
+                                size="md"
+                              >
                                 <Tabs.Trigger
                                   value={AuthMethod.AccessKeys}
-                                  size="sm"
                                   label="AWS access keys"
                                 />
                                 <Tabs.Trigger
                                   value={AuthMethod.ApiKey}
-                                  size="sm"
                                   label="API key"
                                 />
                               </Tabs.List>
@@ -1337,7 +1439,7 @@ export function CreateLLMApiKeyForm({
                         : "Show advanced settings"}
                     </span>
                     <ChevronDown
-                      className={`text-foreground-tertiary ml-1 size-3.5 translate-y-px transition-transform ${showAdvancedSettings ? "rotate-180" : "rotate-0"}`}
+                      className={`text-foreground-tertiary icon-base ml-1 translate-y-px transition-transform ${showAdvancedSettings ? "rotate-180" : "rotate-0"}`}
                     />
                   </Button>
                 </div>

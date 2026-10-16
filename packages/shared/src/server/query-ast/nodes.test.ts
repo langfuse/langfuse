@@ -5,34 +5,35 @@ import { compileClickhouseQuery } from "./compile";
 import { ClickHouseQueryCompiler } from "./compiler";
 import { getClickhouseKysely } from "./dialect";
 import { QueryCompileError, UnscopedRelationError } from "./errors";
-import { arrayJoin, limitBy, mapKeys, mapValues } from "./extensions";
+import { arrayJoin, limitBy, mapKeys, mapValues, useFinal } from "./extensions";
 import {
   ArrayJoinNode,
+  FinalTableNode,
   LimitByNode,
   isClickHouseSelectQueryNode,
 } from "./nodes";
 import { TenancyInjectionPlugin } from "./tenancy";
 
-const ctx = { projectId: "proj-1" };
+const projectId = "proj-1";
 
 describe("tenancy injection", () => {
-  it("requires an ExecutionContext at compile time", () => {
+  it("requires a projectId at compile time", () => {
     const qb = getClickhouseKysely()
       .selectFrom("traces")
       .select("environment")
       .where("project_id", "=", "proj-1");
 
-    // The mandatory `ctx` parameter is the primary guard: omitting it is a
-    // type error. The `@ts-expect-error` both documents and enforces that
+    // The mandatory `projectId` parameter is the primary guard: omitting it is
+    // a type error. The `@ts-expect-error` both documents and enforces that
     // contract, and the runtime throw is the defense-in-depth backstop for
     // callers that reach this through an `any` boundary.
-    // @ts-expect-error - ctx is required
+    // @ts-expect-error - projectId is required
     expect(() => compileClickhouseQuery(qb)).toThrow(QueryCompileError);
-    // @ts-expect-error - ctx is required
+    // @ts-expect-error - projectId is required
     expect(() => compileClickhouseQuery(qb)).toThrow(/no tenancy scope/);
   });
 
-  it("refuses a context with an empty projectId", () => {
+  it("refuses an empty projectId", () => {
     const qb = getClickhouseKysely()
       .selectFrom("traces")
       .select("environment")
@@ -40,9 +41,22 @@ describe("tenancy injection", () => {
 
     // Type-valid but semantically empty: the type system cannot express
     // "non-empty string", so the runtime check earns its keep here.
-    expect(() => compileClickhouseQuery(qb, { projectId: "" })).toThrow(
-      /no tenancy scope/,
-    );
+    expect(() => compileClickhouseQuery(qb, "")).toThrow(/no tenancy scope/);
+  });
+
+  it("refuses a scope that is not a single projectId string", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("events_core")
+      .select("environment");
+
+    expect(() =>
+      // @ts-expect-error - a query is scoped to exactly one project
+      compileClickhouseQuery(qb, ["proj-a", "proj-b"]),
+    ).toThrow(/no tenancy scope/);
+    expect(() =>
+      // @ts-expect-error - the scope is the projectId itself, not a context
+      compileClickhouseQuery(qb, { projectId: "proj-a" }),
+    ).toThrow(/no tenancy scope/);
   });
 
   it("refuses kysely.compile() when the tenancy pass did not run", () => {
@@ -59,7 +73,7 @@ describe("tenancy injection", () => {
       .selectFrom("events_core")
       .select("environment");
 
-    const { sql: compiled, params } = compileClickhouseQuery(qb, ctx);
+    const { sql: compiled, params } = compileClickhouseQuery(qb, projectId);
     expect(compiled.toLowerCase()).toContain("project_id");
     expect(Object.values(params)).toContain("proj-1");
   });
@@ -70,7 +84,7 @@ describe("tenancy injection", () => {
       .select("environment")
       .where("project_id", "=", "proj-1");
 
-    const { sql: compiled } = compileClickhouseQuery(qb, ctx);
+    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
     const matches = compiled.match(/project_id/gi) ?? [];
     expect(matches).toHaveLength(1);
   });
@@ -80,7 +94,7 @@ describe("tenancy injection", () => {
       .selectFrom(sql<{ environment: string }>`traces`.as("t"))
       .select("environment");
 
-    expect(() => compileClickhouseQuery(qb, ctx)).toThrow(
+    expect(() => compileClickhouseQuery(qb, projectId)).toThrow(
       UnscopedRelationError,
     );
   });
@@ -90,10 +104,49 @@ describe("tenancy injection", () => {
       .selectFrom(sql<{ environment: string }>`(SELECT * FROM traces)`.as("t"))
       .selectAll();
 
-    expect(() => compileClickhouseQuery(qb, ctx)).toThrow(
+    expect(() => compileClickhouseQuery(qb, projectId)).toThrow(
       UnscopedRelationError,
     );
   });
+
+  it.each(["remote", "clusterAllReplicas", "merge"])(
+    "rejects the %s table function as a FROM source",
+    (fn) => {
+      const qb = getClickhouseKysely()
+        .selectFrom((eb) =>
+          eb
+            .fn<{
+              environment: string;
+            }>(fn, [eb.val("default"), eb.val("traces")])
+            .as("t"),
+        )
+        .select("t.environment");
+
+      expect(() => compileClickhouseQuery(qb, projectId)).toThrow(
+        UnscopedRelationError,
+      );
+    },
+  );
+
+  it.each(["remote", "clusterAllReplicas", "merge"])(
+    "rejects the %s table function as a JOIN source",
+    (fn) => {
+      const qb = getClickhouseKysely()
+        .selectFrom("events_core as e")
+        .innerJoin(
+          (eb) =>
+            eb
+              .fn<{ id: string }>(fn, [eb.val("default"), eb.val("traces")])
+              .as("t"),
+          (join) => join.onRef("e.trace_id", "=", "t.id"),
+        )
+        .select("t.id");
+
+      expect(() => compileClickhouseQuery(qb, projectId)).toThrow(
+        UnscopedRelationError,
+      );
+    },
+  );
 
   it("rejects raw SQL fragments in SELECT and WHERE, not only FROM/JOIN", () => {
     const selectRaw = getClickhouseKysely()
@@ -107,10 +160,10 @@ describe("tenancy injection", () => {
       .select("environment")
       .where(sql<boolean>`id IN (SELECT id FROM traces)`);
 
-    expect(() => compileClickhouseQuery(selectRaw, ctx)).toThrow(
+    expect(() => compileClickhouseQuery(selectRaw, projectId)).toThrow(
       UnscopedRelationError,
     );
-    expect(() => compileClickhouseQuery(whereRaw, ctx)).toThrow(
+    expect(() => compileClickhouseQuery(whereRaw, projectId)).toThrow(
       UnscopedRelationError,
     );
   });
@@ -155,7 +208,7 @@ describe("tenancy injection", () => {
       .select("o.environment")
       .where("o.project_id", "=", "proj-1");
 
-    const { sql: compiled } = compileClickhouseQuery(qb, ctx);
+    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
     const refs = compiled.match(/[\w.]*project_id/gi) ?? [];
     expect(refs.length).toBeGreaterThanOrEqual(3);
     for (const ref of refs) {
@@ -171,7 +224,7 @@ describe("tenancy injection", () => {
       .select("environment")
       .where("project_id", "=", "other-project");
 
-    const { sql: compiled, params } = compileClickhouseQuery(qb, ctx);
+    const { sql: compiled, params } = compileClickhouseQuery(qb, projectId);
     // The builder's `other-project` predicate does not scope the request's
     // project, so the pass must still inject `project_id = proj-1`.
     expect(Object.values(params)).toContain("proj-1");
@@ -188,7 +241,7 @@ describe("tenancy injection", () => {
       // treated as scoping either relation.
       .where("project_id", "=", "proj-1");
 
-    const { sql: compiled } = compileClickhouseQuery(qb, ctx);
+    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
     expect(compiled).toMatch(/o\.project_id/i);
     expect(compiled).toMatch(/t\.project_id/i);
   });
@@ -205,7 +258,7 @@ describe("tenancy injection", () => {
       .select("t.environment")
       .where("traces.project_id", "=", "proj-1");
 
-    const { sql: compiled } = compileClickhouseQuery(qb, ctx);
+    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
     expect(compiled).toMatch(/t\.project_id/i);
     const matches = compiled.match(/project_id/gi) ?? [];
     expect(matches.length).toBeGreaterThanOrEqual(2);
@@ -226,7 +279,7 @@ describe("ARRAY JOIN and LIMIT BY nodes", () => {
       );
 
     const node = qb
-      .withPlugin(new TenancyInjectionPlugin(ctx))
+      .withPlugin(new TenancyInjectionPlugin(projectId))
       .toOperationNode();
     expect(isClickHouseSelectQueryNode(node)).toBe(true);
     if (!isClickHouseSelectQueryNode(node)) return;
@@ -246,7 +299,7 @@ describe("ARRAY JOIN and LIMIT BY nodes", () => {
       .where("project_id", "=", "proj-1")
       .$call(arrayJoin({ cost_key: mapKeys("cost_details") }));
 
-    const { sql: compiled } = compileClickhouseQuery(qb, ctx);
+    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
     expect(compiled.toLowerCase()).toContain("array join");
     expect(compiled.toLowerCase()).toContain(
       "mapkeys(cost_details) as cost_key",
@@ -261,7 +314,7 @@ describe("ARRAY JOIN and LIMIT BY nodes", () => {
       .$call(limitBy({ count: 1, columns: ["span_id", "project_id"] }));
 
     const node = qb
-      .withPlugin(new TenancyInjectionPlugin(ctx))
+      .withPlugin(new TenancyInjectionPlugin(projectId))
       .toOperationNode();
     expect(isClickHouseSelectQueryNode(node)).toBe(true);
     if (!isClickHouseSelectQueryNode(node)) return;
@@ -279,10 +332,42 @@ describe("ARRAY JOIN and LIMIT BY nodes", () => {
       .limit(50)
       .$call(limitBy({ count: 1, columns: ["span_id"] }));
 
-    const { sql: compiled } = compileClickhouseQuery(qb, ctx);
+    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
     const lower = compiled.toLowerCase();
     expect(lower).toContain("limit ");
     expect(lower).toContain(" by ");
     expect(lower.indexOf(" by ")).toBeLessThan(lower.lastIndexOf("limit"));
+  });
+
+  it("wraps the scores FROM table in a FinalTableNode", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("scores as s")
+      .select("s.id")
+      .$call(useFinal(["scores"]));
+
+    const node = qb
+      .withPlugin(new TenancyInjectionPlugin(projectId))
+      .toOperationNode();
+    expect(node.kind).toBe("SelectQueryNode");
+    const from = (node as { from?: { froms?: Array<{ kind: string }> } }).from
+      ?.froms?.[0];
+    expect(from).toBeDefined();
+    expect(FinalTableNode.is(from!)).toBe(true);
+  });
+
+  it("emits FINAL after the scores table expression", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("scores as s")
+      .select("s.id")
+      .$call(useFinal(["scores"]));
+
+    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
+    expect(compiled.toLowerCase()).toMatch(/from scores as s final/);
+    expect(compiled.toLowerCase()).not.toMatch(/from scores as s,/);
+  });
+
+  it("rejects FINAL on events_core", () => {
+    expect(() => useFinal(["events_core"])).toThrow(QueryCompileError);
+    expect(() => useFinal(["events_core"])).toThrow(/immutable/);
   });
 });

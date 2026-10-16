@@ -361,7 +361,7 @@ export const useScheduledDashboardExecuteQuery = (
     refetchOnReconnect: queryOptions.refetchOnReconnect ?? false,
     refetchOnMount: queryOptions.refetchOnMount ?? false,
     enabled: enabled && canFetch && !useSSE,
-    meta,
+    meta: { ...meta, toastOperation: "dashboard.query" },
   });
 
   // SSE path (opt-in) — same cache key as the tRPC path, so identical widgets

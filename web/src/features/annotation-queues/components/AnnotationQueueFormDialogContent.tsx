@@ -171,7 +171,10 @@ export function AnnotationQueueFormDialogContent({
                           if (event.button === 1) onManageScoreConfigsClick();
                         }}
                       >
-                        <Settings2 className="size-3" aria-hidden="true" />
+                        <Settings2
+                          className="icon-base text-icon-foreground"
+                          aria-hidden="true"
+                        />
                         Manage score configs
                       </Link>
                     </Button>

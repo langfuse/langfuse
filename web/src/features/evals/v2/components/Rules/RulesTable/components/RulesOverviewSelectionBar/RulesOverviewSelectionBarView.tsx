@@ -1,7 +1,7 @@
 import { Pause, Play, Trash2 } from "lucide-react";
+import { OverviewSelectionBar } from "@/src/components/table/OverviewSelectionBar/OverviewSelectionBar";
 import { Button } from "@/src/components/ui/button";
 import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
-import { OverviewSelectionBar } from "@/src/features/evals/v2/components/OverviewSelectionBar/OverviewSelectionBar";
 
 export function RulesOverviewSelectionBarView({
   selectedCount,
@@ -38,7 +38,7 @@ export function RulesOverviewSelectionBarView({
           disabled={!hasWriteAccess || statusChangePending}
           onClick={onEnable}
         >
-          <Play className="mr-2 h-4 w-4" /> Enable
+          <Play className="icon-base text-icon-foreground mr-2" /> Enable
         </Button>
         <Button
           type="button"
@@ -47,7 +47,7 @@ export function RulesOverviewSelectionBarView({
           disabled={!hasWriteAccess || statusChangePending}
           onClick={onDisable}
         >
-          <Pause className="mr-2 h-4 w-4" /> Disable
+          <Pause className="icon-base text-icon-foreground mr-2" /> Disable
         </Button>
         <Button
           type="button"
@@ -56,7 +56,7 @@ export function RulesOverviewSelectionBarView({
           disabled={!hasWriteAccess}
           onClick={onDelete}
         >
-          <Trash2 className="mr-2 h-4 w-4" /> Delete
+          <Trash2 className="icon-base text-icon-foreground mr-2" /> Delete
         </Button>
       </OverviewSelectionBar>
       <ConfirmDialog

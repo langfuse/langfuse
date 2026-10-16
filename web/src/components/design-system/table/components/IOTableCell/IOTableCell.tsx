@@ -18,11 +18,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+import { ControlledHoverCard } from "@/src/components/design-system/ControlledHoverCard/ControlledHoverCard";
 import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
 import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 
@@ -269,7 +265,7 @@ export const IOTableCell = memo(function IOTableCell({
   }
 
   return (
-    <HoverCard
+    <ControlledHoverCard
       openDelay={700}
       closeDelay={100}
       open={isExpandOpen}
@@ -277,32 +273,33 @@ export const IOTableCell = memo(function IOTableCell({
         if (open && isPointerOverMediaTagRef.current) return;
         setIsExpandOpen(open);
       }}
+      placement="top-start"
+      content={
+        <div className="ph-no-capture max-h-[40vh] w-[400px] overflow-y-auto p-3">
+          <JSONView
+            json={data}
+            className="w-full"
+            codeClassName="p-0 border-none"
+          />
+        </div>
+      }
     >
-      <HoverCardTrigger asChild>
+      {({ getTriggerProps }) => (
         <div
           className="group/io-cell relative h-full w-full"
-          onPointerOver={(event) => {
-            const overMediaTag = Boolean(
-              (event.target as Element).closest("[data-media-tag]"),
-            );
-            isPointerOverMediaTagRef.current = overMediaTag;
-            if (overMediaTag) setIsExpandOpen(false);
-          }}
+          {...getTriggerProps({
+            onPointerOver: (event) => {
+              const overMediaTag = Boolean(
+                (event.target as Element).closest("[data-media-tag]"),
+              );
+              isPointerOverMediaTagRef.current = overMediaTag;
+              if (overMediaTag) setIsExpandOpen(false);
+            },
+          })}
         >
           {content}
         </div>
-      </HoverCardTrigger>
-      <HoverCardContent
-        className="ph-no-capture max-h-[40vh] w-[400px] overflow-y-auto"
-        side="top"
-        align="start"
-      >
-        <JSONView
-          json={data}
-          className="w-full"
-          codeClassName="p-0 border-none"
-        />
-      </HoverCardContent>
-    </HoverCard>
+      )}
+    </ControlledHoverCard>
   );
 });

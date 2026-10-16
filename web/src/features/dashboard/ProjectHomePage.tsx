@@ -43,6 +43,7 @@ import {
 import Link from "next/link";
 import { LockIcon, PencilIcon } from "lucide-react";
 import { showErrorToast } from "@/src/features/notifications";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { Button } from "@/src/components/ui/button";
@@ -237,7 +238,11 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
       setPeekId(null);
     },
     onError: (e) => {
-      showErrorToast("Failed to set the default Home dashboard", e.message);
+      showErrorToast(
+        "Failed to set the default Home dashboard",
+        e.message,
+        classifyTrpcToastError(e, "dashboard_home.update"),
+      );
     },
   });
 
@@ -396,7 +401,7 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
                   href={`/project/${projectId}/dashboards/${encodeURIComponent(dashboardId)}`}
                   onClick={handleEditDashboard}
                 >
-                  <PencilIcon className="h-4 w-4" />
+                  <PencilIcon className="icon-base text-icon-foreground" />
                   <span className="sr-only">
                     Edit this dashboard in Dashboards
                   </span>
@@ -412,7 +417,7 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
                 ) : (
                   <Button disabled>
                     <LockIcon
-                      className="mr-2 -ml-0.5 h-4 w-4"
+                      className="icon-base text-icon-foreground mr-2 -ml-0.5"
                       aria-hidden="true"
                     />
                     Configure Tracing
@@ -459,7 +464,7 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
                       closeMenu();
                     }}
                   >
-                    <PencilIcon className="h-4 w-4" />
+                    <PencilIcon className="icon-base text-icon-foreground" />
                     Edit dashboard
                   </Link>
                 </Button>
@@ -485,7 +490,7 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
                       size="sm"
                       className="w-full justify-start gap-2 font-normal"
                     >
-                      <LockIcon className="h-4 w-4" aria-hidden="true" />
+                      <LockIcon className="icon-base" aria-hidden="true" />
                       Configure tracing
                     </Button>
                   ))}

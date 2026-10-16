@@ -205,7 +205,7 @@ async fn provider_http_errors_are_traced_without_changing_the_response() {
                 provider.try_admit().unwrap(),
                 context,
                 &HeaderMap::new(),
-                Bytes::from_static(b"{}"),
+                Bytes::from_static(br#"{"model":"requested"}"#),
             )
             .await
             .unwrap();
@@ -330,7 +330,7 @@ async fn generation_context_is_isolated_from_operational_spans_and_outbound_head
     let observed = observed.lock().unwrap();
     assert_eq!(observed.len(), 3);
     for (name, headers, payload) in &*observed {
-        let child = spans.iter().find(|span| span.name == *name).unwrap();
+        let child = outbound_span(&spans, name);
         assert_outbound_context(headers, (*name != "provider.headers").then_some(child));
         if *name == "ingestion" {
             assert_generation_context(payload);
@@ -341,6 +341,17 @@ async fn generation_context_is_isolated_from_operational_spans_and_outbound_head
 
 type SpanData = opentelemetry_sdk::trace::SpanData;
 
+fn outbound_span<'a>(spans: &'a [SpanData], name: &str) -> &'a SpanData {
+    let resolution = spans.iter().find(|span| span.name == "resolution").unwrap();
+    spans
+        .iter()
+        .find(|span| {
+            span.name == name
+                && (name != "resolver" || span.parent_span_id == resolution.span_context.span_id())
+        })
+        .unwrap()
+}
+
 /// Every phase between the caller's headers and the last body byte has a span in
 /// the server trace, so a waterfall shows no unattributed wall time. Batched
 /// ingestion runs in its own trace, linked back to each request it carries.
@@ -349,7 +360,6 @@ fn assert_phase_spans(spans: &[SpanData], server: &SpanData) {
     assert_eq!(spans.len(), 9);
     for (name, parent) in [
         ("resolution", server),
-        ("resolver", named("resolution")),
         ("request.body", server),
         ("request.capture", server),
         ("provider.headers", server),
@@ -368,6 +378,15 @@ fn assert_phase_spans(spans: &[SpanData], server: &SpanData) {
             "{name}"
         );
     }
+    let resolver_parents = spans
+        .iter()
+        .filter(|span| span.name == "resolver")
+        .map(|span| span.parent_span_id)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        resolver_parents,
+        [named("resolution").span_context.span_id()]
+    );
     let batch = named("telemetry.batch");
     assert_eq!(batch.parent_span_id, opentelemetry::trace::SpanId::INVALID);
     assert_ne!(
@@ -430,7 +449,7 @@ fn assert_attribute(span: &SpanData, key: &str, expected: impl Into<opentelemetr
     assert_eq!(actual.value, expected.into(), "{} {key}", span.name);
 }
 
-const GENERATION_REQUEST: &str = r#"{"model":"test-model"}"#;
+const GENERATION_REQUEST: &str = r#"{"model":"Production key:test-model"}"#;
 const PROVIDER_RESPONSE: &str = r#"{"id":"resp_1","output":[]}"#;
 
 fn generation_request() -> HttpRequest<Body> {
@@ -524,7 +543,7 @@ fn assert_request_correlation(
             "provider_connection_name",
             "Production key",
         ),
-        ("gateway.upstream.model", "upstream_model", "test-model"),
+        ("gateway.upstream.model", "upstream_model", "provider-model"),
     ];
     for (attribute, _, expected) in resolution {
         assert_attribute(server, attribute, expected);

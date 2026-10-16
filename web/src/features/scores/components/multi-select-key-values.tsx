@@ -147,7 +147,7 @@ export function MultiSelectKeyValues<
           {option.value}
         </span>
         {option.isArchived && (
-          <Archive className="text-foreground/50 ml-2 h-4 w-4" />
+          <Archive className="icon-base text-foreground/50 ml-2" />
         )}
         {option.count !== undefined && (
           <span className="ml-auto font-mono text-xs">{option.count}</span>
@@ -177,7 +177,7 @@ export function MultiSelectKeyValues<
         <Button
           variant={variant}
           className={cn(
-            "ring-offset-background placeholder:text-foreground-tertiary focus:ring-ring flex h-8 w-full items-center justify-between rounded-md px-3 py-1 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
+            "ring-offset-background placeholder:text-muted-foreground focus:ring-ring flex h-8 w-full items-center justify-between rounded-md px-3 py-1 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
             className,
           )}
           disabled={disabled}
@@ -232,7 +232,7 @@ export function MultiSelectKeyValues<
           className="flex items-center border-b px-2 py-1"
           onClick={handleInputClick}
         >
-          <Search className="mr-1 h-3 w-3 opacity-50" />
+          <Search className="icon-sm mr-1 opacity-50" />
           <Input
             ref={inputRef}
             placeholder={placeholder}
@@ -258,7 +258,7 @@ export function MultiSelectKeyValues<
             return (
               <DropdownMenuSub key={group.label}>
                 <DropdownMenuSubTrigger className="flex w-full items-center select-none">
-                  <Component className="mr-2 h-4 w-4 opacity-50" />
+                  <Component className="icon-base text-icon-foreground mr-2 opacity-50" />
                   <span>{group.label}</span>
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent className="max-h-[300px] overflow-y-auto">

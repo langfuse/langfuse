@@ -120,7 +120,7 @@ export function createBadgeListTableColumn<
           title={title}
           aria-label={ariaLabel}
         >
-          {Icon && <Icon className="size-3 shrink-0" aria-hidden />}
+          {Icon && <Icon className="icon-sm shrink-0" aria-hidden />}
           <span className="truncate leading-normal" title={title}>
             {value}
           </span>

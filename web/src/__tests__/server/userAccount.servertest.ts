@@ -26,19 +26,57 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
   });
 
+  it.each([true, false])(
+    "rejects a non-platform-admin Topics toggle to %s",
+    async (enabled) => {
+      const { caller, userId } = await createCaller();
+      await expect(
+        caller.userAccount.setFeaturePreviewEnabled({
+          flag: "langfuseTopics",
+          enabled,
+        }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      const user = await prisma.user.findUniqueOrThrow({
+        where: { id: userId },
+      });
+      expect(user.featureFlags).toEqual(["templateFlag"]);
+    },
+  );
+
+  it("lets a platform admin opt into and out of Topics locally without changing other flags", async () => {
+    const { caller, userId } = await createCaller({ admin: true });
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+    await caller.userAccount.setFeaturePreviewEnabled({
+      flag: "langfuseTopics",
+      enabled: true,
+    });
+    expect(
+      (await prisma.user.findUniqueOrThrow({ where: { id: userId } }))
+        .featureFlags,
+    ).toEqual(["templateFlag", "langfuseTopics"]);
+    await caller.userAccount.setFeaturePreviewEnabled({
+      flag: "langfuseTopics",
+      enabled: false,
+    });
+    expect(
+      (await prisma.user.findUniqueOrThrow({ where: { id: userId } }))
+        .featureFlags,
+    ).not.toContain("langfuseTopics");
+  });
+
   it("enables a preview, leaving other flags intact", async () => {
     const { caller, userId } = await createCaller({
       featureFlags: ["templateFlag"],
     });
 
     const result = await caller.userAccount.setFeaturePreviewEnabled({
-      flag: "modernSession",
+      flag: "sessionViewV2",
       enabled: true,
     });
 
     expect(result).toEqual({
       success: true,
-      flag: "modernSession",
+      flag: "sessionViewV2",
       enabled: true,
     });
 
@@ -46,14 +84,14 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
       where: { id: userId },
       select: { featureFlags: true },
     });
-    expect(user.featureFlags).toEqual(["templateFlag", "modernSession"]);
+    expect(user.featureFlags).toEqual(["templateFlag", "sessionViewV2"]);
   });
 
   it("allows users to enable the session timeline preview", async () => {
     const { caller, userId } = await createCaller();
 
     await caller.userAccount.setFeaturePreviewEnabled({
-      flag: "sessionTimeline",
+      flag: "sessionViewV2Timeline",
       enabled: true,
     });
 
@@ -63,24 +101,24 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
     });
     expect(user.featureFlags).toEqual([
       "templateFlag",
-      "sessionTimeline",
-      "modernSession",
+      "sessionViewV2Timeline",
+      "sessionViewV2",
     ]);
   });
 
   it("persists a global opt-out when disabling a preview", async () => {
     const { caller, userId } = await createCaller({
-      featureFlags: ["templateFlag", "modernSession"],
+      featureFlags: ["templateFlag", "sessionViewV2"],
     });
 
     const result = await caller.userAccount.setFeaturePreviewEnabled({
-      flag: "modernSession",
+      flag: "sessionViewV2",
       enabled: false,
     });
 
     expect(result).toEqual({
       success: true,
-      flag: "modernSession",
+      flag: "sessionViewV2",
       enabled: false,
     });
 
@@ -90,8 +128,8 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
     });
     expect(user.featureFlags).toEqual([
       "templateFlag",
-      getFeaturePreviewOptOutFlag("modernSession"),
-      getFeaturePreviewOptOutFlag("sessionTimeline"),
+      getFeaturePreviewOptOutFlag("sessionViewV2"),
+      getFeaturePreviewOptOutFlag("sessionViewV2Timeline"),
     ]);
   });
 
@@ -101,7 +139,7 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
 
     await expect(
       caller.userAccount.setFeaturePreviewEnabled({
-        flag: "modernSession",
+        flag: "sessionViewV2",
         enabled: true,
       }),
     ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
@@ -123,7 +161,7 @@ describe("userAccountRouter.setViewMode", () => {
   it("persists only the external override and preserves other preferences", async () => {
     const { caller, userId } = await createCaller({
       admin: true,
-      featureFlags: ["modernSession"],
+      featureFlags: ["sessionViewV2"],
     });
     await caller.userAccount.setViewMode({ mode: "EXTERNAL" });
     await caller.userAccount.setViewMode({ mode: "EXTERNAL" });
@@ -131,14 +169,14 @@ describe("userAccountRouter.setViewMode", () => {
       (await prisma.user.findUniqueOrThrow({ where: { id: userId } }))
         .featureFlags,
     ).toEqual([
-      "modernSession",
+      "sessionViewV2",
       getFeaturePreviewOptOutFlag(INTERNAL_FEATURE_FLAG),
     ]);
     await caller.userAccount.setViewMode({ mode: "INTERNAL" });
     expect(
       (await prisma.user.findUniqueOrThrow({ where: { id: userId } }))
         .featureFlags,
-    ).toEqual(["modernSession"]);
+    ).toEqual(["sessionViewV2"]);
   });
 
   it("does not allow ordinary users to select internal mode", async () => {
@@ -195,13 +233,14 @@ describe("userAccountRouter.signOutAllSessions", () => {
 });
 
 async function createCaller({
+  admin = false,
   plan = "cloud:hobby",
   aiFeaturesEnabled = true,
   featureFlags = ["templateFlag"],
   includeProjectInSession = true,
   emailDomain = "example.com",
-  admin = false,
 }: {
+  admin?: boolean;
   plan?: Plan;
   aiFeaturesEnabled?: boolean;
   featureFlags?: string[];
@@ -209,7 +248,6 @@ async function createCaller({
   // Domain only — the local part is always unique so reruns against the same
   // database do not trip the users.email unique constraint.
   emailDomain?: string;
-  admin?: boolean;
 } = {}) {
   const id = randomUUID();
   const orgId = `org-${id}`;
@@ -236,6 +274,7 @@ async function createCaller({
       email: `${userId}@${emailDomain}`,
       name: "User Account Test User",
       featureFlags,
+      admin,
     },
   });
 
@@ -273,8 +312,9 @@ async function createCaller({
         },
       ],
       featureFlags: testFeatureFlags({
-        modernSession: featureFlags.includes("modernSession"),
-        sessionTimeline: featureFlags.includes("sessionTimeline"),
+        langfuseTopics: featureFlags.includes("langfuseTopics"),
+        sessionViewV2: featureFlags.includes("sessionViewV2"),
+        sessionViewV2Timeline: featureFlags.includes("sessionViewV2Timeline"),
         searchBar: featureFlags.includes("searchBar"),
         templateFlag: featureFlags.includes("templateFlag"),
       }),

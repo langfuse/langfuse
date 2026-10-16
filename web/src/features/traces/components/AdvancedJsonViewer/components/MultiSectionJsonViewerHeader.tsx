@@ -50,9 +50,9 @@ export function MultiSectionJsonViewerHeader({
         }}
       >
         {context.isExpanded ? (
-          <ChevronDown size={14} />
+          <ChevronDown className="icon-base" />
         ) : (
-          <ChevronRight size={14} />
+          <ChevronRight className="icon-base" />
         )}
       </span>
       <span className="text-xs font-bold">{title}</span>
@@ -77,7 +77,7 @@ export function MultiSectionJsonViewerHeader({
             fontSize: "0.65rem",
           }}
         >
-          <MessageSquare size={10} />
+          <MessageSquare className="icon-sm" />
           {commentCount}
         </span>
       )}

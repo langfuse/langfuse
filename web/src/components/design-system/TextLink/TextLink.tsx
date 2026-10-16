@@ -36,7 +36,7 @@ export function TextLink({
       <span className="inline-block max-w-full overflow-hidden align-middle leading-normal text-nowrap text-ellipsis">
         {Icon ? (
           <span className="inline-flex max-w-full items-center gap-1">
-            <Icon className="h-3.5 w-3.5 shrink-0" />
+            <Icon className="icon-base shrink-0" />
             <span className="truncate" title={title ?? value}>
               {value}
             </span>

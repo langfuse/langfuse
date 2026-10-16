@@ -9,15 +9,13 @@ import {
 } from "use-query-params";
 import type { z } from "zod";
 import { ChatMessageList } from "@/src/features/traces";
-import {
-  TabsBar,
-  TabsBarList,
-  TabsBarContent,
-  TabsBarTrigger,
-} from "@/src/components/ui/tabs-bar";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { Badge } from "@/src/components/ui/badge";
-import { CodeView, JSONView } from "@/src/components/ui/CodeJsonViewer";
+import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { IO_SECTIONS_FLUSH_CLASS } from "@/src/features/traces/constants/ioSectionClasses";
+import { DetailViewHeaderShell } from "@/src/features/traces/components/DetailViewHeaderShell";
+import { JSONView } from "@/src/components/ui/CodeJsonViewer";
+import { CodeSection } from "@/src/components/design-system/CodeSection/CodeSection";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
@@ -243,6 +241,7 @@ export const PromptDetail = ({
     utils.datasets.baseRunDataByDatasetId.invalidate();
     utils.datasets.runsByDatasetId.invalidate();
     showSuccessToast({
+      operation: "experiment.trigger",
       title: "Experiment triggered successfully",
       description: "Waiting for experiment to complete...",
       link: {
@@ -314,36 +313,40 @@ export const PromptDetail = ({
   } = {}) => (
     <Command
       className={cn(
-        "flex min-h-0 flex-col gap-2 overflow-hidden font-bold focus:ring-0 focus:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-hidden data-focus:ring-0",
-        mobile ? "rounded-none" : "rounded-none border-r pr-3",
+        "flex min-h-0 flex-col gap-2 overflow-hidden bg-transparent font-bold focus:ring-0 focus:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-hidden data-focus:ring-0",
+        mobile ? "rounded-none" : "rounded-none border-r px-3",
       )}
     >
       <div
         className={cn(
           "flex shrink-0 items-center justify-between",
-          mobile ? "mb-1" : "mt-3",
+          mobile ? "mb-1" : "-mx-3 border-b py-1.5 pr-3 pl-1",
         )}
       >
         <CommandInput
           showBorder={false}
-          placeholder="Search..."
-          className="text-muted-foreground h-fit border-none py-0 text-sm focus:ring-0"
+          variant="toolbar"
+          placeholder="Search"
+          className="border-none py-0 focus:ring-0"
         />
 
         <Button
+          variant="secondary"
           onClick={() => {
             capture("prompts:update_form_open");
           }}
           className={cn(
             "shrink-0",
-            mobile ? "h-8 w-fit px-3" : "h-6 w-6 px-1 lg:h-8 lg:w-fit lg:px-3",
+            mobile
+              ? "h-8 w-fit px-3"
+              : "h-6 w-6 px-1 lg:h-7 lg:w-fit lg:px-2.5",
           )}
         >
           <Link
             className="grid w-full grid-flow-col place-items-center"
             href={`/project/${projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`}
           >
-            <Plus className={cn("h-4 w-4", mobile ? "mr-2" : "lg:mr-2")} />
+            <Plus className={cn("icon-base", mobile ? "mr-2" : "lg:mr-2")} />
             <span className={cn(mobile ? "inline" : "hidden lg:inline")}>
               New version
             </span>
@@ -456,82 +459,76 @@ export const PromptDetail = ({
                 `/project/${projectId}/prompts/${entry.id}?tab=${currentTab}`
               }
               listKey="prompts"
+              compact
             />
           </>
         ),
       }}
     >
-      <div className="grid flex-1 grid-cols-1 gap-4 overflow-hidden px-3 md:grid-cols-4">
+      <div className="grid flex-1 grid-cols-1 overflow-hidden md:grid-cols-4">
         {isMobile ? null : renderVersionHistory()}
-        <div className="col-span-1 mt-3 flex max-h-full min-h-0 min-w-0 flex-col md:col-span-3">
+        <div className="col-span-1 flex max-h-full min-h-0 min-w-0 flex-col md:col-span-3">
           {isMobile ? (
-            <Drawer
-              open={isVersionHistoryOpen}
-              onOpenChange={setIsVersionHistoryOpen}
-            >
-              <DrawerTrigger asChild>
-                <Button
-                  variant="outline"
-                  className="mb-3 w-full min-w-0 justify-start gap-2 px-3"
-                >
-                  <History className="h-4 w-4 shrink-0" />
-                  <span className="shrink-0">Version #{prompt.version}</span>
+            <div className="px-4 pt-3">
+              <Drawer
+                open={isVersionHistoryOpen}
+                onOpenChange={setIsVersionHistoryOpen}
+              >
+                <DrawerTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="mb-3 w-full min-w-0 justify-start gap-2 px-3"
+                  >
+                    <History className="icon-base text-icon-foreground shrink-0" />
+                    <span className="shrink-0">Version #{prompt.version}</span>
+                    <span
+                      className="text-muted-foreground min-w-0 flex-1 truncate text-left font-normal"
+                      title={prompt.commitMessage ?? prompt.name}
+                    >
+                      {prompt.commitMessage ?? prompt.name}
+                    </span>
+                    <DropdownIndicator />
+                  </Button>
+                </DrawerTrigger>
+                <DrawerContent className="max-h-[85dvh]">
+                  <DrawerHeader className="shrink-0 border-b text-left">
+                    <DrawerTitle>Prompt versions</DrawerTitle>
+                    <DrawerDescription>
+                      Select a version of {prompt.name}.
+                    </DrawerDescription>
+                  </DrawerHeader>
+                  <div className="min-h-0 flex-1 overflow-hidden p-4 pt-2">
+                    {renderVersionHistory({
+                      mobile: true,
+                      onVersionSelect: () => setIsVersionHistoryOpen(false),
+                    })}
+                  </div>
+                </DrawerContent>
+              </Drawer>
+            </div>
+          ) : null}
+          <DetailViewHeaderShell>
+            <div className="grid w-full grid-cols-1 items-start gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
+              <div className="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1.5">
+                <span className="mr-1 inline-flex max-w-full min-w-0 items-center gap-2">
+                  <BadgeShell color="inverted" font="mono" size="lg">
+                    # {prompt.version}
+                  </BadgeShell>
                   <span
-                    className="text-muted-foreground min-w-0 flex-1 truncate text-left font-normal"
+                    className="text-primary min-w-0 truncate text-lg leading-6 font-bold"
                     title={prompt.commitMessage ?? prompt.name}
                   >
                     {prompt.commitMessage ?? prompt.name}
                   </span>
-                  <DropdownIndicator />
-                </Button>
-              </DrawerTrigger>
-              <DrawerContent className="max-h-[85dvh]">
-                <DrawerHeader className="shrink-0 border-b text-left">
-                  <DrawerTitle>Prompt versions</DrawerTitle>
-                  <DrawerDescription>
-                    Select a version of {prompt.name}.
-                  </DrawerDescription>
-                </DrawerHeader>
-                <div className="min-h-0 flex-1 overflow-hidden p-4 pt-2">
-                  {renderVersionHistory({
-                    mobile: true,
-                    onVersionSelect: () => setIsVersionHistoryOpen(false),
-                  })}
-                </div>
-              </DrawerContent>
-            </Drawer>
-          ) : null}
-          <div className="flex flex-col items-start gap-2">
-            <div className="flex w-full min-w-0 flex-col gap-2 md:grid md:grid-cols-[minmax(0,1fr)_auto] md:items-start md:justify-between">
-              <div className="flex max-w-full min-w-0 shrink flex-col">
-                <div className="flex max-w-full min-w-0 flex-wrap items-start gap-1">
-                  <SetPromptVersionLabels
-                    title={
-                      <div
-                        className="contents cursor-default!"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <Badge
-                          variant="outline"
-                          className="mr-1 h-6 text-nowrap"
-                        >
-                          # {prompt.version}
-                        </Badge>
-                        <span className="mb-0 line-clamp-2 min-w-0 text-lg font-bold break-all md:break-normal md:wrap-break-word">
-                          {prompt.commitMessage ?? prompt.name}
-                        </span>
-                      </div>
-                    }
-                    promptLabels={prompt.labels}
-                    prompt={prompt}
-                    isOpen={isLabelPopoverOpen}
-                    setIsOpen={setIsLabelPopoverOpen}
-                  />
-                </div>
-
-                <div className="min-h-1 flex-1" />
+                </span>
+                <SetPromptVersionLabels
+                  promptLabels={prompt.labels}
+                  prompt={prompt}
+                  isOpen={isLabelPopoverOpen}
+                  setIsOpen={setIsLabelPopoverOpen}
+                />
               </div>
-              <div className="flex h-full w-full flex-wrap content-start items-start justify-end gap-1 md:w-auto lg:flex-nowrap">
+              <div className="flex flex-wrap items-start justify-end gap-1 lg:flex-nowrap">
                 <JumpToPlaygroundDropdownMenuController
                   source="prompt"
                   prompt={{
@@ -543,7 +540,8 @@ export const PromptDetail = ({
                   {({ Trigger, disabled, title }) => (
                     <Trigger asChild>
                       <Button
-                        variant="outline"
+                        variant="ghost"
+                        size="sm"
                         disabled={disabled}
                         title={title}
                         className={cn(
@@ -553,7 +551,7 @@ export const PromptDetail = ({
                             : "cursor-pointer",
                         )}
                       >
-                        <Terminal className="h-4 w-4" />
+                        <Terminal className="icon-base text-icon-foreground" />
                         <span className="hidden md:inline">Playground</span>
                         <DropdownIndicator size="sm" nudge />
                       </Button>
@@ -567,11 +565,12 @@ export const PromptDetail = ({
                   >
                     <DialogTrigger asChild disabled={!hasExperimentWriteAccess}>
                       <Button
-                        variant="outline"
+                        variant="ghost"
+                        size="sm"
                         disabled={!hasExperimentWriteAccess}
                         onClick={() => capture("dataset_run:new_form_open")}
                       >
-                        <FlaskConical className="h-4 w-4" />
+                        <FlaskConical className="icon-base text-icon-foreground" />
                         <span className="hidden md:ml-2 md:inline">
                           Run experiment
                         </span>
@@ -607,7 +606,8 @@ export const PromptDetail = ({
                   {({ disabled, openDrawer }) => (
                     <Button
                       type="button"
-                      variant="outline"
+                      variant="ghost"
+                      size="sm"
                       disabled={disabled}
                       onClick={() =>
                         openDrawer({
@@ -619,10 +619,10 @@ export const PromptDetail = ({
                       className="gap-1"
                     >
                       {disabled ? (
-                        <MessageSquareOff className="text-muted-foreground h-4 w-4" />
+                        <MessageSquareOff className="icon-base text-muted-foreground" />
                       ) : (
                         <>
-                          <MessageSquare className="h-4 w-4" />
+                          <MessageSquare className="icon-base text-icon-foreground" />
                           <span>Add comment</span>
                           {getNumberFromMap(commentCounts, prompt.id) ? (
                             <ActionButtonCountBadge
@@ -638,9 +638,11 @@ export const PromptDetail = ({
                 </CommentDrawerController>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="icon">
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
+                    <IconButton
+                      icon={MoreVertical}
+                      label="More actions"
+                      size="sm"
+                    />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent
                     align="end"
@@ -657,25 +659,25 @@ export const PromptDetail = ({
                 </DropdownMenu>
               </div>
             </div>
-          </div>
-          <TabsBar
+          </DetailViewHeaderShell>
+          <Tabs
             value={currentTab}
-            className="min-h-0"
+            layout="fill"
             onValueChange={(value) => setCurrentTab(value)}
           >
-            <TabsBarList className="max-w-full min-w-0 justify-start overflow-x-auto">
-              <TabsBarTrigger value="prompt">Prompt</TabsBarTrigger>
-              <TabsBarTrigger value="config">Config</TabsBarTrigger>
-              <TabsBarTrigger value="linked-generations">
-                Linked Generations
-              </TabsBarTrigger>
-              <TabsBarTrigger value="use-prompt">Use Prompt</TabsBarTrigger>
-            </TabsBarList>
-            <TabsBarContent
-              value="linked-generations"
-              className="mt-0 mb-2 flex max-h-full min-h-0 flex-1 flex-col overflow-hidden"
-            >
-              <div className="flex h-full flex-1 flex-col overflow-hidden">
+            <div className="max-w-full min-w-0 shrink-0 overflow-x-auto">
+              <Tabs.List variant="underline">
+                <Tabs.Trigger value="prompt" label="Prompt" />
+                <Tabs.Trigger value="config" label="Config" />
+                <Tabs.Trigger
+                  value="linked-generations"
+                  label="Linked Generations"
+                />
+                <Tabs.Trigger value="use-prompt" label="Use Prompt" />
+              </Tabs.List>
+            </div>
+            <Tabs.Content value="linked-generations" layout="fill">
+              <div className="flex h-full flex-1 flex-col overflow-hidden pb-2">
                 {isV4 ? (
                   <EventsTable
                     projectId={prompt.projectId}
@@ -693,12 +695,14 @@ export const PromptDetail = ({
                   />
                 )}
               </div>
-            </TabsBarContent>
-            <TabsBarContent
-              value="prompt"
-              className="mt-0 flex max-h-full min-h-0 flex-1 overflow-hidden"
-            >
-              <div className="mb-2 flex max-h-full min-h-0 w-full flex-col gap-2 overflow-y-auto">
+            </Tabs.Content>
+            <Tabs.Content value="prompt" layout="fill">
+              <div
+                className={cn(
+                  "mb-2 flex max-h-full min-h-0 w-full flex-col gap-3 overflow-y-auto px-4 pt-3",
+                  IO_SECTIONS_FLUSH_CLASS,
+                )}
+              >
                 {promptGraph.data?.graph && (
                   <div className="flex items-center justify-end py-2">
                     <Tabs
@@ -707,17 +711,12 @@ export const PromptDetail = ({
                         setResolutionMode(value as "tagged" | "resolved");
                       }}
                     >
-                      <Tabs.List gap="sm" size="auto">
+                      <Tabs.List variant="inset" gap="sm" size="md">
                         <Tabs.Trigger
                           value="resolved"
-                          size="sm"
                           label="Resolved prompt"
                         />
-                        <Tabs.Trigger
-                          value="tagged"
-                          size="sm"
-                          label="Tagged prompt"
-                        />
+                        <Tabs.Trigger value="tagged" label="Tagged prompt" />
                       </Tabs.List>
                     </Tabs>
                   </div>
@@ -736,16 +735,14 @@ export const PromptDetail = ({
                   ) : typeof prompt.prompt === "string" ? (
                     resolutionMode === "resolved" &&
                     promptGraph.data?.resolvedPrompt ? (
-                      <CodeView
-                        content={String(promptGraph.data.resolvedPrompt)}
+                      <CodeSection
                         title="Text Prompt (resolved)"
+                        content={String(promptGraph.data.resolvedPrompt)}
                       />
                     ) : (
-                      <CodeView
-                        content={renderRichPromptContent(prompt.prompt)}
-                        originalContent={prompt.prompt}
-                        title="Text Prompt"
-                      />
+                      <CodeSection title="Text Prompt" content={prompt.prompt}>
+                        {renderRichPromptContent(prompt.prompt)}
+                      </CodeSection>
                     )
                   ) : (
                     <JSONView json={prompt.prompt} title="Prompt" />
@@ -755,27 +752,23 @@ export const PromptDetail = ({
                   <PromptVariableListPreview variables={extractedVariables} />
                 )}
               </div>
-            </TabsBarContent>
-            <TabsBarContent
-              value="config"
-              className="mt-0 flex max-h-full min-h-0 flex-1 overflow-hidden"
-            >
-              <div className="flex max-h-full min-h-0 w-full flex-col overflow-y-auto pb-4">
+            </Tabs.Content>
+            <Tabs.Content value="config" layout="fill">
+              <div className="flex max-h-full min-h-0 w-full flex-col overflow-y-auto px-4 pt-3 pb-4">
                 <JSONView
                   json={prompt.config}
                   title="Config"
                   className="pb-2"
                 />
               </div>
-            </TabsBarContent>
-            <TabsBarContent
-              value="use-prompt"
-              className="mt-0 flex max-h-full min-h-0 flex-1 overflow-hidden"
-            >
-              <div className="flex h-full min-h-0 w-full flex-col gap-2 overflow-y-auto pb-4">
-                {pythonCode && <CodeView content={pythonCode} title="Python" />}
-                {jsCode && <CodeView content={jsCode} title="JS/TS" />}
-                <p className="text-muted-foreground pl-1 text-xs">
+            </Tabs.Content>
+            <Tabs.Content value="use-prompt" layout="fill">
+              <div className="flex h-full min-h-0 w-full flex-col gap-3 overflow-y-auto px-4 pt-3 pb-4">
+                {pythonCode && (
+                  <CodeSection title="Python" content={pythonCode} />
+                )}
+                {jsCode && <CodeSection title="JS/TS" content={jsCode} />}
+                <p className="text-muted-foreground text-xs">
                   See{" "}
                   <a
                     href="https://langfuse.com/docs/prompts"
@@ -789,8 +782,8 @@ export const PromptDetail = ({
                   Langchain.
                 </p>
               </div>
-            </TabsBarContent>
-          </TabsBar>
+            </Tabs.Content>
+          </Tabs>
         </div>
       </div>
     </Page>

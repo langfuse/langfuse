@@ -4,7 +4,7 @@
 import * as React from "react";
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import { cva } from "class-variance-authority";
-import { Check, Circle, Minus, type LucideIcon } from "lucide-react";
+import { Check, Minus, type LucideIcon } from "lucide-react";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import Link from "next/link";
 
@@ -381,7 +381,10 @@ const DropdownMenuItemWithSecondaryAction = (
   const primaryContent = (
     <>
       {PrimaryActionIcon && (
-        <PrimaryActionIcon className="mr-1.5 size-4" aria-hidden="true" />
+        <PrimaryActionIcon
+          className="icon-base text-icon-foreground mr-1.5"
+          aria-hidden="true"
+        />
       )}
       <span
         className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap"
@@ -424,7 +427,7 @@ const DropdownMenuItemWithSecondaryAction = (
             }
           }}
         >
-          <SecondaryActionIcon size={12} />
+          <SecondaryActionIcon className="icon-sm text-icon-foreground" />
         </Link>
       );
     }
@@ -440,7 +443,7 @@ const DropdownMenuItemWithSecondaryAction = (
           secondaryAction.onClick();
         }}
       >
-        <SecondaryActionIcon size={12} />
+        <SecondaryActionIcon className="icon-sm text-icon-foreground" />
       </button>
     );
   }, [secondaryAction, SecondaryActionIcon, isDisabled]);
@@ -526,8 +529,12 @@ const DropdownMenuCheckboxItem = React.forwardRef<
   >
     <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
       <DropdownMenuPrimitive.ItemIndicator>
-        {checked === "indeterminate" && <Minus className="h-4 w-4" />}
-        {checked === true && <Check className="h-4 w-4" />}
+        {checked === "indeterminate" && (
+          <Minus className="icon-base text-icon-foreground" />
+        )}
+        {checked === true && (
+          <Check className="icon-base text-icon-foreground" />
+        )}
       </DropdownMenuPrimitive.ItemIndicator>
     </span>
     {children}
@@ -550,7 +557,7 @@ const DropdownMenuRadioItem = React.forwardRef<
   >
     <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
       <DropdownMenuPrimitive.ItemIndicator>
-        <Circle className="h-2 w-2 fill-current" />
+        <span className="size-2 rounded-full bg-current" aria-hidden />
       </DropdownMenuPrimitive.ItemIndicator>
     </span>
     {children}

@@ -3,6 +3,8 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 import { OrganizationFeaturePreviewsSettings } from "./OrganizationFeaturePreviewsSettings";
 import { featurePreviewFlags } from "../available-flags";
+import { getFeaturePreviewOptOutFlag } from "../utils";
+import { getOrganizationFeaturePreviewDefaults } from "../fns/getOrganizationFeaturePreviewDefaults";
 
 const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
@@ -20,14 +22,14 @@ const mocks = vi.hoisted(() => ({
     | undefined,
   experimentalFeaturesEnabled: false,
   userFeatureFlags: {
-    modernSession: false,
+    sessionViewV2: false,
   } as Record<string, boolean>,
   /**
    * Which previews are already organization defaults. Per-test, because a test
    * that needs a preview which is NOT yet a default cannot rely on the registry
    * happening to hold one — both surviving previews are defaults by fixture.
    */
-  orgDefaults: ["modernSession"] as string[],
+  orgDefaults: ["sessionViewV2"] as string[],
   updateSession: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -78,7 +80,7 @@ vi.mock("@/src/components/design-system/Switch/Switch", () => ({
 }));
 
 vi.mock("@/src/components/ui/alert-dialog", () => ({
-  AlertDialog: ({ children }: { children: ReactNode }) => <>{children}</>,
+  AlertDialog: ({ children }: { children: ReactNode }) => children,
   AlertDialogContent: ({ children }: { children: ReactNode }) => (
     <div>{children}</div>
   ),
@@ -123,7 +125,10 @@ vi.mock("@/src/utils/api", () => ({
     organizations: {
       getFeatureFlagOrgDefaults: {
         useQuery: () => ({
-          data: { defaults: mocks.orgDefaults, memberCount: 3 },
+          data: {
+            defaults: getOrganizationFeaturePreviewDefaults(mocks.orgDefaults),
+            memberCount: 3,
+          },
           isError: false,
           isPending: false,
         }),
@@ -143,27 +148,19 @@ describe("OrganizationFeaturePreviewsSettings", () => {
     vi.clearAllMocks();
     mocks.experimentalFeaturesEnabled = false;
     mocks.userFeatureFlags = {
-      modernSession: false,
+      sessionViewV2: false,
     };
-    mocks.orgDefaults = ["modernSession"];
+    mocks.orgDefaults = ["sessionViewV2"];
     mocks.mutate.mockImplementation((variables) => {
       mocks.mutationOptions?.onSuccess?.({}, variables);
     });
   });
 
-  it("explains the deployment-wide experimental feature override", () => {
+  it("keeps deployment-wide experimental previews enabled and locked", () => {
     mocks.experimentalFeaturesEnabled = true;
 
     render(<OrganizationFeaturePreviewsSettings orgId="org-1" />);
 
-    expect(
-      screen.getByText(/experimental features enabled deployment-wide/i),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "Every preview on this page is enabled by the env variable LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES=true. Per-user opt-outs do not disable these previews.",
-      ),
-    ).toBeInTheDocument();
     const switches = screen.getAllByRole("checkbox", {
       name: /organization default/i,
     });
@@ -181,62 +178,73 @@ describe("OrganizationFeaturePreviewsSettings", () => {
     });
   });
 
+  it("shows session defaults as enabled and lets an admin disable them", () => {
+    mocks.orgDefaults = [];
+    render(<OrganizationFeaturePreviewsSettings orgId="org-1" />);
+    const sessionSwitch = screen.getByRole("checkbox", {
+      name: "Toggle Redesigned Session View organization default",
+    });
+    expect(sessionSwitch).toBeChecked();
+    expect(sessionSwitch).toBeEnabled();
+    expect(
+      screen.getByRole("checkbox", {
+        name: "Toggle Session Timeline organization default",
+      }),
+    ).toBeChecked();
+    fireEvent.click(sessionSwitch);
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    expect(mocks.mutate).toHaveBeenCalledWith({
+      orgId: "org-1",
+      flag: "sessionViewV2",
+      enabled: false,
+    });
+  });
+
   it("requires an admin to enable a preview personally before enabling the organization default", () => {
     // Not a default yet: an admin can always turn one OFF, so the lock only
     // shows on a row they would be turning ON.
-    mocks.orgDefaults = [];
+    mocks.orgDefaults = [getFeaturePreviewOptOutFlag("sessionViewV2")];
     render(<OrganizationFeaturePreviewsSettings orgId="org-1" />);
 
-    // The contrast half — a row the admin HAS enabled personally stays live —
-    // needs a second registered preview, and there is one between one preview
-    // reaching GA and the next landing. Add it back with the next preview.
     expect(
       screen.getByRole("checkbox", {
-        name: "Toggle Compact Session View organization default",
+        name: "Toggle Redesigned Session View organization default",
       }),
     ).toBeDisabled();
-    const personalEnablementRequirements = screen.getAllByText(
-      /enable this preview in your personal feature preview settings/i,
-    );
-    personalEnablementRequirements.forEach((requirement) =>
-      expect(requirement).toHaveClass("text-destructive"),
-    );
+    expect(
+      screen.getByRole("checkbox", {
+        name: "Toggle External Media Storage organization default",
+      }),
+    ).toBeEnabled();
   });
 
   it("confirms an organization default change and captures metadata once", async () => {
-    mocks.userFeatureFlags.modernSession = true;
-    mocks.orgDefaults = [];
+    mocks.userFeatureFlags.sessionViewV2 = true;
+    mocks.orgDefaults = [getFeaturePreviewOptOutFlag("sessionViewV2")];
     render(<OrganizationFeaturePreviewsSettings orgId="org-1" />);
 
-    expect(
-      screen.getByText(/new members inherit these defaults automatically/i),
-    ).toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("checkbox", {
-        name: "Toggle Compact Session View organization default",
+        name: "Toggle Redesigned Session View organization default",
       }),
     );
-    expect(screen.getByText("Already enabled for you")).toBeInTheDocument();
-    expect(
-      screen.getByText(/personal Feature Preview settings.*tested/i),
-    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
 
     expect(mocks.mutate).toHaveBeenCalledWith({
       orgId: "org-1",
-      flag: "modernSession",
+      flag: "sessionViewV2",
       enabled: true,
     });
     await waitFor(() => expect(mocks.capture).toHaveBeenCalledTimes(1));
     expect(mocks.capture).toHaveBeenCalledWith(
       "organization_settings:feature_flag_default_toggled",
-      { feature: "modernSession", isEnabled: true },
+      { feature: "sessionViewV2", isEnabled: true },
     );
   });
 
   it("does not capture analytics when a default change fails", () => {
-    mocks.userFeatureFlags.modernSession = true;
-    mocks.orgDefaults = [];
+    mocks.userFeatureFlags.sessionViewV2 = true;
+    mocks.orgDefaults = [getFeaturePreviewOptOutFlag("sessionViewV2")];
     mocks.mutate.mockImplementation(() => {
       mocks.mutationOptions?.onError?.(new Error("denied"));
     });
@@ -244,7 +252,7 @@ describe("OrganizationFeaturePreviewsSettings", () => {
 
     fireEvent.click(
       screen.getByRole("checkbox", {
-        name: "Toggle Compact Session View organization default",
+        name: "Toggle Redesigned Session View organization default",
       }),
     );
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }));

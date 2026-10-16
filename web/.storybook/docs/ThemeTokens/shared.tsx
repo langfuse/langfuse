@@ -133,7 +133,8 @@ const PAGE_TOKEN_MATCHERS: Array<{
 }> = [
   {
     page: "charts",
-    test: (n) => /^--(?:chart-\d+|chart-grid|color-\d+)$/.test(n),
+    test: (n) =>
+      /^--(?:chart-\d+|chart-fill-\d+|chart-grid|color-\d+)$/.test(n),
   },
   { page: "typography", test: (n) => /^--(?:font-|text-)/.test(n) },
   {
@@ -358,7 +359,7 @@ export function CollapsedSection({
       <summary className="flex cursor-pointer list-none items-start gap-2 [&::-webkit-details-marker]:hidden">
         <ChevronRight
           aria-hidden
-          className="text-muted-foreground mt-1.5 size-4 shrink-0 transition-transform group-open:rotate-90"
+          className="text-muted-foreground icon-base mt-1.5 shrink-0 transition-transform group-open:rotate-90"
         />
         <div className="flex flex-1 items-baseline justify-between gap-4">
           <div>
