@@ -246,42 +246,6 @@ function requireFrozenSummaryModel(
     );
 }
 
-export async function summarizeTopicTrace(
-  models: TopicsModels,
-  facet: TopicFacetVersion,
-  text: string,
-  config: TopicProcessingConfig,
-  metadata?: Record<string, unknown>,
-) {
-  requireFrozenSummaryModel(models, config);
-  const system = [
-    {
-      text: `${SUMMARY_SYSTEM_PROMPT}\n\n<facet>\n${facet.prompt}\n</facet>`,
-      cache: true,
-    },
-  ];
-  // Repeat the format request after the transcript; long inputs otherwise dilute it.
-  const input = `<transcript>\n${text}\n</transcript>\n\nWrite the summary now, in the facet's format.`;
-  // Include the structured-output schema and message framing in the input limit.
-  const countedInputTokens =
-    countTopicRequestTokens(system, input, summarySchema) + 256;
-  if (countedInputTokens > config.maxInputTokens)
-    throw new Error(
-      `The shared trace transcript and instructions are ${countedInputTokens} tokens, above this run's ${config.maxInputTokens}-token input limit. No model call was made; the transcript is never shortened per facet.`,
-    );
-  return structuredCall(
-    system,
-    input,
-    summarySchema,
-    config.maxInputTokens,
-    config.maxOutputTokens,
-    "summary",
-    models.summary,
-    models.projectId,
-    { ...metadata, facet_id: facet.facetId, facet_version: facet.version },
-  );
-}
-
 /**
  * Summarizes all given facets of one trace in a single call. The system prompt
  * is identical across traces; each facet is listed under its key and answered

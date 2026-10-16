@@ -41,7 +41,12 @@ import {
 } from "@langfuse/shared/topics";
 import pLimit from "p-limit";
 import { env } from "../../env";
-import { summarizeTopicTrace, nameTopicGroup } from "./models";
+import { nameTopicGroup } from "./models";
+import {
+  ASSEMBLED_TRANSCRIPT_ID,
+  summarizeTraceFacets,
+  type TraceFacet,
+} from "./summarizeAssembledTrace";
 import {
   isRejectedConnection,
   pauseForRejectedConnection,
@@ -62,7 +67,7 @@ import {
 } from "./numeric";
 import { matchTopicContinuity } from "./continuity";
 import { TopicMetrics } from "./metrics";
-import { topicSummaryOutputError } from "./summaryResult";
+import { type TopicModelUsage } from "./summaryResult";
 
 type ProcessExecution = TopicExecution & {
   input: Extract<TopicExecution["input"], { operation: "process" }>;
@@ -79,16 +84,10 @@ const errorMessage = (error: unknown) =>
 const isExecutionFailure = (error: unknown) =>
   error instanceof TopicsProviderUnavailable ||
   error instanceof TopicEmbeddingFailure;
-
-function invalidOutput(
-  metrics: TopicMetrics,
-  stage: "summary",
-  message: string,
-) {
-  const error = new Error(message);
-  metrics.error(stage, error, "invalid_output");
-  return error;
-}
+// Like trace-batch, a rejected input or unusable output fails only that trace.
+const isTraceModelFailure = (error: unknown) =>
+  error instanceof TopicsProviderUnavailable &&
+  (error.reason === "invalid_output" || error.reason === "invalid_input");
 
 async function saveProgress(
   metrics: TopicMetrics,
@@ -103,36 +102,45 @@ async function saveProgress(
   );
 }
 
+/**
+ * Summarizes a trace's pending facets with the trace-batch request: one call for
+ * every facet that has no accepted or reusable summary. Results follow `facets`;
+ * a failed facet gets its error and execution-level failures throw.
+ */
 async function summarizeTrace(
   metrics: TopicMetrics,
   models: TopicsModels,
   execution: ProcessExecution,
-  facet: TopicFacetVersion,
+  facets: TraceFacet[],
   traceId: string,
-  staged: TopicSummary[],
+  staged: Map<TopicFacetVersion, TopicSummary[]>,
   getTranscript: () => ReturnType<typeof loadTopicTranscript>,
-): Promise<TopicSummary> {
-  const accepted = staged.find((row) => row.traceId === traceId);
-  if (accepted) {
+): Promise<(TopicSummary | Error)[]> {
+  const results = new Map<TraceFacet, TopicSummary | Error>();
+  for (const facet of facets) {
+    const accepted = staged
+      .get(facet.version)!
+      .find((row) => row.traceId === traceId);
+    if (!accepted) continue;
     if (isInternalEvalEnvironment(accepted.environment))
       throw new Error("Topics does not process internal Langfuse traces.");
     metrics.result("summary", "cached");
     // An accepted payload may expire after the cache read; never renew its TTL.
-    return accepted;
+    results.set(facet, accepted);
   }
+  const remaining = facets.filter((facet) => !results.has(facet));
+  if (!remaining.length) return facets.map((facet) => results.get(facet)!);
+
   const { unitStartTime, sessionId, environment, traceName, transcript } =
     await getTranscript();
   if (isInternalEvalEnvironment(environment))
     throw new Error("Topics does not process internal Langfuse traces.");
-  const source = {
+  const base = (facet: TopicFacetVersion): TopicSummary => ({
     projectId: execution.projectId,
     facetId: facet.facetId,
     facetVersion: facet.version,
     traceId,
     sessionId,
-  };
-  let summary: TopicSummary = {
-    ...source,
     triggerType: "manual_poc",
     unitStartTime,
     environment,
@@ -140,7 +148,7 @@ async function summarizeTrace(
     state: "insufficient_input",
     summary: "",
     embedding: [],
-    transcriptId: "poc",
+    transcriptId: ASSEMBLED_TRANSCRIPT_ID,
     transcriptVersion: TOPICS_TRANSCRIPT_VERSION,
     summaryModel: execution.input.processingConfig.summaryModel!,
     embeddingModel: execution.input.embeddingConfig.embeddingModel!,
@@ -150,25 +158,33 @@ async function summarizeTrace(
     costDetails: {},
     processedAt: new Date().toISOString(),
     metadata: {},
-  };
-  const reusable = execution.input.reuseExistingSummaries
-    ? (
-        await listTopicSummaries(
-          execution.projectId,
-          {
-            facetId: facet.facetId,
-            facetVersion: facet.version,
-            traceIds: [traceId],
-          },
-          summaryTimeRange([summary]),
+  });
+  const pending: { facet: TraceFacet; summary: TopicSummary }[] = [];
+  for (const facet of remaining) {
+    const summary = base(facet.version);
+    const reusable = execution.input.reuseExistingSummaries
+      ? (
+          await listTopicSummaries(
+            execution.projectId,
+            {
+              facetId: facet.version.facetId,
+              facetVersion: facet.version.version,
+              traceIds: [traceId],
+            },
+            summaryTimeRange([summary]),
+          )
+        ).find(
+          (row) =>
+            row.summaryModel ===
+              execution.input.processingConfig.summaryModel &&
+            row.transcriptId === ASSEMBLED_TRANSCRIPT_ID &&
+            row.transcriptVersion === TOPICS_TRANSCRIPT_VERSION,
         )
-      ).find(
-        (row) =>
-          row.summaryModel === execution.input.processingConfig.summaryModel &&
-          row.transcriptVersion === TOPICS_TRANSCRIPT_VERSION,
-      )
-    : undefined;
-  if (reusable) {
+      : undefined;
+    if (!reusable) {
+      pending.push({ facet, summary });
+      continue;
+    }
     metrics.result("summary", "cached");
     const reuseEmbedding =
       reusable.state === "complete" &&
@@ -176,63 +192,73 @@ async function summarizeTrace(
         execution.input.embeddingConfig.embeddingModel &&
       reusable.embedding.length ===
         execution.input.embeddingConfig.embeddingDimensions;
-    summary = {
-      ...summary,
-      state:
-        reusable.state === "complete" && !reuseEmbedding
-          ? "summarized"
-          : reusable.state,
-      summary: reusable.summary,
-      embedding: reuseEmbedding ? reusable.embedding : [],
-      metadata: {
-        summaryReusedFromProcessedAt: reusable.processedAt,
-        ...(reuseEmbedding
-          ? { embeddingReusedFromProcessedAt: reusable.processedAt }
-          : {}),
-      },
-    };
-  } else if (transcript !== null) {
-    const result = await metrics.measure("summary", async () => {
-      const result = await summarizeTopicTrace(
-        models,
-        facet,
-        JSON.stringify(transcript),
-        execution.input.processingConfig,
-        {
-          source_trace_id: traceId,
-          source_environment: environment,
-          execution_id: execution.id,
+    results.set(
+      facet,
+      await stageSummary(metrics, execution, {
+        ...summary,
+        state:
+          reusable.state === "complete" && !reuseEmbedding
+            ? "summarized"
+            : reusable.state,
+        summary: reusable.summary,
+        embedding: reuseEmbedding ? reusable.embedding : [],
+        metadata: {
+          summaryReusedFromProcessedAt: reusable.processedAt,
+          ...(reuseEmbedding
+            ? { embeddingReusedFromProcessedAt: reusable.processedAt }
+            : {}),
         },
-      );
-      const error = topicSummaryOutputError(result.output);
-      if (error) throw invalidOutput(metrics, "summary", error);
-      return result;
-    });
-    metrics.result(
-      "summary",
-      result.output.status === "applicable"
-        ? "generated"
-        : result.output.status,
+      }),
     );
-    summary = {
-      ...summary,
-      state:
-        result.output.status === "applicable"
-          ? "summarized"
-          : result.output.status,
-      summary:
-        result.output.status === "applicable"
-          ? result.output.summary.trim()
-          : "",
-      providedUsageDetails: result.providedUsageDetails,
-      usageDetails: result.usageDetails,
-      providedCostDetails: result.providedCostDetails,
-      costDetails: result.costDetails,
-    };
-  } else {
-    metrics.result("summary", "insufficient_input");
   }
-  return stageSummary(metrics, execution, summary);
+
+  if (pending.length) {
+    const summarized = await summarizeTraceFacets({
+      models,
+      facets: pending.map(({ facet }) => facet),
+      transcript,
+      config: execution.input.processingConfig,
+      metadata: {
+        source_trace_id: traceId,
+        source_environment: environment,
+        execution_id: execution.id,
+      },
+      metrics,
+    });
+    let usage: TopicModelUsage | undefined = summarized?.usage;
+    for (const [index, { facet, summary }] of pending.entries()) {
+      const result = summarized?.results[index];
+      if (result && "error" in result) {
+        // An invalid facet output fails only this trace, not the execution.
+        results.set(facet, new Error(result.error.message));
+        continue;
+      }
+      const output = result?.output;
+      if (!output) metrics.result("summary", "insufficient_input");
+      else
+        metrics.result(
+          "summary",
+          output.status === "applicable" ? "generated" : output.status,
+        );
+      // The call's usage is recorded once, on the trace's first summary.
+      const rowUsage = usage ?? {};
+      usage = undefined;
+      results.set(
+        facet,
+        await stageSummary(metrics, execution, {
+          ...summary,
+          ...(output && {
+            state:
+              output.status === "applicable" ? "summarized" : output.status,
+            summary:
+              output.status === "applicable" ? output.summary.trim() : "",
+          }),
+          ...rowUsage,
+        }),
+      );
+    }
+  }
+  return facets.map((facet) => results.get(facet)!);
 }
 
 async function stageSummary(
@@ -771,12 +797,15 @@ function compatibleMap(
 type PendingFacet = {
   facet: TopicFacetVersion;
   progress: TopicFacetProgress;
+  name: string;
+  builtIn: boolean;
 };
 
 async function pendingFacets(
   execution: TopicExecution,
 ): Promise<PendingFacet[]> {
   const facets: PendingFacet[] = [];
+  const definitions = await listTopicFacets(execution.projectId);
   for (const progress of execution.facets) {
     if (progress.outcome !== "pending") continue;
     const facet = await getTopicFacetVersion(
@@ -784,9 +813,16 @@ async function pendingFacets(
       progress.facetId,
       progress.facetVersion,
     );
-    if (!facet) throw new Error("Facet version not found in this project.");
+    const definition = definitions.find(({ id }) => id === progress.facetId);
+    if (!facet || !definition)
+      throw new Error("Facet version not found in this project.");
     progress.counts.failed = 0;
-    facets.push({ facet, progress });
+    facets.push({
+      facet,
+      progress,
+      name: definition.name,
+      builtIn: definition.isBuiltIn,
+    });
   }
   return facets;
 }
@@ -804,7 +840,8 @@ async function processTraces(
   const facets: (PendingFacet & {
     run: TopicRun | null;
   })[] = [];
-  for (const { facet, progress } of await pendingFacets(execution)) {
+  for (const pending of await pendingFacets(execution)) {
+    const { facet, progress } = pending;
     progress.counts.failed =
       state.failedTraceIds.find(
         (entry) =>
@@ -818,7 +855,7 @@ async function processTraces(
       (run?.status !== "completed" || !compatibleMap(execution, facet, run))
     )
       throw new Error("The selected topic map is unavailable or incompatible.");
-    facets.push({ facet, progress, run });
+    facets.push({ ...pending, run });
   }
   if (!facets.length) return;
   if (!state.summarized) {
@@ -846,7 +883,7 @@ async function processTraces(
       )
         throw new TopicEmbeddingFailure(TOPIC_EMBEDDING_EXPIRED_ERROR);
     }
-    // Traces run concurrently; a trace's facets share its transcript and run in order.
+    // Traces run concurrently; a trace's pending facets share one transcript and summary call.
     const limit = pLimit(env.LANGFUSE_TOPICS_TRACE_CONCURRENCY);
     let saving = Promise.resolve();
     // Saves write the whole state, so they must not land out of order.
@@ -874,57 +911,58 @@ async function processTraces(
               );
             return input;
           };
-          for (const { facet, progress } of facets) {
-            if (
-              state.summaries.some(
+          const todo = facets.filter(
+            ({ facet }) =>
+              !state.summaries.some(
                 (ref) =>
                   ref.facetId === facet.facetId &&
                   ref.facetVersion === facet.version &&
                   ref.traceId === traceId,
-              ) ||
-              state.failedTraceIds.some(
+              ) &&
+              !state.failedTraceIds.some(
                 (entry) =>
                   entry.facetId === facet.facetId &&
                   entry.facetVersion === facet.version &&
                   entry.traceIds.includes(traceId),
-              )
-            )
-              continue;
-            try {
-              await summarizeTrace(
-                metrics,
-                models,
-                execution,
-                facet,
-                traceId,
-                cached.get(facet)!,
-                getTranscript,
-              );
-              state.summaries.push({
-                facetId: facet.facetId,
-                facetVersion: facet.version,
-                traceId,
-              });
-              await saveInOrder();
-            } catch (error) {
-              metrics.error("summary", error);
-              if (isExecutionFailure(error)) {
-                aborted = true;
-                throw error;
-              }
-              recordTraceFailure(
-                state,
-                progress,
-                {
-                  facetId: facet.facetId,
-                  facetVersion: facet.version,
-                  traceId,
-                },
-                error,
-              );
-              await saveInOrder();
+              ),
+          );
+          if (!todo.length) return;
+          let outcomes: (TopicSummary | Error)[];
+          try {
+            outcomes = await summarizeTrace(
+              metrics,
+              models,
+              execution,
+              todo.map(({ facet, name, builtIn }) => ({
+                version: facet,
+                name,
+                builtIn,
+              })),
+              traceId,
+              cached,
+              getTranscript,
+            );
+          } catch (error) {
+            metrics.error("summary", error);
+            if (isExecutionFailure(error) && !isTraceModelFailure(error)) {
+              aborted = true;
+              throw error;
             }
+            outcomes = todo.map(() => error as Error);
           }
+          for (const [index, { facet, progress }] of todo.entries()) {
+            const outcome = outcomes[index];
+            const ref = {
+              facetId: facet.facetId,
+              facetVersion: facet.version,
+              traceId,
+            };
+            // Invalid facet outputs are already counted by the shared summary call.
+            if (outcome instanceof Error)
+              recordTraceFailure(state, progress, ref, outcome);
+            else state.summaries.push(ref);
+          }
+          await saveInOrder();
         }),
       ),
     );
