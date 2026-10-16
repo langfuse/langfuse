@@ -19,9 +19,9 @@ export type IOSectionProps = {
   onCollapsedChange?: (collapsed: boolean) => void;
   /** Off for bodies that bring their own box (status messages, toned tables). */
   boxed?: boolean;
-  /** Tighter vertical box padding for bodies whose rows carry their own
-      padding (tables, tool-call cards). */
-  dense?: boolean;
+  /** Vertical box padding: `sm` for bodies whose rows carry their own padding
+      (tables), `lg` for tiles that want the same inset on every side (media). */
+  bodyPadding?: "sm" | "md" | "lg";
   children: React.ReactNode;
 };
 
@@ -40,7 +40,7 @@ export function IOSection({
   collapsed,
   onCollapsedChange,
   boxed = true,
-  dense = false,
+  bodyPadding = "md",
   children,
 }: IOSectionProps) {
   const [internalCollapsed, setInternalCollapsed] = useState(defaultCollapsed);
@@ -88,7 +88,9 @@ export function IOSection({
             <div
               className={cn(
                 "bg-surface-section overflow-hidden rounded-md px-3",
-                dense ? "py-1" : "py-2",
+                bodyPadding === "sm" && "py-1",
+                bodyPadding === "md" && "py-2",
+                bodyPadding === "lg" && "py-3",
               )}
             >
               {children}

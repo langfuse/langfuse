@@ -77,6 +77,7 @@ export default [
       "react/react-in-jsx-scope": "off",
       "react/prop-types": "off",
       "react/jsx-no-target-blank": "off",
+      "react/jsx-no-useless-fragment": "error",
     },
   },
 

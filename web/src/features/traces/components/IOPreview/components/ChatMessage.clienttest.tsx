@@ -208,7 +208,9 @@ describe("ChatMessage system prompt collapse", () => {
       { shouldRenderMarkdown: false },
     );
 
-    expect(expandButton()).toBeInTheDocument();
+    // The caret in the section header is the one collapse control here too.
+    expect(expandButtons()).toHaveLength(1);
+    expect(expandButtons()[0].closest(".io-message-header")).not.toBeNull();
   });
 
   it("expands on click and persists the expanded preference", () => {
@@ -241,6 +243,22 @@ describe("ChatMessage system prompt collapse", () => {
     fireEvent.click(collapseButton()!);
 
     expect(expandButtons().length).toBeGreaterThan(0);
+    expect(localStorage.getItem("collapseSystemPrompt")).toBe("true");
+  });
+
+  it("collapses a long system prompt from the header on the json/pretty path", () => {
+    localStorage.setItem("collapseSystemPrompt", "false");
+
+    renderChatMessage(
+      { role: "system", content: longSystemPrompt } as ChatMlMessage,
+      { shouldRenderMarkdown: false },
+    );
+
+    expect(collapseButtons()).toHaveLength(1);
+
+    fireEvent.click(collapseButton()!);
+
+    expect(expandButtons()).toHaveLength(1);
     expect(localStorage.getItem("collapseSystemPrompt")).toBe("true");
   });
 

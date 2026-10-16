@@ -1384,24 +1384,20 @@ export function PrettyJsonView(props: {
     </>
   );
 
-  const expandCollapseButton = (
-    <>
-      {shouldUseTableView && hasExpandableRows && (
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          onClick={() => expandAllRef.current?.()}
-          className="text-muted-foreground hover:text-foreground hover:bg-transparent"
-          title={allRowsExpanded ? "Collapse all rows" : "Expand all rows"}
-        >
-          {allRowsExpanded ? (
-            <FoldVertical className="icon-base text-icon-foreground" />
-          ) : (
-            <UnfoldVertical className="icon-base text-icon-foreground" />
-          )}
-        </Button>
+  const expandCollapseButton = shouldUseTableView && hasExpandableRows && (
+    <Button
+      variant="ghost"
+      size="icon-xs"
+      onClick={() => expandAllRef.current?.()}
+      className="text-muted-foreground hover:text-foreground hover:bg-transparent"
+      title={allRowsExpanded ? "Collapse all rows" : "Expand all rows"}
+    >
+      {allRowsExpanded ? (
+        <FoldVertical className="icon-base text-icon-foreground" />
+      ) : (
+        <UnfoldVertical className="icon-base text-icon-foreground" />
       )}
-    </>
+    </Button>
   );
 
   const scrollableBody = props.scrollable ? (
@@ -1454,7 +1450,7 @@ export function PrettyJsonView(props: {
         defaultCollapsed={props.defaultCollapsed}
         // Toned bodies (status messages) paint their own box.
         boxed={!props.tone}
-        dense={shouldUseTableView}
+        bodyPadding={shouldUseTableView ? "sm" : "md"}
         {...(systemPrompt.shouldBeCollapsible && {
           collapsed: systemPrompt.isCollapsed,
           onCollapsedChange: systemPrompt.toggleCollapsed,

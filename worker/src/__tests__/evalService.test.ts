@@ -50,6 +50,10 @@ import {
   generateLlmEvaluatorOutput,
 } from "@langfuse/shared/src/server";
 import { UnrecoverableError } from "../errors/UnrecoverableError";
+import {
+  EvalFailureReason,
+  UnrecoverableEvalFailureError,
+} from "../features/evaluation/evalFailureErrors";
 
 let OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 // Check for both OPENAI_API_KEY and LANGFUSE_LLM_CONNECTION_OPENAI_KEY
@@ -2136,8 +2140,9 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       };
 
       await expect(evaluate({ event: payload })).rejects.toThrowError(
-        new UnrecoverableError(
+        new UnrecoverableEvalFailureError(
           `Invalid model configuration for job ${jobExecutionId}: API key for provider "openai" not found in project ${projectId}`,
+          EvalFailureReason.InvalidModelConfig,
         ),
       );
 

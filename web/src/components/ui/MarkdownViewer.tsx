@@ -61,6 +61,7 @@ import { exceedsMarkdownRenderLimits } from "@/src/components/ui/markdown-render
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 import {
   classifyMediaValue,
+  splitStringByMediaReferences,
   type MediaDescriptor,
 } from "@/src/components/ui/media/mediaUtils";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
@@ -281,7 +282,7 @@ const markdownUrlTransform: NonNullable<Options["urlTransform"]> = (
 const markdownComponents: NonNullable<Options["components"]> = {
   p({ children, node }) {
     if (isImageNode(node)) {
-      return <>{children}</>;
+      return children;
     }
     return <p className="mb-2 whitespace-pre-wrap last:mb-0">{children}</p>;
   },
@@ -553,7 +554,11 @@ export function MarkdownView({
   // (media-reference strings, base64 data URIs) must not make a prompt long.
   const textContent =
     typeof markdown === "string"
-      ? markdown
+      ? splitStringByMediaReferences(markdown)
+          .filter((s) => s.type === "text")
+          .map((s) => s.value)
+          .join("")
+          .trim()
       : (markdown ?? [])
           .filter(isOpenAITextContentPart)
           .map((part) => part.text)

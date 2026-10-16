@@ -170,7 +170,6 @@ export function ChatMessage({
         }}
         controlButtons={passthroughToggleButton}
         defaultCollapsed={defaultCollapsed}
-        dense
       >
         <ToolCallInvocationsView
           message={message}

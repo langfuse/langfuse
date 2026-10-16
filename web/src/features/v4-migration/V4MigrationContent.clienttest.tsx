@@ -414,6 +414,34 @@ describe("V4MigrationDetailsContent", () => {
     ).toHaveTextContent(/1 call · last seen/);
   });
 
+  it("recommends the latest-major method and labels the previous-major fallback", () => {
+    mocks.migrationData.apiUsage = [
+      {
+        endpoint: "GET /api/public/scores/{id}",
+        count: 2,
+        lastSeen: "2026-07-23T10:37:00Z",
+        callers: [
+          {
+            sdkName: "python" as const,
+            sdkVersion: "4.9.0",
+            userAgent: "langfuse-python/4.9.0",
+            count: 2,
+            lastSeen: "2026-07-23T10:37:00Z",
+          },
+        ],
+      },
+    ];
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    const guidance = screen.getByText(
+      "client.api.scores.get_by_id",
+    ).parentElement!;
+    expect(guidance).toHaveTextContent(
+      "Replace client.api.scores.get_by_id with client.api.scores.get_many(id=...) (SDK v5). On 4.8.1–4.x, use client.api.scores_v3.get_many_v3.",
+    );
+  });
+
   it("shows the caller and exact SDK migration action", () => {
     mocks.migrationData.apiUsage = [
       {
@@ -633,8 +661,35 @@ describe("V4MigrationDetailsContent", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Python 4.7.1")).toBeInTheDocument();
     expect(screen.getByText("otelcol 0.98.0")).toBeInTheDocument();
-    expect(screen.getByText("· up to date")).toBeInTheDocument();
+    expect(screen.getByText(/Python SDK v5 is available/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Upgrade guide" })).toHaveAttribute(
+      "href",
+      "https://langfuse.com/docs/observability/sdk/upgrade-path/python-v4-to-v5",
+    );
+    expect(screen.queryByText("· up to date")).not.toBeInTheDocument();
     expect(screen.getByText("· real-time")).toBeInTheDocument();
+  });
+
+  it("shows SDK traffic on the latest major as up to date without an upgrade nudge", () => {
+    mocks.migrationData.sdk = {
+      ...cleanSdkState(),
+      sdkUsageSeries: [
+        makeSdkUsageSeries({ sdkVersion: "5.0.1" }),
+        makeSdkUsageSeries({
+          sdkName: "@langfuse/tracing",
+          sdkVersion: "6.0.0",
+          publicKey: "pk-lf-fedcba0987654321",
+        }),
+      ],
+    };
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    expect(screen.getAllByText("· up to date")).toHaveLength(2);
+    expect(screen.queryByText(/is available/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Upgrade guide" }),
+    ).not.toBeInTheDocument();
   });
 
   it("lists only required SDK series in Update SDK and shows compatible ones as detected", () => {
@@ -660,13 +715,15 @@ describe("V4MigrationDetailsContent", () => {
       within(screen.getByText("Update SDK").closest("button")!).getByText("1"),
     ).toBeInTheDocument();
     expect(screen.getByText("Python 2.60.3")).toBeInTheDocument();
-    expect(screen.getByText(/upgrade required/)).toBeInTheDocument();
-    // Compatible current-major traffic lands in the detected section.
+    expect(
+      screen.getByText("· upgrade required to v5 (>= 4.0.0 also works)"),
+    ).toBeInTheDocument();
+    // Compatible previous-major traffic lands in the detected section.
     expect(
       screen.getByText("Detected V4-compatible instrumentation"),
     ).toBeInTheDocument();
     expect(screen.getByText("Python 4.6.9")).toBeInTheDocument();
-    expect(screen.getByText("· up to date")).toBeInTheDocument();
+    expect(screen.getByText(/Python SDK v5 is available/)).toBeInTheDocument();
     expect(
       screen.queryByText("· recommended to upgrade to >= 4.7.0"),
     ).not.toBeInTheDocument();

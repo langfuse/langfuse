@@ -186,36 +186,32 @@ export function MarkdownJsonView({
     [content, characterLimit],
   );
 
-  return (
-    <>
-      {markdownContent ? (
-        <MarkdownView
-          markdown={markdownContent.value}
-          title={title}
-          titleIcon={titleIcon}
-          audio={audio}
-          media={media}
-          controlButtons={controlButtons}
-          beforeContent={beforeContent}
-          afterContent={afterContent}
-          isSystemPrompt={isSystemPrompt}
-          defaultCollapsed={defaultCollapsed}
-        />
-      ) : (
-        <PrettyJsonView
-          json={content ?? (audio ? { audio } : null)}
-          title={title}
-          titleIcon={titleIcon}
-          className={className}
-          media={media}
-          currentView="pretty"
-          controlButtons={controlButtons}
-          beforeContent={beforeContent}
-          afterContent={afterContent}
-          isSystemPrompt={isSystemPrompt}
-          defaultCollapsed={defaultCollapsed}
-        />
-      )}
-    </>
+  return markdownContent ? (
+    <MarkdownView
+      markdown={markdownContent.value}
+      title={title}
+      titleIcon={titleIcon}
+      audio={audio}
+      media={media}
+      controlButtons={controlButtons}
+      beforeContent={beforeContent}
+      afterContent={afterContent}
+      isSystemPrompt={isSystemPrompt}
+      defaultCollapsed={defaultCollapsed}
+    />
+  ) : (
+    <PrettyJsonView
+      json={content ?? (audio ? { audio } : null)}
+      title={title}
+      titleIcon={titleIcon}
+      className={className}
+      media={media}
+      currentView="pretty"
+      controlButtons={controlButtons}
+      beforeContent={beforeContent}
+      afterContent={afterContent}
+      isSystemPrompt={isSystemPrompt}
+      defaultCollapsed={defaultCollapsed}
+    />
   );
 }
