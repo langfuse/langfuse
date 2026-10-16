@@ -87,7 +87,9 @@ describe("ToolCallDefinitionCard", () => {
   it("renders up to five called tools individually", () => {
     renderTools({ calledToolCount: 5, availableToolCount: 0 });
 
-    expect(screen.queryByText(/tools were called/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /tools were called/i }),
+    ).not.toBeInTheDocument();
     expect(screen.getByText(/called_tool_1/)).toBeInTheDocument();
     expect(screen.getByText(/called_tool_5/)).toBeInTheDocument();
   });
@@ -95,16 +97,17 @@ describe("ToolCallDefinitionCard", () => {
   it("collapses more than five called tools and expands them on click", () => {
     renderTools({ calledToolCount: 6, availableToolCount: 0 });
 
-    expect(screen.getByText(/6 tools were called/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /6 tools were called/i }),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/called_tool_1/)).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Show more" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /6 tools were called/i }),
+    );
 
     expect(screen.getByText(/called_tool_1/)).toBeInTheDocument();
     expect(screen.getByText(/called_tool_6/)).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Show less" }),
-    ).toBeInTheDocument();
   });
 
   it("persists called tool group expansion in session storage", () => {
@@ -113,7 +116,9 @@ describe("ToolCallDefinitionCard", () => {
       availableToolCount: 0,
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Show more" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /6 tools were called/i }),
+    );
     unmount();
 
     renderTools({ calledToolCount: 6, availableToolCount: 0 });
@@ -125,7 +130,9 @@ describe("ToolCallDefinitionCard", () => {
     renderTools({ calledToolCount: 0, availableToolCount: 3 });
 
     expect(
-      screen.queryByText(/available tools were not called/i),
+      screen.queryByRole("button", {
+        name: /available tools were not called/i,
+      }),
     ).not.toBeInTheDocument();
     expect(screen.getByText(/available_tool_1/)).toBeInTheDocument();
     expect(screen.getByText(/available_tool_3/)).toBeInTheDocument();
@@ -135,11 +142,17 @@ describe("ToolCallDefinitionCard", () => {
     renderTools({ calledToolCount: 0, availableToolCount: 4 });
 
     expect(
-      screen.getByText(/4 available tools were not called/i),
+      screen.getByRole("button", {
+        name: /4 available tools were not called/i,
+      }),
     ).toBeInTheDocument();
     expect(screen.queryByText(/available_tool_1/)).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Show more" }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /4 available tools were not called/i,
+      }),
+    );
 
     expect(screen.getByText(/available_tool_1/)).toBeInTheDocument();
     expect(screen.getByText(/available_tool_4/)).toBeInTheDocument();
