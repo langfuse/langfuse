@@ -9,8 +9,30 @@ import {
   parseFlagsWithOrganizationDefaults,
 } from "./utils";
 import { getOrganizationFeaturePreviewDefaults } from "./fns/getOrganizationFeaturePreviewDefaults";
+import { isFeaturePreviewAvailable } from "./available-flags";
 
 describe("parseFlags", () => {
+  it("makes Skill Management an opt-in preview that requires v4", () => {
+    const context = { email: "user@example.com", v4BetaEnabled: true };
+    expect(
+      isFeaturePreviewAvailable("skillManagement", { v4BetaEnabled: false }),
+    ).toBe(false);
+    expect(isFeaturePreviewAvailable("skillManagement", context)).toBe(true);
+    expect(parseFlags([], context).skillManagement).toBe(false);
+    expect(parseFlags(["skillManagement"], context).skillManagement).toBe(true);
+    expect(
+      parseFlagsWithOrganizationDefaults([], ["skillManagement"], context)
+        .skillManagement,
+    ).toBe(true);
+    expect(
+      parseFlagsWithOrganizationDefaults(
+        [getFeaturePreviewOptOutFlag("skillManagement")],
+        ["skillManagement"],
+        context,
+      ).skillManagement,
+    ).toBe(false);
+  });
+
   it.each([
     { flag: "sessionViewV2" as const, expectedView: false },
     { flag: "sessionViewV2Timeline" as const, expectedView: true },

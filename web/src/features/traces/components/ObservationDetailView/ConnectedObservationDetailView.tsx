@@ -67,7 +67,10 @@ import { useHasProjectAccess } from "@/src/features/rbac";
 import { useSession } from "next-auth/react";
 import { ObservationPreview } from "./ObservationPreview";
 import type { SectionSkillsProps } from "../IOPreview/components/SectionSkills";
-import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
+import {
+  useInternalFeaturesEnabled,
+  useIsFeatureEnabled,
+} from "@/src/features/feature-flags";
 import { TraceMessagesView } from "../TraceMessagesView/TraceMessagesView";
 import { DetailAttributesTab } from "../DetailAttributesTab";
 import { buildModelParameters } from "@/src/features/traces/fns/buildModelParameters";
@@ -97,6 +100,10 @@ export function ConnectedObservationDetailView({
   // V4 beta mode and observations for log tab
   const { isV4: isV4Enabled } = useReadPath();
   const internalFeaturesEnabled = useInternalFeaturesEnabled();
+  const skillManagementEnabled = useIsFeatureEnabled("skillManagement", {
+    projectId,
+    enableForAdmins: false,
+  });
   const {
     observations,
     roots,
@@ -336,7 +343,7 @@ export function ConnectedObservationDetailView({
   }, [observation.latency, observation.startTime, observation.endTime]);
 
   const previewSkills = getPreviewSkills({
-    internalFeaturesEnabled,
+    skillManagementEnabled: isV4Enabled && skillManagementEnabled,
     observationType: observation.type,
     skillsAvailable: observationWithIO?.skillsAvailable,
     skillsResourceLoaded: observationWithIO?.skillsResourceLoaded,
@@ -613,12 +620,12 @@ export function ConnectedObservationDetailView({
 }
 
 function getPreviewSkills({
-  internalFeaturesEnabled,
+  skillManagementEnabled,
   observationType,
   skillsAvailable,
   skillsResourceLoaded,
 }: PreviewSkillsInput): SectionSkillsProps["skills"] | undefined {
-  if (!internalFeaturesEnabled) return undefined;
+  if (!skillManagementEnabled) return undefined;
   if (observationType === "GENERATION") {
     return { kind: "available", items: skillsAvailable ?? [] };
   }
@@ -629,7 +636,7 @@ function getPreviewSkills({
 }
 
 type PreviewSkillsInput = {
-  internalFeaturesEnabled: boolean;
+  skillManagementEnabled: boolean;
   observationType: ObservationReturnTypeWithMetadata["type"];
   skillsAvailable:
     | ObservationReturnTypeWithMetadata["skillsAvailable"]
