@@ -72,6 +72,28 @@ function loadTurnstile(): Promise<TurnstileApi> {
   return scriptPromise;
 }
 
+/**
+ * Turnstile throws when reset/remove runs after the container is already
+ * gone — action changes remount the widget, and a consumed token also
+ * schedules an internal reset. Skip the call when there is nothing to
+ * operate on, and swallow a leftover vendor throw.
+ */
+export function invokeTurnstileWidget(
+  method: "reset" | "remove",
+  widgetId: string | null,
+  container: HTMLElement | null,
+): void {
+  if (!widgetId) return;
+  const api = window.turnstile;
+  if (!api) return;
+  if (!container?.isConnected) return;
+  try {
+    api[method](widgetId);
+  } catch {
+    // Widget already torn down.
+  }
+}
+
 type PendingToken = ((token: string | undefined) => void) | null;
 
 function settlePending(
@@ -135,14 +157,15 @@ export function TurnstileWidget({
   useEffect(() => {
     if (!theme) return;
     let cancelled = false;
+    const container = containerRef.current;
     setScriptFailed(false);
     // A new render issues a new token. Drop the previous one so the submit
     // button stays disabled until this widget shows its checkmark.
     handleToken(undefined);
     loadTurnstile()
       .then((turnstile) => {
-        if (cancelled || !containerRef.current) return;
-        widgetIdRef.current = turnstile.render(containerRef.current, {
+        if (cancelled || !container) return;
+        widgetIdRef.current = turnstile.render(container, {
           sitekey: siteKey,
           action,
           theme,
@@ -160,10 +183,10 @@ export function TurnstileWidget({
 
     return () => {
       cancelled = true;
-      if (widgetIdRef.current) {
-        window.turnstile?.remove(widgetIdRef.current);
-        widgetIdRef.current = null;
-      }
+      const widgetId = widgetIdRef.current;
+      widgetIdRef.current = null;
+      invokeTurnstileWidget("remove", widgetId, container);
+      container?.replaceChildren();
     };
   }, [siteKey, action, loadAttempt, theme]);
 
@@ -172,9 +195,11 @@ export function TurnstileWidget({
     () => ({
       reset: () => {
         onTokenChange(undefined);
-        if (widgetIdRef.current) {
-          window.turnstile?.reset(widgetIdRef.current);
-        }
+        invokeTurnstileWidget(
+          "reset",
+          widgetIdRef.current,
+          containerRef.current,
+        );
       },
       nextToken: () => {
         settlePending(pendingTokenRef, undefined);
