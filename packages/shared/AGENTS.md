@@ -32,6 +32,12 @@
   `clickhouse/scripts/dev-tables.sh`, applied by hand on Cloud, not
   migration-managed) read via `src/server/repositories/billable-events.ts`.
   Keep it out of every delete, retention and cleaner path.
+- Agents prototype: `src/server/repositories/agents.ts` owns window-bounded metadata
+  aggregates; `agents-projection.ts` owns the bounded real-session projection,
+  native/legacy skill evidence and comparison cohorts. Browser-safe contracts and
+  coverage live in `src/features/agents/`.
+  Identity is resolved per span by `OtelIngestionProcessor` on both write paths.
+  See `../../web/src/features/agents/README.md` for accounting and migration seams.
 - Queue payload schemas: `src/server/queues.ts`
 - Queue helpers: `src/server/redis/*`
   `getShardIndex` from `src/server/redis/sharding.ts` is exported by the server

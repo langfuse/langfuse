@@ -90,6 +90,7 @@ export * from "./clickhouse/clickhouseIdentifiers";
 export * from "./clickhouse/queryTracking";
 export * from "./clickhouse/queryTags";
 export * from "./repositories/definitions";
+export * from "./repositories/agents";
 export * from "../utils/IORepresentation/chatML/types";
 export * from "../server/ingestion/types";
 export * from "../server/ingestion/modelMatch";

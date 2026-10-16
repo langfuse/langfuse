@@ -14,6 +14,7 @@ type LineChartStoryProps = {
   thresholds?: LineChartThreshold[];
   variant?:
     | "default"
+    | "comparison"
     | "empty"
     | "many-lines"
     | "boundary-points"
@@ -61,7 +62,14 @@ const LineChartDemo = (props: LineChartStoryProps) => {
     );
   }
 
-  const chartSeries = props.variant === "many-lines" ? manyLinesSeries : series;
+  const chartSeries =
+    props.variant === "many-lines"
+      ? manyLinesSeries
+      : series.map((item, index) =>
+          props.variant === "comparison" && index === 0
+            ? { ...item, color: "#94a3b8", lineStyle: "dashed" as const }
+            : item,
+        );
 
   return (
     <LineChart
@@ -345,6 +353,18 @@ export const Monthly = meta.story({
 
 export const ManyLines = meta.story({
   args: { variant: "many-lines" },
+});
+
+export const Comparison = meta.story({
+  name: "Historical comparison",
+  args: {
+    variant: "comparison",
+    legend: {
+      visibility: "visible",
+      summary: "none",
+      interaction: "highlight",
+    },
+  },
 });
 
 export const ManyLegendEntries = meta.story({

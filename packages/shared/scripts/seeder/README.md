@@ -41,6 +41,7 @@ programmatic calls from the dx seed chain.
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `trace-tree`        | one trace with a large, branching observation tree: all ten observation kinds always present, guaranteed depth backbone, hub node with many children, errors/retries/missing end times                                                                                                                                                                                   | `--observations`, `--depth`, `--breadth`, `--payload-bytes`, `--payload-style json\|text\|malformed\|unicode`, `--v4`                                                                             |
 | `agent-timeline`    | one trace: a realistic LangGraph-style refine-loop agent (planner → retriever → generator → critic → loop) unrolled over N turns, with observations staggered across a real timeline and langgraph_node/step metadata                                                                                                                                                    | `--turns`, `--turn-gap-ms`, `--timing-only`                                                                                                                                                       |
+| `agents-view`       | eight Agents profiles with attributed costs, nested agents, two meaningful skills per agent, production/staging data, Unicode/URL names and a partial-cost integration; 20 pipelines plus two name-only traces by default                                                                                                                                                | `--traces`, `--hours`, `--end-hour`, `--date YYYY-MM-DD`, `--v4` (default true)                                                                                                                   |
 | `agent-graph`       | one trace that is large as a GRAPH, not as a tree: many distinct langgraph_node names with parallel branches per super-step, so the aggregated graph gets thousands of distinct node-pair connections from a few hundred observations                                                                                                                                    | `--nodes`, `--steps`, `--parallel`                                                                                                                                                                |
 | `deep-chain`        | one trace whose observations form a single deep parent chain of sequential generations (child starts after parent ends; depth = observation count) — the mis-parented-instrumentation shape that collapses tree/timeline layouts at extreme depth                                                                                                                        | `--observations`                                                                                                                                                                                  |
 | `long-session`      | one session with many traces for session-detail and virtualization work; creates the Postgres `trace_sessions` row the session page requires                                                                                                                                                                                                                             | `--traces`, `--observations-per-trace`, `--payload-bytes`, `--minutes`, `--session-id`, `--v4`                                                                                                    |
@@ -108,6 +109,100 @@ numeric score, cycling through 600 names; Filter B places those scores on the
 trace, while A and C place them on the root observation. Readback verifies both
 row counts and the expected quality matches (4,000 / 4,000 / 2,000).
 
+## Agents view
+
+```bash
+pnpm run seed -- agents-view --environment production
+```
+
+The default fixture has eight agents and spans 08:00–12:00 UTC on the current
+UTC day. Every agent has two meaningful skills, including the URL-special and
+name-only profiles. Skill invocations carry the owning agent's name, so the
+Skills tab can show invocation counts, trace coverage and drill-downs for each
+profile. Skills remain a tool-name preview rather than a registry.
+
+| Agent                   | Skills                                             |
+| ----------------------- | -------------------------------------------------- |
+| `agentique`             | `task-routing`, `response-orchestration`           |
+| `intake`                | `requirements-extraction`, `intent-classification` |
+| `research`              | `source-discovery`, `evidence-ranking`             |
+| `verify`                | `evidence-audit`, `consistency-check`              |
+| `verify-citation`       | `citation-resolution`, `source-attribution`        |
+| `compose`               | `citation-style`, `answer-format`                  |
+| `compose / résumé? v1#` | `résumé-style`, `locale-adaptation`                |
+| `native-name-only`      | `integration-handshake`, `answer-normalization`    |
+
+The printed Agents list and profile links pin the generated UTC window with
+`dateRange`; each profile also has a Skills link with `tab=skills`. Use those
+links when reviewing a fixture on a later day. Set
+`NEXTAUTH_URL` when the app uses a port other than 3000.
+
+To enrich an existing fixture while keeping its trace IDs and original window,
+pin its original date and reuse its prefix and other flags:
+
+```bash
+NEXTAUTH_URL=http://localhost:3017 pnpm run seed -- agents-view --environment production --date YYYY-MM-DD --id-prefix original-prefix --v4
+```
+
+Replace `YYYY-MM-DD` and `original-prefix` with the fixture's original UTC date
+and prefix. Keep its environment, `--seed`, `--traces`, `--hours` and
+`--end-hour` unchanged; the defaults use 20 pipelines and four hours ending at
+12:00 UTC. `--date` defaults to today when omitted or empty. It accepts a valid
+UTC calendar date in `YYYY-MM-DD` form. Choose a fresh `--id-prefix` when changing
+the date or timing instead of pinning the original date: events include
+`start_time` in their ORDER BY key, so reusing IDs with different timestamps
+leaves both versions in storage.
+
+## Agents RFC
+
+```bash
+NEXTAUTH_URL=http://localhost:3017 pnpm run seed -- agents-rfc --environment production --id-prefix agents-rfc-session-20261015 --managed-skills --dry-run
+NEXTAUTH_URL=http://localhost:3017 pnpm run seed -- agents-rfc --environment production --id-prefix agents-rfc-session-20261015 --managed-skills
+```
+
+This separate fixture preserves the original `agents-view` traces. Its default
+anchor is **2026-10-15 15:00 UTC**, and its printed Agents links select
+**11:00–15:00 UTC**. Fifteen days of history support discovery and comparisons;
+the recent cohort is 14:00–15:00 UTC. All four comparison agents have at least
+20 settled historical sessions and five settled recent sessions, including
+when filtered to production. `--date`, `--end-hour`, `--hours`, and `--days`
+adjust these bounds; changing time flags requires a fresh prefix.
+
+The fixture includes:
+
+- The eight existing agent identities, including the URL/Unicode name.
+- Real Postgres session records, a shared session with multiple traces,
+  repeated invocations, nested agents and a same-name call. Sessions,
+  invocations and traces therefore have different counts.
+- Stable historical behavior and recent higher research cost, longer verify
+  runtime, a 500-observation orchestrator invocation against a 20-observation
+  baseline, and compose sessions with zero executed tools.
+- Model tool requests normalized by the ingestion tool parser, alongside
+  separate executed TOOL observations. Requests can exist without execution.
+- A dormant intake agent, sparse samples, an open invocation, a session
+  crossing the selected boundary, and sessionless activity whose model call
+  deliberately lacks agent attribution.
+- Shared tool capabilities without invented causal links; declared task, area,
+  topic, available-tool and available-skill facets in optional prototype
+  metadata. One explicit cross-session handoff is labeled as an illustrative
+  declaration, separate from observed same-trace ancestry.
+- Native skill catalogs and resource loads normalized by the ingestion parser,
+  alongside legacy `load_skill` observations. Both v4 tables verify the native
+  fields after insertion; the v3 observations retain legacy compatibility.
+  Observed names include unmanaged `résumé-style`. The optional
+  `--managed-skills` flag creates missing exact-name definitions for
+  `task-routing`, `source-discovery`, `evidence-audit`, and `citation-style`
+  through the supported Skills API. Existing definitions are preserved;
+  Unicode names are not silently renamed into catalog entries.
+
+`--managed-skills` requires the matching local web app and the default synthetic
+seed project. Omit it when seeding another project or when the app is not ready.
+The CLI validates the API responses before writing session/event data and
+checks Postgres sessions plus ClickHouse row, identity, tool execution and
+unique model-request counts after insertion. It does not contact a model
+provider. Printed links open the selected window, profiles, tools, skills,
+map and representative sessions on `NEXTAUTH_URL`.
+
 ## Topics
 
 After applying the normal Postgres and ClickHouse migrations, seed either fixture:
@@ -146,10 +241,11 @@ rename or remove.
   including a missing `.env` (the CLI is a thin bootstrap in `cli.ts` that
   prechecks env vars before importing `src/server`, whose env schema would
   otherwise throw at import).
-- Determinism: same `--seed` and flags produce byte-identical data. Ids
-  never contain dates; timestamps anchor to the current UTC day, so
-  same-day re-runs overwrite in place and later-day re-runs re-anchor the
-  same ids. Independent copies come only from `--id-prefix`.
+- Determinism: same `--seed`, flags and UTC anchor date produce byte-identical
+  data. Ids never contain dates; timestamps default to the current UTC day.
+  `agents-view --date YYYY-MM-DD` pins that anchor for later re-runs. Reuse a
+  prefix only with the original date and timing; use a fresh `--id-prefix` for
+  another date or independent copy.
 
 ## Data integrity guarantees
 
@@ -173,8 +269,8 @@ lands in an ORDER BY key must not come from the sequential rng stream or
 the wall clock** — otherwise re-runs silently duplicate rows and
 `uniqExact` readbacks cannot see it. Concretely:
 
-- time anchors come from `utcDayStartMs()` (UTC midnight, computed in TS —
-  ClickHouse's `today()` is server-timezone)
+- time anchors come from `utcDayStartMs()` or a scenario's validated `--date`
+  (UTC midnight, computed in TS — ClickHouse's `today()` is server-timezone)
 - per-row variation comes from the stateless `jitter(seed, index, max)`
   (scenarios) or salted `xxHash32(number)` columns (bulk SQL); wrap hash
   inputs in `toUInt64` — xxHash32 hashes the binary representation, and a
