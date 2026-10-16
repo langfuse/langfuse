@@ -493,7 +493,7 @@ export function TimeRangePicker({
   const handleOpenChange = useCallback((open: boolean) => {
     setIsOpen(open);
     // Each open starts from the committed range, so an abandoned first click
-    // is never extended later (LFE-8156).
+    // is never extended later.
     setDraftDateRange(null);
     if (open) {
       setTab("presets");
