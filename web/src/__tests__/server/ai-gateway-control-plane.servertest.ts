@@ -20,6 +20,7 @@ import {
   createInnerTRPCContext,
   type OrgAuthedContext,
 } from "@/src/server/api/trpc";
+import { GATEWAY_CONNECTION_NAME_ERRORS } from "@/src/features/ai-gateway/constants/gatewayConnection";
 import { GatewayApiKeyAuthenticator } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
 import {
   type GatewayResolveError,
@@ -368,7 +369,7 @@ describe("AI gateway control plane", () => {
     const setup = await prepare();
     const connection = await setup.caller.aiGateway.createConnection({
       orgId: setup.org.id,
-      name: "Shared OpenAI",
+      name: "Shared-OpenAI",
       provider: "OPENAI",
       credential: "sk-shared-openai",
     });
@@ -393,7 +394,7 @@ describe("AI gateway control plane", () => {
       ).resolves.toEqual([
         {
           id: connection.id,
-          name: "Shared OpenAI",
+          name: "Shared-OpenAI",
           provider: "OPENAI",
           allowedModels: ["enabled-model"],
         },
@@ -412,7 +413,7 @@ describe("AI gateway control plane", () => {
     const setup = await prepare();
     const connection = await setup.caller.aiGateway.createConnection({
       orgId: setup.org.id,
-      name: "Shared OpenAI",
+      name: "Shared-OpenAI",
       provider: "OPENAI",
       credential: "sk-shared-openai",
     });
@@ -461,7 +462,7 @@ describe("AI gateway control plane", () => {
     const credential = "sk-test-gateway-redaction";
     const created = await caller.aiGateway.createConnection({
       orgId: org.id,
-      name: "OpenAI primary",
+      name: "OpenAI-primary",
       provider: "OPENAI",
       credential,
     });
@@ -486,7 +487,7 @@ describe("AI gateway control plane", () => {
     ).resolves.toEqual([
       {
         id: created.id,
-        name: "OpenAI primary",
+        name: "OpenAI-primary",
         provider: "OPENAI",
         allowedModels: null,
       },
@@ -530,7 +531,7 @@ describe("AI gateway control plane", () => {
 
     const connection = await caller.aiGateway.createConnection({
       orgId: org.id,
-      name: "Anthropic primary",
+      name: "Anthropic-primary",
       provider: "ANTHROPIC",
       credential: "sk-ant-test-gateway",
     });
@@ -620,7 +621,7 @@ describe("AI gateway control plane", () => {
     });
     await providerService.create({
       organizationId: org.id,
-      name: "Audited provider",
+      name: "Audited-provider",
       provider: "OPENAI",
       credential: "sk-audited-provider",
       session,
@@ -669,7 +670,7 @@ describe("AI gateway control plane", () => {
     await expect(
       failingProviderService.create({
         organizationId: org.id,
-        name: "Rejected provider",
+        name: "Rejected-provider",
         provider: "OPENAI",
         credential: "sk-rejected",
         session,
@@ -758,13 +759,13 @@ describe("AI gateway control plane", () => {
     });
     await caller.aiGateway.createConnection({
       orgId: org.id,
-      name: "OpenAI first",
+      name: "OpenAI-first",
       provider: "OPENAI",
       credential: "sk-test-openai-primary",
     });
     const openAiSecondary = await caller.aiGateway.createConnection({
       orgId: org.id,
-      name: "OpenAI second",
+      name: "OpenAI-second",
       provider: "OPENAI",
       credential: "sk-test-openai-secondary",
     });
@@ -785,12 +786,12 @@ describe("AI gateway control plane", () => {
     const result = await authenticateRequest({
       fastHashedSecretKey: createShaHash(gatewayKey.secretKey, env.SALT),
       apiFormat,
-      model: "OpenAI second:openai/gpt-4o",
+      model: "OpenAI-second:openai/gpt-4o",
     });
 
     expect(result.connection).toEqual({
       id: openAiSecondary.id,
-      name: "OpenAI second",
+      name: "OpenAI-second",
       provider: "openai",
       provider_model: "openai/gpt-4o",
       api_format: apiFormat,
@@ -830,13 +831,13 @@ describe("AI gateway control plane", () => {
     });
     const openAiPrimary = await caller.aiGateway.createConnection({
       orgId: org.id,
-      name: "OpenAI primary",
+      name: "OpenAI-primary",
       provider: "OPENAI",
       credential: "sk-test-openai-primary",
     });
     const openAiSecondary = await caller.aiGateway.createConnection({
       orgId: org.id,
-      name: "OpenAI secondary",
+      name: "OpenAI-secondary",
       provider: "OPENAI",
       credential: "sk-test-openai-secondary",
     });
@@ -887,7 +888,7 @@ describe("AI gateway control plane", () => {
     await expect(
       authenticateRequest({
         ...params,
-        model: "OpenAI secondary:gpt-4o",
+        model: "OpenAI-secondary:gpt-4o",
       }),
     ).resolves.toMatchObject({
       connection: {
@@ -1043,18 +1044,70 @@ describe("AI gateway control plane", () => {
     ).resolves.toMatchObject({ allowedModels: ["gpt-4o"] });
   });
 
-  it("requires connection names to be unique within an organization", async () => {
+  it("rejects connection names that are not safe as model slug prefixes", async () => {
     const { caller, org } = await prepare();
+    for (const [name, message] of [
+      ["Production:Primary", GATEWAY_CONNECTION_NAME_ERRORS.invalidCharacters],
+      ["OpenAI primary", GATEWAY_CONNECTION_NAME_ERRORS.invalidCharacters],
+      ["-openai", GATEWAY_CONNECTION_NAME_ERRORS.invalidCharacters],
+      ["openai.v2", GATEWAY_CONNECTION_NAME_ERRORS.invalidCharacters],
+      ["   ", GATEWAY_CONNECTION_NAME_ERRORS.required],
+      ["a".repeat(65), GATEWAY_CONNECTION_NAME_ERRORS.tooLong],
+      ["FT", GATEWAY_CONNECTION_NAME_ERRORS.reserved],
+    ] as const) {
+      await expect(
+        caller.aiGateway.createConnection({
+          orgId: org.id,
+          name,
+          provider: "OPENAI",
+          credential: "sk-openai",
+        }),
+      ).rejects.toThrow(message);
+    }
+
     await expect(
       caller.aiGateway.createConnection({
         orgId: org.id,
-        name: "Production:Primary",
+        name: " OpenAI_eu-v2 ",
         provider: "OPENAI",
         credential: "sk-openai",
       }),
-    ).rejects.toThrow("Connection names cannot contain a colon.");
+    ).resolves.toMatchObject({ name: "OpenAI_eu-v2" });
+  });
 
-    await caller.aiGateway.createConnection({
+  it("keeps a legacy connection name usable until it is renamed", async () => {
+    const { caller, org } = await prepare();
+    const created = await caller.aiGateway.createConnection({
+      orgId: org.id,
+      name: "Legacy",
+      provider: "OPENAI",
+      credential: "sk-openai",
+    });
+    const legacy = await prisma.gatewayAiConnection.update({
+      where: { id: created.id },
+      data: { name: "Legacy name" },
+    });
+
+    await expect(
+      caller.aiGateway.updateConnection({
+        orgId: org.id,
+        id: legacy.id,
+        name: "Legacy name",
+        credential: "sk-openai-rotated",
+      }),
+    ).resolves.toMatchObject({ name: "Legacy name" });
+    await expect(
+      caller.aiGateway.updateConnection({
+        orgId: org.id,
+        id: legacy.id,
+        name: "Legacy name 2",
+      }),
+    ).rejects.toThrow(GATEWAY_CONNECTION_NAME_ERRORS.invalidCharacters);
+  });
+
+  it("requires connection names to be unique within an organization, ignoring case", async () => {
+    const { caller, org } = await prepare();
+    const production = await caller.aiGateway.createConnection({
       orgId: org.id,
       name: "Production",
       provider: "OPENAI",
@@ -1064,11 +1117,11 @@ describe("AI gateway control plane", () => {
     await expect(
       caller.aiGateway.createConnection({
         orgId: org.id,
-        name: "Production",
+        name: "production",
         provider: "ANTHROPIC",
         credential: "sk-anthropic",
       }),
-    ).rejects.toThrow("A provider credential with this name already exists.");
+    ).rejects.toThrow(GATEWAY_CONNECTION_NAME_ERRORS.duplicate);
 
     const backup = await caller.aiGateway.createConnection({
       orgId: org.id,
@@ -1080,9 +1133,36 @@ describe("AI gateway control plane", () => {
       caller.aiGateway.updateConnection({
         orgId: org.id,
         id: backup.id,
-        name: "Production",
+        name: "PRODUCTION",
       }),
-    ).rejects.toThrow("A provider credential with this name already exists.");
+    ).rejects.toThrow(GATEWAY_CONNECTION_NAME_ERRORS.duplicate);
+
+    await expect(
+      caller.aiGateway.updateConnection({
+        orgId: org.id,
+        id: production.id,
+        name: "production",
+      }),
+    ).resolves.toMatchObject({ name: "production" });
+  });
+
+  it("treats underscores in connection names literally when checking duplicates", async () => {
+    const { caller, org } = await prepare();
+    await caller.aiGateway.createConnection({
+      orgId: org.id,
+      name: "openai-1",
+      provider: "OPENAI",
+      credential: "sk-openai",
+    });
+
+    await expect(
+      caller.aiGateway.createConnection({
+        orgId: org.id,
+        name: "openai_1",
+        provider: "OPENAI",
+        credential: "sk-openai",
+      }),
+    ).resolves.toMatchObject({ name: "openai_1" });
   });
 
   it("changes ERROR only for credential auth failures and explicit recovery", async () => {
@@ -1273,7 +1353,7 @@ describe("AI gateway control plane", () => {
     });
     await caller.aiGateway.createConnection({
       orgId: org.id,
-      name: "OpenAI backup",
+      name: "OpenAI-backup",
       provider: "OPENAI",
       credential: "sk-test-backup",
     });
@@ -1296,7 +1376,7 @@ describe("AI gateway control plane", () => {
     await expect(
       authenticateRequest({
         ...resolveParams,
-        model: "OpenAI backup:gpt-4o",
+        model: "OpenAI-backup:gpt-4o",
       }),
     ).resolves.toMatchObject({
       connection: { auth: { type: "Bearer", token: "sk-test-backup" } },
@@ -1309,7 +1389,7 @@ describe("AI gateway control plane", () => {
     await caller.aiGateway.updateConnection({
       orgId: org.id,
       id: connection.id,
-      name: "OpenAI renamed",
+      name: "OpenAI-renamed",
     });
     await expect(authenticateRequest(resolveParams)).rejects.toEqual(
       expect.objectContaining<Partial<GatewayResolveError>>({ status: 404 }),
@@ -1318,10 +1398,10 @@ describe("AI gateway control plane", () => {
     await expect(
       authenticateRequest({
         ...resolveParams,
-        model: "OpenAI renamed:gpt-4o",
+        model: "OpenAI-renamed:gpt-4o",
       }),
     ).resolves.toMatchObject({
-      connection: { name: "OpenAI renamed" },
+      connection: { name: "OpenAI-renamed" },
     });
     expect(lookup).toHaveBeenCalledTimes(2);
     lookup.mockRestore();
@@ -1450,13 +1530,13 @@ describe("AI gateway control plane", () => {
     const { caller, org } = await prepare();
     await caller.aiGateway.createConnection({
       orgId: org.id,
-      name: "OpenAI primary",
+      name: "OpenAI-primary",
       provider: "OPENAI",
       credential: "sk-openai",
     });
     await caller.aiGateway.createConnection({
       orgId: org.id,
-      name: "OpenAI backup",
+      name: "OpenAI-backup",
       provider: "OPENAI",
       credential: "sk-openai-backup",
     });
@@ -1529,28 +1609,28 @@ describe("AI gateway control plane", () => {
     expect(result).toEqual({
       data: [
         {
-          id: "OpenAI backup:a-model",
+          id: "OpenAI-backup:a-model",
           provider: "OPENAI",
           canonicalSlug: "a-model",
           displayName: "a-model",
           createdAt: "1970-01-01T00:00:10.000Z",
         },
         {
-          id: "OpenAI backup:shared-model",
+          id: "OpenAI-backup:shared-model",
           provider: "OPENAI",
           canonicalSlug: "shared-model",
           displayName: "shared-model",
           createdAt: "1970-01-01T00:00:15.000Z",
         },
         {
-          id: "OpenAI primary:a-model",
+          id: "OpenAI-primary:a-model",
           provider: "OPENAI",
           canonicalSlug: "a-model",
           displayName: "a-model",
           createdAt: "1970-01-01T00:00:10.000Z",
         },
         {
-          id: "OpenAI primary:shared-model",
+          id: "OpenAI-primary:shared-model",
           provider: "OPENAI",
           canonicalSlug: "shared-model",
           displayName: "shared-model",
@@ -1599,7 +1679,7 @@ describe("AI gateway control plane", () => {
     });
     await caller.aiGateway.createConnection({
       orgId: org.id,
-      name: "OpenAI fallback",
+      name: "OpenAI-fallback",
       provider: "OPENAI",
       credential: "sk-openai-fallback",
     });
@@ -1632,7 +1712,7 @@ describe("AI gateway control plane", () => {
     ).resolves.toEqual({
       data: [
         {
-          id: "OpenAI fallback:available-model",
+          id: "OpenAI-fallback:available-model",
           provider: "OPENAI",
           canonicalSlug: "available-model",
           displayName: "available-model",
