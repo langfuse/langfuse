@@ -215,6 +215,7 @@ function QuestionnaireForm({
         questionIndex={stepIndex}
         submitLabel={nextLabel}
         isDisabled={isBusy}
+        onAdvance={goToNextStep}
         onSkip={handleSkip}
       />
     </form>

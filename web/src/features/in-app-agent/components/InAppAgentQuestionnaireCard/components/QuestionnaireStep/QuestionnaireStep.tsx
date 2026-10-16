@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { flushSync } from "react-dom";
+import { PencilLine, type LucideIcon } from "lucide-react";
 import { useController, type Control } from "react-hook-form";
 import {
   IN_APP_AGENT_QUESTIONNAIRE_MAX_ANSWER_LENGTH,
@@ -21,7 +22,7 @@ import { RadioGroup } from "@/src/components/design-system/RadioGroup/RadioGroup
 import type { QuestionnaireFormValues } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireCard/fns/createQuestionnaireFormValues";
 import { updateQuestionnaireAnswer } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireCard/fns/updateQuestionnaireAnswer";
 
-const OTHER_ANSWER_LABEL = "Something else";
+const OTHER_ANSWER_LABEL = "Type your answer";
 const OTHER_VALUE = "other";
 
 export type QuestionnaireStepProps = {
@@ -30,13 +31,16 @@ export type QuestionnaireStepProps = {
   questionIndex: number;
   submitLabel: string;
   isDisabled: boolean;
+  /** Moves to the next step, or submits on the last one. */
+  onAdvance: () => void;
   onSkip: () => void;
 };
 
 /**
  * Options and the custom answer form one divided list, picked with a radio or
- * a checkbox. Every step confirms from the footer. Number keys pick or toggle
- * the matching option while focus is in the step.
+ * a checkbox. Clicking a single-choice option or pressing its number moves on;
+ * arrow keys only move the selection. A typed answer turns Skip into Submit;
+ * multiple choice confirms from the footer.
  */
 export function QuestionnaireStep({
   control,
@@ -44,10 +48,12 @@ export function QuestionnaireStep({
   questionIndex,
   submitLabel,
   isDisabled,
+  onAdvance,
   onSkip,
 }: QuestionnaireStepProps) {
   const idPrefix = useId();
   const otherInputRef = useRef<HTMLInputElement>(null);
+  const isPointerPickRef = useRef(false);
   const { field } = useController({
     control,
     name: `answers.${questionIndex}`,
@@ -111,6 +117,13 @@ export function QuestionnaireStep({
       return;
     }
     handlePickOption(Number(value));
+    if (isPointerPickRef.current) {
+      onAdvance();
+    }
+  };
+
+  const handleRadioPointerDown = () => {
+    isPointerPickRef.current = true;
   };
 
   const handleOtherTextChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -123,6 +136,7 @@ export function QuestionnaireStep({
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    isPointerPickRef.current = false;
     const isTyping = event.target instanceof HTMLInputElement;
     const hasModifier = event.metaKey || event.ctrlKey || event.altKey;
     const optionIndex = Number(event.key) - 1;
@@ -138,8 +152,14 @@ export function QuestionnaireStep({
     }
     event.preventDefault();
     handlePickOption(optionIndex);
+    if (!question.allowMultiple) {
+      onAdvance();
+    }
   };
 
+  // Single choice: Skip until a custom answer is typed, then it turns into Submit.
+  const showsSkip = question.allowMultiple || !hasOtherText;
+  const showsSubmit = question.allowMultiple || hasOtherText;
   const optionId = (key: number | string) => `${idPrefix}-${key}`;
   const otherInput = isOtherOpen ? (
     <div className="pt-1.5">
@@ -158,7 +178,7 @@ export function QuestionnaireStep({
   return (
     <div onKeyDown={handleKeyDown}>
       {question.allowMultiple ? (
-        <div className="divide-border divide-y">
+        <div className="divide-border border-border divide-y border-b">
           {question.options.map((option, optionIndex) => (
             <MultipleChoiceRow
               key={optionIndex}
@@ -175,6 +195,7 @@ export function QuestionnaireStep({
           <OptionRow
             htmlFor={optionId(OTHER_VALUE)}
             label={OTHER_ANSWER_LABEL}
+            labelIcon={PencilLine}
             below={otherInput}
           >
             <Checkbox
@@ -192,7 +213,10 @@ export function QuestionnaireStep({
           value={radioValue(answer.selectedOptionIndexes, isOtherOpen)}
           onValueChange={handleRadioValueChange}
         >
-          <div className="divide-border divide-y">
+          <div
+            className="divide-border border-border divide-y border-b"
+            onPointerDown={handleRadioPointerDown}
+          >
             {question.options.map((option, optionIndex) => (
               <OptionRow
                 key={optionIndex}
@@ -211,6 +235,7 @@ export function QuestionnaireStep({
             <OptionRow
               htmlFor={optionId(OTHER_VALUE)}
               label={OTHER_ANSWER_LABEL}
+              labelIcon={PencilLine}
               below={otherInput}
             >
               <RadioGroup.Item
@@ -223,20 +248,24 @@ export function QuestionnaireStep({
           </div>
         </RadioGroup>
       )}
-      <div className="flex items-center justify-end gap-2 px-4 pt-0.5 pb-2.5">
-        <Button
-          text="Skip"
-          variant="outline"
-          size="sm"
-          disabled={isDisabled}
-          onClick={onSkip}
-        />
-        <Button
-          text={submitLabel}
-          size="sm"
-          type="submit"
-          disabled={isDisabled || selectedCount === 0}
-        />
+      <div className="flex items-center justify-end gap-2 px-4 py-2">
+        {showsSkip ? (
+          <Button
+            text="Skip"
+            variant="outline"
+            size="sm"
+            disabled={isDisabled}
+            onClick={onSkip}
+          />
+        ) : null}
+        {showsSubmit ? (
+          <Button
+            text={submitLabel}
+            size="sm"
+            type="submit"
+            disabled={isDisabled || selectedCount === 0}
+          />
+        ) : null}
       </div>
     </div>
   );
@@ -299,6 +328,8 @@ function MultipleChoiceRow({
 type OptionRowProps = {
   htmlFor: string;
   label: string;
+  /** Shown after the label, like the pencil on the custom answer row. */
+  labelIcon?: LucideIcon;
   description?: string;
   /** Shown under the label inside the row, like the custom answer field. */
   below?: ReactNode;
@@ -309,6 +340,7 @@ type OptionRowProps = {
 function OptionRow({
   htmlFor,
   label,
+  labelIcon: LabelIcon,
   description,
   below,
   children,
@@ -320,7 +352,12 @@ function OptionRow({
     >
       <span className="flex h-5 shrink-0 items-center">{children}</span>
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="leading-5">{label}</span>
+        <span className="flex items-center gap-1.5 leading-5">
+          {label}
+          {LabelIcon ? (
+            <LabelIcon aria-hidden className="text-muted-foreground icon-sm" />
+          ) : null}
+        </span>
         {description ? (
           <span className="text-muted-foreground text-xs">{description}</span>
         ) : null}
