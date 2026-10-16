@@ -7,6 +7,11 @@ import {
 } from "@langfuse/shared/src/server";
 import { env } from "@langfuse/shared/src/env";
 import { type SsoProviderSchema } from "@/src/ee/features/multi-tenant-sso/types";
+import {
+  getDiscoveryUrl,
+  resolveOneLoginIssuer,
+  stripTrailingSlash,
+} from "@/src/ee/features/multi-tenant-sso/oidcDiscovery";
 
 const discoveryTimeoutMs = 5000;
 
@@ -39,7 +44,7 @@ export async function validateSsoConfig(
   }
 }
 
-/** getDiscoveryIssuer returns the provider's configured issuer URL, or null when the provider has no OIDC discovery (GitHub family is OAuth2-only). */
+/** getDiscoveryIssuer returns the provider's OIDC issuer URL (for OneLogin, resolved the same way as at sign-in), or null when the provider has no OIDC discovery (GitHub family is OAuth2-only). */
 function getDiscoveryIssuer(payload: SsoProviderSchema): string | null {
   switch (payload.authProvider) {
     case "github":
@@ -56,21 +61,17 @@ function getDiscoveryIssuer(payload: SsoProviderSchema): string | null {
     case "auth0":
     case "okta":
     case "authentik":
-    case "onelogin":
     case "cognito":
     case "keycloak":
     case "jumpcloud":
     case "custom":
       return payload.authConfig?.issuer ?? null;
+    case "onelogin":
+      return payload.authConfig
+        ? resolveOneLoginIssuer(payload.authConfig.issuer)
+        : null;
   }
 }
-
-/** getDiscoveryUrl builds the discovery-document URL for issuer. */
-function getDiscoveryUrl(issuer: string): string {
-  return `${stripTrailingSlash(issuer)}/.well-known/openid-configuration`;
-}
-
-const stripTrailingSlash = (url: string) => url.replace(/\/$/, "");
 
 /** fetchWithSsrfDefense fetches url with internal-address blocking and the operator whitelist applied. */
 async function fetchWithSsrfDefense(url: string): Promise<Response> {
