@@ -165,8 +165,9 @@ export function QuestionnaireStep({
     <div className="pt-1.5">
       <Input
         ref={otherInputRef}
+        size="sm"
         aria-label="Custom answer"
-        placeholder="Type your own answer"
+        placeholder="Type your answer"
         maxLength={IN_APP_AGENT_QUESTIONNAIRE_MAX_ANSWER_LENGTH}
         value={answer.otherText}
         disabled={isDisabled}
@@ -350,7 +351,10 @@ function OptionRow({
       htmlFor={htmlFor}
       className="hover:bg-muted/50 has-focus-visible:bg-muted/50 flex cursor-pointer items-start gap-3 px-4 py-2 text-xs has-disabled:cursor-not-allowed"
     >
-      <span className="flex h-5 shrink-0 items-center">{children}</span>
+      {/* Half-pixel optical nudge so the control centres on 12px text. */}
+      <span className="flex h-5 shrink-0 translate-y-[0.5px] items-center">
+        {children}
+      </span>
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="flex items-center gap-1.5 leading-5">
           {label}

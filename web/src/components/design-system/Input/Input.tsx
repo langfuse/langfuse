@@ -32,19 +32,22 @@ type InputProps = Pick<
   | "type"
   | "value"
 > & {
+  /** `sm` for dense rows with 12px text. */
+  size?: "default" | "sm";
   allowPasswordManager?: boolean;
   error?: boolean;
   ref?: Ref<HTMLInputElement>;
 };
 
 export function Input({
+  size,
   allowPasswordManager,
   error,
   ref,
   ...props
 }: InputProps) {
   return (
-    <InputControl contentLayout="text" error={error}>
+    <InputControl contentLayout="text" size={size} error={error}>
       <input
         {...props}
         {...(!allowPasswordManager && { "data-1p-ignore": true })}
