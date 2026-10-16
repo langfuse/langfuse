@@ -1578,6 +1578,52 @@ async fn model_policy_rejections_use_provider_native_permission_errors() {
 }
 
 #[tokio::test]
+async fn missing_permission_rejections_name_the_required_permission() {
+    let web = FakeServer::start(|_| async {
+        Response::builder()
+            .status(StatusCode::FORBIDDEN)
+            .header("langfuse-gateway-error-code", "missing_permission")
+            .body(Body::from("private-web-body"))
+            .unwrap()
+    })
+    .await;
+    let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
+    let gateway = Gateway::start(Some(inference(&web, &provider))).await;
+    let message =
+        "Access denied. The \"gateway:invoke\" permission is required to access this resource.";
+
+    let openai = gateway
+        .post()
+        .bearer_auth("gateway-key")
+        .body(r#"{"model":"Production key:gpt-4.1"}"#)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(openai.status(), StatusCode::FORBIDDEN);
+    let openai_body: serde_json::Value =
+        serde_json::from_str(&openai.text().await.unwrap()).unwrap();
+    assert_eq!(openai_body["error"]["type"], "permission_error");
+    assert_eq!(openai_body["error"]["code"], "missing_permission");
+    assert_eq!(openai_body["error"]["message"], message);
+
+    let anthropic = reqwest::Client::new()
+        .post(format!("{}/anthropic/v1/messages", gateway.url))
+        .header("x-api-key", "gateway-key")
+        .body(r#"{"model":"Production key:claude-sonnet-4-5"}"#)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(anthropic.status(), StatusCode::FORBIDDEN);
+    let anthropic_body: serde_json::Value =
+        serde_json::from_str(&anthropic.text().await.unwrap()).unwrap();
+    assert_eq!(anthropic_body["error"]["type"], "permission_error");
+    assert_eq!(anthropic_body["error"]["message"], message);
+    assert!(!anthropic_body.to_string().contains("private-web-body"));
+    assert_eq!(web.calls(), 2);
+    assert_eq!(provider.calls(), 0);
+}
+
+#[tokio::test]
 async fn anthropic_capacity_rejections_use_the_native_envelope() {
     let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
     let busy = ProviderTransport::for_test(

@@ -203,8 +203,9 @@ async function assertCanInvokeGateway(
   ).success;
   if (!allowed) {
     throw new GatewayControlPlaneError(
-      "API key is not allowed to invoke the gateway",
+      'Access denied. The "gateway:invoke" permission is required to access this resource.',
       403,
+      "missing_permission",
     );
   }
 }
