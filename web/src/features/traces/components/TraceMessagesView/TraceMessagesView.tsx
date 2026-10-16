@@ -1,8 +1,10 @@
 import { type ComponentProps } from "react";
+import { useRouter } from "next/router";
 import { ErrorBoundary } from "@sentry/nextjs";
 import { api } from "@/src/utils/api";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { SessionConversationTimeline } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/SessionConversationTimeline";
 import { getSessionConversationEntries } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/getSessionConversationEntries";
 import { useSessionConversationTimelineController } from "@/src/features/sessions/hooks/useSessionConversationTimelineController";
@@ -10,6 +12,8 @@ import { useSessionConversationTimelineController } from "@/src/features/session
 export function TraceMessagesView() {
   const { trace } = useTraceData();
   const { selectNode } = useSelection();
+  const router = useRouter();
+  const { isPeekMode } = useViewPreferences();
   const { data: sessionTraces } = api.sessions.tracesFromEvents.useQuery(
     { projectId: trace.projectId, sessionId: trace.sessionId ?? "" },
     {
@@ -31,6 +35,37 @@ export function TraceMessagesView() {
     traceIndex > 0 ? sessionTraces?.[traceIndex - 1] : undefined;
   const nextTrace =
     traceIndex >= 0 ? sessionTraces?.[traceIndex + 1] : undefined;
+  const [previousTraceLink, nextTraceLink] = [previousTrace, nextTrace].map(
+    (target) => {
+      if (!target) return undefined;
+      if (isPeekMode) {
+        const query = { ...router.query };
+        delete query.observation;
+        delete query.traceId;
+        return {
+          href: {
+            pathname: router.pathname,
+            query: {
+              ...query,
+              peek: target.id,
+              timestamp: target.timestamp.toISOString(),
+              traceView: "messages",
+            },
+          },
+          shallow: true,
+        };
+      }
+      return {
+        href: {
+          pathname: `/project/${trace.projectId}/traces/${target.id}`,
+          query: {
+            timestamp: target.timestamp.toISOString(),
+            traceView: "messages",
+          },
+        },
+      };
+    },
+  );
   const { data, isLoading, error } = api.events.transcriptByTraceId.useQuery({
     projectId: trace.projectId,
     traceId: trace.id,
@@ -79,7 +114,10 @@ export function TraceMessagesView() {
         <SessionConversationTimeline
           traces={traces}
           controller={controller}
-          navigation={{ projectId: trace.projectId, previousTrace, nextTrace }}
+          navigation={{
+            previousTrace: previousTraceLink,
+            nextTrace: nextTraceLink,
+          }}
         />
       </div>
     </ErrorBoundary>

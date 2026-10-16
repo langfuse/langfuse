@@ -94,18 +94,17 @@ export const TimelineNavigation = meta.story({
   name: "(Test) Navigation Before And After Messages",
   args: {
     navigation: {
-      projectId: "project-1",
       previousTrace: {
-        id: "previous-trace",
-        timestamp: new Date("2026-09-24T11:00:00Z"),
+        href: "/project/project-1/traces?peek=previous-trace&traceView=messages",
+        shallow: true,
       },
       nextTrace: {
-        id: "next-trace",
-        timestamp: new Date("2026-09-24T13:00:00Z"),
+        href: "/project/project-1/traces?peek=next-trace&traceView=messages",
+        shallow: true,
       },
     },
   },
-  play: async ({ canvas }) => {
+  play: async ({ canvas, args }) => {
     const timeline = canvas.getByLabelText("Session conversation timeline");
     const previous = await canvas.findByRole("link", {
       name: "Previous trace in session",
@@ -115,6 +114,10 @@ export const TimelineNavigation = meta.story({
     });
     expect(previous.compareDocumentPosition(firstTrace)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(previous).toHaveAttribute(
+      "href",
+      args.navigation?.previousTrace?.href,
     );
     timeline.scrollTop = timeline.scrollHeight;
     timeline.dispatchEvent(new Event("scroll", { bubbles: true }));
@@ -127,6 +130,7 @@ export const TimelineNavigation = meta.story({
     expect(lastTrace.compareDocumentPosition(next)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
+    expect(next).toHaveAttribute("href", args.navigation?.nextTrace?.href);
   },
 });
 
