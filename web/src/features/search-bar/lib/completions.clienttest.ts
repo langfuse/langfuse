@@ -229,11 +229,11 @@ describe("planInputCompletions", () => {
     // A bare prefix lists the field but must not hijack Enter — the user may be
     // typing a free-text search. Enter commits the text; the field is one
     // arrow-press away.
-    const p = plan("lev", 3);
+    const p = plan("sta", 3);
     expect(p?.stage).toBe("field");
     expect(p?.autoHighlight).toBe(false);
     const first = flattenOptions(p);
-    expect(first[0]).toMatchObject({ kind: "field", fieldId: "level" });
+    expect(first[0]).toMatchObject({ kind: "field", fieldId: "status" });
   });
 
   it("always surfaces an exactly-named field first, even when ranking would drop it", () => {
@@ -285,6 +285,19 @@ describe("planInputCompletions", () => {
       "ERROR",
       "WARNING",
     ]);
+  });
+
+  it("uses the storage column for status value discovery and lazy loading", () => {
+    const pending = plan("status:", 7, { observed: {} });
+    expect(pending?.requestColumns).toEqual(["level"]);
+    expect(pending?.loading).toBe(true);
+
+    const loaded = plan("status:", 7);
+    expect(
+      flattenOptions(loaded)
+        .filter((option) => option.kind === "value")
+        .map((option) => option.label),
+    ).toEqual(["ERROR", "WARNING"]);
   });
 
   it("keeps the observed-value picker for name:/id: while searching as contains", () => {
@@ -960,15 +973,15 @@ describe("planInputCompletions", () => {
     });
 
     it("prefers higher observed counts within the same match tier", () => {
-      // `er` prefixes both level:ERROR (count 12) and a name value (count 3);
-      // the count breaks the tie even though `name` precedes `level` in the
+      // `er` prefixes both status:ERROR (count 12) and a name value (count 3);
+      // the count breaks the tie even though `name` precedes `status` in the
       // registry.
       const p = plan("er", 2, {
         observed: { ...OBSERVED, name: [{ value: "error-handler", count: 3 }] },
       });
       const sec = p?.sections.find((s) => s.title === SECTION_MATCHING_FILTERS);
       expect(sec?.options.map((o) => o.label)).toEqual([
-        "level:ERROR",
+        "status:ERROR",
         "name:error-handler",
       ]);
     });

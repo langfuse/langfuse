@@ -296,7 +296,7 @@ function hoistFieldOption(
 
 // Ready-to-run query suggestions for the empty state: the top observed value
 // of a few showcase fields, inserted as complete filters.
-const SUGGESTION_FIELDS = ["level", "type", "environment", "name"];
+const SUGGESTION_FIELDS = ["status", "type", "environment", "name"];
 
 function querySuggestionOptions(
   observed: ObservedOptions | undefined,
@@ -305,8 +305,9 @@ function querySuggestionOptions(
   if (observed === undefined) return [];
   const out: CompletionOption[] = [];
   for (const fieldId of SUGGESTION_FIELDS) {
-    if (registry.resolveField(fieldId) === null) continue;
-    const top = observed[fieldId]?.[0];
+    const ref = registry.resolveField(fieldId);
+    if (ref?.type !== "field") continue;
+    const top = observed[ref.field.filterColumn ?? ref.field.id]?.[0];
     if (top === undefined) continue;
     const insert = `${fieldId}:${serializeValue(top.value)}`;
     out.push({
@@ -370,7 +371,7 @@ function matchingFilterOptions(
         field.suggestObservedValues === true),
   );
   for (const f of valueMatchFields) {
-    for (const o of observedValues(observed, f.id)) {
+    for (const o of observedValues(observed, f.filterColumn ?? f.id)) {
       const v = o.value.toLowerCase();
       const rank = (() => {
         if (v === q) {
@@ -1044,17 +1045,18 @@ function valueStageSections(input: ValueStageInput): {
       // fields flagged `suggestObservedValues` (id/name — they search as
       // substring but still suggest existing values).
       // Lazy mode: an option-backed field (exactOption/arrayOption) whose values
-      // have not loaded yet shows a loading row and requests its column. Its `id`
-      // IS the filter-options column id. textSearch fields (id/name) are not
+      // have not loaded yet shows a loading row and requests its storage column.
+      // textSearch fields (id/name) are not
       // lazily loaded — `name` is eager and `id` has no server option list — so
       // they fall through to the picker, which is empty when nothing is observed.
       const isOptionColumn =
         f.syncMode === "exactOption" || f.syncMode === "arrayOption";
-      if (isOptionColumn && columnPending(f.id)) {
-        return { sections: [], loading: true, requestColumns: [f.id] };
+      const column = f.filterColumn ?? f.id;
+      if (isOptionColumn && columnPending(column)) {
+        return { sections: [], loading: true, requestColumns: [column] };
       }
       if (observed === undefined) return { sections: [], loading: true };
-      const all = observedValues(observed, f.id).map((o) => ({
+      const all = observedValues(observed, column).map((o) => ({
         id: `value:${o.value}`,
         kind: "value" as const,
         label: o.value,

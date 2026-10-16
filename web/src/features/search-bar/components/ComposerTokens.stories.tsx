@@ -16,7 +16,7 @@ const meta = preview.meta({
 });
 
 export const Default = meta.story({
-  args: { draft: "level:ERROR -environment:dev latency:>2" },
+  args: { draft: "status:ERROR -environment:dev latency:>2" },
 });
 
 export const Empty = meta.story({
@@ -24,7 +24,7 @@ export const Empty = meta.story({
 });
 
 export const AnyOfGroup = meta.story({
-  args: { draft: "level:(ERROR OR WARNING) type:GENERATION" },
+  args: { draft: "status:(ERROR OR WARNING) type:GENERATION" },
 });
 
 export const FreeTextAndScopes = meta.story({
@@ -32,5 +32,5 @@ export const FreeTextAndScopes = meta.story({
 });
 
 export const InvalidRevealed = meta.story({
-  args: { draft: "level:ERROR nope:1", showDiagnostics: true },
+  args: { draft: "status:ERROR nope:1", showDiagnostics: true },
 });

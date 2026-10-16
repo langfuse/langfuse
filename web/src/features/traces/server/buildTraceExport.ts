@@ -270,6 +270,7 @@ export async function buildTraceExport({
       environment: record.environment,
       name: record.name ?? null,
       level: record.level ?? null,
+      status: record.level ?? null,
       traceName: record.traceName ?? trace.name ?? "",
       statusMessage: record.statusMessage ?? null,
       release: record.release ?? null,

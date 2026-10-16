@@ -332,7 +332,7 @@ function buildTraceColumns(
     {
       accessorKey: "levelCounts",
       id: "levelCounts",
-      header: "Observation Levels",
+      header: "Observation Statuses",
       size: 150,
       loadingCell: <Skeleton className="h-4 w-1/2" />,
       cell: ({ row }) => {

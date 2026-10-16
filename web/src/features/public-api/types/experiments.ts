@@ -227,6 +227,7 @@ const ExperimentItemV1 = z
     startTime: z.coerce.date(),
     endTime: z.coerce.date().nullable(),
     level: z.enum(["DEBUG", "DEFAULT", "WARNING", "ERROR"]),
+    status: z.enum(["DEBUG", "DEFAULT", "WARNING", "ERROR"]),
     environment: z.string(),
     experimentId: z.string(),
     experimentName: z.string(),

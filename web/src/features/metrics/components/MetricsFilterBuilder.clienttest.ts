@@ -191,7 +191,7 @@ describe("buildV2FilterColumnsParams", () => {
     expect(values.length).toBeGreaterThan(0);
   });
 
-  it("offers every Observation Level value even when discovery data is empty", () => {
+  it("offers every Observation Status value even when discovery data is empty", () => {
     const levelColumn = getColumn("observations", "level");
     expect(levelColumn?.type).toBe("stringOptions");
     const values =
@@ -309,7 +309,7 @@ describe("buildV2FilterColumnsParams", () => {
     expect(getMetricsColumnsWithCustomSelect(params)).toContain("metadata");
   });
 
-  it("keeps Type/Level as non-searchable columns", () => {
+  it("keeps Type/Status as non-searchable columns", () => {
     const params = buildV2FilterColumnsParams({
       view: "observations",
       filterOptions: undefined,

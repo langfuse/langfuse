@@ -225,8 +225,11 @@ export function fieldRegistryFromColumns(
             ? "arrayOption"
             : "textSearch";
       return {
-        id: column.id,
-        aliases: fieldOverlay?.aliases ?? column.aliases ?? [],
+        id: column.id === "level" ? "status" : column.id,
+        aliases:
+          column.id === "level"
+            ? ["level", ...(fieldOverlay?.aliases ?? column.aliases ?? [])]
+            : (fieldOverlay?.aliases ?? column.aliases ?? []),
         kind,
         syncMode: fieldOverlay?.syncMode ?? syncMode,
         exactMatchUsesOptions: column.type === "stringOptions",
@@ -235,7 +238,9 @@ export function fieldRegistryFromColumns(
         nullable: column.nullable,
         directFilter: column.type !== "null",
         suggestObservedValues: fieldOverlay?.suggestObservedValues,
-        filterColumn: fieldOverlay?.filterColumn,
+        filterColumn:
+          fieldOverlay?.filterColumn ??
+          (column.id === "level" ? "level" : undefined),
         filterValueByDisplayValue: fieldOverlay?.filterValueByDisplayValue,
         displayValueByFilterValue: fieldOverlay?.displayValueByFilterValue,
         unit: fieldOverlay?.unit,
@@ -355,8 +360,8 @@ export const FIELDS: FieldDef[] = [
   { id: "ingestionSource", aliases: ["ingestionsource", "ingestion_source", "source"], kind: "text", syncMode: "exactOption", label: "Ingestion source", description: "Ingestion source (API or OTel path)" },
   { id: "userId", aliases: ["userid", "user_id", "user"], kind: "text", syncMode: "exactOption", label: "User ID", description: "Trace user id", nullable: true },
   { id: "sessionId", aliases: ["sessionid", "session_id", "session"], kind: "text", syncMode: "exactOption", label: "Session ID", description: "Trace session id", nullable: true },
-  { id: "level", aliases: [], kind: "text", syncMode: "exactOption", label: "Status", description: "Observation status" },
-  { id: "statusMessage", aliases: ["statusmessage", "status_message", "status"], kind: "text", syncMode: "textSearch", label: "Status message", description: "Status message", nullable: true },
+  { id: "status", filterColumn: "level", aliases: ["level"], kind: "text", syncMode: "exactOption", label: "Status", description: "Observation status" },
+  { id: "statusMessage", aliases: ["statusmessage", "status_message"], kind: "text", syncMode: "textSearch", label: "Status message", description: "Status message", nullable: true },
   { id: "modelId", aliases: ["modelid", "model_id"], kind: "text", syncMode: "exactOption", label: "Model ID", description: "Internal model id", nullable: true },
   { id: "providedModelName", aliases: ["providedmodelname", "provided_model_name", "model"], kind: "text", syncMode: "exactOption", label: "Model name", description: "Provided model name", nullable: true },
   { id: "promptName", aliases: ["promptname", "prompt_name", "prompt"], kind: "text", syncMode: "exactOption", label: "Prompt name", description: "Prompt name", nullable: true },
@@ -559,7 +564,7 @@ export const EVENTS_FIELD_REGISTRY = createFieldRegistry({
   defaultTextField: null,
   freeTextScopeLabel: "ids, names, input & output",
   searchExamples: [
-    "level:ERROR",
+    "status:ERROR",
     "-env:dev",
     "latency:>2",
     "scores.accuracy:>0.8",
@@ -569,7 +574,7 @@ export const EVENTS_FIELD_REGISTRY = createFieldRegistry({
   aiFilterPrompt: true,
   aiContextFields: [
     { observedOptionsKey: "type", promptLabel: "type" },
-    { observedOptionsKey: "level", promptLabel: "level" },
+    { observedOptionsKey: "level", promptLabel: "status" },
     { observedOptionsKey: "environment", promptLabel: "environment" },
     { observedOptionsKey: "traceName", promptLabel: "traceName" },
     { observedOptionsKey: "name", promptLabel: "name" },
@@ -745,7 +750,10 @@ export function operatorIssue(
       if (f.directFilter === false) {
         return `"${f.id}" only supports presence checks (has:${f.id} or -has:${f.id})`;
       }
-      if (f.filterColumn && (op === "~" || op === "^" || op === "$")) {
+      if (
+        f.filterValueByDisplayValue &&
+        (op === "~" || op === "^" || op === "$")
+      ) {
         return `"${f.id}" maps labeled options to exact stored values and does not support ${label(op)}`;
       }
       if (f.kind === "number") {

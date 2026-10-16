@@ -3,23 +3,27 @@ import { describe, expect, it } from "vitest";
 import { parseGeneratedFilters } from "@/src/features/search-bar/server/parseFilterCompletion";
 
 describe("parseGeneratedFilters", () => {
-  it("parses a plain JSON array of v4 filters and derives query text", () => {
-    const completion = JSON.stringify([
-      {
-        type: "stringOptions",
-        column: "level",
-        operator: "any of",
-        value: ["ERROR"],
-      },
-      { type: "number", column: "latency", operator: ">", value: 2 },
-    ]);
-    const { filters, queryText, droppedCount } =
-      parseGeneratedFilters(completion);
-    expect(filters).toHaveLength(2);
-    expect(droppedCount).toBe(0);
-    expect(queryText).toContain("level");
-    expect(queryText).toContain("latency");
-  });
+  it.each(["status", "level"])(
+    "parses a plain JSON array with %s severity and derives query text",
+    (column) => {
+      const completion = JSON.stringify([
+        {
+          type: "stringOptions",
+          column,
+          operator: "any of",
+          value: ["ERROR"],
+        },
+        { type: "number", column: "latency", operator: ">", value: 2 },
+      ]);
+      const { filters, queryText, droppedCount } =
+        parseGeneratedFilters(completion);
+      expect(filters).toHaveLength(2);
+      expect(droppedCount).toBe(0);
+      expect(filters[0]?.column).toBe("level");
+      expect(queryText).toContain("status:ERROR");
+      expect(queryText).toContain("latency");
+    },
+  );
 
   it("tolerates a { filters: [...] } wrapper", () => {
     const completion = JSON.stringify({

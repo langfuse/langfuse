@@ -235,6 +235,7 @@ describe("toChartFilters", () => {
 describe("chartSearchFieldReason", () => {
   it("returns null for forwardable grammar fields (incl. aliases)", () => {
     expect(chartSearchFieldReason("level")).toBeNull();
+    expect(chartSearchFieldReason("status")).toBeNull();
     expect(chartSearchFieldReason("env")).toBeNull(); // alias -> environment
     expect(chartSearchFieldReason("user")).toBeNull(); // alias -> userId
     expect(chartSearchFieldReason("tags")).toBeNull(); // alias -> traceTags

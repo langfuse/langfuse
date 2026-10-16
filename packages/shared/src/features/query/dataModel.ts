@@ -441,11 +441,18 @@ export const observationsView: ViewDeclarationType = {
       type: "string",
       description: "Name of the observation.",
     },
+    status: {
+      sql: "observations.level",
+      alias: "status",
+      type: "string",
+      description:
+        "Status of the observation (DEBUG, DEFAULT, WARNING, ERROR).",
+    },
     level: {
       sql: "observations.level",
       alias: "level",
       type: "string",
-      description: "Logging level of the observation.",
+      description: "Status of the observation; compatibility alias for status.",
     },
     version: {
       sql: "observations.version",
@@ -1298,11 +1305,18 @@ export const eventsObservationsView: ViewDeclarationType = {
       type: "string",
       description: "Name of the observation.",
     },
+    status: {
+      sql: "events_observations.level",
+      alias: "status",
+      type: "string",
+      description:
+        "Status of the observation (DEBUG, DEFAULT, WARNING, ERROR).",
+    },
     level: {
       sql: "events_observations.level",
       alias: "level",
       type: "string",
-      description: "Logging level of the observation.",
+      description: "Status of the observation; compatibility alias for status.",
     },
     version: {
       sql: "nullIf(events_observations.version, '')",

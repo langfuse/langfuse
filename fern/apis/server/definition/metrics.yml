@@ -30,7 +30,8 @@ service:
         - `environment` - Deployment environment (e.g., production, staging)
         - `type` - Type of observation (SPAN, GENERATION, EVENT)
         - `name` - Name of the observation
-        - `level` - Logging level of the observation
+        - `status` - Status of the observation
+        - `level` - Compatibility alias for the status dimension
         - `version` - Version of the observation
         - `tags` - User-defined tags
         - `release` - Release version

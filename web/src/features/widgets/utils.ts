@@ -174,7 +174,7 @@ export function buildWidgetName({
   }
 
   if (dimension && dimension !== "none") {
-    base += ` by ${startCase(dimension)}`;
+    base += ` by ${startCase(dimension === "level" ? "status" : dimension)}`;
   }
   base += ` (${startCase(view)})`;
   return base;
@@ -221,13 +221,15 @@ export function buildWidgetDescription({
 
   // Dimension clause
   if (dimension && dimension !== "none") {
-    sentence += ` by ${startCase(dimension).toLowerCase()}`;
+    sentence += ` by ${startCase(dimension === "level" ? "status" : dimension).toLowerCase()}`;
   }
 
   // Filters clause
   if (filters && filters.length > 0) {
     if (filters.length <= 2) {
-      const cols = filters.map((f) => startCase(f.column)).join(" and ");
+      const cols = filters
+        .map((f) => startCase(f.column === "level" ? "status" : f.column))
+        .join(" and ");
       sentence += `, filtered by ${cols}`;
     } else {
       sentence += `, filtered by ${filters.length} conditions`;

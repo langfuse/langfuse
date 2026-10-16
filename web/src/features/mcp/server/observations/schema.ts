@@ -23,7 +23,8 @@ type ObservationMcpFieldDefinition = ObservationMcpFieldMetadata & {
 };
 
 type ObservationMcpField =
-  (typeof OBSERVATION_FIELD_GROUP_FIELD_NAMES)[ObservationFieldGroupPublicApi][number];
+  | (typeof OBSERVATION_FIELD_GROUP_FIELD_NAMES)[ObservationFieldGroupPublicApi][number]
+  | "status";
 
 type ObservationMcpFieldType =
   | "array"
@@ -38,8 +39,13 @@ type ObservationMcpFieldType =
 const EXPENSIVE_FIELD_SCOPE_REQUIREMENT =
   "Requires both fromStartTime and toStartTime with a maximum range of 14 days, even when scoped by traceId or observation id.";
 
+const OBSERVATION_MCP_FIELDS_BY_GROUP = {
+  ...OBSERVATION_FIELD_GROUP_FIELD_NAMES,
+  basic: [...OBSERVATION_FIELD_GROUP_FIELD_NAMES.basic, "status"] as const,
+};
+
 const OBSERVATION_MCP_FIELDS = OBSERVATION_FIELD_GROUPS_PUBLIC_API.flatMap(
-  (group) => OBSERVATION_FIELD_GROUP_FIELD_NAMES[group],
+  (group) => OBSERVATION_MCP_FIELDS_BY_GROUP[group],
 );
 
 const OBSERVATION_MCP_FIELD_SET = new Set<string>(OBSERVATION_MCP_FIELDS);
@@ -63,6 +69,7 @@ const OBSERVATION_MCP_FIELD_METADATA: Record<
   type: { type: "string", default: true },
   name: { type: "string", nullable: true, default: true },
   level: { type: "string", default: true },
+  status: { type: "string", default: true },
   statusMessage: { type: "string", nullable: true, default: true },
   version: { type: "string", nullable: true },
   environment: { type: "string", nullable: true },
@@ -123,7 +130,7 @@ export type { ObservationMcpField };
 
 export const OBSERVATION_MCP_FIELD_DEFINITIONS: ObservationMcpFieldDefinition[] =
   OBSERVATION_FIELD_GROUPS_PUBLIC_API.flatMap((group) =>
-    OBSERVATION_FIELD_GROUP_FIELD_NAMES[group]
+    OBSERVATION_MCP_FIELDS_BY_GROUP[group]
       .filter((field): field is ObservationMcpField =>
         OBSERVATION_MCP_FIELD_SET.has(field),
       )
@@ -196,6 +203,7 @@ export const ExpandMetadataKeysSchema = z
 
 type ObservationMcpFilterColumn =
   | Exclude<ObservationMcpAllowedEventsTableFilterColumn, "traceTags">
+  | "status"
   | "tags";
 
 export type { ObservationMcpFilterColumn };
@@ -229,7 +237,9 @@ export const projectObservation = (
   const projected: Record<string, unknown> = {};
 
   for (const field of fields) {
-    if (field === "providedModelName" && "model" in observation) {
+    if (field === "status" && "level" in observation) {
+      projected[field] = observation.level;
+    } else if (field === "providedModelName" && "model" in observation) {
       projected[field] = observation.model;
     } else if (field in observation) {
       projected[field] = observation[field];

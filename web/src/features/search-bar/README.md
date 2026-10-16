@@ -26,8 +26,11 @@ state remain canonical; both editors update the same state.
 `key:value` filters AND-joined, mirroring exactly what the flat
 `FilterState` contract can express today:
 
-- `level:(ERROR OR WARNING)` any-of, `-env:dev` none-of,
+- `status:(ERROR OR WARNING)` any-of, `-env:dev` none-of,
   `tags:(a AND b)` array all-of
+- `level:` remains an alias for `status:`. Filters keep the stored `level`
+  column id; their displayed query text uses `status:`. Use `statusMessage:`
+  for the separate status-message text field.
 - `latency:>2`, `startTime:>2026-06-01` comparisons
 - text match via positional `*` globs (shown on a textSearch field, where the
   bare form defaults to contains): `statusMessage:*chat*` contains,
@@ -258,8 +261,8 @@ encode/decode round-trip. The flat URL contract (`FilterState` + `searchQuery`
 
 - `searchType` as three separate params) has no slot for the relative position
   of filters vs free text, so on commit the reverse adapter canonicalizes to
-  `<filters> <freetext>`: typing `refund level:ERROR`
-  and pressing Enter re-renders the bar as `level:ERROR refund`. The typed
+  `<filters> <freetext>`: typing `refund status:ERROR`
+  and pressing Enter re-renders the bar as `status:ERROR refund`. The typed
   interleave is preserved only in the recent-searches entry (`planCommit`'s
   `canonical`), not in the live bar.
 
@@ -456,7 +459,7 @@ setters so a commit can change the scope and the phrase together. Views with
    - `allowFreeText` + `defaultTextField` — see "Bare text on a view with no
      full-text lane" below.
    - `searchExamples` — the placeholder, **written per view, never derived from
-     field ids**. The events examples (`level:ERROR`, `latency:>2`) advertised
+     field ids**. The events examples (`status:ERROR`, `latency:>2`) advertised
      fields that do not exist on either of the other two surfaces.
 3. **Reuse the view's `filterOptions` tRPC** for observed values —
    `observed-options.ts` already maps that payload to per-column observed

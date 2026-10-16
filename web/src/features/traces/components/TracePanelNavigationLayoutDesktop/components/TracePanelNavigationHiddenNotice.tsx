@@ -1,11 +1,11 @@
 /* eslint-disable @repo/no-null-render */
 /**
- * HiddenObservationsNotice - Shows notification when observations are filtered by minimum level
+ * HiddenObservationsNotice - Shows notification when observations are filtered by minimum status
  *
  * Displays:
  * - Count of hidden observations
- * - Current minimum observation level
- * - "Show all" link to reset filter to DEBUG level
+ * - Current minimum observation status
+ * - "Show all" link to reset filter to DEBUG status
  *
  * Only renders when hiddenObservationsCount > 0
  * Fixed height component placed below NavigationHeader
@@ -33,7 +33,7 @@ export function TracePanelNavigationHiddenNotice() {
       <span className="text-muted-foreground flex flex-col gap-1 text-xs sm:flex-row">
         <p>
           {hiddenObservationsCount} hidden observations below{" "}
-          {minObservationLevel} level.
+          {minObservationLevel} status.
         </p>
         <p
           className="cursor-pointer underline"

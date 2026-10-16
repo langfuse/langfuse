@@ -165,6 +165,9 @@ types:
       startTime: datetime
       endTime: nullable<datetime>
       level: commons.ObservationLevel
+      status:
+        type: commons.ObservationLevel
+        docs: The observation status. Contains the same value as level.
       environment: string
       experimentId: string
       experimentName: string

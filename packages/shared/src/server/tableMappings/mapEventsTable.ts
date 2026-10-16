@@ -145,7 +145,7 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
   {
     uiTableName: "Status",
     uiTableId: "level",
-    aliases: ["Level"],
+    aliases: ["Level", "status"],
     clickhouseTableName: "events_proto",
     clickhouseSelect: "level",
     queryPrefix: "e",

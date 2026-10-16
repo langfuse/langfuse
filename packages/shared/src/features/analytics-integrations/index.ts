@@ -50,7 +50,7 @@ const EXPORT_FIELD_GROUP_LABELS = {
   basic: {
     label: "Basic",
     description:
-      "name, level, status_message, version, environment, bookmarked, public, user_id, session_id",
+      "name, status, level (compatibility), status_message, version, environment, bookmarked, public, user_id, session_id",
   },
   time: {
     label: "Time",

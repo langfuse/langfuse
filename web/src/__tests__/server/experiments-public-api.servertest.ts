@@ -12,7 +12,10 @@ import {
   makeZodVerifiedAPICall,
 } from "@/src/__tests__/test-utils";
 import { env } from "@/src/env.mjs";
-import { GetExperimentsV1Response } from "@/src/features/public-api/types/experiments";
+import {
+  GetExperimentItemsV1Response,
+  GetExperimentsV1Response,
+} from "@/src/features/public-api/types/experiments";
 
 const getExperiments = (url: string, auth: string) =>
   makeZodVerifiedAPICall(GetExperimentsV1Response, "GET", url, undefined, auth);
@@ -341,6 +344,35 @@ describe("GET /api/public/experiments", () => {
 });
 
 describe("GET /api/public/experiment-items", () => {
+  maybeEventTables("returns status alongside the legacy level", async () => {
+    const { auth, projectId } = await createOrgProjectAndApiKey();
+    const startTimeMs = Date.now();
+    const root = createExperimentRootEvent({
+      projectId,
+      experimentId: `exp-${randomUUID()}`,
+      startTimeMs,
+    });
+
+    await createEventsCh([{ ...root, level: "ERROR" }]);
+
+    const response = await makeZodVerifiedAPICall(
+      GetExperimentItemsV1Response,
+      "GET",
+      `/api/public/experiment-items?fromStartTime=${encodeURIComponent(new Date(startTimeMs - 1_000).toISOString())}`,
+      undefined,
+      auth,
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body.data).toEqual([
+      expect.objectContaining({
+        id: root.span_id,
+        level: "ERROR",
+        status: "ERROR",
+      }),
+    ]);
+  });
+
   maybeLegacyMode("is unavailable when v4 preview is disabled", async () => {
     const { auth } = await createOrgProjectAndApiKey();
     const fromStartTime = encodeURIComponent(new Date().toISOString());

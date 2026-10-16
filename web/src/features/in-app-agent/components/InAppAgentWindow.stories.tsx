@@ -886,7 +886,7 @@ export const Conversation = meta.story({
             "- Evaluate outputs with scores",
             "- Monitor production quality over time",
             "",
-            "1. Filter for `level = ERROR`.",
+            "1. Filter for `status = ERROR`.",
             "2. Open the slowest trace.",
             "3. Compare model settings and prompt versions.",
             "",

@@ -2957,7 +2957,9 @@ paths:
 
         - `name` - Name of the observation
 
-        - `level` - Logging level of the observation
+        - `status` - Status of the observation
+
+        - `level` - Compatibility alias for the status dimension
 
         - `version` - Version of the observation
 
@@ -3522,7 +3524,7 @@ paths:
         - `core` - Always included: id, traceId, startTime, endTime, projectId,
         parentObservationId, type
 
-        - `basic` - name, level, statusMessage, version, environment,
+        - `basic` - name, status, level, statusMessage, version, environment,
         bookmarked, public, userId, sessionId, isRootObservation
 
         - `time` - completionStartTime, createdAt, updatedAt
@@ -3647,8 +3649,18 @@ paths:
         - name: level
           in: query
           description: >-
-            Optional filter for observations with a specific level (e.g.
-            "DEBUG", "DEFAULT", "WARNING", "ERROR").
+            Compatibility alias for the status filter. When both are provided,
+            status takes precedence.
+          required: false
+          schema:
+            $ref: '#/components/schemas/ObservationLevel'
+            nullable: true
+        - name: status
+          in: query
+          description: >-
+            Optional filter for observations with a specific status (DEBUG,
+            DEFAULT, WARNING, ERROR). Takes precedence over level when both are
+            provided.
           required: false
           schema:
             $ref: '#/components/schemas/ObservationLevel'
@@ -3722,7 +3734,7 @@ paths:
           description: >-
             JSON string containing an array of filter conditions. When provided,
             this takes precedence over query parameter filters (userId, name,
-            type, level, environment, fromStartTime, ...).
+            type, status, level, environment, fromStartTime, ...).
 
 
             ## Filter Structure
@@ -3773,7 +3785,10 @@ paths:
 
             - `environment` (string) - Environment tag
 
-            - `level` (string) - Log level (DEBUG, DEFAULT, WARNING, ERROR)
+            - `status` (string) - Observation status (DEBUG, DEFAULT, WARNING,
+            ERROR)
+
+            - `level` (string) - Compatibility alias for status
 
             - `statusMessage` (string) - Status message
 
@@ -8243,7 +8258,11 @@ components:
         level:
           $ref: '#/components/schemas/ObservationLevel'
           nullable: true
-          description: The level of the observation
+          description: Compatibility alias for status. Contains the same value as status.
+        status:
+          $ref: '#/components/schemas/ObservationLevel'
+          nullable: true
+          description: The status of the observation (DEBUG, DEFAULT, WARNING, ERROR).
         statusMessage:
           type: string
           nullable: true
@@ -10430,8 +10449,10 @@ components:
 
         - `environment`: `stringOptions`
 
-        - `level`: `stringOptions`, values `DEBUG`, `DEFAULT`, `WARNING`,
+        - `status`: `stringOptions`, values `DEBUG`, `DEFAULT`, `WARNING`,
         `ERROR`
+
+        - `level`: compatibility alias for `status`
 
         - `version`: `string`
 
@@ -11570,6 +11591,9 @@ components:
           nullable: true
         level:
           $ref: '#/components/schemas/ObservationLevel'
+        status:
+          $ref: '#/components/schemas/ObservationLevel'
+          description: The observation status. Contains the same value as level.
         environment:
           type: string
         experimentId:
@@ -11630,6 +11654,7 @@ components:
         - startTime
         - endTime
         - level
+        - status
         - environment
         - experimentId
         - experimentName

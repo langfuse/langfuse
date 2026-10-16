@@ -453,7 +453,11 @@ export function WidgetForm({
   const availableDimensions = useMemo(() => {
     const viewDeclaration = viewDeclarations[viewVersion][selectedView];
     return Object.entries(viewDeclaration.dimensions)
-      .filter(([_, dim]) => !dim.uiHidden)
+      .filter(
+        ([key, dim]) =>
+          !dim.uiHidden &&
+          !(key === "level" && "status" in viewDeclaration.dimensions),
+      )
       .map(([key]) => ({ value: key, label: startCase(key) }))
       .sort((a, b) =>
         a.label.localeCompare(b.label, "en", { sensitivity: "base" }),
@@ -1587,11 +1591,15 @@ function BreakdownSelect({
   // Owns the entire `dimensions` slice; a non-pivot chart carries at most one.
   const { field } = useController({ control, name: "dimensions" });
   const value = field.value[0]?.field ?? "none";
+  const selectedValue =
+    value === "level" && availableDimensions.some((d) => d.value === "status")
+      ? "status"
+      : value;
   return (
     <div className="space-y-2">
       <Label htmlFor="dimension-select">Breakdown Dimension (Optional)</Label>
       <Select
-        value={value}
+        value={selectedValue}
         onValueChange={(next) =>
           field.onChange(next === "none" ? [] : [{ field: next }])
         }
@@ -1645,6 +1653,12 @@ function PivotDimensionsField({
 }) {
   const { field } = useController({ control, name: "dimensions" });
   const pivotDimensions = field.value.map((d) => d.field);
+  const displayDimensions = pivotDimensions.map((dimension) =>
+    dimension === "level" &&
+    availableDimensions.some((d) => d.value === "status")
+      ? "status"
+      : dimension,
+  );
 
   const updateDimension = (index: number, value: string) => {
     const next = [...pivotDimensions];
@@ -1668,8 +1682,8 @@ function PivotDimensionsField({
 
       {Array.from({ length: MAX_PIVOT_TABLE_DIMENSIONS }, (_, index) => {
         const isEnabled = index === 0 || Boolean(pivotDimensions[index - 1]);
-        const selectedDimensions = pivotDimensions.slice(0, index);
-        const currentValue = pivotDimensions[index] || "";
+        const selectedDimensions = displayDimensions.slice(0, index);
+        const currentValue = displayDimensions[index] || "";
 
         return (
           <div key={index} className="space-y-2">

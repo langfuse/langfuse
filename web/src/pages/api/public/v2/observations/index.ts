@@ -9,6 +9,7 @@ import {
   GetObservationsV2Query,
   GetObservationsV2Response,
   encodeCursor,
+  transformDbToApiObservationV2,
 } from "@/src/features/public-api/types/observations";
 import { clampToDataAccessDays } from "@/src/features/entitlements/server";
 export default withMiddlewares({
@@ -61,7 +62,7 @@ export default withMiddlewares({
         traceId: query.traceId ?? undefined,
         userId: query.userId ?? undefined,
         sessionId: query.sessionId ?? undefined,
-        level: query.level ?? undefined,
+        level: query.status ?? query.level ?? undefined,
         name: query.name ?? undefined,
         type: query.type ?? undefined,
         environment: query.environment ?? undefined,
@@ -87,15 +88,7 @@ export default withMiddlewares({
       // Normalize for the wire format:
       // - empty parent_observation_id -> null (v1 parity)
       // - Decimal price fields -> string (preserves original v2 wire format; v1 emits numbers via .toNumber())
-      const transformedItems = dataToReturn.map((item) => ({
-        ...item,
-        parentObservationId:
-          item.parentObservationId === "" ? null : item.parentObservationId,
-        modelId: item.modelId ?? null,
-        inputPrice: item.inputPrice?.toString() ?? null,
-        outputPrice: item.outputPrice?.toString() ?? null,
-        totalPrice: item.totalPrice?.toString() ?? null,
-      }));
+      const transformedItems = dataToReturn.map(transformDbToApiObservationV2);
 
       // Generate cursor if there are more results
       const lastItemIdx = dataToReturn.length - 1;

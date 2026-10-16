@@ -17,6 +17,15 @@ export const idSchema = z
 
 const ObservationLevel = z.enum(["DEBUG", "DEFAULT", "WARNING", "ERROR"]);
 
+const normalizeObservationStatus = <
+  T extends {
+    level?: z.infer<typeof ObservationLevel> | null;
+    status?: z.infer<typeof ObservationLevel> | null;
+  },
+>(
+  body: T,
+): T => (body.status == null ? body : { ...body, level: body.status });
+
 export const Usage = z.object({
   input: z.number().int().nullish(),
   output: z.number().int().nullish(),
@@ -339,108 +348,123 @@ export const eventTypes = {
 } as const;
 
 // LEGACY, only required for backwards compatibility
-export const LegacySpanPostSchema = z.object({
-  id: idSchema.nullish(),
-  traceId: idSchema.nullish(),
-  name: z.string().nullish(),
-  startTime: stringDateTime,
-  endTime: stringDateTime,
-  metadata: jsonSchema.nullish(),
-  input: jsonSchema.nullish(),
-  output: jsonSchema.nullish(),
-  parentObservationId: z.string().nullish(),
-  level: ObservationLevel.nullish(),
-  statusMessage: z.string().nullish(),
-  version: z.string().nullish(),
-});
+export const LegacySpanPostSchema = z
+  .object({
+    id: idSchema.nullish(),
+    traceId: idSchema.nullish(),
+    name: z.string().nullish(),
+    startTime: stringDateTime,
+    endTime: stringDateTime,
+    metadata: jsonSchema.nullish(),
+    input: jsonSchema.nullish(),
+    output: jsonSchema.nullish(),
+    parentObservationId: z.string().nullish(),
+    level: ObservationLevel.nullish(),
+    status: ObservationLevel.nullish(),
+    statusMessage: z.string().nullish(),
+    version: z.string().nullish(),
+  })
+  .transform(normalizeObservationStatus);
 
-export const LegacySpanPatchSchema = z.object({
-  spanId: idSchema,
-  traceId: idSchema.nullish(),
-  name: z.string().nullish(),
-  startTime: stringDateTime,
-  endTime: stringDateTime,
-  metadata: jsonSchema.nullish(),
-  input: jsonSchema.nullish(),
-  output: jsonSchema.nullish(),
-  level: ObservationLevel.nullish(),
-  statusMessage: z.string().nullish(),
-  version: z.string().nullish(),
-});
+export const LegacySpanPatchSchema = z
+  .object({
+    spanId: idSchema,
+    traceId: idSchema.nullish(),
+    name: z.string().nullish(),
+    startTime: stringDateTime,
+    endTime: stringDateTime,
+    metadata: jsonSchema.nullish(),
+    input: jsonSchema.nullish(),
+    output: jsonSchema.nullish(),
+    level: ObservationLevel.nullish(),
+    status: ObservationLevel.nullish(),
+    statusMessage: z.string().nullish(),
+    version: z.string().nullish(),
+  })
+  .transform(normalizeObservationStatus);
 
-export const LegacyGenerationsCreateSchema = z.object({
-  id: idSchema.nullish(),
-  traceId: idSchema.nullish(),
-  name: z.string().nullish(),
-  startTime: stringDateTime,
-  endTime: stringDateTime,
-  completionStartTime: stringDateTime,
-  model: z.string().nullish(),
-  modelParameters: z
-    .record(
-      z.string(),
-      z.union([z.string(), z.number(), z.boolean()]).nullish(),
-    )
-    .nullish(),
-  prompt: jsonSchema.nullish(),
-  completion: jsonSchema.nullish(),
-  usage: usage,
-  metadata: jsonSchema.nullish(),
-  parentObservationId: z.string().nullish(),
-  level: ObservationLevel.nullish(),
-  statusMessage: z.string().nullish(),
-  version: z.string().nullish(),
-});
+export const LegacyGenerationsCreateSchema = z
+  .object({
+    id: idSchema.nullish(),
+    traceId: idSchema.nullish(),
+    name: z.string().nullish(),
+    startTime: stringDateTime,
+    endTime: stringDateTime,
+    completionStartTime: stringDateTime,
+    model: z.string().nullish(),
+    modelParameters: z
+      .record(
+        z.string(),
+        z.union([z.string(), z.number(), z.boolean()]).nullish(),
+      )
+      .nullish(),
+    prompt: jsonSchema.nullish(),
+    completion: jsonSchema.nullish(),
+    usage: usage,
+    metadata: jsonSchema.nullish(),
+    parentObservationId: z.string().nullish(),
+    level: ObservationLevel.nullish(),
+    status: ObservationLevel.nullish(),
+    statusMessage: z.string().nullish(),
+    version: z.string().nullish(),
+  })
+  .transform(normalizeObservationStatus);
 
-export const LegacyGenerationPatchSchema = z.object({
-  generationId: idSchema,
-  traceId: idSchema.nullish(),
-  name: z.string().nullish(),
-  startTime: stringDateTime,
-  endTime: stringDateTime,
-  completionStartTime: stringDateTime,
-  model: z.string().nullish(),
-  modelParameters: z
-    .record(
-      z.string(),
-      z.union([z.string(), z.number(), z.boolean()]).nullish(),
-    )
-    .nullish(),
-  prompt: jsonSchema.nullish(),
-  completion: jsonSchema.nullish(),
-  usage: usage,
-  metadata: jsonSchema.nullish(),
-  level: ObservationLevel.nullish(),
-  statusMessage: z.string().nullish(),
-  version: z.string().nullish(),
-});
+export const LegacyGenerationPatchSchema = z
+  .object({
+    generationId: idSchema,
+    traceId: idSchema.nullish(),
+    name: z.string().nullish(),
+    startTime: stringDateTime,
+    endTime: stringDateTime,
+    completionStartTime: stringDateTime,
+    model: z.string().nullish(),
+    modelParameters: z
+      .record(
+        z.string(),
+        z.union([z.string(), z.number(), z.boolean()]).nullish(),
+      )
+      .nullish(),
+    prompt: jsonSchema.nullish(),
+    completion: jsonSchema.nullish(),
+    usage: usage,
+    metadata: jsonSchema.nullish(),
+    level: ObservationLevel.nullish(),
+    status: ObservationLevel.nullish(),
+    statusMessage: z.string().nullish(),
+    version: z.string().nullish(),
+  })
+  .transform(normalizeObservationStatus);
 
-export const LegacyObservationBody = z.object({
-  id: idSchema.nullish(),
-  traceId: idSchema.nullish(),
-  type: z.enum(["GENERATION", "SPAN", "EVENT"]),
-  name: z.string().nullish(),
-  startTime: stringDateTime,
-  endTime: stringDateTime,
-  completionStartTime: stringDateTime,
-  model: z.string().nullish(),
-  modelParameters: z
-    .record(
-      z.string(),
-      z.union([z.string(), z.number(), z.boolean()]).nullish(),
-    )
-    .nullish(),
-  input: jsonSchema.nullish(),
-  output: jsonSchema.nullish(),
-  usage: usage,
-  usageDetails: UsageDetails,
-  costDetails: CostDetails,
-  metadata: jsonSchema.nullish(),
-  parentObservationId: z.string().nullish(),
-  level: ObservationLevel.nullish(),
-  statusMessage: z.string().nullish(),
-  version: z.string().nullish(),
-});
+export const LegacyObservationBody = z
+  .object({
+    id: idSchema.nullish(),
+    traceId: idSchema.nullish(),
+    type: z.enum(["GENERATION", "SPAN", "EVENT"]),
+    name: z.string().nullish(),
+    startTime: stringDateTime,
+    endTime: stringDateTime,
+    completionStartTime: stringDateTime,
+    model: z.string().nullish(),
+    modelParameters: z
+      .record(
+        z.string(),
+        z.union([z.string(), z.number(), z.boolean()]).nullish(),
+      )
+      .nullish(),
+    input: jsonSchema.nullish(),
+    output: jsonSchema.nullish(),
+    usage: usage,
+    usageDetails: UsageDetails,
+    costDetails: CostDetails,
+    metadata: jsonSchema.nullish(),
+    parentObservationId: z.string().nullish(),
+    level: ObservationLevel.nullish(),
+    status: ObservationLevel.nullish(),
+    statusMessage: z.string().nullish(),
+    version: z.string().nullish(),
+  })
+  .transform(normalizeObservationStatus);
 
 export const SdkLogEvent = z.object({
   log: jsonSchema,
@@ -488,6 +512,7 @@ const createAllIngestionSchemas = ({
     input: z.any().nullish(),
     output: z.any().nullish(),
     level: ObservationLevel.nullish(),
+    status: ObservationLevel.nullish(),
     statusMessage: z.string().nullish(),
     parentObservationId: z.string().nullish(),
     version: z.string().nullish(),
@@ -667,62 +692,62 @@ const createAllIngestionSchemas = ({
 
   const eventCreateEvent = base.extend({
     type: z.literal(eventTypes.EVENT_CREATE),
-    body: CreateEventEvent,
+    body: CreateEventEvent.transform(normalizeObservationStatus),
   });
 
   const spanCreateEvent = base.extend({
     type: z.literal(eventTypes.SPAN_CREATE),
-    body: CreateSpanBody,
+    body: CreateSpanBody.transform(normalizeObservationStatus),
   });
 
   const spanUpdateEvent = base.extend({
     type: z.literal(eventTypes.SPAN_UPDATE),
-    body: UpdateSpanBody,
+    body: UpdateSpanBody.transform(normalizeObservationStatus),
   });
 
   const generationCreateEvent = base.extend({
     type: z.literal(eventTypes.GENERATION_CREATE),
-    body: CreateGenerationBody,
+    body: CreateGenerationBody.transform(normalizeObservationStatus),
   });
 
   const generationUpdateEvent = base.extend({
     type: z.literal(eventTypes.GENERATION_UPDATE),
-    body: UpdateGenerationBody,
+    body: UpdateGenerationBody.transform(normalizeObservationStatus),
   });
 
   const agentCreateEvent = base.extend({
     type: z.literal(eventTypes.AGENT_CREATE),
-    body: CreateGenerationBody,
+    body: CreateGenerationBody.transform(normalizeObservationStatus),
   });
 
   const toolCreateEvent = base.extend({
     type: z.literal(eventTypes.TOOL_CREATE),
-    body: CreateGenerationBody,
+    body: CreateGenerationBody.transform(normalizeObservationStatus),
   });
 
   const chainCreateEvent = base.extend({
     type: z.literal(eventTypes.CHAIN_CREATE),
-    body: CreateGenerationBody,
+    body: CreateGenerationBody.transform(normalizeObservationStatus),
   });
 
   const retrieverCreateEvent = base.extend({
     type: z.literal(eventTypes.RETRIEVER_CREATE),
-    body: CreateGenerationBody,
+    body: CreateGenerationBody.transform(normalizeObservationStatus),
   });
 
   const evaluatorCreateEvent = base.extend({
     type: z.literal(eventTypes.EVALUATOR_CREATE),
-    body: CreateGenerationBody,
+    body: CreateGenerationBody.transform(normalizeObservationStatus),
   });
 
   const embeddingCreateEvent = base.extend({
     type: z.literal(eventTypes.EMBEDDING_CREATE),
-    body: CreateGenerationBody,
+    body: CreateGenerationBody.transform(normalizeObservationStatus),
   });
 
   const guardrailCreateEvent = base.extend({
     type: z.literal(eventTypes.GUARDRAIL_CREATE),
-    body: CreateGenerationBody,
+    body: CreateGenerationBody.transform(normalizeObservationStatus),
   });
 
   const scoreEvent = base.extend({
@@ -781,13 +806,19 @@ const createAllIngestionSchemas = ({
   return {
     // Body schemas
     TraceBody,
-    OptionalObservationBody,
-    CreateEventEvent,
-    UpdateEventEvent,
-    CreateSpanBody,
-    UpdateSpanBody,
-    CreateGenerationBody,
-    UpdateGenerationBody,
+    OptionalObservationBody: OptionalObservationBody.transform(
+      normalizeObservationStatus,
+    ),
+    CreateEventEvent: CreateEventEvent.transform(normalizeObservationStatus),
+    UpdateEventEvent: UpdateEventEvent.transform(normalizeObservationStatus),
+    CreateSpanBody: CreateSpanBody.transform(normalizeObservationStatus),
+    UpdateSpanBody: UpdateSpanBody.transform(normalizeObservationStatus),
+    CreateGenerationBody: CreateGenerationBody.transform(
+      normalizeObservationStatus,
+    ),
+    UpdateGenerationBody: UpdateGenerationBody.transform(
+      normalizeObservationStatus,
+    ),
     BaseScoreBody,
     ScoreBody,
     // Event schemas

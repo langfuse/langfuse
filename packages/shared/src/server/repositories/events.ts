@@ -3423,6 +3423,10 @@ const buildEventsForBlobStorageExportQuery = (
     }
   }
 
+  if (effectiveGroups.includes("basic")) {
+    queryBuilder.selectRaw("e.level as status");
+  }
+
   queryBuilder
     .whereRaw(
       "e.start_time >= {minTimestamp: DateTime64(3)} AND e.start_time < {maxTimestamp: DateTime64(3)}",
@@ -3589,6 +3593,7 @@ export const getEventsForAnalyticsIntegrations = async function* (
       langfuse_version: record.version,
       langfuse_model: record.provided_model_name,
       langfuse_level: record.level,
+      langfuse_status: record.level,
       langfuse_type: record.type,
       langfuse_tags: record.tags,
       langfuse_environment: record.environment,
