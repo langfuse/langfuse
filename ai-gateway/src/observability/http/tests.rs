@@ -299,6 +299,74 @@ async fn failed_responses_name_their_origin_on_the_server_span() {
     }
 }
 
+/// Token counting captures no generation, yet a body that breaks after the
+/// headers must still fail the server span.
+#[tokio::test]
+async fn late_body_failures_fail_the_server_span_without_a_generation() {
+    let web = FakeServer::start(|_| async {
+        crate::test_support::resolution_response_for(
+            crate::resolution::ApiFormat::AnthropicMessages,
+            "provider-secret",
+        )
+    })
+    .await;
+    let provider = FakeServer::start(|_| async {
+        let chunks = futures_util::StreamExt::chain(
+            futures_util::stream::iter([Ok::<_, io::Error>(Bytes::from_static(
+                b"{\"input_tokens\"",
+            ))]),
+            futures_util::stream::once(async {
+                tokio::time::sleep(Duration::from_millis(50)).await;
+                Err(io::Error::other("provider reset"))
+            }),
+        );
+        Response::new(Body::from_stream(chunks))
+    })
+    .await;
+    let service = InferenceService::for_test(
+        web.control_plane(),
+        ProviderTransport::for_test(provider.url.clone(), ProviderLimits::default()),
+        1,
+    );
+    let recording = Recording::start();
+    let lifecycle = GatewayLifecycleState::default();
+    let app = instrument(crate::http::router(Some(service), lifecycle.clone()));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let mut serving = Box::pin(crate::server::serve(
+        listener,
+        app.clone(),
+        lifecycle,
+        std::future::pending(),
+        Duration::from_secs(1),
+    ));
+    assert!(futures_util::poll!(serving.as_mut()).is_pending());
+    let request = HttpRequest::post("/anthropic/v1/messages/count_tokens")
+        .header("x-api-key", "gateway-secret")
+        .header("content-type", "application/json")
+        .body(Body::from(
+            r#"{"model":"Production key:test-model","messages":[]}"#,
+        ))
+        .unwrap();
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), 200);
+    assert!(
+        axum::body::to_bytes(response.into_body(), 4096)
+            .await
+            .is_err()
+    );
+    let spans = recording.exporter.get_finished_spans().unwrap();
+    let server = spans
+        .iter()
+        .find(|span| span.span_kind == SpanKind::Server)
+        .unwrap();
+    assert_attribute(server, "error.origin", "provider_transport");
+    assert_attribute(server, "error.type", "transport_error");
+    assert!(matches!(
+        server.status,
+        opentelemetry::trace::Status::Error { .. }
+    ));
+}
+
 #[tokio::test]
 async fn generation_context_is_isolated_from_operational_spans_and_outbound_headers() {
     opentelemetry::global::set_text_map_propagator(

@@ -223,14 +223,24 @@ pub(crate) fn execution_finished(facts: &InferenceFacts) {
     let context_span = context.span();
     let ids = context_span.span_context();
     tracing::info!(trace_id = %ids.trace_id(), span_id = %ids.span_id(), outcome, duration_ms = facts.duration_ms, "gateway execution finished");
-    if facts.outcome.is_failure() {
-        let span = tracing::Span::current();
-        span.record("otel.status_code", "ERROR");
-        span.record("otel.status_description", outcome);
-        span.record("error.type", outcome);
-        span.record("error.origin", ErrorOrigin::ProviderTransport.as_str());
-        tracing::warn!(trace_id = %ids.trace_id(), span_id = %ids.span_id(), phase = "provider", outcome, error.origin = ErrorOrigin::ProviderTransport.as_str(), "gateway stream failed");
+}
+
+/// Marks the server span failed when the provider body breaks after headers were
+/// sent. Runs for every route, including those that capture no generation.
+pub(crate) fn execution_failed(outcome: RelayOutcome) {
+    if !outcome.is_failure() {
+        return;
     }
+    let outcome = outcome.as_str();
+    let span = tracing::Span::current();
+    span.record("otel.status_code", "ERROR");
+    span.record("otel.status_description", outcome);
+    span.record("error.type", outcome);
+    span.record("error.origin", ErrorOrigin::ProviderTransport.as_str());
+    let context = span.context();
+    let context_span = context.span();
+    let ids = context_span.span_context();
+    tracing::warn!(trace_id = %ids.trace_id(), span_id = %ids.span_id(), phase = "provider", outcome, error.origin = ErrorOrigin::ProviderTransport.as_str(), "gateway stream failed");
 }
 
 /// Keeps the admission callbacks registered for the life of the meter provider.

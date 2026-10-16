@@ -233,6 +233,7 @@ impl ExecutionCapture {
     pub(crate) fn finish(&mut self, outcome: RelayOutcome) {
         let span = self.span.clone();
         let _entered = span.enter();
+        crate::observability::execution_failed(outcome);
         let Some(protocol) = self.protocol.take() else {
             return;
         };
