@@ -80,6 +80,44 @@ const meta = preview.meta({
 
 export const Default = meta.story({});
 
+export const LongTopicNames = meta.story({
+  args: {
+    facet: {
+      ...facet,
+      topics: [
+        { ...topic, name: "Unresolved issue handling failures" },
+        {
+          ...topic,
+          id: "results",
+          name: "Unsupported or incomplete final task results",
+        },
+      ],
+      rows: [
+        {
+          ...rows[0],
+          topicName: "Unresolved issue handling failures",
+          summary:
+            "The troubleshooting step claimed success without verifying that sending messages worked.",
+        },
+        {
+          ...rows[1],
+          topicId: "results",
+          topicName: "Unsupported or incomplete final task results",
+          outcome: "assigned",
+        },
+        { ...rows[2], topicId: null, topicName: null, outcome: "outlier" },
+        {
+          ...rows[3],
+          topicId: null,
+          topicName: null,
+          outcome: "insufficient_input",
+          summary: "",
+        },
+      ],
+    },
+  },
+});
+
 export const FilteringResetsPagination = meta.story({
   name: "(Test) Filtering Resets Pagination and Shares Map Matches",
   play: async ({ canvasElement }) => {

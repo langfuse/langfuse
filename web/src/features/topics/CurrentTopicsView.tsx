@@ -315,7 +315,7 @@ function CurrentTraceTable({
           });
         }
         return (
-          <div className="flex flex-col items-start gap-1 py-1">
+          <div className="flex flex-col items-start gap-1">
             {isMobile && (
               <div className="flex w-full min-w-0 items-center justify-between gap-2">
                 <div className="min-w-0">
@@ -373,7 +373,7 @@ function CurrentTraceTable({
         }}
         topAlignCells
         className="min-h-0 overscroll-contain"
-        cellPadding="compact"
+        cellPadding="comfortable"
         noResultsMessage="No matches. Adjust or clear your filters."
         peekView={peekView}
       />
