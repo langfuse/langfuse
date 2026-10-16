@@ -31,6 +31,9 @@ export const OpensPersonalPreviews = meta.story({
   },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
+    await expect(
+      canvas.getByText(/New members inherit these defaults automatically/),
+    ).toBeInTheDocument();
     await userEvent.click(
       canvas.getByRole("button", {
         name: "Enable feature previews for only you here",
