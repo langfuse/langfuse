@@ -30,7 +30,7 @@ const THREE_DAYS_AGO = Date.now() - 72 * HOUR;
 
 /** Ledger id of an observation: span ids are only unique within a trace. */
 const observationEventId = (traceId: string, spanId: string) =>
-  `${traceId.length}:${traceId}${spanId}`;
+  `${traceId.length}:${traceId}:${spanId}`;
 
 const getBillableRows = (projectId: string) =>
   queryClickhouse<{
