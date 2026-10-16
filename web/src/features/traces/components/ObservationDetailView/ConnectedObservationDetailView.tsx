@@ -353,7 +353,11 @@ export function ConnectedObservationDetailView({
   };
   const observationVisualizations =
     activeVisualizations.data?.filter(({ definition }) =>
-      matchesObservationVisualization(definition, visualizationObservation),
+      matchesObservationVisualization(
+        definition,
+        visualizationObservation,
+        "TRACE",
+      ),
     ) ?? [];
   const selectedCustomUi =
     observationVisualizations.find(
@@ -561,6 +565,7 @@ export function ConnectedObservationDetailView({
                         data={buildObservationVisualizationData(
                           selectedCustomUi.definition,
                           visualizationObservation,
+                          "TRACE",
                         )}
                       />
                     </section>

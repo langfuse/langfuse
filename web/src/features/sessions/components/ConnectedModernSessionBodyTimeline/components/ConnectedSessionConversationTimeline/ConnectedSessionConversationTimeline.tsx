@@ -50,7 +50,11 @@ export function ConnectedSessionConversationTimeline(
           result?.state === "loaded" &&
           (result.visualizationObservations ?? []).some((observation) =>
             props.visualizations.some(({ definition }) =>
-              matchesObservationVisualization(definition, observation),
+              matchesObservationVisualization(
+                definition,
+                observation,
+                "SESSION",
+              ),
             ),
           );
         const state = (() => {

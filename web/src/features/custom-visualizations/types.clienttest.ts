@@ -70,4 +70,13 @@ describe("Custom UI definition contract", () => {
       }).success,
     ).toBe(false);
   });
+
+  it("requires at least one destination for observation Custom UI", () => {
+    expect(
+      VisualizationDefinitionSchema.safeParse({
+        ...TOOL_STARTER,
+        placement: { ...TOOL_STARTER.placement, destinations: [] },
+      }).success,
+    ).toBe(false);
+  });
 });

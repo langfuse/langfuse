@@ -176,9 +176,11 @@ const matchesFilter = (
 export const matchesObservationVisualization = (
   definition: VisualizationDefinition,
   observation: ObservationVisualizationTarget,
+  surface: "SESSION" | "TRACE",
 ) => {
   if (definition.match.entity !== "OBSERVATION") return false;
   if (definition.placement.surface !== "SESSION") return false;
+  if (!definition.placement.destinations.includes(surface)) return false;
   if (
     definition.binding.source !== "OBSERVATION_INPUT" &&
     definition.binding.source !== "OBSERVATION_OUTPUT"
@@ -215,6 +217,7 @@ export const matchesTraceVisualization = (
 export const buildObservationVisualizationData = (
   definition: VisualizationDefinition,
   observation: ObservationVisualizationTarget,
+  surface: "SESSION" | "TRACE",
 ): VisualizationDataEnvelope => {
   const sourceValue =
     definition.binding.source === "OBSERVATION_INPUT"
@@ -228,7 +231,7 @@ export const buildObservationVisualizationData = (
       selectedValue: resolvePath(sourceValue, definition.binding.jsonPath),
     },
     meta: {
-      surface: "SESSION",
+      surface,
       source: definition.binding.source,
     },
     scores: [],

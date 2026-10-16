@@ -29,6 +29,11 @@ const PlacementSchema = z.discriminatedUnion("surface", [
   z.object({
     surface: z.literal("SESSION"),
     slot: z.enum(["OBSERVATION_INPUT", "OBSERVATION_OUTPUT"]),
+    destinations: z
+      .array(z.enum(["SESSION", "TRACE"]))
+      .min(1)
+      .max(2)
+      .default(["SESSION", "TRACE"]),
     injection: z.literal("AFTER"),
     anchor: z.object({
       observationType: z.string().max(40).optional(),
@@ -264,6 +269,7 @@ export const TOOL_STARTER: VisualizationDefinition =
     placement: {
       surface: "SESSION",
       slot: "OBSERVATION_OUTPUT",
+      destinations: ["SESSION", "TRACE"],
       injection: "AFTER",
       anchor: { observationType: "TOOL" },
     },

@@ -71,7 +71,7 @@ export function SessionTranscriptContent({
       observation.id !== undefined &&
       !anchoredObservationIds.has(observation.id) &&
       visualizations.some(({ definition }) =>
-        matchesObservationVisualization(definition, observation),
+        matchesObservationVisualization(definition, observation, "SESSION"),
       ),
   );
   const rendersUnanchoredVisualizations =
@@ -250,7 +250,7 @@ function renderSessionObservationVisualizations({
 }) {
   if (!observation) return null;
   const matches = visualizations.filter(({ definition }) =>
-    matchesObservationVisualization(definition, observation),
+    matchesObservationVisualization(definition, observation, "SESSION"),
   );
   if (matches.length === 0) return null;
   return (
@@ -287,6 +287,7 @@ function SessionObservationCustomUi({
         data={buildObservationVisualizationData(
           selected.definition,
           observation,
+          "SESSION",
         )}
         deferUntilVisible
       />

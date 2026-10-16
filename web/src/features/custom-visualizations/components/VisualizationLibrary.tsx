@@ -41,13 +41,18 @@ const audienceLabel = (definition: VisualizationDefinition) => {
 
 const placementLabel = (definition: VisualizationDefinition) => {
   if (definition.placement.surface === "TRACE") return "Trace · custom tab";
+  const destinations = definition.placement.destinations
+    .map((destination) =>
+      destination === "SESSION" ? "Session" : "Trace detail",
+    )
+    .join(" + ");
   if (definition.binding.source === "OBSERVATION_INPUT") {
-    return "Session · after input";
+    return `${destinations} · after input`;
   }
   if (definition.binding.source === "OBSERVATION_OUTPUT") {
-    return "Session · after output";
+    return `${destinations} · after output`;
   }
-  return "Session · transcript";
+  return destinations;
 };
 
 function VisualizationCard({

@@ -2,6 +2,7 @@ import { agentGraphScenario } from "./agent-graph";
 import { agentTimelineScenario } from "./agent-timeline";
 import { annotationQueueScenario } from "./annotation-queue";
 import { customModelsScenario } from "./custom-models";
+import { customUiDemoScenario } from "./custom-ui-demo";
 import { deepChainScenario } from "./deep-chain";
 import { evaluatorGalleryScenario } from "./evaluator-gallery";
 import { experimentIoScenario } from "./experiment-io";
@@ -37,6 +38,7 @@ export const scenarios: Record<string, ScenarioDefinition> = {
   "session-variety": sessionVarietyScenario,
   "annotation-queue": annotationQueueScenario,
   "custom-models": customModelsScenario,
+  "custom-ui-demo": customUiDemoScenario,
   "support-agent": supportAgentScenario,
   "incident-session": incidentSessionScenario,
   "timeline-annotated": timelineAnnotatedScenario,

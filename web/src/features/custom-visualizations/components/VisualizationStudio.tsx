@@ -25,6 +25,7 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { Accordion } from "@/src/components/design-system/Accordion/Accordion";
+import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { VisualizationFilterTokens } from "./VisualizationFilterTokens";
@@ -113,6 +114,7 @@ const initialDefinition = (
       placement: {
         surface: "SESSION",
         slot: "OBSERVATION_OUTPUT",
+        destinations: ["SESSION", "TRACE"],
         injection: "AFTER",
         anchor: {},
       },
@@ -137,6 +139,7 @@ const initialDefinition = (
     placement: {
       surface: "SESSION",
       slot: field === "input" ? "OBSERVATION_INPUT" : "OBSERVATION_OUTPUT",
+      destinations: ["SESSION", "TRACE"],
       injection: "AFTER",
       anchor: { observationName, observationType },
     },
@@ -148,9 +151,9 @@ const initialDefinition = (
 
 const bindingLabel = (source: VisualizationDefinition["binding"]["source"]) => {
   if (source === "TRACE") return "Trace data view";
-  if (source === "OBSERVATION_INPUT") return "Session · after input";
-  if (source === "OBSERVATION_OUTPUT") return "Session · after output";
-  return "Session";
+  if (source === "OBSERVATION_INPUT") return "Observation input";
+  if (source === "OBSERVATION_OUTPUT") return "Observation output";
+  return "Observation";
 };
 
 const withMatchFilters = (
@@ -307,7 +310,7 @@ function TraceDataPreview({
   }
 
   return (
-    <div className="ph-no-capture min-h-[360px] overflow-auto">
+    <div className="ph-no-capture min-h-[360px] overflow-auto p-4">
       <IOPreview
         projectId={projectId}
         traceId={observation.traceId}
@@ -326,9 +329,11 @@ function TraceDataPreview({
 function SessionContextPreview({
   observation,
   io,
+  surface,
 }: {
   observation: SampleObservation | null;
   io: { input?: unknown; output?: unknown } | undefined;
+  surface: "SESSION" | "TRACE";
 }) {
   if (!observation) {
     return (
@@ -342,7 +347,7 @@ function SessionContextPreview({
     <div className="ph-no-capture min-h-[360px] overflow-auto p-4">
       <div className="text-muted-foreground mb-5 flex items-center gap-2 font-mono text-[10px]">
         <span className="bg-muted rounded-sm border px-1.5 py-0.5">
-          session
+          {surface === "SESSION" ? "session" : "trace detail"}
         </span>
         <span className="truncate" title={observation.traceId ?? undefined}>
           trace · {observation.traceId}
@@ -388,10 +393,12 @@ function SessionVisualizationPreview({
   observation,
   definition,
   data,
+  surface,
 }: {
   observation: SampleObservation | null;
   definition: VisualizationDefinition;
   data: VisualizationDataEnvelope;
+  surface: "SESSION" | "TRACE";
 }) {
   if (!observation) {
     return (
@@ -405,7 +412,7 @@ function SessionVisualizationPreview({
   return (
     <div className="ph-no-capture min-h-[360px] p-4">
       <div className="text-muted-foreground mb-3 flex items-center gap-1.5 text-[10px]">
-        <span>Session</span>
+        <span>{surface === "SESSION" ? "Session" : "Trace detail"}</span>
         <span aria-hidden="true">›</span>
         <span
           className="text-foreground truncate"
@@ -497,6 +504,9 @@ export function VisualizationStudio(props: VisualizationStudioProps) {
   const [prompt, setPrompt] = useState(DEFAULT_PROMPT);
   const [comparisonMode, setComparisonMode] =
     useState<ComparisonMode>("compare");
+  const [observationPreviewSurface, setObservationPreviewSurface] = useState<
+    "SESSION" | "TRACE"
+  >("SESSION");
   const [rawDefinition, setRawDefinition] = useState(() =>
     JSON.stringify(editorInitialDefinition, null, 2),
   );
@@ -787,6 +797,14 @@ export function VisualizationStudio(props: VisualizationStudioProps) {
     } else if (observation) {
       observations = [observation];
     }
+    let previewSurface: "SESSION" | "TRACE" = "TRACE";
+    if (definition.placement.surface === "SESSION") {
+      previewSurface = definition.placement.destinations.includes(
+        observationPreviewSurface,
+      )
+        ? observationPreviewSurface
+        : (definition.placement.destinations[0] ?? "SESSION");
+    }
     return {
       envelopeVersion: "1",
       data: {
@@ -806,15 +824,16 @@ export function VisualizationStudio(props: VisualizationStudioProps) {
         selectedValue,
       },
       meta: {
-        surface: definition.placement.surface,
+        surface: previewSurface,
         source: definition.binding.source,
       },
       scores: [],
     };
   }, [
     definition.binding.source,
-    definition.placement.surface,
+    definition.placement,
     io,
+    observationPreviewSurface,
     selectedObservation,
     traceData.data,
     traceObservations,
@@ -847,7 +866,11 @@ export function VisualizationStudio(props: VisualizationStudioProps) {
 
   const openExampleContext = (observation: SampleObservation) => {
     setSelectedObservation(observation);
-    if (definition.placement.surface === "SESSION" && observation.sessionId) {
+    if (
+      definition.placement.surface === "SESSION" &&
+      definition.placement.destinations.includes("SESSION") &&
+      observation.sessionId
+    ) {
       router
         .push(
           `/project/${projectId}/sessions/${encodeURIComponent(observation.sessionId)}`,
@@ -895,12 +918,35 @@ export function VisualizationStudio(props: VisualizationStudioProps) {
       placement: {
         surface: "SESSION",
         slot: source,
+        destinations:
+          definition.placement.surface === "SESSION"
+            ? definition.placement.destinations
+            : ["SESSION", "TRACE"],
         injection: "AFTER",
         anchor: {},
       },
       binding: { source },
     });
     setDraftReady(false);
+  };
+
+  const updateObservationDestination = (
+    destination: "SESSION" | "TRACE",
+    checked: boolean,
+  ) => {
+    if (definition.placement.surface !== "SESSION") return;
+    const current = definition.placement.destinations;
+    const destinations = checked
+      ? [...new Set([...current, destination])]
+      : current.filter((item) => item !== destination);
+    if (destinations.length === 0) return;
+    updateDefinition({
+      ...definition,
+      placement: {
+        ...definition.placement,
+        destinations,
+      },
+    });
   };
 
   const handleSave = async () => {
@@ -1040,7 +1086,7 @@ export function VisualizationStudio(props: VisualizationStudioProps) {
     const field =
       definition.binding.source === "OBSERVATION_INPUT" ? "input" : "output";
     return generateFromPrompt(
-      `Analyze this observation ${field} structure and generate the clearest Custom UI for understanding this data inside a session. Prefer a concise story over a complete data dump.${additionalDirection}`,
+      `Analyze this observation ${field} structure and generate the clearest Custom UI for understanding this data wherever the observation appears. Prefer a concise story over a complete data dump.${additionalDirection}`,
     );
   };
 
@@ -1087,7 +1133,25 @@ export function VisualizationStudio(props: VisualizationStudioProps) {
     );
   }
 
-  const sourceLabel = bindingLabel(definition.binding.source);
+  const observationDestinations =
+    definition.placement.surface === "SESSION"
+      ? definition.placement.destinations
+      : [];
+  const effectiveObservationPreviewSurface = observationDestinations.includes(
+    observationPreviewSurface,
+  )
+    ? observationPreviewSurface
+    : (observationDestinations[0] ?? "SESSION");
+  const sourceLabel = (() => {
+    const source = bindingLabel(definition.binding.source);
+    if (definition.placement.surface !== "SESSION") return source;
+    const destinations = observationDestinations
+      .map((destination) =>
+        destination === "SESSION" ? "Session" : "Trace detail",
+      )
+      .join(" + ");
+    return `${source} · ${destinations}`;
+  })();
   const isTraceSurface = definition.placement.surface === "TRACE";
   const draftStatus = (() => {
     if (!draftReady) return "Not generated";
@@ -1095,13 +1159,19 @@ export function VisualizationStudio(props: VisualizationStudioProps) {
     if (isLive) return "Live version";
     return "Saved version";
   })();
-  const defaultSurfaceDescription = isTraceSurface
-    ? "Current Trace data view"
-    : "Current Session view";
+  const defaultSurfaceDescription = (() => {
+    if (isTraceSurface) return "Current Trace data view";
+    if (effectiveObservationPreviewSurface === "SESSION") {
+      return "Current Session view";
+    }
+    return "Current Trace observation view";
+  })();
   const visualizedSurfaceDescription = (() => {
     if (!draftReady) return "Generate a first draft";
     if (isTraceSurface) return "Custom UI in the Trace detail tab";
-    return "Custom UI after the matching Session item";
+    return effectiveObservationPreviewSurface === "SESSION"
+      ? "Custom UI after the matching Session item"
+      : "Custom UI in the Trace observation detail";
   })();
   const defaultSurfacePreview = isTraceSurface ? (
     <TraceDataPreview
@@ -1111,7 +1181,11 @@ export function VisualizationStudio(props: VisualizationStudioProps) {
       loading={traceData.isLoading}
     />
   ) : (
-    <SessionContextPreview observation={selectedObservation} io={io} />
+    <SessionContextPreview
+      observation={selectedObservation}
+      io={io}
+      surface={effectiveObservationPreviewSurface}
+    />
   );
   const visualizedSurfacePreview = (() => {
     if (!draftReady) {
@@ -1139,6 +1213,7 @@ export function VisualizationStudio(props: VisualizationStudioProps) {
         observation={selectedObservation}
         definition={definition}
         data={previewData}
+        surface={effectiveObservationPreviewSurface}
       />
     );
   })();
@@ -1432,8 +1507,8 @@ export function VisualizationStudio(props: VisualizationStudioProps) {
                       <div className="grid gap-2 sm:grid-cols-3">
                         {(
                           [
-                            ["OBSERVATION_INPUT", "Session input"],
-                            ["OBSERVATION_OUTPUT", "Session output"],
+                            ["OBSERVATION_INPUT", "Observation input"],
+                            ["OBSERVATION_OUTPUT", "Observation output"],
                             ["TRACE", "Trace data"],
                           ] as const
                         ).map(([source, label]) => {
@@ -1460,12 +1535,51 @@ export function VisualizationStudio(props: VisualizationStudioProps) {
                               <span className="text-muted-foreground mt-1 block text-xs">
                                 {source === "TRACE"
                                   ? "A dedicated trace detail view"
-                                  : `Inserted after the observation ${source === "OBSERVATION_INPUT" ? "input" : "output"}`}
+                                  : `Visualize the observation ${source === "OBSERVATION_INPUT" ? "input" : "output"}`}
                               </span>
                             </button>
                           );
                         })}
                       </div>
+                      {definition.placement.surface === "SESSION" ? (
+                        <fieldset className="space-y-3 border-t pt-5">
+                          <div>
+                            <legend className="text-sm font-bold">
+                              Show in
+                            </legend>
+                            <p className="text-muted-foreground mt-1 text-xs">
+                              Reuse this same Custom UI wherever the matching
+                              observation appears.
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap gap-x-6 gap-y-3">
+                            {(
+                              [
+                                ["SESSION", "Session"],
+                                ["TRACE", "Trace observation detail"],
+                              ] as const
+                            ).map(([destination, label]) => (
+                              <label
+                                key={destination}
+                                className="flex items-center gap-2 text-sm"
+                              >
+                                <Checkbox
+                                  checked={observationDestinations.includes(
+                                    destination,
+                                  )}
+                                  onCheckedChange={(checked) =>
+                                    updateObservationDestination(
+                                      destination,
+                                      checked === true,
+                                    )
+                                  }
+                                />
+                                {label}
+                              </label>
+                            ))}
+                          </div>
+                        </fieldset>
+                      ) : null}
                       {!canVisualizeTrace && !isTraceSurface ? (
                         <p className="text-muted-foreground text-xs">
                           Trace data becomes available when the filter matches
@@ -1567,6 +1681,33 @@ export function VisualizationStudio(props: VisualizationStudioProps) {
                                 </div>
                               </PopoverContent>
                             </Popover>
+                            {!isTraceSurface &&
+                            observationDestinations.length > 1 ? (
+                              <div className="bg-muted/20 flex rounded-lg border p-1">
+                                {(
+                                  [
+                                    ["SESSION", "Session"],
+                                    ["TRACE", "Trace detail"],
+                                  ] as const
+                                ).map(([surface, label]) => (
+                                  <button
+                                    key={surface}
+                                    type="button"
+                                    onClick={() =>
+                                      setObservationPreviewSurface(surface)
+                                    }
+                                    className={`rounded-md px-3 py-1.5 text-xs transition-colors ${
+                                      effectiveObservationPreviewSurface ===
+                                      surface
+                                        ? "bg-background font-bold shadow-sm"
+                                        : "text-muted-foreground hover:text-foreground"
+                                    }`}
+                                  >
+                                    {label}
+                                  </button>
+                                ))}
+                              </div>
+                            ) : null}
                             {draftReady ? (
                               <div className="bg-muted/20 flex rounded-lg border p-1">
                                 {(
