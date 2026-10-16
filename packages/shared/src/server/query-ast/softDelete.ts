@@ -44,6 +44,7 @@ import { SOFT_DELETE_COLUMNS } from "./schema";
 import { CteScopedTransformer } from "./transformer";
 
 const OUTER_PRESERVING_JOINS = new Set<JoinType>(["RightJoin", "FullJoin"]);
+const AFTER_LIMIT_ALIAS = "latest";
 
 export class SoftDeleteFilterPlugin implements KyselyPlugin {
   transformQuery(args: PluginTransformQueryArgs): RootOperationNode {
@@ -82,22 +83,10 @@ function filterSelect(
   const readsSoftDelete =
     froms.some(Boolean) || joins.some(({ relation }) => relation);
   if (node.softDeleteAfterLimit) {
-    if (node.includeDeleted) {
-      throw new QueryCompileError(
-        "includeDeleted() and softDeleteAfterLimit() cannot mark the same select.",
-      );
-    }
-    // The soft-delete tables this select reads directly (FROM and JOINs).
-    const relations = [
+    return filterAfterLimit(node, [
       ...froms,
       ...joins.map(({ relation }) => relation),
-    ].filter((relation) => relation !== undefined);
-    if (relations.length !== 1) {
-      throw new QueryCompileError(
-        `softDeleteAfterLimit() needs a select that reads exactly one soft-delete table; it reads ${relations.length}.`,
-      );
-    }
-    return filterAfterLimit(node, relations[0]);
+    ]);
   }
   if (node.includeDeleted) {
     if (!readsSoftDelete) {
@@ -147,8 +136,6 @@ function filterSelect(
   };
 }
 
-const AFTER_LIMIT_ALIAS = "latest";
-
 /**
  * `select latest.<output>, … from (<node + flag>) as latest where
  * latest.<flag> = 0`: the inner select keeps its ORDER BY / LIMIT, so a newer
@@ -156,8 +143,33 @@ const AFTER_LIMIT_ALIAS = "latest";
  */
 function filterAfterLimit(
   node: ClickHouseSelectQueryNode,
-  relation: SoftDeleteRelation,
+  relations: ReadonlyArray<SoftDeleteRelation | undefined>,
 ): ClickHouseSelectQueryNode {
+  const { relation, outputs } = checkAfterLimitShape(node, relations);
+  return wrapAfterLimit(node, relation, outputs);
+}
+
+/**
+ * Throws on shapes the wrap would change; returns the soft-delete relation and
+ * the output names to wrap.
+ */
+function checkAfterLimitShape(
+  node: ClickHouseSelectQueryNode,
+  relations: ReadonlyArray<SoftDeleteRelation | undefined>,
+): { relation: SoftDeleteRelation; outputs: string[] } {
+  if (node.includeDeleted) {
+    throw new QueryCompileError(
+      "includeDeleted() and softDeleteAfterLimit() cannot mark the same select.",
+    );
+  }
+  // The soft-delete tables this select reads directly (FROM and JOINs).
+  const read = relations.filter((relation) => relation !== undefined);
+  if (read.length !== 1) {
+    throw new QueryCompileError(
+      `softDeleteAfterLimit() needs a select that reads exactly one soft-delete table; it reads ${read.length}.`,
+    );
+  }
+  const relation = read[0];
   if (!node.limit && !node.limitBy) {
     throw new QueryCompileError(
       "softDeleteAfterLimit() needs a LIMIT or LIMIT BY to filter after.",
@@ -188,7 +200,14 @@ function filterAfterLimit(
       `softDeleteAfterLimit() adds \`${relation.flag}\` itself; do not select it.`,
     );
   }
+  return { relation, outputs };
+}
 
+function wrapAfterLimit(
+  node: ClickHouseSelectQueryNode,
+  relation: SoftDeleteRelation,
+  outputs: ReadonlyArray<string>,
+): ClickHouseSelectQueryNode {
   // Adds `<alias>.is_deleted AS is_deleted` as an output for the outer filter.
   const inner = SelectQueryNode.cloneWithSelections(node, [
     SelectionNode.create(
