@@ -36,6 +36,8 @@
     "dx:skip-infra": "pnpm i && pnpm --filter=shared run db:reset:test && pnpm --filter=shared run db:reset && pnpm --filter=shared run ch:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
+    "check": "node scripts/check.mjs",
+    "test:check-command": "node --test scripts/check.test.mjs",
     "tc": "turbo run typecheck",
     "start": "turbo run start",
     "dev": "turbo watch dev",
