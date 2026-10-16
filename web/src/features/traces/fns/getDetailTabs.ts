@@ -3,7 +3,6 @@ import { DETAIL_TABS, type DetailTab } from "../constants/detailTabs";
 export function getDetailTabs({
   target,
   isV4,
-  internalFeaturesEnabled,
   isAnnotationMode,
   hasObservations,
   canViewScores,
