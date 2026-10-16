@@ -17,10 +17,12 @@ export const STANDARD_EVENT_KEY_REGEX =
   /^([^/]+)\/([^/]+)\/(.+)\/([^/]+)\.json$/;
 
 /**
- * OTel event-upload key: `otel/<projectId>/<yyyy>/<mm>/<dd>/<hh>/<mm>/<eventId>.json`.
+ * OTel event-upload key: `otel/<projectId>/<yyyy>/<mm>/<dd>/<hh>/<mm>/<eventId><suffix>`,
+ * where the suffix is `.json` for a resourceSpans array, or
+ * `.otlp.json` / `.otlp.pb` for an uncompressed export request body.
  */
 export const OTEL_EVENT_KEY_REGEX =
-  /^otel\/([^/]+)\/(\d{4})\/(\d{2})\/(\d{2})\/(\d{2})\/(\d{2})\/([^.]+)\.json$/;
+  /^otel\/([^/]+)\/(\d{4})\/(\d{2})\/(\d{2})\/(\d{2})\/(\d{2})\/([^.]+)\.(?:json|otlp\.json|otlp\.pb)$/;
 
 export type ParsedEventKey =
   | {

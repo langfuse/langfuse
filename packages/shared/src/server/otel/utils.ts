@@ -1,3 +1,22 @@
+import { $root } from "./otlp-proto/generated/root";
+
+const { ExportTraceServiceRequest } =
+  $root.opentelemetry.proto.collector.trace.v1;
+
+export function decodeOtelExportBody(body: Uint8Array) {
+  // protobufjs returns bytes fields with the input's type. Buffers keep ids
+  // readable by parseId after a JSON round trip (`{type: "Buffer", data}`);
+  // a plain Uint8Array would serialize as an index-keyed object.
+  const buffer = Buffer.isBuffer(body)
+    ? body
+    : Buffer.from(body.buffer, body.byteOffset, body.byteLength);
+  return ExportTraceServiceRequest.toObject(
+    ExportTraceServiceRequest.decode(buffer),
+    // OTLP JSON encodes int64 fields as decimal strings.
+    { longs: String },
+  );
+}
+
 export function isValidDateString(dateString: string): boolean {
   return !isNaN(new Date(dateString).getTime());
 }

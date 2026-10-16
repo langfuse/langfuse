@@ -343,19 +343,43 @@ export class OtelIngestionProcessor {
     return `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, "0")}/${String(now.getDate()).padStart(2, "0")}/${String(now.getHours()).padStart(2, "0")}/${String(now.getMinutes()).padStart(2, "0")}`;
   }
 
+  private buildFileKey(suffix: string): string {
+    return `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}otel/${this.projectId}/${this.getCurrentTimePath()}/${randomUUID()}${suffix}`;
+  }
+
   /**
    * Uploads a batch of resourceSpans to blob storage and adds a job to process them
    * into the otel-ingestion-queue.
    */
   async publishToOtelIngestionQueue(resourceSpans: ResourceSpan[]) {
-    const fileKey = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}otel/${this.projectId}/${this.getCurrentTimePath()}/${randomUUID()}.json`;
-
-    // Upload to S3
+    const fileKey = this.buildFileKey(".json");
     await getS3EventStorageClient(
       env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
     ).uploadJson(fileKey, resourceSpans as Record<string, unknown>[]);
+    return this.addOtelIngestionJob(fileKey);
+  }
 
-    // Add queue job
+  /**
+   * Uploads an uncompressed OTLP export request body and adds a job to
+   * process it into the otel-ingestion-queue. The file key suffix and the
+   * object's Content-Type record the format.
+   */
+  async publishExportBodyToOtelIngestionQueue(
+    body: Buffer,
+    contentType: string,
+  ) {
+    const fileKey = this.buildFileKey(
+      contentType.includes("application/x-protobuf")
+        ? ".otlp.pb"
+        : ".otlp.json",
+    );
+    await getS3EventStorageClient(
+      env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+    ).uploadBytes(fileKey, body, contentType);
+    return this.addOtelIngestionJob(fileKey);
+  }
+
+  private addOtelIngestionJob(fileKey: string) {
     const queue = OtelIngestionQueue.getInstance({
       shardingKey: `${this.projectId}-${fileKey}`,
     });
