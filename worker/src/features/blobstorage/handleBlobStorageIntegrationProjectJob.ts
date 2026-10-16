@@ -395,7 +395,13 @@ const createBlobStorageService = (
     useGoogleCloudStorage,
     googleCloudCredentials: gcsServiceAccountKey,
     useOCIObjectStorage: false, // Not supported in blob storage integration
-    connectionValidation: blobStorageEndpointConnectionValidationOptions(),
+    connectionValidation: blobStorageEndpointConnectionValidationOptions({
+      type: config.type,
+      endpoint: config.endpoint,
+      bucketName: config.bucketName,
+      forcePathStyle: config.forcePathStyle,
+      region: config.region,
+    }),
   });
 };
 
