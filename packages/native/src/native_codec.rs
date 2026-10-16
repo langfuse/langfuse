@@ -76,7 +76,9 @@ pub(crate) fn encode_v4_native_blocks(
 }
 
 fn encode_block(rows: &[Arc<PreparedEventRow>]) -> Result<Vec<u8>, NativeColumnError> {
-    let batch = PreparedEventRow::to_col_batch(rows)?;
+    let schema = PreparedEventRow::schema();
+    let columns = PreparedEventRow::build_columns(rows)?;
+    let batch = ch_core_rs::batch::ColBatch::new(schema, columns, rows.len());
     ch_core_rs::native::encode::encode_block(
         &batch,
         &ch_core_rs::native::encode::EncodeOptions::default(),
