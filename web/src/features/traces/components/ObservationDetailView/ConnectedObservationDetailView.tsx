@@ -67,11 +67,21 @@ import { useHasProjectAccess } from "@/src/features/rbac";
 import { useSession } from "next-auth/react";
 import { ObservationPreview } from "./ObservationPreview";
 import type { SectionSkillsProps } from "../IOPreview/components/SectionSkills";
-import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
+import {
+  useInternalFeaturesEnabled,
+  useIsFeatureEnabled,
+} from "@/src/features/feature-flags";
 import { TraceMessagesView } from "../TraceMessagesView/TraceMessagesView";
 import { DetailAttributesTab } from "../DetailAttributesTab";
 import { buildModelParameters } from "@/src/features/traces/fns/buildModelParameters";
 import { buildObservationAttributes } from "@/src/features/traces/fns/buildObservationAttributes";
+import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth";
+import { VisualizationRenderer } from "@/src/features/custom-visualizations/components/VisualizationRenderer";
+import { CustomUiPicker } from "@/src/features/custom-visualizations/components/CustomUiPicker";
+import {
+  buildObservationVisualizationData,
+  matchesObservationVisualization,
+} from "@/src/features/custom-visualizations/fns/observationVisualization";
 
 export interface ConnectedObservationDetailViewProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -97,6 +107,9 @@ export function ConnectedObservationDetailView({
   // V4 beta mode and observations for log tab
   const { isV4: isV4Enabled } = useReadPath();
   const internalFeaturesEnabled = useInternalFeaturesEnabled();
+  const customUiEnabled = useIsFeatureEnabled("customUi");
+  const [selectedCustomUiVersionId, setSelectedCustomUiVersionId] =
+    useState<string>();
   const {
     observations,
     roots,
@@ -205,6 +218,7 @@ export function ConnectedObservationDetailView({
   const currentView = jsonViewPreference;
   const selectedViewTab = jsonViewToggleTab(currentView);
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
+  const [showCustomVisualization, setShowCustomVisualization] = useState(false);
 
   const handleViewTabChange = useCallback(
     (tab: string) => {
@@ -304,6 +318,8 @@ export function ConnectedObservationDetailView({
   });
 
   const session = useSession();
+  const isAuthenticatedAndProjectMember =
+    useIsAuthenticatedAndProjectMember(projectId);
   const hasCommentsReadAccess = useHasProjectAccess({
     projectId,
     scope: "comments:read",
@@ -321,6 +337,62 @@ export function ConnectedObservationDetailView({
   );
 
   const commentedPathsByField = useCommentedPaths(observationComments.data);
+
+  const activeVisualizations = api.customVisualizations.active.useQuery(
+    { projectId },
+    {
+      enabled:
+        isAuthenticatedAndProjectMember && customUiEnabled && !isAnnotationMode,
+      refetchOnWindowFocus: false,
+    },
+  );
+  const visualizationObservation = useMemo(
+    () => ({
+      ...observation,
+      input: parsedInput ?? observationWithIOCompat.data?.input,
+      output: parsedOutput ?? observationWithIOCompat.data?.output,
+      metadata: parsedMetadata ?? observationWithIOCompat.data?.metadata,
+    }),
+    [
+      observation,
+      parsedInput,
+      parsedOutput,
+      parsedMetadata,
+      observationWithIOCompat.data,
+    ],
+  );
+  const observationVisualizations =
+    activeVisualizations.data?.filter(({ definition }) =>
+      matchesObservationVisualization(
+        definition,
+        visualizationObservation,
+        "TRACE",
+      ),
+    ) ?? [];
+  const selectedCustomUi =
+    observationVisualizations.find(
+      (item) => item.versionId === selectedCustomUiVersionId,
+    ) ?? observationVisualizations[0];
+  const selectedCustomUiData = useMemo(
+    () =>
+      selectedCustomUi
+        ? buildObservationVisualizationData(
+            selectedCustomUi.definition,
+            visualizationObservation,
+            "TRACE",
+          )
+        : null,
+    [selectedCustomUi, visualizationObservation],
+  );
+  const isCustomVisualizationView =
+    selectedTab === "preview" &&
+    showCustomVisualization &&
+    observationVisualizations.length > 0;
+  const activeViewTab = (() => {
+    if (isCustomVisualizationView) return "custom";
+    if (selectedTab === "log" && isLogViewVirtualized) return "pretty";
+    return selectedViewTab;
+  })();
 
   // Calculate latency in seconds if not provided
   const latencySeconds = useMemo(() => {
@@ -392,7 +464,9 @@ export function ConnectedObservationDetailView({
                     !(
                       selectedTab === "log" ||
                       selectedTab === "attributes" ||
-                      (selectedTab === "preview" && isPrettyViewAvailable)
+                      (selectedTab === "preview" &&
+                        (isPrettyViewAvailable ||
+                          observationVisualizations.length > 0))
                     ) && "invisible",
                   )}
                 >
@@ -401,7 +475,8 @@ export function ConnectedObservationDetailView({
                     <div
                       className={cn(
                         "flex items-center gap-1.5",
-                        (selectedTab === "attributes" ||
+                        (isCustomVisualizationView ||
+                          selectedTab === "attributes" ||
                           (selectedTab === "log" && isLogViewVirtualized)) &&
                           "invisible",
                       )}
@@ -418,12 +493,13 @@ export function ConnectedObservationDetailView({
                   )}
                   <div className="h-fit shrink-0 py-0.5 pr-4 pl-2">
                     <Tabs
-                      value={
-                        selectedTab === "log" && isLogViewVirtualized
-                          ? "pretty"
-                          : selectedViewTab
-                      }
+                      value={activeViewTab}
                       onValueChange={(value) => {
+                        if (value === "custom") {
+                          setShowCustomVisualization(true);
+                          return;
+                        }
+                        setShowCustomVisualization(false);
                         if (
                           selectedTab === "log" &&
                           isLogViewVirtualized &&
@@ -470,6 +546,10 @@ export function ConnectedObservationDetailView({
                         ) : (
                           <Tabs.Trigger value="json" label="Raw" />
                         )}
+                        {selectedTab === "preview" &&
+                        observationVisualizations.length > 0 ? (
+                          <Tabs.Trigger value="custom" label="Custom UI" />
+                        ) : null}
                       </Tabs.List>
                     </Tabs>
                   </div>
@@ -485,75 +565,109 @@ export function ConnectedObservationDetailView({
               </Tabs.Content>
             )}
             <Tabs.Content value="preview" layout="fill">
-              <ObservationPreview
-                currentView={currentView}
-                previewKey={observation.id}
-                onPrettyViewAvailabilityChange={setIsPrettyViewAvailable}
-                previewProps={{
-                  observationName: observation.name ?? undefined,
-                  observationType: observation.type,
-                  skills: previewSkills,
-                  input: observationWithIOCompat.data?.input ?? undefined,
-                  output: observationWithIOCompat.data?.output ?? undefined,
-                  status: observation.statusMessage
-                    ? {
-                        level: observation.level,
-                        message: observation.statusMessage,
-                      }
-                    : undefined,
-                  outputCorrection,
-                  metadata: observationWithIOCompat.data?.metadata ?? undefined,
-                  parsedInput,
-                  parsedOutput,
-                  parsedMetadata,
-                  isLoading: observationWithIOCompat.isLoading,
-                  isParsing: isWaitingForParsing,
-                  media: observationMedia.data,
-                  inputExpansionState: formattedExpansion.input,
-                  outputExpansionState: formattedExpansion.output,
-                  metadataExpansionState: formattedExpansion.metadata,
-                  onInputExpansionChange: (exp) =>
-                    setFormattedFieldExpansion(
-                      "input",
-                      exp as Record<string, boolean>,
-                    ),
-                  onOutputExpansionChange: (exp) =>
-                    setFormattedFieldExpansion(
-                      "output",
-                      exp as Record<string, boolean>,
-                    ),
-                  onMetadataExpansionChange: (exp) =>
-                    setFormattedFieldExpansion(
-                      "metadata",
-                      exp as Record<string, boolean>,
-                    ),
-                  advancedJsonExpansionState: advancedJsonExpansion,
-                  onAdvancedJsonExpansionChange: setAdvancedJsonExpansion,
-                  jsonInputExpanded: jsonExpansion.input,
-                  jsonOutputExpanded: jsonExpansion.output,
-                  jsonMetadataExpanded: jsonExpansion.metadata,
-                  onJsonInputExpandedChange: (expanded) =>
-                    setJsonFieldExpansion("input", expanded),
-                  onJsonOutputExpandedChange: (expanded) =>
-                    setJsonFieldExpansion("output", expanded),
-                  onJsonMetadataExpandedChange: (expanded) =>
-                    setJsonFieldExpansion("metadata", expanded),
-                  enableInlineComments: true,
-                  onAddInlineComment: (selection) =>
-                    openDrawer({
-                      type: "inline-comment",
-                      selection,
-                      objectId: observation.id,
-                      objectType: "OBSERVATION",
-                      objectStartTime: observation.startTime,
-                    }),
-                  commentedPathsByField,
-                  observationId: observation.id,
-                  projectId,
-                  traceId,
-                  environment: observation.environment,
-                }}
-              />
+              {isCustomVisualizationView ? (
+                <div className="ph-no-capture flex min-h-0 w-full flex-1 flex-col gap-5 overflow-auto p-4">
+                  {selectedCustomUi && selectedCustomUiData ? (
+                    <section className="space-y-4">
+                      <div className="space-y-1">
+                        <CustomUiPicker
+                          items={observationVisualizations.map((item) => ({
+                            versionId: item.versionId,
+                            title: item.definition.title,
+                            version: item.version,
+                          }))}
+                          selectedVersionId={selectedCustomUi.versionId}
+                          onSelectedVersionChange={(versionId) => {
+                            if (versionId === null) {
+                              setShowCustomVisualization(false);
+                            } else {
+                              setSelectedCustomUiVersionId(versionId);
+                            }
+                          }}
+                        />
+                        <p className="text-muted-foreground text-xs">
+                          {selectedCustomUi.definition.summary}
+                        </p>
+                      </div>
+                      <VisualizationRenderer
+                        definition={selectedCustomUi.definition}
+                        data={selectedCustomUiData}
+                      />
+                    </section>
+                  ) : null}
+                </div>
+              ) : (
+                <ObservationPreview
+                  currentView={currentView}
+                  previewKey={observation.id}
+                  onPrettyViewAvailabilityChange={setIsPrettyViewAvailable}
+                  previewProps={{
+                    observationName: observation.name ?? undefined,
+                    observationType: observation.type,
+                    skills: previewSkills,
+                    input: observationWithIOCompat.data?.input ?? undefined,
+                    output: observationWithIOCompat.data?.output ?? undefined,
+                    status: observation.statusMessage
+                      ? {
+                          level: observation.level,
+                          message: observation.statusMessage,
+                        }
+                      : undefined,
+                    outputCorrection,
+                    metadata:
+                      observationWithIOCompat.data?.metadata ?? undefined,
+                    parsedInput,
+                    parsedOutput,
+                    parsedMetadata,
+                    isLoading: observationWithIOCompat.isLoading,
+                    isParsing: isWaitingForParsing,
+                    media: observationMedia.data,
+                    inputExpansionState: formattedExpansion.input,
+                    outputExpansionState: formattedExpansion.output,
+                    metadataExpansionState: formattedExpansion.metadata,
+                    onInputExpansionChange: (exp) =>
+                      setFormattedFieldExpansion(
+                        "input",
+                        exp as Record<string, boolean>,
+                      ),
+                    onOutputExpansionChange: (exp) =>
+                      setFormattedFieldExpansion(
+                        "output",
+                        exp as Record<string, boolean>,
+                      ),
+                    onMetadataExpansionChange: (exp) =>
+                      setFormattedFieldExpansion(
+                        "metadata",
+                        exp as Record<string, boolean>,
+                      ),
+                    advancedJsonExpansionState: advancedJsonExpansion,
+                    onAdvancedJsonExpansionChange: setAdvancedJsonExpansion,
+                    jsonInputExpanded: jsonExpansion.input,
+                    jsonOutputExpanded: jsonExpansion.output,
+                    jsonMetadataExpanded: jsonExpansion.metadata,
+                    onJsonInputExpandedChange: (expanded) =>
+                      setJsonFieldExpansion("input", expanded),
+                    onJsonOutputExpandedChange: (expanded) =>
+                      setJsonFieldExpansion("output", expanded),
+                    onJsonMetadataExpandedChange: (expanded) =>
+                      setJsonFieldExpansion("metadata", expanded),
+                    enableInlineComments: true,
+                    onAddInlineComment: (selection) =>
+                      openDrawer({
+                        type: "inline-comment",
+                        selection,
+                        objectId: observation.id,
+                        objectType: "OBSERVATION",
+                        objectStartTime: observation.startTime,
+                      }),
+                    commentedPathsByField,
+                    observationId: observation.id,
+                    projectId,
+                    traceId,
+                    environment: observation.environment,
+                  }}
+                />
+              )}
             </Tabs.Content>
 
             <Tabs.Content value="attributes" layout="fill">

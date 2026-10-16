@@ -63,6 +63,11 @@ export function ControlledFeaturePreviewModal({
             onToggle: onToggle("langfuseTopics"),
             isToggling: setFeaturePreviewEnabled.isPending,
           },
+          customUi: {
+            enabled: authSession.data.user.featureFlags.customUi === true,
+            onToggle: onToggle("customUi"),
+            isToggling: setFeaturePreviewEnabled.isPending,
+          },
         }
       : {}),
     sessionViewV2: {

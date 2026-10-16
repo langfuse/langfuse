@@ -4,6 +4,7 @@ export const DETAIL_TABS = [
   "attributes",
   "scores",
   "log",
+  "visualizations",
 ] as const;
 
 export type DetailTab = (typeof DETAIL_TABS)[number];

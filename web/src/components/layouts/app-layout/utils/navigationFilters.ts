@@ -72,6 +72,13 @@ const filters = {
   featureFlags: (route: Route, ctx: NavigationFilterContext): Route | null => {
     if (route.featureFlag === undefined) return route;
 
+    if (route.featureFlag === "customUi") {
+      return ctx.session?.user?.admin === true &&
+        ctx.session.user.featureFlags?.[route.featureFlag] === true
+        ? route
+        : null;
+    }
+
     if (isAdminOnlyFeaturePreviewFlag(route.featureFlag)) {
       return ctx.session?.user?.featureFlags?.[route.featureFlag] === true
         ? route

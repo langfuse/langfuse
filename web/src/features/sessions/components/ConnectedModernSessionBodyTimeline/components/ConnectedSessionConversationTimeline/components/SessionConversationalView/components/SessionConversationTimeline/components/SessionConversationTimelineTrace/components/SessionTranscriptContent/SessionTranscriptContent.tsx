@@ -1,11 +1,18 @@
 import { SessionTimelinePart } from "./components/SessionTimelinePart/SessionTimelinePart";
 import { Codeblock } from "@/src/components/design-system/Codeblock/Codeblock";
 import { assertUnreachable } from "@langfuse/shared";
-import { useState, type ComponentProps, type ReactNode } from "react";
+import {
+  Fragment,
+  useMemo,
+  useState,
+  type ComponentProps,
+  type ReactNode,
+} from "react";
 import { type TranscriptMessageGroup } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/groupTranscriptMessages";
 import { getSessionTranscriptRows } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/getSessionTranscriptRows";
 import { getSessionTranscriptThreads } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/getSessionTranscriptThreads";
 import { SessionTimelineToolRow } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTranscriptContent/components/SessionTimelineToolRow/SessionTimelineToolRow";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { Wrench } from "lucide-react";
 import { getSessionToolOutputPreview } from "./components/SessionTimelineToolRow/getSessionToolOutputPreview";
 import { type NormalizedMessage } from "@langfuse/shared/src/utils/normalized-io";
@@ -19,32 +26,73 @@ import { cn } from "@/src/utils/tailwind";
 import { SessionToolTooltip } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionToolTooltip/SessionToolTooltip";
 import { getSessionToolStatus } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/fns/getSessionToolStatus";
 import { SessionToolStatusCountBadge } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionToolStatusCountBadge/SessionToolStatusCountBadge";
+import { type RouterOutputs } from "@/src/utils/api";
+import { VisualizationRenderer } from "@/src/features/custom-visualizations/components/VisualizationRenderer";
+import { CustomUiPicker } from "@/src/features/custom-visualizations/components/CustomUiPicker";
+import {
+  buildObservationVisualizationData,
+  matchesObservationVisualization,
+  type ObservationVisualizationTarget,
+} from "@/src/features/custom-visualizations/fns/observationVisualization";
+
+type SessionVisualization =
+  RouterOutputs["customVisualizations"]["active"][number];
 
 export function SessionTranscriptContent({
   result,
+  onOpenTrace,
   onOpenObservation,
   scrollTarget,
   threadIndex: selectedThreadIndex,
+  visualizations,
+  visualizationObservations,
 }: {
   threadIndex?: number;
   result: Extract<SessionTraceTranscriptState, { state: "loaded" }>;
+  onOpenTrace: () => void;
   onOpenObservation: (observationId: string) => void;
   scrollTarget: {
     observationId: string;
     rowId?: string;
     requestId: number;
   } | null;
+  visualizations: SessionVisualization[];
+  visualizationObservations: ObservationVisualizationTarget[];
 }) {
-  const rows = getSessionTranscriptRows(result.transcript).filter(
+  const allRows = getSessionTranscriptRows(result.transcript);
+  const rows = allRows.filter(
     ({ threadIndex }) =>
       selectedThreadIndex === undefined || threadIndex === selectedThreadIndex,
   );
   const { visibleThreads } = getSessionTranscriptThreads(result.transcript);
+  const visualizationObservationsById = new Map(
+    visualizationObservations.flatMap((observation) =>
+      observation.id ? [[observation.id, observation] as const] : [],
+    ),
+  );
+  const anchoredObservationIds = new Set(
+    allRows.flatMap(({ row }) =>
+      row.message.observationId ? [row.message.observationId] : [],
+    ),
+  );
+  const unanchoredVisualizationObservations = visualizationObservations.filter(
+    (observation) =>
+      observation.id !== undefined &&
+      !anchoredObservationIds.has(observation.id) &&
+      visualizations.some(({ definition }) =>
+        matchesObservationVisualization(definition, observation, "SESSION"),
+      ),
+  );
+  const rendersUnanchoredVisualizations =
+    selectedThreadIndex === undefined ||
+    selectedThreadIndex === visibleThreads[0]?.threadIndex;
   return (
     <div className="ph-no-capture space-y-4">
-      {rows.length === 0 && (
-        <p className="text-muted-foreground text-sm">No messages.</p>
-      )}
+      {rows.length === 0 &&
+        (!rendersUnanchoredVisualizations ||
+          unanchoredVisualizationObservations.length === 0) && (
+          <p className="text-muted-foreground text-sm">No messages.</p>
+        )}
       {visibleThreads
         .filter(
           ({ threadIndex }) =>
@@ -59,11 +107,24 @@ export function SessionTranscriptContent({
               </h3>
             )}
             <SessionTranscriptThread
+              onOpenTrace={onOpenTrace}
               rows={rows.filter((row) => row.threadIndex === threadIndex)}
               onOpenObservation={onOpenObservation}
               scrollTarget={scrollTarget}
+              visualizations={visualizations}
+              visualizationObservationsById={visualizationObservationsById}
             />
           </div>
+        ))}
+      {rendersUnanchoredVisualizations &&
+        unanchoredVisualizationObservations.map((observation) => (
+          <Fragment key={observation.id}>
+            {renderSessionObservationVisualizations({
+              observation,
+              visualizations,
+              onOpenTrace,
+            })}
+          </Fragment>
         ))}
     </div>
   );
@@ -80,16 +141,25 @@ type DisplayMessage = NormalizedMessage & {
 
 function SessionTranscriptThread({
   rows,
+  onOpenTrace,
   onOpenObservation,
   scrollTarget,
+  visualizations,
+  visualizationObservationsById,
 }: {
   rows: ReturnType<typeof getSessionTranscriptRows>;
+  onOpenTrace: () => void;
   onOpenObservation: (observationId: string) => void;
   scrollTarget: {
     observationId: string;
     rowId?: string;
     requestId: number;
   } | null;
+  visualizations: SessionVisualization[];
+  visualizationObservationsById: ReadonlyMap<
+    string,
+    ObservationVisualizationTarget
+  >;
 }) {
   const groups = groupConsecutiveTools(rows, {
     minGroupSize: 2,
@@ -112,40 +182,181 @@ function SessionTranscriptThread({
       isCompact: row.message.parts.every((part) => part.type === "reasoning"),
     };
   });
-  return displayGroups.map(({ group, isCompact }, index) => (
-    <div
-      key={group.type === "tools" ? group.rows[0]!.id : group.row.id}
-      data-session-compact-row={isCompact ? "" : undefined}
-      data-session-tool-group-id={
-        group.type === "tools" ? group.rows[0]!.id : undefined
-      }
-      className={cn(
-        index > 0 &&
-          (() => {
-            const previousIsCompact = displayGroups[index - 1]!.isCompact;
-            if (isCompact && previousIsCompact) return "mt-1";
-            if (!isCompact && !previousIsCompact) return "mt-4";
-            return "mt-6";
-          })(),
-      )}
-    >
-      {group.type === "tools" ? (
-        <SessionTranscriptToolGroup
-          summary={group.summary}
-          title={group.title}
-          rows={group.rows}
-          onOpenObservation={onOpenObservation}
-          scrollTarget={scrollTarget}
+  const observationIdsByGroup = displayGroups.map(({ group }) =>
+    Array.from(
+      new Set(
+        (group.type === "tools" ? group.rows : [group.row]).flatMap(
+          ({ row }) =>
+            row.message.observationId ? [row.message.observationId] : [],
+        ),
+      ),
+    ),
+  );
+  const lastGroupByObservationId = new Map<string, number>();
+  observationIdsByGroup.forEach((observationIds, index) =>
+    observationIds.forEach((observationId) =>
+      lastGroupByObservationId.set(observationId, index),
+    ),
+  );
+
+  return displayGroups.map(({ group, isCompact }, index) => {
+    const groupKey = group.type === "tools" ? group.rows[0]!.id : group.row.id;
+    return (
+      <Fragment key={groupKey}>
+        <div
+          data-session-compact-row={isCompact ? "" : undefined}
+          data-session-tool-group-id={
+            group.type === "tools" ? group.rows[0]!.id : undefined
+          }
+          className={cn(
+            index > 0 &&
+              (() => {
+                const previousIsCompact = displayGroups[index - 1]!.isCompact;
+                if (isCompact && previousIsCompact) return "mt-1";
+                if (!isCompact && !previousIsCompact) return "mt-4";
+                return "mt-6";
+              })(),
+          )}
+        >
+          {group.type === "tools" ? (
+            <SessionTranscriptToolGroup
+              onOpenTrace={onOpenTrace}
+              summary={group.summary}
+              title={group.title}
+              rows={group.rows}
+              onOpenObservation={onOpenObservation}
+              scrollTarget={scrollTarget}
+              visualizations={visualizations}
+              visualizationObservationsById={visualizationObservationsById}
+            />
+          ) : (
+            <SessionTranscriptRow
+              item={group.row}
+              onOpenObservation={onOpenObservation}
+              scrollTarget={scrollTarget}
+            />
+          )}
+        </div>
+        {observationIdsByGroup[index]
+          ?.filter(
+            (observationId) =>
+              lastGroupByObservationId.get(observationId) === index,
+          )
+          .map((observationId) => (
+            <Fragment key={`${groupKey}:${observationId}`}>
+              {renderSessionObservationVisualizations({
+                observation: visualizationObservationsById.get(observationId),
+                visualizations,
+                onOpenTrace,
+              })}
+            </Fragment>
+          ))}
+      </Fragment>
+    );
+  });
+}
+
+function renderSessionObservationVisualizations({
+  observation,
+  visualizations,
+  onOpenTrace,
+}: {
+  onOpenTrace: () => void;
+  observation: ObservationVisualizationTarget | undefined;
+  visualizations: SessionVisualization[];
+}) {
+  if (!observation) return null;
+  const matches = visualizations.filter(({ definition }) =>
+    matchesObservationVisualization(definition, observation, "SESSION"),
+  );
+  if (matches.length === 0) return null;
+  return (
+    <SessionObservationCustomUi
+      observation={observation}
+      matches={matches}
+      onOpenTrace={onOpenTrace}
+    />
+  );
+}
+
+function SessionObservationCustomUi({
+  observation,
+  matches,
+  onOpenTrace,
+}: {
+  onOpenTrace: () => void;
+  observation: ObservationVisualizationTarget;
+  matches: SessionVisualization[];
+}) {
+  const [selectedVersionId, setSelectedVersionId] = useState<string | null>();
+  const selected =
+    matches.find((item) => item.versionId === selectedVersionId) ?? matches[0]!;
+  const data = useMemo(
+    () =>
+      buildObservationVisualizationData(
+        selected.definition,
+        observation,
+        "SESSION",
+      ),
+    [selected.definition, observation],
+  );
+  return (
+    <section className="ph-no-capture mt-3 space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <CustomUiPicker
+          items={matches.map((item) => ({
+            versionId: item.versionId,
+            title: item.definition.title,
+            version: item.version,
+          }))}
+          selectedVersionId={
+            selectedVersionId === null ? null : selected.versionId
+          }
+          onSelectedVersionChange={setSelectedVersionId}
         />
+        <Button
+          text="Open trace"
+          variant="ghost"
+          size="sm"
+          onClick={onOpenTrace}
+        />
+      </div>
+      {selectedVersionId === null ? (
+        <div className="space-y-3">
+          {observation.input !== undefined && (
+            <div className="space-y-1">
+              <h4 className="text-xs font-bold">Input</h4>
+              <div className="flex max-h-96 min-w-0 flex-col">
+                <Codeblock
+                  label="Input"
+                  value={observation.input}
+                  allowFormatting
+                />
+              </div>
+            </div>
+          )}
+          {observation.output !== undefined && (
+            <div className="space-y-1">
+              <h4 className="text-xs font-bold">Output</h4>
+              <div className="flex max-h-96 min-w-0 flex-col">
+                <Codeblock
+                  label="Output"
+                  value={observation.output}
+                  allowFormatting
+                />
+              </div>
+            </div>
+          )}
+        </div>
       ) : (
-        <SessionTranscriptRow
-          item={group.row}
-          onOpenObservation={onOpenObservation}
-          scrollTarget={scrollTarget}
+        <VisualizationRenderer
+          definition={selected.definition}
+          data={data}
+          deferUntilVisible
         />
       )}
-    </div>
-  ));
+    </section>
+  );
 }
 
 function SessionTranscriptRow({
@@ -154,7 +365,13 @@ function SessionTranscriptRow({
   scrollTarget,
 }: {
   item: ReturnType<typeof getSessionTranscriptRows>[number];
-} & Omit<ComponentProps<typeof SessionTranscriptThread>, "rows">) {
+  onOpenObservation: (observationId: string) => void;
+  scrollTarget: {
+    observationId: string;
+    rowId?: string;
+    requestId: number;
+  } | null;
+}) {
   const { row, id } = item;
   const scrollRequestId = (
     scrollTarget?.rowId

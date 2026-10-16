@@ -11,6 +11,7 @@ export type Flags = {
     | "sessionViewV2"
     | "aiGateway"
     | "sessionViewV2Timeline"
+    | "customUi"
     | typeof INTERNAL_FEATURE_FLAG
   >]: boolean;
 } & {
@@ -19,5 +20,6 @@ export type Flags = {
   sessionViewV2?: boolean;
   aiGateway?: boolean;
   sessionViewV2Timeline?: boolean;
+  customUi?: boolean;
   [INTERNAL_FEATURE_FLAG]?: boolean;
 };

@@ -30,7 +30,7 @@ export const isOrganizationOnlyFeaturePreviewFlag = (
     (organizationFlag) => organizationFlag === flag,
   );
 
-const adminOnlyFeaturePreviewFlags = ["langfuseTopics"] as const;
+const adminOnlyFeaturePreviewFlags = ["langfuseTopics", "customUi"] as const;
 
 export const personalFeaturePreviewFlags = [
   ...userFeaturePreviewFlags,
@@ -80,6 +80,7 @@ export const featurePreviewLabels = {
   sessionViewV2: "Redesigned Session View",
   sessionViewV2Timeline: "Session Timeline",
   langfuseTopics: "Langfuse Topics",
+  customUi: "Custom UI",
 } satisfies Record<FeaturePreviewFlag | PersonalFeaturePreviewFlag, string>;
 
 export type FeaturePreviewAvailabilityContext = {

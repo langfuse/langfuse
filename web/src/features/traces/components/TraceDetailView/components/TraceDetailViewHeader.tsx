@@ -14,6 +14,7 @@ import { prepareTraceAnnotation } from "@/src/features/scores/lib/prepareTraceAn
 
 import { headerActionClassName } from "@/src/features/traces/components/headerActionClassName";
 import { memo, useRef } from "react";
+import { useRouter } from "next/router";
 import { useReadPath } from "@/src/features/events";
 import {
   type TraceDomain,
@@ -47,11 +48,13 @@ import {
   MessageSquare,
   MessageSquareOff,
   PlusIcon,
+  Palette,
   SquarePen,
 } from "lucide-react";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
+import { useIsFeatureEnabled } from "@/src/features/feature-flags";
 
 export interface TraceDetailViewHeaderProps {
   isLoading?: false;
@@ -125,6 +128,8 @@ function LoadedTraceDetailViewHeader({
   commentDrawerControl,
 }: TraceDetailViewHeaderProps) {
   const { isAnnotationMode } = useViewPreferences();
+  const customUiEnabled = useIsFeatureEnabled("customUi");
+  const router = useRouter();
   const { isV4 } = useReadPath();
   const isMobile = useIsMobile();
   const mobileActionsTriggerRef = useRef<HTMLButtonElement>(null);
@@ -345,6 +350,26 @@ function LoadedTraceDetailViewHeader({
                   </Button>
                 )}
               </AnnotateDrawerController>
+            )}
+            {!isAnnotationMode && customUiEnabled && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="gap-1"
+                onClick={() =>
+                  router.push({
+                    pathname: `/project/${projectId}/visualizations`,
+                    query: {
+                      source: "trace",
+                      traceId: trace.id,
+                    },
+                  })
+                }
+              >
+                <Palette className="icon-sm" />
+                <span>Custom UI</span>
+              </Button>
             )}
             <Button
               type="button"

@@ -20,6 +20,7 @@ export const applicationToastOperations = [
   "blob_storage.save",
   "blob_storage.validate",
   "correction.delete",
+  "custom_visualization.definition_apply",
   "dashboard.clone",
   "dashboard.create",
   "dashboard.delete",

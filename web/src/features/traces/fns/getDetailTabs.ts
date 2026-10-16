@@ -7,6 +7,7 @@ export function getDetailTabs({
   isAnnotationMode,
   hasObservations,
   canViewScores,
+  hasVisualizations = false,
 }: {
   target: "trace" | "observation";
   isV4: boolean;
@@ -14,6 +15,7 @@ export function getDetailTabs({
   isAnnotationMode: boolean;
   hasObservations: boolean;
   canViewScores: boolean;
+  hasVisualizations?: boolean;
 }) {
   const visibility: Record<DetailTab, boolean> = {
     preview: true,
@@ -21,6 +23,8 @@ export function getDetailTabs({
     attributes: true,
     scores: canViewScores && !isAnnotationMode,
     log: (target === "trace" || isV4) && hasObservations && !isAnnotationMode,
+    visualizations:
+      target === "trace" && hasVisualizations && !isAnnotationMode,
   };
   return DETAIL_TABS.filter((tab) => visibility[tab]);
 }

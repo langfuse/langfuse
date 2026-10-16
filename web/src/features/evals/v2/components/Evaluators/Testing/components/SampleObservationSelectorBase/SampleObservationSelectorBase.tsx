@@ -2,6 +2,7 @@
 /* eslint-disable @repo/no-style-props */
 import { useCallback, useMemo, useState, type UIEvent } from "react";
 import {
+  ArrowUpRight,
   Database,
   FlaskConical,
   ListTree,
@@ -25,6 +26,7 @@ import {
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import {
   buildAiContext,
@@ -54,6 +56,7 @@ import {
 import { useReusableRuleFilterPresets } from "@/src/features/evals/v2/hooks/useReusableRuleFilterPresets";
 import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { formatCompactRelativeTime } from "@/src/utils/dates";
 
 export type SampleObservation =
   RouterOutputs["events"]["all"]["observations"][number];
@@ -143,6 +146,7 @@ export type SampleObservationSelectorBaseProps = {
   registry: FieldRegistry | undefined;
   selectedObservationId: string | null;
   onSelect: (observation: SampleObservation | null) => void;
+  onActivate?: (observation: SampleObservation) => void;
   onOpenTrace: (observation: SampleObservation) => void;
   leadingColumns: LangfuseColumnDef<SampleObservation>[];
   resolveSelection: (
@@ -156,6 +160,8 @@ export type SampleObservationSelectorBaseProps = {
   matchingTooltip: string;
   formatCount: (count: number) => string;
   mapObservedOptions: MapSampleObservedOptions;
+  displayMode?: "table" | "compact-list";
+  sections?: "all" | "filters" | "matches";
 };
 
 export function SampleObservationSelectorBase(
@@ -171,6 +177,7 @@ export function SampleObservationSelectorBase(
     registry,
     selectedObservationId,
     onSelect,
+    onActivate,
     onOpenTrace,
     leadingColumns,
     resolveSelection,
@@ -181,6 +188,8 @@ export function SampleObservationSelectorBase(
     matchingTooltip,
     formatCount,
     mapObservedOptions,
+    displayMode = "table",
+    sections = "all",
   } = props;
   const activeRegistry = registry ?? EVENTS_FIELD_REGISTRY;
   const [filterMode, setFilterMode] =
@@ -317,37 +326,39 @@ export function SampleObservationSelectorBase(
   );
   const matchingObservations = observationPages.flat();
   const observationIOPages = api.useQueries((t) =>
-    observationPages
-      .filter((page) => page.length > 0)
-      .map((page) => {
-        const observations = page.filter(
-          (observation) =>
-            observation.id && observation.traceId && observation.startTime,
-        );
-        const startTimes = observations.map((observation) =>
-          observation.startTime.getTime(),
-        );
+    displayMode === "compact-list"
+      ? []
+      : observationPages
+          .filter((page) => page.length > 0)
+          .map((page) => {
+            const observations = page.filter(
+              (observation) =>
+                observation.id && observation.traceId && observation.startTime,
+            );
+            const startTimes = observations.map((observation) =>
+              observation.startTime.getTime(),
+            );
 
-        return t.events.batchIO(
-          {
-            projectId,
-            observations: observations.map((observation) => ({
-              id: observation.id,
-              traceId: observation.traceId!,
-            })),
-            minStartTime: new Date(
-              startTimes.length > 0 ? Math.min(...startTimes) : 0,
-            ),
-            maxStartTime: new Date(
-              startTimes.length > 0 ? Math.max(...startTimes) : 0,
-            ),
-          },
-          {
-            ...sendAsPostOption,
-            enabled: observationQuery.isSuccess && observations.length > 0,
-          },
-        );
-      }),
+            return t.events.batchIO(
+              {
+                projectId,
+                observations: observations.map((observation) => ({
+                  id: observation.id,
+                  traceId: observation.traceId!,
+                })),
+                minStartTime: new Date(
+                  startTimes.length > 0 ? Math.min(...startTimes) : 0,
+                ),
+                maxStartTime: new Date(
+                  startTimes.length > 0 ? Math.max(...startTimes) : 0,
+                ),
+              },
+              {
+                ...sendAsPostOption,
+                enabled: observationQuery.isSuccess && observations.length > 0,
+              },
+            );
+          }),
   );
   const observationIOById = useMemo(
     () =>
@@ -498,141 +509,244 @@ export function SampleObservationSelectorBase(
 
   return (
     <div className="flex shrink-0 flex-col gap-6">
-      <section className="flex flex-col gap-2">
-        <SectionHeader
-          title="Filter observations"
-          meta={null}
-          description={filterDescription}
-          tooltip={filterTooltip}
-          trailing={
-            <FilterModeToggle
-              mode={filterMode}
-              onChange={(mode) => {
-                if (mode === "builder" && searchQuery !== null) {
-                  search.applyFilters(filterState);
-                }
-                setFilterMode(mode);
-              }}
-            />
-          }
-        />
-        {datasets.isPending ? (
-          <Skeleton className="h-10 w-full" />
-        ) : filterMode === "query" ? (
-          <EventsSearchBarRow
-            projectId={projectId}
-            tableName={tableName}
-            store={search.store}
-            commit={search.commit}
-            observed={observed}
-            erroredColumns={options.erroredColumns}
-            registry={searchRegistry}
-            onApplyFilters={search.applyFilters}
-            onRequestColumns={options.requestColumns}
-            presetSections={reusableRuleFilters.sections}
-            onQueryPresetPick={onQueryPresetPick}
-            aiDataContext={aiDataContext}
-            aiScoreNames={aiScoreNames}
-            className="p-0"
-          />
-        ) : (
-          <ObservationFilterBuilder
-            columns={builderColumns}
-            filterState={filterState}
-            onChange={setFilters}
-            queryOnlyColumnIds={queryOnlyColumnIds}
-          />
-        )}
-        {filterMode === "query" ? (
-          <div className="flex flex-wrap gap-2">
-            {examples.map((example) => (
-              <Button
-                key={example.label}
-                type="button"
-                variant="outline"
-                size="sm"
-                className="flex h-8 items-center gap-2 text-sm"
-                onClick={() => {
-                  setFilters((current) =>
-                    toggleExampleFilters(current, [...example.filters]),
-                  );
+      {sections !== "matches" ? (
+        <section className="flex flex-col gap-2">
+          <SectionHeader
+            title="Filter observations"
+            meta={null}
+            description={filterDescription}
+            tooltip={filterTooltip}
+            trailing={
+              <FilterModeToggle
+                mode={filterMode}
+                onChange={(mode) => {
+                  if (mode === "builder" && searchQuery !== null) {
+                    search.applyFilters(filterState);
+                  }
+                  setFilterMode(mode);
                 }}
-              >
-                <example.icon className="icon-base" />
-                <span>{example.label}</span>
-              </Button>
-            ))}
-          </div>
-        ) : null}
-      </section>
-
-      <section className="flex min-h-0 flex-col gap-2">
-        <SectionHeader
-          title="Matching observations"
-          meta={
-            options.approxTotalCount !== null ? (
-              <span className="text-muted-foreground shrink-0 text-sm">
-                {formatCount(options.approxTotalCount)}
-              </span>
-            ) : null
-          }
-          description={matchingDescription}
-          tooltip={matchingTooltip}
-          trailing={
-            <DataTableColumnVisibilityFilter
-              tableName="evaluator-sample-observations"
-              isV4
-              columns={columns}
-              columnVisibility={columnVisibility}
-              setColumnVisibility={setColumnVisibility}
-              columnOrder={columnOrder}
-              setColumnOrder={setColumnOrder}
-              triggerSize="sm"
-            />
-          }
-        />
-        <div
-          ref={
-            selectionToReconcile !== undefined
-              ? (element) => {
-                  // Commit fresh query results through the existing selection owner without a data-sync effect.
-                  if (element) onSelect(selectionToReconcile);
-                }
-              : undefined
-          }
-          className="flex h-64 min-h-0 flex-col overflow-hidden rounded-md border"
-        >
-          <DataTable
-            tableName={tableName}
-            columns={columns}
-            data={
-              observationsPending && matchingObservations.length === 0
-                ? { isLoading: true, isError: false }
-                : observationsError
-                  ? {
-                      isLoading: false,
-                      isError: true,
-                      error: observationsError.message,
-                    }
-                  : {
-                      isLoading: false,
-                      isError: false,
-                      data: matchingObservations,
-                    }
+              />
             }
-            hidePagination
-            onScroll={handleScroll}
-            columnVisibility={columnVisibility}
-            onColumnVisibilityChange={setColumnVisibility}
-            columnOrder={columnOrder}
-            onColumnOrderChange={setColumnOrder}
-            rowHeight={rowHeight}
-            onRowClick={onOpenTrace}
-            getRowClassName={getRowClassName}
-            noResultsMessage="No observations match the current filters and time range."
           />
-        </div>
-      </section>
+          {datasets.isPending ? (
+            <Skeleton className="h-10 w-full" />
+          ) : filterMode === "query" ? (
+            <EventsSearchBarRow
+              projectId={projectId}
+              tableName={tableName}
+              store={search.store}
+              commit={search.commit}
+              observed={observed}
+              erroredColumns={options.erroredColumns}
+              registry={searchRegistry}
+              onApplyFilters={search.applyFilters}
+              onRequestColumns={options.requestColumns}
+              presetSections={reusableRuleFilters.sections}
+              onQueryPresetPick={onQueryPresetPick}
+              aiDataContext={aiDataContext}
+              aiScoreNames={aiScoreNames}
+              className="p-0"
+            />
+          ) : (
+            <ObservationFilterBuilder
+              columns={builderColumns}
+              filterState={filterState}
+              onChange={setFilters}
+              queryOnlyColumnIds={queryOnlyColumnIds}
+            />
+          )}
+          {filterMode === "query" ? (
+            <div className="flex flex-wrap gap-2">
+              {examples.map((example) => (
+                <Button
+                  key={example.label}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="flex h-8 items-center gap-2 text-sm"
+                  onClick={() => {
+                    setFilters((current) =>
+                      toggleExampleFilters(current, [...example.filters]),
+                    );
+                  }}
+                >
+                  <example.icon className="icon-base" />
+                  <span>{example.label}</span>
+                </Button>
+              ))}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
+      {sections !== "filters" ? (
+        <section className="flex min-h-0 flex-col gap-2">
+          <SectionHeader
+            title="Matching observations"
+            meta={
+              options.approxTotalCount !== null ? (
+                <span className="text-muted-foreground shrink-0 text-sm">
+                  {formatCount(options.approxTotalCount)}
+                </span>
+              ) : null
+            }
+            description={matchingDescription}
+            tooltip={matchingTooltip}
+            trailing={
+              displayMode === "compact-list" ? null : (
+                <DataTableColumnVisibilityFilter
+                  tableName="evaluator-sample-observations"
+                  isV4
+                  columns={columns}
+                  columnVisibility={columnVisibility}
+                  setColumnVisibility={setColumnVisibility}
+                  columnOrder={columnOrder}
+                  setColumnOrder={setColumnOrder}
+                  triggerSize="sm"
+                />
+              )
+            }
+          />
+          <div
+            ref={
+              selectionToReconcile !== undefined
+                ? (element) => {
+                    // Commit fresh query results through the existing selection owner without a data-sync effect.
+                    if (element) onSelect(selectionToReconcile);
+                  }
+                : undefined
+            }
+            className={
+              displayMode === "compact-list"
+                ? "flex min-h-0 flex-1 flex-col overflow-y-auto"
+                : "flex h-64 min-h-0 flex-col overflow-hidden rounded-md border"
+            }
+            onScroll={displayMode === "compact-list" ? handleScroll : undefined}
+          >
+            {displayMode === "compact-list" ? (
+              <div className="space-y-1 pb-2">
+                {observationsPending && matchingObservations.length === 0 ? (
+                  <div className="space-y-2">
+                    <Skeleton className="h-16 w-full" />
+                    <Skeleton className="h-16 w-full" />
+                    <Skeleton className="h-16 w-full" />
+                  </div>
+                ) : observationsError ? (
+                  <p className="text-destructive px-2 py-6 text-sm">
+                    {observationsError.message}
+                  </p>
+                ) : matchingObservations.length === 0 ? (
+                  <p className="text-muted-foreground px-2 py-6 text-sm">
+                    No observations match this filter and time range.
+                  </p>
+                ) : (
+                  matchingObservations.map((observation) => {
+                    const selected = observation.id === selectedObservationId;
+                    return (
+                      <div
+                        key={observation.id}
+                        className={`flex w-full items-start rounded-lg border text-left transition-colors ${
+                          selected
+                            ? "border-primary bg-primary/5 ring-primary/20 ring-1"
+                            : "hover:border-border hover:bg-muted/50 border-transparent"
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onSelect(observation);
+                            onActivate?.(observation);
+                          }}
+                          className="flex min-w-0 flex-1 items-start gap-2.5 px-3 py-2.5 text-left"
+                        >
+                          <ItemBadge
+                            type={observation.type as LangfuseItemType}
+                            isSmall
+                            className="mt-0.5"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div
+                              className="truncate text-sm font-bold"
+                              title={observation.name ?? observation.type}
+                            >
+                              {observation.name ?? observation.type}
+                            </div>
+                            <div className="text-muted-foreground mt-0.5 flex items-center gap-1.5 text-[11px]">
+                              <span
+                                className="truncate"
+                                title={
+                                  observation.traceName ??
+                                  observation.traceId ??
+                                  undefined
+                                }
+                              >
+                                {observation.traceName ?? observation.traceId}
+                              </span>
+                              <span aria-hidden="true">·</span>
+                              <span className="shrink-0">
+                                {formatCompactRelativeTime(
+                                  observation.startTime,
+                                )}
+                              </span>
+                            </div>
+                            <div className="text-muted-foreground/70 mt-1 font-mono text-[10px]">
+                              {observation.id.slice(0, 8)}
+                            </div>
+                          </div>
+                        </button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="m-1.5 h-8 w-8 shrink-0"
+                          title="Open this example in context"
+                          aria-label={`Open ${observation.name ?? observation.id} in context`}
+                          onClick={() => onOpenTrace(observation)}
+                        >
+                          <ArrowUpRight className="icon-base" />
+                        </Button>
+                      </div>
+                    );
+                  })
+                )}
+                {observationsFetching ? (
+                  <Skeleton className="h-12 w-full" />
+                ) : null}
+              </div>
+            ) : (
+              <DataTable
+                tableName={tableName}
+                columns={columns}
+                data={
+                  observationsPending && matchingObservations.length === 0
+                    ? { isLoading: true, isError: false }
+                    : observationsError
+                      ? {
+                          isLoading: false,
+                          isError: true,
+                          error: observationsError.message,
+                        }
+                      : {
+                          isLoading: false,
+                          isError: false,
+                          data: matchingObservations,
+                        }
+                }
+                hidePagination
+                onScroll={handleScroll}
+                columnVisibility={columnVisibility}
+                onColumnVisibilityChange={setColumnVisibility}
+                columnOrder={columnOrder}
+                onColumnOrderChange={setColumnOrder}
+                rowHeight={rowHeight}
+                onRowClick={onOpenTrace}
+                getRowClassName={getRowClassName}
+                noResultsMessage="No observations match the current filters and time range."
+              />
+            )}
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }

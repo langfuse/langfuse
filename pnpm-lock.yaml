@@ -574,6 +574,12 @@ importers:
       '@hookform/resolvers':
         specifier: ^5.2.2
         version: 5.2.2(react-hook-form@7.72.0(react@19.2.4))
+      '@json-render/core':
+        specifier: 0.21.0
+        version: 0.21.0(zod@4.3.6)
+      '@json-render/react':
+        specifier: 0.21.0
+        version: 0.21.0(react@19.2.4)(zod@4.3.6)
       '@langfuse/shared':
         specifier: workspace:*
         version: link:../packages/shared
@@ -2838,6 +2844,16 @@ packages:
     engines: {node: '>= 10.16.0'}
     peerDependencies:
       jsep: ^0.4.0||^1.0.0
+
+  '@json-render/core@0.21.0':
+    resolution: {integrity: sha512-vysEbTjO1y8mEgAsp0tztRyaWCkNsBrG8MhAqbndGK3qmMXjMRdCNtk21+AQRNKdRelFGVAwBgtUNW8tfjQlsw==}
+    peerDependencies:
+      zod: 4.3.6
+
+  '@json-render/react@0.21.0':
+    resolution: {integrity: sha512-z/fZg0L8fJe2dnnQjWkmMw409iBclSWcOqdjoBy8eLHeBr/7F7VipzkY1CfgA2Fa5uW+zxZ54OvWMtdDcsp/yg==}
+    peerDependencies:
+      react: ^19.2.3
 
   '@lezer/common@1.5.1':
     resolution: {integrity: sha512-6YRVG9vBkaY7p1IVxL4s44n5nUnaNnGM2/AckNgYOnxTG2kWh1vR8BMxPseWPjRNpb5VtXnMpeYAEAADoRV1Iw==}
@@ -14579,6 +14595,17 @@ snapshots:
   '@jsep-plugin/regex@1.0.4(jsep@1.4.0)':
     dependencies:
       jsep: 1.4.0
+
+  '@json-render/core@0.21.0(zod@4.3.6)':
+    dependencies:
+      zod: 4.3.6
+
+  '@json-render/react@0.21.0(react@19.2.4)(zod@4.3.6)':
+    dependencies:
+      '@json-render/core': 0.21.0(zod@4.3.6)
+      react: 19.2.4
+    transitivePeerDependencies:
+      - zod
 
   '@lezer/common@1.5.1': {}
 

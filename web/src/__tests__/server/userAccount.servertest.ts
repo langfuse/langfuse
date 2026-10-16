@@ -26,13 +26,20 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
   });
 
-  it.each([true, false])(
-    "rejects a non-platform-admin Topics toggle to %s",
-    async (enabled) => {
+  it.each(
+    ["langfuseTopics", "customUi"].flatMap((flag) =>
+      [true, false].map((enabled) => ({
+        flag: flag as "langfuseTopics" | "customUi",
+        enabled,
+      })),
+    ),
+  )(
+    "rejects a non-platform-admin $flag toggle to $enabled",
+    async ({ flag, enabled }) => {
       const { caller, userId } = await createCaller();
       await expect(
         caller.userAccount.setFeaturePreviewEnabled({
-          flag: "langfuseTopics",
+          flag,
           enabled,
         }),
       ).rejects.toMatchObject({ code: "FORBIDDEN" });
@@ -43,26 +50,29 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
     },
   );
 
-  it("lets a platform admin opt into and out of Topics locally without changing other flags", async () => {
-    const { caller, userId } = await createCaller({ admin: true });
-    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
-    await caller.userAccount.setFeaturePreviewEnabled({
-      flag: "langfuseTopics",
-      enabled: true,
-    });
-    expect(
-      (await prisma.user.findUniqueOrThrow({ where: { id: userId } }))
-        .featureFlags,
-    ).toEqual(["templateFlag", "langfuseTopics"]);
-    await caller.userAccount.setFeaturePreviewEnabled({
-      flag: "langfuseTopics",
-      enabled: false,
-    });
-    expect(
-      (await prisma.user.findUniqueOrThrow({ where: { id: userId } }))
-        .featureFlags,
-    ).not.toContain("langfuseTopics");
-  });
+  it.each(["langfuseTopics", "customUi"] as const)(
+    "lets a platform admin opt into and out of %s locally without changing other flags",
+    async (flag) => {
+      const { caller, userId } = await createCaller({ admin: true });
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      await caller.userAccount.setFeaturePreviewEnabled({
+        flag,
+        enabled: true,
+      });
+      expect(
+        (await prisma.user.findUniqueOrThrow({ where: { id: userId } }))
+          .featureFlags,
+      ).toEqual(["templateFlag", flag]);
+      await caller.userAccount.setFeaturePreviewEnabled({
+        flag,
+        enabled: false,
+      });
+      expect(
+        (await prisma.user.findUniqueOrThrow({ where: { id: userId } }))
+          .featureFlags,
+      ).not.toContain(flag);
+    },
+  );
 
   it("enables a preview, leaving other flags intact", async () => {
     const { caller, userId } = await createCaller({

@@ -7,6 +7,8 @@ import {
 } from "@/src/features/sessions/hooks/useSessionConversationTimelineController";
 import { type SessionTraceTranscriptState } from "@/src/features/sessions/hooks/useSessionTraceTranscripts";
 import { getSessionTranscriptThreads } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/getSessionTranscriptThreads";
+import { type RouterOutputs } from "@/src/utils/api";
+import { matchesObservationVisualization } from "@/src/features/custom-visualizations/fns/observationVisualization";
 
 export type ConnectedSessionConversationTimelineItem = {
   trace: EventSessionTrace;
@@ -33,6 +35,7 @@ export function ConnectedSessionConversationTimeline(
     controller: SessionConversationTimelineController;
     resultsByTraceId: ReadonlyMap<string, SessionTraceTranscriptState>;
     scrollTarget: SessionConversationTimelineScrollTarget | null;
+    visualizations: RouterOutputs["customVisualizations"]["active"];
   },
 ) {
   const { traces, openPeek, controller, resultsByTraceId, scrollTarget } =
@@ -43,6 +46,17 @@ export function ConnectedSessionConversationTimeline(
       {...props}
       traces={traces.map(({ trace, turnNumber }) => {
         const result = resultsByTraceId.get(trace.id);
+        const hasMatchingVisualization =
+          result?.state === "loaded" &&
+          (result.visualizationObservations ?? []).some((observation) =>
+            props.visualizations.some(({ definition }) =>
+              matchesObservationVisualization(
+                definition,
+                observation,
+                "SESSION",
+              ),
+            ),
+          );
         const state = (() => {
           if (result?.state === "error") return { type: "error" as const };
           if (!result || result.state === "loading")
@@ -51,7 +65,8 @@ export function ConnectedSessionConversationTimeline(
             getSessionTranscriptThreads(result.transcript).visibleThreads
               .length === 0 &&
             getSessionTranscriptThreads(result.transcript).hiddenThreadCount ===
-              0
+              0 &&
+            !hasMatchingVisualization
           )
             return { type: "empty" as const };
           return { type: "transcript" as const, result };
@@ -65,6 +80,11 @@ export function ConnectedSessionConversationTimeline(
             openPeek(trace.id, { ...trace, observationId }),
           scrollTarget:
             scrollTarget?.traceId === trace.id ? scrollTarget : null,
+          visualizations: props.visualizations,
+          visualizationObservations:
+            result?.state === "loaded"
+              ? (result.visualizationObservations ?? [])
+              : [],
         };
       })}
       controller={controller}

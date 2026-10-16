@@ -40,6 +40,10 @@ export default function useIsFeatureEnabled(
     );
   }
 
+  if (feature === "customUi") {
+    return isAdmin && session.data?.user?.featureFlags?.[feature] === true;
+  }
+
   if (isRestrictedFlag(feature) || isAdminOnlyFeaturePreviewFlag(feature)) {
     return isFeatureEnabledOnUser;
   }

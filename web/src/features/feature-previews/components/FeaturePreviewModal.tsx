@@ -54,6 +54,14 @@ export type PreviewState = {
 // Previews may include separate light/dark illustrations.
 const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
   {
+    flag: "customUi",
+    description:
+      "Turn trace and observation data into focused, reusable interfaces.",
+    details:
+      "Create a Custom UI for matching observations, compare it with the default presentation, and publish a version when it is ready.",
+    feedbackUrl: "https://github.com/orgs/langfuse/discussions",
+  },
+  {
     flag: "langfuseTopics",
     description:
       "Discover common topics across traces, with summaries and an interactive topic map.",
