@@ -8,7 +8,7 @@ import {
   Hr,
   Html,
   Img,
-  Preview,
+  Link,
   Section,
   Tailwind,
   Text,
@@ -18,6 +18,7 @@ interface MembershipInvitationTemplateProps {
   invitedByUsername: string;
   invitedByUserEmail: string;
   orgName: string;
+  orgRole?: string;
   receiverEmail: string;
   inviteLink: string;
   userExists: boolean;
@@ -29,18 +30,18 @@ export const MembershipInvitationTemplate = ({
   invitedByUsername,
   invitedByUserEmail,
   orgName,
+  orgRole,
   receiverEmail,
   inviteLink,
   userExists,
   emailFromAddress,
   langfuseCloudRegion,
 }: MembershipInvitationTemplateProps) => {
-  const previewText = `Join ${invitedByUsername} on Langfuse`;
+  const inviteHost = new URL(inviteLink).host;
 
   return (
     <Html>
       <Head />
-      <Preview>{previewText}</Preview>
       <Tailwind>
         <Body className="mx-auto my-auto bg-background font-sans">
           <Container className="mx-auto my-10 w-[465px] rounded border border-solid border-[#eaeaea] p-5">
@@ -67,7 +68,17 @@ export const MembershipInvitationTemplate = ({
               {langfuseCloudRegion
                 ? ` Langfuse (${langfuseCloudRegion} data region)`
                 : " Langfuse"}
+              {orgRole ? (
+                <>
+                  {" "}
+                  with the <strong>{formatRole(orgRole)}</strong> role
+                </>
+              ) : null}
               .
+            </Text>
+            <Text className="text-sm leading-6 text-black">
+              Langfuse is an open-source LLM engineering platform for tracing,
+              evaluating, and debugging AI applications.
             </Text>
             <Section className="mb-4 mt-8 text-center">
               {/* Note: inviteLink always refers to a root langfuse url and is not vulnerable to hyperlink injection attacks */}
@@ -75,17 +86,19 @@ export const MembershipInvitationTemplate = ({
                 className="rounded bg-black px-5 py-3 text-center text-xs font-semibold text-white no-underline"
                 href={inviteLink}
               >
-                Accept Invitation
+                View invitation on {inviteHost}
               </Button>
-              <Text className="mt-2 text-xs leading-3 text-muted-foreground">
-                {userExists
-                  ? "(sign in with your existing account)"
-                  : "(you need to create an account with this email address)"}
-              </Text>
             </Section>
             <Text className="text-sm leading-6 text-black">
-              or copy and paste this URL into your browser:{" "}
-              <span className="text-blue-600 no-underline">{inviteLink}</span>
+              {userExists
+                ? `The link opens the organization on ${inviteHost}, where you already have a Langfuse account.`
+                : `The link opens ${inviteHost}, where you can create a Langfuse account for ${receiverEmail}.`}
+            </Text>
+            <Text className="break-all text-sm leading-6 text-black">
+              Link:{" "}
+              <Link href={inviteLink} className="text-blue-600 no-underline">
+                {inviteLink}
+              </Link>
             </Text>
             <Hr className="mx-0 my-[26px] w-full border border-solid border-[#eaeaea]" />
             <Text className="text-xs leading-6 text-[#666666]">
@@ -101,3 +114,6 @@ export const MembershipInvitationTemplate = ({
     </Html>
   );
 };
+
+const formatRole = (role: string) =>
+  role.charAt(0).toUpperCase() + role.slice(1).toLowerCase();
