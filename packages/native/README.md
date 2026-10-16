@@ -31,11 +31,13 @@ CPU-bound fits can be killed without blocking the worker.
 type checks and tooling work without a Rust toolchain. `*.node` binaries and
 `target/` are ignored.
 
-The encoder uses a small local source overlay for the pinned `clickhouse`
-0.15.2 crate. `scripts/prepare-clickhouse-rs.sh` downloads the exact crate
-archive, verifies its checksum, applies the delta in `patches/`, and writes an
-ignored Cargo patch configuration. The repository keeps the delta and setup
-script, not a vendored copy of the crate.
+The encoder uses the pinned `ch-core-rs` Git dependency for ClickHouse Native
+format encoding. The HTTP transport remains in the worker.
+
+The `rust:*` scripts remove the obsolete generated `.cargo/config.toml` from
+checkouts that used the patched encoder. Modified configs are preserved; remove
+the old `clickhouse` patch entry manually if warned. Direct Cargo commands bypass
+this cleanup.
 
 ## Building
 
