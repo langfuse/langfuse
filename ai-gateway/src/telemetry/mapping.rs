@@ -552,7 +552,7 @@ mod tests {
             "output_tokens_details": null,
             "future_usage": {"cost": 123},
         });
-        facts.inference.usage_details = Some(usage.clone());
+        facts.inference.usage_details = Some(usage);
         let attrs = attributes(&span(facts, &context()));
         assert!(metadata(&attrs).get("native_usage").is_none());
         let projected: Value = serde_json::from_str(

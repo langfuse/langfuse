@@ -44,6 +44,13 @@ tower = { version = "0.5", features = ["util"] }
 unsafe_code = "forbid"
 unreachable_pub = "warn"
 unused_qualifications = "warn"
+rust_2018_idioms = { level = "warn", priority = -1 }
+redundant_lifetimes = "warn"
+trivial_casts = "warn"
+trivial_numeric_casts = "warn"
+unit_bindings = "warn"
+unused_lifetimes = "warn"
+unused_macro_rules = "warn"
 
 [lints.clippy]
 pedantic = { level = "warn", priority = -1 }
@@ -67,6 +74,30 @@ print_stderr = "deny"
 await_holding_lock = "deny"
 rc_buffer = "deny"
 rc_mutex = "deny"
+
+# `process::exit` and `mem::forget` skip `Drop`, so graceful shutdown and
+# telemetry flushing would not run.
+exit = "deny"
+mem_forget = "deny"
+get_unwrap = "deny"
+
+# Oversized async state machines are copied on every poll of a request future.
+large_futures = "warn"
+large_stack_frames = "warn"
+
+redundant_clone = "warn"
+needless_collect = "warn"
+or_fun_call = "warn"
+iter_with_drain = "warn"
+set_contains_or_insert = "warn"
+
+infinite_loop = "warn"
+lossy_float_literal = "warn"
+float_cmp_const = "warn"
+mutex_atomic = "warn"
+try_err = "warn"
+unused_result_ok = "warn"
+error_impl_error = "warn"
 
 [profile.release]
 lto = "thin"
