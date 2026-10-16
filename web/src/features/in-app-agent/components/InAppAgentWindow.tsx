@@ -55,6 +55,7 @@ import {
   IN_APP_AGENT_GENERIC_ERROR_MESSAGE,
   IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
   type InAppAgentQuestionnaireAnswers,
+  type InAppAgentQuestionnaireQuestion,
 } from "@langfuse/shared/in-app-agent";
 import type { InAppAgentScreenContextDescription } from "@/src/features/in-app-agent/context";
 import type { InAppAgentActivityByConversationId } from "@/src/features/in-app-agent/lib/inAppAgentActivity";
@@ -65,6 +66,7 @@ import { InAppAgentNotice } from "@/src/features/in-app-agent/components/InAppAg
 import { useInAppAgentBackgroundHint } from "@/src/features/in-app-agent/lib/useInAppAgentBackgroundHint";
 import { InAppAgentToolCallCard } from "@/src/features/in-app-agent/components/InAppAgentToolCallCard";
 import { InAppAgentQuestionnaireCard } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireCard/InAppAgentQuestionnaireCard";
+import { parseQuestionnaireQuestions } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireCard/fns/parseQuestionnaireQuestions";
 import { InAppAgentQuestionnaireSummary } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireSummary/InAppAgentQuestionnaireSummary";
 import {
   buildConversationDisplayItems,
@@ -1473,12 +1475,30 @@ function PendingToolCallCard({
   onAnswerQuestionnaire,
   onRejectToolCall,
 }: PendingToolCallCardProps) {
-  if (tool.name === IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME) {
+  const isQuestionnaire = tool.name === IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME;
+  const questions = useMemo(
+    () => (isQuestionnaire ? parseQuestionnaireQuestions(tool.args) : null),
+    [isQuestionnaire, tool.args],
+  );
+
+  if (tool.approval && questions) {
     return (
-      <InAppAgentQuestionnaireCard
-        tool={tool}
+      <PendingQuestionnaireCard
+        approval={tool.approval}
+        questions={questions}
         isDisabled={isDisabled}
         onAnswerQuestionnaire={onAnswerQuestionnaire}
+      />
+    );
+  }
+
+  // A questionnaire with malformed questions cannot be answered, only declined.
+  if (isQuestionnaire) {
+    return (
+      <InAppAgentToolCallCard
+        tool={tool}
+        isCompact={isCompact}
+        isDisabled={isDisabled}
         onRejectToolCall={onRejectToolCall}
       />
     );
@@ -1492,6 +1512,31 @@ function PendingToolCallCard({
       onApproveToolCall={onApproveToolCall}
       onAlwaysAllowToolCall={onAlwaysAllowToolCall}
       onRejectToolCall={onRejectToolCall}
+    />
+  );
+}
+
+type PendingQuestionnaireCardProps = {
+  approval: NonNullable<InAppAgentToolCallContent["approval"]>;
+  questions: readonly InAppAgentQuestionnaireQuestion[];
+  isDisabled: boolean;
+} & Pick<InAppAgentWindowProps, "onAnswerQuestionnaire">;
+
+function PendingQuestionnaireCard({
+  approval,
+  questions,
+  isDisabled,
+  onAnswerQuestionnaire,
+}: PendingQuestionnaireCardProps) {
+  const handleSubmit = (answers: InAppAgentQuestionnaireAnswers) =>
+    onAnswerQuestionnaire(approval.id, answers);
+
+  return (
+    <InAppAgentQuestionnaireCard
+      questions={questions}
+      isSubmitting={approval.status === "submitting"}
+      isDisabled={isDisabled}
+      onSubmit={handleSubmit}
     />
   );
 }

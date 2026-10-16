@@ -2,7 +2,6 @@
 
 import {
   useId,
-  useMemo,
   useState,
   type KeyboardEvent,
   type SyntheticEvent,
@@ -14,63 +13,15 @@ import type {
   InAppAgentQuestionnaireQuestion,
 } from "@langfuse/shared/in-app-agent";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
-import { InAppAgentToolCallCard } from "@/src/features/in-app-agent/components/InAppAgentToolCallCard";
-import type { InAppAgentToolCallContent } from "@/src/features/in-app-agent/components/utils/utils";
 import { QuestionnaireStep } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireCard/components/QuestionnaireStep/QuestionnaireStep";
-import { parseQuestionnaireQuestions } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireCard/fns/parseQuestionnaireQuestions";
 import { createQuestionnaireFormValues } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireCard/fns/createQuestionnaireFormValues";
 import { toQuestionnaireAnswers } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireCard/fns/toQuestionnaireAnswers";
 
 export type InAppAgentQuestionnaireCardProps = {
-  tool: InAppAgentToolCallContent;
-  isDisabled?: boolean;
-  onAnswerQuestionnaire: (
-    approvalId: string,
-    answers: InAppAgentQuestionnaireAnswers,
-  ) => Promise<void>;
-  onRejectToolCall: (approvalId: string) => Promise<void>;
-};
-
-export function InAppAgentQuestionnaireCard({
-  tool,
-  isDisabled = false,
-  onAnswerQuestionnaire,
-  onRejectToolCall,
-}: InAppAgentQuestionnaireCardProps) {
-  const questions = useMemo(
-    () => parseQuestionnaireQuestions(tool.args),
-    [tool.args],
-  );
-
-  // Malformed questions can still be declined through the generic card.
-  if (!tool.approval || !questions) {
-    return (
-      <InAppAgentToolCallCard
-        tool={tool}
-        isCompact
-        isDisabled={isDisabled}
-        onRejectToolCall={onRejectToolCall}
-      />
-    );
-  }
-
-  return (
-    <QuestionnaireForm
-      approvalId={tool.approval.id}
-      questions={questions}
-      isSubmitting={tool.approval.status === "submitting"}
-      isDisabled={isDisabled}
-      onSubmit={onAnswerQuestionnaire}
-    />
-  );
-}
-
-type QuestionnaireFormProps = {
-  approvalId: string;
   questions: readonly InAppAgentQuestionnaireQuestion[];
   isSubmitting: boolean;
-  isDisabled: boolean;
-  onSubmit: InAppAgentQuestionnaireCardProps["onAnswerQuestionnaire"];
+  isDisabled?: boolean;
+  onSubmit: (answers: InAppAgentQuestionnaireAnswers) => Promise<void>;
 };
 
 /**
@@ -78,13 +29,12 @@ type QuestionnaireFormProps = {
  * answer in one approval decision. Dismissing submits every question as
  * skipped, so the model reads it as "no answer" rather than a declined call.
  */
-function QuestionnaireForm({
-  approvalId,
+export function InAppAgentQuestionnaireCard({
   questions,
   isSubmitting,
-  isDisabled,
+  isDisabled = false,
   onSubmit,
-}: QuestionnaireFormProps) {
+}: InAppAgentQuestionnaireCardProps) {
   const titleId = useId();
   const [stepIndex, setStepIndex] = useState(0);
   const [isDismissing, setIsDismissing] = useState(false);
@@ -104,7 +54,7 @@ function QuestionnaireForm({
     currentAnswer.otherText.trim().length > 0;
 
   const submitAnswers = form.handleSubmit(async (values) => {
-    await onSubmit(approvalId, toQuestionnaireAnswers(values));
+    await onSubmit(toQuestionnaireAnswers(values));
   });
 
   const goToNextStep = () => {
@@ -154,10 +104,7 @@ function QuestionnaireForm({
   const handleDismiss = () => {
     setIsDismissing(true);
     // The provider surfaces decision errors; the card only resets its state.
-    onSubmit(
-      approvalId,
-      toQuestionnaireAnswers(createQuestionnaireFormValues(questions)),
-    )
+    onSubmit(toQuestionnaireAnswers(createQuestionnaireFormValues(questions)))
       .catch(() => undefined)
       .finally(() => {
         setIsDismissing(false);
