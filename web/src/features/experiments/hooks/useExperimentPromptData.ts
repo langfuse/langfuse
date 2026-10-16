@@ -6,20 +6,15 @@ import {
   parsePromptToolConfig,
   PromptType,
   extractPlaceholderNames,
+  parsePromptModelConfig,
   type PromptMessage,
+  type PromptModelConfig,
   type PromptToolConfig,
-  ZodModelConfig,
 } from "@langfuse/shared";
-import { z } from "zod/v4";
 
 type ExperimentPromptDataProps = {
   projectId: string;
   form: UseFormReturn<any>;
-};
-
-export type ExperimentPromptModelConfig = {
-  provider?: string;
-  model: string;
 };
 
 export function useExperimentPromptData({
@@ -71,9 +66,9 @@ export function useExperimentPromptData({
     [promptMeta.data],
   );
 
-  const selectedPromptModelConfig = useMemo(() => {
+  const selectedPromptModelConfig: PromptModelConfig = useMemo(() => {
     const prompt = promptMeta.data?.find((p) => p.id === promptId);
-    return getPromptModelConfig(prompt?.config);
+    return parsePromptModelConfig(prompt?.config);
   }, [promptId, promptMeta.data]);
 
   const selectedPromptToolConfig: PromptToolConfig = useMemo(() => {
@@ -89,22 +84,3 @@ export function useExperimentPromptData({
     selectedPromptToolConfig,
   };
 }
-
-const PromptConfigSchema = ZodModelConfig.extend({
-  provider: z.string().min(1).optional(),
-  model: z.string().min(1),
-});
-
-const getPromptModelConfig = (
-  config: unknown,
-): ExperimentPromptModelConfig | null => {
-  const parsedConfig = PromptConfigSchema.safeParse(config);
-
-  if (!parsedConfig.success) return null;
-
-  const { provider, model } = parsedConfig.data;
-  return {
-    ...(provider ? { provider } : {}),
-    model,
-  };
-};

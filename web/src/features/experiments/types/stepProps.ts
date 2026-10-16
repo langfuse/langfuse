@@ -4,6 +4,7 @@ import { type UIModelParams } from "@langfuse/shared/src/server";
 import { type ModelParamsContext } from "@/src/components/ModelParameters";
 import {
   type EvalTemplate,
+  type PromptModelConfig,
   type PromptToolConfig,
   type PromptType,
 } from "@langfuse/shared";
@@ -55,6 +56,7 @@ type PromptModelState = {
   promptsByName:
     | Record<string, Array<{ id: string; version: number; labels: string[] }>>
     | undefined;
+  selectedPromptModelConfig: PromptModelConfig;
   selectedPromptToolConfig: PromptToolConfig;
 };
 

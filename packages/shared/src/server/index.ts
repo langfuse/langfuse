@@ -58,6 +58,7 @@ export * from "./llm/mediaMessages";
 export * from "./llm/errors";
 export * from "./llm/utils";
 export * from "./llm/types";
+export * from "./llm/promptModelConfig";
 export * from "./llm/promptToolConfig";
 export * from "./llm/internalTraceEvents";
 export { isInternalEvalEnvironment } from "./llm/isInternalEvalEnvironment";
