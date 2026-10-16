@@ -3476,22 +3476,22 @@ export class OtelIngestionProcessor {
     return {};
   }
 
-  // SDKs send cost maps with non-numeric entries such as `"currency": "USD"`;
-  // numeric strings are kept because some instrumentations stringify costs.
+  /** Keeps finite numbers and non-blank numeric strings (as numbers); drops other entries such as currency. */
   private toNumericEntries(
     details: Record<string, unknown>,
   ): Record<string, number> {
     const result: Record<string, number> = {};
     for (const [key, value] of Object.entries(details)) {
-      const numeric =
-        typeof value === "number"
-          ? value
-          : typeof value === "string" && value.trim() !== ""
-            ? Number(value)
-            : NaN;
+      const numeric = this.toFiniteNumber(value);
       if (Number.isFinite(numeric)) result[key] = numeric;
     }
     return result;
+  }
+
+  private toFiniteNumber(value: unknown): number {
+    if (typeof value === "number") return value;
+    if (typeof value === "string" && value.trim() !== "") return Number(value);
+    return NaN;
   }
 
   private extractCompletionStartTime(
