@@ -8,6 +8,15 @@ const tester = new RuleTester({
 tester.run("component-file-structure", rule, {
   valid: [
     ...[
+      "export function Button() { const content = <div />; return content; }",
+      "export function createButton() { const Button = () => <div />; return Button; }",
+      "export function value(content) { return content; }",
+      "export function value() { return unknown; }",
+      "export function value() { let content; return content; }",
+      "export function value() { const content = content; return content; }",
+      "const content = <div />; export function value(content) { return content; }",
+    ].map((code) => ({ code, filename: "/repo/Button.tsx" })),
+    ...[
       "export function renderLevelIcon(value: string) { if (!value) return null; return <span />; }",
       "export function renderFilterIcon(value: string) { return <Icon name={value} />; }",
       "export const renderCount = (value: number) => <span>{value}</span>;",
@@ -131,6 +140,21 @@ tester.run("component-file-structure", rule, {
     },
   ],
   invalid: [
+    {
+      code: "export function Wrong() { const content = <div />; return content; }",
+      filename: "/repo/Other.tsx",
+      errors: [{ messageId: "filename" }],
+    },
+    {
+      code: "export function First() { const content = <div />; return content; } export function Second() { const content = <span />; return content; }",
+      filename: "/repo/First.tsx",
+      errors: [{ messageId: "multiple" }],
+    },
+    {
+      code: "export function Wrong() { const content = <div />; const alias = content; return ready ? alias : null; }",
+      filename: "/repo/Other.tsx",
+      errors: [{ messageId: "filename" }],
+    },
     ...[
       "for (;;) { return <div />; }",
       "for (const key in items) { return <div />; }",

@@ -34,20 +34,38 @@ export default createRule({
       node: TSESTree.Node;
     }[] = [];
 
-    function renders(value: TSESTree.Expression, name: string): boolean {
+    function renders(
+      value: TSESTree.Expression,
+      name: string,
+      seen: Set<TSESTree.Node>,
+    ): boolean {
+      if (seen.has(value)) return false;
+      seen.add(value);
+      if (value.type === N.Identifier) {
+        let scope: ReturnType<typeof context.sourceCode.getScope> | null =
+          context.sourceCode.getScope(value);
+        while (scope && !scope.set.has(value.name)) scope = scope.upper;
+        const definition = scope?.set.get(value.name)?.defs[0];
+        if (definition?.type !== "Variable") return false;
+        const declaration = definition.node;
+        return declaration.init ? renders(declaration.init, name, seen) : false;
+      }
       if (value.type === N.JSXElement || value.type === N.JSXFragment)
         return true;
       if (value.type === N.ConditionalExpression)
         return (
-          renders(value.consequent, name) || renders(value.alternate, name)
+          renders(value.consequent, name, seen) ||
+          renders(value.alternate, name, seen)
         );
       if (value.type === N.LogicalExpression)
-        return renders(value.left, name) || renders(value.right, name);
+        return (
+          renders(value.left, name, seen) || renders(value.right, name, seen)
+        );
       if (
         value.type === N.TSAsExpression ||
         value.type === N.TSSatisfiesExpression
       )
-        return renders(value.expression, name);
+        return renders(value.expression, name, seen);
       return (
         value.type === N.Literal && value.value === null && /^[A-Z]/.test(name)
       );
@@ -138,7 +156,7 @@ export default createRule({
       // Nested function returns belong to factories' components, not the factory.
       let hasRender = false;
       visitFunctionReturnExpressions(node, (value) => {
-        hasRender ||= renders(value, name);
+        hasRender ||= renders(value, name, new Set());
       });
       return hasRender;
     }
