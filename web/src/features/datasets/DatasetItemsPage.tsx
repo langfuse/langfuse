@@ -14,10 +14,8 @@ import { DatasetVersionWarningBanner } from "@/src/features/datasets/components/
 import { useState } from "react";
 import { useDatasetVersion } from "@/src/features/datasets/hooks/useDatasetVersion";
 import { getDatasetBreadcrumb } from "@/src/features/datasets/utils/getDatasetBreadcrumb";
-import {
-  RouteParamsPendingFallback,
-  useReadyRouteParams,
-} from "@/src/hooks/useReadyRouteParams";
+import { RouteParamsPendingFallback } from "@/src/components/RouteParamsPendingFallback/RouteParamsPendingFallback";
+import { useReadyRouteParams } from "@/src/hooks/useReadyRouteParams";
 import { DatasetActionMenu } from "@/src/features/datasets/components/DatasetActionMenu";
 
 export default function DatasetItemsPage() {

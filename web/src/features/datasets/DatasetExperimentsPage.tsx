@@ -34,10 +34,8 @@ import useLocalStorage from "@/src/components/useLocalStorage";
 import { getDatasetBreadcrumb } from "@/src/features/datasets/utils/getDatasetBreadcrumb";
 import { ExperimentsTable } from "@/src/features/experiments/components/table";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import {
-  RouteParamsPendingFallback,
-  useReadyRouteParams,
-} from "@/src/hooks/useReadyRouteParams";
+import { RouteParamsPendingFallback } from "@/src/components/RouteParamsPendingFallback/RouteParamsPendingFallback";
+import { useReadyRouteParams } from "@/src/hooks/useReadyRouteParams";
 import { DatasetActionMenu } from "@/src/features/datasets/components/DatasetActionMenu";
 
 export default function DatasetExperimentsPage() {

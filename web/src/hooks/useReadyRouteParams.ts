@@ -1,6 +1,4 @@
-/* eslint-disable @repo/component-file-structure */
 import { useRouter } from "next/router";
-import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 /**
  * Next.js pages-router dynamic segments are missing on the first render of a
@@ -33,8 +31,4 @@ export function useReadyRouteParams<const K extends string>(
   }
 
   return { ready: true, params };
-}
-
-export function RouteParamsPendingFallback() {
-  return <Spinner size="xl" variant="muted" />;
 }
