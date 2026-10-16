@@ -27,7 +27,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { passwordSchema } from "@/src/features/auth";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { PASSWORD_SETUP_EMAIL_STORAGE_KEY } from "@/src/features/auth-credentials/lib/credentialsUtils";
-import { getDemoTargetPath } from "@/src/features/onboarding/lib/demoCallbackRedirect";
+import { getOnboardingTargetPath } from "@/src/features/onboarding/lib/demoCallbackRedirect";
 import { env } from "@/src/env.mjs";
 import { TURNSTILE_ACTIONS } from "@/src/features/auth/constants";
 import {
@@ -75,7 +75,10 @@ export function ResetPasswordPage({
     intent === "setup" || session.data?.user?.hasPassword === false;
   const setupTargetPath =
     isSetMode && router.isReady
-      ? getDemoTargetPath(router.query.targetPath)
+      ? getOnboardingTargetPath({
+          targetPath: router.query.targetPath,
+          isLangfuseCloud,
+        })
       : undefined;
   const setupPasswordPath = setupTargetPath
     ? `/auth/setup-password?targetPath=${encodeURIComponent(setupTargetPath)}`
@@ -135,7 +138,11 @@ export function ResetPasswordPage({
       }
 
       let target = setupTargetPath ?? "/";
-      if (isSetMode && isLangfuseCloud && region !== "DEV") {
+      // Self-hosted: only a new sign-up, which lands on the setup-password page; /onboarding forwards on when the step is off.
+      const goesThroughOnboarding = isLangfuseCloud
+        ? isSetMode && region !== "DEV"
+        : intent === "setup";
+      if (goesThroughOnboarding) {
         target = setupTargetPath
           ? `/onboarding?targetPath=${encodeURIComponent(setupTargetPath)}`
           : "/onboarding";
