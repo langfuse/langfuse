@@ -20,7 +20,7 @@ export function SectionToolDefinitions({
   toolCallsByName,
 }: SectionToolDefinitionsProps) {
   return (
-    <div className="border-border mb-4 border-b pb-4">
+    <div className="mb-4 pb-4">
       <ToolCallDefinitionCard
         tools={tools}
         toolCallCounts={toolCallCounts}
