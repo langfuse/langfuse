@@ -1063,10 +1063,6 @@ describe("Projects API", () => {
         label: "wrong-scope legacy role",
         body: { role: "LEGACY_ORGANIZATION_API_KEY" },
       },
-      { label: "admin role", body: { role: "ADMIN" } },
-      { label: "viewer role", body: { role: "VIEWER" } },
-      { label: "ingest role", body: { role: "INGEST" } },
-      { label: "scores ingest role", body: { role: "SCORES_INGEST" } },
       { label: "gateway role", body: { role: "AI_GATEWAY" } },
       { label: "role array", body: { role: [] } },
     ])("rejects $label without creating a key", async ({ body }) => {
@@ -1081,6 +1077,29 @@ describe("Projects API", () => {
       expect(result.body.message).toEqual(expect.any(String));
       expect(await prisma.apiKey.count({ where: { projectId } })).toBe(before);
     });
+
+    it.each(["ADMIN", "VIEWER", "INGEST", "SCORES_INGEST"])(
+      "provisions a key with the %s role under the default env",
+      async (role) => {
+        const response = await makeAPICall<
+          z.infer<typeof ApiKeyCreationResponseSchema>
+        >(
+          "POST",
+          `/api/public/projects/${projectId}/apiKeys`,
+          { role },
+          createBasicAuthHeader(orgApiKey, orgSecretKey),
+        );
+        createdApiKeyId = response.body.id;
+        expect(response.status).toBe(201);
+        expect(response.body.role).toBe(role);
+
+        const stored = await prisma.apiKey.findUniqueOrThrow({
+          where: { id: response.body.id },
+          include: { roleAssignments: true },
+        });
+        expect(stored.roleAssignments).toMatchObject([{ systemRole: role }]);
+      },
+    );
 
     it("should create a new API key with valid organization API key", async () => {
       const note = `Test API Key ${randomUUID().substring(0, 8)}`;
