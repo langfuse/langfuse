@@ -55,6 +55,7 @@ export const organizationApiKeysRouter = createTRPCRouter({
               publicKey: true,
             },
           },
+          roleAssignments: { select: { systemRole: true } },
         },
         orderBy: {
           createdAt: "asc",

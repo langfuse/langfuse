@@ -5,6 +5,7 @@ import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { type AsyncTableData } from "@/src/components/design-system/table/Table";
+import { withoutGatewayApiKeys } from "@/src/features/ai-gateway/fns/separateGatewayApiKeys";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import {
@@ -47,8 +48,19 @@ export function ConnectedApiKeySettingsTable({
     if (apiKeys.isError) {
       return { status: "error", error: "Failed to load API keys" };
     }
-    return { status: "success", data: apiKeys.data ?? [] };
-  }, [apiKeys.data, apiKeys.isError, apiKeys.isLoading]);
+    const rows =
+      scope === "project"
+        ? projectApiKeys.data
+        : organizationApiKeys.data &&
+          withoutGatewayApiKeys(organizationApiKeys.data);
+    return { status: "success", data: rows ?? [] };
+  }, [
+    apiKeys.isError,
+    apiKeys.isLoading,
+    organizationApiKeys.data,
+    projectApiKeys.data,
+    scope,
+  ]);
 
   const deleteApiKey =
     scope === "project" ? deleteProjectApiKey : deleteOrganizationApiKey;
