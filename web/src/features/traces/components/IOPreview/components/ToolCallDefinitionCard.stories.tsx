@@ -1,5 +1,3 @@
-import { expect, userEvent, waitFor, within } from "storybook/test";
-
 import preview from "../../../../../../.storybook/preview";
 import {
   ToolCallDefinitionCard,
@@ -219,17 +217,5 @@ export const ManyTools = meta.story({
     toolNameToDefinitionNumber: new Map(
       manyToolNames.map((name, index) => [name, index + 1]),
     ),
-  },
-});
-
-export const NotCalledListOpen = meta.story({
-  name: "(Test) Not Called List Open",
-  args: ManyTools.input.args,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.hover(canvas.getByText(/available tools were not called/i));
-    const body = within(canvasElement.ownerDocument.body);
-    await waitFor(() => expect(body.getByText("Not called")).toBeVisible());
-    await expect(body.queryByText("not called")).toBeNull();
   },
 });

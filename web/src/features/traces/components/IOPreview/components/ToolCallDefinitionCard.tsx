@@ -2,7 +2,6 @@
 import { Wrench } from "lucide-react";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { Button } from "@/src/components/design-system/Button/Button";
-import { Badge } from "@/src/components/ui/badge";
 import { cn } from "@/src/utils/tailwind";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
@@ -113,144 +112,44 @@ function getStatusText(callCount: number) {
   return `called ${callCount}x`;
 }
 
-function ToolGroupHoverContent({
-  kind,
-  tools,
-  toolCallCounts,
-  toolNameToDefinitionNumber,
-}: {
-  kind: ToolGroupKind;
-  tools: ToolDefinition[];
-  toolCallCounts: Map<string, number>;
-  toolNameToDefinitionNumber?: Map<string, number>;
-}) {
-  const isNotCalledGroup = kind !== "called";
-  return (
-    <>
-      {isNotCalledGroup && (
-        <div className="flex items-center justify-between gap-2 border-b px-4 py-2">
-          <span className="text-foreground text-sm font-bold">Not called</span>
-          <span className="text-foreground-tertiary font-mono text-xs">
-            {tools.length} {tools.length === 1 ? "tool" : "tools"}
-          </span>
-        </div>
-      )}
-      <div className="flex flex-col gap-1 p-2">
-        {tools.map((tool, index) => {
-          const callCount = toolCallCounts.get(tool.name) ?? 0;
-          const toolDefinitionNumber = toolNameToDefinitionNumber?.get(
-            tool.name,
-          );
-
-          return (
-            <div
-              key={`${tool.name}-${index}`}
-              className="flex min-w-0 items-center justify-between gap-2 rounded-sm px-2 py-1"
-            >
-              <div className="flex min-w-0 items-center gap-2">
-                <Wrench className="text-muted-foreground icon-base shrink-0" />
-                <span
-                  className={cn(
-                    "ph-no-capture text-foreground block truncate text-sm",
-                    !isNotCalledGroup && "font-bold",
-                  )}
-                  title={tool.name}
-                >
-                  {toolDefinitionNumber !== undefined && (
-                    <span className="mr-1">{toolDefinitionNumber}.</span>
-                  )}
-                  {tool.name}
-                </span>
-              </div>
-              {!isNotCalledGroup && (
-                <Badge
-                  variant={callCount > 0 ? undefined : "secondary"}
-                  className={cn(
-                    "shrink-0 text-xs font-bold",
-                    callCount > 0 &&
-                      "bg-light-green text-dark-green hover:bg-light-green border-transparent select-none",
-                  )}
-                >
-                  {getStatusText(callCount)}
-                </Badge>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </>
-  );
-}
-
 function ToolGroupSummary({
   kind,
-  tools,
+  toolCount,
   expanded,
   onToggle,
-  toolCallCounts,
-  toolNameToDefinitionNumber,
 }: {
   kind: ToolGroupKind;
-  tools: ToolDefinition[];
+  toolCount: number;
   expanded: boolean;
   onToggle: () => void;
-  toolCallCounts: Map<string, number>;
-  toolNameToDefinitionNumber?: Map<string, number>;
 }) {
   const isCalledGroup = kind === "called";
   const summaryText = isCalledGroup
-    ? `${tools.length} ${tools.length === 1 ? "tool was" : "tools were"} called`
-    : `${tools.length} available ${tools.length === 1 ? "tool was" : "tools were"} not called`;
+    ? `${toolCount} ${toolCount === 1 ? "tool was" : "tools were"} called`
+    : `${toolCount} available ${toolCount === 1 ? "tool was" : "tools were"} not called`;
 
   const toggleText = expanded ? "Show less" : "Show more";
-  // Quiet reveal row at the bottom of the group; padded like a tool row.
-  const summaryRow = (
-    <div className="flex w-fit items-center gap-2 py-1.5 text-sm group-first/tool-row:pt-0 group-last/tool-row:pb-0">
-      <span
-        className={cn(
-          "text-muted-foreground",
-          isCalledGroup && "text-dark-green",
-        )}
-      >
-        {summaryText}
-      </span>
-      <Button
-        variant="text"
-        text={toggleText}
-        aria-label={`${toggleText}: ${summaryText}`}
-        aria-expanded={expanded}
-        onClick={onToggle}
-      />
-    </div>
-  );
-
-  if (expanded) {
-    return <div className="group/tool-row">{summaryRow}</div>;
-  }
-
+  // Quiet reveal row; padded like a tool row.
   return (
-    <HoverCard
-      openDelay={200}
-      closeDelay={100}
-      placement="bottom-start"
-      sideOffset={6}
-      content={
-        <div className="max-h-96 w-80 max-w-[calc(100vw-2rem)] overflow-auto">
-          <ToolGroupHoverContent
-            kind={kind}
-            tools={tools}
-            toolCallCounts={toolCallCounts}
-            toolNameToDefinitionNumber={toolNameToDefinitionNumber}
-          />
-        </div>
-      }
-    >
-      {({ getTriggerProps }) => (
-        <div {...getTriggerProps()} className="group/tool-row">
-          {summaryRow}
-        </div>
-      )}
-    </HoverCard>
+    <div className="group/tool-row">
+      <div className="flex w-fit items-center gap-2 py-1.5 text-sm group-first/tool-row:pt-0 group-last/tool-row:pb-0">
+        <span
+          className={cn(
+            "text-muted-foreground",
+            isCalledGroup && "text-dark-green",
+          )}
+        >
+          {summaryText}
+        </span>
+        <Button
+          variant="text"
+          text={toggleText}
+          aria-label={`${toggleText}: ${summaryText}`}
+          aria-expanded={expanded}
+          onClick={onToggle}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -536,7 +435,7 @@ export function ToolCallDefinitionCard({
       {calledToolsShouldCollapse && (
         <ToolGroupSummary
           kind="called"
-          tools={calledTools}
+          toolCount={calledTools.length}
           expanded={toolGroupExpansion.calledToolsExpanded}
           onToggle={() =>
             setToolGroupExpansion((current) => ({
@@ -544,8 +443,6 @@ export function ToolCallDefinitionCard({
               calledToolsExpanded: !current.calledToolsExpanded,
             }))
           }
-          toolCallCounts={toolCallCounts}
-          toolNameToDefinitionNumber={toolNameToDefinitionNumber}
         />
       )}
 
@@ -553,7 +450,7 @@ export function ToolCallDefinitionCard({
       {availableToolsShouldCollapse && (
         <ToolGroupSummary
           kind="available"
-          tools={availableTools}
+          toolCount={availableTools.length}
           expanded={toolGroupExpansion.availableToolsExpanded}
           onToggle={() =>
             setToolGroupExpansion((current) => ({
@@ -561,8 +458,6 @@ export function ToolCallDefinitionCard({
               availableToolsExpanded: !current.availableToolsExpanded,
             }))
           }
-          toolCallCounts={toolCallCounts}
-          toolNameToDefinitionNumber={toolNameToDefinitionNumber}
         />
       )}
     </div>
