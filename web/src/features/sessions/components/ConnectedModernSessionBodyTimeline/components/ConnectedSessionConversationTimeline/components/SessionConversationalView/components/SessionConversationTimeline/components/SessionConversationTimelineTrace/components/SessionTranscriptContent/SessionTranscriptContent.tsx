@@ -26,7 +26,9 @@ export function SessionTranscriptContent({
   scrollTarget,
   threadIndex: selectedThreadIndex,
   variant,
+  includeNestedThreads = false,
 }: {
+  includeNestedThreads?: boolean;
   variant?: ComponentProps<typeof SessionTimelineContentMessage>["variant"];
   threadIndex?: number;
   result: Extract<SessionTraceTranscriptState, { state: "loaded" }>;
@@ -37,11 +39,17 @@ export function SessionTranscriptContent({
     requestId: number;
   } | null;
 }) {
-  const rows = getSessionTranscriptRows(result.transcript).filter(
+  const rows = getSessionTranscriptRows(
+    result.transcript,
+    includeNestedThreads,
+  ).filter(
     ({ threadIndex }) =>
       selectedThreadIndex === undefined || threadIndex === selectedThreadIndex,
   );
-  const { visibleThreads } = getSessionTranscriptThreads(result.transcript);
+  const { visibleThreads } = getSessionTranscriptThreads(
+    result.transcript,
+    includeNestedThreads,
+  );
   return (
     <div className="ph-no-capture space-y-4">
       {rows.length === 0 && (

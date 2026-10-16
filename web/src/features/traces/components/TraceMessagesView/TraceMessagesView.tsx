@@ -1,4 +1,4 @@
-import { useEffect, type ComponentProps } from "react";
+import { useEffect, useState, type ComponentProps } from "react";
 import { useRouter } from "next/router";
 import { StringParam, useQueryParam } from "use-query-params";
 import { ErrorBoundary } from "@sentry/nextjs";
@@ -11,9 +11,11 @@ import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferenc
 import { SessionConversationTimeline } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/SessionConversationTimeline";
 import { getSessionConversationEntries } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/getSessionConversationEntries";
 import { useSessionConversationTimelineController } from "@/src/features/sessions/hooks/useSessionConversationTimelineController";
+import { getSessionTranscriptThreads } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/getSessionTranscriptThreads";
 
 export function TraceMessagesView() {
   const { trace, isPlaceholderData } = useTraceData();
+  const [expandedTraceId, setExpandedTraceId] = useState<string | null>(null);
   const utils = api.useUtils();
   const { selectNode, setSelectedTab } = useSelection();
   const [, setTraceView] = useQueryParam("traceView", StringParam);
@@ -105,9 +107,15 @@ export function TraceMessagesView() {
     },
     { staleTime: 60 * 1_000 },
   );
-  const entries = getSessionConversationEntries([
-    { trace: messageTrace, transcript: data?.transcript },
-  ]);
+  const includeNestedThreads = expandedTraceId === messageTrace.id;
+  const { hiddenThreadCount } = getSessionTranscriptThreads(
+    data?.transcript ?? null,
+    includeNestedThreads,
+  );
+  const entries = getSessionConversationEntries(
+    [{ trace: messageTrace, transcript: data?.transcript }],
+    includeNestedThreads,
+  );
   const state: ComponentProps<
     typeof SessionConversationTimeline
   >["traces"][number]["state"] = (() => {
@@ -122,6 +130,7 @@ export function TraceMessagesView() {
       trace: messageTrace,
       turnNumber: 1,
       variant: "single-trace",
+      includeNestedThreads,
       state,
       onOpenTrace: () => {
         setTraceView(undefined, "pushIn");
@@ -146,6 +155,24 @@ export function TraceMessagesView() {
       }
     >
       <div className="flex h-full min-h-0 w-full flex-col">
+        {state.type === "transcript" && hiddenThreadCount > 0 && (
+          <div
+            role="status"
+            className="text-muted-foreground flex shrink-0 items-center justify-between gap-3 rounded-md border p-3 text-sm"
+          >
+            <span>
+              {hiddenThreadCount} nested{" "}
+              {hiddenThreadCount === 1 ? "thread is" : "threads are"} hidden.
+            </span>
+            <button
+              type="button"
+              className="text-foreground shrink-0 underline underline-offset-4"
+              onClick={() => setExpandedTraceId(messageTrace.id)}
+            >
+              Show nested threads
+            </button>
+          </div>
+        )}
         {data?.cutoff && (!data.transcript || entries.length <= 1) && (
           <div className="text-muted-foreground p-3 text-sm">
             This trace exceeds the observation cap. Later observations are not

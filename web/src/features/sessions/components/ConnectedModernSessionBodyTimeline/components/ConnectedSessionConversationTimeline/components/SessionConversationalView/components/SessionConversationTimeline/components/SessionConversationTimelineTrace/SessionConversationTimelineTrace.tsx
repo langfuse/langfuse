@@ -28,7 +28,9 @@ export function SessionConversationTimelineTrace({
   displayNumber,
   threadCount,
   variant = "session",
+  includeNestedThreads = false,
 }: {
+  includeNestedThreads?: boolean;
   variant?: "session" | "single-trace";
   itemId?: string;
   threadIndex?: number;
@@ -50,7 +52,10 @@ export function SessionConversationTimelineTrace({
   const showHeader = variant === "session" || (threadCount ?? 0) > 1;
   const hiddenThreadCount =
     state.type === "transcript"
-      ? getSessionTranscriptThreads(state.result.transcript).hiddenThreadCount
+      ? getSessionTranscriptThreads(
+          state.result.transcript,
+          includeNestedThreads,
+        ).hiddenThreadCount
       : 0;
   return (
     <div
@@ -86,7 +91,7 @@ export function SessionConversationTimelineTrace({
           >
             Open trace
           </button>
-          {hiddenThreadCount > 0 && (
+          {variant === "session" && hiddenThreadCount > 0 && (
             <Tooltip
               label={`${hiddenThreadCount} nested ${hiddenThreadCount === 1 ? "thread" : "threads"} hidden`}
             >
@@ -165,6 +170,7 @@ export function SessionConversationTimelineTrace({
       )}
       {state.type === "transcript" && (
         <SessionTranscriptContent
+          includeNestedThreads={includeNestedThreads}
           variant={variant}
           {...state}
           onOpenObservation={onOpenObservation}
