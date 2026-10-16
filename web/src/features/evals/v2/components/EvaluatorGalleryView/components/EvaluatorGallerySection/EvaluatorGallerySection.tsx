@@ -49,7 +49,6 @@ export function EvaluatorGallerySection({
   const canToggle =
     totalCount > EVALUATOR_GALLERY_PREVIEW_SIZE && onExpandedChange;
   const handleToggleExpanded = () => onExpandedChange?.(!expanded);
-  const isProjectRows = section.key === EVALUATOR_GALLERY_PROJECT_SECTION_KEY;
 
   return (
     <section className="flex scroll-mt-1 flex-col gap-3">
@@ -72,17 +71,37 @@ export function EvaluatorGallerySection({
         />
       )}
       {canToggle ? (
-        // Rows already end in their own padding, so the gap matches cards.
-        <div className={isProjectRows ? "-mt-3" : undefined}>
-          <Button
-            variant="text"
-            size="sm"
-            text={expanded ? "Show fewer" : `Show all ${totalCount} templates`}
-            onClick={handleToggleExpanded}
-          />
-        </div>
+        <GalleryShowAllToggle
+          expanded={expanded}
+          totalCount={totalCount}
+          isProjectRows={section.key === EVALUATOR_GALLERY_PROJECT_SECTION_KEY}
+          onToggle={handleToggleExpanded}
+        />
       ) : null}
     </section>
+  );
+}
+
+type GalleryShowAllToggleProps = {
+  expanded: boolean;
+  totalCount: number;
+  isProjectRows: boolean;
+  onToggle: () => void;
+};
+
+/** Text link under a section; under project rows it cancels the gap, since rows end in their own padding. */
+function GalleryShowAllToggle({
+  expanded,
+  totalCount,
+  isProjectRows,
+  onToggle,
+}: GalleryShowAllToggleProps) {
+  const label = expanded ? "Show fewer" : `Show all ${totalCount} templates`;
+
+  return (
+    <div className={isProjectRows ? "-mt-3" : undefined}>
+      <Button variant="text" size="sm" text={label} onClick={onToggle} />
+    </div>
   );
 }
 
