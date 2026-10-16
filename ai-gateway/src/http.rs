@@ -1,4 +1,9 @@
-use std::{error::Error, ops::Range, sync::Arc, time::Duration};
+use std::{
+    error::Error,
+    ops::Range,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use axum::{
     Json, Router,
@@ -14,7 +19,8 @@ use tracing::Instrument;
 
 use crate::{
     correlation::{RequestCorrelation, assign_request_id},
-    inference::{InferenceService, RequestPreparationError},
+    inference::{InferenceService, RequestPreparationError, provider_origin, resolution_origin},
+    observability::{ErrorOrigin, Phase},
     providers::{ProviderError, Route},
     resolution::{ApiFormat, ResolutionError},
     server::GatewayLifecycleState,
@@ -105,6 +111,9 @@ async fn handle_inference(
         .extensions_mut()
         .remove::<RequestCorrelation>()
         .unwrap_or_default();
+    correlation
+        .observation()
+        .record_provider(route.api_format().provider().as_str());
     let result = match prepare_request(&state, request.headers(), route.api_format()) {
         Ok((inference, gateway_key)) => {
             relay(&inference, &gateway_key, request, route, &mut correlation).await
@@ -123,6 +132,9 @@ async fn handle_models(
         .extensions_mut()
         .remove::<RequestCorrelation>()
         .unwrap_or_default();
+    correlation
+        .observation()
+        .record_provider(api_format.provider().as_str());
     let result = match prepare_request(&state, request.headers(), api_format) {
         Ok((inference, gateway_key)) => {
             models(&inference, &gateway_key, api_format, &correlation).await
@@ -154,7 +166,11 @@ fn finish_response(
 ) -> Response {
     let mut response = match result {
         Ok(response) => response,
-        Err(error) => error.into_native_response(api_format, correlation.id()),
+        Err(error) => {
+            let (origin, reason) = error.origin();
+            correlation.observation().record_error(origin, reason);
+            error.into_native_response(api_format, correlation)
+        }
     };
     correlation.apply_generation_headers(response.headers_mut());
     correlation.apply_resolution_headers(response.headers_mut());
@@ -189,7 +205,12 @@ async fn relay(
         .try_reserve_request_body()
         .map_err(InferenceHttpError::from)?;
     let (parts, body) = request.into_parts();
-    let request_body = request_body_and_model(body).await?;
+    let started = Instant::now();
+    let request_body = request_body_and_model(body).await;
+    correlation
+        .observation()
+        .record_phase(Phase::RequestBody, started.elapsed());
+    let request_body = request_body?;
     let (permit, context) = inference
         .resolve_and_admit(
             gateway_key,
@@ -404,6 +425,7 @@ impl InferenceHttpError {
                     R::Forbidden => "forbidden",
                     R::ModelNotAllowed => "model_not_allowed",
                     R::NoRoute => "no_route",
+                    R::Busy => "capacity",
                     R::Timeout => "timeout",
                     R::Unavailable => "unavailable",
                     R::Configuration => "configuration",
@@ -488,7 +510,7 @@ impl InferenceHttpError {
                 "invalid_model",
             ),
             Self::Unavailable
-            | Self::Resolution(R::Unavailable | R::Configuration)
+            | Self::Resolution(R::Unavailable | R::Configuration | R::Busy)
             | Self::Provider(ProviderError::Configuration | ProviderError::Busy) => (
                 StatusCode::SERVICE_UNAVAILABLE,
                 "Gateway temporarily unavailable",
@@ -511,13 +533,34 @@ impl InferenceHttpError {
         }
     }
 
-    fn into_native_response(self, api_format: ApiFormat, request_id: &str) -> Response {
+    fn origin(&self) -> (ErrorOrigin, &'static str) {
+        match self {
+            Self::Unavailable => (ErrorOrigin::Gateway, "unavailable"),
+            Self::Credential => (ErrorOrigin::Client, "invalid_credential"),
+            Self::AmbiguousCredential => (ErrorOrigin::Client, "ambiguous_credential"),
+            Self::TooLarge => (ErrorOrigin::Client, "body_too_large"),
+            Self::RequestTimeout => (ErrorOrigin::Client, "body_timeout"),
+            Self::UnsupportedEncoding => (ErrorOrigin::Client, "unsupported_content_encoding"),
+            Self::InvalidBody => (ErrorOrigin::Client, "invalid_body"),
+            Self::Resolution(error) => resolution_origin(*error),
+            Self::Provider(error) => provider_origin(*error),
+        }
+    }
+
+    fn into_native_response(
+        self,
+        api_format: ApiFormat,
+        correlation: &RequestCorrelation,
+    ) -> Response {
         let (phase, reason) = self.category();
+        let (origin, _) = self.origin();
         let (status, message, kind, code) = self.classify();
+        // Caller mistakes are routine; only failures that need an operator warn.
         if status.is_server_error() {
             tracing::warn!(
                 phase,
                 reason,
+                error.origin = origin.as_str(),
                 status = status.as_u16(),
                 "gateway request rejected"
             );
@@ -525,10 +568,12 @@ impl InferenceHttpError {
             tracing::debug!(
                 phase,
                 reason,
+                error.origin = origin.as_str(),
                 status = status.as_u16(),
                 "gateway request rejected"
             );
         }
+        let request_id = correlation.id();
         match api_format {
             ApiFormat::OpenAiResponses | ApiFormat::OpenAiChatCompletions => (
                 status,

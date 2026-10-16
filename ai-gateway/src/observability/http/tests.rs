@@ -238,6 +238,67 @@ async fn provider_http_errors_are_traced_without_changing_the_response() {
     }
 }
 
+/// Datadog splits gateway faults from relayed provider errors by the server span's
+/// `error.origin`; only 5xx responses mark the span as an error.
+#[tokio::test]
+async fn failed_responses_name_their_origin_on_the_server_span() {
+    for (provider_status, capacity, origin, reason) in [
+        (429, 1, "provider", "provider_rate_limited"),
+        (401, 1, "provider", "provider_auth"),
+        (500, 1, "provider", "provider_5xx"),
+        (200, 0, "gateway", "capacity"),
+    ] {
+        let web = FakeServer::start(|_| async { resolution_response("provider-secret") }).await;
+        let provider = FakeServer::start(move |_| async move {
+            Response::builder()
+                .status(provider_status)
+                .body(Body::from("native error"))
+                .unwrap()
+        })
+        .await;
+        let service = InferenceService::for_test(
+            web.control_plane(),
+            ProviderTransport::for_test(provider.url.clone(), ProviderLimits::default()),
+            capacity,
+        );
+        let recording = Recording::start();
+        let lifecycle = GatewayLifecycleState::default();
+        let app = instrument(crate::http::router(Some(service), lifecycle.clone()));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let mut serving = Box::pin(crate::server::serve(
+            listener,
+            app.clone(),
+            lifecycle,
+            std::future::pending(),
+            Duration::from_secs(1),
+        ));
+        assert!(futures_util::poll!(serving.as_mut()).is_pending());
+        let response = app.oneshot(generation_request()).await.unwrap();
+        let status = response.status();
+        axum::body::to_bytes(response.into_body(), 4096)
+            .await
+            .unwrap();
+        let spans = recording.exporter.get_finished_spans().unwrap();
+        let server = spans
+            .iter()
+            .find(|span| span.span_kind == SpanKind::Server)
+            .unwrap();
+        assert_attribute(server, "error.origin", origin);
+        assert_attribute(server, "error.type", reason);
+        assert_eq!(
+            matches!(server.status, opentelemetry::trace::Status::Error { .. }),
+            status.is_server_error(),
+            "{reason}"
+        );
+        if capacity == 0 {
+            assert_eq!(status, 503);
+            assert_eq!(web.calls() + provider.calls(), 0);
+        } else {
+            assert_eq!(status.as_u16(), provider_status);
+        }
+    }
+}
+
 #[tokio::test]
 async fn generation_context_is_isolated_from_operational_spans_and_outbound_headers() {
     opentelemetry::global::set_text_map_propagator(
@@ -480,7 +541,7 @@ fn assert_outbound_context(headers: &HeaderMap, span: Option<&opentelemetry_sdk:
         assert!(
             headers
                 .get("tracestate")
-                .is_none_or(axum::http::HeaderValue::is_empty)
+                .is_none_or(http::HeaderValue::is_empty)
         );
         assert_eq!(
             headers["traceparent"],

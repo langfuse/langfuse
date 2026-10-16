@@ -1,5 +1,5 @@
 //! Resolve the caller's credential, then execute using only the trusted context.
-use std::ops::Range;
+use std::{ops::Range, time::Instant};
 
 use axum::{
     body::{Body, Bytes},
@@ -10,6 +10,7 @@ use tracing::Instrument;
 
 use crate::{
     correlation::RequestCorrelation,
+    observability::{ErrorOrigin, Phase},
     providers::{ProviderError, ProviderTransport, RequestPermit, Route},
     resolution::{
         ApiFormat, ControlPlaneClient, ControlPlaneConfig, ResolutionError, ResolvedRequestContext,
@@ -28,6 +29,44 @@ pub struct InferenceService {
 pub(crate) enum RequestPreparationError {
     Resolution(ResolutionError),
     Provider(ProviderError),
+}
+
+impl RequestPreparationError {
+    pub(crate) fn origin(&self) -> (ErrorOrigin, &'static str) {
+        match *self {
+            Self::Resolution(error) => resolution_origin(error),
+            Self::Provider(error) => provider_origin(error),
+        }
+    }
+}
+
+/// `error.origin` and `error.reason` for a failed resolution or catalog fetch.
+pub(crate) fn resolution_origin(error: ResolutionError) -> (ErrorOrigin, &'static str) {
+    use ResolutionError as R;
+    match error {
+        R::Configuration => (ErrorOrigin::Gateway, "configuration"),
+        R::Busy => (ErrorOrigin::Gateway, "capacity"),
+        R::InvalidCredential | R::Authentication => (ErrorOrigin::Client, "authentication"),
+        R::InvalidRequest => (ErrorOrigin::Client, "invalid_request"),
+        R::Forbidden => (ErrorOrigin::Client, "forbidden"),
+        R::ModelNotAllowed => (ErrorOrigin::Client, "model_not_allowed"),
+        R::NoRoute => (ErrorOrigin::Client, "no_route"),
+        R::Unavailable => (ErrorOrigin::ControlPlane, "unavailable"),
+        R::Timeout => (ErrorOrigin::ControlPlane, "timeout"),
+        R::Transport => (ErrorOrigin::ControlPlane, "transport"),
+        R::InvalidResponse => (ErrorOrigin::ControlPlane, "invalid_response"),
+        R::ResponseTooLarge => (ErrorOrigin::ControlPlane, "response_too_large"),
+    }
+}
+
+/// `error.origin` and `error.reason` for a provider request that produced no response.
+pub(crate) fn provider_origin(error: ProviderError) -> (ErrorOrigin, &'static str) {
+    match error {
+        ProviderError::Configuration => (ErrorOrigin::Gateway, "configuration"),
+        ProviderError::Busy => (ErrorOrigin::Gateway, "capacity"),
+        ProviderError::Timeout => (ErrorOrigin::ProviderTransport, "timeout"),
+        ProviderError::Transport => (ErrorOrigin::ProviderTransport, "transport"),
+    }
 }
 
 pub(crate) struct RequestBodyPermit<'a> {
@@ -68,7 +107,7 @@ impl InferenceService {
     fn try_reserve_resolution(&self) -> Result<SemaphorePermit<'_>, ResolutionError> {
         self.resolution_capacity.try_acquire().map_err(|_| {
             crate::observability::rejected("resolution");
-            ResolutionError::Unavailable
+            ResolutionError::Busy
         })
     }
 
@@ -77,7 +116,7 @@ impl InferenceService {
     ) -> Result<RequestBodyPermit<'_>, RequestPreparationError> {
         let permit = self.request_body_capacity.try_acquire().map_err(|_| {
             crate::observability::rejected("request_body");
-            RequestPreparationError::Resolution(ResolutionError::Unavailable)
+            RequestPreparationError::Resolution(ResolutionError::Busy)
         })?;
         Ok(RequestBodyPermit { _permit: permit })
     }
@@ -90,13 +129,18 @@ impl InferenceService {
     ) -> Result<Vec<u8>, ResolutionError> {
         let _permit = self.model_catalog_capacity.try_acquire().map_err(|_| {
             crate::observability::rejected("model_catalog");
-            ResolutionError::Unavailable
+            ResolutionError::Busy
         })?;
         let _active = crate::observability::Active::new("model_catalog");
+        let started = Instant::now();
         let body = self
             .control_plane
             .models(gateway_key, api_format, correlation.id())
-            .await?;
+            .await;
+        correlation
+            .observation()
+            .record_phase(Phase::ModelCatalog, started.elapsed());
+        let body = body?;
         crate::providers::model_list::provider_response(&body, api_format)
     }
 
@@ -113,13 +157,16 @@ impl InferenceService {
         let span = tracing::info_span!(
             "resolution",
             otel.kind = "internal",
-            gateway.outcome = tracing::field::Empty
+            gateway.outcome = tracing::field::Empty,
+            otel.status_code = tracing::field::Empty,
+            error.type = tracing::field::Empty
         );
         async {
             let prepared = self
                 .prepare(gateway_key, api_format, model, correlation)
                 .await;
-            tracing::Span::current().record(
+            let span = tracing::Span::current();
+            span.record(
                 "gateway.outcome",
                 match &prepared {
                     Ok(_) => "admitted",
@@ -127,6 +174,15 @@ impl InferenceService {
                     Err(RequestPreparationError::Provider(_)) => "busy",
                 },
             );
+            // Caller-caused failures (bad key, forbidden model) stay unset so
+            // Datadog error rates track gateway and control-plane faults only.
+            if let Err(error) = &prepared
+                && let (origin, reason) = error.origin()
+                && origin.is_ours()
+            {
+                span.record("otel.status_code", "ERROR");
+                span.record("error.type", reason);
+            }
             prepared
         }
         .instrument(span)
@@ -145,10 +201,15 @@ impl InferenceService {
             .map_err(RequestPreparationError::Resolution)?;
         let context = {
             let _active = crate::observability::Active::new("resolution");
-            self.control_plane
+            let started = Instant::now();
+            let context = self
+                .control_plane
                 .resolve(gateway_key, api_format, model, correlation.id())
-                .await
-                .map_err(RequestPreparationError::Resolution)?
+                .await;
+            correlation
+                .observation()
+                .record_phase(Phase::Resolution, started.elapsed());
+            context.map_err(RequestPreparationError::Resolution)?
         };
         drop(resolution_permit);
         correlation.record_resolution(&context);

@@ -24,6 +24,13 @@ impl ApiFormat {
             Self::AnthropicMessages => "anthropic.messages",
         }
     }
+
+    pub fn provider(self) -> Provider {
+        match self {
+            Self::OpenAiResponses | Self::OpenAiChatCompletions => Provider::OpenAi,
+            Self::AnthropicMessages => Provider::Anthropic,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]

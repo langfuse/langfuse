@@ -303,6 +303,8 @@ pub enum ResolutionError {
     Forbidden,
     ModelNotAllowed,
     NoRoute,
+    /// The gateway's own resolution or catalog capacity is exhausted.
+    Busy,
     Unavailable,
     Timeout,
     Transport,
@@ -320,6 +322,7 @@ impl fmt::Display for ResolutionError {
             Self::Forbidden => "gateway access forbidden",
             Self::ModelNotAllowed => "model is not allowed",
             Self::NoRoute => "no eligible connection",
+            Self::Busy => "gateway at capacity",
             Self::Unavailable => "resolution unavailable",
             Self::Timeout => "resolution deadline exceeded",
             Self::Transport => "resolution transport failed",

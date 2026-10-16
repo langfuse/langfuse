@@ -156,7 +156,7 @@ async fn fake_dependency_records_requests_and_returns_scripted_response() {
     assert!(response.ends_with("try later"));
     assert_eq!(
         requests.lock().unwrap().as_slice(),
-        &[(axum::http::Method::GET, "/example".to_string())]
+        &[(http::Method::GET, "/example".to_string())]
     );
     fake.begin_shutdown();
     fake.finish().await.unwrap();

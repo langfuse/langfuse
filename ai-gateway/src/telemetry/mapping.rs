@@ -315,7 +315,7 @@ mod tests {
         GenerationContext {
             trace_id: "0123456789abcdef0123456789abcdef".into(),
             observation_id: "0123456789abcdef".into(),
-            ..GenerationContext::from_headers(&axum::http::HeaderMap::new())
+            ..GenerationContext::from_headers(&http::HeaderMap::new())
         }
     }
 

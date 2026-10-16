@@ -13,6 +13,8 @@ use tower_http::trace::TraceLayer;
 use tracing::Span;
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 
+use super::request::{ErrorOrigin, RequestObservation};
+
 /// Instrument application routes; mount health probes outside this router.
 pub fn instrument(router: Router) -> Router {
     router
@@ -21,7 +23,7 @@ pub fn instrument(router: Router) -> Router {
             TraceLayer::new_for_http()
                 .make_span_with(|request: &Request<Body>| {
                     let (method, route) = request_labels(request);
-                    let span = tracing::info_span!(parent: None, "http.server", otel.name = %format_args!("{method} {route}"), otel.kind = "server", http.request.method = method, http.route = route, http.request.body.size = tracing::field::Empty, http.response.status_code = tracing::field::Empty, otel.status_code = tracing::field::Empty, gateway.request.id = tracing::field::Empty, gateway.client.request.id = tracing::field::Empty, langfuse.organization.id = tracing::field::Empty, langfuse.project.id = tracing::field::Empty, gateway.provider = tracing::field::Empty, gateway.provider.connection.id = tracing::field::Empty, gateway.provider.connection.name = tracing::field::Empty, gateway.upstream.model = tracing::field::Empty, provider_request_id = tracing::field::Empty, gateway.outcome = tracing::field::Empty, gateway.first_byte_ms = tracing::field::Empty);
+                    let span = tracing::info_span!(parent: None, "http.server", otel.name = %format_args!("{method} {route}"), otel.kind = "server", http.request.method = method, http.route = route, http.request.body.size = tracing::field::Empty, http.response.status_code = tracing::field::Empty, otel.status_code = tracing::field::Empty, otel.status_description = tracing::field::Empty, error.type = tracing::field::Empty, error.origin = tracing::field::Empty, gateway.request.id = tracing::field::Empty, gateway.client.request.id = tracing::field::Empty, langfuse.organization.id = tracing::field::Empty, langfuse.project.id = tracing::field::Empty, gateway.provider = tracing::field::Empty, gateway.provider.connection.id = tracing::field::Empty, gateway.provider.connection.name = tracing::field::Empty, gateway.upstream.model = tracing::field::Empty, provider_request_id = tracing::field::Empty, gateway.outcome = tracing::field::Empty, gateway.first_byte_ms = tracing::field::Empty);
                     // Operational tracing has no caller or ambient trace context.
                     let _ = span.set_parent(Context::new());
                     span
@@ -51,12 +53,55 @@ pub fn instrument(router: Router) -> Router {
         )
 }
 
-async fn record_http_duration(request: Request<Body>, next: Next) -> Response {
+async fn record_http_duration(mut request: Request<Body>, next: Next) -> Response {
     let (method, route) = request_labels(&request);
     let (method, route) = (method.to_owned(), route.to_owned());
+    let observation = RequestObservation::default();
+    request.extensions_mut().insert(observation.clone());
     let start = Instant::now();
     let response = next.run(request).await;
-    super::metrics::http_response(start.elapsed(), method, route, response.status().as_u16());
+    let elapsed = start.elapsed();
+    let status = response.status();
+    let summary = observation.summary();
+    let (origin, reason) = summary.error.unwrap_or_else(|| match status.as_u16() {
+        // Responses the handler did not classify, such as router 404/405.
+        400..=499 => (ErrorOrigin::Client, "unhandled"),
+        500.. => (ErrorOrigin::Gateway, "unhandled"),
+        _ => (ErrorOrigin::None, "none"),
+    });
+    if origin != ErrorOrigin::None {
+        let span = Span::current();
+        span.record("error.origin", origin.as_str());
+        span.record("error.type", reason);
+        if status.is_server_error() {
+            span.record("otel.status_description", reason);
+        }
+    }
+    super::metrics::http_response(
+        elapsed,
+        &super::metrics::HttpResponse {
+            method: &method,
+            route: &route,
+            status: status.as_u16(),
+            origin,
+            reason,
+            provider: summary.provider,
+        },
+    );
+    // Overhead is only defined for requests that waited on a provider.
+    if let Some(provider_headers) = summary.provider_headers {
+        let total = elapsed
+            .saturating_sub(summary.request_body.unwrap_or_default())
+            .saturating_sub(provider_headers);
+        let record = |component, duration| {
+            super::metrics::overhead(Some(&route), summary.provider, component, duration);
+        };
+        record("total", total);
+        if let Some(resolution) = summary.resolution {
+            record("resolution", resolution);
+            record("processing", total.saturating_sub(resolution));
+        }
+    }
     response
 }
 

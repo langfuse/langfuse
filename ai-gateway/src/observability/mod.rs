@@ -2,10 +2,12 @@ mod client;
 mod http;
 mod logs;
 mod metrics;
+mod request;
 
 pub(crate) use client::instrument_client;
 pub use http::instrument;
-pub(crate) use metrics::{Active, delivery, execution_finished, rejected};
+pub(crate) use metrics::{Active, delivery, execution_finished, rejected, stream_finished};
+pub(crate) use request::{ErrorOrigin, Phase, RequestObservation, provider_status_reason};
 
 use crate::config::{GatewayConfig, LogFormat};
 use opentelemetry::{KeyValue, global, trace::TracerProvider};
@@ -23,6 +25,7 @@ use tracing_subscriber::{EnvFilter, Layer, filter::filter_fn, prelude::*};
 pub struct Observability {
     traces: SdkTracerProvider,
     metrics: Option<SdkMeterProvider>,
+    _runtime: Option<metrics::RuntimeInstruments>,
 }
 
 /// Initialize process logging and optional operational OTLP exports.
@@ -31,20 +34,7 @@ pub struct Observability {
 /// Returns a sanitized error for invalid settings, exporter construction, or an
 /// already installed tracing subscriber.
 pub fn init(config: &GatewayConfig) -> Result<Observability, Box<dyn Error>> {
-    let service = setting("OTEL_SERVICE_NAME")?.unwrap_or_else(|| "ai-gateway".into());
-    let resource = Resource::builder()
-        .with_service_name(service)
-        .with_attributes([
-            KeyValue::new(
-                "deployment.environment.name",
-                setting("DD_ENV")?.unwrap_or_else(|| "development".into()),
-            ),
-            KeyValue::new(
-                "service.version",
-                setting("BUILD_ID")?.unwrap_or_else(|| env!("CARGO_PKG_VERSION").into()),
-            ),
-        ])
-        .build();
+    let resource = resource()?;
     let ratio = sampling_ratio(setting("OTEL_TRACES_SAMPLER_ARG")?.as_deref())?;
     let mut traces = SdkTracerProvider::builder()
         .with_resource(resource.clone())
@@ -95,9 +85,12 @@ pub fn init(config: &GatewayConfig) -> Result<Observability, Box<dyn Error>> {
     };
     let traces = traces.build();
     global::set_text_map_propagator(TraceContextPropagator::new());
-    if let Some(metrics) = &metrics {
-        global::set_meter_provider(metrics.clone());
-    }
+    let runtime = metrics.as_ref().and_then(|provider| {
+        global::set_meter_provider(provider.clone());
+        tokio::runtime::Handle::try_current()
+            .ok()
+            .map(|handle| metrics::register_runtime(&handle))
+    });
     let log_filter = EnvFilter::try_new(format!("warn,ai_gateway={}", config.log_level))?;
     let logger = match config.log_format {
         LogFormat::Json => tracing_subscriber::fmt::layer()
@@ -127,7 +120,48 @@ pub fn init(config: &GatewayConfig) -> Result<Observability, Box<dyn Error>> {
         .with(logs::CorrelationSpans)
         .try_init()
         .map_err(|_| "failed to initialize gateway logging")?;
-    Ok(Observability { traces, metrics })
+    log_panics();
+    Ok(Observability {
+        traces,
+        metrics,
+        _runtime: runtime,
+    })
+}
+
+fn resource() -> Result<Resource, Box<dyn Error>> {
+    let service = setting("OTEL_SERVICE_NAME")?.unwrap_or_else(|| "ai-gateway".into());
+    Ok(Resource::builder()
+        .with_service_name(service)
+        .with_attributes([
+            KeyValue::new(
+                "deployment.environment.name",
+                setting("DD_ENV")?.unwrap_or_else(|| "development".into()),
+            ),
+            KeyValue::new(
+                "service.version",
+                setting("BUILD_ID")?.unwrap_or_else(|| env!("CARGO_PKG_VERSION").into()),
+            ),
+            // Tells replicas apart on traces; Datadog keeps it off metric tags.
+            KeyValue::new("service.instance.id", metrics::INSTANCE_ID.as_str()),
+        ])
+        .build())
+}
+
+/// A panicking request task drops its connection without a response, metric, or
+/// log. Report the location only: panic payloads can carry request data.
+fn log_panics() {
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let location = info
+            .location()
+            .map(|location| format!("{}:{}", location.file(), location.line()));
+        tracing::error!(
+            location = location.as_deref().unwrap_or("unknown"),
+            error.origin = ErrorOrigin::Gateway.as_str(),
+            "gateway panicked"
+        );
+        previous(info);
+    }));
 }
 
 impl Observability {

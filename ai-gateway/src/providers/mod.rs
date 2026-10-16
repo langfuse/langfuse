@@ -5,7 +5,7 @@ use std::{ops::Range, sync::Arc, time::Duration};
 
 use axum::{
     body::{Body, Bytes},
-    http::{HeaderMap, HeaderName, HeaderValue, Response, header},
+    http::{HeaderMap, HeaderName, HeaderValue, Response, StatusCode, header},
 };
 use reqwest::Client;
 use reqwest_middleware::ClientWithMiddleware;
@@ -19,6 +19,7 @@ pub use crate::transport::ProviderError;
 use crate::{
     capture::{ExecutionCapture, RelayOutcome},
     correlation::{RequestCorrelation, UpstreamTarget},
+    observability::{ErrorOrigin, Phase, RequestObservation, provider_status_reason},
     resolution::{ApiFormat, Provider, ProviderCredential, ResolvedRequestContext},
     transport,
 };
@@ -236,6 +237,7 @@ impl ProviderTransport {
             .header(header::ACCEPT_ENCODING, "identity")
             .header(credential_name, credential);
         upstream = upstream.body(body);
+        let started = Instant::now();
         let response = tokio::time::timeout_at(
             permit
                 .deadline
@@ -253,6 +255,8 @@ impl ProviderTransport {
                 }
             })
         });
+        let observation = correlation.observation();
+        observation.record_phase(Phase::ProviderHeaders, started.elapsed());
         let response = match response {
             Ok(response) => response,
             Err(error) => {
@@ -267,12 +271,19 @@ impl ProviderTransport {
         if let Some(request_id) = transport::provider_request_id(response.headers(), api_format) {
             tracing::Span::current().record("provider_request_id", request_id);
         }
-        capture.record_response(response.status().as_u16(), response.headers());
+        let status = response.status();
+        capture.record_response(status.as_u16(), response.headers());
+        record_provider_status(observation, status);
         let mut downstream = Response::new(Body::empty());
-        *downstream.status_mut() = response.status();
+        *downstream.status_mut() = status;
         *downstream.headers_mut() = transport::response_headers(response.headers(), api_format);
-        *downstream.body_mut() =
-            transport::relay(response, permit.deadline, (permit, context), capture);
+        *downstream.body_mut() = transport::relay(
+            response,
+            permit.deadline,
+            (permit, context),
+            capture,
+            route.provider().as_str(),
+        );
         Ok(downstream)
     }
 
@@ -293,6 +304,29 @@ impl ProviderTransport {
         let mut provider = Self::with_limits(limits).unwrap();
         provider.origin_override = Some(base_url);
         provider
+    }
+}
+
+/// Provider error statuses are relayed unchanged, so the handler's rejection log
+/// and error classification never see them.
+fn record_provider_status(observation: &RequestObservation, status: StatusCode) {
+    if !(status.is_client_error() || status.is_server_error()) {
+        return;
+    }
+    let reason = provider_status_reason(status.as_u16());
+    observation.record_error(ErrorOrigin::Provider, reason);
+    if status.is_server_error() {
+        tracing::warn!(
+            reason,
+            status = status.as_u16(),
+            "provider returned an error status"
+        );
+    } else {
+        tracing::info!(
+            reason,
+            status = status.as_u16(),
+            "provider returned an error status"
+        );
     }
 }
 

@@ -70,7 +70,7 @@ fn python_sdk_carrier_preserves_quotes_commas_unicode_and_metadata_suffixes() {
     let mut headers = HeaderMap::new();
     for (name, value) in fixture["carrier"].as_object().unwrap() {
         headers.insert(
-            name.parse::<axum::http::HeaderName>().unwrap(),
+            name.parse::<http::HeaderName>().unwrap(),
             value.as_str().unwrap().parse().unwrap(),
         );
     }
@@ -271,7 +271,7 @@ fn coding_agent_headers_group_sessions_and_turns() {
         let mut headers = HeaderMap::new();
         for (name, value) in values {
             headers.insert(
-                name.parse::<axum::http::HeaderName>().unwrap(),
+                name.parse::<http::HeaderName>().unwrap(),
                 value.parse().unwrap(),
             );
         }

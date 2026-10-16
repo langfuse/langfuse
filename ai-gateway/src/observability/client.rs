@@ -6,8 +6,8 @@ use opentelemetry_http::HeaderInjector;
 use reqwest::{Client, Request, Response};
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware, Extension, Next, Result};
 use reqwest_tracing::{
-    DefaultSpanBackend, DisableOtelPropagation, OtelName, ReqwestOtelSpanBackend,
-    TracingMiddleware, default_on_request_success,
+    DisableOtelPropagation, OtelName, ReqwestOtelSpanBackend, TracingMiddleware,
+    default_on_request_success, default_span_name, reqwest_otel_span,
 };
 use tracing::Span;
 use tracing_opentelemetry::OpenTelemetrySpanExt;
@@ -42,29 +42,38 @@ struct SafeSpanBackend;
 
 impl ReqwestOtelSpanBackend for SafeSpanBackend {
     fn on_request_start(request: &Request, extensions: &mut Extensions) -> Span {
-        DefaultSpanBackend::on_request_start(request, extensions)
+        let name = default_span_name(request, extensions);
+        // Datadog names client spans after the HTTP method alone; `resource.name`
+        // keeps the dependency, e.g. `resolver POST` vs. `ingestion POST`.
+        let resource = format!("{name} {}", request.method());
+        reqwest_otel_span!(
+            name = name,
+            request,
+            resource.name = %resource,
+            error.type = tracing::field::Empty
+        )
     }
 
     fn on_request_end(span: &Span, outcome: &Result<Response>, _: &mut Extensions) {
         match outcome {
             Ok(response) => {
                 default_on_request_success(span, response);
-                span.record(
-                    "http.response.status_code",
-                    i64::from(response.status().as_u16()),
-                );
+                let status = response.status();
+                span.record("http.response.status_code", i64::from(status.as_u16()));
+                if status.is_client_error() || status.is_server_error() {
+                    span.record("error.type", status.as_str());
+                }
             }
             // Default failure fields include URLs and raw cause chains.
             Err(error) => {
+                let kind = if error.is_timeout() {
+                    "timeout"
+                } else {
+                    "transport"
+                };
                 span.record("otel.status_code", "ERROR");
-                span.record(
-                    "error.message",
-                    if error.is_timeout() {
-                        "timeout"
-                    } else {
-                        "transport"
-                    },
-                );
+                span.record("error.message", kind);
+                span.record("error.type", kind);
             }
         }
     }
@@ -113,7 +122,7 @@ mod tests {
                     "/",
                     post(move |headers: HeaderMap| async move {
                         headers_tx.send(headers).unwrap();
-                        axum::http::StatusCode::NO_CONTENT
+                        http::StatusCode::NO_CONTENT
                     }),
                 ),
             )
@@ -174,6 +183,15 @@ mod tests {
         ));
         let attributes = format!("{:?}", failed.attributes);
         assert!(attributes.contains("transport"));
+        // Datadog groups client spans by resource, so it must name the dependency.
+        assert!(
+            failed
+                .attributes
+                .iter()
+                .any(|attribute| attribute.key.as_str() == "resource.name"
+                    && attribute.value.as_str() == "failed POST"),
+            "{attributes}"
+        );
         for secret in ["secret-user", "unused", "private-content", "secret-query"] {
             assert!(!attributes.contains(secret), "leaked {secret}");
         }
