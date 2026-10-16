@@ -53,7 +53,12 @@ export const MobileTopBar = ({
         ) : (
           leadingControl
         )}
-        {envLabel.visible && <EnvLabelBadge region={envLabel.region} />}
+        {envLabel.visible && (
+          <EnvLabelBadge
+            region={envLabel.region}
+            onDismiss={envLabel.dismiss}
+          />
+        )}
       </div>
 
       {/* Center: the Langfuse wordmark. */}
