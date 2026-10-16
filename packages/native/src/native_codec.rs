@@ -7,6 +7,7 @@ use std::sync::Arc;
 use chrono::{DateTime, NaiveDateTime, Utc};
 use rust_decimal::{Decimal, RoundingStrategy};
 
+use crate::native_columns::NativeColumnError;
 use crate::native_schema::PreparedEventRow;
 
 const DECIMAL_SCALE: u32 = 12;
@@ -55,6 +56,8 @@ pub struct EncodedBlock {
 /// Decimal(18,12) overflow policy and truncate toward zero at twelve fractional digits.
 /// Encoding preserves the prepared row's `event_bytes`. The NAPI adapter receives that value
 /// from TypeScript after overflow handling; it does not recompute accounting in Rust.
+/// A block can still split when ch-core's signed String offsets would overflow; a single row that
+/// exceeds that limit remains an error.
 pub(crate) fn encode_v4_native_blocks(
     rows: &[Arc<PreparedEventRow>],
     max_rows_per_block: usize,
@@ -63,24 +66,43 @@ pub(crate) fn encode_v4_native_blocks(
         return Err("max_rows_per_block must be greater than zero".to_owned());
     }
 
-    rows.chunks(max_rows_per_block)
-        .map(|chunk| {
-            let bytes = encode_block(chunk)?;
-            Ok(EncodedBlock {
-                bytes,
-                row_count: chunk.len(),
-            })
-        })
-        .collect()
+    let mut blocks = Vec::new();
+    let mut encode = encode_block;
+    for chunk in rows.chunks(max_rows_per_block) {
+        encode_with_bisection(chunk, &mut encode, &mut blocks)
+            .map_err(|error| error.to_string())?;
+    }
+    Ok(blocks)
 }
 
-fn encode_block(rows: &[Arc<PreparedEventRow>]) -> Result<Vec<u8>, String> {
+fn encode_block(rows: &[Arc<PreparedEventRow>]) -> Result<Vec<u8>, NativeColumnError> {
     let batch = PreparedEventRow::to_col_batch(rows)?;
     ch_core_rs::native::encode::encode_block(
         &batch,
         &ch_core_rs::native::encode::EncodeOptions::default(),
     )
-    .map_err(|error| error.to_string())
+    .map_err(|error| NativeColumnError::Message(error.to_string()))
+}
+
+fn encode_with_bisection<T>(
+    rows: &[T],
+    encode: &mut impl FnMut(&[T]) -> Result<Vec<u8>, NativeColumnError>,
+    blocks: &mut Vec<EncodedBlock>,
+) -> Result<(), NativeColumnError> {
+    match encode(rows) {
+        Ok(bytes) => blocks.push(EncodedBlock {
+            bytes,
+            row_count: rows.len(),
+        }),
+        Err(NativeColumnError::StringColumnTooLarge) if rows.len() > 1 => {
+            let midpoint = rows.len() / 2;
+            let (left, right) = rows.split_at(midpoint);
+            encode_with_bisection(left, encode, blocks)?;
+            encode_with_bisection(right, encode, blocks)?;
+        }
+        Err(error) => return Err(error),
+    }
+    Ok(())
 }
 
 /// Parse the UTC-only datetime values produced by the ingestion pipeline. A ClickHouse datetime

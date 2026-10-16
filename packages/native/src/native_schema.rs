@@ -164,7 +164,7 @@ macro_rules! clickhouse_table_schema {
             /// Build one owned columnar batch from the shared prepared rows.
             pub(crate) fn to_col_batch(
                 rows: &[std::sync::Arc<Self>],
-            ) -> Result<ch_core_rs::batch::ColBatch, String> {
+            ) -> Result<ch_core_rs::batch::ColBatch, crate::native_columns::NativeColumnError> {
                 let schema = ch_core_rs::schema::Schema::new(vec![
                     $(
                         ch_core_rs::schema::Field {

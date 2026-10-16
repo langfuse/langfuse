@@ -1,6 +1,7 @@
 //! Build ch-core-rs columns from prepared event rows.
 
 use std::collections::BTreeMap;
+use std::fmt;
 
 use ch_core_rs::bitmap::Bitmap;
 use ch_core_rs::column::{
@@ -11,6 +12,29 @@ use ch_core_rs::schema::ChType;
 
 use crate::native_codec::{DateTime64Micros, Decimal64, SkillReference, SkillResourceLoaded};
 
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum NativeColumnError {
+    StringColumnTooLarge,
+    Message(String),
+}
+
+impl fmt::Display for NativeColumnError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::StringColumnTooLarge => {
+                formatter.write_str("String column exceeds i32::MAX bytes")
+            }
+            Self::Message(message) => formatter.write_str(message),
+        }
+    }
+}
+
+impl From<String> for NativeColumnError {
+    fn from(message: String) -> Self {
+        Self::Message(message)
+    }
+}
+
 /// Maps one prepared field type to its owned ch-core column.
 ///
 /// The input is a slice of row references. Nested implementations flatten references and let the
@@ -18,14 +42,14 @@ use crate::native_codec::{DateTime64Micros, Decimal64, SkillReference, SkillReso
 pub(crate) trait NativeColumn: Sized {
     fn ch_type() -> ChType;
 
-    fn build(values: &[&Self]) -> Result<Column, String>;
+    fn build(values: &[&Self]) -> Result<Column, NativeColumnError>;
 }
 
 pub(crate) fn column_type<T: NativeColumn>() -> ChType {
     T::ch_type()
 }
 
-pub(crate) fn build_column<'a, T, I>(values: I) -> Result<Column, String>
+pub(crate) fn build_column<'a, T, I>(values: I) -> Result<Column, NativeColumnError>
 where
     T: NativeColumn + 'a,
     I: IntoIterator<Item = &'a T>,
@@ -34,12 +58,12 @@ where
     T::build(&values)
 }
 
-fn checked_i32_offset(value: usize, kind: &str) -> Result<i32, String> {
-    i32::try_from(value).map_err(|_| format!("{kind} offset exceeds i32::MAX"))
+fn checked_string_offset(value: usize) -> Result<i32, NativeColumnError> {
+    i32::try_from(value).map_err(|_| NativeColumnError::StringColumnTooLarge)
 }
 
-fn checked_i64_offset(value: usize, kind: &str) -> Result<i64, String> {
-    i64::try_from(value).map_err(|_| format!("{kind} offset exceeds i64::MAX"))
+fn checked_i64_offset(value: usize, kind: &str) -> Result<i64, NativeColumnError> {
+    i64::try_from(value).map_err(|_| format!("{kind} offset exceeds i64::MAX").into())
 }
 
 impl NativeColumn for String {
@@ -47,20 +71,20 @@ impl NativeColumn for String {
         ChType::String
     }
 
-    fn build(values: &[&Self]) -> Result<Column, String> {
+    fn build(values: &[&Self]) -> Result<Column, NativeColumnError> {
         let total_bytes = values.iter().try_fold(0usize, |total, value| {
             total
                 .checked_add(value.len())
                 .ok_or_else(|| "String data length overflow".to_owned())
         })?;
-        let _ = checked_i32_offset(total_bytes, "String")?;
+        let _ = checked_string_offset(total_bytes)?;
 
         let mut offsets = Vec::with_capacity(values.len() + 1);
         offsets.push(0);
         let mut data = Vec::with_capacity(total_bytes);
         for value in values {
             data.extend_from_slice(value.as_bytes());
-            offsets.push(checked_i32_offset(data.len(), "String")?);
+            offsets.push(checked_string_offset(data.len())?);
         }
         Ok(Column::Utf8(Utf8Column::new(offsets, data)))
     }
@@ -71,7 +95,7 @@ impl NativeColumn for bool {
         ChType::Bool
     }
 
-    fn build(values: &[&Self]) -> Result<Column, String> {
+    fn build(values: &[&Self]) -> Result<Column, NativeColumnError> {
         let len = values.len();
         let mut bitmap = vec![0; len.div_ceil(8)];
         for (index, value) in values.iter().enumerate() {
@@ -94,7 +118,7 @@ macro_rules! impl_primitive_column {
                 ChType::$ch_type
             }
 
-            fn build(values: &[&Self]) -> Result<Column, String> {
+            fn build(values: &[&Self]) -> Result<Column, NativeColumnError> {
                 Ok(Column::$variant(PrimitiveColumn::new(
                     values.iter().map(|value| **value).collect(),
                 )))
@@ -116,7 +140,7 @@ impl NativeColumn for DateTime64Micros {
         }
     }
 
-    fn build(values: &[&Self]) -> Result<Column, String> {
+    fn build(values: &[&Self]) -> Result<Column, NativeColumnError> {
         Ok(Column::DateTime64(PrimitiveColumn::new(
             values.iter().map(|value| value.0).collect(),
         )))
@@ -132,7 +156,7 @@ impl NativeColumn for Decimal64 {
         }
     }
 
-    fn build(values: &[&Self]) -> Result<Column, String> {
+    fn build(values: &[&Self]) -> Result<Column, NativeColumnError> {
         let capacity = values
             .len()
             .checked_mul(std::mem::size_of::<i64>())
@@ -153,7 +177,7 @@ where
         ChType::Nullable(Box::new(T::ch_type()))
     }
 
-    fn build(values: &[&Self]) -> Result<Column, String> {
+    fn build(values: &[&Self]) -> Result<Column, NativeColumnError> {
         let default = T::default();
         let mut null_map = Vec::with_capacity(values.len());
         let inner: Vec<&T> = values
@@ -173,7 +197,7 @@ where
     }
 }
 
-fn with_validity(column: Column, validity: Bitmap) -> Result<Column, String> {
+fn with_validity(column: Column, validity: Bitmap) -> Result<Column, NativeColumnError> {
     match column {
         Column::Utf8(mut column) => {
             column.validity = Some(validity);
@@ -191,7 +215,9 @@ fn with_validity(column: Column, validity: Bitmap) -> Result<Column, String> {
             column.validity = Some(validity);
             Ok(Column::DateTime64(column))
         }
-        _ => Err("Nullable wrapper is unsupported for this column".to_owned()),
+        _ => Err("Nullable wrapper is unsupported for this column"
+            .to_owned()
+            .into()),
     }
 }
 
@@ -203,7 +229,7 @@ where
         ChType::Array(Box::new(T::ch_type()))
     }
 
-    fn build(values: &[&Self]) -> Result<Column, String> {
+    fn build(values: &[&Self]) -> Result<Column, NativeColumnError> {
         let total_values = values.iter().try_fold(0usize, |total, row| {
             total
                 .checked_add(row.len())
@@ -229,7 +255,7 @@ where
         ChType::Map(Box::new(ChType::String), Box::new(V::ch_type()))
     }
 
-    fn build(values: &[&Self]) -> Result<Column, String> {
+    fn build(values: &[&Self]) -> Result<Column, NativeColumnError> {
         let total_entries = values.iter().try_fold(0usize, |total, map| {
             total
                 .checked_add(map.len())
@@ -262,7 +288,7 @@ impl NativeColumn for SkillReference {
         ])
     }
 
-    fn build(values: &[&Self]) -> Result<Column, String> {
+    fn build(values: &[&Self]) -> Result<Column, NativeColumnError> {
         let ids: Vec<&Option<String>> = values
             .iter()
             .map(|value| &value.langfuse_skill_id)
@@ -290,7 +316,7 @@ impl NativeColumn for SkillResourceLoaded {
         ])
     }
 
-    fn build(values: &[&Self]) -> Result<Column, String> {
+    fn build(values: &[&Self]) -> Result<Column, NativeColumnError> {
         let ids: Vec<&Option<String>> = values
             .iter()
             .map(|value| &value.langfuse_skill_id)
@@ -307,5 +333,19 @@ impl NativeColumn for SkillResourceLoaded {
             ],
             values.len(),
         )))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn string_offset_limit_is_checked_without_allocating_the_column() {
+        assert_eq!(checked_string_offset(i32::MAX as usize), Ok(i32::MAX));
+        assert_eq!(
+            checked_string_offset(i32::MAX as usize + 1),
+            Err(NativeColumnError::StringColumnTooLarge)
+        );
     }
 }
