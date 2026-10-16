@@ -8128,9 +8128,10 @@ components:
           type: string
           nullable: true
           description: >-
-            The id of the user who created the comment. Must be a member of the
-            organization that owns the project, otherwise an error will be
-            thrown.
+            Deprecated and ignored. Attribution uses the API key's creator,
+            following up to 10 parent API keys. If no creator is found, the
+            comment has no author.
+          deprecated: true
       required:
         - projectId
         - objectType
