@@ -216,6 +216,35 @@ describe("logical events routing", () => {
     ).toThrow(QueryCompileError);
   });
 
+  it.each(["columns ", "tuple(e.input), length"])(
+    "rejects the function name %j in a select that reads events",
+    (name) => {
+      // A name reaches the SQL unchecked: ClickHouse reads "columns " as the
+      // COLUMNS matcher, and the second name reads e.input itself.
+      expect(() =>
+        compile(
+          db
+            .selectFrom("events as e")
+            .select((eb) => eb.fn<string>(name, [eb.val("^inp")]).as("x")),
+        ),
+      ).toThrow(QueryCompileError);
+      expect(() =>
+        compile(
+          db
+            .selectFrom("events as e")
+            .select((eb) => eb.fn.agg<string>(name, [eb.val("^inp")]).as("x")),
+        ),
+      ).toThrow(QueryCompileError);
+      expect(() =>
+        compile(
+          db
+            .selectFrom("scores as s")
+            .select((eb) => eb.fn<string>(name, [eb.val("^inp")]).as("x")),
+        ),
+      ).not.toThrow();
+    },
+  );
+
   it.each([
     "events_core.input",
     "default.events_core.input",
@@ -318,6 +347,7 @@ describe("logical events routing", () => {
   });
 
   it("rejects an unqualified truncated column in a subquery with no FROM under a select that reads events", () => {
+    // ClickHouse resolves `input` in a no-FROM subquery to the outer relation.
     expect(() =>
       compile(
         db

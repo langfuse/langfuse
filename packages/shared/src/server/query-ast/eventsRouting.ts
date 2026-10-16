@@ -25,7 +25,8 @@
  *   when the table is aliased, so it would reach the routed relation;
  * - raw SQL text or identifiers (`sql` templates, `sql.raw`, `sql.id`,
  *   `sql.table`) in or under a select that reads a logical relation.
- *   `sql.ref` and bound values resolve like builder references.
+ *   `sql.ref` and bound values resolve like builder references. A function
+ *   name that is not a plain identifier counts as raw SQL.
  *
  * Callers that want the truncated copy on purpose name `events_core`;
  * physical `events_core` / `events_full` references pass through unchanged.
@@ -65,6 +66,7 @@ import { ClickHouseOperationNodeTransformer } from "./transformer";
 
 const LOGICAL_EVENTS = "events";
 const PHYSICAL_EVENTS = new Set(["events_core", "events_full"]);
+const PLAIN_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 export class EventsTableRoutingPlugin implements KyselyPlugin {
   transformQuery(args: PluginTransformQueryArgs): RootOperationNode {
@@ -161,12 +163,15 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
     return node;
   }
 
-  /** `count(*)` reads no column; its clauses are walked as usual. */
+  /**
+   * Rejects `columns(…)` like {@link transformFunction}. `count(*)` reads no
+   * column; its clauses are walked as usual.
+   */
   protected override transformAggregateFunction(
     node: AggregateFunctionNode,
     queryId?: QueryId,
   ): AggregateFunctionNode {
-    if (isColumnsMatcher(node.func)) this.rejectStar(`${node.func}(…)`);
+    this.checkFunctionName(node.func);
     if (isCountStar(node)) {
       super.transformAggregateFunction({ ...node, aggregated: [] }, queryId);
       return node;
@@ -190,7 +195,7 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
     node: FunctionNode,
     queryId?: QueryId,
   ): FunctionNode {
-    if (isColumnsMatcher(node.func)) this.rejectStar(`${node.func}(…)`);
+    this.checkFunctionName(node.func);
     return super.transformFunction(node, queryId);
   }
 
@@ -238,6 +243,19 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
       );
     }
     return undefined;
+  }
+
+  /**
+   * The compiler writes a function name verbatim, so a name that is not a
+   * plain identifier is raw SQL; `columns` expands like `*`.
+   */
+  private checkFunctionName(func: string): void {
+    if (!PLAIN_IDENTIFIER.test(func) && this.readsLogicalInScope()) {
+      throw new QueryCompileError(
+        `Function name "${func}" is not a plain identifier, so the routing pass cannot see what it reads in a select over the logical "${LOGICAL_EVENTS}" relation.`,
+      );
+    }
+    if (func.toLowerCase() === "columns") this.rejectStar(`${func}(…)`);
   }
 
   /** Whether the current select or an enclosing one reads a logical relation. */
@@ -330,11 +348,6 @@ function isLogicalEventsTable(node: OperationNode): boolean {
     node.table.schema === undefined &&
     node.table.identifier.name === LOGICAL_EVENTS
   );
-}
-
-/** ClickHouse's `COLUMNS('regexp')` matcher, which expands like `*`. */
-function isColumnsMatcher(func: string): boolean {
-  return func.toLowerCase() === "columns";
 }
 
 /** `count(*)` with any `distinct`, `filter`, `over`, … clause. */
