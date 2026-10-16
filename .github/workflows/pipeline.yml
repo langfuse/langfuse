@@ -1712,12 +1712,23 @@ jobs:
         if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
         run: exit 1
         working-directory: .
+      # `Failing deploy` above also fails this job when a needed job was merely
+      # cancelled, so that the required check cannot go green on a cancelled
+      # run. This job's own status therefore no longer distinguishes a
+      # cancellation from a failure, and a cancelled run has no failed job for
+      # the alert to report — so the alert matches the needed jobs' results
+      # instead. `always()` is required because a step condition without a
+      # status function implies `success()`.
+      #
+      # `!cancelled()` lets timed-out jobs (GitHub reports them as `cancelled`)
+      # still page Slack, while a manually cancelled workflow run (where every
+      # needed job is `cancelled` *and* `cancelled()` is true) stays quiet.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: failure() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v3' || startsWith(github.ref, 'refs/tags/'))
+        if: always() && !cancelled() && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v3' || startsWith(github.ref, 'refs/tags/'))
         with:
           persist-credentials: false
       - name: Notify Slack
-        if: failure() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v3' || startsWith(github.ref, 'refs/tags/'))
+        if: always() && !cancelled() && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v3' || startsWith(github.ref, 'refs/tags/'))
         uses: ./.github/actions/notify-slack-failure
         with:
           message: "❌ CI failed on ${{ github.ref_name }}"
@@ -2173,12 +2184,17 @@ jobs:
       - name: Fail when a release image job failed
         if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
         run: exit 1
+      # As in all-ci-passed: the step above also fails this job for a merely
+      # cancelled dependency, so the alert matches the needed jobs' results
+      # rather than this job's own status. `!cancelled()` ensures timed-out
+      # jobs (status `cancelled`) still page Slack while a manually cancelled
+      # workflow run stays quiet.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: failure()
+        if: always() && !cancelled() && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled'))
         with:
           persist-credentials: false
       - name: Notify Slack
-        if: failure()
+        if: always() && !cancelled() && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled'))
         uses: ./.github/actions/notify-slack-failure
         with:
           message: "❌ Docker release failed on ${{ github.ref_name }}"
