@@ -12,6 +12,7 @@ import {
 import { generateLLMText } from "../llm/llmText";
 import { LLMAdapter, type TraceSinkParams } from "../llm/types";
 import { logger } from "../logger";
+import { parseOutboundUrl } from "../outbound-url/validation";
 import { writeInternalTraceViaOtelIngestion } from "../otel/internalTraceOtelWriter";
 import type { TopicsModel } from "./model-config";
 
@@ -152,15 +153,17 @@ async function generateWithConnection<T>(
   params: TopicTextParams<T>,
   recordResponse: (result: TopicTextResult) => void,
 ): Promise<TopicTextResult> {
+  const nativeOpenAI = isFirstPartyOpenAI(params.model);
   const result = await generateLLMText({
     model: { adapter: params.model.adapter, id: params.model.model },
     connection: params.model.connection,
+    openAIChatProvider: nativeOpenAI ? "native" : undefined,
     // The static system prompt comes first so providers with automatic prefix
     // caching can reuse it across traces.
     messages: topicMessages(params),
     output: Output.object({ schema: params.schema }),
     maxOutputTokens: params.maxOutputTokens,
-    reasoning: "none",
+    reasoning: nativeOpenAI ? openAIReasoning(params.model.model) : "none",
     // Bedrock ignores portable reasoning for OpenAI models; their default effort
     // is not none.
     ...(isBedrockGPT(params.model)
@@ -174,7 +177,7 @@ async function generateWithConnection<T>(
       : {}),
     // The AI SDK retries 429 and 5xx responses with exponential backoff.
     maxRetries: 2,
-    timeout: TIMEOUT_MS,
+    timeout: params.timeoutMs ?? TIMEOUT_MS,
   });
   const usage = topicUsage(result.usage);
   // The SDK's output getter can throw after a response with billable usage.
@@ -183,6 +186,35 @@ async function generateWithConnection<T>(
     output: result.output,
     usage,
   };
+}
+
+/** Topics owns its OpenAI request options; saved evaluator options keep their routing. */
+function isFirstPartyOpenAI(model: TopicsModel): boolean {
+  if (model.adapter !== LLMAdapter.OpenAI) return false;
+  if (!model.connection.baseURL) return true;
+  try {
+    const hostname = parseOutboundUrl(
+      model.connection.baseURL.replace("{model}", model.model),
+    ).hostname.replace(/\.$/, "");
+    return (
+      hostname === "api.openai.com" || hostname.endsWith(".api.openai.com")
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** Selects low-latency reasoning only for known models; others use their defaults. */
+function openAIReasoning(model: string): "none" | "minimal" | undefined {
+  const id = model.replace(/-\d{4}-\d{2}-\d{2}$/, "");
+  if (/^gpt-5(?:-(?:mini|nano))?$/.test(id)) return "minimal";
+  if (
+    /^gpt-5\.[1-6](?:-(?:mini|nano|luna|sol|terra))?$/.test(id) ||
+    id === "gpt-6-luna" ||
+    id === "gpt-6-sol"
+  )
+    return "none";
+  return undefined;
 }
 
 function isBedrockGPT(model: TopicsModel): boolean {
@@ -298,7 +330,7 @@ async function invokeWithCache(
     method: "POST",
     headers: await bedrockRequestHeaders(params.model, url, region, body),
     body,
-    signal: AbortSignal.timeout(TIMEOUT_MS),
+    signal: AbortSignal.timeout(params.timeoutMs ?? TIMEOUT_MS),
   });
   // The status lets the Topics error classification tell throttling from auth or input errors.
   if (!response.ok)
@@ -366,5 +398,6 @@ type TopicTextParams<T> = {
   input: string;
   schema: z.ZodType<T>;
   maxOutputTokens: number;
+  timeoutMs?: number;
   trace?: TraceSinkParams;
 };

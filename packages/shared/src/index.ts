@@ -122,7 +122,10 @@ export * from "./errors/index";
 
 export * from "./utils/environment";
 export * from "./interfaces/search";
-export { normalizeIngestionSdkName } from "./server/ingestion/ingestionAttribution";
+export {
+  LANGFUSE_SDK_LATEST_MAJOR,
+  normalizeIngestionSdkName,
+} from "./server/ingestion/ingestionAttribution";
 
 // domain
 export * from "./domain";

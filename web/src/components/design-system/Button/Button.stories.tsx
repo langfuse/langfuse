@@ -101,6 +101,29 @@ export const Loading = meta.story({
   },
 });
 
+export const KeepsItsWidthWhileLoading = meta.story({
+  name: "(Test) Keeps Its Width While Loading",
+  parameters: { controls: { disable: true } },
+  render: () => (
+    <div className="flex gap-2">
+      <Button text="Save changes" />
+      <Button text="Save changes" loading />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const [idle, loading] = within(canvasElement).getAllByRole("button", {
+      name: "Save changes",
+    });
+
+    await expect(loading).toBeDisabled();
+    await expect(loading).toHaveAttribute("aria-busy", "true");
+    await expect(within(loading).getByText("Save changes")).not.toBeVisible();
+    await expect(loading.getBoundingClientRect().width).toBe(
+      idle.getBoundingClientRect().width,
+    );
+  },
+});
+
 const onClick = fn();
 
 export const TestClick = meta.story({

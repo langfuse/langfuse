@@ -6,12 +6,13 @@ import {
   useState,
 } from "react";
 import { useMediaQuery } from "react-responsive";
+import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { MAX_SKILL_FILES } from "@langfuse/shared";
 import { useStore } from "zustand";
 import {
   Download,
   Loader2,
-  Plus,
+  Pencil,
   TriangleAlert,
   RotateCcw,
   Save,
@@ -19,6 +20,8 @@ import {
 } from "lucide-react";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { SkillLinkedTraces } from "@/src/features/skills/components/SkillLinkedTraces";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { CodeMirrorEditor } from "@/src/components/editor";
 import Page from "@/src/components/layouts/page";
@@ -174,6 +177,12 @@ export function SkillEditor({
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const isDraft = view.kind === "draft";
+  const [selectedTab, setSelectedTab] = useQueryParam(
+    "tab",
+    withDefault(StringParam, "files"),
+  );
+  const activeTab =
+    !isDraft && selectedTab === "linked-traces" ? "linked-traces" : "files";
   const canEditFiles = isDraft && canCreate && !isSaving;
   const isDesktop = useMediaQuery({ query: "(min-width: 768px)" });
   const [treeState, setTreeState] = useState<SkillFileExplorerState>(() => ({
@@ -439,7 +448,7 @@ export function SkillEditor({
             if (view.kind === "version") await view.onEdit();
           }}
         >
-          <Plus className="icon-base mr-1.5" />
+          <Pencil className="icon-base mr-1.5" />
           {view.kind === "version" && view.hasDraft ? "Resume draft" : "Edit"}
         </Button>
       ) : (
@@ -647,38 +656,61 @@ export function SkillEditor({
                 ) : (
                   <SkillVersionHistory kind="new" />
                 )}
-                <div className="min-h-[720px] min-w-0 flex-1 md:min-h-0">
-                  <ResizablePanelGroup
-                    key={isDesktop ? "desktop" : "mobile"}
-                    orientation={isDesktop ? "horizontal" : "vertical"}
+                <div className="flex min-h-[720px] min-w-0 flex-1 flex-col md:min-h-0">
+                  <Tabs
+                    value={activeTab}
+                    onValueChange={(value) => setSelectedTab(value)}
+                    layout="fill"
                   >
-                    <ResizablePanel
-                      defaultSize={isDesktop ? "28%" : "32%"}
-                      minSize={isDesktop ? "20%" : "24%"}
-                      maxSize={isDesktop ? "42%" : "50%"}
-                    >
-                      <SkillFileExplorer
-                        store={store}
-                        readOnly={!isDraft || !canCreate}
-                        disabled={isSaving}
-                        state={treeState}
-                        onStateChange={setTreeState}
-                        onUpload={() => setIsUploadOpen(true)}
-                      />
-                    </ResizablePanel>
-                    <ResizableHandle withHandle />
-                    <ResizablePanel
-                      defaultSize={isDesktop ? "72%" : "68%"}
-                      minSize={isDesktop ? "45%" : "42%"}
-                    >
-                      <SkillFileEditor
-                        projectId={projectId}
-                        store={store}
-                        isDraft={isDraft}
-                        editable={canEditFiles}
-                      />
-                    </ResizablePanel>
-                  </ResizablePanelGroup>
+                    <Tabs.List variant="underline">
+                      <Tabs.Trigger value="files" label="Files" />
+                      {!isDraft ? (
+                        <Tabs.Trigger value="linked-traces" label="Traces" />
+                      ) : null}
+                    </Tabs.List>
+                    {!isDraft && baseVersion !== null ? (
+                      <Tabs.Content value="linked-traces" layout="fill">
+                        <SkillLinkedTraces
+                          projectId={projectId}
+                          name={name}
+                          version={baseVersion}
+                        />
+                      </Tabs.Content>
+                    ) : null}
+                    <Tabs.Content value="files" layout="fill">
+                      <ResizablePanelGroup
+                        key={isDesktop ? "desktop" : "mobile"}
+                        orientation={isDesktop ? "horizontal" : "vertical"}
+                      >
+                        <ResizablePanel
+                          defaultSize={isDesktop ? "28%" : "32%"}
+                          minSize={isDesktop ? "20%" : "24%"}
+                          maxSize={isDesktop ? "42%" : "50%"}
+                        >
+                          <SkillFileExplorer
+                            store={store}
+                            readOnly={!isDraft || !canCreate}
+                            disabled={isSaving}
+                            state={treeState}
+                            onStateChange={setTreeState}
+                            onUpload={() => setIsUploadOpen(true)}
+                          />
+                        </ResizablePanel>
+                        <ResizableHandle withHandle />
+                        <ResizablePanel
+                          defaultSize={isDesktop ? "72%" : "68%"}
+                          minSize={isDesktop ? "45%" : "42%"}
+                        >
+                          <SkillFileEditor
+                            projectId={projectId}
+                            store={store}
+                            isDraft={isDraft}
+                            editable={canEditFiles}
+                          />
+                        </ResizablePanel>
+                      </ResizablePanelGroup>
+                    </Tabs.Content>
+                  </Tabs>
                 </div>
               </div>
             </div>

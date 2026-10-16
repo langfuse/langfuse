@@ -271,7 +271,7 @@ export function ImportSkillsDialog({
               >
                 <Tabs.Trigger
                   value="local"
-                  label="Local files"
+                  label="Upload files"
                   disabled={busy}
                 />
                 <Tabs.Trigger value="cli" label="CLI" disabled={busy} />

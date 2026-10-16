@@ -286,6 +286,7 @@ export const env = createEnv({
     AUTH_IGNORE_ACCOUNT_FIELDS: z.string().optional(),
     AUTH_DISABLE_USERNAME_PASSWORD: z.enum(["true", "false"]).optional(),
     AUTH_DISABLE_SIGNUP: z.enum(["true", "false"]).optional(),
+    LANGFUSE_DISABLE_SIGNUP_ONBOARDING: z.enum(["true", "false"]).optional(),
     AUTH_EMAIL_VERIFICATION_REQUIRED: z
       .enum(["true", "false"])
       .default("false"),
@@ -315,6 +316,11 @@ export const env = createEnv({
     OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default("http://localhost:4318"),
     OTEL_SERVICE_NAME: z.string().default("web"),
     OTEL_TRACE_SAMPLING_RATIO: z.coerce.number().gt(0).lte(1).default(1),
+    // Stamps ECS task/cluster (aws.ecs.*, cloud.*) and container.id resource
+    // attributes onto every exported span.
+    OTEL_CONTAINER_RESOURCE_DETECTORS_ENABLED: z
+      .enum(["true", "false"])
+      .default("false"),
 
     // OTel Masking
     LANGFUSE_INGESTION_MASKING_PROPAGATED_HEADERS: z
@@ -1022,6 +1028,8 @@ export const env = createEnv({
       process.env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT,
     AUTH_DISABLE_USERNAME_PASSWORD: process.env.AUTH_DISABLE_USERNAME_PASSWORD,
     AUTH_DISABLE_SIGNUP: process.env.AUTH_DISABLE_SIGNUP,
+    LANGFUSE_DISABLE_SIGNUP_ONBOARDING:
+      process.env.LANGFUSE_DISABLE_SIGNUP_ONBOARDING,
     AUTH_EMAIL_VERIFICATION_REQUIRED:
       process.env.AUTH_EMAIL_VERIFICATION_REQUIRED,
     AUTH_SESSION_MAX_AGE: process.env.AUTH_SESSION_MAX_AGE,
@@ -1037,6 +1045,8 @@ export const env = createEnv({
     OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
     OTEL_SERVICE_NAME: process.env.OTEL_SERVICE_NAME,
     OTEL_TRACE_SAMPLING_RATIO: process.env.OTEL_TRACE_SAMPLING_RATIO,
+    OTEL_CONTAINER_RESOURCE_DETECTORS_ENABLED:
+      process.env.OTEL_CONTAINER_RESOURCE_DETECTORS_ENABLED,
 
     LANGFUSE_INGESTION_MASKING_PROPAGATED_HEADERS:
       process.env.LANGFUSE_INGESTION_MASKING_PROPAGATED_HEADERS,

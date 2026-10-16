@@ -168,6 +168,7 @@ jobs:
         with:
           filters: |
             ai_gateway:
+              - 'ai-gateway/**'
               - 'packages/shared/prisma/migrations/**/*gateway*/**'
               - 'web/src/__e2e__/**/*.gatewaye2e.{ts,tsx}'
               - 'web/src/features/ai-gateway/**'
@@ -198,6 +199,17 @@ jobs:
         run: cargo fmt --all -- --check
       - name: Lint Rust targets
         run: cargo clippy --locked --all-targets -- -D warnings
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        with:
+          tool: cargo-machete@0.9.2,cargo-deny@0.20.2
+      - name: Check for unused Rust dependencies
+        run: cargo machete
+      # Licenses also run in licencecheck.yml next to the pnpm license check,
+      # but only all-ci-passed gates merges, so they are enforced here too.
+      # Advisories come from Dependabot alerts, so a new advisory never blocks
+      # merges.
+      - name: Check Rust dependency bans, licenses, and sources
+        run: cargo deny --locked check bans licenses sources
       - name: Run Rust tests
         run: bash "$GITHUB_WORKSPACE/scripts/ci/retry-on-merge-queue.sh" cargo test --locked
       - name: Build runtime image
@@ -270,6 +282,8 @@ jobs:
         run: node --test scripts/github/label-cursor-prs.test.mjs
       - name: merge-queue retry helper tests
         run: bash scripts/ci/retry-on-merge-queue.test.sh
+      - name: vitest CI reporter tests
+        run: node --test scripts/vitest/ci-reporter.test.mjs
       - name: Load default env
         run: |
           cp .env.dev.example .env
@@ -280,6 +294,14 @@ jobs:
       # above, so they run outside that invocation (ai-gateway in its own job).
       - name: lint native addon (rustfmt, clippy)
         run: pnpm --filter @langfuse/native run lint
+      - name: Install Rust dependency checkers
+        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        with:
+          tool: cargo-machete@0.9.2,cargo-deny@0.20.2
+      - name: check native addon for unused Rust dependencies
+        run: pnpm --filter @langfuse/native run rust:unused-deps
+      - name: check native addon Rust dependency bans, licenses, and sources
+        run: pnpm --filter @langfuse/native run rust:deny bans licenses sources
       - name: typecheck
         run: pnpm run typecheck --filter=!ai-gateway
 
@@ -764,6 +786,7 @@ jobs:
       VITEST_MAX_WORKERS: "12"
       NODE_ENV: test
     strategy:
+      fail-fast: false
       matrix:
         node-version: [24]
         postgres-version: [15]
@@ -986,6 +1009,7 @@ jobs:
       VITEST_MAX_WORKERS: ${{ matrix.deploy-mode == '-redis-cluster' && '8' || '4' }}
       NODE_ENV: test
     strategy:
+      fail-fast: false
       matrix:
         node-version: [24]
         postgres-version: [15]

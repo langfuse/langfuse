@@ -107,7 +107,9 @@
     execution scope; exact storage reads also require facet/version scope.
   - `text.ts` and `embeddings.ts`: model transport through the project's LLM
     connections (`generateLLMText` / `embedLLMText`), with cached Bedrock text
-    calls using InvokeModel. Text accepts optional internal generation tracing;
+    calls using InvokeModel. Setup probes use the same Topics transport. Topics
+    opts into the native OpenAI Chat provider per call for official hosts; keep
+    saved evaluator routing independent. Text accepts optional generation tracing;
     worker model calls own tracing allowlisting, organization consent, usage,
     cost and vector validation.
   - `model-config.ts`: per-project `topic_configs` (three connection +

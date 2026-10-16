@@ -72,7 +72,7 @@ describe("OpenAI Chat Completions request shape", () => {
       modelId: "gpt-5.6-sol",
       titleModelId: "gpt-5.6-luna",
       apiKey: "sk-test",
-      baseURL: "https://llm-exec.internal/v1",
+      baseURL: "https://eu.api.openai.com/v1",
       extraHeaders: { "X-LLM-Exec-Token": "proxy-token" },
     };
     const { calls, fetch } = createCaptureFetch(OPENAI_CHAT_RESPONSE);
@@ -85,7 +85,7 @@ describe("OpenAI Chat Completions request shape", () => {
     });
 
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.url).toBe("https://llm-exec.internal/v1/chat/completions");
+    expect(calls[0]?.url).toBe("https://eu.api.openai.com/v1/chat/completions");
     expect(calls[0]?.headers.get("authorization")).toBe("Bearer sk-test");
     expect(calls[0]?.headers.get("x-llm-exec-token")).toBe("proxy-token");
     expect(calls[0]?.body).not.toHaveProperty("thinking");
