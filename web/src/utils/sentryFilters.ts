@@ -251,6 +251,11 @@ const NOISE_MESSAGE_PREFIXES: readonly string[] = [
   "[next-auth][error][CLIENT_FETCH_ERROR]",
   // PostHog analytics SDK notices / client-side rate-limit logs. Third-party.
   "[PostHog.js]",
+  // WitnessAI (corporate DLP) prefixes every page-world console.error with
+  // `[WitnessAI]`. Same class as `[PostHog.js]`: vendor-namespaced, never
+  // emitted by Langfuse. Observed wrapping UserInputMonitoring failures on
+  // `/auth/sign-up` in the LANGFUSE-641 session.
+  "[WitnessAI]",
   // Cloudflare / Cursor Kitesurf console-errors its own localhost CORS probe
   // with this unbracketed prefix (LANGFUSE-610). Distinct from bracketed
   // `[kitesurf]` listener wraps — those go through {@link isKitesurfInternalEvent}.
@@ -481,6 +486,41 @@ export function isReactDevtoolsInternalEvent(event: ErrorEvent): boolean {
 }
 
 /**
+ * WitnessAI (corporate DLP) injects OpenTelemetry into the page and then
+ * JSON.stringifies captured form inputs. React 19 fibers on those
+ * HTMLInputElements are circular (`stateNode` ↔ `__reactFiber$*`), so the
+ * exporter logs `Error processing exporters: Converting circular structure
+ * to JSON`. Arrives as a `captureConsoleIntegration` MESSAGE event with no
+ * stack. Observed: LANGFUSE-641 (`/auth/sign-up`). Langfuse does not log
+ * this prefix and does not run a browser OTEL exporter.
+ *
+ * Requires the OTEL exporter prefix AND a circular-JSON marker AND a DOM
+ * / React-fiber constructor, so:
+ *  - a first-party `Converting circular structure to JSON` is KEPT;
+ *  - an exporter failure that is not a DOM cycle (timeout, BatchSpanProcessor
+ *    internals) is KEPT;
+ *  - an app error that merely quotes the prefix is KEPT;
+ *  - a mixed stack with a `/_next/` chunk is KEPT.
+ */
+const OTEL_EXPORTER_ERROR_PREFIX = "Error processing exporters:";
+const CIRCULAR_JSON_MARKER = "Converting circular structure to JSON";
+const CIRCULAR_DOM_MARKERS = [
+  "HTMLInputElement",
+  "HTMLElement",
+  "__reactFiber$",
+] as const;
+
+function isOtelExporterCircularDomEvent(event: ErrorEvent): boolean {
+  const text = eventText(event).trim();
+  if (!text.startsWith(OTEL_EXPORTER_ERROR_PREFIX)) return false;
+  if (!text.includes(CIRCULAR_JSON_MARKER)) return false;
+  if (!CIRCULAR_DOM_MARKERS.some((marker) => text.includes(marker))) {
+    return false;
+  }
+  return !hasFirstPartyChunkFrame(event);
+}
+
+/**
  * True for known-benign CLIENT-side noise that cannot be a real Langfuse app
  * bug: browser-level network/transport failures, transient framework/vendor
  * poll logs, expected browser-permission / cancellation artifacts, and
@@ -539,9 +579,18 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
     if (TRANSPORT_FAILURE_MESSAGES.includes(core)) return true;
 
     // --- A + B + C. Unambiguous framework/vendor/transport prefixes (incl.
-    // NextAuth, PostHog, non-JSON Response.json(), and the Next.js `_error.js`
-    // falsy-error artifact). Anchored with startsWith, never a loose includes. ---
+    // NextAuth, PostHog, WitnessAI, non-JSON Response.json(), and the Next.js
+    // `_error.js` falsy-error artifact). Anchored with startsWith, never a
+    // loose includes. ---
     if (NOISE_MESSAGE_PREFIXES.some((prefix) => core.startsWith(prefix))) {
+      return true;
+    }
+
+    // WitnessAI injects OpenTelemetry and JSON.stringifies captured form
+    // inputs. React fibers on those HTMLInputElements are circular, so the
+    // exporter logs this console message (no stack). See
+    // isOtelExporterCircularDomEvent.
+    if (isOtelExporterCircularDomEvent(event)) {
       return true;
     }
 
