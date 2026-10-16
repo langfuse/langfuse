@@ -149,13 +149,13 @@ async fn signs_the_exact_key_and_sends_api_format_and_model() {
         context.connection().credential(),
         ProviderCredential::Bearer("private-provider-token")
     ));
-    assert_eq!(context.attribution().project_id(), "project-1");
+    assert_eq!(context.attribution().project_id().as_str(), "project-1");
     assert_eq!(
         context.attribution().provider_connection_id(),
         "connection-1"
     );
     assert_eq!(
-        context.ingestion().access_token(),
+        context.ingestion().access_token().expose_secret(),
         ingestion_token("org-1", "project-1")
     );
     let debug = format!("{context:?}");
@@ -475,12 +475,12 @@ async fn concurrent_resolutions_keep_credentials_and_contexts_isolated() {
     );
     let alice = alice.unwrap();
     let bob = bob.unwrap();
-    assert_eq!(alice.attribution().project_id(), "project-alice");
+    assert_eq!(alice.attribution().project_id().as_str(), "project-alice");
     assert!(matches!(
         alice.connection().credential(),
         ProviderCredential::Bearer("token-alice")
     ));
-    assert_eq!(bob.attribution().project_id(), "project-bob");
+    assert_eq!(bob.attribution().project_id().as_str(), "project-bob");
     assert!(matches!(
         bob.connection().credential(),
         ProviderCredential::Bearer("token-bob")
