@@ -151,9 +151,10 @@ db.selectFrom("scores as s")
 **Select a metadata value** (`metadataValue` — lowers `metadata[key]` to a subscript of `metadataMap`, so the last duplicate key wins; like `mapValue`, a string key is bound and a `literal(...)` key is inlined):
 
 ```ts
+const filterKey: string = input.metadataKey; // caller-supplied, so bound
 db.selectFrom("events_core as e")
   .select((eb) => [metadataValue("e", literal("my_key")).as("my_val")])
-  .where((eb) => eb(metadataValue("e", key), "=", "x"));
+  .where((eb) => eb(metadataValue("e", filterKey), "=", "x"));
 // select mapfromarrays(arrayreverse(e.metadata_names), arrayreverse(e.metadata_values))['my_key'] as my_val …
 ```
 
@@ -174,7 +175,7 @@ preserve it:
 | ARRAY JOIN         | Plugin attaches `ArrayJoinNode` as an extra field on `SelectQueryNode`. `ClickHouseOperationNodeTransformer` preserves it. `ClickHouseQueryCompiler.visitSelectQuery` emits it after JOINs / before WHERE. | no    |
 | LIMIT BY           | Plugin attaches `LimitByNode` the same way. Compiler emits it after ORDER BY / before LIMIT.                                                                                                               | no    |
 | FINAL              | Plugin wraps a FROM/JOIN table expression in `FinalTableNode`. Compiler emits `final` after that expression (`scores as s final`). `$call(useFinal(["scores"]))`. Tables declared `dedup: none` throw.     | no    |
-| metadata subscript | Helper builds an `ArrayIndexNode` over the `metadataMap` `FunctionNode`, indexed by a bound or inlined `ValueNode` key. Transformer + compiler special-case the node. No plugin.                           | no    |
+| metadata subscript | Helper builds an `ArrayIndexNode` over the `metadataMap` `FunctionNode`, indexed by a string key expression (a bound value or a `literal(...)`). Transformer + compiler special-case the node. No plugin.  | no    |
 | Virtual view       | Plugin rewrites `selectFrom(viewName)` into a WITH CTE. Outer types only expose the view's selected columns.                                                                                               | no    |
 
 These are real node objects whose children are traced Kysely

@@ -77,7 +77,7 @@ const eventsMetadataMap = metadataMap(
 );
 
 /** The event is a root observation: no parent span, or an app root. */
-export const isRootObservation = eb.or([
+export const eventsIsRootObservation = eb.or([
   eb("e.parent_span_id", "=", literal("")),
   eb("e.is_app_root", "=", literal(true)),
 ]);
@@ -89,7 +89,7 @@ export const isRootObservation = eb.or([
 export const eventsTraceName = eb.fn.coalesce(
   nullIf(eb.ref("e.trace_name"), literal("")),
   ifElse(
-    isRootObservation,
+    eventsIsRootObservation,
     nullIf(eb.ref("e.name"), literal("")),
     literal(null),
   ),
@@ -140,7 +140,7 @@ export const TRACE_AGGREGATION_SELECTS = [
         argMaxIf(
           eb.ref("e.name"),
           eb.ref("e.event_ts"),
-          eb.and([isRootObservation, eb("e.name", "<>", literal(""))]),
+          eb.and([eventsIsRootObservation, eb("e.name", "<>", literal(""))]),
         ),
         literal(""),
       ),
@@ -371,7 +371,7 @@ export const EVENTS_ROW_FIELD_SELECTS = {
   environment: "e.environment as environment",
   type: "e.type as type",
   parentObservationId: "e.parent_span_id as parent_observation_id",
-  isRootObservation: toBool(isRootObservation).as("is_root_observation"),
+  isRootObservation: toBool(eventsIsRootObservation).as("is_root_observation"),
   name: "e.name as name",
   level: "e.level as level",
   statusMessage: "e.status_message as status_message",

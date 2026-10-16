@@ -1,7 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
+type CapturedCall = { query: string; params: Record<string, unknown> };
+
 const mockQueryClickhouseStream = vi.hoisted(() =>
-  vi.fn(() => (async function* () {})()),
+  vi.fn((_call: CapturedCall) => (async function* () {})()),
 );
 
 vi.mock("./clickhouse", () => ({
@@ -30,15 +32,9 @@ const PROJECT = "proj-1";
 const MIN = new Date("2026-01-01T00:00:00.000Z");
 const MAX = new Date("2026-01-01T01:00:00.000Z");
 
-const capturedCall = (): {
-  query: string;
-  params: Record<string, unknown>;
-} => {
+const capturedCall = (): CapturedCall => {
   expect(mockQueryClickhouseStream).toHaveBeenCalledTimes(1);
-  const call = mockQueryClickhouseStream.mock.calls[0] as unknown as [
-    { query: string; params: Record<string, unknown> },
-  ];
-  return call[0];
+  return mockQueryClickhouseStream.mock.calls[0][0];
 };
 
 const capturedQuery = (): string => capturedCall().query;

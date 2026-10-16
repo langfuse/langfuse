@@ -17,7 +17,7 @@ import {
 } from "../../repositories/events-field-sets";
 import {
   eventsTraceNameOrEmpty,
-  isRootObservation,
+  eventsIsRootObservation,
   millisecondsSinceStart,
   type SessionEventsField,
   type SessionEventsMetricsRow,
@@ -154,7 +154,7 @@ const EVENTS_FIELDS = {
   environment: "e.environment as environment",
   type: "e.type as type",
   parentObservationId: "e.parent_span_id as parent_observation_id",
-  isRootObservation: `${renderClickhouseExpression(toBool(isRootObservation))} as "is_root_observation"`,
+  isRootObservation: `${renderClickhouseExpression(toBool(eventsIsRootObservation))} as "is_root_observation"`,
   isAppRoot: "e.is_app_root as is_app_root",
   name: "e.name as name",
   level: "e.level as level",
@@ -1158,10 +1158,6 @@ export class EventsAggregationQueryBuilder extends BaseEventsQueryBuilder<
   }
 }
 
-/**
- * ClickHouse row type for session-level metrics queries from the events table.
- * Matches the columns produced by EVENTS_SESSION_AGGREGATION_FIELDS below.
- */
 /**
  * ClickHouse returns the UInt64 counts as strings.
  */
