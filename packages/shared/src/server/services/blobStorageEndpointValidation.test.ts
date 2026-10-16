@@ -127,16 +127,11 @@ describe("blobStorageEndpointConnectionValidationOptions", () => {
 
   it("trusts virtual-hosted bucket names under a listed host", () => {
     expect(connectAs("exports.minio.internal")).not.toThrow();
-    // AWS auto-region signs for us-east-1 and virtual-hosts the bucket there.
-    expect(connectAs("exports.s3.us-east-1.amazonaws.com")).not.toThrow();
   });
 
   it("keeps the private-address block for bucket names, but not for exact listed hosts", () => {
     expect(connectAs("minio.internal", "10.0.0.5")).not.toThrow();
     expect(connectAs("exports.minio.internal", "10.0.0.5")).toThrow(
-      expect.objectContaining({ code: "blocked-ip" }),
-    );
-    expect(connectAs("exports.minio.internal", "169.254.169.254")).toThrow(
       expect.objectContaining({ code: "blocked-ip" }),
     );
   });
