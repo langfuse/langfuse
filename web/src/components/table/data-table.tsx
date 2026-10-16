@@ -1751,11 +1751,12 @@ function TableDataRow<TData>({
               }}
               style={rowResizeHandleStyle(edge)}
               className={cn(
-                // Invisible. The row-resize cursor is the pointer
-                // affordance, withheld until a resting pointer earns it so
-                // that passing between rows reads as the row's own cursor
-                // throughout; keyboard focus keeps a hairline ring.
-                "absolute inset-x-0 z-[1] touch-none bg-transparent select-none",
+                // Invisible when unarmed — explicitly cursor-default so a
+                // pointer passing through a clickable row's strip does not
+                // show the hand cursor and mislead the user into thinking a
+                // click will open the row. Armed, cursor-row-resize takes
+                // over. Keyboard focus keeps a hairline ring.
+                "absolute inset-x-0 z-[1] cursor-default touch-none bg-transparent select-none",
                 "data-[row-resize-armed]:cursor-row-resize",
                 primary &&
                   "focus-visible:ring-ring focus-visible:ring-1 focus-visible:outline-none focus-visible:ring-inset",

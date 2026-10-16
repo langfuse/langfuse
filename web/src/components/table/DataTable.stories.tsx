@@ -1881,7 +1881,8 @@ export const RowResizeCursorWaitsForARestingPointer = meta.story({
     const row = handle.closest("tr");
     if (!row) throw new globalThis.Error("Missing row for the resize handle");
     const cursor = () => globalThis.getComputedStyle(handle).cursor;
-    // The strip sits inside the row, so an unclaimed cursor is the row's own.
+    // An unclaimed strip is cursor-default regardless of the row it sits in,
+    // so on this non-clickable table the strip and the row are both default.
     const rowCursor = globalThis.getComputedStyle(row).cursor;
     expect(rowCursor).not.toBe("row-resize");
 
