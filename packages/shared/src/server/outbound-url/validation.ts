@@ -36,6 +36,10 @@ export class OutboundUrlValidationError extends Error {
 export const DNS_LOOKUP_FAILED_MESSAGE_PREFIX = "DNS lookup failed for";
 const HOST_NOT_IN_ALLOWLIST_MESSAGE =
   "Host is not in the outbound URL allowlist";
+/** Bucket names the AWS SDK virtual-hosts as `{bucket}.{endpoint host}`. */
+const DNS_COMPATIBLE_BUCKET_NAME = /^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/;
+const IP_SHAPED_BUCKET_NAME = /(?:\d+\.){3}\d+/;
+const ADJACENT_DOTS = /\.\./;
 
 export interface OutboundUrlValidationWhitelist {
   hosts: string[];
@@ -44,6 +48,12 @@ export interface OutboundUrlValidationWhitelist {
   // Positive host list. Empty or omitted keeps the default-allow behavior:
   // any public host is accepted, and `hosts` only exempts private targets.
   allowedHosts?: string[];
+  // Listed hosts whose S3 virtual-hosted names `{bucket}.{host}` also pass
+  // the positive list. Unlike exact entries, those names still get the
+  // private-address block: whoever controls the parent zone's DNS, or picks
+  // the bucket name, decides where they resolve. Only read when
+  // `allowedHosts` is non-empty.
+  allowedBucketHostParents?: string[];
 }
 
 export interface ValidateOutboundUrlHostOptions {
@@ -211,13 +221,33 @@ export function validateOutboundResolvedIp({
 function enforcePositiveAllowlist(
   hostname: string,
   whitelist: OutboundUrlValidationWhitelist,
-): "allowed" | "not-configured" {
+): "allowed" | "bucket-host" | "not-configured" {
   const allowedHosts = whitelist.allowedHosts ?? [];
   if (allowedHosts.length === 0) return "not-configured";
   if (allowedHosts.includes(hostname)) return "allowed";
+  if (isBucketHostOfAllowedParent(hostname, whitelist)) return "bucket-host";
   throw new OutboundUrlValidationError(
     "host-not-allowed",
     HOST_NOT_IN_ALLOWLIST_MESSAGE,
+  );
+}
+
+function isBucketHostOfAllowedParent(
+  hostname: string,
+  whitelist: OutboundUrlValidationWhitelist,
+): boolean {
+  return (whitelist.allowedBucketHostParents ?? []).some(
+    (parent) =>
+      hostname.endsWith(`.${parent}`) &&
+      isDnsCompatibleBucketName(hostname.slice(0, -parent.length - 1)),
+  );
+}
+
+export function isDnsCompatibleBucketName(bucketName: string): boolean {
+  return (
+    DNS_COMPATIBLE_BUCKET_NAME.test(bucketName) &&
+    !IP_SHAPED_BUCKET_NAME.test(bucketName) &&
+    !ADJACENT_DOTS.test(bucketName)
   );
 }
 

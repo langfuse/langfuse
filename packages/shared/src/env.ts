@@ -560,6 +560,19 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
+  // When non-empty, blob storage export endpoints must use one of these hosts,
+  // and blob endpoint validation is on. Listed hosts may resolve to private
+  // addresses. Bucket names under a listed host ({bucket}.{host}) are allowed
+  // too, but still may not resolve to a private address unless it is in
+  // LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS / _IP_SEGMENTS; private
+  // S3-compatible stores can use path-style instead. S3 exports without a
+  // custom endpoint connect to s3.<region>.amazonaws.com, which must then be
+  // listed; region "auto" first connects to s3.us-east-1.amazonaws.com. S3
+  // exports using host credentials (web identity or an assumed role) also
+  // call sts.<region>.amazonaws.com through the same check, so list it too.
+  // GCS exports always connect to Google and are not checked. Ignored on
+  // Langfuse Cloud.
+  LANGFUSE_BLOB_STORAGE_ENDPOINT_ALLOWED_HOSTS: optionalCommaSeparatedLowercase,
   LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_WHITELISTED_IPS: z
     .string()
     .optional()
@@ -618,7 +631,8 @@ const EnvSchema = z.object({
     ),
   // Extra CIDR ranges merged into the private-address block for outbound URL
   // checks that already run. Blob storage stays opt-in: these ranges apply
-  // there only when blob endpoint validation is already enabled. Exemptions
+  // there only when a blob endpoint exemption or allowed-hosts list turns
+  // blob endpoint validation on. Exemptions
   // in the per-surface *_WHITELISTED_* lists still win.
   LANGFUSE_OUTBOUND_BLOCKED_IP_SEGMENTS: optionalCommaSeparatedLowercase.refine(
     (segments) => segments.every(isCidr),
