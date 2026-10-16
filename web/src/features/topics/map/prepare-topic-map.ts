@@ -48,6 +48,7 @@ type TopicMapNode = {
   strokeOpacity: number;
   textOpacity: number;
   fontSize: number;
+  lineClamp: number;
   excerpt: string;
 };
 export type TopicMapNodeFrame = {
@@ -238,8 +239,110 @@ export function nodeDetailBlend(zoom: number) {
   return smoothStep(3, 10, zoom);
 }
 
-function readingNodeSize(size: Size) {
-  return { width: Math.max(6, Math.min(264, size.width - 48)), height: 144 };
+/** Constants mirror the Tailwind classes in TopicMapExplorer; move together. */
+const TEXT_LINE_HEIGHT = 1.625; // leading-relaxed
+const NODE_WIDTH = 264;
+const NODE_PADDING_X = 16; // px-2
+const NODE_PADDING_Y = 12; // py-1.5
+const NODE_MAX_LINES = 6; // line-clamp-6
+/** Fixed footprint used by the clearance solver; drawn height only ever shrinks inside it. */
+const NODE_FOOTPRINT_HEIGHT = 144;
+const CARD_WIDTH = 264;
+const CARD_PADDING_X = 24; // px-3
+const CARD_PADDING_Y = 20; // py-2.5
+/** Card border-box: 1px border + 2px accent eat into usable height. */
+const CARD_BORDER_X = 3;
+const CARD_BORDER_Y = 2;
+const CARD_BLOCK_GAP = 4; // mb-1
+
+/**
+ * Approximate display width of a string in em units.
+ * CJK and other full-width scripts count as 1.0em; Latin scripts as ~0.55em.
+ */
+function textDisplayWidth(text: string): number {
+  let w = 0;
+  for (const ch of text) {
+    const c = ch.codePointAt(0) ?? 0;
+    w +=
+      (c >= 0x1100 && c <= 0x115f) || // Hangul Jamo
+      (c >= 0x2e80 && c <= 0x303f) || // CJK Radicals + Symbols
+      (c >= 0x3040 && c <= 0x33ff) || // Hiragana, Katakana, Bopomofo
+      (c >= 0x3400 && c <= 0x4dbf) || // CJK Extension A
+      (c >= 0x4e00 && c <= 0x9fff) || // CJK Unified Ideographs
+      (c >= 0xa960 && c <= 0xa97f) || // Hangul Jamo Extended-A
+      (c >= 0xac00 && c <= 0xd7ff) || // Hangul Syllables
+      (c >= 0xf900 && c <= 0xfaff) || // CJK Compatibility Ideographs
+      (c >= 0xfe30 && c <= 0xfe4f) || // CJK Compatibility Forms
+      (c >= 0xff01 && c <= 0xff60) // Fullwidth Forms
+        ? 1.0
+        : 0.55;
+  }
+  return w;
+}
+
+type TextBlock = {
+  text: string;
+  fontSize: number;
+  maxLines: number;
+  gap?: number;
+};
+
+/** Counts wrapped lines for a block of text at a given pixel width and font size. */
+function wrappedLineCount(
+  text: string,
+  width: number,
+  fontSize: number,
+  maxLines: number,
+) {
+  const emWidth = Math.max(1, width / fontSize);
+  return Math.max(
+    1,
+    Math.min(maxLines, Math.ceil(textDisplayWidth(text.trim()) / emWidth)),
+  );
+}
+
+function textBlockHeight(
+  blocks: TextBlock[],
+  contentWidth: number,
+  paddingY: number,
+) {
+  let height = paddingY;
+  for (const block of blocks) {
+    if (!block.text.trim()) continue;
+    height +=
+      (block.gap ?? 0) +
+      wrappedLineCount(
+        block.text,
+        contentWidth,
+        block.fontSize,
+        block.maxLines,
+      ) *
+        block.fontSize *
+        TEXT_LINE_HEIGHT;
+  }
+  return Math.ceil(height);
+}
+
+function readingNodeWidth(size: Size) {
+  return Math.max(6, Math.min(NODE_WIDTH, size.width - 48));
+}
+
+function readingNodeFontSize(width: number) {
+  return 9 + smoothStep(100, NODE_WIDTH, width) * 3;
+}
+
+function readingNodeHeight(summary: string, width: number) {
+  return textBlockHeight(
+    [
+      {
+        text: summary,
+        fontSize: readingNodeFontSize(width),
+        maxLines: NODE_MAX_LINES,
+      },
+    ],
+    width - NODE_PADDING_X,
+    NODE_PADDING_Y,
+  );
 }
 
 export function prepareMapNodes(
@@ -250,11 +353,11 @@ export function prepareMapNodes(
   readingTopic: string | null = null,
   matchingTraceIds?: ReadonlySet<string>,
 ): TopicMapNodeFrame {
-  const full = readingNodeSize(size);
+  const fullWidth = readingNodeWidth(size);
   const blend = nodeDetailBlend(camera.zoom);
   const cells = new Map<string, number[]>();
-  const cellWidth = full.width + 8;
-  const cellHeight = full.height + 8;
+  const cellWidth = fullWidth + 8;
+  const cellHeight = NODE_FOOTPRINT_HEIGHT + 8;
   const prepared = model.points.map((point, index) => {
     const worldPosition = { x: point.x, y: point.y };
     const projected = screenPoint(worldPosition, camera, model.bounds, size);
@@ -268,8 +371,8 @@ export function prepareMapNodes(
       (!readingTopic || point.groupId === readingTopic) &&
       (!matchingTraceIds || matchingTraceIds.has(point.traceId));
     const growth = matchesFilters ? blend : 0;
-    const growWidth = (full.width - diameter) * growth;
-    const growHeight = (full.height - diameter) * growth;
+    const growWidth = (fullWidth - diameter) * growth;
+    const growHeight = (NODE_FOOTPRINT_HEIGHT - diameter) * growth;
     const cellX = Math.floor(center.x / cellWidth);
     const cellY = Math.floor(center.y / cellHeight);
     const key = `${cellX},${cellY}`;
@@ -329,10 +432,18 @@ export function prepareMapNodes(
       }
     }
     const width = item.diameter + item.growWidth * clearance;
-    const height = item.diameter + item.growHeight * clearance;
+    const fontSize = readingNodeFontSize(width);
+    const footprintHeight = item.diameter + item.growHeight * clearance;
+    /** Height of the drawn box; never exceeds footprint. */
+    const height = Math.min(
+      footprintHeight,
+      Math.max(item.diameter, readingNodeHeight(item.point.summary, width)),
+    );
     const expansion = item.growth * clearance;
     const smaller = Math.min(width, height);
-    const textOpacity = smoothStep(76, 132, width) * smoothStep(30, 64, height);
+    /** Fade keyed to footprint, not drawn box, so line count doesn't affect when text appears. */
+    const textOpacity =
+      smoothStep(76, 132, width) * smoothStep(30, 64, footprintHeight);
     const node: TopicMapNode = {
       point: item.point,
       matchesFilters: item.matchesFilters,
@@ -350,7 +461,14 @@ export function prepareMapNodes(
       backgroundOpacity: textOpacity,
       strokeOpacity: textOpacity,
       textOpacity,
-      fontSize: 9 + smoothStep(100, 264, width) * 3,
+      fontSize,
+      /** Lines the box has room for; clamps text to an ellipsis rather than a clipped row. */
+      lineClamp: Math.max(
+        1,
+        Math.floor(
+          (height - NODE_PADDING_Y) / (fontSize * TEXT_LINE_HEIGHT) + 0.001,
+        ),
+      ),
       excerpt: item.point.summary,
     };
     nodeById.set(item.point.traceId, node);
@@ -555,12 +673,17 @@ type MapHoverRectangle = MapRectangle & {
 function hoverRectangle(
   anchor: MapRectangle,
   size: Size,
-  desired: Size,
+  /** Height can be a fixed number or a function of actual card width (for content-sized cards). */
+  desired: { width: number; height: number | ((width: number) => number) },
 ): MapHoverRectangle | null {
   if (size.width <= 0 || size.height <= 0) return null;
   const margin = Math.min(12, size.width / 4, size.height / 4);
   const width = Math.min(desired.width, size.width - margin * 2);
-  const height = Math.min(desired.height, size.height - margin * 2);
+  const rawHeight =
+    typeof desired.height === "function"
+      ? desired.height(width)
+      : desired.height;
+  const height = Math.min(rawHeight, size.height - margin * 2);
   const center = {
     x: anchor.x + anchor.width / 2,
     y: anchor.y + anchor.height / 2,
@@ -668,18 +791,32 @@ export function prepareMapHover(
   if (node) {
     if (node.textOpacity >= 0.9 || !frame.nodes.includes(node))
       return { traces: [], zones: [] };
+    const topicName = frame.model.zones.find(
+      (zone) => zone.id === node.point.groupId,
+    )?.name;
     const card = hoverRectangle(node.rect, frame.size, {
-      width: 264,
-      height: 184,
+      width: CARD_WIDTH,
+      height: (width) =>
+        textBlockHeight(
+          [
+            { text: topicName ?? "", fontSize: 12, maxLines: 2 },
+            {
+              text: node.excerpt,
+              fontSize: 12,
+              maxLines: 6,
+              gap: topicName?.trim() ? CARD_BLOCK_GAP : 0,
+            },
+          ],
+          width - CARD_PADDING_X - CARD_BORDER_X,
+          CARD_PADDING_Y + CARD_BORDER_Y,
+        ),
     });
     return {
       traces: card
         ? [
             {
               point: node.point,
-              topicName: frame.model.zones.find(
-                (zone) => zone.id === node.point.groupId,
-              )?.name,
+              topicName,
               node,
               position: node.center,
               card,
@@ -702,7 +839,28 @@ export function prepareMapHover(
   const label = hoverRectangle(
     { ...position, width: 0, height: 0 },
     frame.size,
-    { width: 264, height: 108 },
+    {
+      width: CARD_WIDTH,
+      height: (width) =>
+        textBlockHeight(
+          [
+            { text: zone.name, fontSize: 12, maxLines: 2 },
+            {
+              text: `${zone.countLabel} · ${zone.shareLabel}`,
+              fontSize: 10,
+              maxLines: 1,
+            },
+            {
+              text: zone.description,
+              fontSize: 11,
+              maxLines: 3,
+              gap: CARD_BLOCK_GAP,
+            },
+          ],
+          width - CARD_PADDING_X - CARD_BORDER_X,
+          CARD_PADDING_Y + CARD_BORDER_Y,
+        ),
+    },
   );
   return {
     traces: [],

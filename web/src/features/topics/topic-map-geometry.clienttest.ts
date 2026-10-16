@@ -87,7 +87,7 @@ function frameFor(
   );
 }
 function frameAt(
-  positions: { x: number; y: number }[],
+  positions: { x: number; y: number; summary?: string }[],
   plot = size,
   zoom = 10,
 ): TopicMapNodeFrame {
@@ -101,6 +101,7 @@ function frameAt(
             `trace-${i}`,
             (position.x - plot.width / 2) / scale,
             -(position.y - plot.height / 2) / scale,
+            position.summary ? { summary: position.summary } : {},
           ),
         ),
       ),
@@ -625,6 +626,88 @@ describe("continuous trace nodes", () => {
         chosen.traceId,
       )?.center,
     ).toEqual(frameFor(model, 10).nodeById.get(chosen.traceId)?.center);
+  });
+});
+describe("text blocks sized to their content", () => {
+  const brief = "Invoice copy.";
+  const wordy = Array.from(
+    { length: 12 },
+    () => "the assistant quotes a discontinued warranty from an archived page",
+  ).join(" ");
+
+  it("gives a reading node only the height its own summary needs", () => {
+    const model = prepareTopicMap(
+      data([
+        point("brief", -20, 0, { summary: brief }),
+        point("wordy", 20, 0, { summary: wordy }),
+      ]),
+      topics,
+    );
+    const frame = frameFor(model, 10);
+    const short = frame.nodeById.get("brief")!;
+    const tall = frame.nodeById.get("wordy")!;
+    // Both open to the same reading width; only the height follows the text.
+    expect(short.rect.width).toBeGreaterThan(260);
+    expect(tall.rect.width).toBeGreaterThan(260);
+    expect(short.rect.height).toBeLessThan(tall.rect.height / 2);
+    expect(short.rect.height).toBeLessThan(40);
+    expect(tall.rect.height).toBeLessThanOrEqual(144);
+    // A short summary is still readable: the text must not wait for a height
+    // its own content can never reach.
+    expect(short.textOpacity).toBe(1);
+    expect(tall.textOpacity).toBe(1);
+  });
+
+  it("keeps crowding and visibility independent of the summary", () => {
+    // Vertical separation, so the y term of the clearance solver is the one
+    // that binds — the case where letting content feed back into the layout
+    // would quietly widen a node and take its hover card away.
+    const pair = (summary: string) =>
+      frameAt([
+        { x: 500, y: 240, summary },
+        { x: 500, y: 320, summary },
+      ]).nodes;
+    const short = pair(brief);
+    const tall = pair(wordy);
+    expect(short).toHaveLength(2);
+    for (let i = 0; i < short.length; i++) {
+      expect(short[i].rect.width).toBeCloseTo(tall[i].rect.width, 10);
+      expect(short[i].textOpacity).toBeCloseTo(tall[i].textOpacity, 10);
+      expect(short[i].textOpacity).toBeGreaterThan(0);
+      // Only the drawn height follows the text.
+      expect(short[i].rect.height).toBeLessThan(tall[i].rect.height);
+    }
+  });
+
+  it("clamps a crowded node to the rows its box still has", () => {
+    const roomy = frameAt([{ x: 500, y: 300, summary: wordy }]).nodes[0];
+    const crowded = frameAt([
+      { x: 420, y: 300, summary: wordy },
+      { x: 650, y: 300, summary: wordy },
+    ]).nodes[0];
+    expect(crowded.rect.width).toBeLessThan(roomy.rect.width);
+    expect(crowded.rect.height).toBeLessThan(roomy.rect.height);
+    expect(crowded.lineClamp).toBeLessThan(roomy.lineClamp);
+    expect(crowded.lineClamp).toBeGreaterThanOrEqual(1);
+  });
+
+  it("gives a hover card only the height its own text needs", () => {
+    const model = prepareTopicMap(
+      data([
+        point("brief", -20, 0, { summary: brief }),
+        point("wordy", 20, 0, { summary: wordy }),
+      ]),
+      topics,
+    );
+    const cloud = frameFor(model, 1);
+    const short = prepareMapHover(cloud, "brief", null).traces[0].card;
+    const tall = prepareMapHover(cloud, "wordy", null).traces[0].card;
+    expect(short.width).toBe(tall.width);
+    expect(short.height).toBeLessThan(tall.height);
+    expect(short.height).toBeLessThan(80);
+    expect(tall.height).toBeLessThanOrEqual(184);
+    const zone = prepareMapHover(cloud, null, "billing").zones[0].label;
+    expect(zone.height).toBeLessThan(108);
   });
 });
 describe("background group labels", () => {
