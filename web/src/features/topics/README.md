@@ -69,7 +69,9 @@ project permissions. Processing additionally requires the project allowlist.
   topics. Trace selection includes filters, IDs, time ranges, a maximum batch size,
   and exclusions. Stored summary and embedding reuse is enabled by default in Review & Run.
   The dialog uses the evaluator stepper: Choose facets, Select traces, and
-  Review & Run. Generate topics uses Select summaries for the second step.
+  Review & Run. Generate topics uses Select trace summaries for the second step;
+  its time range filters by the trace start time. Both manual-processing pickers
+  limit custom ranges to 90 days, matching the Topics header.
   All steps start expanded; model details and reuse settings live in review.
   Preview trace clicks open a new tab, preserving the run dialog and selection.
   Without a compatible map, summaries wait for an explicit Update topics run.
