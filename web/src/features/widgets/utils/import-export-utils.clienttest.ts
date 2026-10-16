@@ -50,6 +50,40 @@ describe("parseAndNormalizeImportedWidget", () => {
     expect(result.removedFilters).toBe(false);
   });
 
+  it("keeps status filters when importing an observations widget", () => {
+    const result = parseAndNormalizeImportedWidget({
+      parsedJson: {
+        ...baseWidget,
+        view: "observations",
+        dimensions: [{ field: "status" }],
+        chartType: "LINE_TIME_SERIES",
+        chartConfig: { type: "LINE_TIME_SERIES" },
+        minVersion: 2,
+        filters: [
+          {
+            column: "status",
+            operator: "any of",
+            value: ["ERROR"],
+            type: "stringOptions",
+          },
+        ],
+      },
+      allowedValuesByColumn: new Map([["level", new Set(["ERROR"])]]),
+    });
+
+    expect(result.widget.filters).toEqual([
+      {
+        column: "level",
+        operator: "any of",
+        value: ["ERROR"],
+        type: "stringOptions",
+      },
+    ]);
+    expect(result.widget.dimensions).toEqual([{ field: "status" }]);
+    expect(result.removedFilters).toBe(false);
+    expect(result.removedValues).toBe(false);
+  });
+
   it("keeps option filters when allowed values are still unavailable", () => {
     const result = parseAndNormalizeImportedWidget({
       parsedJson: {

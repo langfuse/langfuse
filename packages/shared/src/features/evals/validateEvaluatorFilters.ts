@@ -87,7 +87,13 @@ export function validateEvaluatorFiltersForTarget(params: {
     };
   }
 
-  const filters = parsedFilter.data ?? [];
+  // Rules persist the canonical severity column used by in-memory evaluation.
+  const supportsStatusFilter = columns.some((column) => column.id === "level");
+  const filters = (parsedFilter.data ?? []).map((filter) =>
+    supportsStatusFilter && filter.column === "status"
+      ? { ...filter, column: "level" }
+      : filter,
+  );
 
   const issues: EvaluatorFilterValidationIssue[] = filters.flatMap(
     (filter, index): EvaluatorFilterValidationIssue[] => {
