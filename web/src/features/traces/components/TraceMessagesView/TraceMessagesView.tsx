@@ -1,4 +1,4 @@
-import { type ComponentProps } from "react";
+import { useEffect, type ComponentProps } from "react";
 import { useRouter } from "next/router";
 import { StringParam, useQueryParam } from "use-query-params";
 import { ErrorBoundary } from "@sentry/nextjs";
@@ -11,7 +11,8 @@ import { getSessionConversationEntries } from "@/src/features/sessions/component
 import { useSessionConversationTimelineController } from "@/src/features/sessions/hooks/useSessionConversationTimelineController";
 
 export function TraceMessagesView() {
-  const { trace } = useTraceData();
+  const { trace, isPlaceholderData } = useTraceData();
+  const utils = api.useUtils();
   const { selectNode, setSelectedTab } = useSelection();
   const [, setTraceView] = useQueryParam("traceView", StringParam);
   const router = useRouter();
@@ -31,12 +32,32 @@ export function TraceMessagesView() {
       refetchOnWindowFocus: false,
     },
   );
+  const requestedTraceId = isPeekMode
+    ? (router.query.traceId ?? router.query.peek)
+    : router.query.traceId;
+  const messageTrace = isPlaceholderData
+    ? (sessionTraces?.find(({ id }) => id === requestedTraceId) ?? trace)
+    : trace;
   const traceIndex =
-    sessionTraces?.findIndex(({ id }) => id === trace.id) ?? -1;
+    sessionTraces?.findIndex(({ id }) => id === messageTrace.id) ?? -1;
   const previousTrace =
     traceIndex > 0 ? sessionTraces?.[traceIndex - 1] : undefined;
   const nextTrace =
     traceIndex >= 0 ? sessionTraces?.[traceIndex + 1] : undefined;
+  useEffect(() => {
+    if (isPlaceholderData) return;
+    for (const neighbor of [previousTrace, nextTrace]) {
+      if (!neighbor) continue;
+      utils.events.transcriptByTraceId.prefetch(
+        {
+          projectId: trace.projectId,
+          traceId: neighbor.id,
+          timestamp: neighbor.timestamp,
+        },
+        { staleTime: 60 * 1_000 },
+      );
+    }
+  }, [isPlaceholderData, previousTrace, nextTrace, trace.projectId, utils]);
   const [previousTraceLink, nextTraceLink] = [previousTrace, nextTrace].map(
     (target, directionIndex) => {
       if (!target) return undefined;
@@ -74,18 +95,21 @@ export function TraceMessagesView() {
       };
     },
   );
-  const { data, isLoading, error } = api.events.transcriptByTraceId.useQuery({
-    projectId: trace.projectId,
-    traceId: trace.id,
-    timestamp: trace.timestamp,
-  });
+  const { data, isLoading, error } = api.events.transcriptByTraceId.useQuery(
+    {
+      projectId: trace.projectId,
+      traceId: messageTrace.id,
+      timestamp: messageTrace.timestamp,
+    },
+    { staleTime: 60 * 1_000 },
+  );
   const entries = getSessionConversationEntries([
-    { trace, transcript: data?.transcript },
+    { trace: messageTrace, transcript: data?.transcript },
   ]);
   const state: ComponentProps<
     typeof SessionConversationTimeline
   >["traces"][number]["state"] = (() => {
-    if (isLoading) return { type: "loading" };
+    if (isLoading || isPlaceholderData) return { type: "loading" };
     if (error) return { type: "error" };
     if (!data?.transcript) return { type: "empty" };
     return { type: "transcript", result: { state: "loaded", ...data } };
@@ -93,7 +117,7 @@ export function TraceMessagesView() {
   const traces: ComponentProps<typeof SessionConversationTimeline>["traces"] =
     entries.map((entry) => ({
       ...entry,
-      trace,
+      trace: messageTrace,
       turnNumber: 1,
       variant: "single-trace",
       state,
