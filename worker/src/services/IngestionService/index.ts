@@ -16,6 +16,7 @@ import {
   type SkillsResourceLoaded,
 } from "@langfuse/shared";
 import {
+  getProjectSize,
   ClickhouseClientType,
   convertDateToClickhouseDateTime,
   toClickhouseDateTime,
@@ -1927,6 +1928,7 @@ export class IngestionService {
         span.setAttribute("db.system", "clickhouse");
         span.setAttribute("db.operation.name", "SELECT");
         span.setAttribute("projectId", projectId);
+        span.setAttribute("langfuse.project.size", getProjectSize(projectId));
         const queryResult = await this.clickhouseClient.query({
           query: `
             SELECT *

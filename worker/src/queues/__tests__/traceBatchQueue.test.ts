@@ -52,6 +52,11 @@ import {
   traceBatchQueueProcessor,
 } from "../traceBatchQueue";
 
+// Shared is loaded from built CJS in worker tests; set the cohort before its
+// env module and cached classifier initialize.
+vi.hoisted(() => vi.stubEnv("LANGFUSE_LARGE_PROJECT_IDS", "a"));
+afterAll(() => vi.unstubAllEnvs());
+
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
   getTraceBatchEventStream: vi.fn(),
@@ -1214,7 +1219,14 @@ describe("trace batch queue", () => {
         },
       },
     } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
-    await traceBatchQueueProcessor(job, undefined);
+    vi.spyOn(processingSpan, "setAttribute");
+    await context.with(trace.setSpan(context.active(), processingSpan), () =>
+      traceBatchQueueProcessor(job, undefined),
+    );
+    expect(processingSpan.setAttribute).not.toHaveBeenCalledWith(
+      "langfuse.project.size",
+      expect.anything(),
+    );
     expect(
       vi.mocked(summarizeAssembledTrace).mock.calls.map(([input]) => ({
         projectId: input.projectId,
@@ -1242,6 +1254,7 @@ describe("trace batch queue", () => {
       expect(span.name).toBe("trace-batch-transcript");
       expect(span.attributes).toMatchObject({
         "langfuse.project.id": projectId,
+        "langfuse.project.size": projectId === "a" ? "large" : "unknown",
         "langfuse.trace.id": "shared-trace",
         "langfuse.trace_batch.observation_count": 2,
         "langfuse.trace_batch.has_transcript": index === 0,

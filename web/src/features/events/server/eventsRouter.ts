@@ -37,6 +37,7 @@ import {
 } from "./eventsService";
 import { loadTraceTranscript } from "./loadTraceTranscript";
 import {
+  getProjectSize,
   instrumentAsync,
   getScoresAndCorrectionsForTraces,
   getAgentGraphDataFromEventsTable,
@@ -323,6 +324,10 @@ export const eventsRouter = createTRPCRouter({
         { name: "get-event-metadata-values-trpc" },
         async (span) => {
           span.setAttribute("project_id", input.projectId);
+          span.setAttribute(
+            "langfuse.project.size",
+            getProjectSize(input.projectId),
+          );
           return getEventMetadataValues({
             projectId: input.projectId,
             key: input.key,
@@ -338,6 +343,10 @@ export const eventsRouter = createTRPCRouter({
         { name: "get-event-batch-io-trpc" },
         async (span) => {
           span.setAttribute("project_id", input.projectId);
+          span.setAttribute(
+            "langfuse.project.size",
+            getProjectSize(input.projectId),
+          );
           span.setAttribute("observation_count", input.observations.length);
 
           // the middleware only authorized access to input.traceId (which may
@@ -368,6 +377,10 @@ export const eventsRouter = createTRPCRouter({
         { name: "get-event-session-batch-io-trpc" },
         async (span) => {
           span.setAttribute("project_id", input.projectId);
+          span.setAttribute(
+            "langfuse.project.size",
+            getProjectSize(input.projectId),
+          );
           span.setAttribute("session_id", input.sessionId);
           span.setAttribute("observation_count", input.observations.length);
 
@@ -394,6 +407,10 @@ export const eventsRouter = createTRPCRouter({
         { name: "get-experiment-batch-io-trpc" },
         async (span) => {
           span.setAttribute("project_id", input.projectId);
+          span.setAttribute(
+            "langfuse.project.size",
+            getProjectSize(input.projectId),
+          );
           span.setAttribute("observation_count", input.observations.length);
 
           const batchIO = await getEventBatchIO({
@@ -429,6 +446,10 @@ export const eventsRouter = createTRPCRouter({
         { name: "get-events-scores-for-trace-trpc" },
         async (span) => {
           span.setAttribute("project_id", input.projectId);
+          span.setAttribute(
+            "langfuse.project.size",
+            getProjectSize(input.projectId),
+          );
           span.setAttribute("trace_id", input.traceId);
 
           return getScoresAndCorrectionsForTraces({
@@ -494,6 +515,10 @@ export const eventsRouter = createTRPCRouter({
         { name: "get-transcript-by-trace-id-trpc" },
         async (span) => {
           span.setAttribute("project_id", input.projectId);
+          span.setAttribute(
+            "langfuse.project.size",
+            getProjectSize(input.projectId),
+          );
           span.setAttribute("trace_id", input.traceId);
 
           return loadTraceTranscript({
@@ -523,6 +548,10 @@ export const eventsRouter = createTRPCRouter({
         { name: "get-events-by-trace-id-trpc" },
         async (span) => {
           span.setAttribute("project_id", input.projectId);
+          span.setAttribute(
+            "langfuse.project.size",
+            getProjectSize(input.projectId),
+          );
           span.setAttribute("trace_id", input.traceId);
 
           const { observations, totalCount } =
@@ -564,6 +593,10 @@ export const eventsRouter = createTRPCRouter({
         { name: "get-events-agent-graph-data-trpc" },
         async (span) => {
           span.setAttribute("project_id", input.projectId);
+          span.setAttribute(
+            "langfuse.project.size",
+            getProjectSize(input.projectId),
+          );
           span.setAttribute("trace_id", input.traceId);
 
           const { traceId, minStartTime, maxStartTime } = input;
@@ -632,6 +665,10 @@ export const eventsRouter = createTRPCRouter({
         { name: "get-sdk-metadata-trpc" },
         async (span) => {
           span.setAttribute("project_id", input.projectId);
+          span.setAttribute(
+            "langfuse.project.size",
+            getProjectSize(input.projectId),
+          );
           return getLatestSdkVersionInfoFromEvents({
             projectId: input.projectId,
           });
@@ -650,6 +687,7 @@ const addAttributesToSpan = ({
   orderBy?: OrderByState;
 }) => {
   span.setAttribute("project_id", input.projectId);
+  span.setAttribute("langfuse.project.size", getProjectSize(input.projectId));
 
   // Only process filters when supplied.
   if ("filter" in input && input.filter) {

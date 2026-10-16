@@ -1,6 +1,7 @@
 import { type Model, type Observation } from "@langfuse/shared";
 import { SpanStatusCode, type Span } from "@opentelemetry/api";
 import {
+  getProjectSize,
   assembleTranscript,
   buildTracesPath,
   getProductBaseUrl,
@@ -299,6 +300,9 @@ export function recordTraceBatchTranscript(
   // Inherit the batch parent without activating this span while the next trace streams.
   const span = getTracer("trace-batch").startSpan("trace-batch-transcript", {
     attributes: {
+      "langfuse.project.size": observations[0]?.projectId
+        ? getProjectSize(observations[0]?.projectId)
+        : undefined,
       "langfuse.project.id": observations[0]?.projectId,
       "langfuse.trace.id": observations[0]?.traceId ?? undefined,
       "langfuse.trace_batch.observation_count": observations.length,

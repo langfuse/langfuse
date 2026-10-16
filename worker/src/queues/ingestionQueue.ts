@@ -1,5 +1,6 @@
 import { Job, Processor, UnrecoverableError } from "bullmq";
 import {
+  getProjectSize,
   clickhouseClient,
   getClickhouseEntityType,
   getCurrentSpan,
@@ -55,6 +56,10 @@ export const ingestionQueueProcessorBuilder = (
         span.setAttribute(
           "messaging.bullmq.job.input.projectId",
           job.data.payload.authCheck.scope.projectId,
+        );
+        span.setAttribute(
+          "langfuse.project.size",
+          getProjectSize(job.data.payload.authCheck.scope.projectId),
         );
         span.setAttribute(
           "messaging.bullmq.job.input.eventBodyId",

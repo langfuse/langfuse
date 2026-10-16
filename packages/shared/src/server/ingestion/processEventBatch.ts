@@ -20,6 +20,7 @@ import {
   recordIncrement,
 } from "../instrumentation";
 import { logger } from "../logger";
+import { getProjectSize } from "../projectSize";
 import { QueueJobs } from "../queues";
 import { IngestionQueue } from "../redis/ingestionQueue";
 import { redis } from "../redis/redis";
@@ -135,6 +136,12 @@ export const processEventBatch = async (
     "langfuse.project.id",
     authCheck.scope.projectId ?? "",
   );
+  if (authCheck.scope.projectId) {
+    currentSpan?.setAttribute(
+      "langfuse.project.size",
+      getProjectSize(authCheck.scope.projectId),
+    );
+  }
   if (authCheck.scope.orgId)
     currentSpan?.setAttribute("langfuse.org.id", authCheck.scope.orgId);
   if (authCheck.scope.plan)

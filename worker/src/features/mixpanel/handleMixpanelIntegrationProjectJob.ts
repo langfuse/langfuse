@@ -1,6 +1,7 @@
 import { Job } from "bullmq";
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  getProjectSize,
   QueueName,
   TQueueJobTypes,
   logger,
@@ -217,6 +218,7 @@ export const handleMixpanelIntegrationProjectJob = async (
   if (span) {
     span.setAttribute("messaging.bullmq.job.input.jobId", job.data.id);
     span.setAttribute("messaging.bullmq.job.input.projectId", projectId);
+    span.setAttribute("langfuse.project.size", getProjectSize(projectId));
   }
 
   logger.info(

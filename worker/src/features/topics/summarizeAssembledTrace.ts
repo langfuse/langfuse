@@ -10,6 +10,7 @@ import {
   type TopicSummary,
 } from "@langfuse/shared/topics";
 import {
+  getProjectSize,
   instrumentAsync,
   isInternalEvalEnvironment,
   type Transcript,
@@ -68,6 +69,7 @@ export async function summarizeAssembledTrace(
     { name: "topics-trace-summary", traceScope: "topics" },
     async (span) => {
       span.setAttributes({
+        "langfuse.project.size": getProjectSize(input.projectId),
         "langfuse.project.id": input.projectId,
         "langfuse.trace.id": input.traceId,
       });

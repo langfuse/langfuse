@@ -10,6 +10,8 @@ import { logger } from "../logger";
 import { getProjectSize } from "../projectSize";
 import { CLICKHOUSE_ROUTE_CONTEXT_KEY } from "../clickhouse/queryTags";
 
+export { getProjectSize } from "../projectSize";
+
 export type TCarrier = {
   traceparent?: string;
   tracestate?: string;

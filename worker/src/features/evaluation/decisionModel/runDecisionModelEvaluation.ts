@@ -11,6 +11,7 @@ import {
   type EvalTemplateDecisionModel,
 } from "@langfuse/shared";
 import {
+  getProjectSize,
   blockEvaluator,
   buildDecisionModelTraceInput,
   classifyEvaluatorLlmError,
@@ -82,6 +83,7 @@ export async function runDecisionModelEvaluation({
     { name: "eval.execute-decision-model" },
     async (span) => {
       span.setAttribute("langfuse.project.id", projectId);
+      span.setAttribute("langfuse.project.size", getProjectSize(projectId));
       span.setAttribute("eval.job_execution.id", jobExecutionId);
       span.setAttribute("eval.template.name", template.name);
       span.setAttribute("eval.template.id", template.id);

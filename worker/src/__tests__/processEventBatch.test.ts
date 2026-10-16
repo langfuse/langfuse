@@ -8,11 +8,25 @@ import {
   UNKNOWN_INGESTION_SDK_VALUE,
 } from "../../../packages/shared/src/server/ingestion/ingestionAttribution";
 
-const { getQueueInstanceMock, queueAddMock, uploadJsonMock } = vi.hoisted(
-  () => ({
-    getQueueInstanceMock: vi.fn(),
-    queueAddMock: vi.fn(),
-    uploadJsonMock: vi.fn(),
+const {
+  getQueueInstanceMock,
+  queueAddMock,
+  uploadJsonMock,
+  getCurrentSpanMock,
+} = vi.hoisted(() => ({
+  getQueueInstanceMock: vi.fn(),
+  queueAddMock: vi.fn(),
+  uploadJsonMock: vi.fn(),
+  getCurrentSpanMock: vi.fn(),
+}));
+
+vi.mock(
+  "../../../packages/shared/src/server/instrumentation",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("../../../packages/shared/src/server/instrumentation")
+    >()),
+    getCurrentSpan: getCurrentSpanMock,
   }),
 );
 
@@ -22,6 +36,7 @@ vi.mock("../../../packages/shared/src/server/redis/redis", () => ({
 
 vi.mock("../../../packages/shared/src/env", () => ({
   env: {
+    LANGFUSE_LARGE_PROJECT_IDS: ["project-large"],
     LANGFUSE_INGESTION_PROCESSING_SAMPLED_PROJECTS: new Map(),
     LANGFUSE_INGESTION_QUEUE_DELAY_MS: 5000,
     LANGFUSE_S3_EVENT_UPLOAD_BUCKET: "event-upload",
@@ -67,10 +82,41 @@ describe("processEventBatch", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    getCurrentSpanMock.mockReturnValue(undefined);
     getQueueInstanceMock.mockReturnValue({ add: queueAddMock });
     queueAddMock.mockResolvedValue(undefined);
     uploadJsonMock.mockResolvedValue(undefined);
   });
+
+  it.each([
+    ["project-large", "large"],
+    ["project-unknown", "unknown"],
+  ])(
+    "reclassifies the ingestion span when switching to %s",
+    async (projectId, size) => {
+      const attributes = new Map<string, unknown>([
+        [
+          "langfuse.project.id",
+          projectId === "project-large" ? "project-unknown" : "project-large",
+        ],
+        ["langfuse.project.size", size === "large" ? "unknown" : "large"],
+      ]);
+      getCurrentSpanMock.mockReturnValue({
+        setAttribute: (key: string, value: unknown) =>
+          attributes.set(key, value),
+      });
+      const authCheck = {
+        validKey: true as const,
+        scope: { projectId, accessLevel: "project" as const },
+      };
+      await processEventBatch([createTraceCreateEvent()], authCheck, {
+        delay: 0,
+        attribution: createUnknownSdkIngestionAttribution({ authCheck }),
+      });
+      expect(attributes.get("langfuse.project.id")).toBe(projectId);
+      expect(attributes.get("langfuse.project.size")).toBe(size);
+    },
+  );
 
   it("returns early on empty input", async () => {
     // Auth check with missing projectId will cause an exception unless

@@ -2,6 +2,7 @@ import { Job, Processor } from "bullmq";
 import { EvalTemplateType, JobExecutionStatus } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  getProjectSize,
   QueueName,
   TQueueJobTypes,
   logger,
@@ -173,6 +174,10 @@ export const evalJobExecutorQueueProcessorBuilder = (
           job.data.payload.projectId,
         );
         span.setAttribute(
+          "langfuse.project.size",
+          getProjectSize(job.data.payload.projectId),
+        );
+        span.setAttribute(
           "messaging.bullmq.job.input.retryBaggage.attempt",
           job.data.retryBaggage?.attempt ?? 0,
         );
@@ -309,6 +314,10 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
         span.setAttribute(
           "messaging.bullmq.job.input.projectId",
           job.data.payload.projectId,
+        );
+        span.setAttribute(
+          "langfuse.project.size",
+          getProjectSize(job.data.payload.projectId),
         );
         span.setAttribute(
           "messaging.bullmq.job.input.retryBaggage.attempt",

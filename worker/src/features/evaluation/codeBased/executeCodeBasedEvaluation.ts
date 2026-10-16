@@ -4,6 +4,7 @@ import {
   type EvalTemplateCodeBased,
 } from "@langfuse/shared";
 import {
+  getProjectSize,
   CodeEvalExecutionError,
   instrumentAsync,
   logger,
@@ -48,6 +49,10 @@ export async function executeCodeBasedEvaluation(params: {
         code_eval_runtime: params.template.sourceCodeLanguage,
       };
       span.setAttribute("langfuse.project.id", params.projectId);
+      span.setAttribute(
+        "langfuse.project.size",
+        getProjectSize(params.projectId),
+      );
       span.setAttribute("eval.job_execution.id", jobExecutionId);
       span.setAttribute("eval.job_configuration.id", params.config.id);
       span.setAttribute("eval.template.id", params.template.id);

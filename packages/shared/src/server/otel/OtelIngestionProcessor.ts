@@ -1,6 +1,8 @@
 /* eslint-disable no-nested-ternary */
 import { randomUUID } from "crypto";
 import { extractSkillsFromObservation } from "../ingestion/extractSkillsBackend";
+import { getProjectSize } from "../projectSize";
+
 import {
   ForbiddenError,
   ObservationLevel,
@@ -396,6 +398,10 @@ export class OtelIngestionProcessor {
     return instrumentSync({ name: "otel-event-processor" }, (span) => {
       try {
         span.setAttribute("project_id", this.projectId);
+        span.setAttribute(
+          "langfuse.project.size",
+          getProjectSize(this.projectId),
+        );
         span.setAttribute(
           "total_span_count",
           this.getTotalSpanCount(resourceSpans),
@@ -806,6 +812,10 @@ export class OtelIngestionProcessor {
       { name: "otel-ingestion-processor" },
       async (span) => {
         span.setAttribute("project_id", this.projectId);
+        span.setAttribute(
+          "langfuse.project.size",
+          getProjectSize(this.projectId),
+        );
         span.setAttribute(
           "total_span_count",
           this.getTotalSpanCount(resourceSpans),

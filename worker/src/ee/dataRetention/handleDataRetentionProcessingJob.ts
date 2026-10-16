@@ -1,4 +1,5 @@
 import {
+  getProjectSize,
   deleteEventsOlderThanDays,
   deleteMediaFiles,
   deleteObservationsOlderThanDays,
@@ -26,6 +27,7 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
   if (span) {
     span.setAttribute("messaging.bullmq.job.input.jobId", job.data.id);
     span.setAttribute("messaging.bullmq.job.input.projectId", projectId);
+    span.setAttribute("langfuse.project.size", getProjectSize(projectId));
   }
 
   // Data retention is an enterprise feature, and the license is read from the

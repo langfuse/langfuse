@@ -2,6 +2,7 @@ import { Job, Processor } from "bullmq";
 import { EvalTemplateType, JobExecutionStatus } from "@prisma/client";
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  getProjectSize,
   CodeEvalExecutionError,
   getCodeEvalUserVisibleError,
   getCurrentSpan,
@@ -43,6 +44,10 @@ export const codeEvalExecutionQueueProcessorBuilder = (
         span.setAttribute(
           "messaging.bullmq.job.input.projectId",
           job.data.payload.projectId,
+        );
+        span.setAttribute(
+          "langfuse.project.size",
+          getProjectSize(job.data.payload.projectId),
         );
       }
 
