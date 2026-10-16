@@ -1,7 +1,6 @@
 /* eslint-disable @repo/no-style-props */
-import { Wrench } from "lucide-react";
+import { ChevronDown, ChevronRight, Wrench } from "lucide-react";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
-import { Button } from "@/src/components/design-system/Button/Button";
 import { Badge } from "@/src/components/ui/badge";
 import { cn } from "@/src/utils/tailwind";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
@@ -24,7 +23,6 @@ export interface ToolCallDefinitionCardProps {
   tools: ToolDefinition[];
   toolCallCounts: Map<string, number>;
   toolCallsByName?: Map<string, ToolCallInvocation[]>;
-  toolNameToDefinitionNumber?: Map<string, number>;
   className?: string;
 }
 
@@ -128,28 +126,28 @@ function ToolGroupSummary({
   const summaryText = isCalledGroup
     ? `${toolCount} ${toolCount === 1 ? "tool was" : "tools were"} called`
     : `${toolCount} available ${toolCount === 1 ? "tool was" : "tools were"} not called`;
+  const Caret = expanded ? ChevronDown : ChevronRight;
 
-  const toggleText = expanded ? "Show less" : "Show more";
-  // Quiet reveal row; padded like a tool row.
+  // Toggle row padded like a tool row; the rows it reveals open below it.
   return (
     <div className="group/tool-row">
-      <div className="flex w-fit items-center gap-2 py-1.5 text-sm group-first/tool-row:pt-0 group-last/tool-row:pb-0">
-        <span
-          className={cn(
-            "text-muted-foreground",
-            isCalledGroup && "text-dark-green",
-          )}
-        >
-          {summaryText}
-        </span>
-        <Button
-          variant="text"
-          text={toggleText}
-          aria-label={`${toggleText}: ${summaryText}`}
-          aria-expanded={expanded}
-          onClick={onToggle}
+      <button
+        type="button"
+        className={cn(
+          "hover:bg-muted/20 flex w-full cursor-pointer items-center gap-2 py-1.5 text-left text-sm group-first/tool-row:pt-0 group-last/tool-row:pb-0",
+          isCalledGroup ? "text-dark-green" : "text-muted-foreground",
+        )}
+        onClick={onToggle}
+        aria-expanded={expanded}
+        aria-label={summaryText}
+      >
+        <Caret
+          className="icon-base text-icon-foreground shrink-0"
+          aria-hidden
         />
-      </div>
+        {/* min-h matches the status badge so this row is as tall as a tool row. */}
+        <span className="flex min-h-5.5 items-center">{summaryText}</span>
+      </button>
     </div>
   );
 }
@@ -215,7 +213,7 @@ function ToolDefinitionRow({
   onToggle,
   callCount,
   toolCalls,
-  toolDefinitionNumber,
+  rowNumber,
   currentView,
   setCurrentView,
 }: {
@@ -224,7 +222,7 @@ function ToolDefinitionRow({
   onToggle: () => void;
   callCount: number;
   toolCalls: ToolCallInvocation[];
-  toolDefinitionNumber?: number;
+  rowNumber: number;
   currentView: "formatted" | "json";
   setCurrentView: (value: "formatted" | "json") => void;
 }) {
@@ -252,9 +250,7 @@ function ToolDefinitionRow({
             )}
             title={tool.name}
           >
-            {toolDefinitionNumber !== undefined && (
-              <span className="mr-1">{toolDefinitionNumber}.</span>
-            )}
+            <span className="mr-1">{rowNumber}.</span>
             {tool.name}
           </span>
         </div>
@@ -346,13 +342,12 @@ function ToolDefinitionRow({
  * - Accordion-style expansion (one tool at a time)
  * - Status badges showing call count
  * - Formatted/JSON view toggle for parameters
- * - Definition numbers for reference
+ * - Rows numbered per group in display order
  */
 export function ToolCallDefinitionCard({
   tools,
   toolCallCounts,
   toolCallsByName,
-  toolNameToDefinitionNumber,
   className,
 }: ToolCallDefinitionCardProps) {
   const [expandedToolKey, setExpandedToolKey] = useState<string | null>(null);
@@ -405,7 +400,6 @@ export function ToolCallDefinitionCard({
     toolsToRender.map((tool, index) => {
       const callCount = toolCallCounts.get(tool.name) || 0;
       const toolCalls = toolCallsByName?.get(tool.name) ?? [];
-      const toolDefinitionNumber = toolNameToDefinitionNumber?.get(tool.name);
       const toolKey = `${groupKind}-${tool.name}-${index}`;
       const isExpanded = expandedToolKey === toolKey;
 
@@ -421,7 +415,7 @@ export function ToolCallDefinitionCard({
           }
           callCount={callCount}
           toolCalls={toolCalls}
-          toolDefinitionNumber={toolDefinitionNumber}
+          rowNumber={index + 1}
           currentView={currentView}
           setCurrentView={setCurrentView}
         />

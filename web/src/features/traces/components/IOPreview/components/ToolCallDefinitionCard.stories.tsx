@@ -51,7 +51,6 @@ export const Default = meta.story({
     tools: baseTools,
     toolCallCounts: new Map([["search_docs", 0]]),
     toolCallsByName: new Map(),
-    toolNameToDefinitionNumber: new Map([["search_docs", 1]]),
   },
 });
 
@@ -60,7 +59,6 @@ export const Called = meta.story({
     tools: baseTools,
     toolCallCounts: new Map([["search_docs", 1]]),
     toolCallsByName: baseToolCalls,
-    toolNameToDefinitionNumber: new Map([["search_docs", 1]]),
   },
 });
 
@@ -122,11 +120,6 @@ export const MultipleTools = meta.story({
         ],
       ],
     ]),
-    toolNameToDefinitionNumber: new Map([
-      ["search_docs", 1],
-      ["create_ticket", 2],
-      ["notify_team", 3],
-    ]),
   },
 });
 
@@ -173,16 +166,6 @@ export const WithLongToolNames = meta.story({
         ],
       ],
     ]),
-    toolNameToDefinitionNumber: new Map([
-      [
-        "search_enterprise_customer_documentation_for_multistep_api_rate_limit_troubleshooting_and_backoff_recommendations",
-        1,
-      ],
-      [
-        "create_cross_functional_incident_escalation_ticket_with_customer_context_and_internal_follow_up_requirements",
-        2,
-      ],
-    ]),
   },
 });
 
@@ -216,29 +199,25 @@ export const ManyTools = meta.story({
       manyToolNames.map((name) => [name, calledNames.has(name) ? 1 : 0]),
     ),
     toolCallsByName: new Map(),
-    toolNameToDefinitionNumber: new Map(
-      manyToolNames.map((name, index) => [name, index + 1]),
-    ),
   },
 });
 
-/** Show more reveals rows below the summary; the toggle itself stays put. */
-export const ShowMoreKeepsTogglePlace = meta.story({
-  name: "(Test) Show More Keeps Toggle Place",
+/** The group toggle reveals rows below itself and stays put. */
+export const GroupToggleKeepsPlace = meta.story({
+  name: "(Test) Group Toggle Keeps Place",
   args: ManyTools.input.args,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const showMore = canvas.getByRole("button", {
-      name: /^Show more: 12 available/,
+    const toggle = canvas.getByRole("button", {
+      name: /12 available tools were not called/,
     });
-    const topBefore = showMore.getBoundingClientRect().top;
-    await userEvent.click(showMore);
-    const showLess = await canvas.findByRole("button", {
-      name: /^Show less: 12 available/,
-    });
-    await expect(showLess.getBoundingClientRect().top).toBe(topBefore);
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    const topBefore = toggle.getBoundingClientRect().top;
+    await userEvent.click(toggle);
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await expect(toggle.getBoundingClientRect().top).toBe(topBefore);
     const firstHidden = canvas.getByText("langfuse_getPrompt");
-    await expect(showLess.compareDocumentPosition(firstHidden)).toBe(
+    await expect(toggle.compareDocumentPosition(firstHidden)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
   },

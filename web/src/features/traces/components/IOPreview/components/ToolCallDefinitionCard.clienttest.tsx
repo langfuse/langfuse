@@ -50,11 +50,6 @@ function renderTools({
   const tools = [...calledTools, ...availableTools];
   const toolCallCounts = new Map<string, number>();
   const toolCallsByName = new Map<string, ToolCallInvocation[]>();
-  const toolNameToDefinitionNumber = new Map<string, number>();
-
-  tools.forEach((tool, index) => {
-    toolNameToDefinitionNumber.set(tool.name, index + 1);
-  });
 
   calledTools.forEach((tool, index) => {
     toolCallCounts.set(tool.name, 1);
@@ -73,7 +68,6 @@ function renderTools({
       tools={tools}
       toolCallCounts={toolCallCounts}
       toolCallsByName={toolCallsByName}
-      toolNameToDefinitionNumber={toolNameToDefinitionNumber}
     />,
   );
 }
@@ -98,13 +92,13 @@ describe("ToolCallDefinitionCard", () => {
     expect(screen.getByText(/6 tools were called/i)).toBeInTheDocument();
     expect(screen.queryByText(/called_tool_1/)).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /^Show more/ }));
+    const toggle = screen.getByRole("button", { name: /6 tools were called/ });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(toggle);
 
     expect(screen.getByText(/called_tool_1/)).toBeInTheDocument();
     expect(screen.getByText(/called_tool_6/)).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /^Show less/ }),
-    ).toBeInTheDocument();
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
   });
 
   it("persists called tool group expansion in session storage", () => {
@@ -113,7 +107,9 @@ describe("ToolCallDefinitionCard", () => {
       availableToolCount: 0,
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /^Show more/ }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /6 tools were called/ }),
+    );
     unmount();
 
     renderTools({ calledToolCount: 6, availableToolCount: 0 });
@@ -139,7 +135,9 @@ describe("ToolCallDefinitionCard", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText(/available_tool_1/)).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /^Show more/ }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /4 available tools were not called/ }),
+    );
 
     expect(screen.getByText(/available_tool_1/)).toBeInTheDocument();
     expect(screen.getByText(/available_tool_4/)).toBeInTheDocument();

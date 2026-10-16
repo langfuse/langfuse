@@ -9,19 +9,17 @@ export interface SectionToolDefinitionsProps {
   tools: ToolDefinition[];
   toolCallCounts: Map<string, number>;
   toolCallsByName: Map<string, ToolCallInvocation[]>;
-  toolNameToDefinitionNumber: Map<string, number>;
 }
 
 /**
  * SectionToolDefinitions renders tool definition cards at the top of IOPreview.
  *
- * Shows available tools with their call counts and definition numbers.
+ * Shows available tools with their call counts.
  */
 export function SectionToolDefinitions({
   tools,
   toolCallCounts,
   toolCallsByName,
-  toolNameToDefinitionNumber,
 }: SectionToolDefinitionsProps) {
   return (
     <div className="border-border mb-4 border-b pb-4">
@@ -33,7 +31,6 @@ export function SectionToolDefinitions({
           tools={tools}
           toolCallCounts={toolCallCounts}
           toolCallsByName={toolCallsByName}
-          toolNameToDefinitionNumber={toolNameToDefinitionNumber}
         />
       )}
     </div>

@@ -72,9 +72,6 @@ type ButtonProps = {
       loading?: boolean;
       onClick?: MouseEventHandler<HTMLButtonElement>;
       type?: "button" | "submit";
-      /** Accessible name when the visible text alone is ambiguous. */
-      "aria-label"?: string;
-      "aria-expanded"?: boolean;
     }
 );
 
@@ -138,8 +135,7 @@ export function Button(props: ButtonProps) {
       disabled={props.disabled || props.loading}
       onClick={props.loading || props.disabled ? undefined : props.onClick}
       aria-busy={props.loading}
-      aria-label={props["aria-label"] ?? props.text}
-      aria-expanded={props["aria-expanded"]}
+      aria-label={props.text}
     >
       {props.loading ? (
         <span className="flex h-1/2 items-center justify-center">
