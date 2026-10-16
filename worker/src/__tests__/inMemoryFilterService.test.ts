@@ -1089,6 +1089,52 @@ describe("InMemoryFilterService", () => {
       ).toBe(false);
     });
 
+    test("numberObject metadata comparison does not match a missing key", () => {
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "metadata",
+              type: "numberObject",
+              key: "absentField",
+              operator: ">",
+              value: 0,
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(false);
+    });
+
+    test.each([
+      { stored: "20", matches: true },
+      { stored: "2e1", matches: true },
+      { stored: "20ms", matches: false },
+      { stored: " 20", matches: false },
+      { stored: "0x14", matches: false },
+      { stored: "", matches: false },
+    ])(
+      "numberObject metadata parses '$stored' like ClickHouse toFloat64OrNull",
+      ({ stored, matches }) => {
+        expect(
+          InMemoryFilterService.evaluateFilter(
+            { ...mockData, metadata: { latency: stored } },
+            [
+              {
+                column: "metadata",
+                type: "numberObject",
+                key: "latency",
+                operator: ">=",
+                value: 0,
+              },
+            ],
+            fieldMapper,
+          ),
+        ).toBe(matches);
+      },
+    );
+
     test("evaluates booleanObject filters correctly", () => {
       expect(
         InMemoryFilterService.evaluateFilter(

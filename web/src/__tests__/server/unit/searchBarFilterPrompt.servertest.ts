@@ -75,6 +75,9 @@ describe("buildFilterSystemPrompt", () => {
 
   it("documents metadata and observation/trace score columns", () => {
     expect(prompt).toContain("metadata");
+    expect(prompt).toContain(
+      '{"type":"numberObject","column":"metadata","key":"timeout","operator":">","value":20}',
+    );
     expect(prompt).toContain(SCORE_COLUMNS.observation.numeric);
     expect(prompt).toContain(SCORE_COLUMNS.observation.categorical);
     expect(prompt).toContain(SCORE_COLUMNS.observation.boolean);
@@ -275,6 +278,20 @@ describe("metadata and score filters are representable", () => {
       },
     ]);
     expect(skippedFilters).toHaveLength(0);
+  });
+
+  it("numeric metadata comparison", () => {
+    const { skippedFilters, text } = filterStateToQueryText([
+      {
+        type: "numberObject",
+        column: "metadata",
+        key: "timeout",
+        operator: ">",
+        value: 20,
+      },
+    ]);
+    expect(skippedFilters).toHaveLength(0);
+    expect(text).toBe("metadata.timeout:>20");
   });
 
   it("numeric observation score", () => {

@@ -483,6 +483,34 @@ describe("keyed facet transitions", () => {
     ]);
   });
 
+  it("persists metadata comparisons as numberObject and owns them on replace", () => {
+    const current: FilterState = [
+      {
+        column: "metadata",
+        type: "numberObject",
+        operator: "<",
+        key: "old",
+        value: 1,
+      },
+    ];
+    const next = applyKeyedFilterEntries(current, "metadata", {
+      kind: "stringObject",
+      entries: [
+        { key: "asd", operator: ">", value: "2" },
+        { key: "draft", operator: ">=", value: "abc" },
+      ],
+    });
+    expect(next).toEqual([
+      {
+        column: "metadata",
+        type: "numberObject",
+        operator: ">",
+        key: "asd",
+        value: 2,
+      },
+    ]);
+  });
+
   it("keeps `is set` / `is not set` presence rows even with an empty value", () => {
     const next = applyKeyedFilterEntries([], "metadata", {
       kind: "stringObject",

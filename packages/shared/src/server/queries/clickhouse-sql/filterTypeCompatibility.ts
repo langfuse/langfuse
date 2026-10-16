@@ -13,7 +13,7 @@ export const COMPATIBLE_FILTER_TYPES: Partial<
   datetime: ["datetime"],
   number: ["number"],
   boolean: ["boolean"],
-  stringObject: ["stringObject"],
+  stringObject: ["stringObject", "numberObject"],
   numberObject: ["numberObject"],
   booleanObject: ["booleanObject"],
   categoryOptions: ["categoryOptions", "stringOptions"],
@@ -32,6 +32,19 @@ export const isFilterColumnType = (
     FILTER_COLUMN_TYPES_WITHOUT_COMPATIBLE_FILTERS.some(
       (filterColumnType) => filterColumnType === type,
     ));
+
+// String-stored object columns (metadata) compare numerically only for
+// ordering; equality stays an exact string match via stringObject.
+export const NUMERIC_EQUALITY_ON_STRING_OBJECT_ERROR =
+  "numberObject metadata filters support only '>', '<', '>=', '<='; use a stringObject filter for equality.";
+
+export const isNumericEqualityOnStringObject = (
+  columnType: FilterColumnType,
+  filter: { type: string; operator: string },
+): boolean =>
+  columnType === "stringObject" &&
+  filter.type === "numberObject" &&
+  filter.operator === "=";
 
 export const getCompatibleFilterTypes = (
   columnType: FilterColumnType,

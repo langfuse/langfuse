@@ -16,6 +16,7 @@ import {
   type StringKeyValueUIFilter,
 } from "./hooks/useSidebarFilterState";
 import type { FilterConfig } from "./lib/filter-config";
+import type { FilterState } from "@langfuse/shared";
 
 // The hook calls useQueryParam unconditionally even for the "memory" state
 // location used here; stub it out so no QueryParamProvider is needed.
@@ -41,7 +42,11 @@ const METADATA_FILTER_CONFIG: FilterConfig = {
   facets: [{ type: "stringKeyValue", column: "metadata", label: "Metadata" }],
 };
 
-function MetadataFacetHarness() {
+function MetadataFacetHarness({
+  initialFilters = [],
+}: {
+  initialFilters?: FilterState;
+}) {
   const queryFilter = useSidebarFilterState(
     METADATA_FILTER_CONFIG,
     observedMetadataOptions({
@@ -49,7 +54,7 @@ function MetadataFacetHarness() {
       retries: { type: "number" },
       scope: { type: "object" },
     }),
-    { stateLocation: "memory" },
+    { stateLocation: "memory", defaultExplicitFilterState: initialFilters },
   );
 
   const facet = queryFilter.filters.find(
@@ -159,6 +164,26 @@ describe("metadata suggestions in the filter sidebar", () => {
       fireEvent.keyDown(key, { key: "Enter" });
       expect(key).toHaveValue(typed);
     }
+  });
+
+  it("shows a numeric metadata comparison from the search bar as a row", () => {
+    render(
+      <MetadataFacetHarness
+        initialFilters={[
+          {
+            column: "metadata",
+            type: "numberObject",
+            operator: ">",
+            key: "asd",
+            value: 2,
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByPlaceholderText("Key")).toHaveValue("asd");
+    expect(screen.getByText("greater than")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Value")).toHaveValue(2);
   });
 
   it("still accepts a key and value the observed map has never seen", () => {

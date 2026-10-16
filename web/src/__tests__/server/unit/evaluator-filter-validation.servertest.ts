@@ -128,4 +128,25 @@ describe("validateEvaluatorFiltersForTarget", () => {
       expectedColumnType: "stringOptions",
     });
   });
+
+  it("rejects numeric equality on metadata", () => {
+    const result = validateEvaluatorFiltersForTarget({
+      targetObject: EvalTargetObject.EVENT,
+      filter: [
+        {
+          type: "numberObject",
+          column: "metadata",
+          key: "timeout",
+          operator: "=",
+          value: 20,
+        },
+      ] satisfies FilterState,
+    });
+
+    expect(result.isValid).toBe(false);
+    expect(result.issues[0]).toMatchObject({
+      code: "incompatible_filter_type",
+      column: "metadata",
+    });
+  });
 });

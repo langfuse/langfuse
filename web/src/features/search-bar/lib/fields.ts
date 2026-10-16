@@ -128,6 +128,9 @@ export type FieldRegistry = {
   metadata: boolean;
   /** Additional metadata roots mapped to their backend FilterState columns. */
   metadataNamespaces?: Readonly<Record<string, string>>;
+  /** `metadata.<key>:>20`-style numeric comparisons. Off where the backend
+   *  cannot cast metadata safely (Postgres JSON fails on one non-numeric value). */
+  metadataComparisons: boolean;
   scores: boolean;
   /** Trace-level `traceScores.<name>` paths. Views whose backend has no
    *  trace-score columns (sessions) keep observation scores without them. */
@@ -201,6 +204,8 @@ export function fieldRegistryFromColumns(
     fields?: Readonly<Record<string, FieldOverlay>>;
     metadata?: boolean;
     metadataNamespaces?: Readonly<Record<string, string>>;
+    /** Defaults to true. */
+    metadataComparisons?: boolean;
     scores?: boolean;
     /** Defaults to `scores`. */
     traceScores?: boolean;
@@ -269,6 +274,7 @@ export function fieldRegistryFromColumns(
     columns,
     metadata: overlay.metadata ?? false,
     metadataNamespaces: overlay.metadataNamespaces,
+    metadataComparisons: overlay.metadataComparisons ?? true,
     scores,
     traceScores: overlay.traceScores ?? scores,
     allowFreeText: overlay.allowFreeText ?? true,
@@ -301,6 +307,7 @@ export function extendFieldRegistryWithColumns(
     columns: [...registry.columns, ...columns],
     metadata: registry.metadata,
     metadataNamespaces: registry.metadataNamespaces,
+    metadataComparisons: registry.metadataComparisons,
     scores: registry.scores,
     traceScores: registry.traceScores,
     allowFreeText: registry.allowFreeText,
@@ -349,6 +356,7 @@ export function withFieldOptions(
     columns: registry.columns,
     metadata: registry.metadata,
     metadataNamespaces: registry.metadataNamespaces,
+    metadataComparisons: registry.metadataComparisons,
     scores: registry.scores,
     traceScores: registry.traceScores,
     allowFreeText: registry.allowFreeText,
@@ -475,6 +483,7 @@ export function createFieldRegistry({
   columns,
   metadata,
   metadataNamespaces,
+  metadataComparisons,
   scores,
   traceScores,
   allowFreeText,
@@ -495,6 +504,7 @@ export function createFieldRegistry({
   columns: readonly ColumnDefinition[];
   metadata: boolean;
   metadataNamespaces?: Readonly<Record<string, string>>;
+  metadataComparisons: boolean;
   scores: boolean;
   traceScores: boolean;
   allowFreeText: boolean;
@@ -542,6 +552,7 @@ export function createFieldRegistry({
     targeting,
     metadata,
     metadataNamespaces,
+    metadataComparisons,
     scores,
     traceScores,
     defaultTextField,
@@ -575,6 +586,7 @@ export const EVENTS_FIELD_REGISTRY = createFieldRegistry({
   fields: FIELDS,
   columns: eventsTableCols,
   metadata: true,
+  metadataComparisons: true,
   scores: true,
   traceScores: true,
   allowFreeText: true,
@@ -750,7 +762,8 @@ function label(op: CompareOp): string {
 export function operatorIssue(
   ref: FieldRef,
   op: CompareOp,
-  valueOp: "or" | "and" = "or",
+  valueOp: "or" | "and",
+  registry: Pick<FieldRegistry, "metadataComparisons">,
 ): string | null {
   if (valueOp === "and") {
     const isArray =
@@ -774,10 +787,10 @@ export function operatorIssue(
       }
       return null;
     case "metadata":
-      // stringObject filters support string ops only; there is no numeric
-      // metadata filter in the current contract.
-      if (COMPARISONS.has(op)) {
-        return `metadata filters match text — ${op} comparisons are not supported`;
+      // String ops stay stringObject; comparisons (> < >= <=) lower to
+      // numberObject with toFloat64OrNull on the stored string value.
+      if (COMPARISONS.has(op) && !registry.metadataComparisons) {
+        return `metadata on this view supports text matches only — use ${refName(ref)}:value or ${refName(ref)}:~value`;
       }
       return null;
     case "scores":

@@ -27,7 +27,7 @@ const COMPATIBLE_FILTER_TYPES: Record<string, readonly string[]> = {
   datetime: ["datetime"],
   number: ["number"],
   boolean: ["boolean"],
-  stringObject: ["stringObject"],
+  stringObject: ["stringObject", "numberObject"],
   numberObject: ["numberObject"],
   booleanObject: ["booleanObject"],
   categoryOptions: ["categoryOptions", "stringOptions"],
@@ -50,6 +50,14 @@ function isRegistryContractCompatible(
     (c) => c.id.toLowerCase() === col || c.name.toLowerCase() === col,
   );
   if (!def) return true;
+  // Mirrors isNumericEqualityOnStringObject: metadata equality is a string match.
+  if (
+    def.type === "stringObject" &&
+    f.type === "numberObject" &&
+    f.operator === "="
+  ) {
+    return false;
+  }
   const allowed = COMPATIBLE_FILTER_TYPES[def.type];
   return allowed === undefined || allowed.includes(f.type);
 }

@@ -9,6 +9,7 @@ export const DATASET_ITEMS_FIELD_REGISTRY = fieldRegistryFromColumns(
     defaultSearchType: ["id"],
     freeTextScopeLabel: "item IDs",
     metadata: true,
+    metadataComparisons: false,
     scores: false,
     traceScores: false,
     searchExamples: [

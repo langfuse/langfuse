@@ -39,6 +39,31 @@ describe("experiment item search contract", () => {
       ],
     });
   });
+  it("keeps numeric metadata comparisons on their backend-specific column", () => {
+    const filters: FilterState = [
+      {
+        column: "itemMetadata",
+        type: "numberObject",
+        key: "difficulty",
+        operator: ">",
+        value: 2,
+      },
+    ];
+    expect(
+      planCommit(
+        "itemMetadata.difficulty:>2",
+        undefined,
+        EXPERIMENT_ITEMS_FIELD_REGISTRY,
+      ),
+    ).toMatchObject({ status: "committed", filters });
+    expect(
+      filterStateToQueryText(
+        filters,
+        undefined,
+        EXPERIMENT_ITEMS_FIELD_REGISTRY,
+      ).text,
+    ).toBe("itemMetadata.difficulty:>2");
+  });
   it("preserves backend-specific metadata filters without emitting a generic metadata column", () => {
     const filters: FilterState = [
       {
