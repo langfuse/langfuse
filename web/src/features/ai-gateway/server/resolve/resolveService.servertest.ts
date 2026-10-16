@@ -30,13 +30,13 @@ vi.mock("@langfuse/shared/encryption", () => ({
   decrypt: vi.fn(() => "sk-test"),
 }));
 
-const serviceWith = (findFirst: () => Promise<unknown>) => {
+const serviceWith = (findFirst: () => Promise<unknown>, keyOrgId = "org-1") => {
   const prisma = {
     apiKey: { findFirst },
     roleAssignment: {
       findMany: () =>
         Promise.resolve([
-          { systemRole: "AI_GATEWAY", orgId: "org-1", projectId: null },
+          { systemRole: "AI_GATEWAY", orgId: keyOrgId, projectId: null },
         ]),
     },
   } as unknown as PrismaClient;
@@ -190,14 +190,16 @@ describe("GatewayResolveService", () => {
   });
 
   it("rejects gateway keys from organizations outside the allowlist", async () => {
-    const service = serviceWith(() =>
-      Promise.resolve({
-        id: "key-1",
-        orgId: "org-not-allowed",
-        expiresAt: null,
-        gatewayAssociation: null,
-        organization: { gatewayConfig: null, gatewayAiConnections: [] },
-      }),
+    const service = serviceWith(
+      () =>
+        Promise.resolve({
+          id: "key-1",
+          orgId: "org-not-allowed",
+          expiresAt: null,
+          gatewayAssociation: null,
+          organization: { gatewayConfig: null, gatewayAiConnections: [] },
+        }),
+      "org-not-allowed",
     );
 
     await expect(
@@ -205,6 +207,9 @@ describe("GatewayResolveService", () => {
         fastHashedSecretKey: "hashed-secret-key",
         apiFormat: "openai.responses",
       }),
-    ).rejects.toMatchObject({ status: 403 });
+    ).rejects.toMatchObject({
+      status: 403,
+      message: "Gateway is not enabled for this organization",
+    });
   });
 });
