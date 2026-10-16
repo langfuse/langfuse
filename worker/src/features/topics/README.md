@@ -325,21 +325,21 @@ reads. Missing/expired payloads fail explicitly. A new execution with **Reuse st
 summaries** can recover persisted results. Redis loss or a crash between a provider
 response and saving it can repeat inference.
 
-Stored-summary reuse is opt-in and requires the same facet version, summary model
-and transcript producer version; it does not check content freshness. Compatible
+Stored-summary reuse is opt-in and requires the same facet version, summary model,
+transcript producer (`transcript_id`) and version; it does not check content freshness. Compatible
 vectors are reused; changed dimensions regenerate only embeddings. Results receive
 the new execution's staging ownership,
 replace previous summaries, record reuse timestamps and count only new usage.
 This is not a cross-execution deduplication cache.
 
-Each processing attempt shares identical transcript text across facets for a trace.
-Facet instructions affect only summarization. `loadTopicTranscript` uses the shared
-`orderObservations` and `assembleTranscript` producer, with a 10,000-character cap
-on the complete serialized JSON, including escaping, provenance and metadata.
-The model receives the structured transcript directly: threads with conversation
-history and current-turn messages, normalized parts and observation provenance.
-`truncated: true` marks omitted content. A null transcript produces
-`insufficient_input` without a summarization or embedding call.
+Manual processing and trace-batch share one summary request
+(`summarizeTraceFacets`): the facets of a trace that still need a summary go into
+one call on the same projected transcript. `loadTopicTranscript` uses the shared
+`orderObservations` and `assembleTranscript` producer without a cap, like
+trace-batch. The model receives the projected transcript: threads with
+conversation history and current-turn messages and normalized parts, without
+observation provenance. A null or empty transcript produces `insufficient_input`
+without a summarization or embedding call.
 
 The shared producer defines observation eligibility, tool association and replay
 deduplication. It includes generations and matched tool responses. Root-only
@@ -351,9 +351,9 @@ and limitations.
 
 If transcript plus instructions/schema exceeds the execution's input allowance,
 the worker fails before calling the provider; it does not
-silently change the evidence for that facet. Stored summaries record
-`transcript_id` (`poc`) and `transcript_version` (`shared-transcript-v3`), plus the
-models used. Historical summaries from other producer versions are regenerated.
+silently change the evidence. Stored summaries record
+`transcript_id` (`trace-batch`; older manual rows used `poc` with a capped transcript)
+and `transcript_version` (`shared-transcript-v3`), plus the models used. Historical summaries from other producer versions are regenerated.
 Accepted Redis payloads retain their recorded version when the same execution
 resumes. Transcripts are regenerated from current observations; original source
 snapshots and content hashes are not retained.
@@ -361,7 +361,7 @@ snapshots and content hashes are not retained.
 The summary prompt and schema write the summary before deciding applicability.
 Check one trace after changing either prompt or schema before spending on a batch.
 Replaying an accepted summary or embedding does not require its source trace.
-If a retry needs a missing facet, it uses the current transcript for that facet.
+If a retry needs missing facets, it summarizes them together from the current transcript.
 
 UMAP and HDBSCAN propose density clusters. Original-space unit centroids and
 cosine radii form the serving classifier. A radius uses the 95th percentile of
