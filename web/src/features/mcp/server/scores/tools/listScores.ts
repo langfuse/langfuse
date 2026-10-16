@@ -7,6 +7,7 @@ import {
 import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
+import { MCP_CLICKHOUSE_SETTINGS } from "../../../core/clickhouse-settings";
 import { clampToDataAccessDays } from "@/src/features/entitlements/server";
 import {
   listScoresV3ForPublicApi,
@@ -167,32 +168,35 @@ export const [listScoresTool, handleListScores] = defineTool({
           plan: context.plan,
           fromTimestamp: input.fromTimestamp,
         });
-        const result = await listScoresV3ForPublicApi({
-          projectId: context.projectId,
-          limit: input.limit,
-          cursor: input.cursor ? parseCursor(input.cursor) : undefined,
-          // Always fetch every field group: subject feeds the url mapping below.
-          fields: [...SCORE_FIELD_GROUPS_V3],
-          id: input.scoreIds,
-          name: input.name,
-          source: input.source,
-          dataType: input.dataType,
-          environment: input.environment,
-          configId: input.configId,
-          queueId: input.queueId,
-          authorUserId: input.authorUserId,
-          value: input.value,
-          valueMin: input.valueMin,
-          valueMax: input.valueMax,
-          traceId: input.traceId,
-          sessionId: input.sessionId,
-          observationId: input.observationId,
-          experimentId: input.experimentId,
-          fromTimestamp: dataAccessWindow.effectiveFromTimestamp,
-          toTimestamp: input.toTimestamp
-            ? new Date(input.toTimestamp)
-            : undefined,
-        });
+        const result = await listScoresV3ForPublicApi(
+          {
+            projectId: context.projectId,
+            limit: input.limit,
+            cursor: input.cursor ? parseCursor(input.cursor) : undefined,
+            // Always fetch every field group: subject feeds the url mapping below.
+            fields: [...SCORE_FIELD_GROUPS_V3],
+            id: input.scoreIds,
+            name: input.name,
+            source: input.source,
+            dataType: input.dataType,
+            environment: input.environment,
+            configId: input.configId,
+            queueId: input.queueId,
+            authorUserId: input.authorUserId,
+            value: input.value,
+            valueMin: input.valueMin,
+            valueMax: input.valueMax,
+            traceId: input.traceId,
+            sessionId: input.sessionId,
+            observationId: input.observationId,
+            experimentId: input.experimentId,
+            fromTimestamp: dataAccessWindow.effectiveFromTimestamp,
+            toTimestamp: input.toTimestamp
+              ? new Date(input.toTimestamp)
+              : undefined,
+          },
+          { clickhouseSettings: MCP_CLICKHOUSE_SETTINGS },
+        );
 
         const data = result.data.map((score) => {
           const url = buildScoreSubjectUrl(context.projectId, score.subject);

@@ -2233,11 +2233,13 @@ const queryEventsFilterOptionRows = async (
     | BuiltEventsFilterOptionColumnQuery
     | BuiltEventsFilterOptionsForColumnsQuery
     | BuiltEventsExactFilterOptionsForColumnsQuery,
+  clickhouseSettings?: ClickHouseSettings,
 ) => {
   return queryClickhouse<EventFilterOptionRow>({
     query: queryWithParams.query,
     params: queryWithParams.params,
     tags: { projectId },
+    clickhouseSettings,
     preferredClickhouseService: "EventsReadOnly",
   });
 };
@@ -2275,6 +2277,7 @@ const queryEventsFilterOptionColumn = async (params: {
   offset?: number;
   scope?: EventFilterOptionScope;
   sampleRows?: number;
+  clickhouseSettings?: ClickHouseSettings;
 }) => {
   const queryWithParams = buildEventsFilterOptionColumnQuery({
     projectId: params.projectId,
@@ -2290,7 +2293,11 @@ const queryEventsFilterOptionColumn = async (params: {
     return [];
   }
 
-  return queryEventsFilterOptionRows(params.projectId, queryWithParams);
+  return queryEventsFilterOptionRows(
+    params.projectId,
+    queryWithParams,
+    params.clickhouseSettings,
+  );
 };
 
 export const getEventsFilterOptionsForColumns = async (params: {
@@ -2337,6 +2344,7 @@ export const getEventsFilterOptionValuesPage = async (params: {
   column: EventFilterOptionColumn;
   limit: number;
   offset: number;
+  clickhouseSettings?: ClickHouseSettings;
 }) =>
   queryEventsFilterOptionColumn({
     projectId: params.projectId,
@@ -2344,6 +2352,7 @@ export const getEventsFilterOptionValuesPage = async (params: {
     column: params.column,
     limit: params.limit,
     offset: params.offset,
+    clickhouseSettings: params.clickhouseSettings,
   });
 
 /** EventsMetadataOptionRow is one metadata key or value with its event count. */
@@ -2427,6 +2436,7 @@ export const getEventsNumericStatsByFilterColumn = async (
     NumericEventsTableColumnId,
     "inputTokens" | "outputTokens" | "inputCost" | "outputCost"
   >,
+  clickhouseSettings?: ClickHouseSettings,
 ) => {
   const column = eventsTableCols.find((col) => col.id === columnId);
 
@@ -2464,6 +2474,7 @@ export const getEventsNumericStatsByFilterColumn = async (
     query,
     params,
     tags: { projectId },
+    clickhouseSettings,
     preferredClickhouseService: "EventsReadOnly",
   });
   const range = res[0];

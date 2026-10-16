@@ -11,6 +11,7 @@ import {
 } from "@/src/features/events/server";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
+import { MCP_CLICKHOUSE_SETTINGS } from "../../../core/clickhouse-settings";
 import {
   ObservationLimitSchema,
   type ObservationMcpFilterColumn,
@@ -190,6 +191,7 @@ export const [
 
         if (isNumericEventsTableColumnId(eventsColumn)) {
           const range = await getEventFilterNumericRange({
+            clickhouseSettings: MCP_CLICKHOUSE_SETTINGS,
             column: eventsColumn,
             projectId: context.projectId,
             startTimeFilter,
@@ -209,6 +211,7 @@ export const [
         const offset = decodeObservationFilterValueCursor(input.cursor);
 
         const page = await getEventFilterValuePage({
+          clickhouseSettings: MCP_CLICKHOUSE_SETTINGS,
           column: eventsColumn,
           projectId: context.projectId,
           startTimeFilter,
