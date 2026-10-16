@@ -4,7 +4,7 @@ import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type MediaReturnType } from "@/src/features/media";
 import {
   CorrectedOutputField,
-  CorrectOutputButton,
+  useCorrectOutputAction,
 } from "./components/CorrectedOutputField";
 import { useCorrectionData } from "./hooks/useCorrectionData";
 import { IOSection } from "@/src/components/ui/IOSection";
@@ -142,6 +142,9 @@ export function IOPreviewJSONSimple({
   // The "Correct output" pencil lives in the Output header; the field below
   // opens into its editor from there.
   const [correctionOpen, setCorrectionOpen] = useState(false);
+  const correctOutputAction = useCorrectOutputAction(() =>
+    setCorrectionOpen(true),
+  );
   const { effectiveCorrection } = useCorrectionData(
     outputCorrection,
     observationId,
@@ -152,10 +155,10 @@ export function IOPreviewJSONSimple({
   const showCorrectionField =
     showCorrections &&
     (correctionTrigger === "inline" || correctionOpen || !!effectiveCorrection);
-  const outputControls =
-    showCorrections && showOutput && !correctionOpen && !effectiveCorrection ? (
-      <CorrectOutputButton onClick={() => setCorrectionOpen(true)} />
-    ) : undefined;
+  const outputActions =
+    showCorrections && showOutput && !correctionOpen && !effectiveCorrection
+      ? [correctOutputAction]
+      : undefined;
 
   return (
     <div className="space-y-2 pt-3">
@@ -194,7 +197,7 @@ export function IOPreviewJSONSimple({
         ))}
       {showOutput &&
         (outputTooLarge ? (
-          <IOSection title="Output" controlButtons={outputControls}>
+          <IOSection title="Output" actions={outputActions}>
             <LargeJsonFieldFallback
               title="Output"
               hideTitle
@@ -213,7 +216,7 @@ export function IOPreviewJSONSimple({
             isParsing={isParsing}
             media={media?.filter((m) => m.field === "output") ?? []}
             currentView="json"
-            controlButtons={outputControls}
+            actions={outputActions}
             externalExpansionState={outputExpanded}
             onExternalExpansionChange={
               onOutputExpandedChange as (

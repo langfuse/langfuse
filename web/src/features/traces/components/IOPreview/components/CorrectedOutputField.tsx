@@ -1,8 +1,14 @@
 /* eslint-disable no-nested-ternary */
-import { Pencil, Trash, FileDiff, Check, Info } from "lucide-react";
-import { cn } from "@/src/utils/tailwind";
-import { Button } from "@/src/components/ui/button";
-import { IOSection } from "@/src/components/ui/IOSection";
+import { Pencil, Trash, FileDiff } from "lucide-react";
+import {
+  IOSection,
+  IOSectionControls,
+  IOSectionInfoButton,
+  type IOSectionAction,
+  type IOSectionInfo,
+  type IOSectionStatus,
+  type IOSectionToggle,
+} from "@/src/components/ui/IOSection";
 import { type ScoreDomain } from "@langfuse/shared";
 import { useCorrectionData } from "../hooks/useCorrectionData";
 import { useCorrectionMutations } from "../hooks/useCorrectionMutations";
@@ -12,16 +18,8 @@ import { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { Switch } from "@/src/components/design-system/Switch/Switch";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { CorrectedOutputDiffDialog } from "./CorrectedOutputDiffDialog";
-import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
-import Link from "next/link";
-import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
-
-// The editor sits directly in the section box: no own chrome, the box's fill.
-const EDITOR_IN_SECTION_CLASSES =
-  "rounded-md border-0 bg-transparent [&_.cm-editor]:bg-transparent! [&_.cm-gutters]:bg-transparent! [&_.cm-scroller]:bg-transparent! [&_.cm-content]:bg-transparent!";
 
 interface CorrectedOutputFieldProps {
   projectId: string;
@@ -47,28 +45,20 @@ interface CorrectedOutputFieldProps {
   onClosed?: () => void;
 }
 
-/** Pencil for the Output header controls; opens the correction editor. */
-export function CorrectOutputButton({ onClick }: { onClick: () => void }) {
+/** The Output header's pencil: opens the correction editor. */
+export function useCorrectOutputAction(onOpen: () => void): IOSectionAction {
   const capture = usePostHogClientCapture();
-  return (
-    <Button
-      variant="ghost"
-      size="icon-xs"
-      type="button"
-      title="Correct output"
-      aria-label="Correct output"
-      className="text-muted-foreground hover:text-foreground hover:bg-transparent"
-      onClick={() => {
-        capture("trace_detail:io_section_collapse_toggle", {
-          section: "corrected_output",
-          collapsed: false,
-        });
-        onClick();
-      }}
-    >
-      <Pencil className="icon-base text-icon-foreground" />
-    </Button>
-  );
+  return {
+    icon: Pencil,
+    label: "Correct output",
+    onClick: () => {
+      capture("trace_detail:io_section_collapse_toggle", {
+        section: "corrected_output",
+        collapsed: false,
+      });
+      onOpen();
+    },
+  };
 }
 
 export function CorrectedOutputField({
@@ -230,109 +220,58 @@ export function CorrectedOutputField({
     );
   }
 
-  const actions = (
-    <>
-      {!isValidJson && isEditing && hasContent && (
-        <span className="mr-2 text-xs text-red-500">
-          {strictJsonMode
+  const status: IOSectionStatus | undefined =
+    !isValidJson && isEditing && hasContent
+      ? {
+          kind: "error",
+          text: strictJsonMode
             ? "Invalid JSON - fix to save"
-            : "Cannot save empty content"}
-        </span>
-      )}
-      {isValidJson && saveStatus === "saving" && (
-        <div className="mr-2 flex items-center gap-1">
-          <Spinner size="xxs" />
-          <span className="text-muted-foreground text-xs">Saving</span>
-        </div>
-      )}
-      {isValidJson && saveStatus === "saved" && (
-        <div className="mr-2 flex items-center gap-1">
-          <Check className="icon-sm" />
-          <span className="text-muted-foreground text-xs">Saved</span>
-        </div>
-      )}
-      {hasContent && (
-        <>
-          <Button
-            size="icon-xs"
-            variant="ghost"
-            onClick={() => setIsDiffDialogOpen(true)}
-            className="hover:bg-border"
-            title="View diff between original and corrected output"
-          >
-            <FileDiff className="icon-sm text-icon-foreground" />
-          </Button>
-          {!isEditing && (
-            <Button
-              size="icon-xs"
-              variant="ghost"
-              onClick={handleEdit}
-              disabled={!hasAccess}
-              className="hover:bg-border"
-              title="Edit corrected output"
-            >
-              <Pencil className="icon-sm text-icon-foreground" />
-            </Button>
-          )}
-          <Button
-            size="icon-xs"
-            variant="ghost"
-            onClick={handleDeleteWithExitEdit}
-            disabled={!hasAccess}
-            className="hover:bg-border"
-            title="Delete corrected output"
-          >
-            <Trash className="icon-sm text-icon-foreground" />
-          </Button>
-        </>
-      )}
-      <div className="flex items-center">
-        <div className="mx-1">
-          <Switch
-            checked={strictJsonMode}
-            onCheckedChange={handleStrictJsonModeChange}
-            disabled={!isEditing}
-            size="sm"
-          />
-        </div>
-        <span className="text-muted-foreground text-xs">JSON</span>
-      </div>
-    </>
-  );
+            : "Cannot save empty content",
+        }
+      : isValidJson && saveStatus === "saving"
+        ? { kind: "saving", text: "Saving" }
+        : isValidJson && saveStatus === "saved"
+          ? { kind: "saved", text: "Saved" }
+          : undefined;
 
-  const infoIcon = (
-    <HoverCard
-      placement="right"
-      content={
-        <div className="w-80 p-3 text-xs">
-          <p>
-            Corrected outputs allow you to save the expected output for a trace
-            or observation. Learn more in the{" "}
-            <Link
-              href="https://langfuse.com/docs/observability/features/corrections"
-              target="_blank"
-              rel="noreferrer"
-              className="hover:text-foreground underline"
-            >
-              documentation
-            </Link>
-            .
-          </p>
-        </div>
-      }
-    >
-      {({ getTriggerProps }) => (
-        <button
-          type="button"
-          aria-label="About corrected outputs"
-          className="text-muted-foreground hover:text-foreground"
-          {...getTriggerProps()}
-        >
-          <Info className="icon-base" />
-        </button>
-      )}
-    </HoverCard>
-  );
+  const actions: IOSectionAction[] = hasContent
+    ? [
+        {
+          icon: FileDiff,
+          label: "View diff between original and corrected output",
+          onClick: () => setIsDiffDialogOpen(true),
+        },
+        ...(!isEditing
+          ? [
+              {
+                icon: Pencil,
+                label: "Edit corrected output",
+                onClick: handleEdit,
+                disabled: !hasAccess,
+              },
+            ]
+          : []),
+        {
+          icon: Trash,
+          label: "Delete corrected output",
+          onClick: handleDeleteWithExitEdit,
+          disabled: !hasAccess,
+        },
+      ]
+    : [];
+
+  const jsonToggle: IOSectionToggle = {
+    label: "JSON",
+    checked: strictJsonMode,
+    onCheckedChange: handleStrictJsonModeChange,
+    disabled: !isEditing,
+  };
+
+  const info: IOSectionInfo = {
+    label: "About corrected outputs",
+    text: "Corrected outputs allow you to save the expected output for a trace or observation.",
+    docsHref: "https://langfuse.com/docs/observability/features/corrections",
+  };
 
   const body =
     !hasContent && !isEditing ? (
@@ -353,17 +292,15 @@ export function CorrectedOutputField({
         placeholder="Enter corrected output..."
         editorRef={editorRef}
         onEditorMount={focusEditor}
-        className={cn(
-          EDITOR_IN_SECTION_CLASSES,
-          "focus-within:ring-ring focus-within:ring-2",
-        )}
+        appearance="flat"
+        className="focus-within:ring-ring focus-within:ring-2"
       />
     ) : (
       <CodeMirrorEditor
         value={displayValue}
         mode={strictJsonMode ? "json" : "text"}
         editable={false}
-        className={EDITOR_IN_SECTION_CLASSES}
+        appearance="flat"
       />
     );
 
@@ -381,9 +318,13 @@ export function CorrectedOutputField({
         // The JSON Beta section renders its own title; only controls + body here.
         <div className="group pt-2">
           <div className="flex items-center justify-between py-1.5">
-            {infoIcon}
+            <IOSectionInfoButton info={info} />
             <div className="flex items-center -space-x-1 opacity-0 transition-opacity group-hover:opacity-100">
-              {actions}
+              <IOSectionControls
+                status={status}
+                actions={actions}
+                toggle={jsonToggle}
+              />
             </div>
           </div>
           {body}
@@ -392,8 +333,10 @@ export function CorrectedOutputField({
         <div className="pt-2">
           <IOSection
             title="Corrected output"
-            titleAside={infoIcon}
-            controlButtons={actions}
+            info={info}
+            status={status}
+            actions={actions.length > 0 ? actions : undefined}
+            toggle={jsonToggle}
           >
             {body}
           </IOSection>

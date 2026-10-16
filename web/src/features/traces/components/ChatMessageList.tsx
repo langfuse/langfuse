@@ -18,6 +18,7 @@ import {
 } from "@/src/features/traces/fns/chatMessageUtils";
 import { type MediaReturnType } from "@/src/features/media";
 import { type IOPreviewContentMode } from "@/src/features/traces/components/IOPreview/IOPreview";
+import { type IOSectionAction } from "@/src/components/ui/IOSection";
 
 /** Only the last N messages start expanded in a long conversation. */
 const EXPANDED_TAIL_LENGTH = 3;
@@ -36,8 +37,8 @@ export interface ChatMessageListProps {
   showSystemPrompt?: boolean;
   /** Title messages Input / Output by side instead of by role. */
   titleBySide?: boolean;
-  /** Header controls for the last output-side message (e.g. Correct output). */
-  outputControls?: React.ReactNode;
+  /** Header actions for the last output-side message (e.g. Correct output). */
+  outputActions?: IOSectionAction[];
 }
 
 /**
@@ -61,7 +62,7 @@ export function ChatMessageList({
   contentMode = "all",
   showSystemPrompt,
   titleBySide = false,
-  outputControls,
+  outputActions,
 }: ChatMessageListProps) {
   // Filter messages to only those with renderable content
   const messagesToRender = useMemo(
@@ -134,8 +135,8 @@ export function ChatMessageList({
                 isOutputMessage={isOutputMessage}
                 contentMode={contentMode}
                 defaultCollapsed={startsCollapsed(filteredIndex, message)}
-                controlButtons={
-                  filteredIndex === lastOutputIndex ? outputControls : undefined
+                actions={
+                  filteredIndex === lastOutputIndex ? outputActions : undefined
                 }
               />
             );

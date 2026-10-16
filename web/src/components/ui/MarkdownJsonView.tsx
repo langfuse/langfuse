@@ -8,7 +8,8 @@ import { Button } from "@/src/components/ui/button";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import { type MediaReturnType } from "@/src/features/media";
-import { Check, Copy } from "lucide-react";
+import { Check, Copy, type LucideIcon } from "lucide-react";
+import { type IOSectionAction } from "@/src/components/ui/IOSection";
 import { useMemo, useState } from "react";
 import { type z } from "zod";
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
@@ -18,11 +19,7 @@ import { classifyMediaValue } from "@/src/components/ui/media/mediaUtils";
 type MarkdownJsonViewHeaderProps = {
   title: string | React.ReactNode;
   titleIcon?: React.ReactNode;
-  /** Rendered before the title, e.g. a section caret. */
-  leading?: React.ReactNode;
-  /** No horizontal padding: the hosting section is flush with the panel. */
-  flush?: boolean;
-  handleOnCopy?: (event?: React.MouseEvent<HTMLButtonElement>) => void;
+  handleOnCopy: (event?: React.MouseEvent<HTMLButtonElement>) => void;
   controlButtons?: React.ReactNode;
   /** Hosts that render their own copy control (e.g. inside the content box)
       suppress the header's. */
@@ -30,67 +27,29 @@ type MarkdownJsonViewHeaderProps = {
   /** Reveal the right-side controls only while hovering the hosting section
       (requires a `group/iosection` ancestor). */
   hoverRevealControls?: boolean;
-  /** Makes the title row (everything but the controls) one toggle button. */
-  toggle?: { expanded: boolean; label: string; onToggle: () => void };
-  /** Rendered after the title, outside the toggle button (e.g. an info
-      tooltip trigger, which may not nest inside a button). */
-  titleAside?: React.ReactNode;
 };
 
 export function MarkdownJsonViewHeader({
   title,
   titleIcon,
-  leading,
-  flush = false,
   handleOnCopy,
   controlButtons,
   hideCopyButton = false,
   hoverRevealControls = false,
-  toggle,
-  titleAside,
 }: MarkdownJsonViewHeaderProps) {
   const [isCopied, setIsCopied] = useState(false);
 
-  const titleContent = (
-    <>
-      {leading}
-      {titleIcon}
-      {title}
-    </>
-  );
-  // Masked from session recordings: the title can be a customer-provided
-  // message `name` (or tool name) rather than a fixed role string.
-  const titleRow = toggle ? (
-    <>
-      <button
-        type="button"
-        className="ph-no-capture focus-visible:ring-ring flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-sm text-left capitalize focus-visible:ring-2 focus-visible:outline-hidden"
-        aria-expanded={toggle.expanded}
-        aria-label={toggle.label}
-        onClick={toggle.onToggle}
-      >
-        {titleContent}
-      </button>
-      {titleAside}
-    </>
-  ) : (
-    <div className="ph-no-capture flex items-center gap-2">
-      {titleContent}
-      {titleAside}
-    </div>
-  );
-
   return (
-    <div
-      className={cn(
-        "io-message-header flex h-8 flex-row items-center justify-between text-sm font-bold capitalize",
-        flush ? "px-0" : "px-1",
-      )}
-    >
-      {titleRow}
+    <div className="io-message-header flex h-8 flex-row items-center justify-between px-1 text-sm font-bold capitalize">
+      {/* Masked from session recordings: the title can be a customer-provided
+          message `name` (or tool name) rather than a fixed role string. */}
+      <div className="ph-no-capture flex items-center gap-2">
+        {titleIcon}
+        {title}
+      </div>
       <div
         className={cn(
-          "mr-1 flex shrink-0 flex-row items-center gap-1",
+          "mr-1 flex min-w-0 shrink flex-row items-center gap-1",
           // pointer-coarse: touch devices have no hover, so the controls
           // stay visible there instead of being unreachable.
           hoverRevealControls &&
@@ -106,7 +65,7 @@ export function MarkdownJsonViewHeader({
             type="button"
             onClick={(event) => {
               setIsCopied(true);
-              handleOnCopy?.(event);
+              handleOnCopy(event);
               setTimeout(() => setIsCopied(false), 1000);
             }}
             className="text-muted-foreground hover:text-foreground hover:bg-transparent"
@@ -176,7 +135,7 @@ export function MarkdownJsonView({
   className,
   audio,
   media,
-  controlButtons,
+  actions,
   beforeContent,
   afterContent,
   isSystemPrompt,
@@ -184,11 +143,12 @@ export function MarkdownJsonView({
 }: {
   content?: unknown;
   title?: string;
-  titleIcon?: React.ReactNode;
+  titleIcon?: LucideIcon;
   className?: string;
   audio?: OpenAIOutputAudioType;
   media?: MediaReturnType[];
-  controlButtons?: React.ReactNode;
+  /** Section header actions. */
+  actions?: IOSectionAction[];
   /** Rendered inside the section box above the content (e.g. thinking blocks). */
   beforeContent?: React.ReactNode;
   /** Rendered inside the section box below the content (e.g. tool calls). */
@@ -217,7 +177,7 @@ export function MarkdownJsonView({
       titleIcon={titleIcon}
       audio={audio}
       media={media}
-      controlButtons={controlButtons}
+      actions={actions}
       beforeContent={beforeContent}
       afterContent={afterContent}
       isSystemPrompt={isSystemPrompt}
@@ -231,7 +191,7 @@ export function MarkdownJsonView({
       className={className}
       media={media}
       currentView="pretty"
-      controlButtons={controlButtons}
+      actions={actions}
       beforeContent={beforeContent}
       afterContent={afterContent}
       isSystemPrompt={isSystemPrompt}

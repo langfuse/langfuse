@@ -14,7 +14,7 @@ import { decodeUnicodeInJson } from "@/src/utils/decodeUnicodeInJson";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { type MediaReturnType } from "@/src/features/media";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
-import { IOSection } from "@/src/components/ui/IOSection";
+import { IOSection, type IOSectionAction } from "@/src/components/ui/IOSection";
 import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
@@ -25,6 +25,7 @@ import {
   ChevronRight,
   UnfoldVertical,
   FoldVertical,
+  type LucideIcon,
 } from "lucide-react";
 import {
   useReactTable,
@@ -87,27 +88,21 @@ type PrettyJsonViewTone = "danger" | "warning" | "muted" | "neutral";
 
 const PRETTY_JSON_VIEW_TONE_CLASSES: Record<
   PrettyJsonViewTone,
-  { container: string; row: string; cell: string }
+  { row: string; cell: string }
 > = {
   danger: {
-    container:
-      "border-red-100 bg-red-50 text-red-900 dark:border-dark-red/20 dark:bg-light-red/35 dark:text-red-300",
     row: "hover:bg-light-red/50 dark:hover:bg-light-red/35",
     cell: "border-dark-red/20 dark:border-dark-red/15",
   },
   warning: {
-    container:
-      "border-yellow-100 bg-yellow-50 text-yellow-900 dark:border-dark-yellow/20 dark:bg-light-yellow/35 dark:text-yellow-300",
     row: "hover:bg-light-yellow/50 dark:hover:bg-light-yellow/35",
     cell: "border-dark-yellow/20 dark:border-dark-yellow/15",
   },
   muted: {
-    container: "border-transparent text-foreground-secondary",
     row: "hover:bg-muted",
     cell: "border-border",
   },
   neutral: {
-    container: "border-transparent text-foreground-secondary",
     row: "hover:bg-muted",
     cell: "border-border",
   },
@@ -720,7 +715,7 @@ export function PrettyJsonView(props: {
   json?: unknown;
   parsedJson?: unknown; // Pre-parsed data (optional, from useParsedObservation hook)
   title?: string;
-  titleIcon?: React.ReactNode;
+  titleIcon?: LucideIcon;
   /** Drop the Path / Value header row. */
   className?: string;
   isLoading?: boolean;
@@ -729,7 +724,8 @@ export function PrettyJsonView(props: {
   collapseStringsAfterLength?: number | null;
   media?: MediaReturnType[];
   scrollable?: boolean;
-  controlButtons?: React.ReactNode;
+  /** Section header actions, after the table's own. */
+  actions?: IOSectionAction[];
   currentView?: "pretty" | "json";
   externalExpansionState?: Record<string, boolean> | boolean;
   onExternalExpansionChange?: (
@@ -757,7 +753,7 @@ export function PrettyJsonView(props: {
   const toneClasses = props.tone
     ? PRETTY_JSON_VIEW_TONE_CLASSES[props.tone]
     : undefined;
-  const codeClassName = cn(props.codeClassName, toneClasses?.container);
+  const codeClassName = props.codeClassName;
   // Large plain-string gate (LFE-10991): a multi-MB top-level string skips
   // deepParseJson's object-only `maxSize` guard, so without this it would run
   // several full-length main-thread passes (parse, the markdown-probe
@@ -815,7 +811,8 @@ export function PrettyJsonView(props: {
     return decodeUnicodeInJson(result);
   }, [props.json, props.parsedJson, props.isParsing, largeStringValue]);
 
-  const tableBorderless = Boolean(props.title) && !props.tone;
+  // The section box frames titled tables, toned ones included.
+  const tableBorderless = Boolean(props.title);
 
   // JSONView internally calls deepParseJson (with maxDepth:3) which mutates
   // nested string fields in place. Because baseTableData[].rawChildData holds
@@ -1384,21 +1381,18 @@ export function PrettyJsonView(props: {
     </>
   );
 
-  const expandCollapseButton = shouldUseTableView && hasExpandableRows && (
-    <Button
-      variant="ghost"
-      size="icon-xs"
-      onClick={() => expandAllRef.current?.()}
-      className="text-muted-foreground hover:text-foreground hover:bg-transparent"
-      title={allRowsExpanded ? "Collapse all rows" : "Expand all rows"}
-    >
-      {allRowsExpanded ? (
-        <FoldVertical className="icon-base text-icon-foreground" />
-      ) : (
-        <UnfoldVertical className="icon-base text-icon-foreground" />
-      )}
-    </Button>
-  );
+  const expandAllAction: IOSectionAction | undefined =
+    shouldUseTableView && hasExpandableRows
+      ? {
+          icon: allRowsExpanded ? FoldVertical : UnfoldVertical,
+          label: allRowsExpanded ? "Collapse all rows" : "Expand all rows",
+          onClick: () => expandAllRef.current?.(),
+        }
+      : undefined;
+  const sectionActions = [
+    ...(expandAllAction ? [expandAllAction] : []),
+    ...(props.actions ?? []),
+  ];
 
   const scrollableBody = props.scrollable ? (
     <div
@@ -1441,16 +1435,10 @@ export function PrettyJsonView(props: {
         title={props.title}
         titleIcon={props.titleIcon}
         onCopy={handleOnCopy}
-        controlButtons={
-          <>
-            {expandCollapseButton}
-            {props.controlButtons}
-          </>
-        }
+        actions={sectionActions.length > 0 ? sectionActions : undefined}
         defaultCollapsed={props.defaultCollapsed}
-        // Toned bodies (status messages) paint their own box.
-        boxed={!props.tone}
-        bodyPadding={shouldUseTableView ? "sm" : "md"}
+        variant={shouldUseTableView ? "table" : "text"}
+        tone={props.tone}
         {...(systemPrompt.shouldBeCollapsible && {
           collapsed: systemPrompt.isCollapsed,
           onCollapsedChange: systemPrompt.toggleCollapsed,

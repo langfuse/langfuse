@@ -7,6 +7,7 @@ import {
   deepParseJson,
 } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { type IOSectionAction } from "@/src/components/ui/IOSection";
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 import { type MediaReturnType } from "@/src/features/media";
 import { type ChatMLParserResult } from "../../hooks/useChatMLParser";
@@ -26,7 +27,7 @@ import {
 } from "./IOPreview";
 import {
   CorrectedOutputField,
-  CorrectOutputButton,
+  useCorrectOutputAction,
 } from "./components/CorrectedOutputField";
 import { useCorrectionData } from "./hooks/useCorrectionData";
 import { shouldRenderMessageForContentMode } from "@/src/features/traces/fns/chatMessageUtils";
@@ -51,7 +52,7 @@ interface JsonInputOutputViewProps {
     expansion: Record<string, boolean> | boolean,
   ) => void;
   /** Extra header controls on the Output section. */
-  outputControls?: React.ReactNode;
+  outputActions?: IOSectionAction[];
 }
 
 function JsonInputOutputView({
@@ -67,7 +68,7 @@ function JsonInputOutputView({
   outputExpansionState,
   onInputExpansionChange,
   onOutputExpansionChange,
-  outputControls,
+  outputActions,
 }: JsonInputOutputViewProps) {
   const showInput = !hideInput && !(hideIfNull && !parsedInput);
   const showOutput = !hideOutput && !(hideIfNull && !parsedOutput);
@@ -94,7 +95,7 @@ function JsonInputOutputView({
           isParsing={isParsing}
           media={media?.filter((m) => m.field === "output") ?? []}
           currentView="pretty"
-          controlButtons={outputControls}
+          actions={outputActions}
           externalExpansionState={outputExpansionState}
           onExternalExpansionChange={onOutputExpansionChange}
         />
@@ -280,6 +281,9 @@ export function IOPreviewPretty({
   // opens into its editor from there. Without an Output header (no output
   // message rendered) the field keeps its own inline trigger.
   const [correctionOpen, setCorrectionOpen] = useState(false);
+  const correctOutputAction = useCorrectOutputAction(() =>
+    setCorrectionOpen(true),
+  );
   const { effectiveCorrection } = useCorrectionData(
     outputCorrection,
     observationId,
@@ -297,13 +301,13 @@ export function IOPreviewPretty({
       )
     : !hideOutput && !(hideIfNull && !parsedOutput);
   const correctionTrigger = hasOutputHeader ? "header" : "inline";
-  const outputControls =
+  const outputActions =
     showCorrections &&
     hasOutputHeader &&
     !correctionOpen &&
-    !effectiveCorrection ? (
-      <CorrectOutputButton onClick={() => setCorrectionOpen(true)} />
-    ) : undefined;
+    !effectiveCorrection
+      ? [correctOutputAction]
+      : undefined;
   // In header mode the field mounts only while open or with a correction.
   const showCorrectionField =
     showCorrections &&
@@ -359,7 +363,7 @@ export function IOPreviewPretty({
             contentMode={contentMode}
             showSystemPrompt={showSystemPrompt}
             titleBySide={titleBySide}
-            outputControls={outputControls}
+            outputActions={outputActions}
           />
           {correctedOutputField}
         </div>
@@ -367,7 +371,7 @@ export function IOPreviewPretty({
         <div>
           <JsonInputOutputView
             {...jsonViewProps}
-            outputControls={outputControls}
+            outputActions={outputActions}
           />
           {correctedOutputField}
         </div>

@@ -13,7 +13,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/src/components/ui/collapsible";
-import { InternalFeatureBadge } from "@/src/features/feature-flags";
 import { IOSection } from "@/src/components/ui/IOSection";
 
 export function SectionSkills({ projectId, skills }: SectionSkillsProps) {
@@ -31,16 +30,7 @@ export function SectionSkills({ projectId, skills }: SectionSkillsProps) {
   }
 
   return (
-    <IOSection
-      title={
-        <>
-          Skills
-          <Badge color="filled" size="sm" text={String(groups.length)} />
-          <InternalFeatureBadge />
-        </>
-      }
-      titleText="Skills"
-    >
+    <IOSection title="Skills" count={groups.length} internal>
       <Collapsible
         open={isGroupExpanded}
         onOpenChange={handleGroupChange}

@@ -20,7 +20,7 @@ import remarkGfm from "remark-gfm";
 import { Codeblock as CodeBlock } from "@/src/components/design-system/Codeblock/Codeblock";
 import { normalizeCodeblockLanguage } from "@/src/utils/normalizeCodeblockLanguage";
 import { useTheme } from "next-themes";
-import { ImageOff, Info } from "lucide-react";
+import { ImageOff, Info, type LucideIcon } from "lucide-react";
 import { MentionBadge } from "@/src/features/comments/components/MentionBadge";
 import {
   OpenAIUrlImageUrl,
@@ -38,7 +38,7 @@ import { ResizableImage } from "@/src/components/ui/resizable-image";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { type MediaReturnType } from "@/src/features/media";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import { IOSection } from "@/src/components/ui/IOSection";
+import { IOSection, type IOSectionAction } from "@/src/components/ui/IOSection";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { MENTION_USER_PREFIX } from "@/src/features/comments/lib/mentionParser";
 import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
@@ -516,7 +516,7 @@ export function MarkdownView({
   audio,
   media,
   className,
-  controlButtons,
+  actions,
   beforeContent,
   afterContent,
   isSystemPrompt,
@@ -526,11 +526,12 @@ export function MarkdownView({
       reference strings must still be strings when they reach the part guards. */
   markdown: string | z.input<typeof OpenAIContentSchema>;
   title?: string;
-  titleIcon?: React.ReactNode;
+  titleIcon?: LucideIcon;
   audio?: OpenAIOutputAudioType;
   media?: MediaReturnType[];
   className?: string;
-  controlButtons?: React.ReactNode;
+  /** Section header actions. */
+  actions?: IOSectionAction[];
   /** Rendered inside the section box above the content (e.g. thinking blocks). */
   beforeContent?: React.ReactNode;
   /** Rendered inside the section box below the content (e.g. tool calls). */
@@ -651,7 +652,7 @@ export function MarkdownView({
       title={title}
       titleIcon={titleIcon}
       onCopy={handleOnCopy}
-      controlButtons={controlButtons}
+      actions={actions}
       defaultCollapsed={defaultCollapsed}
       {...(systemPrompt.shouldBeCollapsible && {
         collapsed: systemPrompt.isCollapsed,

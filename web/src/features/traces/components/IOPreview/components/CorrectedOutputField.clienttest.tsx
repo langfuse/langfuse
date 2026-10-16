@@ -59,10 +59,7 @@ vi.mock("./CorrectedOutputDiffDialog", () => ({
   CorrectedOutputDiffDialog: () => null,
 }));
 
-import {
-  CorrectedOutputField,
-  CorrectOutputButton,
-} from "./CorrectedOutputField";
+import { CorrectedOutputField } from "./CorrectedOutputField";
 
 const baseProps = {
   projectId: "project-id",
@@ -138,27 +135,19 @@ describe("CorrectedOutputField visibility", () => {
   });
 
   it("in header mode shows the section without its own link", () => {
-    const onClick = vi.fn();
     render(
-      <>
-        <CorrectOutputButton onClick={onClick} />
-        <CorrectedOutputField
-          {...baseProps}
-          existingCorrection={null}
-          trigger="header"
-          startEditing
-        />
-      </>,
+      <CorrectedOutputField
+        {...baseProps}
+        existingCorrection={null}
+        trigger="header"
+        startEditing
+      />,
     );
 
     expect(screen.getByText("Corrected output")).toBeInTheDocument();
-    // Only the header pencil carries the name; the field renders no link.
     expect(
-      screen.getAllByRole("button", { name: "Correct output" }),
-    ).toHaveLength(1);
-
-    fireEvent.click(screen.getByRole("button", { name: "Correct output" }));
-    expect(onClick).toHaveBeenCalledTimes(1);
+      screen.queryByRole("button", { name: "Correct output" }),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps the section collapsed when no correction exists", () => {
