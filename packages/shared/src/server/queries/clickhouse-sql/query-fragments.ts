@@ -7,12 +7,12 @@ import {
   EventsAggQueryBuilder,
   EventsQueryBuilder,
   EventsSessionAggregationQueryBuilder,
-  type SessionEventsField,
   type SessionEventsFields,
   ExperimentsAggregationFieldSetName,
   ExperimentsAggregationQueryBuilder,
   type CTEWithSchema,
 } from "./event-query-builder";
+import type { SessionEventsField } from "../../repositories/events-selects";
 import { AGGREGATABLE_SCORE_TYPES } from "../../../domain/scores";
 import {
   OBSERVATIONS_TO_TRACE_INTERVAL,
