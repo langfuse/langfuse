@@ -131,13 +131,17 @@ describe("validateBlobStorageBucketHost", () => {
     });
   });
 
-  it("skips the check when path-style addressing is forced", async () => {
+  it.each([
+    ["path-style is forced", { forcePathStyle: true }],
+    ["the endpoint is an IP literal", { endpoint: "http://10.0.0.1:9000" }],
+    ["a dotted bucket has a short label", { bucketName: "exports.v2" }],
+  ])("skips the check when %s", async (_, override) => {
     const resolve4 = vi.spyOn(dns, "resolve4");
 
     await expect(
       validateBlobStorageBucketHost(
-        { ...target, forcePathStyle: true },
-        allowlist,
+        { ...target, ...override },
+        { ...allowlist, allowedHosts: ["minio.internal", "10.0.0.1"] },
       ),
     ).resolves.toBeUndefined();
     expect(resolve4).not.toHaveBeenCalled();

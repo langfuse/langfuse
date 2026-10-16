@@ -10,9 +10,12 @@ import {
   validateOutboundResolvedIp,
   validateOutboundUrlHost,
 } from "../outbound-url";
+import { isIPAddress } from "../webhooks/ipBlocking";
 
 export const BLOB_STORAGE_ENDPOINT_VALIDATION_LOG_CONTEXT =
   "Blob storage endpoint";
+
+const S3_BUCKET_LABEL = /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/;
 
 const STRICT_BLOB_STORAGE_ENDPOINT_WHITELIST: OutboundUrlValidationWhitelist = {
   hosts: [],
@@ -112,52 +115,15 @@ export async function validateBlobStorageBucketHost(
   target: BlobStorageBucketHostTarget,
   whitelist: OutboundUrlValidationWhitelist = blobStorageEndpointWhitelistFromEnv(),
 ): Promise<void> {
-  const options = blobStorageEndpointConnectionValidationOptions(whitelist);
-  const allowedHosts = options?.whitelist?.allowedHosts ?? [];
-  if (
-    !options?.whitelist ||
-    allowedHosts.length === 0 ||
-    !target.endpoint ||
-    target.forcePathStyle ||
-    target.type === "AZURE_BLOB_STORAGE" ||
-    target.type === "GOOGLE_CLOUD_STORAGE"
-  ) {
-    return;
-  }
+  const connectionWhitelist =
+    blobStorageEndpointConnectionValidationOptions(whitelist)?.whitelist;
+  const bucketHost = virtualHostedBucketHost(
+    target,
+    connectionWhitelist?.allowedHosts ?? [],
+  );
+  if (!connectionWhitelist || !bucketHost) return;
 
-  const url = parseOutboundUrl(target.endpoint);
-  const bucketName = target.bucketName.trim();
-  // HTTPS keeps dotted bucket names on the endpoint host so the certificate
-  // still matches.
-  if (
-    !allowedHosts.includes(url.hostname) ||
-    !isDnsCompatibleBucketName(bucketName) ||
-    (url.protocol === "https:" && bucketName.includes("."))
-  ) {
-    return;
-  }
-
-  // No hostname blocklist here: sockets are only checked by resolved address,
-  // so names like `{bucket}.minio.internal` must not be rejected by suffix.
-  const bucketHost = `${bucketName}.${url.hostname}`;
-  try {
-    for (const ip of await resolveHost(bucketHost)) {
-      validateOutboundResolvedIp({
-        hostname: bucketHost,
-        ip,
-        whitelist: options.whitelist,
-        logContext: BLOB_STORAGE_ENDPOINT_VALIDATION_LOG_CONTEXT,
-      });
-    }
-  } catch (error) {
-    if (error instanceof OutboundUrlValidationError) {
-      throw new OutboundUrlValidationError(
-        error.code,
-        `${error.message} for ${bucketHost}. S3 connects to the bucket as a subdomain of the endpoint unless Force Path Style is on. Turn on Force Path Style, or add the address to LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS or LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IP_SEGMENTS.`,
-      );
-    }
-    throw error;
-  }
+  await assertBucketHostAddressesAllowed(bucketHost, connectionWhitelist);
 }
 
 // Rejection of a keyless GCS export. The worker classifies it by name as a
@@ -257,4 +223,77 @@ function getSelfHostedWhitelistGuidance(
   }
 
   return " For self-hosted deployments with internal blob storage endpoints, configure LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_HOST, LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS, or LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IP_SEGMENTS.";
+}
+
+/** virtualHostedBucketHost returns the `{bucket}.{host}` name the S3 SDK connects to, if it virtual-hosts this target under a listed host. */
+function virtualHostedBucketHost(
+  target: BlobStorageBucketHostTarget,
+  allowedHosts: string[],
+): string | undefined {
+  if (
+    allowedHosts.length === 0 ||
+    !target.endpoint ||
+    target.forcePathStyle ||
+    target.type === "AZURE_BLOB_STORAGE" ||
+    target.type === "GOOGLE_CLOUD_STORAGE"
+  ) {
+    return undefined;
+  }
+
+  const url = parseOutboundUrl(target.endpoint);
+  const bucketName = target.bucketName.trim();
+  if (
+    !allowedHosts.includes(url.hostname) ||
+    isIpLiteralHostname(url.hostname) ||
+    !isSdkVirtualHostableBucket(bucketName, url.protocol === "https:")
+  ) {
+    return undefined;
+  }
+  return `${bucketName}.${url.hostname}`;
+}
+
+// The SDK addresses IP endpoints path-style.
+function isIpLiteralHostname(hostname: string): boolean {
+  return hostname.startsWith("[") || isIPAddress(hostname);
+}
+
+// Mirrors the S3 endpoint ruleset: over HTTPS a dotted bucket stays on the
+// endpoint host so the certificate matches; over HTTP every label must be a
+// 3-63 character bucket label.
+function isSdkVirtualHostableBucket(
+  bucketName: string,
+  https: boolean,
+): boolean {
+  if (!isDnsCompatibleBucketName(bucketName)) return false;
+  if (!bucketName.includes(".")) return true;
+  return (
+    !https &&
+    bucketName.split(".").every((label) => S3_BUCKET_LABEL.test(label))
+  );
+}
+
+async function assertBucketHostAddressesAllowed(
+  bucketHost: string,
+  whitelist: OutboundUrlValidationWhitelist,
+): Promise<void> {
+  // No hostname blocklist here: sockets are only checked by resolved address,
+  // so names like `{bucket}.minio.internal` must not be rejected by suffix.
+  try {
+    for (const ip of await resolveHost(bucketHost)) {
+      validateOutboundResolvedIp({
+        hostname: bucketHost,
+        ip,
+        whitelist,
+        logContext: BLOB_STORAGE_ENDPOINT_VALIDATION_LOG_CONTEXT,
+      });
+    }
+  } catch (error) {
+    if (error instanceof OutboundUrlValidationError) {
+      throw new OutboundUrlValidationError(
+        error.code,
+        `${error.message} for ${bucketHost}. S3 connects to the bucket as a subdomain of the endpoint unless Force Path Style is on. Turn on Force Path Style, or add the address to LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS or LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IP_SEGMENTS.`,
+      );
+    }
+    throw error;
+  }
 }
