@@ -10,7 +10,11 @@ import {
   PopoverContent,
 } from "@/src/components/ui/popover";
 import { rankFacetOptions } from "@/src/features/filters/lib/facet-display";
-import { isStringPresenceOperator } from "@/src/features/filters/lib/sidebar-filter-actions";
+import {
+  isStringComparisonOperator,
+  isStringPresenceOperator,
+  parseComparisonValue,
+} from "@/src/features/filters/lib/sidebar-filter-actions";
 import { Plus, X } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import type {
@@ -81,6 +85,10 @@ const STRING_OPERATOR_LABELS = {
   "does not contain": "does not contain",
   "is set": "is set",
   "is not set": "is not set",
+  ">": "greater than",
+  "<": "less than",
+  ">=": "greater than or equals",
+  "<=": "less than or equals",
 } as const;
 
 type StringOperator = keyof typeof STRING_OPERATOR_LABELS;
@@ -291,11 +299,14 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
     // Presence rows (`is set` / `is not set`) need no value to be applied.
     (isStringPresenceOperator(filter.operator)
       ? true
-      : Array.isArray(filter.value)
-        ? filter.value.length > 0
-        : typeof filter.value === "string"
-          ? filter.value.trim() !== ""
-          : true);
+      : isStringComparisonOperator(filter.operator) &&
+          typeof filter.value === "string"
+        ? parseComparisonValue(filter.value) !== null
+        : Array.isArray(filter.value)
+          ? filter.value.length > 0
+          : typeof filter.value === "string"
+            ? filter.value.trim() !== ""
+            : true);
 
   const updateFilters = (filters: KeyedFilterEntry[]) => {
     setDraftFilters(
@@ -529,9 +540,11 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                     const operator = value as StringOperator;
                     handleFilterChange(index, {
                       operator,
-                      // Presence operators carry no value; clear it so no
-                      // stale string is persisted alongside `is set`.
-                      ...(isStringPresenceOperator(operator)
+                      // Presence operators carry no value, and comparisons
+                      // need a number; clear what the new operator can't use.
+                      ...(isStringPresenceOperator(operator) ||
+                      (isStringComparisonOperator(operator) &&
+                        parseComparisonValue(filter.value as string) === null)
                         ? { value: "" }
                         : {}),
                     });
@@ -539,7 +552,19 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                 />
 
                 {/* String value input, hidden for value-less presence operators */}
-                {isStringPresenceOperator(filter.operator) ? null : (
+                {isStringPresenceOperator(
+                  filter.operator,
+                ) ? null : isStringComparisonOperator(filter.operator) ? (
+                  <Input
+                    type="number"
+                    placeholder="Value"
+                    value={filter.value as string}
+                    onChange={(e) =>
+                      handleFilterChange(index, { value: e.target.value })
+                    }
+                    disabled={!filter.key}
+                  />
+                ) : (
                   <SuggestingInput
                     value={filter.value as string}
                     onChange={(value) => handleFilterChange(index, { value })}
