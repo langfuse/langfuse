@@ -1,4 +1,4 @@
-import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
+import { Button } from "@/src/components/design-system/Button/Button";
 
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { EvaluatorGallerySectionHeader } from "@/src/features/evals/v2/components/EvaluatorGallerySectionHeader/EvaluatorGallerySectionHeader";
@@ -49,6 +49,7 @@ export function EvaluatorGallerySection({
   const canToggle =
     totalCount > EVALUATOR_GALLERY_PREVIEW_SIZE && onExpandedChange;
   const handleToggleExpanded = () => onExpandedChange?.(!expanded);
+  const isProjectRows = section.key === EVALUATOR_GALLERY_PROJECT_SECTION_KEY;
 
   return (
     <section className="flex scroll-mt-1 flex-col gap-3">
@@ -71,14 +72,15 @@ export function EvaluatorGallerySection({
         />
       )}
       {canToggle ? (
-        <button
-          type="button"
-          className="text-muted-foreground hover:text-foreground flex w-fit items-center gap-1.5 px-1 text-sm"
-          onClick={handleToggleExpanded}
-        >
-          <DropdownIndicator direction={expanded ? "up" : "down"} nudge />
-          {expanded ? "Show fewer" : `Show all ${totalCount} templates`}
-        </button>
+        // Rows already end in their own padding, so the gap matches cards.
+        <div className={isProjectRows ? "-mt-3" : undefined}>
+          <Button
+            variant="text"
+            size="sm"
+            text={expanded ? "Show fewer" : `Show all ${totalCount} templates`}
+            onClick={handleToggleExpanded}
+          />
+        </div>
       ) : null}
     </section>
   );
