@@ -7,7 +7,8 @@ import { type ScoreDomain } from "@langfuse/shared";
 import { useCorrectionData } from "../hooks/useCorrectionData";
 import { useCorrectionMutations } from "../hooks/useCorrectionMutations";
 import { useCorrectionEditor } from "../hooks/useCorrectionEditor";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
@@ -62,6 +63,10 @@ export function CorrectedOutputField({
 
   // When no correction exists, keep the section collapsed until it is opened.
   const [isExpanded, setIsExpanded] = useState(false);
+  const editorRef = useRef<ReactCodeMirrorRef | null>(null);
+  const focusEditor = () => {
+    requestAnimationFrame(() => editorRef.current?.view?.focus());
+  };
 
   // Merge cache + server data
   const { effectiveCorrection, correctionValue } = useCorrectionData(
@@ -173,7 +178,9 @@ export function CorrectedOutputField({
               section: "corrected_output",
               collapsed: false,
             });
+            // One click: open the section straight into the editor.
             setIsExpanded(true);
+            handleEdit();
           }}
           className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs hover:underline"
         >
@@ -305,6 +312,8 @@ export function CorrectedOutputField({
         mode={strictJsonMode ? "json" : "text"}
         minHeight={200}
         placeholder="Enter corrected output..."
+        editorRef={editorRef}
+        onEditorMount={focusEditor}
         className={cn(
           EDITOR_IN_SECTION_CLASSES,
           "focus-within:ring-ring focus-within:ring-2",

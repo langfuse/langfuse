@@ -56,7 +56,8 @@ export function ToolCallInvocationsView({
   }
 
   return (
-    <div className={cn("flex flex-col gap-3", className)}>
+    // pb-1 + the box's py-2 = the box's horizontal inset below the last table.
+    <div className={cn("flex flex-col gap-3 pb-1", className)}>
       {toolCalls.map((toolCall, index) => {
         const invocationNumber = toolCallNumbers?.[index];
         // Without a paired result the arguments are the whole card and need no label.

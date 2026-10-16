@@ -261,13 +261,15 @@ function ToolCallStatusBadge({
   // Fixed-width column so "called" and "not called" start at the same x.
   const badge = (
     <span className="text-muted-foreground flex w-20 items-center gap-1.5 text-xs whitespace-nowrap">
+      {/* mt-px on an items-center row shifts the dot by half a pixel. */}
+      <span
+        className={cn(
+          "size-1.5 shrink-0 rounded-full",
+          isCalled && "mt-px bg-green-500 dark:bg-green-400",
+        )}
+        aria-hidden
+      />
       {statusText}
-      {isCalled && (
-        <span
-          className="size-1.5 translate-y-px rounded-full bg-green-500 dark:bg-green-400"
-          aria-hidden
-        />
-      )}
     </span>
   );
 
@@ -367,75 +369,63 @@ function ToolDefinitionRow({
 
       {isExpanded && (
         // Indented to the tool name (icon-base + gap-2).
-        <div className="border-border relative border-t py-3 pl-5.5">
-          <div className="absolute top-1 right-0">
-            <div className="h-fit py-0.5">
-              <Tabs
-                value={currentView}
-                onValueChange={(value) =>
-                  setCurrentView(value as "formatted" | "json")
-                }
-              >
-                <Tabs.List variant="inset" size="sm">
-                  <Tabs.Trigger value="formatted" label="Formatted" />
-                  <Tabs.Trigger value="json" label="Raw" />
-                </Tabs.List>
-              </Tabs>
-            </div>
-          </div>
-
-          {currentView === "formatted" && (
-            <div className="space-y-4">
-              {tool.description && (
-                <div>
-                  <div className="text-muted-foreground mb-1.5 text-xs font-bold">
-                    Description
-                  </div>
-                  <div className="ph-no-capture text-muted-foreground text-sm">
-                    {tool.description}
-                  </div>
+        <div className="border-border border-t py-3 pl-5.5">
+          <div className="space-y-4">
+            {tool.description && (
+              <div>
+                <div className="text-muted-foreground mb-1.5 text-xs font-bold">
+                  Description
                 </div>
-              )}
+                <div className="ph-no-capture text-muted-foreground text-sm">
+                  {tool.description}
+                </div>
+              </div>
+            )}
 
-              {tool.parameters && (
-                <div>
-                  <div className="text-muted-foreground mb-1.5 text-xs font-bold">
+            {tool.parameters && (
+              <div>
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <div className="text-muted-foreground text-xs font-bold">
                     Parameters
                   </div>
-                  <PrettyJsonView
-                    json={tool.parameters}
-                    currentView="pretty"
-                    codeClassName="text-xs"
-                  />
+                  {/* Switches the parameters table only. */}
+                  <Tabs
+                    value={currentView}
+                    onValueChange={(value) =>
+                      setCurrentView(value as "formatted" | "json")
+                    }
+                  >
+                    <Tabs.List variant="inset" size="sm">
+                      <Tabs.Trigger value="formatted" label="Formatted" />
+                      <Tabs.Trigger value="json" label="Raw" />
+                    </Tabs.List>
+                  </Tabs>
+                </div>
+                <PrettyJsonView
+                  json={tool.parameters}
+                  currentView={currentView === "json" ? "json" : "pretty"}
+                  codeClassName="text-xs"
+                />
+              </div>
+            )}
+
+            {toolCalls.length > 0 && (
+              <div>
+                <div className="text-muted-foreground mb-1.5 text-xs font-bold">
+                  Tool call arguments
+                </div>
+                <ToolCallArgumentsList toolCalls={toolCalls} />
+              </div>
+            )}
+
+            {!tool.description &&
+              !tool.parameters &&
+              toolCalls.length === 0 && (
+                <div className="text-muted-foreground text-sm">
+                  No additional details available
                 </div>
               )}
-
-              {toolCalls.length > 0 && (
-                <div>
-                  <div className="text-muted-foreground mb-1.5 text-xs font-bold">
-                    Tool call arguments
-                  </div>
-                  <ToolCallArgumentsList toolCalls={toolCalls} />
-                </div>
-              )}
-
-              {!tool.description &&
-                !tool.parameters &&
-                toolCalls.length === 0 && (
-                  <div className="text-muted-foreground text-sm">
-                    No additional details available
-                  </div>
-                )}
-            </div>
-          )}
-
-          {currentView === "json" && (
-            <PrettyJsonView
-              json={tool}
-              currentView="json"
-              codeClassName="text-xs"
-            />
-          )}
+          </div>
         </div>
       )}
     </div>
