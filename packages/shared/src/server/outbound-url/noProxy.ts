@@ -41,9 +41,6 @@ export function shouldBypassProxy(url: URL, noProxyValue: string): boolean {
   if (entries.length === 0) {
     return false; // always proxy when NO_PROXY is unset or empty
   }
-  if (noProxyValue === "*") {
-    return true; // never proxy when the wildcard is set
-  }
 
   // Strip the port from url.host instead of using url.hostname so the
   // brackets around IPv6 addresses are kept, matching undici.
@@ -55,9 +52,15 @@ export function shouldBypassProxy(url: URL, noProxyValue: string): boolean {
     if (entry.port && entry.port !== port) {
       continue;
     }
+
+    if (entry.hostname === "*") {
+      return true;
+    }
+
     if (hostname === entry.hostname) {
       return true;
     }
+
     // the hostname is a subdomain of the entry
     if (hostname.slice(-(entry.hostname.length + 1)) === `.${entry.hostname}`) {
       return true;

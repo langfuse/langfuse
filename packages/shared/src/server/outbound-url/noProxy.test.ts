@@ -9,8 +9,24 @@ describe("shouldBypassProxy", () => {
     expect(shouldBypassProxy(url("http://llm.internal.corp"), "")).toBe(false);
   });
 
+  it("bypasses all hosts when wildcard appears in a NO_PROXY list", () => {
+    expect(
+      shouldBypassProxy(url("https://api.openai.com"), "none.invalid,*"),
+    ).toBe(true);
+  });
+
   it("bypasses the proxy for every host on the wildcard", () => {
     expect(shouldBypassProxy(url("https://api.openai.com"), "*")).toBe(true);
+  });
+
+  it("restricts a port-qualified wildcard to that port", () => {
+    expect(
+      shouldBypassProxy(url("http://example.com"), "none.invalid,*:80"),
+    ).toBe(true);
+
+    expect(
+      shouldBypassProxy(url("https://example.com"), "none.invalid,*:80"),
+    ).toBe(false);
   });
 
   it("bypasses on an exact hostname match", () => {
