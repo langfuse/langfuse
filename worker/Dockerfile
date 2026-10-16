@@ -136,6 +136,23 @@ RUN set -eux; \
     --components=rustc,cargo,rust-std-${triple}; \
     rm -rf /tmp/rust.tar.gz /tmp/rust-1.98.0-${triple}
 
+# cargo-about renders the third-party license notices for the native addon's
+# Rust dependencies. Pinned, checksum-verified static release binary (sha256
+# from the release's `.tar.gz.sha256` assets); keep the version in sync with
+# ai-gateway/Dockerfile.
+RUN set -eux; \
+    case "${TARGETARCH:-amd64}" in \
+    amd64) about_arch=x86_64; about_sha256=9099a59e820c38a68b9d65f300662a567d56562f9a10f6aa4c7e86c17c2566af ;; \
+    arm64) about_arch=aarch64; about_sha256=af5169282fb6f84e13471493f405437e43ac517744c9ae12fbe2cdf0a6f0e5a8 ;; \
+    *) echo "unsupported TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    about_dir="cargo-about-0.9.2-${about_arch}-unknown-linux-musl"; \
+    curl -fsSL -o /tmp/cargo-about.tar.gz "https://github.com/EmbarkStudios/cargo-about/releases/download/0.9.2/${about_dir}.tar.gz"; \
+    echo "${about_sha256}  /tmp/cargo-about.tar.gz" | sha256sum -c -; \
+    tar -xzf /tmp/cargo-about.tar.gz -C /tmp; \
+    install -m 0755 "/tmp/${about_dir}/cargo-about" /usr/local/bin/cargo-about; \
+    rm -rf /tmp/cargo-about.tar.gz "/tmp/${about_dir}"
+
 FROM --platform=${TARGETPLATFORM:-linux/amd64} toolchain AS builder
 
 WORKDIR /app
@@ -165,6 +182,18 @@ ARG NEXT_PUBLIC_POSTHOG_HOST
 COPY --from=pruner /app/out/full/ .
 
 RUN turbo run build --filter=worker...
+
+# Runs after the build so the generated clickhouse patch overlay
+# (packages/native/.cargo) resolves the same dependency graph that was
+# compiled. `cargo fetch` adds the sources the build skipped (dev and
+# other-target dependencies) that cargo metadata still reads; `generate` then
+# reads licenses only from local crate sources and fails on any dependency
+# whose license packages/native/about.toml does not accept.
+RUN cd packages/native && \
+    mkdir -p /usr/share/licenses/langfuse-native && \
+    cargo fetch --locked && \
+    cargo about generate --frozen --fail about.hbs \
+    -o /usr/share/licenses/langfuse-native/THIRD_PARTY_LICENSES.txt
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} builder AS prod-deps
 
@@ -200,6 +229,7 @@ ENV DOCKER_BUILD 0
 
 # Copy only production worker payload instead of full builder workspace (just /prod/worker not entire /app)
 COPY --from=prod-deps --chown=expressjs:expressjs /prod/worker ./worker
+COPY --from=builder /usr/share/licenses/langfuse-native /usr/share/licenses/langfuse-native
 RUN chmod +x ./worker/entrypoint.sh
 # Numeric USER (uid of expressjs) so runAsNonRoot checks and Iron Bank
 # hardening validation can verify the user without resolving names.
