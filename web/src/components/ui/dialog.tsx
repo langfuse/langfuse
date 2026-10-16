@@ -31,7 +31,7 @@ type DialogOverlayMode = "subtle" | "invisible" | "blocking" | "soft";
 
 const dialogOverlayClasses: Record<DialogOverlayMode, string> = {
   invisible: "bg-transparent",
-  soft: "bg-black/10 backdrop-blur-[1px] dark:bg-black/45",
+  soft: "bg-black/10 dark:bg-black/65",
   subtle: "bg-black/25 dark:bg-black/45",
   blocking: "bg-black/50 dark:bg-black/65",
 };
