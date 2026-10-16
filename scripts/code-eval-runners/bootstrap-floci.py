@@ -29,10 +29,16 @@ def main() -> None:
     with ZipFile(node_zip, "w", ZIP_DEFLATED) as zf:
         zf.write(RUNNERS_DIR / "node" / node_handler_file, node_handler_file)
 
+    # Validate all required modules before creating a deployable archive.
+    python_sources = (python_handler_file, "langfuse_errors.py")
+    for filename in python_sources:
+        source = RUNNERS_DIR / "python" / filename
+        if not source.is_file():
+            raise FileNotFoundError(f"Required Python runner module missing: {source}")
+
     with ZipFile(python_zip, "w", ZIP_DEFLATED) as zf:
-        zf.write(
-            RUNNERS_DIR / "python" / python_handler_file, python_handler_file
-        )
+        for filename in python_sources:
+            zf.write(RUNNERS_DIR / "python" / filename, filename)
 
     upsert_lambda(
         NODE_FUNCTION, "nodejs24.x", "code-based-eval-handler.handler", node_zip
