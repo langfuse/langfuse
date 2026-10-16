@@ -67,6 +67,40 @@ export function renderTranscript(
   observations: Observation[],
   configInput: TranscriptRenderConfig,
   countTokens?: (text: string) => number,
+) {
+  const config = transcriptRenderConfigSchema.parse(configInput);
+  if (config.capAboveCharacters !== null) {
+    const uncapped = renderWithCaps(
+      transcript,
+      observations,
+      uncapBlocks(config),
+      countTokens,
+    );
+    if (uncapped.text.length <= config.capAboveCharacters) return uncapped;
+  }
+  return renderWithCaps(transcript, observations, config, countTokens);
+}
+
+// maxChars 0 still means "label only", so those blocks stay at 0.
+function uncapBlocks(config: TranscriptRenderConfig): TranscriptRenderConfig {
+  return Object.fromEntries(
+    Object.entries(config).map(([key, value]) => [
+      key,
+      value &&
+      typeof value === "object" &&
+      "maxChars" in value &&
+      value.maxChars
+        ? { ...value, maxChars: Number.MAX_SAFE_INTEGER }
+        : value,
+    ]),
+  ) as TranscriptRenderConfig;
+}
+
+function renderWithCaps(
+  transcript: Transcript | null,
+  observations: Observation[],
+  configInput: TranscriptRenderConfig,
+  countTokens?: (text: string) => number,
 ): {
   text: string;
   tokens: number | null;
