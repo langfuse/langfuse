@@ -21,7 +21,7 @@ import {
   LangfuseNotFoundError,
   paginationZod,
 } from "@langfuse/shared";
-import { type Prisma } from "@langfuse/shared/src/db";
+import { type Prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import {
   BatchExportQueue,
   logger,
@@ -122,26 +122,7 @@ export const batchExportRouter = createTRPCRouter({
         logger.info("[BATCH EXPORT] Creating export job", { job: input });
         const userId = ctx.session.user.id;
 
-        const activeExport = await ctx.prisma.batchExport.findFirst({
-          where: {
-            projectId,
-            userId,
-            status: {
-              in: [BatchExportStatus.QUEUED, BatchExportStatus.PROCESSING],
-            },
-            updatedAt: {
-              gte: new Date(Date.now() - BATCH_EXPORT_ABANDONED_AFTER_MS),
-            },
-          },
-          select: { createdAt: true },
-          orderBy: { createdAt: "asc" },
-        });
-        if (activeExport) {
-          throw new TRPCError({
-            code: "CONFLICT",
-            message: `Your export started at ${formatUtc(activeExport.createdAt)} is still running. Wait for it to finish or cancel it under Settings > Exports.`,
-          });
-        }
+        await assertNoActiveExport({ prisma: ctx.prisma, projectId, userId });
 
         // Create export job
         const exportJob = await ctx.prisma.batchExport.create({
@@ -165,29 +146,11 @@ export const batchExportRouter = createTRPCRouter({
           after: exportJob,
         });
 
-        // Notify worker
-        try {
-          await BatchExportQueue.getInstance()?.add(QueueJobs.BatchExportJob, {
-            id: exportJob.id, // Use the batchExportId to deduplicate when the same job is sent multiple times
-            name: QueueJobs.BatchExportJob,
-            timestamp: new Date(),
-            payload: {
-              batchExportId: exportJob.id,
-              projectId,
-            },
-          });
-        } catch (enqueueError) {
-          // An unqueued row would otherwise block the user's next export.
-          await ctx.prisma.batchExport.update({
-            where: { id: exportJob.id, projectId },
-            data: {
-              status: BatchExportStatus.FAILED,
-              finishedAt: new Date(),
-              log: "The export could not be queued. Please try again.",
-            },
-          });
-          throw enqueueError;
-        }
+        await enqueueExportOrMarkFailed({
+          prisma: ctx.prisma,
+          projectId,
+          batchExportId: exportJob.id,
+        });
       } catch (e) {
         logger.error("[BATCH EXPORT] Failed to create export job", e);
         if (e instanceof TRPCError) {
@@ -385,3 +348,63 @@ export const batchExportRouter = createTRPCRouter({
       };
     }),
 });
+
+/** Rejects a new export while the user still has a queued or running one in the project. */
+const assertNoActiveExport = async ({
+  prisma,
+  projectId,
+  userId,
+}: {
+  prisma: PrismaClient;
+  projectId: string;
+  userId: string;
+}) => {
+  const activeExport = await prisma.batchExport.findFirst({
+    where: {
+      projectId,
+      userId,
+      status: { in: [BatchExportStatus.QUEUED, BatchExportStatus.PROCESSING] },
+      updatedAt: {
+        gte: new Date(Date.now() - BATCH_EXPORT_ABANDONED_AFTER_MS),
+      },
+    },
+    select: { createdAt: true },
+    orderBy: { createdAt: "asc" },
+  });
+  if (activeExport) {
+    throw new TRPCError({
+      code: "CONFLICT",
+      message: `Your export started at ${formatUtc(activeExport.createdAt)} is still running. Wait for it to finish or cancel it under Settings > Exports.`,
+    });
+  }
+};
+
+/** Queues the export job; marks the row FAILED if queueing throws so it does not block a retry. */
+const enqueueExportOrMarkFailed = async ({
+  prisma,
+  projectId,
+  batchExportId,
+}: {
+  prisma: PrismaClient;
+  projectId: string;
+  batchExportId: string;
+}) => {
+  try {
+    await BatchExportQueue.getInstance()?.add(QueueJobs.BatchExportJob, {
+      id: batchExportId, // Use the batchExportId to deduplicate when the same job is sent multiple times
+      name: QueueJobs.BatchExportJob,
+      timestamp: new Date(),
+      payload: { batchExportId, projectId },
+    });
+  } catch (enqueueError) {
+    await prisma.batchExport.update({
+      where: { id: batchExportId, projectId },
+      data: {
+        status: BatchExportStatus.FAILED,
+        finishedAt: new Date(),
+        log: "The export could not be queued. Please try again.",
+      },
+    });
+    throw enqueueError;
+  }
+};
