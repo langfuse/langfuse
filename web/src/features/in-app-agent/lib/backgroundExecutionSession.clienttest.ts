@@ -524,6 +524,12 @@ describe("BackgroundExecutionSessionController", () => {
     ]);
   });
 
+  const questionnaireToolInputs = {
+    [IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME]: {
+      answers: [{ selectedOptionIndexes: [0], otherText: null }],
+    },
+  };
+
   it("keeps an answered questionnaire submitting until its tool result arrives", async () => {
     let subscriber: AgentSubscriber | undefined;
     const questionnaireApproval = {
@@ -555,6 +561,7 @@ describe("BackgroundExecutionSessionController", () => {
       runId: "run-1",
       toolCallId: "questionnaire-call",
       approved: true,
+      toolInputs: questionnaireToolInputs,
     });
 
     expect(session.getSnapshot().pendingToolApprovals).toEqual([
@@ -600,6 +607,7 @@ describe("BackgroundExecutionSessionController", () => {
       runId: "run-1",
       toolCallId: "questionnaire-call",
       approved: true,
+      toolInputs: questionnaireToolInputs,
     });
 
     expect(session.getSnapshot().pendingToolApprovals).toEqual([]);
