@@ -262,9 +262,8 @@ function BreakdownRow({
         className={cn(
           "min-w-0 truncate",
           layout === "inline" && "flex-1",
-          layout === "grid" &&
-            showShares &&
-            (hasBar ? "max-w-52" : "col-span-2"),
+          layout === "grid" && variant === "item" && "max-w-52",
+          layout === "grid" && variant !== "item" && showShares && "col-span-2",
         )}
         title={label}
       >
