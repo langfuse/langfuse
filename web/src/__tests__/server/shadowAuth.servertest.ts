@@ -519,6 +519,40 @@ describe("shadowAuth maps principals to legacy-identical scopes", () => {
     expect(enforce).toMatchObject({ success: false, error: { httpCode: 403 } });
   });
 
+  it("a project ADMIN key on a project-nested route 403s in both modes, including for a sibling project", async () => {
+    const { apiKey, authorization } = await createUnassignedApiKey("PROJECT");
+    await prisma.roleAssignment.create({
+      data: {
+        orgId,
+        projectId,
+        apiKeyId: apiKey.id,
+        ownerId: `project/${projectId}`,
+        principalId: `apiKey/${apiKey.id}`,
+        roleId: "system/ADMIN",
+        systemRole: "ADMIN",
+      },
+    });
+    const sibling = await prisma.project.create({
+      data: { orgId, name: `sibling-${randomUUID()}` },
+    });
+
+    for (const target of [projectId, sibling.id]) {
+      const { legacy, enforce } = await projectNestedUnderModes(
+        authorization,
+        target,
+        "apiKeys:CUD",
+      );
+      expect(legacy).toMatchObject({
+        success: false,
+        error: { httpCode: 403 },
+      });
+      expect(enforce).toMatchObject({
+        success: false,
+        error: { httpCode: 403 },
+      });
+    }
+  });
+
   it("an organization key is granted project:read on a project it owns", async () => {
     const context = await contextFor(orgAuth);
     expect(ownedProjectIds(context)).toContain(projectId);

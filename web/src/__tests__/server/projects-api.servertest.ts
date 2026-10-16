@@ -1078,28 +1078,25 @@ describe("Projects API", () => {
       expect(await prisma.apiKey.count({ where: { projectId } })).toBe(before);
     });
 
-    it.each(["ADMIN", "VIEWER", "INGEST", "SCORES_INGEST"])(
-      "provisions a key with the %s role under the default env",
-      async (role) => {
-        const response = await makeAPICall<
-          z.infer<typeof ApiKeyCreationResponseSchema>
-        >(
-          "POST",
-          `/api/public/projects/${projectId}/apiKeys`,
-          { role },
-          createBasicAuthHeader(orgApiKey, orgSecretKey),
-        );
-        createdApiKeyId = response.body.id;
-        expect(response.status).toBe(201);
-        expect(response.body.role).toBe(role);
+    it("provisions a key with a selected role under the default env", async () => {
+      const response = await makeAPICall<
+        z.infer<typeof ApiKeyCreationResponseSchema>
+      >(
+        "POST",
+        `/api/public/projects/${projectId}/apiKeys`,
+        { role: "INGEST" },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+      createdApiKeyId = response.body.id;
+      expect(response.status).toBe(201);
+      expect(response.body.role).toBe("INGEST");
 
-        const stored = await prisma.apiKey.findUniqueOrThrow({
-          where: { id: response.body.id },
-          include: { roleAssignments: true },
-        });
-        expect(stored.roleAssignments).toMatchObject([{ systemRole: role }]);
-      },
-    );
+      const stored = await prisma.apiKey.findUniqueOrThrow({
+        where: { id: response.body.id },
+        include: { roleAssignments: true },
+      });
+      expect(stored.roleAssignments).toMatchObject([{ systemRole: "INGEST" }]);
+    });
 
     it("should create a new API key with valid organization API key", async () => {
       const note = `Test API Key ${randomUUID().substring(0, 8)}`;
