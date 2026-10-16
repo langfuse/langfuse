@@ -348,7 +348,7 @@ export default [
       "src/components/design-system/table/**",
     ],
     rules: {
-      "@repo/filename-matches-export": "error",
+      "@repo/component-file-structure": "error",
       "import/no-default-export": "error",
     },
   },
