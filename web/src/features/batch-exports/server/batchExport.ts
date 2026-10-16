@@ -166,15 +166,28 @@ export const batchExportRouter = createTRPCRouter({
         });
 
         // Notify worker
-        await BatchExportQueue.getInstance()?.add(QueueJobs.BatchExportJob, {
-          id: exportJob.id, // Use the batchExportId to deduplicate when the same job is sent multiple times
-          name: QueueJobs.BatchExportJob,
-          timestamp: new Date(),
-          payload: {
-            batchExportId: exportJob.id,
-            projectId,
-          },
-        });
+        try {
+          await BatchExportQueue.getInstance()?.add(QueueJobs.BatchExportJob, {
+            id: exportJob.id, // Use the batchExportId to deduplicate when the same job is sent multiple times
+            name: QueueJobs.BatchExportJob,
+            timestamp: new Date(),
+            payload: {
+              batchExportId: exportJob.id,
+              projectId,
+            },
+          });
+        } catch (enqueueError) {
+          // An unqueued row would otherwise block the user's next export.
+          await ctx.prisma.batchExport.update({
+            where: { id: exportJob.id, projectId },
+            data: {
+              status: BatchExportStatus.FAILED,
+              finishedAt: new Date(),
+              log: "The export could not be queued. Please try again.",
+            },
+          });
+          throw enqueueError;
+        }
       } catch (e) {
         logger.error("[BATCH EXPORT] Failed to create export job", e);
         if (e instanceof TRPCError) {

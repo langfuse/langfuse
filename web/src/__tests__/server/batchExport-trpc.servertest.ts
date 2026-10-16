@@ -2,7 +2,11 @@ import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma, type Role } from "@langfuse/shared/src/db";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import {
+  BatchExportQueue,
+  createOrgProjectAndApiKey,
+} from "@langfuse/shared/src/server";
+import { vi } from "vitest";
 import { randomUUID } from "crypto";
 import type { Session } from "next-auth";
 import {
@@ -654,6 +658,25 @@ describe("batchExport tRPC – one active export per user and project", () => {
       batchExportId: running.id,
     });
 
+    await expect(createExport()).resolves.toBeUndefined();
+  });
+
+  it("fails an export that could not be queued so it does not block a retry", async () => {
+    const { project, createExport } = await setup();
+    const queue = BatchExportQueue.getInstance();
+    const add = vi
+      .spyOn(queue!, "add")
+      .mockRejectedValueOnce(new Error("Redis unavailable"));
+
+    await expect(createExport()).rejects.toMatchObject({
+      code: "INTERNAL_SERVER_ERROR",
+    });
+    add.mockRestore();
+
+    const [failed] = await prisma.batchExport.findMany({
+      where: { projectId: project.id },
+    });
+    expect(failed.status).toBe(BatchExportStatus.FAILED);
     await expect(createExport()).resolves.toBeUndefined();
   });
 
