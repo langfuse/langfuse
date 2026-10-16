@@ -16,7 +16,6 @@ import {
 import {
   type ExperimentFilterApply,
   type ExperimentFilterOptions,
-  type ExperimentFilterOptionsByTarget,
   type ExperimentFilterTarget,
 } from "./experimentFilterTypes";
 import { ExperimentFilterValueEditor } from "./ExperimentFilterValueEditor";
@@ -26,7 +25,7 @@ export function ExperimentFilterBlock({
   initialDraft,
   index,
   targets,
-  optionsByTarget,
+  options,
   optionsError,
   onApply,
   onRemove,
@@ -34,7 +33,6 @@ export function ExperimentFilterBlock({
   const form = useForm<ExperimentFilterDraft>({ defaultValues: initialDraft });
   const draft = form.watch();
   const id = useId();
-  const options = optionsByTarget[draft.target];
   const state = prepareBlockState(draft, targets, options, optionsError);
   const isDirty = form.formState.isDirty;
 
@@ -144,13 +142,12 @@ export function ExperimentFilterBlock({
       )}
       {state.invalidType && (
         <p role="alert" className="text-destructive text-xs">
-          This score has a different type in the selected experiment. Choose a
-          compatible score or experiment.
+          This score has a different type. Choose a compatible score.
         </p>
       )}
       {state.isWaiting && (
         <p role="status" className="text-muted-foreground text-xs">
-          Waiting for score options for this experiment before applying.
+          Waiting for score options before applying.
         </p>
       )}
       {isDirty && (
@@ -251,7 +248,7 @@ type ExperimentFilterBlockProps = {
   initialDraft: ExperimentFilterDraft;
   index: number;
   targets: readonly ExperimentFilterTarget[];
-  optionsByTarget: ExperimentFilterOptionsByTarget;
+  options: ExperimentFilterOptions | undefined;
   optionsError: string | null;
   onApply: ExperimentFilterApply;
   onRemove: (index: number) => void;

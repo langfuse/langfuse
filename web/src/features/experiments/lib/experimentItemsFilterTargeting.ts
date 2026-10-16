@@ -9,9 +9,7 @@ export function experimentItemsFilterTargeting({
   experimentIds,
   experiments,
   colorExperimentIds,
-  scoreTypesForTarget,
   scoreTypesError,
-  observedForTarget,
 }: {
   baselineId?: string;
   experimentIds: readonly string[];
@@ -21,9 +19,7 @@ export function experimentItemsFilterTargeting({
     datasetName?: string | null;
   }[];
   colorExperimentIds: string[];
-  scoreTypesForTarget?: FilterTargeting["scoreTypesForTarget"];
   scoreTypesError?: string;
-  observedForTarget?: FilterTargeting["observedForTarget"];
 }): FilterTargeting {
   const experimentsById = new Map(
     experiments.map((experiment) => [experiment.experimentId, experiment]),
@@ -40,21 +36,20 @@ export function experimentItemsFilterTargeting({
     (experiment) => experiment.experimentName,
   );
   const labels = selectedExperiments.map((experiment) =>
-    names.filter((name) => name === experiment.experimentName).length > 1
+    names.filter((name) => name === experiment.experimentName).length > 1 ||
+    experiment.experimentName === "All experiments"
       ? `${experiment.experimentName} (${experiment.datasetName ?? "Dataset"})`
       : experiment.experimentName,
   );
   return {
     defaultTarget: "all",
-    legacyDefaultTarget: baselineId ? "baseline" : experimentIds[0],
-    scoreTypesForTarget,
     scoreTypesError,
-    observedForTarget,
+    legacyDefaultTarget: baselineId ? "baseline" : experimentIds[0],
     targets: [
       {
         id: "all",
-        label: "all",
-        displayLabel: "All selected experiments",
+        label: "All experiments",
+        displayLabel: "All experiments",
         keyword: true,
       },
       ...(baselineId
@@ -87,7 +82,7 @@ export function experimentItemsFilterTargeting({
   };
 }
 
-export function supportsExperimentItemFilterTarget(field: FieldRef): boolean {
+function supportsExperimentItemFilterTarget(field: FieldRef): boolean {
   return (
     field.type === "scores" ||
     field.type === "metadata" ||

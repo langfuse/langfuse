@@ -38,7 +38,7 @@ describe("experiment filter request groups", () => {
     });
   });
 
-  it("keeps legacy targetless filters on baseline and follows baseline changes", () => {
+  it("keeps explicit targets fixed and legacy filters on baseline or first comparison", () => {
     expect(groupExperimentFilters([quality], "b", ["a", "b"]).groups).toEqual([
       { runId: "b", filters: [quality] },
     ]);
@@ -46,9 +46,12 @@ describe("experiment filter request groups", () => {
       groupExperimentFilters([{ ...quality, target: "a" }], "b", ["a", "b"])
         .groups,
     ).toEqual([{ runId: "a", filters: [quality] }]);
+    expect(groupExperimentFilters([quality], undefined, ["b", "a"])).toEqual({
+      groups: [{ runId: "b", filters: [quality] }],
+    });
   });
 
-  it("supports All without a baseline and includes newly selected runs", () => {
+  it("expands All against the current selection as runs are added and removed", () => {
     const filters = [{ ...quality, target: "all" }];
     expect(groupExperimentFilters(filters, undefined, ["a"]).groups).toEqual([
       { runId: "a", filters: [quality] },
@@ -59,12 +62,9 @@ describe("experiment filter request groups", () => {
       { runId: "a", filters: [quality] },
       { runId: "b", filters: [quality] },
     ]);
-  });
-
-  it("keeps legacy targetless filters on the first comparison without a baseline", () => {
-    expect(groupExperimentFilters([quality], undefined, ["b", "a"])).toEqual({
-      groups: [{ runId: "b", filters: [quality] }],
-    });
+    expect(groupExperimentFilters(filters, undefined, ["b"]).groups).toEqual([
+      { runId: "b", filters: [quality] },
+    ]);
   });
 
   it("blocks unavailable targets without sending a partial filter set", () => {
@@ -87,39 +87,20 @@ describe("experiment filter request groups", () => {
 });
 
 describe("experiment batch evaluation filters", () => {
-  it("uses explicit observation IDs without reapplying another run's condition", () => {
+  it("blocks select-all for differing conditions but allows explicit rows or a common filter", () => {
+    const groups = [{ runId: "a", filters: [quality] }];
     expect(
-      getExperimentBatchEvaluationFilters(
-        [{ runId: "a", filters: [quality] }],
-        ["a", "b"],
-        false,
-      ),
-    ).toEqual([]);
-  });
-
-  it("blocks select-all when experiments have different conditions", () => {
-    expect(
-      getExperimentBatchEvaluationFilters(
-        [{ runId: "a", filters: [quality] }],
-        ["a", "b"],
-        true,
-      ),
+      getExperimentBatchEvaluationFilters(groups, ["a", "b"], true),
     ).toBeNull();
-  });
-
-  it("keeps one shared filter set for select-all instead of duplicating All", () => {
+    expect(
+      getExperimentBatchEvaluationFilters(groups, ["a", "b"], false),
+    ).toEqual([]);
     expect(
       getExperimentBatchEvaluationFilters(
-        [
-          { runId: "a", filters: [quality] },
-          { runId: "b", filters: [{ ...quality }] },
-        ],
+        [...groups, { runId: "b", filters: [{ ...quality }] }],
         ["a", "b"],
         true,
       ),
     ).toEqual([quality]);
-    expect(getExperimentBatchEvaluationFilters([], ["a", "b"], true)).toEqual(
-      [],
-    );
   });
 });

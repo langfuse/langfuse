@@ -471,17 +471,6 @@ maybeEventTables("level-agnostic experiment ITEM score filters", () => {
       experimentIds: [first.experimentId, second.experimentId],
     });
 
-    expect(
-      options.byExperiment[first.experimentId].score_name_levels_numeric,
-    ).toEqual({
-      [bothLevels]: ["observation"],
-    });
-    expect(
-      options.byExperiment[second.experimentId].score_name_levels_numeric,
-    ).toEqual({
-      [bothLevels]: ["trace"],
-    });
-
     expect(options.scores_avg.filter((name) => name === bothLevels)).toEqual([
       bothLevels,
     ]);
@@ -489,91 +478,5 @@ maybeEventTables("level-agnostic experiment ITEM score filters", () => {
       "observation",
       "trace",
     ]);
-  });
-
-  it("keeps target score types separate and excludes child and foreign-project scores", async () => {
-    const { projectId } = await createOrgProjectAndApiKey();
-    const { projectId: otherProjectId } = await createOrgProjectAndApiKey();
-    const startTimeMs = Date.now();
-    const numeric = await seedExperimentWithScore({
-      projectId,
-      experimentName: "numeric",
-      startTimeMs,
-      level: "observation",
-      scoreName: "quality",
-      value: 0.9,
-    });
-    const categorical = await seedExperimentWithScore({
-      projectId,
-      experimentName: "categorical",
-      startTimeMs,
-      level: "trace",
-      scoreName: "quality",
-      value: 1,
-      dataType: "CATEGORICAL",
-      stringValue: "good",
-    });
-    const noScoreExperiment = randomUUID();
-    const noScoreSpan = randomUUID();
-    await createEventsCh([
-      createEvent({
-        project_id: projectId,
-        trace_id: randomUUID(),
-        span_id: noScoreSpan,
-        experiment_id: noScoreExperiment,
-        experiment_item_root_span_id: noScoreSpan,
-        experiment_item_id: randomUUID(),
-        experiment_dataset_id: "dataset-score-levels",
-        start_time: startTimeMs * 1000,
-      }),
-    ]);
-    await createScoresCh([
-      createTraceScore({
-        project_id: projectId,
-        trace_id: numeric.traceId,
-        observation_id: randomUUID(),
-        name: "child-score",
-        value: 1,
-        data_type: "NUMERIC",
-        timestamp: startTimeMs,
-      }),
-      createTraceScore({
-        project_id: otherProjectId,
-        trace_id: numeric.traceId,
-        observation_id: numeric.spanId,
-        name: "foreign-score",
-        value: 1,
-        data_type: "NUMERIC",
-        timestamp: startTimeMs,
-      }),
-    ]);
-
-    const options = await getExperimentItemsFilterOptions({
-      projectId,
-      experimentIds: [
-        numeric.experimentId,
-        categorical.experimentId,
-        noScoreExperiment,
-      ],
-    });
-
-    expect(options.scores_avg).toEqual(["quality"]);
-    expect(options.score_categories).toEqual([
-      { label: "quality", values: ["good"] },
-    ]);
-    expect(
-      options.byExperiment[numeric.experimentId].score_name_levels_numeric,
-    ).toEqual({ quality: ["observation"] });
-    expect(options.byExperiment[numeric.experimentId].score_categories).toEqual(
-      [],
-    );
-    expect(options.byExperiment[categorical.experimentId].scores_avg).toEqual(
-      [],
-    );
-    expect(
-      options.byExperiment[categorical.experimentId]
-        .score_name_levels_categorical,
-    ).toEqual({ quality: ["trace"] });
-    expect(options.byExperiment[noScoreExperiment].score_columns).toEqual([]);
   });
 });

@@ -54,7 +54,8 @@ FTS `*` operator: the events tRPC filter contract has none.
 **Experiment scopes.** Comparison registries can attach a target to each
 condition, independently of its field and value:
 
-- `scores.quality:>0.8` applies to all selected experiments.
+- `"All experiments".scores.quality:>0.8` applies to all currently selected experiments.
+  Unqualified typed filters acquire this visible prefix when committed.
 - `baseline.scores.quality:>0.8` follows the currently selected baseline.
 - `"Run A".scores.quality:<0.6` stays pinned to that experiment.
 - `"Run A".eventMetadata."model name":test` uses the same target syntax for
@@ -63,7 +64,7 @@ condition, independently of its field and value:
 - `baseline.has:itemMetadata.region` / `-baseline.has:itemMetadata.region`
   preserve the sidebar's metadata-key "is set" / "is not set" operators.
 
-`all.` is accepted but omitted from canonical text. Experiment names are
+`all.` is accepted as a legacy alias and serialized as `"All experiments".`. Experiment names are
 quoted; a real experiment named `baseline` is therefore distinct from the
 symbolic `baseline` keyword. Legacy `field:value @baseline` and
 `field:value @"Run A"` expressions still parse; the serializer emits prefixes.
@@ -72,13 +73,12 @@ to a stable ID in `FilterState.target`. Targetless persisted filters use the
 registry's `legacyDefaultTarget`, while newly typed unqualified filters use
 `defaultTarget`. Unavailable or ambiguous names block commit.
 
-Target choices augment field/value suggestions when editing a condition.
-`observedForTarget` supplies the selected experiment's options and
-`scoreTypesForTarget` supplies its score types to the common validation and
-lowering path. An unresolved score-type request blocks a score commit rather
-than inferring a numeric column from a categorical label. Changing the scope
-does not change the operator or value. Conditions remain AND-joined; scoping
-does not introduce cross-experiment OR.
+Target choices augment field/value suggestions when editing a condition. Sidebar
+and search use the same combined options response for the selected experiments.
+Changing the scope changes only the target, not the score's operator or value.
+An unresolved options request blocks score commits. Conditions are AND-joined
+inside each experiment's request group;
+the backend's existing qualification and baseline-visibility rules are unchanged.
 
 **Full-text search.** Each registry declares `defaultSearchType` and
 `searchScopes`. The adapter writes the existing `searchQuery` / `searchType`

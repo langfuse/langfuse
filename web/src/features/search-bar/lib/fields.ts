@@ -26,8 +26,6 @@ import {
 } from "@langfuse/shared";
 
 import type { CompareOp } from "./ast";
-import type { ScoreTypeContext } from "./adapter";
-import type { ObservedOptions } from "./observed-options";
 import { quoteIfNeeded, unquote } from "./quoting";
 
 type FieldKind = "text" | "number" | "datetime" | "boolean";
@@ -92,9 +90,7 @@ export type FilterTargeting = {
     textClassName?: string;
   }[];
   supports: (field: FieldRef) => boolean;
-  scoreTypesForTarget?: (targetId: string) => ScoreTypeContext | undefined;
   scoreTypesError?: string;
-  observedForTarget?: (targetId: string) => ObservedOptions | undefined;
 };
 
 export type FieldRegistry = {

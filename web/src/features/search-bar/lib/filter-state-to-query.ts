@@ -26,11 +26,7 @@ import {
 } from "./fields";
 import { serialize } from "./langQ";
 import { quoteIfNeeded } from "./quoting";
-import {
-  resolveAttachedTarget,
-  supportsFilterTarget,
-  targetReference,
-} from "./targeting";
+import { supportsFilterTarget, targetReference } from "./targeting";
 
 function filterNode(
   key: string,
@@ -432,12 +428,6 @@ function normalizeFilterValues(
 ): FilterNode {
   const ref = registry.resolveField(f.key);
   if (ref === null) return f;
-  if (ref.type === "scores" && registry.targeting?.scoreTypesForTarget) {
-    const target = resolveAttachedTarget(f, registry);
-    if (target && "id" in target) {
-      scoreTypes = registry.targeting.scoreTypesForTarget(target.id);
-    }
-  }
   // `:=` (exact) folds to `:` (=) everywhere the two lower identically.
   let op: FilterNode["op"] =
     f.op === "exact" && exactEqualsBareForm(ref) ? "=" : f.op;

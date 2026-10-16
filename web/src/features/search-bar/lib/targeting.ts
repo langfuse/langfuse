@@ -1,6 +1,6 @@
 import type { FilterNode } from "./ast";
 import type { FieldRegistry, FilterTargeting } from "./fields";
-import { quote, unquote } from "./quoting";
+import { quote, quoteIfNeeded, unquote } from "./quoting";
 
 /** The target is separate from the field path, including during partial input. */
 export function readTargetPrefix(
@@ -32,18 +32,29 @@ export function readTargetPrefix(
       };
     }
     if (raw[end + 1] !== ".") return null;
+    const value = unquote(raw.slice(0, end + 1)).value;
+    const keyword = registry.targeting.targets.find(
+      (target) =>
+        target.keyword && /\s/.test(target.label) && target.label === value,
+    );
     return {
-      target: { kind: "name", value: unquote(raw.slice(0, end + 1)).value },
+      target: keyword ? targetReference(keyword) : { kind: "name", value },
       length: end + 2,
       incomplete: false,
     };
   }
   for (const target of registry.targeting.targets) {
     if (!target.keyword) continue;
-    const prefix = `${target.label}.`;
-    if (raw.toLowerCase().startsWith(prefix.toLowerCase())) {
+    // Accept the stable keyword ID as an alias for existing saved searches.
+    const prefix = [target.label, target.id]
+      .map((label) => `${label}.`)
+      .find((prefix) => raw.toLowerCase().startsWith(prefix.toLowerCase()));
+    if (prefix) {
       return {
-        target: targetReference(target),
+        target:
+          prefix === `${target.id}.` && target.label !== target.id
+            ? { kind: "keyword", value: target.id }
+            : targetReference(target),
         length: prefix.length,
         incomplete: false,
       };
@@ -64,7 +75,10 @@ export function resolveFilterTarget(
   const matches = capability.targets.filter((target) => {
     if (!ref) return target.id === capability.defaultTarget;
     if (ref.kind === "keyword")
-      return target.keyword && target.label === ref.value;
+      return (
+        target.keyword &&
+        (target.label === ref.value || target.id === ref.value)
+      );
     return !target.keyword && target.label === ref.value;
   });
   if (matches.length !== 1) {
@@ -121,7 +135,6 @@ export function targetReference(
 export function serializeTarget(
   target: NonNullable<FilterNode["target"]>,
 ): string {
-  if (target.kind === "keyword")
-    return target.value === "all" ? "" : `${target.value}.`;
+  if (target.kind === "keyword") return `${quoteIfNeeded(target.value)}.`;
   return `${quote(target.value)}.`;
 }

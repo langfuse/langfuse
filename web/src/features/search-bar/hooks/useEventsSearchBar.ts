@@ -486,5 +486,3 @@ function filterIdentity(filter: FilterState[number]): string {
     "key" in filter ? filter.key : null,
   ]);
 }
-
-export const __test = { mergeSkippedFilters };

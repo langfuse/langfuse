@@ -423,15 +423,9 @@ function lowerFilter(
       lowerMetadata(node, ref.key, negated, conditions, errors, ref.column);
       break;
     case "scores":
-      if (target && "id" in target && registry.targeting?.scoreTypesForTarget) {
-        scoreTypes = registry.targeting.scoreTypesForTarget(target.id);
-        if (scoreTypes === undefined) {
-          errors.push(
-            registry.targeting.scoreTypesError ??
-              "Score types for this experiment are still loading; try again when options have loaded",
-          );
-          return;
-        }
+      if (registry.targeting?.scoreTypesError) {
+        errors.push(registry.targeting.scoreTypesError);
+        return;
       }
       lowerScores(
         node,

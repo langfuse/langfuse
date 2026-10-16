@@ -11,7 +11,7 @@ export function ExperimentFilterSidebar({
   onChange,
   onClearAll,
   targets,
-  optionsByTarget,
+  options,
   legacyDefaultTarget,
   optionsError,
   onRetryOptions,
@@ -82,7 +82,7 @@ export function ExperimentFilterSidebar({
       onRemove={handleRemove}
       onClearAll={onClearAll}
       targets={targets}
-      optionsByTarget={optionsByTarget}
+      options={options}
       legacyDefaultTarget={legacyDefaultTarget}
       optionsError={optionsError}
       onRetryOptions={onRetryOptions}
@@ -99,7 +99,7 @@ type ExperimentFilterSidebarProps = Pick<
   | "filters"
   | "onClearAll"
   | "targets"
-  | "optionsByTarget"
+  | "options"
   | "legacyDefaultTarget"
   | "optionsError"
   | "onRetryOptions"

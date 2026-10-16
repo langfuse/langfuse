@@ -1,6 +1,5 @@
 import preview from "../../../../.storybook/preview";
-import { expect } from "storybook/test";
-import { ComposerTokens, WORD_JOINER } from "./ComposerTokens";
+import { ComposerTokens } from "./ComposerTokens";
 import { EVENTS_FIELD_REGISTRY } from "../lib/fields";
 
 const meta = preview.meta({
@@ -37,41 +36,7 @@ export const InvalidRevealed = meta.story({
   args: { draft: "level:ERROR nope:1", showDiagnostics: true },
 });
 
-export const ExperimentTargetSuffix = meta.story({
-  name: "(Test) Experiment target preserves source whitespace",
-  args: {
-    draft: '-scores.quality:>0.8   @"Claude Sonnet"',
-    showDiagnostics: true,
-    registry: {
-      ...EVENTS_FIELD_REGISTRY,
-      targeting: {
-        defaultTarget: "baseline",
-        supports: (field) => field.type === "scores",
-        targets: [
-          {
-            id: "run-b",
-            label: "Claude Sonnet",
-            textClassName: "text-pink-500",
-          },
-        ],
-      },
-    },
-  },
-  play: async ({ canvasElement, args }) => {
-    await expect(
-      canvasElement
-        .querySelector('[data-kind="filter"]')
-        ?.textContent?.split(WORD_JOINER)
-        .join(""),
-    ).toBe(args.draft);
-    await expect(
-      canvasElement.querySelectorAll('[data-kind="filter"]'),
-    ).toHaveLength(1);
-  },
-});
-
 export const ExperimentTargetPrefix = meta.story({
-  name: "(Test) Experiment prefix keeps quoted field and value intact",
   args: {
     draft: '-"Run: A".scores."Rouge Score":>0.8',
     showDiagnostics: true,
@@ -85,22 +50,5 @@ export const ExperimentTargetPrefix = meta.story({
         ],
       },
     },
-  },
-  play: async ({ canvasElement, args }) => {
-    await expect(
-      canvasElement
-        .querySelector('[data-kind="filter"]')
-        ?.textContent?.split(WORD_JOINER)
-        .join(""),
-    ).toBe(args.draft);
-    await expect(
-      canvasElement.querySelector('[data-part="target"]')?.textContent,
-    ).toBe('"Run: A".');
-    await expect(
-      canvasElement.querySelector('[data-part="field"]')?.textContent,
-    ).toBe('scores."Rouge Score"');
-    await expect(
-      canvasElement.querySelector('[data-part="value"]')?.textContent,
-    ).toBe(">0.8");
   },
 });

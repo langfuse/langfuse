@@ -790,125 +790,80 @@ const emptyScoreFilterOptions = (): ProcessedScoreFilterOptions => ({
   scoreColumns: [],
 });
 
+type ExperimentItemScoreOptionsByLevel = {
+  observation: ProcessedScoreFilterOptions;
+  trace: ProcessedScoreFilterOptions;
+};
+
 type ExperimentScoreOptionsByLevel = {
   observation: ProcessedScoreFilterOptions;
   trace: ProcessedScoreFilterOptions;
   experiment: ProcessedScoreFilterOptions;
 };
 
-export const getExperimentItemsFilterOptions = async ({
+const getExperimentItemScoreOptionsByLevel = async ({
   projectId,
   experimentIds,
-}: ExperimentItemsFilterOptionsInput): Promise<
-  ExperimentItemFilterOptions & {
-    byExperiment: Record<string, ExperimentItemFilterOptions>;
-  }
-> => {
+}: ExperimentItemsFilterOptionsInput): Promise<ExperimentItemScoreOptionsByLevel> => {
   const uniqueExperimentIds = Array.from(new Set(experimentIds));
+
   if (uniqueExperimentIds.length === 0) {
-    return { ...toExperimentItemFilterOptions([]), byExperiment: {} };
+    return {
+      observation: emptyScoreFilterOptions(),
+      trace: emptyScoreFilterOptions(),
+    };
   }
-  const query = buildExperimentItemFilterOptionsQuery({
+
+  const traceQuery = buildScoreFilterOptionsQuery({
     projectId,
     experimentIds: uniqueExperimentIds,
+    level: "trace",
   });
-  const rows = await queryClickhouse<ExperimentItemScoreOptionsRow>({
-    query: query.query,
-    params: query.params,
-    tags: { projectId },
-    preferredClickhouseService: "ReadOnly",
+
+  const obsQuery = buildScoreFilterOptionsQuery({
+    projectId,
+    experimentIds: uniqueExperimentIds,
+    level: "observation",
   });
-  const rowsByExperiment = new Map<string, ExperimentItemScoreOptionsRow[]>();
-  for (const row of rows) {
-    const experimentRows = rowsByExperiment.get(row.experiment_id) ?? [];
-    experimentRows.push(row);
-    rowsByExperiment.set(row.experiment_id, experimentRows);
-  }
+
+  const [traceResults, obsResults] = await Promise.all([
+    queryClickhouse<ScoreFilterOptionsRow>({
+      query: traceQuery.query,
+      params: traceQuery.params,
+      tags: { projectId },
+      preferredClickhouseService: "ReadOnly",
+    }),
+    queryClickhouse<ScoreFilterOptionsRow>({
+      query: obsQuery.query,
+      params: obsQuery.params,
+      tags: { projectId },
+      preferredClickhouseService: "ReadOnly",
+    }),
+  ]);
+
   return {
-    ...toExperimentItemFilterOptions(rows),
-    byExperiment: Object.fromEntries(
-      uniqueExperimentIds.map((id) => [
-        id,
-        toExperimentItemFilterOptions(rowsByExperiment.get(id) ?? []),
-      ]),
-    ),
+    observation: processScoreFilterOptionsResults(obsResults),
+    trace: processScoreFilterOptionsResults(traceResults),
   };
 };
 
-function buildExperimentItemFilterOptionsQuery({
-  projectId,
-  experimentIds,
-}: ExperimentItemsFilterOptionsInput) {
-  const experimentEvents = eventsExperimentsRootSpans({
-    projectId,
-    experimentIds,
-  })
-    .selectRaw("e.project_id", "e.experiment_id", "e.trace_id", "e.span_id")
-    .limitBy("e.project_id", "e.experiment_id", "e.trace_id", "e.span_id")
-    .buildWithParams();
-  const scoreRows = buildScoreRowsCTE({ projectId, level: "any" });
-  const scopedScores = new CTEQueryBuilder()
-    .withCTE("all_score_rows", scoreRows)
-    .from("all_score_rows", "s")
-    .select(
-      "s.*",
-      "if(isNull(s.observation_id), 'trace', 'observation') AS score_level",
-    )
-    .whereRaw("s.trace_id IN (SELECT trace_id FROM experiment_events)")
-    .whereRaw(
-      "(s.observation_id IS NULL OR s.observation_id IN (SELECT span_id FROM experiment_events))",
-    )
-    .buildWithParams();
+export const getExperimentItemsFilterOptions = async (
+  props: ExperimentItemsFilterOptionsInput,
+): Promise<
+  AgnosticScoreFilterOptions & {
+    obs_scores_avg: string[];
+    obs_score_categories: Array<{ label: string; values: string[] }>;
+    obs_score_booleans: string[];
+    obs_score_columns: ScoreColumnDefinition[];
+    trace_scores_avg: string[];
+    trace_score_categories: Array<{ label: string; values: string[] }>;
+    trace_score_booleans: string[];
+    trace_score_columns: ScoreColumnDefinition[];
+  }
+> => {
+  const { observation, trace } =
+    await getExperimentItemScoreOptionsByLevel(props);
 
-  return new CTEQueryBuilder()
-    .withCTE("experiment_events", {
-      ...experimentEvents,
-      schema: ["project_id", "experiment_id", "trace_id", "span_id"],
-    })
-    .withCTE("score_rows", {
-      ...scopedScores,
-      schema: [...scoreRows.schema, "score_level"],
-    })
-    .from("score_rows", "s")
-    .innerJoin(
-      "experiment_events",
-      "ee",
-      "ON s.project_id = ee.project_id AND s.trace_id = ee.trace_id",
-    )
-    .whereRaw("(s.observation_id IS NULL OR s.observation_id = ee.span_id)")
-    .select(
-      "ee.experiment_id AS experiment_id",
-      "s.score_level AS score_level",
-      "s.name AS name",
-      "s.data_type AS data_type",
-      "s.source AS source",
-      `groupUniqArrayIf(${SCORE_CATEGORICAL_VALUE_LIMIT})(s.string_value, s.data_type = 'CATEGORICAL' AND notEmpty(s.string_value)) AS values`,
-    )
-    .groupBy(
-      "ee.experiment_id",
-      "s.score_level",
-      "s.name",
-      "s.data_type",
-      "s.source",
-    )
-    .orderBy("ORDER BY s.name ASC, s.data_type ASC, s.source ASC")
-    .limitByCount(
-      SCORE_FILTER_OPTIONS_LIMIT,
-      "ee.experiment_id",
-      "s.score_level",
-    )
-    .buildWithParams();
-}
-
-function toExperimentItemFilterOptions(
-  rows: ExperimentItemScoreOptionsRow[],
-): ExperimentItemFilterOptions {
-  const observation = processScoreFilterOptionsResults(
-    mergeItemScoreOptions(rows, "observation"),
-  );
-  const trace = processScoreFilterOptionsResults(
-    mergeItemScoreOptions(rows, "trace"),
-  );
   return {
     obs_scores_avg: observation.numeric,
     obs_score_categories: observation.categorical,
@@ -920,44 +875,6 @@ function toExperimentItemFilterOptions(
     trace_score_columns: trace.scoreColumns,
     ...toAgnosticScoreFilterOptions(observation, trace),
   };
-}
-
-/** Merge the bounded per-experiment rows into the same bounded aggregate facets. */
-function mergeItemScoreOptions(
-  rows: ExperimentItemScoreOptionsRow[],
-  level: ExperimentItemScoreOptionsRow["score_level"],
-): ScoreFilterOptionsRow[] {
-  const merged = new Map<string, ScoreFilterOptionsRow>();
-  for (const row of rows) {
-    if (row.score_level !== level) continue;
-    const key = JSON.stringify([row.name, row.data_type, row.source]);
-    const previous = merged.get(key);
-    merged.set(key, {
-      name: row.name,
-      data_type: row.data_type,
-      source: row.source,
-      values: Array.from(
-        new Set([...(previous?.values ?? []), ...row.values]),
-      ).slice(0, SCORE_CATEGORICAL_VALUE_LIMIT),
-    });
-  }
-  return Array.from(merged.values()).slice(0, SCORE_FILTER_OPTIONS_LIMIT);
-}
-
-type ExperimentItemScoreOptionsRow = ScoreFilterOptionsRow & {
-  experiment_id: string;
-  score_level: "observation" | "trace";
-};
-
-type ExperimentItemFilterOptions = AgnosticScoreFilterOptions & {
-  obs_scores_avg: string[];
-  obs_score_categories: Array<{ label: string; values: string[] }>;
-  obs_score_booleans: string[];
-  obs_score_columns: ScoreColumnDefinition[];
-  trace_scores_avg: string[];
-  trace_score_categories: Array<{ label: string; values: string[] }>;
-  trace_score_booleans: string[];
-  trace_score_columns: ScoreColumnDefinition[];
 };
 
 const getExperimentScoreOptionsByLevel = async ({

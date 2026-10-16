@@ -48,7 +48,7 @@ export function ExperimentFilterCreationContent({
   return (
     <div className="ph-no-capture flex flex-col gap-1">
       <p className="text-muted-foreground px-2 pb-2 text-xs">
-        Add to all selected experiments
+        Add to all experiments
       </p>
       {experimentFilterCreationChoices(options, optionsError).map((choice) => (
         <ExperimentFilterCreationChoice

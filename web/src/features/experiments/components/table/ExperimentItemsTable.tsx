@@ -622,7 +622,6 @@ export default function ExperimentItemsTable({
     filterOptions: scoreFilterOptions,
     scoreColumns: serverScoreColumnDefs,
     isLoading: isFilterOptionsLoading,
-    optionsByExperiment,
     error: filterOptionsError,
     retry: retryFilterOptions,
   } = useExperimentItemsFilterOptions({
@@ -630,30 +629,20 @@ export default function ExperimentItemsTable({
     experimentIds: allExperimentIds,
   });
 
-  const optionsByTarget = useMemo(
-    () => ({
-      ...optionsByExperiment,
-      all:
-        isFilterOptionsLoading || filterOptionsError
-          ? undefined
-          : scoreFilterOptions,
-      baseline: baselineId ? optionsByExperiment[baselineId] : undefined,
-    }),
-    [
-      optionsByExperiment,
-      isFilterOptionsLoading,
-      filterOptionsError,
-      scoreFilterOptions,
-      baselineId,
-    ],
-  );
+  const sidebarScoreOptions =
+    isFilterOptionsLoading || filterOptionsError
+      ? undefined
+      : scoreFilterOptions;
   const searchRegistry = useExperimentItemsSearchRegistry({
     baselineId,
     experimentIds: allExperimentIds,
     selectedExperiments: selectedExperimentNames,
     colorExperimentIds,
-    optionsByTarget,
-    optionsError: filterOptionsError,
+    optionsError:
+      filterOptionsError ??
+      (isFilterOptionsLoading
+        ? "Score options are still loading. Try again when they have loaded."
+        : null),
   });
 
   // Use sidebar filter state for the sidebar UI (provides proper facets, options, etc.)
@@ -2033,7 +2022,7 @@ export default function ExperimentItemsTable({
                   label: target.displayLabel ?? target.label,
                 }),
               )}
-              optionsByTarget={optionsByTarget}
+              options={sidebarScoreOptions}
               legacyDefaultTarget={
                 searchRegistry.targeting?.legacyDefaultTarget ?? "baseline"
               }

@@ -4,7 +4,7 @@ import { type ExperimentItemScoreFilterOptions } from "@/src/features/experiment
 
 const EXPERIMENT_ITEM_LEVEL_OPTIONS = ["DEBUG", "DEFAULT", "WARNING", "ERROR"];
 
-/** Fetch aggregate and target-specific score options in one request. */
+/** Fetch the combined score options for the selected experiments. */
 export const useExperimentItemsFilterOptions = ({
   projectId,
   experimentIds,
@@ -27,16 +27,6 @@ export const useExperimentItemsFilterOptions = ({
     [filterOptions.data],
   );
 
-  const optionsByExperiment = useMemo(
-    () =>
-      Object.fromEntries(
-        Object.entries(
-          filterOptions.isError ? {} : (filterOptions.data?.byExperiment ?? {}),
-        ).map(([id, options]) => [id, toFilterOptions(options)]),
-      ) as Record<string, ExperimentItemScoreFilterOptions | undefined>,
-    [filterOptions.data, filterOptions.isError],
-  );
-
   const scoreColumns = useMemo(
     () => ({
       observationScoreColumns: filterOptions.data?.obs_score_columns ?? [],
@@ -52,7 +42,6 @@ export const useExperimentItemsFilterOptions = ({
   return {
     filterOptions: transformedOptions,
     scoreColumns,
-    optionsByExperiment,
     isLoading: filterOptions.isLoading,
     error: filterOptions.isError
       ? "Score filter options could not be loaded. Retry to edit score filters."
@@ -79,8 +68,7 @@ function toFilterOptions(
   };
 }
 
-type ItemFilterOptions =
-  RouterOutputs["experiments"]["itemsFilterOptions"]["byExperiment"][string];
+type ItemFilterOptions = RouterOutputs["experiments"]["itemsFilterOptions"];
 
 export type ScoreColumnDef = {
   name: string;

@@ -1,7 +1,7 @@
 # Experiment filter sidebar
 
 `ExperimentFilterSidebar` is a controlled editor over the table's canonical URL
-`FilterState`. The host supplies target labels and target-scoped options; the
+`FilterState`. The host supplies target labels and combined score options for the selected experiments; the
 sidebar owns only visibility and unfinished edit buffers. Each condition is its
 own block, including repeated scores or metadata keys. An Apply action changes
 only that occurrence, and incomplete conditions never reach applied state.
@@ -26,8 +26,9 @@ when those names appear in the numeric aggregates returned by the host.
 `experimentFilterEditing` owns draft conversion, completeness validation and
 condition-level replacement/removal. New conditions explicitly target `all`;
 legacy conditions without a target use the host's `legacyDefaultTarget`
-(baseline, or the first comparison when no baseline is selected). Backend qualification
-and experiment selection remain owned by the table host.
+(baseline, or the first comparison when no baseline is selected). The client expands `all` into the current selection whenever it builds a request,
+so removing or adding an experiment updates its scope. Each request group contains
+ordinary filters and an experiment ID; the backend qualification logic is unchanged.
 
 Apply/remove actions emit existing filtering analytics with counts, field types,
 operators and target kind only. Filter content and experiment identities are not

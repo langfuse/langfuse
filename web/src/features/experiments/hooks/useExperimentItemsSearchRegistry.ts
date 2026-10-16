@@ -2,43 +2,24 @@ import { useMemo } from "react";
 import { EXPERIMENT_ITEMS_FIELD_REGISTRY } from "@/src/features/experiments/constants/experimentItemsSearchRegistry";
 import { experimentItemsFilterTargeting } from "@/src/features/experiments/lib/experimentItemsFilterTargeting";
 import type { FieldRegistry } from "@/src/features/search-bar/lib/fields";
-import { type ExperimentItemScoreFilterOptions } from "../types/charts";
-import {
-  scoreTypeContextFromObserved,
-  toObservedOptions,
-} from "@/src/features/search-bar/lib/observed-options";
 
 export function useExperimentItemsSearchRegistry({
   baselineId,
   experimentIds,
   selectedExperiments,
   colorExperimentIds,
-  optionsByTarget,
   optionsError,
 }: {
   baselineId?: string;
   experimentIds: readonly string[];
-  optionsError: string | null;
   selectedExperiments: readonly {
     experimentId: string;
     experimentName: string;
     datasetName?: string | null;
   }[];
   colorExperimentIds: string[];
-  optionsByTarget: Readonly<
-    Record<string, ExperimentItemScoreFilterOptions | undefined>
-  >;
+  optionsError: string | null;
 }): FieldRegistry {
-  const observedByTarget = useMemo(
-    () =>
-      Object.fromEntries(
-        Object.entries(optionsByTarget).map(([target, options]) => [
-          target,
-          toObservedOptions(options, options === undefined),
-        ]),
-      ),
-    [optionsByTarget],
-  );
   return useMemo(
     () => ({
       ...EXPERIMENT_ITEMS_FIELD_REGISTRY,
@@ -48,11 +29,6 @@ export function useExperimentItemsSearchRegistry({
         experiments: selectedExperiments,
         colorExperimentIds,
         scoreTypesError: optionsError ?? undefined,
-        observedForTarget: (targetId) => observedByTarget[targetId],
-        scoreTypesForTarget: (targetId) => {
-          const observed = observedByTarget[targetId];
-          return observed ? scoreTypeContextFromObserved(observed) : undefined;
-        },
       }),
     }),
     [
@@ -60,7 +36,6 @@ export function useExperimentItemsSearchRegistry({
       experimentIds,
       selectedExperiments,
       colorExperimentIds,
-      observedByTarget,
       optionsError,
     ],
   );

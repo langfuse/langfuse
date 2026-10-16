@@ -41,7 +41,7 @@ export function ExperimentFilterMetadataForm({
         {column === "itemMetadata" ? "Item metadata" : "Metadata"}
       </span>
       <p className="text-muted-foreground text-xs">
-        Key is set · All selected experiments
+        Key is set · All experiments
       </p>
       <Input
         aria-label="Metadata key"

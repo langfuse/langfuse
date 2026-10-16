@@ -1535,7 +1535,6 @@ describe("Clickhouse Experiment Repository Test", () => {
       // level-agnostic set and its level maps are the projection the three
       // score facets offer.
       expect(result).toEqual({
-        byExperiment: {},
         obs_scores_avg: [],
         obs_score_categories: [],
         obs_score_booleans: [],
@@ -1555,18 +1554,15 @@ describe("Clickhouse Experiment Repository Test", () => {
     });
 
     it("should return empty arrays for non-existent experiments", async () => {
-      const experimentId = randomUUID();
       const result = await getExperimentItemsFilterOptions({
         projectId,
-        experimentIds: [experimentId],
+        experimentIds: [randomUUID()],
       });
 
       // The per-level lists stay the source (the charts read them); the
       // level-agnostic set and its level maps are the projection the three
       // score facets offer.
-      const { byExperiment, ...aggregateOptions } = result;
-      expect(byExperiment[experimentId]).toEqual(aggregateOptions);
-      expect(aggregateOptions).toEqual({
+      expect(result).toEqual({
         obs_scores_avg: [],
         obs_score_categories: [],
         obs_score_booleans: [],

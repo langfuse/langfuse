@@ -11,7 +11,7 @@ import { ExperimentFilterBlock } from "./ExperimentFilterBlock";
 import { experimentFilterToDraft } from "./experimentFilterEditing";
 import {
   type ExperimentFilterApply,
-  type ExperimentFilterOptionsByTarget,
+  type ExperimentFilterOptions,
   type ExperimentFilterTarget,
 } from "./experimentFilterTypes";
 
@@ -21,7 +21,7 @@ export function ExperimentFilterSidebarView({
   onRemove,
   onClearAll,
   targets,
-  optionsByTarget,
+  options,
   legacyDefaultTarget,
   optionsError,
   onRetryOptions,
@@ -135,7 +135,7 @@ export function ExperimentFilterSidebarView({
               )}
               index={index}
               targets={targets}
-              optionsByTarget={optionsByTarget}
+              options={options}
               optionsError={optionsError}
               onApply={onApply}
               onRemove={onRemove}
@@ -143,14 +143,14 @@ export function ExperimentFilterSidebarView({
           ))}
           {!showOnlyActive && (
             <AvailableExperimentFilters
-              options={optionsByTarget.all}
+              options={options}
               optionsError={optionsError}
               onAdd={onApply}
               portalContainer={portalContainer}
             />
           )}
           <ExperimentFilterAddButton
-            options={optionsByTarget.all}
+            options={options}
             optionsError={optionsError}
             onAdd={onApply}
             portalContainer={portalContainer}
@@ -180,7 +180,7 @@ type ExperimentFilterSidebarViewProps = {
   onRemove: (index: number) => void;
   onClearAll: () => void;
   targets: readonly ExperimentFilterTarget[];
-  optionsByTarget: ExperimentFilterOptionsByTarget;
+  options: ExperimentFilterOptions | undefined;
   legacyDefaultTarget: string;
   optionsError: string | null;
   onRetryOptions: () => void;

@@ -12,10 +12,6 @@ export type ExperimentFilterOptions = ExperimentItemScoreFilterOptions & {
   eventMetadata?: Record<string, string[]>;
 };
 
-export type ExperimentFilterOptionsByTarget = Readonly<
-  Record<string, ExperimentFilterOptions | undefined>
->;
-
 export type ExperimentFilterApply = (
   filter: FilterState[number],
   index?: number,

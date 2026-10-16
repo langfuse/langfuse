@@ -1393,8 +1393,47 @@ function filterAt(node: ASTNode | null, caret: number): FilterNode | null {
     : null;
 }
 
-/** Targets augment the existing field/value planner; both edit the same condition. */
+/** Field picks show the default scope immediately, including unfinished filters. */
 export function planInputCompletions(
+  ctx: InputCompletionContext,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
+): CompletionPlan | null {
+  const plan = planTargetedInputCompletions(ctx, registry);
+  const capability = registry.targeting;
+  if (!plan || !capability) return plan;
+  const term = termAt(ctx.input, ctx.caret);
+  const raw = term?.raw.replace(/^-/, "") ?? "";
+  if (
+    readTargetPrefix(raw, registry) ||
+    filterAt(parse(ctx.input, registry).ast, ctx.caret)?.target
+  )
+    return plan;
+  const target = capability.targets.find(
+    (entry) => entry.id === capability.defaultTarget,
+  );
+  if (!target) return plan;
+  const prefix = serializeTarget(targetReference(target));
+  return {
+    ...plan,
+    sections: plan.sections.map((section) => ({
+      ...section,
+      options: section.options.map((option) => {
+        if (option.kind !== "field") return option;
+        const ref = registry.resolveField(
+          option.fieldId.endsWith(".")
+            ? `${option.fieldId}key`
+            : option.fieldId,
+        );
+        return ref && capability.supports(ref)
+          ? { ...option, fieldId: `${prefix}${option.fieldId}` }
+          : option;
+      }),
+    })),
+  };
+}
+
+/** Targets augment the existing field/value planner; both edit the same condition. */
+function planTargetedInputCompletions(
   ctx: InputCompletionContext,
   registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): CompletionPlan | null {
@@ -1425,16 +1464,12 @@ export function planInputCompletions(
             target.label === reference.value &&
             Boolean(target.keyword) === (reference.kind === "keyword"),
         )?.id ?? capability.defaultTarget);
-  const observed = capability.observedForTarget
-    ? capability.observedForTarget(targetId)
-    : ctx.observed;
   const insideTarget = prefix && ctx.caret < bodyFrom + prefix.length;
   let plan: CompletionPlan | null = null;
   if (!insideTarget && !prefix?.incomplete && !term.raw.startsWith("@")) {
     const length = prefix?.length ?? 0;
     const unscoped = {
       ...ctx,
-      observed,
       input: ctx.input.slice(0, bodyFrom) + ctx.input.slice(bodyFrom + length),
       caret: Math.max(bodyFrom, ctx.caret - length),
     };
