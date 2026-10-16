@@ -6,7 +6,9 @@ mod request;
 
 pub(crate) use client::instrument_client;
 pub use http::instrument;
-pub(crate) use metrics::{Active, delivery, execution_finished, rejected, stream_finished};
+pub(crate) use metrics::{
+    Active, delivery, execution_finished, record_capacity, rejected, stream_finished,
+};
 pub(crate) use request::{ErrorOrigin, Phase, RequestObservation, provider_status_reason};
 
 use crate::config::{GatewayConfig, LogFormat};
@@ -25,6 +27,7 @@ use tracing_subscriber::{EnvFilter, Layer, filter::filter_fn, prelude::*};
 pub struct Observability {
     traces: SdkTracerProvider,
     metrics: Option<SdkMeterProvider>,
+    _admission: Option<metrics::AdmissionInstruments>,
     _runtime: Option<metrics::RuntimeInstruments>,
 }
 
@@ -85,8 +88,11 @@ pub fn init(config: &GatewayConfig) -> Result<Observability, Box<dyn Error>> {
     };
     let traces = traces.build();
     global::set_text_map_propagator(TraceContextPropagator::new());
-    let runtime = metrics.as_ref().and_then(|provider| {
+    let admission = metrics.as_ref().map(|provider| {
         global::set_meter_provider(provider.clone());
+        metrics::register_admission()
+    });
+    let runtime = metrics.as_ref().and_then(|_| {
         tokio::runtime::Handle::try_current()
             .ok()
             .map(|handle| metrics::register_runtime(&handle))
@@ -124,6 +130,7 @@ pub fn init(config: &GatewayConfig) -> Result<Observability, Box<dyn Error>> {
     Ok(Observability {
         traces,
         metrics,
+        _admission: admission,
         _runtime: runtime,
     })
 }

@@ -256,6 +256,8 @@ identifiers:
 | `gateway.overhead.duration` | `component`, `gateway.provider`, `http.route` | Gateway time excluding the caller's upload and the provider's wait. `component=total` is time to response headers minus `request.body` and `provider.headers`; `resolution` is the Web call within it, `processing` the rest. `stream_processing` (no route) is capture work on the streamed body. Only requests that reached the provider record it. |
 | `gateway.phase.duration` | `phase`, `gateway.provider` | `request.body`, `resolution`, `model_catalog`, `provider.headers`, `provider.first_byte`, `provider.first_token`, `execution` |
 | `gateway.active` | `phase`, `service.instance.id` | In-flight model_catalog/resolution/execution work per task |
+| `gateway.admission.capacity` | `phase`, `service.instance.id` | Configured slots per phase: `LANGFUSE_AI_GATEWAY_MAX_CONCURRENT_RESOLUTIONS` for model_catalog and resolution, `LANGFUSE_AI_GATEWAY_MAX_ACTIVE_REQUESTS` for execution. Free slots are `capacity - gateway.active` |
+| `gateway.active.peak` | `phase`, `service.instance.id` | Most slots held at once since the previous 30-second export. Each interval starts from the slots still held, so a long request is not reported as idle |
 | `gateway.executions` | `outcome`, `gateway.provider` | Finished relays: `complete`, `cancelled`, `timeout`, `transport_error` |
 | `gateway.tokens` | `token.type`, `gateway.provider` | Provider-reported usage: `input` (excluding cached), `cache_read`, `cache_write`, `output`, `reasoning` (a subset of `output`) |
 | `gateway.response.bytes` | `gateway.provider` | Response bytes relayed to callers |

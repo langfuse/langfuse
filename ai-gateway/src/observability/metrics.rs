@@ -1,4 +1,10 @@
-use std::{sync::LazyLock, time::Duration};
+use std::{
+    sync::{
+        LazyLock,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::Duration,
+};
 
 use crate::capture::{InferenceFacts, RelayOutcome};
 use opentelemetry::trace::TraceContextExt;
@@ -107,11 +113,74 @@ pub(super) fn overhead(
     METRICS.overhead.record(duration.as_secs_f64(), &attributes);
 }
 
+/// In-use, high-water, and configured slots of one admission semaphore.
+struct Slots {
+    phase: &'static str,
+    in_use: AtomicU64,
+    peak: AtomicU64,
+    capacity: AtomicU64,
+}
+
+impl Slots {
+    const fn new(phase: &'static str) -> Self {
+        Self {
+            phase,
+            in_use: AtomicU64::new(0),
+            peak: AtomicU64::new(0),
+            capacity: AtomicU64::new(0),
+        }
+    }
+
+    fn acquire(&self) {
+        let in_use = self.in_use.fetch_add(1, Ordering::Relaxed) + 1;
+        self.peak.fetch_max(in_use, Ordering::Relaxed);
+    }
+
+    fn release(&self) {
+        self.in_use.fetch_sub(1, Ordering::Relaxed);
+    }
+
+    /// The highest in-use count since the previous read. The next interval starts
+    /// from the slots still held, so a long request is not reported as idle.
+    fn take_peak(&self) -> u64 {
+        let peak = self
+            .peak
+            .swap(self.in_use.load(Ordering::Relaxed), Ordering::Relaxed);
+        self.peak
+            .fetch_max(self.in_use.load(Ordering::Relaxed), Ordering::Relaxed);
+        peak
+    }
+}
+
+static SLOTS: [Slots; 3] = [
+    Slots::new("model_catalog"),
+    Slots::new("resolution"),
+    Slots::new("execution"),
+];
+
+fn slots(phase: &str) -> Option<&'static Slots> {
+    SLOTS.iter().find(|slots| slots.phase == phase)
+}
+
+/// Report a semaphore's configured size for `gateway.admission.capacity`. The
+/// gateway runs one inference service per process, so the latest value wins.
+pub(crate) fn record_capacity(phase: &'static str, capacity: usize) {
+    if let Some(slots) = slots(phase) {
+        slots.capacity.store(
+            u64::try_from(capacity).unwrap_or(u64::MAX),
+            Ordering::Relaxed,
+        );
+    }
+}
+
 pub(crate) struct Active(&'static str);
 
 impl Active {
     pub(crate) fn new(phase: &'static str) -> Self {
         METRICS.active.add(1, &active_attributes(phase));
+        if let Some(slots) = slots(phase) {
+            slots.acquire();
+        }
         Self(phase)
     }
 }
@@ -119,6 +188,9 @@ impl Active {
 impl Drop for Active {
     fn drop(&mut self) {
         METRICS.active.add(-1, &active_attributes(self.0));
+        if let Some(slots) = slots(self.0) {
+            slots.release();
+        }
     }
 }
 
@@ -280,6 +352,44 @@ fn token_counts(api_format: &str, usage: &Value) -> Vec<(&'static str, u64)> {
     .collect()
 }
 
+/// Keeps the admission callbacks registered for the life of the meter provider.
+pub(super) struct AdmissionInstruments {
+    _capacity: ObservableGauge<u64>,
+    _peak: ObservableGauge<u64>,
+}
+
+/// Free slots are `gateway.admission.capacity - gateway.active`. The 30-second
+/// average of `gateway.active` hides bursts, so `gateway.active.peak` reports the
+/// most slots held at once since the previous export.
+pub(super) fn register_admission() -> AdmissionInstruments {
+    let meter = global::meter("ai-gateway");
+    let capacity = meter
+        .u64_observable_gauge("gateway.admission.capacity")
+        .with_callback(|observer| {
+            for slots in &SLOTS {
+                let capacity = slots.capacity.load(Ordering::Relaxed);
+                if capacity > 0 {
+                    observer.observe(capacity, &active_attributes(slots.phase));
+                }
+            }
+        })
+        .build();
+    // The SDK reads observable instruments once per collection, which is once
+    // per export with the single periodic reader.
+    let peak = meter
+        .u64_observable_gauge("gateway.active.peak")
+        .with_callback(|observer| {
+            for slots in &SLOTS {
+                observer.observe(slots.take_peak(), &active_attributes(slots.phase));
+            }
+        })
+        .build();
+    AdmissionInstruments {
+        _capacity: capacity,
+        _peak: peak,
+    }
+}
+
 /// Keeps the runtime callbacks registered for the life of the meter provider.
 pub(super) struct RuntimeInstruments {
     _gauges: [ObservableGauge<u64>; 3],
@@ -335,8 +445,23 @@ pub(super) fn register_runtime(handle: &tokio::runtime::Handle) -> RuntimeInstru
 
 #[cfg(test)]
 mod tests {
-    use super::token_counts;
+    use super::{Slots, token_counts};
     use serde_json::json;
+
+    #[test]
+    fn peak_reports_the_interval_burst_then_restarts_from_held_slots() {
+        let slots = Slots::new("execution");
+        for _ in 0..3 {
+            slots.acquire();
+        }
+        slots.release();
+        slots.release();
+        assert_eq!(slots.take_peak(), 3, "a burst between exports is kept");
+        assert_eq!(slots.take_peak(), 1, "a slot still held stays visible");
+        slots.release();
+        assert_eq!(slots.take_peak(), 1);
+        assert_eq!(slots.take_peak(), 0);
+    }
 
     #[test]
     fn token_types_split_cached_input_consistently_across_providers() {

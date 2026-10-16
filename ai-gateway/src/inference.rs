@@ -88,6 +88,8 @@ impl InferenceService {
             return Err(ResolutionError::Configuration);
         }
         let telemetry = crate::telemetry::Telemetry::new(&config, telemetry_buffer_bytes)?;
+        crate::observability::record_capacity("model_catalog", max_concurrent_resolutions);
+        crate::observability::record_capacity("resolution", max_concurrent_resolutions);
         Ok(Self {
             control_plane: ControlPlaneClient::new(config)?,
             provider: ProviderTransport::new(max_active_requests)

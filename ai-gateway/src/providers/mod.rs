@@ -133,6 +133,7 @@ impl ProviderTransport {
             .pool_max_idle_per_host(16)
             .build()
             .map_err(|_| ProviderError::Configuration)?;
+        crate::observability::record_capacity("execution", limits.active);
         Ok(Self {
             client: crate::observability::instrument_client(client, "provider.headers"),
             capacity: Arc::new(Semaphore::new(limits.active)),
