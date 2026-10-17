@@ -1356,7 +1356,7 @@
     "modelName": "claude-3-sonnet-20240229",
     "matchPattern": "(?i)^(anthropic\/)?(claude-3-sonnet-20240229|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-3-sonnet-20240229-v1:0|claude-3-sonnet@20240229)$",
     "createdAt": "2024-03-07T17:55:38.139Z",
-    "updatedAt": "2026-07-28T00:00:00.000Z",
+    "updatedAt": "2026-09-14T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -1373,7 +1373,9 @@
           "cache_creation_input_tokens": 0.00000375,
           "input_cache_creation": 0.00000375,
           "input_cache_creation_5m": 0.00000375,
+          "input_ephemeral_5m_input_tokens": 0.00000375,
           "input_cache_creation_1h": 0.000006,
+          "input_ephemeral_1h_input_tokens": 0.000006,
           "cache_read_input_tokens": 3e-7,
           "input_cached_tokens": 3e-7,
           "input_cache_read": 3e-7
@@ -1585,7 +1587,7 @@
     "modelName": "claude-3-5-sonnet-20240620",
     "matchPattern": "(?i)^(anthropic\/)?(claude-3-5-sonnet-20240620|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-3-5-sonnet-20240620-v1:0|claude-3-5-sonnet@20240620)$",
     "createdAt": "2024-06-25T11:47:24.475Z",
-    "updatedAt": "2026-07-28T00:00:00.000Z",
+    "updatedAt": "2026-09-14T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -1602,7 +1604,9 @@
           "cache_creation_input_tokens": 0.00000375,
           "input_cache_creation": 0.00000375,
           "input_cache_creation_5m": 0.00000375,
+          "input_ephemeral_5m_input_tokens": 0.00000375,
           "input_cache_creation_1h": 0.000006,
+          "input_ephemeral_1h_input_tokens": 0.000006,
           "cache_read_input_tokens": 3e-7,
           "input_cached_tokens": 3e-7,
           "input_cache_read": 3e-7
@@ -1899,7 +1903,7 @@
     "modelName": "claude-3.5-sonnet-20241022",
     "matchPattern": "(?i)^(anthropic\/)?(claude-3-5-sonnet-20241022|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-3-5-sonnet-20241022-v2:0|claude-3-5-sonnet-V2@20241022)$",
     "createdAt": "2024-10-22T18:48:01.676Z",
-    "updatedAt": "2026-07-28T00:00:00.000Z",
+    "updatedAt": "2026-09-14T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -1916,7 +1920,9 @@
           "cache_creation_input_tokens": 0.00000375,
           "input_cache_creation": 0.00000375,
           "input_cache_creation_5m": 0.00000375,
+          "input_ephemeral_5m_input_tokens": 0.00000375,
           "input_cache_creation_1h": 0.000006,
+          "input_ephemeral_1h_input_tokens": 0.000006,
           "cache_read_input_tokens": 3e-7,
           "input_cached_tokens": 3e-7,
           "input_cache_read": 3e-7
@@ -1929,7 +1935,7 @@
     "modelName": "claude-3.5-sonnet-latest",
     "matchPattern": "(?i)^(anthropic\/)?(claude-3-5-sonnet-latest)$",
     "createdAt": "2024-10-22T18:48:01.676Z",
-    "updatedAt": "2026-04-13T00:00:00.000Z",
+    "updatedAt": "2026-09-14T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -1946,7 +1952,9 @@
           "cache_creation_input_tokens": 0.00000375,
           "input_cache_creation": 0.00000375,
           "input_cache_creation_5m": 0.00000375,
+          "input_ephemeral_5m_input_tokens": 0.00000375,
           "input_cache_creation_1h": 0.000006,
+          "input_ephemeral_1h_input_tokens": 0.000006,
           "cache_read_input_tokens": 3e-7,
           "input_cached_tokens": 3e-7,
           "input_cache_read": 3e-7
@@ -1959,7 +1967,7 @@
     "modelName": "claude-3-5-haiku-20241022",
     "matchPattern": "(?i)^(anthropic\/)?(claude-3-5-haiku-20241022|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-3-5-haiku-20241022-v1:0|claude-3-5-haiku-V1@20241022)$",
     "createdAt": "2024-11-05T10:30:50.566Z",
-    "updatedAt": "2026-07-28T00:00:00.000Z",
+    "updatedAt": "2026-09-14T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -1976,7 +1984,9 @@
           "cache_creation_input_tokens": 0.000001,
           "input_cache_creation": 0.000001,
           "input_cache_creation_5m": 0.000001,
+          "input_ephemeral_5m_input_tokens": 0.000001,
           "input_cache_creation_1h": 0.0000016,
+          "input_ephemeral_1h_input_tokens": 0.0000016,
           "cache_read_input_tokens": 8e-8,
           "input_cached_tokens": 8e-8,
           "input_cache_read": 8e-8
@@ -1989,7 +1999,7 @@
     "modelName": "claude-3.5-haiku-latest",
     "matchPattern": "(?i)^(anthropic\/)?(claude-3-5-haiku-latest)$",
     "createdAt": "2024-11-05T10:30:50.566Z",
-    "updatedAt": "2026-04-13T00:00:00.000Z",
+    "updatedAt": "2026-09-14T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -2006,7 +2016,9 @@
           "cache_creation_input_tokens": 0.000001,
           "input_cache_creation": 0.000001,
           "input_cache_creation_5m": 0.000001,
+          "input_ephemeral_5m_input_tokens": 0.000001,
           "input_cache_creation_1h": 0.0000016,
+          "input_ephemeral_1h_input_tokens": 0.0000016,
           "cache_read_input_tokens": 8e-8,
           "input_cached_tokens": 8e-8,
           "input_cache_read": 8e-8
@@ -2357,7 +2369,7 @@
     "modelName": "claude-3.7-sonnet-20250219",
     "matchPattern": "(?i)^(anthropic\/)?(claude-3.7-sonnet-20250219|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-3.7-sonnet-20250219-v1:0|claude-3-7-sonnet-V1@20250219)$",
     "createdAt": "2025-02-25T09:35:39.000Z",
-    "updatedAt": "2026-07-28T00:00:00.000Z",
+    "updatedAt": "2026-09-14T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -2374,7 +2386,9 @@
           "cache_creation_input_tokens": 0.00000375,
           "input_cache_creation": 0.00000375,
           "input_cache_creation_5m": 0.00000375,
+          "input_ephemeral_5m_input_tokens": 0.00000375,
           "input_cache_creation_1h": 0.000006,
+          "input_ephemeral_1h_input_tokens": 0.000006,
           "cache_read_input_tokens": 3e-7,
           "input_cached_tokens": 3e-7,
           "input_cache_read": 3e-7
@@ -2387,7 +2401,7 @@
     "modelName": "claude-3.7-sonnet-latest",
     "matchPattern": "(?i)^(anthropic\/)?(claude-3-7-sonnet-latest)$",
     "createdAt": "2025-02-25T09:35:39.000Z",
-    "updatedAt": "2026-04-13T00:00:00.000Z",
+    "updatedAt": "2026-09-14T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -2404,7 +2418,9 @@
           "cache_creation_input_tokens": 0.00000375,
           "input_cache_creation": 0.00000375,
           "input_cache_creation_5m": 0.00000375,
+          "input_ephemeral_5m_input_tokens": 0.00000375,
           "input_cache_creation_1h": 0.000006,
+          "input_ephemeral_1h_input_tokens": 0.000006,
           "cache_read_input_tokens": 3e-7,
           "input_cached_tokens": 3e-7,
           "input_cache_read": 3e-7
@@ -3191,7 +3207,7 @@
     "modelName": "claude-sonnet-4-5-20250929",
     "matchPattern": "(?i)^(anthropic\/)?(claude-sonnet-4-5(-20250929)?|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-sonnet-4-5(-20250929)?-v1(:0)?|claude-sonnet-4-5-V1(@20250929)?|claude-sonnet-4-5(@20250929)?)$",
     "createdAt": "2025-09-29T00:00:00.000Z",
-    "updatedAt": "2026-08-04T00:00:00.000Z",
+    "updatedAt": "2026-09-14T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -3208,7 +3224,9 @@
           "cache_creation_input_tokens": 0.00000375,
           "input_cache_creation": 0.00000375,
           "input_cache_creation_5m": 0.00000375,
+          "input_ephemeral_5m_input_tokens": 0.00000375,
           "input_cache_creation_1h": 0.000006,
+          "input_ephemeral_1h_input_tokens": 0.000006,
           "cache_read_input_tokens": 3e-7,
           "input_cached_tokens": 3e-7,
           "input_cache_read": 3e-7
@@ -3221,7 +3239,7 @@
     "modelName": "claude-sonnet-4-20250514",
     "matchPattern": "(?i)^(anthropic\/)?(claude-sonnet-4(-20250514)?|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-sonnet-4(-20250514)?-v1(:0)?|claude-sonnet-4-V1(@20250514)?|claude-sonnet-4(@20250514)?)$",
     "createdAt": "2025-05-22T17:09:02.131Z",
-    "updatedAt": "2026-07-28T00:00:00.000Z",
+    "updatedAt": "2026-09-14T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -3238,7 +3256,9 @@
           "cache_creation_input_tokens": 0.00000375,
           "input_cache_creation": 0.00000375,
           "input_cache_creation_5m": 0.00000375,
+          "input_ephemeral_5m_input_tokens": 0.00000375,
           "input_cache_creation_1h": 0.000006,
+          "input_ephemeral_1h_input_tokens": 0.000006,
           "cache_read_input_tokens": 3e-7,
           "input_cached_tokens": 3e-7,
           "input_cache_read": 3e-7
@@ -3251,7 +3271,7 @@
     "modelName": "claude-sonnet-4-latest",
     "matchPattern": "(?i)^(anthropic\/)?(claude-sonnet-4-latest)$",
     "createdAt": "2025-05-22T17:09:02.131Z",
-    "updatedAt": "2026-04-13T00:00:00.000Z",
+    "updatedAt": "2026-09-14T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -3268,7 +3288,9 @@
           "cache_creation_input_tokens": 0.00000375,
           "input_cache_creation": 0.00000375,
           "input_cache_creation_5m": 0.00000375,
+          "input_ephemeral_5m_input_tokens": 0.00000375,
           "input_cache_creation_1h": 0.000006,
+          "input_ephemeral_1h_input_tokens": 0.000006,
           "cache_read_input_tokens": 3e-7,
           "input_cached_tokens": 3e-7,
           "input_cache_read": 3e-7
@@ -3281,7 +3303,7 @@
     "modelName": "claude-opus-4-20250514",
     "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4(-20250514)?|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-opus-4(-20250514)?-v1(:0)?|claude-opus-4(@20250514)?)$",
     "createdAt": "2025-05-22T17:09:02.131Z",
-    "updatedAt": "2026-07-28T00:00:00.000Z",
+    "updatedAt": "2026-09-14T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -3298,7 +3320,9 @@
           "cache_creation_input_tokens": 0.00001875,
           "input_cache_creation": 0.00001875,
           "input_cache_creation_5m": 0.00001875,
+          "input_ephemeral_5m_input_tokens": 0.00001875,
           "input_cache_creation_1h": 0.00003,
+          "input_ephemeral_1h_input_tokens": 0.00003,
           "cache_read_input_tokens": 0.0000015,
           "input_cached_tokens": 0.0000015,
           "input_cache_read": 0.0000015
@@ -3539,7 +3563,7 @@
     "modelName": "claude-opus-4-1-20250805",
     "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-1(-20250805)?|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-opus-4-1(-20250805)?-v1(:0)?|claude-opus-4-1(@20250805)?)$",
     "createdAt": "2025-08-05T15:00:00.000Z",
-    "updatedAt": "2026-07-28T00:00:00.000Z",
+    "updatedAt": "2026-09-14T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -3556,7 +3580,9 @@
           "cache_creation_input_tokens": 0.00001875,
           "input_cache_creation": 0.00001875,
           "input_cache_creation_5m": 0.00001875,
+          "input_ephemeral_5m_input_tokens": 0.00001875,
           "input_cache_creation_1h": 0.00003,
+          "input_ephemeral_1h_input_tokens": 0.00003,
           "cache_read_input_tokens": 0.0000015,
           "input_cached_tokens": 0.0000015,
           "input_cache_read": 0.0000015
@@ -4140,7 +4166,7 @@
     "modelName": "claude-haiku-4-5-20251001",
     "matchPattern": "(?i)^(anthropic\/)?(claude-haiku-4-5(-20251001)?|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-haiku-4-5-20251001-v1:0|claude-4-5-haiku@20251001)$",
     "createdAt": "2025-10-16T08:20:44.558Z",
-    "updatedAt": "2026-07-28T00:00:00.000Z",
+    "updatedAt": "2026-09-14T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -4157,7 +4183,9 @@
           "cache_creation_input_tokens": 0.00000125,
           "input_cache_creation": 0.00000125,
           "input_cache_creation_5m": 0.00000125,
+          "input_ephemeral_5m_input_tokens": 0.00000125,
           "input_cache_creation_1h": 0.000002,
+          "input_ephemeral_1h_input_tokens": 0.000002,
           "cache_read_input_tokens": 1e-7,
           "input_cached_tokens": 1e-7,
           "input_cache_read": 1e-7
@@ -4348,7 +4376,7 @@
     "modelName": "claude-opus-4-5-20251101",
     "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-5(-20251101)?|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-opus-4-5(-20251101)?-v1(:0)?|claude-opus-4-5(@20251101)?)$",
     "createdAt": "2025-11-24T20:53:27.571Z",
-    "updatedAt": "2026-07-28T00:00:00.000Z",
+    "updatedAt": "2026-09-14T00:00:00.000Z",
     "tokenizerConfig": null,
     "tokenizerId": "claude",
     "pricingTiers": [
@@ -4366,7 +4394,9 @@
           "cache_creation_input_tokens": 6.25e-6,
           "input_cache_creation": 6.25e-6,
           "input_cache_creation_5m": 6.25e-6,
+          "input_ephemeral_5m_input_tokens": 6.25e-6,
           "input_cache_creation_1h": 10e-6,
+          "input_ephemeral_1h_input_tokens": 10e-6,
           "cache_read_input_tokens": 0.5e-6,
           "input_cached_tokens": 0.5e-6,
           "input_cache_read": 0.5e-6
@@ -4379,7 +4409,7 @@
     "modelName": "claude-sonnet-4-6",
     "matchPattern": "(?i)^(anthropic\\/)?(claude-sonnet-4-6|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-sonnet-4-6(-v1(:0)?)?|claude-sonnet-4-6)$",
     "createdAt": "2026-02-18T00:00:00.000Z",
-    "updatedAt": "2026-07-28T00:00:00.000Z",
+    "updatedAt": "2026-09-14T00:00:00.000Z",
     "tokenizerConfig": null,
     "tokenizerId": "claude",
     "pricingTiers": [
@@ -4397,7 +4427,9 @@
           "cache_creation_input_tokens": 3.75e-6,
           "input_cache_creation": 3.75e-6,
           "input_cache_creation_5m": 3.75e-6,
+          "input_ephemeral_5m_input_tokens": 3.75e-6,
           "input_cache_creation_1h": 6e-6,
+          "input_ephemeral_1h_input_tokens": 6e-6,
           "cache_read_input_tokens": 3e-7,
           "input_cached_tokens": 3e-7,
           "input_cache_read": 3e-7
@@ -4410,7 +4442,7 @@
     "modelName": "claude-opus-4-6",
     "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-6|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-opus-4-6-v1(:0)?|claude-opus-4-6)$",
     "createdAt": "2026-02-09T00:00:00.000Z",
-    "updatedAt": "2026-07-28T00:00:00.000Z",
+    "updatedAt": "2026-09-14T00:00:00.000Z",
     "tokenizerConfig": null,
     "tokenizerId": "claude",
     "pricingTiers": [
@@ -4428,7 +4460,9 @@
           "cache_creation_input_tokens": 6.25e-6,
           "input_cache_creation": 6.25e-6,
           "input_cache_creation_5m": 6.25e-6,
+          "input_ephemeral_5m_input_tokens": 6.25e-6,
           "input_cache_creation_1h": 10e-6,
+          "input_ephemeral_1h_input_tokens": 10e-6,
           "cache_read_input_tokens": 0.5e-6,
           "input_cached_tokens": 0.5e-6,
           "input_cache_read": 0.5e-6
@@ -4441,7 +4475,7 @@
     "modelName": "claude-opus-4-7",
     "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-7|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-opus-4-7-v1(:0)?|claude-opus-4-7)$",
     "createdAt": "2026-04-16T00:00:00.000Z",
-    "updatedAt": "2026-07-28T00:00:00.000Z",
+    "updatedAt": "2026-09-14T00:00:00.000Z",
     "tokenizerConfig": null,
     "tokenizerId": "claude",
     "pricingTiers": [
@@ -4459,7 +4493,9 @@
           "cache_creation_input_tokens": 6.25e-6,
           "input_cache_creation": 6.25e-6,
           "input_cache_creation_5m": 6.25e-6,
+          "input_ephemeral_5m_input_tokens": 6.25e-6,
           "input_cache_creation_1h": 10e-6,
+          "input_ephemeral_1h_input_tokens": 10e-6,
           "cache_read_input_tokens": 0.5e-6,
           "input_cached_tokens": 0.5e-6,
           "input_cache_read": 0.5e-6
@@ -4472,7 +4508,7 @@
     "modelName": "claude-opus-4-8",
     "matchPattern": "(?i)^((anthropic\/)?claude-opus-4-8|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-opus-4-8(-v1(:0)?)?)$",
     "createdAt": "2026-05-28T00:00:00.000Z",
-    "updatedAt": "2026-08-20T00:00:00.000Z",
+    "updatedAt": "2026-09-14T00:00:00.000Z",
     "tokenizerConfig": null,
     "tokenizerId": "claude",
     "pricingTiers": [
@@ -4490,7 +4526,9 @@
           "cache_creation_input_tokens": 6.25e-6,
           "input_cache_creation": 6.25e-6,
           "input_cache_creation_5m": 6.25e-6,
+          "input_ephemeral_5m_input_tokens": 6.25e-6,
           "input_cache_creation_1h": 10e-6,
+          "input_ephemeral_1h_input_tokens": 10e-6,
           "cache_read_input_tokens": 0.5e-6,
           "input_cached_tokens": 0.5e-6,
           "input_cache_read": 0.5e-6
@@ -4517,7 +4555,9 @@
           "cache_creation_input_tokens": 12.5e-6,
           "input_cache_creation": 12.5e-6,
           "input_cache_creation_5m": 12.5e-6,
+          "input_ephemeral_5m_input_tokens": 12.5e-6,
           "input_cache_creation_1h": 20e-6,
+          "input_ephemeral_1h_input_tokens": 20e-6,
           "cache_read_input_tokens": 1e-6,
           "input_cached_tokens": 1e-6,
           "input_cache_read": 1e-6
@@ -4530,7 +4570,7 @@
     "modelName": "claude-fable-5",
     "matchPattern": "(?i)^((anthropic\/)?claude-fable-5|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-fable-5(-v1(:0)?)?)$",
     "createdAt": "2026-06-09T00:00:00.000Z",
-    "updatedAt": "2026-07-28T00:00:00.000Z",
+    "updatedAt": "2026-09-14T00:00:00.000Z",
     "tokenizerConfig": null,
     "tokenizerId": "claude",
     "pricingTiers": [
@@ -4548,7 +4588,9 @@
           "cache_creation_input_tokens": 12.5e-6,
           "input_cache_creation": 12.5e-6,
           "input_cache_creation_5m": 12.5e-6,
+          "input_ephemeral_5m_input_tokens": 12.5e-6,
           "input_cache_creation_1h": 20e-6,
+          "input_ephemeral_1h_input_tokens": 20e-6,
           "cache_read_input_tokens": 1e-6,
           "input_cached_tokens": 1e-6,
           "input_cache_read": 1e-6
@@ -4561,7 +4603,7 @@
     "modelName": "claude-mythos-5",
     "matchPattern": "(?i)^(anthropic\/)?claude-mythos-5$",
     "createdAt": "2026-06-09T00:00:00.000Z",
-    "updatedAt": "2026-06-09T00:00:00.000Z",
+    "updatedAt": "2026-09-14T00:00:00.000Z",
     "tokenizerConfig": null,
     "tokenizerId": "claude",
     "pricingTiers": [
@@ -4579,7 +4621,9 @@
           "cache_creation_input_tokens": 12.5e-6,
           "input_cache_creation": 12.5e-6,
           "input_cache_creation_5m": 12.5e-6,
+          "input_ephemeral_5m_input_tokens": 12.5e-6,
           "input_cache_creation_1h": 20e-6,
+          "input_ephemeral_1h_input_tokens": 20e-6,
           "cache_read_input_tokens": 1e-6,
           "input_cached_tokens": 1e-6,
           "input_cache_read": 1e-6
@@ -4592,7 +4636,7 @@
     "modelName": "claude-fable-5-1",
     "matchPattern": "(?i)^((anthropic\/)?claude-fable-5-1|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-fable-5-1(-v1(:0)?)?)$",
     "createdAt": "2026-09-02T00:00:00.000Z",
-    "updatedAt": "2026-09-02T00:00:00.000Z",
+    "updatedAt": "2026-09-14T00:00:00.000Z",
     "tokenizerConfig": null,
     "tokenizerId": "claude",
     "pricingTiers": [
@@ -4610,7 +4654,9 @@
           "cache_creation_input_tokens": 12.5e-6,
           "input_cache_creation": 12.5e-6,
           "input_cache_creation_5m": 12.5e-6,
+          "input_ephemeral_5m_input_tokens": 12.5e-6,
           "input_cache_creation_1h": 20e-6,
+          "input_ephemeral_1h_input_tokens": 20e-6,
           "cache_read_input_tokens": 0.25e-6,
           "input_cached_tokens": 0.25e-6,
           "input_cache_read": 0.25e-6
@@ -4623,7 +4669,7 @@
     "modelName": "claude-mythos-5-1",
     "matchPattern": "(?i)^(anthropic\/)?claude-mythos-5-1$",
     "createdAt": "2026-09-02T00:00:00.000Z",
-    "updatedAt": "2026-09-02T00:00:00.000Z",
+    "updatedAt": "2026-09-14T00:00:00.000Z",
     "tokenizerConfig": null,
     "tokenizerId": "claude",
     "pricingTiers": [
@@ -4641,7 +4687,9 @@
           "cache_creation_input_tokens": 12.5e-6,
           "input_cache_creation": 12.5e-6,
           "input_cache_creation_5m": 12.5e-6,
+          "input_ephemeral_5m_input_tokens": 12.5e-6,
           "input_cache_creation_1h": 20e-6,
+          "input_ephemeral_1h_input_tokens": 20e-6,
           "cache_read_input_tokens": 0.25e-6,
           "input_cached_tokens": 0.25e-6,
           "input_cache_read": 0.25e-6
@@ -4654,7 +4702,7 @@
     "modelName": "claude-sonnet-5",
     "matchPattern": "(?i)^((anthropic\\/)?claude-sonnet-5|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-sonnet-5(-v1(:0)?)?)$",
     "createdAt": "2026-07-01T00:00:00.000Z",
-    "updatedAt": "2026-07-28T00:00:00.000Z",
+    "updatedAt": "2026-09-14T00:00:00.000Z",
     "tokenizerConfig": null,
     "tokenizerId": "claude",
     "pricingTiers": [
@@ -4672,7 +4720,9 @@
           "cache_creation_input_tokens": 2.5e-6,
           "input_cache_creation": 2.5e-6,
           "input_cache_creation_5m": 2.5e-6,
+          "input_ephemeral_5m_input_tokens": 2.5e-6,
           "input_cache_creation_1h": 4e-6,
+          "input_ephemeral_1h_input_tokens": 4e-6,
           "cache_read_input_tokens": 2e-7,
           "input_cached_tokens": 2e-7,
           "input_cache_read": 2e-7
@@ -4716,7 +4766,7 @@
     "modelName": "claude-opus-5",
     "matchPattern": "(?i)^((anthropic\\/)?claude-opus-5|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-opus-5(-v1(:0)?)?)$",
     "createdAt": "2026-07-25T00:00:00.000Z",
-    "updatedAt": "2026-08-20T00:00:00.000Z",
+    "updatedAt": "2026-09-14T00:00:00.000Z",
     "tokenizerConfig": null,
     "tokenizerId": "claude",
     "pricingTiers": [
@@ -4734,7 +4784,9 @@
           "cache_creation_input_tokens": 6.25e-6,
           "input_cache_creation": 6.25e-6,
           "input_cache_creation_5m": 6.25e-6,
+          "input_ephemeral_5m_input_tokens": 6.25e-6,
           "input_cache_creation_1h": 10e-6,
+          "input_ephemeral_1h_input_tokens": 10e-6,
           "cache_read_input_tokens": 0.5e-6,
           "input_cached_tokens": 0.5e-6,
           "input_cache_read": 0.5e-6
@@ -4761,7 +4813,9 @@
           "cache_creation_input_tokens": 12.5e-6,
           "input_cache_creation": 12.5e-6,
           "input_cache_creation_5m": 12.5e-6,
+          "input_ephemeral_5m_input_tokens": 12.5e-6,
           "input_cache_creation_1h": 20e-6,
+          "input_ephemeral_1h_input_tokens": 20e-6,
           "cache_read_input_tokens": 1e-6,
           "input_cached_tokens": 1e-6,
           "input_cache_read": 1e-6
