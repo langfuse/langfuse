@@ -1004,3 +1004,55 @@ export function isKitesurfInternalEvent(event: ErrorEvent): boolean {
   }
   return sawKitesurfVendorFrame;
 }
+
+/**
+ * WitnessAI (enterprise AI-governance injector) ships a page-world
+ * JSLoggerClient / LogBeacon that flush-POSTs telemetry. When their
+ * collector returns an HTTP error, `checkStatus` throws
+ * `HTTP error! status: N` as an unhandled rejection. Frames are
+ * attributed to the HTML document (`app:///:2`, `app:///onboarding:2`)
+ * — `denyUrls` cannot match. Observed: LANGFUSE-624 (sign-in) and
+ * LANGFUSE-625 (onboarding).
+ *
+ * Langfuse has no `LogBeacon` / `JSLoggerClient` identifiers. Matching
+ * requires all of:
+ *  - exception message `HTTP error! status: <digits>` (their checkStatus)
+ *  - at least one frame function containing `LogBeacon` or `JSLoggerClient`
+ *  - no first-party `/_next/` frames
+ *  - a Sentry browser/global-handler mechanism
+ *
+ * Never drops:
+ *  - the same HTTP status message without those vendor function names
+ *  - an app-captured exception that quotes the phrase (`generic`)
+ *  - a stack that also has a `/_next/` chunk
+ */
+const WITNESS_AI_HTTP_STATUS_RE = /^HTTP error! status: \d+$/;
+const WITNESS_AI_LOGGER_FN_RE = /LogBeacon|JSLoggerClient/;
+
+export function isWitnessAiLogBeaconEvent(event: ErrorEvent): boolean {
+  const exception = event.exception?.values?.[0];
+  const exceptionValue = exception?.value;
+  if (typeof exceptionValue !== "string") return false;
+
+  const mechanismType = exception?.mechanism?.type;
+  if (
+    typeof mechanismType !== "string" ||
+    !mechanismType.startsWith("auto.browser.")
+  ) {
+    return false;
+  }
+
+  if (!WITNESS_AI_HTTP_STATUS_RE.test(coreMessage(exceptionValue))) {
+    return false;
+  }
+
+  if (hasFirstPartyChunkFrame(event)) return false;
+
+  const frames = exception.stacktrace?.frames;
+  if (!frames || frames.length === 0) return false;
+
+  return frames.some((stackFrame) => {
+    const fn = stackFrame?.function;
+    return typeof fn === "string" && WITNESS_AI_LOGGER_FN_RE.test(fn);
+  });
+}

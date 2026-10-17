@@ -8,6 +8,7 @@ import {
   isReactDevtoolsInternalEvent,
   isStaleChunkLoadErrorEvent,
   isStaleChunkParseErrorEvent,
+  isWitnessAiLogBeaconEvent,
   STALE_CHUNK_LOAD_FINGERPRINT,
   STALE_CHUNK_PARSE_FINGERPRINT,
 } from "@/src/utils/sentryFilters";
@@ -72,6 +73,13 @@ Sentry.init({
     // `dom-shim.js`. Same-origin injectors miss `denyUrls`. See
     // isKitesurfInternalEvent.
     if (isKitesurfInternalEvent(event)) {
+      return null;
+    }
+
+    // Drop WitnessAI page-world LogBeacon / JSLoggerClient collector
+    // failures (`HTTP error! status: N`). Stack is document-attributed,
+    // so denyUrls cannot match. See isWitnessAiLogBeaconEvent.
+    if (isWitnessAiLogBeaconEvent(event)) {
       return null;
     }
 
