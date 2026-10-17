@@ -17,6 +17,7 @@ import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
 import { SystemPromptCollapseButton } from "@/src/components/ui/SystemPromptCollapseButton";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
+import { stringifyJsonNode } from "@/src/utils/jsonUtils";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { Button } from "@/src/components/ui/button";
 import { useClickWithoutSelection } from "@/src/hooks/useClickWithoutSelection";
@@ -1480,35 +1481,4 @@ export function PrettyJsonView(props: {
       )}
     </div>
   );
-}
-
-// TODO: deduplicate with CodeJsonViewer.tsx
-function stringifyJsonNode(node: unknown) {
-  // return single string nodes without quotes
-  if (typeof node === "string") {
-    return node;
-  }
-
-  try {
-    return JSON.stringify(
-      node,
-      (key, value) => {
-        switch (typeof value) {
-          case "bigint":
-            return String(value) + "n";
-          case "number":
-          case "boolean":
-          case "object":
-          case "string":
-            return value as string;
-          default:
-            return String(value);
-        }
-      },
-      4,
-    );
-  } catch (error) {
-    console.error("JSON stringify error", error);
-    return "Error: JSON.stringify failed";
-  }
 }
