@@ -5,6 +5,11 @@ import traceback
 from dataclasses import dataclass, field
 from typing import Any
 
+from langfuse_errors import (
+    LangfuseAuthError,
+    LangfuseConfigurationError,
+)
+
 
 @dataclass
 class ToolCall:
@@ -97,6 +102,22 @@ _DATACLASS_FIELD_NAME_OVERRIDES: dict[str, str] = {
 }
 
 
+def assert_has_project(projects) -> None:
+    """Validate that at least one project is accessible (mirrors SDK auth_check).
+
+    Raises:
+        LangfuseAuthError: when no project is found for the supplied keys.
+        This narrow type lets callers do ``except LangfuseAuthError`` without
+        also catching ``NameError``/``ImportError``/``SyntaxError`` from
+        unrelated bugs — the core issue in #906.
+    """
+    data = getattr(projects, "data", projects) if not isinstance(projects, dict) else projects.get("data", [])
+    if isinstance(data, list) and len(data) == 0:
+        raise LangfuseAuthError(
+            "Auth check failed, no project found for the keys provided."
+        )
+
+
 def handler(event, context):
     namespace = {
         "EvaluationContext": EvaluationContext,
@@ -115,7 +136,12 @@ def handler(event, context):
     evaluate = namespace.get("evaluate")
     if not callable(evaluate):
         return runner_error(
-            "INVALID_SOURCE", "Evaluator source must define an evaluate(ctx) function"
+            "INVALID_SOURCE",
+            format_error(
+                LangfuseConfigurationError(
+                    "Evaluator source must define an evaluate(ctx) function"
+                )
+            ),
         )
 
     try:
