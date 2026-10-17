@@ -21,3 +21,10 @@ export const IN_APP_AGENT_APPROVAL_TTL_MS = 24 * 60 * 60_000;
  * wrap-up, truncation detection, and the Agent constructor cannot drift.
  */
 export const IN_APP_AGENT_MAX_STEPS = 20;
+
+/**
+ * Chars per estimated token when enforcing the replay token budget. Four is
+ * the usual approximation for English prose and JSON tool payloads; exact
+ * tokenization is not worth the latency on this path.
+ */
+export const IN_APP_AGENT_REPLAY_CHARS_PER_TOKEN = 4;

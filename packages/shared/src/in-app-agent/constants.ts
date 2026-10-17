@@ -6,6 +6,13 @@ export const IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME = "langfuse_askUserQuestions";
 
 export const IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE = "tool_call_rejected";
 
+/**
+ * Local (non-MCP) tool that pages through a persisted tool result from
+ * in_app_agent_events. Registered only when replay compaction is active;
+ * read-only and scoped to the agent's own conversation.
+ */
+export const IN_APP_AGENT_READ_TOOL_OUTPUT_TOOL_NAME = "readToolOutput";
+
 export const IN_APP_AGENT_GENERIC_ERROR_MESSAGE =
   "An error occurred. Please try again or start a new conversation.";
 
