@@ -599,6 +599,34 @@ describe("isDenylistedNoiseEvent", () => {
       ).toBe(true);
     });
 
+    it("drops a MetaMask inpage console error (message event, LANGFUSE-627)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent(
+            "MetaMask: Failed to get initial state. Please report this bug. [object Object]",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops a MetaMask: prefix even without the stringified extra arg", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent(
+            "MetaMask: Failed to get initial state. Please report this bug.",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the MetaMask RPC Error console prefix (same session as LANGFUSE-626)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent("MetaMask - RPC Error: Internal JSON-RPC error."),
+        ),
+      ).toBe(true);
+    });
+
     it("does not treat [kitesurf] wraps as denylist prefixes (dedicated predicate)", () => {
       expect(
         isDenylistedNoiseEvent(
@@ -649,6 +677,19 @@ describe("isDenylistedNoiseEvent", () => {
       expect(
         isDenylistedNoiseEvent(
           nonErrorRejectionEvent("Not implemented on this platform"),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the EIP-1193 user-rejected wallet prompt (LANGFUSE-626)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          nonErrorRejectionEvent("user rejected the request"),
+        ),
+      ).toBe(true);
+      expect(
+        isDenylistedNoiseEvent(
+          nonErrorRejectionEvent("User rejected the request"),
         ),
       ).toBe(true);
     });
@@ -1191,6 +1232,14 @@ describe("isDenylistedNoiseEvent", () => {
       ).toBe(false);
     });
 
+    it("keeps an app error that merely mentions MetaMask mid-message", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent("Failed to parse MetaMask: connection timed out"),
+        ),
+      ).toBe(false);
+    });
+
     it("keeps a genuine SyntaxError with no <html (not an HTML-as-JSON artifact)", () => {
       expect(
         isDenylistedNoiseEvent(
@@ -1390,6 +1439,33 @@ describe("isDenylistedNoiseEvent", () => {
         },
       } as ErrorEvent;
       expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a longer rejection that merely quotes the wallet prompt phrase", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "UnhandledRejection",
+              value:
+                "Non-Error promise rejection captured with value: user rejected the request because the form is invalid",
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps an app-captured Error that quotes the wallet prompt phrase", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent("user rejected the request", "Error"),
+        ),
+      ).toBe(false);
     });
 
     it("keeps the object-shaped rejection variant (has carried real failures)", () => {
