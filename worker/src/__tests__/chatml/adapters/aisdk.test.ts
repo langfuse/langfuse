@@ -449,6 +449,74 @@ describe("AI SDK Adapter", () => {
     });
   });
 
+  describe("AI SDK v7 / OTel GenAI semconv `parts[]` messages", () => {
+    it("should extract text from a `parts[]` text message", () => {
+      const input = {
+        messages: [
+          {
+            role: "user",
+            parts: [
+              { type: "text", content: "What is the weather in Berlin?" },
+            ],
+          },
+        ],
+      };
+
+      const result = normalizeInput(input, { framework: "aisdk" });
+      expect(result.success).toBe(true);
+      expect(result.data?.[0].content).toBe("What is the weather in Berlin?");
+      expect(result.data?.[0]).not.toHaveProperty("parts");
+    });
+
+    it("should normalize a `parts[]` tool_call message into tool_calls", () => {
+      const input = {
+        messages: [
+          {
+            role: "assistant",
+            parts: [
+              {
+                type: "tool_call",
+                id: "call_1",
+                name: "get_weather",
+                arguments: { city: "Berlin" },
+              },
+            ],
+          },
+        ],
+      };
+
+      const result = normalizeInput(input, { framework: "aisdk" });
+      expect(result.success).toBe(true);
+      expect(result.data?.[0].tool_calls?.[0].id).toBe("call_1");
+      expect(result.data?.[0].tool_calls?.[0].name).toBe("get_weather");
+      expect(result.data?.[0].tool_calls?.[0].arguments).toBe(
+        '{"city":"Berlin"}',
+      );
+    });
+
+    it("should normalize a `parts[]` tool_call_response message into a tool result", () => {
+      const input = {
+        messages: [
+          {
+            role: "tool",
+            parts: [
+              {
+                type: "tool_call_response",
+                id: "call_1",
+                response: { city: "Berlin", tempC: 18, sky: "clear" },
+              },
+            ],
+          },
+        ],
+      };
+
+      const result = normalizeInput(input, { framework: "aisdk" });
+      expect(result.success).toBe(true);
+      expect(result.data?.[0].tool_call_id).toBe("call_1");
+      expect(result.data?.[0].content).toContain("Berlin");
+    });
+  });
+
   describe("array handling", () => {
     it("should handle array of messages without wrapper", () => {
       const input = [
