@@ -163,6 +163,7 @@ export const listCommentsForApi = async ({
       where,
       take: limit,
       skip: (page - 1) * limit,
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     }),
     prisma.comment.count({ where }),
   ]);
