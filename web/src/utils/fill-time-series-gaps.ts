@@ -290,18 +290,13 @@ function aggregateIntoMultiUnitBuckets<
       for (const key in sampleItem) {
         if (key === "timestamp") continue;
 
-        if (typeof sampleItem[key] === "number") {
-          // Average numeric values (excluding nulls)
-          const values = bucket.dataPoints
-            .map((dp) => dp[key] as number | null)
-            .filter((v): v is number => v !== null);
+        const values = bucket.dataPoints
+          .map((dp) => dp[key])
+          .filter((value): value is number => typeof value === "number");
 
-          if (values.length > 0) {
-            const sum = values.reduce((acc, val) => acc + val, 0);
-            (aggregated as any)[key] = sum / values.length;
-          } else {
-            (aggregated as any)[key] = null;
-          }
+        if (values.length > 0) {
+          const sum = values.reduce((acc, val) => acc + val, 0);
+          (aggregated as any)[key] = sum / values.length;
         } else {
           // Non-numeric fields: use first value
           (aggregated as any)[key] = sampleItem[key];
