@@ -130,7 +130,9 @@ export function isRangeWithinMaxDuration(
   range: RDPDateRange | undefined,
   maxDurationMs: number | undefined,
 ): boolean {
-  if (!range?.from || !range.to || maxDurationMs === undefined) return true;
+  if (!range?.from || !range.to) return true;
+  if (range.to.getTime() < range.from.getTime()) return false;
+  if (maxDurationMs === undefined) return true;
   return range.to.getTime() - range.from.getTime() <= maxDurationMs;
 }
 
@@ -170,6 +172,7 @@ export function DatePickerWithRange({
     ) => void,
   ) => {
     if (newRange && newRange.from && newRange.to) {
+      if (!isRangeWithinMaxDuration(newRange, undefined)) return;
       const dashboardDateRange: DashboardDateRange = {
         from: newRange.from,
         to: newRange.to,
@@ -199,6 +202,7 @@ export function DatePickerWithRange({
       newDateTime,
       internalDateRange?.to,
     );
+    if (!isRangeWithinMaxDuration(newRange, undefined)) return;
     setInternalDateRange(newRange);
     updateDashboardDateRange(newRange, setDateRangeAndOption);
   };
@@ -210,6 +214,7 @@ export function DatePickerWithRange({
       internalDateRange?.from,
       newDateTime,
     );
+    if (!isRangeWithinMaxDuration(newRange, undefined)) return;
     setInternalDateRange(newRange);
     updateDashboardDateRange(newRange, setDateRangeAndOption);
   };

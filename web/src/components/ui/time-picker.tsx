@@ -31,10 +31,14 @@ export function TimePicker({ date, setDate, className }: TimePickerProps) {
   const secondRef = React.useRef<HTMLInputElement>(null);
   const periodRef = React.useRef<HTMLButtonElement>(null);
 
-  // Sync period state when date prop changes externally (e.g., preset selection)
+  // Keep the local period in sync with the date. This also repairs a rejected
+  // AM/PM edit: the period selector updates its local state before calling
+  // setDate, but a range picker may reject the resulting inverted range and
+  // leave the date prop unchanged.
   React.useEffect(() => {
-    setPeriod(getInitialPeriod(date));
-  }, [date]);
+    const datePeriod = getInitialPeriod(date);
+    if (period !== datePeriod) setPeriod(datePeriod);
+  }, [date, period]);
 
   const shortTimezone = React.useMemo(() => getShortLocalTimezone(), []);
   const timezoneDetails = React.useMemo(() => getTimezoneDetails(), []);
