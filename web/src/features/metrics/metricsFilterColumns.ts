@@ -27,6 +27,7 @@ export type GetMetricsFilterColumnsParams = {
   sessionOptions: SingleValueOption[];
   versionOptions: SingleValueOption[];
   releaseOptions: SingleValueOption[];
+  ingestionApiKeyOptions: SingleValueOption[];
   scoreNameOptions: SingleValueOption[];
   experimentIdOptions: SingleValueOption[];
   evaluatorOptions: SingleValueOption[];
@@ -58,6 +59,7 @@ const getMetricsFilterColumnSpecs = ({
   sessionOptions,
   versionOptions,
   releaseOptions,
+  ingestionApiKeyOptions,
   scoreNameOptions,
   experimentIdOptions,
   evaluatorOptions,
@@ -157,6 +159,17 @@ const getMetricsFilterColumnSpecs = ({
         releaseOptions,
         aliasesTraceSpelling ? ["traceRelease", "Trace Release"] : undefined,
       ),
+    );
+  }
+
+  // The ingestion API key dimension exists only on the v2 events traces and
+  // observations views; the scores views and the v1 tables have none.
+  if (
+    viewVersion === "v2" &&
+    (selectedView === "traces" || selectedView === "observations")
+  ) {
+    filterColumns.push(
+      suggestString("API Key", "ingestionApiKey", ingestionApiKeyOptions),
     );
   }
 

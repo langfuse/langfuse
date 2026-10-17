@@ -253,4 +253,44 @@ describe("mergeWidgetAndDashboardFilters", () => {
       value: ["langfuse-eval"],
     });
   });
+
+  // Dashboard-global filters apply to every widget on the dashboard, and a
+  // filter-bar column can exist on only some views ("Ingestion API Key" and
+  // "Observation Name" have no dimension on the scores views). The merge maps
+  // such a filter onto views that declare the column and drops it on views
+  // that don't; a kept column the view lacks fails the query build
+  // (`Invalid filter column`) and blanks the widget.
+  it("maps a dashboard-global ingestionApiKey filter onto traces and drops it on scores views", () => {
+    // The bar persists display names (PopoverFilterBuilder's columnIdentifier
+    // defaults to "name"), so the stored column reads "Ingestion API Key".
+    const dashboardFilters: FilterState = [
+      {
+        type: "stringOptions",
+        column: "Ingestion API Key",
+        operator: "any of",
+        value: ["pk-lf-test"],
+      },
+    ];
+
+    const tracesMerged = mergeWidgetAndDashboardFilters({
+      view: "traces",
+      widgetFilters: [],
+      dashboardFilters,
+    });
+    expect(tracesMerged).toEqual([
+      {
+        type: "stringOptions",
+        column: "ingestionApiKey",
+        operator: "any of",
+        value: ["pk-lf-test"],
+      },
+    ]);
+
+    const scoresMerged = mergeWidgetAndDashboardFilters({
+      view: "scores-numeric",
+      widgetFilters: [],
+      dashboardFilters,
+    });
+    expect(scoresMerged).toEqual([]);
+  });
 });

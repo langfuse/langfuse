@@ -664,3 +664,74 @@ describe("toolCalls stored aggregation", () => {
     expect(compiledQuery).not.toContain("sum(toolCalls)");
   });
 });
+
+describe("ingestionApiKey dimension", () => {
+  it.each([
+    ["observations", "events_observations"],
+    ["traces", "events_traces"],
+  ] as const)(
+    "groups v2 %s by the raw ingestion API key",
+    async (view, table) => {
+      const { query: compiledQuery } = await new QueryBuilder(
+        undefined,
+        "v2",
+      ).build(
+        {
+          ...baseQuery,
+          view,
+          dimensions: [{ field: "ingestionApiKey" }],
+        },
+        "test-project",
+      );
+
+      expect(compiledQuery).toContain(
+        `any(nullIf(${table}.ingestion_api_key, '')) as ingestionApiKey`,
+      );
+    },
+  );
+
+  it.each([
+    ["observations", "events_observations"],
+    ["traces", "events_traces"],
+  ] as const)(
+    "filters v2 %s by the raw ingestion API key",
+    async (view, table) => {
+      const { query: compiledQuery } = await buildQueryWithFilter(
+        {
+          column: "ingestionApiKey",
+          operator: "any of",
+          value: ["pk-lf-1234"],
+          type: "stringOptions",
+        },
+        { view },
+        "v2",
+      );
+
+      expect(compiledQuery).toContain(
+        `${table}.ingestion_api_key IN ({stringOptionsFilter`,
+      );
+    },
+  );
+
+  it("keeps an ingestionApiKey time-series breakdown with a same-field filter valid", () => {
+    const query = {
+      view: "traces",
+      dimensions: [{ field: "ingestionApiKey" }],
+      metrics: [{ measure: "count", aggregation: "count" }],
+      filters: [
+        {
+          column: "ingestionApiKey",
+          operator: "any of",
+          value: ["pk-lf-1234"],
+          type: "stringOptions",
+        },
+      ],
+      timeDimension: { granularity: "auto" },
+      fromTimestamp: "2025-01-01T00:00:00.000Z",
+      toTimestamp: "2025-01-02T00:00:00.000Z",
+      orderBy: null,
+    } as QueryType;
+
+    expect(validateQuery(query, "v2")).toEqual({ valid: true });
+  });
+});
