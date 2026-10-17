@@ -512,6 +512,93 @@ describe("isDenylistedNoiseEvent", () => {
       ).toBe(true);
     });
 
+    const SAFARI_CLIPBOARD_PERMISSION =
+      "The request is not allowed by the user agent or the platform in the current context, possibly because the user denied permission.";
+
+    const safariClipboardEvent = ({
+      mechanismType = "auto.browser.global_handlers.onunhandledrejection",
+      frames,
+    }: {
+      mechanismType?: string;
+      frames?: Array<{
+        filename?: string;
+        function?: string;
+        abs_path?: string;
+        context_line?: string;
+      }>;
+    }): ErrorEvent =>
+      ({
+        exception: {
+          values: [
+            {
+              type: "NotAllowedError",
+              value: SAFARI_CLIPBOARD_PERMISSION,
+              mechanism: { type: mechanismType, handled: false },
+              ...(frames ? { stacktrace: { frames } } : {}),
+            },
+          ],
+        },
+      }) as ErrorEvent;
+
+    it("drops Safari clipboard writeText denial (generic permission + writeText frame)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          safariClipboardEvent({
+            frames: [
+              {
+                filename: "[native code]",
+                function: "writeText",
+              },
+              {
+                filename:
+                  "node_modules/.pnpm/react18-json-view@0.2.8-canary.6_react@19.2.4/node_modules/react18-json-view/src/components/copy-button.tsx",
+                function: "<object>.onClick",
+                context_line: "navigator.clipboard.writeText(value)",
+              },
+            ],
+          }),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops Safari clipboard denial when only the native writeText frame is present", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          safariClipboardEvent({
+            frames: [{ filename: "[native code]", function: "writeText" }],
+          }),
+        ),
+      ).toBe(true);
+    });
+
+    it("keeps Safari generic NotAllowedError without a clipboard frame", () => {
+      expect(isDenylistedNoiseEvent(safariClipboardEvent({}))).toBe(false);
+      expect(
+        isDenylistedNoiseEvent(
+          safariClipboardEvent({
+            frames: [
+              {
+                filename:
+                  "https://us.cloud.langfuse.com/_next/static/chunks/app.js",
+                function: "play",
+              },
+            ],
+          }),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps an app-captured Safari clipboard NotAllowedError", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          safariClipboardEvent({
+            mechanismType: "generic",
+            frames: [{ filename: "[native code]", function: "writeText" }],
+          }),
+        ),
+      ).toBe(false);
+    });
+
     // Firefox (and Chromium) reject HTMLMediaElement resource selection /
     // autoplay as an unhandled NotSupportedError when the codec is unavailable
     // (typical on Linux without proprietary codecs). The splash onboarding
