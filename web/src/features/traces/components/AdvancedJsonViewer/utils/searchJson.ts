@@ -33,16 +33,27 @@ function findMatchesInString(
     // Simple string search
     const searchText = caseSensitive ? text : text.toLowerCase();
     const searchQuery = caseSensitive ? query : query.toLowerCase();
+    // Lowercasing can expand characters such as İ into multiple UTF-16 units.
+    // Keep search offsets aligned with the original text used for highlighting.
+    const expansionOffsets =
+      searchText.length === text.length ? [] : getCaseExpansionOffsets(text);
 
     let startIndex = 0;
     while (true) {
       const index = searchText.indexOf(searchQuery, startIndex);
       if (index === -1) break;
 
+      const start = toOriginalOffset(index, expansionOffsets);
+      const end = toOriginalOffset(
+        index + searchQuery.length,
+        expansionOffsets,
+        true,
+      );
+
       matches.push({
-        start: index,
-        end: index + query.length,
-        text: text.slice(index, index + query.length),
+        start,
+        end,
+        text: text.slice(start, end),
       });
 
       startIndex = index + 1;
@@ -261,4 +272,35 @@ export function getMatchCountsPerNode(
   });
 
   return counts;
+}
+
+/** Records only the extra UTF-16 units introduced by lowercasing. */
+function getCaseExpansionOffsets(text: string): number[] {
+  const offsets: number[] = [];
+  let lowercaseIndex = 0;
+  for (const character of text) {
+    const lowercaseLength = character.toLowerCase().length;
+    for (let i = character.length; i < lowercaseLength; i++) {
+      offsets.push(lowercaseIndex + i);
+    }
+    lowercaseIndex += lowercaseLength;
+  }
+  return offsets;
+}
+
+/** Maps lowercase boundaries back to the enclosing original characters. */
+function toOriginalOffset(
+  offset: number,
+  expansionOffsets: number[],
+  isEnd = false,
+): number {
+  let low = 0;
+  let high = expansionOffsets.length;
+  const boundary = isEnd ? offset : offset + 1;
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (expansionOffsets[middle] < boundary) low = middle + 1;
+    else high = middle;
+  }
+  return offset - low;
 }
