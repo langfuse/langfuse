@@ -35,7 +35,23 @@ import {
 import { postgresSearchCondition } from "../queries";
 import { TracingSearchType } from "../../interfaces/search";
 
-const emptyNormalizeOpts: { sanitizeControlChars?: boolean } = {};
+/**
+ * Normalization options for dataset item payloads.
+ *
+ * `parseJsonStrings` must only be set by callers whose values are still
+ * JSON-encoded strings: tRPC (the web form submits strings) and the worker
+ * batch action (ClickHouse returns input/output as String columns). Callers
+ * holding already-parsed values — the Public API and MCP, where the HTTP body
+ * parser has already decoded the payload — must leave it unset, so a bare
+ * string such as "123456" is stored verbatim instead of being decoded a second
+ * time into the number 123456 (#15342).
+ */
+export type DatasetItemNormalizeOpts = {
+  sanitizeControlChars?: boolean;
+  parseJsonStrings?: boolean;
+};
+
+const emptyNormalizeOpts: DatasetItemNormalizeOpts = {};
 const emptyValidateOpts: { normalizeUndefinedToNull?: boolean } = {};
 
 /**
@@ -181,27 +197,22 @@ function toDomainType<
   return withDatasetName as any;
 }
 
+/**
+ * Merge the non-IO fields (source ids, status) of an update with the existing
+ * item, keeping the existing value for anything the caller omitted. IO fields
+ * (input/expectedOutput/metadata) are merged inside
+ * DatasetItemValidator.validateAndNormalize, so a carried-over already-decoded
+ * value is never re-parsed (#15342).
+ */
 function mergeItemData(
   existingItem: DatasetItemDomain,
   newData: {
-    input?: string | unknown | null;
-    expectedOutput?: string | unknown | null;
-    metadata?: string | unknown | null;
     sourceTraceId?: string;
     sourceObservationId?: string;
     status?: DatasetStatus;
   },
 ) {
   return {
-    input: newData.input !== undefined ? newData.input : existingItem?.input,
-    expectedOutput:
-      newData.expectedOutput !== undefined
-        ? newData.expectedOutput
-        : existingItem?.expectedOutput,
-    metadata:
-      newData.metadata !== undefined
-        ? newData.metadata
-        : existingItem?.metadata,
     sourceTraceId:
       newData.sourceTraceId === undefined
         ? existingItem?.sourceTraceId
@@ -231,9 +242,7 @@ export async function createDatasetItem(props: {
   metadata?: string | unknown | null;
   sourceTraceId?: string;
   sourceObservationId?: string;
-  normalizeOpts?: {
-    sanitizeControlChars?: boolean;
-  };
+  normalizeOpts?: DatasetItemNormalizeOpts;
   validateOpts?: {
     normalizeUndefinedToNull?: boolean;
   };
@@ -292,7 +301,7 @@ export async function upsertDatasetItem(
     sourceTraceId?: string;
     sourceObservationId?: string;
     status?: DatasetStatus;
-    normalizeOpts?: { sanitizeControlChars?: boolean };
+    normalizeOpts?: DatasetItemNormalizeOpts;
     validateOpts: { normalizeUndefinedToNull?: boolean };
   } & IdOrName,
 ): Promise<DatasetItemDomain & { datasetName: string }> {
@@ -328,8 +337,10 @@ export async function upsertDatasetItem(
     "langfuse.dataset_item.upsert.existing_item_count": existingItem ? 1 : 0,
   });
 
-  // 3. Merge incoming data with existing data
-  // For fields where props value is undefined, use existing value
+  // 3. Merge non-IO fields (source ids, status) with existing data.
+  // For fields where props value is undefined, use existing value.
+  // IO fields are merged inside validateAndNormalize instead, so a
+  // carried-over already-decoded value is never re-parsed (#15342).
   const mergedItemData = existingItem
     ? mergeItemData(existingItem, props)
     : props;
@@ -344,9 +355,17 @@ export async function upsertDatasetItem(
   });
 
   const itemPayload = validator.validateAndNormalize({
-    input: mergedItemData.input,
-    expectedOutput: mergedItemData.expectedOutput,
-    metadata: mergedItemData.metadata,
+    input: props.input,
+    expectedOutput: props.expectedOutput,
+    metadata: props.metadata,
+    existingItem: existingItem
+      ? {
+          input: existingItem.input as Prisma.InputJsonValue | null,
+          expectedOutput:
+            existingItem.expectedOutput as Prisma.InputJsonValue | null,
+          metadata: existingItem.metadata as Prisma.InputJsonValue | null,
+        }
+      : undefined,
     normalizeOpts: props.normalizeOpts,
     validateOpts: props.validateOpts,
   });
@@ -604,7 +623,7 @@ export async function deleteDatasetItem(props: {
 export async function createManyDatasetItems(props: {
   projectId: string;
   items: CreateManyItemsPayload;
-  normalizeOpts?: { sanitizeControlChars?: boolean };
+  normalizeOpts?: DatasetItemNormalizeOpts;
   validateOpts?: { normalizeUndefinedToNull?: boolean };
   allowPartialSuccess?: boolean;
 }): Promise<
