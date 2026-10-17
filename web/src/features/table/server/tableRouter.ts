@@ -1,4 +1,7 @@
-import { generateBatchActionId } from "./helpers";
+import {
+  generateBatchActionId,
+  isBatchActionJobInProgressState,
+} from "./helpers";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -12,7 +15,6 @@ import { prisma } from "@langfuse/shared/src/db";
 import { BatchActionQueue, logger } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
-const WAITING_JOBS = ["waiting", "delayed", "active"];
 const ACTIVE_BATCH_ACTION_STATUSES = [
   BatchActionStatus.Queued,
   BatchActionStatus.Processing,
@@ -57,8 +59,6 @@ export const tableRouter = createTRPCRouter({
       }
 
       const jobState = await batchActionQueue.getJobState(batchActionId);
-      const isInProgress = WAITING_JOBS.includes(jobState);
-
-      return isInProgress;
+      return isBatchActionJobInProgressState(jobState);
     }),
 });
