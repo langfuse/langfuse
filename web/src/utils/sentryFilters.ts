@@ -367,6 +367,20 @@ const CHROME_EXTENSION_PORT_MESSAGES: readonly string[] = [
 ];
 
 /**
+ * Chromium / Firefox wording when injected extension JS references an
+ * undeclared `tabId`. `tabId` is a chrome.tabs identifier; Langfuse has
+ * none. Observed as a global-handler ReferenceError with only
+ * `<anonymous>` frames — `denyUrls` cannot match.
+ *
+ * Whole-message only after {@link coreMessage}. An app error that quotes
+ * the phrase is longer and is KEPT. A first-party `/_next/` frame is
+ * KEPT so a future undeclared identifier in our code still surfaces.
+ *
+ * Stored without a trailing period because {@link coreMessage} strips one.
+ */
+const CHROME_EXTENSION_TAB_ID_NOT_DEFINED_MESSAGE = "tabId is not defined";
+
+/**
  * Chromium wording when Next.js Pages Router `initialize()` does
  * `window.__NEXT_DATA__ = initialData` and that Window property is
  * getter-only. Observed: LANGFUSE-61R (`/auth/sign-up`, us-prod, 0 users,
@@ -676,7 +690,11 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
     // exact TypeError for an injected `addMore` that is undefined. Stack is
     // document-attributed global code, not a chunk.
     //
-    // All three are anchored to a Sentry browser-API / global-handler
+    // Chrome extension `tabId is not defined` is the same class:
+    // Chromium/Firefox exact ReferenceError for an injected undeclared
+    // `tabId`. Stack is `<anonymous>` only — denyUrls cannot match.
+    //
+    // All four are anchored to a Sentry browser-API / global-handler
     // mechanism so an app-captured exception that merely quotes the
     // phrase is KEPT.
     const mechanismType = exception?.mechanism?.type;
@@ -695,6 +713,14 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
       if (
         exceptionType === "TypeError" &&
         isSafariAddMoreClickMessage(exceptionValue) &&
+        !hasFirstPartyChunkFrame(event)
+      ) {
+        return true;
+      }
+      if (
+        exceptionType === "ReferenceError" &&
+        coreMessage(exceptionValue) ===
+          CHROME_EXTENSION_TAB_ID_NOT_DEFINED_MESSAGE &&
         !hasFirstPartyChunkFrame(event)
       ) {
         return true;
