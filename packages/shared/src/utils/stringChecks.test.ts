@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   BLOB_STORAGE_REGION_INVALID_MESSAGE,
+  extractVariables,
+  isValidVariableName,
   normalizeBlobStorageRegion,
   truncate,
 } from "./stringChecks";
@@ -91,5 +93,40 @@ describe("truncate", () => {
 
   it("leaves BMP (non-astral) strings such as CJK unaffected", () => {
     expect(truncate("你好世界你好世界", 5)).toBe("你好世界你...");
+  });
+});
+
+describe("isValidVariableName", () => {
+  it.each([
+    "question",
+    "question1",
+    "1st_question",
+    "123",
+    "_private",
+    "frage_antwort_2",
+    "café_1",
+    "日本語1",
+  ])("accepts %s", (name) => {
+    expect(isValidVariableName(name)).toBe(true);
+  });
+
+  it.each(["", "foo-bar", "foo bar", "foo.bar", "foo!", "{{foo}}", "foo\nbar"])(
+    "rejects %s",
+    (name) => {
+      expect(isValidVariableName(name)).toBe(false);
+    },
+  );
+});
+
+describe("extractVariables", () => {
+  it("extracts variables whose names contain or start with numbers", () => {
+    expect(extractVariables("Hello {{1st_question}}, see {{question2}}")).toEqual([
+      "1st_question",
+      "question2",
+    ]);
+  });
+
+  it("dedupes repeated variables", () => {
+    expect(extractVariables("{{a1}} and {{a1}}")).toEqual(["a1"]);
   });
 });
