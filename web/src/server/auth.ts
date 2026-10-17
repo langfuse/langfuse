@@ -91,6 +91,7 @@ import {
   isV4UpgradeUiAvailable,
 } from "@/src/features/events/server";
 import { canCreateOrganizations } from "@/src/features/organizations/server";
+import { isSignupOnboardingEnabled } from "@/src/features/onboarding/server";
 
 const staticProviders: Provider[] = [
   CredentialsProvider({
@@ -729,12 +730,20 @@ const createExtendedPrismaAdapter = (signupAttribution?: {
  * @param signupAttribution - per-request marketing attribution (ad-platform
  * click ids) attached to the signup analytics event if the request results
  * in a new user. Only passed by the NextAuth API route.
+ * @param requestContext - captcha material for this request. The email
+ * sign-in route passes the password-reset token; other callers omit it.
  *
  * @see https://next-auth.js.org/configuration/options
  */
-export async function getAuthOptions(signupAttribution?: {
-  adClickIds?: AdClickIds;
-}): Promise<NextAuthOptions> {
+export async function getAuthOptions(
+  signupAttribution?: {
+    adClickIds?: AdClickIds;
+  },
+  requestContext?: {
+    turnstileToken?: unknown;
+    turnstileRemoteIp?: string;
+  },
+): Promise<NextAuthOptions> {
   let dynamicSsoProviders: Provider[] = [];
   try {
     dynamicSsoProviders = await loadSsoProviders();
@@ -1083,6 +1092,15 @@ export async function getAuthOptions(signupAttribution?: {
               return false;
             }
 
+            // Checked before the user lookup so a missing or rejected token
+            // never sends a code, and does not reveal whether the account exists.
+            const turnstileValid = await verifyTurnstileToken({
+              token: requestContext?.turnstileToken,
+              action: TURNSTILE_ACTIONS.passwordReset,
+              remoteIp: requestContext?.turnstileRemoteIp,
+            });
+            if (!turnstileValid) throw new Error(TURNSTILE_FAILED_MESSAGE);
+
             // Codes only reset passwords, so there is nothing to send when
             // password login is disabled.
             if (env.AUTH_DISABLE_USERNAME_PASSWORD === "true") {
@@ -1114,6 +1132,15 @@ export async function getAuthOptions(signupAttribution?: {
               },
             });
             if (user) {
+              // NextAuth stores the new code right after this callback. Codes
+              // are hashed without the email and `token` is globally unique, so
+              // rows left behind make new codes collide. Only the newest code
+              // per account is needed, and expired codes can never be used.
+              await prisma.verificationToken.deleteMany({
+                where: {
+                  OR: [{ identifier: email }, { expires: { lt: new Date() } }],
+                },
+              });
               return true;
             }
             // Add random delay to prevent leaking if user exists as otherwise it would be instant compared to sending an email
@@ -1154,7 +1181,7 @@ export async function getAuthOptions(signupAttribution?: {
     pages: {
       signIn: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/sign-in`,
       error: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/error`,
-      ...(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+      ...(isSignupOnboardingEnabled()
         ? {
             newUser: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/onboarding`,
           }

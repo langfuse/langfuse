@@ -30,11 +30,11 @@
   use the `langfuseTopics` flag and project permissions. Storage, retry and setup
   details: `../worker/src/features/topics/README.md`. Preview and trigger
   selection share `topics/server`'s bounded trace selector with worker
-  backfills; preserve sampling and the frozen submission range. Internal PoC
-  model selection requires `LANGFUSE_TOPICS_SUMMARY_MODEL` and
-  `LANGFUSE_TOPICS_EMBEDDING_MODEL` on both web and worker, with no defaults.
-  The source inspector returns `loadTopicTranscript`'s shared `Transcript | null`
-  directly, using the same character cap as worker inference.
+  backfills; preserve sampling and the frozen submission range. Models come
+  from the project's LLM connections (`TopicModelSettings.tsx`,
+  `topics.modelSettings` / `saveSetup`). Configure Topics loads and saves idle time
+  through the project's tracing readiness setting; triggers stamp the configured
+  summary and embedding models into the frozen request.
 - Reusable UI components: `src/components/*`
 - Tests:
   - Server integration tests: `src/__tests__/server/*.servertest.ts`
@@ -263,7 +263,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
 - In-source tests: `pnpm --filter web run test:in-source <args>`
 - Client tests: `pnpm --filter web run test-client <args>`
 - E2E tests: `pnpm --filter web run test:e2e`
-- AI Gateway E2E tests against the local configured stack (also run in CI for AI Gateway changes): `pnpm --filter web run test:e2e:ai-gateway`
+- AI Gateway E2E tests against the local configured stack (also run in CI for AI Gateway changes): `pnpm --filter web run test:e2e:ai-gateway`. Vitest starts the built `ai-gateway` binary (`pnpm --filter ai-gateway build`, or `LANGFUSE_AI_GATEWAY_BIN`) and sends the client traffic through it.
 - Agent browser install to the default user-level Playwright cache: `pnpm run playwright:install`
 - Build: `pnpm --filter web run build`
 - Structure-RFC violation counts: `pnpm --filter web run structure:stats`
@@ -295,6 +295,25 @@ Sentry instrumentation skill first and decide whether it should capture at all
 1. Throw `BaseError` subclasses (eg `LangfuseNotFoundError`) from handlers and services.
 2. Let `BaseError`s bubble up to the tRPC and REST middlewares (eg. don't `try/catch` and rethrow in to `TRPCError` the handler)
 3. Extend the `BaseError` or its subclasses in [`packages/shared/src/errors/`](../packages/shared/src/errors/) as needed.
+
+### Toasts
+
+- Use the typed helpers exported by `src/features/notifications`; importing the
+  Sonner `toast` API outside their implementation is lint-prohibited.
+- Every toast requires a static `operation` from `toastOperations.ts` or a typed
+  tRPC procedure path. Register a new semantic intent when needed; never use
+  resource identifiers, names, messages, URLs, or form values.
+- Errors and warnings additionally require `errorOrigin` and `errorCategory`.
+  For tRPC catches, use `classifyTrpcToastError(error, operation)` to retain
+  classification, request path, response code/status, and error ID. Local
+  validation, clipboard, and product-state branches must classify explicitly.
+- `showToast` preserves native Sonner presentation; `showErrorToast` and
+  `showSuccessToast` render the custom cards. Analytics captures metadata only,
+  never the title, description, or exception payload.
+- Direct TanStack queries or mutations that can show global error toasts must include a
+  registered `meta.toastOperation`. Unattributed global failures use explicit
+  gap markers (`query.execute` / `mutation.execute`, `isOperationFallback=true`),
+  not an inferred intent from customer-controlled query keys.
 
 ### Add frontend feature
 
@@ -334,11 +353,11 @@ Sentry instrumentation skill first and decide whether it should capture at all
 - Run Vitest in-source utility coverage with `pnpm --filter web run test:in-source`;
   do not try to target these through `test-client` or by assuming a separate
   `*.clienttest.*`/`*.servertest.*` file exists.
-- Do not hand-edit build artifacts: `.next/*`, `.next-check/*`, `dist/*`.
+- Do not hand-edit build artifacts: `.next/*`, `dist/*`.
 
 <!-- BEGIN:nextjs-agent-rules -->
 
-# This is NOT the Next.js you know
+## This is NOT the Next.js you know
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
 

@@ -1,0 +1,3435 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`golden: events IO payload reads family > getObservationFullIOForSessionFromEventsTable 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-session",
+      "param3": "golden-trace",
+      "param4": "golden-span",
+      "param5": "2025-12-31 23:59:59.000",
+      "param6": "2026-01-01 00:00:01.000",
+      "param7": 1,
+      "param8": 0,
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    latest.id,
+    latest.input,
+    latest.output,
+    latest.metadata
+FROM
+(
+    SELECT
+        e.span_id AS id,
+        e.input AS input,
+        e.output AS output,
+        mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata,
+        e.is_deleted AS is_deleted
+    FROM events_full AS e
+    WHERE (e.project_id = {param1:String}) AND (e.session_id = {param2:String}) AND (xxHash32(e.trace_id) = xxHash32({param3:String})) AND (e.trace_id = {param3:String}) AND (e.span_id = {param4:String}) AND (e.start_time >= {param5:DateTime64(6)}) AND (e.start_time <= {param6:DateTime64(6)})
+    ORDER BY e.event_ts DESC
+    LIMIT {param7:Int64}
+) AS latest
+WHERE latest.is_deleted = {param8:UInt8}",
+  },
+]
+`;
+
+exports[`golden: events IO payload reads family > getObservationIOFieldByteLengthFromEventsTable field=input 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-trace",
+      "param3": "golden-span",
+      "param4": "2025-12-31 23:59:59.000",
+      "param5": "2026-01-01 00:00:01.000",
+      "param6": 1,
+      "param7": 0,
+    },
+    "route": "observation-io-stream-length",
+    "sql": "SELECT latest.len
+FROM
+(
+    SELECT
+        length(e.input) AS len,
+        e.is_deleted AS is_deleted
+    FROM events_full AS e
+    WHERE (e.project_id = {param1:String}) AND (e.trace_id = {param2:String}) AND (e.span_id = {param3:String}) AND (e.start_time >= {param4:DateTime64(6)}) AND (e.start_time <= {param5:DateTime64(6)})
+    ORDER BY e.event_ts DESC
+    LIMIT {param6:Int64}
+) AS latest
+WHERE latest.is_deleted = {param7:UInt8}",
+  },
+]
+`;
+
+exports[`golden: events IO payload reads family > getObservationIOFieldByteLengthFromEventsTable field=metadata 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-trace",
+      "param3": "golden-span",
+      "param4": "2025-12-31 23:59:59.000",
+      "param5": "2026-01-01 00:00:01.000",
+      "param6": 1,
+      "param7": 0,
+    },
+    "route": "observation-io-stream-length",
+    "sql": "SELECT latest.len
+FROM
+(
+    SELECT
+        length(toJSONString(mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)))) AS len,
+        e.is_deleted AS is_deleted
+    FROM events_full AS e
+    WHERE (e.project_id = {param1:String}) AND (e.trace_id = {param2:String}) AND (e.span_id = {param3:String}) AND (e.start_time >= {param4:DateTime64(6)}) AND (e.start_time <= {param5:DateTime64(6)})
+    ORDER BY e.event_ts DESC
+    LIMIT {param6:Int64}
+) AS latest
+WHERE latest.is_deleted = {param7:UInt8}",
+  },
+]
+`;
+
+exports[`golden: events IO payload reads family > getObservationIOFieldByteLengthFromEventsTable field=output 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-trace",
+      "param3": "golden-span",
+      "param4": "2025-12-31 23:59:59.000",
+      "param5": "2026-01-01 00:00:01.000",
+      "param6": 1,
+      "param7": 0,
+    },
+    "route": "observation-io-stream-length",
+    "sql": "SELECT latest.len
+FROM
+(
+    SELECT
+        length(e.output) AS len,
+        e.is_deleted AS is_deleted
+    FROM events_full AS e
+    WHERE (e.project_id = {param1:String}) AND (e.trace_id = {param2:String}) AND (e.span_id = {param3:String}) AND (e.start_time >= {param4:DateTime64(6)}) AND (e.start_time <= {param5:DateTime64(6)})
+    ORDER BY e.event_ts DESC
+    LIMIT {param6:Int64}
+) AS latest
+WHERE latest.is_deleted = {param7:UInt8}",
+  },
+]
+`;
+
+exports[`golden: events IO payload reads family > getObservationsBatchIOFromEventsTable full 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": [
+        "golden-span",
+        "golden-span-b",
+        "golden-span-c",
+      ],
+      "param4": [
+        "golden-trace",
+        "golden-trace-b",
+      ],
+      "param5": [
+        TupleParam {
+          "values": [
+            "golden-trace",
+            "golden-span",
+          ],
+        },
+        TupleParam {
+          "values": [
+            "golden-trace",
+            "golden-span-b",
+          ],
+        },
+        TupleParam {
+          "values": [
+            "golden-trace-b",
+            "golden-span-c",
+          ],
+        },
+      ],
+      "param6": "2025-11-30 23:59:59.000",
+      "param7": "2026-01-01 00:00:01.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.input AS input,
+    e.output AS output,
+    mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata
+FROM events_full AS e
+WHERE (e.project_id = {param1:String}) AND (e.is_deleted = {param2:UInt8}) AND (e.span_id IN ({param3:Array(String)})) AND (e.trace_id IN ({param4:Array(String)})) AND ((e.trace_id, e.span_id) IN ({param5:Array(Tuple(String, String))})) AND (e.start_time >= {param6:DateTime64(6)}) AND (e.start_time <= {param7:DateTime64(6)})",
+  },
+]
+`;
+
+exports[`golden: events IO payload reads family > getObservationsBatchIOFromEventsTable full+experiment 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": [
+        "golden-span",
+        "golden-span-b",
+        "golden-span-c",
+      ],
+      "param4": [
+        "golden-trace",
+        "golden-trace-b",
+      ],
+      "param5": [
+        TupleParam {
+          "values": [
+            "golden-trace",
+            "golden-span",
+          ],
+        },
+        TupleParam {
+          "values": [
+            "golden-trace",
+            "golden-span-b",
+          ],
+        },
+        TupleParam {
+          "values": [
+            "golden-trace-b",
+            "golden-span-c",
+          ],
+        },
+      ],
+      "param6": "2025-11-30 23:59:59.000",
+      "param7": "2026-01-01 00:00:01.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.input AS input,
+    e.output AS output,
+    e.experiment_item_expected_output AS experiment_item_expected_output,
+    mapFromArrays(
+        arrayReverse(e.experiment_item_metadata_names),
+        arrayReverse(e.experiment_item_metadata_values)
+    ) AS experiment_item_metadata,
+    mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata
+FROM events_full AS e
+WHERE (e.project_id = {param1:String}) AND (e.is_deleted = {param2:UInt8}) AND (e.span_id IN ({param3:Array(String)})) AND (e.trace_id IN ({param4:Array(String)})) AND ((e.trace_id, e.span_id) IN ({param5:Array(Tuple(String, String))})) AND (e.start_time >= {param6:DateTime64(6)}) AND (e.start_time <= {param7:DateTime64(6)})",
+  },
+]
+`;
+
+exports[`golden: events IO payload reads family > getObservationsBatchIOFromEventsTable full+ioCharLimit+experiment+toolCalls+skills 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": [
+        "golden-span",
+        "golden-span-b",
+        "golden-span-c",
+      ],
+      "param4": [
+        "golden-trace",
+        "golden-trace-b",
+      ],
+      "param5": [
+        TupleParam {
+          "values": [
+            "golden-trace",
+            "golden-span",
+          ],
+        },
+        TupleParam {
+          "values": [
+            "golden-trace",
+            "golden-span-b",
+          ],
+        },
+        TupleParam {
+          "values": [
+            "golden-trace-b",
+            "golden-span-c",
+          ],
+        },
+      ],
+      "param6": "2025-11-30 23:59:59.000",
+      "param7": "2026-01-01 00:00:01.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    leftUTF8(e.input, 5000) AS input,
+    leftUTF8(e.output, 5000) AS output,
+    leftUTF8(e.experiment_item_expected_output, 5000) AS experiment_item_expected_output,
+    mapFromArrays(
+        arrayReverse(e.experiment_item_metadata_names),
+        arrayReverse(arrayMap(v -> leftUTF8(v, 5000), e.experiment_item_metadata_values))
+    ) AS experiment_item_metadata,
+    e.skills_available AS skills_available,
+    e.skills_resource_loaded AS skills_resource_loaded,
+    e.tool_calls AS tool_calls,
+    e.tool_call_names AS tool_call_names,
+    mapFromArrays(
+        arrayReverse(e.metadata_names),
+        arrayReverse(arrayMap(v -> leftUTF8(v, 5000), e.metadata_values))
+    ) AS metadata
+FROM events_full AS e
+WHERE (e.project_id = {param1:String}) AND (e.is_deleted = {param2:UInt8}) AND (e.span_id IN ({param3:Array(String)})) AND (e.trace_id IN ({param4:Array(String)})) AND ((e.trace_id, e.span_id) IN ({param5:Array(Tuple(String, String))})) AND (e.start_time >= {param6:DateTime64(6)}) AND (e.start_time <= {param7:DateTime64(6)})",
+  },
+]
+`;
+
+exports[`golden: events IO payload reads family > getObservationsBatchIOFromEventsTable truncated 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": [
+        "golden-span",
+        "golden-span-b",
+        "golden-span-c",
+      ],
+      "param4": [
+        "golden-trace",
+        "golden-trace-b",
+      ],
+      "param5": [
+        TupleParam {
+          "values": [
+            "golden-trace",
+            "golden-span",
+          ],
+        },
+        TupleParam {
+          "values": [
+            "golden-trace",
+            "golden-span-b",
+          ],
+        },
+        TupleParam {
+          "values": [
+            "golden-trace-b",
+            "golden-span-c",
+          ],
+        },
+      ],
+      "param6": "2025-11-30 23:59:59.000",
+      "param7": "2026-01-01 00:00:01.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    leftUTF8(e.input, 1000) AS input,
+    leftUTF8(e.output, 1000) AS output,
+    mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata
+FROM events_core AS e
+WHERE (e.project_id = {param1:String}) AND (e.is_deleted = {param2:UInt8}) AND (e.span_id IN ({param3:Array(String)})) AND (e.trace_id IN ({param4:Array(String)})) AND ((e.trace_id, e.span_id) IN ({param5:Array(Tuple(String, String))})) AND (e.start_time >= {param6:DateTime64(6)}) AND (e.start_time <= {param7:DateTime64(6)})",
+  },
+]
+`;
+
+exports[`golden: events IO payload reads family > getObservationsBatchIOFromEventsTable truncated+experiment 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": [
+        "golden-span",
+        "golden-span-b",
+        "golden-span-c",
+      ],
+      "param4": [
+        "golden-trace",
+        "golden-trace-b",
+      ],
+      "param5": [
+        TupleParam {
+          "values": [
+            "golden-trace",
+            "golden-span",
+          ],
+        },
+        TupleParam {
+          "values": [
+            "golden-trace",
+            "golden-span-b",
+          ],
+        },
+        TupleParam {
+          "values": [
+            "golden-trace-b",
+            "golden-span-c",
+          ],
+        },
+      ],
+      "param6": "2025-11-30 23:59:59.000",
+      "param7": "2026-01-01 00:00:01.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    leftUTF8(e.input, 1000) AS input,
+    leftUTF8(e.output, 1000) AS output,
+    e.experiment_item_expected_output AS experiment_item_expected_output,
+    mapFromArrays(
+        arrayReverse(e.experiment_item_metadata_names),
+        arrayReverse(e.experiment_item_metadata_values)
+    ) AS experiment_item_metadata,
+    mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata
+FROM events_core AS e
+WHERE (e.project_id = {param1:String}) AND (e.is_deleted = {param2:UInt8}) AND (e.span_id IN ({param3:Array(String)})) AND (e.trace_id IN ({param4:Array(String)})) AND ((e.trace_id, e.span_id) IN ({param5:Array(Tuple(String, String))})) AND (e.start_time >= {param6:DateTime64(6)}) AND (e.start_time <= {param7:DateTime64(6)})",
+  },
+]
+`;
+
+exports[`golden: events IO payload reads family > getObservationsBatchIOFromEventsTable truncated+sessionId 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": [
+        "golden-span",
+        "golden-span-b",
+        "golden-span-c",
+      ],
+      "param4": [
+        "golden-trace",
+        "golden-trace-b",
+      ],
+      "param5": [
+        TupleParam {
+          "values": [
+            "golden-trace",
+            "golden-span",
+          ],
+        },
+        TupleParam {
+          "values": [
+            "golden-trace",
+            "golden-span-b",
+          ],
+        },
+        TupleParam {
+          "values": [
+            "golden-trace-b",
+            "golden-span-c",
+          ],
+        },
+      ],
+      "param6": "golden-session",
+      "param7": "2025-11-30 23:59:59.000",
+      "param8": "2026-01-01 00:00:01.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    leftUTF8(e.input, 1000) AS input,
+    leftUTF8(e.output, 1000) AS output,
+    mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata
+FROM events_core AS e
+WHERE (e.project_id = {param1:String}) AND (e.is_deleted = {param2:UInt8}) AND (e.span_id IN ({param3:Array(String)})) AND (e.trace_id IN ({param4:Array(String)})) AND ((e.trace_id, e.span_id) IN ({param5:Array(Tuple(String, String))})) AND (e.trace_id IN (
+    SELECT trace_id
+    FROM events_core
+    WHERE (project_id = {param1:String}) AND (events_core.is_deleted = {param2:UInt8}) AND (trace_id IN ({param4:Array(String)}))
+    GROUP BY trace_id
+    HAVING argMaxIf(session_id, event_ts, session_id != '') = {param6:String}
+)) AND (e.start_time >= {param7:DateTime64(6)}) AND (e.start_time <= {param8:DateTime64(6)})",
+  },
+]
+`;
+
+exports[`golden: events IO payload reads family > streamObservationIOFieldFromEventsTable field=input 1`] = `
+[
+  {
+    "fn": "queryClickhouseExecRaw",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-trace",
+      "param3": "golden-span",
+      "param4": "2025-12-31 23:59:59.000",
+      "param5": "2026-01-01 00:00:01.000",
+      "param6": 1,
+      "param7": 0,
+    },
+    "route": "observation-io-stream",
+    "sql": "SELECT latest.field
+FROM
+(
+    SELECT
+        e.input AS field,
+        e.is_deleted AS is_deleted
+    FROM events_full AS e
+    WHERE (e.project_id = {param1:String}) AND (e.trace_id = {param2:String}) AND (e.span_id = {param3:String}) AND (e.start_time >= {param4:DateTime64(6)}) AND (e.start_time <= {param5:DateTime64(6)})
+    ORDER BY e.event_ts DESC
+    LIMIT {param6:Int64}
+) AS latest
+WHERE latest.is_deleted = {param7:UInt8}
+FORMAT RawBLOB",
+  },
+]
+`;
+
+exports[`golden: events IO payload reads family > streamObservationIOFieldFromEventsTable field=metadata 1`] = `
+[
+  {
+    "fn": "queryClickhouseExecRaw",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-trace",
+      "param3": "golden-span",
+      "param4": "2025-12-31 23:59:59.000",
+      "param5": "2026-01-01 00:00:01.000",
+      "param6": 1,
+      "param7": 0,
+    },
+    "route": "observation-io-stream",
+    "sql": "SELECT latest.field
+FROM
+(
+    SELECT
+        toJSONString(mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))) AS field,
+        e.is_deleted AS is_deleted
+    FROM events_full AS e
+    WHERE (e.project_id = {param1:String}) AND (e.trace_id = {param2:String}) AND (e.span_id = {param3:String}) AND (e.start_time >= {param4:DateTime64(6)}) AND (e.start_time <= {param5:DateTime64(6)})
+    ORDER BY e.event_ts DESC
+    LIMIT {param6:Int64}
+) AS latest
+WHERE latest.is_deleted = {param7:UInt8}
+FORMAT RawBLOB",
+  },
+]
+`;
+
+exports[`golden: events IO payload reads family > streamObservationIOFieldFromEventsTable field=output 1`] = `
+[
+  {
+    "fn": "queryClickhouseExecRaw",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-trace",
+      "param3": "golden-span",
+      "param4": "2025-12-31 23:59:59.000",
+      "param5": "2026-01-01 00:00:01.000",
+      "param6": 1,
+      "param7": 0,
+    },
+    "route": "observation-io-stream",
+    "sql": "SELECT latest.field
+FROM
+(
+    SELECT
+        e.output AS field,
+        e.is_deleted AS is_deleted
+    FROM events_full AS e
+    WHERE (e.project_id = {param1:String}) AND (e.trace_id = {param2:String}) AND (e.span_id = {param3:String}) AND (e.start_time >= {param4:DateTime64(6)}) AND (e.start_time <= {param5:DateTime64(6)})
+    ORDER BY e.event_ts DESC
+    LIMIT {param6:Int64}
+) AS latest
+WHERE latest.is_deleted = {param7:UInt8}
+FORMAT RawBLOB",
+  },
+]
+`;
+
+exports[`golden: events export streams family > getEventsForBlobStorageExport fieldGroups=basic 1`] = `
+[
+  {
+    "fn": "queryClickhouseStream",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": "2025-12-01 00:00:00.000",
+      "param4": "2026-01-02 00:00:00.000",
+    },
+    "route": "blob_export",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.project_id AS project_id,
+    e.environment AS environment,
+    e.type AS type,
+    e.parent_span_id AS parent_observation_id,
+    toBool((e.parent_span_id = '') OR (e.is_app_root = true)) AS is_root_observation,
+    e.name AS name,
+    e.level AS level,
+    e.status_message AS status_message,
+    e.version AS version,
+    e.bookmarked AS bookmarked,
+    e.public AS public,
+    e.user_id AS user_id,
+    e.session_id AS session_id,
+    e.start_time AS start_time,
+    e.end_time AS end_time
+FROM events_core AS e
+WHERE (e.project_id = {param1:String}) AND (e.is_deleted = {param2:UInt8}) AND (e.start_time >= {param3:DateTime64(6)}) AND (e.start_time < {param4:DateTime64(6)})
+LIMIT 1 BY
+    e.span_id,
+    e.project_id",
+  },
+]
+`;
+
+exports[`golden: events export streams family > getEventsForBlobStorageExport fieldGroups=core 1`] = `
+[
+  {
+    "fn": "queryClickhouseStream",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": "2025-12-01 00:00:00.000",
+      "param4": "2026-01-02 00:00:00.000",
+    },
+    "route": "blob_export",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.project_id AS project_id,
+    e.type AS type,
+    e.parent_span_id AS parent_observation_id,
+    e.start_time AS start_time,
+    e.end_time AS end_time
+FROM events_core AS e
+WHERE (e.project_id = {param1:String}) AND (e.is_deleted = {param2:UInt8}) AND (e.start_time >= {param3:DateTime64(6)}) AND (e.start_time < {param4:DateTime64(6)})
+LIMIT 1 BY
+    e.span_id,
+    e.project_id",
+  },
+]
+`;
+
+exports[`golden: events export streams family > getEventsForBlobStorageExport fieldGroups=default 1`] = `
+[
+  {
+    "fn": "queryClickhouseStream",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": "2025-12-01 00:00:00.000",
+      "param4": "2026-01-02 00:00:00.000",
+    },
+    "route": "blob_export",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.project_id AS project_id,
+    e.environment AS environment,
+    e.type AS type,
+    e.parent_span_id AS parent_observation_id,
+    toBool((e.parent_span_id = '') OR (e.is_app_root = true)) AS is_root_observation,
+    e.name AS name,
+    e.level AS level,
+    e.status_message AS status_message,
+    e.version AS version,
+    e.bookmarked AS bookmarked,
+    e.public AS public,
+    e.user_id AS user_id,
+    e.session_id AS session_id,
+    ifNull(
+        coalesce(
+            nullIf(e.trace_name, ''),
+            if((e.parent_span_id = '') OR (e.is_app_root = true), nullIf(e.name, ''), NULL)
+        ),
+        ''
+    ) AS trace_name,
+    e.start_time AS start_time,
+    e.end_time AS end_time,
+    e.completion_start_time AS completion_start_time,
+    e.created_at AS created_at,
+    e.updated_at AS updated_at,
+    e.provided_model_name AS provided_model_name,
+    e.model_parameters AS model_parameters,
+    e.usage_details AS usage_details,
+    e.cost_details AS cost_details,
+    e.total_cost AS total_cost,
+    e.prompt_id AS prompt_id,
+    e.prompt_name AS prompt_name,
+    e.prompt_version AS prompt_version,
+    e.tool_definitions AS tool_definitions,
+    e.tool_calls AS tool_calls,
+    e.tool_call_names AS tool_call_names,
+    e.usage_pricing_tier_id AS usage_pricing_tier_id,
+    e.usage_pricing_tier_name AS usage_pricing_tier_name,
+    mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata,
+    e.tags AS tags,
+    e.release AS release,
+    e.model_id AS model_id,
+    if(isNull(e.end_time), NULL, dateDiff('millisecond', e.start_time, e.end_time)) AS latency,
+    if(
+        isNull(e.completion_start_time),
+        NULL,
+        dateDiff('millisecond', e.start_time, e.completion_start_time)
+    ) AS time_to_first_token,
+    input,
+    output
+FROM events_full AS e
+WHERE (e.project_id = {param1:String}) AND (e.is_deleted = {param2:UInt8}) AND (e.start_time >= {param3:DateTime64(6)}) AND (e.start_time < {param4:DateTime64(6)})
+LIMIT 1 BY
+    e.span_id,
+    e.project_id",
+  },
+]
+`;
+
+exports[`golden: events export streams family > getEventsForBlobStorageExport fieldGroups=empty 1`] = `
+[
+  {
+    "fn": "queryClickhouseStream",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": "2025-12-01 00:00:00.000",
+      "param4": "2026-01-02 00:00:00.000",
+    },
+    "route": "blob_export",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.project_id AS project_id,
+    e.type AS type,
+    e.parent_span_id AS parent_observation_id,
+    e.start_time AS start_time,
+    e.end_time AS end_time
+FROM events_core AS e
+WHERE (e.project_id = {param1:String}) AND (e.is_deleted = {param2:UInt8}) AND (e.start_time >= {param3:DateTime64(6)}) AND (e.start_time < {param4:DateTime64(6)})
+LIMIT 1 BY
+    e.span_id,
+    e.project_id",
+  },
+]
+`;
+
+exports[`golden: events export streams family > getEventsForBlobStorageExport fieldGroups=io 1`] = `
+[
+  {
+    "fn": "queryClickhouseStream",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": "2025-12-01 00:00:00.000",
+      "param4": "2026-01-02 00:00:00.000",
+    },
+    "route": "blob_export",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.project_id AS project_id,
+    e.type AS type,
+    e.parent_span_id AS parent_observation_id,
+    e.start_time AS start_time,
+    e.end_time AS end_time,
+    input,
+    output
+FROM events_full AS e
+WHERE (e.project_id = {param1:String}) AND (e.is_deleted = {param2:UInt8}) AND (e.start_time >= {param3:DateTime64(6)}) AND (e.start_time < {param4:DateTime64(6)})
+LIMIT 1 BY
+    e.span_id,
+    e.project_id",
+  },
+]
+`;
+
+exports[`golden: events export streams family > getEventsForBlobStorageExport fieldGroups=metadata 1`] = `
+[
+  {
+    "fn": "queryClickhouseStream",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": "2025-12-01 00:00:00.000",
+      "param4": "2026-01-02 00:00:00.000",
+    },
+    "route": "blob_export",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.project_id AS project_id,
+    e.type AS type,
+    e.parent_span_id AS parent_observation_id,
+    e.start_time AS start_time,
+    e.end_time AS end_time,
+    mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata
+FROM events_core AS e
+WHERE (e.project_id = {param1:String}) AND (e.is_deleted = {param2:UInt8}) AND (e.start_time >= {param3:DateTime64(6)}) AND (e.start_time < {param4:DateTime64(6)})
+LIMIT 1 BY
+    e.span_id,
+    e.project_id",
+  },
+]
+`;
+
+exports[`golden: events export streams family > getEventsForBlobStorageExport fieldGroups=metrics 1`] = `
+[
+  {
+    "fn": "queryClickhouseStream",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": "2025-12-01 00:00:00.000",
+      "param4": "2026-01-02 00:00:00.000",
+    },
+    "route": "blob_export",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.project_id AS project_id,
+    e.type AS type,
+    e.parent_span_id AS parent_observation_id,
+    e.start_time AS start_time,
+    e.end_time AS end_time,
+    if(isNull(e.end_time), NULL, dateDiff('millisecond', e.start_time, e.end_time)) AS latency,
+    if(
+        isNull(e.completion_start_time),
+        NULL,
+        dateDiff('millisecond', e.start_time, e.completion_start_time)
+    ) AS time_to_first_token
+FROM events_core AS e
+WHERE (e.project_id = {param1:String}) AND (e.is_deleted = {param2:UInt8}) AND (e.start_time >= {param3:DateTime64(6)}) AND (e.start_time < {param4:DateTime64(6)})
+LIMIT 1 BY
+    e.span_id,
+    e.project_id",
+  },
+]
+`;
+
+exports[`golden: events export streams family > getEventsForBlobStorageExport fieldGroups=model 1`] = `
+[
+  {
+    "fn": "queryClickhouseStream",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": "2025-12-01 00:00:00.000",
+      "param4": "2026-01-02 00:00:00.000",
+    },
+    "route": "blob_export",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.project_id AS project_id,
+    e.type AS type,
+    e.parent_span_id AS parent_observation_id,
+    e.start_time AS start_time,
+    e.end_time AS end_time,
+    e.provided_model_name AS provided_model_name,
+    e.model_parameters AS model_parameters,
+    e.model_id AS model_id
+FROM events_core AS e
+WHERE (e.project_id = {param1:String}) AND (e.is_deleted = {param2:UInt8}) AND (e.start_time >= {param3:DateTime64(6)}) AND (e.start_time < {param4:DateTime64(6)})
+LIMIT 1 BY
+    e.span_id,
+    e.project_id",
+  },
+]
+`;
+
+exports[`golden: events export streams family > getEventsForBlobStorageExport fieldGroups=prompt 1`] = `
+[
+  {
+    "fn": "queryClickhouseStream",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": "2025-12-01 00:00:00.000",
+      "param4": "2026-01-02 00:00:00.000",
+    },
+    "route": "blob_export",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.project_id AS project_id,
+    e.type AS type,
+    e.parent_span_id AS parent_observation_id,
+    e.start_time AS start_time,
+    e.end_time AS end_time,
+    e.prompt_id AS prompt_id,
+    e.prompt_name AS prompt_name,
+    e.prompt_version AS prompt_version
+FROM events_core AS e
+WHERE (e.project_id = {param1:String}) AND (e.is_deleted = {param2:UInt8}) AND (e.start_time >= {param3:DateTime64(6)}) AND (e.start_time < {param4:DateTime64(6)})
+LIMIT 1 BY
+    e.span_id,
+    e.project_id",
+  },
+]
+`;
+
+exports[`golden: events export streams family > getEventsForBlobStorageExport fieldGroups=reversed 1`] = `
+[
+  {
+    "fn": "queryClickhouseStream",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": "2025-12-01 00:00:00.000",
+      "param4": "2026-01-02 00:00:00.000",
+    },
+    "route": "blob_export",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.project_id AS project_id,
+    e.environment AS environment,
+    e.type AS type,
+    e.parent_span_id AS parent_observation_id,
+    toBool((e.parent_span_id = '') OR (e.is_app_root = true)) AS is_root_observation,
+    e.name AS name,
+    e.level AS level,
+    e.status_message AS status_message,
+    e.version AS version,
+    e.bookmarked AS bookmarked,
+    e.public AS public,
+    e.user_id AS user_id,
+    e.session_id AS session_id,
+    ifNull(
+        coalesce(
+            nullIf(e.trace_name, ''),
+            if((e.parent_span_id = '') OR (e.is_app_root = true), nullIf(e.name, ''), NULL)
+        ),
+        ''
+    ) AS trace_name,
+    e.start_time AS start_time,
+    e.end_time AS end_time,
+    e.completion_start_time AS completion_start_time,
+    e.created_at AS created_at,
+    e.updated_at AS updated_at,
+    e.provided_model_name AS provided_model_name,
+    e.model_parameters AS model_parameters,
+    e.usage_details AS usage_details,
+    e.cost_details AS cost_details,
+    e.total_cost AS total_cost,
+    e.prompt_id AS prompt_id,
+    e.prompt_name AS prompt_name,
+    e.prompt_version AS prompt_version,
+    e.tool_definitions AS tool_definitions,
+    e.tool_calls AS tool_calls,
+    e.tool_call_names AS tool_call_names,
+    e.usage_pricing_tier_id AS usage_pricing_tier_id,
+    e.usage_pricing_tier_name AS usage_pricing_tier_name,
+    mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata,
+    e.tags AS tags,
+    e.release AS release,
+    e.model_id AS model_id,
+    if(isNull(e.end_time), NULL, dateDiff('millisecond', e.start_time, e.end_time)) AS latency,
+    if(
+        isNull(e.completion_start_time),
+        NULL,
+        dateDiff('millisecond', e.start_time, e.completion_start_time)
+    ) AS time_to_first_token,
+    input,
+    output
+FROM events_full AS e
+WHERE (e.project_id = {param1:String}) AND (e.is_deleted = {param2:UInt8}) AND (e.start_time >= {param3:DateTime64(6)}) AND (e.start_time < {param4:DateTime64(6)})
+LIMIT 1 BY
+    e.span_id,
+    e.project_id",
+  },
+]
+`;
+
+exports[`golden: events export streams family > getEventsForBlobStorageExport fieldGroups=time 1`] = `
+[
+  {
+    "fn": "queryClickhouseStream",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": "2025-12-01 00:00:00.000",
+      "param4": "2026-01-02 00:00:00.000",
+    },
+    "route": "blob_export",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.project_id AS project_id,
+    e.type AS type,
+    e.parent_span_id AS parent_observation_id,
+    e.start_time AS start_time,
+    e.end_time AS end_time,
+    e.completion_start_time AS completion_start_time,
+    e.created_at AS created_at,
+    e.updated_at AS updated_at
+FROM events_core AS e
+WHERE (e.project_id = {param1:String}) AND (e.is_deleted = {param2:UInt8}) AND (e.start_time >= {param3:DateTime64(6)}) AND (e.start_time < {param4:DateTime64(6)})
+LIMIT 1 BY
+    e.span_id,
+    e.project_id",
+  },
+]
+`;
+
+exports[`golden: events export streams family > getEventsForBlobStorageExport fieldGroups=tools 1`] = `
+[
+  {
+    "fn": "queryClickhouseStream",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": "2025-12-01 00:00:00.000",
+      "param4": "2026-01-02 00:00:00.000",
+    },
+    "route": "blob_export",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.project_id AS project_id,
+    e.type AS type,
+    e.parent_span_id AS parent_observation_id,
+    e.start_time AS start_time,
+    e.end_time AS end_time,
+    e.tool_definitions AS tool_definitions,
+    e.tool_calls AS tool_calls,
+    e.tool_call_names AS tool_call_names
+FROM events_core AS e
+WHERE (e.project_id = {param1:String}) AND (e.is_deleted = {param2:UInt8}) AND (e.start_time >= {param3:DateTime64(6)}) AND (e.start_time < {param4:DateTime64(6)})
+LIMIT 1 BY
+    e.span_id,
+    e.project_id",
+  },
+]
+`;
+
+exports[`golden: events export streams family > getEventsForBlobStorageExport fieldGroups=trace_context 1`] = `
+[
+  {
+    "fn": "queryClickhouseStream",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": "2025-12-01 00:00:00.000",
+      "param4": "2026-01-02 00:00:00.000",
+    },
+    "route": "blob_export",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.project_id AS project_id,
+    e.type AS type,
+    e.parent_span_id AS parent_observation_id,
+    ifNull(
+        coalesce(
+            nullIf(e.trace_name, ''),
+            if((e.parent_span_id = '') OR (e.is_app_root = true), nullIf(e.name, ''), NULL)
+        ),
+        ''
+    ) AS trace_name,
+    e.start_time AS start_time,
+    e.end_time AS end_time,
+    e.tags AS tags,
+    e.release AS release
+FROM events_core AS e
+WHERE (e.project_id = {param1:String}) AND (e.is_deleted = {param2:UInt8}) AND (e.start_time >= {param3:DateTime64(6)}) AND (e.start_time < {param4:DateTime64(6)})
+LIMIT 1 BY
+    e.span_id,
+    e.project_id",
+  },
+]
+`;
+
+exports[`golden: events export streams family > getEventsForBlobStorageExport fieldGroups=usage 1`] = `
+[
+  {
+    "fn": "queryClickhouseStream",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": "2025-12-01 00:00:00.000",
+      "param4": "2026-01-02 00:00:00.000",
+    },
+    "route": "blob_export",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.project_id AS project_id,
+    e.type AS type,
+    e.parent_span_id AS parent_observation_id,
+    e.start_time AS start_time,
+    e.end_time AS end_time,
+    e.usage_details AS usage_details,
+    e.cost_details AS cost_details,
+    e.total_cost AS total_cost,
+    e.usage_pricing_tier_id AS usage_pricing_tier_id,
+    e.usage_pricing_tier_name AS usage_pricing_tier_name
+FROM events_core AS e
+WHERE (e.project_id = {param1:String}) AND (e.is_deleted = {param2:UInt8}) AND (e.start_time >= {param3:DateTime64(6)}) AND (e.start_time < {param4:DateTime64(6)})
+LIMIT 1 BY
+    e.span_id,
+    e.project_id",
+  },
+]
+`;
+
+exports[`golden: events export streams family > getEventsForBlobStorageExportParquet convertLatencyToSeconds=false 1`] = `
+[
+  {
+    "fn": "queryClickhouseExecRaw",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": "2025-12-01 00:00:00.000",
+      "param4": "2026-01-02 00:00:00.000",
+    },
+    "route": "blob_export",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.project_id AS project_id,
+    e.environment AS environment,
+    e.type AS type,
+    e.parent_span_id AS parent_observation_id,
+    toBool((e.parent_span_id = '') OR (e.is_app_root = true)) AS is_root_observation,
+    e.name AS name,
+    e.level AS level,
+    e.status_message AS status_message,
+    e.version AS version,
+    e.bookmarked AS bookmarked,
+    e.public AS public,
+    e.user_id AS user_id,
+    e.session_id AS session_id,
+    ifNull(
+        coalesce(
+            nullIf(e.trace_name, ''),
+            if((e.parent_span_id = '') OR (e.is_app_root = true), nullIf(e.name, ''), NULL)
+        ),
+        ''
+    ) AS trace_name,
+    e.start_time AS start_time,
+    e.end_time AS end_time,
+    e.completion_start_time AS completion_start_time,
+    e.created_at AS created_at,
+    e.updated_at AS updated_at,
+    e.provided_model_name AS provided_model_name,
+    e.model_parameters AS model_parameters,
+    e.usage_details AS usage_details,
+    e.cost_details AS cost_details,
+    e.total_cost AS total_cost,
+    e.prompt_id AS prompt_id,
+    e.prompt_name AS prompt_name,
+    e.prompt_version AS prompt_version,
+    e.tool_definitions AS tool_definitions,
+    e.tool_calls AS tool_calls,
+    e.tool_call_names AS tool_call_names,
+    e.usage_pricing_tier_id AS usage_pricing_tier_id,
+    e.usage_pricing_tier_name AS usage_pricing_tier_name,
+    mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata,
+    e.tags AS tags,
+    e.release AS release,
+    e.model_id AS model_id,
+    if(isNull(e.end_time), NULL, dateDiff('millisecond', e.start_time, e.end_time)) AS latency,
+    if(
+        isNull(e.completion_start_time),
+        NULL,
+        dateDiff('millisecond', e.start_time, e.completion_start_time)
+    ) AS time_to_first_token,
+    input,
+    output
+FROM events_full AS e
+WHERE (e.project_id = {param1:String}) AND (e.is_deleted = {param2:UInt8}) AND (e.start_time >= {param3:DateTime64(6)}) AND (e.start_time < {param4:DateTime64(6)})
+LIMIT 1 BY
+    e.span_id,
+    e.project_id
+FORMAT Parquet",
+  },
+]
+`;
+
+exports[`golden: events export streams family > getEventsForBlobStorageExportParquet convertLatencyToSeconds=true 1`] = `
+[
+  {
+    "fn": "queryClickhouseExecRaw",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": "2025-12-01 00:00:00.000",
+      "param4": "2026-01-02 00:00:00.000",
+    },
+    "route": "blob_export",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.project_id AS project_id,
+    e.environment AS environment,
+    e.type AS type,
+    e.parent_span_id AS parent_observation_id,
+    toBool((e.parent_span_id = '') OR (e.is_app_root = true)) AS is_root_observation,
+    e.name AS name,
+    e.level AS level,
+    e.status_message AS status_message,
+    e.version AS version,
+    e.bookmarked AS bookmarked,
+    e.public AS public,
+    e.user_id AS user_id,
+    e.session_id AS session_id,
+    ifNull(
+        coalesce(
+            nullIf(e.trace_name, ''),
+            if((e.parent_span_id = '') OR (e.is_app_root = true), nullIf(e.name, ''), NULL)
+        ),
+        ''
+    ) AS trace_name,
+    e.start_time AS start_time,
+    e.end_time AS end_time,
+    e.completion_start_time AS completion_start_time,
+    e.created_at AS created_at,
+    e.updated_at AS updated_at,
+    e.provided_model_name AS provided_model_name,
+    e.model_parameters AS model_parameters,
+    e.usage_details AS usage_details,
+    e.cost_details AS cost_details,
+    e.total_cost AS total_cost,
+    e.prompt_id AS prompt_id,
+    e.prompt_name AS prompt_name,
+    e.prompt_version AS prompt_version,
+    e.tool_definitions AS tool_definitions,
+    e.tool_calls AS tool_calls,
+    e.tool_call_names AS tool_call_names,
+    e.usage_pricing_tier_id AS usage_pricing_tier_id,
+    e.usage_pricing_tier_name AS usage_pricing_tier_name,
+    mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata,
+    e.tags AS tags,
+    e.release AS release,
+    e.model_id AS model_id,
+    input,
+    output,
+    if(isNull(e.end_time), NULL, dateDiff('millisecond', e.start_time, e.end_time) / 1000) AS latency,
+    if(
+        isNull(e.completion_start_time),
+        NULL,
+        dateDiff('millisecond', e.start_time, e.completion_start_time) / 1000
+    ) AS time_to_first_token
+FROM events_full AS e
+WHERE (e.project_id = {param1:String}) AND (e.is_deleted = {param2:UInt8}) AND (e.start_time >= {param3:DateTime64(6)}) AND (e.start_time < {param4:DateTime64(6)})
+LIMIT 1 BY
+    e.span_id,
+    e.project_id
+FORMAT Parquet",
+  },
+]
+`;
+
+exports[`golden: events export streams family > getEventsForBlobStorageExportRaw fieldGroups=core+io convertLatencyToSeconds=true 1`] = `
+[
+  {
+    "fn": "queryClickhouseStreamRawText",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": "2025-12-01 00:00:00.000",
+      "param4": "2026-01-02 00:00:00.000",
+    },
+    "route": "blob_export",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.project_id AS project_id,
+    e.type AS type,
+    e.parent_span_id AS parent_observation_id,
+    e.start_time AS start_time,
+    e.end_time AS end_time,
+    input,
+    output
+FROM events_full AS e
+WHERE (e.project_id = {param1:String}) AND (e.is_deleted = {param2:UInt8}) AND (e.start_time >= {param3:DateTime64(6)}) AND (e.start_time < {param4:DateTime64(6)})
+LIMIT 1 BY
+    e.span_id,
+    e.project_id",
+  },
+]
+`;
+
+exports[`golden: events export streams family > getEventsForBlobStorageExportRaw fieldGroups=default convertLatencyToSeconds=true 1`] = `
+[
+  {
+    "fn": "queryClickhouseStreamRawText",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": "2025-12-01 00:00:00.000",
+      "param4": "2026-01-02 00:00:00.000",
+    },
+    "route": "blob_export",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.project_id AS project_id,
+    e.environment AS environment,
+    e.type AS type,
+    e.parent_span_id AS parent_observation_id,
+    toBool((e.parent_span_id = '') OR (e.is_app_root = true)) AS is_root_observation,
+    e.name AS name,
+    e.level AS level,
+    e.status_message AS status_message,
+    e.version AS version,
+    e.bookmarked AS bookmarked,
+    e.public AS public,
+    e.user_id AS user_id,
+    e.session_id AS session_id,
+    ifNull(
+        coalesce(
+            nullIf(e.trace_name, ''),
+            if((e.parent_span_id = '') OR (e.is_app_root = true), nullIf(e.name, ''), NULL)
+        ),
+        ''
+    ) AS trace_name,
+    e.start_time AS start_time,
+    e.end_time AS end_time,
+    e.completion_start_time AS completion_start_time,
+    e.created_at AS created_at,
+    e.updated_at AS updated_at,
+    e.provided_model_name AS provided_model_name,
+    e.model_parameters AS model_parameters,
+    e.usage_details AS usage_details,
+    e.cost_details AS cost_details,
+    e.total_cost AS total_cost,
+    e.prompt_id AS prompt_id,
+    e.prompt_name AS prompt_name,
+    e.prompt_version AS prompt_version,
+    e.tool_definitions AS tool_definitions,
+    e.tool_calls AS tool_calls,
+    e.tool_call_names AS tool_call_names,
+    e.usage_pricing_tier_id AS usage_pricing_tier_id,
+    e.usage_pricing_tier_name AS usage_pricing_tier_name,
+    mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata,
+    e.tags AS tags,
+    e.release AS release,
+    e.model_id AS model_id,
+    input,
+    output,
+    if(isNull(e.end_time), NULL, dateDiff('millisecond', e.start_time, e.end_time) / 1000) AS latency,
+    if(
+        isNull(e.completion_start_time),
+        NULL,
+        dateDiff('millisecond', e.start_time, e.completion_start_time) / 1000
+    ) AS time_to_first_token
+FROM events_full AS e
+WHERE (e.project_id = {param1:String}) AND (e.is_deleted = {param2:UInt8}) AND (e.start_time >= {param3:DateTime64(6)}) AND (e.start_time < {param4:DateTime64(6)})
+LIMIT 1 BY
+    e.span_id,
+    e.project_id",
+  },
+]
+`;
+
+exports[`golden: events export streams family > getEventsForBlobStorageExportRaw fieldGroups=default convertLatencyToSeconds=undefined 1`] = `
+[
+  {
+    "fn": "queryClickhouseStreamRawText",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": "2025-12-01 00:00:00.000",
+      "param4": "2026-01-02 00:00:00.000",
+    },
+    "route": "blob_export",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.project_id AS project_id,
+    e.environment AS environment,
+    e.type AS type,
+    e.parent_span_id AS parent_observation_id,
+    toBool((e.parent_span_id = '') OR (e.is_app_root = true)) AS is_root_observation,
+    e.name AS name,
+    e.level AS level,
+    e.status_message AS status_message,
+    e.version AS version,
+    e.bookmarked AS bookmarked,
+    e.public AS public,
+    e.user_id AS user_id,
+    e.session_id AS session_id,
+    ifNull(
+        coalesce(
+            nullIf(e.trace_name, ''),
+            if((e.parent_span_id = '') OR (e.is_app_root = true), nullIf(e.name, ''), NULL)
+        ),
+        ''
+    ) AS trace_name,
+    e.start_time AS start_time,
+    e.end_time AS end_time,
+    e.completion_start_time AS completion_start_time,
+    e.created_at AS created_at,
+    e.updated_at AS updated_at,
+    e.provided_model_name AS provided_model_name,
+    e.model_parameters AS model_parameters,
+    e.usage_details AS usage_details,
+    e.cost_details AS cost_details,
+    e.total_cost AS total_cost,
+    e.prompt_id AS prompt_id,
+    e.prompt_name AS prompt_name,
+    e.prompt_version AS prompt_version,
+    e.tool_definitions AS tool_definitions,
+    e.tool_calls AS tool_calls,
+    e.tool_call_names AS tool_call_names,
+    e.usage_pricing_tier_id AS usage_pricing_tier_id,
+    e.usage_pricing_tier_name AS usage_pricing_tier_name,
+    mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata,
+    e.tags AS tags,
+    e.release AS release,
+    e.model_id AS model_id,
+    if(isNull(e.end_time), NULL, dateDiff('millisecond', e.start_time, e.end_time)) AS latency,
+    if(
+        isNull(e.completion_start_time),
+        NULL,
+        dateDiff('millisecond', e.start_time, e.completion_start_time)
+    ) AS time_to_first_token,
+    input,
+    output
+FROM events_full AS e
+WHERE (e.project_id = {param1:String}) AND (e.is_deleted = {param2:UInt8}) AND (e.start_time >= {param3:DateTime64(6)}) AND (e.start_time < {param4:DateTime64(6)})
+LIMIT 1 BY
+    e.span_id,
+    e.project_id",
+  },
+]
+`;
+
+exports[`golden: events export streams family > getEventsForBlobStorageExportRaw fieldGroups=metrics convertLatencyToSeconds=true 1`] = `
+[
+  {
+    "fn": "queryClickhouseStreamRawText",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": "2025-12-01 00:00:00.000",
+      "param4": "2026-01-02 00:00:00.000",
+    },
+    "route": "blob_export",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.project_id AS project_id,
+    e.type AS type,
+    e.parent_span_id AS parent_observation_id,
+    e.start_time AS start_time,
+    e.end_time AS end_time,
+    if(isNull(e.end_time), NULL, dateDiff('millisecond', e.start_time, e.end_time) / 1000) AS latency,
+    if(
+        isNull(e.completion_start_time),
+        NULL,
+        dateDiff('millisecond', e.start_time, e.completion_start_time) / 1000
+    ) AS time_to_first_token
+FROM events_core AS e
+WHERE (e.project_id = {param1:String}) AND (e.is_deleted = {param2:UInt8}) AND (e.start_time >= {param3:DateTime64(6)}) AND (e.start_time < {param4:DateTime64(6)})
+LIMIT 1 BY
+    e.span_id,
+    e.project_id",
+  },
+]
+`;
+
+exports[`golden: events metadata map and session resolution > getEventsForAnalyticsIntegrations 1`] = `
+[
+  {
+    "fn": "queryClickhouseStream",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": "2025-12-01 00:00:00.000",
+      "param4": "2026-01-01 00:00:00.000",
+    },
+    "route": "analytics_integration",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.project_id AS project_id,
+    e.environment AS environment,
+    e.type AS type,
+    e.parent_span_id AS parent_observation_id,
+    e.name AS name,
+    e.level AS level,
+    e.status_message AS status_message,
+    e.version AS version,
+    e.bookmarked AS bookmarked,
+    e.public AS public,
+    e.user_id AS user_id,
+    e.session_id AS session_id,
+    ifNull(
+        coalesce(
+            nullIf(e.trace_name, ''),
+            if((e.parent_span_id = '') OR (e.is_app_root = true), nullIf(e.name, ''), NULL)
+        ),
+        ''
+    ) AS trace_name,
+    e.start_time AS start_time,
+    e.end_time AS end_time,
+    e.completion_start_time AS completion_start_time,
+    e.created_at AS created_at,
+    e.updated_at AS updated_at,
+    e.provided_model_name AS provided_model_name,
+    e.model_parameters AS model_parameters,
+    e.usage_details AS usage_details,
+    e.cost_details AS cost_details,
+    e.total_cost AS total_cost,
+    e.prompt_id AS prompt_id,
+    e.prompt_name AS prompt_name,
+    e.prompt_version AS prompt_version,
+    e.tool_definitions AS tool_definitions,
+    e.tool_calls AS tool_calls,
+    e.tool_call_names AS tool_call_names,
+    e.usage_pricing_tier_id AS usage_pricing_tier_id,
+    e.usage_pricing_tier_name AS usage_pricing_tier_name,
+    e.tags AS tags,
+    e.release AS release,
+    e.model_id AS model_id,
+    if(isNull(e.end_time), NULL, dateDiff('millisecond', e.start_time, e.end_time)) AS latency,
+    if(
+        isNull(e.completion_start_time),
+        NULL,
+        dateDiff('millisecond', e.start_time, e.completion_start_time)
+    ) AS time_to_first_token,
+    e.usage_details['input'] AS input_tokens,
+    e.usage_details['output'] AS output_tokens,
+    e.usage_details['total'] AS total_tokens,
+    mapFromArrays(
+        arrayReverse(e.metadata_names),
+        arrayReverse(e.metadata_values)
+    )['$posthog_session_id'] AS posthog_session_id,
+    mapFromArrays(
+        arrayReverse(e.metadata_names),
+        arrayReverse(e.metadata_values)
+    )['$mixpanel_session_id'] AS mixpanel_session_id
+FROM events_core AS e
+WHERE (e.project_id = {param1:String}) AND (e.is_deleted = {param2:UInt8}) AND (e.start_time >= {param3:DateTime64(6)}) AND (e.start_time < {param4:DateTime64(6)})
+LIMIT 1 BY
+    e.span_id,
+    e.project_id",
+  },
+]
+`;
+
+exports[`golden: events metadata map and session resolution > getObservationsV2FromEventsTableForPublicApi fields=basic+metrics+trace_context 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": 51,
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.project_id AS project_id,
+    e.environment AS environment,
+    e.type AS type,
+    e.parent_span_id AS parent_observation_id,
+    toBool((e.parent_span_id = '') OR (e.is_app_root = true)) AS is_root_observation,
+    e.name AS name,
+    e.level AS level,
+    e.status_message AS status_message,
+    e.version AS version,
+    e.bookmarked AS bookmarked,
+    e.public AS public,
+    e.user_id AS user_id,
+    e.session_id AS session_id,
+    ifNull(
+        coalesce(
+            nullIf(e.trace_name, ''),
+            if((e.parent_span_id = '') OR (e.is_app_root = true), nullIf(e.name, ''), NULL)
+        ),
+        ''
+    ) AS trace_name,
+    e.start_time AS start_time,
+    e.end_time AS end_time,
+    e.tags AS tags,
+    e.release AS release,
+    if(isNull(e.end_time), NULL, dateDiff('millisecond', e.start_time, e.end_time)) AS latency,
+    if(
+        isNull(e.completion_start_time),
+        NULL,
+        dateDiff('millisecond', e.start_time, e.completion_start_time)
+    ) AS time_to_first_token
+FROM events_core AS e
+WHERE e.project_id = {param1:String}
+ORDER BY
+    e.project_id DESC,
+    toStartOfMinute(e.start_time) DESC,
+    e.start_time DESC,
+    xxHash32(e.trace_id) DESC,
+    e.span_id DESC
+LIMIT {param2:Int32}",
+  },
+]
+`;
+
+exports[`golden: events metadata map and session resolution > getObservationsV2FromEventsTableForPublicApi fields=core+metadata expandMetadataKeys=set 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": 51,
+    },
+    "route": "unknown",
+    "sql": "WITH
+    base AS
+    (
+        SELECT
+            e.span_id AS id,
+            e.trace_id AS trace_id,
+            e.project_id AS project_id,
+            e.type AS type,
+            e.parent_span_id AS parent_observation_id,
+            e.start_time AS start_time,
+            e.end_time AS end_time
+        FROM events_core AS e
+        WHERE e.project_id = {param1:String}
+        ORDER BY
+            e.project_id DESC,
+            toStartOfMinute(e.start_time) DESC,
+            e.start_time DESC,
+            xxHash32(e.trace_id) DESC,
+            e.span_id DESC
+        LIMIT {param2:Int32}
+    ),
+    io AS
+    (
+        SELECT
+            e.span_id AS _io_id,
+            e.trace_id AS _io_trace_id,
+            e.start_time AS _io_start_time,
+            mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata
+        FROM events_full AS e
+        WHERE (e.project_id = {param1:String}) AND (e.start_time >= (((
+            SELECT (min(start_time), max(start_time))
+            FROM base
+        )).1)) AND (e.start_time <= (((
+            SELECT (min(start_time), max(start_time))
+            FROM base
+        )).2)) AND ((e.start_time, e.trace_id, e.span_id) IN (
+            SELECT
+                start_time,
+                trace_id,
+                id
+            FROM base
+        ))
+    )
+SELECT
+    b.id AS id,
+    b.trace_id AS trace_id,
+    b.start_time AS start_time,
+    b.end_time AS end_time,
+    b.project_id AS project_id,
+    b.parent_observation_id AS parent_observation_id,
+    b.type AS type,
+    i.metadata AS metadata
+FROM base AS b
+ANY LEFT JOIN io AS i ON (b.start_time = i._io_start_time) AND (b.trace_id = i._io_trace_id) AND (b.id = i._io_id)
+ORDER BY
+    b.start_time DESC,
+    xxHash32(b.trace_id) DESC,
+    b.id DESC",
+  },
+]
+`;
+
+exports[`golden: events metadata map and session resolution > getTraceBatchEventStream 1`] = `
+[
+  {
+    "fn": "queryClickhouseStream",
+    "params": {
+      "param1": [
+        "golden-project",
+      ],
+      "param2": [
+        "golden-trace",
+      ],
+      "param3": [
+        TupleParam {
+          "values": [
+            "golden-project",
+            "golden-trace",
+          ],
+        },
+      ],
+      "param4": 1764547080000,
+      "param5": 1767225720000,
+      "param6": [
+        "golden-project",
+      ],
+      "param7": [
+        [
+          "golden-trace",
+        ],
+      ],
+      "param8": [
+        1764547080000,
+      ],
+      "param9": [
+        1767225720000,
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    e.tool_definitions AS tool_definitions,
+    e.tool_calls AS tool_calls,
+    e.tool_call_names AS tool_call_names,
+    mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata,
+    input,
+    output,
+    e.project_id,
+    e.trace_id,
+    e.environment,
+    e.span_id,
+    e.parent_span_id,
+    e.start_time,
+    e.event_ts,
+    e.type,
+    e.name,
+    e.level,
+    e.status_message
+FROM events_full AS e
+WHERE (e.project_id IN ({param1:Array(String)})) AND (e.trace_id IN ({param2:Array(String)})) AND ((e.project_id, e.trace_id) IN ({param3:Array(Tuple(String, String))})) AND (xxHash32(e.trace_id) IN (
+    SELECT arrayJoin(arrayMap(id -> xxHash32(id), {param2:Array(String)}))
+)) AND (
+    e.start_time >= fromUnixTimestamp64Milli({param4:Int64})
+) AND (e.start_time <= fromUnixTimestamp64Milli({param5:Int64})) AND arrayExists((group_project_id, group_trace_ids, min_ms, max_ms) -> ((e.project_id = group_project_id) AND has(group_trace_ids, e.trace_id) AND ((e.start_time >= fromUnixTimestamp64Milli(min_ms)) AND (e.start_time <= fromUnixTimestamp64Milli(max_ms)))), {param6:Array(String)}, {param7:Array(Array(String))}, {param8:Array(Int64)}, {param9:Array(Int64)})
+ORDER BY
+    e.project_id ASC,
+    e.trace_id ASC",
+  },
+]
+`;
+
+exports[`golden: events point-reads & existence family > getAgentGraphDataFromEventsTable 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": "golden-trace",
+      "param4": "2026-01-01 00:00:00.000",
+      "param5": "2026-01-01 01:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.parent_span_id AS parent_observation_id,
+    e.type AS type,
+    e.name AS name,
+    e.start_time AS start_time,
+    e.end_time AS end_time,
+    mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['langgraph_node'] AS node,
+    mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['langgraph_step'] AS step
+FROM events_core AS e
+WHERE (e.project_id = {param1:String}) AND (e.is_deleted = {param2:UInt8}) AND (e.trace_id = {param3:String}) AND (e.start_time >= {param4:DateTime64(6)}) AND (e.start_time <= {param5:DateTime64(6)})",
+  },
+]
+`;
+
+exports[`golden: events point-reads & existence family > getLastTraceTimestampsByProjectsFromEventsTable projectIds=empty 1`] = `[]`;
+
+exports[`golden: events point-reads & existence family > getLastTraceTimestampsByProjectsFromEventsTable projectIds=many 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": [
+        "golden-project",
+        "golden-project-b",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    project_id,
+    max(start_time) AS last_trace_at
+FROM events_core
+WHERE (project_id IN ({param1:Array(String)})) AND (start_time >= (now() - toIntervalDay(30))) AND (is_deleted = 0)
+GROUP BY project_id",
+  },
+]
+`;
+
+exports[`golden: events point-reads & existence family > getLastTraceTimestampsByProjectsFromEventsTable projectIds=one 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": [
+        "golden-project",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    project_id,
+    max(start_time) AS last_trace_at
+FROM events_core
+WHERE (project_id IN ({param1:Array(String)})) AND (start_time >= (now() - toIntervalDay(30))) AND (is_deleted = 0)
+GROUP BY project_id",
+  },
+]
+`;
+
+exports[`golden: events point-reads & existence family > getObservationByIdFromEventsTable base 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-span",
+      "param3": 1,
+      "param4": 0,
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    latest.id,
+    latest.trace_id,
+    latest.project_id,
+    latest.environment,
+    latest.type,
+    latest.parent_observation_id,
+    latest.name,
+    latest.level,
+    latest.status_message,
+    latest.version,
+    latest.bookmarked,
+    latest.public,
+    latest.user_id,
+    latest.session_id,
+    latest.trace_name,
+    latest.start_time,
+    latest.end_time,
+    latest.completion_start_time,
+    latest.created_at,
+    latest.updated_at,
+    latest.event_ts,
+    latest.provided_model_name,
+    latest.internal_model_id,
+    latest.model_parameters,
+    latest.provided_usage_details,
+    latest.usage_details,
+    latest.provided_cost_details,
+    latest.cost_details,
+    latest.total_cost,
+    latest.prompt_id,
+    latest.prompt_name,
+    latest.prompt_version,
+    latest.skills_available,
+    latest.skills_resource_loaded,
+    latest.tool_definitions,
+    latest.tool_calls,
+    latest.tool_call_names,
+    latest.usage_pricing_tier_id,
+    latest.usage_pricing_tier_name,
+    latest.metadata,
+    latest.tags,
+    latest.release
+FROM
+(
+    SELECT
+        e.span_id AS id,
+        e.trace_id AS trace_id,
+        e.project_id AS project_id,
+        e.environment AS environment,
+        e.type AS type,
+        e.parent_span_id AS parent_observation_id,
+        e.name AS name,
+        e.level AS level,
+        e.status_message AS status_message,
+        e.version AS version,
+        e.bookmarked AS bookmarked,
+        e.public AS public,
+        e.user_id AS user_id,
+        e.session_id AS session_id,
+        ifNull(
+            coalesce(
+                nullIf(e.trace_name, ''),
+                if((e.parent_span_id = '') OR (e.is_app_root = true), nullIf(e.name, ''), NULL)
+            ),
+            ''
+        ) AS trace_name,
+        e.start_time AS start_time,
+        e.end_time AS end_time,
+        e.completion_start_time AS completion_start_time,
+        e.created_at AS created_at,
+        e.updated_at AS updated_at,
+        e.event_ts,
+        e.provided_model_name AS provided_model_name,
+        e.model_id AS internal_model_id,
+        e.model_parameters AS model_parameters,
+        e.provided_usage_details AS provided_usage_details,
+        e.usage_details AS usage_details,
+        e.provided_cost_details AS provided_cost_details,
+        e.cost_details AS cost_details,
+        e.total_cost AS total_cost,
+        e.prompt_id AS prompt_id,
+        e.prompt_name AS prompt_name,
+        e.prompt_version AS prompt_version,
+        e.skills_available AS skills_available,
+        e.skills_resource_loaded AS skills_resource_loaded,
+        e.tool_definitions AS tool_definitions,
+        e.tool_calls AS tool_calls,
+        e.tool_call_names AS tool_call_names,
+        e.usage_pricing_tier_id AS usage_pricing_tier_id,
+        e.usage_pricing_tier_name AS usage_pricing_tier_name,
+        mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata,
+        e.tags AS tags,
+        e.release AS release,
+        e.is_deleted AS is_deleted
+    FROM events_core AS e
+    WHERE (e.project_id = {param1:String}) AND (span_id = {param2:String})
+    ORDER BY
+        start_time DESC,
+        event_ts DESC
+    LIMIT {param3:Int64}
+) AS latest
+WHERE latest.is_deleted = {param4:UInt8}",
+  },
+]
+`;
+
+exports[`golden: events point-reads & existence family > getObservationByIdFromEventsTable io=full 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-span",
+      "param3": 1,
+      "param4": 0,
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    latest.id,
+    latest.trace_id,
+    latest.project_id,
+    latest.environment,
+    latest.type,
+    latest.parent_observation_id,
+    latest.name,
+    latest.level,
+    latest.status_message,
+    latest.version,
+    latest.bookmarked,
+    latest.public,
+    latest.user_id,
+    latest.session_id,
+    latest.trace_name,
+    latest.start_time,
+    latest.end_time,
+    latest.completion_start_time,
+    latest.created_at,
+    latest.updated_at,
+    latest.event_ts,
+    latest.provided_model_name,
+    latest.internal_model_id,
+    latest.model_parameters,
+    latest.provided_usage_details,
+    latest.usage_details,
+    latest.provided_cost_details,
+    latest.cost_details,
+    latest.total_cost,
+    latest.prompt_id,
+    latest.prompt_name,
+    latest.prompt_version,
+    latest.skills_available,
+    latest.skills_resource_loaded,
+    latest.tool_definitions,
+    latest.tool_calls,
+    latest.tool_call_names,
+    latest.usage_pricing_tier_id,
+    latest.usage_pricing_tier_name,
+    latest.metadata,
+    latest.tags,
+    latest.release,
+    latest.input,
+    latest.output
+FROM
+(
+    SELECT
+        e.span_id AS id,
+        e.trace_id AS trace_id,
+        e.project_id AS project_id,
+        e.environment AS environment,
+        e.type AS type,
+        e.parent_span_id AS parent_observation_id,
+        e.name AS name,
+        e.level AS level,
+        e.status_message AS status_message,
+        e.version AS version,
+        e.bookmarked AS bookmarked,
+        e.public AS public,
+        e.user_id AS user_id,
+        e.session_id AS session_id,
+        ifNull(
+            coalesce(
+                nullIf(e.trace_name, ''),
+                if((e.parent_span_id = '') OR (e.is_app_root = true), nullIf(e.name, ''), NULL)
+            ),
+            ''
+        ) AS trace_name,
+        e.start_time AS start_time,
+        e.end_time AS end_time,
+        e.completion_start_time AS completion_start_time,
+        e.created_at AS created_at,
+        e.updated_at AS updated_at,
+        e.event_ts,
+        e.provided_model_name AS provided_model_name,
+        e.model_id AS internal_model_id,
+        e.model_parameters AS model_parameters,
+        e.provided_usage_details AS provided_usage_details,
+        e.usage_details AS usage_details,
+        e.provided_cost_details AS provided_cost_details,
+        e.cost_details AS cost_details,
+        e.total_cost AS total_cost,
+        e.prompt_id AS prompt_id,
+        e.prompt_name AS prompt_name,
+        e.prompt_version AS prompt_version,
+        e.skills_available AS skills_available,
+        e.skills_resource_loaded AS skills_resource_loaded,
+        e.tool_definitions AS tool_definitions,
+        e.tool_calls AS tool_calls,
+        e.tool_call_names AS tool_call_names,
+        e.usage_pricing_tier_id AS usage_pricing_tier_id,
+        e.usage_pricing_tier_name AS usage_pricing_tier_name,
+        mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata,
+        e.tags AS tags,
+        e.release AS release,
+        input,
+        output,
+        e.is_deleted AS is_deleted
+    FROM events_full AS e
+    WHERE (e.project_id = {param1:String}) AND (span_id = {param2:String})
+    ORDER BY
+        start_time DESC,
+        event_ts DESC
+    LIMIT {param3:Int64}
+) AS latest
+WHERE latest.is_deleted = {param4:UInt8}",
+  },
+]
+`;
+
+exports[`golden: events point-reads & existence family > getObservationByIdFromEventsTable io=truncated 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-span",
+      "param3": 1,
+      "param4": 0,
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    latest.id,
+    latest.trace_id,
+    latest.project_id,
+    latest.environment,
+    latest.type,
+    latest.parent_observation_id,
+    latest.name,
+    latest.level,
+    latest.status_message,
+    latest.version,
+    latest.bookmarked,
+    latest.public,
+    latest.user_id,
+    latest.session_id,
+    latest.trace_name,
+    latest.start_time,
+    latest.end_time,
+    latest.completion_start_time,
+    latest.created_at,
+    latest.updated_at,
+    latest.event_ts,
+    latest.provided_model_name,
+    latest.internal_model_id,
+    latest.model_parameters,
+    latest.provided_usage_details,
+    latest.usage_details,
+    latest.provided_cost_details,
+    latest.cost_details,
+    latest.total_cost,
+    latest.prompt_id,
+    latest.prompt_name,
+    latest.prompt_version,
+    latest.skills_available,
+    latest.skills_resource_loaded,
+    latest.tool_definitions,
+    latest.tool_calls,
+    latest.tool_call_names,
+    latest.usage_pricing_tier_id,
+    latest.usage_pricing_tier_name,
+    latest.metadata,
+    latest.tags,
+    latest.release,
+    latest.input,
+    latest.output
+FROM
+(
+    SELECT
+        e.span_id AS id,
+        e.trace_id AS trace_id,
+        e.project_id AS project_id,
+        e.environment AS environment,
+        e.type AS type,
+        e.parent_span_id AS parent_observation_id,
+        e.name AS name,
+        e.level AS level,
+        e.status_message AS status_message,
+        e.version AS version,
+        e.bookmarked AS bookmarked,
+        e.public AS public,
+        e.user_id AS user_id,
+        e.session_id AS session_id,
+        ifNull(
+            coalesce(
+                nullIf(e.trace_name, ''),
+                if((e.parent_span_id = '') OR (e.is_app_root = true), nullIf(e.name, ''), NULL)
+            ),
+            ''
+        ) AS trace_name,
+        e.start_time AS start_time,
+        e.end_time AS end_time,
+        e.completion_start_time AS completion_start_time,
+        e.created_at AS created_at,
+        e.updated_at AS updated_at,
+        e.event_ts,
+        e.provided_model_name AS provided_model_name,
+        e.model_id AS internal_model_id,
+        e.model_parameters AS model_parameters,
+        e.provided_usage_details AS provided_usage_details,
+        e.usage_details AS usage_details,
+        e.provided_cost_details AS provided_cost_details,
+        e.cost_details AS cost_details,
+        e.total_cost AS total_cost,
+        e.prompt_id AS prompt_id,
+        e.prompt_name AS prompt_name,
+        e.prompt_version AS prompt_version,
+        e.skills_available AS skills_available,
+        e.skills_resource_loaded AS skills_resource_loaded,
+        e.tool_definitions AS tool_definitions,
+        e.tool_calls AS tool_calls,
+        e.tool_call_names AS tool_call_names,
+        e.usage_pricing_tier_id AS usage_pricing_tier_id,
+        e.usage_pricing_tier_name AS usage_pricing_tier_name,
+        mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata,
+        e.tags AS tags,
+        e.release AS release,
+        leftUTF8(input, 1000) AS input,
+        leftUTF8(output, 1000) AS output,
+        e.is_deleted AS is_deleted
+    FROM events_core AS e
+    WHERE (e.project_id = {param1:String}) AND (span_id = {param2:String})
+    ORDER BY
+        start_time DESC,
+        event_ts DESC
+    LIMIT {param3:Int64}
+) AS latest
+WHERE latest.is_deleted = {param4:UInt8}",
+  },
+]
+`;
+
+exports[`golden: events point-reads & existence family > getObservationByIdFromEventsTable startTime+type+traceId 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-span",
+      "param3": "2026-01-01 00:00:00.000",
+      "param4": "2025-11-29 00:00:00.000",
+      "param5": "GENERATION",
+      "param6": "golden-trace",
+      "param7": 1,
+      "param8": 0,
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    latest.id,
+    latest.trace_id,
+    latest.project_id,
+    latest.environment,
+    latest.type,
+    latest.parent_observation_id,
+    latest.name,
+    latest.level,
+    latest.status_message,
+    latest.version,
+    latest.bookmarked,
+    latest.public,
+    latest.user_id,
+    latest.session_id,
+    latest.trace_name,
+    latest.start_time,
+    latest.end_time,
+    latest.completion_start_time,
+    latest.created_at,
+    latest.updated_at,
+    latest.event_ts,
+    latest.provided_model_name,
+    latest.internal_model_id,
+    latest.model_parameters,
+    latest.provided_usage_details,
+    latest.usage_details,
+    latest.provided_cost_details,
+    latest.cost_details,
+    latest.total_cost,
+    latest.prompt_id,
+    latest.prompt_name,
+    latest.prompt_version,
+    latest.skills_available,
+    latest.skills_resource_loaded,
+    latest.tool_definitions,
+    latest.tool_calls,
+    latest.tool_call_names,
+    latest.usage_pricing_tier_id,
+    latest.usage_pricing_tier_name,
+    latest.metadata,
+    latest.tags,
+    latest.release
+FROM
+(
+    SELECT
+        e.span_id AS id,
+        e.trace_id AS trace_id,
+        e.project_id AS project_id,
+        e.environment AS environment,
+        e.type AS type,
+        e.parent_span_id AS parent_observation_id,
+        e.name AS name,
+        e.level AS level,
+        e.status_message AS status_message,
+        e.version AS version,
+        e.bookmarked AS bookmarked,
+        e.public AS public,
+        e.user_id AS user_id,
+        e.session_id AS session_id,
+        ifNull(
+            coalesce(
+                nullIf(e.trace_name, ''),
+                if((e.parent_span_id = '') OR (e.is_app_root = true), nullIf(e.name, ''), NULL)
+            ),
+            ''
+        ) AS trace_name,
+        e.start_time AS start_time,
+        e.end_time AS end_time,
+        e.completion_start_time AS completion_start_time,
+        e.created_at AS created_at,
+        e.updated_at AS updated_at,
+        e.event_ts,
+        e.provided_model_name AS provided_model_name,
+        e.model_id AS internal_model_id,
+        e.model_parameters AS model_parameters,
+        e.provided_usage_details AS provided_usage_details,
+        e.usage_details AS usage_details,
+        e.provided_cost_details AS provided_cost_details,
+        e.cost_details AS cost_details,
+        e.total_cost AS total_cost,
+        e.prompt_id AS prompt_id,
+        e.prompt_name AS prompt_name,
+        e.prompt_version AS prompt_version,
+        e.skills_available AS skills_available,
+        e.skills_resource_loaded AS skills_resource_loaded,
+        e.tool_definitions AS tool_definitions,
+        e.tool_calls AS tool_calls,
+        e.tool_call_names AS tool_call_names,
+        e.usage_pricing_tier_id AS usage_pricing_tier_id,
+        e.usage_pricing_tier_name AS usage_pricing_tier_name,
+        mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata,
+        e.tags AS tags,
+        e.release AS release,
+        e.is_deleted AS is_deleted
+    FROM events_core AS e
+    WHERE (e.project_id = {param1:String}) AND (span_id = {param2:String}) AND (toStartOfMinute(start_time) = toStartOfMinute({param3:DateTime64(6)})) AND (start_time >= {param4:DateTime64(6)}) AND (type = {param5:String}) AND (trace_id = {param6:String})
+    ORDER BY
+        start_time DESC,
+        event_ts DESC
+    LIMIT {param7:Int64}
+) AS latest
+WHERE latest.is_deleted = {param8:UInt8}",
+  },
+]
+`;
+
+exports[`golden: events point-reads & existence family > getObservationsTraceIdsFromEventsTable 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": [
+        "golden-span",
+        "golden-span-b",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    e.trace_id AS trace_id,
+    e.span_id AS span_id
+FROM events_core AS e
+WHERE (e.project_id = {param1:String}) AND (e.is_deleted = {param2:UInt8}) AND (e.span_id IN ({param3:Array(String)}))",
+  },
+]
+`;
+
+exports[`golden: events point-reads & existence family > getTraceByIdFromEventsTable base 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": [
+        "golden-trace",
+      ],
+      "param4": 1,
+    },
+    "route": "unknown",
+    "sql": "WITH traces AS
+    (
+        SELECT
+            trace_id AS id,
+            project_id,
+            coalesce(
+                nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
+                nullIf(
+                    argMaxIf(e.name, e.event_ts, ((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != '')),
+                    ''
+                )
+            ) AS name,
+            min(start_time) AS timestamp,
+            argMaxIf(environment, event_ts, environment != '') AS environment,
+            argMaxIf(version, event_ts, version != '') AS version,
+            argMaxIf(session_id, event_ts, session_id != '') AS session_id,
+            argMaxIf(user_id, event_ts, user_id != '') AS user_id,
+            argMaxIf(input, event_ts, parent_span_id = '') AS input,
+            argMaxIf(output, event_ts, parent_span_id = '') AS output,
+            argMaxIf(
+                mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)),
+                event_ts,
+                parent_span_id = ''
+            ) AS metadata,
+            min(created_at) AS created_at,
+            max(updated_at) AS updated_at,
+            sum(total_cost) AS total_cost,
+            if(
+                max(end_time) IS NULL,
+                NULL,
+                dateDiff('millisecond', min(start_time), greatest(max(start_time), max(end_time)))
+            ) AS latency_milliseconds,
+            groupUniqArrayIf(span_id, span_id != '') AS observation_ids,
+            length(
+                groupUniqArrayIf(span_id, (span_id != '') AND (span_id != concat('t-', trace_id)))
+            ) AS observation_count,
+            argMaxIf(bookmarked, event_ts, parent_span_id = '') AS bookmarked,
+            max(public) AS public,
+            argMaxIf(experiment_item_id, event_ts, experiment_item_id != '') AS experiment_item_id,
+            sumMap(usage_details) AS usage_details,
+            sumMap(cost_details) AS cost_details,
+            multiIf(
+                arrayExists(x -> (x = 'ERROR'), groupArray(level)),
+                'ERROR',
+                arrayExists(x -> (x = 'WARNING'), groupArray(level)),
+                'WARNING',
+                arrayExists(x -> (x = 'DEFAULT'), groupArray(level)),
+                'DEFAULT',
+                'DEBUG'
+            ) AS aggregated_level,
+            countIf(level = 'WARNING') AS warning_count,
+            countIf(level = 'ERROR') AS error_count,
+            countIf(level = 'DEFAULT') AS default_count,
+            countIf(level = 'DEBUG') AS debug_count,
+            argMaxIf(tags, event_ts, notEmpty(tags)) AS tags,
+            argMaxIf(release, event_ts, release != '') AS release,
+            argMaxIf(evaluator_id, event_ts, evaluator_id != '') AS evaluator_id,
+            argMaxIf(evaluation_rule_id, event_ts, evaluation_rule_id != '') AS evaluation_rule_id,
+            any(experiment_id) AS experiment_id
+        FROM events_full AS e
+        WHERE (e.project_id = {param1:String}) AND (e.is_deleted = {param2:UInt8}) AND (trace_id IN ({param3:Array(String)}))
+        GROUP BY
+            trace_id,
+            project_id
+        ORDER BY timestamp DESC
+    )
+SELECT
+    t.id,
+    t.name,
+    t.user_id,
+    t.release,
+    t.version,
+    t.project_id,
+    t.environment,
+    t.public,
+    t.bookmarked,
+    t.tags,
+    t.session_id,
+    t.timestamp,
+    t.created_at,
+    t.updated_at,
+    t.metadata,
+    0 AS is_deleted,
+    t.input,
+    t.output
+FROM traces AS t
+ORDER BY t.timestamp DESC
+LIMIT {param4:Int64}",
+  },
+]
+`;
+
+exports[`golden: events point-reads & existence family > getTraceByIdFromEventsTable excludeInputOutput+excludeMetadata 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": [
+        "golden-trace",
+      ],
+      "param4": 1,
+    },
+    "route": "unknown",
+    "sql": "WITH traces AS
+    (
+        SELECT
+            trace_id AS id,
+            project_id,
+            coalesce(
+                nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
+                nullIf(
+                    argMaxIf(e.name, e.event_ts, ((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != '')),
+                    ''
+                )
+            ) AS name,
+            min(start_time) AS timestamp,
+            argMaxIf(environment, event_ts, environment != '') AS environment,
+            argMaxIf(version, event_ts, version != '') AS version,
+            argMaxIf(session_id, event_ts, session_id != '') AS session_id,
+            argMaxIf(user_id, event_ts, user_id != '') AS user_id,
+            argMaxIf(input, event_ts, parent_span_id = '') AS input,
+            argMaxIf(output, event_ts, parent_span_id = '') AS output,
+            argMaxIf(
+                mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)),
+                event_ts,
+                parent_span_id = ''
+            ) AS metadata,
+            min(created_at) AS created_at,
+            max(updated_at) AS updated_at,
+            sum(total_cost) AS total_cost,
+            if(
+                max(end_time) IS NULL,
+                NULL,
+                dateDiff('millisecond', min(start_time), greatest(max(start_time), max(end_time)))
+            ) AS latency_milliseconds,
+            groupUniqArrayIf(span_id, span_id != '') AS observation_ids,
+            length(
+                groupUniqArrayIf(span_id, (span_id != '') AND (span_id != concat('t-', trace_id)))
+            ) AS observation_count,
+            argMaxIf(bookmarked, event_ts, parent_span_id = '') AS bookmarked,
+            max(public) AS public,
+            argMaxIf(experiment_item_id, event_ts, experiment_item_id != '') AS experiment_item_id,
+            sumMap(usage_details) AS usage_details,
+            sumMap(cost_details) AS cost_details,
+            multiIf(
+                arrayExists(x -> (x = 'ERROR'), groupArray(level)),
+                'ERROR',
+                arrayExists(x -> (x = 'WARNING'), groupArray(level)),
+                'WARNING',
+                arrayExists(x -> (x = 'DEFAULT'), groupArray(level)),
+                'DEFAULT',
+                'DEBUG'
+            ) AS aggregated_level,
+            countIf(level = 'WARNING') AS warning_count,
+            countIf(level = 'ERROR') AS error_count,
+            countIf(level = 'DEFAULT') AS default_count,
+            countIf(level = 'DEBUG') AS debug_count,
+            argMaxIf(tags, event_ts, notEmpty(tags)) AS tags,
+            argMaxIf(release, event_ts, release != '') AS release,
+            argMaxIf(evaluator_id, event_ts, evaluator_id != '') AS evaluator_id,
+            argMaxIf(evaluation_rule_id, event_ts, evaluation_rule_id != '') AS evaluation_rule_id,
+            any(experiment_id) AS experiment_id
+        FROM events_full AS e
+        WHERE (e.project_id = {param1:String}) AND (e.is_deleted = {param2:UInt8}) AND (trace_id IN ({param3:Array(String)}))
+        GROUP BY
+            trace_id,
+            project_id
+        ORDER BY timestamp DESC
+    )
+SELECT
+    t.id,
+    t.name,
+    t.user_id,
+    t.release,
+    t.version,
+    t.project_id,
+    t.environment,
+    t.public,
+    t.bookmarked,
+    t.tags,
+    t.session_id,
+    t.timestamp,
+    t.created_at,
+    t.updated_at,
+    map() AS metadata,
+    0 AS is_deleted,
+    '' AS input,
+    '' AS output
+FROM traces AS t
+ORDER BY t.timestamp DESC
+LIMIT {param4:Int64}",
+  },
+]
+`;
+
+exports[`golden: events point-reads & existence family > getTraceByIdFromEventsTable timestamp+fromTimestamp 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": [
+        "golden-trace",
+      ],
+      "param4": "2025-11-29 00:00:00.000",
+      "param5": "2026-01-01 00:00:00.000",
+      "param6": 1,
+    },
+    "route": "unknown",
+    "sql": "WITH traces AS
+    (
+        SELECT
+            trace_id AS id,
+            project_id,
+            coalesce(
+                nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
+                nullIf(
+                    argMaxIf(e.name, e.event_ts, ((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != '')),
+                    ''
+                )
+            ) AS name,
+            min(start_time) AS timestamp,
+            argMaxIf(environment, event_ts, environment != '') AS environment,
+            argMaxIf(version, event_ts, version != '') AS version,
+            argMaxIf(session_id, event_ts, session_id != '') AS session_id,
+            argMaxIf(user_id, event_ts, user_id != '') AS user_id,
+            argMaxIf(input, event_ts, parent_span_id = '') AS input,
+            argMaxIf(output, event_ts, parent_span_id = '') AS output,
+            argMaxIf(
+                mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)),
+                event_ts,
+                parent_span_id = ''
+            ) AS metadata,
+            min(created_at) AS created_at,
+            max(updated_at) AS updated_at,
+            sum(total_cost) AS total_cost,
+            if(
+                max(end_time) IS NULL,
+                NULL,
+                dateDiff('millisecond', min(start_time), greatest(max(start_time), max(end_time)))
+            ) AS latency_milliseconds,
+            groupUniqArrayIf(span_id, span_id != '') AS observation_ids,
+            length(
+                groupUniqArrayIf(span_id, (span_id != '') AND (span_id != concat('t-', trace_id)))
+            ) AS observation_count,
+            argMaxIf(bookmarked, event_ts, parent_span_id = '') AS bookmarked,
+            max(public) AS public,
+            argMaxIf(experiment_item_id, event_ts, experiment_item_id != '') AS experiment_item_id,
+            sumMap(usage_details) AS usage_details,
+            sumMap(cost_details) AS cost_details,
+            multiIf(
+                arrayExists(x -> (x = 'ERROR'), groupArray(level)),
+                'ERROR',
+                arrayExists(x -> (x = 'WARNING'), groupArray(level)),
+                'WARNING',
+                arrayExists(x -> (x = 'DEFAULT'), groupArray(level)),
+                'DEFAULT',
+                'DEBUG'
+            ) AS aggregated_level,
+            countIf(level = 'WARNING') AS warning_count,
+            countIf(level = 'ERROR') AS error_count,
+            countIf(level = 'DEFAULT') AS default_count,
+            countIf(level = 'DEBUG') AS debug_count,
+            argMaxIf(tags, event_ts, notEmpty(tags)) AS tags,
+            argMaxIf(release, event_ts, release != '') AS release,
+            argMaxIf(evaluator_id, event_ts, evaluator_id != '') AS evaluator_id,
+            argMaxIf(evaluation_rule_id, event_ts, evaluation_rule_id != '') AS evaluation_rule_id,
+            any(experiment_id) AS experiment_id
+        FROM events_full AS e
+        WHERE (e.project_id = {param1:String}) AND (e.is_deleted = {param2:UInt8}) AND (trace_id IN ({param3:Array(String)})) AND (start_time >= {param4:DateTime64(6)})
+        GROUP BY
+            trace_id,
+            project_id
+        ORDER BY timestamp DESC
+    )
+SELECT
+    t.id,
+    t.name,
+    t.user_id,
+    t.release,
+    t.version,
+    t.project_id,
+    t.environment,
+    t.public,
+    t.bookmarked,
+    t.tags,
+    t.session_id,
+    t.timestamp,
+    t.created_at,
+    t.updated_at,
+    t.metadata,
+    0 AS is_deleted,
+    t.input,
+    t.output
+FROM traces AS t
+WHERE toDate(t.timestamp) = toDate({param5:DateTime64(6)})
+ORDER BY t.timestamp DESC
+LIMIT {param6:Int64}",
+  },
+]
+`;
+
+exports[`golden: events point-reads & existence family > getTraceByIdFromEventsTable truncated 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": [
+        "golden-trace",
+      ],
+      "param4": 1,
+    },
+    "route": "unknown",
+    "sql": "WITH traces AS
+    (
+        SELECT
+            trace_id AS id,
+            project_id,
+            coalesce(
+                nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
+                nullIf(
+                    argMaxIf(e.name, e.event_ts, ((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != '')),
+                    ''
+                )
+            ) AS name,
+            min(start_time) AS timestamp,
+            argMaxIf(environment, event_ts, environment != '') AS environment,
+            argMaxIf(version, event_ts, version != '') AS version,
+            argMaxIf(session_id, event_ts, session_id != '') AS session_id,
+            argMaxIf(user_id, event_ts, user_id != '') AS user_id,
+            argMaxIf(input, event_ts, parent_span_id = '') AS input,
+            argMaxIf(output, event_ts, parent_span_id = '') AS output,
+            argMaxIf(
+                mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)),
+                event_ts,
+                parent_span_id = ''
+            ) AS metadata,
+            min(created_at) AS created_at,
+            max(updated_at) AS updated_at,
+            sum(total_cost) AS total_cost,
+            if(
+                max(end_time) IS NULL,
+                NULL,
+                dateDiff('millisecond', min(start_time), greatest(max(start_time), max(end_time)))
+            ) AS latency_milliseconds,
+            groupUniqArrayIf(span_id, span_id != '') AS observation_ids,
+            length(
+                groupUniqArrayIf(span_id, (span_id != '') AND (span_id != concat('t-', trace_id)))
+            ) AS observation_count,
+            argMaxIf(bookmarked, event_ts, parent_span_id = '') AS bookmarked,
+            max(public) AS public,
+            argMaxIf(experiment_item_id, event_ts, experiment_item_id != '') AS experiment_item_id,
+            sumMap(usage_details) AS usage_details,
+            sumMap(cost_details) AS cost_details,
+            multiIf(
+                arrayExists(x -> (x = 'ERROR'), groupArray(level)),
+                'ERROR',
+                arrayExists(x -> (x = 'WARNING'), groupArray(level)),
+                'WARNING',
+                arrayExists(x -> (x = 'DEFAULT'), groupArray(level)),
+                'DEFAULT',
+                'DEBUG'
+            ) AS aggregated_level,
+            countIf(level = 'WARNING') AS warning_count,
+            countIf(level = 'ERROR') AS error_count,
+            countIf(level = 'DEFAULT') AS default_count,
+            countIf(level = 'DEBUG') AS debug_count,
+            argMaxIf(tags, event_ts, notEmpty(tags)) AS tags,
+            argMaxIf(release, event_ts, release != '') AS release,
+            argMaxIf(evaluator_id, event_ts, evaluator_id != '') AS evaluator_id,
+            argMaxIf(evaluation_rule_id, event_ts, evaluation_rule_id != '') AS evaluation_rule_id,
+            any(experiment_id) AS experiment_id
+        FROM events_core AS e
+        WHERE (e.project_id = {param1:String}) AND (e.is_deleted = {param2:UInt8}) AND (trace_id IN ({param3:Array(String)}))
+        GROUP BY
+            trace_id,
+            project_id
+        ORDER BY timestamp DESC
+    )
+SELECT
+    t.id,
+    t.name,
+    t.user_id,
+    t.release,
+    t.version,
+    t.project_id,
+    t.environment,
+    t.public,
+    t.bookmarked,
+    t.tags,
+    t.session_id,
+    t.timestamp,
+    t.created_at,
+    t.updated_at,
+    t.metadata,
+    0 AS is_deleted,
+    leftUTF8(t.input, 1000) AS input,
+    leftUTF8(t.output, 1000) AS output
+FROM traces AS t
+ORDER BY t.timestamp DESC
+LIMIT {param4:Int64}",
+  },
+]
+`;
+
+exports[`golden: events point-reads & existence family > getTraceMetadataByIdsFromEvents traceIds=empty 1`] = `[]`;
+
+exports[`golden: events point-reads & existence family > getTraceMetadataByIdsFromEvents traceIds=set 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": [
+        "golden-trace",
+        "golden-trace-b",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    e.trace_id AS id,
+    coalesce(
+        nullIf(e.trace_name, ''),
+        if((e.parent_span_id = '') OR (e.is_app_root = true), nullIf(e.name, ''), NULL)
+    ) AS name,
+    e.user_id AS user_id,
+    e.tags AS tags
+FROM events_core AS e
+WHERE (e.project_id = {param1:String}) AND (e.is_deleted = {param2:UInt8}) AND (coalesce(nullIf(e.trace_name, ''), if((e.parent_span_id = '') OR (e.is_app_root = true), nullIf(e.name, ''), NULL)) IS NOT NULL) AND (e.trace_id IN ({param3:Array(String)}))
+LIMIT 1 BY e.trace_id",
+  },
+]
+`;
+
+exports[`golden: events point-reads & existence family > hasAnySessionFromEventsTable 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": "",
+      "param4": 1,
+    },
+    "route": "unknown",
+    "sql": "SELECT 1 AS one
+FROM events_core
+WHERE (project_id = {param1:String}) AND (events_core.is_deleted = {param2:UInt8}) AND (session_id IS NOT NULL) AND (session_id != {param3:String})
+LIMIT {param4:Int64}",
+  },
+]
+`;
+
+exports[`golden: events point-reads & existence family > hasAnyTraceFromEventsTable 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": 1,
+    },
+    "route": "unknown",
+    "sql": "SELECT 1 AS one
+FROM events_core
+WHERE (project_id = {param1:String}) AND (events_core.is_deleted = {param2:UInt8})
+LIMIT {param3:Int64}",
+  },
+]
+`;
+
+exports[`golden: events point-reads & existence family > hasAnyUserFromEventsTable 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": "",
+      "param4": 1,
+    },
+    "route": "unknown",
+    "sql": "SELECT 1 AS one
+FROM events_core
+WHERE (project_id = {param1:String}) AND (events_core.is_deleted = {param2:UInt8}) AND (user_id IS NOT NULL) AND (user_id != {param3:String})
+LIMIT {param4:Int64}",
+  },
+]
+`;
+
+exports[`golden: events simple aggregates family > getLatestSdkVersionInfoFromEvents 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": "2025-12-25 00:00:00.000",
+      "param4": "otel",
+      "param5": [
+        "langfuse-internal-ai-sdk",
+        "langfuse-internal-otel-writer",
+        "langfuse-internal-ai-features",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    e.ingestion_sdk_name AS ingestion_sdk_name,
+    e.ingestion_sdk_version AS ingestion_sdk_version,
+    e.telemetry_sdk_language AS telemetry_sdk_language,
+    min(e.start_time) AS first_seen,
+    max(e.start_time) AS last_seen,
+    count() AS event_count
+FROM events_core AS e
+WHERE (e.project_id = {param1:String}) AND (e.is_deleted = {param2:UInt8}) AND (e.start_time >= {param3:DateTime64(6)}) AND (toDate(e.start_time) >= toDate({param3:DateTime64(6)})) AND startsWith(e.source, {param4:String}) AND (e.ingestion_sdk_name NOT IN ({param5:Array(String)}))
+GROUP BY
+    e.ingestion_sdk_name,
+    e.ingestion_sdk_version,
+    e.telemetry_sdk_language
+ORDER BY last_seen DESC",
+  },
+]
+`;
+
+exports[`golden: events simple aggregates family > getObservationMetricsForPromptsFromEvents promptIds=empty 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "GENERATION",
+      "param3": [],
+      "param4": 0,
+      "param5": "input",
+      "param6": "output",
+    },
+    "route": "unknown",
+    "sql": "WITH prompt_events AS
+    (
+        SELECT
+            latest.project_id,
+            latest.prompt_id,
+            latest.prompt_version,
+            latest.trace_id,
+            latest.span_id,
+            latest.start_time,
+            latest.end_time,
+            latest.usage_details,
+            latest.cost_details
+        FROM
+        (
+            SELECT
+                e.project_id AS project_id,
+                e.prompt_id AS prompt_id,
+                e.prompt_version AS prompt_version,
+                e.trace_id AS trace_id,
+                e.span_id AS span_id,
+                e.start_time AS start_time,
+                e.end_time AS end_time,
+                e.usage_details AS usage_details,
+                e.cost_details AS cost_details,
+                e.is_deleted AS is_deleted
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String}) AND (e.type = {param2:String}) AND (e.prompt_id IN ({param3:Array(String)}))
+            ORDER BY e.event_ts DESC
+            LIMIT 1 BY
+                e.span_id,
+                e.project_id
+        ) AS latest
+        WHERE latest.is_deleted = {param4:UInt8}
+    )
+SELECT
+    count() AS count,
+    e.prompt_id AS prompt_id,
+    e.prompt_version AS prompt_version,
+    min(e.start_time) AS first_observation,
+    max(e.start_time) AS last_observation,
+    medianExact(
+        arraySum(mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, {param5:String}) > 0), e.usage_details)))
+    ) AS median_input_usage,
+    medianExact(
+        arraySum(mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, {param6:String}) > 0), e.usage_details)))
+    ) AS median_output_usage,
+    medianExact(e.cost_details['total']) AS median_total_cost,
+    medianExact(dateDiff('millisecond', e.start_time, e.end_time)) AS median_latency_ms
+FROM prompt_events AS e
+GROUP BY
+    e.prompt_id,
+    e.prompt_version
+ORDER BY e.prompt_version DESC",
+  },
+]
+`;
+
+exports[`golden: events simple aggregates family > getObservationMetricsForPromptsFromEvents time=from 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "GENERATION",
+      "param3": [
+        "golden-prompt-id",
+        "golden-prompt-id-b",
+      ],
+      "param4": "2025-12-01 00:00:00.000",
+      "param5": 0,
+      "param6": "input",
+      "param7": "output",
+    },
+    "route": "unknown",
+    "sql": "WITH prompt_events AS
+    (
+        SELECT
+            latest.project_id,
+            latest.prompt_id,
+            latest.prompt_version,
+            latest.trace_id,
+            latest.span_id,
+            latest.start_time,
+            latest.end_time,
+            latest.usage_details,
+            latest.cost_details
+        FROM
+        (
+            SELECT
+                e.project_id AS project_id,
+                e.prompt_id AS prompt_id,
+                e.prompt_version AS prompt_version,
+                e.trace_id AS trace_id,
+                e.span_id AS span_id,
+                e.start_time AS start_time,
+                e.end_time AS end_time,
+                e.usage_details AS usage_details,
+                e.cost_details AS cost_details,
+                e.is_deleted AS is_deleted
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String}) AND (e.type = {param2:String}) AND (e.prompt_id IN ({param3:Array(String)})) AND (e.start_time >= {param4:DateTime64(6)})
+            ORDER BY e.event_ts DESC
+            LIMIT 1 BY
+                e.span_id,
+                e.project_id
+        ) AS latest
+        WHERE latest.is_deleted = {param5:UInt8}
+    )
+SELECT
+    count() AS count,
+    e.prompt_id AS prompt_id,
+    e.prompt_version AS prompt_version,
+    min(e.start_time) AS first_observation,
+    max(e.start_time) AS last_observation,
+    medianExact(
+        arraySum(mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, {param6:String}) > 0), e.usage_details)))
+    ) AS median_input_usage,
+    medianExact(
+        arraySum(mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, {param7:String}) > 0), e.usage_details)))
+    ) AS median_output_usage,
+    medianExact(e.cost_details['total']) AS median_total_cost,
+    medianExact(dateDiff('millisecond', e.start_time, e.end_time)) AS median_latency_ms
+FROM prompt_events AS e
+GROUP BY
+    e.prompt_id,
+    e.prompt_version
+ORDER BY e.prompt_version DESC",
+  },
+]
+`;
+
+exports[`golden: events simple aggregates family > getObservationMetricsForPromptsFromEvents time=from+to 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "GENERATION",
+      "param3": [
+        "golden-prompt-id",
+        "golden-prompt-id-b",
+      ],
+      "param4": "2025-12-01 00:00:00.000",
+      "param5": "2026-01-02 00:00:00.000",
+      "param6": 0,
+      "param7": "input",
+      "param8": "output",
+    },
+    "route": "unknown",
+    "sql": "WITH prompt_events AS
+    (
+        SELECT
+            latest.project_id,
+            latest.prompt_id,
+            latest.prompt_version,
+            latest.trace_id,
+            latest.span_id,
+            latest.start_time,
+            latest.end_time,
+            latest.usage_details,
+            latest.cost_details
+        FROM
+        (
+            SELECT
+                e.project_id AS project_id,
+                e.prompt_id AS prompt_id,
+                e.prompt_version AS prompt_version,
+                e.trace_id AS trace_id,
+                e.span_id AS span_id,
+                e.start_time AS start_time,
+                e.end_time AS end_time,
+                e.usage_details AS usage_details,
+                e.cost_details AS cost_details,
+                e.is_deleted AS is_deleted
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String}) AND (e.type = {param2:String}) AND (e.prompt_id IN ({param3:Array(String)})) AND (e.start_time >= {param4:DateTime64(6)}) AND (e.start_time <= {param5:DateTime64(6)})
+            ORDER BY e.event_ts DESC
+            LIMIT 1 BY
+                e.span_id,
+                e.project_id
+        ) AS latest
+        WHERE latest.is_deleted = {param6:UInt8}
+    )
+SELECT
+    count() AS count,
+    e.prompt_id AS prompt_id,
+    e.prompt_version AS prompt_version,
+    min(e.start_time) AS first_observation,
+    max(e.start_time) AS last_observation,
+    medianExact(
+        arraySum(mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, {param7:String}) > 0), e.usage_details)))
+    ) AS median_input_usage,
+    medianExact(
+        arraySum(mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, {param8:String}) > 0), e.usage_details)))
+    ) AS median_output_usage,
+    medianExact(e.cost_details['total']) AS median_total_cost,
+    medianExact(dateDiff('millisecond', e.start_time, e.end_time)) AS median_latency_ms
+FROM prompt_events AS e
+GROUP BY
+    e.prompt_id,
+    e.prompt_version
+ORDER BY e.prompt_version DESC",
+  },
+]
+`;
+
+exports[`golden: events simple aggregates family > getObservationMetricsForPromptsFromEvents time=to 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "GENERATION",
+      "param3": [
+        "golden-prompt-id",
+        "golden-prompt-id-b",
+      ],
+      "param4": "2026-01-02 00:00:00.000",
+      "param5": 0,
+      "param6": "input",
+      "param7": "output",
+    },
+    "route": "unknown",
+    "sql": "WITH prompt_events AS
+    (
+        SELECT
+            latest.project_id,
+            latest.prompt_id,
+            latest.prompt_version,
+            latest.trace_id,
+            latest.span_id,
+            latest.start_time,
+            latest.end_time,
+            latest.usage_details,
+            latest.cost_details
+        FROM
+        (
+            SELECT
+                e.project_id AS project_id,
+                e.prompt_id AS prompt_id,
+                e.prompt_version AS prompt_version,
+                e.trace_id AS trace_id,
+                e.span_id AS span_id,
+                e.start_time AS start_time,
+                e.end_time AS end_time,
+                e.usage_details AS usage_details,
+                e.cost_details AS cost_details,
+                e.is_deleted AS is_deleted
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String}) AND (e.type = {param2:String}) AND (e.prompt_id IN ({param3:Array(String)})) AND (e.start_time <= {param4:DateTime64(6)})
+            ORDER BY e.event_ts DESC
+            LIMIT 1 BY
+                e.span_id,
+                e.project_id
+        ) AS latest
+        WHERE latest.is_deleted = {param5:UInt8}
+    )
+SELECT
+    count() AS count,
+    e.prompt_id AS prompt_id,
+    e.prompt_version AS prompt_version,
+    min(e.start_time) AS first_observation,
+    max(e.start_time) AS last_observation,
+    medianExact(
+        arraySum(mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, {param6:String}) > 0), e.usage_details)))
+    ) AS median_input_usage,
+    medianExact(
+        arraySum(mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, {param7:String}) > 0), e.usage_details)))
+    ) AS median_output_usage,
+    medianExact(e.cost_details['total']) AS median_total_cost,
+    medianExact(dateDiff('millisecond', e.start_time, e.end_time)) AS median_latency_ms
+FROM prompt_events AS e
+GROUP BY
+    e.prompt_id,
+    e.prompt_version
+ORDER BY e.prompt_version DESC",
+  },
+]
+`;
+
+exports[`golden: events simple aggregates family > getObservationMetricsForPromptsFromEvents time=unset 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "GENERATION",
+      "param3": [
+        "golden-prompt-id",
+        "golden-prompt-id-b",
+      ],
+      "param4": 0,
+      "param5": "input",
+      "param6": "output",
+    },
+    "route": "unknown",
+    "sql": "WITH prompt_events AS
+    (
+        SELECT
+            latest.project_id,
+            latest.prompt_id,
+            latest.prompt_version,
+            latest.trace_id,
+            latest.span_id,
+            latest.start_time,
+            latest.end_time,
+            latest.usage_details,
+            latest.cost_details
+        FROM
+        (
+            SELECT
+                e.project_id AS project_id,
+                e.prompt_id AS prompt_id,
+                e.prompt_version AS prompt_version,
+                e.trace_id AS trace_id,
+                e.span_id AS span_id,
+                e.start_time AS start_time,
+                e.end_time AS end_time,
+                e.usage_details AS usage_details,
+                e.cost_details AS cost_details,
+                e.is_deleted AS is_deleted
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String}) AND (e.type = {param2:String}) AND (e.prompt_id IN ({param3:Array(String)}))
+            ORDER BY e.event_ts DESC
+            LIMIT 1 BY
+                e.span_id,
+                e.project_id
+        ) AS latest
+        WHERE latest.is_deleted = {param4:UInt8}
+    )
+SELECT
+    count() AS count,
+    e.prompt_id AS prompt_id,
+    e.prompt_version AS prompt_version,
+    min(e.start_time) AS first_observation,
+    max(e.start_time) AS last_observation,
+    medianExact(
+        arraySum(mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, {param5:String}) > 0), e.usage_details)))
+    ) AS median_input_usage,
+    medianExact(
+        arraySum(mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, {param6:String}) > 0), e.usage_details)))
+    ) AS median_output_usage,
+    medianExact(e.cost_details['total']) AS median_total_cost,
+    medianExact(dateDiff('millisecond', e.start_time, e.end_time)) AS median_latency_ms
+FROM prompt_events AS e
+GROUP BY
+    e.prompt_id,
+    e.prompt_version
+ORDER BY e.prompt_version DESC",
+  },
+]
+`;
+
+exports[`golden: events simple aggregates family > getObservationsWithPromptNameFromEvents promptNames=empty 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": [],
+      "param4": "",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    uniq(span_id) AS count,
+    prompt_name
+FROM events_core
+WHERE (project_id = {param1:String}) AND (events_core.is_deleted = {param2:UInt8}) AND (prompt_name IN ({param3:Array(String)})) AND (prompt_name != {param4:String})
+GROUP BY prompt_name",
+  },
+]
+`;
+
+exports[`golden: events simple aggregates family > getObservationsWithPromptNameFromEvents time=from 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": [
+        "golden-prompt",
+        "golden-prompt-b",
+      ],
+      "param4": "",
+      "param5": "2025-12-01 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    uniq(span_id) AS count,
+    prompt_name
+FROM events_core
+WHERE (project_id = {param1:String}) AND (events_core.is_deleted = {param2:UInt8}) AND (prompt_name IN ({param3:Array(String)})) AND (prompt_name != {param4:String}) AND (start_time >= {param5:DateTime64(6)})
+GROUP BY prompt_name",
+  },
+]
+`;
+
+exports[`golden: events simple aggregates family > getObservationsWithPromptNameFromEvents time=from+to 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": [
+        "golden-prompt",
+        "golden-prompt-b",
+      ],
+      "param4": "",
+      "param5": "2025-12-01 00:00:00.000",
+      "param6": "2026-01-02 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    uniq(span_id) AS count,
+    prompt_name
+FROM events_core
+WHERE (project_id = {param1:String}) AND (events_core.is_deleted = {param2:UInt8}) AND (prompt_name IN ({param3:Array(String)})) AND (prompt_name != {param4:String}) AND (start_time >= {param5:DateTime64(6)}) AND (start_time <= {param6:DateTime64(6)})
+GROUP BY prompt_name",
+  },
+]
+`;
+
+exports[`golden: events simple aggregates family > getObservationsWithPromptNameFromEvents time=to 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": [
+        "golden-prompt",
+        "golden-prompt-b",
+      ],
+      "param4": "",
+      "param5": "2026-01-02 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    uniq(span_id) AS count,
+    prompt_name
+FROM events_core
+WHERE (project_id = {param1:String}) AND (events_core.is_deleted = {param2:UInt8}) AND (prompt_name IN ({param3:Array(String)})) AND (prompt_name != {param4:String}) AND (start_time <= {param5:DateTime64(6)})
+GROUP BY prompt_name",
+  },
+]
+`;
+
+exports[`golden: events simple aggregates family > getObservationsWithPromptNameFromEvents time=unset 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": [
+        "golden-prompt",
+        "golden-prompt-b",
+      ],
+      "param4": "",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    uniq(span_id) AS count,
+    prompt_name
+FROM events_core
+WHERE (project_id = {param1:String}) AND (events_core.is_deleted = {param2:UInt8}) AND (prompt_name IN ({param3:Array(String)})) AND (prompt_name != {param4:String})
+GROUP BY prompt_name",
+  },
+]
+`;
+
+exports[`golden: events simple aggregates family > getSessionMetricsFromEvents fields=all 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "input",
+      "param2": "output",
+      "param3": "golden-project",
+      "param4": 0,
+      "param5": [
+        "golden-session",
+        "golden-session-b",
+      ],
+      "param6": "",
+      "param7": 2,
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    session_id,
+    max(start_time) AS max_timestamp,
+    min(start_time) AS min_timestamp,
+    groupUniqArray(trace_id) AS trace_ids,
+    groupUniqArrayIf(user_id, (user_id IS NOT NULL) AND (user_id != '')) AS user_ids,
+    uniq(trace_id) AS trace_count,
+    groupUniqArrayArrayIf(tags, notEmpty(tags)) AS trace_tags,
+    argMaxIf(environment, event_ts, environment != '') AS environment,
+    uniqIf(span_id, parent_span_id != '') AS total_observations,
+    dateDiff('second', min(start_time), max(if(isNull(end_time), start_time, end_time))) AS duration,
+    sumMap(usage_details) AS session_usage_details,
+    sumMap(cost_details) AS session_cost_details,
+    arraySum(
+        mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, {param1:String}) > 0), sumMap(cost_details)))
+    ) AS session_input_cost,
+    arraySum(
+        mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, {param2:String}) > 0), sumMap(cost_details)))
+    ) AS session_output_cost,
+    sumMap(cost_details)['total'] AS session_total_cost,
+    arraySum(
+        mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, {param1:String}) > 0), sumMap(usage_details)))
+    ) AS session_input_usage,
+    arraySum(
+        mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, {param2:String}) > 0), sumMap(usage_details)))
+    ) AS session_output_usage,
+    sumMap(usage_details)['total'] AS session_total_usage
+FROM events_core AS e
+WHERE (e.project_id = {param3:String}) AND (e.is_deleted = {param4:UInt8}) AND (session_id IN ({param5:Array(String)})) AND (session_id != {param6:String})
+GROUP BY session_id
+LIMIT {param7:Int64}",
+  },
+]
+`;
+
+exports[`golden: events simple aggregates family > getSessionMetricsFromEvents sessionIds=empty 1`] = `[]`;
+
+exports[`golden: events simple aggregates family > getSessionMetricsFromEvents sessionIds=set 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": [
+        "golden-session",
+        "golden-session-b",
+      ],
+      "param4": "",
+      "param5": 2,
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    session_id,
+    uniq(trace_id) AS trace_count
+FROM events_core AS e
+WHERE (e.project_id = {param1:String}) AND (e.is_deleted = {param2:UInt8}) AND (session_id IN ({param3:Array(String)})) AND (session_id != {param4:String})
+GROUP BY session_id
+LIMIT {param5:Int64}",
+  },
+]
+`;
+
+exports[`golden: events simple aggregates family > getSessionMetricsFromEvents sessionIds=set+queryFromTimestamp 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": 0,
+      "param3": [
+        "golden-session",
+        "golden-session-b",
+      ],
+      "param4": "2025-11-29 00:00:00.000",
+      "param5": "",
+      "param6": 2,
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    session_id,
+    uniq(trace_id) AS trace_count
+FROM events_core AS e
+WHERE (e.project_id = {param1:String}) AND (e.is_deleted = {param2:UInt8}) AND (session_id IN ({param3:Array(String)})) AND (start_time >= {param4:DateTime64(6)}) AND (session_id != {param5:String})
+GROUP BY session_id
+LIMIT {param6:Int64}",
+  },
+]
+`;

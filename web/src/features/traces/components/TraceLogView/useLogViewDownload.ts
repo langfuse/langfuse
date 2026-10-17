@@ -7,10 +7,9 @@
  */
 
 import { useState, useCallback } from "react";
-import { toast } from "sonner";
 import { stringify } from "@langfuse/shared";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { showSuccessToast } from "@/src/features/notifications";
+import { showSuccessToast, showToast } from "@/src/features/notifications";
 import { type ObservationIOData } from "./useLogViewAllObservationsIO";
 
 export interface UseLogViewDownloadParams {
@@ -69,9 +68,15 @@ export function useLogViewDownload({
         copyTextToClipboard(stringify(allObservationsData, undefined, 2));
         // Show warning if some observations failed to load
         if (failedObservationIds.length > 0) {
-          toast.warning(
-            `Copied to clipboard. ${failedObservationIds.length} observation${failedObservationIds.length === 1 ? "" : "s"} failed to load and ${failedObservationIds.length === 1 ? "is" : "are"} missing I/O data.`,
-          );
+          showToast({
+            type: "WARNING",
+            title: `Copied to clipboard. ${failedObservationIds.length} observation${failedObservationIds.length === 1 ? "" : "s"} failed to load and ${failedObservationIds.length === 1 ? "is" : "are"} missing I/O data.`,
+            analytics: {
+              operation: "trace_log.copy",
+              errorOrigin: "backend",
+              errorCategory: "transient",
+            },
+          });
         } else {
           showSuccessToast({
             operation: "trace_log.copy",
@@ -86,9 +91,15 @@ export function useLogViewDownload({
           copyTextToClipboard(stringify(data, undefined, 2));
           // Check for failures after loading
           if (failedObservationIds.length > 0) {
-            toast.warning(
-              `Copied to clipboard. ${failedObservationIds.length} observation${failedObservationIds.length === 1 ? "" : "s"} failed to load and ${failedObservationIds.length === 1 ? "is" : "are"} missing I/O data.`,
-            );
+            showToast({
+              type: "WARNING",
+              title: `Copied to clipboard. ${failedObservationIds.length} observation${failedObservationIds.length === 1 ? "" : "s"} failed to load and ${failedObservationIds.length === 1 ? "is" : "are"} missing I/O data.`,
+              analytics: {
+                operation: "trace_log.copy",
+                errorOrigin: "backend",
+                errorCategory: "transient",
+              },
+            });
           } else {
             showSuccessToast({
               operation: "trace_log.copy",

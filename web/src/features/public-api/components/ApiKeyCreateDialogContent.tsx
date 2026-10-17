@@ -21,25 +21,28 @@ import { Label } from "@/src/components/ui/label";
 import {
   Select,
   SelectContent,
-  SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "@/src/components/ui/select";
+import { withoutGatewayRole } from "@/src/features/ai-gateway/fns/separateGatewayApiKeys";
+import {
+  ApiKeyExpirationInput,
+  type ApiKeyExpirationPreset,
+  resolveApiKeyExpiration,
+} from "@/src/features/apiKey";
 import { ApiKeyDetailContent } from "@/src/features/public-api/components/ApiKeyDetailContent";
 import { rolePermissionCountLabel } from "@/src/features/rbac/components/RolePermissionList";
 import { RolePermissionPopup } from "@/src/features/rbac/components/RolePermissionPopup";
 import { RoleSelectItem } from "@/src/features/rbac/components/RoleSelectItem";
 import { roleIcons } from "@/src/features/rbac/components/roleIcons";
-import {
-  expiryPresetOptions,
-  localDateInputValue,
-  resolveExpiresAt,
-  type ExpiryPreset,
-} from "@/src/features/public-api/components/apiKeyFormOptions";
 
 type ApiKeyScope = "project" | "organization";
 
 const DEFAULT_ROLE: SystemRole = "ADMIN";
+
+/** apiKeyRoleNames renames user roles to be more api-key friendly. */
+const apiKeyRoleNames: Record<string, string> = {
+  Admin: "Full access",
+};
 
 /** ApiKeyCreateValues is the resolved create-form payload the button forwards to the create mutation. */
 export type ApiKeyCreateValues = {
@@ -96,7 +99,7 @@ function ApiKeyCreateForm({
   onSubmit,
   isPending,
 }: Extract<ApiKeyCreateDialogContentProps, { type: "form" }>) {
-  const roles = apiKeyRolesForScope(scope);
+  const roles = withoutGatewayRole(apiKeyRolesForScope(scope));
   const { data: session } = useSession();
   const roleSelectionEnabled =
     (scope === "project"
@@ -105,7 +108,8 @@ function ApiKeyCreateForm({
 
   const [name, setName] = useState("");
   const [role, setRole] = useState<SystemRole>(DEFAULT_ROLE);
-  const [expiryPreset, setExpiryPreset] = useState<ExpiryPreset>("never");
+  const [expiryPreset, setExpiryPreset] =
+    useState<ApiKeyExpirationPreset>("never");
   const [customExpiry, setCustomExpiry] = useState("");
   const [roleSelectOpen, setRoleSelectOpen] = useState(false);
   const [permissionsOpen, setPermissionsOpen] = useState(false);
@@ -113,7 +117,7 @@ function ApiKeyCreateForm({
     null,
   );
 
-  const expiresAt = resolveExpiresAt(expiryPreset, customExpiry);
+  const expiresAt = resolveApiKeyExpiration(expiryPreset, customExpiry);
   const submitDisabled = name.trim() === "" || expiresAt === undefined;
 
   const openPermissions = (target: SystemRole) => {
@@ -154,37 +158,13 @@ function ApiKeyCreateForm({
             />
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="apiKeyExpiry">Expiration</Label>
-            <div className={expiryPreset === "custom" ? "flex gap-2" : ""}>
-              <Select
-                value={expiryPreset}
-                onValueChange={(value) =>
-                  setExpiryPreset(value as ExpiryPreset)
-                }
-              >
-                <SelectTrigger id="apiKeyExpiry" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {expiryPresetOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {expiryPreset === "custom" && (
-                <Input
-                  type="date"
-                  aria-label="Custom expiration date"
-                  min={localDateInputValue(new Date())}
-                  value={customExpiry}
-                  onChange={(e) => setCustomExpiry(e.target.value)}
-                />
-              )}
-            </div>
-          </div>
+          <ApiKeyExpirationInput
+            id="apiKeyExpiry"
+            expiryPreset={expiryPreset}
+            customExpiry={customExpiry}
+            onExpiryPresetChange={setExpiryPreset}
+            onCustomExpiryChange={setCustomExpiry}
+          />
 
           {roleSelectionEnabled && (
             <div className="flex flex-col gap-1.5">
@@ -199,7 +179,9 @@ function ApiKeyCreateForm({
                   <div className="flex items-start gap-2 text-left">
                     <SelectedRoleIcon className="icon-base mt-0.5 shrink-0" />
                     <div className="flex flex-col">
-                      <span className="font-bold">{selectedRoleDef.name}</span>
+                      <span className="font-bold">
+                        {transformApiKeyRoleName(selectedRoleDef.name)}
+                      </span>
                       <span className="text-muted-foreground text-xs">
                         {selectedRoleDef.description}
                       </span>
@@ -211,6 +193,7 @@ function ApiKeyCreateForm({
                     <RoleSelectItem
                       key={r}
                       role={r}
+                      transformName={transformApiKeyRoleName}
                       onViewPermissions={openPermissions}
                     />
                   ))}
@@ -239,6 +222,7 @@ function ApiKeyCreateForm({
             open={permissionsOpen}
             onOpenChange={setPermissionsOpen}
             role={permissionsRole}
+            transformName={transformApiKeyRoleName}
           />
         )}
       </DialogBody>
@@ -249,4 +233,9 @@ function ApiKeyCreateForm({
       </DialogFooter>
     </DialogContent>
   );
+}
+
+/** transformApiKeyRoleName maps a role name to its api key display name. */
+function transformApiKeyRoleName(name: string): string {
+  return apiKeyRoleNames[name] ?? name;
 }

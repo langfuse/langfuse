@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 import { showErrorToast } from "@/src/features/notifications";
 import CodeMirror, {
   Decoration,
@@ -321,6 +321,11 @@ export function CodeEvalTemplateFormBody({
         error instanceof Error
           ? error.message
           : "The formatter could not process this code.",
+        {
+          operation: "evaluator_code.format",
+          errorOrigin: "frontend",
+          errorCategory: "user_input",
+        },
       );
     } finally {
       isFormattingRef.current = false;

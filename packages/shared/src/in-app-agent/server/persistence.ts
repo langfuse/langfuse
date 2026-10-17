@@ -7,7 +7,7 @@ import {
   InAppAgentRunStatus,
 } from "../../features/inAppAgent/types";
 import { ChatMessageRole, ChatMessageType, logger } from "../../server";
-import { isSettledInAppAgentRunStatus } from "../constants";
+import { isSettledInAppAgentRunStatus } from "../../features/inAppAgent/types";
 import { recordRunTerminalOutcome } from "./runMetrics";
 import { Prisma } from "../../db";
 import type { InAppAgentConversation, PrismaClient } from "../../db";
@@ -45,7 +45,7 @@ import { IN_APP_AGENT_REPLAY_CHARS_PER_TOKEN } from "./tunables";
 import { env } from "../../env";
 
 export const ACTIVE_RUN_CONFLICT_MESSAGE =
-  "Assistant is already responding in this conversation";
+  "Halo is already responding in this conversation";
 
 /** Owner-only authorization with a non-enumerating failure. */
 export function assertOwnedConversation(params: {

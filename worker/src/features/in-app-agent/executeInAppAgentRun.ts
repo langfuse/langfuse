@@ -327,6 +327,9 @@ export async function executeInAppAgentRun(params: {
                     : {}),
                   approvalDecidedAt: run.createdAt.toISOString(),
                   approvalRequest,
+                  ...(request.toolInputs
+                    ? { toolInputs: request.toolInputs }
+                    : {}),
                 },
               },
             }

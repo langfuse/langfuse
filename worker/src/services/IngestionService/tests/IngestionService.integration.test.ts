@@ -549,6 +549,31 @@ describe("Ingestion end-to-end tests", () => {
         output_reasoning_tokens: 4,
       },
     },
+    // OpenAI-compatible provider extensions (e.g. OpenRouter cost fields)
+    {
+      usage: null,
+      usageDetails: {
+        prompt_tokens: 194,
+        completion_tokens: 2,
+        total_tokens: 196,
+        prompt_tokens_details: { cached_tokens: 4 },
+        completion_tokens_details: { reasoning_tokens: 1 },
+        cost: 0.0001,
+        cost_details: { upstream_inference_cost: 0.0001 },
+      },
+      expectedUsageDetails: {
+        input: 190,
+        output: 1,
+        total: 196,
+        input_cached_tokens: 4,
+        output_reasoning_tokens: 1,
+      },
+      absentUsageDetailKeys: [
+        "prompt_tokens",
+        "completion_tokens",
+        "total_tokens",
+      ],
+    },
     // OpenAI Response API format
     {
       usage: null,
@@ -603,6 +628,42 @@ describe("Ingestion end-to-end tests", () => {
         output_text_tokens: 3,
         output_reasoning_tokens: 4,
       },
+    },
+    {
+      usage: null,
+      usageDetails: {
+        input_tokens: 194,
+        output_tokens: 2,
+        total_tokens: 196,
+        input_tokens_details: { cached_tokens: 4 },
+        output_tokens_details: { reasoning_tokens: 1 },
+        cost: 0.0001,
+      },
+      expectedUsageDetails: {
+        input: 190,
+        output: 1,
+        total: 196,
+        input_cached_tokens: 4,
+        output_reasoning_tokens: 1,
+      },
+      absentUsageDetailKeys: ["input_tokens", "output_tokens", "total_tokens"],
+    },
+    {
+      usage: null,
+      usageDetails: {
+        input_tokens: 3,
+        output_tokens: 94,
+        total_tokens: 16496,
+        cache_read_input_tokens: 16399,
+        service_tier: "standard",
+      },
+      expectedUsageDetails: {
+        input: 3,
+        output: 94,
+        total: 16496,
+        cache_read_input_tokens: 16399,
+      },
+      absentUsageDetailKeys: ["input_tokens", "output_tokens"],
     },
     // Native Anthropic Messages usage with TTL-split cache writes
     {

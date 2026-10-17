@@ -76,7 +76,7 @@ const sidebarArgs = {
   userMenuItems: [
     {
       type: "link" as const,
-      name: "Account Settings",
+      name: "Settings",
       href: "/account/settings",
     },
   ],

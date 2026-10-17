@@ -1,5 +1,13 @@
 import { v4 } from "uuid";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 import {
   ClickHouseResourceError,
@@ -13,6 +21,8 @@ import {
 } from "@langfuse/shared";
 import {
   MonitorProcessor,
+  MonitorScheduler,
+  monitorProcessorTtl,
   type MonitorPublisher,
   type QueryExecutor,
   type MonitorQueueEvent,
@@ -25,8 +35,23 @@ import {
   MonitorStatusSchema,
   MonitorThresholdOperatorSchema,
 } from "@langfuse/shared/monitors";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma as sharedPrisma } from "@langfuse/shared/src/db";
 import type { Prisma, PrismaClient } from "@prisma/client";
+import { createIsolatedMonitorTable } from "./helpers/isolatedMonitorTable";
+
+let prisma: PrismaClient;
+let isolatedDb:
+  | Awaited<ReturnType<typeof createIsolatedMonitorTable>>
+  | undefined;
+
+beforeAll(async () => {
+  isolatedDb = await createIsolatedMonitorTable();
+  prisma = isolatedDb.db;
+});
+
+afterAll(async () => {
+  await isolatedDb?.cleanup();
+});
 
 type MonitorStatus = "ACTIVE" | "PAUSED" | "ERROR_BAD_QUERY";
 type MonitorView =
@@ -105,7 +130,11 @@ type ProcessCase = {
   injectError?: {
     stage: InjectErrorStage;
     message: string;
-    errorClass?: "invalid-request" | "resource" | "resource-memory";
+    errorClass?:
+      | "invalid-request"
+      | "invalid-request-duplicate"
+      | "resource"
+      | "resource-memory";
   };
   preempt?: { newClaimedAt: Date };
   preemptPause?: { at: Date };
@@ -654,7 +683,7 @@ const cases: ProcessCase[] = [
     },
   },
   {
-    name: "error on executeQuery: flips ERROR_BAD_QUERY, PAUSED, no throw, no emit",
+    name: "execution failure: rethrows, stays ACTIVE, not ERROR_BAD_QUERY",
     monitors: [
       {
         id: monitorAId,
@@ -663,52 +692,56 @@ const cases: ProcessCase[] = [
         lastPublishedAt: runAt,
       },
     ],
-    injectError: { stage: "executeQuery", message: "CH timeout" },
+    injectError: { stage: "executeQuery", message: "read ECONNRESET" },
     expect: {
+      throws: "read ECONNRESET",
       publishCallCount: 0,
       rows: [
         {
           id: monitorAId,
-          status: MonitorStatusSchema.enum.ERROR_BAD_QUERY,
-          severity: MonitorSeveritySchema.enum.PAUSED,
-          severityChangedAt: justAfterRunAt,
+          status: MonitorStatusSchema.enum.ACTIVE,
+          severity: MonitorSeveritySchema.enum.OK,
+          severityChangedAt: tenMinutesAgo,
           alertedAt: null,
           lastClaimedAt: justAfterRunAt,
-          lastCompletedAt: justAfterRunAt,
+          lastCompletedAt: null,
         },
       ],
     },
   },
-  {
-    name: "InvalidRequestError on executeQuery: flips ERROR_BAD_QUERY, PAUSED, no throw, no emit",
-    monitors: [
-      {
-        id: monitorAId,
-        severity: MonitorSeveritySchema.enum.OK,
-        severityChangedAt: tenMinutesAgo,
-        lastPublishedAt: runAt,
+  ...(["invalid-request", "invalid-request-duplicate"] as const).map(
+    (errorClass): ProcessCase => ({
+      name: `${errorClass} on executeQuery: rethrows, stays ACTIVE, not ERROR_BAD_QUERY`,
+      monitors: [
+        {
+          id: monitorAId,
+          severity: MonitorSeveritySchema.enum.OK,
+          severityChangedAt: tenMinutesAgo,
+          lastPublishedAt: runAt,
+        },
+      ],
+      injectError: {
+        stage: "executeQuery",
+        errorClass,
+        message: "Invalid filter column",
       },
-    ],
-    injectError: {
-      stage: "executeQuery",
-      errorClass: "invalid-request",
-      message: "Invalid filter column",
-    },
-    expect: {
-      publishCallCount: 0,
-      rows: [
-        {
-          id: monitorAId,
-          status: MonitorStatusSchema.enum.ERROR_BAD_QUERY,
-          severity: MonitorSeveritySchema.enum.PAUSED,
-          severityChangedAt: justAfterRunAt,
-          alertedAt: null,
-          lastClaimedAt: justAfterRunAt,
-          lastCompletedAt: justAfterRunAt,
-        },
-      ],
-    },
-  },
+      expect: {
+        throws: "Invalid filter column",
+        publishCallCount: 0,
+        rows: [
+          {
+            id: monitorAId,
+            status: MonitorStatusSchema.enum.ACTIVE,
+            severity: MonitorSeveritySchema.enum.OK,
+            severityChangedAt: tenMinutesAgo,
+            alertedAt: null,
+            lastClaimedAt: justAfterRunAt,
+            lastCompletedAt: null,
+          },
+        ],
+      },
+    }),
+  ),
   {
     name: "ClickHouseResourceError on executeQuery: rethrows, stays ACTIVE, not ERROR_BAD_QUERY",
     monitors: [
@@ -1382,6 +1415,14 @@ describe("MonitorProcessor.process (integration)", () => {
         if (c.injectError.errorClass === "invalid-request") {
           throw new InvalidRequestError(c.injectError.message);
         }
+        if (c.injectError.errorClass === "invalid-request-duplicate") {
+          throw Object.assign(new Error(c.injectError.message), {
+            name: "InvalidRequestError",
+            httpCode: 400,
+            isOperational: true,
+            isUserError: () => true,
+          });
+        }
         if (c.injectError.errorClass === "resource") {
           throw new ClickHouseResourceError(
             "TIMEOUT",
@@ -1505,6 +1546,61 @@ describe("MonitorProcessor.process (integration)", () => {
         exp.lastCompletedAt?.toISOString() ?? null,
       );
     }
+  });
+  it("re-evaluates the failed batch after scheduler TTL recovery", async () => {
+    const monitorIds = [monitorAId, monitorBId];
+    for (const id of monitorIds) {
+      await seedMonitor(projectId, {
+        id,
+        severity: MonitorSeveritySchema.enum.OK,
+        severityChangedAt: tenMinutesAgo,
+      });
+    }
+    expect(
+      await sharedPrisma.monitor.count({ where: { id: { in: monitorIds } } }),
+    ).toBe(0);
+    const publish = vi.fn<MonitorPublisher>();
+    const executeQuery = vi
+      .fn<QueryExecutor>()
+      .mockRejectedValueOnce(new Error("read ECONNRESET"))
+      .mockResolvedValue([{ count_count: 200 }]);
+    const processor = new MonitorProcessor(
+      prisma,
+      publish,
+      executeQuery,
+      async () => [],
+    );
+
+    await expect(
+      processor.process(makeEvent(projectId, monitorIds), justAfterRunAt),
+    ).rejects.toThrow("read ECONNRESET");
+
+    const retryEvents: MonitorQueueEventInput[] = [];
+    const scheduler = new MonitorScheduler({
+      schedulerId: 0,
+      totalSchedulers: 1,
+      db: prisma,
+      publish: async (event) => {
+        retryEvents.push(event);
+      },
+    });
+    await scheduler.schedule(new Date(runAt.getTime() + monitorProcessorTtl));
+    expect(retryEvents).toHaveLength(0);
+
+    const retryAt = new Date(runAt.getTime() + monitorProcessorTtl + 1000);
+    await scheduler.schedule(retryAt);
+    expect(retryEvents).toHaveLength(1);
+    await processor.process(retryEvents[0], retryAt);
+
+    expect(executeQuery).toHaveBeenCalledTimes(2);
+    for (const id of monitorIds) {
+      const monitor = await prisma.monitor.findUniqueOrThrow({ where: { id } });
+      expect(monitor.status).toBe(MonitorStatusSchema.enum.ACTIVE);
+      expect(monitor.severity).toBe(MonitorSeveritySchema.enum.ALERT);
+      expect(monitor.lastPublishedAt).toEqual(retryAt);
+      expect(monitor.lastCompletedAt).toEqual(retryAt);
+    }
+    expect(publish).not.toHaveBeenCalled();
   });
 });
 
@@ -1757,10 +1853,9 @@ describe("MonitorProcessor.process executeQuery failure logging", () => {
         getTriggers,
       );
 
-      await processor.process(
-        makeEvent(projectId, [monitorAId]),
-        justAfterRunAt,
-      );
+      await expect(
+        processor.process(makeEvent(projectId, [monitorAId]), justAfterRunAt),
+      ).rejects.toThrow("CH timeout");
 
       expect(errSpy).toHaveBeenCalled();
       const meta = errSpy.mock.calls[0][1] as Record<string, unknown>;

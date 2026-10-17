@@ -15,7 +15,7 @@ import {
 } from "@/src/features/widgets/chart-library/prepareTimeAxis";
 import { prepareVisibleSeries } from "@/src/features/widgets/chart-library/prepareVisibleSeries";
 import {
-  seriesColor,
+  seriesFillColor,
   SeriesOverflowNote,
 } from "@/src/features/widgets/chart-library/TimeSeriesLegend";
 import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
@@ -73,7 +73,7 @@ export function VerticalBarChartTimeSeries({
         label:
           getPlainTextFromReactNode(config?.[dimension]?.label ?? dimension) ??
           dimension,
-        color: seriesColor(index),
+        color: seriesFillColor(index),
       })),
     [visibleSeries, config],
   );

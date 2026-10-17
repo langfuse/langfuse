@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { useRouter } from "next/router";
 import { AutomationSidebar } from "@/src/features/automations/components/AutomationSidebar";
 import { AutomationDetails } from "@/src/features/automations/components/AutomationDetails";

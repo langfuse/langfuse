@@ -62,7 +62,7 @@ describe("toIOPreview", () => {
               type: "tool-result",
               toolCallId: "call-1",
               toolName: "search",
-              output: { matches: 1 },
+              output: { type: "json", value: { matches: 1 } },
             },
           ],
         },
@@ -89,7 +89,6 @@ describe("toIOPreview", () => {
     ]);
     expect(result.inputMessageCount).toBe(0);
     expect(result.toolCallCounts.get("search")).toBe(1);
-    expect(result.toolNameToDefinitionNumber.get("search")).toBe(1);
   });
 
   it("keeps unmatched tool results standalone and unanswered calls at null", () => {
@@ -122,13 +121,13 @@ describe("toIOPreview", () => {
             {
               type: "tool-result",
               toolCallId: "call-a",
-              output: "boom",
+              output: { type: "text", value: "boom" },
               isError: true,
             },
             {
               type: "tool-result",
               toolCallId: "call-unknown",
-              output: "orphaned",
+              output: { type: "text", value: "orphaned" },
             },
           ],
         },

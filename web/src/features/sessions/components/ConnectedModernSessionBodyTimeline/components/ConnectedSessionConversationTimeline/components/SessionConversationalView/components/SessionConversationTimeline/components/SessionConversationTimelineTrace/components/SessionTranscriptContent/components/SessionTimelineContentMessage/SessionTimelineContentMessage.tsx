@@ -20,7 +20,7 @@ const rolePresentation = {
     label: "Assistant",
     icon: Bot,
     wrapper: "justify-start",
-    container: "bg-muted/50 max-w-[min(85%,48rem)] rounded-2xl px-4 py-2.5",
+    container: "max-w-[min(85%,48rem)] rounded-2xl px-4 py-2.5",
   },
   tool: {
     label: "Tool",
@@ -45,7 +45,9 @@ export function SessionTimelineContentMessage({
   timestamp,
   onOpenObservation,
   expandRequestId,
+  variant = "session",
 }: {
+  variant?: "session" | "single-trace";
   role: Exclude<NormalizedMessage["role"], "system">;
   parts: NormalizedMessage["parts"];
   senderName: NormalizedMessage["senderName"];
@@ -107,7 +109,7 @@ export function SessionTimelineContentMessage({
                     onOpenObservation && (
                       <button
                         type="button"
-                        className="text-muted-foreground hover:text-foreground invisible shrink-0 font-mono text-xs group-focus-within/collapsible-row:visible group-hover/collapsible-row:visible hover:underline"
+                        className="text-muted-foreground hover:text-foreground invisible shrink-0 font-mono text-xs group-hover/collapsible-row:visible group-has-[:focus-visible]/collapsible-row:visible hover:underline"
                         onClick={onOpenObservation}
                       >
                         Open generation
@@ -139,6 +141,8 @@ export function SessionTimelineContentMessage({
               className={cn(
                 "group/bubble min-w-0 overflow-hidden",
                 presentation.container,
+                role === "assistant" &&
+                  (variant === "single-trace" ? "bg-muted" : "bg-muted/50"),
                 ((isJsonOnly && isJsonExpanded) || hasToolParts) && "w-full",
               )}
             >
@@ -200,7 +204,7 @@ export function SessionTimelineContentMessage({
                 groupIndex === groups.length - 1 && (
                   <div
                     className={cn(
-                      "text-muted-foreground mt-1 flex items-center gap-3 font-mono text-[10px]",
+                      "text-muted-foreground text-2xs mt-2 flex items-center gap-3 font-mono",
                       role === "user" ? "justify-end" : "justify-start",
                     )}
                   >
@@ -208,7 +212,7 @@ export function SessionTimelineContentMessage({
                       <button
                         type="button"
                         className={cn(
-                          "hover:text-foreground invisible group-focus-within/bubble:visible group-hover/bubble:visible hover:underline",
+                          "hover:text-foreground decoration-muted-foreground/40 hover:decoration-foreground/40 invisible underline underline-offset-2 group-hover/bubble:visible group-has-[:focus-visible]/bubble:visible",
                           role !== "user" && "order-1",
                         )}
                         onClick={onOpenObservation}

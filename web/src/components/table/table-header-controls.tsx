@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { TimeRangePicker } from "@/src/components/date-picker";
 import { DataTableRefreshButton } from "@/src/components/table/data-table-refresh-button";
 import { type RefreshInterval } from "@/src/components/table/utils/refresh-intervals";

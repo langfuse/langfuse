@@ -6,24 +6,29 @@ import {
   useState,
 } from "react";
 import { useMediaQuery } from "react-responsive";
+import dynamic from "next/dynamic";
+import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { MAX_SKILL_FILES } from "@langfuse/shared";
 import { useStore } from "zustand";
 import {
   Download,
   Loader2,
-  Plus,
+  Pencil,
   TriangleAlert,
   RotateCcw,
   Save,
+  Terminal,
 } from "lucide-react";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { CodeMirrorEditor } from "@/src/components/editor";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { SkillLinkedTraces } from "@/src/features/skills/components/SkillLinkedTraces";
 import Page from "@/src/components/layouts/page";
 import { Button } from "@/src/components/ui/button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import { Button as DesignSystemButton } from "@/src/components/design-system/Button/Button";
+import { InstallSkillDialog } from "@/src/features/skills/components/InstallSkillDialog";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { createSkillVersionFromDraft } from "@/src/features/skills/actions/createSkillVersion";
@@ -43,7 +48,7 @@ import {
 } from "@/src/features/skills/components/SkillFileExplorer";
 import { importSkillFiles } from "@/src/features/skills/actions/importSkillFiles";
 import { getParentFolderPaths } from "@/src/features/skills/components/skillFileTree";
-import { getSkillFileLanguageExtensions } from "@/src/features/skills/utils/getSkillFileLanguageExtensions";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import {
   createSkillDraftFile,
   type SkillDraftFile,
@@ -55,14 +60,21 @@ import {
   SkillTagsSelect,
 } from "@/src/features/skills/components/SkillMetadataSelect";
 import { SkillVersionHistory } from "@/src/features/skills/components/SkillVersionHistory";
-import { SkillFilePreview } from "@/src/features/skills/components/SkillFilePreview";
+import { SkillFileView } from "@/src/features/skills/components/SkillFileView";
 import { useSkillFileContents } from "@/src/features/skills/hooks/useSkillFileContents";
+import { useLangfuseV4WriteMode } from "@/src/features/organizations/hooks";
 import {
   parseSkillFrontmatterMetadata,
   SKILL_NAME_RULES,
 } from "@/src/features/skills/utils/parseSkillFrontmatterMetadata";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
+
+const SkillAnalytics = dynamic(() =>
+  import("@/src/features/skills/components/SkillAnalytics").then(
+    (module) => module.SkillAnalytics,
+  ),
+);
 
 export function SkillEditor({
   projectId,
@@ -80,7 +92,12 @@ export function SkillEditor({
   canCreate: boolean;
   view:
     | { kind: "draft"; onDiscard: () => Promise<void> }
-    | { kind: "version"; hasDraft: boolean; onEdit: () => Promise<void> };
+    | {
+        kind: "version";
+        skillId: string;
+        hasDraft: boolean;
+        onEdit: () => Promise<void>;
+      };
   onCreated: (created: { name: string; version: number }) => Promise<void>;
   history:
     | { kind: "new" }
@@ -110,6 +127,8 @@ export function SkillEditor({
   const fileCount = useStore(store, (state) => Object.keys(state.files).length);
   const name = useStore(store, (state) => state.name);
   const baseVersion = useStore(store, (state) => state.baseVersion);
+  const labels = useStore(store, (state) => state.labels);
+  const tags = useStore(store, (state) => state.tags);
   const skillMarkdown = useStore(
     store,
     (state) => state.files["SKILL.md"]?.content,
@@ -168,6 +187,18 @@ export function SkillEditor({
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const isDraft = view.kind === "draft";
+  const v4WriteMode = useLangfuseV4WriteMode();
+  const canReadMetrics = v4WriteMode !== null && v4WriteMode !== "legacy";
+  const [selectedTab, setSelectedTab] = useQueryParam(
+    "tab",
+    withDefault(StringParam, "files"),
+  );
+  const activeTab =
+    !isDraft &&
+    (selectedTab === "linked-traces" ||
+      (selectedTab === "metrics" && canReadMetrics))
+      ? selectedTab
+      : "files";
   const canEditFiles = isDraft && canCreate && !isSaving;
   const isDesktop = useMediaQuery({ query: "(min-width: 768px)" });
   const [treeState, setTreeState] = useState<SkillFileExplorerState>(() => ({
@@ -234,6 +265,7 @@ export function SkillEditor({
       showErrorToast(
         "Failed to create skill version",
         error instanceof Error ? error.message : "Please try again.",
+        classifyTrpcToastError(error, "skill_version.create"),
       );
       return false;
     } finally {
@@ -278,6 +310,7 @@ export function SkillEditor({
       showErrorToast(
         "Failed to update skill labels",
         error instanceof Error ? error.message : "Please try again.",
+        classifyTrpcToastError(error, "skill_labels.update"),
       );
       return false;
     }
@@ -311,6 +344,7 @@ export function SkillEditor({
       showErrorToast(
         "Failed to update skill tags",
         error instanceof Error ? error.message : "Please try again.",
+        classifyTrpcToastError(error, "skill_tags.update"),
       );
       return false;
     }
@@ -328,10 +362,11 @@ export function SkillEditor({
         getFileContents: (input) => utils.skills.fileContents.fetch(input),
       });
       capture("skills:version_download", { fileCount: result.fileCount });
-    } catch {
+    } catch (error) {
       showErrorToast(
         "Download failed",
         "Could not download this skill version. Please try again.",
+        classifyTrpcToastError(error, "skill_version.download"),
       );
     } finally {
       setIsDownloading(false);
@@ -340,7 +375,10 @@ export function SkillEditor({
 
   const renderHeaderActions = (
     openDialog: (
-      state: { kind: "save"; createNew: boolean } | { kind: "discard" },
+      state:
+        | { kind: "save"; createNew: boolean }
+        | { kind: "discard" }
+        | { kind: "install" },
     ) => void,
     closeMenu?: () => void,
   ) => (
@@ -379,6 +417,17 @@ export function SkillEditor({
           Download
         </Button>
       ) : null}
+      {!isDraft && baseVersion !== null ? (
+        <DesignSystemButton
+          text="Install with CLI"
+          variant="secondary"
+          icon={Terminal}
+          onClick={() => {
+            closeMenu?.();
+            openDialog({ kind: "install" });
+          }}
+        />
+      ) : null}
       {nameWarning ? (
         <Tooltip label={nameWarning}>
           {({ getTriggerProps }) => (
@@ -415,7 +464,7 @@ export function SkillEditor({
             if (view.kind === "version") await view.onEdit();
           }}
         >
-          <Plus className="icon-base mr-1.5" />
+          <Pencil className="icon-base mr-1.5" />
           {view.kind === "version" && view.hasDraft ? "Resume draft" : "Edit"}
         </Button>
       ) : (
@@ -457,10 +506,29 @@ export function SkillEditor({
 
   return (
     <DialogController<
-      { kind: "save"; createNew: boolean } | { kind: "discard" }
+      | { kind: "save"; createNew: boolean }
+      | { kind: "discard" }
+      | { kind: "install" }
     >
-      renderDialog={({ state, closeDialog }) =>
-        state.kind === "discard" ? (
+      renderDialog={({ state, closeDialog }) => {
+        if (state.kind === "install") {
+          if (baseVersion === null) return null;
+          return (
+            <InstallSkillDialog
+              projectId={projectId}
+              initialValues={{
+                by: "name",
+                name,
+                version: baseVersion,
+                label: labels.includes("production") ? "production" : "latest",
+                tag: tags[0] ?? "my-tag",
+              }}
+              labels={labels}
+              tags={tags}
+            />
+          );
+        }
+        return state.kind === "discard" ? (
           <Dialog
             title="Discard draft?"
             text="Your unsaved file changes and commit note will be lost."
@@ -492,8 +560,8 @@ export function SkillEditor({
               if (await save(state.createNew)) closeDialog();
             }}
           />
-        )
-      }
+        );
+      }}
     >
       {({ openDialog }) => (
         <Page
@@ -553,7 +621,11 @@ export function SkillEditor({
                     minSize={undefined}
                     isDisabled={isImporting}
                     onError={(error) => {
-                      showErrorToast("Could not add files", error.message);
+                      showErrorToast("Could not add files", error.message, {
+                        operation: "skill_files.add",
+                        errorOrigin: "frontend",
+                        errorCategory: "user_input",
+                      });
                       uploadPanelRef.current?.focus();
                     }}
                     onDrop={async (files) => {
@@ -600,38 +672,79 @@ export function SkillEditor({
                 ) : (
                   <SkillVersionHistory kind="new" />
                 )}
-                <div className="min-h-[720px] min-w-0 flex-1 md:min-h-0">
-                  <ResizablePanelGroup
-                    key={isDesktop ? "desktop" : "mobile"}
-                    orientation={isDesktop ? "horizontal" : "vertical"}
+                <div className="flex min-h-[720px] min-w-0 flex-1 flex-col md:min-h-0">
+                  <Tabs
+                    value={activeTab}
+                    onValueChange={(value) => setSelectedTab(value)}
+                    layout="fill"
                   >
-                    <ResizablePanel
-                      defaultSize={isDesktop ? "28%" : "32%"}
-                      minSize={isDesktop ? "20%" : "24%"}
-                      maxSize={isDesktop ? "42%" : "50%"}
-                    >
-                      <SkillFileExplorer
-                        store={store}
-                        readOnly={!isDraft || !canCreate}
-                        disabled={isSaving}
-                        state={treeState}
-                        onStateChange={setTreeState}
-                        onUpload={() => setIsUploadOpen(true)}
+                    <Tabs.List variant="underline">
+                      <Tabs.Trigger value="files" label="Files" />
+                      <Tabs.Trigger
+                        value="metrics"
+                        label="Metrics"
+                        disabled={isDraft || !canReadMetrics}
                       />
-                    </ResizablePanel>
-                    <ResizableHandle withHandle />
-                    <ResizablePanel
-                      defaultSize={isDesktop ? "72%" : "68%"}
-                      minSize={isDesktop ? "45%" : "42%"}
-                    >
-                      <SkillFileEditor
-                        projectId={projectId}
-                        store={store}
-                        isDraft={isDraft}
-                        editable={canEditFiles}
+                      <Tabs.Trigger
+                        value="linked-traces"
+                        label="Observations"
+                        disabled={isDraft}
                       />
-                    </ResizablePanel>
-                  </ResizablePanelGroup>
+                    </Tabs.List>
+                    {canReadMetrics &&
+                    view.kind === "version" &&
+                    baseVersion !== null ? (
+                      <Tabs.Content value="metrics" layout="fill">
+                        <SkillAnalytics
+                          projectId={projectId}
+                          skillId={view.skillId}
+                          paths={Object.keys(store.getState().files).toSorted()}
+                        />
+                      </Tabs.Content>
+                    ) : null}
+                    {!isDraft && baseVersion !== null ? (
+                      <Tabs.Content value="linked-traces" layout="fill">
+                        <SkillLinkedTraces
+                          projectId={projectId}
+                          name={name}
+                          version={baseVersion}
+                        />
+                      </Tabs.Content>
+                    ) : null}
+                    <Tabs.Content value="files" layout="fill">
+                      <ResizablePanelGroup
+                        key={isDesktop ? "desktop" : "mobile"}
+                        orientation={isDesktop ? "horizontal" : "vertical"}
+                      >
+                        <ResizablePanel
+                          defaultSize={isDesktop ? "28%" : "32%"}
+                          minSize={isDesktop ? "20%" : "24%"}
+                          maxSize={isDesktop ? "42%" : "50%"}
+                        >
+                          <SkillFileExplorer
+                            store={store}
+                            readOnly={!isDraft || !canCreate}
+                            disabled={isSaving}
+                            state={treeState}
+                            onStateChange={setTreeState}
+                            onUpload={() => setIsUploadOpen(true)}
+                          />
+                        </ResizablePanel>
+                        <ResizableHandle withHandle />
+                        <ResizablePanel
+                          defaultSize={isDesktop ? "72%" : "68%"}
+                          minSize={isDesktop ? "45%" : "42%"}
+                        >
+                          <SkillFileEditor
+                            projectId={projectId}
+                            store={store}
+                            isDraft={isDraft}
+                            editable={canEditFiles}
+                          />
+                        </ResizablePanel>
+                      </ResizablePanelGroup>
+                    </Tabs.Content>
+                  </Tabs>
                 </div>
               </div>
             </div>
@@ -710,7 +823,7 @@ function SkillFileEditor({
   const { refetch } = fileContents;
   const content = activeFile.content ?? fileContents.data?.content;
 
-  const editorContent = useMemo(() => {
+  const placeholder = useMemo(() => {
     if (content === undefined && fileContents.isError) {
       return (
         <div className="flex flex-col items-start gap-2 text-sm">
@@ -734,46 +847,22 @@ function SkillFileEditor({
         </div>
       );
     }
-    if (!isDraft) {
-      return <SkillFilePreview path={activePath} content={content} />;
-    }
-    return (
-      <CodeMirrorEditor
-        key={activePath}
-        value={content}
-        onChange={editable ? updateActiveFile : undefined}
-        editable={editable}
-        mode="text"
-        extensions={getSkillFileLanguageExtensions(activePath)}
-        minHeight="500px"
-        lineNumbers
-        className="h-full"
-      />
-    );
-  }, [
-    content,
-    fileContents.isError,
-    fileContents.error,
-    refetch,
-    activePath,
-    isDraft,
-    editable,
-    updateActiveFile,
-  ]);
+    return null;
+  }, [content, fileContents.isError, fileContents.error, refetch]);
 
   return (
-    <section className="ph-no-capture flex h-full min-w-0 flex-col">
-      <div className="flex min-h-11 items-center justify-between gap-2 border-b px-3">
-        <span className="min-w-0 truncate font-mono text-xs" title={activePath}>
-          {activePath}
-        </span>
-        <Badge
-          text={isDraft ? "Editing draft" : "Viewing"}
-          color={isDraft ? "blue" : "primary"}
-        />
-      </div>
-      <div className="min-h-0 flex-1 overflow-auto p-3">{editorContent}</div>
-    </section>
+    <SkillFileView
+      key={isDraft ? "draft" : "version"}
+      path={activePath}
+      content={content}
+      mode={
+        isDraft
+          ? { kind: "draft", editable, onChange: updateActiveFile }
+          : { kind: "view" }
+      }
+    >
+      {placeholder}
+    </SkillFileView>
   );
 }
 

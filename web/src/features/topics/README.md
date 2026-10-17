@@ -8,11 +8,32 @@ project permissions. Processing additionally requires the project allowlist.
 - `TopicsPage.tsx` owns facet configuration, the execution history drawer,
   the current-results query and facet selection. A compact header keeps the facet
   picker, time range and processing action on one row; configuration, history and
-  refresh live in the overflow menu. `CurrentTopics.tsx` presents the selected
-  facet in independently scrolling panels: map and groups on the left, traces on
-  the right. Narrow views keep the map above Topics/Traces tabs, with readable
+  refresh live in the overflow menu. `CurrentTopics.tsx` owns the map query and
+  trace navigation; `CurrentTopicsView.tsx` presents the selected
+  facet in independently scrolling, resizable panels: map and groups on the left,
+  traces on the right. Both splits use the shared `useDefaultLayout` helper with
+  localStorage preferences shared across facets and projects, with separate
+  map-height preferences for desktop and narrow layouts. Narrow views keep
+  the resizable map above Topics/Traces tabs, with readable
   summary rows on phones and all processing controls in the mobile overflow
   menu. Selecting a group filters traces without changing the active tab.
+  `useTopicTraceFilters.ts` owns URL-backed facet selection; filters and search
+  live only in localStorage, scoped to each project/facet. Switching facets
+  restores that facet's state, defaulting to unfiltered on first visit. Filter
+  and search URL parameters are neither read nor written.
+  `TopicsTraceToolbar.tsx` uses the shared search bar for topic, assignment, and
+  text filtering. `topic-trace-filters.ts` owns its registry and local evaluation:
+  literal phrase search across summaries, topic names and trace IDs, OR within
+  a selection and AND between fields. Filtering applies before pagination.
+  Saved topic IDs absent from current options remain editable as unavailable
+  topics; their matching semantics are preserved across date-range changes.
+  Table results determine matching map IDs without changing saved positions or
+  the camera; nonmatching dots remain faint and inspectable. The map reports
+  its own matching count because its saved cohort can differ from current rows.
+  Fit/Home/Escape retain table filters; editing or removing search tokens updates
+  the same saved facet state. Search actions reuse metadata-only filter analytics with
+  `tableName: topics` and `isV4: false`. Query text and topic names remain
+  blocked from replay by the shared search bar.
   Peek defaults to the trace panel width and has its own resize preference.
   The results workspace stays mounted, including
   while a run's status is open. Execution URL parameters open progress, errors
@@ -23,20 +44,44 @@ project permissions. Processing additionally requires the project allowlist.
   in-flight poll cannot satisfy completion. The query retains the tRPC prefix
   for mutation and manual invalidation.
   The polling/completion race is covered directly by a frontend hook test.
-  Configure topics opens a centered dialog; Process traces or Update topics
-  submits the retained configuration. Overlay owners stay outside the responsive
-  header menu. Facet versions contain only prompts; processing settings and
-  embedding dimensions are frozen on executions. Built-in facets are read-only;
-  custom facets can be revised by creating a new prompt version.
-- `useTopicPipelineForm` owns the configuration dialog, operation, facet versions
-  and submission. The workspace renders its header actions and dialog separately;
-  configuration changes preserve the current results and selection. Its state
-  stays mounted when the dialog closes. Preview trace clicks close
-  configuration before opening the trace peek in the panel layer.
-  Every available facet starts selected. Process traces is the default operation:
-  it summarizes, embeds, and assigns only the selected batch to current topics.
+  Configure Topics opens a dialog for models, facets, and which traces to run.
+  Saving it stores the models, creates the four built-in facets as evaluators
+  with a first version, and saves one rule for the filter, idle time, and
+  sampling rate. A project can have only one Topics rule.
+  Manual processing opens a shared dialog with Summarize traces & embed and
+  Generate topics tabs. `DialogController` owns the overlay above the page and
+  the mobile actions menu. Once models are configured, Configure Topics lives
+  in the overflow menu. `ManualTopicsDialog` is the presentational layout shared
+  by the app and its isolated `ManualTopicsDialog.stories.tsx` stories.
+  `TopicTraceSelectorView` renders the same filters, batch controls and preview
+  table in both places; stories supply fixture results without private API calls.
+  `ManualTopicsFormContent` owns the draft and uses the real trace selector.
+  `manualTopicsSelection` owns selection readiness for both operations, shared
+  by the application and Storybook interaction tests. `useTopicPipelineForm` owns process writes;
+  `useRegenerateTopics` owns active/latest facet counts and generate writes.
+  Mutation errors and request IDs outlive dialog dismissal, so retrying an
+  unchanged request does not create a second run. Submission closes the dialog
+  and opens the existing execution progress drawer. Permission, setup, pause,
+  availability and running-state gates disable submissions; generation also
+  requires compatible stored summaries. Facet versions contain only prompts;
+  processing settings and embedding dimensions are frozen on executions.
+  Built-in facets are read-only; custom facets are added on their own page.
+- Manual processing defaults to all active built-in and custom facets in the
+  Topics rule at their latest version. Summarize traces & embed is the default
+  tab: it summarizes, embeds, and assigns only the previewed batch to current
+  topics. Trace selection includes filters, IDs, time ranges, a maximum batch size,
+  and exclusions. Stored summary and embedding reuse is enabled by default in Review & Run.
+  The dialog uses the evaluator stepper: Choose facets, Select traces, and
+  Review & Run. Generate topics uses Select trace summaries for the second step;
+  its time range filters by the trace start time. Both manual-processing pickers
+  limit custom ranges to 90 days, matching the Topics header.
+  All steps start expanded; model details and reuse settings live in review.
+  Preview trace clicks open a new tab, preserving the run dialog and selection.
   Without a compatible map, summaries wait for an explicit Update topics run.
-  Update topics reads compatible stored summaries directly; each selected facet
+  Generate topics defaults to compatible summaries from the past seven days,
+  with its picker limited to a maximum thirty-day range. Its own time-range
+  picker uses the same frozen range for counts and submission, independently of
+  the page and raw trace filters. Generate topics reads compatible stored summaries directly; each selected facet
   shows its available summary count. It has clustering settings but no trace
   picker, source-execution selector, or target-map selector. Embedding dimensions
   are configured per execution; updates select matching stored embeddings and
@@ -44,24 +89,22 @@ project permissions. Processing additionally requires the project allowlist.
   IDs, and per-trace errors, using aggregate counts for progress.
   Expanding Trace errors loads failed trace IDs and reasons on demand from
   retained queue state. When it expires, the UI says so; permanent counts remain.
-  Saved topic rules hold reusable filters and stable facet IDs. Selecting a rule
-  loads its filters and each facet's latest prompt version; editing filters or
-  facets becomes an ad hoc run until explicitly saved. Sampling and its limit stay
-  specific to each execution and are retained when switching saved rules. Rules
-  do not create separate maps or invalidate summaries and embeddings.
-  These local PoC operations and rule saving add no product analytics event.
+  The run dialog chooses facets and traces for one run. It does not save that
+  choice. Sampling and its limit stay specific to each execution.
+  These local PoC operations add no product analytics event.
 - `useTopicTraceSelector` reuses the eval filter builder and query editor, with
-  a time range, all matching traces selected by default, and optional random/latest
-  sampling with a user-chosen size. Selecting a rule or changing the operation
-  resets the trace-selection draft while retaining sampling settings; dates stay
-  specific to each execution.
+  a time range and random/latest sampling with a user-chosen size. Manual runs
+  default to at most 1,000 traces, enforced at the web API boundary for filters
+  and pasted IDs. `backfill-limit.ts` owns this fixed PoC limit. Changing the operation resets the
+  trace-selection draft while retaining sampling settings; dates stay specific
+  to each execution.
   The hook supplies selection, criteria and controls so the dialog can unmount
   without losing the reviewed cohort. Explicit preview counts the cohort;
   changing criteria invalidates it. Rows can be excluded across preview pages.
   The form submits reviewed criteria and exclusions. Paste IDs remains available.
   `server/traceSelection.ts` applies canonical observation filters within a
   maximum 93-day window, then deduplicates traces before counting and optional
-  sampling. There is no total trace cap. Preview rows and current results render
+  sampling. Manual processing is capped at 1,000 traces per run. Preview rows and current results render
   in pages of 20; selected IDs are frozen by the server at submission. All predicates match
   the same observation; the worker reads the
   whole containing trace, including observations outside the selection window.
@@ -69,12 +112,8 @@ project permissions. Processing additionally requires the project allowlist.
   Matching counts can change between preview and submission, and source trace
   content can change before the worker loads it. Preview responses are not a
   historical trace snapshot.
-- `SummaryInspector.tsx` displays the current transcript for a saved summary.
-  The current-results table owns its dialog and fetches only when inspection is
-  open. It uses the same deterministic transcript loader as the worker, does
-  not run inference, and explains when the source is unavailable or may differ
-  from the original input. Transcript content is marked `ph-no-capture`.
-- `TopicEmbeddingMap.tsx` loads the published map and supplies trace navigation.
+- `TopicEmbeddingMap.tsx` renders the published map's loading, error and ready states
+  from supplied query data and trace-navigation callbacks.
   `EmbeddingMapView.tsx` preserves the controlled selection contract as a drop-in
   adapter to `map/TopicMapExplorer.tsx`. The renderer owns no queries or clustering.
   `map/prepare-topic-map.ts` prepares topic zones, colors, mapped-cohort counts,
@@ -134,12 +173,11 @@ project permissions. Processing additionally requires the project allowlist.
   in the persisted discovery cohort’s order. It returns only map points and counts for
   missing or unpositioned summaries, never embedding vectors.
   History and detail reads reconcile interrupted/queued retries with the queue.
-  Current results return summaries and their applicable assignments; inspection
-  accepts a saved summary identity scoped to the project. Maps read their original
-  discovery cohort and coordinates while summary text reflects the latest stored
-  result. These reads survive transient job state expiry.
+  Current results return summaries and their applicable assignments. Maps read
+  their original discovery cohort and coordinates while summary text reflects the
+  latest stored result. These reads survive transient job state expiry.
   Resume requeues retained job inputs; if they have expired, start a new run.
-  Facet prompt edits create versions independently of saved selection rules.
+  Facet prompt edits are a separate page from this setup.
 - `parse-trace-input.ts` validates pasted trace IDs and links without fetching.
   Trace IDs are opaque data; URL path segments are decoded once, while internal
   execution identifiers retain the restricted ID format.

@@ -11,9 +11,16 @@ import {
   withMiddlewares,
 } from "@/src/features/public-api/server";
 import { SkillService } from "@/src/features/skills/server";
+import { GetSkillResponseSchema } from "@/src/features/public-api/types/unstable-skills";
 
 const querySchema = SkillSelectorSchema.and(
-  z.object({ skillName: SkillNameSchema }),
+  z.object({
+    skillName: SkillNameSchema,
+    includeContent: z
+      .enum(["true", "false"])
+      .optional()
+      .transform((value) => value === "true"),
+  }),
 );
 
 export default withMiddlewares({
@@ -42,13 +49,16 @@ export default withMiddlewares({
     name: "Get Skill",
     action: "skills:read",
     querySchema,
-    responseSchema: SkillVersionSchema,
+    responseSchema: GetSkillResponseSchema,
     rateLimitResource: "public-api",
-    fn: async ({ query, auth }) =>
-      new SkillService(prisma).get({
+    fn: async ({ query, auth, res }) => {
+      if (query.includeContent) res.setHeader("Cache-Control", "no-store");
+      return new SkillService(prisma).get({
         projectId: auth.scope.projectId,
         name: query.skillName,
         selector: query,
-      }),
+        includeContent: query.includeContent,
+      });
+    },
   }),
 });

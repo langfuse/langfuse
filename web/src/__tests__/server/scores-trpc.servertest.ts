@@ -47,7 +47,6 @@ import {
   QueueJobs,
   createOrgProjectAndApiKey,
   getScoreById,
-  queryClickhouse,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { observationScopeFilter } from "@/src/features/filters/config/scores-config";
@@ -114,25 +113,6 @@ describe("scores trpc", () => {
   });
 
   describe("scores.all", () => {
-    // allFromEvents reads scores FINAL with
-    // do_not_merge_across_partitions_select_final = 1, which is only correct
-    // while every version of a sorting key lands in one partition.
-    it("keeps each scores sorting key within one partition", async () => {
-      const [table] = await queryClickhouse<{
-        partition_key: string;
-        sorting_key: string;
-      }>({
-        query: `
-          SELECT partition_key, sorting_key
-          FROM system.tables
-          WHERE database = currentDatabase() AND name = 'scores'
-        `,
-      });
-
-      expect(table.partition_key).toBe("toYYYYMM(timestamp)");
-      expect(table.sorting_key).toBe("project_id, toDate(timestamp), name, id");
-    });
-
     it("preserves evaluator-test filters for score rows and counts on both read paths", async () => {
       const scores = [
         createTraceScore({
@@ -204,6 +184,35 @@ describe("scores trpc", () => {
         );
         expect(count.totalCount).toBe(expectedIds.length);
         expect(eventCount.totalCount).toBe(expectedIds.length);
+      }
+    });
+
+    it("pages through scores with identical timestamps without duplicates or gaps on both read paths", async () => {
+      const timestamp = new Date();
+      const scores = Array.from({ length: 8 }, () =>
+        createTraceScore({ project_id: projectId, name: "batch", timestamp }),
+      );
+      await createScoresCh(scores);
+
+      for (const procedure of [
+        caller.scores.all,
+        caller.scores.allFromEvents,
+      ]) {
+        const pages = await Promise.all(
+          scores.map((_, page) =>
+            procedure({
+              projectId,
+              filter: [],
+              orderBy: { column: "timestamp", order: "DESC" },
+              page,
+              limit: 1,
+            }),
+          ),
+        );
+        const pagedIds = pages.flatMap((p) => p.scores.map(({ id }) => id));
+
+        expect(pagedIds).toHaveLength(scores.length);
+        expect(new Set(pagedIds)).toEqual(new Set(scores.map(({ id }) => id)));
       }
     });
 

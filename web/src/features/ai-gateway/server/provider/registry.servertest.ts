@@ -38,7 +38,10 @@ describe("AI gateway provider registry", () => {
     const validator = vi
       .fn()
       .mockRejectedValue(new Error("invalid provider credential"));
-    const service = new GatewayProviderService({} as PrismaClient, validator);
+    const prisma = {
+      gatewayAiConnection: { findMany: vi.fn().mockResolvedValue([]) },
+    } as unknown as PrismaClient;
+    const service = new GatewayProviderService(prisma, validator);
 
     await expect(
       service.create({
@@ -78,6 +81,7 @@ describe("AI gateway provider registry", () => {
           organizationId: "org-1",
           provider: "OPENAI",
           encryptedCredential: "unused",
+          allowedModels: null,
         }),
       },
     } as unknown as PrismaClient;
@@ -135,6 +139,7 @@ describe("AI gateway provider registry", () => {
           provider: "ANTHROPIC",
           encryptedCredential: encrypt("sk-test"),
           status: "ENABLED",
+          allowedModels: null,
         }),
       },
     } as unknown as PrismaClient;
@@ -183,6 +188,7 @@ describe("AI gateway provider registry", () => {
           provider: "OPENAI",
           encryptedCredential: encrypt("sk-test"),
           status: "ENABLED",
+          allowedModels: null,
         }),
       },
     } as unknown as PrismaClient;
@@ -224,6 +230,7 @@ describe("AI gateway provider registry", () => {
           provider: "OPENAI",
           encryptedCredential: encrypt("sk-test"),
           status: "ENABLED",
+          allowedModels: null,
         }),
       },
     } as unknown as PrismaClient;

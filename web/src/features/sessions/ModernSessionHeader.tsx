@@ -1,3 +1,4 @@
+import { cn } from "@/src/utils/tailwind";
 import { OverflowCountBadge } from "@/src/components/OverflowCountBadge";
 import { groupScoresByName } from "@/src/components/grouped-score-badge";
 import { ScoreBadge } from "@/src/components/ScoreBadge/ScoreBadge";
@@ -26,6 +27,7 @@ import {
 } from "@/src/features/sessions/sessionUsers";
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { Label } from "@/src/components/ui/label";
 import {
   Popover,
@@ -38,6 +40,7 @@ import { numberFormatter } from "@/src/utils/numbers";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 type ModernSessionHeaderProps = {
+  dividerTone: "default" | "orange";
   projectId: string;
   countTraces: number;
   minTimestamp: Date;
@@ -268,6 +271,7 @@ const MetadataJsonPathEditorContent = ({
 };
 
 export function ModernSessionHeader({
+  dividerTone,
   projectId,
   countTraces,
   minTimestamp,
@@ -433,7 +437,13 @@ export function ModernSessionHeader({
     });
   });
   return (
-    <div className="border-b px-4 pt-1 pb-1.5 font-mono">
+    <div
+      className={cn(
+        "border-b px-4 pt-1 pb-1.5 font-mono",
+        dividerTone === "orange" &&
+          "border-orange-200/50 dark:border-orange-900/50",
+      )}
+    >
       <SingleLineOverflowList
         spacing="comfortable"
         items={pills}
@@ -446,17 +456,22 @@ export function ModernSessionHeader({
             open={isMetadataEditorOpen}
             onOpenChange={handleMetadataEditorOpenChange}
           >
-            <PopoverTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                aria-label="Add metadata JSONPath"
-                data-session-header-pill="true"
-              >
-                <Plus className="icon-base" />
-              </Button>
-            </PopoverTrigger>
+            <Tooltip label="Edit Metadata" placement="bottom">
+              {({ getTriggerProps }) => (
+                <PopoverTrigger asChild>
+                  <Button
+                    {...getTriggerProps()}
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label="Edit Metadata"
+                    data-session-header-pill="true"
+                  >
+                    <Plus className="icon-base" />
+                  </Button>
+                </PopoverTrigger>
+              )}
+            </Tooltip>
             {isMetadataEditorOpen ? (
               <MetadataJsonPathEditorContent
                 metadataJsonPaths={metadataJsonPaths}

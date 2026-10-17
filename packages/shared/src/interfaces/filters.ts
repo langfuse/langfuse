@@ -168,20 +168,27 @@ export const categoryOptionsFilter = z.object({
   operator: z.enum(filterOperators.categoryOptions),
   value: z.array(z.string()),
 });
-export const singleFilter = z.discriminatedUnion("type", [
-  timeFilter,
-  stringFilter,
-  numberFilter,
-  stringOptionsFilter,
-  categoryOptionsFilter,
-  arrayOptionsFilter,
-  stringObjectFilter,
-  numberObjectFilter,
-  booleanObjectFilter,
-  booleanFilter,
-  nullFilter,
-  positionInTraceFilter,
-]);
+export const singleFilter = z
+  .discriminatedUnion("type", [
+    timeFilter,
+    stringFilter,
+    numberFilter,
+    stringOptionsFilter,
+    categoryOptionsFilter,
+    arrayOptionsFilter,
+    stringObjectFilter,
+    numberObjectFilter,
+    booleanObjectFilter,
+    booleanFilter,
+    nullFilter,
+    positionInTraceFilter,
+  ])
+  .and(
+    z.object({
+      /** Optional host-owned target reference, persisted with the condition. */
+      target: z.string().min(1).max(512).optional(),
+    }),
+  );
 
 // Single choke point for parsing arrays of filters. `z.preprocess` runs the
 // legacy-empty-substring coercion before validation, so both fresh API/tRPC

@@ -7,9 +7,22 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
+  CommandShortcut,
 } from "@/src/components/ui/command";
 import { useRouter } from "next/router";
-import { useEffect, memo, useState } from "react";
+import {
+  BotMessageSquare,
+  Grid2X2,
+  LayoutDashboard,
+  ListTree,
+  Moon,
+  Plus,
+  Settings,
+  Sun,
+  type LucideIcon,
+} from "lucide-react";
+import { useTheme } from "next-themes";
+import { Fragment, useEffect, memo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { env } from "@/src/env.mjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
@@ -21,7 +34,14 @@ import { useQueryProjectOrOrganization } from "@/src/features/projects";
 import { useProjectSettingsPages } from "@/src/features/projects/ProjectSettingsPage";
 import { api } from "@/src/utils/api";
 import { type NavigationItem } from "@/src/components/layouts/utilities/routes";
+import useLocalStorage from "@/src/components/useLocalStorage";
+import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { type ProjectScope } from "@langfuse/shared";
 import { useReadPath } from "@/src/features/events";
+import {
+  useInAppAiAgent,
+  useIsInAppAgentLauncherVisible,
+} from "@/src/features/in-app-agent";
 
 type IdNavigationItem = {
   type: "trace_id" | "observation_id";
@@ -75,41 +95,279 @@ export const getSearchAnalytics = (search: string) => ({
   queryType: getIdType(search) ?? "other",
 });
 
-function MainNavigationGroup({
-  navItems,
+const RECENTS_LIMIT = 4;
+
+const RECENT_ICON_BY_TYPE: Record<string, LucideIcon> = {
+  create_action: Plus,
+  dashboard: LayoutDashboard,
+  project: Grid2X2,
+  project_settings: Settings,
+  organization_settings: Settings,
+  account_settings: Settings,
+};
+
+// Each action is offered only while its page is in the sidebar, so it
+// inherits the sidebar's feature, plan and v4 gating.
+const NAV_CREATE_ACTIONS: Array<{
+  navHref: string;
+  title: string;
+  scope: ProjectScope;
+  keywords: string[];
+}> = [
+  {
+    navHref: "/project/[projectId]/dashboards",
+    title: "New dashboard",
+    scope: "dashboards:CUD",
+    keywords: ["create", "add", "dashboard"],
+  },
+  {
+    navHref: "/project/[projectId]/prompts",
+    title: "New prompt",
+    scope: "prompts:CUD",
+    keywords: ["create", "add", "prompt"],
+  },
+  {
+    navHref: "/project/[projectId]/evals",
+    title: "New evaluator",
+    scope: "evaluator:CUD",
+    keywords: ["create", "add", "evaluator", "eval", "llm as a judge"],
+  },
+  {
+    navHref: "/project/[projectId]/alerts",
+    title: "New alert",
+    scope: "alerts:CUD",
+    keywords: ["create", "add", "alert", "monitor"],
+  },
+];
+
+function RecentGroup({
+  recents,
+  iconByUrl,
   onNavigate,
 }: {
-  navItems: Array<{ title: string; url: string }>;
-  onNavigate: (item: { title: string; url: string }) => void;
+  recents: RecentEntry[];
+  iconByUrl: Map<string, LucideIcon | undefined>;
+  onNavigate: (entry: RecentEntry) => void;
 }) {
-  const router = useRouter();
-  const capture = usePostHogClientCapture();
+  if (recents.length === 0) return null;
 
   return (
-    <CommandGroup heading="Main Navigation">
-      {navItems.map((item) => (
-        <CommandItem
-          key={item.url}
-          value={item.url}
-          keywords={[item.title]}
-          onSelect={() => {
-            router.push(item.url);
-            capture("cmd_k_menu:navigated", {
-              type: "main_navigation",
-              title: item.title,
-              url: item.url,
-            });
-            onNavigate(item);
-          }}
-        >
-          {item.title}
-        </CommandItem>
+    <CommandGroup heading="Recent">
+      {recents.map((entry) => (
+        <RecentItem
+          key={entry.url}
+          entry={entry}
+          icon={
+            entry.type === "main_navigation"
+              ? iconByUrl.get(entry.url)
+              : RECENT_ICON_BY_TYPE[entry.type]
+          }
+          onNavigate={onNavigate}
+        />
       ))}
     </CommandGroup>
   );
 }
 
-function ProjectsGroup({ onNavigate }: { onNavigate: () => void }) {
+function RecentItem({
+  entry,
+  icon: Icon,
+  onNavigate,
+}: {
+  entry: RecentEntry;
+  icon: LucideIcon | undefined;
+  onNavigate: (entry: RecentEntry) => void;
+}) {
+  const router = useRouter();
+  const capture = usePostHogClientCapture();
+
+  const handleSelect = () => {
+    router.push(entry.url);
+    capture("cmd_k_menu:navigated", {
+      type: "recent",
+      title: entry.title,
+      url: entry.url,
+    });
+    onNavigate(entry);
+  };
+
+  return (
+    <CommandItem value={`recent:${entry.url}`} onSelect={handleSelect}>
+      {Icon && <Icon className="icon-base" />}
+      {entry.title}
+    </CommandItem>
+  );
+}
+
+function CreateActionItem({
+  action,
+  onNavigate,
+}: {
+  action: CreateAction;
+  onNavigate: (entry: RecentEntry) => void;
+}) {
+  const router = useRouter();
+  const capture = usePostHogClientCapture();
+
+  const handleSelect = () => {
+    router.push(action.url);
+    capture("cmd_k_menu:navigated", {
+      type: "create_action",
+      title: action.title,
+      url: action.url,
+    });
+    onNavigate({
+      title: action.title,
+      url: action.url,
+      type: "create_action",
+    });
+  };
+
+  return (
+    <CommandItem
+      value={action.title}
+      keywords={action.keywords}
+      onSelect={handleSelect}
+    >
+      <Plus className="icon-base" />
+      {action.title}
+    </CommandItem>
+  );
+}
+
+function AssistantItem({ onDone }: { onDone: () => void }) {
+  const { openAssistant, selectConversation } = useInAppAiAgent();
+  const isLauncherVisible = useIsInAppAgentLauncherVisible();
+
+  if (!isLauncherVisible) return null;
+
+  const handleSelect = () => {
+    onDone();
+    selectConversation(null);
+    openAssistant("command_menu");
+  };
+
+  return (
+    <CommandItem
+      value="Ask Assistant"
+      keywords={["assistant", "ai", "agent", "chat", "new chat", "ask"]}
+      onSelect={handleSelect}
+    >
+      <BotMessageSquare className="icon-base" />
+      Ask Assistant
+      <CommandShortcut keys={["Mod", "I"]} variant="subtle" />
+    </CommandItem>
+  );
+}
+
+function ThemeItem({ onDone }: { onDone: () => void }) {
+  const { resolvedTheme, setTheme } = useTheme();
+  const capture = usePostHogClientCapture();
+  const nextTheme = resolvedTheme === "dark" ? "light" : "dark";
+  const Icon = nextTheme === "dark" ? Moon : Sun;
+
+  const handleSelect = () => {
+    onDone();
+    setTheme(nextTheme);
+    capture("user_settings:theme_changed", {
+      theme: nextTheme,
+      source: "command_menu",
+    });
+  };
+
+  return (
+    <CommandItem
+      value={`Switch to ${nextTheme} theme`}
+      keywords={["theme", "dark", "light", "mode", "appearance"]}
+      onSelect={handleSelect}
+    >
+      <Icon className="icon-base" />
+      Switch to {nextTheme} theme
+    </CommandItem>
+  );
+}
+
+function MainNavigationGroup({
+  navItems,
+  createActions,
+  showCreateActions,
+  onNavigate,
+  onDone,
+}: {
+  navItems: Array<{ title: string; url: string; icon?: LucideIcon }>;
+  createActions: CreateActions;
+  showCreateActions: boolean;
+  onNavigate: (entry: RecentEntry) => void;
+  onDone: () => void;
+}) {
+  return (
+    <CommandGroup heading="Go to">
+      <AssistantItem onDone={onDone} />
+      {navItems.map((item) => (
+        <Fragment key={item.url}>
+          <MainNavigationItem item={item} onNavigate={onNavigate} />
+          {showCreateActions &&
+            createActions.byNavUrl
+              .get(item.url)
+              ?.map((action) => (
+                <CreateActionItem
+                  key={action.url}
+                  action={action}
+                  onNavigate={onNavigate}
+                />
+              ))}
+        </Fragment>
+      ))}
+      {showCreateActions &&
+        createActions.standalone.map((action) => (
+          <CreateActionItem
+            key={action.url}
+            action={action}
+            onNavigate={onNavigate}
+          />
+        ))}
+      {showCreateActions && <ThemeItem onDone={onDone} />}
+    </CommandGroup>
+  );
+}
+
+function MainNavigationItem({
+  item,
+  onNavigate,
+}: {
+  item: { title: string; url: string; icon?: LucideIcon };
+  onNavigate: (entry: RecentEntry) => void;
+}) {
+  const router = useRouter();
+  const capture = usePostHogClientCapture();
+
+  const handleSelect = () => {
+    router.push(item.url);
+    capture("cmd_k_menu:navigated", {
+      type: "main_navigation",
+      title: item.title,
+      url: item.url,
+    });
+    onNavigate({ title: item.title, url: item.url, type: "main_navigation" });
+  };
+
+  return (
+    <CommandItem
+      value={item.url}
+      keywords={[item.title]}
+      onSelect={handleSelect}
+    >
+      {item.icon && <item.icon className="icon-base" />}
+      {item.title}
+    </CommandItem>
+  );
+}
+
+function ProjectsGroup({
+  onNavigate,
+}: {
+  onNavigate: (entry: RecentEntry) => void;
+}) {
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const { allProjectItems } = useNavigationItems();
@@ -133,9 +391,14 @@ function ProjectsGroup({ onNavigate }: { onNavigate: () => void }) {
                 title: item.title,
                 url: item.url,
               });
-              onNavigate();
+              onNavigate({
+                title: item.title,
+                url: `/project/${item.projectId}`,
+                type: "project",
+              });
             }}
           >
+            <Grid2X2 className="icon-base" />
             {item.title}
           </CommandItem>
         ))}
@@ -144,7 +407,11 @@ function ProjectsGroup({ onNavigate }: { onNavigate: () => void }) {
   );
 }
 
-function DashboardsGroup({ onNavigate }: { onNavigate: () => void }) {
+function DashboardsGroup({
+  onNavigate,
+}: {
+  onNavigate: (entry: RecentEntry) => void;
+}) {
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const { project } = useQueryProjectOrOrganization();
@@ -191,9 +458,10 @@ function DashboardsGroup({ onNavigate }: { onNavigate: () => void }) {
                 title: `Dashboard > ${dashboard.name}`,
                 url: url,
               });
-              onNavigate();
+              onNavigate({ title: dashboard.name, url, type: "dashboard" });
             }}
           >
+            <LayoutDashboard className="icon-base" />
             {dashboard.name}
           </CommandItem>
         ))}
@@ -202,7 +470,11 @@ function DashboardsGroup({ onNavigate }: { onNavigate: () => void }) {
   );
 }
 
-function ProjectSettingsGroup({ onNavigate }: { onNavigate: () => void }) {
+function ProjectSettingsGroup({
+  onNavigate,
+}: {
+  onNavigate: (entry: RecentEntry) => void;
+}) {
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const settingsPages = useProjectSettingsPages();
@@ -221,7 +493,7 @@ function ProjectSettingsGroup({ onNavigate }: { onNavigate: () => void }) {
   return (
     <>
       <CommandSeparator />
-      <CommandGroup heading="Project Settings">
+      <CommandGroup heading="Project settings">
         {projectSettingsItems.map((item) => (
           <CommandItem
             key={item.url}
@@ -234,9 +506,14 @@ function ProjectSettingsGroup({ onNavigate }: { onNavigate: () => void }) {
                 title: item.title,
                 url: item.url,
               });
-              onNavigate();
+              onNavigate({
+                title: item.title,
+                url: item.url,
+                type: "project_settings",
+              });
             }}
           >
+            <Settings className="icon-base" />
             {item.title}
           </CommandItem>
         ))}
@@ -245,7 +522,11 @@ function ProjectSettingsGroup({ onNavigate }: { onNavigate: () => void }) {
   );
 }
 
-function OrganizationSettingsGroup({ onNavigate }: { onNavigate: () => void }) {
+function OrganizationSettingsGroup({
+  onNavigate,
+}: {
+  onNavigate: (entry: RecentEntry) => void;
+}) {
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const orgSettingsPages = useOrganizationSettingsPages();
@@ -264,7 +545,7 @@ function OrganizationSettingsGroup({ onNavigate }: { onNavigate: () => void }) {
   return (
     <>
       <CommandSeparator />
-      <CommandGroup heading="Organization Settings">
+      <CommandGroup heading="Organization settings">
         {orgSettingsItems.map((item) => (
           <CommandItem
             key={item.url}
@@ -277,9 +558,14 @@ function OrganizationSettingsGroup({ onNavigate }: { onNavigate: () => void }) {
                 title: item.title,
                 url: item.url,
               });
-              onNavigate();
+              onNavigate({
+                title: item.title,
+                url: item.url,
+                type: "organization_settings",
+              });
             }}
           >
+            <Settings className="icon-base" />
             {item.title}
           </CommandItem>
         ))}
@@ -288,7 +574,11 @@ function OrganizationSettingsGroup({ onNavigate }: { onNavigate: () => void }) {
   );
 }
 
-function AccountSettingsGroup({ onNavigate }: { onNavigate: () => void }) {
+function AccountSettingsGroup({
+  onNavigate,
+}: {
+  onNavigate: (entry: RecentEntry) => void;
+}) {
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const accountSettingsPages = useAccountSettingsPages();
@@ -306,7 +596,7 @@ function AccountSettingsGroup({ onNavigate }: { onNavigate: () => void }) {
   return (
     <>
       <CommandSeparator />
-      <CommandGroup heading="Account Settings">
+      <CommandGroup heading="Account settings">
         {accountSettingsItems.map((item) => (
           <CommandItem
             key={item.url}
@@ -319,9 +609,14 @@ function AccountSettingsGroup({ onNavigate }: { onNavigate: () => void }) {
                 title: item.title,
                 url: item.url,
               });
-              onNavigate();
+              onNavigate({
+                title: item.title,
+                url: item.url,
+                type: "account_settings",
+              });
             }}
           >
+            <Settings className="icon-base" />
             {item.title}
           </CommandItem>
         ))}
@@ -341,6 +636,8 @@ function CommandMenuComponent({
   const { project } = useQueryProjectOrOrganization();
   const { isV4 } = useReadPath();
   const [search, setSearch] = useState("");
+  const { recents, addRecent } = useCommandMenuRecents(project?.id);
+  const createActions = useCreateActions(mainNavigation);
   const idNavigationItem = getIdNavigationItem(search, project?.id, isV4);
 
   const debouncedSearchChange = useDebounce(
@@ -358,12 +655,14 @@ function CommandMenuComponent({
         return item.items.map((child) => ({
           title: `${item.title} > ${child.title}`,
           url: child.url,
+          icon: item.icon,
         }));
       }
       return [
         {
           title: item.title,
           url: item.url,
+          icon: item.icon,
         },
       ];
     })
@@ -388,7 +687,22 @@ function CommandMenuComponent({
     return () => document.removeEventListener("keydown", down);
   }, [capture, setOpen, open]);
 
-  const handleNavigate = () => {
+  const flatNavigation = flattenNavigation(mainNavigation);
+  const iconByUrl = new Map(
+    flatNavigation.map((item) => [item.url, item.icon]),
+  );
+  const visibleRecents = getVisibleRecents(recents, {
+    navUrls: new Set(flatNavigation.map((item) => item.url)),
+    createUrls: new Set(
+      [
+        ...[...createActions.byNavUrl.values()].flat(),
+        ...createActions.standalone,
+      ].map((action) => action.url),
+    ),
+  });
+
+  const handleNavigate = (entry?: RecentEntry) => {
+    if (entry) addRecent(entry);
     setSearch("");
     setOpen(false);
   };
@@ -411,8 +725,8 @@ function CommandMenuComponent({
       }}
     >
       <CommandInput
-        placeholder="Type a command or search..."
-        className="border-none focus:border-none focus:ring-0 focus:ring-transparent focus:outline-hidden"
+        placeholder="Search pages, projects, dashboards…"
+        className="border-none text-lg focus:border-none focus:ring-0 focus:ring-transparent focus:outline-hidden"
         value={search}
         onValueChange={(value) => {
           setSearch(value);
@@ -433,11 +747,25 @@ function CommandMenuComponent({
                 handleNavigate();
               }}
             >
+              <ListTree className="icon-base" />
               {idNavigationItem.title}
             </CommandItem>
           </CommandGroup>
         ) : null}
-        <MainNavigationGroup navItems={navItems} onNavigate={handleNavigate} />
+        {search === "" && (
+          <RecentGroup
+            recents={visibleRecents}
+            iconByUrl={iconByUrl}
+            onNavigate={handleNavigate}
+          />
+        )}
+        <MainNavigationGroup
+          navItems={navItems}
+          createActions={createActions}
+          showCreateActions={search !== ""}
+          onNavigate={handleNavigate}
+          onDone={() => handleNavigate()}
+        />
         <ProjectsGroup onNavigate={handleNavigate} />
         <DashboardsGroup onNavigate={handleNavigate} />
         <ProjectSettingsGroup onNavigate={handleNavigate} />
@@ -531,6 +859,7 @@ export const useNavigationItems = () => {
           org.projects.map((proj) => ({
             title: `${org.name} > ${proj.name}`,
             url: getProjectPath(proj.id),
+            projectId: proj.id,
             active: router.query.projectId === proj.id,
             keywords: [
               "project",
@@ -545,4 +874,111 @@ export const useNavigationItems = () => {
     allProjectItems,
     isLoading: !organizations,
   };
+};
+
+function useCommandMenuRecents(projectId: string | undefined) {
+  const [recentsByProject, setRecentsByProject] = useLocalStorage<
+    Record<string, RecentEntry[]>
+  >("cmdk-recents", {});
+
+  const recents = projectId ? (recentsByProject[projectId] ?? []) : [];
+
+  const addRecent = (entry: RecentEntry) => {
+    if (!projectId) return;
+    setRecentsByProject((prev) => ({
+      ...prev,
+      [projectId]: addRecentEntry(prev[projectId] ?? [], entry),
+    }));
+  };
+
+  return { recents, addRecent };
+}
+
+function useCreateActions(mainNavigation: NavigationItem[]): CreateActions {
+  const session = useSession();
+  const { project } = useQueryProjectOrOrganization();
+
+  if (!project) return { byNavUrl: new Map(), standalone: [] };
+
+  return buildCreateActions({
+    navItems: flattenNavigation(mainNavigation),
+    projectId: project.id,
+    canCreate: (scope) =>
+      hasProjectAccess({ session: session.data, scope, projectId: project.id }),
+  });
+}
+
+/** Most recent first, one entry per URL, capped at RECENTS_LIMIT. */
+export function addRecentEntry(
+  recents: RecentEntry[],
+  entry: RecentEntry,
+): RecentEntry[] {
+  return [entry, ...recents.filter((e) => e.url !== entry.url)].slice(
+    0,
+    RECENTS_LIMIT,
+  );
+}
+
+/** Drops saved pages and create actions the live menu no longer offers. */
+export function getVisibleRecents(
+  recents: RecentEntry[],
+  offered: { navUrls: Set<string>; createUrls: Set<string> },
+): RecentEntry[] {
+  return recents.filter((entry) => {
+    if (entry.type === "main_navigation") return offered.navUrls.has(entry.url);
+    if (entry.type === "create_action")
+      return offered.createUrls.has(entry.url);
+    return true;
+  });
+}
+
+export function buildCreateActions({
+  navItems,
+  projectId,
+  canCreate,
+}: {
+  navItems: Pick<NavigationItem, "href" | "url">[];
+  projectId: string;
+  canCreate: (scope: ProjectScope) => boolean;
+}): CreateActions {
+  const byNavUrl = new Map<string, CreateAction[]>();
+  for (const navItem of navItems) {
+    const action = NAV_CREATE_ACTIONS.find((a) => a.navHref === navItem.href);
+    if (!action || !navItem.url || !canCreate(action.scope)) continue;
+    byNavUrl.set(navItem.url, [
+      {
+        title: action.title,
+        url: `${navItem.url}/new`,
+        keywords: action.keywords,
+      },
+    ]);
+  }
+
+  const standalone: CreateAction[] = canCreate("automations:CUD")
+    ? [
+        {
+          title: "New automation",
+          url: `/project/${projectId}/automations?view=create`,
+          keywords: ["create", "add", "automation", "webhook", "slack"],
+        },
+      ]
+    : [];
+
+  return { byNavUrl, standalone };
+}
+
+function flattenNavigation(items: NavigationItem[]): NavigationItem[] {
+  return items.flatMap((item) => [
+    item,
+    ...flattenNavigation(item.items ?? []),
+  ]);
+}
+
+type RecentEntry = { title: string; url: string; type: string };
+
+type CreateAction = { title: string; url: string; keywords: string[] };
+
+type CreateActions = {
+  byNavUrl: Map<string, CreateAction[]>;
+  standalone: CreateAction[];
 };

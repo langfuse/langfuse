@@ -34,7 +34,7 @@ import { EvaluatorBulkDeleteDialog } from "../components/Evaluators/EvaluatorBul
 import { EvaluatorGalleryDialog } from "../components/EvaluatorGalleryDialog/EvaluatorGalleryDialog";
 import { EvaluatorStatusBadge } from "../components/Evaluators/EvaluatorStatusBadge/EvaluatorStatusBadge";
 import { EvaluatorTypeBadge } from "../components/Evaluators/EvaluatorTypeBadge/EvaluatorTypeBadge";
-import { OverviewSelectionBar } from "../components/OverviewSelectionBar/OverviewSelectionBar";
+import { OverviewSelectionBar } from "@/src/components/table/OverviewSelectionBar/OverviewSelectionBar";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   useColumnOrder,
@@ -333,7 +333,7 @@ export default function EvaluatorsPage() {
   );
   const utils = api.useUtils();
   const deleteMany = api.evalsV2.deleteMany.useMutation({
-    onError: trpcErrorToast,
+    onError: (error) => trpcErrorToast(error, "evaluator.delete"),
     onSuccess: async () => {
       selectionStore.getState().actions.clearSelection();
       setDeleteIds([]);

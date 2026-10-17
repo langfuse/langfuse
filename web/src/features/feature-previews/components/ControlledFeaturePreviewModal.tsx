@@ -5,6 +5,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useReadPath, V4_PREVIEW_LABEL } from "@/src/features/events";
 import { featurePreviewLabels } from "@/src/features/feature-flags";
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 import {
   FeaturePreviewModal,
@@ -39,7 +40,11 @@ export function ControlledFeaturePreviewModal({
         });
       },
       onError: (error) => {
-        showErrorToast("Failed to update feature preview", error.message);
+        showErrorToast(
+          "Failed to update feature preview",
+          error.message,
+          classifyTrpcToastError(error, "user_feature_preview.update"),
+        );
       },
     });
 
@@ -47,10 +52,26 @@ export function ControlledFeaturePreviewModal({
     setFeaturePreviewEnabled.mutate({ flag, enabled });
 
   const isModernSessionEnabled =
-    authSession.data?.user?.featureFlags.modernSession === true ||
+    authSession.data?.user?.featureFlags.sessionViewV2 === true ||
     authSession.data?.environment.enableExperimentalFeatures === true;
 
   const state: Partial<Record<PreviewFlag, PreviewState>> = {
+    skillManagement: {
+      enabled:
+        isV4 &&
+        (authSession.data?.user?.featureFlags.skillManagement === true ||
+          authSession.data?.environment.enableExperimentalFeatures === true),
+      disabled:
+        !isV4 ||
+        authSession.data?.environment.enableExperimentalFeatures === true,
+      warningReason: !isV4
+        ? `Skill Management requires ${V4_PREVIEW_LABEL}. Turn it on to enable this preview.`
+        : authSession.data?.environment.enableExperimentalFeatures === true
+          ? "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."
+          : undefined,
+      onToggle: onToggle("skillManagement"),
+      isToggling: setFeaturePreviewEnabled.isPending,
+    },
     ...(authSession.data?.user?.admin === true
       ? {
           langfuseTopics: {
@@ -60,35 +81,35 @@ export function ControlledFeaturePreviewModal({
           },
         }
       : {}),
-    modernSession: {
+    sessionViewV2: {
       enabled: isModernSessionEnabled,
       disabled:
         !isV4 ||
         authSession.data?.environment.enableExperimentalFeatures === true,
       warningReason: !isV4
-        ? `Compact Session View is only available on the events-backed session view. Turn on ${V4_PREVIEW_LABEL} to enable it.`
+        ? `Redesigned Session View is only available on the events-backed session view. Turn on ${V4_PREVIEW_LABEL} to enable it.`
         : authSession.data?.environment.enableExperimentalFeatures === true
           ? "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."
           : undefined,
-      onToggle: onToggle("modernSession"),
+      onToggle: onToggle("sessionViewV2"),
       isToggling: setFeaturePreviewEnabled.isPending,
     },
-    sessionTimeline: {
+    sessionViewV2Timeline: {
       enabled:
-        authSession.data?.user?.featureFlags.sessionTimeline === true ||
+        authSession.data?.user?.featureFlags.sessionViewV2Timeline === true ||
         authSession.data?.environment.enableExperimentalFeatures === true,
       disabled:
         !isV4 ||
         !isModernSessionEnabled ||
         authSession.data?.environment.enableExperimentalFeatures === true,
       warningReason: !isV4
-        ? `Compact Session View is only available on the events-backed session view. Turn on ${V4_PREVIEW_LABEL} to enable it.`
+        ? `Redesigned Session View is only available on the events-backed session view. Turn on ${V4_PREVIEW_LABEL} to enable it.`
         : !isModernSessionEnabled
-          ? "Enable Compact Session View before enabling the Session Timeline."
+          ? "Enable Redesigned Session View before enabling the Session Timeline."
           : authSession.data?.environment.enableExperimentalFeatures === true
             ? "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."
             : undefined,
-      onToggle: onToggle("sessionTimeline"),
+      onToggle: onToggle("sessionViewV2Timeline"),
       isToggling: setFeaturePreviewEnabled.isPending,
     },
   };

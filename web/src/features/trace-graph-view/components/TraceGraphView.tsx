@@ -5,7 +5,6 @@ import React, {
   useCallback,
   useRef,
 } from "react";
-import { StringParam, useQueryParam } from "use-query-params";
 import { ObservationType } from "@langfuse/shared";
 
 import { ElkGraphRenderer } from "./ElkGraphRenderer";
@@ -32,6 +31,10 @@ import {
 
 type TraceGraphViewProps = {
   agentGraphData: AgentGraphDataResponse[];
+  selectedObservationId: string | null;
+  /** Selection the host resolves to when the explicit observation is cleared. */
+  defaultObservationId: string | null;
+  onSelectedObservationChange: (id: string | null) => void;
   /** How the graph is built (aggregated vs expanded) — see GraphViewMode. */
   viewMode?: GraphViewMode;
   /** When provided, the mode switch is rendered over the canvas. */
@@ -58,24 +61,25 @@ type TraceGraphViewProps = {
 
 export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
   agentGraphData,
+  selectedObservationId: currentObservationId,
+  defaultObservationId,
+  onSelectedObservationChange: setCurrentObservationId,
   viewMode = "aggregated",
   onViewModeChange,
   onObservationSelect,
   search,
 }) => {
   const [selectedNodeName, setSelectedNodeName] = useState<string | null>(null);
-  const [currentObservationId, setCurrentObservationId] = useQueryParam(
-    "observation",
-    StringParam,
-  );
   const [currentObservationIndices, setCurrentObservationIndices] = useState<{
     [nodeName: string]: number;
   }>({});
   const [previousSelectedNode, setPreviousSelectedNode] = useState<
     string | null
   >(null);
-  // The observation id the last in-canvas click WROTE to the URL (undefined =
-  // no pending click write). Value-compared — a plain boolean flag gets stuck
+  // The resolved observation id expected after the last in-canvas click
+  // (undefined = no pending click write). Clearing the URL can resolve to the
+  // host's implicit root, which is still a click echo, not an external selection.
+  // Value-compared — a plain boolean flag gets stuck
   // when a click writes the same id the URL already has (the effect never
   // re-fires to clear it) and then swallows the NEXT genuine tree/timeline
   // selection, desyncing the graph highlight.
@@ -259,7 +263,7 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
           // For system nodes, don't set observation ID (they're synthetic)
           setPreviousSelectedNode(nodeName);
           setSelectedNodeName(nodeName);
-          clickWroteObservationIdRef.current = null;
+          clickWroteObservationIdRef.current = defaultObservationId;
           setCurrentObservationId(null);
           return;
         }
@@ -283,7 +287,7 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
           setCurrentObservationId(observations[targetIndex]);
           onObservationSelect?.();
         } else {
-          clickWroteObservationIdRef.current = null;
+          clickWroteObservationIdRef.current = defaultObservationId;
           setCurrentObservationId(null);
         }
         setPreviousSelectedNode(nodeName);
@@ -297,6 +301,7 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
       nodeToObservationsMap,
       currentObservationIndices,
       previousSelectedNode,
+      defaultObservationId,
       setCurrentObservationId,
       onObservationSelect,
     ],

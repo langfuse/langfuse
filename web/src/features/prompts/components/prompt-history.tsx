@@ -1,12 +1,15 @@
+/* eslint-disable @repo/component-file-structure */
 import { type RouterOutputs } from "@/src/utils/api";
-import { useState, useRef, useEffect } from "react";
+import { useRef, useEffect } from "react";
 import { PromptVersionDiffDialogContent } from "./PromptVersionDiffDialog";
 import { Timeline } from "@/src/components/design-system/Timeline/Timeline";
-import { Badge } from "@/src/components/ui/badge";
+import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import { LabelList } from "@/src/components/design-system/LabelList/LabelList";
+import { toPromptLabelListItems } from "@/src/features/prompts/utils";
 import { CommandItem } from "@/src/components/ui/command";
-import { Button } from "@/src/components/ui/button";
 import { DialogController } from "@/src/components/ui/dialog";
-import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
 import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
 import { FileDiffIcon } from "lucide-react";
 
@@ -19,8 +22,6 @@ const PromptHistoryTraceNode = (props: {
   openCommentDrawer: (promptId: string, promptVersion: number) => void;
   commentCounts?: Map<string, number>;
 }) => {
-  const [isHovered, setIsHovered] = useState(false);
-  const [isLabelPopoverOpen, setIsLabelPopoverOpen] = useState(false);
   const { prompt } = props;
   const commentCount = props.commentCounts?.get(prompt.id);
 
@@ -60,8 +61,6 @@ const PromptHistoryTraceNode = (props: {
       <Timeline.Item
         key={prompt.id}
         isActive={props.currentPromptVersion === prompt.version}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
         onClick={(e) => {
           const target = e.target as HTMLElement;
           if (
@@ -77,50 +76,47 @@ const PromptHistoryTraceNode = (props: {
         }}
       >
         <div
-          className="items-start gap-1 space-y-1 rounded-none"
+          className="flex items-center gap-2 rounded-none"
           style={{
             cursor: "pointer",
           }}
         >
-          <div className="flex flex-wrap items-start gap-1">
-            <SetPromptVersionLabels
-              title={
-                <Badge
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    props.index === 0
-                      ? props.setCurrentPromptVersion(undefined)
-                      : props.setCurrentPromptVersion(prompt.version);
-                  }}
-                  variant="outline"
-                  className="bg-background/50 h-6 shrink-0"
-                  data-version-trigger="false"
-                >
-                  # {prompt.version}
-                </Badge>
-              }
-              promptLabels={prompt.labels}
-              prompt={prompt}
-              isOpen={isLabelPopoverOpen}
-              setIsOpen={setIsLabelPopoverOpen}
-              showOnlyOnHover
-            />
-            {commentCount ? (
-              <span
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <div className="flex flex-wrap items-center gap-1">
+              <BadgeShell
                 onClick={(e) => {
                   e.stopPropagation();
-                  props.openCommentDrawer(prompt.id, prompt.version);
+                  props.index === 0
+                    ? props.setCurrentPromptVersion(undefined)
+                    : props.setCurrentPromptVersion(prompt.version);
                 }}
-                className="cursor-pointer"
-                role="button"
+                font="mono"
+                size="md"
               >
-                <CommentCountIcon count={commentCount} />
-              </span>
-            ) : null}
-          </div>
+                # {prompt.version}
+              </BadgeShell>
+              {prompt.labels.length > 0 && (
+                <LabelList
+                  labels={toPromptLabelListItems(prompt.labels)}
+                  layout="inline"
+                  maxVisible={8}
+                />
+              )}
+              {commentCount ? (
+                <span
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    props.openCommentDrawer(prompt.id, prompt.version);
+                  }}
+                  className="cursor-pointer"
+                  role="button"
+                >
+                  <CommentCountIcon count={commentCount} />
+                </span>
+              ) : null}
+            </div>
 
-          <div className="grid w-full grid-cols-1 items-start justify-between gap-1 md:grid-cols-[1fr_auto]">
-            <div className="min-h-7 min-w-0">
+            <div className="min-w-0">
               {prompt.commitMessage && (
                 <div className="flex flex-1 flex-nowrap gap-2">
                   <span
@@ -136,43 +132,43 @@ const PromptHistoryTraceNode = (props: {
                 {prompt.creator || prompt.createdBy}
               </div>
             </div>
-            <div className="flex flex-row justify-end space-x-1">
-              {props.currentPrompt &&
-              props.currentPromptVersion !== prompt.version ? (
-                <DialogController
-                  size="xl"
-                  closeOnInteractionOutside
-                  renderContent={({ closeDialog }) => (
-                    <PromptVersionDiffDialogContent
-                      leftPrompt={prompt}
-                      rightPrompt={props.currentPrompt!}
-                      closeDialog={closeDialog}
-                    />
-                  )}
-                >
-                  {({ isOpen, openDialog }) =>
-                    isHovered ||
-                    props.currentPromptVersion === prompt.version ||
-                    isOpen ? (
-                      <Button
-                        variant="outline"
-                        type="button"
-                        size="icon"
-                        className="h-7 w-7 px-0"
+          </div>
+          {props.currentPrompt &&
+          props.currentPromptVersion !== prompt.version ? (
+            <DialogController
+              size="xl"
+              closeOnInteractionOutside
+              renderContent={({ closeDialog }) => (
+                <PromptVersionDiffDialogContent
+                  leftPrompt={prompt}
+                  rightPrompt={props.currentPrompt!}
+                  closeDialog={closeDialog}
+                />
+              )}
+            >
+              {({ openDialog }) => (
+                <span className="flex shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100">
+                  <Tooltip
+                    label="Compare with selected prompt"
+                    hoverableContent={false}
+                  >
+                    {({ getTriggerProps }) => (
+                      <IconButton
+                        {...getTriggerProps()}
+                        icon={FileDiffIcon}
+                        label="Compare with selected prompt"
+                        size="sm"
                         onClick={(event) => {
                           event.stopPropagation();
                           openDialog();
                         }}
-                        title="Compare with selected prompt"
-                      >
-                        <FileDiffIcon className="icon-base text-icon-foreground" />
-                      </Button>
-                    ) : null
-                  }
-                </DialogController>
-              ) : null}
-            </div>
-          </div>
+                      />
+                    )}
+                  </Tooltip>
+                </span>
+              )}
+            </DialogController>
+          ) : null}
         </div>
       </Timeline.Item>
     </CommandItem>

@@ -40,7 +40,11 @@ const transcript = {
             role: "tool",
             source: "output",
             parts: [
-              { type: "tool-result", toolCallId: "call", output: "Found" },
+              {
+                type: "tool-result",
+                toolCallId: "call",
+                output: { type: "text", value: "Found" },
+              },
             ],
           },
         ],
@@ -302,7 +306,7 @@ describe("getSessionTranscriptRows", () => {
     ]);
     expect(rows[1]?.row).toMatchObject({
       call: { toolName: "search" },
-      result: { output: "Found" },
+      result: { output: { type: "text", value: "Found" } },
     });
   });
 
@@ -356,6 +360,45 @@ describe("getSessionTranscriptRows", () => {
       0, 0, 0, 2, 2, 2,
     ]);
     expect(JSON.stringify(rows)).not.toContain("Nested-only search match");
+
+    const expandedRows = getSessionTranscriptRows(nestedTranscript, true);
+    expect(expandedRows.map(({ threadIndex }) => threadIndex)).toEqual([
+      0, 0, 0, 1, 2, 2, 2,
+    ]);
+    expect(JSON.stringify(expandedRows)).toContain("Nested-only search match");
+    expect(getSessionTranscriptThreads(nestedTranscript, true)).toMatchObject({
+      hiddenThreadCount: 0,
+      visibleThreads: [
+        { threadIndex: 0 },
+        { threadIndex: 1 },
+        { threadIndex: 2 },
+      ],
+    });
+    expect(
+      getSessionConversationEntries(
+        [{ trace: { id: "trace" }, transcript: nestedTranscript }],
+        true,
+      ),
+    ).toMatchObject([
+      {
+        itemId: "trace:0",
+        threadIndex: 0,
+        threadCount: 3,
+        displayNumber: "1.1",
+      },
+      {
+        itemId: "trace:1",
+        threadIndex: 1,
+        threadCount: 3,
+        displayNumber: "1.2",
+      },
+      {
+        itemId: "trace:2",
+        threadIndex: 2,
+        threadCount: 3,
+        displayNumber: "1.3",
+      },
+    ]);
   });
 
   it("reports no hidden threads for absent or empty transcripts", () => {
