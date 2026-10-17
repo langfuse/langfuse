@@ -333,7 +333,7 @@ function addCustomModels(
       displayName: id,
       createdAt: new Date(0).toISOString(),
     }));
-  return [...models, ...customModels];
+  return models.concat(customModels);
 }
 
 function isGatewayModelCatalog(
