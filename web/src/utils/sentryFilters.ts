@@ -419,6 +419,39 @@ function hasFirstPartyChunkFrame(event: ErrorEvent): boolean {
 }
 
 /**
+ * User-clicked `javascript:` bookmarklets. Firefox (and other engines)
+ * report the entire bookmarklet source as the stack-frame filename.
+ * Langfuse never evaluates `javascript:` URLs — those schemes are blocked
+ * in redirects, markdown links, and instance-link customization.
+ *
+ * Observed: LANGFUSE-62A, Firefox global `onerror`, `SyntaxError: missing
+ * } after function body`, one anonymous frame whose filename starts with
+ * `javascript:(async function(){…`. The bookmarklet itself was truncated
+ * / mis-encoded. Each user's source would mint a new fingerprint.
+ *
+ * Protocol-anchored (`startsWith`), never a loose `includes`. `denyUrls`
+ * could match the scheme, but a named predicate lets us require a Sentry
+ * browser-handler mechanism and refuse a mixed stack that also has a
+ * first-party `/_next/` frame. An app-captured exception that merely
+ * quotes a parse message (`generic` / `capture_console`) is KEPT even if
+ * a fixture attaches a `javascript:` filename.
+ */
+function isBookmarkletFrameFilename(filename: string): boolean {
+  const lower = filename.trim().toLowerCase();
+  return lower.startsWith("javascript:") || lower.startsWith("javascript%3a");
+}
+
+function hasBookmarkletFrame(event: ErrorEvent): boolean {
+  const frames = event.exception?.values?.[0]?.stacktrace?.frames;
+  if (!frames || frames.length === 0) return false;
+  return frames.some(
+    (frame) =>
+      typeof frame?.filename === "string" &&
+      isBookmarkletFrameFilename(frame.filename),
+  );
+}
+
+/**
  * A `TRPCClientError` re-wraps its cause's message. Depending on capture path
  * the Sentry `value` may be the bare cause message (`Failed to fetch`) or carry
  * the wrapper prefix (`TRPCClientError: Failed to fetch`). We strip ONLY this
@@ -676,7 +709,13 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
     // exact TypeError for an injected `addMore` that is undefined. Stack is
     // document-attributed global code, not a chunk.
     //
-    // All three are anchored to a Sentry browser-API / global-handler
+    // User-clicked `javascript:` bookmarklets are the same class: the
+    // engine attributes the throw to the bookmarklet source, not a chunk
+    // (LANGFUSE-62A). Matched on the frame protocol, not the parse
+    // message, so a document-URL SyntaxError with the same wording is
+    // KEPT.
+    //
+    // All four are anchored to a Sentry browser-API / global-handler
     // mechanism so an app-captured exception that merely quotes the
     // phrase is KEPT.
     const mechanismType = exception?.mechanism?.type;
@@ -697,6 +736,9 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
         isSafariAddMoreClickMessage(exceptionValue) &&
         !hasFirstPartyChunkFrame(event)
       ) {
+        return true;
+      }
+      if (hasBookmarkletFrame(event) && !hasFirstPartyChunkFrame(event)) {
         return true;
       }
     }
