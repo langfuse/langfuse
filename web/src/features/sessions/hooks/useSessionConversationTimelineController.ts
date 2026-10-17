@@ -23,7 +23,7 @@ export type SessionConversationTimelineScrollTarget = {
 };
 
 export function useSessionConversationTimelineController(
-  traces: readonly { trace: EventSessionTrace; itemId?: string }[],
+  traces: readonly { trace: Pick<EventSessionTrace, "id">; itemId?: string }[],
   onVisibleTraceIdsChange?: (traceIds: string[]) => void,
 ) {
   const items = traces.map(({ trace, itemId }) => ({

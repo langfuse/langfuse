@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 // https://react-svgr.com/playground/?typescript=true
 
 import * as React from "react";

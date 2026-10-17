@@ -114,9 +114,8 @@ ARG TARGETARCH
 # @langfuse/native is a Rust addon (napi-rs) compiled by `turbo run build` for
 # the glibc (`*-unknown-linux-gnu`) target, linked against UBI9's glibc so it
 # loads in the runtime image. gcc provides the linker; tar and gzip unpack the
-# pinned toolchain; patch (with the base image's curl-minimal) prepares the
-# small clickhouse source overlay used by the native encoder.
-RUN dnf -y install --setopt=install_weak_deps=0 gcc tar gzip patch && \
+# pinned toolchain.
+RUN dnf -y install --setopt=install_weak_deps=0 gcc tar gzip && \
     dnf clean all
 
 # Pinned standalone Rust installer, the exact channel from
@@ -183,11 +182,9 @@ COPY --from=pruner /app/out/full/ .
 
 RUN turbo run build --filter=worker...
 
-# Runs after the build so the generated clickhouse patch overlay
-# (packages/native/.cargo) resolves the same dependency graph that was
-# compiled. `cargo fetch` adds the sources the build skipped (dev and
-# other-target dependencies) that cargo metadata still reads; `generate` then
-# reads licenses only from local crate sources and fails on any dependency
+# Runs after the build so `cargo fetch` adds the sources the build skipped (dev
+# and other-target dependencies) that cargo metadata still reads; `generate`
+# then reads licenses only from local crate sources and fails on any dependency
 # whose license packages/native/about.toml does not accept.
 RUN cd packages/native && \
     mkdir -p /usr/share/licenses/langfuse-native && \

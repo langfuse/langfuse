@@ -13,7 +13,8 @@ import {
 import Header from "@/src/components/layouts/header";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { useHasEntitlement } from "@/src/features/entitlements";
-import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
+import { useIsFeatureEnabled } from "@/src/features/feature-flags";
+import { useReadPath } from "@/src/features/events";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { XIcon, Check } from "lucide-react";
@@ -56,7 +57,12 @@ export default function ProtectedLabelsSettings({
     scope: "promptProtectedLabels:CUD",
   });
   const hasEntitlement = useHasEntitlement("prompt-protected-labels");
-  const skillsEnabled = useInternalFeaturesEnabled();
+  const { isV4 } = useReadPath();
+  const skillManagementEnabled = useIsFeatureEnabled("skillManagement", {
+    projectId,
+    enableForAdmins: false,
+  });
+  const skillsEnabled = isV4 && skillManagementEnabled;
 
   const form = useForm({
     resolver: zodResolver(AddLabelFormSchema),

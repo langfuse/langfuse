@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 import { useRouter } from "next/router";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";

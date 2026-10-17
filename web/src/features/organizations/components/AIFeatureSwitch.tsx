@@ -145,8 +145,8 @@ export default function AIFeatureSwitch() {
             ) : (
               <p className="text-sm">
                 This setting applies to all users and projects. When enabled,
-                the assistant can send relevant project data to the model
-                provider configured by your instance administrator.
+                Halo can send relevant project data to the model provider
+                configured by your instance administrator.
               </p>
             )}
           </div>

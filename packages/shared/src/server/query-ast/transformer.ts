@@ -24,8 +24,8 @@ import {
  *
  * Kysely's default {@link OperationNodeTransformer.transformSelectQuery}
  * reconstructs a SelectQueryNode from known slots and drops anything else —
- * so without this override, ARRAY JOIN / LIMIT BY / the `includeDeleted`
- * opt-out would vanish the moment any plugin walked the tree.
+ * so without this override, ARRAY JOIN / LIMIT BY / the soft-delete
+ * markers would vanish the moment any plugin walked the tree.
  */
 export class ClickHouseOperationNodeTransformer extends OperationNodeTransformer {
   protected override transformNodeImpl<T extends OperationNode>(
@@ -77,6 +77,7 @@ export class ClickHouseOperationNodeTransformer extends OperationNodeTransformer
         ? { limitBy: this.transformLimitBy(extra.limitBy) }
         : {}),
       ...(extra.includeDeleted ? { includeDeleted: true } : {}),
+      ...(extra.softDeleteAfterLimit ? { softDeleteAfterLimit: true } : {}),
     } as ClickHouseSelectQueryNode;
   }
 

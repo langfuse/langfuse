@@ -1,4 +1,5 @@
 import { type Flag } from "@/src/features/feature-flags/types";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { type ProjectScope } from "@langfuse/shared";
 import {
   BellRing,
@@ -167,7 +168,8 @@ export const ROUTES: Route[] = [
   },
   {
     title: "Skills",
-    featureFlag: "internalFeatures",
+    featureFlag: "skillManagement",
+    label: <Badge text="Beta" color="blue" size="sm" />,
     href: "/project/[projectId]/skills",
     icon: FolderCode,
     projectRbacScopes: ["skills:read"],

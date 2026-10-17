@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { forwardRef, type ComponentProps, type ReactNode } from "react";
 import { ExternalLink, MoreVertical } from "lucide-react";
 

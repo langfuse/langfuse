@@ -17,7 +17,10 @@ import {
 import { getToolFailureMessage } from "@langfuse/shared/in-app-agent/server/toolErrors";
 import { IN_APP_AGENT_MAX_STEPS } from "@langfuse/shared/in-app-agent/server/tunables";
 import type { AgUiRunAgentInput, ResumeForwardedProps } from "./types";
-import { createManualToolApprovalRunInput } from "./human-in-the-loop";
+import {
+  createManualToolApprovalRunInput,
+  type ManualToolApprovalResumeData,
+} from "./human-in-the-loop";
 import type {
   InAppAgentPromptMetadata,
   InAppAgentTracingConfig,
@@ -29,6 +32,7 @@ import {
 } from "./mcpRateLimitWait";
 import {
   createSandboxTools,
+  createQuestionnaireTool,
   createRedirectActionTool,
   getToolCallId,
   hasCallableExecute,
@@ -53,6 +57,7 @@ import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
 import {
   IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER,
+  IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
 } from "@langfuse/shared/in-app-agent";
 import type { InAppAgentModelConfig } from "@langfuse/shared/in-app-agent/server/modelProvider";
@@ -63,7 +68,7 @@ import {
   type InAppAgentLanguageModel,
 } from "./model";
 
-const ASSISTANT_TITLE = "Langfuse Assistant";
+const ASSISTANT_TITLE = "Langfuse Halo";
 const IN_APP_AGENT_SYSTEM_PROMPT_NAME = "in-app-agent-system-prompt";
 const LANGFUSE_DOCS_MCP_URL = "https://langfuse.com/api/mcp";
 const IN_APP_AGENT_MCP_USER_AGENT = "langfuse-in-app-agent";
@@ -1236,6 +1241,7 @@ async function createMastraAdapter(params: {
             projectId: params.options.redirectAction.projectId,
             isV4Enabled: params.options.redirectAction.isV4Enabled,
           }),
+          [IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME]: createQuestionnaireTool(),
           ...(params.options.sandbox
             ? createSandboxTools(params.options.sandbox)
             : {}),
@@ -1320,6 +1326,7 @@ async function createMastraAdapter(params: {
       },
       executeToolCall: async (
         approvalRequest: InAppAgentToolApprovalRequest,
+        resumeData: ManualToolApprovalResumeData,
       ) => {
         const tool = tools[approvalRequest.toolName] as
           | ExecutableInAppAgentTool
@@ -1344,6 +1351,7 @@ async function createMastraAdapter(params: {
             threadId: params.input.threadId,
             resourceId: params.input.threadId,
             suspend: async () => undefined,
+            resumeData,
           },
         });
 

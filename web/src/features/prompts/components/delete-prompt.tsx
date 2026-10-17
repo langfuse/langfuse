@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger */
+/* eslint-disable @repo/no-abstracted-overlay-trigger, @repo/component-file-structure */
 import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";

@@ -341,6 +341,23 @@ export default [
   },
 
   {
+    name: "langfuse/web/component-file-structure",
+    files: ["**/*.{tsx,jsx}"],
+    ignores: [
+      // Next.js owns route filenames and requires framework exports, so component file structure cannot apply.
+      "src/pages/**",
+      // Next.js App Router layouts also require the framework-defined layout filename.
+      "src/app/**/layout.{tsx,jsx}",
+      "src/components/design-system/**/*.stories.{ts,tsx}",
+      "**/*.{test,spec,clienttest,servertest}.{tsx,jsx}",
+      "**/{__tests__,__e2e__,tests,test}/**",
+    ],
+    rules: {
+      "@repo/component-file-structure": "error",
+    },
+  },
+
+  {
     name: "langfuse/web/design-system-component-exports",
     files: ["src/components/design-system/*/*.{ts,tsx}"],
     ignores: [
@@ -349,7 +366,6 @@ export default [
       "src/components/design-system/table/**",
     ],
     rules: {
-      "@repo/filename-matches-export": "error",
       "import/no-default-export": "error",
     },
   },

@@ -195,15 +195,18 @@ function getOrgId(
   return { success: true, orgId };
 }
 
-/** getProjectId prioritizes the bound project, then the query parameter, then the header. */
+/** getProjectId prioritizes the bound project, then the query parameter, then the header, refusing a bound key whose path names another project. */
 function getProjectId(
   context: AuthorizationContext,
   req: NextApiRequest,
 ): ResolvedProject | ErrorResult<ForbiddenError> {
+  const boundProjectId = getBoundProjectId(context);
+  if (!equal([boundProjectId, getPathProjectId(req)])) {
+    return forbiddenError();
+  }
+
   const projectId =
-    getBoundProjectId(context) ??
-    getUrlProjectId(req) ??
-    getHeaderProjectId(req);
+    boundProjectId ?? getUrlProjectId(req) ?? getHeaderProjectId(req);
   if (!projectId) {
     return forbiddenError();
   }
@@ -257,6 +260,24 @@ function getUrlProjectId(req: NextApiRequest): string | undefined {
   return typeof req.query.projectId === "string"
     ? req.query.projectId
     : undefined;
+}
+
+/** getPathProjectId returns the URL projectId only when it is a path segment, ignoring a query-string projectId. */
+function getPathProjectId(req: NextApiRequest): string | undefined {
+  const projectId = getUrlProjectId(req);
+  if (!projectId || isQueryOnly(req.url, projectId)) return undefined;
+  return projectId;
+}
+
+/** isQueryOnly reports whether a value is absent from the url's path, failing closed when the path is missing or undecodable. */
+function isQueryOnly(url: string | undefined, value: string): boolean {
+  if (!url) return false;
+  const path = url.split("?")[0] ?? "";
+  try {
+    return !path.split("/").map(decodeURIComponent).includes(value);
+  } catch {
+    return false;
+  }
 }
 
 /** getHeaderValue prefers the X-prefixed alias and normalizes repeated headers to their first value. */

@@ -6,6 +6,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
+import { MCP_CLICKHOUSE_SETTINGS } from "../../../core/clickhouse-settings";
 import { clampToDataAccessDays } from "@/src/features/entitlements/server";
 import {
   ExpandMetadataKeysSchema,
@@ -17,7 +18,6 @@ import {
 } from "../schema";
 
 const OBSERVATION_MAX_RANGE_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
-const MCP_OBSERVATIONS_MAX_EXECUTION_TIME_SECONDS = 25;
 
 const GetObservationBaseSchema = z.object({
   observationId: z.string().min(1),
@@ -112,9 +112,7 @@ export const [getObservationTool, handleGetObservation] = defineTool({
             ),
           },
           {
-            clickhouseSettings: {
-              max_execution_time: MCP_OBSERVATIONS_MAX_EXECUTION_TIME_SECONDS,
-            },
+            clickhouseSettings: MCP_CLICKHOUSE_SETTINGS,
           },
         );
 
