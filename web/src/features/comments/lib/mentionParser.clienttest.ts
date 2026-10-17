@@ -252,6 +252,22 @@ describe("mentionParser", () => {
 
         expect(result).toEqual(["alice123", "bob456"]);
       });
+
+      it("should not merge a malformed mention with a later valid one", () => {
+        // The malformed userId cannot complete, and the display-name capture
+        // must not expand through the following mention token
+        const content = "@[A](user:bad!id) keep me @[Bob](user:bob456)";
+        const result = extractUniqueMentionedUserIds(content);
+
+        expect(result).toEqual(["bob456"]);
+      });
+
+      it("should resolve display names ending with brackets", () => {
+        const content = "@[Team [X]](user:bob456)";
+        const result = extractUniqueMentionedUserIds(content);
+
+        expect(result).toEqual(["bob456"]);
+      });
     });
 
     describe("ReDoS prevention", () => {
@@ -387,6 +403,19 @@ describe("mentionParser", () => {
 
         expect(result.sanitizedContent).toBe("User1 User2");
         expect(result.validMentionedUserIds).toEqual([]);
+      });
+
+      it("should preserve text between a malformed mention and a later valid one", () => {
+        // Regression test: the display-name capture must not span the
+        // "](user:" delimiter of another mention, which would replace the
+        // whole merged span and silently delete user-authored text
+        const content = "@[A](user:bad!id) keep me @[Bob](user:bob456)";
+        const result = sanitizeMentions(content, mockMembers);
+
+        expect(result.sanitizedContent).toBe(
+          "@[A](user:bad!id) keep me @[Bob Jones](user:bob456)",
+        );
+        expect(result.validMentionedUserIds).toEqual(["bob456"]);
       });
     });
 
