@@ -110,7 +110,6 @@ const groupExperimentScores = (scores: ScoreRecordReadType[]) => {
   );
 };
 
-const EXPERIMENT_SUMMARY_CURSOR_LOOKBACK_DAYS = 1;
 const EXPERIMENT_SCORE_TIMESTAMP_WINDOW_MS = 24 * 60 * 60 * 1000; // 1 day
 
 /**
@@ -175,10 +174,32 @@ const applyExperimentItemCursor = (
  */
 const applyExperimentSummaryCursor = (
   builder: EventsQueryBuilder,
-  cursor?: ExperimentCursor,
+  cursor: ExperimentCursor | undefined,
+  options: {
+    projectId: string;
+    fromTime: Date;
+    toTime?: Date;
+    filterList: FilterList;
+  },
 ) =>
   builder.when(Boolean(cursor), (b) => {
     if (!cursor) return b;
+
+    const previouslySeenExperiments = new EventsQueryBuilder({
+      projectId: options.projectId,
+    })
+      .selectRaw("e.experiment_id AS experiment_id")
+      .whereRaw("e.experiment_id != ''")
+      .applyFilters(eventTimeBoundFilters(options.fromTime, options.toTime))
+      .applyFilters(options.filterList)
+      .whereRaw(
+        "e.start_time >= {lastTime: DateTime64(6)} AND (e.start_time, e.experiment_id, e.span_id) >= ({lastTime: DateTime64(6)}, {lastExperimentId: String}, {lastId: String})",
+        {
+          lastTime: cursor.lastTime,
+          lastExperimentId: cursor.lastExperimentId,
+          lastId: cursor.lastId,
+        },
+      );
 
     return b
       .whereRaw(
@@ -193,20 +214,12 @@ const applyExperimentSummaryCursor = (
           lastId: cursor.lastId,
         },
       )
+      .withCTE(
+        "previously_seen_experiments",
+        previouslySeenExperiments.buildWithParams(),
+      )
       .whereRaw(
-        `e.experiment_id NOT IN (
-  SELECT e2.experiment_id
-  FROM events_core e2
-  WHERE e2.project_id = {projectId: String}
-    AND e2.experiment_id != ''
-    -- don't list experiments that were part of the previous page - that means
-    -- no newer item exists
-    AND e2.start_time >= {lastTime: DateTime64(6)}
-    -- experiments shouldn't take more than that so we checked back long
-    AND e2.start_time < addDays({lastTime: DateTime64(6)}, {summaryCursorLookbackDays: UInt32})
-    AND (e2.start_time, e2.experiment_id, e2.span_id) >= ({lastTime: DateTime64(6)}, {lastExperimentId: String}, {lastId: String})
-)`,
-        { summaryCursorLookbackDays: EXPERIMENT_SUMMARY_CURSOR_LOOKBACK_DAYS },
+        "e.experiment_id NOT IN (SELECT experiment_id FROM previously_seen_experiments)",
       );
   });
 
@@ -273,6 +286,12 @@ async function queryExperimentSummaryRowsForPublicApi(
       .applyFilters(eventTimeBoundFilters(params.fromTime, params.toTime))
       .applyFilters(filterList),
     params.cursor,
+    {
+      projectId: params.projectId,
+      fromTime: params.fromTime,
+      toTime: params.toTime,
+      filterList,
+    },
   )
     .orderByColumns([
       { column: "e.start_time", direction: "DESC" },
