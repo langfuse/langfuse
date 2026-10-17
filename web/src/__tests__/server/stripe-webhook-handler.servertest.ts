@@ -124,6 +124,66 @@ describe("stripeWebhookHandler.handleSubscriptionChanged", () => {
   );
 });
 
+describe("stripeWebhookHandler.handleSubscriptionChanged event ordering", () => {
+  let orgId: string;
+
+  beforeEach(async () => {
+    orgId = v4();
+    await prisma.organization.create({
+      data: {
+        id: orgId,
+        name: `test-org-${orgId}`,
+      },
+    });
+  });
+
+  afterEach(async () => {
+    await prisma.organization.delete({ where: { id: orgId } }).catch(() => {});
+  });
+
+  it("does not let a delayed subscription.updated resurrect a canceled subscription", async () => {
+    const subscription = buildSubscription({ orgId, status: "active" });
+
+    // t=100: the subscription is created.
+    await handleSubscriptionChanged(subscription, "created", 100);
+
+    // t=300: Stripe cancels it.
+    await handleSubscriptionChanged(subscription, "deleted", 300);
+
+    // t=200: a delayed customer.subscription.updated snapshot taken before the
+    // cancellation arrives late, still showing status "active". Stripe does
+    // not guarantee webhook delivery order, so this is a real sequence.
+    await handleSubscriptionChanged(subscription, "updated", 200);
+
+    const org = await prisma.organization.findUniqueOrThrow({
+      where: { id: orgId },
+    });
+    const stripe = (org.cloudConfig as { stripe?: unknown } | null)?.stripe as
+      | { activeSubscriptionId?: string; subscriptionStatus?: string }
+      | undefined;
+    // The canceled state must survive: no active subscription id and no
+    // "active" status re-applied by the stale event.
+    expect(stripe?.activeSubscriptionId).toBeUndefined();
+    expect(stripe?.subscriptionStatus).toBeUndefined();
+  });
+
+  it("applies an in-order subscription.updated normally", async () => {
+    const subscription = buildSubscription({ orgId, status: "active" });
+
+    await handleSubscriptionChanged(subscription, "created", 100);
+    await handleSubscriptionChanged(subscription, "updated", 200);
+
+    const org = await prisma.organization.findUniqueOrThrow({
+      where: { id: orgId },
+    });
+    const stripe = (org.cloudConfig as { stripe?: unknown } | null)?.stripe as
+      | { activeSubscriptionId?: string; subscriptionStatus?: string }
+      | undefined;
+    expect(stripe?.activeSubscriptionId).toBe(subscription.id);
+    expect(stripe?.subscriptionStatus).toBe("active");
+  });
+});
+
 describe("stripeWebhookHandler org lookup miss severity", () => {
   beforeEach(() => {
     mocks.traceException.mockClear();
