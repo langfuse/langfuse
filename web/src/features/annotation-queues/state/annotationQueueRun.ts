@@ -54,14 +54,18 @@ export function createAnnotationQueueRun({
     history: QueueItemLocation[],
     progressIndex: number,
     initialize = false,
-  ) {
-    if (!dependencies.isActive()) return;
+  ): Promise<boolean> {
+    if (!dependencies.isActive()) return false;
     const navigated = await dependencies.navigate(
       history[progressIndex],
       initialize,
     );
-    if (navigated === false) throw new Error("Queue navigation was cancelled");
+    // Next.js Pages Router resolves false when this transition was cancelled
+    // (a newer navigation won). Leave history unchanged so a later action can
+    // retry the same item.
+    if (navigated === false || !dependencies.isActive()) return false;
     store.setState({ history, progressIndex });
+    return true;
   }
 
   async function advance(dependencies: QueueRunDependencies) {
@@ -79,12 +83,16 @@ export function createAnnotationQueueRun({
       store.setState({ exhausted: true });
       return;
     }
-    // Retain an acquired lock if navigation fails, so retry opens the same item.
+    // Retain an acquired lock if navigation is cancelled or fails, so retry
+    // opens the same item.
     pendingNext = next;
     dependencies.cacheItem(next);
-    await enter(dependencies, [...history, locationFor(next)], history.length);
-    pendingNext = undefined;
-    store.setState({ exhausted: false });
+    if (
+      await enter(dependencies, [...history, locationFor(next)], history.length)
+    ) {
+      pendingNext = undefined;
+      store.setState({ exhausted: false });
+    }
   }
 
   async function transition(name: Transition, action: () => Promise<void>) {
@@ -128,7 +136,15 @@ export function createAnnotationQueueRun({
       signal.throwIfAborted();
       if (item) {
         dependencies.cacheItem(item);
-        await enter(dependencies, [locationFor(item)], 0, true);
+        const history = [locationFor(item)];
+        if (!(await enter(dependencies, history, 0, true))) {
+          signal.throwIfAborted();
+          // Still observed: the URL update lost a race, but the item is loaded.
+          // Commit history so bootstrap does not fail as a query error.
+          if (dependencies.isActive()) {
+            store.setState({ history, progressIndex: 0 });
+          }
+        }
       } else {
         store.setState({ exhausted: true });
       }
