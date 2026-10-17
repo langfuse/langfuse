@@ -42,6 +42,42 @@ describe("Generic Adapter", () => {
     );
   });
 
+  it("normalizes an empty legacy completion with reasoning as an assistant message", () => {
+    const output = {
+      completion: "",
+      reasoning: "The model considered the constraints before answering.",
+    };
+
+    const result = normalizeOutput(output);
+
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual([
+      {
+        role: "assistant",
+        content: "",
+        thinking: [
+          {
+            type: "thinking",
+            content: "The model considered the constraints before answering.",
+          },
+        ],
+      },
+    ]);
+    expect(normalizeInput(output).success).toBe(false);
+  });
+
+  it("keeps completion objects with additional fields as JSON", () => {
+    const output = {
+      completion: "answer",
+      reasoning: "internal rationale",
+      model: "example-model",
+    };
+    const result = normalizeOutput(output);
+
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual([expect.objectContaining({ json: output })]);
+  });
+
   it("should not display non-ChatML formats as chat", () => {
     const input = {
       job_request: {
