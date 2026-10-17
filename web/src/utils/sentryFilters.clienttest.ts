@@ -9,6 +9,7 @@ import {
   isReactDevtoolsInternalEvent,
   isStaleChunkLoadErrorEvent,
   isStaleChunkParseErrorEvent,
+  isWitnessAiLoggerEvent,
 } from "@/src/utils/sentryFilters";
 
 /**
@@ -2655,6 +2656,132 @@ describe("isKitesurfInternalEvent", () => {
       expect(
         isDenylistedNoiseEvent(exceptionEvent(PROXY_TYPEERROR, "TypeError")),
       ).toBe(false);
+    });
+  });
+});
+
+describe("isWitnessAiLoggerEvent", () => {
+  const HTTP_401 = "HTTP error! status: 401";
+  const ONBOARDING = "app:///onboarding";
+
+  function witnessAiLoggerEvent(
+    value = HTTP_401,
+    mechanism = "auto.browser.global_handlers.onunhandledrejection",
+    frames: { filename: string; function?: string }[] = [
+      { filename: ONBOARDING, function: "t.JSLoggerClient.checkStatus" },
+      { filename: ONBOARDING, function: "t.JSLoggerClient.fetch" },
+      { filename: ONBOARDING, function: "async t.LogBeacon.tryFlush" },
+      { filename: ONBOARDING, function: "async t.LogBeacon.forceFlush" },
+    ],
+  ): ErrorEvent {
+    return {
+      exception: {
+        values: [
+          {
+            type: "Error",
+            value,
+            mechanism: { type: mechanism, handled: false },
+            stacktrace: { frames },
+          },
+        ],
+      },
+    } as ErrorEvent;
+  }
+
+  describe("drops WitnessAI jslogger flush 401s", () => {
+    it("drops the onboarding unhandled-rejection shape (LANGFUSE-625)", () => {
+      expect(isWitnessAiLoggerEvent(witnessAiLoggerEvent())).toBe(true);
+    });
+
+    it("drops the sign-in document-attributed sibling (LANGFUSE-624)", () => {
+      expect(
+        isWitnessAiLoggerEvent(
+          witnessAiLoggerEvent(HTTP_401, undefined, [
+            { filename: "app:///", function: "t.JSLoggerClient.checkStatus" },
+            { filename: "app:///", function: "async t.LogBeacon.forceFlush" },
+          ]),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same vendor throw for another HTTP status", () => {
+      expect(
+        isWitnessAiLoggerEvent(witnessAiLoggerEvent("HTTP error! status: 403")),
+      ).toBe(true);
+    });
+  });
+
+  describe("KEEPS real errors (never masks a genuine app error)", () => {
+    it("keeps the same message without JSLoggerClient / LogBeacon frames", () => {
+      expect(
+        isWitnessAiLoggerEvent(
+          witnessAiLoggerEvent(HTTP_401, undefined, [
+            {
+              filename: "app:///src/utils/api.ts",
+              function: "handleTrpcError",
+            },
+          ]),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a LogBeacon stack that also has a first-party /_next/ frame", () => {
+      expect(
+        isWitnessAiLoggerEvent(
+          witnessAiLoggerEvent(HTTP_401, undefined, [
+            {
+              filename: ONBOARDING,
+              function: "t.JSLoggerClient.checkStatus",
+            },
+            {
+              filename: "app:///_next/static/chunks/app.js",
+              function: "handleSubmit",
+            },
+          ]),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps an app-captured exception with the same message", () => {
+      expect(
+        isWitnessAiLoggerEvent(
+          witnessAiLoggerEvent(HTTP_401, "generic", [
+            {
+              filename: ONBOARDING,
+              function: "t.JSLoggerClient.checkStatus",
+            },
+          ]),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a JSLoggerClient stack with a different message", () => {
+      expect(
+        isWitnessAiLoggerEvent(witnessAiLoggerEvent("TypeError: boom")),
+      ).toBe(false);
+    });
+
+    it("keeps tRPC UNAUTHORIZED and httpClient 401 copies", () => {
+      expect(
+        isWitnessAiLoggerEvent(exceptionEvent("TRPCClientError: UNAUTHORIZED")),
+      ).toBe(false);
+      expect(
+        isWitnessAiLoggerEvent(
+          exceptionEvent("HTTP Client Error with status code: 401"),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps an app error that merely quotes the HTTP-status phrase", () => {
+      expect(
+        isWitnessAiLoggerEvent(
+          witnessAiLoggerEvent("Failed to save: HTTP error! status: 401"),
+        ),
+      ).toBe(false);
+    });
+
+    it("does not let the generic denylist swallow this 401 on its own", () => {
+      expect(isDenylistedNoiseEvent(exceptionEvent(HTTP_401))).toBe(false);
     });
   });
 });
