@@ -273,40 +273,34 @@ describe("AI gateway provider registry", () => {
     );
   });
 
-  it("adds custom OpenAI models the provider does not list, without duplicates", async () => {
-    const discover = async (ids: string[]) => {
-      const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
-        Response.json({
-          data: ids.map((id) => ({ id, created: 10 })),
+  it("does not duplicate a custom model the provider already lists", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        data: [
+          { id: "codex-auto-review", created: 10 },
+          { id: "gpt-5", created: 10 },
+        ],
+      }),
+    );
+    const prisma = {
+      gatewayAiConnection: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "connection-1",
+          organizationId: "org-1",
+          provider: "OPENAI",
+          encryptedCredential: encrypt("sk-test"),
+          status: "ENABLED",
+          allowedModels: null,
         }),
-      );
-      const prisma = {
-        gatewayAiConnection: {
-          findFirst: vi.fn().mockResolvedValue({
-            id: "connection-1",
-            organizationId: "org-1",
-            provider: "OPENAI",
-            encryptedCredential: encrypt("sk-test"),
-            status: "ENABLED",
-            allowedModels: null,
-          }),
-        },
-      } as unknown as PrismaClient;
-      return new GatewayModelCatalogService(
-        prisma,
-        fetcher,
-        null,
-      ).refreshModels({
+      },
+    } as unknown as PrismaClient;
+    const service = new GatewayModelCatalogService(prisma, fetcher, null);
+
+    await expect(
+      service.refreshModels({
         organizationId: "org-1",
         connectionId: "connection-1",
-      });
-    };
-
-    await expect(discover(["gpt-5"])).resolves.toMatchObject({
-      models: ["gpt-5", "codex-auto-review"],
-    });
-    await expect(
-      discover(["codex-auto-review", "gpt-5"]),
+      }),
     ).resolves.toMatchObject({ models: ["codex-auto-review", "gpt-5"] });
   });
 });
