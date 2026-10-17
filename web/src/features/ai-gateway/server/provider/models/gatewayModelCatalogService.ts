@@ -256,11 +256,8 @@ export class GatewayModelCatalogService {
         error: models.error,
       };
     }
-    await this.cacheModels(
-      params.organizationId,
-      params.connectionId,
-      models.models,
-    );
+    const catalog = addCustomModels(provider, models.models);
+    await this.cacheModels(params.organizationId, params.connectionId, catalog);
     if (params.explicitRetry && connection.status === "ERROR") {
       await this.repository.updateConnectionStatus({
         organizationId: params.organizationId,
@@ -272,7 +269,7 @@ export class GatewayModelCatalogService {
     return {
       connectionId: connection.id,
       success: true,
-      models: models.models,
+      models: catalog,
     };
   }
 
@@ -313,6 +310,30 @@ export class GatewayModelCatalogService {
       // Redis is optional. Provider discovery still succeeds when it is unavailable.
     }
   }
+}
+
+// Codex sends its auto-review requests as `codex-auto-review`, which OpenAI
+// serves but does not list in `/v1/models`. Listing it here keeps it allowed by
+// default on every OpenAI connection while admins can still disable it.
+const CUSTOM_MODELS: Partial<Record<GatewayProviderName, string[]>> = {
+  OPENAI: ["codex-auto-review"],
+};
+
+function addCustomModels(
+  provider: GatewayProviderName,
+  models: GatewayModelCatalogEntry[],
+): GatewayModelCatalogEntry[] {
+  const discoveredIds = new Set(models.map(({ id }) => id));
+  const customModels = (CUSTOM_MODELS[provider] ?? [])
+    .filter((id) => !discoveredIds.has(id))
+    .map((id) => ({
+      id,
+      provider,
+      canonicalSlug: id,
+      displayName: id,
+      createdAt: new Date(0).toISOString(),
+    }));
+  return [...models, ...customModels];
 }
 
 function isGatewayModelCatalog(
