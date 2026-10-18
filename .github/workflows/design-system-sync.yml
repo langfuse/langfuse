@@ -120,8 +120,8 @@ jobs:
             --allowedTools "Skill,Read,Write,Edit,Glob,Grep,Bash,DesignSync"
 
       # The action hides Claude's output; surface only the final result message.
-      - name: Show Claude error
-        if: failure() && steps.claude-sync.outcome == 'failure'
+      - name: Show Claude result
+        if: always() && (steps.claude-sync.outcome == 'success' || steps.claude-sync.outcome == 'failure')
         env:
           EXECUTION_FILE: ${{ steps.claude-sync.outputs.execution_file }}
         run: |
