@@ -2,9 +2,8 @@ name: Design System Sync
 
 on:
   schedule:
-    # Every night in San Francisco, at 12:13 on the clock.
-    # 08:12 UTC is 00:12 PST and 01:12 PDT.
-    - cron: "12 8 * * *"
+    # Daily at 13:12 UTC: 14:12 CET / 15:12 CEST, 05:12 PST / 06:12 PDT.
+    - cron: "12 13 * * *"
   workflow_dispatch:
     inputs:
       max_turns:
