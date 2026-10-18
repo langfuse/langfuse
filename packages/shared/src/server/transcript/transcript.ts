@@ -1,7 +1,7 @@
 import { partition } from "lodash";
 import type { OrderedObservation } from "./ordering";
 import { normalizeIO } from "../normalized-io";
-import type { Transcript, TranscriptOptions } from "./types";
+import type { Transcript, TranscriptFailure, TranscriptOptions } from "./types";
 import { limitTranscript } from "./limit";
 import {
   append,
@@ -78,14 +78,43 @@ export function assembleTranscript(
     append(thread, observation, input, output, toolCalls);
   }
 
-  const transcript = threads.length
+  const failures = orderedObservations.flatMap(toFailure);
+  const conversation = threads.length
     ? { threads: threads.map(splitTurn) }
     : null;
   onTimings?.({
     normalizationMs,
     matchingMs: performance.now() - startedAt - normalizationMs,
   });
-  return transcript && maxCharacters !== undefined
-    ? limitTranscript(transcript, maxCharacters)
-    : transcript;
+  const limited =
+    conversation && maxCharacters !== undefined
+      ? limitTranscript(conversation, maxCharacters)
+      : conversation;
+  if (!failures.length) return limited;
+  const withFailures = { ...(limited ?? { threads: [] }), failures };
+  // Failures are kept only while the result still fits the character limit.
+  return maxCharacters === undefined ||
+    JSON.stringify(withFailures).length <= maxCharacters
+    ? withFailures
+    : limited;
+}
+
+const FAILURE_STATUS_MAX_CHARACTERS = 1_000;
+
+function toFailure(observation: OrderedObservation): TranscriptFailure[] {
+  const { level, statusMessage } = observation;
+  if (level !== "ERROR" && !(level === "WARNING" && statusMessage)) return [];
+  return [
+    {
+      observationId: observation.id,
+      traceId: observation.traceId,
+      type: observation.type,
+      name: observation.name ?? null,
+      level,
+      statusMessage: statusMessage
+        ? statusMessage.slice(0, FAILURE_STATUS_MAX_CHARACTERS)
+        : null,
+      startTime: observation.startTime,
+    },
+  ];
 }

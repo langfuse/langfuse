@@ -34,6 +34,65 @@ describe("transcript fixtures", () => {
     ]);
   });
 
+  it("records failed observations, also when they emitted no messages", () => {
+    const failed = (
+      id: string,
+      type: "GENERATION" | "TOOL" | "SPAN",
+      level: "ERROR" | "WARNING" | "DEFAULT",
+      statusMessage: string | null,
+    ) => ({
+      ...convertObservation(
+        createObservation({
+          id,
+          trace_id: traceId,
+          type,
+          name: `${type.toLowerCase()}-${id}`,
+          level,
+          status_message: statusMessage,
+          start_time: `2026-01-01T12:00:0${id}.000Z`,
+          input: null,
+          output: null,
+        }),
+      ),
+      nestingLevel: 1,
+    });
+    const observations = [
+      generation("1", ["A"], ["B"]),
+      failed("2", "TOOL", "ERROR", "Request timed out"),
+      failed("3", "SPAN", "WARNING", null),
+      failed("4", "SPAN", "DEFAULT", "ok"),
+      failed(
+        "5",
+        "GENERATION",
+        "ERROR",
+        "Bedrock is unable to process your request",
+      ),
+    ];
+
+    expect(assembleTranscript(observations)?.failures).toEqual([
+      expect.objectContaining({
+        observationId: "2",
+        type: "TOOL",
+        name: "tool-2",
+        level: "ERROR",
+        statusMessage: "Request timed out",
+      }),
+      expect.objectContaining({
+        observationId: "5",
+        type: "GENERATION",
+        level: "ERROR",
+        statusMessage: "Bedrock is unable to process your request",
+      }),
+    ]);
+    expect(assembleTranscript([observations[4]])).toEqual({
+      threads: [],
+      failures: [expect.objectContaining({ observationId: "5" })],
+    });
+    expect(assembleTranscript([observations[0]])).not.toHaveProperty(
+      "failures",
+    );
+  });
+
   it("preserves an unfinished generation's null end time", () => {
     const observation = generation("1", ["A"], ["B"]);
     observation.endTime = null;

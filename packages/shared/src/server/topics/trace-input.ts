@@ -30,6 +30,8 @@ type SnapshotRow = {
   end_time: string | null;
   type: TranscriptObservation["type"];
   name: string;
+  level: NonNullable<TranscriptObservation["level"]>;
+  status_message: string | null;
   input: string;
   output: string;
   metadata: Record<string, string>;
@@ -83,6 +85,8 @@ export async function loadTopicTranscript(params: {
       "e.end_time",
       "e.type",
       "e.name",
+      "e.level",
+      "e.status_message",
     )
     .selectIO(false)
     .selectMetadataExpanded()
@@ -164,6 +168,8 @@ export async function loadTopicTranscript(params: {
         row.end_time === null ? null : new Date(utcTimestamp(row.end_time)),
       type: row.type,
       name: row.name,
+      level: row.level,
+      statusMessage: row.status_message || null,
       input: row.input,
       output: row.output,
       metadata: row.metadata,

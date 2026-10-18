@@ -23,7 +23,18 @@ type TranscriptOptions = {
   onTimings?: (timings: { normalizationMs: number; matchingMs: number }) => void;
 };
 
-type Transcript = { threads: Thread[]; truncated?: true };
+type Transcript = { threads: Thread[]; failures?: TranscriptFailure[]; truncated?: true };
+
+// ERROR observations, and WARNING observations with a status message, in order.
+type TranscriptFailure = {
+  observationId: string;
+  traceId: string | null;
+  type: ObservationType;
+  name: string | null;
+  level: "ERROR" | "WARNING";
+  statusMessage: string | null; // first 1,000 characters
+  startTime: Date;
+};
 
 type Thread = {
   conversationHistory: NormalizedMessage[]; // replayed from earlier turns, no provenance
@@ -66,9 +77,13 @@ connect them, but does not retain the fields a trace-level view needs:
 - A root `SPAN` or `AGENT` can carry the trace input and final application
   output, including output produced after the last model or tool call. Those
   fields are absent from the assembled conversation.
-- Non-generation operations, unmatched tool observations, and observation
-  type/name/level/status are not represented as conversation messages. A
-  renderer needs them to show the operation sequence and inline failures.
+- Non-generation operations and unmatched tool observations are not
+  represented as conversation messages. Failures are kept separately in
+  `failures`: every ERROR observation, and every WARNING observation with a
+  status message, with its type, name and status message. They are collected
+  from all supplied observations, so a failed model call that emitted no
+  messages still appears, and a transcript with only failures is not null.
+  Under `maxCharacters`, failures are kept only while the result still fits.
 - Available tool definitions can occur in generation input or metadata. They
   are not part of the normalized messages returned by the assembler.
 
