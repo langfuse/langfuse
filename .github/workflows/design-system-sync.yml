@@ -36,17 +36,35 @@ jobs:
           install: false
           cache: false
 
-      - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      # Shares the pnpm store cache that warm-caches.yml keeps warm on main.
+      - name: Setup Node.js with pnpm cache
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # zizmor: ignore[cache-poisoning] scheduled main-only job; caches are restored from main-scoped entries that PR runs cannot write
         with:
           node-version-file: ".nvmrc"
-          package-manager-cache: false
+          cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Resolve Playwright version
+        id: playwright
+        run: echo "version=$(pnpm --filter web exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Chromium
+        id: chromium-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] scheduled main-only job; caches are restored from main-scoped entries that PR runs cannot write
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-${{ runner.arch }}-playwright-chromium-${{ steps.playwright.outputs.version }}
+
       - name: Install Chromium
+        if: steps.chromium-cache.outputs.cache-hit != 'true'
         run: pnpm --filter web exec playwright install --with-deps chromium
+
+      - name: Install Chromium system dependencies
+        if: steps.chromium-cache.outputs.cache-hit == 'true'
+        run: pnpm --filter web exec playwright install-deps chromium
 
       - name: Validate inputs
         id: validate-inputs
