@@ -19,6 +19,7 @@ const GitHubDispatchActionFormSchema = z.object({
     githubToken: z.string(),
     displayGitHubToken: z.string().optional(), // Display value for existing token
     originalUrl: z.string().optional(),
+    includePromptContent: z.boolean(),
   }),
 });
 
@@ -59,6 +60,12 @@ export class GitHubDispatchActionHandler implements BaseActionHandler<GitHubDisp
           "url" in automation.action.config
             ? automation.action.config.url
             : undefined,
+        includePromptContent:
+          automation?.action?.type === "GITHUB_DISPATCH" &&
+          automation?.action?.config &&
+          "includePromptContent" in automation.action.config
+            ? (automation.action.config.includePromptContent ?? true)
+            : true,
       },
     };
   }
@@ -115,6 +122,8 @@ export class GitHubDispatchActionHandler implements BaseActionHandler<GitHubDisp
       ...(formData.githubDispatch?.githubToken
         ? { githubToken: formData.githubDispatch.githubToken }
         : {}),
+      includePromptContent:
+        formData.githubDispatch?.includePromptContent ?? true,
     };
   }
 
