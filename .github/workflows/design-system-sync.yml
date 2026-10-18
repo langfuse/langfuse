@@ -1,9 +1,9 @@
 name: Design System Sync
 
 on:
-  # TEMPORARY: test run from the PR branch; remove before merge.
-  push:
-    branches: [mark/design-sync-langfuse-75bd0e]
+  # TEMPORARY: test run from PR #18966; remove before merge.
+  pull_request:
+    types: [synchronize]
   schedule:
     # Daily at 13:12 UTC: 14:12 CET / 15:12 CEST, 05:12 PST / 06:12 PDT.
     - cron: "12 13 * * *"
@@ -23,7 +23,7 @@ concurrency:
 
 jobs:
   sync:
-    if: github.repository == 'langfuse/langfuse'
+    if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.head_ref == 'mark/design-sync-langfuse-75bd0e')
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 120
     outputs:
