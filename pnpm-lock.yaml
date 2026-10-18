@@ -74,6 +74,7 @@ overrides:
   axios: 1.20.0
   '@grpc/grpc-js': 1.14.5
   handlebars: 4.7.10
+  gray-matter: npm:@11ty/gray-matter@3.0.0
   next-auth>nodemailer: ^10.0.13
 
 packageExtensionsChecksum: sha256-WsueXkDwaA1Mur66bfJz2RLd0+lO1INOq2n8H30Pf8M=
@@ -1286,6 +1287,10 @@ importers:
         version: 3.0.2
 
 packages:
+
+  '@11ty/gray-matter@3.0.0':
+    resolution: {integrity: sha512-mi6KB36DZCpCfCb9XP3NtDDNXe1N0jKtuFj9mTCZNy5H7vTabODyMgFmmOiGIGJKt+i8mJqEb/REtK+JTEzlpQ==}
+    engines: {node: '>=11'}
 
   '@a2a-js/sdk@0.3.13':
     resolution: {integrity: sha512-BZr0f9JVNQs3GKOM9xINWCh6OKIJWZFPyqqVqTym5mxO2Eemc6I/0zL7zWnljHzGdaf5aZQyQN5xa6PSH62q+A==}
@@ -7378,9 +7383,6 @@ packages:
     resolution: {integrity: sha512-4Dj6M28JB+oAH8kFkTLUo+a2jwOFkuqb3yucU0CANcRRUbxS0cP0nZYCGjcc3BNXwRIsUVmDGgzawme7zvJHvg==}
     engines: {node: '>=12'}
 
-  argparse@1.0.10:
-    resolution: {integrity: sha512-o5Roy6tNG4SL/FOkCAN6RzjiakZS25RLYFrcMttJqbdd8BWrnA+fGz57iN5Pb06pvBGvl5gQ0B48dJlslXvoTg==}
-
   argparse@2.0.1:
     resolution: {integrity: sha512-8+9WqebbFzpX9OR+Wa6O29asIogeRMzcGtAINdpMHHyAg10f05aSFVBbcEqGf/PXw1EjAZ+q2/bEBg3DvurK3Q==}
 
@@ -9062,10 +9064,6 @@ packages:
     resolution: {integrity: sha512-5bJ+nf/UCpAjHM8i06fl7eLyVC9iuNAjm9qzkiu2ZGhM0VscSvS6WDPfAwkdkBuoXGM9FJSbKl6wylMwP9Ktig==}
     engines: {node: ^12.22.0 || ^14.16.0 || ^16.0.0 || >=17.0.0}
 
-  gray-matter@4.0.3:
-    resolution: {integrity: sha512-5v6yZd4JK3eMI3FqqCouswVqwugaA9r4dNZB1wwcmrD02QkV5H0y7XBQW8QwQqEaZY1pM9aqORSORhJRdNK44Q==}
-    engines: {node: '>=6.0'}
-
   gtoken@7.1.0:
     resolution: {integrity: sha512-pCcEwRi+TKpMlxAQObHDQ56KawURgyAf6jtIY046fJ5tIv3zDe/LEIubckAO8fj6JnAxLdmWkUfNyulQ2iKdEw==}
     engines: {node: '>=14.0.0'}
@@ -9661,12 +9659,12 @@ packages:
   js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
 
-  js-yaml@3.15.2:
-    resolution: {integrity: sha512-6EuL879VkRA+1Cz578mKMiKvjPNEuk6+r1JaFzoSWejZmtf7xWbIyw1e3KkxlkzTIt9Taw6JBhEppG7utc1P+w==}
-    hasBin: true
-
   js-yaml@4.3.2:
     resolution: {integrity: sha512-SFNOvSJ+Dgf/9An904Yx+CgSlIPCkIpao4qo51lpee25TIRejdH3rhR4EZMGoNx3/TP3O+wzWuiTFl4sqbltzA==}
+    hasBin: true
+
+  js-yaml@5.4.3:
+    resolution: {integrity: sha512-yzzNtgczwgoVHNigCyKTXcQJU4Y8t/ikU4UxXW0BvrLfHTGWZhsNcOT2s/a7vn81/4KqVnNmHjaUEPlvWnNwVw==}
     hasBin: true
 
   jsbn@0.1.1:
@@ -11577,9 +11575,6 @@ packages:
   split-ca@1.0.1:
     resolution: {integrity: sha512-Q5thBSxp5t8WPTTJQS59LrGqOZqOsrhDGDVm8azCqIBjSBd7nd9o2PM+mDulQQkh8h//4U6hFZnc/mul8t5pWQ==}
 
-  sprintf-js@1.0.3:
-    resolution: {integrity: sha512-D9cPgkvLlV3t3IzL0D0YLvGA9Ahk4PcvVwUbN0dSGr1aP0Nrt4AEnTUbuGvquEC0mA64Gqt1fzirlRs5ibXx8g==}
-
   ssh2@1.17.0:
     resolution: {integrity: sha512-wPldCk3asibAjQ/kziWQQt1Wh3PgDFpC0XpwclzKcdT1vql6KeYxf5LIt4nlFkUeR8WuphYMKqUA56X4rjbfgQ==}
     engines: {node: '>=10.16.0'}
@@ -11713,10 +11708,6 @@ packages:
   strip-ansi@7.2.0:
     resolution: {integrity: sha512-yDPMNjp4WyfYBkHnjIRLfca1i6KMyGCtsVgoKe/z1+6vukgaENdgGBZt+ZmKPc4gavvEZ5OgHfHdrazhgNyG7w==}
     engines: {node: '>=12'}
-
-  strip-bom-string@1.0.0:
-    resolution: {integrity: sha512-uCC2VHvQRYu+lMh4My/sFNmF2klFymLX1wHJeXnbEJERpV/ZsVuonzerjfrGpIGF7LBVa1O7i9kjiWvJiFck8g==}
-    engines: {node: '>=0.10.0'}
 
   strip-bom@3.0.0:
     resolution: {integrity: sha512-vavAMRXOgBVNF6nyEEmL3DBK19iRpDcoIwW+swQ+CbGiu7lju6t+JklA1MHweoWtadgt4ISVUsXLyDq34ddcwA==}
@@ -12683,6 +12674,11 @@ packages:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
 
 snapshots:
+
+  '@11ty/gray-matter@3.0.0':
+    dependencies:
+      js-yaml: 5.4.3
+      section-matter: 1.0.0
 
   '@a2a-js/sdk@0.3.13(@bufbuild/protobuf@2.12.0)(@grpc/grpc-js@1.14.5)(express@5.2.1(supports-color@8.1.1))':
     dependencies:
@@ -14686,7 +14682,7 @@ snapshots:
       dotenv: 17.4.2
       execa: 9.6.1
       fastq: 1.20.1
-      gray-matter: 4.0.3
+      gray-matter: '@11ty/gray-matter@3.0.0'
       hono: 4.13.11
       hono-openapi: 1.3.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.21.0)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@3.21.0)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6))(@standard-schema/spec@1.1.0)(effect@3.21.0)(openapi-types@12.1.3)(zod@4.3.6))(@types/json-schema@7.0.15)(hono@4.13.11)(openapi-types@12.1.3)
       ignore: 7.0.6
@@ -14735,7 +14731,7 @@ snapshots:
       dotenv: 17.4.2
       execa: 9.6.1
       fastq: 1.20.1
-      gray-matter: 4.0.3
+      gray-matter: '@11ty/gray-matter@3.0.0'
       ignore: 7.0.6
       jpeg-js: 0.4.4
       json-schema: 0.4.0
@@ -19176,10 +19172,6 @@ snapshots:
 
   ansi-styles@6.2.3: {}
 
-  argparse@1.0.10:
-    dependencies:
-      sprintf-js: 1.0.3
-
   argparse@2.0.1: {}
 
   aria-hidden@1.2.6:
@@ -21167,13 +21159,6 @@ snapshots:
 
   graphql@16.13.2: {}
 
-  gray-matter@4.0.3:
-    dependencies:
-      js-yaml: 3.15.2
-      kind-of: 6.0.3
-      section-matter: 1.0.0
-      strip-bom-string: 1.0.0
-
   gtoken@7.1.0(supports-color@8.1.1):
     dependencies:
       gaxios: 6.7.1(supports-color@8.1.1)
@@ -21831,12 +21816,11 @@ snapshots:
 
   js-tokens@4.0.0: {}
 
-  js-yaml@3.15.2:
-    dependencies:
-      argparse: 1.0.10
-      esprima: 4.0.1
-
   js-yaml@4.3.2:
+    dependencies:
+      argparse: 2.0.1
+
+  js-yaml@5.4.3:
     dependencies:
       argparse: 2.0.1
 
@@ -24289,8 +24273,6 @@ snapshots:
 
   split-ca@1.0.1: {}
 
-  sprintf-js@1.0.3: {}
-
   ssh2@1.17.0:
     dependencies:
       asn1: 0.2.6
@@ -24491,8 +24473,6 @@ snapshots:
   strip-ansi@7.2.0:
     dependencies:
       ansi-regex: 6.2.2
-
-  strip-bom-string@1.0.0: {}
 
   strip-bom@3.0.0: {}
 

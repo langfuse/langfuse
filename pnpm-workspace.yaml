@@ -167,6 +167,12 @@ overrides:
   # both pin handlebars to exactly 4.7.9, including at their latest releases,
   # so only an override moves it to the patched version.
   handlebars: 4.7.10
+  # CVE-2026-78847 (critical): gray-matter's JavaScript engine eval()s `---js`
+  # front matter. 4.0.3 is the last release, and @mastra/core requires ^4.0.3
+  # through 1.78.0. @11ty/gray-matter is Eleventy's maintained fork with the
+  # same API, whose JavaScript engine throws instead. Remove once every
+  # @mastra/core in the lockfile is 1.79.0 or later, which drops gray-matter.
+  gray-matter: "npm:@11ty/gray-matter@3.0.0"
   # next-auth 4.24.x caps its optional nodemailer peer at ^7 but contains no
   # nodemailer imports (we pass a custom sendVerificationRequest); without this
   # pnpm auto-installs a second, unused nodemailer@7 instance for web.
