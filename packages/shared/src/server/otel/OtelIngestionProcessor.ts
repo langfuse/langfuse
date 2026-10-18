@@ -685,6 +685,7 @@ export class OtelIngestionProcessor {
                   userId: this.extractUserId(
                     spanAttributes,
                     decodeMetadataValues,
+                    resourceAttributes,
                   ),
                   sessionId: this.extractSessionId(
                     spanAttributes,
@@ -1172,7 +1173,11 @@ export class OtelIngestionProcessor {
           (attributes?.[LangfuseOtelSpanAttributes.RELEASE] as string) ??
           resourceAttributes?.[LangfuseOtelSpanAttributes.RELEASE] ??
           null,
-        userId: this.extractUserId(attributes, decodeMetadataValues),
+        userId: this.extractUserId(
+          attributes,
+          decodeMetadataValues,
+          resourceAttributes,
+        ),
         sessionId: this.extractSessionId(
           attributes,
           decodeMetadataValues,
@@ -1216,7 +1221,11 @@ export class OtelIngestionProcessor {
           (attributes?.[LangfuseOtelSpanAttributes.RELEASE] as string) ??
           resourceAttributes?.[LangfuseOtelSpanAttributes.RELEASE] ??
           null,
-        userId: this.extractUserId(attributes, decodeMetadataValues),
+        userId: this.extractUserId(
+          attributes,
+          decodeMetadataValues,
+          resourceAttributes,
+        ),
         /** CMA session inference belongs to root traces and individual observations. */
         sessionId: this.extractSessionId(
           attributes,
@@ -1453,6 +1462,7 @@ export class OtelIngestionProcessor {
       `ai.telemetry.metadata.tags`,
       // LlamaIndex
       `tag.tags`,
+      "user.name",
     ].some((traceAttribute) => Boolean(attributes[traceAttribute]));
 
     const attributeKeys = Object.keys(attributes);
@@ -2760,17 +2770,28 @@ export class OtelIngestionProcessor {
   private extractUserId(
     attributes: Record<string, unknown>,
     decodeMetadataValues: boolean,
+    resourceAttributes?: Record<string, unknown>,
   ): string | undefined {
-    return this.extractStringAttribute(
-      attributes,
-      [
-        "langfuse.user.id",
-        "user.id",
-        `${LangfuseOtelSpanAttributes.OBSERVATION_METADATA}.langfuse_user_id`,
-        `${LangfuseOtelSpanAttributes.TRACE_METADATA}.langfuse_user_id`,
-        `ai.telemetry.metadata.userId`,
-      ],
-      decodeMetadataValues,
+    return (
+      this.extractStringAttribute(
+        attributes,
+        [
+          "langfuse.user.id",
+          "user.id",
+          `${LangfuseOtelSpanAttributes.OBSERVATION_METADATA}.langfuse_user_id`,
+          `${LangfuseOtelSpanAttributes.TRACE_METADATA}.langfuse_user_id`,
+          `ai.telemetry.metadata.userId`,
+          "user.name",
+        ],
+        decodeMetadataValues,
+      ) ??
+      (resourceAttributes
+        ? this.extractStringAttribute(
+            resourceAttributes,
+            ["langfuse.user.id", "user.id", "user.name", "process.user.name"],
+            decodeMetadataValues,
+          )
+        : undefined)
     );
   }
 
