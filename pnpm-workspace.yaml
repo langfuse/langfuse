@@ -158,10 +158,11 @@ overrides:
   # satisfies, so only an override moves it.
   axios: 1.20.0
   # CVE-2026-101916 (certificate validation) and CVE-2026-101915 (sensitive
-  # data in server errors), fixed in 1.14.5. The OpenTelemetry gRPC exporters,
-  # @a2a-js/sdk and dockerode all declare ^1 ranges the vulnerable 1.14.4
-  # already satisfies, so only an override moves it.
-  "@grpc/grpc-js": 1.14.5
+  # data in server errors), fixed in 1.14.5. 1.14.6 fixes the instances of
+  # GHSA-f596-whhp-79r4 (CVE-2026-101915) that 1.14.5 missed. The OpenTelemetry
+  # gRPC exporters, @a2a-js/sdk and dockerode all declare ^1 ranges the
+  # vulnerable versions already satisfy, so only an override moves it.
+  "@grpc/grpc-js": 1.14.6
   # CVE-2026-106444/-106445/-106446: code injection and script-tag escaping
   # fixes land in 4.7.10. eslint-plugin-boundaries and @boundaries/elements
   # both pin handlebars to exactly 4.7.9, including at their latest releases,
