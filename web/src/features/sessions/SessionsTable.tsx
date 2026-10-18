@@ -46,6 +46,7 @@ import {
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import { useOrderByState } from "@/src/features/orderBy";
+import { normalizeSessionsOrderBy } from "@/src/features/sessions/normalizeSessionsOrderBy";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
@@ -230,6 +231,7 @@ export default function SessionsTable({
     column: "createdAt",
     order: "DESC",
   });
+  const sessionOrderBy = normalizeSessionsOrderBy(orderByState);
 
   // dateRangeFilter contains only createdAt datetime filters, pass directly to API
   const filterOptionsV3 = api.sessions.filterOptions.useQuery(
@@ -400,7 +402,7 @@ export default function SessionsTable({
 
   const payloadGetAll = {
     ...payloadCount,
-    orderBy: orderByState,
+    orderBy: sessionOrderBy,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
   };
@@ -548,7 +550,7 @@ export default function SessionsTable({
       isBatchAction: selectAll,
       query: {
         filter: backendFilterState,
-        orderBy: orderByState,
+        orderBy: sessionOrderBy,
       },
     });
     setSelectedRows({});
@@ -904,7 +906,7 @@ export default function SessionsTable({
                     {...{
                       projectId,
                       filterState: backendFilterState,
-                      orderByState,
+                      orderByState: sessionOrderBy,
                     }}
                     tableName={BatchExportTableName.Sessions}
                     key="batchExport"
@@ -989,7 +991,7 @@ export default function SessionsTable({
                 options: TRACING_PAGE_SIZE_OPTIONS,
               }}
               setOrderBy={handleOrderByChange}
-              orderBy={orderByState}
+              orderBy={sessionOrderBy}
               columnVisibility={columnVisibility}
               onColumnVisibilityChange={handleColumnVisibilityChange}
               columnOrder={columnOrder}

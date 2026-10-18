@@ -1,6 +1,9 @@
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import { OrderByState } from "../../interfaces/orderBy";
-import { sessionCols } from "../tableMappings/mapSessionTable";
+import {
+  canonicalizeSessionOrderBy,
+  sessionCols,
+} from "../tableMappings/mapSessionTable";
 import { FilterState } from "../../types";
 import { sessionsViewCols } from "../../tableDefinitions/sessionsView";
 import { findUiColumnMapping } from "../../tableDefinitions";
@@ -132,12 +135,12 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
     select,
     projectId,
     filter,
-    orderBy,
     limit,
     page,
     clickhouseConfigs,
     preferredClickhouseService,
   } = props;
+  const orderBy = canonicalizeSessionOrderBy(props.orderBy, sessionCols);
 
   let sqlSelect: string;
   switch (select) {
