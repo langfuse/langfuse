@@ -1,0 +1,93 @@
+name: Design System Sync
+
+on:
+  schedule:
+    # Every night in San Francisco.
+    # 09:43 UTC is 02:43 PDT and 01:43 PST.
+    - cron: "43 9 * * *"
+  workflow_dispatch:
+    inputs:
+      max_turns:
+        description: "Maximum Claude Code agent turns (1-500)"
+        required: false
+        default: "300"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: design-system-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    if: github.repository == 'langfuse/langfuse'
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 120
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          install: false
+          cache: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: ".nvmrc"
+          package-manager-cache: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm --filter web exec playwright install --with-deps chromium
+
+      - name: Validate inputs
+        id: validate-inputs
+        env:
+          MAX_TURNS: ${{ github.event.inputs.max_turns || '300' }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$MAX_TURNS" =~ ^[0-9]+$ ]] || [ "$MAX_TURNS" -lt 1 ] || [ "$MAX_TURNS" -gt 500 ]; then
+            echo "::error::max_turns must be a whole number from 1 to 500"
+            exit 1
+          fi
+          echo "max_turns=$MAX_TURNS" >> "$GITHUB_OUTPUT"
+
+      - name: Sync design system
+        uses: anthropics/claude-code-action@4036a180cf690f49529f5d8c79c998855287f590 # v1.0.230
+        env:
+          API_TIMEOUT_MS: "900000"
+          BASH_DEFAULT_TIMEOUT_MS: "1800000"
+        with:
+          # Uploads go through a claude.ai login, which an API key does not carry.
+          claude_code_oauth_token: ${{ secrets.CLAUDE_DESIGN_SYNC_OAUTH_TOKEN }}
+          github_token: ${{ github.token }}
+          display_report: "true"
+          prompt: |
+            You are running Langfuse's scheduled design-system sync. Run /design-sync to
+            re-sync the design system to the Claude Design project pinned in
+            .design-sync/config.json, following .design-sync/NOTES.md.
+
+            This run is unattended:
+            - Never ask questions. When a step needs a human decision, stop without
+              uploading and report what is blocked.
+            - Sync only to the pinned projectId. Never create, re-adopt or switch projects.
+            - Build Storybook only with the committed .env.dev.example, never a .env file.
+            - Upload only components whose previews pass verification. Report any
+              component that fails, with its grade notes, instead of uploading it.
+            - Do not commit, push or open pull requests. Report any NOTES.md or config
+              change the sync would need in the final summary.
+            - If nothing changed since the last sync, say so and stop.
+
+            End with a short summary: components uploaded, deleted, failed or skipped.
+          claude_args: |
+            --model claude-opus-5-5
+            --max-turns ${{ steps.validate-inputs.outputs.max_turns }}
+            --allowedTools "Skill,Read,Write,Edit,Glob,Grep,Bash,DesignSync"
