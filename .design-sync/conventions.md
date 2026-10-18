@@ -39,7 +39,7 @@ Your own layout markup uses Tailwind classes - but only ones present in the ship
 | Type | `text-2xs` `text-xs` `text-sm` `text-base` `text-lg` `text-xl` `text-2xl`, `font-bold` (the only bold weight), `font-mono` (IBM Plex Mono) |
 | Layout | `flex` `flex-col` `grid` `grid-cols-2` `grid-cols-3` `items-center` `justify-between` `gap-1..6` `p-2..6` `px-4` `py-3` `space-y-2` `space-y-4` `w-full` `h-full` `max-w-md` `max-w-lg` `truncate` `overflow-auto` |
 
-Never use hex colors or raw px; there is no `font-medium`/`font-semibold` - use `font-bold` or nothing. The token source is `styles.css` -> `_ds_bundle.css` (`--color-*`, `--radius`, `--text-*`).
+Never use hex colors or raw px; `font-medium`/`font-semibold` compile but are off-system drift - use `font-bold` or nothing. The token source is `styles.css` -> `_ds_bundle.css` (`--color-*`, `--radius`, `--text-*`).
 
 ## Example
 
