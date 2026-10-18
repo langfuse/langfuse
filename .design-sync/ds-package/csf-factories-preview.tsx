@@ -16,9 +16,11 @@ const arr = (d: unknown): any[] => (d == null ? [] : ([] as any[]).concat(d));
 
 const preview = {
   meta(metaInput: Input) {
+    // makeStory already folds these into each story; the generator would apply them again
+    const { decorators: _decorators, ...metaFields } = metaInput;
     return {
       input: metaInput,
-      ...metaInput,
+      ...metaFields,
       story: (input: Input = {}) =>
         makeStory(
           metaInput,
