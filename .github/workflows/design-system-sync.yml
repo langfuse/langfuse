@@ -83,6 +83,7 @@ jobs:
           echo "max_turns=$MAX_TURNS" >> "$GITHUB_OUTPUT"
 
       - name: Sync design system
+        id: claude-sync
         uses: anthropics/claude-code-action@4036a180cf690f49529f5d8c79c998855287f590 # v1.0.230
         env:
           API_TIMEOUT_MS: "900000"
@@ -117,6 +118,16 @@ jobs:
             --model claude-opus-5-5
             --max-turns ${{ steps.validate-inputs.outputs.max_turns }}
             --allowedTools "Skill,Read,Write,Edit,Glob,Grep,Bash,DesignSync"
+
+      # The action hides Claude's output; surface only the final result message.
+      - name: Show Claude error
+        if: failure() && steps.claude-sync.outcome == 'failure'
+        env:
+          EXECUTION_FILE: ${{ steps.claude-sync.outputs.execution_file }}
+        run: |
+          if [ -s "$EXECUTION_FILE" ]; then
+            jq -r '.[] | select(.type == "result") | .result // empty' "$EXECUTION_FILE" | head -c 4000
+          fi
 
       - name: Prepare pull request patch
         id: prepare
