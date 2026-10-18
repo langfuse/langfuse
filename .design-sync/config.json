@@ -285,6 +285,21 @@
       "skip": [
         "playground-markdownviewer--header-controls-on-focus"
       ]
+    },
+    "DataTable": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "skip": [
+        "playground-datatable--pixel-resize-keeps-cells-mounted",
+        "playground-datatable--medium-boundary-updates-only-resized-row",
+        "playground-datatable--equivalent-refresh-keeps-resize-active",
+        "playground-datatable--membership-changes-cancel-resize",
+        "playground-datatable--canceled-pointers-restore-row-height",
+        "playground-datatable--overlapping-pointers-keep-first-resize",
+        "playground-datatable--removed-lower-handle-releases-pending-resize",
+        "playground-datatable--removed-lower-handle-rolls-back-preview",
+        "playground-datatable--removed-keyboard-handle-cancels-resize"
+      ]
     }
   },
   "extraFonts": [

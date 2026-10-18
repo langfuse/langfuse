@@ -87,6 +87,7 @@ layouts/mobile-page-actions-content MobilePageActionsContent
 nav/AppSidebar/AppSidebar AppSidebar
 onboarding/components/EvaluatorsOnboardingView/EvaluatorsOnboardingView EvaluatorsOnboardingView
 table/ColumnVisibilityHeader ColumnVisibilityHeader
+table/data-table DataTable
 table/FacetHeader FacetHeader
 table/KeyValueFilterBuilder KeyValueFilterBuilder
 table/OverviewSelectionBar/OverviewSelectionBar OverviewSelectionBar
