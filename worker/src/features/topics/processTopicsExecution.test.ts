@@ -58,6 +58,11 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
     isInternalEvalEnvironment,
     recordIncrement: vi.fn(),
     recordDistribution: vi.fn(),
+    instrumentAsync: (
+      _ctx: unknown,
+      callback: (span: { setAttribute: () => void }) => Promise<unknown>,
+    ) => callback({ setAttribute: () => {} }),
+    logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   };
 });
 const facet: TopicFacetVersion = {

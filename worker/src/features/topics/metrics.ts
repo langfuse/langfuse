@@ -11,6 +11,12 @@ type TopicStage =
   | "summary"
   | "embedding"
   | "clustering"
+  // Update-only stages. `cohort` loads summaries; the others are synchronous
+  // main-thread classifier work, so their duration is event-loop block time.
+  | "cohort"
+  | "prototypes"
+  | "continuity"
+  | "naming_evidence"
   | "naming"
   | "assignment"
   | "storage";
