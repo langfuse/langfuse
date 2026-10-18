@@ -9,7 +9,10 @@ use axum::{
     response::Response,
 };
 
-use crate::resolution::{ProviderConnection, ResolvedRequestContext};
+use crate::{
+    observability::RequestObservation,
+    resolution::{OrganizationId, ProjectId, ProviderConnection, ResolvedRequestContext},
+};
 
 pub(crate) const REQUEST_ID_HEADER: HeaderName = HeaderName::from_static("langfuse-request-id");
 const TRACE_ID_HEADER: HeaderName = HeaderName::from_static("langfuse-trace-id");
@@ -32,8 +35,8 @@ pub(crate) struct GenerationIds {
 
 #[derive(Clone, Debug)]
 struct Tenant {
-    organization_id: String,
-    project_id: String,
+    organization_id: OrganizationId,
+    project_id: ProjectId,
 }
 
 /// The provider connection and model of an upstream attempt. With several
@@ -67,6 +70,7 @@ pub(crate) struct RequestCorrelation {
     upstream: Option<UpstreamTarget>,
     /// The request's `http.server` span, which outlives the phase spans.
     server_span: tracing::Span,
+    observation: RequestObservation,
 }
 
 impl Default for RequestCorrelation {
@@ -78,6 +82,7 @@ impl Default for RequestCorrelation {
             tenant: None,
             upstream: None,
             server_span: tracing::Span::none(),
+            observation: RequestObservation::default(),
         }
     }
 }
@@ -115,19 +120,26 @@ impl RequestCorrelation {
         self.client_id.as_deref()
     }
 
+    /// Error origin and phase timings for the response metric.
+    pub(crate) fn observation(&self) -> &RequestObservation {
+        &self.observation
+    }
+
     pub(crate) fn record_generation(&mut self, ids: GenerationIds) {
         self.generation = Some(ids);
     }
 
     pub(crate) fn record_resolution(&mut self, context: &ResolvedRequestContext) {
         let attribution = context.attribution();
+        self.server_span.record(
+            "langfuse.organization.id",
+            attribution.organization_id().as_str(),
+        );
         self.server_span
-            .record("langfuse.organization.id", attribution.organization_id());
-        self.server_span
-            .record("langfuse.project.id", attribution.project_id());
+            .record("langfuse.project.id", attribution.project_id().as_str());
         self.tenant = Some(Tenant {
-            organization_id: attribution.organization_id().to_owned(),
-            project_id: attribution.project_id().to_owned(),
+            organization_id: attribution.organization_id().clone(),
+            project_id: attribution.project_id().clone(),
         });
     }
 
@@ -194,6 +206,9 @@ pub(crate) async fn assign_request_id(mut request: Request, next: Next) -> Respo
         span.record("gateway.client.request.id", client_id);
     }
     correlation.server_span = span;
+    if let Some(observation) = request.extensions().get::<RequestObservation>() {
+        correlation.observation = observation.clone();
+    }
     #[expect(clippy::expect_used, reason = "the gateway-generated UUID is ASCII")]
     let value = HeaderValue::from_str(correlation.id()).expect("a UUID is a valid header value");
     request.extensions_mut().insert(correlation);

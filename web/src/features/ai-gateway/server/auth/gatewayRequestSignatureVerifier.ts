@@ -78,7 +78,12 @@ function verifyGatewayRequestSignatureAndHashApiKey(input: {
       serviceKeys,
     )
   ) {
-    throw new GatewayControlPlaneError("Invalid gateway authorization", 401);
+    // Coded so the gateway can tell a service-key mismatch from a rejected caller key.
+    throw new GatewayControlPlaneError(
+      "Invalid gateway authorization",
+      401,
+      "invalid_gateway_authorization",
+    );
   }
 
   return createShaHash(input.virtualSecretKey, env.SALT);
@@ -156,6 +161,9 @@ export function withGatewayModelsSignatureVerification(
       });
     } catch (error) {
       if (error instanceof GatewayControlPlaneError) {
+        if (error.code) {
+          res.setHeader("langfuse-gateway-error-code", error.code);
+        }
         return res.status(error.status).json({ error: error.message });
       }
       return res.status(500).json({ error: "Internal server error" });
@@ -214,6 +222,9 @@ function withGatewayControlPlaneAuth<
       );
     } catch (error) {
       if (error instanceof GatewayControlPlaneError) {
+        if (error.code) {
+          res.setHeader("langfuse-gateway-error-code", error.code);
+        }
         return res.status(error.status).json({ error: error.message });
       }
       return res.status(500).json({ error: "Internal server error" });

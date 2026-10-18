@@ -6,6 +6,7 @@ import {
   useState,
 } from "react";
 import { useMediaQuery } from "react-responsive";
+import dynamic from "next/dynamic";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { MAX_SKILL_FILES } from "@langfuse/shared";
 import { useStore } from "zustand";
@@ -22,8 +23,6 @@ import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { SkillLinkedTraces } from "@/src/features/skills/components/SkillLinkedTraces";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { CodeMirrorEditor } from "@/src/components/editor";
 import Page from "@/src/components/layouts/page";
 import { Button } from "@/src/components/ui/button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
@@ -50,7 +49,6 @@ import {
 import { importSkillFiles } from "@/src/features/skills/actions/importSkillFiles";
 import { getParentFolderPaths } from "@/src/features/skills/components/skillFileTree";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
-import { getSkillFileLanguageExtensions } from "@/src/features/skills/utils/getSkillFileLanguageExtensions";
 import {
   createSkillDraftFile,
   type SkillDraftFile,
@@ -62,14 +60,21 @@ import {
   SkillTagsSelect,
 } from "@/src/features/skills/components/SkillMetadataSelect";
 import { SkillVersionHistory } from "@/src/features/skills/components/SkillVersionHistory";
-import { SkillFilePreview } from "@/src/features/skills/components/SkillFilePreview";
+import { SkillFileView } from "@/src/features/skills/components/SkillFileView";
 import { useSkillFileContents } from "@/src/features/skills/hooks/useSkillFileContents";
+import { useLangfuseV4WriteMode } from "@/src/features/organizations/hooks";
 import {
   parseSkillFrontmatterMetadata,
   SKILL_NAME_RULES,
 } from "@/src/features/skills/utils/parseSkillFrontmatterMetadata";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
+
+const SkillAnalytics = dynamic(() =>
+  import("@/src/features/skills/components/SkillAnalytics").then(
+    (module) => module.SkillAnalytics,
+  ),
+);
 
 export function SkillEditor({
   projectId,
@@ -87,7 +92,12 @@ export function SkillEditor({
   canCreate: boolean;
   view:
     | { kind: "draft"; onDiscard: () => Promise<void> }
-    | { kind: "version"; hasDraft: boolean; onEdit: () => Promise<void> };
+    | {
+        kind: "version";
+        skillId: string;
+        hasDraft: boolean;
+        onEdit: () => Promise<void>;
+      };
   onCreated: (created: { name: string; version: number }) => Promise<void>;
   history:
     | { kind: "new" }
@@ -177,12 +187,18 @@ export function SkillEditor({
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const isDraft = view.kind === "draft";
+  const v4WriteMode = useLangfuseV4WriteMode();
+  const canReadMetrics = v4WriteMode !== null && v4WriteMode !== "legacy";
   const [selectedTab, setSelectedTab] = useQueryParam(
     "tab",
     withDefault(StringParam, "files"),
   );
   const activeTab =
-    !isDraft && selectedTab === "linked-traces" ? "linked-traces" : "files";
+    !isDraft &&
+    (selectedTab === "linked-traces" ||
+      (selectedTab === "metrics" && canReadMetrics))
+      ? selectedTab
+      : "files";
   const canEditFiles = isDraft && canCreate && !isSaving;
   const isDesktop = useMediaQuery({ query: "(min-width: 768px)" });
   const [treeState, setTreeState] = useState<SkillFileExplorerState>(() => ({
@@ -664,10 +680,28 @@ export function SkillEditor({
                   >
                     <Tabs.List variant="underline">
                       <Tabs.Trigger value="files" label="Files" />
-                      {!isDraft ? (
-                        <Tabs.Trigger value="linked-traces" label="Traces" />
-                      ) : null}
+                      <Tabs.Trigger
+                        value="metrics"
+                        label="Metrics"
+                        disabled={isDraft || !canReadMetrics}
+                      />
+                      <Tabs.Trigger
+                        value="linked-traces"
+                        label="Observations"
+                        disabled={isDraft}
+                      />
                     </Tabs.List>
+                    {canReadMetrics &&
+                    view.kind === "version" &&
+                    baseVersion !== null ? (
+                      <Tabs.Content value="metrics" layout="fill">
+                        <SkillAnalytics
+                          projectId={projectId}
+                          skillId={view.skillId}
+                          paths={Object.keys(store.getState().files).toSorted()}
+                        />
+                      </Tabs.Content>
+                    ) : null}
                     {!isDraft && baseVersion !== null ? (
                       <Tabs.Content value="linked-traces" layout="fill">
                         <SkillLinkedTraces
@@ -789,7 +823,7 @@ function SkillFileEditor({
   const { refetch } = fileContents;
   const content = activeFile.content ?? fileContents.data?.content;
 
-  const editorContent = useMemo(() => {
+  const placeholder = useMemo(() => {
     if (content === undefined && fileContents.isError) {
       return (
         <div className="flex flex-col items-start gap-2 text-sm">
@@ -813,46 +847,22 @@ function SkillFileEditor({
         </div>
       );
     }
-    if (!isDraft) {
-      return <SkillFilePreview path={activePath} content={content} />;
-    }
-    return (
-      <CodeMirrorEditor
-        key={activePath}
-        value={content}
-        onChange={editable ? updateActiveFile : undefined}
-        editable={editable}
-        mode="text"
-        extensions={getSkillFileLanguageExtensions(activePath)}
-        minHeight="500px"
-        lineNumbers
-        className="h-full"
-      />
-    );
-  }, [
-    content,
-    fileContents.isError,
-    fileContents.error,
-    refetch,
-    activePath,
-    isDraft,
-    editable,
-    updateActiveFile,
-  ]);
+    return null;
+  }, [content, fileContents.isError, fileContents.error, refetch]);
 
   return (
-    <section className="ph-no-capture flex h-full min-w-0 flex-col">
-      <div className="flex min-h-11 items-center justify-between gap-2 border-b px-3">
-        <span className="min-w-0 truncate font-mono text-xs" title={activePath}>
-          {activePath}
-        </span>
-        <Badge
-          text={isDraft ? "Editing draft" : "Viewing"}
-          color={isDraft ? "blue" : "primary"}
-        />
-      </div>
-      <div className="min-h-0 flex-1 overflow-auto p-3">{editorContent}</div>
-    </section>
+    <SkillFileView
+      key={isDraft ? "draft" : "version"}
+      path={activePath}
+      content={content}
+      mode={
+        isDraft
+          ? { kind: "draft", editable, onChange: updateActiveFile }
+          : { kind: "view" }
+      }
+    >
+      {placeholder}
+    </SkillFileView>
   );
 }
 

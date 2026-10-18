@@ -2,6 +2,7 @@ import { type RouterOutputs } from "@/src/utils/api";
 
 export function getSessionTranscriptThreads(
   transcript: RouterOutputs["events"]["transcriptByTraceId"]["transcript"],
+  includeNestedThreads = false,
 ) {
   const threads = transcript?.threads ?? [];
   const shallowestLevel = threads.reduce(
@@ -11,7 +12,9 @@ export function getSessionTranscriptThreads(
   const visibleThreads = threads
     .map((thread, threadIndex) => ({ thread, threadIndex }))
     .filter(
-      ({ thread }) => thread.currentTurn.nestingLevel === shallowestLevel,
+      ({ thread }) =>
+        includeNestedThreads ||
+        thread.currentTurn.nestingLevel === shallowestLevel,
     );
   return {
     visibleThreads,

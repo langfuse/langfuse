@@ -18,7 +18,6 @@ import {
   type OperationNode,
   type PluginTransformQueryArgs,
   type PluginTransformResultArgs,
-  type QueryId,
   type RootOperationNode,
 } from "kysely";
 
@@ -29,7 +28,7 @@ import {
   type ClickHouseSelectQueryNode,
 } from "./nodes";
 import { TENANTED_TABLES } from "./schema";
-import { ClickHouseOperationNodeTransformer } from "./transformer";
+import { CteScopedTransformer } from "./transformer";
 
 const PROJECT_ID_COLUMN = "project_id";
 
@@ -41,7 +40,7 @@ const PROJECT_ID_COLUMN = "project_id";
 const TENANCY_STAMPED = new WeakSet<object>();
 
 type Relation =
-  | { kind: "table"; tableName: string; alias?: string }
+  | { kind: "table"; tableName: string; alias?: string; node: TableNode }
   | { kind: "subquery"; node: SelectQueryNode }
   | { kind: "raw" }
   | { kind: "other" };
@@ -74,39 +73,22 @@ export class TenancyInjectionPlugin implements KyselyPlugin {
   }
 }
 
-class TenancyInjectionTransformer extends ClickHouseOperationNodeTransformer {
+class TenancyInjectionTransformer extends CteScopedTransformer {
   constructor(private readonly projectId: string) {
     super();
   }
 
-  protected override transformSelectQuery(
-    node: SelectQueryNode,
-    queryId?: QueryId,
-  ): SelectQueryNode {
-    const withChildren = super.transformSelectQuery(
-      node,
-      queryId,
-    ) as ClickHouseSelectQueryNode;
-    return injectSelect(
-      withChildren,
-      this.projectId,
-      collectCteNames(withChildren),
-    );
+  protected rewriteSelect(
+    node: ClickHouseSelectQueryNode,
+  ): ClickHouseSelectQueryNode {
+    return injectSelect(node, this.projectId, (table) => this.isCte(table));
   }
-}
-
-function collectCteNames(node: SelectQueryNode): Set<string> {
-  const names = new Set<string>();
-  for (const expr of node.with?.expressions ?? []) {
-    names.add(tableNameOf(expr.name.table));
-  }
-  return names;
 }
 
 function injectSelect(
   node: ClickHouseSelectQueryNode,
   projectId: string,
-  cteNames: Set<string>,
+  isCte: (table: TableNode) => boolean,
 ): ClickHouseSelectQueryNode {
   const fromRelations = (node.from?.froms ?? []).map(describeRelation);
   const joinRelations = (node.joins ?? []).map((join) => ({
@@ -124,9 +106,7 @@ function injectSelect(
   const isTenantedTable = (
     r: Relation,
   ): r is Extract<Relation, { kind: "table" }> =>
-    r.kind === "table" &&
-    TENANTED_TABLES.has(r.tableName) &&
-    !cteNames.has(r.tableName);
+    r.kind === "table" && TENANTED_TABLES.has(r.tableName) && !isCte(r.node);
 
   const tenantedFrom = fromRelations.filter(isTenantedTable);
   const tenantedJoinCount = joinRelations.filter(({ relation }) =>
@@ -202,12 +182,12 @@ function describeRelation(node: OperationNode): Relation {
     const inner = describeRelation(node.node);
     if (inner.kind === "table") {
       const alias = identifierName(node.alias);
-      return { kind: "table", tableName: inner.tableName, alias };
+      return { ...inner, alias };
     }
     return inner;
   }
   if (TableNode.is(node)) {
-    return { kind: "table", tableName: tableNameOf(node) };
+    return { kind: "table", tableName: tableNameOf(node), node };
   }
   if (SelectQueryNode.is(node)) {
     return { kind: "subquery", node };

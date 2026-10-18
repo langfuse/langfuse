@@ -14,7 +14,7 @@ export function SkillLinkedTraces({
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+    <div className="-mt-px flex min-h-0 flex-1 flex-col overflow-hidden">
       <TableHeaderControls timeRange={timeRange} setTimeRange={setTimeRange} />
       <EventsTable
         projectId={projectId}

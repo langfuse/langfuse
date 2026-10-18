@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { cn } from "@/src/utils/tailwind";
 
 export function ActionButtonCountBadge({

@@ -1,7 +1,11 @@
 import { cva } from "class-variance-authority";
 import { ExternalLink, type LucideIcon } from "lucide-react";
 import Link from "next/link";
-import { type MouseEventHandler, type Ref } from "react";
+import {
+  type ButtonHTMLAttributes,
+  type MouseEventHandler,
+  type Ref,
+} from "react";
 
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { cn } from "@/src/utils/tailwind";
@@ -69,7 +73,7 @@ type ButtonProps = {
       onClick?: never;
       type?: never;
     }
-  | {
+  | ({
       href?: never;
       ref?: Ref<HTMLButtonElement>;
       disabled?: boolean;
@@ -80,10 +84,11 @@ type ButtonProps = {
       type?: "button" | "submit";
       /** Icon left (default) or right of the text. */
       iconPosition?: "left" | "right";
-      /** For disclosure toggles: whether the content it controls is open. */
-      "aria-expanded"?: boolean;
-      "aria-controls"?: string;
-    }
+      "data-state"?: string;
+    } & Pick<
+      ButtonHTMLAttributes<HTMLButtonElement>,
+      "id" | "aria-controls" | "aria-expanded" | "aria-haspopup"
+    >)
 );
 
 export function Button(props: ButtonProps) {
@@ -148,8 +153,11 @@ export function Button(props: ButtonProps) {
       onClick={props.loading || props.disabled ? undefined : props.onClick}
       aria-busy={props.loading}
       aria-label={props.text}
-      aria-expanded={props["aria-expanded"]}
+      id={props.id}
       aria-controls={props["aria-controls"]}
+      aria-expanded={props["aria-expanded"]}
+      aria-haspopup={props["aria-haspopup"]}
+      data-state={props["data-state"]}
     >
       <span
         className={cn(

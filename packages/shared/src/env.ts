@@ -280,6 +280,18 @@ const EnvSchema = z.object({
     .number()
     .nonnegative()
     .default(5_000),
+  LANGFUSE_LARGE_PROJECT_IDS: z
+    .string()
+    .default("")
+    .transform(
+      (value) =>
+        new Set(
+          value
+            .split(",")
+            .map((id) => id.trim())
+            .filter(Boolean),
+        ),
+    ),
   LANGFUSE_DELETE_SKIP_PROJECT_IDS: z
     .string()
     .optional()
@@ -604,10 +616,6 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
-  // When non-empty, OIDC discovery URLs and the endpoints in the discovery
-  // document must use one of these hosts. Checked when an SSO configuration
-  // is saved, same as the exemption list above.
-  LANGFUSE_SSO_DISCOVERY_ALLOWED_HOSTS: optionalCommaSeparatedLowercase,
   // Extra CIDR ranges merged into the private-address block for outbound URL
   // checks that already run. Blob storage stays opt-in: these ranges apply
   // there only when blob endpoint validation is already enabled. Exemptions

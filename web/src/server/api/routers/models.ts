@@ -26,6 +26,7 @@ import {
   findModel,
   hasPricingTierUsageDetails,
   matchPricingTier,
+  escapeSqlLikePattern,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
@@ -117,7 +118,7 @@ export const modelRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       const { projectId, page, limit, searchString } = input;
 
-      const searchStringTemplate = `%${searchString}%`;
+      const searchStringTemplate = `%${escapeSqlLikePattern(searchString)}%`;
       const searchStringCondition = searchString
         ? Prisma.sql`AND model_name ILIKE ${searchStringTemplate}`
         : Prisma.sql`AND 1=1`;

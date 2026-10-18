@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 /**
  * Shared machinery for the Design reference pages (Color, Typography,
  * Layout, Charts). Everything token-shaped is parsed at build time from

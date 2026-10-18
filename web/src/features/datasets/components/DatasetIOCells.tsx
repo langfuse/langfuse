@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { api } from "@/src/utils/api";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import { useBoundRowHeightIO } from "@/src/components/table/data-table-row-height-switch";

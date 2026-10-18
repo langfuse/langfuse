@@ -77,7 +77,7 @@ impl<'de> Deserialize<'de> for Members {
         struct MembersVisitor;
         impl<'de> Visitor<'de> for MembersVisitor {
             type Value = Members;
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("a JSON object")
             }
             fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Members, A::Error> {

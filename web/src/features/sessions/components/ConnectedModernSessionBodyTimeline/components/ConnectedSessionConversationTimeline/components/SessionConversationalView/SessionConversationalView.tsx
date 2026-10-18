@@ -15,6 +15,7 @@ import { getSessionToolStatus } from "@/src/features/sessions/components/Connect
 import { getSessionTranscriptThreads } from "../../fns/getSessionTranscriptThreads";
 import { getSessionConversationEntries } from "../../fns/getSessionConversationEntries";
 import { computeIdleGapSeconds } from "@/src/features/sessions/sessionIdleGap";
+import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
 
 export function SessionConversationalView(
   props: (
@@ -30,7 +31,9 @@ export function SessionConversationalView(
         isSearchPending: boolean;
       })
   ) & {
-    traces: ComponentProps<typeof SessionConversationTimeline>["traces"];
+    traces: readonly (ComponentProps<
+      typeof SessionConversationTimeline
+    >["traces"][number] & { trace: EventSessionTrace })[];
     controller: SessionConversationTimelineController;
   },
 ) {

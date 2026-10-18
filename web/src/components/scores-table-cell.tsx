@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { ControlledHoverCard } from "@/src/components/design-system/ControlledHoverCard/ControlledHoverCard";
 import {

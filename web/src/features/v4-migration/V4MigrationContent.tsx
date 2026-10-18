@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 /* eslint-disable @repo/no-style-props, @repo/no-null-render */
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import { type ReactNode, useEffect, useRef, useState } from "react";
@@ -785,7 +785,7 @@ export function V4MigrationEvalsSection({
               {assistant.aiFeaturesEnabled !== false ? (
                 <>
                   <BotMessageSquare className="icon-base text-icon-foreground mr-1.5" />
-                  Use Assistant
+                  Use Halo
                 </>
               ) : (
                 "Update evals"
@@ -1369,7 +1369,7 @@ export function V4MigrationHeaderContent({
             href={LANGFUSE_ASSISTANT_URL}
             analytics={{ section: "header", link: "langfuse_assistant_docs" }}
           >
-            Langfuse Assistant
+            Langfuse Halo
           </ExternalLink>
           .
           {actionNeeded

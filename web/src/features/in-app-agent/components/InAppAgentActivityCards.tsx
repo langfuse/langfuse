@@ -1,8 +1,8 @@
-import { BotMessageSquare, X } from "lucide-react";
+import { X } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
-import { cn } from "@/src/utils/tailwind";
 import type { InAppAgentActivityState } from "@/src/features/in-app-agent/lib/inAppAgentActivity";
+import { HaloIcon } from "@/src/features/in-app-agent/components/HaloIcon";
 
 export type InAppAgentActivityCard = {
   conversationId: string;
@@ -13,20 +13,20 @@ export type InAppAgentActivityCard = {
 };
 
 function getCardCopy(state: InAppAgentActivityCard["state"]) {
-  // Lead with "Assistant" so the toast reads as the same product as the
-  // launcher (BotMessageSquare), not a generic system alert.
+  // Lead with "Halo" so the toast reads as the same product as the
+  // launcher icon, not a generic system alert.
   if (state === "approval") {
     return {
-      label: "Assistant needs your approval",
+      label: "Halo needs your approval",
       tone: "accent" as const,
     };
   }
 
   if (state === "failed-unread") {
-    return { label: "Assistant run failed", tone: "destructive" as const };
+    return { label: "Halo run failed", tone: "destructive" as const };
   }
 
-  return { label: "Assistant finished", tone: "accent" as const };
+  return { label: "Halo finished", tone: "accent" as const };
 }
 
 /** Pure floating stack: ordering/cap live here; callers own delivery lifecycle. */
@@ -51,14 +51,12 @@ export function InAppAgentActivityCards({
             role="status"
             className="bg-background pointer-events-auto flex items-start gap-2 rounded-md border p-3 shadow-lg"
           >
-            <BotMessageSquare
-              className={cn(
-                "icon-base mt-0.5 shrink-0",
+            <HaloIcon
+              variant={
                 tone === "destructive"
-                  ? "text-destructive"
-                  : "text-primary-accent",
-              )}
-              aria-hidden
+                  ? "activityDestructive"
+                  : "activityAccent"
+              }
             />
             <button
               type="button"

@@ -7,6 +7,7 @@ import {
   getObservationsCountFromEventsTable,
   getObservationsCountsFromEventsTable,
   getObservationByIdFromEventsTable,
+  getObservationFullIOForSessionFromEventsTable,
   getAgentGraphDataFromEventsTable,
   getObservationsFromEventsTableForPublicApi,
   getObservationsCountFromEventsTableForPublicApi,
@@ -24,6 +25,8 @@ import {
   getTotalCostByRule,
   createScoresCh,
   createTraceScore,
+  getUsersFromEventsTable,
+  getUsersCountFromEventsTable,
   type EventFilterOptionColumn,
 } from "@langfuse/shared/src/server";
 import {
@@ -36,6 +39,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
 import {
+  LangfuseNotFoundError,
   type EventsTableFilterState,
   type FilterCondition,
   type TimeFilter,
@@ -1175,6 +1179,41 @@ describe("Clickhouse Events Repository Test", () => {
           startTimeLowerBound: new Date(observationStart + 3 * DAY_MS),
         }),
       ).rejects.toThrow();
+    });
+  });
+
+  maybe("latest-version reads of a soft-deleted observation", () => {
+    it("read it as missing even though an older live version exists", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+      const sessionId = randomUUID();
+      const start = Date.now() - 60_000;
+      const version = {
+        id: observationId,
+        span_id: observationId,
+        project_id: projectId,
+        trace_id: traceId,
+        session_id: sessionId,
+        start_time: start,
+      };
+
+      await createEventsCh([
+        createEvent({ ...version, event_ts: start }),
+        createEvent({ ...version, event_ts: start + 1000, is_deleted: 1 }),
+      ]);
+
+      await expect(
+        getObservationByIdFromEventsTable({ id: observationId, projectId }),
+      ).rejects.toThrow(LangfuseNotFoundError);
+      await expect(
+        getObservationFullIOForSessionFromEventsTable({
+          projectId,
+          sessionId,
+          traceId,
+          observationId,
+          startTime: new Date(start),
+        }),
+      ).resolves.toBeNull();
     });
   });
 
@@ -5837,5 +5876,55 @@ describe("Clickhouse Events Repository Test", () => {
       expect(traceScoreCategoryLabels).toContain(traceCategoryName);
       expect(traceScoreCategoryLabels).not.toContain(observationCategoryName);
     });
+  });
+});
+
+describe("users search on the events table", () => {
+  it("matches LIKE wildcard characters in the search query literally", async () => {
+    const projectId = randomUUID();
+    const userIds = [
+      "gpt_4-user",
+      "gpt-4-user",
+      "save 100% user",
+      "save 1000 user",
+      "C:\\home",
+    ];
+    await createEventsCh(
+      userIds.map((userId) =>
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          trace_id: randomUUID(),
+          project_id: projectId,
+          user_id: userId,
+        }),
+      ),
+    );
+
+    const search = async (searchQuery: string) => {
+      const users = await getUsersFromEventsTable(
+        projectId,
+        [],
+        searchQuery,
+        50,
+        0,
+      );
+      const [count] = await getUsersCountFromEventsTable(
+        projectId,
+        [],
+        searchQuery,
+      );
+      return {
+        users: users.map((u) => u.user),
+        count: Number(count.totalCount),
+      };
+    };
+
+    expect(await search("gpt_4")).toEqual({ users: ["gpt_4-user"], count: 1 });
+    expect(await search("100%")).toEqual({
+      users: ["save 100% user"],
+      count: 1,
+    });
+    expect(await search("C:\\")).toEqual({ users: ["C:\\home"], count: 1 });
   });
 });
