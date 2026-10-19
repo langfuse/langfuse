@@ -23,6 +23,25 @@ import { stripVTControlCharacters } from "node:util";
  */
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
+const checkTasks = [
+  { name: "typecheck", label: "Types" },
+  { name: "lint", label: "Lint", runner: "eslint" },
+  {
+    name: "test",
+    label: "Tests",
+    runner: "vitest",
+    suite: "server",
+    suiteLabel: "Server",
+  },
+  {
+    name: "test-client",
+    label: "Tests",
+    runner: "vitest",
+    suite: "client",
+    suiteLabel: "Client",
+  },
+];
+
 export function parseOptions(args) {
   const options = {
     branch: false,
@@ -170,7 +189,6 @@ export function createPlan(
   ]);
 
   const packageChecks = [];
-  const add = (label, args) => commands.push({ label, args });
   const targets = new Set();
   const schedule = (task, names) => {
     for (const name of names) targets.add(`${name}#${task}`);
@@ -199,155 +217,125 @@ export function createPlan(
       targets.add(dependency);
     }
   };
-  const selected = packages.filter((pkg) =>
-    ["typecheck", "lint", "test", "test-client"].some((task) =>
-      isSelected(pkg, task),
-    ),
-  );
+  const selected = packages.flatMap((pkg) => {
+    const tasks = checkTasks.filter((task) => isSelected(pkg, task.name));
+    if (!tasks.length) return [];
+    const ownFiles = codeFiles.filter((file) => owner(file)?.name === pkg.name);
+    const sourceOnly =
+      ownFiles.length > 0 &&
+      ownFiles.every(
+        (file) =>
+          file.startsWith(`${pkg.path}/src/`) &&
+          /\.[cm]?[jt]sx?$/.test(file) &&
+          exists(resolve(root, file)),
+      );
+    const dependencyChanged = pkg.dependencies.some((dependency) =>
+      affected.has(dependency),
+    );
+    return [
+      {
+        pkg,
+        tasks,
+        ownFiles,
+        canNarrow:
+          !broad &&
+          direct.has(pkg.name) &&
+          !fullPackages.has(pkg.name) &&
+          !dependencyChanged &&
+          sourceOnly,
+        externalTasks: new Set(
+          tasks
+            .filter((task) =>
+              codeFiles.some(
+                (file) =>
+                  !file.startsWith(`${pkg.path}/`) &&
+                  taskGraph.tasks
+                    .get(`${pkg.name}#${task.name}`)
+                    .inputFiles.has(file),
+              ),
+            )
+            .map((task) => task.name),
+        ),
+      },
+    ];
+  });
   // File-only TypeScript checks miss downstream errors. Keep project-wide
   // incremental checks and let Turbo run prerequisite builds/code generation;
   // those prerequisites can compile native code even without Rust checks.
   schedule(
     "typecheck",
     selected
-      .filter((pkg) => isSelected(pkg, "typecheck"))
-      .map((pkg) => pkg.name),
+      .filter(({ tasks }) => tasks.some((task) => task.name === "typecheck"))
+      .map(({ pkg }) => pkg.name),
   );
 
-  const fullLint = [];
-  for (const pkg of selected) {
-    if (!isSelected(pkg, "lint")) continue;
-    const ownFiles = codeFiles.filter((file) => owner(file)?.name === pkg.name);
-    const sourceOnly =
-      ownFiles.length > 0 &&
-      ownFiles.every(
-        (file) =>
-          file.startsWith(`${pkg.path}/src/`) &&
-          /\.[cm]?[jt]sx?$/.test(file) &&
-          exists(resolve(root, file)),
-      );
-    const externalInputChanged = codeFiles.some(
-      (file) =>
-        !file.startsWith(`${pkg.path}/`) &&
-        taskGraph.tasks.get(`${pkg.name}#lint`).inputFiles.has(file),
-    );
-    if (
-      !broad &&
-      direct.has(pkg.name) &&
-      !fullPackages.has(pkg.name) &&
-      !pkg.dependencies.some((dependency) => affected.has(dependency)) &&
-      !externalInputChanged &&
-      sourceOnly &&
-      pkg.scripts.lint.includes("eslint")
-    ) {
-      // ESLint caches individual files. Prepare via the shared Turbo run, then
-      // pass package-specific paths without forwarding them to other tasks.
-      prepare(`${pkg.name}#lint`);
-      packageChecks.push({
-        label: `Lint · ${pkg.name} · ${ownFiles.length} file${ownFiles.length === 1 ? "" : "s"}`,
-        args: [
-          "--filter",
-          pkg.name,
-          "run",
-          "lint",
-          ...ownFiles.map((file) => `./${relative(pkg.path, file)}`),
-        ],
-        requiresTurbo: true,
-      });
-    } else fullLint.push(pkg.name);
-  }
-  schedule("lint", fullLint);
-
-  const fullTests = [];
-  const clientTests = [];
-  for (const pkg of selected) {
-    const tests = ["test", "test-client"].filter((task) =>
-      isSelected(pkg, task),
-    );
-    if (!tests.length) continue;
-    const ownFiles = codeFiles.filter((file) => owner(file)?.name === pkg.name);
-    const dependencyChanged = pkg.dependencies.some((dependency) =>
-      affected.has(dependency),
-    );
-    const sourceOnly =
-      ownFiles.length > 0 &&
-      ownFiles.every(
-        (file) =>
-          file.startsWith(`${pkg.path}/src/`) &&
-          /\.[cm]?[jt]sx?$/.test(file) &&
-          exists(resolve(root, file)),
-      );
-    const externalInputChanged = codeFiles.some(
-      (file) =>
-        !file.startsWith(`${pkg.path}/`) &&
-        tests.some((task) =>
-          taskGraph.tasks.get(`${pkg.name}#${task}`).inputFiles.has(file),
-        ),
-    );
-    // Import-based selection cannot discover computed imports or runtime file
-    // reads. Use --all when changing resources whose consumers are unknown.
-    const related =
-      !broad &&
-      direct.has(pkg.name) &&
-      !fullPackages.has(pkg.name) &&
-      !dependencyChanged &&
-      !externalInputChanged &&
-      sourceOnly &&
-      tests.every((task) => pkg.scripts[task].includes("vitest"));
-    if (related) {
-      // Git-dependent selection must not populate full-suite caches. Only the
-      // existing package test scripts receive Vitest flags, never prerequisites.
-      for (const task of tests) {
-        prepare(`${pkg.name}#${task}`);
-        const suite = task === "test-client" ? "client" : "server";
+  // Test suites narrow together; lint narrows independently. Keep group order
+  // stable because Turbo targets and printed package checks preserve insertion order.
+  const groups = [
+    checkTasks.filter((task) => task.name === "lint"),
+    checkTasks.filter((task) => task.suite),
+  ];
+  for (const group of groups) {
+    const full = new Map(group.map((task) => [task.name, []]));
+    for (const { pkg, tasks, ownFiles, canNarrow, externalTasks } of selected) {
+      const checks = group.filter((task) => tasks.includes(task));
+      const related =
+        canNarrow &&
+        checks.every(
+          (task) =>
+            !externalTasks.has(task.name) &&
+            pkg.scripts[task.name].includes(task.runner),
+        );
+      for (const task of checks) {
+        if (!related) {
+          full.get(task.name).push(pkg.name);
+          continue;
+        }
+        // Narrowed checks bypass full-suite caches; only package scripts receive
+        // file/changed flags. Prerequisite builds still run through Turbo.
+        // Import-based selection cannot discover runtime reads; use --all for those.
+        prepare(`${pkg.name}#${task.name}`);
+        const details = task.suite
+          ? {
+              label: `${task.suiteLabel} tests · ${pkg.name}`,
+              args: ["--changed", base, "--passWithNoTests"],
+              testSuites: [task.suite],
+            }
+          : {
+              label: `Lint · ${pkg.name} · ${ownFiles.length} file${ownFiles.length === 1 ? "" : "s"}`,
+              args: ownFiles.map((file) => `./${relative(pkg.path, file)}`),
+            };
         packageChecks.push({
-          label: `${suite === "client" ? "Client" : "Server"} tests · ${pkg.name}`,
-          args: [
-            "--filter",
-            pkg.name,
-            "run",
-            task,
-            "--changed",
-            base,
-            "--passWithNoTests",
-          ],
+          ...details,
+          args: ["--filter", pkg.name, "run", task.name, ...details.args],
           requiresTurbo: true,
-          testSuites: [suite],
         });
       }
-    } else {
-      if (tests.includes("test")) fullTests.push(pkg.name);
-      if (tests.includes("test-client")) clientTests.push(pkg.name);
     }
+    for (const [task, names] of full) schedule(task, names);
   }
-  schedule("test", fullTests);
-  schedule("test-client", clientTests);
   if (targets.size) {
     // One graph lets Turbo deduplicate prerequisite work and schedule compatible
     // checks concurrently. File-specific commands wait for successful preparation.
-    const checks = [];
-    if ([...targets].some((target) => target.endsWith("#typecheck")))
-      checks.push("types");
-    if ([...targets].some((target) => target.endsWith("#lint")))
-      checks.push("lint");
-    if (
-      [...targets].some(
-        (target) => target.endsWith("#test") || target.endsWith("#test-client"),
-      )
-    )
-      checks.push("tests");
+    const checks = [
+      ...new Set(
+        checkTasks
+          .filter((task) =>
+            [...targets].some((target) => target.endsWith(`#${task.name}`)),
+          )
+          .map((task) => task.label),
+      ),
+    ];
     const checkPackages = new Set(
       [...targets]
         .filter((target) =>
-          ["typecheck", "lint", "test", "test-client"].includes(
-            target.slice(target.lastIndexOf("#") + 1),
-          ),
+          checkTasks.some((task) => target.endsWith(`#${task.name}`)),
         )
         .map((target) => target.slice(0, target.lastIndexOf("#"))),
     );
     packageChecks.unshift({
       label: checks.length
-        ? `${checks.map((check) => check[0].toUpperCase() + check.slice(1)).join(", ")} & dependencies · ${[...checkPackages].join(", ")}`
+        ? `${checks.join(", ")} & dependencies · ${[...checkPackages].join(", ")}`
         : "Dependencies",
       args: [
         "exec",
@@ -364,44 +352,42 @@ export function createPlan(
     (file) =>
       /\.(js|jsx|ts|tsx|css)$/.test(file) && exists(resolve(root, file)),
   );
-  if (
+  const repositoryFormatting =
     options.all ||
-    codeFiles.some((file) => /prettier|(^|\/)\.editorconfig$/.test(file))
-  )
-    add("Formatting · repository-wide", ["run", "format:check"]);
-  else if (formatted.length)
-    add(
-      `Formatting · ${formatted.length} file${formatted.length === 1 ? "" : "s"}`,
-      [
+    codeFiles.some((file) => /prettier|(^|\/)\.editorconfig$/.test(file));
+  const repositoryChecks = [
+    {
+      when: repositoryFormatting,
+      label: "Formatting · repository-wide",
+      args: ["run", "format:check"],
+    },
+    {
+      when: !repositoryFormatting && formatted.length > 0,
+      label: `Formatting · ${formatted.length} file${formatted.length === 1 ? "" : "s"}`,
+      args: [
         "exec",
         "prettier",
         "--check",
         "--",
         ...formatted.map((file) => `./${file}`),
       ],
-    );
-  if (
-    options.all ||
-    files.some((file) =>
-      /^scripts\/vitest\/ci-reporter\.(ts|test\.mjs)$/.test(file),
-    )
-  ) {
-    add("Vitest reporter tests", [
-      "exec",
-      "node",
-      "--test",
-      "scripts/vitest/ci-reporter.test.mjs",
-    ]);
-  }
-  if (
-    options.all ||
-    analysisFiles.some((file) =>
-      /\.[cm]?[jt]sx?$|\.jsonc?$|\.ya?ml$|knip\./.test(file),
-    )
-  ) {
-    // Removing an import can orphan an unchanged export anywhere in the graph,
-    // so Knip must analyze the repository rather than just changed files.
-    commands.push({
+    },
+    {
+      when:
+        options.all ||
+        files.some((file) =>
+          /^scripts\/vitest\/ci-reporter\.(ts|test\.mjs)$/.test(file),
+        ),
+      label: "Vitest reporter tests",
+      args: ["exec", "node", "--test", "scripts/vitest/ci-reporter.test.mjs"],
+    },
+    {
+      // Removing an import can orphan unchanged exports anywhere in the graph.
+      when:
+        options.all ||
+        analysisFiles.some((file) =>
+          /\.[cm]?[jt]sx?$|\.jsonc?$|\.ya?ml$|knip\./.test(file),
+        ),
       label: "Unused code · repository-wide",
       args: [
         "exec",
@@ -411,9 +397,14 @@ export function createPlan(
         ".turbo/check-knip/cache",
       ],
       isKnip: true,
-    });
-  }
-  return [...commands, ...packageChecks];
+    },
+  ];
+  return [
+    ...repositoryChecks
+      .filter((check) => check.when)
+      .map(({ when, ...check }) => check),
+    ...packageChecks,
+  ];
 }
 
 function loadWorkspace(base) {
