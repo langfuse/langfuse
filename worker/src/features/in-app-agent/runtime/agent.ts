@@ -173,42 +173,34 @@ The sandbox session from earlier turns has expired and been replaced.
 const STEP_LIMIT_WRAP_UP_INSTRUCTION =
   "This is your final step. Do not call any more tools. Summarize what you have found and give the user a complete final answer now.";
 
-function formatDateTime(
-  timeZone: string,
-  options: Intl.DateTimeFormatOptions,
-): string {
-  try {
-    return new Intl.DateTimeFormat("en-CA", { timeZone, ...options }).format(
-      new Date(),
-    );
-  } catch {
-    return new Intl.DateTimeFormat("en-CA", {
-      timeZone: "UTC",
-      ...options,
-    }).format(new Date());
-  }
-}
-
 function formatCurrentTime(context: AgUiRunAgentInput["context"]): string {
-  const timezone =
+  const requestedTimezone =
     context
       .find((item) => item.description === "current_timezone")
       ?.value.trim() || "UTC";
-  const stamp = formatDateTime(timezone, {
+  const options = {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
     hourCycle: "h23",
-  }).replace(", ", " ");
-
-  const timezoneAttribute = timezone
-    .replaceAll("&", "&amp;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
-  return `<current_time tz="${timezoneAttribute}">${stamp}</current_time>`;
+  } satisfies Intl.DateTimeFormatOptions;
+  let formatter: Intl.DateTimeFormat;
+  try {
+    formatter = new Intl.DateTimeFormat("en-CA", {
+      ...options,
+      timeZone: requestedTimezone,
+    });
+  } catch {
+    formatter = new Intl.DateTimeFormat("en-CA", {
+      ...options,
+      timeZone: "UTC",
+    });
+  }
+  const timezone = formatter.resolvedOptions().timeZone;
+  const stamp = formatter.format(new Date()).replace(", ", " ");
+  return `<current_time tz="${timezone}">${stamp}</current_time>`;
 }
 
 class RunContextProcessor implements Processor {
