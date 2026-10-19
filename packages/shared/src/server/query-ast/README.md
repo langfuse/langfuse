@@ -136,14 +136,17 @@ suffix to run there. Promote it to a required check once it has proven stable.
   JSON (dates as strings). Type rows with a read schema and convert them; do
   not type results with the builder's `InferResult`.
 - **Build shared expressions from the calling query's expression builder.**
-  A reusable expression or select list is a function of
-  `eb: ExpressionBuilder<{ e: … }, "e">`, passed as
-  `.select(traceAggregationSelects)` or called inside
-  `.where((eb) => …)` (see `../repositories/events-selects.ts`). Then a query
-  without `e` in scope fails to type-check. `ExpressionBuilder` is
-  contravariant in `DB`, so it also accepts an `e` with fewer columns, and it
-  accepts joins, where unqualified columns may resolve to the other table.
-  The module's `ReadsEvents` type rejects both. A module-level constant built
+  A reusable events expression or select list is wrapped in
+  `scopedToEvents((eb) => …)` from `../repositories/events-selects.ts`, then
+  passed as `.select(traceAggregationSelects)` or called inside
+  `.where((eb) => …)` with the query's own `eb`. That only type-checks in a
+  query that reads a full events row as `e` and nothing else: no join (the
+  selects read unqualified columns), no narrower `e`. Never type a helper
+  parameter as `ExpressionBuilder<{ e: … }, "e">`: it is contravariant in
+  `DB` and accepts joins, so it takes any query's builder and the check is
+  lost. A module-level constant built from a detached `expressionBuilder()`
+  loses it too: helper results don't carry their table scope in their type,
+  and Kysely's `select()` / `where()` accept any expression. A module-level constant built
   from a detached `expressionBuilder()` loses that check: helper results
   don't carry their table scope in their type, and Kysely's `select()` /
   `where()` accept any expression.

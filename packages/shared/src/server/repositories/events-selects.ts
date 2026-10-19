@@ -75,7 +75,7 @@ const eventsMetadataMap = (eb: EventsExpressionBuilder) =>
   metadataMap(eb.ref("e.metadata_names"), eb.ref("e.metadata_values"));
 
 /** The event is a root observation: no parent span, or an app root. */
-export const eventsIsRootObservation = scoped((eb) =>
+export const eventsIsRootObservation = scopedToEvents((eb) =>
   eb.or([
     eb("e.parent_span_id", "=", literal("")),
     eb("e.is_app_root", "=", literal(true)),
@@ -86,7 +86,7 @@ export const eventsIsRootObservation = scoped((eb) =>
  * An event's trace name: the stored `trace_name`, else the name of a root
  * observation, else NULL.
  */
-export const eventsTraceName = scoped((eb) =>
+export const eventsTraceName = scopedToEvents((eb) =>
   eb.fn.coalesce(
     nullIf(eb.ref("e.trace_name"), literal("")),
     ifElse(
@@ -103,7 +103,7 @@ export const eventsTraceName = scoped((eb) =>
  * physical String column of the same name once a query also filters and sorts
  * on it (ClickHouse AMBIGUOUS_COLUMN_NAME).
  */
-export const eventsTraceNameOrEmpty = scoped((eb) =>
+export const eventsTraceNameOrEmpty = scopedToEvents((eb) =>
   ifNull(eventsTraceName(eb), literal("")),
 );
 
@@ -132,7 +132,7 @@ const countLevel = (eb: EventsExpressionBuilder, level: string) =>
  * One row per trace, aggregated from its events. Grouped by
  * `trace_id, project_id`.
  */
-export const traceAggregationSelects = scoped(
+export const traceAggregationSelects = scopedToEvents(
   (eb) =>
     [
       eb.ref("trace_id").as("id"),
@@ -302,7 +302,7 @@ function sessionAggregationSelectMap(eb: EventsExpressionBuilder) {
 }
 
 /** One observation's fields, without input/output. */
-export const observationByIdSelects = scoped(
+export const observationByIdSelects = scopedToEvents(
   (eb) =>
     [
       "e.span_id as id",
@@ -353,7 +353,7 @@ export const observationByIdSelects = scoped(
 );
 
 /** Milliseconds from an event's start to `end`, NULL while `end` is unset. */
-export const millisecondsSinceStart = scoped(
+export const millisecondsSinceStart = scopedToEvents(
   (
     eb: EventsExpressionBuilder,
     end: "e.end_time" | "e.completion_start_time",
@@ -456,7 +456,7 @@ function rowFieldSelectMap(eb: EventsExpressionBuilder) {
 }
 
 /** The `metrics` field set with latencies in seconds instead of milliseconds. */
-export const eventsMetricsSecondsSelects = scoped(
+export const eventsMetricsSecondsSelects = scopedToEvents(
   (eb) =>
     [
       secondsSinceStart(eb, "e.end_time").as("latency"),
@@ -467,27 +467,19 @@ export const eventsMetricsSecondsSelects = scoped(
 );
 
 /**
- * The expression builder of a query that reads only a full events row, as
- * `e`. Anything else resolves to `never`: no `e`, a join (the selects use
- * unqualified columns, which ClickHouse would resolve to the other table), or
- * an `e` missing an events column (`observations as e`, a narrower subquery).
- * `ExpressionBuilder` alone would accept the narrower `e`, because it is
- * contravariant in `DB`.
- */
-type ReadsEvents<DB, TB extends keyof DB> = ExpressionBuilder<DB, TB> &
-  ([DB] extends [EventsDb] ? ([TB] extends ["e"] ? unknown : never) : never);
-
-/**
  * Makes `build` callable with the calling query's expression builder, which
  * must satisfy {@link ReadsEvents}. Every export of this module goes through
- * it, so using one outside a query that reads only events as `e` is a type
- * error: helper results don't carry their table scope in their own type.
+ * it, and so must any helper that composes them: called with the query's own
+ * builder, using one outside a query that reads only events as `e` is a type
+ * error. Never type a helper parameter as `ExpressionBuilder<{ e: … }, "e">`;
+ * that accepts any query's builder and the check is lost.
  */
-function scoped<A extends unknown[], R>(
+export function scopedToEvents<A extends unknown[], R>(
   build: (eb: EventsExpressionBuilder, ...args: A) => R,
 ) {
   return <DB, TB extends keyof DB>(eb: ReadsEvents<DB, TB>, ...args: A): R =>
-    // Sound: `ReadsEvents` proves the query reads only a full events row as `e`.
+    // Sound when `eb` is the query's own builder: `ReadsEvents` then proves the
+    // query reads only a full events row as `e`.
     build(eb as unknown as EventsExpressionBuilder, ...args);
 }
 
@@ -496,8 +488,25 @@ function pickSelects<M extends Record<string, EventsSelection>>(
   map: (eb: EventsExpressionBuilder) => M,
 ) {
   return (keys: ReadonlyArray<keyof M>) =>
-    scoped((eb) => {
+    scopedToEvents((eb) => {
       const selects = map(eb);
       return keys.map((key) => selects[key]);
     });
 }
+
+/**
+ * The expression builder of a query that reads only a full events row, as
+ * `e`. Anything else resolves to `never`: no `e`, no FROM (`selectNoFrom`), a
+ * join (the selects use unqualified columns, which ClickHouse would resolve to
+ * the other table), or an `e` missing an events column (`observations as e`, a
+ * narrower subquery). `ExpressionBuilder` alone would accept the narrower `e`,
+ * because it is contravariant in `DB`.
+ */
+type ReadsEvents<DB, TB extends keyof DB> = ExpressionBuilder<DB, TB> &
+  ([DB] extends [EventsDb]
+    ? [TB] extends ["e"]
+      ? ["e"] extends [TB]
+        ? unknown
+        : never
+      : never
+    : never);
