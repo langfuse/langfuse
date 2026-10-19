@@ -530,6 +530,34 @@ describe("Clickhouse Events Repository Test", () => {
         getEvaluatorExecutionSummaries(projectId, [randomUUID()]),
       ).resolves.toEqual([]);
     });
+
+    it("only counts the most recent execution traces so recovered evaluators turn healthy", async () => {
+      const evaluatorId = randomUUID();
+      const hourInMicros = 60 * 60 * 1000 * 1000;
+      const now = Date.now() * 1000;
+      await createEventsCh([
+        ...Array.from({ length: 60 }, () =>
+          createEvent({
+            project_id: projectId,
+            evaluator_id: evaluatorId,
+            level: "ERROR",
+            start_time: now - 48 * hourInMicros,
+          }),
+        ),
+        ...Array.from({ length: 50 }, () =>
+          createEvent({
+            project_id: projectId,
+            evaluator_id: evaluatorId,
+            level: "DEFAULT",
+            start_time: now - hourInMicros,
+          }),
+        ),
+      ]);
+
+      await expect(
+        getEvaluatorExecutionSummaries(projectId, [evaluatorId]),
+      ).resolves.toEqual([{ evaluatorId, total: 50, failed: 0 }]);
+    });
   });
 
   maybe("rule execution metrics", () => {
