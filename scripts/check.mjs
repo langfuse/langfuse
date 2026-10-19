@@ -422,31 +422,7 @@ export function createPlan(
   return commands;
 }
 
-function main() {
-  const options = parseOptions(process.argv.slice(2));
-  if (options.help) {
-    console.log(
-      "Usage: pnpm check [--branch] [--base <ref>] [--all] [--dry-run]\n\nDefault: staged, unstaged, and untracked changes.\n--branch: changes since merge-base with origin/main, plus local changes.\n--base: override branch target (implies --branch).\n--all: check every package.\n--dry-run: print checks without running them.",
-    );
-    return;
-  }
-  const commandStartedAt = performance.now();
-  const elapsed = (startedAt) =>
-    `${((performance.now() - startedAt) / 1000).toFixed(1)}s`;
-  const git = (args) => capture("git", args);
-  // Compare branch work to the common ancestor, not the target branch's tip.
-  // Callers must fetch stale remote refs; missing refs deliberately fail rather
-  // than falling back to a comparison that could silently miss changes.
-  const base = options.branch
-    ? git(["merge-base", "HEAD", options.base]).trim()
-    : git(["rev-parse", "HEAD"]).trim();
-  const files = collectChanges(git, base);
-  console.log(
-    `Checking ${options.all ? "all packages" : options.branch ? `branch against ${options.base}` : "local changes"} (${files.length} changed file${files.length === 1 ? "" : "s"}):`,
-  );
-  for (const file of files) console.log(`  ${file}`);
-  if (!files.length) console.log("  No changed files.");
-  console.log("");
+function loadWorkspace(base) {
   const workspace = JSON.parse(
     capture("pnpm", [
       "exec",
@@ -534,6 +510,105 @@ function main() {
       taskGraph.affected.add(task.fullName);
     }
   }
+  return { packages, taskGraph };
+}
+
+function runCheck(check, outputDirectory, checkIndex) {
+  for (const [stepIndex, command] of (check.steps ?? [check.args]).entries()) {
+    // Disk-backed capture avoids truncating verbose failures or exhausting a
+    // pipe buffer while successful commands remain completely quiet.
+    const outputFile = resolve(
+      outputDirectory,
+      `${checkIndex}-${stepIndex}.log`,
+    );
+    const output = openSync(outputFile, "w", 0o600);
+    let result;
+    try {
+      result = spawnSync("pnpm", command, {
+        cwd: root,
+        stdio: ["ignore", output, output],
+      });
+    } finally {
+      closeSync(output);
+    }
+    // Do not run a suite whose prerequisite generation/build failed.
+    if (result.error || result.signal || result.status !== 0) {
+      return { ...result, outputFile };
+    }
+  }
+  return null;
+}
+
+function collectDiagnostics(outputFile, isTurboBatch) {
+  const captured = readFileSync(outputFile, "utf8").trimEnd();
+  if (!isTurboBatch) return { captured, tasks: [], complete: true };
+
+  // Read task logs from the summary rather than trying to strip runner
+  // banners/progress from mixed output, which can hide real diagnostics.
+  const summaryPath = stripVTControlCharacters(captured)
+    .match(/^\s*Summary:\s+(.+\.json)\s*$/m)?.[1]
+    ?.trim();
+  let failedTasks = [];
+  if (summaryPath) {
+    try {
+      const summary = JSON.parse(
+        readFileSync(resolve(root, summaryPath), "utf8"),
+      );
+      failedTasks = summary.tasks.filter(
+        (task) =>
+          Number.isInteger(task.execution?.exitCode) &&
+          task.execution.exitCode !== 0,
+      );
+    } catch {
+      // Runner startup/summary failures must remain failures without
+      // dumping orchestration output as if it were a task diagnostic.
+    }
+  }
+  const tasks = failedTasks.map((task) => {
+    let diagnostics = "";
+    try {
+      diagnostics = readFileSync(resolve(root, task.logFile), "utf8").trimEnd();
+    } catch {
+      // Missing logs must not prevent other failed tasks being shown.
+    }
+    return {
+      taskId: task.taskId,
+      exitCode: task.execution.exitCode,
+      diagnostics,
+    };
+  });
+  return {
+    tasks,
+    complete: tasks.length > 0 && tasks.every((task) => task.diagnostics),
+  };
+}
+
+function main() {
+  const options = parseOptions(process.argv.slice(2));
+  if (options.help) {
+    console.log(
+      "Usage: pnpm check [--branch] [--base <ref>] [--all] [--dry-run]\n\nDefault: staged, unstaged, and untracked changes.\n--branch: changes since merge-base with origin/main, plus local changes.\n--base: override branch target (implies --branch).\n--all: check every package.\n--dry-run: print checks without running them.",
+    );
+    return;
+  }
+  const commandStartedAt = performance.now();
+  const elapsed = (startedAt) =>
+    `${((performance.now() - startedAt) / 1000).toFixed(1)}s`;
+  const git = (args) => capture("git", args);
+  // Compare branch work to the common ancestor, not the target branch's tip.
+  // Callers must fetch stale remote refs; missing refs deliberately fail rather
+  // than falling back to a comparison that could silently miss changes.
+  const base = options.branch
+    ? git(["merge-base", "HEAD", options.base]).trim()
+    : git(["rev-parse", "HEAD"]).trim();
+  const files = collectChanges(git, base);
+  console.log(
+    `Checking ${options.all ? "all packages" : options.branch ? `branch against ${options.base}` : "local changes"} (${files.length} changed file${files.length === 1 ? "" : "s"}):`,
+  );
+  for (const file of files) console.log(`  ${file}`);
+  if (!files.length) console.log("  No changed files.");
+  console.log("");
+  const { packages, taskGraph } = loadWorkspace(base);
   const plan = createPlan(files, packages, options, base, taskGraph);
   if (!plan.length) {
     console.log(`No applicable checks (${elapsed(commandStartedAt)}).`);
@@ -566,12 +641,12 @@ function main() {
   mkdirSync(resolve(root, ".turbo"), { recursive: true });
   const outputDirectory = mkdtempSync(resolve(root, ".turbo/check-"));
   let retainLogs = false;
-  let commandIndex = 0;
   const failed = [];
   let completedChecks = 0;
   let turboFailed = false;
   try {
-    for (const { label, args, steps, requiresTurbo, isTurboBatch } of plan) {
+    for (const [checkIndex, check] of plan.entries()) {
+      const { label, requiresTurbo, isTurboBatch } = check;
       if (requiresTurbo && turboFailed) {
         console.error(
           `Skipped ${label.toLowerCase()}: package checks or preparation failed.`,
@@ -580,93 +655,40 @@ function main() {
         continue;
       }
       const checkStartedAt = performance.now();
-      let checkFailed = false;
       console.log(`${label}…`);
-      for (const command of steps ?? [args]) {
-        // Disk-backed capture avoids truncating verbose failures or exhausting a
-        // pipe buffer while successful commands remain completely quiet.
-        const outputFile = resolve(outputDirectory, `${commandIndex++}.log`);
-        const output = openSync(outputFile, "w", 0o600);
-        let result;
-        try {
-          result = spawnSync("pnpm", command, {
-            cwd: root,
-            stdio: ["ignore", output, output],
-          });
-        } finally {
-          closeSync(output);
-        }
-        if (result.error || result.signal || result.status !== 0) {
-          checkFailed = true;
-          console.error(`  Failed (${elapsed(checkStartedAt)}).`);
-          if (result.error) console.error(result.error.message);
-          if (isTurboBatch) {
-            // Read task logs from the summary rather than trying to strip runner
-            // banners/progress from mixed output, which can hide real diagnostics.
-            const captured = stripVTControlCharacters(
-              readFileSync(outputFile, "utf8"),
-            );
-            const summaryPath = captured
-              .match(/^\s*Summary:\s+(.+\.json)\s*$/m)?.[1]
-              ?.trim();
-            let failedTasks = [];
-            if (summaryPath) {
-              try {
-                const summary = JSON.parse(
-                  readFileSync(resolve(root, summaryPath), "utf8"),
-                );
-                failedTasks = summary.tasks.filter(
-                  (task) =>
-                    Number.isInteger(task.execution?.exitCode) &&
-                    task.execution.exitCode !== 0,
-                );
-              } catch {
-                // Runner startup/summary failures must remain failures without
-                // dumping orchestration output as if it were a task diagnostic.
-              }
-            }
-            let diagnosticsComplete = failedTasks.length > 0;
-            for (const task of failedTasks) {
-              console.error(
-                `\n${task.taskId} failed (exit ${task.execution.exitCode}):`,
-              );
-              try {
-                const diagnostics = readFileSync(
-                  resolve(root, task.logFile),
-                  "utf8",
-                ).trimEnd();
-                if (diagnostics) {
-                  console.error(diagnostics);
-                  continue;
-                }
-              } catch {
-                // Missing logs must not prevent other failed tasks being shown.
-              }
-              diagnosticsComplete = false;
+      const result = runCheck(check, outputDirectory, checkIndex);
+      if (result) {
+        const { outputFile } = result;
+        console.error(`  Failed (${elapsed(checkStartedAt)}).`);
+        if (result.error) console.error(result.error.message);
+        const diagnostics = collectDiagnostics(outputFile, isTurboBatch);
+        if (isTurboBatch) {
+          for (const task of diagnostics.tasks) {
+            console.error(`\n${task.taskId} failed (exit ${task.exitCode}):`);
+            if (task.diagnostics) {
+              console.error(task.diagnostics);
+            } else {
               console.error("No diagnostic output was recorded for this task.");
             }
-            if (!diagnosticsComplete) {
-              retainLogs = true;
-              console.error(
-                `Some task diagnostics were unavailable. Runner details: ${relative(root, outputFile)}`,
-              );
-            }
-          } else {
-            const captured = readFileSync(outputFile, "utf8").trimEnd();
-            if (captured) console.error(captured);
           }
-          failed.push(label);
-          if (isTurboBatch) turboFailed = true;
-          if (result.signal) {
-            process.exitCode = 1;
-            return;
+          if (!diagnostics.complete) {
+            retainLogs = true;
+            console.error(
+              `Some task diagnostics were unavailable. Runner details: ${relative(root, outputFile)}`,
+            );
           }
-          // Do not run a suite whose prerequisite generation/build failed.
-          break;
+        } else {
+          if (diagnostics.captured) console.error(diagnostics.captured);
+        }
+        failed.push(label);
+        if (isTurboBatch) turboFailed = true;
+        if (result.signal) {
+          process.exitCode = 1;
+          return;
         }
       }
       completedChecks++;
-      if (!checkFailed) console.log(`  Passed (${elapsed(checkStartedAt)}).`);
+      if (!result) console.log(`  Passed (${elapsed(checkStartedAt)}).`);
     }
   } finally {
     if (!retainLogs) rmSync(outputDirectory, { recursive: true, force: true });
