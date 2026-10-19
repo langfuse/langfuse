@@ -11,9 +11,9 @@ exports[`golden: environments.getEnvironmentsForProject > writeMode=events_only 
     },
     "route": "environments.getEnvironmentsForProject",
     "sql": "SELECT DISTINCT environment
-FROM events_core
-WHERE (project_id = {param1:String})
-    AND (events_core.is_deleted = {param2:UInt8})
+FROM events_core AS events
+WHERE (events.project_id = {param1:String})
+    AND (events.is_deleted = {param2:UInt8})
     AND (start_time >= {param3:DateTime64(6)})",
   },
   {
@@ -48,9 +48,9 @@ exports[`golden: environments.getEnvironmentsForProject > writeMode=events_only 
     },
     "route": "environments.getEnvironmentsForProject",
     "sql": "SELECT DISTINCT environment
-FROM events_core
-WHERE (project_id = {param1:String})
-    AND (events_core.is_deleted = {param2:UInt8})",
+FROM events_core AS events
+WHERE (events.project_id = {param1:String})
+    AND (events.is_deleted = {param2:UInt8})",
   },
   {
     "fn": "queryClickhouse",

@@ -3,7 +3,7 @@ import {
   BracesIcon,
   ExternalLinkIcon,
   MessageCircleMoreIcon,
-} from "lucide-react";
+} from "@langfuse/icons";
 import Link from "next/link";
 
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
@@ -55,7 +55,7 @@ export const ScoreValue = ({
                       className="flex items-center gap-1 text-blue-600 hover:underline"
                       target="_blank"
                     >
-                      <ExternalLinkIcon className="icon-sm" />
+                      <ExternalLinkIcon size="sm" />
                       View execution trace
                     </Link>
                   </div>
@@ -70,7 +70,11 @@ export const ScoreValue = ({
               className="inline-block shrink-0"
               {...getTriggerProps()}
             >
-              <MessageCircleMoreIcon className="text-foreground-tertiary icon-sm! mb-0.25" />
+              <MessageCircleMoreIcon
+                size="sm"
+                color="tertiary"
+                __rawClassName="! mb-0.25"
+              />
             </button>
           )}
         </HoverCard>
@@ -90,7 +94,11 @@ export const ScoreValue = ({
               className="inline-block shrink-0"
               {...getTriggerProps()}
             >
-              <BracesIcon className="text-foreground-tertiary icon-sm! mb-0.25" />
+              <BracesIcon
+                size="sm"
+                color="tertiary"
+                __rawClassName="! mb-0.25"
+              />
             </button>
           )}
         </HoverCard>

@@ -41,7 +41,7 @@ import {
   MoreVertical,
   Plus,
   Terminal,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { Button } from "@/src/components/ui/button";
@@ -346,7 +346,10 @@ export const PromptDetail = ({
             className="grid w-full grid-flow-col place-items-center"
             href={`/project/${projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`}
           >
-            <Plus className={cn("icon-base", mobile ? "mr-2" : "lg:mr-2")} />
+            <Plus
+              size="base"
+              __rawClassName={cn(mobile ? "mr-2" : "lg:mr-2")}
+            />
             <span className={cn(mobile ? "inline" : "hidden lg:inline")}>
               New version
             </span>
@@ -479,7 +482,7 @@ export const PromptDetail = ({
                     variant="outline"
                     className="mb-3 w-full min-w-0 justify-start gap-2 px-3"
                   >
-                    <History className="icon-base text-icon-foreground shrink-0" />
+                    <History size="base" color="default" />
                     <span className="shrink-0">Version #{prompt.version}</span>
                     <span
                       className="text-muted-foreground min-w-0 flex-1 truncate text-left font-normal"
@@ -551,7 +554,7 @@ export const PromptDetail = ({
                             : "cursor-pointer",
                         )}
                       >
-                        <Terminal className="icon-base text-icon-foreground" />
+                        <Terminal size="base" color="default" />
                         <span className="hidden md:inline">Playground</span>
                         <DropdownIndicator size="sm" nudge />
                       </Button>
@@ -570,7 +573,7 @@ export const PromptDetail = ({
                         disabled={!hasExperimentWriteAccess}
                         onClick={() => capture("dataset_run:new_form_open")}
                       >
-                        <FlaskConical className="icon-base text-icon-foreground" />
+                        <FlaskConical size="base" color="default" />
                         <span className="hidden md:ml-2 md:inline">
                           Run experiment
                         </span>
@@ -619,10 +622,10 @@ export const PromptDetail = ({
                       className="gap-1"
                     >
                       {disabled ? (
-                        <MessageSquareOff className="icon-base text-muted-foreground" />
+                        <MessageSquareOff size="base" color="muted" />
                       ) : (
                         <>
-                          <MessageSquare className="icon-base text-icon-foreground" />
+                          <MessageSquare size="base" color="default" />
                           <span>Add comment</span>
                           {getNumberFromMap(commentCounts, prompt.id) ? (
                             <ActionButtonCountBadge

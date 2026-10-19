@@ -1,6 +1,6 @@
 /* eslint-disable boundaries/dependencies */
 import { type CellContext, type RowData } from "@tanstack/react-table";
-import { Check, Copy, InfoIcon, type LucideIcon } from "lucide-react";
+import { Check, Copy, InfoIcon, type IconComponent } from "@langfuse/icons";
 import { type ReactNode } from "react";
 
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
@@ -31,7 +31,7 @@ type TextTableColumnTrailingAction<TData extends RowData, TValue> =
     }
   | {
       type: "custom";
-      icon: LucideIcon;
+      icon: IconComponent;
       label: string;
       onClick: (context: CellContext<TData, TValue | null | undefined>) => void;
     };
@@ -96,7 +96,7 @@ export function createTextTableColumn<TData extends RowData, TValue = string>({
                       aria-label="More information"
                       className="flex items-center"
                     >
-                      <InfoIcon className="text-muted-foreground icon-sm" />
+                      <InfoIcon size="sm" color="muted" />
                     </button>
                   )}
                 </Tooltip>

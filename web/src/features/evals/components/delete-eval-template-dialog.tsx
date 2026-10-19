@@ -1,5 +1,5 @@
 /* eslint-disable no-nested-ternary, @repo/component-file-structure */
-import { ExternalLinkIcon } from "lucide-react";
+import { ExternalLinkIcon } from "@langfuse/icons";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -29,7 +29,7 @@ const EvaluatorLink = ({
     className="inline-flex items-center gap-1 text-blue-600 hover:underline"
   >
     {evaluator.scoreName}
-    <ExternalLinkIcon className="icon-sm" />
+    <ExternalLinkIcon size="sm" />
   </Link>
 );
 

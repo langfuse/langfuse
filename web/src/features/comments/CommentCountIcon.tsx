@@ -1,4 +1,4 @@
-import { MessageSquareMore } from "lucide-react";
+import { MessageSquareMore } from "@langfuse/icons";
 
 import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 
@@ -12,7 +12,7 @@ export function CommentCountIcon({
 }) {
   return (
     <BadgeShell color={color} font="mono" size="md">
-      <MessageSquareMore aria-hidden className="icon-sm shrink-0" />
+      <MessageSquareMore aria-hidden size="sm" />
       <span data-testid="comment-count">{count > 99 ? "99+" : count}</span>
     </BadgeShell>
   );

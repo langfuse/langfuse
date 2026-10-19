@@ -1,7 +1,7 @@
 /* eslint-disable @repo/component-file-structure */
 import { type ReactNode } from "react";
 import { useSession } from "next-auth/react";
-import { Menu } from "lucide-react";
+import { Menu } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { useSidebar } from "@/src/components/ui/sidebar";
 import { TopbarBrand } from "@/src/components/nav/TopbarBrand";
@@ -48,7 +48,7 @@ export const MobileTopBar = ({
             aria-label="Open menu"
             onClick={() => toggleSidebar()}
           >
-            <Menu className="icon-lg text-icon-foreground" />
+            <Menu size="lg" color="default" />
           </Button>
         ) : (
           leadingControl

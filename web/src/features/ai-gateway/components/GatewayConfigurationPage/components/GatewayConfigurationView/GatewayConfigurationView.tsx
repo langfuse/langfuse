@@ -5,8 +5,8 @@ import {
   Gauge,
   Plus,
   ScanText,
-  type LucideIcon,
-} from "lucide-react";
+  type IconComponent,
+} from "@langfuse/icons";
 
 import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
@@ -43,7 +43,7 @@ const ingestionModes: Array<{
   value: IngestionMode;
   title: string;
   description: string;
-  icon: LucideIcon;
+  icon: IconComponent;
 }> = [
   {
     value: "USAGE",
@@ -189,9 +189,9 @@ export function GatewayConfigurationView({
                 )}
               >
                 <div className="flex w-full items-center justify-between gap-2">
-                  <Icon className="text-muted-foreground icon-base" />
+                  <Icon size="base" color="muted" />
                   {selected ? (
-                    <Check className="text-primary icon-base" />
+                    <Check size="base" __rawClassName="text-primary " />
                   ) : null}
                 </div>
                 <div>
@@ -294,7 +294,7 @@ function CreateIngestionProjectDialog({
       {({ openDialog }) =>
         showIcon ? (
           <Button onClick={openDialog}>
-            <Plus className="icon-base mr-1.5" />
+            <Plus size="base" __rawClassName="mr-1.5" />
             {triggerLabel}
           </Button>
         ) : (
@@ -325,9 +325,9 @@ function GatewayUrl({ gatewayBaseUrl }: { gatewayBaseUrl: string }) {
         onClick={() => copy(gatewayBaseUrl)}
       >
         {isCopied ? (
-          <Check className="icon-sm text-icon-foreground" />
+          <Check size="sm" color="default" />
         ) : (
-          <Copy className="icon-sm text-icon-foreground" />
+          <Copy size="sm" color="default" />
         )}
       </Button>
     </div>

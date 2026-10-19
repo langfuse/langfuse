@@ -12,7 +12,7 @@ import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Input } from "@/src/components/ui/input";
 import { EvaluatorPromptPreview } from "./EvaluatorPromptPreview";
 import { renderPromptPreviewFromObservation } from "./utils";
-import { Eye, X } from "lucide-react";
+import { Eye, X } from "@langfuse/icons";
 
 export type BatchEvaluator = {
   id: string;
@@ -129,7 +129,7 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
                   onClick={() => onSearchQueryChange("")}
                   aria-label="Clear evaluator search"
                 >
-                  <X className="icon-base text-icon-foreground" />
+                  <X size="base" color="default" />
                 </Button>
               ) : null}
             </div>
@@ -154,7 +154,7 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
                               className="hover:bg-muted rounded p-0.5"
                               onClick={() => onToggleEvaluator(evaluator.id)}
                             >
-                              <X className="icon-sm" />
+                              <X size="sm" />
                             </button>
                           </Badge>
                         </div>
@@ -205,7 +205,7 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
                             })}
                             aria-label={`Preview ${item.scoreName}`}
                           >
-                            <Eye className="icon-base text-icon-foreground" />
+                            <Eye size="base" color="default" />
                           </Button>
                         )}
                       />

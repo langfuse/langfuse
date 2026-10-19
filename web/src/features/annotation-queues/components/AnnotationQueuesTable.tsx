@@ -16,7 +16,7 @@ import {
   useCompactRows,
   useRowHeightLocalStorage,
 } from "@/src/components/table/data-table-row-height-switch";
-import { ClipboardPen, Lock } from "lucide-react";
+import { ClipboardPen, Lock } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
@@ -167,7 +167,7 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
         const key: RowData["key"] = row.getValue("key");
         return !hasAccess ? (
           <Button size="sm" disabled>
-            <Lock className="icon-base mr-1" />
+            <Lock size="base" __rawClassName="mr-1" />
             <span className="text-xs">Process queue</span>
           </Button>
         ) : (
@@ -175,7 +175,7 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
             <Link
               href={`/project/${projectId}/annotation-queues/${key.id}/items`}
             >
-              <ClipboardPen className="icon-base mr-1" />
+              <ClipboardPen size="base" __rawClassName="mr-1" />
               <span className="text-xs">Process queue</span>
             </Link>
           </Button>

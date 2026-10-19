@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { PlusIcon } from "lucide-react";
+import { PlusIcon } from "@langfuse/icons";
 import { useSession } from "next-auth/react";
 import {
   ArrayParam,
@@ -316,7 +316,7 @@ export function ConnectedMembersSettingsTable({
               loading: isSubmitting,
               hasAccess,
               usageLimit,
-              icon: <PlusIcon className="icon-base" aria-hidden="true" />,
+              icon: <PlusIcon size="base" aria-hidden="true" />,
               onClick: openDialog,
             },
           ]}

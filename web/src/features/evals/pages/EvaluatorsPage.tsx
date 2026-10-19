@@ -1,7 +1,7 @@
 import Page from "@/src/components/layouts/page";
 import { useRouter } from "next/router";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { Plus } from "lucide-react";
+import { Plus } from "@langfuse/icons";
 import EvaluatorTable from "@/src/features/evals/components/evaluator-table";
 import { getEvalsTabs, EVALS_TABS } from "@/src/features/navigation";
 import { ActionButton } from "@/src/components/ActionButton";
@@ -96,7 +96,7 @@ export default function EvaluatorsPage() {
             <ActionButton
               hasAccess={hasWriteAccess}
               href={`/project/${projectId}/evals/legacy/new`}
-              icon={<Plus className="icon-base text-icon-foreground" />}
+              icon={<Plus size="base" color="default" />}
               trackingEventName="eval_config:new_form_open"
               variant="default"
               usageLimit={
