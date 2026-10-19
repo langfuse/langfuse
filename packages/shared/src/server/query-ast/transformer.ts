@@ -50,6 +50,7 @@ export class ClickHouseOperationNodeTransformer extends OperationNodeTransformer
     return ArrayIndexNode.create(
       this.transformNode(node.array),
       this.transformNode(node.index),
+      node.metadataLookup,
     );
   }
 
