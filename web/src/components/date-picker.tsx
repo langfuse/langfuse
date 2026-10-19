@@ -18,7 +18,7 @@ import { type DateRange as RDPDateRange } from "react-day-picker";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { setBeginningOfDay, setEndOfDay } from "@/src/utils/dates";
 import { TimePicker } from "@/src/components/ui/time-picker";
-import { DashboardDateRangeDropdown } from "@/src/components/date-range-dropdowns";
+import { DashboardDateRangeDropdown } from "@/src/components/DashboardDateRangeDropdown";
 import {
   DASHBOARD_AGGREGATION_PLACEHOLDER,
   type DashboardDateRangeOptions,

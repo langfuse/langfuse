@@ -35,7 +35,7 @@ import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { decomposeAggregateScoreKey } from "@/src/features/scores";
 import { cn } from "@/src/utils/tailwind";
 import Link from "next/link";
-import { type ScoreLevel } from "@/src/components/score-tag";
+import { type ScoreLevel } from "@/src/components/ScoreTag";
 import { NotRecordedMetric } from "./NotRecordedMetric";
 
 type ExperimentGridCellProps = {

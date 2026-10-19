@@ -139,7 +139,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
   must be installed, ask the user before doing so.
 - When you surface a score in the UI, always show its level
   (trace/observation/session/experiment) with the `<ScoreTag>` component
-  (`src/components/score-tag.tsx`) and its global color coding (see the
+    (`src/components/ScoreTag.tsx`) and its global color coding (see the
   ScoreTag Storybook story).
 - Tailwind is the default styling layer; use the shared palette and globals in
   `src/styles/globals.css`.
