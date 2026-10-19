@@ -105,7 +105,7 @@ export const getPromptVariableDiagnostics = (content: string): Diagnostic[] => {
         severity: "error",
         message: "Empty variable is not allowed",
       });
-    } else if (!isValidVariableName(variable)) {
+    } else if (!isValidVariableName(variable.trim())) {
       diagnostics.push({
         from: match.index,
         to: match.index + match[0].length,

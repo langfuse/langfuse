@@ -50,3 +50,20 @@ describe("compileEvalPrompt", () => {
     ).toBe('Input: {"question":"Hello"}; missing: {{missing}}');
   });
 });
+
+describe("extractVariables", () => {
+  it("extracts variables with surrounding whitespace", () => {
+    expect(extractVariables("Hello {{ name }}")).toEqual(["name"]);
+    expect(
+      extractVariables("Hello {{ name }}, please summarize {{ text }}."),
+    ).toEqual(["name", "text"]);
+    expect(extractVariables("{{  user_id   }} and {{ standard}}")).toEqual([
+      "user_id",
+      "standard",
+    ]);
+  });
+
+  it("deduplicates variables with different surrounding whitespace", () => {
+    expect(extractVariables("{{ name }} and {{name}}")).toEqual(["name"]);
+  });
+});
