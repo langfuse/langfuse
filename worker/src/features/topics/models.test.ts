@@ -45,6 +45,7 @@ import {
 } from "@langfuse/shared/topics";
 import { LLMAdapter } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
+import { recordTopicModelCall } from "./metrics";
 import type { TopicsModel, TopicsModels } from "@langfuse/shared/topics/server";
 
 function slot(slot: TopicsModel["slot"], model: string): TopicsModel {
@@ -332,6 +333,27 @@ describe("Topics naming boundary", () => {
         stage: "summary",
         adapter: LLMAdapter.Bedrock,
         status: "400",
+      },
+    );
+  });
+
+  it.each([
+    [{}, "ok"],
+    [{ httpStatus: 429, reason: "rate_limit" }, "429"],
+    [{ httpStatus: 404, reason: "invalid_input" }, "4xx"],
+    [{ httpStatus: 503, reason: "provider_error" }, "5xx"],
+    // An unexpected status falls back to the reason, keeping the tag bounded.
+    [{ httpStatus: 12345, reason: "provider_error" }, "provider_error"],
+    [{ reason: "timeout" }, "timeout"],
+  ])("tags a model call outcome %o as %s", (outcome, status) => {
+    recordTopicModelCall("summary", LLMAdapter.OpenAI, outcome);
+    expect(state.increment).toHaveBeenCalledWith(
+      "langfuse.topics.llm_calls",
+      1,
+      {
+        stage: "summary",
+        adapter: LLMAdapter.OpenAI,
+        status,
       },
     );
   });
