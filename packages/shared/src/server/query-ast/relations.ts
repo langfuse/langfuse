@@ -23,8 +23,6 @@ import { FinalTableNode, unwrapFinalTable } from "./nodes";
 export type Relation = {
   /** The item as the select holds it: `scores as s final`. */
   node: OperationNode;
-  /** `node` without FINAL: `scores as s`. */
-  withoutFinal: OperationNode;
   /** What the item reads: a table, a subquery, raw SQL or a table function. */
   source: OperationNode;
   /** `source` when it is a table reference, schema-qualified or not. */
@@ -47,7 +45,6 @@ export function describeRelation(node: OperationNode): Relation {
   const source = aliased ? aliased.node : withoutFinal;
   return {
     node,
-    withoutFinal,
     source,
     table: TableNode.is(source) ? source : undefined,
     alias:

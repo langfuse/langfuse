@@ -46,6 +46,7 @@ import {
   ArrayJoinNode,
   FinalTableNode,
   LimitByNode,
+  finalTable,
   type ArrayJoinVariant,
   type ClickHouseSelectQueryNode,
 } from "./nodes";
@@ -730,9 +731,7 @@ function wrapFinal(
 ): OperationNode {
   if (FinalTableNode.is(node)) return node;
   const name = describeRelation(node).table?.table.identifier.name;
-  return name && tables.has(name)
-    ? (FinalTableNode.create(node) as unknown as OperationNode)
-    : node;
+  return name && tables.has(name) ? finalTable(node) : node;
 }
 
 /**

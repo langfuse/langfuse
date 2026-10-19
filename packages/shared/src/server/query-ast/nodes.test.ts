@@ -5,7 +5,6 @@ import {
   createQueryId,
   sql,
   type KyselyPlugin,
-  type OperationNode,
 } from "kysely";
 import { describe, expect, it } from "vitest";
 
@@ -18,6 +17,7 @@ import {
   ArrayJoinNode,
   FinalTableNode,
   LimitByNode,
+  finalTable,
   isClickHouseSelectQueryNode,
 } from "./nodes";
 import { TenancyInjectionPlugin } from "./tenancy";
@@ -162,23 +162,14 @@ describe("tenancy injection", () => {
   // FINAL wraps the aliased item (`scores as s final`); the relation describer
   // peels one FINAL and then one alias, so any other nesting is no table
   // reference and cannot be scoped. No builder emits these; they are built by
-  // hand, and FinalTableNode is outside Kysely's node union, hence the casts.
+  // hand.
   it.each([
     [
       "an alias around FINAL",
       (alias: AliasNode) =>
-        AliasNode.create(
-          FinalTableNode.create(alias.node) as unknown as OperationNode,
-          alias.alias,
-        ),
+        AliasNode.create(finalTable(alias.node), alias.alias),
     ],
-    [
-      "FINAL around FINAL",
-      (alias: AliasNode) =>
-        FinalTableNode.create(
-          FinalTableNode.create(alias) as unknown as OperationNode,
-        ) as unknown as OperationNode,
-    ],
+    ["FINAL around FINAL", (alias: AliasNode) => finalTable(finalTable(alias))],
   ])("rejects %s as a FROM source", (_shape, wrap) => {
     const rewrap: KyselyPlugin = {
       transformQuery(args) {

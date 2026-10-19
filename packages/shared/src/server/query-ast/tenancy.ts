@@ -34,7 +34,7 @@ const PROJECT_ID_COLUMN = "project_id";
  */
 const TENANCY_STAMPED = new WeakSet<object>();
 
-type Relation =
+type ScopedRelation =
   | { kind: "table"; tableName: string; alias?: string; node: TableNode }
   | { kind: "subquery" }
   | { kind: "raw" }
@@ -99,8 +99,8 @@ function injectSelect(
   }
 
   const isTenantedTable = (
-    r: Relation,
-  ): r is Extract<Relation, { kind: "table" }> =>
+    r: ScopedRelation,
+  ): r is Extract<ScopedRelation, { kind: "table" }> =>
     r.kind === "table" && TENANTED_TABLES.has(r.tableName) && !isCte(r.node);
 
   const tenantedFrom = fromRelations.filter(isTenantedTable);
@@ -153,7 +153,7 @@ function injectSelect(
   };
 }
 
-function assertRelationAllowed(relation: Relation): void {
+function assertRelationAllowed(relation: ScopedRelation): void {
   if (relation.kind === "raw") {
     throw new UnscopedRelationError(
       "Raw SQL table sources are rejected: they can introduce an unscoped relation that the tenancy pass cannot prove. Use a traced table reference instead.",
@@ -166,7 +166,7 @@ function assertRelationAllowed(relation: Relation): void {
   }
 }
 
-function classifyRelation(node: OperationNode): Relation {
+function classifyRelation(node: OperationNode): ScopedRelation {
   const { source, table, alias } = describeRelation(node);
   if (table) {
     return { kind: "table", tableName: tableNameOf(table), alias, node: table };
@@ -181,7 +181,7 @@ function tableNameOf(node: TableNode): string {
 }
 
 function projectIdColumn(
-  table: Extract<Relation, { kind: "table" }>,
+  table: Extract<ScopedRelation, { kind: "table" }>,
 ): OperationNode {
   const column = ColumnNode.create(PROJECT_ID_COLUMN);
   return table.alias
@@ -190,7 +190,7 @@ function projectIdColumn(
 }
 
 function projectIdPredicate(
-  table: Extract<Relation, { kind: "table" }>,
+  table: Extract<ScopedRelation, { kind: "table" }>,
   projectId: string,
 ): OperationNode {
   return BinaryOperationNode.create(
@@ -211,7 +211,7 @@ function projectIdPredicate(
  */
 function predicateCovers(
   expr: OperationNode | undefined,
-  table: Extract<Relation, { kind: "table" }>,
+  table: Extract<ScopedRelation, { kind: "table" }>,
   projectId: string,
   requireQualified: boolean,
 ): boolean {
@@ -245,7 +245,7 @@ function predicateCovers(
 
 function isProjectIdColumn(
   node: OperationNode,
-  table: Extract<Relation, { kind: "table" }>,
+  table: Extract<ScopedRelation, { kind: "table" }>,
   requireQualified: boolean,
 ): boolean {
   if (ColumnNode.is(node)) {

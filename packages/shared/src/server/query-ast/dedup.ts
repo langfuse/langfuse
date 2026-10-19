@@ -41,7 +41,11 @@ import {
 } from "kysely";
 
 import { QueryCompileError } from "./errors";
-import { LimitByNode, type ClickHouseSelectQueryNode } from "./nodes";
+import {
+  FinalTableNode,
+  LimitByNode,
+  type ClickHouseSelectQueryNode,
+} from "./nodes";
 import { describeRelation } from "./relations";
 import { DEDUP_SPECS, type DedupSpec } from "./schema";
 import { stampCompiledTree } from "./tenancy";
@@ -94,6 +98,12 @@ function lowerSelect(
     );
   }
 
+  if (FinalTableNode.is(from.fromItem)) {
+    throw new QueryCompileError(
+      `FINAL cannot be combined with the limitBy dedup declared on ${from.tableName}: the registry already picks the latest version. Remove useFinal().`,
+    );
+  }
+
   if (node.limitBy) {
     // Caller already attached LIMIT BY. Still pin the version sort so the
     // clause keeps the latest row when they forgot ORDER BY <version>.
@@ -113,12 +123,12 @@ function singlePhysicalFrom(
   if (node.joins?.length) return undefined;
   const froms = node.from?.froms ?? [];
   if (froms.length !== 1) return undefined;
-  const { table, alias, withoutFinal } = describeRelation(froms[0]);
+  const { node: fromItem, table, alias } = describeRelation(froms[0]);
   if (!table || isCte(table)) return undefined;
   return {
     tableName: table.table.identifier.name,
     alias,
-    fromItem: withoutFinal,
+    fromItem,
   };
 }
 

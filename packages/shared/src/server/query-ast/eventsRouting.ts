@@ -57,8 +57,8 @@ import {
 
 import { metadataFilterIsEventsCoreSafe } from "../queries/clickhouse-sql/events-core-truncation";
 import { QueryCompileError } from "./errors";
-import { ArrayIndexNode } from "./nodes";
-import { selectRelations, type Relation } from "./relations";
+import { ArrayIndexNode, FinalTableNode } from "./nodes";
+import { describeRelation, selectRelations, type Relation } from "./relations";
 import { EVENTS_CORE_TRUNCATED_COLUMNS } from "./schema";
 import { ClickHouseOperationNodeTransformer } from "./transformer";
 
@@ -313,13 +313,14 @@ class EventsTableRouter extends ClickHouseOperationNodeTransformer {
     const table = TableNode.create(
       this.fullRelations.has(node) ? "events_full" : "events_core",
     );
-    if (isLogicalEventsTable(node)) {
-      return AliasNode.create(table, IdentifierNode.create(LOGICAL_EVENTS));
+    const { source, alias } = describeRelation(node);
+    if (FinalTableNode.is(node) || !isLogicalEventsTable(source)) {
+      return this.transformNode(node, queryId);
     }
-    if (AliasNode.is(node) && isLogicalEventsTable(node.node)) {
-      return AliasNode.create(table, node.alias);
-    }
-    return this.transformNode(node, queryId);
+    return AliasNode.create(
+      table,
+      IdentifierNode.create(alias ?? LOGICAL_EVENTS),
+    );
   }
 }
 
