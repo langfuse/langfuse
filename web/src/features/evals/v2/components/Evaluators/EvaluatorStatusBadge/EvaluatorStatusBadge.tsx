@@ -35,7 +35,7 @@ const colors = {
   Unknown: "primary",
 } as const;
 
-/** Displays evaluator health from execution traces over the last seven days. */
+/** Displays evaluator health from the most recent execution traces of the last seven days. */
 export function EvaluatorStatusBadge({
   ruleCount,
   summary,
@@ -71,9 +71,11 @@ export function EvaluatorStatusBadge({
       return "No execution traces in the last 7 days.";
     }
     if (status === "Healthy") {
-      return "All runs passed in the last 7 days.";
+      return summary?.total === 1
+        ? "The only run in the last 7 days passed."
+        : `The ${summary?.total} most recent runs in the last 7 days passed.`;
     }
-    return `${summary?.failed} of ${summary?.total} execution traces failed in the last 7 days.`;
+    return `${summary?.failed} of the ${summary?.total} most recent execution traces in the last 7 days failed.`;
   }, [status, blockMessage, blockReason, ruleCount, summary]);
 
   const badge = (

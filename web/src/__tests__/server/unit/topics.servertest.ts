@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   createTopicExecution: vi.fn(),
   readTopicExecutionSummary: vi.fn(),
   readTopicExecutionTraceErrors: vi.fn(),
+  getTopicExecutionCosts: vi.fn(),
   getTopicSummaryCounts: vi.fn(),
   readTopicExecutionForRequest: vi.fn(),
   listTopicExecutions: vi.fn(),
@@ -197,6 +198,7 @@ beforeEach(() => {
     projectId,
   });
   mocks.readTopicExecutionSummary.mockResolvedValue(execution());
+  mocks.getTopicExecutionCosts.mockResolvedValue({});
   mocks.getLatestFacetSummaries.mockResolvedValue([summary]);
   mocks.hasStoredTopicSummaries.mockResolvedValue(false);
   mocks.readTopicExecutionTraceErrors.mockResolvedValue({
@@ -866,6 +868,36 @@ describe("Topics local execution access and publication", () => {
       caller("VIEWER", false).traceErrors(request),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
     expect(mocks.readTopicExecutionTraceErrors).not.toHaveBeenCalled();
+  });
+
+  it("projects cost estimates into history and execution polling", async () => {
+    const priced = { ...execution(), id: "priced", input };
+    mocks.listTopicExecutions.mockResolvedValue([
+      priced,
+      { ...execution(), id: "zero", input },
+      { ...execution(), id: "historical", input },
+      execution(),
+    ]);
+    mocks.getTopicExecutionCosts.mockResolvedValue({ priced: 0.012, zero: 0 });
+
+    expect(await caller("VIEWER").executions({ projectId })).toMatchObject([
+      { id: "priced", estimatedCost: 0.012 },
+      { id: "zero", estimatedCost: 0 },
+      { id: "historical", estimatedCost: null },
+      { id: "execution-a", estimatedCost: null },
+    ]);
+    expect(mocks.getTopicExecutionCosts).toHaveBeenCalledExactlyOnceWith(
+      projectId,
+      ["priced", "zero", "historical"],
+    );
+
+    mocks.readTopicExecutionSummary.mockResolvedValue(priced);
+    expect(
+      await caller("VIEWER").execution({ projectId, executionId: priced.id }),
+    ).toMatchObject({ estimatedCost: 0.012 });
+    expect(mocks.getTopicExecutionCosts).toHaveBeenLastCalledWith(projectId, [
+      priced.id,
+    ]);
   });
 
   it("reconciles interrupted history and resumes published facets after their queue owner is gone", async () => {

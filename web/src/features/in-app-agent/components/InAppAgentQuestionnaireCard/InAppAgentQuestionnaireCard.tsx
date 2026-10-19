@@ -115,7 +115,7 @@ export function InAppAgentQuestionnaireCard({
   return (
     <form
       aria-labelledby={titleId}
-      className="bg-card text-foreground border-border overflow-hidden rounded-md border shadow-xs"
+      className="ph-no-capture bg-card text-foreground border-border overflow-hidden rounded-md border shadow-xs"
       onSubmit={handleFormSubmit}
       onKeyDown={handleKeyDown}
     >

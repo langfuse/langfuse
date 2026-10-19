@@ -370,11 +370,15 @@ async function invokeWithCache(
   recordResponse(result);
 
   if (!message?.content || json.choices?.[0]?.finish_reason === "length")
-    throw new Error(
-      message?.refusal
-        ? `The model refused: ${message.refusal}`
-        : "The model returned no complete output.",
+    throw Object.assign(
+      new Error(
+        message?.refusal
+          ? `The model refused: ${message.refusal}`
+          : "The model returned no complete output.",
+      ),
+      { name: "AI_NoOutputGeneratedError" },
     );
+  // A model can append text after a valid object; the caller treats that as unusable output.
   return { ...result, output: JSON.parse(message.content) as unknown };
 }
 

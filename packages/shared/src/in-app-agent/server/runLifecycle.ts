@@ -764,6 +764,29 @@ export function isMissingInAppAgentMcpApiKeyError(error: unknown): boolean {
   );
 }
 
+/** Keep the pointer retryable until revocation succeeds, including concurrent cleanup. */
+export async function cleanupRunMcpApiKey(params: {
+  prisma: PrismaClient;
+  projectId: string;
+  runId: string;
+  apiKeyId: string;
+  deleteApiKey: (apiKeyId: string) => Promise<void>;
+}): Promise<void> {
+  try {
+    await params.deleteApiKey(params.apiKeyId);
+  } catch (error) {
+    if (!isMissingInAppAgentMcpApiKeyError(error)) throw error;
+  }
+  await params.prisma.inAppAgentRun.updateMany({
+    where: {
+      id: params.runId,
+      projectId: params.projectId,
+      mcpApiKeyId: params.apiKeyId,
+    },
+    data: { mcpApiKeyId: null },
+  });
+}
+
 /** Retry terminal-run MCP-key cleanup outside the lifecycle transaction. */
 export async function cleanupTerminalRunMcpApiKeys(params: {
   prisma: PrismaClient;
@@ -787,18 +810,12 @@ export async function cleanupTerminalRunMcpApiKeys(params: {
     if (!run.mcpApiKeyId) continue;
 
     try {
-      try {
-        await params.deleteApiKey(run.mcpApiKeyId);
-      } catch (error) {
-        // Concurrent cleanup or a prior delete already removed the row.
-        if (!isMissingInAppAgentMcpApiKeyError(error)) {
-          throw error;
-        }
-      }
-      await clearRunMcpApiKeyPointer({
+      await cleanupRunMcpApiKey({
         prisma: params.prisma,
         projectId: params.projectId,
         runId: run.id,
+        apiKeyId: run.mcpApiKeyId,
+        deleteApiKey: params.deleteApiKey,
       });
       cleaned += 1;
     } catch (error) {
