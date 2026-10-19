@@ -1048,11 +1048,12 @@ describe("trace batch queue", () => {
     vi.mocked(listTopicRules).mockResolvedValue([]);
   });
 
-  it("passes the session of the newest event that has one", async () => {
+  it("passes the session of the newest event that has one, breaking timestamp ties by span ID", async () => {
     vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
       for (const [span, eventTs, sessionId] of [
         ["a", "2026-09-11 00:00:01.000000", "session-old"],
         ["b", "2026-09-11 00:00:02.000000", "session-new"],
+        ["d", "2026-09-11 00:00:02.000000", "session-tie"],
         ["c", "2026-09-11 00:00:03.000000", ""],
       ])
         yield {
@@ -1105,7 +1106,7 @@ describe("trace batch queue", () => {
 
     expect(
       vi.mocked(summarizeAssembledTrace).mock.calls.at(-1)?.[0],
-    ).toMatchObject({ traceId: "trace", sessionId: "session-new" });
+    ).toMatchObject({ traceId: "trace", sessionId: "session-tie" });
     vi.mocked(listTopicFacets).mockResolvedValue([]);
     vi.mocked(listTopicRules).mockResolvedValue([]);
   });

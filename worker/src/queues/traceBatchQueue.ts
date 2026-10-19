@@ -109,6 +109,27 @@ async function loadProjectRule(projectId: string) {
   };
 }
 
+/** Orders events like manual processing: event_ts, then span ID, then environment. */
+function newestEvent(observations: TraceBatchObservation[]) {
+  return observations.reduce<TraceBatchObservation | undefined>(
+    (current, row) => {
+      if (!current) return row;
+      if (row.eventTimestamp !== current.eventTimestamp)
+        return row.eventTimestamp > current.eventTimestamp ? row : current;
+      if (row.id !== current.id) return row.id > current.id ? row : current;
+      return row.environment > current.environment ? row : current;
+    },
+    undefined,
+  );
+}
+
+/** Session of the newest event that has one; events of a trace can carry different or no sessions. */
+function newestSessionId(observations: TraceBatchObservation[]) {
+  return (
+    newestEvent(observations.filter((row) => row.sessionId))?.sessionId ?? null
+  );
+}
+
 async function summarizeTraceBatch(
   observations: TraceBatchObservation[],
   transcript: Transcript | null,
@@ -131,18 +152,8 @@ async function summarizeTraceBatch(
     Math.min(...observations.map((row) => row.startTime.getTime())),
   ).toISOString();
   // Match manual processing and discovery, preserving event_ts microseconds.
-  const latest = observations.reduce((current, row) => {
-    if (row.eventTimestamp !== current.eventTimestamp)
-      return row.eventTimestamp > current.eventTimestamp ? row : current;
-    if (row.id !== current.id) return row.id > current.id ? row : current;
-    return row.environment > current.environment ? row : current;
-  });
-  // Like manual processing: the session of the newest event that has one.
-  const sessionId =
-    observations
-      .filter((row) => row.sessionId)
-      .sort((a, b) => b.eventTimestamp.localeCompare(a.eventTimestamp))[0]
-      ?.sessionId ?? null;
+  const latest = newestEvent(observations)!;
+  const sessionId = newestSessionId(observations);
   let rows: TopicSummary[] = [];
   try {
     const project = await topics.get(first.projectId);
