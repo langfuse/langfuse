@@ -147,6 +147,7 @@ describe("Topics embedding handoff", () => {
         expect.anything(),
         [allowed.summary],
         256,
+        "project",
       );
       expect(mocks.update).toHaveBeenCalledTimes(1);
       expect(mocks.write).toHaveBeenCalledExactlyOnceWith([

@@ -90,6 +90,7 @@ export class TopicInputTooLarge extends Error {}
 async function topicModelCall<T>(
   stage: "summary" | "embedding" | "naming",
   model: TopicsModel,
+  projectId: string,
   requestBytes: number,
   context: Record<string, unknown>,
   call: () => Promise<T>,
@@ -110,7 +111,11 @@ async function topicModelCall<T>(
         const result = await call();
         recordTopicModelCall(stage, model.adapter, {});
         // Shared egress metric; like llmaj, counted after a successful send.
-        recordExportVolume({ integration: "topics", bytes: requestBytes });
+        recordExportVolume({
+          integration: "topics",
+          bytes: requestBytes,
+          projectId,
+        });
         return result;
       } catch (error) {
         const failure = topicProviderError(error, model);
@@ -165,6 +170,7 @@ async function structuredCall<T>(
   const result = await topicModelCall(
     stage,
     model,
+    projectId,
     Buffer.byteLength(
       system.map((part) => part.text).join("") +
         input +
@@ -456,6 +462,7 @@ export async function embedTopicSummaries(
   model: TopicsModel,
   summaries: string[],
   dimensions: number,
+  projectId: string,
 ): Promise<TopicModelUsage & { embeddings: number[][] }> {
   if (
     summaries.length === 0 ||
@@ -470,6 +477,7 @@ export async function embedTopicSummaries(
   const result = await topicModelCall(
     "embedding",
     model,
+    projectId,
     Buffer.byteLength(summaries.join("")),
     {},
     () => generateTopicEmbeddings({ model, summaries, dimensions }),

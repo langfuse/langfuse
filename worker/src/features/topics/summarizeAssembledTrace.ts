@@ -195,6 +195,7 @@ async function summarizeEnabledTrace(
             models.embedding,
             applicable,
             models.embedding.dimensions,
+            models.projectId,
           ),
         );
       } catch (error) {

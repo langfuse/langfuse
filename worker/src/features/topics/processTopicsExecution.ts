@@ -1470,6 +1470,7 @@ export async function processTopicsExecution({
     await save("failed");
   } finally {
     getCurrentSpan()?.setAttributes({
+      "langfuse.project.id": projectId,
       "langfuse.topics.execution_id": executionId,
       "langfuse.topics.operation": execution.input.operation,
       "langfuse.topics.execution_status": execution.status,

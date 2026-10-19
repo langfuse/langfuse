@@ -17,7 +17,7 @@ type ExportVolume = {
   // Only tagged for blob_storage (per-project egress cost attribution); the
   // API-based integrations (posthog/mixpanel/llmaj/topics) omit it to keep custom
   // metric cardinality down.
-  projectId?: string;
+  projectId: string;
   // Egress-cost classification; blob only (S3 / S3_COMPATIBLE / AZURE_*).
   destinationType?: string;
   // Blob-only dimensions: export format, table, and codepath.
@@ -42,7 +42,7 @@ export const recordExportVolume = ({
   path,
 }: ExportVolume): void => {
   const tags: Record<string, string> = { integration };
-  if (integration === "blob_storage" && projectId) tags.projectId = projectId;
+  if (integration === "blob_storage") tags.projectId = projectId;
   if (destinationType !== undefined) tags.destination_type = destinationType;
   if (source !== undefined) tags.source = source;
   if (table !== undefined) tags.table = table;

@@ -704,6 +704,7 @@ describe("Topics naming boundary", () => {
         topicsModels().embedding,
         ["An invoice request."],
         256,
+        "project",
       ),
     ).rejects.toMatchObject({
       reason: "invalid_output",
@@ -728,6 +729,7 @@ describe("Topics naming boundary", () => {
         topicsModels().embedding,
         ["An invoice request."],
         256,
+        "project",
       );
       expect(tokenCalls()).toEqual([
         [
