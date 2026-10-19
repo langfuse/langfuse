@@ -129,7 +129,7 @@ describe("Topics transcript input", () => {
       .mock.calls[0][0].query.split("FROM")[0];
     expect(select).toContain("e.level");
     expect(select).toContain("e.status_message");
-    expect(result.transcript?.failures).toEqual([
+    expect(result.transcript?.levelEvents).toEqual([
       expect.objectContaining({
         observationId: "span",
         level: "ERROR",

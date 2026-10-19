@@ -23,10 +23,10 @@ type TranscriptOptions = {
   onTimings?: (timings: { normalizationMs: number; matchingMs: number }) => void;
 };
 
-type Transcript = { threads: Thread[]; failures?: TranscriptFailure[]; truncated?: true };
+type Transcript = { threads: Thread[]; levelEvents?: TranscriptLevelEvent[]; truncated?: true };
 
 // ERROR observations, and WARNING observations with a status message, in order.
-type TranscriptFailure = {
+type TranscriptLevelEvent = {
   observationId: string;
   traceId: string | null;
   type: ObservationType;
@@ -78,12 +78,13 @@ connect them, but does not retain the fields a trace-level view needs:
   output, including output produced after the last model or tool call. Those
   fields are absent from the assembled conversation.
 - Non-generation operations and unmatched tool observations are not
-  represented as conversation messages. Failures are kept separately in
-  `failures`: every ERROR observation, and every WARNING observation with a
-  status message, with its type, name and status message. They are collected
-  from all supplied observations, so a failed model call that emitted no
-  messages still appears, and a transcript with only failures is not null.
-  Under `maxCharacters`, failures are kept only while the result still fits.
+  represented as conversation messages. Observation levels are kept separately
+  in `levelEvents`: every ERROR observation, and every WARNING observation with
+  a status message (`hasReportableLevel`), keyed by `observationId` so a
+  renderer can place them in the matching observation block. They are
+  collected from all supplied observations, so a failed model call that
+  emitted no messages still appears, and a transcript with only level events
+  is not null.
 - Available tool definitions can occur in generation input or metadata. They
   are not part of the normalized messages returned by the assembler.
 
@@ -113,6 +114,11 @@ When too many messages remain, the beginning and end are retained, preserving
 their order and history/current-turn partition. Contributor references are
 pruned to the retained current-turn messages. The original current turn
 nesting level is preserved.
+
+Level events are sized first and use at most half of the limit, keeping the
+earliest events; the conversation is limited to the remaining characters. Each
+event is serialized once for sizing, so this adds no extra pass over the
+conversation.
 
 Changed results include `truncated: true`. If no message fits, the result is
 `null`. Truncated transcripts are partial evidence, not a replayable conversation:

@@ -117,8 +117,8 @@ it("keeps canonical conversation evidence without provenance or opaque payloads"
   expect(prepareAssembledTopicTranscript(null).hasContent).toBe(false);
 });
 
-it("passes failed observations to the model and omits the field when there are none", () => {
-  const failure = {
+it("passes level events to the model and omits the field when there are none", () => {
+  const levelEvent = {
     observationId: "private-observation",
     traceId: "private-trace",
     type: "GENERATION" as const,
@@ -130,10 +130,10 @@ it("passes failed observations to the model and omits the field when there are n
 
   const failed = prepareAssembledTopicTranscript({
     threads: [],
-    failures: [failure],
+    levelEvents: [levelEvent],
   });
   expect(failed.hasContent).toBe(true);
-  expect(JSON.parse(failed.text).failures).toEqual([
+  expect(JSON.parse(failed.text).levelEvents).toEqual([
     {
       type: "GENERATION",
       name: "invoke-model",

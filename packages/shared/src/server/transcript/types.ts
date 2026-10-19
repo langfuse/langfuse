@@ -27,8 +27,8 @@ export type TranscriptObservation = Pick<
 > &
   Partial<Pick<Observation, "level" | "statusMessage">>;
 
-/** An observation that failed or warned, with the reason it recorded. */
-export type TranscriptFailure = {
+/** An observation with a WARNING or ERROR level and the status message it recorded. */
+export type TranscriptLevelEvent = {
   observationId: string;
   traceId: string | null;
   type: Observation["type"];
@@ -69,8 +69,9 @@ export type Thread = {
 export type Transcript = {
   threads: Thread[];
   /** ERROR observations, and WARNING observations with a status message, in order.
-   * Omitted when there are none. Independent of threads: a failed call can emit no messages. */
-  failures?: TranscriptFailure[];
+   * Omitted when there are none. Independent of threads: a failed call can emit no messages.
+   * Under a character limit they use at most half of it, keeping the earliest. */
+  levelEvents?: TranscriptLevelEvent[];
   /** The character limit shortened text or omitted messages. */
   truncated?: true;
 };

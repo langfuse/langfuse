@@ -342,18 +342,18 @@ history and current-turn messages, normalized parts and observation provenance.
 The shared producer defines observation eligibility, tool association and replay
 deduplication. It includes generations and matched tool responses. Root-only
 non-generation traces and unmatched tool observations are outside that
-conversation contract. Failed observations reach the model as `failures` (type,
-name, level and status message, without provenance). The key is omitted when
-there are none; failures are dropped when they would exceed the cap. Topics does
-not add fallbacks, coverage fields, custom media handling or a separate
-transcript projection.
+conversation contract. WARNING and ERROR observations reach the model as
+`levelEvents` (type, name, level and status message, without provenance). The
+key is omitted when there are none; under the cap they use at most half of it.
+Topics does not add fallbacks, coverage fields, custom media handling or a
+separate transcript projection.
 See `packages/shared/src/server/transcript/README.md` for the producer's semantics
 and limitations.
 
 If transcript plus instructions/schema exceeds the execution's input allowance,
 the worker fails before calling the provider; it does not
 silently change the evidence for that facet. Stored summaries record
-`transcript_id` (`poc`) and `transcript_version` (`shared-transcript-v3`), plus the
+`transcript_id` (`poc`) and `transcript_version` (`shared-transcript-v4`), plus the
 models used. Historical summaries from other producer versions are regenerated.
 Accepted Redis payloads retain their recorded version when the same execution
 resumes. Transcripts are regenerated from current observations; original source

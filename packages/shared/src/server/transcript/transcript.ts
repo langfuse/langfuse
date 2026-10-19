@@ -1,7 +1,12 @@
 import { partition } from "lodash";
 import type { OrderedObservation } from "./ordering";
 import { normalizeIO } from "../normalized-io";
-import type { Transcript, TranscriptFailure, TranscriptOptions } from "./types";
+import type {
+  Transcript,
+  TranscriptLevelEvent,
+  TranscriptObservation,
+  TranscriptOptions,
+} from "./types";
 import { limitTranscript } from "./limit";
 import {
   append,
@@ -13,7 +18,10 @@ import {
 } from "./threads";
 import { createToolCallRegistry } from "./tool-calls";
 
-const FAILURE_STATUS_MAX_CHARACTERS = 1_000;
+const LEVEL_STATUS_MAX_CHARACTERS = 1_000;
+/** The `levelEvents` key and brackets plus a possible `truncated` flag. */
+const LEVEL_EVENTS_OVERHEAD_CHARACTERS = ',"levelEvents":[],"truncated":true'
+  .length;
 
 /** Check if an observation is relevant for the transcript. */
 const isRelevantObservation = (
@@ -80,7 +88,6 @@ export function assembleTranscript(
     append(thread, observation, input, output, toolCalls);
   }
 
-  const failures = orderedObservations.flatMap(toFailure);
   const conversation = threads.length
     ? { threads: threads.map(splitTurn) }
     : null;
@@ -88,41 +95,91 @@ export function assembleTranscript(
     normalizationMs,
     matchingMs: performance.now() - startedAt - normalizationMs,
   });
-  const limited =
-    conversation && maxCharacters !== undefined
-      ? limitTranscript(conversation, maxCharacters)
-      : conversation;
-  return attachFailures(limited, failures, maxCharacters);
+  const levelEvents = collectLevelEvents(orderedObservations);
+  if (maxCharacters === undefined)
+    return withLevelEvents(conversation, levelEvents);
+  return limitWithLevelEvents(conversation, levelEvents, maxCharacters);
 }
 
-/** Add failures to the transcript only if the result stays within the character limit. */
-function attachFailures(
-  transcript: Transcript | null,
-  failures: TranscriptFailure[],
-  maxCharacters: number | undefined,
+/** Check if an observation's level and status message belong in `levelEvents`. */
+export function hasReportableLevel(
+  observation: Pick<TranscriptObservation, "level" | "statusMessage">,
+): boolean {
+  return (
+    observation.level === "ERROR" ||
+    (observation.level === "WARNING" && Boolean(observation.statusMessage))
+  );
+}
+
+/** Reserve up to half of the limit for the earliest level events and limit the conversation to the rest. */
+function limitWithLevelEvents(
+  conversation: Transcript | null,
+  levelEvents: TranscriptLevelEvent[],
+  maxCharacters: number,
 ): Transcript | null {
-  if (failures.length === 0) return transcript;
-  const withFailures = { ...(transcript ?? { threads: [] }), failures };
-  if (maxCharacters === undefined) return withFailures;
-  return JSON.stringify(withFailures).length <= maxCharacters
-    ? withFailures
+  const kept = earliestFitting(levelEvents, Math.floor(maxCharacters / 2));
+  if (kept.events.length === 0)
+    return conversation && limitTranscript(conversation, maxCharacters);
+  const limited =
+    conversation &&
+    limitTranscript(
+      conversation,
+      maxCharacters - LEVEL_EVENTS_OVERHEAD_CHARACTERS - kept.characters,
+    );
+  const transcript = {
+    ...(limited ?? { threads: [] }),
+    levelEvents: kept.events,
+  };
+  return kept.events.length < levelEvents.length
+    ? { ...transcript, truncated: true }
     : transcript;
 }
 
-function toFailure(observation: OrderedObservation): TranscriptFailure[] {
-  const { level, statusMessage } = observation;
-  if (level !== "ERROR" && !(level === "WARNING" && statusMessage)) return [];
-  return [
-    {
-      observationId: observation.id,
-      traceId: observation.traceId,
-      type: observation.type,
-      name: observation.name ?? null,
-      level,
-      statusMessage: statusMessage
-        ? statusMessage.slice(0, FAILURE_STATUS_MAX_CHARACTERS)
-        : null,
-      startTime: observation.startTime,
-    },
-  ];
+function collectLevelEvents(
+  observations: OrderedObservation[],
+): TranscriptLevelEvent[] {
+  const levelEvents: TranscriptLevelEvent[] = [];
+  for (const observation of observations)
+    if (hasReportableLevel(observation))
+      levelEvents.push(toLevelEvent(observation));
+  return levelEvents;
+}
+
+function toLevelEvent(observation: OrderedObservation): TranscriptLevelEvent {
+  return {
+    observationId: observation.id,
+    traceId: observation.traceId,
+    type: observation.type,
+    name: observation.name ?? null,
+    level: observation.level === "ERROR" ? "ERROR" : "WARNING",
+    statusMessage: observation.statusMessage
+      ? observation.statusMessage.slice(0, LEVEL_STATUS_MAX_CHARACTERS)
+      : null,
+    startTime: observation.startTime,
+  };
+}
+
+function withLevelEvents(
+  transcript: Transcript | null,
+  levelEvents: TranscriptLevelEvent[],
+): Transcript | null {
+  if (levelEvents.length === 0) return transcript;
+  return { ...(transcript ?? { threads: [] }), levelEvents };
+}
+
+/** Serialized size of the earliest events, joined by commas, that fit the budget. */
+function earliestFitting(
+  levelEvents: TranscriptLevelEvent[],
+  budget: number,
+): { events: TranscriptLevelEvent[]; characters: number } {
+  let characters = 0;
+  let count = 0;
+  for (const event of levelEvents) {
+    const next =
+      characters + (count > 0 ? 1 : 0) + JSON.stringify(event).length;
+    if (next > budget) break;
+    characters = next;
+    count++;
+  }
+  return { events: levelEvents.slice(0, count), characters };
 }

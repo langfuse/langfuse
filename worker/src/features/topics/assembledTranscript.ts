@@ -118,12 +118,12 @@ export function prepareAssembledTopicTranscript(
       hasContent = true;
       return [{ role: message.role, parts }];
     });
-  const failures = (transcript?.failures ?? []).map((failure) => ({
-    type: failure.type,
-    name: failure.name,
-    level: failure.level,
-    statusMessage: failure.statusMessage
-      ? redactInlineMedia(failure.statusMessage)
+  const levelEvents = (transcript?.levelEvents ?? []).map((event) => ({
+    type: event.type,
+    name: event.name,
+    level: event.level,
+    statusMessage: event.statusMessage
+      ? redactInlineMedia(event.statusMessage)
       : null,
   }));
   const text = stableJsonStringify({
@@ -131,11 +131,11 @@ export function prepareAssembledTopicTranscript(
       conversationHistory: messages(thread.conversationHistory),
       currentTurn: messages(thread.currentTurn.messages),
     })),
-    // Omitted when empty, so traces without failures keep the same input.
-    ...(failures.length > 0 ? { failures } : {}),
+    // Omitted when empty, so traces without level events keep the same input.
+    ...(levelEvents.length > 0 ? { levelEvents } : {}),
   });
   return {
     text,
-    hasContent: hasContent || failures.length > 0,
+    hasContent: hasContent || levelEvents.length > 0,
   };
 }
