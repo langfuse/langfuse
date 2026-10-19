@@ -899,6 +899,11 @@ describe("names the compiler writes verbatim", () => {
       "sql.ref unqualified tuple index",
       db.selectFrom("scores as s").select(sql.ref<string>("1").as("x")),
     ],
+    // Tuple indexes start at 1; ClickHouse rejects `s.0`.
+    [
+      "sql.ref zero tuple index",
+      db.selectFrom("scores as s").select(sql.ref<string>("s.0").as("x")),
+    ],
     // Only a whole integer is a tuple index; text after it is raw SQL.
     [
       "sql.ref tuple index followed by text",
