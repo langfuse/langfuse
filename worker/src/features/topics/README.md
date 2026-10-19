@@ -515,6 +515,46 @@ entry from each waiting, paused, delayed and active state without loading job
 payloads. Retries can re-enter behind newer jobs, so this is head age, not the
 oldest creation time anywhere in the backlog.
 
+Summary `.results` carry `source:model|rule` and `facet` (the built-in facet's
+name, or `custom`): the model decides `applicable`, `not_applicable` or
+`insufficient_input`; local rules decide `insufficient_input` (no transcript
+content), `invalid_output` and `input_too_large`.
+
+Every model call counts once in `.llm_calls{stage,adapter,status}`: `ok`,
+`400`, `401`, `403`, `429`, `4xx` or `5xx` for any other code (the exact code is
+on the span), or the failure reason when there is no HTTP status. One
+embedding call can fan out into several provider requests (single-text Bedrock
+models, the retry without dimensions), and AI SDK retries are not counted
+separately. Each successful call adds its egress to the shared
+`langfuse.export.serialized_bytes{integration:topics}`, measured exactly like
+LLM-as-a-judge (`llmRequestEgressBytes`: serialized provider messages plus the
+output JSON Schema, uncompressed); responses (mostly embedding vectors) and
+failed or retried requests are not included.
+
+### Datadog spans and logs
+
+Spans carry tenant and request detail that metrics must not:
+
+- `Worker.run *`: `langfuse.project.id` for every queue; Topics jobs add the
+  execution ID, operation, status and phase. Trace-batch jobs add
+  `langfuse.topics.traces.<outcome>` totals.
+- `topics-trace-summary`: one per summarized trace (both paths), with facet
+  result counts under `langfuse.topics.facets.*`.
+- `topics-facet-update`: one per facet of an update, with its outcome. Children:
+  `topics.clustering` (vectors, dimensions, status), `topics.naming` (one per
+  group) and `topics.assignment` (also used when manual processing assigns).
+  A failed facet marks its enclosing span as an error, although the run handles it.
+- `topics.llm.summary|embedding|naming`: one per provider request, with model,
+  adapter and prompt bytes; on failure, the HTTP status and the provider's error
+  message, type, code and param.
+
+A failed provider request logs one `Topics model request failed` warning with the
+same fields. Like evals, only the AI SDK's parsed provider error (message cut to 500
+characters, type, code, param) is kept; request and response bodies can contain
+trace content and are never logged, so errors without that structure, such as
+the direct Bedrock call, log the HTTP status only. A failed facet logs `Topics facet failed`: a warning for provider or
+configuration errors, an error otherwise.
+
 `langfuse.topics.tokens{stage:summary|embedding|naming,direction:input|output}`
 counts available provider-reported usage immediately after each model response,
 before local validation or persistence. Embeddings have input tokens only.
