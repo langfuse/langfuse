@@ -23,7 +23,7 @@ import { PieChart } from "@/src/features/widgets/chart-library/PieChart";
 import HistogramChart from "@/src/features/widgets/chart-library/HistogramChart";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { Button } from "@/src/components/ui/button";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle } from "@langfuse/icons";
 import { BigNumber } from "@/src/features/widgets/chart-library/BigNumber";
 import { PivotTable } from "@/src/features/widgets/chart-library/PivotTable";
 import { type OrderByState } from "@langfuse/shared";
@@ -301,7 +301,7 @@ const ChartComponent = ({
 
   const renderWarning = () => (
     <div className="flex flex-col items-center justify-center p-6 text-center">
-      <AlertCircle className="mb-4 h-12 w-12" />
+      <AlertCircle __rawClassName="mb-4 h-12 w-12" />
       <h3 className="mb-2 text-lg font-bold">Large Dataset Warning</h3>
       <p className="text-muted-foreground mb-6 text-sm">
         This chart has more than 2,000 unique data points. Rendering it may be

@@ -1,6 +1,6 @@
 /* eslint-disable @repo/component-file-structure */
 import type { ComponentProps } from "react";
-import { Loader2, Sparkles } from "lucide-react";
+import { Loader2, Sparkles } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
@@ -77,9 +77,13 @@ export function AIAssistedInput({
               }
             >
               {isGenerating ? (
-                <Loader2 className="icon-sm text-icon-foreground animate-spin" />
+                <Loader2
+                  size="sm"
+                  color="default"
+                  __rawClassName="animate-spin"
+                />
               ) : (
-                <Sparkles className="icon-sm text-icon-foreground" />
+                <Sparkles size="sm" color="default" />
               )}
             </Button>
           </TooltipTrigger>

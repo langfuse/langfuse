@@ -735,7 +735,7 @@ export const getObservationsWithPromptNameFromEvents = async (
   }: { fromTimestamp?: Date; toTimestamp?: Date } = {},
 ) => {
   const builder = getClickhouseKysely()
-    .selectFrom("events_core")
+    .selectFrom("events")
     .select((eb) => [uniq(eb.ref("span_id")).as("count"), "prompt_name"])
     .where("prompt_name", "in", promptNames)
     .where("prompt_name", "!=", "")
@@ -1388,8 +1388,8 @@ function compileHasAnyFromEventsTable(opts: {
   const db = getClickhouseKysely();
 
   const query = db
-    .selectFrom("events_core")
-    .select(sql<number>`1`.as("one"))
+    .selectFrom("events")
+    .select(literal(1).as("one"))
     .$if(opts.kind === "user", (qb) =>
       qb.where("user_id", "is not", null).where("user_id", "!=", ""),
     )
@@ -2856,7 +2856,7 @@ export const getObservationsBatchIOFromEventsTable = async <
     .$if(opts.sessionId !== undefined, (qb) =>
       qb.where("e.trace_id", "in", (eb) =>
         eb
-          .selectFrom("events_core")
+          .selectFrom("events")
           .select("trace_id")
           .where("trace_id", "in", traceIds)
           .groupBy("trace_id")
@@ -2964,7 +2964,7 @@ function compileObservationIOFieldRead<A extends string>(
   select: (field: AliasableExpression<string>) => AliasedExpression<unknown, A>,
 ) {
   const query = getClickhouseKysely()
-    .selectFrom("events_full as e")
+    .selectFrom("events as e")
     .$call(softDeleteAfterLimit())
     .select((eb) =>
       select(
@@ -3084,7 +3084,7 @@ export const getObservationFullIOForSessionFromEventsTable = async (opts: {
   const db = getClickhouseKysely();
   // A soft-deleted latest version reads as not found.
   const builder = db
-    .selectFrom("events_full as e")
+    .selectFrom("events as e")
     .$call(softDeleteAfterLimit())
     .select((eb) => [
       "e.span_id as id",
@@ -3154,7 +3154,7 @@ export const getObservationsTraceIdsFromEventsTable = async (opts: {
   const db = getClickhouseKysely();
 
   const builder = db
-    .selectFrom("events_core as e")
+    .selectFrom("events as e")
     .select(["e.trace_id as trace_id", "e.span_id as span_id"])
     .where("e.span_id", "in", observationIds);
 
@@ -3633,7 +3633,7 @@ export const getTraceMetadataByIdsFromEvents = async (props: {
   const db = getClickhouseKysely();
 
   const builder = db
-    .selectFrom("events_core as e")
+    .selectFrom("events as e")
     .select([
       "e.trace_id as id",
       eventsTraceName.as("name"),
@@ -3845,7 +3845,13 @@ export const getLatestEvaluatorRunCost = async (
   return rows[0] ? Number(rows[0].trace_total_cost) : null;
 };
 
-/** Counts execution traces by outcome over the last seven days, excluding tests. */
+const EVALUATOR_HEALTH_RECENT_EXECUTIONS = 50;
+
+/**
+ * Counts execution traces by outcome, excluding tests. Only each evaluator's
+ * most recent executions from the last seven days count, so an evaluator that
+ * recovered from an earlier outage reports its current health.
+ */
 export const getEvaluatorExecutionSummaries = async (
   projectId: string,
   evaluatorIds: string[],
@@ -3856,7 +3862,9 @@ export const getEvaluatorExecutionSummaries = async (
     projectId,
     groupByColumn: "e.trace_id, e.evaluator_id",
     selectExpression: [
+      "e.trace_id as trace_id",
       "e.evaluator_id as evaluator_id",
+      "min(e.start_time) as started_at",
       "countIf(e.level = 'ERROR') > 0 as failed",
     ].join(", "),
   })
@@ -3873,9 +3881,19 @@ export const getEvaluatorExecutionSummaries = async (
     total: string;
     failed_count: string;
   }>({
-    query: `SELECT evaluator_id, count() as total, countIf(failed) as failed_count
-      FROM (${query}) GROUP BY evaluator_id`,
-    params,
+    // groupArraySorted keeps a bounded top-N per evaluator instead of sorting
+    // every execution of the week; trace_id makes ties deterministic.
+    query: `SELECT evaluator_id, length(recent) as total,
+        arrayCount(x -> x.3, recent) as failed_count
+      FROM (
+        SELECT evaluator_id,
+          groupArraySorted({recentExecutions: UInt32})(
+            (-toUnixTimestamp64Micro(started_at), trace_id, failed)
+          ) as recent
+        FROM (${query})
+        GROUP BY evaluator_id
+      )`,
+    params: { ...params, recentExecutions: EVALUATOR_HEALTH_RECENT_EXECUTIONS },
     tags: { projectId },
     preferredClickhouseService: "EventsReadOnly",
   });
@@ -3899,7 +3917,7 @@ export const getSessionMetricsFromEvents = async <
 
   const { projectId, sessionIds, fields, queryFromTimestamp } = props;
   const builder = getClickhouseKysely()
-    .selectFrom("events_core as e")
+    .selectFrom("events as e")
     .select(fields.map((field) => SESSION_AGGREGATION_SELECTS[field]))
     .where("session_id", "in", sessionIds)
     .$if(queryFromTimestamp != null, (qb) =>
@@ -3955,7 +3973,7 @@ export async function getLatestSdkVersionInfoFromEvents(params: {
 
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const builder = getClickhouseKysely()
-    .selectFrom("events_core as e")
+    .selectFrom("events as e")
     .select((eb) => [
       "e.ingestion_sdk_name as ingestion_sdk_name",
       "e.ingestion_sdk_version as ingestion_sdk_version",

@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp } from "@langfuse/icons";
 
 import { Button } from "@/src/components/design-system/Button/Button";
 

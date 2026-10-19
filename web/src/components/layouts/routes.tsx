@@ -7,7 +7,7 @@ import {
   LayoutDashboard,
   LifeBuoy,
   ListTree,
-  type LucideIcon,
+  type IconComponent,
   Settings,
   UsersIcon,
   TerminalIcon,
@@ -22,14 +22,14 @@ import {
   ClipboardPen,
   Clock,
   Beaker,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { type ReactNode } from "react";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
 import { type Session } from "next-auth";
 import { type OrganizationScope } from "@/src/features/rbac";
-import { SupportButton } from "@/src/components/nav/support-button";
+import { SupportButton } from "@/src/components/nav/SupportButton";
 import { V4SidebarToggle } from "@/src/features/events";
-import { BookACallButton } from "@/src/components/nav/book-a-call-button";
+import { BookACallButton } from "@/src/components/nav/BookACallButton";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
@@ -58,7 +58,7 @@ export type Route = {
   label?: string | ReactNode;
   projectRbacScopes?: ProjectScope[]; // array treated as OR
   organizationRbacScope?: OrganizationScope;
-  icon?: LucideIcon; // ignored for nested routes
+  icon?: IconComponent; // ignored for nested routes
   href: string;
   isActive?: (pathname: string) => boolean;
   legacyPathname?: string; // link used when the V4 preview is disabled
@@ -323,7 +323,7 @@ function CommandMenuTrigger() {
       }}
       className="whitespace-nowrap"
     >
-      <Search className="icon-base" />
+      <Search size="base" />
       Go to...
       <span className="-mr-px ml-auto hidden md:inline-flex">
         <KeyboardShortcut keys={["Mod", "K"]} />

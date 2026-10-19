@@ -12,6 +12,7 @@ import { schemaTypeAssertions, extensionTypeAssertions } from "./types.assert";
 describe("table registry derivation", () => {
   it("derives the tenanted table set from the registry", () => {
     expect([...TENANTED_TABLES].sort()).toEqual([
+      "events",
       "events_core",
       "events_full",
       "observations",

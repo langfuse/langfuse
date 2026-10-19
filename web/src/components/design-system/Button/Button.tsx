@@ -1,5 +1,5 @@
 import { cva } from "class-variance-authority";
-import { ExternalLink, type LucideIcon } from "lucide-react";
+import { ExternalLink, type IconComponent } from "@langfuse/icons";
 import Link from "next/link";
 import {
   type ButtonHTMLAttributes,
@@ -41,21 +41,6 @@ const buttonVariants = cva(
   },
 );
 
-const buttonIconVariants = cva("icon-base shrink-0", {
-  variants: {
-    variant: {
-      primary: "",
-      secondary: "",
-      destructive: "",
-      ghost: "text-icon-foreground",
-      text: "",
-    },
-  },
-  defaultVariants: {
-    variant: "primary",
-  },
-});
-
 type ButtonProps = {
   text: string;
   /** Text variant only: `false` drops the underline, e.g. when an icon marks it. */
@@ -68,7 +53,7 @@ type ButtonProps = {
       ref?: Ref<HTMLAnchorElement>;
       disabled?: never;
       loading?: never;
-      icon?: LucideIcon;
+      icon?: IconComponent;
       form?: never;
       onClick?: never;
       type?: never;
@@ -78,7 +63,7 @@ type ButtonProps = {
       ref?: Ref<HTMLButtonElement>;
       disabled?: boolean;
       form?: string;
-      icon?: LucideIcon;
+      icon?: IconComponent;
       loading?: boolean;
       onClick?: MouseEventHandler<HTMLButtonElement>;
       type?: "button" | "submit";
@@ -100,7 +85,7 @@ export function Button(props: ButtonProps) {
       underline: props.underline,
     }),
   );
-  const iconClassName = buttonIconVariants({ variant: props.variant });
+  const iconColor = props.variant === "ghost" ? "default" : "inherit";
 
   if (props.href !== undefined) {
     const Icon = props.icon;
@@ -120,22 +105,16 @@ export function Button(props: ButtonProps) {
           target="_blank"
           rel={isLangfuseDomain ? "noopener" : "noopener noreferrer"}
         >
-          {Icon ? <Icon className={iconClassName} aria-hidden /> : null}
+          {Icon ? <Icon color={iconColor} aria-hidden /> : null}
           {props.text}
-          <ExternalLink
-            className={cn(
-              "icon-sm",
-              props.variant === "ghost" && "text-icon-foreground",
-            )}
-            aria-hidden
-          />
+          <ExternalLink size="sm" color={iconColor} aria-hidden />
         </a>
       );
     }
 
     return (
       <Link className={className} href={props.href} ref={props.ref}>
-        {Icon ? <Icon className={iconClassName} aria-hidden /> : null}
+        {Icon ? <Icon color={iconColor} aria-hidden /> : null}
         {props.text}
       </Link>
     );
@@ -166,11 +145,11 @@ export function Button(props: ButtonProps) {
         )}
       >
         {Icon && props.iconPosition !== "right" ? (
-          <Icon className={iconClassName} aria-hidden />
+          <Icon color={iconColor} aria-hidden />
         ) : null}
         {props.text}
         {Icon && props.iconPosition === "right" ? (
-          <Icon className={iconClassName} aria-hidden />
+          <Icon color={iconColor} aria-hidden />
         ) : null}
       </span>
       {props.loading && (

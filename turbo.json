@@ -110,15 +110,64 @@
       "outputLogs": "errors-only",
       "outputs": []
     },
+    "test-client": {
+      "dependsOn": ["db:generate", "^build"],
+      "cache": true
+    },
     "test": {
-      "dependsOn": ["^test", "db:generate"],
+      // Tests consume compiled workspace packages. The edge must be explicit
+      // now that typechecks, lint, and tests can share one concurrent run.
+      "dependsOn": ["^build", "^test", "db:generate"],
+      "cache": true
+    },
+    // Vitest loads these files from outside each package. Selecting the task
+    // without hashing them could still replay a result from before they changed.
+    "web#test": {
+      "dependsOn": ["^build", "^test", "db:generate"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/scripts/vitest/ci-reporter.ts",
+        "$TURBO_ROOT$/fern/apis/server/definition/**",
+        "$TURBO_ROOT$/scripts/code-eval-runners/python/code_based_eval_handler.py",
+        "$TURBO_ROOT$/prettier.config.*",
+        "$TURBO_ROOT$/.prettierrc*",
+        "$TURBO_ROOT$/.prettierignore",
+        "$TURBO_ROOT$/.editorconfig",
+        "$TURBO_ROOT$/.env.test"
+      ]
+    },
+    "web#test-client": {
+      "dependsOn": ["db:generate", "^build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/scripts/vitest/ci-reporter.ts",
+        "$TURBO_ROOT$/.env.test"
+      ]
+    },
+    "web#test-storybook": {
+      "dependsOn": ["db:generate", "^build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/scripts/vitest/ci-reporter.ts",
+        "$TURBO_ROOT$/.env.test"
+      ],
       "cache": true
     },
     "@repo/eslint-plugin#build": {
-      "dependsOn": [],
+      "dependsOn": ["^build"],
       "outputs": ["dist/**"],
       "cache": true,
       "outputLogs": "errors-only"
+    },
+    "@langfuse/icons#build": {
+      "dependsOn": [],
+      "outputs": ["dist/**"]
+    },
+    "@langfuse/icons#typecheck": {
+      "dependsOn": ["build"]
+    },
+    "@langfuse/icons#test": {
+      "dependsOn": ["build"]
     },
     "@repo/in-app-agent-sandbox-runtime#build:docker-image": {
       "dependsOn": ["build"],
@@ -137,7 +186,11 @@
     },
     // Worker tests load the compiled addon, which no install step produces.
     "worker#test": {
-      "dependsOn": ["^test", "db:generate", "@langfuse/native#build"]
+      "dependsOn": ["^build", "^test", "db:generate", "@langfuse/native#build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/scripts/vitest/ci-reporter.ts"
+      ]
     },
     // ESLint does not load the native addon, so avoid compiling it during lint.
     "worker#lint": {

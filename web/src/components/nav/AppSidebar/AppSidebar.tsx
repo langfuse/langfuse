@@ -3,7 +3,7 @@
 "use client";
 
 import * as React from "react";
-import { NavMain, type NavMainItem } from "@/src/components/nav/nav-main";
+import { NavMain, type NavMainItem } from "@/src/components/nav/NavMain";
 import {
   Sidebar,
   SidebarContent,
@@ -31,9 +31,9 @@ import {
   Map,
   Newspaper,
   X,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
-import { SiGithub } from "react-icons/si";
+import { SiGithub } from "@langfuse/icons/si";
 import { VERSION } from "@/src/constants";
 import {
   DropdownMenu,
@@ -384,7 +384,7 @@ function SidebarNotifications({
             onClick={() => state.onDismiss(frontNotification.id)}
             title="Dismiss"
           >
-            <X className="icon-base text-icon-foreground" />
+            <X size="base" color="default" />
           </Button>
           <CardHeader className="px-3 pt-2.5 pr-6 pb-0">
             <CardTitle className="text-sm">{frontNotification.title}</CardTitle>
@@ -548,7 +548,7 @@ const DemoBadge = () => {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <ExternalLink className="icon-base" />
+                <ExternalLink size="base" />
                 <span>Use Demo App</span>
               </Link>
             </SidebarMenuButton>
@@ -556,7 +556,7 @@ const DemoBadge = () => {
           <SidebarMenuItem>
             <SidebarMenuButton asChild tooltip="Your Langfuse Organizations">
               <Link href="/">
-                <Grid2X2 className="icon-base" />
+                <Grid2X2 size="base" />
                 <span>Your Langfuse Orgs</span>
               </Link>
             </SidebarMenuButton>
@@ -633,7 +633,8 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
           )}
           {update && !backgroundMigrationStatus && (
             <ArrowUp
-              className={cn("icon-sm", color ?? "text-icon-foreground")}
+              size="sm"
+              __rawClassName={cn(color ?? "text-icon-foreground")}
             />
           )}
         </Button>
@@ -667,7 +668,7 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
         {selfHostedPlanLabel && (
           <>
             <DropdownMenuLabel className="flex items-center font-normal">
-              <BadgeCheck className="icon-base mr-2" />
+              <BadgeCheck size="base" __rawClassName="mr-2" />
               {selfHostedPlanLabel.long}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
@@ -678,14 +679,14 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
             href="https://github.com/langfuse/langfuse/releases"
             target="_blank"
           >
-            <SiGithub className="icon-base text-icon-foreground mr-2" />
+            <SiGithub size="base" color="default" __rawClassName="mr-2" />
             Releases
           </Link>
         </DropdownMenuItem>
         {state.deployment === "self-hosted" && (
           <DropdownMenuItem asChild>
             <Link href="/background-migrations">
-              <ArrowUp10 className="icon-base text-icon-foreground mr-2" />
+              <ArrowUp10 size="base" color="default" __rawClassName="mr-2" />
               Background Migrations
               {backgroundMigrationStatus && (
                 <StatusBadge
@@ -699,20 +700,20 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
         )}
         <DropdownMenuItem asChild>
           <Link href="https://langfuse.com/changelog" target="_blank">
-            <Newspaper className="icon-base text-icon-foreground mr-2" />
+            <Newspaper size="base" color="default" __rawClassName="mr-2" />
             Changelog
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link href="https://langfuse.com/roadmap" target="_blank">
-            <Map className="icon-base text-icon-foreground mr-2" />
+            <Map size="base" color="default" __rawClassName="mr-2" />
             Roadmap
           </Link>
         </DropdownMenuItem>
         {state.deployment === "self-hosted" && (
           <DropdownMenuItem asChild>
             <Link href="https://langfuse.com/pricing-self-host" target="_blank">
-              <Info className="icon-base text-icon-foreground mr-2" />
+              <Info size="base" color="default" __rawClassName="mr-2" />
               Compare Versions
             </Link>
           </DropdownMenuItem>
@@ -725,7 +726,11 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
                 href="https://langfuse.com/docs/deployment/self-host#update"
                 target="_blank"
               >
-                <HardDriveDownload className="icon-base text-icon-foreground mr-2" />
+                <HardDriveDownload
+                  size="base"
+                  color="default"
+                  __rawClassName="mr-2"
+                />
                 Update
               </Link>
             </DropdownMenuItem>

@@ -1,6 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import { useState, type ReactNode } from "react";
-import { TriangleAlert } from "lucide-react";
+import { TriangleAlert } from "@langfuse/icons";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";

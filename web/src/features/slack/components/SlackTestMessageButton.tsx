@@ -1,6 +1,6 @@
 import React from "react";
 import { Button, type ButtonProps } from "@/src/components/ui/button";
-import { Zap } from "lucide-react";
+import { Zap } from "@langfuse/icons";
 import { api } from "@/src/utils/api";
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import { type SlackChannel } from "./ChannelSelector";
@@ -108,7 +108,7 @@ export const SlackTestMessageButton: React.FC<SlackTestMessageButtonProps> = ({
         </>
       ) : (
         <>
-          <Zap className="icon-base" />
+          <Zap size="base" />
           {showText && <span>{buttonText}</span>}
         </>
       )}

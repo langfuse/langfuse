@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink } from "@langfuse/icons";
 import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import Link from "next/link";
@@ -67,7 +67,7 @@ export const DatasetSchemaValidationError: React.FC<
                           className="flex items-center gap-1 text-sm font-bold hover:underline"
                         >
                           Item: {error.datasetItemId}
-                          <ExternalLink className="icon-sm" />
+                          <ExternalLink size="sm" />
                         </Link>
                       </div>
                       <span className="bg-destructive/20 rounded px-2 py-0.5 text-xs font-bold">

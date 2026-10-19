@@ -4,10 +4,10 @@
 // AutocompletePopover (positioning); Storybook renders it directly.
 
 import * as React from "react";
-import { Bookmark, Check, Clock, Parentheses, Search } from "lucide-react";
+import { Bookmark, Check, Clock, Parentheses, Search } from "@langfuse/icons";
 
 import { cn } from "@/src/utils/tailwind";
-import { ScoreTag } from "@/src/components/score-tag";
+import { ScoreTag } from "@/src/components/ScoreTag";
 import type {
   CompletionOption,
   CompletionPlan,
@@ -15,12 +15,12 @@ import type {
 import { optionDomId } from "@/src/features/search-bar/components/presentation";
 
 function OptionIcon({ kind }: { kind: CompletionOption["kind"] }) {
-  const cls = "icon-base flex-none opacity-55";
-  if (kind === "recent") return <Clock className={cls} aria-hidden />;
-  if (kind === "preset") return <Bookmark className={cls} aria-hidden />;
+  const cls = "flex-none opacity-55";
+  if (kind === "recent") return <Clock __rawClassName={cls} aria-hidden />;
+  if (kind === "preset") return <Bookmark __rawClassName={cls} aria-hidden />;
   if (kind === "operator" || kind === "pattern")
-    return <Parentheses className={cls} aria-hidden />;
-  return <Search className={cls} aria-hidden />;
+    return <Parentheses __rawClassName={cls} aria-hidden />;
+  return <Search __rawClassName={cls} aria-hidden />;
 }
 
 export type AutocompleteListboxProps = {
@@ -144,7 +144,8 @@ export function AutocompleteListbox({
                 ))}
               {o.kind === "value" && o.active && (
                 <Check
-                  className="text-foreground/80 icon-base flex-none"
+                  size="base"
+                  __rawClassName="text-foreground/80 flex-none"
                   aria-label="selected"
                 />
               )}

@@ -1,6 +1,6 @@
 import { type ButtonProps } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { Edit, Pen, PlusIcon } from "lucide-react";
+import { Edit, Pen, PlusIcon } from "@langfuse/icons";
 import { api } from "@/src/utils/api";
 import { useEntitlementLimit } from "@/src/features/entitlements";
 import { ActionButton } from "@/src/components/ActionButton";
@@ -46,7 +46,7 @@ export const CreateOrEditAnnotationQueueButton = ({
       {({ disabled, openDialog }) =>
         isTableAction ? (
           <IconOnlyButton
-            icon={<Pen className="icon-base" />}
+            icon={<Pen size="base" />}
             label="Edit"
             aria-label="edit"
             disabledReason={disabled?.reason}
@@ -61,9 +61,9 @@ export const CreateOrEditAnnotationQueueButton = ({
             onClick={openDialog}
             icon={
               queueId ? (
-                <Edit className="icon-base" aria-hidden="true" />
+                <Edit size="base" aria-hidden="true" />
               ) : (
-                <PlusIcon className="icon-base" aria-hidden="true" />
+                <PlusIcon size="base" aria-hidden="true" />
               )
             }
             hasAccess={!disabled}

@@ -13,7 +13,7 @@ import { NewProjectForm } from "@/src/features/projects/components/NewProjectFor
 import { useQueryProjectOrOrganization } from "@/src/features/projects";
 import { createProjectRoute } from "@/src/features/setup/setupRoutes";
 import { cn } from "@/src/utils/tailwind";
-import { Check } from "lucide-react";
+import { Check } from "@langfuse/icons";
 import { useRouter } from "next/router";
 
 // Manual setup process
@@ -55,7 +55,9 @@ export function SetupPage() {
               )}
             >
               1. Create Organization
-              {stepInt > 1 && <Check className="icon-sm ml-1 inline-block" />}
+              {stepInt > 1 && (
+                <Check size="sm" __rawClassName="ml-1 inline-block" />
+              )}
             </BreadcrumbPage>
           </BreadcrumbItem>
           <BreadcrumbSeparator />

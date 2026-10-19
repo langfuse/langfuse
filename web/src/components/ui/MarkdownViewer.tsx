@@ -20,7 +20,7 @@ import remarkGfm from "remark-gfm";
 import { Codeblock as CodeBlock } from "@/src/components/design-system/Codeblock/Codeblock";
 import { normalizeCodeblockLanguage } from "@/src/utils/normalizeCodeblockLanguage";
 import { useTheme } from "next-themes";
-import { ImageOff, Info } from "lucide-react";
+import { ImageOff, Info } from "@langfuse/icons";
 import { MentionBadge } from "@/src/features/comments/components/MentionBadge";
 import {
   OpenAIUrlImageUrl,
@@ -444,7 +444,7 @@ function MarkdownRenderer({
     return (
       <div className={cn("space-y-2 overflow-x-auto text-base", className)}>
         <div className="text-muted-foreground flex items-center gap-1 text-xs">
-          <Info className="icon-sm" />
+          <Info size="sm" />
           Content is too large or deeply nested to render as markdown.
           Displaying as plain text.
         </div>
@@ -485,7 +485,7 @@ function MarkdownRenderer({
     return (
       <>
         <div className="text-muted-foreground flex items-center gap-1 text-xs">
-          <Info className="icon-sm" />
+          <Info size="sm" />
           Markdown parsing failed. Displaying raw JSON.
         </div>
         <JSONView json={markdown} className="min-w-0" />
@@ -761,7 +761,7 @@ export function MarkdownView({
           className="grid grid-cols-[auto_1fr] items-center gap-2"
         >
           <span title="<Base64 data URI>" className="h-4 w-4">
-            <ImageOff className="icon-base" />
+            <ImageOff size="base" />
           </span>
           <span className="truncate text-sm" title={imageUrl.toString()}>
             {imageUrl.toString()}

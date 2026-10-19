@@ -148,6 +148,7 @@ describe("summarizeAssembledTrace", () => {
     const result = await summarize({
       projectId: "project-a",
       traceId: "trace-1",
+      sessionId: null,
       traceTimestamp: "2026-09-22T12:00:00.000Z",
       jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
       environment: "langfuse-topics",
@@ -167,6 +168,7 @@ describe("summarizeAssembledTrace", () => {
     await summarize({
       projectId: "project-a",
       traceId: "trace-1",
+      sessionId: null,
       traceTimestamp: "2026-09-22T12:00:00.000Z",
       jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
       environment: "default",
@@ -226,6 +228,7 @@ describe("summarizeAssembledTrace", () => {
     await summarize({
       projectId: "project-a",
       traceId: "trace-1",
+      sessionId: null,
       traceTimestamp: "2026-09-22T12:00:00.000Z",
       jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
       environment: "default",
@@ -239,6 +242,7 @@ describe("summarizeAssembledTrace", () => {
     await summarize({
       projectId: "project-a",
       traceId: "trace-1",
+      sessionId: null,
       traceTimestamp: "2026-09-22T12:00:00.000Z",
       jobEnqueuedAt: new Date("2026-09-22T12:03:00.000Z"),
       environment: "default",
@@ -253,7 +257,7 @@ describe("summarizeAssembledTrace", () => {
     expect(state.stored).toHaveBeenCalledTimes(3);
   });
 
-  it("summarizes and embeds all pending facets in one call each and records their usage once", async () => {
+  it("summarizes and embeds all pending facets in one call each and splits their usage across the rows", async () => {
     const issues: TopicFacet = {
       ...facet,
       id: "facet-2",
@@ -278,6 +282,7 @@ describe("summarizeAssembledTrace", () => {
     await summarize({
       projectId: "project-a",
       traceId: "trace-1",
+      sessionId: null,
       traceTimestamp: "2026-09-22T12:00:00.000Z",
       jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
       environment: "default",
@@ -288,13 +293,27 @@ describe("summarizeAssembledTrace", () => {
     });
     expect(state.summarize).toHaveBeenCalledOnce();
     const [intent, issue] = summaries;
-    expect(intent).toMatchObject({ facetId: "facet-1", state: "complete" });
-    expect(intent.usageDetails.summary_input).toBe(20);
+    expect(intent).toMatchObject({
+      facetId: "facet-1",
+      state: "complete",
+      triggerType: "automatic",
+    });
     expect(issue).toMatchObject({
       facetId: "facet-2",
       state: "not_applicable",
-      usageDetails: {},
     });
+    // Integer token shares and cost shares still add up to the call's usage.
+    expect(summaries.map((row) => row.usageDetails.summary_input)).toEqual([
+      7, 7, 6,
+    ]);
+    expect(
+      summaries.reduce((sum, row) => sum + row.costDetails.summary_output, 0),
+    ).toBeCloseTo(0.00001, 12);
+    // Each row's total stays the sum of its own shares.
+    for (const { usageDetails } of summaries) {
+      const { total, ...parts } = usageDetails;
+      expect(total).toBe(Object.values(parts).reduce((a, b) => a + b, 0));
+    }
   });
 
   it("stores a not-applicable result that carries stray text instead of failing the trace", async () => {
@@ -307,6 +326,7 @@ describe("summarizeAssembledTrace", () => {
     await summarize({
       projectId: "project-a",
       traceId: "trace-1",
+      sessionId: null,
       traceTimestamp: "2026-09-22T12:00:00.000Z",
       jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
       environment: "default",
@@ -340,6 +360,7 @@ describe("summarizeAssembledTrace", () => {
       summarize({
         projectId: "project-a",
         traceId: "trace-1",
+        sessionId: null,
         traceTimestamp: "2026-09-22T12:00:00.000Z",
         jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
         environment: "default",
@@ -398,6 +419,7 @@ describe("summarizeAssembledTrace", () => {
     await summarize({
       projectId: "project-a",
       traceId: "trace-1",
+      sessionId: null,
       traceTimestamp: "2026-09-22T12:00:00.000Z",
       jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
       environment: "default",
@@ -435,6 +457,7 @@ describe("summarizeAssembledTrace", () => {
       summarize({
         projectId: "project-a",
         traceId: "trace-1",
+        sessionId: null,
         traceTimestamp: "2026-09-22T12:00:00.000Z",
         jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
         environment: "default",
@@ -477,6 +500,7 @@ describe("summarizeAssembledTrace", () => {
       summarize({
         projectId: "project-a",
         traceId: "trace-1",
+        sessionId: null,
         traceTimestamp: "2026-09-22T12:00:00.000Z",
         jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
         environment: "default",
@@ -515,6 +539,7 @@ describe("summarizeAssembledTrace", () => {
       summarize({
         projectId: "project-a",
         traceId: "trace-1",
+        sessionId: null,
         traceTimestamp: "2026-09-22T12:00:00.000Z",
         jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
         environment: "default",

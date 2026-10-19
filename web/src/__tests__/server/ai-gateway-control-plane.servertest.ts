@@ -345,7 +345,7 @@ describe("AI gateway control plane", () => {
           {
             connectionId: connection.id,
             success: true,
-            models: ["disabled-model", "enabled-model"],
+            models: ["disabled-model", "enabled-model", "codex-auto-review"],
           },
         ]);
         await new GatewayModelCatalogService(prisma).clearModelCache(
@@ -717,7 +717,7 @@ describe("AI gateway control plane", () => {
     expect(remainingConnections.nextCursor).toBeNull();
   });
 
-  it("cursor-paginates gateway keys", async () => {
+  it("offset-paginates gateway keys with a total count", async () => {
     const { caller, org } = await prepare();
 
     for (const name of ["First", "Second", "Third"]) {
@@ -733,14 +733,21 @@ describe("AI gateway control plane", () => {
       limit: 2,
     });
     expect(firstKeys.data).toHaveLength(2);
-    expect(firstKeys.nextCursor).toBeTruthy();
+    expect(firstKeys.totalCount).toBe(3);
     const remainingKeys = await caller.aiGateway.listApiKeys({
       orgId: org.id,
+      page: 1,
       limit: 2,
-      cursor: firstKeys.nextCursor ?? undefined,
     });
     expect(remainingKeys.data).toHaveLength(1);
-    expect(remainingKeys.nextCursor).toBeNull();
+    expect(remainingKeys.totalCount).toBe(3);
+    expect(
+      new Set(
+        [...firstKeys.data, ...remainingKeys.data].map(
+          ({ apiKey }) => apiKey.note,
+        ),
+      ),
+    ).toEqual(new Set(["First", "Second", "Third"]));
   });
 
   it("rejects gateway page limits above 100", async () => {
@@ -1643,6 +1650,13 @@ describe("AI gateway control plane", () => {
           createdAt: "1970-01-01T00:00:10.000Z",
         },
         {
+          id: "OpenAI-backup:codex-auto-review",
+          provider: "OPENAI",
+          canonicalSlug: "codex-auto-review",
+          displayName: "codex-auto-review",
+          createdAt: "1970-01-01T00:00:00.000Z",
+        },
+        {
           id: "OpenAI-backup:shared-model",
           provider: "OPENAI",
           canonicalSlug: "shared-model",
@@ -1655,6 +1669,13 @@ describe("AI gateway control plane", () => {
           canonicalSlug: "a-model",
           displayName: "a-model",
           createdAt: "1970-01-01T00:00:10.000Z",
+        },
+        {
+          id: "OpenAI-primary:codex-auto-review",
+          provider: "OPENAI",
+          canonicalSlug: "codex-auto-review",
+          displayName: "codex-auto-review",
+          createdAt: "1970-01-01T00:00:00.000Z",
         },
         {
           id: "OpenAI-primary:shared-model",
@@ -1744,6 +1765,13 @@ describe("AI gateway control plane", () => {
           canonicalSlug: "available-model",
           displayName: "available-model",
           createdAt: "1970-01-01T00:00:10.000Z",
+        },
+        {
+          id: "OpenAI-fallback:codex-auto-review",
+          provider: "OPENAI",
+          canonicalSlug: "codex-auto-review",
+          displayName: "codex-auto-review",
+          createdAt: "1970-01-01T00:00:00.000Z",
         },
       ],
     });

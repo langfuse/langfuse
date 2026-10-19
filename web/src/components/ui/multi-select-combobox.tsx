@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, type ReactNode } from "react";
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
-import { Search, X, MoreHorizontal } from "lucide-react";
+import { Search, X, MoreHorizontal } from "@langfuse/icons";
 import { cn } from "@/src/utils/tailwind";
 
 interface MultiSelectComboboxProps<T> {
@@ -156,7 +156,11 @@ export function MultiSelectCombobox<T>({
           style={{ overflowAnchor: "none" }}
         >
           {showSearchIcon && (
-            <Search className="text-muted-foreground icon-base absolute top-2.5 left-2 z-10" />
+            <Search
+              size="base"
+              color="muted"
+              __rawClassName="absolute top-2.5 left-2 z-10"
+            />
           )}
           <div
             className={cn(
@@ -198,7 +202,7 @@ export function MultiSelectCombobox<T>({
               className="absolute top-1 right-2 h-7 w-7 p-0"
               onClick={() => onSearchChange("")}
             >
-              <X className="icon-base text-icon-foreground" />
+              <X size="base" color="default" />
             </Button>
           )}
         </div>
@@ -236,7 +240,7 @@ export function MultiSelectCombobox<T>({
               ))}
               {hasMoreResults && (
                 <div className="text-muted-foreground flex items-center gap-3 px-3 py-2">
-                  <MoreHorizontal className="icon-base" />
+                  <MoreHorizontal size="base" />
                   <div className="min-w-0 flex-1">
                     <p className="text-xs italic">
                       More results available, refine your search

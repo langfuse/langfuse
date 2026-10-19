@@ -15,15 +15,15 @@ import {
   type TopicEmbeddingBatch,
   type TopicEmbeddingRef,
 } from "@langfuse/shared/topics/server";
-import {
-  assembleTranscript,
-  type Transcript,
-} from "@langfuse/shared/src/server";
+import { assembleTranscript } from "@langfuse/shared/src/server";
 import {
   topicExecutionInputSchema,
   topicSourceKey,
 } from "@langfuse/shared/topics";
-import { topicProviderError } from "./provider-error";
+import {
+  TopicsProviderUnavailable,
+  topicProviderError,
+} from "./provider-error";
 
 const state = vi.hoisted(() => ({
   batches: new Map<string, TopicProcessBatchState>(),
@@ -46,6 +46,7 @@ const state = vi.hoisted(() => ({
   saveExecution: vi.fn(),
   loadTranscript: vi.fn(),
   summarize: vi.fn(),
+  summaryRequests: vi.fn(),
   embed: vi.fn(),
   name: vi.fn(),
   numeric: vi.fn(),
@@ -181,7 +182,15 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
       facetId: string,
       version: number,
     ) => state.facets.get(`${facetId}/${version}`) ?? null,
-    listTopicFacets: async () => [],
+    listTopicFacets: async () =>
+      [...state.facets.values()].map((version) => ({
+        id: version.facetId,
+        projectId: version.projectId,
+        name: version.facetId,
+        description: "",
+        isBuiltIn: false,
+        versions: [version],
+      })),
     listTopicSummaries: async (
       projectId: string,
       filter: {
@@ -315,8 +324,22 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
   };
 });
 vi.mock("./models", () => ({
-  summarizeTopicTrace: (_models: unknown, ...args: unknown[]) =>
-    state.summarize(...args),
+  // One request per trace; `state.summarize` answers each facet, and one failure fails the request.
+  summarizeTopicTraceFacets: async (
+    _models: unknown,
+    facets: { key: string; facet: TopicFacetVersion }[],
+    text: string,
+  ) => {
+    state.summaryRequests(facets.length);
+    const output: Record<string, unknown> = {};
+    let usage = {};
+    for (const { key, facet } of facets) {
+      const result = await state.summarize(facet, text);
+      output[key] = { notes: "", ...result.output };
+      usage = { ...result, ...usage };
+    }
+    return { ...usage, output };
+  },
   // `state.embed` sees each summary; one failure fails the whole batched call.
   embedTopicSummaries: async (
     _model: unknown,
@@ -526,9 +549,10 @@ beforeEach(() => {
     traceInput(traceId),
   );
   state.summarize.mockImplementation(async (_facet, text: string) => {
-    const transcript: Transcript = JSON.parse(text);
-    const input = transcript.threads[0].currentTurn.messages[0].parts.find(
-      (part) => part.type === "text",
+    // The projected transcript the trace-batch path sends.
+    const transcript = JSON.parse(text);
+    const input = transcript.threads[0].currentTurn[0].parts.find(
+      (part: { type: string }) => part.type === "text",
     );
     return {
       output: {
@@ -688,6 +712,7 @@ describe("Topics execution", () => {
       environment: "production",
       traceName: "Customer support",
       unitStartTime: "2026-01-01T00:00:00.000Z",
+      triggerType: "manual",
     });
     expect(state.numeric).not.toHaveBeenCalled();
     expect(state.saveExecution).not.toHaveBeenCalled();
@@ -719,6 +744,8 @@ describe("Topics execution", () => {
       });
       expect(state.loadTranscript).toHaveBeenCalledTimes(100);
       expect(state.summarize).toHaveBeenCalledTimes(200);
+      // Like trace-batch, both facets of a trace share one summary request.
+      expect(state.summaryRequests).toHaveBeenCalledTimes(100);
       expect(state.summaries.size).toBe(200);
       state.executions.set(
         "maps",
@@ -986,6 +1013,15 @@ describe("Topics execution", () => {
     ).toHaveLength(4);
   });
 
+  it("does not reuse summaries of the capped legacy transcript", async () => {
+    await processSelection("legacy", 1);
+    for (const [key, row] of state.summaries)
+      state.summaries.set(key, { ...row, transcriptId: "poc" });
+    state.summarize.mockClear();
+    await processSelection("current", 1, undefined, true);
+    expect(state.summarize).toHaveBeenCalledOnce();
+  });
+
   it("regenerates a stored summary when late observations move the source start", async () => {
     await processSelection("source", 1);
     state.loadTranscript.mockResolvedValue({
@@ -1014,6 +1050,50 @@ describe("Topics execution", () => {
     ).toMatchObject({ complete: 2, failed: 1 });
     expect(state.summarize).toHaveBeenCalledTimes(2);
   });
+
+  it("fails only the trace whose model output is unusable", async () => {
+    state.summarize.mockRejectedValueOnce(
+      new TopicsProviderUnavailable("No object generated.", "invalid_output"),
+    );
+    await processSelection("invalid-output", 3);
+    expect(state.executions.get("invalid-output")?.status).toBe(
+      "completed_with_errors",
+    );
+    expect(
+      state.executions.get("invalid-output")?.facets[0].counts,
+    ).toMatchObject({ complete: 2, failed: 1 });
+  });
+
+  it.each(["summary call", "reuse lookup"])(
+    "keeps a reused facet when its sibling's %s fails",
+    async (failing) => {
+      await processSelection("source", 1);
+      const sibling = { ...facet, facetId: "sibling" };
+      const reprocess = execution("siblings", 1, "process", [facet, sibling]);
+      reprocess.input.reuseExistingSummaries = true;
+      state.executions.set("siblings", reprocess);
+      if (failing === "summary call")
+        state.summarize.mockRejectedValueOnce(
+          new Error("The transcript is above this run's input limit."),
+        );
+      else {
+        let lookups = 0;
+        // The first lookup reuses `facet`; the sibling's lookup fails.
+        state.resultReads.mockImplementation((kind: string) => {
+          if (kind === "historical" && ++lookups === 2)
+            throw new Error("ClickHouse is unavailable.");
+        });
+      }
+      await processTopicsExecution({
+        projectId: "project",
+        executionId: "siblings",
+      });
+      expect(state.executions.get("siblings")?.facets).toMatchObject([
+        { facetId: "facet", counts: { complete: 1, failed: 0 } },
+        { facetId: "sibling", counts: { failed: 1 } },
+      ]);
+    },
+  );
 
   it("restarts a failed update with fresh membership and naming while preserving the published map", async () => {
     await processSelection("source", 100);

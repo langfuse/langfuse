@@ -24,7 +24,7 @@ import { api, shouldRetryResourceQuery } from "@/src/utils/api";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import { CommentDrawerController } from "@/src/features/comments";
 import { getNumberFromMap } from "@/src/utils/map-utils";
-import { MessageSquare, MessageSquareOff } from "lucide-react";
+import { MessageSquare, MessageSquareOff } from "@langfuse/icons";
 
 type SessionAnnotationQueueItem = AnnotationQueueItem & {
   parentTraceId?: string | null;
@@ -152,10 +152,10 @@ export const SessionAnnotationProcessor: React.FC<
                 className="gap-1"
               >
                 {disabled ? (
-                  <MessageSquareOff className="icon-base text-muted-foreground" />
+                  <MessageSquareOff size="base" color="muted" />
                 ) : (
                   <>
-                    <MessageSquare className="icon-base text-icon-foreground" />
+                    <MessageSquare size="base" color="default" />
                     <span>Add comment</span>
                     {getNumberFromMap(
                       sessionCommentCounts.data,
