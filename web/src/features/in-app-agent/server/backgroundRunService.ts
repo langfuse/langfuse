@@ -227,7 +227,7 @@ export async function startBackgroundRun(params: {
     throw new BaseError(
       "PreconditionFailedError",
       412,
-      "Assistant model is not configured.",
+      "Halo model is not configured.",
       true,
     );
   }

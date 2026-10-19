@@ -136,7 +136,7 @@ function defineTable<const Cols extends Record<string, ChColumnType>>(spec: {
   /**
    * Column that marks a soft-deleted row. The soft-delete pass injects
    * `<column> = 0` on every read of this table unless the select opts out
-   * with `includeDeleted()`.
+   * with `includeDeleted()`, or after its LIMIT with `softDeleteAfterLimit()`.
    */
   softDelete?: keyof Cols & string;
 }) {

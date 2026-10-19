@@ -444,7 +444,7 @@ function InAppAgentReasoningBlock({
         // the drawer's auto-follow keeps the newest text visible while
         // streaming, and the block collapses when streaming ends.
         <div
-          aria-label="Assistant reasoning"
+          aria-label="Halo reasoning"
           data-testid="in-app-agent-reasoning-content"
           className={cn(
             // Vertical spacing is margin, not padding, so the left border

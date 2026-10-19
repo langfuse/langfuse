@@ -27,7 +27,7 @@
   persistence, and unchanged embedding waits must read only Redis queue state.
   Summary references use source fields; preserve `summaryProcessedAt` checks
   when resolving assignments after reprocessing.
-  Transcript assembly is shared with web through `loadTopicTranscript`, returning
+  Transcript assembly uses the shared `loadTopicTranscript`, returning
   `Transcript | null`; serialize it for inference and skip inference on null.
   Token counting and its WASM dependency stay in `src/features/topics/models.ts`.
   Model calls use `generateTopicText` and `generateTopicEmbeddings` from
@@ -169,6 +169,11 @@
 
 ## In-App Agent Runtime
 
+- `src/features/in-app-agent-retention-cleaner/` expires conversations under
+  current licensed project retention policies. Its exclusive periodic runner
+  starts independently of batch-retention and assistant enablement, processes
+  bounded batches, revokes MCP keys before cascading deletion, and leaves
+  unfinished runs to the integrity runner.
 - `src/features/in-app-agent/runtime/` owns Mastra adaptation, agent execution,
   instrumentation, prompt loading, continuation handling, tools, skills, and
   sandbox providers.

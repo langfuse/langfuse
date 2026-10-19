@@ -237,7 +237,10 @@ async function summarizeTrace(
   } else {
     metrics.result("summary", "insufficient_input");
   }
-  return stageSummary(metrics, execution, summary);
+  return stageSummary(metrics, execution, {
+    ...summary,
+    metadata: { ...summary.metadata, executionId: execution.id },
+  });
 }
 
 async function stageSummary(

@@ -872,6 +872,9 @@ describe("Topics execution", () => {
     "reuses only compatible historical summaries ($version)",
     async ({ version, calls, usageDetails }) => {
       await processSelection("first", 1);
+      expect([...state.summaries.values()]).toMatchObject([
+        { metadata: { executionId: "first" } },
+      ]);
       for (const summary of state.summaries.values())
         summary.transcriptVersion = version;
       state.loadTranscript.mockImplementation(async ({ traceId }) => ({
@@ -887,6 +890,7 @@ describe("Topics execution", () => {
           environment: "staging",
           traceName: "Updated support",
           transcriptVersion: TOPICS_TRANSCRIPT_VERSION,
+          metadata: { executionId: "second" },
         },
       ]);
       expect([...state.summaries.values()][0].usageDetails).toEqual(

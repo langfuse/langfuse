@@ -345,7 +345,7 @@ describe("AI gateway control plane", () => {
           {
             connectionId: connection.id,
             success: true,
-            models: ["disabled-model", "enabled-model"],
+            models: ["disabled-model", "enabled-model", "codex-auto-review"],
           },
         ]);
         await new GatewayModelCatalogService(prisma).clearModelCache(
@@ -1643,6 +1643,13 @@ describe("AI gateway control plane", () => {
           createdAt: "1970-01-01T00:00:10.000Z",
         },
         {
+          id: "OpenAI-backup:codex-auto-review",
+          provider: "OPENAI",
+          canonicalSlug: "codex-auto-review",
+          displayName: "codex-auto-review",
+          createdAt: "1970-01-01T00:00:00.000Z",
+        },
+        {
           id: "OpenAI-backup:shared-model",
           provider: "OPENAI",
           canonicalSlug: "shared-model",
@@ -1655,6 +1662,13 @@ describe("AI gateway control plane", () => {
           canonicalSlug: "a-model",
           displayName: "a-model",
           createdAt: "1970-01-01T00:00:10.000Z",
+        },
+        {
+          id: "OpenAI-primary:codex-auto-review",
+          provider: "OPENAI",
+          canonicalSlug: "codex-auto-review",
+          displayName: "codex-auto-review",
+          createdAt: "1970-01-01T00:00:00.000Z",
         },
         {
           id: "OpenAI-primary:shared-model",
@@ -1744,6 +1758,13 @@ describe("AI gateway control plane", () => {
           canonicalSlug: "available-model",
           displayName: "available-model",
           createdAt: "1970-01-01T00:00:10.000Z",
+        },
+        {
+          id: "OpenAI-fallback:codex-auto-review",
+          provider: "OPENAI",
+          canonicalSlug: "codex-auto-review",
+          displayName: "codex-auto-review",
+          createdAt: "1970-01-01T00:00:00.000Z",
         },
       ],
     });

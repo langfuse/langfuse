@@ -39,6 +39,11 @@ type ApiKeyScope = "project" | "organization";
 
 const DEFAULT_ROLE: SystemRole = "ADMIN";
 
+/** apiKeyRoleNames renames user roles to be more api-key friendly. */
+const apiKeyRoleNames: Record<string, string> = {
+  Admin: "Full access",
+};
+
 /** ApiKeyCreateValues is the resolved create-form payload the button forwards to the create mutation. */
 export type ApiKeyCreateValues = {
   name: string;
@@ -174,7 +179,9 @@ function ApiKeyCreateForm({
                   <div className="flex items-start gap-2 text-left">
                     <SelectedRoleIcon className="icon-base mt-0.5 shrink-0" />
                     <div className="flex flex-col">
-                      <span className="font-bold">{selectedRoleDef.name}</span>
+                      <span className="font-bold">
+                        {transformApiKeyRoleName(selectedRoleDef.name)}
+                      </span>
                       <span className="text-muted-foreground text-xs">
                         {selectedRoleDef.description}
                       </span>
@@ -186,6 +193,7 @@ function ApiKeyCreateForm({
                     <RoleSelectItem
                       key={r}
                       role={r}
+                      transformName={transformApiKeyRoleName}
                       onViewPermissions={openPermissions}
                     />
                   ))}
@@ -214,6 +222,7 @@ function ApiKeyCreateForm({
             open={permissionsOpen}
             onOpenChange={setPermissionsOpen}
             role={permissionsRole}
+            transformName={transformApiKeyRoleName}
           />
         )}
       </DialogBody>
@@ -224,4 +233,9 @@ function ApiKeyCreateForm({
       </DialogFooter>
     </DialogContent>
   );
+}
+
+/** transformApiKeyRoleName maps a role name to its api key display name. */
+function transformApiKeyRoleName(name: string): string {
+  return apiKeyRoleNames[name] ?? name;
 }

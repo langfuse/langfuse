@@ -71,11 +71,11 @@ export function InAppAgentWidgetComposer({
     >
       <div className="flex items-center gap-2 font-bold">
         <Sparkles className="icon-base" />
-        Add with Langfuse Assistant
+        Add with Langfuse Halo
       </div>
       <p className="text-muted-foreground text-xs">
-        Describe the chart you need. The Assistant will create it as a widget
-        and add it to this dashboard.
+        Describe the chart you need. Halo will create it as a widget and add it
+        to this dashboard.
       </p>
       <div className="flex items-end gap-2">
         <Textarea
@@ -97,7 +97,7 @@ export function InAppAgentWidgetComposer({
           size="icon"
           className="h-8 w-8 shrink-0 rounded-md border"
           variant="outline"
-          aria-label="Add with Langfuse Assistant"
+          aria-label="Add with Langfuse Halo"
           disabled={!request.trim()}
         >
           <SendHorizontal className="icon-base text-icon-foreground" />

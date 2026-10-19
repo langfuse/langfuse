@@ -35,8 +35,6 @@
   `topics.modelSettings` / `saveSetup`). Configure Topics loads and saves idle time
   through the project's tracing readiness setting; triggers stamp the configured
   summary and embedding models into the frozen request.
-  The source inspector returns `loadTopicTranscript`'s shared `Transcript | null`
-  directly, using the same character cap as worker inference.
 - Reusable UI components: `src/components/*`
 - Tests:
   - Server integration tests: `src/__tests__/server/*.servertest.ts`
@@ -141,7 +139,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
   must be installed, ask the user before doing so.
 - When you surface a score in the UI, always show its level
   (trace/observation/session/experiment) with the `<ScoreTag>` component
-  (`src/components/score-tag.tsx`) and its global color coding (see the
+    (`src/components/ScoreTag.tsx`) and its global color coding (see the
   ScoreTag Storybook story).
 - Tailwind is the default styling layer; use the shared palette and globals in
   `src/styles/globals.css`.

@@ -31,7 +31,7 @@ export function InAppAgentDisabledDialog({
               onOpenChange(false);
             }}
           >
-            The Langfuse Assistant requires AI features to be enabled for this
+            Langfuse Halo requires AI features to be enabled for this
             organization.
           </AIFeaturesDisabledNotice>
         </DialogBody>
