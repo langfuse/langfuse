@@ -52,7 +52,6 @@ import { ScoresTable } from "@/src/features/scores";
 import { getMostRecentCorrection } from "@/src/features/corrections";
 import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
 import { useReadPath } from "@/src/features/events";
-import { TraceMessagesView } from "../TraceMessagesView/TraceMessagesView";
 import { TraceDetailTabsBarList } from "../TraceDetailTabsBarList";
 import { DetailAttributesTab } from "../DetailAttributesTab";
 import { getDetailTabs } from "../../fns/getDetailTabs";
@@ -345,7 +344,7 @@ function LoadedTraceDetailView({
                           onCheckedChange={handleBetaToggle}
                         />
                         <span className="text-muted-foreground text-xs">
-                          Beta
+                          Optimized
                         </span>
                       </div>
                     )}
@@ -410,14 +409,6 @@ function LoadedTraceDetailView({
                   </div>
                 }
               />
-            )}
-
-            {selectedTab === "messages" && (
-              <Tabs.Content value="messages" layout="fill">
-                <div className="min-h-0 flex-1 overflow-auto px-4">
-                  <TraceMessagesView />
-                </div>
-              </Tabs.Content>
             )}
 
             {/* Preview tab content */}

@@ -26,7 +26,7 @@ export function TopicsFilters({
                 label={facet.name}
               />
             ))}
-            <div className="flex shrink-0 items-center gap-2 px-3">
+            <div className="flex shrink-0 items-center gap-1 px-2">
               <Button
                 text="Custom facet"
                 icon={Plus}

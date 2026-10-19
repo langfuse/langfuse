@@ -147,12 +147,14 @@ export function ManualTopicsDialog({
             <Stepper
               number={2}
               title={
-                operation === "process" ? "Select traces" : "Select summaries"
+                operation === "process"
+                  ? "Select traces"
+                  : "Select trace summaries"
               }
               description={
                 operation === "process"
                   ? "Set your filters or paste trace IDs. Preview matching traces and choose the batch to run. Previewing does not use a model."
-                  : "Time range of stored summaries to use for clustering and topic generation."
+                  : "Use stored summaries of traces that started within this time range for clustering and topic generation."
               }
             >
               <section hidden={operation !== "process"}>
@@ -163,8 +165,13 @@ export function ManualTopicsDialog({
                   <TimeRangePicker
                     timeRange={generationTimeRange}
                     onTimeRangeChange={onGenerationTimeRangeChange}
-                    timeRangePresets={["last1Day", "last7Days", "last30Days"]}
-                    maxRangeMs={30 * 86_400_000}
+                    timeRangePresets={[
+                      "last1Day",
+                      "last7Days",
+                      "last30Days",
+                      "last90Days",
+                    ]}
+                    maxRangeMs={90 * 86_400_000}
                     className="my-0"
                   />
                 </section>

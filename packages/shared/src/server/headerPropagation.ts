@@ -1,6 +1,7 @@
 import * as opentelemetry from "@opentelemetry/api";
 import type { IncomingHttpHeaders } from "http";
 import { env } from "../env";
+import { getProjectSize } from "./projectSize";
 import {
   CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS,
   CLICKHOUSE_ROUTE_CONTEXT_KEY,
@@ -103,6 +104,9 @@ export const contextWithLangfuseProps = (
   if (props.projectId) {
     baggage = baggage.setEntry("langfuse.project.id", {
       value: props.projectId,
+    });
+    baggage = baggage.setEntry("langfuse.project.size", {
+      value: getProjectSize(props.projectId),
     });
   }
   if (props.apiKeyId) {

@@ -1,7 +1,14 @@
-/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger, @repo/no-null-render */
+/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger, @repo/no-null-render, @repo/component-file-structure */
 import { default as React, useState, useCallback, type ReactNode } from "react";
 import { Button } from "@/src/components/ui/button";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  PanelRightOpen,
+  PanelRightClose,
+} from "lucide-react";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { SubHeader } from "@/src/components/layouts/header";
 import { cn } from "@/src/utils/tailwind";
 import {
@@ -20,6 +27,8 @@ const SidePanelContext = React.createContext<{
   setShowPanel: (value: boolean) => void;
   isMobile: boolean;
   isControlled: boolean;
+  variant: "default" | "sidebar";
+  label: string;
 } | null>(null);
 
 /**
@@ -43,15 +52,23 @@ const SidePanel = ({
   className,
   mobileTitle,
   scrollable = true,
+  variant = "default",
   openState,
+  mobileOpenState,
 }: {
   id: string;
   children: ReactNode;
   className?: string;
   mobileTitle?: string;
   scrollable?: boolean;
+  variant?: "default" | "sidebar";
   /** Controlled mode: provide to control panel state externally */
   openState?: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+  };
+  /** Persist the mobile sheet state externally while retaining built-in toggles. */
+  mobileOpenState?: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
   };
@@ -59,6 +76,7 @@ const SidePanel = ({
   const isControlled = openState !== undefined;
   const controlledOpen = openState?.open;
   const onOpenChange = openState?.onOpenChange;
+  const onMobileOpenChange = mobileOpenState?.onOpenChange;
   const [uncontrolledOpen, setUncontrolledOpen] = useSessionStorage<boolean>(
     `${id}-showPanel`,
     true,
@@ -67,6 +85,7 @@ const SidePanel = ({
   const isMobile = useIsMobile();
 
   const showPanel = isControlled ? (controlledOpen ?? false) : uncontrolledOpen;
+  const collapsedWidth = variant === "sidebar" ? "w-10" : "w-fit";
 
   const setShowPanel = useCallback(
     (value: boolean) => {
@@ -83,11 +102,13 @@ const SidePanel = ({
     (open: boolean) => {
       if (isControlled) {
         onOpenChange?.(open);
+      } else if (onMobileOpenChange) {
+        onMobileOpenChange(open);
       } else {
         setMobileSheetOpen(open);
       }
     },
-    [isControlled, onOpenChange],
+    [isControlled, onOpenChange, onMobileOpenChange],
   );
 
   const contextValue = React.useMemo(
@@ -96,14 +117,18 @@ const SidePanel = ({
       setShowPanel,
       isMobile,
       isControlled,
+      variant,
+      label: mobileTitle?.toLowerCase() ?? "details",
     }),
-    [showPanel, setShowPanel, isMobile, isControlled],
+    [showPanel, setShowPanel, isMobile, isControlled, variant, mobileTitle],
   );
 
   if (isMobile) {
     return (
       <Sheet
-        open={isControlled ? showPanel : mobileSheetOpen}
+        open={
+          isControlled ? showPanel : (mobileOpenState?.open ?? mobileSheetOpen)
+        }
         onOpenChange={handleMobileOpenChange}
       >
         {!isControlled && (
@@ -113,9 +138,17 @@ const SidePanel = ({
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8"
-                title="Show details"
+                title={
+                  variant === "sidebar"
+                    ? `Show ${mobileTitle?.toLowerCase() ?? "details"}`
+                    : "Show details"
+                }
               >
-                <ChevronLeft className="icon-base text-icon-foreground" />
+                {variant === "sidebar" ? (
+                  <PanelRightOpen className="icon-base text-icon-foreground" />
+                ) : (
+                  <ChevronLeft className="icon-base text-icon-foreground" />
+                )}
               </Button>
             </SheetTrigger>
           </div>
@@ -142,14 +175,16 @@ const SidePanel = ({
       <div
         className={cn(
           "flex h-full flex-row overflow-hidden border-l",
-          showPanel ? "w-[25vw]" : "w-fit",
+          showPanel ? "w-[25vw]" : collapsedWidth,
+          variant === "sidebar" && "bg-surface",
           className,
         )}
       >
         <div className="grid h-full w-full items-start gap-2 overflow-hidden">
           <div
             className={cn(
-              "flex h-full w-full flex-col gap-2",
+              "flex h-full w-full flex-col",
+              variant === "sidebar" ? "gap-0" : "gap-2",
               scrollable ? "overflow-y-auto" : "overflow-hidden",
             )}
           >
@@ -166,7 +201,33 @@ const SidePanelHeader = ({ children }: { children: ReactNode }) => {
 
   if (!context) return null;
 
-  const { showPanel, setShowPanel, isControlled } = context;
+  const { showPanel, setShowPanel, isControlled, variant, label } = context;
+
+  if (variant === "sidebar" && !isControlled) {
+    const toggleLabel = `${showPanel ? "Hide" : "Show"} ${label}`;
+    return (
+      <div
+        className={cn(
+          "bg-surface flex h-10 shrink-0 items-center",
+          showPanel ? "px-2" : "justify-center border-b",
+        )}
+      >
+        <Tooltip label={toggleLabel}>
+          {({ getTriggerProps }) => (
+            <IconButton
+              {...getTriggerProps()}
+              icon={showPanel ? PanelRightClose : PanelRightOpen}
+              label={toggleLabel}
+              size="sm"
+              aria-expanded={showPanel}
+              onClick={() => setShowPanel(!showPanel)}
+            />
+          )}
+        </Tooltip>
+        {showPanel && children}
+      </div>
+    );
+  }
 
   if (isControlled) {
     if (!showPanel) return null;

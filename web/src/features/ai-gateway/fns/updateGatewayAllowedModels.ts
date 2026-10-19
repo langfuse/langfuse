@@ -18,5 +18,11 @@ export function updateGatewayAllowedModels({
     else nextAllowedModels.delete(model);
   }
 
+  if (
+    availableModels.length > 0 &&
+    availableModels.every((model) => nextAllowedModels.has(model))
+  ) {
+    return null;
+  }
   return [...nextAllowedModels];
 }

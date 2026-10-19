@@ -941,7 +941,7 @@ describe("MCP Read Tools", () => {
       expect(result.fields.input.sensitive).toBe(true);
       expect(result.fields.input.requiresScope).toBe(true);
       expect(result.fields.input.scopeRequirement).toMatch(
-        /requires both fromStartTime and toStartTime.*maximum range of 14 days.*even when scoped by traceId or observation id/i,
+        /requires both fromStartTime.*toStartTime.*even when scoped by traceId or observation id.*listObservations.*14 days \(336 elapsed hours\).*getObservation.*90 days \(2160 elapsed hours\)/i,
       );
       expect(result.fields.output.requiresScope).toBe(true);
       expect(result.fields.metadata.expensive).toBe(true);
@@ -1140,19 +1140,22 @@ describe("MCP Read Tools", () => {
       },
     );
 
-    it("should reject list periods longer than 14 days without payload fields", async () => {
-      await expect(
-        handleListObservations(
-          {
-            fromStartTime: "2026-01-01T00:00:00.000Z",
-            toStartTime: "2026-01-15T00:00:00.001Z",
-            fields: ["id"],
-            limit: 1,
-          },
-          mockServerContext(),
-        ),
-      ).rejects.toThrow(/maximum range of 14 days/i);
-    });
+    it.each(["2026-01-15T00:00:00.001Z", "2026-01-15T23:59:59.000Z"])(
+      "should reject list periods exceeding 336 hours: %s",
+      async (toStartTime) => {
+        await expect(
+          handleListObservations(
+            {
+              fromStartTime: "2026-01-01T00:00:00.000Z",
+              toStartTime,
+              fields: ["id"],
+              limit: 1,
+            },
+            mockServerContext(),
+          ),
+        ).rejects.toThrow(/maximum range of 14 days \(336 elapsed hours\)/i);
+      },
+    );
 
     it("should advertise required bounds for both tools", () => {
       for (const tool of [getObservationTool, listObservationsTool]) {

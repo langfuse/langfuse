@@ -30,9 +30,9 @@ changing how it emits SQL.
   hand-maintained tables that drift.
 - `compiler.ts` / `transformer.ts` / `dialect.ts` / `nodes.ts` — the dialect.
 - `extensions.ts` — the `$call` helpers (`arrayJoin`, `limitBy`, `useFinal`,
-  `includeDeleted`) and typed ClickHouse functions and aggregates (`argMaxIf`,
-  `countIf`, `sumMap`, `multiIf`, `metadataValue`, `literal`, …) that take
-  `eb.ref(...)` expressions.
+  `includeDeleted`, `softDeleteAfterLimit`) and typed ClickHouse functions and
+  aggregates (`argMaxIf`, `countIf`, `sumMap`, `multiIf`, `metadataValue`,
+  `literal`, …) that take `eb.ref(...)` expressions.
 - `views.ts` / `dedup.ts` / `softDelete.ts` — virtual views as CTEs, per-table
   dedup lowering, and soft-delete filtering.
 - `fixtures/catalog.ts` — test-only catalog of builder queries exercising the
@@ -87,9 +87,15 @@ suffix to run there. Promote it to a required check once it has proven stable.
   only `projectId` (see `../repositories/environments.ts`).
 - **Never filter `is_deleted` on a physical table yourself.** Tables that
   declare `softDelete` in the registry (`events_core`, `events_full`) get
-  `is_deleted = 0` on every FROM/JOIN. A select that must see deleted rows
-  opts out with `$call(includeDeleted())`, e.g. a latest-version read that
-  drops tombstones after its `LIMIT 1 BY`.
+  `is_deleted = 0` on every FROM/JOIN. A latest-version read (ordered by
+  version, then `LIMIT 1` or `LIMIT 1 BY`) marks itself
+  `$call(softDeleteAfterLimit())`, so a deletion (a newer row with the flag
+  set) wins the pick and is dropped after it, instead of an older live
+  version. A select that must see deleted rows opts out with
+  `$call(includeDeleted())`. Reads without a version pick (lists,
+  aggregates) filter each row on its own: like an updated row under dedup
+  `none`, a deleted row's older live version stays visible until a merge
+  collapses the versions.
 - **Dedup is declared per table and must be an existing production idiom.**
   `events_core` and `events_full` are `none` (immutable at read time — no
   LIMIT BY, no FINAL).
@@ -137,10 +143,12 @@ db.selectFrom("observations")
 
 ```ts
 db.selectFrom("events_core")
+  .$call(softDeleteAfterLimit())
   .select(["span_id", "project_id"])
   .orderBy("event_ts", "desc")
   .$call(limitBy({ count: 1, columns: ["span_id", "project_id"] }));
-// … order by event_ts desc limit 1 by span_id, project_id
+// … order by event_ts desc limit 1 by span_id, project_id, wrapped by the
+// soft-delete pass so a deleted latest version is dropped
 ```
 
 **Write FINAL** (`useFinal` — ReplacingMergeTree reads; never on `events_core`):
@@ -152,13 +160,14 @@ db.selectFrom("scores as s")
 // … from scores as s final
 ```
 
-**Select a metadata value** (`metadataValue` — lowers `metadata[key]` to a bound subscript of `metadataMap`, so the last duplicate key wins):
+**Select a metadata value** (`metadataValue` — lowers `metadata[key]` to a subscript of `metadataMap`, so the last duplicate key wins; like `mapValue`, a string key is bound and a `literal(...)` key is inlined):
 
 ```ts
+const filterKey: string = input.metadataKey; // caller-supplied, so bound
 db.selectFrom("events_core as e")
-  .select((eb) => [metadataValue("e", "my_key").as("my_val")])
-  .where((eb) => eb(metadataValue("e", "my_key"), "=", "x"));
-// select mapfromarrays(arrayreverse(e.metadata_names), arrayreverse(e.metadata_values))[{p:String}] as my_val …
+  .select((eb) => [metadataValue("e", literal("my_key")).as("my_val")])
+  .where((eb) => eb(metadataValue("e", filterKey), "=", "x"));
+// select mapfromarrays(arrayreverse(e.metadata_names), arrayreverse(e.metadata_values))['my_key'] as my_val …
 ```
 
 ## Developing the dialect
@@ -178,7 +187,7 @@ preserve it:
 | ARRAY JOIN         | Plugin attaches `ArrayJoinNode` as an extra field on `SelectQueryNode`. `ClickHouseOperationNodeTransformer` preserves it. `ClickHouseQueryCompiler.visitSelectQuery` emits it after JOINs / before WHERE. | no    |
 | LIMIT BY           | Plugin attaches `LimitByNode` the same way. Compiler emits it after ORDER BY / before LIMIT.                                                                                                               | no    |
 | FINAL              | Plugin wraps a FROM/JOIN table expression in `FinalTableNode`. Compiler emits `final` after that expression (`scores as s final`). `$call(useFinal(["scores"]))`. Tables declared `dedup: none` throw.     | no    |
-| metadata subscript | Helper builds an `ArrayIndexNode` over the `metadataMap` `FunctionNode`, indexed by a bound `ValueNode` key. Transformer + compiler special-case the node. No plugin.                                      | no    |
+| metadata subscript | Helper builds an `ArrayIndexNode` over the `metadataMap` `FunctionNode`, indexed by a string key expression (a bound value or a `literal(...)`). Transformer + compiler special-case the node. No plugin.  | no    |
 | Virtual view       | Plugin rewrites `selectFrom(viewName)` into a WITH CTE. Outer types only expose the view's selected columns.                                                                                               | no    |
 
 These are real node objects whose children are traced Kysely
@@ -205,7 +214,10 @@ and it is where tenancy is enforced:
    required parameter, so omitting it is also a compile-time type error.
 2. `SoftDeleteFilterPlugin` adds `<flag> = 0` for every FROM/JOIN relation
    whose table declares `softDelete`, except in selects marked with
-   `includeDeleted()`. It runs before tenancy, so the WHERE reads
+   `includeDeleted()`. A select marked `softDeleteAfterLimit()` is left
+   unfiltered, gets the flag added to its outputs, and is wrapped in an outer
+   select over those outputs that keeps rows with `latest.<flag> = 0`. It
+   runs before tenancy, so the WHERE reads
    `project_id = … and is_deleted = … and …`.
 3. `TenancyInjectionPlugin` walks every FROM/JOIN and injects
    `project_id = {projectId}` on each tenanted physical table, unless the tree

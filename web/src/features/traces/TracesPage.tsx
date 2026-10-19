@@ -41,6 +41,7 @@ export default function TracesPage() {
       <Page
         headerProps={{
           title: "Tracing",
+          divider: false,
           help: {
             description:
               "A trace represents a single function/api invocation. Traces contain observations. See [docs](https://langfuse.com/docs/observability/data-model) to learn more.",
@@ -58,6 +59,7 @@ export default function TracesPage() {
     <Page
       headerProps={{
         title: "Tracing",
+        divider: false,
         titleBadges: <V4MigrationDelayBadge page="traces" />,
         help: {
           description: (

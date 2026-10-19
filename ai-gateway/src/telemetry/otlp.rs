@@ -10,6 +10,7 @@ use axum::{
 use flate2::{Compression, write::GzEncoder};
 use reqwest::{Client, Url};
 use reqwest_middleware::ClientWithMiddleware;
+use secrecy::{ExposeSecret, SecretString};
 use serde::Serialize;
 use serde_json::{Value, json};
 
@@ -24,7 +25,7 @@ const UPLOAD_TIMEOUT: Duration = Duration::from_secs(30);
 pub(super) struct Uploader {
     client: ClientWithMiddleware,
     endpoint: Url,
-    service_key: String,
+    service_key: SecretString,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -86,7 +87,7 @@ impl Uploader {
         Ok(Self {
             client: crate::observability::instrument_client(client, "ingestion"),
             endpoint: config.endpoint(INGESTION_PATH),
-            service_key: config.service_key().to_owned(),
+            service_key: config.service_key().clone(),
         })
     }
 
@@ -98,12 +99,13 @@ impl Uploader {
             .checked_sub(now)
             .filter(|duration| !duration.is_zero())
             .ok_or(ExportError::Expired)?;
-        let mut authorization = HeaderValue::from_str(&format!("Bearer {}", grant.access_token))
-            .map_err(|_| ExportError::Payload)?;
+        let mut authorization =
+            HeaderValue::from_str(&format!("Bearer {}", grant.access_token.expose_secret()))
+                .map_err(|_| ExportError::Payload)?;
         authorization.set_sensitive(true);
         let mut signature = HeaderValue::from_str(&signing::authorization(
-            &self.service_key,
-            &grant.access_token,
+            self.service_key.expose_secret(),
+            grant.access_token.expose_secret(),
             now.as_secs(),
         ))
         .map_err(|_| ExportError::Payload)?;

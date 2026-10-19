@@ -15,6 +15,7 @@ import {
   readLatestTopicAssignments,
   getLatestFacetSummaries,
   getTopicSummaryCounts,
+  getTopicExecutionCosts,
   getTopicClusteringSummaries,
   writeTopicSummaries,
   getTopicDefinitions,
@@ -55,6 +56,15 @@ beforeEach(() => {
   mocks.exec.mockImplementation(async () => ({ stream: Readable.from([]) }));
   mocks.publishedRuns.mockResolvedValue([{ id: "published-run" }]);
   mocks.cacheGet.mockResolvedValue(null);
+});
+
+describe("Topics execution estimates", () => {
+  it("keeps history readable when ClickHouse cannot provide an estimate", async () => {
+    mocks.query.mockRejectedValue(new Error("ClickHouse unavailable"));
+    expect(await getTopicExecutionCosts("project-a", ["execution-a"])).toEqual(
+      {},
+    );
+  });
 });
 
 describe("Topics summary readiness", () => {

@@ -355,7 +355,19 @@ fn assert_http_metrics(metrics: &[ResourceMetrics]) {
             )
         })
         .collect();
-    assert_eq!(attributes.len(), 3);
+    assert_eq!(attributes.len(), 6);
+    // An unconfigured gateway answers 503 itself; dashboards must not blame Web or the provider.
+    for (key, value) in [
+        ("error.origin", "gateway"),
+        ("error.reason", "unavailable"),
+        ("gateway.provider", "openai"),
+    ] {
+        assert_eq!(
+            attributes[key],
+            &AttributeValue::StringValue(value.into()),
+            "{key}"
+        );
+    }
     assert_eq!(
         attributes["http.request.method"],
         &AttributeValue::StringValue("POST".into())

@@ -76,7 +76,7 @@ vi.mock(
   }),
 );
 
-vi.mock("@/src/features/annotation-queues/pages/AnnotationQueueItems", () => ({
+vi.mock("@/src/features/annotation-queues/pages/QueueItems", () => ({
   default: ({ queueId }: { queueId?: string }) => (
     <div data-testid="annotation-queue-items">{queueId ?? "mounted"}</div>
   ),

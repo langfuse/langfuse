@@ -1,5 +1,5 @@
 /* eslint-disable no-nested-ternary */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   type ObservationType,
   type Prisma,
@@ -15,6 +15,7 @@ import {
   hasRenderableChatMessages,
   useIOPreviewParser,
 } from "../../hooks/useIOPreviewParser";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { ChatMessageList } from "../ChatMessageList";
 import { SectionToolDefinitions } from "./components/SectionToolDefinitions";
 import {
@@ -201,6 +202,19 @@ export function IOPreviewPretty({
     chatMLParserResult,
   );
 
+  const shouldRenderMessages = hasRenderableChatMessages(parserResult);
+
+  useIOParserComparisonCapture({
+    input,
+    output,
+    chatMLParserResult,
+    isLoading,
+    isParsing,
+    observationId,
+    traceId,
+    shouldRenderMessages,
+  });
+
   const {
     allMessages,
     additionalInput,
@@ -208,7 +222,6 @@ export function IOPreviewPretty({
     toolCallCounts,
     toolCallsByName,
     messageToToolCallNumbers,
-    toolNameToDefinitionNumber,
     inputMessageCount,
   } = parserResult;
 
@@ -275,8 +288,6 @@ export function IOPreviewPretty({
   };
 
   const showData = contentMode !== "conversation";
-  const shouldRenderMessages = hasRenderableChatMessages(parserResult);
-
   // The "Correct output" pencil lives in the Output header; the field below
   // opens into its editor from there. Without an Output header (no output
   // message rendered) the field keeps its own inline trigger.
@@ -342,7 +353,6 @@ export function IOPreviewPretty({
           tools={allTools}
           toolCallCounts={toolCallCounts}
           toolCallsByName={toolCallsByName}
-          toolNameToDefinitionNumber={toolNameToDefinitionNumber}
         />
       ) : null}
 
@@ -378,4 +388,61 @@ export function IOPreviewPretty({
       ) : null}
     </div>
   );
+}
+
+/** Captures the normalization result for each displayed record. */
+function useIOParserComparisonCapture({
+  input,
+  output,
+  chatMLParserResult,
+  isLoading,
+  isParsing,
+  observationId,
+  traceId,
+  shouldRenderMessages,
+}: Pick<
+  IOPreviewPrettyProps,
+  | "input"
+  | "output"
+  | "chatMLParserResult"
+  | "isLoading"
+  | "isParsing"
+  | "observationId"
+  | "traceId"
+> & { shouldRenderMessages: boolean }) {
+  const capture = usePostHogClientCapture();
+  const capturedNormalizationRecord = useRef<string | undefined>(undefined);
+
+  /** Empty payloads are excluded from the normalization success metric. */
+  const hasPayloadToNormalize =
+    (input !== null && input !== undefined) ||
+    (output !== null && output !== undefined);
+
+  useEffect(() => {
+    if (
+      chatMLParserResult !== undefined ||
+      !hasPayloadToNormalize ||
+      isLoading ||
+      isParsing
+    ) {
+      return;
+    }
+
+    const recordKey = `${observationId ? "observation" : "trace"}:${observationId ?? traceId}`;
+    if (capturedNormalizationRecord.current === recordKey) return;
+
+    capturedNormalizationRecord.current = recordKey;
+    capture("trace_detail:io_parser_comparison", {
+      isNormalizedSuccess: shouldRenderMessages,
+    });
+  }, [
+    capture,
+    chatMLParserResult,
+    hasPayloadToNormalize,
+    isLoading,
+    isParsing,
+    observationId,
+    shouldRenderMessages,
+    traceId,
+  ]);
 }

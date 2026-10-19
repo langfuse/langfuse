@@ -1,13 +1,15 @@
 import preview from "@/.storybook/preview";
+import { useState, type ComponentProps } from "react";
 import { expect, fn, userEvent, waitFor } from "storybook/test";
 import { SessionConversationTimeline } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/SessionConversationTimeline";
 import { useSessionConversationTimelineController } from "@/src/features/sessions/hooks/useSessionConversationTimelineController";
 
 function SessionConversationTimelineStory({
   dynamicContent,
+  navigation,
 }: {
   dynamicContent: boolean;
-}) {
+} & Pick<ComponentProps<typeof SessionConversationTimeline>, "navigation">) {
   const traces = Array.from(
     { length: dynamicContent ? 40 : 3 },
     (_, index) => ({
@@ -73,7 +75,11 @@ function SessionConversationTimelineStory({
   const controller = useSessionConversationTimelineController(traces);
   return (
     <div className="h-[200px]">
-      <SessionConversationTimeline traces={traces} controller={controller} />
+      <SessionConversationTimeline
+        traces={traces}
+        controller={controller}
+        navigation={navigation}
+      />
     </div>
   );
 }
@@ -83,6 +89,111 @@ const meta = preview.meta({
   args: { dynamicContent: false },
 });
 export default meta;
+
+function SingleTraceLoadingStory() {
+  const [isLoading, setIsLoading] = useState(true);
+  const traces: ComponentProps<typeof SessionConversationTimeline>["traces"] = [
+    {
+      trace: { id: "trace-1", name: "Loading trace" },
+      turnNumber: 1,
+      variant: "single-trace",
+      state: isLoading ? { type: "loading" } : { type: "empty" },
+      onOpenTrace: fn(),
+      onOpenObservation: fn(),
+      scrollTarget: null,
+    },
+  ];
+  const controller = useSessionConversationTimelineController(traces);
+  return (
+    <div>
+      <button onClick={() => setIsLoading(false)}>Finish loading</button>
+      <div className="h-[600px]">
+        <SessionConversationTimeline
+          traces={traces}
+          controller={controller}
+          navigation={{
+            previousTrace: { href: "#previous", count: 3 },
+            nextTrace: { href: "#next", count: 1 },
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+export const StableSingleTraceLoading = meta.story({
+  name: "(Test) Single Trace Navigation Stays Stable While Loading",
+  render: () => <SingleTraceLoadingStory />,
+  play: async ({ canvas }) => {
+    const previous = canvas.getByRole("link", {
+      name: "Previous trace in session (3)",
+    });
+    const next = canvas.getByRole("link", {
+      name: "Next trace in session (1)",
+    });
+    expect(
+      canvas.getByRole("status", { name: "Loading messages" }),
+    ).toBeVisible();
+    const previousTop = previous.getBoundingClientRect().top;
+    const nextTop = next.getBoundingClientRect().top;
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Finish loading" }),
+    );
+    expect(
+      canvas.queryByRole("status", { name: "Loading messages" }),
+    ).not.toBeInTheDocument();
+    expect(previous).toBeVisible();
+    expect(next).toBeVisible();
+    expect(previous.getBoundingClientRect().top).toBe(previousTop);
+    expect(next.getBoundingClientRect().top).toBe(nextTop);
+  },
+});
+
+export const TimelineNavigation = meta.story({
+  name: "(Test) Navigation Before And After Messages",
+  args: {
+    navigation: {
+      previousTrace: {
+        count: 3,
+        href: "/project/project-1/traces?peek=previous-trace&traceView=messages",
+        shallow: true,
+      },
+      nextTrace: {
+        count: 1,
+        href: "/project/project-1/traces?peek=next-trace&traceView=messages",
+        shallow: true,
+      },
+    },
+  },
+  play: async ({ canvas, args }) => {
+    const timeline = canvas.getByLabelText("Session conversation timeline");
+    const previous = await canvas.findByRole("link", {
+      name: "Previous trace in session (3)",
+    });
+    const firstTrace = await canvas.findByRole("button", {
+      name: /Turn 1.*trace-1/,
+    });
+    expect(previous.compareDocumentPosition(firstTrace)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(previous).toHaveAttribute(
+      "href",
+      args.navigation?.previousTrace?.href,
+    );
+    timeline.scrollTop = timeline.scrollHeight;
+    timeline.dispatchEvent(new Event("scroll", { bubbles: true }));
+    const next = await canvas.findByRole("link", {
+      name: "Next trace in session (1)",
+    });
+    const lastTrace = await canvas.findByRole("button", {
+      name: /Turn 3.*trace-3/,
+    });
+    expect(lastTrace.compareDocumentPosition(next)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(next).toHaveAttribute("href", args.navigation?.nextTrace?.href);
+  },
+});
 
 export const ScrollableTimeline = meta.story({
   name: "(Test) Scrollable Timeline",

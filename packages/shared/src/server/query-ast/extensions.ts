@@ -221,15 +221,18 @@ export function dateDiff(
   );
 }
 
-/** `map[key]` subscript with a bound key. */
+/**
+ * `map[key]` subscript. A string key is bound; pass `literal(...)` for a code
+ * constant so it is inlined.
+ */
 export function mapValue<V = number>(
   map: Expression<Record<string, V>>,
-  key: string,
+  key: string | Expression<string>,
 ): ChExpression<V> {
   return new ExpressionWrapper<ClickHouseDatabase, keyof ClickHouseDatabase, V>(
     ArrayIndexNode.create(
       map.toOperationNode(),
-      ValueNode.create(key),
+      typeof key === "string" ? ValueNode.create(key) : key.toOperationNode(),
     ) as unknown as OperationNode,
   );
 }
@@ -347,6 +350,11 @@ export function ifNull<T>(
   fallback: Expression<T>,
 ): ChExpression<T> {
   return functionCall("ifNull", [value, fallback]);
+}
+
+/** ClickHouse `toBool(value)`. */
+export function toBool(value: Expression<SqlBool>): ChExpression<boolean> {
+  return functionCall("toBool", [value]);
 }
 
 /** ClickHouse `isNull(value)`. */
@@ -629,12 +637,12 @@ export function traceSessionId(): ChExpression<string> {
 
 /**
  * Lower `metadata[key]` to a subscript of {@link metadataMap}, so the last
- * entry of a duplicated key wins. The key is a bound `ValueNode`, not a SQL
- * literal.
+ * entry of a duplicated key wins. Keys follow {@link mapValue}: a string is
+ * bound, a `literal(...)` is inlined.
  */
 export function metadataValue(
   tableAlias: string,
-  key: string,
+  key: string | Expression<string>,
 ): ChExpression<string> {
   const column = (name: string) =>
     new ExpressionWrapper<ClickHouseDatabase, "events_core", string[]>(
@@ -774,18 +782,6 @@ export function useFinal(tables: ReadonlyArray<keyof ClickHouseDatabase>) {
   ): SelectQueryBuilder<DB, TB, O> => qb.withPlugin(new FinalPlugin(names));
 }
 
-/** Plugin that marks the select so the soft-delete pass leaves it unfiltered. */
-class IncludeDeletedPlugin implements KyselyPlugin {
-  transformQuery(args: PluginTransformQueryArgs): RootOperationNode {
-    if (args.node.kind !== "SelectQueryNode") return args.node;
-    return { ...args.node, includeDeleted: true } as RootOperationNode;
-  }
-
-  async transformResult(args: PluginTransformResultArgs) {
-    return args.result;
-  }
-}
-
 /**
  * Read soft-deleted rows too: `qb.$call(includeDeleted())`. Applies to this
  * select's FROM/JOIN relations only; nested selects are still filtered. A
@@ -794,5 +790,39 @@ class IncludeDeletedPlugin implements KyselyPlugin {
 export function includeDeleted() {
   return <DB, TB extends keyof DB, O>(
     qb: SelectQueryBuilder<DB, TB, O>,
-  ): SelectQueryBuilder<DB, TB, O> => qb.withPlugin(new IncludeDeletedPlugin());
+  ): SelectQueryBuilder<DB, TB, O> =>
+    qb.withPlugin(new SoftDeleteMarkerPlugin("includeDeleted"));
+}
+
+/**
+ * Drop soft-deleted rows after this select's ORDER BY / LIMIT / LIMIT BY
+ * instead of before: `qb.$call(softDeleteAfterLimit())`. For a latest-version
+ * pick, where a deletion is a newer version with the flag set; filtering
+ * first would return the older live version. Compiles to
+ * `select latest.<output>, … from (<this select, flag added>) as latest where
+ * latest.<flag> = 0`. The select reads exactly one soft-delete table, has a
+ * LIMIT or LIMIT BY, has no GROUP BY or set operation, names every output (no
+ * `*`, unaliased expressions), and does not select the flag itself.
+ */
+export function softDeleteAfterLimit() {
+  return <DB, TB extends keyof DB, O>(
+    qb: SelectQueryBuilder<DB, TB, O>,
+  ): SelectQueryBuilder<DB, TB, O> =>
+    qb.withPlugin(new SoftDeleteMarkerPlugin("softDeleteAfterLimit"));
+}
+
+/** Sets a soft-delete marker on the select; the soft-delete pass reads it. */
+class SoftDeleteMarkerPlugin implements KyselyPlugin {
+  constructor(
+    private readonly marker: "includeDeleted" | "softDeleteAfterLimit",
+  ) {}
+
+  transformQuery(args: PluginTransformQueryArgs): RootOperationNode {
+    if (args.node.kind !== "SelectQueryNode") return args.node;
+    return { ...args.node, [this.marker]: true } as RootOperationNode;
+  }
+
+  async transformResult(args: PluginTransformResultArgs) {
+    return args.result;
+  }
 }

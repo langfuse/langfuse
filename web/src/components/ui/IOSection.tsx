@@ -15,7 +15,6 @@ import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { statusMessageVariants } from "@/src/components/design-system/StatusMessage/StatusMessage";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { InternalFeatureBadge } from "@/src/features/feature-flags";
 import { cn } from "@/src/utils/tailwind";
 
 /** An icon button in the section header. */
@@ -59,8 +58,8 @@ export type IOSectionProps = {
   titleIcon?: LucideIcon;
   /** Count badge after the title. */
   count?: number;
-  /** Marks an internal feature with a badge after the title. */
-  internal?: boolean;
+  /** Marks a beta feature with a badge after the title. */
+  beta?: boolean;
   info?: IOSectionInfo;
   /** Header copy control; omitted when the section has nothing to copy. */
   onCopy?: (event?: React.MouseEvent<HTMLButtonElement>) => void;
@@ -136,7 +135,7 @@ export function IOSection({
   title,
   titleIcon: TitleIcon,
   count,
-  internal = false,
+  beta = false,
   info,
   onCopy,
   actions,
@@ -189,7 +188,7 @@ export function IOSection({
           {count !== undefined ? (
             <Badge color="filled" size="sm" text={String(count)} />
           ) : null}
-          {internal ? <InternalFeatureBadge /> : null}
+          {beta ? <Badge text="Beta" color="blue" size="sm" /> : null}
         </button>
         {info ? (
           <div className="flex items-center pl-2">
@@ -234,7 +233,7 @@ export function IOSection({
 }
 
 /** The header's right-hand controls, in order: status, actions, toggle, copy. */
-export function IOSectionControls({
+function IOSectionControls({
   status,
   actions,
   toggle,
@@ -320,7 +319,7 @@ function StatusLabel({ status }: { status: IOSectionStatus }) {
 }
 
 /** Info trigger with a hover card; sits outside the title toggle. */
-export function IOSectionInfoButton({ info }: { info: IOSectionInfo }) {
+function IOSectionInfoButton({ info }: { info: IOSectionInfo }) {
   return (
     <HoverCard
       placement="right"
@@ -360,3 +359,8 @@ export function IOSectionInfoButton({ info }: { info: IOSectionInfo }) {
     </HoverCard>
   );
 }
+
+// Hosts that draw their own header (the compact JSON Beta variant) reuse the
+// section's control rendering.
+IOSection.Controls = IOSectionControls;
+IOSection.InfoButton = IOSectionInfoButton;

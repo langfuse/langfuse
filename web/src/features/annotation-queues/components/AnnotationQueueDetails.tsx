@@ -1,3 +1,6 @@
+import { type ReactNode, useState } from "react";
+import { SearchInput } from "@/src/components/design-system/SearchInput/SearchInput";
+import { getScoreDataTypeIcon } from "@/src/features/scores";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { type ScoreConfigDomain } from "@langfuse/shared";
 
@@ -36,53 +39,87 @@ function describeScoreField(config: ScoreField): string {
 export function AnnotationQueueDetails({
   description,
   scoreConfigs,
+  editAction,
 }: {
   description: string | null;
   scoreConfigs: ScoreField[];
+  editAction: ReactNode;
 }) {
+  const [search, setSearch] = useState("");
+  const visibleConfigs = scoreConfigs.filter((config) =>
+    config.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()),
+  );
   return (
-    <div className="flex w-full min-w-0 flex-col gap-6 p-4">
+    <div className="flex h-full min-h-0 w-full flex-col">
       {description && (
-        <section className="flex flex-col gap-2">
-          <h3 className="text-sm font-bold">Description</h3>
-          <p className="text-muted-foreground text-sm leading-relaxed wrap-anywhere whitespace-pre-wrap">
+        <section className="shrink-0 border-b p-4">
+          <h3 className="text-xs font-bold">Description</h3>
+          <p
+            className="text-muted-foreground mt-2 line-clamp-4 text-xs leading-relaxed wrap-anywhere whitespace-pre-wrap"
+            title={description}
+          >
             {description}
           </p>
         </section>
       )}
-      <section className="flex min-w-0 flex-col gap-2">
-        <div className="flex items-center gap-2">
-          <h3 className="text-sm font-bold">Score fields</h3>
-          <Badge text={String(scoreConfigs.length)} />
+      <section
+        className="flex min-h-0 flex-1 flex-col"
+        aria-label="Queue score configs"
+      >
+        <div className="flex shrink-0 flex-col gap-3 p-4">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <h3 className="text-xs font-bold">Score configs</h3>
+              <Badge text={String(scoreConfigs.length)} color="ghost" />
+            </div>
+          </div>
+          {editAction}
+          {scoreConfigs.length > 8 && (
+            <SearchInput
+              value={search}
+              onChange={setSearch}
+              onSubmit={setSearch}
+              placeholder="Find a score config..."
+            />
+          )}
         </div>
-        {scoreConfigs.length === 0 ? (
-          <p className="text-muted-foreground text-sm">
-            No score fields configured.
-          </p>
-        ) : (
-          <ul className="divide-y" aria-label="Score fields">
-            {[...scoreConfigs]
-              .sort((a, b) => a.name.localeCompare(b.name))
-              .map((config) => (
-                <li key={config.id} className="flex flex-col gap-1 py-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="min-w-0 text-sm font-bold wrap-anywhere">
-                      {config.name}
-                    </span>
-                    {config.isArchived && <Badge text="Archived" />}
-                  </div>
-                  <p className="text-muted-foreground text-xs">
-                    {describeScoreField(config)}
-                  </p>
-                  {config.description && (
-                    <p className="text-muted-foreground text-xs leading-relaxed wrap-anywhere whitespace-pre-wrap">
-                      {config.description}
-                    </p>
-                  )}
-                </li>
-              ))}
-          </ul>
-        )}
+        <ul
+          className="min-h-0 flex-1 overflow-y-auto px-4 pb-4"
+          aria-label="Queue score config order"
+        >
+          {visibleConfigs.map((config) => (
+            <li
+              key={config.id}
+              className="flex items-center gap-2 py-1.5"
+              title={[
+                config.name,
+                describeScoreField(config),
+                config.description,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            >
+              <span
+                className="text-muted-foreground w-4 shrink-0 text-center text-xs"
+                aria-hidden
+              >
+                {getScoreDataTypeIcon(config.dataType)}
+              </span>
+              <span
+                className="min-w-0 flex-1 truncate text-xs"
+                title={config.name}
+              >
+                {config.name}
+              </span>
+              {config.isArchived && <Badge text="Archived" size="sm" />}
+            </li>
+          ))}
+          {search && visibleConfigs.length === 0 && (
+            <li className="text-muted-foreground py-2 text-xs">
+              No matching score configs.
+            </li>
+          )}
+        </ul>
       </section>
     </div>
   );

@@ -269,11 +269,7 @@ export function ImportSkillsDialog({
                 layout="full"
                 aria-label="Import method"
               >
-                <Tabs.Trigger
-                  value="local"
-                  label="Upload files"
-                  disabled={busy}
-                />
+                <Tabs.Trigger value="local" label="Upload" disabled={busy} />
                 <Tabs.Trigger value="cli" label="CLI" disabled={busy} />
               </Tabs.List>
               <div className="pt-4">

@@ -5,10 +5,29 @@ use crate::native_codec::{
     parse_datetime_text, parse_decimal, DateTime64Micros, Decimal64, SkillReference,
     SkillResourceLoaded,
 };
-use crate::native_schema::DefaultPolicy;
+use crate::native_schema::{DefaultPolicy, PreparedEventRow};
 use napi::bindgen_prelude::{Array, JsObjectValue, Object, Unknown};
 use napi::{JsNumber, JsValue};
 use std::collections::BTreeMap;
+
+impl PreparedEventRow {
+    /// Convert one finalized JavaScript row directly into owned Rust fields.
+    /// Only declared columns are read; JS handles stay on the calling thread.
+    pub(crate) fn from_js(value: Unknown<'_>) -> Result<Self, String> {
+        let object: Object<'_> = match value.get_type().map_err(|error| error.to_string())? {
+            napi::ValueType::Object => {
+                unsafe { value.cast() }.map_err(|error| error.to_string())?
+            }
+            value_type => {
+                return Err(format!(
+                    "prepared event must be an object, got {value_type:?}"
+                ));
+            }
+        };
+        let metadata = MetadataValues::from_js(&object)?;
+        Self::from_js_fields(object, metadata)
+    }
+}
 
 /// Convert one schema field by reading its property directly from the JS object.
 ///

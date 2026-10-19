@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { ItemBadge } from "@/src/components/ItemBadge";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import { MobilePageActionsContent } from "@/src/components/layouts/mobile-page-actions-content";
@@ -68,7 +69,8 @@ export const MobilePageTitle = ({
     <div
       className={cn(
         "bg-background px-3 pt-2",
-        tabsProps ? "pb-0" : "border-b pb-3",
+        tabsProps ? "pb-0" : "pb-3",
+        !tabsProps && headerProps.divider !== false && "border-b",
       )}
     >
       {/* Context line: org / project switcher plus any page-supplied

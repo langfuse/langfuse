@@ -2748,7 +2748,7 @@ export class OtelIngestionProcessor {
         "ai.telemetry.metadata.tags",
         "ai.telemetry.metadata.langfusePrompt",
       ]),
-      decodeValues,
+      decodedPrefix: decodeValues ? metadataKeyPrefix : undefined,
     });
 
     return {
@@ -3455,25 +3455,43 @@ export class OtelIngestionProcessor {
   private extractCostDetails(
     attributes: Record<string, unknown>,
     context: { spanId: string; traceId: string; source: string },
-  ): Record<string, unknown> {
+  ): Record<string, number> {
     const fromAttribute = this.parseJsonObjectAttribute(
       attributes,
       LangfuseOtelSpanAttributes.OBSERVATION_COST_DETAILS,
       context,
     );
-    if (fromAttribute !== null) return fromAttribute;
+    if (fromAttribute !== null) return this.toNumericEntries(fromAttribute);
 
     const genAiUsageCost = attributes["gen_ai.usage.cost"];
     if (genAiUsageCost != null && genAiUsageCost !== "") {
-      return { total: genAiUsageCost };
+      return this.toNumericEntries({ total: genAiUsageCost });
     }
 
     const openInferenceTotalCost = attributes["llm.cost.total"];
     if (openInferenceTotalCost != null && openInferenceTotalCost !== "") {
-      return { total: openInferenceTotalCost };
+      return this.toNumericEntries({ total: openInferenceTotalCost });
     }
 
     return {};
+  }
+
+  /** Keeps finite numbers and non-blank numeric strings (as numbers); drops other entries such as currency. */
+  private toNumericEntries(
+    details: Record<string, unknown>,
+  ): Record<string, number> {
+    const result: Record<string, number> = {};
+    for (const [key, value] of Object.entries(details)) {
+      const numeric = this.toFiniteNumber(value);
+      if (Number.isFinite(numeric)) result[key] = numeric;
+    }
+    return result;
+  }
+
+  private toFiniteNumber(value: unknown): number {
+    if (typeof value === "number") return value;
+    if (typeof value === "string" && value.trim() !== "") return Number(value);
+    return NaN;
   }
 
   private extractCompletionStartTime(
@@ -3495,11 +3513,17 @@ export class OtelIngestionProcessor {
       // Fallthrough
     }
 
-    // Vercel AI SDK
+    // Vercel AI SDK: <= v6 reports milliseconds, v7 reports the GenAI
+    // semconv metric name in seconds.
     try {
+      const secondsToFirstChunk =
+        attributes["gen_ai.client.operation.time_to_first_chunk"];
       const msToFirstChunk =
         attributes["ai.response.msToFirstChunk"] ??
-        attributes["ai.stream.msToFirstChunk"];
+        attributes["ai.stream.msToFirstChunk"] ??
+        (secondsToFirstChunk != null && secondsToFirstChunk !== ""
+          ? Number(secondsToFirstChunk) * 1000
+          : undefined);
       if (msToFirstChunk && startTimeISO) {
         const msToFirstChunkNumber = Math.ceil(Number(msToFirstChunk));
 
@@ -3666,14 +3690,14 @@ export class OtelIngestionProcessor {
     attributes: Record<string, unknown>;
     prefixes: string[];
     excludedKeys?: Set<string>;
-    // Set for structured-metadata SDKs, which JSON-encode every value.
-    decodeValues?: boolean;
+    /** decodedPrefix holds JSON-encoded values for structured-metadata SDKs */
+    decodedPrefix?: string;
   }): Record<string, unknown> {
     const {
       attributes,
       prefixes,
       excludedKeys = new Set<string>(),
-      decodeValues,
+      decodedPrefix,
     } = params;
     const metadata: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(attributes)) {
@@ -3687,7 +3711,7 @@ export class OtelIngestionProcessor {
           continue;
         }
 
-        if (!decodeValues || typeof value !== "string") {
+        if (prefix !== decodedPrefix || typeof value !== "string") {
           metadata[metadataKey] = value;
           continue;
         }
@@ -3716,16 +3740,11 @@ export class OtelIngestionProcessor {
     return metadata;
   }
 
-  // Langfuse SDK spans from a major that opts into decoded per-key metadata.
-  // The language comes from the request header, falling back to the OTel
-  // resource for exports relayed without Langfuse headers.
+  /** shouldDecodeMetadataValues is true for spans of any scope exported by a structured-metadata Langfuse SDK major, versioned by the scope on langfuse-sdk spans and by the request header otherwise */
   private shouldDecodeMetadataValues(
     scopeSpan: any,
     resourceAttributes: Record<string, unknown>,
   ): boolean {
-    if (!scopeSpan?.scope?.name?.startsWith("langfuse-sdk")) {
-      return false;
-    }
     const sdkName =
       normalizeIngestionSdkName(this.sdkName) ??
       OTEL_SDK_LANGUAGE_TO_SDK_NAME.get(
@@ -3734,7 +3753,9 @@ export class OtelIngestionProcessor {
       null;
     return isStructuredMetadataSdkVersion({
       sdkName,
-      sdkVersion: scopeSpan.scope.version,
+      sdkVersion: scopeSpan?.scope?.name?.startsWith("langfuse-sdk")
+        ? scopeSpan.scope.version
+        : this.sdkVersion,
     });
   }
 

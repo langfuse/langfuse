@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
 "use client";
 
 import * as React from "react";
@@ -84,6 +84,8 @@ type PopoverControllerProps = {
   contentClassName: string;
   disabled: boolean;
   modal: boolean;
+  /** Keep nested overlays inside a modal's accessible subtree when needed. */
+  portalContainer?: HTMLElement | null;
   onOpenChange?: (isOpen: boolean) => void;
   renderContent: (control: { closePopover: () => void }) => React.ReactNode;
 };
@@ -94,6 +96,7 @@ const PopoverController = ({
   contentClassName,
   disabled,
   modal,
+  portalContainer,
   onOpenChange,
   renderContent,
 }: PopoverControllerProps) => {
@@ -117,6 +120,7 @@ const PopoverController = ({
       <PopoverContent
         align={align}
         className={contentClassName}
+        portalContainer={portalContainer}
         onClick={(event) => event.stopPropagation()}
       >
         {renderContent({ closePopover: () => setIsOpen(false) })}

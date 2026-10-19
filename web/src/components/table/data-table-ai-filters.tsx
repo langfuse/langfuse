@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Textarea } from "@/src/components/ui/textarea";

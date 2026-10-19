@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 import { ExternalLinkIcon } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";

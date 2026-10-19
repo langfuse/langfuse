@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 /* eslint-disable @repo/no-style-props */
 import { useMemo, useState, useCallback, type ReactNode } from "react";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";

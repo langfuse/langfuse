@@ -1,7 +1,7 @@
 import { z } from "zod";
 import {
-  completeCloudSignupOnboarding,
-  getCloudSignupOnboardingStatus,
+  completeSignupOnboarding,
+  getSignupOnboardingStatus,
 } from "@/src/features/onboarding/server/onboardingService";
 import {
   createTRPCRouter,
@@ -13,10 +13,11 @@ import {
   BUILD_INTENT_OTHER_MAX_LENGTH,
   EXCLUSIVE_BUILD_INTENT,
 } from "@/src/features/onboarding/lib/buildIntent";
+import { NEWSLETTER_OUTCOMES } from "@/src/features/onboarding/lib/newsletterSignup";
 
 export const onboardingRouter = createTRPCRouter({
   status: authenticatedProcedure.query(async ({ ctx }) => {
-    return getCloudSignupOnboardingStatus({
+    return getSignupOnboardingStatus({
       prisma: ctx.prisma,
       userId: ctx.session.user.id,
       canCreateOrganizations: ctx.session.user.canCreateOrganizations,
@@ -49,6 +50,9 @@ export const onboardingRouter = createTRPCRouter({
             .trim()
             .max(BUILD_INTENT_OTHER_MAX_LENGTH)
             .optional(),
+          newsletter: z
+            .object({ outcome: z.enum(NEWSLETTER_OUTCOMES) })
+            .optional(),
         })
         .refine(
           ({ buildIntents }) =>
@@ -66,7 +70,7 @@ export const onboardingRouter = createTRPCRouter({
         .optional(),
     )
     .mutation(async ({ ctx, input }) => {
-      return completeCloudSignupOnboarding({
+      return completeSignupOnboarding({
         prisma: ctx.prisma,
         userId: ctx.session.user.id,
         userEmail: ctx.session.user.email,
@@ -76,6 +80,7 @@ export const onboardingRouter = createTRPCRouter({
         buildIntents: input?.buildIntents,
         buildIntentPositions: input?.buildIntentPositions,
         buildIntentOther: input?.buildIntentOther,
+        newsletter: input?.newsletter,
       });
     }),
 });

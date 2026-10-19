@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { cn } from "@/src/utils/tailwind";
 import { useRouter } from "next/router";

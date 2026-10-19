@@ -1,4 +1,5 @@
 import { type Flag } from "@/src/features/feature-flags/types";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { type ProjectScope } from "@langfuse/shared";
 import {
   BellRing,
@@ -26,9 +27,9 @@ import { type ReactNode } from "react";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
 import { type Session } from "next-auth";
 import { type OrganizationScope } from "@/src/features/rbac";
-import { SupportButton } from "@/src/components/nav/support-button";
+import { SupportButton } from "@/src/components/nav/SupportButton";
 import { V4SidebarToggle } from "@/src/features/events";
-import { BookACallButton } from "@/src/components/nav/book-a-call-button";
+import { BookACallButton } from "@/src/components/nav/BookACallButton";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
@@ -167,7 +168,8 @@ export const ROUTES: Route[] = [
   },
   {
     title: "Skills",
-    featureFlag: "internalFeatures",
+    featureFlag: "skillManagement",
+    label: <Badge text="Beta" color="blue" size="sm" />,
     href: "/project/[projectId]/skills",
     icon: FolderCode,
     projectRbacScopes: ["skills:read"],

@@ -8,7 +8,7 @@ import { TextActionButton } from "@/src/components/TextActionButton/TextActionBu
 import { Button } from "@/src/components/ui/button";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Label } from "@/src/components/ui/label";
-import { SortableList } from "@/src/features/evals/v2/components/SortableList/SortableList";
+import { SortableList } from "@/src/components/design-system/SortableList/SortableList";
 import { DecisionModelQuestionCard } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/DecisionModelQuestionCard/DecisionModelQuestionCard";
 import { QUESTION_TYPE_COPY } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/QuestionTypeSelector/QuestionTypeSelector";
 import type {

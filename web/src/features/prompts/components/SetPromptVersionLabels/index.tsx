@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
 import React, { useEffect, useState, useRef } from "react";
 import { Plus } from "lucide-react";

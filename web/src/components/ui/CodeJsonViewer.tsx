@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 /* eslint-disable @repo/no-style-props */
 import { useMemo, useState } from "react";
 import { Button } from "@/src/components/ui/button";

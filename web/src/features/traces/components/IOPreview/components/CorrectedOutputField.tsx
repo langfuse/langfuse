@@ -2,8 +2,6 @@
 import { Pencil, Trash, FileDiff } from "lucide-react";
 import {
   IOSection,
-  IOSectionControls,
-  IOSectionInfoButton,
   type IOSectionAction,
   type IOSectionInfo,
   type IOSectionStatus,
@@ -318,9 +316,9 @@ export function CorrectedOutputField({
         // The JSON Beta section renders its own title; only controls + body here.
         <div className="group pt-2">
           <div className="flex items-center justify-between py-1.5">
-            <IOSectionInfoButton info={info} />
+            <IOSection.InfoButton info={info} />
             <div className="flex items-center -space-x-1 opacity-0 transition-opacity group-hover:opacity-100">
-              <IOSectionControls
+              <IOSection.Controls
                 status={status}
                 actions={actions}
                 toggle={jsonToggle}
