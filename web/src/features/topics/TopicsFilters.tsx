@@ -1,4 +1,4 @@
-import { Plus } from "lucide-react";
+import { Plus } from "@langfuse/icons";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { type ReactNode } from "react";

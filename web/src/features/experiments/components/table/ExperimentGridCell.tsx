@@ -26,7 +26,7 @@ import {
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 import { usdFormatter } from "@/src/utils/numbers";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
-import { Copy, Check, ExternalLink, SquarePen } from "lucide-react";
+import { Copy, Check, ExternalLink, SquarePen } from "@langfuse/icons";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { api } from "@/src/utils/api";
@@ -232,7 +232,7 @@ const ScoreItem = ({
                 rel="noopener noreferrer"
                 className="flex items-center gap-1 hover:underline"
               >
-                <ExternalLink className="icon-sm" />
+                <ExternalLink size="sm" />
                 View execution trace
               </Link>
             )}

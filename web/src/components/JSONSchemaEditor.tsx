@@ -1,6 +1,6 @@
 /* eslint-disable @repo/no-style-props */
 import React from "react";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { CodeMirrorEditor } from "@/src/components/editor";
 import { showErrorToast } from "@/src/features/notifications";
@@ -81,7 +81,7 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({
               className="hover:text-foreground inline-flex items-center underline"
             >
               See JSON Schema examples
-              <ArrowUpRight className="icon-sm ml-0.5" />
+              <ArrowUpRight size="sm" __rawClassName="ml-0.5" />
             </a>
           </p>
         )}

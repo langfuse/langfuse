@@ -1,5 +1,5 @@
 import { useRouter } from "next/router";
-import { FlaskConical, PlusIcon } from "lucide-react";
+import { FlaskConical, PlusIcon } from "@langfuse/icons";
 import { useMemo, useRef } from "react";
 import { StringParam, useQueryParams, withDefault } from "use-query-params";
 
@@ -179,14 +179,14 @@ export function ConnectedModelDefinitionsTable({
                             id: "test-model-match",
                             label: "Test Model Match",
                             variant: "secondary",
-                            icon: <FlaskConical className="icon-base" />,
+                            icon: <FlaskConical size="base" />,
                             onClick: openTestMatchDialog,
                           },
                           {
                             id: "add-model-definition",
                             label: "Add Model Definition",
                             variant: "secondary",
-                            icon: <PlusIcon className="icon-base" />,
+                            icon: <PlusIcon size="base" />,
                             hasAccess: hasWriteAccess,
                             trackingEventName: "models:new_form_open",
                             onClick: openCreateDialog,

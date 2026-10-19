@@ -1,6 +1,11 @@
 /* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
-import { MoreVertical, PauseCircle, PlayCircle, SquarePen } from "lucide-react";
+import {
+  MoreVertical,
+  PauseCircle,
+  PlayCircle,
+  SquarePen,
+} from "@langfuse/icons";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useMemo } from "react";
@@ -430,10 +435,7 @@ function MonitorRowActions({
         href={monitorHref(projectId, monitor.id)}
         onClick={(e) => e.stopPropagation()}
       >
-        <SquarePen
-          className="icon-base text-icon-foreground"
-          aria-hidden="true"
-        />
+        <SquarePen size="base" color="default" aria-hidden="true" />
         {collapsed ? <span className="ml-2">Edit</span> : null}
       </Link>
     </Button>
@@ -453,15 +455,9 @@ function MonitorRowActions({
       }}
     >
       {isPaused ? (
-        <PlayCircle
-          className="icon-lg text-icon-foreground"
-          aria-hidden="true"
-        />
+        <PlayCircle size="lg" color="default" aria-hidden="true" />
       ) : (
-        <PauseCircle
-          className="icon-lg text-icon-foreground"
-          aria-hidden="true"
-        />
+        <PauseCircle size="lg" color="default" aria-hidden="true" />
       )}
       {collapsed ? (
         <span className="ml-2">{isPaused ? "Resume" : "Pause"}</span>
@@ -487,7 +483,7 @@ function MonitorRowActions({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button size="xs" variant="ghost" aria-label="Alert actions">
-              <MoreVertical className="icon-sm text-icon-foreground" />
+              <MoreVertical size="sm" color="default" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="flex flex-col *:w-full *:justify-start">

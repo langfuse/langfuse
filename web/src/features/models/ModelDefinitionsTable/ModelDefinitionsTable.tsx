@@ -1,6 +1,6 @@
 import { type ReactNode } from "react";
 import { type Prisma } from "@langfuse/shared/src/db";
-import { Copy, Pencil, Trash } from "lucide-react";
+import { Copy, Pencil, Trash } from "@langfuse/icons";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { type TableProps } from "@/src/components/design-system/table/Table";

@@ -3,7 +3,7 @@
 "use client";
 
 import * as React from "react";
-import { Calendar as CalendarIcon, X } from "lucide-react";
+import { Calendar as CalendarIcon, X } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { addMinutes, format } from "date-fns";
 import { Button } from "@/src/components/ui/button";
@@ -57,7 +57,7 @@ export function DatePicker({
               className,
             )}
           >
-            <CalendarIcon className="icon-base text-icon-foreground mr-2" />
+            <CalendarIcon size="base" color="default" __rawClassName="mr-2" />
             {date ? (
               format(date, includeTimePicker ? "PPP pp" : "PPP")
             ) : (
@@ -84,7 +84,7 @@ export function DatePicker({
           onClick={() => onChange(undefined)}
           title="reset date"
         >
-          <X className="icon-base text-icon-foreground" />
+          <X size="base" color="default" />
         </Button>
       )}
     </div>
@@ -236,7 +236,7 @@ export function DatePickerWithRange({
               !internalDateRange && "text-muted-foreground",
             )}
           >
-            <CalendarIcon className="icon-base text-icon-foreground mr-2" />
+            <CalendarIcon size="base" color="default" __rawClassName="mr-2" />
             {internalDateRange?.from ? (
               internalDateRange.to ? (
                 <>
@@ -523,7 +523,7 @@ export function TimeRangePicker({
       // Custom range - show calendar icon and date range
       return (
         <div className="flex items-center gap-2">
-          <CalendarIcon className="icon-base" />
+          <CalendarIcon size="base" />
           <span>{customLabel}</span>
         </div>
       );
@@ -561,7 +561,7 @@ export function TimeRangePicker({
     }
     return (
       <div className="flex items-center gap-2">
-        <CalendarIcon className="icon-base" />
+        <CalendarIcon size="base" />
         <span>Select time range</span>
       </div>
     );
@@ -659,7 +659,7 @@ export function TimeRangePicker({
                 }}
               >
                 <span className="bg-muted flex h-5 w-10 items-center justify-center rounded px-1.5 text-center text-xs">
-                  <CalendarIcon className="icon-sm" />
+                  <CalendarIcon size="sm" />
                 </span>
                 <span>Select from calendar</span>
               </div>

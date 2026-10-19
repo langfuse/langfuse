@@ -52,7 +52,7 @@ import { ActionHandlerRegistry } from "./actions";
 import { webhookSchema } from "./actions/WebhookActionForm";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import Link from "next/link";
-import { Info } from "lucide-react";
+import { Info } from "@langfuse/icons";
 
 // Define Slack action schema
 const slackSchema = z.object({

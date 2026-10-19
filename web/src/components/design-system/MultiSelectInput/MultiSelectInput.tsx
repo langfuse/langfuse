@@ -85,7 +85,7 @@ function MultiSelectInputInner<V extends string>(
           >
             {value.length > 0 ? selectedLabel : placeholder}
           </span>
-          <DropdownIndicator />
+          <DropdownIndicator color={error ? "destructive" : "tertiary"} />
         </PopoverPrimitive.Trigger>
       </InputControl>
       <PopoverPrimitive.Portal container={container}>

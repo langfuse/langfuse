@@ -1,4 +1,4 @@
-import { SquareArrowOutUpRight } from "lucide-react";
+import { SquareArrowOutUpRight } from "@langfuse/icons";
 import { type SystemRole } from "@langfuse/shared/src/db";
 import { systemRoleAccessRights } from "@langfuse/shared/rbac";
 
@@ -30,7 +30,7 @@ export const RoleSelectItem = ({
       className="group pl-2 [&>span:not([data-checkmark])]:flex-1 [&>span[data-checkmark]]:hidden"
     >
       <div className="flex w-full items-start gap-2 text-left">
-        <Icon className="icon-base mt-0.5 shrink-0" />
+        <Icon size="base" __rawClassName="mt-0.5" />
         <div className="flex flex-col">
           <span className="font-bold">
             {label}
@@ -55,7 +55,7 @@ export const RoleSelectItem = ({
               aria-label={`View ${label} permissions`}
               className="text-muted-foreground hover:bg-background hover:text-foreground ml-auto flex h-6 w-6 shrink-0 items-center justify-center self-center rounded-full opacity-0 group-hover:opacity-100 group-data-highlighted:opacity-100 focus-visible:opacity-100"
             >
-              <SquareArrowOutUpRight className="icon-base" />
+              <SquareArrowOutUpRight size="base" />
             </button>
           )}
         </Tooltip>

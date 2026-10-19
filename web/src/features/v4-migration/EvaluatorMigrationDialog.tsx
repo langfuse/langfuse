@@ -1,5 +1,5 @@
 /* eslint-disable no-nested-ternary */
-import { BotMessageSquare, Wrench } from "lucide-react";
+import { BotMessageSquare, Wrench } from "@langfuse/icons";
 import { useState } from "react";
 import {
   Dialog,
@@ -145,7 +145,7 @@ export function EvaluatorMigrationDialog({
                     className="h-auto justify-start gap-3 p-4 text-left"
                     onClick={handleAssistantClick}
                   >
-                    <BotMessageSquare className="icon-base text-icon-foreground shrink-0" />
+                    <BotMessageSquare size="base" color="default" />
                     <span className="flex flex-col gap-1">
                       <span className="font-bold">Use Halo</span>
                       <span className="text-muted-foreground text-sm font-normal">
@@ -160,7 +160,7 @@ export function EvaluatorMigrationDialog({
                   className="h-auto justify-start gap-3 p-4 text-left"
                   onClick={handleManualClick}
                 >
-                  <Wrench className="icon-base text-icon-foreground shrink-0" />
+                  <Wrench size="base" color="default" />
                   <span className="flex flex-col gap-1">
                     <span className="font-bold">
                       {isSingleEvaluator
