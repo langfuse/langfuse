@@ -116,6 +116,37 @@ describe("per-table dedup lowering", () => {
     }
   });
 
+  it("rejects a declared final strategy, which has no emitter", () => {
+    DEDUP_SPECS.traces = { strategy: "final" };
+    try {
+      expect(() =>
+        compile(getClickhouseKysely().selectFrom("traces").select("id")),
+      ).toThrow(/Dedup strategy "final" is declared on traces/);
+    } finally {
+      delete DEDUP_SPECS.traces;
+    }
+  });
+
+  it("keeps the FROM alias when it wraps an aggregate", () => {
+    DEDUP_SPECS.scores = {
+      strategy: "limitBy",
+      key: ["id"],
+      version: "event_ts",
+    };
+    try {
+      const { sql } = compile(
+        getClickhouseKysely()
+          .selectFrom("scores as s")
+          .select((eb) => eb.fn.countAll().as("n")),
+      );
+      expect(sql).toBe(
+        "select count(*) as n from (select * from scores as s where s.project_id = {p1:String} order by s.event_ts desc limit 1 by s.id) as s",
+      );
+    } finally {
+      delete DEDUP_SPECS.scores;
+    }
+  });
+
   it("rejects FINAL on a table that declares limitBy dedup", () => {
     // FINAL and LIMIT 1 BY both pick the latest version, and the aggregate
     // wrap would move the FROM item into a subquery, so the pair is refused.

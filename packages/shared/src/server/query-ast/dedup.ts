@@ -91,18 +91,7 @@ function lowerSelect(
 
   const spec = DEDUP_SPECS[from.tableName];
   if (!spec || spec.strategy === "none") return node;
-
-  if (spec.strategy === "final") {
-    throw new QueryCompileError(
-      `Dedup strategy "final" is declared on ${from.tableName} but has no emitter. Use strategy "limitBy" or implement FINAL lowering before declaring it.`,
-    );
-  }
-
-  if (FinalTableNode.is(from.fromItem)) {
-    throw new QueryCompileError(
-      `FINAL cannot be combined with the limitBy dedup declared on ${from.tableName}: the registry already picks the latest version. Remove useFinal().`,
-    );
-  }
+  assertLowerable(from, spec);
 
   if (node.limitBy) {
     // Caller already attached LIMIT BY. Still pin the version sort so the
@@ -114,6 +103,23 @@ function lowerSelect(
   if (shape === "skip") return node;
   if (shape === "aggregate") return wrapPhysicalFrom(node, from, spec);
   return attachRowDedup(node, from, spec);
+}
+
+/** Narrows `spec` to `limitBy`: throws on the shapes the pass cannot lower. */
+function assertLowerable(
+  from: PhysicalFrom,
+  spec: DedupSpec,
+): asserts spec is LimitBySpec {
+  if (spec.strategy === "final") {
+    throw new QueryCompileError(
+      `Dedup strategy "final" is declared on ${from.tableName} but has no emitter. Use strategy "limitBy" or implement FINAL lowering before declaring it.`,
+    );
+  }
+  if (FinalTableNode.is(from.fromItem)) {
+    throw new QueryCompileError(
+      `FINAL cannot be combined with the limitBy dedup declared on ${from.tableName}: the registry already picks the latest version. Remove useFinal().`,
+    );
+  }
 }
 
 function singlePhysicalFrom(

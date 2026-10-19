@@ -1,7 +1,11 @@
 import {
+  AliasNode,
+  FromNode,
+  SelectQueryNode,
   sql,
   type Expression,
   type ExpressionBuilder,
+  type KyselyPlugin,
   type SqlBool,
 } from "kysely";
 import { describe, expect, it } from "vitest";
@@ -24,6 +28,7 @@ import {
   startsWith,
   useFinal,
 } from "./extensions";
+import { finalTable } from "./nodes";
 import type { ClickHouseDatabase } from "./schema";
 
 // Raw compiler output, so these run without a `clickhouse` binary.
@@ -247,6 +252,28 @@ describe("logical events routing", () => {
           ),
       ),
     ).toThrow(/Qualify by the relation's alias/);
+  });
+
+  it("rejects FINAL around the logical relation", () => {
+    // useFinal() refuses `events` (dedup: none), so FINAL is wrapped by hand;
+    // routing would otherwise swap the table and drop the FINAL silently.
+    const wrapFinal: KyselyPlugin = {
+      transformQuery(args) {
+        const node = args.node;
+        if (!SelectQueryNode.is(node) || !node.from) return node;
+        const [from] = node.from.froms;
+        if (!AliasNode.is(from)) return node;
+        return { ...node, from: FromNode.create([finalTable(from)]) };
+      },
+      async transformResult(args) {
+        return args.result;
+      },
+    };
+    expect(() =>
+      compile(
+        db.withPlugin(wrapFinal).selectFrom("events as e").select("e.span_id"),
+      ),
+    ).toThrow(/FINAL cannot wrap the logical "events" relation/);
   });
 
   it("keeps a physical events qualifier when no logical relation is in scope", () => {

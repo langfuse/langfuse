@@ -314,8 +314,13 @@ class EventsTableRouter extends ClickHouseOperationNodeTransformer {
       this.fullRelations.has(node) ? "events_full" : "events_core",
     );
     const { source, alias } = describeRelation(node);
-    if (FinalTableNode.is(node) || !isLogicalEventsTable(source)) {
+    if (!isLogicalEventsTable(source)) {
       return this.transformNode(node, queryId);
+    }
+    if (FinalTableNode.is(node)) {
+      throw new QueryCompileError(
+        `FINAL cannot wrap the logical "${LOGICAL_EVENTS}" relation: events_core and events_full are immutable at read time. Drop the FINAL.`,
+      );
     }
     return AliasNode.create(
       table,
