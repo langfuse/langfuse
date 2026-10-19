@@ -187,7 +187,7 @@ impl InferenceService {
         gateway_key: &str,
         api_format: ApiFormat,
         correlation: &RequestCorrelation,
-    ) -> Result<(Vec<u8>, MemoryReservation), ResolutionError> {
+    ) -> Result<Body, ResolutionError> {
         let mut reservation = self.try_reserve_memory("model_catalog")?;
         let _active = crate::observability::Active::new("model_catalog");
         let body = self
@@ -199,7 +199,9 @@ impl InferenceService {
         // Parsing holds the typed catalog and the provider-shaped output beside the body.
         reservation.try_reserve_body(body.len().saturating_mul(3), "model_catalog")?;
         let catalog = crate::providers::model_list::provider_response(&body, api_format)?;
-        Ok((catalog, reservation))
+        drop(body);
+        // The reservation is released once the client has read the catalog.
+        Ok(self.provider.relay_buffered(catalog, reservation))
     }
 
     /// Authenticate, then start the execution. The API format comes from the public route,

@@ -247,7 +247,7 @@ async fn stalled_body_uploads_hold_memory_until_the_client_goes_away() {
 }
 
 #[tokio::test]
-async fn model_catalog_memory_covers_the_catalog_until_its_body_is_read() {
+async fn model_catalog_memory_covers_the_catalog_until_it_is_read_or_stalls() {
     let entry = r#"{"id":"Production key:gpt-4.1","provider":"OPENAI","canonicalSlug":"gpt-4.1","displayName":"GPT-4.1","createdAt":"1970-01-01T00:00:10.000Z"}"#;
     let catalog = format!(r#"{{"data":[{}]}}"#, vec![entry; 2000].join(","));
     let catalog_bytes = catalog.len();
@@ -266,7 +266,15 @@ async fn model_catalog_memory_covers_the_catalog_until_its_body_is_read() {
     let gateway = Gateway::start(Some(
         InferenceService::for_test(
             web.control_plane(),
-            ProviderTransport::for_test(provider.url.clone(), ProviderLimits::default()),
+            ProviderTransport::for_test(
+                provider.url.clone(),
+                ProviderLimits {
+                    execution: ExecutionLimits {
+                        stall_timeout: Duration::from_millis(500),
+                        ..ExecutionLimits::default()
+                    },
+                },
+            ),
         )
         .with_request_limits(RequestLimits {
             max_request_bytes: MAX_REQUEST_BYTES,
@@ -298,7 +306,11 @@ async fn model_catalog_memory_covers_the_catalog_until_its_body_is_read() {
             .len(),
         2000
     );
+
+    let stalled = catalog_request().await.unwrap();
+    tokio::time::sleep(Duration::from_millis(700)).await;
     assert_eq!(catalog_request().await.unwrap().status(), StatusCode::OK);
+    assert!(to_bytes(stalled.into_body(), usize::MAX).await.is_err());
 }
 
 #[tokio::test]

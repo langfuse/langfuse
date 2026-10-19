@@ -405,7 +405,8 @@ client that declares a large body and stalls holds only the overhead and what it
 The whole reservation stays held until the response ends. Model catalog requests
 reserve the overhead, grow it with Web's catalog buffer as it arrives, then to three
 times the catalog for parsing and the provider-shaped response, and hold it until the
-client has read that response. An exhausted budget returns 503 immediately without a
+client has read that response; the response is relayed under the same stall timeout and
+execution deadline as provider responses. An exhausted budget returns 503 immediately without a
 waiting queue. There is no request-count limit; file descriptors are bounded by the
 container.
 

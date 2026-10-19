@@ -156,7 +156,7 @@ pub(crate) fn relay<T: Send + 'static>(
                 }
             })
         }),
-        provider,
+        Some(provider),
         deadline,
         stall_timeout,
         owner,
@@ -164,11 +164,29 @@ pub(crate) fn relay<T: Send + 'static>(
     )
 }
 
+/// Relay an already buffered body under the same deadlines, without provider telemetry.
+pub(crate) fn relay_buffered<T: Send + 'static>(
+    body: Vec<u8>,
+    deadline: Instant,
+    stall_timeout: Duration,
+    owner: T,
+) -> Body {
+    relay_stream(
+        futures_util::stream::once(async move { Ok(Bytes::from(body)) }),
+        None,
+        deadline,
+        stall_timeout,
+        owner,
+        None,
+    )
+}
+
 /// Relay until EOF, the overall `deadline`, or `stall_timeout` without progress
 /// in either direction: no upstream chunk, or a downstream that stopped reading.
+/// Without a `provider`, the relay records no stream span or body size metric.
 fn relay_stream<S, T>(
     upstream: S,
-    provider: &'static str,
+    provider: Option<&'static str>,
     deadline: Instant,
     stall_timeout: Duration,
     owner: T,
@@ -181,15 +199,17 @@ where
     let (sender, receiver) = mpsc::channel(1);
     // Covers the response body after provider headers until the relay is
     // finalized, which the header-scoped client span cannot see.
-    let span = tracing::info_span!(
-        "provider.stream",
-        otel.kind = "internal",
-        otel.status_code = tracing::field::Empty,
-        error.type = tracing::field::Empty,
-        http.response.body.size = tracing::field::Empty,
-        gateway.chunks = tracing::field::Empty,
-        gateway.outcome = tracing::field::Empty,
-    );
+    let span = provider.map_or_else(tracing::Span::none, |_| {
+        tracing::info_span!(
+            "provider.stream",
+            otel.kind = "internal",
+            otel.status_code = tracing::field::Empty,
+            error.type = tracing::field::Empty,
+            http.response.body.size = tracing::field::Empty,
+            gateway.chunks = tracing::field::Empty,
+            gateway.outcome = tracing::field::Empty,
+        )
+    });
     let resources = Arc::new(StreamResources {
         relay: Mutex::new(Some(Relay {
             provider,
@@ -267,7 +287,7 @@ where
 /// Everything the winning finalizer releases at once: admission and trusted
 /// context, the capture, and the stream span, which ends when it is dropped here.
 struct Relay<T> {
-    provider: &'static str,
+    provider: Option<&'static str>,
     owner: T,
     capture: Option<ExecutionCapture>,
     span: tracing::Span,
@@ -306,10 +326,12 @@ impl<T> StreamResources<T> {
         }) = relay
         {
             self.record_outcome(&span, outcome);
-            crate::observability::response_body_size(
-                provider,
-                u64::try_from(self.bytes.load(Ordering::Relaxed)).unwrap_or(u64::MAX),
-            );
+            if let Some(provider) = provider {
+                crate::observability::response_body_size(
+                    provider,
+                    u64::try_from(self.bytes.load(Ordering::Relaxed)).unwrap_or(u64::MAX),
+                );
+            }
             drop(span);
             drop(owner);
             if let Some(mut capture) = capture {
@@ -402,7 +424,7 @@ mod tests {
         for first in [RelayOutcome::Eof, RelayOutcome::Timeout] {
             let resources = StreamResources {
                 relay: Mutex::new(Some(Relay {
-                    provider: "test",
+                    provider: Some("test"),
                     owner: (),
                     capture: None,
                     span: tracing::Span::none(),
@@ -428,7 +450,7 @@ mod tests {
     fn a_panic_while_updating_the_capture_fails_the_relay() {
         let resources = StreamResources {
             relay: Mutex::new(Some(Relay {
-                provider: "test",
+                provider: Some("test"),
                 owner: (),
                 capture: None,
                 span: tracing::Span::none(),
@@ -476,7 +498,7 @@ mod tests {
                 Ok(Bytes::from_static(b"partial")),
                 Err(ProviderError::Transport),
             ]),
-            "test",
+            Some("test"),
             Instant::now() + Duration::from_secs(1),
             Duration::from_secs(10),
             Owner(released.clone()),
@@ -518,7 +540,7 @@ mod tests {
         let released = Arc::new(Notify::new());
         let body = relay_stream(
             upstream,
-            "test",
+            Some("test"),
             Instant::now() + Duration::from_secs(10),
             Duration::from_secs(10),
             Owner(released.clone()),
@@ -538,7 +560,7 @@ mod tests {
         let bytes = Bytes::from_static(b"event: response.output_text.delta\ndata: hello\n\n");
         let body = relay_stream(
             stream::iter([Ok(bytes.clone()), Err(ProviderError::Transport)]),
-            "test",
+            Some("test"),
             Instant::now() + Duration::from_secs(1),
             Duration::from_secs(10),
             Owner(released.clone()),
@@ -559,7 +581,7 @@ mod tests {
         let released = Arc::new(Notify::new());
         let body = relay_stream(
             stream::once(async { Ok(Bytes::from_static(b"final bytes")) }),
-            "test",
+            Some("test"),
             Instant::now() + Duration::from_millis(30),
             Duration::from_secs(10),
             Owner(released.clone()),
@@ -577,7 +599,7 @@ mod tests {
         let started = Instant::now();
         let body = relay_stream(
             stream::once(async { Ok(Bytes::from_static(b"first")) }).chain(stream::pending()),
-            "test",
+            Some("test"),
             started + Duration::from_secs(3600),
             Duration::from_secs(120),
             Owner(released.clone()),
@@ -602,7 +624,7 @@ mod tests {
             });
         let _body = relay_stream(
             upstream,
-            "test",
+            Some("test"),
             started + Duration::from_secs(3600),
             Duration::from_secs(120),
             Owner(released.clone()),

@@ -185,57 +185,11 @@ async fn models(
     api_format: ApiFormat,
     correlation: &RequestCorrelation,
 ) -> Result<Response, InferenceHttpError> {
-    let (catalog, reservation) = inference
+    let body = inference
         .fetch_model_catalog(gateway_key, api_format, correlation)
         .await
         .map_err(InferenceHttpError::Resolution)?;
-    let body = Body::new(ReservedBody {
-        bytes: catalog,
-        offset: 0,
-        _reservation: reservation,
-    });
     Ok(([(header::CONTENT_TYPE, "application/json")], body).into_response())
-}
-
-/// Hyper copies at most this much of a buffered body ahead of a slow client.
-const RESERVED_BODY_CHUNK_BYTES: usize = 64 * 1024;
-
-/// A buffered response body that keeps its memory reservation until the client
-/// has read it, or the response is dropped.
-struct ReservedBody {
-    bytes: Vec<u8>,
-    offset: usize,
-    _reservation: MemoryReservation,
-}
-
-impl http_body::Body for ReservedBody {
-    type Data = Bytes;
-    type Error = std::convert::Infallible;
-
-    fn poll_frame(
-        mut self: std::pin::Pin<&mut Self>,
-        _: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Option<Result<http_body::Frame<Bytes>, Self::Error>>> {
-        let start = self.offset;
-        let end = self
-            .bytes
-            .len()
-            .min(start.saturating_add(RESERVED_BODY_CHUNK_BYTES));
-        if start == end {
-            return std::task::Poll::Ready(None);
-        }
-        self.offset = end;
-        let chunk = Bytes::copy_from_slice(&self.bytes[start..end]);
-        std::task::Poll::Ready(Some(Ok(http_body::Frame::data(chunk))))
-    }
-
-    fn is_end_stream(&self) -> bool {
-        self.offset == self.bytes.len()
-    }
-
-    fn size_hint(&self) -> http_body::SizeHint {
-        http_body::SizeHint::with_exact((self.bytes.len() - self.offset) as u64)
-    }
 }
 
 async fn relay(

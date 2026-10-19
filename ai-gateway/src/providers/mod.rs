@@ -285,6 +285,17 @@ impl ProviderTransport {
         Ok(downstream)
     }
 
+    /// Relay a gateway-built response body under the execution deadlines, holding
+    /// `owner` until the client has read it or the relay ends.
+    pub(crate) fn relay_buffered<T: Send + 'static>(&self, body: Vec<u8>, owner: T) -> Body {
+        transport::relay_buffered(
+            body,
+            Instant::now() + self.limits.execution.max_execution_time,
+            self.limits.execution.stall_timeout,
+            owner,
+        )
+    }
+
     fn request_url(&self, route: Route) -> String {
         let base = self
             .origin_override
