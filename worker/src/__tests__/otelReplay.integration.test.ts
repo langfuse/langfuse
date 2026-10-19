@@ -596,9 +596,12 @@ describe(
         },
         cost_details: {
           input: 999_999.999999,
-          output: -999_999.999999,
           total: 999_999.999999,
         },
+      });
+      expect(secondRow?.cost_details).toStrictEqual({
+        input: 999_999.999999,
+        total: 999_999.999999,
       });
       expect(secondRow?.input).toBe("plain input");
       expect(secondRow?.output).toBe(
