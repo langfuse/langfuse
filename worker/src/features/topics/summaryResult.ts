@@ -62,14 +62,23 @@ function splitDetails(
     { length: count },
     () => ({}) as Record<string, number>,
   );
-  for (const [key, value] of Object.entries(details)) {
-    const total = Math.round(value * units);
-    const base = Math.floor(total / count);
-    // The remainder goes to the first rows, so the shares add up to the total.
+  const { total, ...parts } = details;
+  const split = (key: string, value: number) => {
+    const scaled = Math.round(value * units);
+    const base = Math.floor(scaled / count);
+    // The remainder goes to the first rows, so the shares add up to the value.
     shares.forEach((share, index) => {
-      share[key] = (base + (index < total - base * count ? 1 : 0)) / units;
+      share[key] = (base + (index < scaled - base * count ? 1 : 0)) / units;
     });
-  }
+  };
+  for (const [key, value] of Object.entries(parts)) split(key, value);
+  if (total === undefined) return shares;
+  const unit = (value: number) => Math.round(value * units);
+  const sum = (values: number[]) => values.reduce((a, b) => a + unit(b), 0);
+  // A total that is the sum of its parts stays the sum of each row's own parts.
+  if (unit(total) === sum(Object.values(parts)))
+    for (const share of shares) share.total = sum(Object.values(share)) / units;
+  else split("total", total);
   return shares;
 }
 

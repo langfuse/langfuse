@@ -121,21 +121,16 @@ async function summarizeTrace(
 ): Promise<(TopicSummary | Error)[]> {
   const results = acceptedSummaries(metrics, facets, traceId, staged);
   const unresolved = () => facets.filter((facet) => !results.has(facet));
-  if (unresolved().length) {
+  if (unresolved().length > 0) {
     try {
       const input = await getTranscript();
       if (isInternalEvalEnvironment(input.environment))
         throw new Error("Topics does not process internal Langfuse traces.");
       const base = (facet: TraceFacet) =>
         baseSummary(execution, traceId, facet.version, input);
-      for (const [facet, summary] of await reuseSummaries(
-        metrics,
-        execution,
-        unresolved(),
-        base,
-      ))
-        results.set(facet, summary);
-      for (const [facet, result] of await summarizePending(
+      // Each step records a facet as soon as it is staged, so a later failure keeps it.
+      await reuseSummaries(metrics, execution, unresolved(), base, results);
+      await summarizePending(
         metrics,
         models,
         execution,
@@ -143,8 +138,8 @@ async function summarizeTrace(
         unresolved(),
         base,
         input,
-      ))
-        results.set(facet, result);
+        results,
+      );
     } catch (error) {
       if (isExecutionFailure(error) && !isTraceModelFailure(error)) throw error;
       metrics.error("summary", error);
@@ -214,9 +209,9 @@ async function reuseSummaries(
   execution: ProcessExecution,
   facets: TraceFacet[],
   base: (facet: TraceFacet) => TopicSummary,
-): Promise<TraceResults> {
-  const results: TraceResults = new Map();
-  if (!execution.input.reuseExistingSummaries) return results;
+  results: TraceResults,
+): Promise<void> {
+  if (!execution.input.reuseExistingSummaries) return;
   for (const facet of facets) {
     const summary = base(facet);
     const reusable = (
@@ -263,7 +258,6 @@ async function reuseSummaries(
       }),
     );
   }
-  return results;
 }
 
 /** Summarizes the remaining facets in one shared call and stages each result. */
@@ -275,9 +269,9 @@ async function summarizePending(
   facets: TraceFacet[],
   base: (facet: TraceFacet) => TopicSummary,
   input: TraceInput,
-): Promise<TraceResults> {
-  const results: TraceResults = new Map();
-  if (!facets.length) return results;
+  results: TraceResults,
+): Promise<void> {
+  if (facets.length === 0) return;
   const summarized = await summarizeTraceFacets({
     models,
     facets,
@@ -325,7 +319,6 @@ async function summarizePending(
       facet,
       await stageSummary(metrics, execution, { ...summary, ...shares[index] }),
     );
-  return results;
 }
 
 async function stageSummary(
@@ -993,7 +986,7 @@ async function processTraces(
                   entry.traceIds.includes(traceId),
               ),
           );
-          if (!todo.length) return;
+          if (todo.length === 0) return;
           let outcomes: (TopicSummary | Error)[];
           try {
             outcomes = await summarizeTrace(

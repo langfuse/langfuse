@@ -300,6 +300,11 @@ describe("summarizeAssembledTrace", () => {
     expect(
       summaries.reduce((sum, row) => sum + row.costDetails.summary_output, 0),
     ).toBeCloseTo(0.00001, 12);
+    // Each row's total stays the sum of its own shares.
+    for (const { usageDetails } of summaries) {
+      const { total, ...parts } = usageDetails;
+      expect(total).toBe(Object.values(parts).reduce((a, b) => a + b, 0));
+    }
   });
 
   it("stores a not-applicable result that carries stray text instead of failing the trace", async () => {
