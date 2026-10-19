@@ -20,7 +20,7 @@ Dark mode: pass `theme="dark"` - `<LangfuseProvider theme="dark">` - so the `dar
 - Compound components hang off the parent: `Alert.Title`/`Alert.Description`, `Tabs.List`/`Tabs.Trigger`/`Tabs.Content`.
 - Booleans are `is*`/`should*` or plain (`loading`, `disabled`); components never carry outer margin - spacing is the parent's job.
 - Prefer a library component over hand-rolled markup: `Button`, `IconButton`, `TextLink`, `Input`, `SearchInput`, `SelectInput`, `Checkbox`, `Switch`, `Tabs`, `Dialog` + `DialogController`, `Tooltip`, `Badge`, `Tag`, `Alert`, `Callout`, `StatusMessage`, `Codeblock`, `Table`, charts (`LineChart`, `BarChart`, `AreaChart`, `PieChart`, ...).
-- Icons are lucide-react components on `window.LangfuseDS.LucideIcons` (the app's only icon set): `const { Plus, Trash2 } = window.LangfuseDS.LucideIcons;` then `<IconButton icon={Trash2} ... />` / `<Button icon={Plus} ... />`. Never draw inline SVGs or use emoji.
+- Icons are typed `@langfuse/icons` wrappers on `window.LangfuseDS.LucideIcons`: `const { Plus, Trash2 } = window.LangfuseDS.LucideIcons;` then `<IconButton icon={Trash2} ... />` / `<Button icon={Plus} ... />`. For standalone icons, use semantic `size` and `color` props, not raw Lucide sizes, colors, `className`, or `style`. Never draw inline SVGs or use emoji.
 
 ## App components (Playground group)
 

@@ -5,6 +5,7 @@ import {
   ChevronRight,
   ChevronsUpDown,
   ChevronUp,
+  type IconColor,
 } from "@langfuse/icons";
 import { type Ref } from "react";
 
@@ -27,6 +28,7 @@ const indicatorVariants = cva("transition-transform", {
 type DropdownIndicatorProps = {
   direction?: keyof typeof icons;
   size?: "base" | "sm";
+  color?: IconColor;
   // Optical nudge for icons sitting next to text in an items-center row.
   nudge?: boolean;
   ref?: Ref<SVGSVGElement>;
@@ -35,6 +37,7 @@ type DropdownIndicatorProps = {
 export function DropdownIndicator({
   direction = "down",
   size,
+  color = "tertiary",
   nudge,
   ref,
 }: DropdownIndicatorProps) {
@@ -43,7 +46,7 @@ export function DropdownIndicator({
     <Icon
       aria-hidden
       size={size}
-      color="tertiary"
+      color={color}
       __rawClassName={indicatorVariants({ nudge })}
       ref={ref}
     />

@@ -262,7 +262,9 @@ export function MultiSelectTagInput<V extends string>({
                   <TagShell>+{hiddenOptionCount}</TagShell>
                 </span>
               )}
-              {value.length === 0 && <DropdownIndicator />}
+              {value.length === 0 && (
+                <DropdownIndicator color={error ? "destructive" : "tertiary"} />
+              )}
               {value.length > 0 && (
                 <button
                   type="button"

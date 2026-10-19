@@ -68,7 +68,13 @@ import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { showErrorToast } from "@/src/features/notifications";
 import { type FilterState } from "@langfuse/shared";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
-import { Plus, X, AlertCircle, Sparkles } from "@langfuse/icons";
+import {
+  Plus,
+  X,
+  AlertCircle,
+  Sparkles,
+  type IconComponent,
+} from "@langfuse/icons";
 import { dashboardWidgetChartTypeIcons } from "@/src/features/widgets/chart-library/chartTypeIcons";
 import {
   Popover,
@@ -120,7 +126,7 @@ type ChartType = {
   group: "time-series" | "total-value";
   name: string;
   value: DashboardWidgetChartType;
-  icon: React.ElementType;
+  icon: IconComponent;
 };
 
 // chartTypes drives the chart-type SelectGroup rendering (group/name/value/
@@ -1893,8 +1899,8 @@ function ChartTypeSelect({
               .filter((item) => item.group === "time-series")
               .map((chart) => (
                 <SelectItem key={chart.value} value={chart.value}>
-                  <div className="flex items-center">
-                    {React.createElement(chart.icon, { className: "mr-2 w-4" })}
+                  <div className="flex items-center gap-2">
+                    <chart.icon size="base" />
                     <span>{chart.name}</span>
                   </div>
                 </SelectItem>
@@ -1912,8 +1918,8 @@ function ChartTypeSelect({
                     chart.value === "HISTOGRAM" && !measureSupportsHistogram
                   }
                 >
-                  <div className="flex items-center">
-                    {React.createElement(chart.icon, { className: "mr-2 w-4" })}
+                  <div className="flex items-center gap-2">
+                    <chart.icon size="base" />
                     <span>{chart.name}</span>
                   </div>
                 </SelectItem>
