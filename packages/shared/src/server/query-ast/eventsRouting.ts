@@ -12,21 +12,18 @@
  *   e.input = 'x', select e.input        → events_full
  *
  * A qualifier resolves to the innermost FROM/JOIN alias (or unaliased table
- * name) of that name; an unqualified column resolves to the single relation
- * of its select. Shapes that cannot be resolved to one relation are rejected
+ * name) of that name. Shapes that cannot be resolved to one relation are rejected
  * rather than routed to `events_full`, so `events_full` is read only where a
  * query needs it:
  * - `*`, `e.*` or `COLUMNS(…)` over a logical relation (`count(*)` reads no
  *   column);
- * - an unqualified truncated column when its select has more than one
- *   relation, or an enclosing select reads a logical relation;
+ * - an unqualified truncated column while a logical relation is in scope;
  * - a column qualified by `events_core` / `events_full` that names no
  *   relation in scope: ClickHouse resolves a qualifier by table name even
  *   when the table is aliased, so it would reach the routed relation;
  * - raw SQL text or identifiers (`sql` templates, `sql.raw`, `sql.id`,
  *   `sql.table`) in or under a select that reads a logical relation.
- *   `sql.ref` and bound values resolve like builder references. A function
- *   name that is not a plain identifier counts as raw SQL.
+ *   `sql.ref` and bound values resolve like builder references.
  *
  * Callers that want the truncated copy on purpose name `events_core`;
  * physical `events_core` / `events_full` references pass through unchanged.
@@ -66,15 +63,25 @@ import { ClickHouseOperationNodeTransformer } from "./transformer";
 
 const LOGICAL_EVENTS = "events";
 const PHYSICAL_EVENTS = new Set(["events_core", "events_full"]);
-const PLAIN_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 export class EventsTableRoutingPlugin implements KyselyPlugin {
   transformQuery(args: PluginTransformQueryArgs): RootOperationNode {
-    const analysis = new EventsReadAnalysis();
-    analysis.transformNode(args.node);
-    if (!analysis.readsLogicalEvents) return args.node;
-    return new EventsTableRouter(analysis.fullRelations).transformNode(
+    // Builders share unchanged child nodes, so one relation node can sit at
+    // two places in the tree. A plain transform rebuilds every node, giving
+    // each place its own node to key routing on.
+    const tree = new ClickHouseOperationNodeTransformer().transformNode(
       args.node,
+    );
+    const analysis = new EventsReadAnalysis();
+    analysis.transformNode(tree);
+    if (!analysis.readsLogicalEvents) return args.node;
+    if (analysis.physicalEventsCte) {
+      throw new QueryCompileError(
+        `A CTE named "${analysis.physicalEventsCte}" would capture the routed logical "${LOGICAL_EVENTS}" relation; rename the CTE.`,
+      );
+    }
+    return new EventsTableRouter(analysis.fullRelations).transformNode(
+      tree,
     ) as RootOperationNode;
   }
 
@@ -89,6 +96,8 @@ export class EventsTableRoutingPlugin implements KyselyPlugin {
  */
 class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
   readsLogicalEvents = false;
+  /** Name of a CTE that shadows `events_core` / `events_full`. */
+  physicalEventsCte: string | undefined;
   /** Logical relations that read a truncated column. */
   readonly fullRelations = new Set<OperationNode>();
   /** Relations of each enclosing select, innermost last. */
@@ -103,7 +112,7 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
       this.transformNode(lookup.index, queryId);
       return node;
     }
-    assertNotLogicalEventsCte(node);
+    if (CommonTableExpressionNode.is(node)) this.checkCteName(node);
     return super.transformNodeImpl(node, queryId);
   }
 
@@ -157,14 +166,14 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
   }
 
   /**
-   * Checks the name like any function ({@link checkFunctionName}). `count(*)`
+   * Rejects `columns` like any function ({@link rejectColumnsMatcher}). `count(*)`
    * reads no column; its clauses are walked as usual.
    */
   protected override transformAggregateFunction(
     node: AggregateFunctionNode,
     queryId?: QueryId,
   ): AggregateFunctionNode {
-    this.checkFunctionName(node.func);
+    this.rejectColumnsMatcher(node.func);
     if (isCountStar(node)) {
       super.transformAggregateFunction({ ...node, aggregated: [] }, queryId);
       return node;
@@ -188,7 +197,7 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
     node: FunctionNode,
     queryId?: QueryId,
   ): FunctionNode {
-    this.checkFunctionName(node.func);
+    this.rejectColumnsMatcher(node.func);
     return super.transformFunction(node, queryId);
   }
 
@@ -228,26 +237,26 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
   }
 
   private resolveUnqualified(column: string): Relation | undefined {
-    const own = this.scopes.at(-1) ?? [];
-    if (own.length === 1 && own[0].logical) return own[0];
     if (this.readsLogicalInScope()) {
       throw new QueryCompileError(
-        `Qualify "${column}": it is truncated in events_core, and the routing pass resolves an unqualified column only when the logical "${LOGICAL_EVENTS}" relation is the one relation of its select.`,
+        `Qualify "${column}": it is truncated in events_core, so the routing pass needs to know which relation reads it while the logical "${LOGICAL_EVENTS}" relation is in scope.`,
       );
     }
     return undefined;
   }
 
-  /**
-   * The compiler writes a function name verbatim, so a name that is not a
-   * plain identifier is raw SQL; `columns` expands like `*`.
-   */
-  private checkFunctionName(func: string): void {
-    if (!PLAIN_IDENTIFIER.test(func) && this.readsLogicalInScope()) {
+  private checkCteName(node: CommonTableExpressionNode): void {
+    const name = node.name.table.table.identifier.name;
+    if (name === LOGICAL_EVENTS) {
       throw new QueryCompileError(
-        `Function name "${func}" is not a plain identifier, so the routing pass cannot see what it reads in a select over the logical "${LOGICAL_EVENTS}" relation.`,
+        `A CTE cannot be named "${LOGICAL_EVENTS}": the name is the logical events relation.`,
       );
     }
+    if (PHYSICAL_EVENTS.has(name)) this.physicalEventsCte = name;
+  }
+
+  /** `columns(…)` expands like `*`. */
+  private rejectColumnsMatcher(func: string): void {
     if (func.toLowerCase() === "columns") this.rejectStar(`${func}(…)`);
   }
 
@@ -260,17 +269,6 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
     if (this.scopes.at(-1)?.some((relation) => relation.logical)) {
       throw starError(star);
     }
-  }
-}
-
-function assertNotLogicalEventsCte(node: OperationNode): void {
-  if (
-    CommonTableExpressionNode.is(node) &&
-    node.name.table.table.identifier.name === LOGICAL_EVENTS
-  ) {
-    throw new QueryCompileError(
-      `A CTE cannot be named "${LOGICAL_EVENTS}": the name is the logical events relation.`,
-    );
   }
 }
 

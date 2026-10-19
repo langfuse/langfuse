@@ -231,35 +231,6 @@ describe("logical events routing", () => {
     ).toThrow(QueryCompileError);
   });
 
-  it.each(["columns ", "tuple(e.input), length"])(
-    "rejects the function name %j in a select that reads events",
-    (name) => {
-      // A name reaches the SQL unchecked: ClickHouse reads "columns " as the
-      // COLUMNS matcher, and the second name reads e.input itself.
-      expect(() =>
-        compile(
-          db
-            .selectFrom("events as e")
-            .select((eb) => eb.fn<string>(name, [eb.val("^inp")]).as("x")),
-        ),
-      ).toThrow(QueryCompileError);
-      expect(() =>
-        compile(
-          db
-            .selectFrom("events as e")
-            .select((eb) => eb.fn.agg<string>(name, [eb.val("^inp")]).as("x")),
-        ),
-      ).toThrow(QueryCompileError);
-      expect(() =>
-        compile(
-          db
-            .selectFrom("scores as s")
-            .select((eb) => eb.fn<string>(name, [eb.val("^inp")]).as("x")),
-        ),
-      ).not.toThrow();
-    },
-  );
-
   it.each([
     "events_core.input",
     "default.events_core.input",
@@ -311,10 +282,10 @@ describe("logical events routing", () => {
     ).toEqual(["events_core"]);
   });
 
-  it("routes an unqualified truncated column of the only relation", () => {
-    expect(
-      routedTables(compile(db.selectFrom("events").select("input"))),
-    ).toEqual(["events_full"]);
+  it("rejects an unqualified truncated column of the only relation", () => {
+    expect(() => compile(db.selectFrom("events").select("input"))).toThrow(
+      QueryCompileError,
+    );
   });
 
   it("routes a table-qualified read of an unaliased logical relation", () => {
@@ -323,17 +294,15 @@ describe("logical events routing", () => {
     ).toEqual(["events_full"]);
   });
 
-  it("routes an unqualified limit by column of the only relation", () => {
-    expect(
-      routedTables(
-        compile(
-          db
-            .selectFrom("events")
-            .select("span_id")
-            .$call(limitBy({ count: 1, columns: ["input"] })),
-        ),
+  it("rejects an unqualified limit by column of the only relation", () => {
+    expect(() =>
+      compile(
+        db
+          .selectFrom("events")
+          .select("span_id")
+          .$call(limitBy({ count: 1, columns: ["input"] })),
       ),
-    ).toEqual(["events_full"]);
+    ).toThrow(QueryCompileError);
     expect(() =>
       compile(
         db
@@ -342,6 +311,23 @@ describe("logical events routing", () => {
           .$call(limitBy({ count: 1, columns: ["*"] })),
       ),
     ).toThrow(QueryCompileError);
+  });
+
+  it("routes each use of a shared builder by its own reads", () => {
+    // Both CTEs hold the same FROM node.
+    const base = db.selectFrom("events as e");
+    expect(
+      routedTables(
+        compile(
+          db
+            .with("a", () => base.select(["e.span_id", "e.input"]))
+            .with("b", () => base.select(["e.span_id"]))
+            .selectFrom("a")
+            .innerJoin("b", "a.span_id", "b.span_id")
+            .select("a.span_id"),
+        ),
+      ),
+    ).toEqual(["events_full", "events_core"]);
   });
 
   it("rejects an unqualified truncated column in a subquery under a select that reads events", () => {
@@ -487,6 +473,22 @@ describe("logical events routing", () => {
       ),
     ).toThrow(QueryCompileError);
   });
+
+  it.each(["events_core", "events_full"] as const)(
+    "rejects a CTE named %s alongside a logical relation",
+    (name) => {
+      // The routed relation would read the CTE instead of the table.
+      const withCte = db.with(name, (qb) =>
+        qb.selectFrom("scores as s").select("s.id"),
+      );
+      expect(() =>
+        compile(withCte.selectFrom("events as e").select("e.span_id")),
+      ).toThrow(QueryCompileError);
+      expect(() =>
+        compile(withCte.selectFrom(name).select("id")),
+      ).not.toThrow();
+    },
+  );
 });
 
 describe("logical events routing of metadata predicates", () => {

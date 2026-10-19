@@ -16,6 +16,7 @@ import {
   SetOperationNode,
   TableNode,
   ValueNode,
+  type CollateNode,
   type CommonTableExpressionNode,
   type OperationNode,
   type PrimitiveValueListNode,
@@ -42,6 +43,8 @@ const ARRAY_JOIN_SQL: Record<ArrayJoinNode["variant"], string> = {
   left: "left array join",
   inner: "inner array join",
 };
+
+const PLAIN_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 const DATE_WRAPPER_FNS = new Set([
   "toDate",
@@ -272,6 +275,26 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
 
   protected override getRightIdentifierWrapper(): string {
     return "";
+  }
+
+  /**
+   * Function, aggregate and collation names are written verbatim, so a name
+   * that is not a plain identifier would be raw SQL: `fn("tuple(e.input), f")`
+   * emits `tuple(e.input), f(…)`.
+   */
+  protected override visitFunction(node: FunctionNode): void {
+    assertPlainName("Function", node.func);
+    super.visitFunction(node);
+  }
+
+  protected override visitAggregateFunction(node: AggregateFunctionNode): void {
+    assertPlainName("Aggregate function", node.func);
+    super.visitAggregateFunction(node);
+  }
+
+  protected override visitCollate(node: CollateNode): void {
+    assertPlainName("Collation", node.collation.name);
+    super.visitCollate(node);
   }
 
   protected override appendValue(parameter: unknown): void {
@@ -735,4 +758,12 @@ function withoutCte(scope: SelectScope, name: string): SelectScope {
     cte: (other) => (other === name ? undefined : scope.cte(other)),
     relations: new Map(),
   };
+}
+
+function assertPlainName(kind: string, name: string): void {
+  if (!PLAIN_IDENTIFIER.test(name)) {
+    throw new QueryCompileError(
+      `${kind} name "${name}" is not a plain identifier; the compiler writes it verbatim into the SQL.`,
+    );
+  }
 }

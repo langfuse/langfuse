@@ -93,9 +93,13 @@ suffix to run there. Promote it to a required check once it has proven stable.
   `metadataValue` stay on `events_core` when
   `metadataFilterIsEventsCoreSafe` accepts the value, as in the raw-SQL
   builders. `*` / `e.*` over `events`, raw SQL text in a select that reads
-  it, and an unqualified truncated column with more than one relation in
-  scope are compile errors. Name `events_core` to read the truncated copy on
-  purpose; `events_core` / `events_full` stay selectable by name.
+  it, an unqualified truncated column, and a CTE named `events_core` /
+  `events_full` are compile errors while `events` is in scope. Name
+  `events_core` to read the truncated copy on purpose; `events_core` /
+  `events_full` stay selectable by name, which is also the override for a
+  shape the pass rejects.
+- **Function, aggregate and collation names must be plain identifiers.**
+  The compiler writes them verbatim, so anything else fails to compile.
 - **Never filter `is_deleted` on a physical table yourself.** Tables that
   declare `softDelete` in the registry (`events_core`, `events_full`) get
   `is_deleted = 0` on every FROM/JOIN. A latest-version read (ordered by

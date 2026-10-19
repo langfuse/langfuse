@@ -846,3 +846,42 @@ describe("ARRAY JOIN and LIMIT BY nodes", () => {
     expect(() => useFinal(["events_core"])).toThrow(/immutable/);
   });
 });
+
+describe("names the compiler writes verbatim", () => {
+  const db = getClickhouseKysely();
+
+  it.each(["columns ", "tuple(s.comment), length", "default.f"])(
+    "rejects the function name %j",
+    (name) => {
+      expect(() =>
+        compileClickhouseQuery(
+          db
+            .selectFrom("scores as s")
+            .select((eb) => eb.fn<string>(name, [eb.val("x")]).as("x")),
+          projectId,
+        ),
+      ).toThrow(QueryCompileError);
+      expect(() =>
+        compileClickhouseQuery(
+          db
+            .selectFrom("scores as s")
+            .select((eb) => eb.fn.agg<string>(name, [eb.val("x")]).as("x")),
+          projectId,
+        ),
+      ).toThrow(QueryCompileError);
+    },
+  );
+
+  it("rejects a collation that is not a plain identifier", () => {
+    const sorted = (collation: string) =>
+      compileClickhouseQuery(
+        db
+          .selectFrom("scores as s")
+          .select("s.id")
+          .orderBy("s.name", (ob) => ob.collate(collation)),
+        projectId,
+      );
+    expect(() => sorted("'en', s.comment")).toThrow(QueryCompileError);
+    expect(sorted("en").sql).toMatch(/collate en/);
+  });
+});
