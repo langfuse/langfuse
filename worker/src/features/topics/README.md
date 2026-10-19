@@ -205,13 +205,7 @@ It appears in History under the `system:topics` actor. Active discoveries schedu
 a follow-up before dispatch, so a lost queue job or capacity failure is checked
 even without another incoming batch. Each capacity failure can create one new
 request after the cooldown, starting the search at half the failed window's
-duration. Numerical fit deadlines and unexpected `SIGKILL` exits also permit
-recovery, including already-recorded failures.
-These retries keep the failed window's end fixed, search only its newest half,
-and target at most half its fitted summary count. They stop when that target is
-below 100 or no smaller window can fit; resume from History or start a manual
-update to try again. Malformed or oversized numerical output and other native
-errors do not trigger this recovery. Requests keep their selected windows unchanged. If no admissible
+duration. Requests keep their selected windows unchanged. If no admissible
 window exists, discovery waits for another summary batch; other failures are
 resumed from History. An existing map or fit in progress for the version, even an
 incompatible one, blocks discovery; replace it with **Update topics**. Summaries

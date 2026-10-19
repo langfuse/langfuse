@@ -11,18 +11,6 @@ type NumericResult = z.infer<typeof numericResultSchema>;
 
 export const TOPICS_NUMERIC_VERSION = "3-holomap-0.3.0-hdbscan-rs-0.6.1";
 
-/** Persisted fitter diagnostics distinguish resource limits from invalid output. */
-export function isTopicClusteringResourceFailure(
-  message: string | null,
-): boolean {
-  return (
-    message === "Topics numerical fit exceeded 120 seconds" ||
-    message?.startsWith(
-      "Topics numerical fit failed (exit code null, signal SIGKILL): ",
-    ) === true
-  );
-}
-
 export const topicClusterSettings = (
   exploratory: boolean,
   minimumCount = exploratory ? 10 : 100,

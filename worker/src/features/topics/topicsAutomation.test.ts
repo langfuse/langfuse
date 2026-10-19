@@ -129,7 +129,7 @@ describe("automatic Topics assignment", () => {
     vi.clearAllMocks();
     vi.mocked(listTopicSummaries).mockReset();
     vi.mocked(getTopicProcessingMapIds).mockResolvedValue([]);
-    vi.mocked(getTopicClusteringSummaryStats).mockReset().mockResolvedValue({
+    vi.mocked(getTopicClusteringSummaryStats).mockResolvedValue({
       count: 100,
       bytes: 1000,
     });
@@ -416,68 +416,36 @@ describe("automatic Topics assignment", () => {
   });
 
   it.each([
-    { error: "Topics numerical fit exceeded 120 seconds" },
-    { error: "Topics numerical fit failed (exit code null, signal SIGKILL): " },
+    "Topics numerical fit exceeded 120 seconds",
+    "Topics numerical fit failed (exit code null, signal SIGKILL): ",
+    "Topics numerical fit returned oversized output",
   ])(
-    "recovers a fit resource failure with fewer members: %j",
-    async (failure) => {
-      const to = new Date("2026-10-14T00:00:00.000Z");
-      const day = 24 * 60 * 60_000;
-      const existing = {
+    "does not infer an oversized cohort from a numerical failure: %s",
+    async (error) => {
+      vi.mocked(prisma.batchAction.findFirst).mockResolvedValue({
+        id: "failed-fit",
+      } as never);
+      vi.mocked(readTopicExecutionSummary).mockResolvedValue({
         id: "failed-fit",
         status: "completed_with_errors",
-        input: {
-          operation: "update",
-          timeRange: { from: new Date(+to - 7 * day), to },
-        },
+        input: { operation: "update", timeRange: batch.timeRange },
         facets: [
           {
             facetId: "facet",
             facetVersion: 2,
             outcome: "failed",
+            error,
             counts: { requested: 800 },
-            ...failure,
           },
         ],
-      } as unknown as TopicExecutionSummary;
-      vi.mocked(prisma.batchAction.findFirst).mockResolvedValue({
-        id: existing.id,
-      } as never);
-      vi.mocked(readTopicExecutionSummary).mockResolvedValue(existing);
-      // Halving the time window alone can retain a dense burst of all 800 traces.
-      vi.mocked(getTopicClusteringSummaryStats)
-        .mockResolvedValueOnce({ count: 800, bytes: 1000 })
-        .mockResolvedValue({ count: 400, bytes: 500 });
+      } as unknown as TopicExecutionSummary);
 
       await processTopicsAutomation(batch);
 
-      const probes = vi.mocked(getTopicClusteringSummaryStats).mock.calls;
-      expect(probes).toHaveLength(2);
-      expect(probes[0][4]).toEqual({ from: new Date(+to - 3.5 * day), to });
-      expect(probes[0][5]).toMatchObject({ maxRows: 400 });
-      expect(probes[1][4]).toEqual({ from: new Date(+to - 1.75 * day), to });
-      expect(createTopicExecution).toHaveBeenCalledWith(
-        expect.objectContaining({ timeRange: probes[1][4] }),
-        expect.any(String),
-        "system:topics",
-      );
-
-      // A failed minimum-sized fit must stop, rather than repeatedly fitting 100 rows.
-      vi.clearAllMocks();
-      existing.facets[0].counts.requested = 100;
-      await processTopicsAutomation(batch);
+      expect(discoveryGate).not.toHaveBeenCalled();
       expect(getTopicClusteringSummaryStats).not.toHaveBeenCalled();
       expect(createTopicExecution).not.toHaveBeenCalled();
-
-      // A sparse newest half cannot expand back into the expensive failed cohort.
-      vi.clearAllMocks();
-      existing.facets[0].counts.requested = 800;
-      vi.mocked(getTopicClusteringSummaryStats)
-        .mockResolvedValueOnce({ count: 50, bytes: 500 })
-        .mockResolvedValue({ count: 100, bytes: 1000 });
-      await processTopicsAutomation(batch);
-      expect(getTopicClusteringSummaryStats).toHaveBeenCalledTimes(1);
-      expect(createTopicExecution).not.toHaveBeenCalled();
+      expect(add).not.toHaveBeenCalled();
     },
   );
 
