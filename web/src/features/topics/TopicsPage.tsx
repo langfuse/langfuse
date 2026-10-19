@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Settings } from "lucide-react";
+import { Settings } from "@langfuse/icons";
 import { type UseQueryResult } from "@tanstack/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
@@ -437,9 +437,7 @@ function TopicsWorkspaceContent({
                     {configured ? (
                       <HeaderActionMenuRow
                         label="Configure Topics"
-                        icon={
-                          <Settings className="icon-base text-icon-foreground" />
-                        }
+                        icon={<Settings size="base" color="default" />}
                         onClick={handleConfigureFromMenu}
                       />
                     ) : null}

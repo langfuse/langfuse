@@ -25,7 +25,7 @@ import {
   Square,
   Trash2,
   X,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import textShimmerStyles from "@/src/components/ui/text-shimmer.module.css";
 import {
@@ -186,10 +186,7 @@ function InAppAgentQuickActionPicker({
               }}
             >
               <span className="bg-muted text-primary-accent flex size-7 shrink-0 items-center justify-center rounded-md">
-                <ActionIcon
-                  className="icon-base text-icon-foreground"
-                  aria-hidden="true"
-                />
+                <ActionIcon size="base" color="default" aria-hidden="true" />
               </span>
               <span className="min-w-0 flex-1">
                 <span className="text-foreground block text-xs leading-snug font-bold">
@@ -204,7 +201,9 @@ function InAppAgentQuickActionPicker({
               </span>
               <ArrowRight
                 aria-hidden="true"
-                className="icon-base text-muted-foreground shrink-0 transition-transform group-hover:translate-x-0.5"
+                size="base"
+                color="muted"
+                __rawClassName="transition-transform group-hover:translate-x-0.5"
               />
             </Button>
           );
@@ -416,8 +415,10 @@ function AssistantActivityGroup({
         </span>
         <ChevronRight
           aria-hidden="true"
-          className={cn(
-            "text-foreground-tertiary icon-base translate-y-px transition-transform",
+          size="base"
+          color="tertiary"
+          __rawClassName={cn(
+            "translate-y-px transition-transform",
             isOpen && "rotate-90",
           )}
         />
@@ -593,7 +594,7 @@ function ConversationScroller({
             );
           }}
         >
-          <ArrowDown className="icon-base text-icon-foreground" />
+          <ArrowDown size="base" color="default" />
           Latest
         </Button>
       ) : null}
@@ -716,7 +717,7 @@ function InAppAgentRateLimitError({
 
   return (
     <InAppAgentNotice
-      icon={<Info aria-hidden="true" className="icon-sm shrink-0" />}
+      icon={<Info aria-hidden="true" size="sm" />}
       isExpanded={isExpanded}
       role="alert"
       tone="neutral"
@@ -736,7 +737,7 @@ function InAppAgentRateLimitError({
 function InAppAgentIssueNotice({ isExpanded }: { isExpanded: boolean }) {
   return (
     <InAppAgentNotice
-      icon={<Info aria-hidden="true" className="icon-sm shrink-0" />}
+      icon={<Info aria-hidden="true" size="sm" />}
       isExpanded={isExpanded}
       role="alert"
       tone="danger"
@@ -982,7 +983,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 onClick={onNewConversation}
                 aria-label="Start new conversation"
               >
-                <Plus className="icon-base text-icon-foreground" />
+                <Plus size="base" color="default" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>Start new conversation</TooltipContent>
@@ -1009,7 +1010,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     // nested badge aria-label is ignored once the parent has one.
                     aria-label={`Conversation history${historyAttentionSuffix}`}
                   >
-                    <History className="icon-base text-icon-foreground" />
+                    <History size="base" color="default" />
                     {/* Launcher badge, scaled to the 24px trigger. Visual only —
                         accessible name is on the button. */}
                     {historyAttentionCount > 0 && (
@@ -1082,7 +1083,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                           onDeleteConversation(conversation);
                         }}
                       >
-                        <Trash2 className="icon-sm text-icon-foreground" />
+                        <Trash2 size="sm" color="default" />
                       </Button>
                     </DropdownMenuItem>
                   );
@@ -1116,9 +1117,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   }}
                 >
                   {isExpanded ? (
-                    <Minimize2 className="icon-base text-icon-foreground" />
+                    <Minimize2 size="base" color="default" />
                   ) : (
-                    <Maximize2 className="icon-base text-icon-foreground" />
+                    <Maximize2 size="base" color="default" />
                   )}
                 </Button>
               </TooltipTrigger>
@@ -1141,9 +1142,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   onClick={props.onClose}
                 >
                   {isHandheld ? (
-                    <X className="icon-base text-icon-foreground" />
+                    <X size="base" color="default" />
                   ) : (
-                    <Minus className="icon-base text-icon-foreground" />
+                    <Minus size="base" color="default" />
                   )}
                 </Button>
               </TooltipTrigger>
@@ -1309,12 +1310,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
           <InAppAgentNotice
             icon={
               backgroundNotice.tone === "warning" ? (
-                <TriangleAlert
-                  aria-hidden="true"
-                  className="icon-sm shrink-0"
-                />
+                <TriangleAlert aria-hidden="true" size="sm" />
               ) : (
-                <Info aria-hidden="true" className="icon-sm shrink-0" />
+                <Info aria-hidden="true" size="sm" />
               )
             }
             isExpanded={isExpanded}
@@ -1411,7 +1409,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             />
             <div className="bg-muted flex min-h-9 w-full items-center justify-between gap-2 px-2 py-1.5">
               <p className="text-muted-foreground flex min-w-0 items-center gap-1 text-xs">
-                <Info aria-hidden="true" className="icon-sm shrink-0" />
+                <Info aria-hidden="true" size="sm" />
                 <span className="truncate" title={screenContextNotice}>
                   {screenContextNotice}
                 </span>
@@ -1428,7 +1426,11 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     executionStop?.onStop();
                   }}
                 >
-                  <Square className="icon-base text-muted-foreground fill-current" />
+                  <Square
+                    size="base"
+                    color="muted"
+                    __rawClassName="fill-current"
+                  />
                 </Button>
               ) : (
                 <Button
@@ -1438,7 +1440,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   aria-label="Send message"
                   disabled={isSubmitDisabled || !input.trim()}
                 >
-                  <SendHorizontal className="icon-base" />
+                  <SendHorizontal size="base" />
                 </Button>
               )}
             </div>

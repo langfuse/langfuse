@@ -5,6 +5,8 @@
 # (it has its own stories). Run from anywhere.
 set -euo pipefail
 cd "$(dirname "$0")"
+# Icon exports are generated and gitignored; previews need them before bundling.
+pnpm --dir ../.. exec turbo run build --filter=@langfuse/icons
 D=../../web/src/components/design-system
 # Browser `process` shim: Next/next-auth/env.mjs read process.env at module
 # scope. NEXT_PUBLIC_* values mirror what the Storybook build inlines (it runs
@@ -99,7 +101,7 @@ ui/drawer Drawer, DrawerController, DrawerTrigger, DrawerClose, DrawerContent, D
 ui/sidebar SidebarProvider, SidebarInset
 EOF
   echo "export { LangfuseProvider } from \"./LangfuseProvider\";"
-  # Icon props (Button/IconButton `icon`, ...) take lucide components; the
+  # Icon props (Button/IconButton `icon`, ...) take typed icon wrappers; the
   # namespace export avoids clashes with DS names like Table/Tag.
-  echo "export * as LucideIcons from \"lucide-react\";"
+  echo "export * as LucideIcons from \"@langfuse/icons\";"
 } > index.ts

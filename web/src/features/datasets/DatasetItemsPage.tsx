@@ -5,7 +5,7 @@ import { DetailPageNav } from "@/src/features/navigate-detail-pages";
 import { NewDatasetItemButton } from "@/src/features/datasets/components/NewDatasetItemButton";
 import { UploadDatasetCsvButton } from "@/src/features/datasets/components/UploadDatasetCsvButton";
 import { Button } from "@/src/components/ui/button";
-import { History, MoreVertical } from "lucide-react";
+import { History, MoreVertical } from "@langfuse/icons";
 import Page from "@/src/components/layouts/page";
 import { DatasetItemsOnboarding } from "@/src/components/onboarding/DatasetItemsOnboarding";
 import { SidePanel, SidePanelContent } from "@/src/components/ui/side-panel";
@@ -131,7 +131,7 @@ function DatasetItemsView({
                   aria-label="Dataset actions"
                   {...getTriggerProps()}
                 >
-                  <MoreVertical className="icon-base text-icon-foreground" />
+                  <MoreVertical size="base" color="default" />
                 </Button>
               )}
             </DatasetActionMenu>
@@ -141,7 +141,7 @@ function DatasetItemsView({
               onClick={() => setIsVersionPanelOpen(!isVersionPanelOpen)}
               title="Version History"
             >
-              <History className="icon-base text-icon-foreground" />
+              <History size="base" color="default" />
             </Button>
           </>
         ),

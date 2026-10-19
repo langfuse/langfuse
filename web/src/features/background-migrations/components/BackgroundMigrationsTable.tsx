@@ -8,7 +8,7 @@ import { RetryBackgroundMigrationPopoverController } from "@/src/features/backgr
 import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
 import Page from "@/src/components/layouts/page";
 import { Button } from "@/src/components/ui/button";
-import { RotateCcw } from "lucide-react";
+import { RotateCcw } from "@langfuse/icons";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 
 export default function BackgroundMigrationsTable() {
@@ -74,7 +74,7 @@ export default function BackgroundMigrationsTable() {
             {({ disabled, Trigger }) => (
               <Trigger asChild>
                 <Button variant="ghost" size="xs" disabled={disabled}>
-                  <RotateCcw className="icon-sm text-icon-foreground" />
+                  <RotateCcw size="sm" color="default" />
                 </Button>
               </Trigger>
             )}

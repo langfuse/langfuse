@@ -1,6 +1,6 @@
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { EvalTargetObject, EvalTemplateType } from "@langfuse/shared";
-import { Link2, Plus, Unlink } from "lucide-react";
+import { Link2, Plus, Unlink } from "@langfuse/icons";
 import { useRouter } from "next/router";
 import { useState } from "react";
 import { useDebounce } from "@/src/hooks/useDebounce";
@@ -268,7 +268,7 @@ function EvaluatorRuleRelationshipsSheet({
                           })
                         }
                       >
-                        <Unlink className="icon-base text-icon-foreground" />
+                        <Unlink size="base" color="default" />
                         Disconnect
                       </Button>
                     </li>
@@ -340,7 +340,7 @@ function EvaluatorRuleRelationshipsSheet({
                         disabled={!hasWriteAccess}
                       >
                         <span className="flex items-center gap-2 text-sm font-bold">
-                          <Link2 className="icon-base" />
+                          <Link2 size="base" />
                           Attach to rule
                         </span>
                         <span className="text-muted-foreground text-sm font-normal">
@@ -355,7 +355,11 @@ function EvaluatorRuleRelationshipsSheet({
                         className="text-foreground hover:text-foreground h-auto w-full justify-start px-0 py-0 text-xs underline-offset-4 hover:bg-transparent hover:underline"
                         disabled={!hasWriteAccess}
                       >
-                        <Plus className="icon-base text-icon-foreground mr-1.5" />
+                        <Plus
+                          size="base"
+                          color="default"
+                          __rawClassName="mr-1.5"
+                        />
                         Attach another rule
                       </Button>
                     )}

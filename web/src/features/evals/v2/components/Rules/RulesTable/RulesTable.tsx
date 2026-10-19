@@ -1,7 +1,13 @@
 /* eslint-disable no-nested-ternary */
 import { useMemo, useRef, useState } from "react";
 import { formatDistanceToNowStrict } from "date-fns";
-import { Copy, ExternalLink, MoreVertical, Pencil, Trash2 } from "lucide-react";
+import {
+  Copy,
+  ExternalLink,
+  MoreVertical,
+  Pencil,
+  Trash2,
+} from "@langfuse/icons";
 import { useRouter } from "next/router";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { DataTable } from "@/src/components/table/data-table";
@@ -395,7 +401,7 @@ export function RulesTable({
                   router.push(ruleExecutionsUrl(projectId, row.original.id));
                 }}
               >
-                View traces <ExternalLink className="icon-base ml-1" />
+                View traces <ExternalLink size="base" __rawClassName="ml-1" />
               </Button>
               <DropdownMenu
                 placement="bottom-end"
@@ -442,7 +448,7 @@ export function RulesTable({
                     aria-label={`Actions for ${row.original.name}`}
                     {...getTriggerProps()}
                   >
-                    <MoreVertical className="icon-sm text-icon-foreground" />
+                    <MoreVertical size="sm" color="default" />
                   </Button>
                 )}
               </DropdownMenu>

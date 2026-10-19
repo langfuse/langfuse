@@ -9,7 +9,7 @@ import {
   getCoreRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { ArrowDown, ArrowUp, ArrowUpDown, MoreVertical } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, MoreVertical } from "@langfuse/icons";
 import { type ComponentProps, useMemo } from "react";
 
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
@@ -127,7 +127,8 @@ export function Table<TData extends object>({
         loadingCell: (
           <div className="ml-auto flex h-4 w-6 items-center justify-center">
             <MoreVertical
-              className="text-muted-foreground/30 icon-base animate-pulse"
+              size="base"
+              __rawClassName="text-muted-foreground/30 animate-pulse"
               aria-hidden="true"
             />
           </div>
@@ -232,19 +233,22 @@ export function Table<TData extends object>({
                             </span>
                             {!isSorted && (
                               <ArrowUpDown
-                                className="icon-sm ml-1.5 shrink-0 opacity-40 transition-opacity group-hover/sort:opacity-70"
+                                size="sm"
+                                __rawClassName="ml-1.5 opacity-40 transition-opacity group-hover/sort:opacity-70"
                                 aria-hidden="true"
                               />
                             )}
                             {isSorted && orderBy.order === "ASC" && (
                               <ArrowUp
-                                className="icon-sm ml-1.5 shrink-0"
+                                size="sm"
+                                __rawClassName="ml-1.5"
                                 aria-hidden="true"
                               />
                             )}
                             {isSorted && orderBy.order === "DESC" && (
                               <ArrowDown
-                                className="icon-sm ml-1.5 shrink-0"
+                                size="sm"
+                                __rawClassName="ml-1.5"
                                 aria-hidden="true"
                               />
                             )}
