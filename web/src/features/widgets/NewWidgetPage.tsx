@@ -15,9 +15,9 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import {
   asSingleQueryParam,
-  RouteParamsPendingFallback,
   useReadyRouteParams,
 } from "@/src/hooks/useReadyRouteParams";
+import { RouteParamsPendingFallback } from "@/src/components/RouteParamsPendingFallback/RouteParamsPendingFallback";
 
 export default function NewWidgetPage() {
   const route = useReadyRouteParams(["projectId"]);

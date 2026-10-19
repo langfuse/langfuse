@@ -3845,7 +3845,13 @@ export const getLatestEvaluatorRunCost = async (
   return rows[0] ? Number(rows[0].trace_total_cost) : null;
 };
 
-/** Counts execution traces by outcome over the last seven days, excluding tests. */
+const EVALUATOR_HEALTH_RECENT_EXECUTIONS = 50;
+
+/**
+ * Counts execution traces by outcome, excluding tests. Only each evaluator's
+ * most recent executions from the last seven days count, so an evaluator that
+ * recovered from an earlier outage reports its current health.
+ */
 export const getEvaluatorExecutionSummaries = async (
   projectId: string,
   evaluatorIds: string[],
@@ -3856,7 +3862,9 @@ export const getEvaluatorExecutionSummaries = async (
     projectId,
     groupByColumn: "e.trace_id, e.evaluator_id",
     selectExpression: [
+      "e.trace_id as trace_id",
       "e.evaluator_id as evaluator_id",
+      "min(e.start_time) as started_at",
       "countIf(e.level = 'ERROR') > 0 as failed",
     ].join(", "),
   })
@@ -3873,9 +3881,19 @@ export const getEvaluatorExecutionSummaries = async (
     total: string;
     failed_count: string;
   }>({
-    query: `SELECT evaluator_id, count() as total, countIf(failed) as failed_count
-      FROM (${query}) GROUP BY evaluator_id`,
-    params,
+    // groupArraySorted keeps a bounded top-N per evaluator instead of sorting
+    // every execution of the week; trace_id makes ties deterministic.
+    query: `SELECT evaluator_id, length(recent) as total,
+        arrayCount(x -> x.3, recent) as failed_count
+      FROM (
+        SELECT evaluator_id,
+          groupArraySorted({recentExecutions: UInt32})(
+            (-toUnixTimestamp64Micro(started_at), trace_id, failed)
+          ) as recent
+        FROM (${query})
+        GROUP BY evaluator_id
+      )`,
+    params: { ...params, recentExecutions: EVALUATOR_HEALTH_RECENT_EXECUTIONS },
     tags: { projectId },
     preferredClickhouseService: "EventsReadOnly",
   });

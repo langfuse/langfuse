@@ -685,6 +685,7 @@ export class OtelIngestionProcessor {
                   userId: this.extractUserId(
                     spanAttributes,
                     decodeMetadataValues,
+                    resourceAttributes,
                   ),
                   sessionId: this.extractSessionId(
                     spanAttributes,
@@ -1172,7 +1173,11 @@ export class OtelIngestionProcessor {
           (attributes?.[LangfuseOtelSpanAttributes.RELEASE] as string) ??
           resourceAttributes?.[LangfuseOtelSpanAttributes.RELEASE] ??
           null,
-        userId: this.extractUserId(attributes, decodeMetadataValues),
+        userId: this.extractUserId(
+          attributes,
+          decodeMetadataValues,
+          resourceAttributes,
+        ),
         sessionId: this.extractSessionId(
           attributes,
           decodeMetadataValues,
@@ -1216,7 +1221,8 @@ export class OtelIngestionProcessor {
           (attributes?.[LangfuseOtelSpanAttributes.RELEASE] as string) ??
           resourceAttributes?.[LangfuseOtelSpanAttributes.RELEASE] ??
           null,
-        userId: this.extractUserId(attributes, decodeMetadataValues),
+        // Child updates must not replace an explicit trace user with a fallback.
+        userId: this.extractExplicitUserId(attributes, decodeMetadataValues),
         /** CMA session inference belongs to root traces and individual observations. */
         sessionId: this.extractSessionId(
           attributes,
@@ -2758,6 +2764,32 @@ export class OtelIngestionProcessor {
   }
 
   private extractUserId(
+    attributes: Record<string, unknown>,
+    decodeMetadataValues: boolean,
+    resourceAttributes: Record<string, unknown>,
+  ): string | undefined {
+    // Explicit identifiers in either scope take precedence over usernames.
+    return (
+      this.extractExplicitUserId(attributes, decodeMetadataValues) ??
+      this.extractStringAttribute(
+        resourceAttributes,
+        ["langfuse.user.id", "user.id"],
+        decodeMetadataValues,
+      ) ??
+      this.extractStringAttribute(
+        attributes,
+        ["user.name"],
+        decodeMetadataValues,
+      ) ??
+      this.extractStringAttribute(
+        resourceAttributes,
+        ["user.name"],
+        decodeMetadataValues,
+      )
+    );
+  }
+
+  private extractExplicitUserId(
     attributes: Record<string, unknown>,
     decodeMetadataValues: boolean,
   ): string | undefined {
