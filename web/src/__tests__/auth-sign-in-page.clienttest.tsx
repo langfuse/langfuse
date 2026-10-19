@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 
 import SignInPage, { type PageProps } from "@/src/features/auth/SignInPage";
 
@@ -469,10 +475,47 @@ describe("sign-in page last used SSO email", () => {
 
     // The password step appearing is what marks the email as not SSO-backed.
     await waitFor(() => {
-      expect(screen.getByLabelText(/Password/)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Password/)).toHaveFocus();
     });
     expect(storedSsoEmail()).toBe("");
     expect(signInMock).not.toHaveBeenCalled();
+  });
+
+  it("does not move focus to another page after password fallback unmounts", async () => {
+    vi.useFakeTimers();
+
+    try {
+      ssoCheckFailsWith(404);
+      const { unmount } = renderTwoStepSignIn();
+
+      await act(async () => {
+        continueWithEmail("jane@example.com");
+      });
+      expect(screen.getByLabelText(/Password/)).toBeInTheDocument();
+      unmount();
+
+      render(
+        <form>
+          <input aria-label="Next page email" name="email" />
+          <input
+            aria-label="Next page password"
+            name="password"
+            type="password"
+          />
+        </form>,
+      );
+      const nextPageEmail = screen.getByLabelText("Next page email");
+      nextPageEmail.focus();
+
+      act(() => {
+        vi.runOnlyPendingTimers();
+      });
+      expect(nextPageEmail).toHaveFocus();
+    } finally {
+      vi.unstubAllGlobals();
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
   });
 
   // 404 is the only status that means "this domain has no SSO provider". A
@@ -500,6 +543,7 @@ describe("sign-in page last used SSO email", () => {
 
     // One-step form: password is visible immediately.
     expect(screen.getByLabelText(/Password/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Password/)).not.toHaveFocus();
     await waitFor(() => {
       expect(storedSsoEmail()).toBe("");
     });
