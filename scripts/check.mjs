@@ -368,6 +368,7 @@ export function createPlan(
         const details = task.suite
           ? {
               label: `${task.suiteLabel} tests · ${pkg.name}`,
+              progressLabel: `${pkg.name} · ${task.suiteLabel} tests`,
               args: ["--changed", base, "--passWithNoTests"],
               testSuites: [task.suite],
             }
@@ -862,13 +863,21 @@ async function main() {
     return `${paint(code, marker)} ${label}${padding}${paint("2", duration)}`;
   };
   const active = new Map();
+  let progressLines = 0;
+  const clearProgress = () => {
+    if (!progressLines) return;
+    process.stdout.write(`\x1b[${progressLines}A\r\x1b[0J`);
+    progressLines = 0;
+  };
   try {
     for await (const outcome of runPlan(plan, outputDirectory)) {
-      if (terminal) process.stdout.write("\r\x1b[2K");
+      clearProgress();
       if (outcome.type === "started") {
         active.set(outcome.checkIndex, outcome.check);
-        if (!terminal && active.size === 2) {
-          console.log("\nRunning checks in parallel…\n");
+        if (!terminal) {
+          console.log(
+            `Running: ${outcome.check.progressLabel ?? outcome.check.label}`,
+          );
         }
       } else if (outcome.type === "skipped") {
         const { check } = outcome;
@@ -972,17 +981,22 @@ async function main() {
         }
       }
       if (terminal && active.size) {
-        const progress = `Running${active.size > 1 ? " in parallel" : ""}: ${[...active.values()].map((check) => check.label).join(", ")}…`;
+        const lines = [
+          `Running${active.size > 1 ? " in parallel" : ""}:`,
+          ...[...active.values()].map(
+            (check) => `  ${check.progressLabel ?? check.label}`,
+          ),
+        ];
         const width = Math.max(1, (process.stdout.columns ?? 80) - 1);
-        const display =
-          progress.length > width
-            ? `${progress.slice(0, width - 1)}…`
-            : progress;
-        process.stdout.write(paint("2", display));
+        const display = lines.map((line) =>
+          line.length > width ? `${line.slice(0, width - 1)}…` : line,
+        );
+        process.stdout.write(`${paint("2", display.join("\n"))}\n`);
+        progressLines = display.length;
       }
     }
   } finally {
-    if (terminal) process.stdout.write("\r\x1b[2K");
+    clearProgress();
     if (!retainLogs) rmSync(outputDirectory, { recursive: true, force: true });
   }
   const summary = [];
