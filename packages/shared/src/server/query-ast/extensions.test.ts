@@ -14,13 +14,13 @@ import {
   arrayMap,
   count,
   countIf,
+  latestNonEmpty,
   leftUTF8,
   literal,
   mapValue,
   medianExact,
   metadataMap,
   metadataValue,
-  traceSessionId,
   uniq,
   uniqIf,
 } from "./extensions";
@@ -120,6 +120,70 @@ describe("metadata subscript access (condition 7b)", () => {
       "mapfromarrays(arrayreverse(e.metadata_names), arrayreverse(e.metadata_values))[",
     );
     expect(Object.values(params)).toContain("a");
+  });
+
+  // The routing pass keeps a short metadata `=` / `startsWith` on events_core
+  // by trusting the lookup's marker, so the lookup may only read the metadata
+  // columns of one relation.
+  describe("rejects a lookup over anything but one relation's metadata columns", () => {
+    const eb = expressionBuilder<
+      { e: ClickHouseDatabase["events_core"] },
+      "e"
+    >();
+    it.each([
+      // `values` reads truncated `input`, which events_core cuts short.
+      [
+        "an expression as values",
+        () =>
+          metadataValue(
+            eb.ref("e.metadata_names"),
+            arrayMap<string, string>(
+              () => eb.ref("e.input"),
+              eb.ref("e.metadata_names"),
+            ),
+            "k",
+          ),
+      ],
+      // Unqualified, the pass can't resolve which relation it reads.
+      [
+        "unqualified columns",
+        () =>
+          metadataValue(
+            eb.ref("metadata_names"),
+            eb.ref("metadata_values"),
+            "k",
+          ),
+      ],
+      // Names swapped with values pairs keys with the wrong array.
+      [
+        "swapped columns",
+        () =>
+          metadataValue(
+            eb.ref("e.metadata_values"),
+            eb.ref("e.metadata_names"),
+            "k",
+          ),
+      ],
+    ])("%s", (_, build) => {
+      expect(build).toThrow(QueryCompileError);
+    });
+
+    it("rejects names and values from two relations", () => {
+      const joined = expressionBuilder<
+        {
+          e: ClickHouseDatabase["events_core"];
+          f: ClickHouseDatabase["events_core"];
+        },
+        "e" | "f"
+      >();
+      expect(() =>
+        metadataValue(
+          joined.ref("e.metadata_names"),
+          joined.ref("f.metadata_values"),
+          "k",
+        ),
+      ).toThrow(QueryCompileError);
+    });
   });
 });
 
@@ -253,7 +317,7 @@ describe("renderClickhouseExpression", () => {
     );
     expect(
       renderClickhouseExpression(
-        traceSessionId(eb.ref("session_id"), eb.ref("event_ts")),
+        latestNonEmpty(eb.ref("session_id"), eb.ref("event_ts")),
       ),
     ).toBe("argMaxIf(session_id, event_ts, session_id != '')");
   });

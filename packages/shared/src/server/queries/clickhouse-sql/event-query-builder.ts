@@ -5,7 +5,7 @@ import { renderClickhouseExpression } from "../../query-ast/compile";
 import {
   metadataMap,
   toBool,
-  traceSessionId,
+  latestNonEmpty,
 } from "../../query-ast/extensions";
 import type { ClickHouseDatabase } from "../../query-ast/schema";
 import { OBSERVATIONS_TO_TRACE_INTERVAL } from "../../repositories/constants";
@@ -41,7 +41,7 @@ const eventsMetadataMap = metadataMap(
 const EVENTS_METADATA_MAP_SQL = renderClickhouseExpression(eventsMetadataMap);
 
 const TRACE_SESSION_ID_SQL = renderClickhouseExpression(
-  traceSessionId(eventsRef.ref("session_id"), eventsRef.ref("event_ts")),
+  latestNonEmpty(eventsRef.ref("session_id"), eventsRef.ref("event_ts")),
 );
 
 /**

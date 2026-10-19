@@ -1,4 +1,9 @@
-import { sql, type ExpressionBuilder, type SelectExpression } from "kysely";
+import {
+  sql,
+  type Expression,
+  type ExpressionBuilder,
+  type SelectExpression,
+} from "kysely";
 
 import type {
   SkillsAvailable,
@@ -21,8 +26,10 @@ import {
   ifElse,
   ifNull,
   isNull,
+  latestNonEmpty,
   literal,
   mapValue,
+  metadataValue,
   metadataMap,
   multiIf,
   notEmpty,
@@ -30,7 +37,6 @@ import {
   sumMap,
   sumMapValuesWhereKeyContains,
   toBool,
-  traceSessionId,
   uniq,
   uniqIf,
 } from "../query-ast/extensions";
@@ -74,6 +80,15 @@ type EventsExpressionBuilder = ExpressionBuilder<EventsDb, "e">;
 const eventsMetadataMap = (eb: EventsExpressionBuilder) =>
   metadataMap(eb.ref("e.metadata_names"), eb.ref("e.metadata_values"));
 
+/**
+ * The event's metadata value for `key`; the last entry of a duplicated key
+ * wins. Keys follow `mapValue`: a string is bound, a `literal(...)` is inlined.
+ */
+export const eventsMetadataValue = scopedToEvents(
+  (eb, key: string | Expression<string>) =>
+    metadataValue(eb.ref("e.metadata_names"), eb.ref("e.metadata_values"), key),
+);
+
 /** The event is a root observation: no parent span, or an app root. */
 export const eventsIsRootObservation = scopedToEvents((eb) =>
   eb.or([
@@ -111,11 +126,10 @@ const traceNameSelect = (eb: EventsExpressionBuilder) =>
   eventsTraceNameOrEmpty(eb).as("trace_name");
 
 /** The latest non-empty value of `column` across a trace's events. */
-const latestNonEmpty = (
+const latestNonEmptyOf = (
   eb: EventsExpressionBuilder,
   column: `e.${StringColumn}`,
-) =>
-  argMaxIf(eb.ref(column), eb.ref("e.event_ts"), eb(column, "<>", literal("")));
+) => latestNonEmpty(eb.ref(column), eb.ref("e.event_ts"));
 
 /** `column` of the trace's root observation. */
 const ofRootSpan = (eb: EventsExpressionBuilder, column: `e.${EventsColumn}`) =>
@@ -161,12 +175,10 @@ export const traceAggregationSelects = scopedToEvents(
         )
         .as("name"),
       eb.fn.min("e.start_time").as("timestamp"),
-      latestNonEmpty(eb, "e.environment").as("environment"),
-      latestNonEmpty(eb, "e.version").as("version"),
-      traceSessionId(eb.ref("e.session_id"), eb.ref("e.event_ts")).as(
-        "session_id",
-      ),
-      latestNonEmpty(eb, "e.user_id").as("user_id"),
+      latestNonEmptyOf(eb, "e.environment").as("environment"),
+      latestNonEmptyOf(eb, "e.version").as("version"),
+      latestNonEmptyOf(eb, "e.session_id").as("session_id"),
+      latestNonEmptyOf(eb, "e.user_id").as("user_id"),
       ofRootSpan(eb, "e.input").as("input"),
       ofRootSpan(eb, "e.output").as("output"),
       argMaxIf(
@@ -201,7 +213,7 @@ export const traceAggregationSelects = scopedToEvents(
       ).as("observation_count"),
       ofRootSpan(eb, "e.bookmarked").as("bookmarked"),
       eb.fn.max("e.public").as("public"),
-      latestNonEmpty(eb, "e.experiment_item_id").as("experiment_item_id"),
+      latestNonEmptyOf(eb, "e.experiment_item_id").as("experiment_item_id"),
       sumMap(eb.ref("e.usage_details")).as("usage_details"),
       sumMap(eb.ref("e.cost_details")).as("cost_details"),
       multiIf(
@@ -226,9 +238,9 @@ export const traceAggregationSelects = scopedToEvents(
         eb.ref("e.event_ts"),
         notEmpty(eb.ref("e.tags")),
       ).as("tags"),
-      latestNonEmpty(eb, "e.release").as("release"),
-      latestNonEmpty(eb, "e.evaluator_id").as("evaluator_id"),
-      latestNonEmpty(eb, "e.evaluation_rule_id").as("evaluation_rule_id"),
+      latestNonEmptyOf(eb, "e.release").as("release"),
+      latestNonEmptyOf(eb, "e.evaluator_id").as("evaluator_id"),
+      latestNonEmptyOf(eb, "e.evaluation_rule_id").as("evaluation_rule_id"),
       anyValue(eb.ref("e.experiment_id")).as("experiment_id"),
     ] satisfies EventsSelection[],
 );
@@ -260,7 +272,7 @@ function sessionAggregationSelectMap(eb: EventsExpressionBuilder) {
       eb.ref("e.tags"),
       notEmpty(eb.ref("e.tags")),
     ).as("trace_tags"),
-    environment: latestNonEmpty(eb, "e.environment").as("environment"),
+    environment: latestNonEmptyOf(eb, "e.environment").as("environment"),
     total_observations: uniqIf(
       eb.ref("e.span_id"),
       eb("e.parent_span_id", "!=", literal("")),
@@ -508,8 +520,8 @@ function pickSelects<M extends Record<string, EventsSelection>>(
  * `e`. Anything else resolves to `never`: no `e`, no FROM (`selectNoFrom`), a
  * join (no caller joins; with one, an unqualified column added here later
  * would silently read the other table), or an `e` missing an events column
- * (`observations as e`, a narrower subquery). `ExpressionBuilder` alone would accept the narrower `e`,
- * because it is contravariant in `DB`.
+ * (`observations as e`, a narrower subquery). `ExpressionBuilder` alone would
+ * accept the narrower `e`, because it is contravariant in `DB`.
  */
 type ReadsEvents<DB, TB extends keyof DB> = ExpressionBuilder<DB, TB> &
   ([DB] extends [EventsDb]

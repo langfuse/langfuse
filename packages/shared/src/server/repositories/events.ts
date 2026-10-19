@@ -40,16 +40,15 @@ import {
   softDeleteAfterLimit,
   leftUTF8,
   limitBy,
+  latestNonEmpty,
   literal,
   mapValue,
   medianExact,
   metadataMap,
-  metadataValue,
   sumMapValuesWhereKeyContains,
   toDate,
   toJSONString,
   toStartOfMinute,
-  traceSessionId,
   tupleIn,
   uniq,
   xxHash32,
@@ -136,6 +135,7 @@ import {
 } from "./observations";
 import { convertEventsObservation } from "./observations_converters";
 import {
+  eventsMetadataValue,
   eventsMetricsSecondsSelects,
   eventsRowFieldSelects,
   eventsTraceName,
@@ -2873,7 +2873,7 @@ export const getObservationsBatchIOFromEventsTable = async <
           .groupBy("trace_id")
           .having((eb) =>
             eb(
-              traceSessionId(eb.ref("session_id"), eb.ref("event_ts")),
+              latestNonEmpty(eb.ref("session_id"), eb.ref("event_ts")),
               "=",
               opts.sessionId!,
             ),
@@ -3549,16 +3549,12 @@ export const getEventsForAnalyticsIntegrations = async function* (
       ),
       mapValue(eb.ref("e.usage_details"), literal("total")).as("total_tokens"),
       // Analytics integration session IDs from metadata (constructed from array columns)
-      metadataValue(
-        eb.ref("e.metadata_names"),
-        eb.ref("e.metadata_values"),
-        literal("$posthog_session_id"),
-      ).as("posthog_session_id"),
-      metadataValue(
-        eb.ref("e.metadata_names"),
-        eb.ref("e.metadata_values"),
-        literal("$mixpanel_session_id"),
-      ).as("mixpanel_session_id"),
+      eventsMetadataValue(eb, literal("$posthog_session_id")).as(
+        "posthog_session_id",
+      ),
+      eventsMetadataValue(eb, literal("$mixpanel_session_id")).as(
+        "mixpanel_session_id",
+      ),
     ])
     .where("e.start_time", ">=", minTimestamp)
     .where("e.start_time", "<", maxTimestamp)

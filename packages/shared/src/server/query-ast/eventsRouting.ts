@@ -7,8 +7,8 @@
  * resolves to it and names a column in {@link EVENTS_CORE_TRUNCATED_COLUMNS},
  * outside the metadata predicates `metadataFilterIsEventsCoreSafe` accepts:
  *
- *   metadataValue(e, k) = 'short'        → events_core (< 200 code points)
- *   startsWith(metadataValue(e, k), 'p') → events_core (≤ 200 code points)
+ *   e.metadata[k] = 'short'        → events_core (< 200 code points)
+ *   startsWith(e.metadata[k], 'p') → events_core (≤ 200 code points)
  *   e.input = 'x', select e.input        → events_full
  *
  * A qualifier resolves to the innermost FROM/JOIN alias (or unaliased table
@@ -367,8 +367,8 @@ function isCountStar(node: AggregateFunctionNode): boolean {
 }
 
 /**
- * The metadata lookup of `metadataValue(e, k) = v` or
- * `startsWith(metadataValue(e, k), v)`, for a bound `v` that
+ * The metadata lookup of `metadataValue(…, k) = v` or
+ * `startsWith(metadataValue(…, k), v)`, for a bound `v` that
  * `metadataFilterIsEventsCoreSafe` accepts.
  */
 function coreSafeMetadataLookup(
