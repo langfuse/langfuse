@@ -29,7 +29,7 @@ import {
   FileJsonIcon,
   DownloadIcon,
   TableIcon,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { useRouter } from "next/router";
 import {
   buildTableFilterHref,
@@ -650,14 +650,17 @@ export function DashboardWidget({
         <div className="flex space-x-2">
           {!readOnly && (hasCUDAccess || isLockedEditable) && (
             <>
-              <GripVerticalIcon className="icon-base drag-handle text-muted-foreground hover:text-foreground hidden cursor-grab active:cursor-grabbing lg:group-hover:block" />
+              <GripVerticalIcon
+                size="base"
+                __rawClassName="drag-handle text-muted-foreground hover:text-foreground hidden cursor-grab active:cursor-grabbing lg:group-hover:block"
+              />
               {isLockedEditable ? (
                 <button
                   onClick={onLockedEditAttempt}
                   className="text-muted-foreground hover:text-foreground hidden group-hover:block"
                   aria-label="Edit widget"
                 >
-                  <PencilIcon className="icon-base" />
+                  <PencilIcon size="base" />
                 </button>
               ) : widget.data.owner === "PROJECT" ? (
                 <button
@@ -665,7 +668,7 @@ export function DashboardWidget({
                   className="text-muted-foreground hover:text-foreground hidden group-hover:block"
                   aria-label="Edit widget"
                 >
-                  <PencilIcon className="icon-base" />
+                  <PencilIcon size="base" />
                 </button>
               ) : widget.data.owner === "LANGFUSE" ? (
                 <button
@@ -679,7 +682,7 @@ export function DashboardWidget({
                   className="text-muted-foreground hover:text-foreground hidden group-hover:block"
                   aria-label="Edit widget"
                 >
-                  <PencilIcon className="icon-base" />
+                  <PencilIcon size="base" />
                 </button>
               ) : null}
             </>
@@ -767,7 +770,7 @@ export function DashboardWidget({
                 aria-label="Widget actions"
                 {...getTriggerProps()}
               >
-                <MoreVerticalIcon className="icon-base" />
+                <MoreVerticalIcon size="base" />
               </button>
             )}
           </DropdownMenu>

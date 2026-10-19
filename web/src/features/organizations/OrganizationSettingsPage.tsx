@@ -14,7 +14,7 @@ import { OrganizationUsageBreakdown } from "@/src/features/organization-usage";
 import { useHasEntitlement, usePlan } from "@/src/features/entitlements";
 import { SSOSettings } from "@/src/ee/features/sso-settings";
 import { type CloudConfigSchema, isCloudPlan } from "@langfuse/shared";
-import { Building2 } from "lucide-react";
+import { Building2 } from "@langfuse/icons";
 import { useQueryProjectOrOrganization } from "@/src/features/projects";
 import { LlmConnectionEmptyState } from "@/src/features/public-api";
 import { ApiKeyList } from "@/src/features/public-api/components/ApiKeyList";

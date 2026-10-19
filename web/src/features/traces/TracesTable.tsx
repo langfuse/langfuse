@@ -75,7 +75,7 @@ import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableC
 import { tablePlaceholderOptions } from "@/src/components/table/utils/tablePlaceholder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
-import { InfoIcon, Trash2 } from "lucide-react";
+import { InfoIcon, Trash2 } from "@langfuse/icons";
 import { useHasEntitlement } from "@/src/features/entitlements";
 import {
   TableActionMenu,
@@ -898,7 +898,7 @@ function TracesTableInternal({
               ) : (
                 <EmptyValue />
               )}
-              <InfoIcon className="icon-sm" />
+              <InfoIcon size="sm" />
             </div>
           </BreakdownTooltip>
         ) : null;
@@ -1258,7 +1258,7 @@ function TracesTableInternal({
                   }
                   onSelect={() => openDeleteTraceDialog(traceId)}
                 >
-                  <Trash2 className="icon-base text-icon-foreground mr-2" />
+                  <Trash2 size="base" color="default" __rawClassName="mr-2" />
                   Delete
                 </DropdownMenuItem>
               ) : null,

@@ -1,4 +1,4 @@
-import { FileIcon, Wrench } from "lucide-react";
+import { FileIcon, Wrench } from "@langfuse/icons";
 import { useState, type ComponentProps, type ReactNode } from "react";
 import { SessionTimelineCollapsibleRow } from "../SessionTimelineCollapsibleRow/SessionTimelineCollapsibleRow";
 import { assertUnreachable } from "@langfuse/shared";
@@ -203,7 +203,7 @@ function SessionTimelineFile({
           variant === "tool-output" ? "border-b px-2 py-1" : "font-bold",
         )}
       >
-        <FileIcon className="icon-base" />
+        <FileIcon size="base" />
         {part.filename ?? part.mediaType ?? "File"}
       </div>
       {variant === "tool-output" ? (

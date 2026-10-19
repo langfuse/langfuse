@@ -2,7 +2,7 @@ import {
   SplashScreen,
   type ValueProposition,
 } from "@/src/components/ui/splash-screen";
-import { FileText, GitBranch, Zap, BarChart4 } from "lucide-react";
+import { FileText, GitBranch, Zap, BarChart4 } from "@langfuse/icons";
 
 export function PromptsOnboarding({ projectId }: { projectId: string }) {
   const valuePropositions: ValueProposition[] = [

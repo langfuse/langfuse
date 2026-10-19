@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-import { Pencil, Trash } from "lucide-react";
+import { Pencil, Trash } from "@langfuse/icons";
 
 import { type TableProps } from "@/src/components/design-system/table/Table";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";

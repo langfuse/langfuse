@@ -6,7 +6,7 @@ import {
   Settings,
   Users,
   PlusIcon,
-} from "lucide-react";
+} from "@langfuse/icons";
 import {
   Card,
   CardContent,
@@ -149,7 +149,7 @@ const OrganizationProjectTiles = ({
                   </Button>
                   <Button asChild variant="ghost">
                     <Link href={`/project/${project.id}/settings`}>
-                      <Settings className="icon-base text-icon-foreground" />
+                      <Settings size="base" color="default" />
                     </Link>
                   </Button>
                 </CardFooter>
@@ -215,26 +215,26 @@ const OrganizationActionButtons = ({
     <>
       <Button asChild variant="ghost">
         <Link href={`/organization/${orgId}/settings`}>
-          <Settings className="icon-base text-icon-foreground" />
+          <Settings size="base" color="default" />
         </Link>
       </Button>
       {membersViewAccess && (
         <Button asChild variant="ghost">
           <Link href={`/organization/${orgId}/settings/members`}>
-            <Users className="icon-base text-icon-foreground" />
+            <Users size="base" color="default" />
           </Link>
         </Button>
       )}
       {createProjectAccess ? (
         <Button asChild variant={primaryButtonVariant}>
           <Link href={createProjectRoute(orgId)}>
-            <PlusIcon className="icon-base mr-2" aria-hidden="true" />
+            <PlusIcon size="base" __rawClassName="mr-2" aria-hidden="true" />
             New project
           </Link>
         </Button>
       ) : (
         <Button disabled variant={primaryButtonVariant}>
-          <LockIcon className="icon-base mr-2" aria-hidden="true" />
+          <LockIcon size="base" __rawClassName="mr-2" aria-hidden="true" />
           New project
         </Button>
       )}
@@ -383,7 +383,9 @@ export const OrganizationProjectOverview = () => {
               <Button data-testid="create-organization-btn" asChild>
                 <Link href={createOrganizationRoute}>
                   <PlusIcon
-                    className="icon-base text-icon-foreground mr-1.5"
+                    size="base"
+                    color="default"
+                    __rawClassName="mr-1.5"
                     aria-hidden="true"
                   />
                   New Organization
@@ -455,20 +457,24 @@ const Onboarding = () => {
         {canCreateOrgs && (
           <Button data-testid="create-project-btn" asChild>
             <Link href={createOrganizationRoute}>
-              <PlusIcon className="icon-base mr-2" aria-hidden="true" />
+              <PlusIcon size="base" __rawClassName="mr-2" aria-hidden="true" />
               New Organization
             </Link>
           </Button>
         )}
         <Button variant="secondary" asChild>
           <Link href="https://langfuse.com/docs" target="_blank">
-            <BookOpen className="icon-base mr-2" aria-hidden="true" />
+            <BookOpen size="base" __rawClassName="mr-2" aria-hidden="true" />
             Docs
           </Link>
         </Button>
         <Button variant="secondary" asChild>
           <Link href="https://langfuse.com/docs/ask-ai" target="_blank">
-            <MessageSquareText className="icon-base mr-2" aria-hidden="true" />
+            <MessageSquareText
+              size="base"
+              __rawClassName="mr-2"
+              aria-hidden="true"
+            />
             Ask AI
           </Link>
         </Button>

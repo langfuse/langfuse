@@ -14,7 +14,7 @@ import { Label } from "@/src/components/ui/label";
 import { Button } from "@/src/components/ui/button";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { History, PanelRightOpen } from "lucide-react";
+import { History, PanelRightOpen } from "@langfuse/icons";
 import { useState } from "react";
 import { RouteParamsPendingFallback } from "@/src/components/RouteParamsPendingFallback/RouteParamsPendingFallback";
 import { useReadyRouteParams } from "@/src/hooks/useReadyRouteParams";
@@ -158,12 +158,16 @@ function DatasetItemContent({
             >
               {isVersionPanelOpen ? (
                 <>
-                  <History className="icon-base text-icon-foreground mr-2" />
+                  <History size="base" color="default" __rawClassName="mr-2" />
                   Hide Version History
                 </>
               ) : (
                 <>
-                  <PanelRightOpen className="icon-base text-icon-foreground mr-2" />
+                  <PanelRightOpen
+                    size="base"
+                    color="default"
+                    __rawClassName="mr-2"
+                  />
                   Show Version History
                 </>
               )}

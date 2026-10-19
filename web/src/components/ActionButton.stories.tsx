@@ -1,4 +1,4 @@
-import { PlusIcon } from "lucide-react";
+import { PlusIcon } from "@langfuse/icons";
 import { fn } from "storybook/test";
 
 import preview from "../../.storybook/preview";
@@ -18,7 +18,7 @@ export const Default = meta.story({
 export const WithIcon = meta.story({
   args: {
     children: "Create item",
-    icon: <PlusIcon className="icon-base" aria-hidden="true" />,
+    icon: <PlusIcon size="base" aria-hidden="true" />,
     onClick: fn(),
   },
 });

@@ -88,7 +88,7 @@ function SelectInputInner<V extends string>(
             >
               {selectedOption?.label ?? placeholder}
             </span>
-            <DropdownIndicator />
+            <DropdownIndicator color={error ? "destructive" : "tertiary"} />
           </PopoverPrimitive.Trigger>
         </InputControl>
         <PopoverPrimitive.Portal container={container}>
@@ -193,7 +193,7 @@ function SelectInputInner<V extends string>(
             >
               {selectedLabel ?? placeholder}
             </span>
-            <DropdownIndicator />
+            <DropdownIndicator color={error ? "destructive" : "tertiary"} />
           </button>
         </InputControl>
       )}

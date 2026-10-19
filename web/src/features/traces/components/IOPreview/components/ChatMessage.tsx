@@ -7,7 +7,7 @@ import {
   MarkdownJsonViewHeader,
 } from "@/src/components/ui/MarkdownJsonView";
 import { ToolCallInvocationsView } from "@/src/features/traces/components/ToolCallInvocationsView";
-import { ListChevronsDownUp, ListChevronsUpDown } from "lucide-react";
+import { ListChevronsDownUp, ListChevronsUpDown } from "@langfuse/icons";
 import { stringify } from "@langfuse/shared";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import {
@@ -91,9 +91,9 @@ export function ChatMessage({
         className="hover:bg-border -mr-2"
       >
         {showTableView ? (
-          <ListChevronsDownUp className="icon-sm text-primary" />
+          <ListChevronsDownUp size="sm" __rawClassName="text-primary" />
         ) : (
-          <ListChevronsUpDown className="icon-sm text-icon-foreground" />
+          <ListChevronsUpDown size="sm" color="default" />
         )}
       </Button>
     ) : undefined;

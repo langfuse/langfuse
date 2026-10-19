@@ -11,7 +11,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { useMediaQuery } from "react-responsive";
-import { Archive, Edit, ListTree, Trash2 } from "lucide-react";
+import { Archive, Edit, ListTree, Trash2 } from "@langfuse/icons";
 import {
   datasetItemFilterColumns,
   DatasetStatus,
@@ -267,7 +267,7 @@ export function DatasetItemsTable({
                 setEditDialogOpen(true);
               }}
             >
-              <Edit className="icon-base text-icon-foreground mr-2" />
+              <Edit size="base" color="default" __rawClassName="mr-2" />
               Edit
             </DropdownMenuItem>
             <DropdownMenuItem
@@ -290,7 +290,7 @@ export function DatasetItemsTable({
                 });
               }}
             >
-              <Archive className="icon-base text-icon-foreground mr-2" />
+              <Archive size="base" color="default" __rawClassName="mr-2" />
               {status === DatasetStatus.ARCHIVED ? "Unarchive" : "Archive"}
             </DropdownMenuItem>
             <DropdownMenuItem
@@ -311,7 +311,7 @@ export function DatasetItemsTable({
                 }
               }}
             >
-              <Trash2 className="icon-base mr-2" />
+              <Trash2 size="base" __rawClassName="mr-2" />
               Delete
             </DropdownMenuItem>
           </>

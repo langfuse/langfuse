@@ -8,7 +8,7 @@ import {
   type UIEvent,
 } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronDown, Search } from "lucide-react";
+import { ChevronDown, Search } from "@langfuse/icons";
 import { type Observation } from "@langfuse/shared";
 import { Input } from "@/src/components/ui/input";
 import { SessionToolTooltip } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionToolTooltip/SessionToolTooltip";
@@ -239,7 +239,11 @@ export function SessionConversationSidebar(
           )}
         >
           <div className="relative min-w-0">
-            <Search className="icon-base text-foreground-tertiary absolute top-1/2 left-2 -translate-y-1/2" />
+            <Search
+              size="base"
+              color="tertiary"
+              __rawClassName="absolute top-1/2 left-2 -translate-y-1/2"
+            />
             <Input
               disabled
               value=""
@@ -285,7 +289,11 @@ export function SessionConversationSidebar(
         )}
       >
         <div className="relative min-w-0">
-          <Search className="icon-base text-foreground-tertiary absolute top-1/2 left-2 -translate-y-1/2" />
+          <Search
+            size="base"
+            color="tertiary"
+            __rawClassName="absolute top-1/2 left-2 -translate-y-1/2"
+          />
           <Input
             value={props.search}
             onChange={(event) => {
@@ -433,8 +441,9 @@ export function SessionConversationSidebar(
                           className="text-muted-foreground -my-2 -mr-2.5 -ml-2 flex h-8 w-8 shrink-0 items-center justify-center"
                         >
                           <ChevronDown
-                            className={cn(
-                              "icon-sm transition-transform duration-150",
+                            size="sm"
+                            __rawClassName={cn(
+                              "transition-transform duration-150",
                               isCollapsed ? "-rotate-90" : "rotate-0",
                             )}
                           />

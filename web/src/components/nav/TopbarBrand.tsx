@@ -4,7 +4,7 @@ import { cn } from "@/src/utils/tailwind";
 import Link from "next/link";
 import { env } from "@/src/env.mjs";
 import { useUiCustomization } from "@/src/ee/features/ui-customization";
-import { PlusIcon } from "lucide-react";
+import { PlusIcon } from "@langfuse/icons";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 
 /**
@@ -54,7 +54,7 @@ export const TopbarBrand = ({
             alt="Logo"
             className="hidden max-h-5 max-w-16 dark:block"
           />
-          <PlusIcon className="icon-sm text-muted-foreground" />
+          <PlusIcon size="sm" color="muted" />
           <LangfuseIcon size={16} />
         </>
       ) : variant === "wordmark" ? (
