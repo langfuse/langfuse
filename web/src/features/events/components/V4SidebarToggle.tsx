@@ -179,6 +179,10 @@ export function V4SidebarToggle() {
     dismissIntroDialog,
   } = useV4PreviewToggle("sidebar");
 
+  const handleSidebarToggle = (enabled: boolean) => {
+    if (canToggleV4 || enabled) handleToggle(enabled);
+  };
+
   return (
     <>
       <SidebarMenuButton
@@ -203,9 +207,7 @@ export function V4SidebarToggle() {
                   id="v4-beta-toggle"
                   size="sm"
                   checked={isChecked}
-                  onCheckedChange={(enabled) => {
-                    if (canToggleV4 || enabled) handleToggle(enabled);
-                  }}
+                  onCheckedChange={handleSidebarToggle}
                   disabled={isLoading}
                   aria-label={canToggleV4 ? "Toggle V4 Preview" : "Enable V4"}
                   aria-describedby="v4-preview-sidebar-description"

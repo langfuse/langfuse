@@ -19,6 +19,8 @@ type Organization =
 function canRecoverV4(ctx: NavigationFilterContext): boolean {
   return (
     ctx.isLangfuseCloud &&
+    Boolean(ctx.routerProjectId) &&
+    ctx.forceV3Experience !== true &&
     ctx.session?.environment?.v4WriteMode === "dual" &&
     ctx.session?.user?.canToggleV4 === false &&
     ctx.session?.user?.v4BetaEnabled === false
