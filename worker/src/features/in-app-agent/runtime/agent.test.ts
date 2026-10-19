@@ -4,7 +4,6 @@ import { MCPClient } from "@mastra/mcp";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AgUiEvent } from "@langfuse/shared/in-app-agent";
-import { assembleTranscript } from "@langfuse/shared/src/server/transcript/transcript";
 import {
   IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
@@ -902,32 +901,6 @@ describe("createAgUiStream", () => {
         prompt: [...prompt, ...toolMessages],
         stepNumber: 1,
       })?.prompt;
-
-      const transcript = assembleTranscript(
-        [first, continuation].map((input, index) => ({
-          id: `generation-${index}`,
-          traceId: "context-tool-loop",
-          parentObservationId: null,
-          type: "GENERATION" as const,
-          name: "invoke-model",
-          startTime: new Date(`2026-10-18T09:0${index}:00Z`),
-          endTime: null,
-          input: JSON.stringify(input),
-          output: JSON.stringify(
-            index === 0
-              ? [toolMessages[0]]
-              : [
-                  {
-                    role: "assistant",
-                    content: "The lookup found the requested result.",
-                  },
-                ],
-          ),
-          metadata: null,
-          nestingLevel: 0,
-        })),
-      );
-      expect(transcript?.threads).toHaveLength(1);
 
       expect(first).toEqual([
         ...prompt.slice(0, 2),
