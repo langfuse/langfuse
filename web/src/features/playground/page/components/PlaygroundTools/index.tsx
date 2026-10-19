@@ -4,7 +4,7 @@ import React, { useCallback, useEffect } from "react";
 import { usePlaygroundContext } from "@/src/features/playground/page/context";
 import { Button } from "@/src/components/ui/button";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
-import { PlusIcon, PencilIcon, MinusCircle, WrenchIcon } from "lucide-react";
+import { PlusIcon, PencilIcon, MinusCircle, WrenchIcon } from "@langfuse/icons";
 import { type LlmTool } from "@prisma/client";
 import { api } from "@/src/utils/api";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
@@ -109,7 +109,7 @@ export const PlaygroundToolsPopover = ({
               className="flex items-center justify-between px-1 py-2"
             >
               <div className="flex min-w-0 flex-1 items-center gap-2">
-                <WrenchIcon className="icon-sm text-muted-foreground shrink-0" />
+                <WrenchIcon size="sm" color="muted" />
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-bold" title={tool.name}>
                     {tool.name}
@@ -133,7 +133,7 @@ export const PlaygroundToolsPopover = ({
                   });
                 }}
               >
-                <PencilIcon className="icon-base text-icon-foreground" />
+                <PencilIcon size="base" color="default" />
               </Button>
             </CommandItem>
           ))}
@@ -151,7 +151,7 @@ export const PlaygroundToolsPopover = ({
             })
           }
         >
-          <PlusIcon className="icon-base text-icon-foreground mr-2" />
+          <PlusIcon size="base" color="default" __rawClassName="mr-2" />
           Create new tool
         </Button>
       </div>
@@ -291,10 +291,14 @@ export const PlaygroundTools = ({ onOpenToolDialog }: PlaygroundToolsProps) => {
                     handleRemoveTool(tool.id);
                   }}
                 >
-                  <MinusCircle className="icon-base text-icon-foreground" />
+                  <MinusCircle size="base" color="default" />
                 </Button>
                 <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-1">
-                  <WrenchIcon className="text-muted-foreground icon-base mt-0.5 shrink-0" />
+                  <WrenchIcon
+                    size="base"
+                    color="muted"
+                    __rawClassName="mt-0.5"
+                  />
                   <div className="min-w-0">
                     <h3
                       className="truncate text-sm font-bold"

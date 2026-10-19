@@ -1,4 +1,4 @@
-import { TagIcon } from "lucide-react";
+import { TagIcon } from "@langfuse/icons";
 import React from "react";
 import { fn } from "storybook/test";
 

@@ -1,5 +1,5 @@
 import { memo, useMemo, useState } from "react";
-import { Check, Copy, Highlighter, ListTree } from "lucide-react";
+import { Check, Copy, Highlighter, ListTree } from "@langfuse/icons";
 import hljs from "highlight.js/lib/core";
 import json from "highlight.js/lib/languages/json";
 import javascript from "highlight.js/lib/languages/javascript";

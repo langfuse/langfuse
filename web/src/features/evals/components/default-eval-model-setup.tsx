@@ -19,7 +19,7 @@ import {
   Dialog,
 } from "@/src/components/ui/dialog";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
-import { Pencil } from "lucide-react";
+import { Pencil } from "@langfuse/icons";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 
 type DefaultEvalModelSuccessMessage = {
@@ -211,7 +211,7 @@ export function DefaultEvalModelSetup({
                 setIsEditing(true);
               }}
             >
-              <Pencil className="icon-base mr-2" />
+              <Pencil size="base" __rawClassName="mr-2" />
               {setup.selectedModel ? "Edit" : "Set up"}
             </Button>
           </DialogTrigger>

@@ -7,6 +7,7 @@ import {
 
 import { ClickHouseQueryCompiler } from "./compiler";
 import { DedupLoweringPlugin } from "./dedup";
+import { EventsTableRoutingPlugin } from "./eventsRouting";
 import { SoftDeleteFilterPlugin } from "./softDelete";
 import {
   TenancyInjectionPlugin,
@@ -33,7 +34,8 @@ export type ClickhouseCompilable = {
  * The choke point. Every query that should produce ClickHouse SQL goes
  * through here: the `projectId` parameter is required, so a caller cannot
  * compile without a tenancy scope — omitting it is a compile-time type error.
- * The query reads exactly that one project. Soft-deleted rows are filtered
+ * The query reads exactly that one project. The logical `events` relation is
+ * routed to `events_core` or `events_full`, soft-deleted rows are filtered
  * out, tenancy is injected from that project, per-table dedup is applied from
  * the registry, and the dialect compiler refuses to emit SQL unless the tree
  * was identity-stamped by the tenancy and dedup passes (a copied property is
@@ -47,6 +49,7 @@ export function compileClickhouseQuery(
 ): CompiledClickhouseQuery {
   const scope = requireProjectId(projectId);
   const stamped = query
+    .withPlugin(new EventsTableRoutingPlugin())
     .withPlugin(new SoftDeleteFilterPlugin())
     .withPlugin(new TenancyInjectionPlugin(scope))
     .withPlugin(new DedupLoweringPlugin())

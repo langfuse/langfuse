@@ -1,6 +1,6 @@
 /* eslint-disable no-nested-ternary */
-import { SiSlack } from "react-icons/si";
-import { Webhook, Plus, Pencil, Trash2 } from "lucide-react";
+import { SiSlack } from "@langfuse/icons/si";
+import { Webhook, Plus, Pencil, Trash2 } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
 import { type AutomationDomain } from "@langfuse/shared";
@@ -52,9 +52,9 @@ export function ProjectNotificationChannelsList({
             >
               <div className="flex min-w-0 items-center gap-2">
                 {channel.action.type === "SLACK" ? (
-                  <SiSlack className="icon-base shrink-0" />
+                  <SiSlack size="base" />
                 ) : (
-                  <Webhook className="icon-base shrink-0" />
+                  <Webhook size="base" />
                 )}
                 <span
                   className="truncate text-sm font-bold"
@@ -70,7 +70,7 @@ export function ProjectNotificationChannelsList({
                   onClick={() => onEdit(channel)}
                   title="Edit channel"
                 >
-                  <Pencil className="icon-base text-icon-foreground" />
+                  <Pencil size="base" color="default" />
                 </Button>
                 <Button
                   variant="ghost"
@@ -79,7 +79,7 @@ export function ProjectNotificationChannelsList({
                   onClick={() => onDelete(channel.id)}
                   title="Delete channel"
                 >
-                  <Trash2 className="icon-base text-icon-foreground" />
+                  <Trash2 size="base" color="default" />
                 </Button>
               </div>
             </div>
@@ -91,7 +91,7 @@ export function ProjectNotificationChannelsList({
       {!isLoading && !channels?.length && (
         <div>
           <Button variant="secondary" onClick={onAdd}>
-            <Plus className="icon-base mr-2" />
+            <Plus size="base" __rawClassName="mr-2" />
             Add channel
           </Button>
         </div>

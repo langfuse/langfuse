@@ -1,6 +1,6 @@
 "use client";
 
-import { Info } from "lucide-react";
+import { Info } from "@langfuse/icons";
 import { useId, type ComponentProps, type ReactElement } from "react";
 import {
   Controller,
@@ -80,10 +80,7 @@ export function FormField<
                   {...registerLabelTooltip()}
                   aria-label={`About ${label}`}
                 >
-                  <Info
-                    aria-hidden
-                    className="text-muted-foreground icon-base"
-                  />
+                  <Info aria-hidden size="base" color="muted" />
                 </button>
               ) : null}
             </div>

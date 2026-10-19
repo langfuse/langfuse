@@ -1,5 +1,5 @@
 import { cva } from "class-variance-authority";
-import { type LucideIcon } from "lucide-react";
+import { type IconColor, type IconComponent } from "@langfuse/icons";
 import { type ComponentProps, type Ref } from "react";
 import { cn } from "@/src/utils/tailwind";
 
@@ -32,26 +32,13 @@ const buttonVariants = cva(
   },
 );
 
-const iconVariants = cva("text-icon-foreground shrink-0", {
-  variants: {
-    size: {
-      xs: "icon-sm",
-      sm: "icon-base",
-      md: "icon-base",
-    },
-  },
-  defaultVariants: {
-    size: "md",
-  },
-});
-
 type NativeButtonProps = Omit<
   ComponentProps<"button">,
   "aria-label" | "children" | "className" | "style"
 >;
 
 type IconButtonProps = NativeButtonProps & {
-  icon: LucideIcon;
+  icon: IconComponent;
   label: string;
   ref?: Ref<HTMLButtonElement>;
   size?: "xs" | "sm" | "md";
@@ -63,6 +50,15 @@ type IconButtonProps = NativeButtonProps & {
     | "toolbar"
     | "destructive";
 };
+
+const iconColors = {
+  ghost: "default",
+  outline: "default",
+  outlineDestructive: "destructive",
+  subtle: "default",
+  toolbar: "inherit",
+  destructive: "inherit",
+} as const satisfies Record<NonNullable<IconButtonProps["variant"]>, IconColor>;
 
 export function IconButton({
   icon: Icon,
@@ -82,12 +78,8 @@ export function IconButton({
       type={type}
     >
       <Icon
-        className={cn(
-          iconVariants({ size }),
-          variant === "toolbar" && "icon-sm text-current",
-          variant === "destructive" && "text-current",
-          variant === "outlineDestructive" && "text-destructive",
-        )}
+        size={variant === "toolbar" || size === "xs" ? "sm" : "base"}
+        color={iconColors[variant ?? "ghost"]}
         aria-hidden
       />
     </button>

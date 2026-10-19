@@ -2,7 +2,7 @@
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { RagasLogoIcon } from "@/src/features/evals/components/ragas-logo";
-import { UserCircle2Icon } from "lucide-react";
+import { UserCircle2Icon } from "@langfuse/icons";
 
 function MaintainerIcon({ maintainer }: { maintainer: string }) {
   if (maintainer.includes("Ragas")) {
@@ -10,7 +10,7 @@ function MaintainerIcon({ maintainer }: { maintainer: string }) {
   } else if (maintainer.includes("Langfuse")) {
     return <LangfuseIcon size={16} />;
   }
-  return <UserCircle2Icon className="icon-base" />;
+  return <UserCircle2Icon size="base" />;
 }
 
 export function MaintainerTooltip({ maintainer }: { maintainer: string }) {

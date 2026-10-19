@@ -1,4 +1,4 @@
-import { User } from "lucide-react";
+import { User } from "@langfuse/icons";
 
 import preview from "../../../../.storybook/preview";
 import { TextLink } from "./TextLink";

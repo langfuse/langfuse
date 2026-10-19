@@ -1,6 +1,6 @@
 import { type ComponentProps } from "react";
 import Link from "next/link";
-import { ArrowUp, ArrowDown } from "lucide-react";
+import { ArrowUp, ArrowDown } from "@langfuse/icons";
 import { SessionConversationTimelineTrace } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
 import { type SessionConversationTimelineController } from "@/src/features/sessions/hooks/useSessionConversationTimelineController";
 import styles from "./SessionConversationTimeline.module.css";
@@ -82,7 +82,7 @@ export function SessionConversationTimeline({
                     shallow={navigation.previousTrace.shallow}
                     className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring flex w-full items-center justify-center gap-2 rounded-md border border-dashed px-4 py-3 text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
                   >
-                    <ArrowUp className="icon-base" />
+                    <ArrowUp size="base" />
                     Previous trace in session ({navigation.previousTrace.count})
                   </Link>
                 </div>
@@ -98,7 +98,7 @@ export function SessionConversationTimeline({
                       shallow={navigation.nextTrace.shallow}
                       className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring flex w-full items-center justify-center gap-2 rounded-md border border-dashed px-4 py-3 text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
                     >
-                      <ArrowDown className="icon-base" />
+                      <ArrowDown size="base" />
                       Next trace in session ({navigation.nextTrace.count})
                     </Link>
                   </div>

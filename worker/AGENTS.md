@@ -107,6 +107,14 @@
   in `src/initialize.ts`, the health probe call in `src/api/index.ts`. Native code
   records its own metrics and logs; see `../packages/native/AGENTS.md`. Topics runs
   its synchronous numerical fit in a killable Node child via `src/features/topics/numeric.ts`.
+  Discovery reads pass worker row/byte capacity limits before materializing a
+  cohort. Automatic discovery targets 80% of those limits and retries capacity
+  failures with smaller recent windows through a deduplicated 60-second check.
+  It uses the same update and naming pipeline as manual processing, keeping
+  each request's window immutable. Bulk classifier
+  helpers are asynchronous and must be awaited. Naming
+  prepares one bounded selection per group and reuses it for conflict retries;
+  selected members carry source references for resolving citations.
 - Tests: `src/__tests__/*`, `src/queues/__tests__/*`
 - Direct-event replay: `pnpm --filter worker run test:otel-replay` compares the
   original and early-media TypeScript paths from identical raw S3 JSON through
@@ -163,6 +171,11 @@
 
 ## In-App Agent Runtime
 
+- `src/features/in-app-agent-retention-cleaner/` expires conversations under
+  current licensed project retention policies. Its exclusive periodic runner
+  starts independently of batch-retention and assistant enablement, processes
+  bounded batches, revokes MCP keys before cascading deletion, and leaves
+  unfinished runs to the integrity runner.
 - `src/features/in-app-agent/runtime/` owns Mastra adaptation, agent execution,
   instrumentation, prompt loading, continuation handling, tools, skills, and
   sandbox providers.

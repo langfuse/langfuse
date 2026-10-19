@@ -1,4 +1,11 @@
-import { isInternalEvalEnvironment, logger } from "@langfuse/shared/src/server";
+import { setImmediate as yieldToEventLoop } from "node:timers/promises";
+import {
+  getCurrentSpan,
+  instrumentAsync,
+  isInternalEvalEnvironment,
+  logger,
+  traceException,
+} from "@langfuse/shared/src/server";
 import {
   isTopicsEnabled,
   readTopicExecutionSummary,
@@ -41,7 +48,13 @@ import {
 } from "@langfuse/shared/topics";
 import pLimit from "p-limit";
 import { env } from "../../env";
-import { summarizeTopicTrace, nameTopicGroup } from "./models";
+import { nameTopicGroup, prepareTopicNamingGroup } from "./models";
+import {
+  ASSEMBLED_TRANSCRIPT_ID,
+  baseTopicSummary,
+  summarizeTraceFacets,
+  type TraceFacet,
+} from "./summarizeAssembledTrace";
 import {
   isRejectedConnection,
   pauseForRejectedConnection,
@@ -61,8 +74,9 @@ import {
   TOPICS_NUMERIC_VERSION,
 } from "./numeric";
 import { matchTopicContinuity } from "./continuity";
+import { createEventLoopYielder } from "./event-loop";
 import { TopicMetrics } from "./metrics";
-import { topicSummaryOutputError } from "./summaryResult";
+import { splitTopicModelUsage } from "./summaryResult";
 
 type ProcessExecution = TopicExecution & {
   input: Extract<TopicExecution["input"], { operation: "process" }>;
@@ -79,16 +93,10 @@ const errorMessage = (error: unknown) =>
 const isExecutionFailure = (error: unknown) =>
   error instanceof TopicsProviderUnavailable ||
   error instanceof TopicEmbeddingFailure;
-
-function invalidOutput(
-  metrics: TopicMetrics,
-  stage: "summary",
-  message: string,
-) {
-  const error = new Error(message);
-  metrics.error(stage, error, "invalid_output");
-  return error;
-}
+// Like trace-batch, a rejected input or unusable output fails only that trace.
+const isTraceModelFailure = (error: unknown) =>
+  error instanceof TopicsProviderUnavailable &&
+  (error.reason === "invalid_output" || error.reason === "invalid_input");
 
 async function saveProgress(
   metrics: TopicMetrics,
@@ -103,72 +111,122 @@ async function saveProgress(
   );
 }
 
+type TraceResults = Map<TraceFacet, TopicSummary | Error>;
+type TraceInput = Awaited<ReturnType<typeof loadTopicTranscript>>;
+
+/**
+ * Summarizes a trace's pending facets with the trace-batch request: one call for
+ * every facet that has no accepted or reusable summary. Results follow `facets`;
+ * a trace-level failure applies only to unresolved facets, execution-level failures throw.
+ */
 async function summarizeTrace(
   metrics: TopicMetrics,
   models: TopicsModels,
   execution: ProcessExecution,
-  facet: TopicFacetVersion,
+  facets: TraceFacet[],
   traceId: string,
-  staged: TopicSummary[],
-  getTranscript: () => ReturnType<typeof loadTopicTranscript>,
-): Promise<TopicSummary> {
-  const accepted = staged.find((row) => row.traceId === traceId);
-  if (accepted) {
+  staged: Map<TopicFacetVersion, TopicSummary[]>,
+  getTranscript: () => Promise<TraceInput>,
+): Promise<(TopicSummary | Error)[]> {
+  const results = acceptedSummaries(metrics, facets, traceId, staged);
+  const unresolved = () => facets.filter((facet) => !results.has(facet));
+  if (unresolved().length > 0) {
+    try {
+      const input = await getTranscript();
+      if (isInternalEvalEnvironment(input.environment))
+        throw new Error("Topics does not process internal Langfuse traces.");
+      const base = (facet: TraceFacet) =>
+        baseTopicSummary({
+          projectId: execution.projectId,
+          traceId,
+          sessionId: input.sessionId,
+          unitStartTime: input.unitStartTime,
+          environment: input.environment,
+          traceName: input.traceName,
+          facet: facet.version,
+          summaryModel: execution.input.processingConfig.summaryModel!,
+          embeddingModel: execution.input.embeddingConfig.embeddingModel!,
+          triggerType: "manual",
+          metadata: { executionId: execution.id },
+        });
+      // Each step records a facet as soon as it is staged, so a later failure keeps it.
+      await reuseSummaries(metrics, execution, unresolved(), base, results);
+      await summarizePending(
+        metrics,
+        models,
+        execution,
+        traceId,
+        unresolved(),
+        base,
+        input,
+        results,
+      );
+    } catch (error) {
+      if (isExecutionFailure(error) && !isTraceModelFailure(error)) throw error;
+      metrics.error("summary", error);
+      logger.warn("Topics summary failed for trace", {
+        "langfuse.trace.id": traceId,
+        "langfuse.topics.execution_id": execution.id,
+        "langfuse.topics.error.reason":
+          error instanceof TopicsProviderUnavailable ? error.reason : "other",
+        error: errorMessage(error),
+      });
+      for (const facet of unresolved()) results.set(facet, error as Error);
+    }
+  }
+  return facets.map((facet) => results.get(facet)!);
+}
+
+/** Summaries an earlier attempt of this execution already staged. */
+function acceptedSummaries(
+  metrics: TopicMetrics,
+  facets: TraceFacet[],
+  traceId: string,
+  staged: Map<TopicFacetVersion, TopicSummary[]>,
+): TraceResults {
+  const results: TraceResults = new Map();
+  for (const facet of facets) {
+    const accepted = staged
+      .get(facet.version)!
+      .find((row) => row.traceId === traceId);
+    if (!accepted) continue;
     if (isInternalEvalEnvironment(accepted.environment))
       throw new Error("Topics does not process internal Langfuse traces.");
     metrics.result("summary", "cached");
     // An accepted payload may expire after the cache read; never renew its TTL.
-    return accepted;
+    results.set(facet, accepted);
   }
-  const { unitStartTime, sessionId, environment, traceName, transcript } =
-    await getTranscript();
-  if (isInternalEvalEnvironment(environment))
-    throw new Error("Topics does not process internal Langfuse traces.");
-  const source = {
-    projectId: execution.projectId,
-    facetId: facet.facetId,
-    facetVersion: facet.version,
-    traceId,
-    sessionId,
-  };
-  let summary: TopicSummary = {
-    ...source,
-    triggerType: "manual_poc",
-    unitStartTime,
-    environment,
-    traceName,
-    state: "insufficient_input",
-    summary: "",
-    embedding: [],
-    transcriptId: "poc",
-    transcriptVersion: TOPICS_TRANSCRIPT_VERSION,
-    summaryModel: execution.input.processingConfig.summaryModel!,
-    embeddingModel: execution.input.embeddingConfig.embeddingModel!,
-    providedUsageDetails: {},
-    usageDetails: {},
-    providedCostDetails: {},
-    costDetails: {},
-    processedAt: new Date().toISOString(),
-    metadata: {},
-  };
-  const reusable = execution.input.reuseExistingSummaries
-    ? (
-        await listTopicSummaries(
-          execution.projectId,
-          {
-            facetId: facet.facetId,
-            facetVersion: facet.version,
-            traceIds: [traceId],
-          },
-          summaryTimeRange([summary]),
-        )
-      ).find(
-        (row) =>
-          row.summaryModel === execution.input.processingConfig.summaryModel &&
-          row.transcriptVersion === TOPICS_TRANSCRIPT_VERSION,
+  return results;
+}
+
+/** Stages compatible stored summaries when the execution opted into reuse. */
+async function reuseSummaries(
+  metrics: TopicMetrics,
+  execution: ProcessExecution,
+  facets: TraceFacet[],
+  base: (facet: TraceFacet) => TopicSummary,
+  results: TraceResults,
+): Promise<void> {
+  if (!execution.input.reuseExistingSummaries) return;
+  for (const facet of facets) {
+    const summary = base(facet);
+    const reusable = (
+      await listTopicSummaries(
+        execution.projectId,
+        {
+          facetId: summary.facetId,
+          facetVersion: summary.facetVersion,
+          traceIds: [summary.traceId!],
+        },
+        summaryTimeRange([summary]),
       )
-    : undefined;
-  if (reusable) {
+    ).find(
+      (row) =>
+        row.summaryModel === execution.input.processingConfig.summaryModel &&
+        row.transcriptId === ASSEMBLED_TRANSCRIPT_ID &&
+        row.transcriptVersion === TOPICS_TRANSCRIPT_VERSION,
+    );
+    if (!reusable) continue;
     metrics.result("summary", "cached");
     const reuseEmbedding =
       reusable.state === "complete" &&
@@ -176,66 +234,81 @@ async function summarizeTrace(
         execution.input.embeddingConfig.embeddingModel &&
       reusable.embedding.length ===
         execution.input.embeddingConfig.embeddingDimensions;
-    summary = {
-      ...summary,
-      state:
-        reusable.state === "complete" && !reuseEmbedding
-          ? "summarized"
-          : reusable.state,
-      summary: reusable.summary,
-      embedding: reuseEmbedding ? reusable.embedding : [],
-      metadata: {
-        summaryReusedFromProcessedAt: reusable.processedAt,
-        ...(reuseEmbedding
-          ? { embeddingReusedFromProcessedAt: reusable.processedAt }
-          : {}),
-      },
-    };
-  } else if (transcript !== null) {
-    const result = await metrics.measure("summary", async () => {
-      const result = await summarizeTopicTrace(
-        models,
-        facet,
-        JSON.stringify(transcript),
-        execution.input.processingConfig,
-        {
-          source_trace_id: traceId,
-          source_environment: environment,
-          execution_id: execution.id,
+    results.set(
+      facet,
+      await stageSummary(metrics, execution, {
+        ...summary,
+        state:
+          reusable.state === "complete" && !reuseEmbedding
+            ? "summarized"
+            : reusable.state,
+        summary: reusable.summary,
+        embedding: reuseEmbedding ? reusable.embedding : [],
+        metadata: {
+          ...summary.metadata,
+          summaryReusedFromProcessedAt: reusable.processedAt,
+          ...(reuseEmbedding
+            ? { embeddingReusedFromProcessedAt: reusable.processedAt }
+            : {}),
         },
-      );
-      const error = topicSummaryOutputError(result.output);
-      if (error) throw invalidOutput(metrics, "summary", error);
-      return result;
-    });
-    metrics.result(
-      "summary",
-      result.output.status === "applicable"
-        ? "generated"
-        : result.output.status,
+      }),
     );
-    summary = {
-      ...summary,
-      state:
-        result.output.status === "applicable"
-          ? "summarized"
-          : result.output.status,
-      summary:
-        result.output.status === "applicable"
-          ? result.output.summary.trim()
-          : "",
-      providedUsageDetails: result.providedUsageDetails,
-      usageDetails: result.usageDetails,
-      providedCostDetails: result.providedCostDetails,
-      costDetails: result.costDetails,
-    };
-  } else {
-    metrics.result("summary", "insufficient_input");
   }
-  return stageSummary(metrics, execution, {
-    ...summary,
-    metadata: { ...summary.metadata, executionId: execution.id },
+}
+
+/** Summarizes the remaining facets in one shared call and stages each result. */
+async function summarizePending(
+  metrics: TopicMetrics,
+  models: TopicsModels,
+  execution: ProcessExecution,
+  traceId: string,
+  facets: TraceFacet[],
+  base: (facet: TraceFacet) => TopicSummary,
+  input: TraceInput,
+  results: TraceResults,
+): Promise<void> {
+  if (facets.length === 0) return;
+  const summarized = await summarizeTraceFacets({
+    models,
+    facets,
+    transcript: input.transcript,
+    config: execution.input.processingConfig,
+    metadata: {
+      source_trace_id: traceId,
+      source_environment: input.environment,
+      execution_id: execution.id,
+    },
+    metrics,
   });
+  const rows: { facet: TraceFacet; summary: TopicSummary }[] = [];
+  for (const [index, facet] of facets.entries()) {
+    const result = summarized?.results[index];
+    if (result && "error" in result) {
+      // An invalid facet output fails only this trace, not the execution.
+      results.set(facet, new Error(result.error.message));
+      continue;
+    }
+    const output = result?.output;
+    rows.push({
+      facet,
+      summary: {
+        ...base(facet),
+        ...(output && {
+          state: output.status === "applicable" ? "summarized" : output.status,
+          summary: output.status === "applicable" ? output.summary.trim() : "",
+        }),
+      },
+    });
+  }
+  // One call summarized every facet; each staged row carries an equal share of its usage.
+  const shares = summarized
+    ? splitTopicModelUsage(summarized.usage, rows.length)
+    : [];
+  for (const [index, { facet, summary }] of rows.entries())
+    results.set(
+      facet,
+      await stageSummary(metrics, execution, { ...summary, ...shares[index] }),
+    );
 }
 
 async function stageSummary(
@@ -349,55 +422,75 @@ async function assignSummaries(
   coordinates: Map<string, [number, number]> = new Map(),
   assignedAt = new Date().toISOString(),
 ) {
-  return metrics.measure("assignment", async () => {
-    const rows = topicAssignmentRows({
-      projectId: execution.projectId,
-      facet: { facetId: facet.facetId, version: facet.version },
-      embeddingConfig: execution.input.embeddingConfig,
-      summaries,
-      run,
-      origin: execution.input.operation === "process" ? "online" : "initial",
-      assignedAt,
-      coordinates,
-    });
-    await metrics.measure(
-      "storage",
-      () => writeTopicAssignments(rows),
-      "storage",
-    );
-    const visible =
-      execution.input.operation === "update" && rows.length
-        ? await readTopicAssignments(
-            execution.projectId,
-            { facetId: facet.facetId, version: facet.version },
-            summaries,
-            run.id,
-            summaryTimeRange(summaries),
-          )
-        : [];
-    const visibleByTrace = new Map(visible.map((row) => [row.traceId, row]));
-    if (
-      execution.input.operation === "update" &&
-      rows.some((row) => {
-        const persisted = visibleByTrace.get(row.traceId);
-        return (
-          !persisted ||
-          persisted.topicId !== row.topicId ||
-          persisted.topicVersionId !== row.topicVersionId ||
-          persisted.summaryProcessedAt !== row.summaryProcessedAt
-        );
-      })
-    )
-      throw new Error(
-        "Topic assignments are not fully visible; map publication is deferred.",
-      );
-    progress.counts.assigned = rows.filter(
-      (row) => row.topicId !== null,
-    ).length;
-    progress.counts.outlier = rows.length - progress.counts.assigned;
-    metrics.result("assignment", "assigned", progress.counts.assigned);
-    metrics.result("assignment", "outlier", progress.counts.outlier);
-  });
+  return instrumentAsync(
+    { name: "topics.assignment", traceScope: "topics" },
+    (span) => {
+      span.setAttribute("langfuse.topics.summaries", summaries.length);
+      return metrics.measure("assignment", async () => {
+        let assignedCount = 0;
+        // Keep classification and readback scratch bounded independently of cohort size.
+        for (let start = 0; start < summaries.length; start += 1000) {
+          const batch = summaries.slice(start, start + 1000);
+          const rows: ReturnType<typeof topicAssignmentRows> = [];
+          for (let offset = 0; offset < batch.length; offset += 64) {
+            rows.push(
+              ...topicAssignmentRows({
+                projectId: execution.projectId,
+                facet: { facetId: facet.facetId, version: facet.version },
+                embeddingConfig: execution.input.embeddingConfig,
+                summaries: batch.slice(offset, offset + 64),
+                run,
+                origin:
+                  execution.input.operation === "process"
+                    ? "online"
+                    : "initial",
+                assignedAt,
+                coordinates,
+              }),
+            );
+            await yieldToEventLoop();
+          }
+          await metrics.measure(
+            "storage",
+            () => writeTopicAssignments(rows),
+            "storage",
+          );
+          if (execution.input.operation === "update") {
+            const visible = await readTopicAssignments(
+              execution.projectId,
+              { facetId: facet.facetId, version: facet.version },
+              batch,
+              run.id,
+              summaryTimeRange(batch),
+            );
+            const visibleByTrace = new Map(
+              visible.map((row) => [row.traceId, row]),
+            );
+            if (
+              rows.some((row) => {
+                const persisted = visibleByTrace.get(row.traceId);
+                return (
+                  !persisted ||
+                  persisted.topicId !== row.topicId ||
+                  persisted.topicVersionId !== row.topicVersionId ||
+                  persisted.summaryProcessedAt !== row.summaryProcessedAt
+                );
+              })
+            )
+              throw new Error(
+                "Topic assignments are not fully visible; map publication is deferred.",
+              );
+          }
+          assignedCount += rows.filter((row) => row.topicId !== null).length;
+          await yieldToEventLoop();
+        }
+        progress.counts.assigned = assignedCount;
+        progress.counts.outlier = summaries.length - assignedCount;
+        metrics.result("assignment", "assigned", progress.counts.assigned);
+        metrics.result("assignment", "outlier", progress.counts.outlier);
+      });
+    },
+  );
 }
 
 async function clusterFacet(
@@ -465,14 +558,26 @@ async function clusterFacet(
       summaries.length,
       execution.input.embeddingConfig.embeddingDimensions,
     );
-    const numeric = await metrics.measure(
-      "clustering",
-      () =>
-        runTopicClustering(
-          summaries.map((row) => row.embedding),
-          numericConfig,
-        ),
-      "numerical",
+    const numeric = await instrumentAsync(
+      { name: "topics.clustering", traceScope: "topics" },
+      async (span) => {
+        span.setAttributes({
+          "langfuse.topics.clustering.vectors": summaries.length,
+          "langfuse.topics.clustering.dimensions":
+            execution.input.embeddingConfig.embeddingDimensions,
+        });
+        const result = await metrics.measure(
+          "clustering",
+          () =>
+            runTopicClustering(
+              summaries.map((row) => row.embedding),
+              numericConfig,
+            ),
+          "numerical",
+        );
+        span.setAttribute("langfuse.topics.clustering.status", result.status);
+        return result;
+      },
     );
     const coordinates = new Map(
       summaries
@@ -485,9 +590,9 @@ async function clusterFacet(
     const prototypes =
       numeric.status === "no_topics"
         ? []
-        : retainPopulatedTopics(
+        : await retainPopulatedTopics(
             summaries,
-            buildTopicPrototypes(summaries, numeric.labels).map(
+            (await buildTopicPrototypes(summaries, numeric.labels)).map(
               (prototype) => ({
                 ...prototype,
                 id: topicHash([run.id, prototype.id]).slice(0, 48),
@@ -533,51 +638,57 @@ async function clusterFacet(
         facetRef,
         previous.id,
         previousTimeRange,
+        env.LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS,
       );
-      const [previousSummaries, previousAssignments] = await Promise.all([
-        listTopicSummaries(
-          execution.projectId,
-          {
-            facetId: facet.facetId,
-            facetVersion: facet.version,
-            traceIds: previousTraceIds,
-          },
-          previousTimeRange,
-        ),
-        readTopicAssignments(
-          execution.projectId,
-          facetRef,
-          previousTraceIds.map((traceId) => ({ traceId, sessionId: null })),
-          previous.id,
-          previousTimeRange,
-        ),
-      ]);
-      const byTrace = new Map(
-        previousSummaries.map((row) => [row.traceId, row]),
-      );
+      const previousMemberships: {
+        traceId: string;
+        topicVersionId: string | null;
+      }[] = [];
+      for (let start = 0; start < previousTraceIds.length; start += 1000) {
+        const traceIds = previousTraceIds.slice(start, start + 1000);
+        const [previousSummaries, previousAssignments] = await Promise.all([
+          listTopicSummaries(
+            execution.projectId,
+            { facetId: facet.facetId, facetVersion: facet.version, traceIds },
+            previousTimeRange,
+          ),
+          readTopicAssignments(
+            execution.projectId,
+            facetRef,
+            traceIds.map((traceId) => ({ traceId, sessionId: null })),
+            previous.id,
+            previousTimeRange,
+          ),
+        ]);
+        const eligible = new Set(previousSummaries.map((row) => row.traceId));
+        for (const row of previousAssignments) {
+          if (row.traceId !== null && eligible.has(row.traceId))
+            previousMemberships.push({
+              traceId: row.traceId,
+              topicVersionId: row.topicVersionId,
+            });
+        }
+      }
+      const candidateMemberships: {
+        traceId: string;
+        topicVersionId: string | null;
+      }[] = [];
+      const yieldIfNeeded = createEventLoopYielder();
+      for (const summary of summaries) {
+        if (summary.traceId === null)
+          throw new Error("Topics processing requires a trace summary.");
+        candidateMemberships.push({
+          traceId: summary.traceId,
+          topicVersionId: classifyTopic(summary.embedding, prototypes).topicId,
+        });
+        const pause = yieldIfNeeded();
+        if (pause) await pause;
+      }
       candidates = matchTopicContinuity({
         previousTopics: previous.topics,
         candidateTopics: candidates,
-        previousMemberships: previousAssignments.flatMap((row) => {
-          const summary = byTrace.get(row.traceId);
-          return summary && summary.traceId !== null
-            ? [
-                {
-                  traceId: summary.traceId,
-                  topicVersionId: row.topicVersionId,
-                },
-              ]
-            : [];
-        }),
-        candidateMemberships: summaries.map((summary) => {
-          if (summary.traceId === null)
-            throw new Error("Topics processing requires a trace summary.");
-          return {
-            traceId: summary.traceId,
-            topicVersionId: classifyTopic(summary.embedding, prototypes)
-              .topicId,
-          };
-        }),
+        previousMemberships,
+        candidateMemberships,
         exploratory: execution.input.exploratory,
         compatibleEmbeddingSpace: compatiblePrevious,
       });
@@ -599,9 +710,9 @@ async function clusterFacet(
       return candidate;
     });
     // Final version IDs also determine the serving classifier's distance ties.
-    const evidence = buildNamingEvidence(
+    const evidence = await buildNamingEvidence(
       summaries,
-      retainPopulatedTopics(
+      await retainPopulatedTopics(
         summaries,
         candidates.map((candidate) => ({
           id: candidate.topicVersionId,
@@ -628,47 +739,58 @@ async function clusterFacet(
         topics.push(retained);
         continue;
       }
-      const label = await metrics.measure("naming", async () => {
-        const members = new Map(
-          group.members.map((summary, index) => [`m${index + 1}`, summary]),
-        );
-        const label = await nameGroupAvoidingConflicts(
-          metrics,
-          models,
-          named,
-          {
-            members: Array.from(members, ([id, { summary }]) => ({
-              id,
-              summary,
-            })),
-            contrasts: group.contrasts.map((member, index) => ({
-              id: `c${index + 1}`,
-              summary: member.summary,
-            })),
-          },
-          {
-            facet_id: facet.facetId,
-            facet_name: facetName,
-            facet_version: facet.version,
-            execution_id: execution.id,
-            run_id: run.id,
-            group_id: group.id,
-          },
-        );
-        return {
-          ...label,
-          representativeSummaries: label.evidenceSummaryIds.map((id) => {
-            const { facetId, facetVersion, traceId, sessionId } =
-              members.get(id)!;
+      const label = await instrumentAsync(
+        { name: "topics.naming", traceScope: "topics" },
+        (span) => {
+          span.setAttributes({
+            "langfuse.topics.group_id": group.id,
+            "langfuse.topics.group_members": group.members.length,
+          });
+          return metrics.measure("naming", async () => {
+            const prepared = await prepareTopicNamingGroup(
+              {
+                members: group.members,
+                contrasts: group.contrasts.map((member, index) => ({
+                  id: `c${index + 1}`,
+                  summary: member.summary,
+                })),
+              },
+              topicHash([run.id, group.id]),
+            );
+            const label = await nameGroupAvoidingConflicts(
+              metrics,
+              models,
+              named,
+              prepared,
+              {
+                facet_id: facet.facetId,
+                facet_name: facetName,
+                facet_version: facet.version,
+                execution_id: execution.id,
+                run_id: run.id,
+                group_id: group.id,
+                effective_member_count: group.count,
+                selected_member_count: prepared.members.length,
+              },
+            );
             return {
-              facetId,
-              facetVersion,
-              traceId,
-              sessionId: traceId === null ? sessionId : null,
+              ...label,
+              selectedMemberCount: prepared.members.length,
+              namingSampled: prepared.sampled,
+              representativeSummaries: label.evidenceSummaryIds.map((id) => {
+                const { facetId, facetVersion, traceId, sessionId } =
+                  prepared.members.find((member) => member.id === id)!.source;
+                return {
+                  facetId,
+                  facetVersion,
+                  traceId,
+                  sessionId: traceId === null ? sessionId : null,
+                };
+              }),
             };
-          }),
-        };
-      });
+          });
+        },
+      );
       const candidate = candidates.find(
         (topic) => topic.topicVersionId === group.id,
       )!;
@@ -684,6 +806,8 @@ async function clusterFacet(
         metadata: {
           ...candidate.metadata,
           effectiveMemberCount: group.count,
+          selectedMemberCount: label.selectedMemberCount,
+          namingSampled: label.namingSampled,
           namingModel: models.clustering.model,
         },
       });
@@ -774,12 +898,15 @@ function compatibleMap(
 type PendingFacet = {
   facet: TopicFacetVersion;
   progress: TopicFacetProgress;
+  name: string;
+  builtIn: boolean;
 };
 
 async function pendingFacets(
   execution: TopicExecution,
 ): Promise<PendingFacet[]> {
   const facets: PendingFacet[] = [];
+  const definitions = await listTopicFacets(execution.projectId);
   for (const progress of execution.facets) {
     if (progress.outcome !== "pending") continue;
     const facet = await getTopicFacetVersion(
@@ -787,9 +914,16 @@ async function pendingFacets(
       progress.facetId,
       progress.facetVersion,
     );
-    if (!facet) throw new Error("Facet version not found in this project.");
+    const definition = definitions.find(({ id }) => id === progress.facetId);
+    if (!facet || !definition)
+      throw new Error("Facet version not found in this project.");
     progress.counts.failed = 0;
-    facets.push({ facet, progress });
+    facets.push({
+      facet,
+      progress,
+      name: definition.name,
+      builtIn: definition.isBuiltIn,
+    });
   }
   return facets;
 }
@@ -807,7 +941,8 @@ async function processTraces(
   const facets: (PendingFacet & {
     run: TopicRun | null;
   })[] = [];
-  for (const { facet, progress } of await pendingFacets(execution)) {
+  for (const pending of await pendingFacets(execution)) {
+    const { facet, progress } = pending;
     progress.counts.failed =
       state.failedTraceIds.find(
         (entry) =>
@@ -821,7 +956,7 @@ async function processTraces(
       (run?.status !== "completed" || !compatibleMap(execution, facet, run))
     )
       throw new Error("The selected topic map is unavailable or incompatible.");
-    facets.push({ facet, progress, run });
+    facets.push({ ...pending, run });
   }
   if (!facets.length) return;
   if (!state.summarized) {
@@ -849,7 +984,7 @@ async function processTraces(
       )
         throw new TopicEmbeddingFailure(TOPIC_EMBEDDING_EXPIRED_ERROR);
     }
-    // Traces run concurrently; a trace's facets share its transcript and run in order.
+    // Traces run concurrently; a trace's pending facets share one transcript and summary call.
     const limit = pLimit(env.LANGFUSE_TOPICS_TRACE_CONCURRENCY);
     let saving = Promise.resolve();
     // Saves write the whole state, so they must not land out of order.
@@ -877,57 +1012,74 @@ async function processTraces(
               );
             return input;
           };
-          for (const { facet, progress } of facets) {
-            if (
-              state.summaries.some(
+          const todo = facets.filter(
+            ({ facet }) =>
+              !state.summaries.some(
                 (ref) =>
                   ref.facetId === facet.facetId &&
                   ref.facetVersion === facet.version &&
                   ref.traceId === traceId,
-              ) ||
-              state.failedTraceIds.some(
+              ) &&
+              !state.failedTraceIds.some(
                 (entry) =>
                   entry.facetId === facet.facetId &&
                   entry.facetVersion === facet.version &&
                   entry.traceIds.includes(traceId),
-              )
-            )
-              continue;
-            try {
-              await summarizeTrace(
-                metrics,
-                models,
-                execution,
-                facet,
-                traceId,
-                cached.get(facet)!,
-                getTranscript,
-              );
-              state.summaries.push({
-                facetId: facet.facetId,
-                facetVersion: facet.version,
-                traceId,
-              });
-              await saveInOrder();
-            } catch (error) {
-              metrics.error("summary", error);
-              if (isExecutionFailure(error)) {
-                aborted = true;
-                throw error;
-              }
-              recordTraceFailure(
-                state,
-                progress,
-                {
-                  facetId: facet.facetId,
-                  facetVersion: facet.version,
+              ),
+          );
+          if (todo.length === 0) return;
+          let outcomes: (TopicSummary | Error)[];
+          try {
+            outcomes = await instrumentAsync(
+              { name: "topics-trace-summary", traceScope: "topics" },
+              async (span) => {
+                span.setAttributes({
+                  "langfuse.trace.id": traceId,
+                  "langfuse.topics.execution_id": execution.id,
+                });
+                const results = await summarizeTrace(
+                  metrics,
+                  models,
+                  execution,
+                  todo.map(({ facet, name, builtIn }) => ({
+                    version: facet,
+                    name,
+                    builtIn,
+                  })),
                   traceId,
-                },
-                error,
-              );
-              await saveInOrder();
+                  cached,
+                  getTranscript,
+                );
+                span.setAttribute(
+                  "langfuse.topics.trace_outcome",
+                  results.some((result) => result instanceof Error)
+                    ? "failed"
+                    : "summarized",
+                );
+                return results;
+              },
+            );
+          } catch (error) {
+            metrics.error("summary", error);
+            if (isExecutionFailure(error) && !isTraceModelFailure(error)) {
+              aborted = true;
+              throw error;
             }
+            outcomes = todo.map(() => error as Error);
           }
+          for (const [index, { facet, progress }] of todo.entries()) {
+            const outcome = outcomes[index];
+            const ref = {
+              facetId: facet.facetId,
+              facetVersion: facet.version,
+              traceId,
+            };
+            // Invalid facet outputs are already counted by the shared summary call.
+            if (outcome instanceof Error)
+              recordTraceFailure(state, progress, ref, outcome);
+            else state.summaries.push(ref);
+          }
+          await saveInOrder();
         }),
       ),
     );
@@ -1010,10 +1162,7 @@ async function processTraces(
         progress.outcome = "assigned";
       }
     } catch (error) {
-      metrics.error("execution", error);
-      progress.outcome = "failed";
-      progress.error = errorMessage(error);
-      if (isExecutionFailure(error)) throw error;
+      failFacet(metrics, execution, facet, progress, error);
     }
     await save("processing");
   }
@@ -1056,74 +1205,126 @@ async function updateTopics(
     ]),
   );
   for (const { facet, progress } of await pendingFacets(execution)) {
-    try {
-      const accepted = progress.runId
-        ? await getTopicRun(execution.projectId, progress.runId)
-        : null;
-      if (
-        accepted &&
-        (accepted.projectId !== execution.projectId ||
-          accepted.facetId !== facet.facetId ||
-          accepted.facetVersion !== facet.version)
-      )
-        throw new Error("Clustering run does not match this facet version.");
-      if (accepted?.status === "completed") {
-        const assignments = await readTopicMapAssignments(
-          execution.projectId,
-          { facetId: facet.facetId, version: facet.version },
-          accepted.id,
-          topicTimeRangeSchema.parse(accepted.config.timeRange),
-        );
-        progress.counts.requested = assignments.length;
-        progress.counts.complete = assignments.length;
-        progress.counts.assigned = assignments.filter(
-          (row) => row.topicId !== null,
-        ).length;
-        progress.counts.outlier = assignments.length - progress.counts.assigned;
-        progress.outcome = accepted.topics.length ? "published" : "no_topics";
+    await instrumentAsync(
+      { name: "topics-facet-update", traceScope: "topics" },
+      async (span) => {
+        span.setAttributes({
+          "langfuse.topics.execution_id": execution.id,
+          "langfuse.topics.facet_id": facet.facetId,
+          "langfuse.topics.facet_version": facet.version,
+        });
+        try {
+          const accepted = progress.runId
+            ? await getTopicRun(execution.projectId, progress.runId)
+            : null;
+          if (
+            accepted &&
+            (accepted.projectId !== execution.projectId ||
+              accepted.facetId !== facet.facetId ||
+              accepted.facetVersion !== facet.version)
+          )
+            throw new Error(
+              "Clustering run does not match this facet version.",
+            );
+          if (accepted?.status === "completed") {
+            const assignments = await readTopicMapAssignments(
+              execution.projectId,
+              { facetId: facet.facetId, version: facet.version },
+              accepted.id,
+              topicTimeRangeSchema.parse(accepted.config.timeRange),
+            );
+            progress.counts.requested = assignments.length;
+            progress.counts.complete = assignments.length;
+            progress.counts.assigned = assignments.filter(
+              (row) => row.topicId !== null,
+            ).length;
+            progress.counts.outlier =
+              assignments.length - progress.counts.assigned;
+            progress.outcome = accepted.topics.length
+              ? "published"
+              : "no_topics";
+            await saveProgress(metrics, execution, "processing");
+            return;
+          }
+          if (accepted?.status === "skipped") {
+            progress.outcome = progress.counts.requested
+              ? "insufficient_data"
+              : "no_applicable_summaries";
+            await saveProgress(metrics, execution, "processing");
+            return;
+          }
+          const current = await getPublishedTopicRun(
+            execution.projectId,
+            facet.facetId,
+          );
+          const previous =
+            current?.facetVersion === facet.version ? current : null;
+          const summaries = await getTopicClusteringSummaries(
+            execution.projectId,
+            facet.facetId,
+            facet.version,
+            execution.input.embeddingConfig,
+            execution.input.timeRange,
+            {
+              maxRows: env.LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS,
+              maxBytes: env.LANGFUSE_TOPICS_MAX_CLUSTERING_BYTES,
+            },
+          ).catch(async (error: unknown) => {
+            if (accepted?.status === "pending")
+              await saveTopicRun({
+                ...accepted,
+                status: "failed",
+                error: errorMessage(error),
+                finishedAt: new Date().toISOString(),
+              });
+            throw error;
+          });
+          countSummaries(progress, summaries);
+          progress.counts.requested = summaries.length;
+          await clusterFacet(
+            metrics,
+            models,
+            execution,
+            facet,
+            facetNames.get(facet.facetId),
+            progress,
+            summaries,
+            accepted,
+            previous,
+          );
+        } catch (error) {
+          failFacet(metrics, execution, facet, progress, error);
+        }
         await saveProgress(metrics, execution, "processing");
-        continue;
-      }
-      if (accepted?.status === "skipped") {
-        progress.outcome = progress.counts.requested
-          ? "insufficient_data"
-          : "no_applicable_summaries";
-        await saveProgress(metrics, execution, "processing");
-        continue;
-      }
-      const current = await getPublishedTopicRun(
-        execution.projectId,
-        facet.facetId,
-      );
-      const previous = current?.facetVersion === facet.version ? current : null;
-      const summaries = await getTopicClusteringSummaries(
-        execution.projectId,
-        facet.facetId,
-        facet.version,
-        execution.input.embeddingConfig,
-        execution.input.timeRange,
-      );
-      countSummaries(progress, summaries);
-      progress.counts.requested = summaries.length;
-      await clusterFacet(
-        metrics,
-        models,
-        execution,
-        facet,
-        facetNames.get(facet.facetId),
-        progress,
-        summaries,
-        accepted,
-        previous,
-      );
-    } catch (error) {
-      metrics.error("execution", error);
-      progress.outcome = "failed";
-      progress.error = errorMessage(error);
-      if (isExecutionFailure(error)) throw error;
-    }
-    await saveProgress(metrics, execution, "processing");
+        span.setAttribute("langfuse.topics.facet_outcome", progress.outcome);
+      },
+    );
   }
+}
+
+/** Provider and configuration failures are the customer's to fix; anything else is ours. */
+function failFacet(
+  metrics: TopicMetrics,
+  execution: TopicExecution,
+  facet: TopicFacetVersion,
+  progress: TopicFacetProgress,
+  error: unknown,
+) {
+  metrics.error("execution", error);
+  progress.outcome = "failed";
+  progress.error = errorMessage(error);
+  const log =
+    error instanceof TopicsProviderUnavailable ? logger.warn : logger.error;
+  log("Topics facet failed", {
+    "langfuse.topics.execution_id": execution.id,
+    "langfuse.topics.operation": execution.input.operation,
+    "langfuse.topics.facet_id": facet.facetId,
+    "langfuse.topics.facet_version": facet.version,
+    error: progress.error,
+  });
+  if (isExecutionFailure(error)) throw error;
+  // Handled, but still a failed facet for the user; the enclosing span reports it.
+  traceException(error);
 }
 
 /** Queue batches own trace retry state; Postgres owns compact update progress. */
@@ -1284,5 +1485,13 @@ export async function processTopicsExecution({
     execution.status = "failed";
     execution.error = errorMessage(error);
     await save("failed");
+  } finally {
+    getCurrentSpan()?.setAttributes({
+      "langfuse.project.id": projectId,
+      "langfuse.topics.execution_id": executionId,
+      "langfuse.topics.operation": execution.input.operation,
+      "langfuse.topics.execution_status": execution.status,
+      "langfuse.topics.execution_phase": execution.phase,
+    });
   }
 }
