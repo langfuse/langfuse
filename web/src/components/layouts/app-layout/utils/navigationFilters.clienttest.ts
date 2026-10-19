@@ -1,6 +1,6 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
-import type { Route } from "@/src/components/layouts/routes";
+import { ROUTES, type Route } from "@/src/components/layouts/routes";
 import { applyNavigationFilters } from "./navigationFilters";
 import type { NavigationFilterContext } from "./navigationFilters.types";
 
@@ -30,3 +30,44 @@ it("keeps Topics hidden without explicit opt-in despite admin and experimental o
   context.session!.user!.featureFlags.langfuseTopics = true;
   expect(applyNavigationFilters([route], context, undefined)).toEqual([route]);
 });
+
+it.each([
+  { forceV3Experience: true, visible: false },
+  { forceV3Experience: false, visible: true },
+])(
+  "recovery visibility is $visible when forceV3Experience is $forceV3Experience",
+  ({ forceV3Experience, visible }) => {
+    const route = ROUTES.find(
+      (route) => route.featureFlag === "v4BetaToggleVisible",
+    )!;
+    const context: NavigationFilterContext = {
+      routerProjectId: "project-1",
+      routerOrganizationId: undefined,
+      session: {
+        user: {
+          canToggleV4: false,
+          v4BetaEnabled: false,
+          v4UpgradeUiAvailable: true,
+          featureFlags: testFeatureFlags({}),
+        },
+        environment: { v4WriteMode: "dual" },
+      } as Session,
+      enableExperimentalFeatures: false,
+      internalFeaturesEnabled: false,
+      cloudAdmin: false,
+      entitlements: [],
+      uiCustomization: null,
+      isLangfuseCloud: true,
+      hasActiveCloudIncident: false,
+      forceV3Experience,
+      currentPath: "/project/project-1",
+    };
+
+    expect(applyNavigationFilters([route], context, undefined)).toEqual(
+      visible ? [route] : [],
+    );
+
+    context.routerProjectId = undefined;
+    expect(applyNavigationFilters([route], context, undefined)).toEqual([]);
+  },
+);
