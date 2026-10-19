@@ -1,5 +1,10 @@
 import { prisma, Prisma } from "@langfuse/shared/src/db";
-import { logger, recordIncrement, redis } from "@langfuse/shared/src/server";
+import {
+  logger,
+  recordGauge,
+  recordIncrement,
+  redis,
+} from "@langfuse/shared/src/server";
 import { deleteInAppAgentMcpApiKeyFromDb } from "@langfuse/shared/src/server/auth/apiKeys";
 import { isEnterpriseLicenseAvailable } from "@langfuse/shared/src/server/ee/licenseCheck";
 import { cleanupRunMcpApiKey } from "@langfuse/shared/in-app-agent/server/runLifecycle";
@@ -58,6 +63,24 @@ export class InAppAgentRetentionCleaner extends PeriodicExclusiveRunner {
 
       if (conversations.length === 0) {
         this.cursor = null;
+        // Include blocked conversations so a healthy sweep cannot hide stalled retention.
+        const [backlog] = await prisma.$queryRaw<
+          Array<{ overdueSeconds: number }>
+        >`
+          SELECT GREATEST(COALESCE(MAX(EXTRACT(EPOCH FROM (
+            (NOW() AT TIME ZONE 'UTC') - c.updated_at - p.retention_days * INTERVAL '1 day'
+          ))), 0), 0)::double precision AS "overdueSeconds"
+          FROM in_app_agent_conversations c
+          JOIN projects p ON p.id = c.project_id
+          WHERE p.retention_days > 0
+            AND p.deleted_at IS NULL
+            AND c.updated_at < (NOW() AT TIME ZONE 'UTC') - p.retention_days * INTERVAL '1 day'
+        `;
+        recordGauge(
+          "langfuse.in_app_agent_retention_cleaner.max_conversation_retention_lag_seconds",
+          backlog!.overdueSeconds,
+          { unit: "seconds" },
+        );
         return this.defaultIntervalMs;
       }
 

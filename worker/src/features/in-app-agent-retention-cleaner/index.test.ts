@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   deleteKey: vi.fn(),
   licensed: vi.fn(),
   extend: vi.fn(),
+  gauge: vi.fn(),
 }));
 
 vi.mock("@langfuse/shared/src/db", async () => {
@@ -30,6 +31,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
   logger: { info: vi.fn(), error: vi.fn(), debug: vi.fn() },
   redis: null,
   recordIncrement: vi.fn(),
+  recordGauge: mocks.gauge,
   traceException: vi.fn(),
   getCurrentSpan: vi.fn(),
 }));
@@ -140,7 +142,10 @@ describe("InAppAgentRetentionCleaner", () => {
       projectId: "blocked-project",
     }));
     mocks.query.mockImplementation(
-      (_strings: TemplateStringsArray, cursor: { values: string[] }) => {
+      (strings: TemplateStringsArray, cursor: { values: string[] }) => {
+        if (strings.join("").includes('AS "overdueSeconds"')) {
+          return [{ overdueSeconds: 864_000 }];
+        }
         if (cursor.values.length === 0) return blockedConversations;
         if (cursor.values[0] === "conversation-099") {
           return [{ id: "healthy-conversation", projectId: "healthy-project" }];
@@ -168,10 +173,35 @@ describe("InAppAgentRetentionCleaner", () => {
     expect(await cleaner.processBatch()).toBe(600_000);
     await cleaner.processBatch();
 
-    expect(mocks.query).toHaveBeenCalledTimes(4);
+    expect(mocks.query).toHaveBeenCalledTimes(5);
     expect(mocks.execute).toHaveBeenCalledTimes(3);
     expect(mocks.deleteKey).toHaveBeenCalledTimes(2);
     expect(mocks.updateRuns).not.toHaveBeenCalled();
+  });
+
+  it.each([0, 864_000])(
+    "reports maximum retention overdue seconds %s at the end of a sweep",
+    async (overdueSeconds) => {
+      mocks.query
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ overdueSeconds }]);
+
+      expect(await new InAppAgentRetentionCleaner().processBatch()).toBe(
+        600_000,
+      );
+      expect(mocks.gauge).toHaveBeenCalledExactlyOnceWith(
+        "langfuse.in_app_agent_retention_cleaner.max_conversation_retention_lag_seconds",
+        overdueSeconds,
+        { unit: "seconds" },
+      );
+      expect(mocks.execute).not.toHaveBeenCalled();
+    },
+  );
+
+  it("does not collect retention overdue seconds for each active batch", async () => {
+    await new InAppAgentRetentionCleaner().processBatch();
+    expect(mocks.query).toHaveBeenCalledOnce();
+    expect(mocks.gauge).not.toHaveBeenCalled();
   });
 
   it("continues cleanup when the key was already removed", async () => {

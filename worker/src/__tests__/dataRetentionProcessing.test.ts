@@ -272,10 +272,18 @@ describe("DataRetentionProcessingJob", () => {
         }),
       ).toBe(1);
       expect(await cleaner.processBatch()).toBe(600_000);
+      const [backlog] = await candidateQuery.mock.results[2]!.value;
+      // Thirty-day-old conversations with seven-day retention are 23 days overdue.
+      expect(backlog.overdueSeconds).toBeGreaterThanOrEqual(23 * 24 * 60 * 60);
+      expect(backlog.overdueSeconds).toBeLessThan(
+        (Date.now() - expiredAt.getTime()) / 1000 - 7 * 24 * 60 * 60 + 1,
+      );
       expect(await cleaner.processBatch()).toBe(0);
       const discovered = (
         await Promise.all(candidateQuery.mock.results.map(({ value }) => value))
-      ).flat();
+      )
+        .flat()
+        .filter((row) => "projectId" in row);
       expect(discovered).toHaveLength(3);
       expect(discovered).toEqual(
         expect.arrayContaining([
