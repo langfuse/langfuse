@@ -239,36 +239,6 @@ WORKDIR /app
 ARG NEXT_PUBLIC_BUILD_ID
 ENV BUILD_ID=$NEXT_PUBLIC_BUILD_ID
 
-# ubi9-micro's labels describe Red Hat's base image (name, vendor, version,
-# build date, git revision), and Docker Hub and scanners read them as this
-# image's identity, so every one that names the base is overridden. Labels the
-# release pipeline passes at build time (version, created, revision, licenses)
-# take precedence over these. cpe, architecture and com.redhat.license_terms
-# stay: they still describe the base OS layers.
-ARG MICRO_BASE_IMAGE
-LABEL org.opencontainers.image.title="Langfuse Worker" \
-    org.opencontainers.image.description="Langfuse background worker: queue consumers and asynchronous processing" \
-    org.opencontainers.image.vendor="Langfuse" \
-    org.opencontainers.image.url="https://langfuse.com" \
-    org.opencontainers.image.source="https://github.com/langfuse/langfuse" \
-    org.opencontainers.image.revision="${NEXT_PUBLIC_BUILD_ID}" \
-    org.opencontainers.image.version="" \
-    org.opencontainers.image.created="" \
-    org.opencontainers.image.base.name="${MICRO_BASE_IMAGE}" \
-    name="langfuse/langfuse-worker" \
-    summary="Langfuse Worker" \
-    description="Langfuse background worker: queue consumers and asynchronous processing" \
-    vendor="Langfuse" \
-    maintainer="Langfuse <engineering@langfuse.com>" \
-    url="https://langfuse.com" \
-    version="" \
-    release="" \
-    build-date="" \
-    vcs-ref="${NEXT_PUBLIC_BUILD_ID}" \
-    com.redhat.component="langfuse-worker" \
-    io.k8s.display-name="Langfuse Worker" \
-    io.k8s.description="Langfuse background worker: queue consumers and asynchronous processing"
-
 ENV NODE_ENV production
 ENV DOCKER_BUILD 0
 

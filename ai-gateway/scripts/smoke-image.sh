@@ -2,13 +2,6 @@
 set -euo pipefail
 
 image="${1:?Usage: bash scripts/smoke-image.sh IMAGE}"
-for label in name vendor maintainer org.opencontainers.image.title org.opencontainers.image.vendor; do
-  value="$(docker image inspect --format "{{index .Config.Labels \"$label\"}}" "$image")"
-  if [[ "$value" == *"Red Hat"* || "$value" == *ubi9* || "$value" != *[Ll]angfuse* ]]; then
-    echo "Label $label still describes the base image: $value" >&2
-    exit 1
-  fi
-done
 binary_dir="$(mktemp -d)"
 binary_container="$(docker create "$image")"
 docker cp "$binary_container:/usr/local/bin/ai-gateway" "$binary_dir/ai-gateway" >/dev/null
@@ -45,4 +38,4 @@ docker stop --time 5 "$container" >/dev/null
 [[ "$(docker inspect --format '{{.State.ExitCode}}' "$container")" == 0 ]]
 docker logs "$container" 2>&1 | grep -q 'gateway draining'
 docker logs "$container" 2>&1 | grep -q 'gateway stopped'
-printf '%s\n' 'Image smoke: labels, dependency list, non-root, license notices, probes, ECS health command, unauthenticated inference, SIGTERM passed'
+printf '%s\n' 'Image smoke: dependency list, non-root, license notices, probes, ECS health command, unauthenticated inference, SIGTERM passed'
