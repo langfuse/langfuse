@@ -34,6 +34,7 @@ import {
   type PublicApiErrorContract,
 } from "./structuredPublicApiErrorContract";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
+import { sendAuthErrorJson } from "@/src/features/public-api/server/deprecations";
 import { applyLegacyApiOrganizationCutoff } from "@/src/features/public-api/server/legacyApiOrganizationCutoff";
 import { type RouteAccessLevel } from "@/src/features/public-api/server/verifyProjectApiKeyAuth";
 import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
@@ -181,7 +182,7 @@ export const createAuthedProjectAPIRoute = <
           }),
         );
       }
-      res.status(publicError.httpCode).json({
+      sendAuthErrorJson(res, publicError.httpCode, {
         message: publicError.message,
         error: publicError.name,
       });

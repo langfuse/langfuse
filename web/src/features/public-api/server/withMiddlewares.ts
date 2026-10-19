@@ -40,17 +40,6 @@ type Handlers = {
   [Method in HttpMethod]?: RouteHandler;
 };
 
-/** deprecationForRequest returns the requested handler's deprecation on Cloud, or any handler's when the method is not allowed. */
-function deprecationForRequest(
-  handlers: Handlers,
-  method: HttpMethod,
-): ApiDeprecationInfo | undefined {
-  if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) return undefined;
-  const handler = handlers[method];
-  if (handler) return handler.deprecation;
-  return Object.values(handlers).find((h) => h?.deprecation)?.deprecation;
-}
-
 const defaultHandler = () => {
   throw new MethodNotAllowedError();
 };
@@ -228,6 +217,22 @@ export function withMiddlewares(
       }
     });
   };
+}
+
+/** deprecationForRequest returns the requested handler's deprecation on Cloud; for a method the route lacks, it returns one only when every handler is deprecated. */
+function deprecationForRequest(
+  handlers: Handlers,
+  method: HttpMethod,
+): ApiDeprecationInfo | undefined {
+  if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) return undefined;
+  const handler = handlers[method];
+  if (handler) return handler.deprecation;
+  const defined = Object.values(handlers).filter(
+    (h): h is RouteHandler => h !== undefined,
+  );
+  return defined.every((h) => h.deprecation)
+    ? defined[0]?.deprecation
+    : undefined;
 }
 
 export function isZodError(error: any): error is ZodError {

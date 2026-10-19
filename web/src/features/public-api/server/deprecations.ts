@@ -136,6 +136,22 @@ export const LEGACY_WRITES_DEPRECATION: ApiDeprecationInfo = {
 
 /** AUTH_ERROR_STATUSES are statuses a replacement endpoint would not fix. */
 const AUTH_ERROR_STATUSES = new Set([401, 403]);
+const JSON_WITHOUT_HINT = Symbol("jsonWithoutReplacementHint");
+
+/** sendAuthErrorJson writes an auth error; on deprecated routes it keeps the notice but skips the replacement hint, which would not fix an auth failure. */
+export function sendAuthErrorJson(
+  res: NextApiResponse,
+  status: number,
+  body: unknown,
+) {
+  res.status(status);
+  const send: unknown = Reflect.get(res, JSON_WITHOUT_HINT);
+  if (typeof send === "function") {
+    send(body);
+    return;
+  }
+  res.json(body);
+}
 
 /** withDeprecationResponse sets the deprecation headers and returns a view of `res` whose `json` stamps the notice, plus the replacement hint on non-auth 4xx errors. */
 export function withDeprecationResponse(
@@ -151,9 +167,12 @@ export function withDeprecationResponse(
         : body;
     res.json(attachDeprecation(hinted, deprecation));
   };
+  const jsonWithoutHint = (body: unknown) =>
+    res.json(attachDeprecation(body, deprecation));
   const response: NextApiResponse = new Proxy(res, {
     get(target, property) {
       if (property === "json") return json;
+      if (property === JSON_WITHOUT_HINT) return jsonWithoutHint;
       // `status` returns the underlying response; keep chained `.json()` on this view.
       if (property === "status") {
         return (code: number) => {

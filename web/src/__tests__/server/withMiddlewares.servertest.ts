@@ -24,6 +24,7 @@ import { createMocks } from "node-mocks-http";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { env } from "@/src/env.mjs";
+import { sendAuthErrorJson } from "@/src/features/public-api/server/deprecations";
 
 vi.mock("@/src/env.mjs", async (importOriginal) => {
   const actual = await importOriginal<{ env: typeof env }>();
@@ -637,7 +638,7 @@ describe("withMiddlewares deprecation signal", () => {
 
   async function call(
     handlers: Parameters<typeof withMiddlewares>[0],
-    method: "GET" | "POST",
+    method: "GET" | "POST" | "PUT",
   ) {
     const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
       method,
@@ -720,6 +721,40 @@ describe("withMiddlewares deprecation signal", () => {
       expect(body.message).toBe(error.message);
     },
   );
+
+  it("sends a plain 405 when the route also has live methods", async () => {
+    const res = await call(
+      {
+        GET: deprecated(async () => {}),
+        POST: async () => {},
+      },
+      "PUT",
+    );
+
+    expect(res._getStatusCode()).toBe(405);
+    expect(res.getHeader("Deprecation")).toBeUndefined();
+    expect(JSON.parse(res._getData())._deprecation).toBeUndefined();
+  });
+
+  it("stamps auth errors without the replacement hint", async () => {
+    const res = await call(
+      {
+        GET: deprecated(async (_req, res) => {
+          sendAuthErrorJson(res, 404, {
+            message: "Project not found or you don't have access to it",
+          });
+        }),
+      },
+      "GET",
+    );
+
+    expect(res._getStatusCode()).toBe(404);
+    const body = JSON.parse(res._getData());
+    expect(body._deprecation).toEqual(deprecation);
+    expect(body.message).toBe(
+      "Project not found or you don't have access to it",
+    );
+  });
 
   it("leaves non-deprecated methods of the same route unchanged", async () => {
     const res = await call(
