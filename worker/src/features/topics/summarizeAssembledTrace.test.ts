@@ -288,7 +288,11 @@ describe("summarizeAssembledTrace", () => {
     });
     expect(state.summarize).toHaveBeenCalledOnce();
     const [intent, issue] = summaries;
-    expect(intent).toMatchObject({ facetId: "facet-1", state: "complete" });
+    expect(intent).toMatchObject({
+      facetId: "facet-1",
+      state: "complete",
+      triggerType: "automatic",
+    });
     expect(issue).toMatchObject({
       facetId: "facet-2",
       state: "not_applicable",

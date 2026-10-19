@@ -258,7 +258,8 @@ export type TopicSummary = z.infer<typeof topicSourceSchema> & {
   projectId: string;
   facetId: string;
   facetVersion: number;
-  triggerType: "manual_poc";
+  // Who wrote the row; rows written before this split hold "manual_poc".
+  triggerType: "automatic" | "manual" | "manual_poc";
   environment: string;
   traceName: string;
   unitStartTime: string;

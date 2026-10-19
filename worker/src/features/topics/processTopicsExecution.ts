@@ -183,7 +183,7 @@ function baseSummary(
     facetVersion: facet.version,
     traceId,
     sessionId: input.sessionId,
-    triggerType: "manual_poc",
+    triggerType: "manual",
     unitStartTime: input.unitStartTime,
     environment: input.environment,
     traceName: input.traceName,

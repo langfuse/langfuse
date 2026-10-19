@@ -313,7 +313,7 @@ function baseSummary(
     facetVersion: facet.version,
     traceId: input.traceId,
     sessionId: null,
-    triggerType: "manual_poc",
+    triggerType: "automatic",
     unitStartTime: input.traceTimestamp,
     environment: input.environment,
     traceName: input.traceName,
