@@ -1,7 +1,7 @@
 //! `OpenAI` Responses request, JSON response and completed SSE item capture.
 use super::{
-    MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, RequestMembers, bounded_string,
-    facts::ProviderFacts, parse_request, response::ResponseBody, value_memory,
+    MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, ProjectedKeys, RequestMembers,
+    bounded_string, facts::ProviderFacts, parse_request, response::ResponseBody, value_memory,
 };
 use crate::{resolution::IngestionMode, telemetry};
 use axum::http::HeaderMap;
@@ -34,6 +34,12 @@ const STRUCTURED_PARAMETERS: [&str; 8] = [
     "prompt_cache_options",
 ];
 const REQUEST_METADATA: [&str; 4] = ["metadata", "prompt_cache_key", "safety_identifier", "user"];
+const PROJECTED_KEYS: ProjectedKeys = &[
+    &["model", "client_metadata"],
+    &SCALAR_PARAMETERS,
+    &STRUCTURED_PARAMETERS,
+    &REQUEST_METADATA,
+];
 
 pub(super) struct OpenAiResponsesCapture {
     facts: ProviderFacts,
@@ -62,13 +68,7 @@ impl OpenAiResponsesCapture {
             response_valid: true,
             client_metadata: None,
         };
-        let keys: Vec<&'static str> = ["model", "client_metadata"]
-            .into_iter()
-            .chain(SCALAR_PARAMETERS)
-            .chain(STRUCTURED_PARAMETERS)
-            .chain(REQUEST_METADATA)
-            .collect();
-        match parse_request(headers, body, &keys, mode) {
+        match parse_request(headers, body, PROJECTED_KEYS, mode) {
             Ok(request) => {
                 capture.capture_request(request);
                 capture.request_complete = true;

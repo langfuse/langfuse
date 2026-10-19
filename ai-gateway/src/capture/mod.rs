@@ -22,7 +22,7 @@ pub(crate) use facts::ProviderFacts;
 pub(crate) use facts::{InferenceFacts, InputOmission, InputOmissionReason, RelayOutcome};
 use openai_chat_completions::OpenAiChatCompletionsCapture;
 use openai_responses::OpenAiResponsesCapture;
-use request::RequestMembers;
+use request::{ProjectedKeys, RequestMembers};
 
 pub(crate) const MAX_INPUT_CAPTURE_BYTES: usize = 5 * 1024 * 1024;
 pub(crate) const MAX_OUTPUT_CAPTURE_BYTES: usize = 1024 * 1024;
@@ -275,7 +275,7 @@ impl Drop for ExecutionCapture {
 fn parse_request<'a>(
     headers: &HeaderMap,
     body: &'a [u8],
-    keys: &[&'static str],
+    keys: ProjectedKeys,
     mode: IngestionMode,
 ) -> Result<RequestMembers<'a>, InputOmission> {
     let reason = if !identity_encoding(headers) {

@@ -10,7 +10,11 @@ use std::{borrow::Cow, fmt};
 /// Larger members stay in the recorded input, where they cost raw bytes only.
 const MAX_PROJECTED_BYTES: usize = 64 * 1024;
 
+/// Top-level members an adapter projects, grouped as it takes them; taking an unlisted key is a bug.
+pub(super) type ProjectedKeys = &'static [&'static [&'static str]];
+
 pub(super) struct RequestMembers<'a> {
+    keys: ProjectedKeys,
     projected: Vec<(&'static str, &'a RawValue)>,
     /// Remaining members as an unterminated JSON object; full mode only.
     input: Option<Vec<u8>>,
@@ -22,7 +26,7 @@ impl<'a> RequestMembers<'a> {
     /// A repeated projected key keeps its last value, like a parsed map.
     pub(super) fn parse(
         body: &'a [u8],
-        keys: &[&'static str],
+        keys: ProjectedKeys,
         keep_input: bool,
     ) -> serde_json::Result<Self> {
         let mut deserializer = serde_json::Deserializer::from_slice(body);
@@ -60,6 +64,13 @@ impl<'a> RequestMembers<'a> {
         max_bytes: usize,
         accept: impl FnOnce(&Value) -> bool,
     ) -> Option<(Value, usize)> {
+        debug_assert!(
+            self.keys
+                .iter()
+                .flat_map(|group| group.iter())
+                .any(|name| *name == key),
+            "`{key}` is taken but not projected"
+        );
         let position = self.projected.iter().position(|(name, _)| *name == key)?;
         let raw = self.projected[position].1.get();
         if raw.len() > max_bytes {
@@ -92,12 +103,12 @@ fn append_member(input: &mut Vec<u8>, key: &str, value: &RawValue) -> serde_json
     Ok(())
 }
 
-struct Split<'k> {
-    keys: &'k [&'static str],
+struct Split {
+    keys: ProjectedKeys,
     input_capacity: Option<usize>,
 }
 
-impl<'de> DeserializeSeed<'de> for Split<'_> {
+impl<'de> DeserializeSeed<'de> for Split {
     type Value = RequestMembers<'de>;
 
     fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<Self::Value, D::Error> {
@@ -105,7 +116,7 @@ impl<'de> DeserializeSeed<'de> for Split<'_> {
     }
 }
 
-impl<'de> Visitor<'de> for Split<'_> {
+impl<'de> Visitor<'de> for Split {
     type Value = RequestMembers<'de>;
 
     fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -114,6 +125,7 @@ impl<'de> Visitor<'de> for Split<'_> {
 
     fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
         let mut members = RequestMembers {
+            keys: self.keys,
             projected: Vec::new(),
             input: self.input_capacity.map(|capacity| {
                 let mut input = Vec::with_capacity(capacity);
@@ -123,7 +135,12 @@ impl<'de> Visitor<'de> for Split<'_> {
             projected_bytes: 0,
         };
         while let Some(Key(key)) = map.next_key()? {
-            if let Some(&name) = self.keys.iter().find(|name| **name == key) {
+            if let Some(&name) = self
+                .keys
+                .iter()
+                .flat_map(|group| group.iter())
+                .find(|name| **name == key)
+            {
                 let value: &'de RawValue = map.next_value()?;
                 members
                     .projected

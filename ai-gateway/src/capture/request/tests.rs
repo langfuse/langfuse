@@ -8,7 +8,7 @@ fn input(members: RequestMembers<'_>) -> Value {
 #[test]
 fn unprojected_members_stay_raw_in_request_order() {
     let body = br#"{"z": [1, {"a": 2}], "model": "m", "mod\u0065": 1, "b\"q": null}"#;
-    let mut members = RequestMembers::parse(body, &["model"], true).unwrap();
+    let mut members = RequestMembers::parse(body, &[&["model"]], true).unwrap();
     assert_eq!(members.take_value("model"), Some(json!("m")));
     assert_eq!(
         members.into_input().unwrap().get(),
@@ -19,7 +19,7 @@ fn unprojected_members_stay_raw_in_request_order() {
 #[test]
 fn repeated_projected_key_keeps_the_last_value() {
     let body = br#"{"model": "a", "input": [], "model": "b"}"#;
-    let mut members = RequestMembers::parse(body, &["model"], true).unwrap();
+    let mut members = RequestMembers::parse(body, &[&["model"]], true).unwrap();
     assert_eq!(members.take_value("model"), Some(json!("b")));
     assert_eq!(input(members), json!({"input": []}));
 }
@@ -34,7 +34,7 @@ fn untaken_and_over_budget_members_stay_in_the_input() {
         "input": "hi",
     }))
     .unwrap();
-    let mut members = RequestMembers::parse(&body, &["text", "user", "metadata"], true).unwrap();
+    let mut members = RequestMembers::parse(&body, &[&["text", "user", "metadata"]], true).unwrap();
     assert_eq!(members.take_value("text"), None);
     assert_eq!(members.take_value("user"), Some(json!("u")));
     assert_eq!(members.take_value_within("metadata", 1024, |_| false), None);

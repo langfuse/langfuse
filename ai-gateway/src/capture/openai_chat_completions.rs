@@ -1,7 +1,8 @@
 //! `OpenAI` Chat Completions request, JSON response and streamed choice capture.
 use super::{
-    MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, RequestMembers, bounded_string,
-    facts::ProviderFacts, object_memory, parse_request, response::ResponseBody, value_memory,
+    MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, ProjectedKeys, RequestMembers,
+    bounded_string, facts::ProviderFacts, object_memory, parse_request, response::ResponseBody,
+    value_memory,
 };
 use crate::resolution::IngestionMode;
 use axum::http::HeaderMap;
@@ -41,6 +42,12 @@ const STRUCTURED_PARAMETERS: [&str; 10] = [
     "web_search_options",
 ];
 const REQUEST_METADATA: [&str; 4] = ["metadata", "prompt_cache_key", "safety_identifier", "user"];
+const PROJECTED_KEYS: ProjectedKeys = &[
+    &["model"],
+    &SCALAR_PARAMETERS,
+    &STRUCTURED_PARAMETERS,
+    &REQUEST_METADATA,
+];
 /// Streamed fields that identify rather than extend; repeated values replace.
 const IDENTITY_FIELDS: [&str; 3] = ["role", "id", "type"];
 
@@ -287,13 +294,7 @@ impl OpenAiChatCompletionsCapture {
             request_complete: false,
             response_valid: true,
         };
-        let keys: Vec<&'static str> = ["model"]
-            .into_iter()
-            .chain(SCALAR_PARAMETERS)
-            .chain(STRUCTURED_PARAMETERS)
-            .chain(REQUEST_METADATA)
-            .collect();
-        match parse_request(headers, body, &keys, mode) {
+        match parse_request(headers, body, PROJECTED_KEYS, mode) {
             Ok(request) => {
                 capture.capture_request(request);
                 capture.request_complete = true;
