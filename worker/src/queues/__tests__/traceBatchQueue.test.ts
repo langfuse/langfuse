@@ -1048,6 +1048,69 @@ describe("trace batch queue", () => {
     vi.mocked(listTopicRules).mockResolvedValue([]);
   });
 
+  it("passes the session of the newest event that has one, breaking timestamp ties by span ID", async () => {
+    vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
+      for (const [span, eventTs, sessionId] of [
+        ["a", "2026-09-11 00:00:01.000000", "session-old"],
+        ["b", "2026-09-11 00:00:02.000000", "session-new"],
+        ["d", "2026-09-11 00:00:02.000000", "session-tie"],
+        ["c", "2026-09-11 00:00:03.000000", ""],
+      ])
+        yield {
+          project_id: "project",
+          trace_id: "trace",
+          session_id: sessionId,
+          environment: "default",
+          span_id: span,
+          parent_span_id: null,
+          start_time: "2026-09-11 00:00:00.000000",
+          event_ts: eventTs,
+          type: "GENERATION",
+          name: "generation",
+          input: JSON.stringify([{ role: "user", content: span }]),
+          output: JSON.stringify({ role: "assistant", content: "answer" }),
+          metadata: {},
+          level: "DEFAULT",
+          status_message: null,
+          tool_definitions: {},
+          tool_calls: [],
+          tool_call_names: [],
+        };
+    });
+    vi.mocked(listTopicFacets).mockResolvedValue([
+      { id: "intent" } as TopicFacet,
+    ]);
+    vi.mocked(listTopicRules).mockResolvedValue([
+      { facetIds: ["intent"], sampling: 1 } as TopicRule,
+    ]);
+    const job = {
+      data: {
+        id: "session",
+        name: QueueJobs.TraceBatch,
+        timestamp: new Date(),
+        payload: {
+          traces: [
+            {
+              projectId: "project",
+              traceId: "trace",
+              minStart: 0,
+              maxStart: 1,
+              revision: "r",
+            },
+          ],
+        },
+      },
+    } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+
+    await traceBatchQueueProcessor(job, undefined);
+
+    expect(
+      vi.mocked(summarizeAssembledTrace).mock.calls.at(-1)?.[0],
+    ).toMatchObject({ traceId: "trace", sessionId: "session-tie" });
+    vi.mocked(listTopicFacets).mockResolvedValue([]);
+    vi.mocked(listTopicRules).mockResolvedValue([]);
+  });
+
   it("skips projects without enabled Topics models and pauses a project whose connection is rejected", async () => {
     const rows = [
       ["off", "trace-1"],
