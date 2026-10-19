@@ -299,14 +299,12 @@ async function summarizePending(
       continue;
     }
     const output = result?.output;
-    metrics.result(
-      "summary",
-      !output
-        ? "insufficient_input"
-        : output.status === "applicable"
-          ? "generated"
-          : output.status,
-    );
+    if (!output) metrics.result("summary", "insufficient_input");
+    else
+      metrics.result(
+        "summary",
+        output.status === "applicable" ? "generated" : output.status,
+      );
     rows.push({
       facet,
       summary: {
