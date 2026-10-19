@@ -188,7 +188,7 @@
     "build": "tsc",
     "typecheck": "dotenv -e ../../.env -- tsc --noEmit --incremental --tsBuildInfoFile .tsbuildinfo",
     "dev": "tsc --watch",
-    "lint": "eslint . --cache --cache-location dist/.eslintcache --max-warnings 0 --concurrency 2",
+    "lint": "eslint --cache --cache-location dist/.eslintcache --max-warnings 0 --concurrency 2",
     "lint:fix": "eslint . --cache --cache-location dist/.eslintcache --fix --concurrency 2",
     "test": "dotenv -e ../../.env -- vitest run",
     "db:migrate": "DISABLE_ERD=false dotenv -e ../../.env -- npx prisma migrate dev",
@@ -272,7 +272,7 @@
     "oci-objectstorage": "^2.140.0",
     "safe-regex2": "^5.0.0",
     "slackify-markdown": "^5.0.0",
-    "undici": "^7.29.1",
+    "undici": "^7.30.1",
     "uuid": "^14.0.2",
     "winston": "^3.15.0",
     "zod": "^4.3.6"

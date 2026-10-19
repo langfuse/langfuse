@@ -188,17 +188,15 @@ describe("Topics transcript input", () => {
     });
   });
 
-  it("applies the Topics cap with stable equal-time ordering", async () => {
+  it("keeps the full transcript, like trace-batch, with stable equal-time ordering", async () => {
     const rows = [0, 1, 2].map((index) => ({
       span_id: `generation-${index}`,
       input: JSON.stringify([{ role: "user", content: `Request ${index}` }]),
       output: "response".repeat(4_000),
     }));
     const result = await loadRows(...rows);
-    expect(result.transcript?.truncated).toBe(true);
-    expect(JSON.stringify(result.transcript).length).toBeLessThanOrEqual(
-      10_000,
-    );
+    expect(result.transcript?.truncated).toBeFalsy();
+    expect(JSON.stringify(result.transcript).length).toBeGreaterThan(96_000);
     expect((await loadRows(...rows.reverse())).transcript).toEqual(
       result.transcript,
     );

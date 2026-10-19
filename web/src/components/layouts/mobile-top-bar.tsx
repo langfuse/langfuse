@@ -1,13 +1,13 @@
 /* eslint-disable @repo/component-file-structure */
 import { type ReactNode } from "react";
 import { useSession } from "next-auth/react";
-import { Menu } from "lucide-react";
+import { Menu } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { useSidebar } from "@/src/components/ui/sidebar";
-import { TopbarBrand } from "@/src/components/nav/topbar-brand";
-import { useHasAppSidebar } from "@/src/components/nav/sidebar-presence";
-import { TopbarAccount } from "@/src/components/nav/topbar-account";
-import { InAppAiAgentButton } from "@/src/components/nav/in-app-ai-agent-button";
+import { TopbarBrand } from "@/src/components/nav/TopbarBrand";
+import { useHasAppSidebar } from "@/src/components/nav/SidebarPresenceProvider";
+import { TopbarAccount } from "@/src/components/nav/TopbarAccount";
+import { InAppAiAgentButton } from "@/src/components/nav/InAppAiAgentButton";
 import { EnvLabelBadge } from "@/src/components/EnvLabelBadge";
 import { useEnvLabel } from "@/src/hooks/useEnvLabel";
 import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent";
@@ -48,7 +48,7 @@ export const MobileTopBar = ({
             aria-label="Open menu"
             onClick={() => toggleSidebar()}
           >
-            <Menu className="icon-lg text-icon-foreground" />
+            <Menu size="lg" color="default" />
           </Button>
         ) : (
           leadingControl

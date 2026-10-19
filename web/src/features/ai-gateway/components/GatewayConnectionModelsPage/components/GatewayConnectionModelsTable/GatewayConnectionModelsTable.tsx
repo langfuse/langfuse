@@ -82,6 +82,8 @@ export function GatewayConnectionModelsTable({
         minSize: 180,
         isFlexWidth: true,
         enableSorting: true,
+        headerClassName: "pl-2",
+        cellClassName: "pl-2",
         cell: ({ row }) => (
           <span className="block truncate" title={row.original.id}>
             {row.original.id}

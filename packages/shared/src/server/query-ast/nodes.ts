@@ -80,17 +80,27 @@ export type ArrayIndexNode = {
   readonly kind: "ArrayIndexNode";
   readonly array: OperationNode;
   readonly index: OperationNode;
+  /**
+   * `metadata[key]` over one relation's `metadata_names`/`metadata_values`,
+   * so events routing can keep a short metadata predicate on `events_core`.
+   */
+  readonly metadataLookup?: true;
 };
 
 export const ArrayIndexNode = {
   is(node: { kind: string }): node is ArrayIndexNode {
     return node.kind === "ArrayIndexNode";
   },
-  create(array: OperationNode, index: OperationNode): ArrayIndexNode {
+  create(
+    array: OperationNode,
+    index: OperationNode,
+    metadataLookup = false,
+  ): ArrayIndexNode {
     return Object.freeze({
       kind: "ArrayIndexNode",
       array,
       index,
+      ...(metadataLookup ? { metadataLookup: true as const } : {}),
     });
   },
 };

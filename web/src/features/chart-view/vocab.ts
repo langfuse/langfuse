@@ -6,8 +6,8 @@ import {
   Hash,
   LineChart,
   PieChart,
-  type LucideIcon,
-} from "lucide-react";
+  type IconComponent,
+} from "@langfuse/icons";
 import {
   type AggregationFn,
   type ChartViewConfig,
@@ -96,7 +96,7 @@ export const AGGREGATION_LABELS: Record<AggregationFn, string> = {
 export interface ChartTypeOption {
   value: DashboardWidgetChartType;
   label: string;
-  icon: LucideIcon;
+  icon: IconComponent;
   isTimeSeries: boolean;
 }
 

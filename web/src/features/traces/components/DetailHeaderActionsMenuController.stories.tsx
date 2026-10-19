@@ -1,4 +1,4 @@
-import { EllipsisVertical } from "lucide-react";
+import { EllipsisVertical } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
 import { DetailHeaderActionsMenuController } from "./DetailHeaderActionsMenuController";
@@ -19,7 +19,7 @@ function DetailHeaderActionsMenuStory() {
           variant="ghost"
           {...getTriggerProps()}
         >
-          <EllipsisVertical className="icon-sm text-icon-foreground" />
+          <EllipsisVertical size="sm" color="default" />
         </Button>
       )}
     </DetailHeaderActionsMenuController>

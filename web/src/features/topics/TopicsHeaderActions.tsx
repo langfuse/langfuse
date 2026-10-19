@@ -1,4 +1,4 @@
-import { MoreHorizontal, Settings } from "lucide-react";
+import { MoreHorizontal, Settings } from "@langfuse/icons";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";

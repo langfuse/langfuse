@@ -23,7 +23,7 @@ export class GatewayApiKeyService {
     this.repository = new GatewayApiKeyRepository(prisma);
   }
 
-  list(params: { organizationId: string; cursor?: string; limit: number }) {
+  list(params: { organizationId: string; page: number; limit: number }) {
     return this.repository.listGatewayApiKeys(params);
   }
 

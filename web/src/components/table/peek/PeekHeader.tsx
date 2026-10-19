@@ -24,7 +24,7 @@ import {
   Minimize2,
   MoreHorizontal,
   X,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import {
   planPeekHeaderLayout,
@@ -186,7 +186,7 @@ export function PeekHeader({
             <div ref={openInTabRef}>
               <HeaderActionButton
                 label="Open in new tab"
-                icon={<ExternalLink className="icon-base" />}
+                icon={<ExternalLink size="base" />}
                 onClick={openInNewTab}
               />
             </div>
@@ -202,9 +202,9 @@ export function PeekHeader({
                 label={expand.isExpanded ? "Collapse" : "Expand"}
                 icon={
                   expand.isExpanded ? (
-                    <Minimize2 className="icon-base" />
+                    <Minimize2 size="base" />
                   ) : (
-                    <Maximize2 className="icon-base" />
+                    <Maximize2 size="base" />
                   )
                 }
                 onClick={expand.onToggle}
@@ -240,7 +240,7 @@ export function PeekHeader({
                       aria-label="More actions"
                       className="text-foreground-secondary hover:text-foreground-secondary"
                     >
-                      <MoreHorizontal className="icon-base text-icon-foreground" />
+                      <MoreHorizontal size="base" color="default" />
                     </Button>
                   </PopoverTrigger>
                 </TooltipTrigger>
@@ -257,7 +257,7 @@ export function PeekHeader({
                     onClick={openInNewTab}
                     className="hover:bg-accent flex w-full items-center gap-2 rounded-sm py-1.5 pr-2 pl-1.5 text-sm"
                   >
-                    <ExternalLink className="icon-base" />
+                    <ExternalLink size="base" />
                     Open in new tab
                   </button>
                 ) : null}
@@ -268,7 +268,7 @@ export function PeekHeader({
           <div ref={closeRef}>
             <HeaderActionButton
               label="Close"
-              icon={<X className="icon-base" />}
+              icon={<X size="base" />}
               onClick={onClose}
             />
           </div>

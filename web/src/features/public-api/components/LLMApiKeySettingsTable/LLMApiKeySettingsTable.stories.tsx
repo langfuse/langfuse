@@ -1,5 +1,5 @@
 import { fn } from "storybook/test";
-import { Plug } from "lucide-react";
+import { Plug } from "@langfuse/icons";
 
 import preview from "../../../../../.storybook/preview";
 import { LlmConnectionEmptyState } from "@/src/features/public-api/components/LlmConnectionEmptyState/LlmConnectionEmptyState";

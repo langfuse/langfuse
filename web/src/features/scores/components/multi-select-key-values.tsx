@@ -1,6 +1,6 @@
 /* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger, @repo/component-file-structure */
 import * as React from "react";
-import { Archive, Component, Search } from "lucide-react";
+import { Archive, Component, Search } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
 import { cn } from "@/src/utils/tailwind";
@@ -147,7 +147,7 @@ export function MultiSelectKeyValues<
           {option.value}
         </span>
         {option.isArchived && (
-          <Archive className="icon-base text-foreground/50 ml-2" />
+          <Archive size="base" __rawClassName="text-foreground/50 ml-2" />
         )}
         {option.count !== undefined && (
           <span className="ml-auto font-mono text-xs">{option.count}</span>
@@ -232,7 +232,7 @@ export function MultiSelectKeyValues<
           className="flex items-center border-b px-2 py-1"
           onClick={handleInputClick}
         >
-          <Search className="icon-sm mr-1 opacity-50" />
+          <Search size="sm" __rawClassName="mr-1 opacity-50" />
           <Input
             ref={inputRef}
             placeholder={placeholder}
@@ -258,7 +258,11 @@ export function MultiSelectKeyValues<
             return (
               <DropdownMenuSub key={group.label}>
                 <DropdownMenuSubTrigger className="flex w-full items-center select-none">
-                  <Component className="icon-base text-icon-foreground mr-2 opacity-50" />
+                  <Component
+                    size="base"
+                    color="default"
+                    __rawClassName="mr-2 opacity-50"
+                  />
                   <span>{group.label}</span>
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent className="max-h-[300px] overflow-y-auto">

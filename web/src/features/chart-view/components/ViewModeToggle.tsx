@@ -1,5 +1,5 @@
 import React from "react";
-import { BarChart3, Table } from "lucide-react";
+import { BarChart3, Table } from "@langfuse/icons";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { type ViewMode } from "../types";
 

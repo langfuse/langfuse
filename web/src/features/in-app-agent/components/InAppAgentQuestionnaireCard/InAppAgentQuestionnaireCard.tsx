@@ -7,7 +7,7 @@ import {
   type SyntheticEvent,
 } from "react";
 import { useForm } from "react-hook-form";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, X } from "@langfuse/icons";
 import type {
   InAppAgentQuestionnaireAnswers,
   InAppAgentQuestionnaireQuestion,
@@ -115,7 +115,7 @@ export function InAppAgentQuestionnaireCard({
   return (
     <form
       aria-labelledby={titleId}
-      className="bg-card text-foreground border-border overflow-hidden rounded-md border shadow-xs"
+      className="ph-no-capture bg-card text-foreground border-border overflow-hidden rounded-md border shadow-xs"
       onSubmit={handleFormSubmit}
       onKeyDown={handleKeyDown}
     >

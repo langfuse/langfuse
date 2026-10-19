@@ -26,7 +26,7 @@ import { useHasEntitlement } from "@/src/features/entitlements";
 import { useHasOrganizationAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle } from "@langfuse/icons";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";

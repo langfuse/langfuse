@@ -193,8 +193,7 @@ export async function loadTopicTranscript(params: {
     sessionId,
     environment,
     traceName: traceName || rootName,
-    transcript: assembleTranscript(orderObservations(observations), {
-      maxCharacters: 10_000,
-    }),
+    // Uncapped, like trace-batch; the summary input limit rejects oversized traces.
+    transcript: assembleTranscript(orderObservations(observations)),
   };
 }

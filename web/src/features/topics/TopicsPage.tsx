@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Settings } from "lucide-react";
+import { Settings } from "@langfuse/icons";
 import { type UseQueryResult } from "@tanstack/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
@@ -29,6 +29,7 @@ import {
 import { PopoverController } from "@/src/components/ui/popover";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { api, type RouterOutputs } from "@/src/utils/api";
+import { costFormatter } from "@/src/utils/numbers";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import {
@@ -436,9 +437,7 @@ function TopicsWorkspaceContent({
                     {configured ? (
                       <HeaderActionMenuRow
                         label="Configure Topics"
-                        icon={
-                          <Settings className="icon-base text-icon-foreground" />
-                        }
+                        icon={<Settings size="base" color="default" />}
                         onClick={handleConfigureFromMenu}
                       />
                     ) : null}
@@ -499,7 +498,8 @@ function TopicsWorkspaceContent({
                       {executionId ? "Run status" : "Past executions"}
                     </SheetTitle>
                     <SheetDescription>
-                      Review progress, errors, and retry interrupted runs.
+                      Review progress, costs, errors, and retry interrupted
+                      runs.
                     </SheetDescription>
                   </SheetHeader>
                   <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
@@ -552,6 +552,14 @@ function TopicsWorkspaceContent({
                             </span>
                             <span>{execution.facets.length} facets</span>
                             <Badge text={executionLabels[execution.status]} />
+                            {execution.input.operation === "process" && (
+                              <span className="text-muted-foreground w-full tabular-nums">
+                                Estimated cost:{" "}
+                                {estimatedExecutionCost(
+                                  execution.estimatedCost,
+                                )}
+                              </span>
+                            )}
                           </button>
                         ))}
                       </>
@@ -730,6 +738,21 @@ function ExecutionPanel({
           </p>
         )}
       </div>
+      {!isUpdate && (
+        <section className="flex flex-col gap-2 rounded-md border p-3 text-sm">
+          <p className="flex items-center justify-between gap-3">
+            <span className="font-bold">Estimated cost</span>
+            <span className="tabular-nums">
+              {estimatedExecutionCost(execution.estimatedCost)}
+            </span>
+          </p>
+          <p className="text-muted-foreground text-xs">
+            Estimated cost for this run’s currently stored summaries and
+            embeddings. Costs may decrease when summaries are reused,
+            reprocessed, or deleted.
+          </p>
+        </section>
+      )}
       {execution.error && <ErrorMessage message={execution.error} />}
       {execution.facets.some((facet) => facet.counts.failed > 0) && (
         <details
@@ -863,6 +886,10 @@ function ExecutionPanel({
       )}
     </section>
   );
+}
+
+function estimatedExecutionCost(cost: number | null) {
+  return cost != null ? `~${costFormatter(cost)}` : "Unavailable";
 }
 
 function ErrorMessage({ message }: { message: string }) {

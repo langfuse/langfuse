@@ -1,5 +1,5 @@
 /* eslint-disable no-nested-ternary */
-import { PlusIcon } from "lucide-react";
+import { PlusIcon } from "@langfuse/icons";
 
 import { ActionButton } from "@/src/components/ActionButton";
 import Page from "@/src/components/layouts/page";
@@ -102,10 +102,7 @@ const MainPage = ({ projectId }: { projectId: string }) => {
               <AutomationButton projectId={projectId} />
               <ActionButton
                 icon={
-                  <PlusIcon
-                    className="icon-base text-icon-foreground"
-                    aria-hidden="true"
-                  />
+                  <PlusIcon size="base" color="default" aria-hidden="true" />
                 }
                 hasAccess={hasCUDAccess}
                 usageLimit={

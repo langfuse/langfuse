@@ -2,7 +2,7 @@ import { DatasetRunsTable } from "@/src/features/datasets/components/DatasetRuns
 import { api } from "@/src/utils/api";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages";
 import { useState, useCallback } from "react";
-import { FlaskConical, MoreVertical } from "lucide-react";
+import { FlaskConical, MoreVertical } from "@langfuse/icons";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import {
   Dialog,
@@ -34,10 +34,8 @@ import useLocalStorage from "@/src/components/useLocalStorage";
 import { getDatasetBreadcrumb } from "@/src/features/datasets/utils/getDatasetBreadcrumb";
 import { ExperimentsTable } from "@/src/features/experiments/components/table";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import {
-  RouteParamsPendingFallback,
-  useReadyRouteParams,
-} from "@/src/hooks/useReadyRouteParams";
+import { RouteParamsPendingFallback } from "@/src/components/RouteParamsPendingFallback/RouteParamsPendingFallback";
+import { useReadyRouteParams } from "@/src/hooks/useReadyRouteParams";
 import { DatasetActionMenu } from "@/src/features/datasets/components/DatasetActionMenu";
 
 export default function DatasetExperimentsPage() {
@@ -215,7 +213,7 @@ function DatasetExperimentsView({
                   disabled={!hasExperimentWriteAccess}
                   onClick={() => capture("dataset_run:new_form_open")}
                 >
-                  <FlaskConical className="icon-base text-icon-foreground" />
+                  <FlaskConical size="base" color="default" />
                   <span className="ml-2 hidden md:block">Run experiment</span>
                 </Button>
               </DialogTrigger>
@@ -278,7 +276,7 @@ function DatasetExperimentsView({
                   disabled={!hasExperimentWriteAccess}
                   onClick={() => capture("dataset_run:new_form_open")}
                 >
-                  <FlaskConical className="icon-base text-icon-foreground" />
+                  <FlaskConical size="base" color="default" />
                   <span className="ml-2 hidden md:block">Run experiment</span>
                 </Button>
               </DialogTrigger>
@@ -346,7 +344,7 @@ function DatasetExperimentsView({
                   aria-label="Dataset actions"
                   {...getTriggerProps()}
                 >
-                  <MoreVertical className="icon-base text-icon-foreground" />
+                  <MoreVertical size="base" color="default" />
                 </Button>
               )}
             </DatasetActionMenu>

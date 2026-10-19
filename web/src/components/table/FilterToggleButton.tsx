@@ -1,5 +1,5 @@
 /* eslint-disable @repo/no-style-props */
-import { Filter } from "lucide-react";
+import { Filter } from "@langfuse/icons";
 
 import { useDataTableControls } from "@/src/components/table/data-table-controls";
 import { Badge } from "@/src/components/ui/badge";
@@ -32,7 +32,7 @@ export function FilterToggleButton({
       onClick={() => setOpen(!open)}
       className={cn("flex h-8 items-center gap-2 text-sm", className)}
     >
-      <Filter className="icon-base text-icon-foreground" />
+      <Filter size="base" color="default" />
       <span>Filters</span>
       {activeFacetCount > 0 && (
         <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">

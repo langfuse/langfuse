@@ -114,7 +114,7 @@ Summary and assignment records use `trace_id` as their source when present;
 `session_id` identifies the processed session. At least one ID is required.
 The current pipeline processes traces only. `unit_start_time` (`unitStartTime` in
 TypeScript) is the first observation's start time for the processed source. Summaries set
-`trigger_type=manual_poc`. Each clustering attempt records its own `started_at`. Failed updates start a fresh
+`trigger_type` to `automatic` (trace-batch) or `manual` (manual processing); rows written before that split hold `manual_poc`. Each clustering attempt records its own `started_at`. Failed updates start a fresh
 attempt while keeping the previous published map available.
 
 Summaries snapshot source environment and trace name; assignments copy that
@@ -323,28 +323,28 @@ reads. Missing/expired payloads fail explicitly. A new execution with **Reuse st
 summaries** can recover persisted results. Redis loss or a crash between a provider
 response and saving it can repeat inference.
 
-Stored-summary reuse is opt-in and requires the same facet version, summary model
-and transcript producer version; it does not check content freshness. Compatible
+Stored-summary reuse is opt-in and requires the same facet version, summary model,
+transcript producer (`transcript_id`) and version; it does not check content freshness. Compatible
 vectors are reused; changed dimensions regenerate only embeddings. Results receive
 the new execution's staging ownership,
 replace previous summaries, record reuse timestamps and count only new usage.
 This is not a cross-execution deduplication cache.
 
-Each processing attempt shares identical transcript text across facets for a trace.
-Facet instructions affect only summarization. `loadTopicTranscript` uses the shared
-`orderObservations` and `assembleTranscript` producer, with a 10,000-character cap
-on the complete serialized JSON, including escaping, provenance and metadata.
-The model receives the structured transcript directly: threads with conversation
-history and current-turn messages, normalized parts and observation provenance.
-`truncated: true` marks omitted content. A null transcript produces
-`insufficient_input` without a summarization or embedding call.
+Manual processing and trace-batch share one summary request
+(`summarizeTraceFacets`): the facets of a trace that still need a summary go into
+one call on the same projected transcript. `loadTopicTranscript` uses the shared
+`orderObservations` and `assembleTranscript` producer without a cap, like
+trace-batch. The model receives the projected transcript: threads with
+conversation history and current-turn messages and normalized parts, without
+observation provenance. A null or empty transcript produces `insufficient_input`
+without a summarization or embedding call.
 
 The shared producer defines observation eligibility, tool association and replay
 deduplication. It includes generations and matched tool responses. Root-only
 non-generation traces and unmatched tool observations are outside that
 conversation contract. WARNING and ERROR observations reach the model as
 `levelEvents` (type, name, level and status message, without provenance). The
-key is omitted when there are none; under the cap they use at most half of it.
+key is omitted when there are none.
 Topics does not add fallbacks, coverage fields, custom media handling or a
 separate transcript projection.
 See `packages/shared/src/server/transcript/README.md` for the producer's semantics
@@ -352,9 +352,9 @@ and limitations.
 
 If transcript plus instructions/schema exceeds the execution's input allowance,
 the worker fails before calling the provider; it does not
-silently change the evidence for that facet. Stored summaries record
-`transcript_id` (`poc`) and `transcript_version` (`shared-transcript-v4`), plus the
-models used. Historical summaries from other producer versions are regenerated.
+silently change the evidence. Stored summaries record
+`transcript_id` (`trace-batch`; older manual rows used `poc` with a capped transcript)
+and `transcript_version` (`shared-transcript-v4`), plus the models used. Historical summaries from other producer versions are regenerated.
 Accepted Redis payloads retain their recorded version when the same execution
 resumes. Transcripts are regenerated from current observations; original source
 snapshots and content hashes are not retained.
@@ -362,7 +362,7 @@ snapshots and content hashes are not retained.
 The summary prompt and schema write the summary before deciding applicability.
 Check one trace after changing either prompt or schema before spending on a batch.
 Replaying an accepted summary or embedding does not require its source trace.
-If a retry needs a missing facet, it uses the current transcript for that facet.
+If a retry needs missing facets, it summarizes them together from the current transcript.
 
 UMAP and HDBSCAN propose density clusters. Original-space unit centroids and
 cosine radii form the serving classifier. A radius uses the 95th percentile of
@@ -462,6 +462,9 @@ Provider usage and calculated model costs use the events-style
 `provided_usage_details`, `usage_details`, `provided_cost_details` and `cost_details`
 maps. Summary and embedding keys are prefixed by stage; effective maps include
 combined totals.
+Manual processing summaries carry their execution ID in metadata. Run estimates
+sum retained summary and embedding costs with available pricing. They exclude
+topic naming and failed provider calls, and can change after reprocessing or deletion.
 Priced model IDs: global Bedrock text rates per million input/output tokens are $0.20/$1.20 for
 [Luna](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-luna.html)
 and $2/$12 for
@@ -514,6 +517,46 @@ Queue `.depth` includes `type:delayed`. Topics `.pending_head_age_ms` samples on
 entry from each waiting, paused, delayed and active state without loading job
 payloads. Retries can re-enter behind newer jobs, so this is head age, not the
 oldest creation time anywhere in the backlog.
+
+Summary `.results` carry `source:model|rule` and `facet` (the built-in facet's
+name, or `custom`): the model decides `applicable`, `not_applicable` or
+`insufficient_input`; local rules decide `insufficient_input` (no transcript
+content), `invalid_output` and `input_too_large`.
+
+Every model call counts once in `.llm_calls{stage,adapter,status}`: `ok`,
+`400`, `401`, `403`, `429`, `4xx` or `5xx` for any other code (the exact code is
+on the span), or the failure reason when there is no HTTP status. One
+embedding call can fan out into several provider requests (single-text Bedrock
+models, the retry without dimensions), and AI SDK retries are not counted
+separately. Each successful call adds its egress to the shared
+`langfuse.export.serialized_bytes{integration:topics}`, measured exactly like
+LLM-as-a-judge (`llmRequestEgressBytes`: serialized provider messages plus the
+output JSON Schema, uncompressed); responses (mostly embedding vectors) and
+failed or retried requests are not included.
+
+### Datadog spans and logs
+
+Spans carry tenant and request detail that metrics must not:
+
+- `Worker.run *`: `langfuse.project.id` for every queue; Topics jobs add the
+  execution ID, operation, status and phase. Trace-batch jobs add
+  `langfuse.topics.traces.<outcome>` totals.
+- `topics-trace-summary`: one per summarized trace (both paths), with facet
+  result counts under `langfuse.topics.facets.*`.
+- `topics-facet-update`: one per facet of an update, with its outcome. Children:
+  `topics.clustering` (vectors, dimensions, status), `topics.naming` (one per
+  group) and `topics.assignment` (also used when manual processing assigns).
+  A failed facet marks its enclosing span as an error, although the run handles it.
+- `topics.llm.summary|embedding|naming`: one per provider request, with model,
+  adapter and prompt bytes; on failure, the HTTP status and the provider's error
+  message, type, code and param.
+
+A failed provider request logs one `Topics model request failed` warning with the
+same fields. Like evals, only the AI SDK's parsed provider error (message cut to 500
+characters, type, code, param) is kept; request and response bodies can contain
+trace content and are never logged, so errors without that structure, such as
+the direct Bedrock call, log the HTTP status only. A failed facet logs `Topics facet failed`: a warning for provider or
+configuration errors, an error otherwise.
 
 `langfuse.topics.tokens{stage:summary|embedding|naming,direction:input|output}`
 counts available provider-reported usage immediately after each model response,
