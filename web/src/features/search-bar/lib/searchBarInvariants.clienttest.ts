@@ -21,6 +21,7 @@ import {
 } from "@/src/features/filters";
 
 import { usersEventsFilterConfig } from "@/src/features/filters/config/users-config";
+import { AGENTS_FIELD_REGISTRY } from "@/src/features/agents/constants/agentsFilterConfig";
 
 import { EXPERIMENTS_FIELD_REGISTRY } from "@/src/features/experiments/constants/experimentsSearchRegistry";
 import {
@@ -45,6 +46,64 @@ import {
   runSearchBarInvariants,
   type RegistryUnderTest,
 } from "./searchBarInvariants";
+
+describe("search bar invariants — Agents registry", () => {
+  it("round-trips environment filters and agent-name search without exposing unsupported observation facets", () => {
+    expect(
+      runSearchBarInvariants({
+        name: "agents",
+        registry: AGENTS_FIELD_REGISTRY,
+        extraKeys: [],
+        scoreContexts: [],
+        fieldValues: ["production", "development", "a b", "or", "a,b"],
+        freeTextValues: [
+          "research",
+          "customer support",
+          "or",
+          "a:b",
+          "a/b",
+          "gpt-4",
+        ],
+        sidebarFilters: [
+          [
+            {
+              column: "environment",
+              type: "stringOptions",
+              operator: "none of",
+              value: ["development"],
+            },
+          ],
+        ],
+      }),
+    ).toEqual([]);
+    for (const query of [
+      "type:AGENT",
+      "name:research",
+      "metadata.langfuse_agent_name:research",
+      "cost:>1",
+      "scores.accuracy:>0.8",
+    ]) {
+      expect(
+        planCommit(query, undefined, AGENTS_FIELD_REGISTRY).status,
+        query,
+      ).toBe("invalid");
+    }
+    expect(
+      planCommit("research env:production", undefined, AGENTS_FIELD_REGISTRY),
+    ).toMatchObject({
+      status: "committed",
+      filters: [
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["production"],
+        },
+      ],
+      searchQuery: "research",
+    });
+  });
+});
 
 describe("search bar invariants — Scores registry", () => {
   it("preserves parent-owned filters as skipped and rejects conflicting scoped fields", () => {

@@ -1,5 +1,7 @@
 import { agentGraphScenario } from "./agent-graph";
 import { agentTimelineScenario } from "./agent-timeline";
+import { agentsViewScenario } from "./agents-view";
+import { agentsRfcScenario } from "./agents-rfc";
 import { annotationQueueScenario } from "./annotation-queue";
 import { customModelsScenario } from "./custom-models";
 import { deepChainScenario } from "./deep-chain";
@@ -26,6 +28,8 @@ import { ScenarioDefinition } from "./types";
 export const scenarios: Record<string, ScenarioDefinition> = {
   "trace-tree": traceTreeScenario,
   "agent-timeline": agentTimelineScenario,
+  "agents-view": agentsViewScenario,
+  "agents-rfc": agentsRfcScenario,
   "agent-graph": agentGraphScenario,
   "deep-chain": deepChainScenario,
   "evaluator-gallery": evaluatorGalleryScenario,

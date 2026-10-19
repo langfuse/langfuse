@@ -22,6 +22,7 @@ import {
   ClipboardPen,
   Clock,
   Beaker,
+  Bot,
 } from "lucide-react";
 import { type ReactNode } from "react";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
@@ -144,6 +145,15 @@ export const ROUTES: Route[] = [
     title: "Users",
     href: `/project/[projectId]/users`,
     icon: UsersIcon,
+    productModule: "tracing",
+    group: RouteGroup.Observability,
+    section: RouteSection.Main,
+  },
+  {
+    title: "Agents",
+    href: "/project/[projectId]/agents",
+    icon: Bot,
+    featureFlag: "internalFeatures",
     productModule: "tracing",
     group: RouteGroup.Observability,
     section: RouteSection.Main,
