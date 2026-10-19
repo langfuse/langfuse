@@ -646,7 +646,8 @@ export function latestNonEmpty(
  * Lower `metadata[key]` to a subscript of {@link metadataMap} over the events
  * `metadata_names` / `metadata_values` columns, so the last entry of a
  * duplicated key wins. Keys follow {@link mapValue}: a string is bound, a
- * `literal(...)` is inlined.
+ * `literal(...)` is inlined. `names` / `values` must be one relation's
+ * `metadata_names` / `metadata_values` refs; anything else throws.
  */
 export function metadataValue(
   names: Expression<string[]>,

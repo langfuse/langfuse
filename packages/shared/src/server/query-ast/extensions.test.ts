@@ -154,7 +154,7 @@ describe("metadata subscript access (condition 7b)", () => {
             "k",
           ),
       ],
-      // Names swapped with values pairs keys with the wrong array.
+      // Swapped, the map's keys would be the values.
       [
         "swapped columns",
         () =>

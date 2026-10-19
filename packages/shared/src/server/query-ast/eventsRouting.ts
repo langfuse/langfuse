@@ -9,7 +9,7 @@
  *
  *   e.metadata[k] = 'short'        → events_core (< 200 code points)
  *   startsWith(e.metadata[k], 'p') → events_core (≤ 200 code points)
- *   e.input = 'x', select e.input        → events_full
+ *   e.input = 'x', select e.input  → events_full
  *
  * A qualifier resolves to the innermost FROM/JOIN alias (or unaliased table
  * name) of that name. Shapes that cannot be resolved to one relation are rejected

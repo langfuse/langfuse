@@ -195,7 +195,7 @@ db.selectFrom("scores as s")
 // … from scores as s final
 ```
 
-**Filter on a metadata value** (`metadataValue` — lowers `metadata[key]` to a subscript of `metadataMap`, so the last duplicate key wins; like `mapValue`, a string key is bound and a `literal(...)` key is inlined):
+**Filter on a metadata value** (`metadataValue` — lowers `metadata[key]` to a subscript of `metadataMap`, so the last duplicate key wins; like `mapValue`, a string key is bound and a `literal(...)` key is inlined; `names` / `values` must be one relation's `metadata_names` / `metadata_values` refs, anything else throws. Events reads use `eventsMetadataValue(eb, key)` from `../repositories/events-selects.ts`):
 
 ```ts
 const filterKey: string = input.metadataKey; // caller-supplied, so bound
