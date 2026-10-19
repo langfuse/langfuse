@@ -651,8 +651,10 @@ user's attitude toward the interaction (`Positive`, `Negative`, `Mixed`,
 applicable. Outcome labels where the run ended (`Completed`, `Partial`,
 `Unconfirmed`, `Needs input`, `Not completed`), judged on results rather than the
 assistant's claims. Issues describes the mistake that did the most damage to the
-result in one sentence (the mistake, the kind of step, and its consequence),
-without a category label, and checks four points before reporting no issue; a
+result in one sentence of the form "<what went wrong> in <kind of step>, so
+<consequence>", without the task's subject or domain and without a category
+label (unsupported/unverified only when the run's own results contradict the
+answer), and checks four points before reporting no issue; a
 problem quoted for analysis is not itself an agent defect. Each preset prompt
 defines its facet's semantics; custom facets use their own versioned instructions.
 
