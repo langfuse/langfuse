@@ -190,6 +190,21 @@ describe("WorkerManager", () => {
         computeWaitTimeMs({ ...firstPickup, attemptsStarted: 3 }, 7_200_000),
       ).toEqual({ attempt: "retry", waitMs: undefined });
     });
+
+    it.each([
+      ["attemptsMade", { attemptsMade: 1, stalledCounter: 0 }],
+      ["stalledCounter", { attemptsMade: 0, stalledCounter: 1 }],
+    ])(
+      "detects a retry from %s alone when attemptsStarted is missing",
+      (_field, counters) => {
+        expect(
+          computeWaitTimeMs(
+            { timestamp: 1_000, opts: {}, ...counters },
+            7_200_000,
+          ),
+        ).toEqual({ attempt: "retry", waitMs: undefined });
+      },
+    );
   });
 
   describe("dlq oldest job lookup", () => {
