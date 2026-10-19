@@ -503,14 +503,14 @@ describe("typed params from the column registry", () => {
         /no relation in scope is named "x"/,
       ],
       [
-        // `u` is declared, but its columns are unknown.
+        // `u` is declared, but its table is not in the registry.
         "a qualified column of a table outside the registry",
         () =>
           unregistered
             .selectFrom("unregistered as u")
             .select("u.trace_id")
             .where("u.start_time", ">=", START),
-        /columns of "u" are unknown/,
+        /"unregistered" is not a registered table/,
       ],
       [
         // start_time is DateTime64(3) on observations, DateTime64(6) on events.
@@ -532,7 +532,7 @@ describe("typed params from the column registry", () => {
             .innerJoin("unregistered as u", "u.trace_id", "e.trace_id")
             .select("e.trace_id")
             .where("span_id", "=", "s"),
-        /may come from a relation whose columns are unknown/,
+        /may come from a relation whose columns are unknown\. "unregistered" is not a registered table/,
       ],
       [
         // The CTE column carries the unknown type of `u.start_time`.
@@ -545,7 +545,7 @@ describe("typed params from the column registry", () => {
             .selectFrom("t")
             .select("start_time")
             .where("start_time", ">=", START),
-        /columns of "u" are unknown/,
+        /"unregistered" is not a registered table/,
       ],
       [
         // `t.start_time` is unknown, so the join can't settle the type either.
@@ -559,7 +559,7 @@ describe("typed params from the column registry", () => {
             .innerJoin("observations as o", "o.start_time", "t.start_time")
             .select("o.trace_id")
             .where("start_time", ">=", START),
-        /columns of "u" are unknown/,
+        /"unregistered" is not a registered table/,
       ],
       [
         // `*` over an unregistered table yields unknown columns.
@@ -570,7 +570,7 @@ describe("typed params from the column registry", () => {
             .selectFrom("t")
             .select("trace_id")
             .where("start_time", ">=", START),
-        /may come from a relation whose columns are unknown/,
+        /may come from a relation whose columns are unknown\. "unregistered" is not a registered table/,
       ],
       [
         // Same, through a qualified `u.*`.
@@ -583,7 +583,7 @@ describe("typed params from the column registry", () => {
             .selectFrom("t as t")
             .select("t.trace_id")
             .where("t.start_time", ">=", START),
-        /columns of "t" are unknown/,
+        /"unregistered" is not a registered table/,
       ],
       [
         // An IN list binds an array of the column's type.

@@ -117,7 +117,12 @@ function relationBindTypes(
       if (cte) return cte;
     }
   }
-  return TABLE_BIND_TYPES[name] ?? "opaque";
+  return (
+    TABLE_BIND_TYPES[name] ??
+    new OpaqueRelation(
+      `"${name}" is not a registered table. Add it to TABLE_REGISTRY in schema.ts, or read the column from a registered table.`,
+    )
+  );
 }
 
 /**
@@ -493,7 +498,11 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     node: OperationNode,
     enclosing: readonly SelectScope[],
   ): RelationBindTypes {
-    if (!SelectQueryNode.is(node)) return "opaque";
+    if (!SelectQueryNode.is(node)) {
+      return new OpaqueRelation(
+        "It reads a relation that is neither a table nor a SELECT, so its columns are unknown.",
+      );
+    }
     const scope = this.selectScopeOf(node, enclosing);
     const scopes = [...enclosing, scope];
     const columns: Record<string, BindType> = {};
@@ -501,7 +510,7 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
       // `*`: every column of every relation in this select's FROM/JOIN.
       if (SelectAllNode.is(selection)) {
         for (const relation of scope.relations.values()) {
-          if (relation === "opaque") return "opaque";
+          if (relation instanceof OpaqueRelation) return relation;
           Object.assign(columns, relation);
         }
         continue;
@@ -510,7 +519,12 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
       if (ReferenceNode.is(selection) && SelectAllNode.is(selection.column)) {
         const qualifier = selection.table?.table.identifier.name;
         const relation = qualifier ? scope.relations.get(qualifier) : undefined;
-        if (relation === undefined || relation === "opaque") return "opaque";
+        if (relation === undefined) {
+          return new OpaqueRelation(
+            `It selects ${qualifier}.* but no relation in that select is named "${qualifier}".`,
+          );
+        }
+        if (relation instanceof OpaqueRelation) return relation;
         Object.assign(columns, relation);
         continue;
       }
@@ -788,9 +802,9 @@ function qualifiedBindType(
   for (const scope of [...scopes].reverse()) {
     const relation = scope.relations.get(qualifier);
     if (relation === undefined) continue;
-    if (relation === "opaque") {
+    if (relation instanceof OpaqueRelation) {
       return {
-        reason: `Cannot type the value compared to ${qualifier}.${column}: the columns of "${qualifier}" are unknown to the compiler. Read the column from a table in the registry (TABLE_REGISTRY in schema.ts), or add its table there.`,
+        reason: `Cannot type the value compared to ${qualifier}.${column}: ${relation.reason}`,
       };
     }
     return relation[column];
@@ -811,14 +825,18 @@ function unqualifiedBindType(
   scope: SelectScope | undefined,
 ): BindType | undefined {
   const relations = [...new Set(scope?.relations.values() ?? [])];
-  const known = relations.filter(
-    (columns): columns is ColumnBindTypes => columns !== "opaque",
+  const opaque = relations.find(
+    (columns): columns is OpaqueRelation => columns instanceof OpaqueRelation,
   );
-  if (known.length < relations.length) {
+  if (opaque) {
     return {
-      reason: `Cannot type the value compared to ${column}: it may come from a relation whose columns are unknown to the compiler. Qualify the column with the alias of a registry relation.`,
+      reason: `Cannot type the value compared to ${column}: it may come from a relation whose columns are unknown. ${opaque.reason} Qualify the column with the alias of a registered relation.`,
     };
   }
+  const known = relations.filter(
+    (columns): columns is ColumnBindTypes =>
+      !(columns instanceof OpaqueRelation),
+  );
   const candidates = [
     ...new Set(
       known.flatMap((columns) =>
@@ -838,6 +856,15 @@ function unqualifiedBindType(
 }
 
 /**
+ * A relation whose columns the compiler can't see: a table outside the
+ * registry, a relation that is neither a table nor a SELECT, or a subquery or
+ * CTE that expands one with `*`. `reason` names the cause for the compile error.
+ */
+class OpaqueRelation {
+  constructor(readonly reason: string) {}
+}
+
+/**
  * A compared column whose type the compiler can't determine. Binding a value
  * against it throws `reason`; a comparison that binds nothing still compiles.
  */
@@ -850,8 +877,7 @@ type BindType = string | UnknownBindType;
 type ColumnBindTypes = Readonly<Record<string, BindType>>;
 
 /**
- * A relation's column bind types, or `"opaque"` when the compiler can't see
- * its columns: a table outside the registry, or a CTE or subquery that
- * expands one with `*`.
+ * A relation's column bind types, or an {@link OpaqueRelation} when the
+ * compiler can't see its columns.
  */
-type RelationBindTypes = ColumnBindTypes | "opaque";
+type RelationBindTypes = ColumnBindTypes | OpaqueRelation;
