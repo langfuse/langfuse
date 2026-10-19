@@ -180,6 +180,30 @@ export function createPlan(
   );
   if (!options.all && codeFiles.length === 0) return commands;
 
+  const changes = classifyChanges(codeFiles, packages, options, taskGraph);
+  const packageChecks = planPackageChecks(
+    codeFiles,
+    packages,
+    checks,
+    base,
+    taskGraph,
+    exists,
+    changes,
+  );
+  return [
+    ...planRepositoryChecks(
+      files,
+      codeFiles,
+      options,
+      checks,
+      exists,
+      changes.analysisFiles,
+    ),
+    ...packageChecks,
+  ];
+}
+
+function classifyChanges(codeFiles, packages, options, taskGraph) {
   const owner = (file) =>
     packages.find((pkg) => file.startsWith(`${pkg.path}/`));
   // Turbo inputs select checks, including consumers of files outside packages.
@@ -201,7 +225,8 @@ export function createPlan(
     }
     if (
       /^(\.github|\.vscode|\.cursor)\//.test(file) ||
-      /^scripts\/check\.(mjs|test\.mjs)$/.test(file)
+      /^scripts\/check\.(mjs|test\.mjs)$/.test(file) ||
+      file === "scripts/vitest/ci-reporter.test.mjs"
     )
       continue;
     if (
@@ -250,28 +275,37 @@ export function createPlan(
     ),
   ]);
 
+  return {
+    broad,
+    jsToolchainChanged,
+    direct,
+    fullPackages,
+    affected,
+    analysisFiles,
+  };
+}
+
+function planPackageChecks(
+  codeFiles,
+  packages,
+  checks,
+  base,
+  taskGraph,
+  exists,
+  changes,
+) {
+  const selected = selectPackageChecks(
+    codeFiles,
+    packages,
+    checks,
+    taskGraph,
+    exists,
+    changes,
+  );
   const packageChecks = [];
   const targets = new Set();
   const schedule = (task, names) => {
     for (const name of names) targets.add(`${name}#${task}`);
-  };
-  const isSelected = (pkg, task) => {
-    const component = checkTasks.find((check) => check.name === task)?.suite
-      ? "tests"
-      : task;
-    if (!checks.has(component)) return false;
-    if (!pkg.scripts[task]) return false;
-    if (broad) return true;
-    if (
-      jsToolchainChanged &&
-      (pkg.path === "ai-gateway" || pkg.path === "packages/native") &&
-      !direct.has(pkg.name)
-    )
-      return false;
-    return (
-      fullPackages.has(pkg.name) ||
-      taskGraph.affected.has(`${pkg.name}#${task}`)
-    );
   };
   const prepare = (taskId) => {
     const task = taskGraph.tasks.get(taskId);
@@ -287,9 +321,110 @@ export function createPlan(
       targets.add(dependency);
     }
   };
-  const selected = packages.flatMap((pkg) => {
-    const tasks = checkTasks.filter((task) => isSelected(pkg, task.name));
-    if (!tasks.length) return [];
+  // File-only TypeScript checks miss downstream errors. Keep project-wide
+  // incremental checks and let Turbo run prerequisite builds/code generation;
+  // those prerequisites can compile native code even without Rust checks.
+  schedule(
+    "typecheck",
+    selected
+      .filter(({ tasks }) => tasks.some((task) => task.name === "typecheck"))
+      .map(({ pkg }) => pkg.name),
+  );
+
+  // Test suites narrow together; lint narrows independently. Keep group order
+  // stable because Turbo targets and printed package checks preserve insertion order.
+  const groups = [
+    checkTasks.filter((task) => task.name === "lint"),
+    checkTasks.filter((task) => task.suite),
+  ];
+  for (const group of groups) {
+    const full = new Map(group.map((task) => [task.name, []]));
+    for (const { pkg, tasks, ownFiles, canNarrow, externalTasks } of selected) {
+      const checks = group.filter((task) => tasks.includes(task));
+      const related =
+        canNarrow &&
+        checks.every(
+          (task) =>
+            !externalTasks.has(task.name) &&
+            pkg.scripts[task.name].includes(task.runner),
+        );
+      for (const task of checks) {
+        if (!related) {
+          full.get(task.name).push(pkg.name);
+          continue;
+        }
+        // Narrowed checks bypass full-suite caches; only package scripts receive
+        // file/changed flags. Prerequisite builds still run through Turbo.
+        // Import-based selection cannot discover runtime reads; use --all for those.
+        prepare(`${pkg.name}#${task.name}`);
+        const details = planNarrowedCheck(task, pkg, ownFiles, base, exists);
+        packageChecks.push({
+          ...details,
+          args: ["--filter", pkg.name, "run", task.name, ...details.args],
+          requiresTurbo: true,
+        });
+      }
+    }
+    for (const [task, names] of full) schedule(task, names);
+  }
+  if (targets.size > 0) {
+    // One graph lets Turbo deduplicate prerequisite work and schedule compatible
+    // checks concurrently. File-specific commands wait for successful preparation.
+    const checks = [
+      ...new Set(
+        checkTasks
+          .filter((task) =>
+            [...targets].some((target) => target.endsWith(`#${task.name}`)),
+          )
+          .map((task) => task.label),
+      ),
+    ];
+    const checkPackages = new Set(
+      [...targets]
+        .filter((target) =>
+          checkTasks.some((task) => target.endsWith(`#${task.name}`)),
+        )
+        .map((target) => target.slice(0, target.lastIndexOf("#"))),
+    );
+    packageChecks.unshift({
+      label:
+        checks.length > 0
+          ? `${checks.join(", ")} & dependencies · ${[...checkPackages].join(", ")}`
+          : "Dependencies",
+      args: [
+        "exec",
+        "turbo",
+        "run",
+        "--summarize",
+        "--output-logs=none",
+        "--ui=stream",
+        "--log-prefix=none",
+        ...targets,
+        "--continue=dependencies-successful",
+      ],
+      isTurboBatch: true,
+    });
+  }
+
+  return packageChecks;
+}
+
+function selectPackageChecks(
+  codeFiles,
+  packages,
+  checks,
+  taskGraph,
+  exists,
+  changes,
+) {
+  const { broad, direct, fullPackages, affected } = changes;
+  const owner = (file) =>
+    packages.find((pkg) => file.startsWith(`${pkg.path}/`));
+  return packages.flatMap((pkg) => {
+    const tasks = checkTasks.filter((task) =>
+      isTaskSelected(pkg, task, checks, taskGraph, changes),
+    );
+    if (tasks.length === 0) return [];
     const ownFiles = codeFiles.filter((file) => owner(file)?.name === pkg.name);
     const sourceOnly =
       ownFiles.length > 0 &&
@@ -329,96 +464,63 @@ export function createPlan(
       },
     ];
   });
-  // File-only TypeScript checks miss downstream errors. Keep project-wide
-  // incremental checks and let Turbo run prerequisite builds/code generation;
-  // those prerequisites can compile native code even without Rust checks.
-  schedule(
-    "typecheck",
-    selected
-      .filter(({ tasks }) => tasks.some((task) => task.name === "typecheck"))
-      .map(({ pkg }) => pkg.name),
+}
+
+function isTaskSelected(pkg, task, checks, taskGraph, changes) {
+  const { broad, jsToolchainChanged, direct, fullPackages } = changes;
+  const component = task.suite ? "tests" : task.name;
+  if (!checks.has(component)) return false;
+  if (!pkg.scripts[task.name]) return false;
+  if (broad) return true;
+  if (
+    jsToolchainChanged &&
+    (pkg.path === "ai-gateway" || pkg.path === "packages/native") &&
+    !direct.has(pkg.name)
+  )
+    return false;
+  return (
+    fullPackages.has(pkg.name) ||
+    taskGraph.affected.has(`${pkg.name}#${task.name}`)
   );
+}
 
-  // Test suites narrow together; lint narrows independently. Keep group order
-  // stable because Turbo targets and printed package checks preserve insertion order.
-  const groups = [
-    checkTasks.filter((task) => task.name === "lint"),
-    checkTasks.filter((task) => task.suite),
-  ];
-  for (const group of groups) {
-    const full = new Map(group.map((task) => [task.name, []]));
-    for (const { pkg, tasks, ownFiles, canNarrow, externalTasks } of selected) {
-      const checks = group.filter((task) => tasks.includes(task));
-      const related =
-        canNarrow &&
-        checks.every(
-          (task) =>
-            !externalTasks.has(task.name) &&
-            pkg.scripts[task.name].includes(task.runner),
-        );
-      for (const task of checks) {
-        if (!related) {
-          full.get(task.name).push(pkg.name);
-          continue;
-        }
-        // Narrowed checks bypass full-suite caches; only package scripts receive
-        // file/changed flags. Prerequisite builds still run through Turbo.
-        // Import-based selection cannot discover runtime reads; use --all for those.
-        prepare(`${pkg.name}#${task.name}`);
-        const details = task.suite
-          ? {
-              label: `${task.suiteLabel} tests · ${pkg.name}`,
-              progressLabel: `${pkg.name} · ${task.suiteLabel} tests`,
-              args: ["--changed", base, "--passWithNoTests"],
-              testSuites: [task.suite],
-            }
-          : {
-              label: `Lint · ${pkg.name} · ${ownFiles.length} file${ownFiles.length === 1 ? "" : "s"}`,
-              args: ownFiles.map((file) => `./${relative(pkg.path, file)}`),
-            };
-        packageChecks.push({
-          ...details,
-          args: ["--filter", pkg.name, "run", task.name, ...details.args],
-          requiresTurbo: true,
-        });
-      }
+function planNarrowedCheck(task, pkg, ownFiles, base, exists) {
+  if (task.suite) {
+    return {
+      label: `${task.suiteLabel} tests · ${pkg.name}`,
+      progressLabel: `${pkg.name} · ${task.suiteLabel} tests`,
+      args: ["--changed", base, "--passWithNoTests"],
+      testSuites: [task.suite],
+    };
+  }
+  const lintFiles = new Set(ownFiles);
+  for (const file of ownFiles) {
+    if (!/\.stories\.tsx?$/.test(file)) continue;
+    for (const extension of ["ts", "tsx"]) {
+      const clientTest = file.replace(
+        /\.stories\.tsx?$/,
+        `.clienttest.${extension}`,
+      );
+      if (exists(resolve(root, clientTest))) lintFiles.add(clientTest);
     }
-    for (const [task, names] of full) schedule(task, names);
   }
-  if (targets.size) {
-    // One graph lets Turbo deduplicate prerequisite work and schedule compatible
-    // checks concurrently. File-specific commands wait for successful preparation.
-    const checks = [
-      ...new Set(
-        checkTasks
-          .filter((task) =>
-            [...targets].some((target) => target.endsWith(`#${task.name}`)),
-          )
-          .map((task) => task.label),
-      ),
-    ];
-    const checkPackages = new Set(
-      [...targets]
-        .filter((target) =>
-          checkTasks.some((task) => target.endsWith(`#${task.name}`)),
-        )
-        .map((target) => target.slice(0, target.lastIndexOf("#"))),
-    );
-    packageChecks.unshift({
-      label: checks.length
-        ? `${checks.join(", ")} & dependencies · ${[...checkPackages].join(", ")}`
-        : "Dependencies",
-      args: [
-        "exec",
-        "turbo",
-        "run",
-        ...targets,
-        "--continue=dependencies-successful",
-      ],
-      isTurboBatch: true,
-    });
-  }
+  return {
+    label: `Lint · ${pkg.name} · ${lintFiles.size} file${lintFiles.size === 1 ? "" : "s"}`,
+    args: [
+      "--no-warn-ignored",
+      ...[...lintFiles].map((file) => `./${relative(pkg.path, file)}`),
+    ],
+  };
+}
 
+function planRepositoryChecks(
+  files,
+  codeFiles,
+  options,
+  checks,
+  exists,
+  analysisFiles,
+) {
   const formatted = files.filter(
     (file) =>
       /\.(js|jsx|ts|tsx|css)$/.test(file) && exists(resolve(root, file)),
@@ -478,7 +580,6 @@ export function createPlan(
     ...repositoryChecks
       .filter((check) => check.when && checks.has(check.component))
       .map(({ when, component, ...check }) => check),
-    ...packageChecks,
   ];
 }
 
@@ -500,7 +601,7 @@ function loadWorkspace(base) {
       }`,
     ]),
   );
-  if (workspace.errors?.length) {
+  if ((workspace.errors?.length ?? 0) > 0) {
     throw new Error(
       `Turbo package graph query failed: ${workspace.errors.map((error) => error.message).join("; ")}`,
     );
@@ -689,7 +790,7 @@ async function* runPlan(plan, outputDirectory) {
   let foreground = null;
   let turboFailed = false;
   try {
-    while (nextIndex < plan.length || pending.size) {
+    while (nextIndex < plan.length || pending.size > 0) {
       if (foreground === null && nextIndex < plan.length) {
         const checkIndex = nextIndex++;
         const check = plan[checkIndex];
@@ -790,8 +891,6 @@ async function main() {
     return;
   }
   const commandStartedAt = performance.now();
-  const elapsed = (startedAt) =>
-    `${((performance.now() - startedAt) / 1000).toFixed(1)}s`;
   const git = (args) => capture("git", args);
   // Compare branch work to the common ancestor, not the target branch's tip.
   // Callers must fetch stale remote refs; missing refs deliberately fail rather
@@ -800,11 +899,41 @@ async function main() {
     ? git(["merge-base", "HEAD", options.base]).trim()
     : git(["rev-parse", "HEAD"]).trim();
   const files = collectChanges(git, base);
-  const { terminal, paint, indent } = createOutput();
+  const output = createOutput();
+  printHeader(files, options, output);
+  const { packages, taskGraph } = loadWorkspace(base);
+  const plan = createPlan(files, packages, options, base, taskGraph);
+  if (plan.length === 0) {
+    console.log(`No applicable checks (${elapsed(commandStartedAt)}).`);
+    return;
+  }
+  if (options.dryRun) {
+    printPlan(plan);
+    return;
+  }
+  const results = await executePlan(plan, output);
+  if (results.interrupted) {
+    process.exitCode = 1;
+    return;
+  }
+  printSummary(results, commandStartedAt, output);
+}
+
+function elapsed(startedAt) {
+  return `${((performance.now() - startedAt) / 1000).toFixed(1)}s`;
+}
+
+function printHeader(files, options, { paint }) {
+  let scope = "Local checks";
+  if (options.all) scope = "All packages";
+  else if (options.branch) scope = `Branch checks · ${options.base}`;
+  let selection = "all checks";
+  if (options.only) selection = `only ${options.only.join(", ")}`;
+  else if (options.skip) selection = `skip ${options.skip.join(", ")}`;
   console.log(
     paint(
       "1",
-      `${options.all ? "All packages" : options.branch ? `Branch checks · ${options.base}` : "Local checks"} · ${options.only ? `only ${options.only.join(", ")}` : options.skip ? `skip ${options.skip.join(", ")}` : "all checks"} · ${files.length} changed file${files.length === 1 ? "" : "s"}`,
+      `${scope} · ${selection} · ${files.length} changed file${files.length === 1 ? "" : "s"}`,
     ),
   );
   for (const file of files) {
@@ -815,38 +944,21 @@ async function main() {
         : file;
     console.log(`  ${display}`);
   }
-  if (!files.length) console.log("  No changed files.");
+  if (files.length === 0) console.log("  No changed files.");
   console.log("");
-  const { packages, taskGraph } = loadWorkspace(base);
-  const plan = createPlan(files, packages, options, base, taskGraph);
-  if (!plan.length) {
-    console.log(`No applicable checks (${elapsed(commandStartedAt)}).`);
-    return;
-  }
-  for (const check of plan) {
-    if (check.isTurboBatch) {
-      // Keep runner options before any task-argument separator, including in
-      // dry-run output so printed commands match the actual invocation.
-      check.args.splice(
-        3,
-        0,
-        "--summarize",
-        "--output-logs=none",
-        "--ui=stream",
-        "--log-prefix=none",
+}
+
+function printPlan(plan) {
+  for (const { label, args, steps } of plan) {
+    for (const command of steps ?? [args]) {
+      console.log(
+        `\n${label}: pnpm ${command.map((arg) => JSON.stringify(arg)).join(" ")}`,
       );
     }
   }
-  if (options.dryRun) {
-    for (const { label, args, steps } of plan) {
-      for (const command of steps ?? [args]) {
-        console.log(
-          `\n${label}: pnpm ${command.map((arg) => JSON.stringify(arg)).join(" ")}`,
-        );
-      }
-    }
-    return;
-  }
+}
+
+async function executePlan(plan, { terminal, paint, indent }) {
   mkdirSync(resolve(root, ".turbo"), { recursive: true });
   const outputDirectory = mkdtempSync(resolve(root, ".turbo/check-"));
   let retainLogs = false;
@@ -865,7 +977,7 @@ async function main() {
   const active = new Map();
   let progressLines = 0;
   const clearProgress = () => {
-    if (!progressLines) return;
+    if (progressLines === 0) return;
     process.stdout.write(`\x1b[${progressLines}A\r\x1b[0J`);
     progressLines = 0;
   };
@@ -895,28 +1007,7 @@ async function main() {
         const noTests =
           reports.length > 0 &&
           reports.every((report) => report.files?.length === 0);
-        let resultLabel = label;
-        if (noTests) {
-          resultLabel += " · no related tests";
-        } else if (
-          reports.length &&
-          reports.every((report) => report.files !== null)
-        ) {
-          const testFiles = reports.flatMap((report) => report.files);
-          const passed = testFiles.reduce((sum, file) => sum + file.passed, 0);
-          const failures = testFiles.reduce(
-            (sum, file) => sum + file.failed,
-            0,
-          );
-          const skippedTests = testFiles.reduce(
-            (sum, file) => sum + file.skipped,
-            0,
-          );
-          const counts = [`${passed} passed`];
-          if (failures) counts.push(`${failures} failed`);
-          if (skippedTests) counts.push(`${skippedTests} skipped`);
-          resultLabel += ` · ${counts.join(", ")} across ${testFiles.length} file${testFiles.length === 1 ? "" : "s"}`;
-        }
+        const resultLabel = describeResult(label, reports, noTests);
         if (result) {
           console.error(statusLine("✗", resultLabel, duration, "31"));
         } else if (noTests) {
@@ -926,61 +1017,17 @@ async function main() {
           console.log(statusLine("✓", resultLabel, duration, "32"));
           passedChecks++;
         }
-        for (const report of reports) {
-          if (report.files === null) {
-            retainLogs = true;
-            console.error(
-              indent(
-                `${report.suite}: test report unavailable. Details: ${relative(root, report.outputFile)}`,
-              ),
-            );
-            continue;
-          }
-          for (const file of report.files) {
-            const counts = [`${file.passed} passed`];
-            if (file.failed) counts.push(`${file.failed} failed`);
-            if (file.skipped) counts.push(`${file.skipped} skipped`);
-            console.log(indent(`${file.path} — ${counts.join(", ")}`));
-          }
-        }
+        if (printReports(reports, indent)) retainLogs = true;
         if (result) {
-          const { outputFile } = result;
-          if (result.error) console.error(indent(result.error.message));
-          const diagnostics = collectDiagnostics(outputFile, isTurboBatch);
-          if (isTurboBatch) {
-            for (const task of diagnostics.tasks) {
-              console.error(
-                indent(`\n${task.taskId} failed (exit ${task.exitCode}):`),
-              );
-              if (task.diagnostics) {
-                console.error(indent(task.diagnostics));
-              } else {
-                console.error(
-                  indent("No diagnostic output was recorded for this task."),
-                );
-              }
-            }
-            if (!diagnostics.complete) {
-              retainLogs = true;
-              console.error(
-                indent(
-                  `Some task diagnostics were unavailable. Runner details: ${relative(root, outputFile)}`,
-                ),
-              );
-            }
-          } else {
-            if (diagnostics.captured)
-              console.error(indent(diagnostics.captured));
-          }
+          if (printFailure(result, isTurboBatch, indent)) retainLogs = true;
           failed.push(label);
           console.error("");
           if (result.signal) {
-            process.exitCode = 1;
-            return;
+            return { interrupted: true };
           }
         }
       }
-      if (terminal && active.size) {
+      if (terminal && active.size > 0) {
         const lines = [
           `Running${active.size > 1 ? " in parallel" : ""}:`,
           ...[...active.values()].map(
@@ -999,12 +1046,20 @@ async function main() {
     clearProgress();
     if (!retainLogs) rmSync(outputDirectory, { recursive: true, force: true });
   }
+  return { failed, passedChecks, emptyChecks, skipped, interrupted: false };
+}
+
+function printSummary(
+  { failed, passedChecks, emptyChecks, skipped },
+  commandStartedAt,
+  { paint },
+) {
   const summary = [];
-  if (failed.length) summary.push(`${failed.length} failed`);
+  if (failed.length > 0) summary.push(`${failed.length} failed`);
   if (passedChecks) summary.push(`${passedChecks} passed`);
   if (emptyChecks) summary.push(`${emptyChecks} no related tests`);
-  if (skipped.length) summary.push(`${skipped.length} skipped`);
-  if (failed.length || skipped.length) {
+  if (skipped.length > 0) summary.push(`${skipped.length} skipped`);
+  if (failed.length > 0 || skipped.length > 0) {
     console.error(
       `\n${paint("31", "Failed")} · ${summary.join(", ")} · ${elapsed(commandStartedAt)}`,
     );
@@ -1014,6 +1069,74 @@ async function main() {
     console.log(
       `\n${paint("32", "Passed")} · ${summary.join(", ")} · ${elapsed(commandStartedAt)}`,
     );
+}
+
+function describeResult(label, reports, noTests) {
+  if (noTests) return `${label} · no related tests`;
+  if (reports.length === 0 || reports.some((report) => report.files === null))
+    return label;
+  const files = reports.flatMap((report) => report.files);
+  const totals = files.reduce(
+    (sum, file) => ({
+      passed: sum.passed + file.passed,
+      failed: sum.failed + file.failed,
+      skipped: sum.skipped + file.skipped,
+    }),
+    { passed: 0, failed: 0, skipped: 0 },
+  );
+  return `${label} · ${describeTestCounts(totals)} across ${files.length} file${files.length === 1 ? "" : "s"}`;
+}
+
+function describeTestCounts({ passed, failed, skipped }) {
+  const counts = [`${passed} passed`];
+  if (failed > 0) counts.push(`${failed} failed`);
+  if (skipped > 0) counts.push(`${skipped} skipped`);
+  return counts.join(", ");
+}
+
+function printReports(reports, indent) {
+  let retainLogs = false;
+  for (const report of reports) {
+    if (report.files === null) {
+      retainLogs = true;
+      console.error(
+        indent(
+          `${report.suite}: test report unavailable. Details: ${relative(root, report.outputFile)}`,
+        ),
+      );
+      continue;
+    }
+    for (const file of report.files) {
+      console.log(indent(`${file.path} — ${describeTestCounts(file)}`));
+    }
+  }
+  return retainLogs;
+}
+
+function printFailure(result, isTurboBatch, indent) {
+  if (result.error) console.error(indent(result.error.message));
+  const diagnostics = collectDiagnostics(result.outputFile, isTurboBatch);
+  if (!isTurboBatch) {
+    if (diagnostics.captured) console.error(indent(diagnostics.captured));
+    return false;
+  }
+  for (const task of diagnostics.tasks) {
+    console.error(indent(`\n${task.taskId} failed (exit ${task.exitCode}):`));
+    console.error(
+      indent(
+        task.diagnostics || "No diagnostic output was recorded for this task.",
+      ),
+    );
+  }
+  if (!diagnostics.complete) {
+    console.error(
+      indent(
+        `Some task diagnostics were unavailable. Runner details: ${relative(root, result.outputFile)}`,
+      ),
+    );
+    return true;
+  }
+  return false;
 }
 
 if (
