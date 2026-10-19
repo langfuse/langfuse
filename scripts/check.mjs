@@ -319,6 +319,9 @@ export function createPlan(
         label,
         steps,
         requiresTurbo: true,
+        testSuites: tests.map((task) =>
+          task === "test-client" ? "client" : "server",
+        ),
       });
     } else {
       if (tests.includes("test")) fullTests.push(pkg.name);
@@ -503,7 +506,19 @@ function loadWorkspace(base) {
 }
 
 async function runCheck(check, outputDirectory, checkIndex) {
+  const reports = [];
   for (const [stepIndex, command] of (check.steps ?? [check.args]).entries()) {
+    const reportFile = check.testSuites
+      ? resolve(outputDirectory, `${checkIndex}-${stepIndex}.json`)
+      : null;
+    const args = reportFile
+      ? [
+          ...command,
+          "--reporter=default",
+          "--reporter=json",
+          `--outputFile.json=${reportFile}`,
+        ]
+      : command;
     // Disk-backed capture avoids truncating verbose failures or exhausting a
     // pipe buffer while successful commands remain completely quiet.
     const outputFile = resolve(
@@ -514,7 +529,7 @@ async function runCheck(check, outputDirectory, checkIndex) {
     let result;
     try {
       result = await new Promise((resolve) => {
-        const child = spawn("pnpm", command, {
+        const child = spawn("pnpm", args, {
           cwd: root,
           stdio: ["ignore", output, output],
         });
@@ -529,12 +544,34 @@ async function runCheck(check, outputDirectory, checkIndex) {
     } finally {
       closeSync(output);
     }
+    if (reportFile) {
+      let files = null;
+      try {
+        const report = JSON.parse(readFileSync(reportFile, "utf8"));
+        files = report.testResults.map((file) => ({
+          path: relative(root, file.name),
+          passed: file.assertionResults.filter(
+            (test) => test.status === "passed",
+          ).length,
+          failed: file.assertionResults.filter(
+            (test) => test.status === "failed",
+          ).length,
+          skipped: file.assertionResults.filter((test) =>
+            ["pending", "skipped", "todo", "disabled"].includes(test.status),
+          ).length,
+        }));
+      } catch {
+        // Startup failures can prevent Vitest from writing its report. Never
+        // misrepresent a missing report as a successful run with no tests.
+      }
+      reports.push({ suite: check.testSuites[stepIndex], files, outputFile });
+    }
     // Do not run a suite whose prerequisite generation/build failed.
     if (result.error || result.signal || result.status !== 0) {
-      return { ...result, outputFile };
+      return { failure: { ...result, outputFile }, reports };
     }
   }
-  return null;
+  return { failure: null, reports };
 }
 
 function collectDiagnostics(outputFile, isTurboBatch) {
@@ -668,15 +705,44 @@ async function main() {
         batch.map(async ({ check, checkIndex }) => {
           const checkStartedAt = performance.now();
           console.log(`${check.label}…`);
-          const result = await runCheck(check, outputDirectory, checkIndex);
-          return { check, result, duration: elapsed(checkStartedAt) };
+          const { failure, reports } = await runCheck(
+            check,
+            outputDirectory,
+            checkIndex,
+          );
+          return {
+            check,
+            result: failure,
+            reports,
+            duration: elapsed(checkStartedAt),
+          };
         }),
       );
       for (const outcome of results) {
         if (outcome.status === "rejected") throw outcome.reason;
-        const { check, result, duration } = outcome.value;
+        const { check, result, reports, duration } = outcome.value;
         const { label, isTurboBatch } = check;
         const prefix = batch.length > 1 ? `  ${label}: ` : "  ";
+        for (const report of reports) {
+          if (report.files === null) {
+            retainLogs = true;
+            console.error(
+              `  ${report.suite}: test report unavailable. Details: ${relative(root, report.outputFile)}`,
+            );
+            continue;
+          }
+          if (!report.files.length) {
+            console.log(`  ${report.suite}: no related tests ran.`);
+          }
+          for (const file of report.files) {
+            const counts = [`${file.passed} passed`];
+            if (file.failed) counts.push(`${file.failed} failed`);
+            if (file.skipped) counts.push(`${file.skipped} skipped`);
+            console.log(
+              `  ${report.suite}: ${file.path} — ${counts.join(", ")}`,
+            );
+          }
+        }
         if (result) {
           const { outputFile } = result;
           console.error(`${prefix}Failed (${duration}).`);
