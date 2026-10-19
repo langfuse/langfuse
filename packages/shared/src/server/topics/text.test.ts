@@ -154,6 +154,37 @@ describe("generateTopicText", () => {
     expect(result.usage).toMatchObject({ inputTokens: 12, outputTokens: 4 });
   });
 
+  it("turns thinking off for Claude Haiku 5.5 on Bedrock", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+      Response.json({
+        output: {
+          message: {
+            role: "assistant",
+            content: [{ text: '{"summary":"Account access"}' }],
+          },
+        },
+        stopReason: "end_turn",
+        usage: { inputTokens: 12, outputTokens: 4, totalTokens: 16 },
+        metrics: { latencyMs: 1 },
+      }),
+    );
+    vi.stubGlobal("fetch", fetch);
+
+    await generateTopicText({
+      model: bedrockModel("summary", "us.anthropic.claude-haiku-5-5"),
+      system: [{ text: "Summarize the user's request." }],
+      input: "I cannot sign in.",
+      schema: z.object({ summary: z.string() }),
+      maxOutputTokens: 256,
+      trace,
+    }).catch(() => undefined);
+
+    const body = await new Request(...fetch.mock.calls[0]).json();
+    expect(body).toHaveProperty("additionalModelRequestFields.thinking", {
+      type: "disabled",
+    });
+  });
+
   it.each(["us.openai.gpt-6-luna", "openai.gpt-oss-120b"])(
     "sends structured output through the project's Bedrock connection: %s",
     async (modelId) => {
