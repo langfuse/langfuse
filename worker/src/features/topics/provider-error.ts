@@ -5,7 +5,6 @@ import {
 import { EvaluatorBlockReason } from "@prisma/client";
 import { getLLMErrorInfo, logger } from "@langfuse/shared/src/server";
 import {
-  getTopicTextResponseMetadata,
   pauseTopicsModels,
   type TopicsModel,
 } from "@langfuse/shared/topics/server";
@@ -23,7 +22,6 @@ type TopicsProviderErrorReason =
 /** Telemetry only; the user-facing message stays generic. */
 export type TopicProviderErrorDetails = {
   httpStatus?: number;
-  response?: ReturnType<typeof getTopicTextResponseMetadata>;
 };
 
 export class TopicsProviderUnavailable extends Error {
@@ -45,13 +43,11 @@ export function topicProviderError(
   let current = error;
   let status: number | undefined;
   let reason: TopicsProviderErrorReason = "provider_error";
-  let response: TopicProviderErrorDetails["response"];
   for (
     let depth = 0;
     depth < 4 && current && typeof current === "object";
     depth++
   ) {
-    if (!response) response = getTopicTextResponseMetadata(current);
     const record = current as Record<string, unknown>;
     const candidate = record.statusCode ?? record.status;
     if (typeof candidate === "number" && candidate >= 400 && candidate <= 599) {
@@ -80,21 +76,13 @@ export function topicProviderError(
     current = record.cause;
   }
   const modelDescription = `The ${TOPICS_MODEL_SLOT_DETAILS[model.slot].label.toLowerCase()} model ${model.model} on LLM connection "${model.provider}"`;
-  let outputExplanation = "";
-  if (response?.finishReason === "length")
-    outputExplanation = " The model reached its output token limit.";
-  else if (
-    response?.finishReason === "content-filter" ||
-    response?.rawFinishReason === "refusal"
-  )
-    outputExplanation = " The provider filtered or refused the response.";
   return new TopicsProviderUnavailable(
     reason === "invalid_output"
-      ? `${modelDescription} returned no usable structured output.${outputExplanation} Resume interrupted stages to retry, or choose another model.`
+      ? `${modelDescription} returned no usable structured output. Resume interrupted stages to retry, or choose another model.`
       : `${modelDescription} failed${status ? ` (HTTP ${status})` : ""}. Check the connection's credentials, the model ID, and provider availability.`,
     reason,
     model.slot,
-    { ...providerErrorDetails(error, status), ...(response && { response }) },
+    providerErrorDetails(error, status),
   );
 }
 

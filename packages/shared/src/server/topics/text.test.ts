@@ -148,65 +148,22 @@ describe("generateTopicText", () => {
       expect(error).toMatchObject({ name: errorName });
       const metadata = getTopicTextResponseMetadata(error);
       expect(metadata).toEqual({
-        finishReason,
-        rawFinishReason: stopReason.startsWith("private")
+        "langfuse.topics.response.finish_reason": finishReason,
+        "langfuse.topics.response.raw_finish_reason": stopReason.startsWith(
+          "private",
+        )
           ? "other"
           : stopReason,
-        textCharacters: 0,
-        textPartCount: text ? 1 : 0,
-        reasoningCharacters: "private reasoning".length,
-        reasoningPartCount: 1,
-        toolCallCount: 0,
-        outputTokens: 4,
-        reasoningTokens: undefined,
-        maxOutputTokens: 256,
+        "langfuse.topics.response.text_characters": 0,
+        "langfuse.topics.response.text_part_count": text ? 1 : 0,
+        "langfuse.topics.response.reasoning_part_count": 1,
+        "langfuse.topics.response.output_tokens": 4,
+        "langfuse.topics.response.max_output_tokens": 256,
       });
       expect(JSON.stringify(metadata)).not.toContain("private");
       expect(publishToOtelIngestionQueue).not.toHaveBeenCalled();
     },
   );
-
-  it("retains cached InvokeModel metadata without the refusal text", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () =>
-        Response.json({
-          choices: [
-            {
-              finish_reason: "stop",
-              message: { content: null, refusal: "private refusal" },
-            },
-          ],
-          usage: {
-            prompt_tokens: 12,
-            completion_tokens: 4,
-            total_tokens: 16,
-            completion_tokens_details: { reasoning_tokens: 3 },
-          },
-        }),
-      ),
-    );
-    const error = await generateTopicText({
-      model: bedrockModel("summary", "us.openai.gpt-6-luna"),
-      system: [{ text: "Summarize.", cache: true }],
-      input: "Hi",
-      schema: z.object({ summary: z.string() }),
-      maxOutputTokens: 256,
-    }).catch((error: unknown) => error);
-    expect(error).toMatchObject({ name: "AI_NoOutputGeneratedError" });
-    expect(getTopicTextResponseMetadata(error)).toEqual({
-      finishReason: "stop",
-      rawFinishReason: "stop",
-      textCharacters: 0,
-      textPartCount: 0,
-      reasoningCharacters: 0,
-      reasoningPartCount: 0,
-      toolCallCount: 0,
-      outputTokens: 4,
-      reasoningTokens: 3,
-      maxOutputTokens: 256,
-    });
-  });
 
   it("clusters with Bedrock Sonnet 5.5 without forcing tool use", async () => {
     const output = { name: "Account access" };
