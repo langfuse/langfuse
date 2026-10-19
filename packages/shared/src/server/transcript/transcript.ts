@@ -13,6 +13,8 @@ import {
 } from "./threads";
 import { createToolCallRegistry } from "./tool-calls";
 
+const FAILURE_STATUS_MAX_CHARACTERS = 1_000;
+
 /** Check if an observation is relevant for the transcript. */
 const isRelevantObservation = (
   observation: OrderedObservation,
@@ -90,16 +92,22 @@ export function assembleTranscript(
     conversation && maxCharacters !== undefined
       ? limitTranscript(conversation, maxCharacters)
       : conversation;
-  if (!failures.length) return limited;
-  const withFailures = { ...(limited ?? { threads: [] }), failures };
-  // Failures are kept only while the result still fits the character limit.
-  return maxCharacters === undefined ||
-    JSON.stringify(withFailures).length <= maxCharacters
-    ? withFailures
-    : limited;
+  return attachFailures(limited, failures, maxCharacters);
 }
 
-const FAILURE_STATUS_MAX_CHARACTERS = 1_000;
+/** Add failures to the transcript only if the result stays within the character limit. */
+function attachFailures(
+  transcript: Transcript | null,
+  failures: TranscriptFailure[],
+  maxCharacters: number | undefined,
+): Transcript | null {
+  if (failures.length === 0) return transcript;
+  const withFailures = { ...(transcript ?? { threads: [] }), failures };
+  if (maxCharacters === undefined) return withFailures;
+  return JSON.stringify(withFailures).length <= maxCharacters
+    ? withFailures
+    : transcript;
+}
 
 function toFailure(observation: OrderedObservation): TranscriptFailure[] {
   const { level, statusMessage } = observation;

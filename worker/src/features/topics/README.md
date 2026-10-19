@@ -341,9 +341,12 @@ history and current-turn messages, normalized parts and observation provenance.
 
 The shared producer defines observation eligibility, tool association and replay
 deduplication. It includes generations and matched tool responses. Root-only
-non-generation traces, unmatched tool observations and observation-level status
-messages are outside that conversation contract. Topics does not add fallbacks,
-coverage fields, custom media handling or a separate transcript projection.
+non-generation traces and unmatched tool observations are outside that
+conversation contract. Failed observations reach the model as `failures` (type,
+name, level and status message, without provenance). The key is omitted when
+there are none; failures are dropped when they would exceed the cap. Topics does
+not add fallbacks, coverage fields, custom media handling or a separate
+transcript projection.
 See `packages/shared/src/server/transcript/README.md` for the producer's semantics
 and limitations.
 

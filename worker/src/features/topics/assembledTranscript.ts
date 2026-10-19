@@ -132,7 +132,7 @@ export function prepareAssembledTopicTranscript(
       currentTurn: messages(thread.currentTurn.messages),
     })),
     // Omitted when empty, so traces without failures keep the same input.
-    ...(failures.length ? { failures } : {}),
+    ...(failures.length > 0 ? { failures } : {}),
   });
   return {
     text,
