@@ -19,8 +19,8 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE} AS toolchain
 
 ARG TARGETARCH
 
-# gcc provides the linker; tar and gzip unpack the pinned toolchain (curl is
-# already present as curl-minimal in the base). Red Hat's UBI9 rust-toolset
+# gcc provides the linker; tar, gzip and xz unpack the pinned toolchain and
+# tools (curl is already present as curl-minimal in the base). Red Hat's UBI9 rust-toolset
 # (1.84.1) cannot compile this crate's edition 2024 (needs rustc >= 1.85), and
 # the official rust:1.98.0-bookworm image links against Debian's glibc 2.36,
 # so binaries built there refuse to run on UBI9 (glibc 2.34). Building on UBI9
@@ -29,7 +29,7 @@ ARG TARGETARCH
 # notices reaches the runtime image, whose packages are installed fresh by the
 # rpm-installer stage. Linking against the base image's glibc also keeps it at
 # or below the runtime's version.
-RUN dnf -y install --setopt=install_weak_deps=0 gcc tar gzip && \
+RUN dnf -y install --setopt=install_weak_deps=0 gcc tar gzip xz && \
     dnf clean all
 
 # Pinned standalone Rust 1.98.0 installer, the exact channel from
@@ -67,6 +67,24 @@ RUN set -eux; \
     install -m 0755 "/tmp/${about_dir}/cargo-about" /usr/local/bin/cargo-about; \
     rm -rf /tmp/cargo-about.tar.gz "/tmp/${about_dir}"
 
+# cargo-auditable embeds the resolved dependency list in the binary so image
+# scanners (Trivy, Grype, Docker Scout) can match Rust crates against
+# advisories; a stripped binary otherwise shows them nothing. Pinned,
+# checksum-verified static release binary; keep the version in sync with
+# worker/Dockerfile.
+RUN set -eux; \
+    case "${TARGETARCH:-amd64}" in \
+    amd64) auditable_arch=x86_64; auditable_sha256=7676443367c5e33d9fb22acef63cccb5e9202de12dae1b0579995eb3e2bc7a18 ;; \
+    arm64) auditable_arch=aarch64; auditable_sha256=c324af56990601354bbf40080f582ba46f8ec8b807a1388e25bb7e429d285c18 ;; \
+    *) echo "unsupported TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    auditable_dir="cargo-auditable-${auditable_arch}-unknown-linux-musl"; \
+    curl -fsSL -o /tmp/cargo-auditable.tar.xz "https://github.com/rust-secure-code/cargo-auditable/releases/download/v0.7.7/${auditable_dir}.tar.xz"; \
+    echo "${auditable_sha256}  /tmp/cargo-auditable.tar.xz" | sha256sum -c -; \
+    tar -xJf /tmp/cargo-auditable.tar.xz -C /tmp; \
+    install -m 0755 "/tmp/${auditable_dir}/cargo-auditable" /usr/local/bin/cargo-auditable; \
+    rm -rf /tmp/cargo-auditable.tar.xz "/tmp/${auditable_dir}"
+
 FROM --platform=${TARGETPLATFORM:-linux/amd64} toolchain AS deps
 
 WORKDIR /app
@@ -91,7 +109,7 @@ RUN cargo build --release --frozen && \
 
 COPY src ./src
 
-RUN cargo build --release --frozen
+RUN cargo auditable build --release --frozen
 
 # Runs in parallel with the compile. `--frozen` reads licenses only from the
 # fetched crate sources, and `generate` fails on any dependency whose license

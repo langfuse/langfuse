@@ -2,6 +2,13 @@
 set -euo pipefail
 
 image="${1:?Usage: bash scripts/smoke-image.sh IMAGE}"
+binary_dir="$(mktemp -d)"
+binary_container="$(docker create "$image")"
+docker cp "$binary_container:/usr/local/bin/ai-gateway" "$binary_dir/ai-gateway" >/dev/null
+docker rm "$binary_container" >/dev/null
+# cargo-auditable stores the dependency list in this ELF section.
+grep -qa '\.dep-v0' "$binary_dir/ai-gateway"
+rm -rf "$binary_dir"
 container="$(docker run -d --read-only --cap-drop ALL --security-opt no-new-privileges \
   -e LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS=2 \
   -e LANGFUSE_AI_GATEWAY_WEB_URL=https://web.example \
@@ -31,4 +38,4 @@ docker stop --time 5 "$container" >/dev/null
 [[ "$(docker inspect --format '{{.State.ExitCode}}' "$container")" == 0 ]]
 docker logs "$container" 2>&1 | grep -q 'gateway draining'
 docker logs "$container" 2>&1 | grep -q 'gateway stopped'
-printf '%s\n' 'Image smoke: non-root, license notices, probes, ECS health command, unauthenticated inference, SIGTERM passed'
+printf '%s\n' 'Image smoke: dependency list, non-root, license notices, probes, ECS health command, unauthenticated inference, SIGTERM passed'
