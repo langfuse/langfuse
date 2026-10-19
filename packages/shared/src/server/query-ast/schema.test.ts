@@ -7,7 +7,11 @@ import {
   DEDUP_SPECS,
   TENANTED_TABLES,
 } from "./schema";
-import { schemaTypeAssertions, extensionTypeAssertions } from "./types.assert";
+import {
+  expressionScopeTypeAssertions,
+  extensionTypeAssertions,
+  schemaTypeAssertions,
+} from "./types.assert";
 
 describe("table registry derivation", () => {
   it("derives the tenanted table set from the registry", () => {
@@ -58,5 +62,6 @@ describe("table registry derivation", () => {
   it("keeps the compile-time type assertions in the build graph", () => {
     expect(typeof schemaTypeAssertions).toBe("function");
     expect(typeof extensionTypeAssertions).toBe("function");
+    expect(typeof expressionScopeTypeAssertions).toBe("function");
   });
 });

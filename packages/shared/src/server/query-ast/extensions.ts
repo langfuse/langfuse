@@ -272,6 +272,13 @@ export function sumMapValuesWhereKeyContains(
   );
 }
 
+/**
+ * A helper's result. Its table scope is every table: Kysely doesn't check an
+ * expression's scope where it is used (`ExpressionWrapper<DB, "e", T>` is
+ * assignable to `ExpressionWrapper<DB, "t", T>`), so a narrower type would
+ * catch nothing. Scope is checked where references are written, so shared
+ * expressions take the calling query's `eb` (README, "Using it").
+ */
 type ChExpression<T> = ExpressionWrapper<
   ClickHouseDatabase,
   keyof ClickHouseDatabase,
