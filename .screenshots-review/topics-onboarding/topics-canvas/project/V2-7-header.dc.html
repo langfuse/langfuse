@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>v2 header before and after</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#52525b}a:hover{color:#18181b}
+</style>
+</helmet>
+<div style="width: 1280px; height: 640px; box-sizing: border-box; padding: 40px 48px; display: flex; flex-direction: column; gap: 18px; font-family: 'Geist', system-ui, sans-serif; font-size: 14px; color: #18181b; background: #fafafa">
+  <div style="display: grid; grid-template-columns: 180px minmax(0, 1fr) minmax(0, 1fr); gap: 16px; color: #71717a; font-size: 13px; font-weight: 500"><span></span><span>Original</span><span>New</span></div>
+  <div style="display: grid; grid-template-columns: 180px minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: center">
+    <span style="font-weight: 600">Before setup</span>
+    <div style="background: #fff; border: 1px solid #e4e4e7; border-radius: 10px; height: 56px; padding: 0 14px; display: flex; align-items: center; justify-content: flex-end; gap: 6px; font-size: 13px">
+      <span style="background: #ececee; border-radius: 6px; padding: 5px 8px">● Off</span>
+      <span style="background: #f8f8f9; color: #a1a1aa; border-radius: 6px; padding: 5px 8px">Automatic processing</span>
+      <span style="background: #18181b; color: #fff; border-radius: 6px; padding: 5px 8px">Configure Topics</span>
+      <span style="background: #f4f4f5; border-radius: 6px; padding: 5px 8px">Manual processing</span>
+      <span>•••</span>
+    </div>
+    <div style="background: #fff; border: 1px solid #e4e4e7; border-radius: 10px; height: 56px; padding: 0 14px; display: flex; align-items: center; justify-content: flex-end; gap: 6px; font-size: 13px">
+      <span>•••</span>
+    </div>
+  </div>
+  <div style="display: grid; grid-template-columns: 180px minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: center">
+    <span style="font-weight: 600">While running</span>
+    <div style="background: #fff; border: 1px solid #e4e4e7; border-radius: 10px; height: 56px; padding: 0 14px; display: flex; align-items: center; justify-content: flex-end; gap: 6px; font-size: 13px">
+      <span style="background: #dcfce7; color: #166534; border-radius: 6px; padding: 5px 8px">● On</span>
+      <span style="background: #f4f4f5; border-radius: 6px; padding: 5px 8px">Automatic processing</span>
+      <span style="background: #f4f4f5; border-radius: 6px; padding: 5px 8px">Manual processing</span>
+      <span>•••</span>
+    </div>
+    <div style="background: #fff; border: 1px solid #e4e4e7; border-radius: 10px; height: 56px; padding: 0 14px; display: flex; align-items: center; justify-content: flex-end; gap: 6px; font-size: 13px">
+      <span style="background: #f4f2fb; color: #6d28d9; border-radius: 6px; padding: 5px 8px">Sorting traces…</span>
+      <span>•••</span>
+    </div>
+  </div>
+  <div style="display: grid; grid-template-columns: 180px minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: center">
+    <span style="font-weight: 600">After setup</span>
+    <div style="background: #fff; border: 1px solid #e4e4e7; border-radius: 10px; height: 56px; padding: 0 14px; display: flex; align-items: center; justify-content: flex-end; gap: 6px; font-size: 13px">
+      <span style="background: #dcfce7; color: #166534; border-radius: 6px; padding: 5px 8px">● On</span>
+      <span style="background: #f4f4f5; border-radius: 6px; padding: 5px 8px">Automatic processing</span>
+      <span style="background: #f4f4f5; border-radius: 6px; padding: 5px 8px">Manual processing</span>
+      <span>•••</span>
+    </div>
+    <div style="background: #fff; border: 1px solid #e4e4e7; border-radius: 10px; height: 56px; padding: 0 14px; display: flex; align-items: center; justify-content: flex-end; gap: 6px; font-size: 13px">
+      <span style="background: #f4f4f5; border-radius: 6px; padding: 5px 10px; display: flex; gap: 6px; align-items: center"><span style="width: 7px; height: 7px; border-radius: 4px; background: #16a34a"></span>Auto-analyze: On</span>
+      <span style="background: #f4f4f5; border-radius: 6px; padding: 5px 10px">Run ▾</span>
+      <span>•••</span>
+    </div>
+  </div>
+  <div style="display: grid; grid-template-columns: 180px minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start">
+    <span style="font-weight: 600; padding-top: 8px">Menus</span>
+    <div style="background: #fff; border: 1px solid #e4e4e7; border-radius: 10px; padding: 8px; display: flex; flex-direction: column; gap: 2px; width: 220px; justify-self: end; font-size: 13px">
+      <span style="padding: 6px 10px; color: #71717a; font-size: 12px">•••</span>
+      <span style="padding: 6px 10px">Configure Topics</span>
+      <span style="padding: 6px 10px">History</span>
+      <span style="padding: 6px 10px">Refresh results</span>
+    </div>
+    <div style="display: flex; gap: 12px; justify-content: flex-end">
+      <div style="background: #fff; border: 1px solid #e4e4e7; border-radius: 10px; padding: 8px; display: flex; flex-direction: column; gap: 2px; width: 220px; font-size: 13px">
+        <span style="padding: 6px 10px; color: #71717a; font-size: 12px">Run ▾</span>
+        <span style="padding: 6px 10px; display: flex; flex-direction: column"><span>Analyze past traces</span><span style="color: #71717a; font-size: 12px">Pick a range or trace IDs</span></span>
+        <span style="padding: 6px 10px; display: flex; flex-direction: column"><span>Regroup topics</span><span style="color: #71717a; font-size: 12px">Find new groups</span></span>
+      </div>
+      <div style="background: #fff; border: 1px solid #e4e4e7; border-radius: 10px; padding: 8px; display: flex; flex-direction: column; gap: 2px; width: 180px; font-size: 13px">
+        <span style="padding: 6px 10px; color: #71717a; font-size: 12px">•••</span>
+        <span style="padding: 6px 10px">Topics settings</span>
+        <span style="padding: 6px 10px">History</span>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":640}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sorting visual</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#52525b}a:hover{color:#18181b}
+</style>
+</helmet>
+<div style="width: 1200px; height: 630px; position: relative; overflow: hidden; font-family: 'Geist', system-ui, sans-serif; color: #18181b; background: #f4f2fb">
+  <div aria-hidden="true" style="position: absolute; left: 90px; top: 200px; width: 170px; height: 44px; background: #fff; border-radius: 12px; transform: rotate(-12deg); box-shadow: 0 4px 12px rgba(40,20,90,0.08); display: flex; align-items: center; padding: 0 14px; box-sizing: border-box"><div style="height: 8px; width: 110px; border-radius: 4px; background: #c4b5fd"></div></div>
+  <div aria-hidden="true" style="position: absolute; left: 230px; top: 170px; width: 150px; height: 44px; background: #fff; border-radius: 12px; transform: rotate(9deg); box-shadow: 0 4px 12px rgba(40,20,90,0.08); display: flex; align-items: center; padding: 0 14px; box-sizing: border-box"><div style="height: 8px; width: 90px; border-radius: 4px; background: #93c5fd"></div></div>
+  <div aria-hidden="true" style="position: absolute; left: 140px; top: 270px; width: 190px; height: 44px; background: #fff; border-radius: 12px; transform: rotate(5deg); box-shadow: 0 4px 12px rgba(40,20,90,0.08); display: flex; align-items: center; padding: 0 14px; box-sizing: border-box"><div style="height: 8px; width: 130px; border-radius: 4px; background: #fdba74"></div></div>
+  <div aria-hidden="true" style="position: absolute; left: 300px; top: 260px; width: 140px; height: 44px; background: #fff; border-radius: 12px; transform: rotate(-18deg); box-shadow: 0 4px 12px rgba(40,20,90,0.08); display: flex; align-items: center; padding: 0 14px; box-sizing: border-box"><div style="height: 8px; width: 80px; border-radius: 4px; background: #c4b5fd"></div></div>
+  <div aria-hidden="true" style="position: absolute; left: 80px; top: 350px; width: 160px; height: 44px; background: #fff; border-radius: 12px; transform: rotate(14deg); box-shadow: 0 4px 12px rgba(40,20,90,0.08); display: flex; align-items: center; padding: 0 14px; box-sizing: border-box"><div style="height: 8px; width: 100px; border-radius: 4px; background: #5eead4"></div></div>
+  <div aria-hidden="true" style="position: absolute; left: 250px; top: 350px; width: 180px; height: 44px; background: #fff; border-radius: 12px; transform: rotate(-6deg); box-shadow: 0 4px 12px rgba(40,20,90,0.08); display: flex; align-items: center; padding: 0 14px; box-sizing: border-box"><div style="height: 8px; width: 120px; border-radius: 4px; background: #93c5fd"></div></div>
+  <div aria-hidden="true" style="position: absolute; left: 160px; top: 430px; width: 150px; height: 44px; background: #fff; border-radius: 12px; transform: rotate(-14deg); box-shadow: 0 4px 12px rgba(40,20,90,0.08); display: flex; align-items: center; padding: 0 14px; box-sizing: border-box"><div style="height: 8px; width: 90px; border-radius: 4px; background: #fdba74"></div></div>
+  <div aria-hidden="true" style="position: absolute; left: 320px; top: 440px; width: 130px; height: 44px; background: #fff; border-radius: 12px; transform: rotate(11deg); box-shadow: 0 4px 12px rgba(40,20,90,0.08); display: flex; align-items: center; padding: 0 14px; box-sizing: border-box"><div style="height: 8px; width: 70px; border-radius: 4px; background: #c4b5fd"></div></div>
+  <svg aria-hidden="true" width="90" height="40" viewBox="0 0 90 40" style="position: absolute; left: 500px; top: 320px" fill="none" stroke="#6d28d9" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h76M64 6l16 14-16 14"></path></svg>
+  <div style="position: absolute; left: 640px; top: 190px; display: flex; gap: 28px; align-items: flex-end">
+    <div style="display: flex; flex-direction: column; gap: 10px; align-items: center">
+      <div style="position: relative; width: 150px; height: 220px">
+        <div style="position: absolute; left: 8px; top: 0; width: 134px; height: 44px; border-radius: 12px; background: #ddd6fe"></div>
+        <div style="position: absolute; left: 4px; top: 10px; width: 142px; height: 44px; border-radius: 12px; background: #c4b5fd"></div>
+        <div style="position: absolute; left: 0; top: 20px; width: 150px; height: 200px; border-radius: 12px; background: #7c3aed"></div>
+      </div>
+      <span style="font-weight: 600">Refund requests</span>
+      <span style="color: #52525b">214</span>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 10px; align-items: center">
+      <div style="position: relative; width: 150px; height: 130px">
+        <div style="position: absolute; left: 6px; top: 0; width: 138px; height: 44px; border-radius: 12px; background: #bfdbfe"></div>
+        <div style="position: absolute; left: 0; top: 12px; width: 150px; height: 118px; border-radius: 12px; background: #2563eb"></div>
+      </div>
+      <span style="font-weight: 600">Login problems</span>
+      <span style="color: #52525b">98</span>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 10px; align-items: center">
+      <div style="position: relative; width: 150px; height: 84px">
+        <div style="position: absolute; left: 6px; top: 0; width: 138px; height: 44px; border-radius: 12px; background: #fed7aa"></div>
+        <div style="position: absolute; left: 0; top: 12px; width: 150px; height: 72px; border-radius: 12px; background: #ea580c"></div>
+      </div>
+      <span style="font-weight: 600">Pricing questions</span>
+      <span style="color: #52525b">61</span>
+    </div>
+  </div>
+  <div style="position: absolute; left: 80px; top: 56px; display: flex; flex-direction: column; gap: 6px">
+    <span style="font-size: 14px; color: #71717a; font-weight: 500">Langfuse Topics</span>
+    <span style="font-size: 34px; font-weight: 600; letter-spacing: -0.02em">Thousands of traces, a few clear piles</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":630}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

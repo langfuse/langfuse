@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>C setup step 1</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#52525b}a:hover{color:#18181b}
+</style>
+</helmet>
+<div style="width: 100%; height: 800px; box-sizing: border-box; display: flex; justify-content: center; align-items: center; font-family: 'Geist', system-ui, sans-serif; font-size: 14px; color: #18181b; background: #c9c9cf; overflow: hidden">
+  <div style="width: 620px; max-width: 94%; background: #ffffff; border-radius: 12px; padding: 24px 28px; box-sizing: border-box; display: flex; flex-direction: column; gap: 22px">
+    <div style="display: flex; justify-content: space-between; align-items: center">
+      <div style="font-size: 18px; font-weight: 600">Set up Topics</div>
+      <button aria-label="Close" style="background: transparent; border: 0; font: inherit; font-size: 18px; color: #71717a">×</button>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px; font-size: 13px">
+      <span style="display: flex; align-items: center; gap: 6px; font-weight: 500"><span style="width: 22px; height: 22px; border-radius: 11px; background: #18181b; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px">1</span>Model</span>
+      <span style="flex: 1; height: 1px; background: #e4e4e7"></span>
+      <span style="display: flex; align-items: center; gap: 6px; color: #a1a1aa"><span style="width: 22px; height: 22px; border-radius: 11px; border: 1px solid #d4d4d8; display: flex; align-items: center; justify-content: center; font-size: 11px">2</span>Look for</span>
+      <span style="flex: 1; height: 1px; background: #e4e4e7"></span>
+      <span style="display: flex; align-items: center; gap: 6px; color: #a1a1aa"><span style="width: 22px; height: 22px; border-radius: 11px; border: 1px solid #d4d4d8; display: flex; align-items: center; justify-content: center; font-size: 11px">3</span>Which traces</span>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 10px">
+      <label style="border: 2px solid #18181b; border-radius: 10px; padding: 14px 16px; display: flex; gap: 12px; align-items: flex-start">
+        <input type="radio" name="conn" checked="checked" style="margin-top: 3px">
+        <span style="flex: 1; display: flex; flex-direction: column; gap: 8px">
+          <span style="display: flex; justify-content: space-between"><span style="font-weight: 600">Bedrock · eu-central-1</span><span style="background: #ecfdf3; color: #166534; border-radius: 6px; padding: 2px 8px; font-size: 12px">Recommended</span></span>
+          <span style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+            <span style="background: #f4f4f5; border-radius: 6px; padding: 8px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 11px; color: #71717a">Summaries</span><span style="font-size: 13px">Haiku 5.5</span></span>
+            <span style="background: #f4f4f5; border-radius: 6px; padding: 8px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 11px; color: #71717a">Embeddings 🔒</span><span style="font-size: 13px">Cohere v4</span></span>
+            <span style="background: #f4f4f5; border-radius: 6px; padding: 8px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 11px; color: #71717a">Grouping</span><span style="font-size: 13px">Sonnet 5.5</span></span>
+          </span>
+        </span>
+      </label>
+      <label style="border: 1px solid #e4e4e7; border-radius: 10px; padding: 14px 16px; display: flex; gap: 12px; align-items: center">
+        <input type="radio" name="conn">
+        <span style="flex: 1; display: flex; justify-content: space-between"><span style="font-weight: 500">OpenAI · test project</span><span style="color: #a1a1aa; font-size: 12px">Not for customer data</span></span>
+      </label>
+      <div style="color: #52525b; font-size: 13px; padding-left: 4px">Choose models yourself ▸</div>
+    </div>
+    <div style="display: flex; justify-content: space-between; gap: 8px">
+      <button style="background: #f4f4f5; color: #18181b; border: 0; border-radius: 6px; padding: 9px 14px; font: inherit">Cancel</button>
+      <button style="background: #18181b; color: #ffffff; border: 0; border-radius: 6px; padding: 9px 16px; font: inherit; font-weight: 500">Next</button>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

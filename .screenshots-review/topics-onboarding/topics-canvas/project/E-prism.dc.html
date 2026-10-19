@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Prism visual</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#52525b}a:hover{color:#18181b}
+</style>
+</helmet>
+<div style="width: 1200px; height: 630px; position: relative; overflow: hidden; font-family: 'Geist', system-ui, sans-serif; color: #18181b; background: #faf9f7">
+  <svg aria-hidden="true" width="1200" height="630" viewBox="0 0 1200 630" style="position: absolute; left: 0; top: 0">
+    <polygon points="410,205 410,395 552,328" fill="#a1a1aa" opacity="0.18"></polygon>
+    <polygon points="610,320 610,330 830,150 830,205" fill="#7c3aed" opacity="0.55"></polygon>
+    <polygon points="610,322 610,334 830,255 830,305" fill="#2563eb" opacity="0.55"></polygon>
+    <polygon points="610,326 610,338 830,355 830,405" fill="#ea580c" opacity="0.55"></polygon>
+    <polygon points="610,330 610,342 830,455 830,505" fill="#0d9488" opacity="0.55"></polygon>
+  </svg>
+  <div aria-hidden="true" style="position: absolute; left: 80px; top: 204px; display: flex; flex-direction: column; gap: 32px">
+    <div style="width: 300px; height: 14px; border-radius: 7px; background: #a1a1aa"></div>
+    <div style="width: 240px; height: 14px; border-radius: 7px; background: #c4c4cc"></div>
+    <div style="width: 280px; height: 14px; border-radius: 7px; background: #a1a1aa"></div>
+    <div style="width: 200px; height: 14px; border-radius: 7px; background: #c4c4cc"></div>
+    <div style="width: 320px; height: 14px; border-radius: 7px; background: #a1a1aa"></div>
+  </div>
+  <div aria-hidden="true" style="position: absolute; left: 515px; top: 225px; width: 130px; height: 190px; clip-path: polygon(50% 0, 100% 100%, 0 100%); background: linear-gradient(160deg, #ffffff, #e4e4ee)"></div>
+  <div style="position: absolute; left: 850px; top: 150px; display: flex; flex-direction: column; gap: 46px">
+    <div style="display: flex; flex-direction: column; gap: 4px"><span style="font-weight: 600; color: #6d28d9">Intent</span><span style="color: #3f3f46">"Refund an order"</span></div>
+    <div style="display: flex; flex-direction: column; gap: 4px"><span style="font-weight: 600; color: #1d4ed8">Sentiment</span><span style="color: #3f3f46">"Frustrated"</span></div>
+    <div style="display: flex; flex-direction: column; gap: 4px"><span style="font-weight: 600; color: #c2410c">Outcome</span><span style="color: #3f3f46">"Not completed"</span></div>
+    <div style="display: flex; flex-direction: column; gap: 4px"><span style="font-weight: 600; color: #0f766e">Issues</span><span style="color: #3f3f46">"Wrong tool called"</span></div>
+  </div>
+  <div style="position: absolute; left: 80px; top: 56px; display: flex; flex-direction: column; gap: 6px">
+    <span style="font-size: 14px; color: #71717a; font-weight: 500">Langfuse Topics</span>
+    <span style="font-size: 34px; font-weight: 600; letter-spacing: -0.02em">One trace, four questions</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":630}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

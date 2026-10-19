@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>B empty state is setup</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#52525b}a:hover{color:#18181b}
+</style>
+</helmet>
+<div style="width: 100%; height: 800px; display: flex; font-family: 'Geist', system-ui, sans-serif; font-size: 14px; color: #18181b; background: #ffffff; overflow: hidden">
+  <nav style="width: 200px; flex: none; border-right: 1px solid #e4e4e7; background: #fafafa; padding: 16px 12px; display: flex; flex-direction: column; gap: 2px">
+    <div style="font-weight: 600; font-size: 16px; padding: 4px 8px 14px">langfuse</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Home</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Tracing</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Sessions</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Users</div>
+    <div style="padding: 7px 8px; background: #ececee; border-radius: 6px; font-weight: 500">Topics</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Alerts</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Prompts</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Scores</div>
+  </nav>
+  <main style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+    <header style="height: 52px; flex: none; border-bottom: 1px solid #e4e4e7; display: flex; align-items: center; justify-content: space-between; padding: 0 20px">
+      <div style="font-weight: 600; font-size: 16px">Topics</div>
+      <button aria-label="More actions" style="background: transparent; border: 0; padding: 7px 8px; font: inherit; color: #52525b">•••</button>
+    </header>
+    <section style="flex: 1; display: flex; gap: 32px; padding: 40px; align-items: flex-start; flex-wrap: wrap">
+      <div style="flex: 999 1 460px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+        <div style="display: flex; gap: 8px; align-items: center">
+          <span style="font-size: 20px; font-weight: 600">See what users ask for</span>
+          <span style="color: #71717a; font-size: 12px; border: 1px dashed #d4d4d8; border-radius: 4px; padding: 2px 8px">Example</span>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+          <div style="border: 1px solid #e4e4e7; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 10px">
+            <div style="display: flex; justify-content: space-between"><span style="font-weight: 500">● Refund requests</span><span style="color: #52525b">214</span></div>
+            <div style="height: 6px; border-radius: 3px; background: #6d28d9"></div>
+          </div>
+          <div style="border: 1px solid #e4e4e7; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 10px">
+            <div style="display: flex; justify-content: space-between"><span style="font-weight: 500">● Login problems</span><span style="color: #52525b">98</span></div>
+            <div style="height: 6px; width: 46%; border-radius: 3px; background: #2563eb"></div>
+          </div>
+          <div style="border: 1px solid #e4e4e7; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 10px">
+            <div style="display: flex; justify-content: space-between"><span style="font-weight: 500">● Pricing questions</span><span style="color: #52525b">61</span></div>
+            <div style="height: 6px; width: 29%; border-radius: 3px; background: #c2410c"></div>
+          </div>
+          <div style="border: 1px solid #e4e4e7; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 10px">
+            <div style="display: flex; justify-content: space-between"><span style="font-weight: 500">● Export a report</span><span style="color: #52525b">37</span></div>
+            <div style="height: 6px; width: 17%; border-radius: 3px; background: #0f766e"></div>
+          </div>
+        </div>
+        <div style="border: 1px solid #e4e4e7; border-radius: 10px; overflow: hidden">
+          <div style="display: grid; grid-template-columns: 140px 180px minmax(0, 1fr); gap: 12px; padding: 10px 14px; background: #fafafa; color: #71717a; font-size: 12px"><span>Trace</span><span>Topic</span><span>Summary</span></div>
+          <div style="display: grid; grid-template-columns: 140px 180px minmax(0, 1fr); gap: 12px; padding: 10px 14px; border-top: 1px solid #f1f1f3; font-size: 13px"><span style="color: #6d28d9">trace_8f2a…</span><span>Refund requests</span><span style="color: #52525b">Refund a duplicate order</span></div>
+          <div style="display: grid; grid-template-columns: 140px 180px minmax(0, 1fr); gap: 12px; padding: 10px 14px; border-top: 1px solid #f1f1f3; font-size: 13px"><span style="color: #6d28d9">trace_c71d…</span><span>Login problems</span><span style="color: #52525b">Reset a locked account</span></div>
+        </div>
+      </div>
+      <div style="flex: 1 1 340px; max-width: 380px; border: 1px solid #d4d4d8; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 18px; box-shadow: 0 1px 2px rgba(0,0,0,0.04)">
+        <div style="font-size: 16px; font-weight: 600">Set up Topics</div>
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <div style="font-size: 13px; color: #52525b">Model</div>
+          <div style="border: 1px solid #d4d4d8; border-radius: 8px; padding: 9px 12px; display: flex; justify-content: space-between"><span>Bedrock · Recommended</span><span style="color: #71717a">▾</span></div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <div style="font-size: 13px; color: #52525b">Look for</div>
+          <div style="display: flex; gap: 6px; flex-wrap: wrap">
+            <span style="background: #18181b; color: #fff; border-radius: 999px; padding: 5px 12px; font-size: 13px">✓ Intent</span>
+            <span style="background: #18181b; color: #fff; border-radius: 999px; padding: 5px 12px; font-size: 13px">✓ Sentiment</span>
+            <span style="background: #18181b; color: #fff; border-radius: 999px; padding: 5px 12px; font-size: 13px">✓ Outcome</span>
+            <span style="background: #18181b; color: #fff; border-radius: 999px; padding: 5px 12px; font-size: 13px">✓ Issues</span>
+          </div>
+        </div>
+        <button style="background: #18181b; color: #ffffff; border: 0; border-radius: 8px; padding: 11px 16px; font: inherit; font-weight: 500">Find topics in last 7 days</button>
+        <div style="display: flex; justify-content: space-between; color: #71717a; font-size: 13px"><span>~200 traces · cost shown first</span><span>Advanced ▸</span></div>
+      </div>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

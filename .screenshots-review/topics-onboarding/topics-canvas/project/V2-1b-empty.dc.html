@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>v2 empty state floating topics</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#52525b}a:hover{color:#18181b}
+</style>
+</helmet>
+<div style="width: 100%; height: 800px; display: flex; font-family: 'Geist', system-ui, sans-serif; font-size: 14px; color: #18181b; background: #ffffff; overflow: hidden">
+  <nav style="width: 200px; flex: none; border-right: 1px solid #e4e4e7; background: #fafafa; padding: 16px 12px; display: flex; flex-direction: column; gap: 2px">
+    <div style="font-weight: 600; font-size: 16px; padding: 4px 8px 14px">langfuse</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Home</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Tracing</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Sessions</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Users</div>
+    <div style="padding: 7px 8px; background: #ececee; border-radius: 6px; font-weight: 500">Topics</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Alerts</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Prompts</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Scores</div>
+  </nav>
+  <main style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+    <header style="height: 52px; flex: none; border-bottom: 1px solid #e4e4e7; display: flex; align-items: center; justify-content: space-between; padding: 0 20px">
+      <div style="font-weight: 600; font-size: 16px">Topics</div>
+      <button aria-label="More actions" style="background: transparent; border: 0; padding: 7px 8px; font: inherit; color: #52525b">•••</button>
+    </header>
+    <section style="flex: 1; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; background: #f7f5fc">
+      <div aria-hidden="true" style="position: absolute; left: 7%; top: 10%; width: 220px; background: #fff; border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 4px 14px rgba(40,20,90,0.07); transform: rotate(-3deg)">
+        <div style="display: flex; justify-content: space-between; font-weight: 600"><span>Refund requests</span><span style="color: #52525b; font-weight: 500">214</span></div>
+        <div style="height: 6px; border-radius: 3px; background: #7c3aed"></div>
+        <div style="font-size: 12px; color: #71717a">"I was charged twice"</div>
+      </div>
+      <div aria-hidden="true" style="position: absolute; right: 8%; top: 12%; width: 220px; background: #fff; border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 4px 14px rgba(40,20,90,0.07); transform: rotate(2deg)">
+        <div style="display: flex; justify-content: space-between; font-weight: 600"><span>Wrong tool called</span><span style="color: #52525b; font-weight: 500">52</span></div>
+        <div style="height: 6px; width: 30%; border-radius: 3px; background: #ea580c"></div>
+        <div style="font-size: 12px; color: #71717a">Issues</div>
+      </div>
+      <div aria-hidden="true" style="position: absolute; left: 40%; top: 6%; width: 180px; opacity: 0.45; background: #fff; border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; transform: rotate(1deg)">
+        <div style="display: flex; justify-content: space-between; font-weight: 600; font-size: 12px"><span>Export a report</span><span>37</span></div>
+        <div style="height: 5px; width: 18%; border-radius: 3px; background: #0d9488"></div>
+      </div>
+      <div aria-hidden="true" style="position: absolute; left: 4%; top: 52%; width: 180px; opacity: 0.45; background: #fff; border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; transform: rotate(2deg)">
+        <div style="display: flex; justify-content: space-between; font-weight: 600; font-size: 12px"><span>Frustrated</span><span>44</span></div>
+        <div style="height: 5px; width: 22%; border-radius: 3px; background: #2563eb"></div>
+      </div>
+      <div aria-hidden="true" style="position: absolute; left: 14%; bottom: 9%; width: 220px; background: #fff; border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 4px 14px rgba(40,20,90,0.07); transform: rotate(3deg)">
+        <div style="display: flex; justify-content: space-between; font-weight: 600"><span>Login problems</span><span style="color: #52525b; font-weight: 500">98</span></div>
+        <div style="height: 6px; width: 46%; border-radius: 3px; background: #2563eb"></div>
+        <div style="font-size: 12px; color: #71717a">"Can't sign in since the update"</div>
+      </div>
+      <div aria-hidden="true" style="position: absolute; right: 13%; bottom: 11%; width: 220px; background: #fff; border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 4px 14px rgba(40,20,90,0.07); transform: rotate(-2deg)">
+        <div style="display: flex; justify-content: space-between; font-weight: 600"><span>Completed</span><span style="color: #52525b; font-weight: 500">1,204</span></div>
+        <div style="height: 6px; border-radius: 3px; background: #0d9488"></div>
+        <div style="font-size: 12px; color: #71717a">Outcome</div>
+      </div>
+      <div aria-hidden="true" style="position: absolute; right: 3%; top: 50%; width: 180px; opacity: 0.45; background: #fff; border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; transform: rotate(-2deg)">
+        <div style="display: flex; justify-content: space-between; font-weight: 600; font-size: 12px"><span>Pricing questions</span><span>61</span></div>
+        <div style="height: 5px; width: 28%; border-radius: 3px; background: #7c3aed"></div>
+      </div>
+      <h1 style="margin: 0; font-size: 38px; font-weight: 600; letter-spacing: -0.02em; position: relative">Know what your users want</h1>
+      <p style="margin: 0; color: #52525b; font-size: 16px; position: relative">Topics sorts every trace into a few clear groups.</p>
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 12px; position: relative">
+        <button style="background: #18181b; color: #ffffff; border: 0; border-radius: 8px; padding: 11px 22px; font: inherit; font-weight: 500">Set up Topics</button>
+        <a href="#how" style="font-size: 13px">How Topics works</a>
+      </div>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

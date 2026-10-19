@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Original Configure Topics</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#52525b}a:hover{color:#18181b}
+</style>
+</helmet>
+<div style="width: 100%; height: 800px; box-sizing: border-box; display: flex; justify-content: center; align-items: center; font-family: 'Geist', system-ui, sans-serif; font-size: 14px; color: #18181b; background: #c9c9cf; overflow: hidden">
+  <div style="width: 880px; max-width: 94%; background: #ffffff; border-radius: 12px; padding: 24px 28px; box-sizing: border-box; display: flex; flex-direction: column; gap: 18px">
+    <div style="display: flex; justify-content: space-between; align-items: center">
+      <div style="font-size: 18px; font-weight: 600">Configure Topics</div>
+      <button aria-label="Close" style="background: transparent; border: 0; font: inherit; font-size: 18px; color: #71717a">×</button>
+    </div>
+    <div style="background: #e8f0fe; border: 1px solid #3b6fd8; border-radius: 8px; padding: 12px 14px; color: #1e293b">These settings apply to the whole project. Choose which traces to process in Automatic processing or for each manual batch.</div>
+    <div style="display: flex; gap: 14px">
+      <span style="width: 26px; height: 26px; flex: none; border-radius: 13px; background: #18181b; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px">1</span>
+      <div style="flex: 1; display: flex; flex-direction: column; gap: 10px">
+        <div style="font-size: 16px; font-weight: 600">Models</div>
+        <div style="color: #71717a">The connections and models used for summaries, embeddings, and clustering.</div>
+        <div style="display: grid; grid-template-columns: 150px minmax(0, 1fr) 90px; gap: 8px 12px; align-items: center">
+          <div style="font-weight: 500">Facet summaries</div>
+          <div style="border: 1px solid #e4e4e7; border-radius: 6px; padding: 8px 10px; color: #a16207">⚠ Select a model</div>
+          <div></div>
+          <div style="font-weight: 500">Embeddings</div>
+          <div style="border: 1px solid #e4e4e7; border-radius: 6px; padding: 8px 10px; color: #a16207">⚠ Select a model</div>
+          <div style="border: 1px solid #e4e4e7; border-radius: 6px; padding: 8px 10px">1024</div>
+          <div style="font-weight: 500">Topic clustering</div>
+          <div style="border: 1px solid #e4e4e7; border-radius: 6px; padding: 8px 10px; color: #a16207">⚠ Select a model</div>
+          <div></div>
+        </div>
+      </div>
+    </div>
+    <div style="display: flex; gap: 14px">
+      <span style="width: 26px; height: 26px; flex: none; border-radius: 13px; background: #18181b; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px">2</span>
+      <div style="flex: 1; display: flex; flex-direction: column; gap: 10px">
+        <div style="font-size: 16px; font-weight: 600">Facets</div>
+        <div style="color: #71717a">Choose which questions you want answered. Five can be on.</div>
+        <div style="display: flex; gap: 4px; background: #f4f4f5; border-radius: 8px; padding: 3px; align-self: flex-start">
+          <span style="background: #fff; border-radius: 6px; padding: 5px 10px; font-weight: 500">● Intent</span>
+          <span style="padding: 5px 10px; color: #71717a">● Sentiment</span>
+          <span style="padding: 5px 10px; color: #71717a">● Outcome</span>
+          <span style="padding: 5px 10px; color: #71717a">● Issues</span>
+          <span style="padding: 5px 10px; color: #71717a">Add my own</span>
+        </div>
+        <div style="background: #fafafa; border: 1px solid #e4e4e7; border-radius: 6px; padding: 10px 12px; color: #3f3f46; line-height: 1.5; font-size: 13px">Describe what the user, or the calling application, wanted from this run as a whole. Format: an imperative verb phrase stating the goal, such as "Find…", "Fix…". Describe the goal of the whole run, not its last step. A run can contain several unrelated requests…</div>
+        <div style="color: #71717a; font-size: 13px">On · Built-in · 4 of 5 on</div>
+      </div>
+    </div>
+    <div style="display: flex; gap: 14px; align-items: center">
+      <span style="width: 26px; height: 26px; flex: none; border-radius: 13px; background: #18181b; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px">3</span>
+      <div style="font-size: 16px; font-weight: 600">Trace readiness</div>
+      <div style="border: 1px solid #e4e4e7; border-radius: 6px; padding: 6px 10px">600</div>
+      <div style="color: #71717a; font-size: 13px">seconds to wait after the last observation…</div>
+    </div>
+    <div style="display: flex; justify-content: flex-end; gap: 8px">
+      <button style="background: #f4f4f5; color: #18181b; border: 0; border-radius: 6px; padding: 8px 14px; font: inherit">Cancel</button>
+      <button style="background: #18181b; color: #ffffff; border: 0; border-radius: 6px; padding: 8px 14px; font: inherit">Save</button>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

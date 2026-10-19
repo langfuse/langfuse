@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>v2 first run</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#52525b}a:hover{color:#18181b}
+</style>
+</helmet>
+<div style="width: 100%; height: 800px; display: flex; font-family: 'Geist', system-ui, sans-serif; font-size: 14px; color: #18181b; background: #ffffff; overflow: hidden">
+  <nav style="width: 200px; flex: none; border-right: 1px solid #e4e4e7; background: #fafafa; padding: 16px 12px; display: flex; flex-direction: column; gap: 2px">
+    <div style="font-weight: 600; font-size: 16px; padding: 4px 8px 14px">langfuse</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Home</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Tracing</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Sessions</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Users</div>
+    <div style="padding: 7px 8px; background: #ececee; border-radius: 6px; font-weight: 500">Topics</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Alerts</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Prompts</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Scores</div>
+  </nav>
+  <main style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+    <header style="height: 52px; flex: none; border-bottom: 1px solid #e4e4e7; display: flex; align-items: center; justify-content: space-between; padding: 0 20px">
+      <div style="font-weight: 600; font-size: 16px">Topics</div>
+      <div style="display: flex; gap: 8px; align-items: center">
+        <span style="font-size: 13px; color: #6d28d9; background: #f4f2fb; border-radius: 6px; padding: 5px 10px">Sorting traces…</span>
+        <button aria-label="More actions" style="background: transparent; border: 0; padding: 7px 8px; font: inherit; color: #52525b">•••</button>
+      </div>
+    </header>
+    <section style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px">
+      <div style="width: 600px; height: 260px; position: relative; background: #f4f2fb; border-radius: 18px; overflow: hidden">
+        <div aria-hidden="true" style="position: absolute; left: 40px; top: 70px; width: 120px; height: 32px; background: #fff; border-radius: 10px; transform: rotate(-12deg); box-shadow: 0 3px 10px rgba(40,20,90,0.08); display: flex; align-items: center; padding: 0 12px; box-sizing: border-box"><div style="height: 6px; width: 76px; border-radius: 3px; background: #c4b5fd"></div></div>
+        <div aria-hidden="true" style="position: absolute; left: 80px; top: 130px; width: 130px; height: 32px; background: #fff; border-radius: 10px; transform: rotate(5deg); box-shadow: 0 3px 10px rgba(40,20,90,0.08); display: flex; align-items: center; padding: 0 12px; box-sizing: border-box"><div style="height: 6px; width: 86px; border-radius: 3px; background: #fdba74"></div></div>
+        <div aria-hidden="true" style="position: absolute; left: 150px; top: 180px; width: 110px; height: 32px; background: #fff; border-radius: 10px; transform: rotate(-6deg); box-shadow: 0 3px 10px rgba(40,20,90,0.08); display: flex; align-items: center; padding: 0 12px; box-sizing: border-box"><div style="height: 6px; width: 66px; border-radius: 3px; background: #93c5fd"></div></div>
+        <svg aria-hidden="true" width="60" height="30" viewBox="0 0 60 30" style="position: absolute; left: 290px; top: 115px" fill="none" stroke="#6d28d9" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 15h50M42 5l11 10-11 10"></path></svg>
+        <div style="position: absolute; left: 370px; top: 30px; height: 210px; display: flex; gap: 14px; align-items: flex-end">
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 6px">
+            <div style="width: 62px; height: 80px; border-radius: 9px; background: #7c3aed"></div>
+            <span style="width: 50px; height: 8px; border-radius: 4px; background: #e4e1f0"></span>
+          </div>
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 6px">
+            <div style="width: 62px; height: 48px; border-radius: 9px; background: #2563eb"></div>
+            <span style="width: 40px; height: 8px; border-radius: 4px; background: #e4e1f0"></span>
+          </div>
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 6px">
+            <div style="width: 62px; height: 26px; border-radius: 9px; border: 2px dashed #fdba74; box-sizing: border-box"></div>
+            <span style="width: 44px; height: 8px; border-radius: 4px; background: #e4e1f0"></span>
+          </div>
+        </div>
+      </div>
+      <div style="width: 420px; display: flex; flex-direction: column; gap: 10px; align-items: center">
+        <div style="font-size: 20px; font-weight: 600">Sorting 640 of 1,280 traces</div>
+        <div style="width: 100%; height: 6px; border-radius: 3px; background: #ececf3"><div style="width: 50%; height: 6px; border-radius: 3px; background: #6d28d9"></div></div>
+        <div style="display: flex; gap: 8px; font-size: 12px">
+          <span style="background: #ecfdf3; color: #166534; border-radius: 6px; padding: 3px 8px">✓ Intent</span>
+          <span style="background: #ecfdf3; color: #166534; border-radius: 6px; padding: 3px 8px">✓ Sentiment</span>
+          <span style="background: #f4f2fb; color: #6d28d9; border-radius: 6px; padding: 3px 8px">Outcome…</span>
+          <span style="background: #f4f4f5; color: #71717a; border-radius: 6px; padding: 3px 8px">Issues</span>
+        </div>
+        <div style="color: #71717a; font-size: 13px">You can leave this page. We'll keep going.</div>
+      </div>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

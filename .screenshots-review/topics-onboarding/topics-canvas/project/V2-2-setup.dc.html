@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>v2 setup step 1</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#52525b}a:hover{color:#18181b}
+</style>
+</helmet>
+<div style="width: 100%; height: 800px; box-sizing: border-box; display: flex; justify-content: center; align-items: center; font-family: 'Geist', system-ui, sans-serif; font-size: 14px; color: #18181b; background: #c9c9cf; overflow: hidden">
+  <div style="width: 600px; max-width: 94%; background: #ffffff; border-radius: 14px; padding: 24px 28px; box-sizing: border-box; display: flex; flex-direction: column; gap: 20px">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start">
+      <div style="display: flex; flex-direction: column; gap: 2px">
+        <div style="font-size: 18px; font-weight: 600">Set up Topics</div>
+        <div style="color: #71717a; font-size: 13px">Step 1 of 2 · applies to this project</div>
+      </div>
+      <button aria-label="Close" style="background: transparent; border: 0; font: inherit; font-size: 18px; color: #71717a">×</button>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 8px">
+      <div style="font-weight: 600">Model</div>
+      <div style="border: 1px solid #d4d4d8; border-radius: 8px; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center">
+        <span>Bedrock · eu-central-1</span>
+        <span style="color: #71717a">▾</span>
+      </div>
+      <div style="display: flex; gap: 6px; align-items: center; color: #52525b; font-size: 12px">
+        <span style="background: #ecfdf3; color: #166534; border-radius: 6px; padding: 2px 8px">Recommended</span>
+        <span>Haiku 5.5 · Cohere embed v4 · Sonnet 5.5</span>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 8px">
+      <div style="display: flex; justify-content: space-between"><span style="font-weight: 600">What to look for</span><span style="color: #71717a; font-size: 12px">4 selected · up to 5</span></div>
+      <div style="border: 1px solid #e4e4e7; border-radius: 10px; overflow: hidden">
+        <label style="display: grid; grid-template-columns: 24px 110px minmax(0, 1fr) 150px; gap: 8px; align-items: center; padding: 11px 14px">
+          <input type="checkbox" checked="checked">
+          <span style="font-weight: 500">Intent</span>
+          <span style="color: #52525b; font-size: 13px">What the user wanted</span>
+          <span style="color: #a1a1aa; font-size: 12px; text-align: right">"Refund an order"</span>
+        </label>
+        <label style="display: grid; grid-template-columns: 24px 110px minmax(0, 1fr) 150px; gap: 8px; align-items: center; padding: 11px 14px; border-top: 1px solid #f1f1f3">
+          <input type="checkbox" checked="checked">
+          <span style="font-weight: 500">Sentiment</span>
+          <span style="color: #52525b; font-size: 13px">How they felt</span>
+          <span style="color: #a1a1aa; font-size: 12px; text-align: right">"Frustrated"</span>
+        </label>
+        <label style="display: grid; grid-template-columns: 24px 110px minmax(0, 1fr) 150px; gap: 8px; align-items: center; padding: 11px 14px; border-top: 1px solid #f1f1f3">
+          <input type="checkbox" checked="checked">
+          <span style="font-weight: 500">Outcome</span>
+          <span style="color: #52525b; font-size: 13px">Whether it worked</span>
+          <span style="color: #a1a1aa; font-size: 12px; text-align: right">"Not completed"</span>
+        </label>
+        <label style="display: grid; grid-template-columns: 24px 110px minmax(0, 1fr) 150px; gap: 8px; align-items: center; padding: 11px 14px; border-top: 1px solid #f1f1f3">
+          <input type="checkbox" checked="checked">
+          <span style="font-weight: 500">Issues</span>
+          <span style="color: #52525b; font-size: 13px">What went wrong</span>
+          <span style="color: #a1a1aa; font-size: 12px; text-align: right">"Wrong tool called"</span>
+        </label>
+      </div>
+    </div>
+    <div style="border-top: 1px solid #e4e4e7; padding-top: 14px; display: flex; justify-content: space-between; color: #52525b">
+      <span>Advanced</span>
+      <span>▸</span>
+    </div>
+    <div style="display: flex; justify-content: flex-end; gap: 8px">
+      <button style="background: #f4f4f5; color: #18181b; border: 0; border-radius: 6px; padding: 9px 14px; font: inherit">Cancel</button>
+      <button style="background: #18181b; color: #ffffff; border: 0; border-radius: 6px; padding: 9px 16px; font: inherit; font-weight: 500">Next</button>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

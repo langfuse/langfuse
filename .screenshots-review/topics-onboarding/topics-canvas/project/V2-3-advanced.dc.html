@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>v2 setup advanced</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#52525b}a:hover{color:#18181b}
+</style>
+</helmet>
+<div style="width: 100%; height: 800px; box-sizing: border-box; display: flex; justify-content: center; align-items: center; font-family: 'Geist', system-ui, sans-serif; font-size: 14px; color: #18181b; background: #c9c9cf; overflow: hidden">
+  <div style="width: 600px; max-width: 94%; background: #ffffff; border-radius: 14px; padding: 24px 28px; box-sizing: border-box; display: flex; flex-direction: column; gap: 18px; position: relative">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start">
+      <div style="display: flex; flex-direction: column; gap: 2px">
+        <div style="font-size: 18px; font-weight: 600">Set up Topics</div>
+        <div style="color: #71717a; font-size: 13px">Step 1 of 2 · applies to this project</div>
+      </div>
+      <button aria-label="Close" style="background: transparent; border: 0; font: inherit; font-size: 18px; color: #71717a">×</button>
+    </div>
+    <div style="display: flex; justify-content: space-between; color: #52525b; border-bottom: 1px solid #f1f1f3; padding-bottom: 12px"><span>Model · Bedrock, recommended</span><span>▸</span></div>
+    <div style="display: flex; justify-content: space-between; color: #52525b; border-bottom: 1px solid #f1f1f3; padding-bottom: 12px"><span>What to look for · 4 selected</span><span>▸</span></div>
+    <div style="display: flex; justify-content: space-between; font-weight: 600"><span>Advanced</span><span style="color: #52525b">▾</span></div>
+    <div style="display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 10px 14px; align-items: center">
+      <span style="color: #52525b">Summaries</span>
+      <div style="border: 2px solid #18181b; border-radius: 8px; padding: 8px 12px; display: flex; justify-content: space-between"><span>claude-haiku-5-5</span><span style="color: #71717a">▴</span></div>
+      <span style="color: #52525b">Embeddings</span>
+      <div style="display: flex; flex-direction: column; gap: 4px">
+        <div style="border: 1px solid #d4d4d8; border-radius: 8px; padding: 8px 12px; display: flex; justify-content: space-between"><span>cohere.embed-v4 · 1024</span><span style="color: #71717a">▾</span></div>
+        <span style="font-size: 12px; color: #a16207">Changing this later re-processes all traces</span>
+      </div>
+      <span style="color: #52525b">Grouping</span>
+      <div style="border: 1px solid #d4d4d8; border-radius: 8px; padding: 8px 12px; display: flex; justify-content: space-between"><span>claude-sonnet-5-5</span><span style="color: #71717a">▾</span></div>
+      <span style="color: #52525b">Wait before summarizing</span>
+      <div style="display: flex; gap: 6px">
+        <span style="border: 1px solid #e4e4e7; border-radius: 6px; padding: 5px 10px; font-size: 13px">2 min</span>
+        <span style="background: #18181b; color: #fff; border-radius: 6px; padding: 5px 10px; font-size: 13px">10 min</span>
+        <span style="border: 1px solid #e4e4e7; border-radius: 6px; padding: 5px 10px; font-size: 13px">30 min</span>
+        <span style="border: 1px solid #e4e4e7; border-radius: 6px; padding: 5px 10px; font-size: 13px">1 h</span>
+      </div>
+    </div>
+    <div style="position: absolute; left: 172px; top: 252px; width: 400px; background: #fff; border: 1px solid #e4e4e7; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.12); overflow: hidden">
+      <div style="padding: 10px 12px; border-bottom: 1px solid #f1f1f3; color: #a1a1aa">Find a model…</div>
+      <div style="padding: 8px 12px 4px; font-size: 12px; color: #71717a; font-weight: 500">Bedrock · eu-central-1</div>
+      <div style="padding: 9px 12px; background: #f4f4f5; display: flex; flex-direction: column; gap: 2px">
+        <span style="display: flex; justify-content: space-between"><span>claude-haiku-5-5</span><span style="background: #ecfdf3; color: #166534; border-radius: 6px; padding: 1px 7px; font-size: 12px">Recommended</span></span>
+        <span style="font-size: 12px; color: #71717a">Fast and cheap · runs once per trace</span>
+      </div>
+      <div style="padding: 9px 12px">claude-sonnet-5-5</div>
+      <div style="padding: 9px 12px; display: flex; justify-content: space-between"><span>claude-opus-5-5</span><span style="font-size: 12px; color: #a1a1aa">Costly for this job</span></div>
+      <div style="padding: 10px 12px; border-top: 1px solid #f1f1f3; color: #52525b; font-size: 13px">Configure AI providers ↗</div>
+    </div>
+    <div style="display: flex; justify-content: flex-end; gap: 8px">
+      <button style="background: #f4f4f5; color: #18181b; border: 0; border-radius: 6px; padding: 9px 14px; font: inherit">Cancel</button>
+      <button style="background: #18181b; color: #ffffff; border: 0; border-radius: 6px; padding: 9px 16px; font: inherit; font-weight: 500">Next</button>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

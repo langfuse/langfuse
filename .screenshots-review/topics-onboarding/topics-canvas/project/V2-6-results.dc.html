@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>v2 first results</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#6d28d9}a:hover{color:#4c1d95}
+</style>
+</helmet>
+<div style="width: 100%; height: 800px; display: flex; font-family: 'Geist', system-ui, sans-serif; font-size: 14px; color: #18181b; background: #ffffff; overflow: hidden">
+  <nav style="width: 200px; flex: none; border-right: 1px solid #e4e4e7; background: #fafafa; padding: 16px 12px; display: flex; flex-direction: column; gap: 2px">
+    <div style="font-weight: 600; font-size: 16px; padding: 4px 8px 14px">langfuse</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Home</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Tracing</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Sessions</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Users</div>
+    <div style="padding: 7px 8px; background: #ececee; border-radius: 6px; font-weight: 500">Topics</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Alerts</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Prompts</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Scores</div>
+  </nav>
+  <main style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+    <header style="height: 52px; flex: none; border-bottom: 1px solid #e4e4e7; display: flex; align-items: center; justify-content: space-between; padding: 0 20px">
+      <div style="font-weight: 600; font-size: 16px">Topics</div>
+      <div style="display: flex; gap: 6px; align-items: center">
+        <button style="background: #f4f4f5; color: #18181b; border: 0; border-radius: 6px; padding: 7px 12px; font: inherit; display: flex; gap: 8px; align-items: center"><span style="width: 8px; height: 8px; border-radius: 4px; background: #16a34a"></span>Auto-analyze: On</button>
+        <button style="background: #f4f4f5; color: #18181b; border: 0; border-radius: 6px; padding: 7px 12px; font: inherit">Run ▾</button>
+        <button aria-label="More actions" style="background: transparent; border: 0; padding: 7px 8px; font: inherit; color: #52525b">•••</button>
+      </div>
+    </header>
+    <div style="display: flex; gap: 22px; padding: 0 24px; border-bottom: 1px solid #e4e4e7">
+      <span style="padding: 12px 0; font-weight: 600; border-bottom: 2px solid #18181b">Intent</span>
+      <span style="padding: 12px 0; color: #52525b">Sentiment</span>
+      <span style="padding: 12px 0; color: #52525b">Outcome</span>
+      <span style="padding: 12px 0; color: #52525b">Issues</span>
+    </div>
+    <section style="flex: 1; display: flex; gap: 20px; padding: 20px 24px; min-height: 0; flex-wrap: wrap">
+      <div style="flex: 1 1 380px; max-width: 460px; display: flex; flex-direction: column; gap: 4px">
+        <div style="display: flex; justify-content: space-between; color: #71717a; font-size: 12px; padding: 0 10px 6px"><span>Topic</span><span>Traces</span></div>
+        <div style="background: #f4f2fb; border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 6px">
+          <div style="display: flex; justify-content: space-between"><span style="font-weight: 600">Langfuse help and admin</span><span>24</span></div>
+          <div style="height: 6px; border-radius: 3px; background: #7c3aed"></div>
+        </div>
+        <div style="border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 6px">
+          <div style="display: flex; justify-content: space-between"><span style="font-weight: 500">Dashboard widget creation</span><span>22</span></div>
+          <div style="height: 6px; width: 92%; border-radius: 3px; background: #2563eb"></div>
+        </div>
+        <div style="border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 6px">
+          <div style="display: flex; justify-content: space-between"><span style="font-weight: 500">Human score retrieval</span><span>22</span></div>
+          <div style="height: 6px; width: 92%; border-radius: 3px; background: #ea580c"></div>
+        </div>
+        <div style="border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 6px">
+          <div style="display: flex; justify-content: space-between"><span style="font-weight: 500">Trace troubleshooting</span><span>20</span></div>
+          <div style="height: 6px; width: 83%; border-radius: 3px; background: #0d9488"></div>
+        </div>
+        <div style="border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 6px">
+          <div style="display: flex; justify-content: space-between"><span style="font-weight: 500">Weekly cost comparisons</span><span>20</span></div>
+          <div style="height: 6px; width: 83%; border-radius: 3px; background: #c026d3"></div>
+        </div>
+        <div style="border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 6px">
+          <div style="display: flex; justify-content: space-between"><span style="font-weight: 500">Session and trace review</span><span>19</span></div>
+          <div style="height: 6px; width: 79%; border-radius: 3px; background: #0284c7"></div>
+        </div>
+        <div style="border-radius: 8px; padding: 10px; display: flex; justify-content: space-between; color: #71717a"><span>Not grouped yet</span><span>75</span></div>
+      </div>
+      <div style="flex: 999 1 420px; min-width: 0; border: 1px solid #e4e4e7; border-radius: 10px; overflow: hidden; display: flex; flex-direction: column">
+        <div style="padding: 12px 14px; border-bottom: 1px solid #f1f1f3; display: flex; justify-content: space-between"><span style="font-weight: 600">Langfuse help and admin · 24 traces</span><a href="#tracing" style="font-size: 13px">Open in Tracing ↗</a></div>
+        <div style="padding: 12px 14px; border-bottom: 1px solid #f1f1f3; display: flex; flex-direction: column; gap: 4px"><span>Guide a beginner through the dashboard they are viewing</span><span style="font-size: 12px; color: #71717a">arun_cd0osum3u · 2 min ago</span></div>
+        <div style="padding: 12px 14px; border-bottom: 1px solid #f1f1f3; display: flex; flex-direction: column; gap: 4px"><span>Explain how a coding agent connects to project data</span><span style="font-size: 12px; color: #71717a">arun_eba4ny7fds · 14 min ago</span></div>
+        <div style="padding: 12px 14px; border-bottom: 1px solid #f1f1f3; display: flex; flex-direction: column; gap: 4px"><span>Share a project or dashboard with a teammate</span><span style="font-size: 12px; color: #71717a">arun_f4zwppy21w · 1 h ago</span></div>
+        <div style="padding: 12px 14px; border-bottom: 1px solid #f1f1f3; display: flex; flex-direction: column; gap: 4px"><span>Find out whether creating dashboards costs extra</span><span style="font-size: 12px; color: #71717a">arun_i1r7oafv12 · 3 h ago</span></div>
+        <div style="padding: 12px 14px; display: flex; flex-direction: column; gap: 4px"><span>Join an organization with a sign-up link</span><span style="font-size: 12px; color: #71717a">arun_qsnlvm4ryy · 5 h ago</span></div>
+      </div>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

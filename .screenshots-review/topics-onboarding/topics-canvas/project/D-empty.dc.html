@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>D floating examples</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#52525b}a:hover{color:#18181b}
+</style>
+</helmet>
+<div style="width: 100%; height: 800px; display: flex; font-family: 'Geist', system-ui, sans-serif; font-size: 14px; color: #18181b; background: #ffffff; overflow: hidden">
+  <nav style="width: 200px; flex: none; border-right: 1px solid #e4e4e7; background: #fafafa; padding: 16px 12px; display: flex; flex-direction: column; gap: 2px">
+    <div style="font-weight: 600; font-size: 16px; padding: 4px 8px 14px">langfuse</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Home</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Tracing</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Sessions</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Users</div>
+    <div style="padding: 7px 8px; background: #ececee; border-radius: 6px; font-weight: 500">Topics</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Alerts</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Prompts</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Scores</div>
+  </nav>
+  <main style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+    <header style="height: 52px; flex: none; border-bottom: 1px solid #e4e4e7; display: flex; align-items: center; justify-content: space-between; padding: 0 20px">
+      <div style="font-weight: 600; font-size: 16px">Topics</div>
+      <button aria-label="More actions" style="background: transparent; border: 0; padding: 7px 8px; font: inherit; color: #52525b">•••</button>
+    </header>
+    <section style="flex: 1; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; background: #fbfaf8">
+      <div aria-hidden="true" style="position: absolute; left: 6%; top: 9%; width: 230px; opacity: 0.85; background: #fff; border: 1px solid #ececee; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.04)">
+        <div style="display: flex; justify-content: space-between; font-weight: 500"><span style="color: #6d28d9">● Refund requests</span><span>214</span></div>
+        <div style="background: #f4f4f5; border-radius: 6px; padding: 6px 8px; font-size: 12px; color: #52525b">"I was charged twice for one order"</div>
+      </div>
+      <div aria-hidden="true" style="position: absolute; left: 38%; top: 5%; width: 190px; opacity: 0.4; filter: blur(1px); background: #fff; border: 1px solid #ececee; border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 6px">
+        <div style="display: flex; justify-content: space-between; font-weight: 500; font-size: 12px"><span>● Export a report</span><span>37</span></div>
+        <div style="background: #f4f4f5; border-radius: 6px; height: 18px"></div>
+      </div>
+      <div aria-hidden="true" style="position: absolute; right: 6%; top: 11%; width: 240px; opacity: 0.85; background: #fff; border: 1px solid #ececee; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.04)">
+        <div style="display: flex; justify-content: space-between; font-weight: 500"><span style="color: #c2410c">● Wrong tool called</span><span>52</span></div>
+        <div style="background: #f4f4f5; border-radius: 6px; padding: 6px 8px; font-size: 12px; color: #52525b">Issues · searched docs instead of orders</div>
+      </div>
+      <div aria-hidden="true" style="position: absolute; left: 3%; top: 46%; width: 210px; opacity: 0.45; filter: blur(1px); background: #fff; border: 1px solid #ececee; border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 6px">
+        <div style="display: flex; justify-content: space-between; font-weight: 500; font-size: 12px"><span>● Pricing questions</span><span>61</span></div>
+        <div style="background: #f4f4f5; border-radius: 6px; height: 18px"></div>
+      </div>
+      <div aria-hidden="true" style="position: absolute; right: 3%; top: 50%; width: 220px; opacity: 0.45; filter: blur(1px); background: #fff; border: 1px solid #ececee; border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 6px">
+        <div style="display: flex; justify-content: space-between; font-weight: 500; font-size: 12px"><span>● Frustrated users</span><span>44</span></div>
+        <div style="background: #f4f4f5; border-radius: 6px; height: 18px"></div>
+      </div>
+      <div aria-hidden="true" style="position: absolute; left: 14%; bottom: 8%; width: 240px; opacity: 0.85; background: #fff; border: 1px solid #ececee; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.04)">
+        <div style="display: flex; justify-content: space-between; font-weight: 500"><span style="color: #2563eb">● Login problems</span><span>98</span></div>
+        <div style="background: #f4f4f5; border-radius: 6px; padding: 6px 8px; font-size: 12px; color: #52525b">"Can't sign in since the update"</div>
+      </div>
+      <div aria-hidden="true" style="position: absolute; right: 16%; bottom: 10%; width: 230px; opacity: 0.85; background: #fff; border: 1px solid #ececee; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.04)">
+        <div style="display: flex; justify-content: space-between; font-weight: 500"><span style="color: #0f766e">● Completed</span><span>1,204</span></div>
+        <div style="background: #f4f4f5; border-radius: 6px; padding: 6px 8px; font-size: 12px; color: #52525b">Outcome · answered and confirmed</div>
+      </div>
+      <h1 style="margin: 0; font-size: 40px; font-weight: 600; letter-spacing: -0.02em; position: relative">Know what your users want</h1>
+      <p style="margin: 0; color: #52525b; font-size: 16px; position: relative">Topics groups every trace by intent, outcome and issue.</p>
+      <div style="display: flex; gap: 10px; position: relative">
+        <button style="background: #18181b; color: #ffffff; border: 0; border-radius: 8px; padding: 11px 18px; font: inherit; font-weight: 500">Set up Topics</button>
+        <button style="background: #f0efed; color: #18181b; border: 0; border-radius: 8px; padding: 11px 18px; font: inherit; font-weight: 500">See an example</button>
+      </div>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

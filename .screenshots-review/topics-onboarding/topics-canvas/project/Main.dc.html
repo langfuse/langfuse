@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Original empty state</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#52525b}a:hover{color:#18181b}
+</style>
+</helmet>
+<div style="width: 100%; height: 800px; display: flex; font-family: 'Geist', system-ui, sans-serif; font-size: 14px; color: #18181b; background: #ffffff; overflow: hidden">
+  <nav style="width: 200px; flex: none; border-right: 1px solid #e4e4e7; background: #fafafa; padding: 16px 12px; display: flex; flex-direction: column; gap: 2px">
+    <div style="font-weight: 600; font-size: 16px; padding: 4px 8px 14px">langfuse</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Home</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Tracing</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Sessions</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Users</div>
+    <div style="padding: 7px 8px; background: #ececee; border-radius: 6px; font-weight: 500">Topics</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Alerts</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Prompts</div>
+    <div style="padding: 7px 8px; color: #3f3f46">Scores</div>
+  </nav>
+  <main style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+    <header style="height: 52px; flex: none; border-bottom: 1px solid #e4e4e7; display: flex; align-items: center; justify-content: space-between; padding: 0 20px">
+      <div style="font-weight: 600; font-size: 16px">Topics</div>
+      <div style="display: flex; gap: 6px; align-items: center">
+        <span style="background: #ececee; border-radius: 6px; padding: 6px 10px; display: flex; gap: 6px; align-items: center"><span style="width: 8px; height: 8px; border-radius: 4px; background: #71717a"></span>Off</span>
+        <button style="background: #f8f8f9; color: #a1a1aa; border: 0; border-radius: 6px; padding: 7px 12px; font: inherit">Automatic processing</button>
+        <button style="background: #18181b; color: #ffffff; border: 0; border-radius: 6px; padding: 7px 12px; font: inherit">Configure Topics</button>
+        <button style="background: #f4f4f5; color: #18181b; border: 0; border-radius: 6px; padding: 7px 12px; font: inherit">Manual processing</button>
+        <button aria-label="More actions" style="background: transparent; border: 0; padding: 7px 8px; font: inherit; color: #52525b">•••</button>
+      </div>
+    </header>
+    <section style="flex: 1; display: flex; flex-direction: column; align-items: center; padding-top: 48px">
+      <svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#71717a" stroke-width="1.6"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"></path></svg>
+      <h1 style="margin: 16px 0 8px; font-size: 22px; font-weight: 600">Find patterns across your traces</h1>
+      <p style="margin: 0; max-width: 540px; text-align: center; color: #52525b; line-height: 1.55">Topics analyzes each trace along the questions you choose, called facets, and clusters similar answers, so you can see what users ask for, how runs end, and which issues come up along the way.</p>
+      <div style="margin-top: 40px; width: 540px; display: flex; flex-direction: column; gap: 28px">
+        <div style="display: flex; gap: 16px">
+          <span style="width: 30px; height: 30px; flex: none; border-radius: 15px; background: #18181b; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 13px">1</span>
+          <div style="display: flex; flex-direction: column; gap: 8px; align-items: flex-start">
+            <div style="font-size: 17px; font-weight: 600">Configure Topics</div>
+            <div style="color: #52525b; line-height: 1.5">Pick the models Topics runs on and the facets to analyze, such as intent, outcome, and issues.</div>
+            <button style="background: #18181b; color: #ffffff; border: 0; border-radius: 6px; padding: 7px 12px; font: inherit; font-size: 13px">Configure Topics</button>
+          </div>
+        </div>
+        <div style="display: flex; gap: 16px">
+          <span style="width: 30px; height: 30px; flex: none; border-radius: 15px; background: #18181b; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 13px">2</span>
+          <div style="display: flex; flex-direction: column; gap: 8px; align-items: flex-start">
+            <div style="font-size: 17px; font-weight: 600">Analyze traces</div>
+            <div style="color: #52525b; line-height: 1.5">Enable automatic processing for incoming traces, or summarize existing traces in manual batches of up to 1,000.</div>
+            <div style="display: flex; gap: 8px">
+              <button style="background: #f8f8f9; color: #a1a1aa; border: 0; border-radius: 6px; padding: 7px 12px; font: inherit; font-size: 13px">Automatic processing</button>
+              <button style="background: #f8f8f9; color: #a1a1aa; border: 0; border-radius: 6px; padding: 7px 12px; font: inherit; font-size: 13px">Summarize traces &amp; embed</button>
+            </div>
+          </div>
+        </div>
+        <div style="display: flex; gap: 16px">
+          <span style="width: 30px; height: 30px; flex: none; border-radius: 15px; background: #18181b; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 13px">3</span>
+          <div style="display: flex; flex-direction: column; gap: 8px; align-items: flex-start">
+            <div style="font-size: 17px; font-weight: 600">Gather insights</div>
+            <div style="color: #52525b; line-height: 1.5">Once summaries are available, generate topics to discover recurring patterns across your traces.</div>
+            <button style="background: #f8f8f9; color: #a1a1aa; border: 0; border-radius: 6px; padding: 7px 12px; font: inherit; font-size: 13px">Generate topics</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
