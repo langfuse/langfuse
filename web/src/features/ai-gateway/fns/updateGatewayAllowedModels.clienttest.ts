@@ -16,7 +16,7 @@ describe("updateGatewayAllowedModels", () => {
     ).toEqual(["gpt-4o-mini"]);
   });
 
-  it("keeps row edits explicit when every catalog model is enabled", () => {
+  it("falls back to allow-all once every catalog model is enabled", () => {
     expect(
       updateGatewayAllowedModels({
         allowedModels: ["gpt-4o"],
@@ -24,7 +24,7 @@ describe("updateGatewayAllowedModels", () => {
         targetModels: ["gpt-4o-mini", "o3"],
         enabled: true,
       }),
-    ).toEqual(models);
+    ).toBeNull();
   });
 
   it("preserves allowed models outside the current provider catalog", () => {

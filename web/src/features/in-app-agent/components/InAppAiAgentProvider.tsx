@@ -1635,7 +1635,7 @@ function getAgentErrorMessage(error: unknown): string {
     }
   }
 
-  return "Assistant request failed. Please try again.";
+  return "Halo request failed. Please try again.";
 }
 
 export function useInAppAiAgent() {

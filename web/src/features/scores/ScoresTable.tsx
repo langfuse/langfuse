@@ -100,7 +100,7 @@ import {
   ScoreTag,
   scoreLevelFromScore,
   type ScoreLevel,
-} from "@/src/components/score-tag";
+} from "@/src/components/ScoreTag";
 import { ViewModeToggle } from "@/src/features/chart-view";
 
 export type ScoresTableRow = {
