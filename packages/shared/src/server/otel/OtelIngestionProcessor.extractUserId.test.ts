@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // processToIngestionEvents awaits redis.set (seen-traces tracking); stub it
 // so tests don't require an active Redis connection.
@@ -16,9 +16,11 @@ describe("OtelIngestionProcessor extractUserId", () => {
   const createBatch = ({
     spanAttributes = [],
     resourceAttributes = [],
+    parentSpanId,
   }: {
     spanAttributes?: Array<{ key: string; value: Record<string, unknown> }>;
     resourceAttributes?: Array<{ key: string; value: Record<string, unknown> }>;
+    parentSpanId?: string;
   }): ResourceSpan[] => [
     {
       resource: {
@@ -31,6 +33,9 @@ describe("OtelIngestionProcessor extractUserId", () => {
             {
               traceId: Buffer.from("0123456789abcdef0123456789abcdef", "hex"),
               spanId: Buffer.from("0123456789abcdef", "hex"),
+              ...(parentSpanId
+                ? { parentSpanId: Buffer.from(parentSpanId, "hex") }
+                : {}),
               name: "invoke_agent",
               kind: 3,
               startTimeUnixNano: "1752384000000000000",
@@ -44,11 +49,15 @@ describe("OtelIngestionProcessor extractUserId", () => {
     },
   ];
 
-  const processor = new OtelIngestionProcessor({
-    projectId: "project-1",
-    publicKey: "pk-test",
-    sdkName: "test-sdk",
-    sdkVersion: "1.0.0",
+  let processor: OtelIngestionProcessor;
+
+  beforeEach(() => {
+    processor = new OtelIngestionProcessor({
+      projectId: "project-1",
+      publicKey: "pk-test",
+      sdkName: "test-sdk",
+      sdkVersion: "1.0.0",
+    });
   });
 
   describe("span attributes", () => {
@@ -249,6 +258,140 @@ describe("OtelIngestionProcessor extractUserId", () => {
 
       expect(traceEvent).toBeDefined();
       expect((traceEvent?.body as any).userId).toBe("agent-caller");
+    });
+
+    it("does not emit resource process.user.name as userId on child span trace update", async () => {
+      const batch = createBatch({
+        parentSpanId: "fedcba9876543210",
+        spanAttributes: [
+          {
+            key: "langfuse.trace.name",
+            value: { stringValue: "updated-trace-name" },
+          },
+        ],
+        resourceAttributes: [
+          {
+            key: "process.user.name",
+            value: { stringValue: "runner-os-user" },
+          },
+        ],
+      });
+
+      const ingestionEvents = await processor.processToIngestionEvents(batch);
+      const traceEvent = ingestionEvents.find((e) => e.type === "trace-create");
+
+      expect(traceEvent).toBeDefined();
+      expect((traceEvent?.body as any).userId).toBeUndefined();
+    });
+
+    it("emits userId on child span trace update when explicitly defined on span attributes", async () => {
+      const batch = createBatch({
+        parentSpanId: "fedcba9876543210",
+        spanAttributes: [
+          {
+            key: "user.id",
+            value: { stringValue: "explicit-child-user" },
+          },
+          {
+            key: "langfuse.trace.name",
+            value: { stringValue: "updated-trace-name" },
+          },
+        ],
+        resourceAttributes: [
+          {
+            key: "process.user.name",
+            value: { stringValue: "runner-os-user" },
+          },
+        ],
+      });
+
+      const ingestionEvents = await processor.processToIngestionEvents(batch);
+      const traceEvent = ingestionEvents.find((e) => e.type === "trace-create");
+
+      expect(traceEvent).toBeDefined();
+      expect((traceEvent?.body as any).userId).toBe("explicit-child-user");
+    });
+
+    it("includes userId from resourceAttributes on shallow trace when child span arrives first", async () => {
+      const batch = createBatch({
+        parentSpanId: "fedcba9876543210",
+        spanAttributes: [
+          {
+            key: "custom.child.attribute",
+            value: { stringValue: "child-attr-value" },
+          },
+        ],
+        resourceAttributes: [
+          {
+            key: "process.user.name",
+            value: { stringValue: "copilot-dev" },
+          },
+        ],
+      });
+
+      const ingestionEvents = await processor.processToIngestionEvents(batch);
+      const traceEvent = ingestionEvents.find((e) => e.type === "trace-create");
+
+      expect(traceEvent).toBeDefined();
+      expect((traceEvent?.body as any).userId).toBe("copilot-dev");
+    });
+
+    it("filters out redundant shallow trace with userId when root span is present in same batch", async () => {
+      const batch: ResourceSpan[] = [
+        {
+          resource: {
+            attributes: [
+              {
+                key: "process.user.name",
+                value: { stringValue: "copilot-dev" },
+              },
+            ],
+          },
+          scopeSpans: [
+            {
+              scope: { name: "test-scope", version: "1.0.0" },
+              spans: [
+                {
+                  traceId: Buffer.from(
+                    "0123456789abcdef0123456789abcdef",
+                    "hex",
+                  ),
+                  spanId: Buffer.from("1111111111111111", "hex"),
+                  parentSpanId: Buffer.from("0123456789abcdef", "hex"),
+                  name: "child_span",
+                  kind: 3,
+                  startTimeUnixNano: "1752384000000000000",
+                  endTimeUnixNano: "1752384001000000000",
+                  attributes: [],
+                  status: {},
+                },
+                {
+                  traceId: Buffer.from(
+                    "0123456789abcdef0123456789abcdef",
+                    "hex",
+                  ),
+                  spanId: Buffer.from("0123456789abcdef", "hex"),
+                  name: "root_span",
+                  kind: 1,
+                  startTimeUnixNano: "1752384000000000000",
+                  endTimeUnixNano: "1752384002000000000",
+                  attributes: [],
+                  status: {},
+                },
+              ],
+            },
+          ],
+        },
+      ];
+
+      const ingestionEvents = await processor.processToIngestionEvents(batch);
+      const traceEvents = ingestionEvents.filter(
+        (e) => e.type === "trace-create",
+      );
+
+      expect(traceEvents).toHaveLength(1);
+      expect((traceEvents[0].body as any).name).toBe("root_span");
+      expect((traceEvents[0].body as any).userId).toBe("copilot-dev");
     });
   });
 });

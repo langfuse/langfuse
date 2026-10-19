@@ -942,14 +942,18 @@ export class OtelIngestionProcessor {
    */
   private isShallowTraceEvent(traceBody: TraceEventType["body"]): boolean {
     // Define minimal fields that shallow traces have
-    const SHALLOW_TRACE_FIELDS = new Set(["id", "timestamp", "environment"]);
+    const SHALLOW_TRACE_FIELDS = new Set([
+      "id",
+      "timestamp",
+      "environment",
+      "userId",
+    ]);
 
     // Check for presence of any full trace indicators
     // These fields indicate a full trace with meaningful trace-level data
     const FULL_TRACE_INDICATORS = [
       "name",
       "metadata",
-      "userId",
       "sessionId",
       "public",
       "tags",
@@ -1130,6 +1134,11 @@ export class OtelIngestionProcessor {
       id: traceId,
       timestamp: startTimeISO,
       environment: this.extractEnvironment(attributes, resourceAttributes),
+      userId: this.extractUserId(
+        attributes,
+        decodeMetadataValues,
+        resourceAttributes,
+      ),
     };
 
     const instrumentationScopeName = scopeSpan?.scope?.name as string;
@@ -1221,11 +1230,7 @@ export class OtelIngestionProcessor {
           (attributes?.[LangfuseOtelSpanAttributes.RELEASE] as string) ??
           resourceAttributes?.[LangfuseOtelSpanAttributes.RELEASE] ??
           null,
-        userId: this.extractUserId(
-          attributes,
-          decodeMetadataValues,
-          resourceAttributes,
-        ),
+        userId: this.extractUserId(attributes, decodeMetadataValues),
         /** CMA session inference belongs to root traces and individual observations. */
         sessionId: this.extractSessionId(
           attributes,
