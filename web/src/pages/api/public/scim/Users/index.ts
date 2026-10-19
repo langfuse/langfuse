@@ -239,10 +239,11 @@ export default async function handler(
         create: {
           email: normalizedEmail,
           name: name?.formatted || displayName,
-          v4BetaEnabled: env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only" ||
-          (env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "dual" &&
-            (Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) ||
-              env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true")),
+          v4BetaEnabled:
+            env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only" ||
+            (env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "dual" &&
+              (Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) ||
+                env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true")),
         },
         update: {},
       });
