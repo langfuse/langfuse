@@ -188,7 +188,7 @@ describe("OTel user identity", () => {
     ).toBe(expected);
   });
 
-  it("uses resource fallback only on root observations", () => {
+  it("uses a resource ID consistently on agent and child observations", () => {
     const observations = createTestOtelProcessor().processToEvent([
       batch({ "langfuse.user.id": "employee-id" }, [
         { "user.name": "github-login" },
@@ -197,7 +197,7 @@ describe("OTel user identity", () => {
     ]);
     expect(observations.map((event) => event.userId)).toEqual([
       "employee-id",
-      undefined,
+      "employee-id",
     ]);
   });
 
@@ -217,12 +217,21 @@ describe("OTel user identity", () => {
   it.each<{
     resource: Record<string, string>;
     child: Record<string, string>;
+    expected: string;
   }>([
-    { resource: {}, child: { "user.name": "child-name" } },
-    { resource: { "user.id": "resource-default" }, child: {} },
+    {
+      resource: {},
+      child: { "user.name": "child-name" },
+      expected: "child-name",
+    },
+    {
+      resource: { "user.id": "resource-default" },
+      child: {},
+      expected: "resource-default",
+    },
   ])(
-    "does not emit a child fallback that can replace an explicit root user across batches: %j",
-    ({ resource, child }) => {
+    "resolves v4 user identity independently for observations in separate batches: %j",
+    ({ resource, child, expected }) => {
       const resourceSpan = batch(resource, [
         { "user.id": "customer-id" },
         child,
@@ -235,7 +244,7 @@ describe("OTel user identity", () => {
         ])[0];
 
       expect(processSpan(rootSpan).userId).toBe("customer-id");
-      expect(processSpan(childSpan).userId).toBeUndefined();
+      expect(processSpan(childSpan).userId).toBe(expected);
     },
   );
 
