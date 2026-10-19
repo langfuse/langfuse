@@ -5,6 +5,7 @@ import {
 import { EvaluatorBlockReason } from "@prisma/client";
 import { getLLMErrorInfo, logger } from "@langfuse/shared/src/server";
 import {
+  getTopicTextResponseMetadata,
   pauseTopicsModels,
   type TopicsModel,
 } from "@langfuse/shared/topics/server";
@@ -22,10 +23,7 @@ type TopicsProviderErrorReason =
 /** Telemetry only; the user-facing message stays generic. */
 export type TopicProviderErrorDetails = {
   httpStatus?: number;
-  message?: string;
-  type?: string;
-  code?: string;
-  param?: string;
+  response?: ReturnType<typeof getTopicTextResponseMetadata>;
 };
 
 export class TopicsProviderUnavailable extends Error {
@@ -47,11 +45,13 @@ export function topicProviderError(
   let current = error;
   let status: number | undefined;
   let reason: TopicsProviderErrorReason = "provider_error";
+  let response: TopicProviderErrorDetails["response"];
   for (
     let depth = 0;
     depth < 4 && current && typeof current === "object";
     depth++
   ) {
+    if (!response) response = getTopicTextResponseMetadata(current);
     const record = current as Record<string, unknown>;
     const candidate = record.statusCode ?? record.status;
     if (typeof candidate === "number" && candidate >= 400 && candidate <= 599) {
@@ -79,40 +79,33 @@ export function topicProviderError(
       reason = "invalid_output";
     current = record.cause;
   }
+  const modelDescription = `The ${TOPICS_MODEL_SLOT_DETAILS[model.slot].label.toLowerCase()} model ${model.model} on LLM connection "${model.provider}"`;
+  let outputExplanation = "";
+  if (response?.finishReason === "length")
+    outputExplanation = " The model reached its output token limit.";
+  else if (
+    response?.finishReason === "content-filter" ||
+    response?.rawFinishReason === "refusal"
+  )
+    outputExplanation = " The provider filtered or refused the response.";
   return new TopicsProviderUnavailable(
-    `The ${TOPICS_MODEL_SLOT_DETAILS[model.slot].label.toLowerCase()} model ${model.model} on LLM connection "${model.provider}" failed${status ? ` (HTTP ${status})` : ""}. Check the connection's credentials, the model ID, and provider availability.`,
+    reason === "invalid_output"
+      ? `${modelDescription} returned no usable structured output.${outputExplanation} Resume interrupted stages to retry, or choose another model.`
+      : `${modelDescription} failed${status ? ` (HTTP ${status})` : ""}. Check the connection's credentials, the model ID, and provider availability.`,
     reason,
     model.slot,
-    providerErrorDetails(error, status),
+    { ...providerErrorDetails(error, status), ...(response && { response }) },
   );
 }
 
-/**
- * Like evals, keeps only the AI SDK's parsed provider error fields; plain errors
- * (e.g. the direct Bedrock call) carry the response body, so they keep the status only.
- */
+/** Provider error strings can echo request/response content; retain only status. */
 function providerErrorDetails(
   error: unknown,
   status: number | undefined,
 ): TopicProviderErrorDetails {
   const provider = getLLMErrorInfo(error)?.providerError;
   const httpStatus = provider?.statusCode ?? status;
-  if (!httpStatus) return {};
-  if (!provider) return { httpStatus };
-  const record = (value: unknown) =>
-    value && typeof value === "object"
-      ? (value as Record<string, unknown>)
-      : undefined;
-  const data = record(record(provider.data)?.error) ?? record(provider.data);
-  const text = (value: unknown) =>
-    typeof value === "string" ? value.slice(0, 500) : undefined;
-  return {
-    httpStatus,
-    message: text(provider.message),
-    type: text(data?.type),
-    code: text(data?.code),
-    param: text(data?.param),
-  };
+  return httpStatus ? { httpStatus } : {};
 }
 
 /** The provider rejected the connection's credentials or billing. */

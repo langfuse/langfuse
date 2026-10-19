@@ -8,6 +8,8 @@ const state = vi.hoisted(() => ({
   increment: vi.fn(),
   project: vi.fn(),
   traceSink: vi.fn(),
+  responseMetadata: vi.fn(),
+  spanAttributes: vi.fn(),
   encoding: null as {
     encode: ReturnType<typeof vi.fn>;
     free: ReturnType<typeof vi.fn>;
@@ -28,6 +30,10 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   LangfuseInternalTraceEnvironment: { Topics: "langfuse-topics" },
   logger: { warn: vi.fn() },
   recordIncrement: state.increment,
+  instrumentAsync: async (
+    _options: unknown,
+    call: (span: { setAttributes: typeof state.spanAttributes }) => unknown,
+  ) => call({ setAttributes: state.spanAttributes }),
 }));
 vi.mock("@langfuse/shared/src/db", () => ({
   prisma: { project: { findFirst: state.project } },
@@ -38,6 +44,8 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
   ).topicMessages,
   generateTopicText: (...args: unknown[]) => state.call(...args),
   generateTopicEmbeddings: (...args: unknown[]) => state.embed(...args),
+  getTopicTextResponseMetadata: (error: unknown) =>
+    state.responseMetadata(error),
 }));
 
 // Token counters only; every call also records call and request-byte counters.
@@ -115,6 +123,9 @@ beforeEach(() => {
   state.call.mockReset();
   state.embed.mockReset();
   state.increment.mockReset();
+  state.responseMetadata.mockReset();
+  state.spanAttributes.mockReset();
+  vi.mocked(logger.warn).mockClear();
   state.project.mockReset().mockResolvedValue({
     organization: { aiFeaturesEnabled: true, aiTelemetryEnabled: true },
   });
@@ -308,12 +319,10 @@ describe("Topics naming boundary", () => {
     expect(state.call).not.toHaveBeenCalled();
   });
 
-  it("logs the provider's error fields for a rejected request, never its bodies", async () => {
+  it("excludes provider content from failure logs and spans, including echoed error fields", async () => {
     // The AI SDK identifies an APICallError by these markers.
     const rejection = Object.assign(
-      new Error(
-        "Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead.",
-      ),
+      new Error("Invalid input: secret transcript"),
       {
         [Symbol.for("vercel.ai.error")]: true,
         [Symbol.for("vercel.ai.error.AI_APICallError")]: true,
@@ -324,9 +333,9 @@ describe("Topics naming boundary", () => {
         responseBody: '{"error":{"message":"secret echo"}}',
         data: {
           error: {
-            type: "invalid_request_error",
-            code: "unsupported_parameter",
-            param: "max_tokens",
+            type: "secret error type",
+            code: "secret error code",
+            param: "secret input value",
           },
         },
       },
@@ -345,11 +354,11 @@ describe("Topics naming boundary", () => {
     expect(message).toBe("Topics model request failed");
     expect(fields).toMatchObject({
       "http.status_code": 400,
-      "langfuse.topics.provider.message": rejection.message,
-      "langfuse.topics.provider.code": "unsupported_parameter",
-      "langfuse.topics.provider.param": "max_tokens",
     });
     expect(JSON.stringify(fields)).not.toMatch(/secret/);
+    expect(JSON.stringify(state.spanAttributes.mock.calls)).not.toMatch(
+      /secret/,
+    );
     expect(state.increment).toHaveBeenCalledWith(
       "langfuse.topics.llm_calls",
       1,
@@ -360,6 +369,91 @@ describe("Topics naming boundary", () => {
       },
     );
   });
+
+  it.each([
+    ["other", "other", undefined, undefined],
+    ["length", "max_tokens", 1000, /output token limit/],
+    ["content-filter", "content_filtered", 0, /filtered or refused/],
+    ["other", "refusal", 0, /filtered or refused/],
+  ])(
+    "reports unusable naming output with safe diagnostics for %s/%s",
+    async (finishReason, rawFinishReason, outputTokens, causeMessage) => {
+      const rejection = Object.assign(new Error("secret response text"), {
+        name: "AI_NoOutputGeneratedError",
+        responseBody: "secret response body",
+        text: "secret model output",
+      });
+      const response = {
+        finishReason,
+        rawFinishReason,
+        textCharacters: 0,
+        textPartCount: 1,
+        reasoningCharacters: 0,
+        reasoningPartCount: 0,
+        toolCallCount: 0,
+        outputTokens,
+        maxOutputTokens: 1000,
+      };
+      state.responseMetadata.mockImplementation((error) =>
+        error === rejection ? response : undefined,
+      );
+      state.call.mockRejectedValue(rejection);
+
+      const failure = await nameTopicGroup(topicsModels(), evidence).catch(
+        (error: unknown) => error,
+      );
+
+      expect(failure).toMatchObject({
+        reason: "invalid_output",
+        message: expect.stringContaining(
+          "returned no usable structured output",
+        ),
+        details: { response },
+      });
+      const message = (failure as Error).message;
+      expect(message).not.toMatch(/credentials|secret/);
+      if (causeMessage) expect(message).toMatch(causeMessage);
+      else expect(message).not.toMatch(/token limit|filtered|refused/);
+      expect(logger.warn).toHaveBeenCalledOnce();
+      const [logMessage, fields] = vi.mocked(logger.warn).mock.calls[0];
+      expect(logMessage).toBe("Topics model request failed");
+      expect(fields).toMatchObject({
+        "langfuse.topics.error.reason": "invalid_output",
+        "langfuse.topics.error.type": "AI_NoOutputGeneratedError",
+        "langfuse.topics.response.finish_reason": finishReason,
+        "langfuse.topics.response.raw_finish_reason": rawFinishReason,
+        "langfuse.topics.response.text_characters": 0,
+        "langfuse.topics.response.text_part_count": 1,
+        "langfuse.topics.response.reasoning_characters": 0,
+        "langfuse.topics.response.reasoning_part_count": 0,
+        "langfuse.topics.response.tool_call_count": 0,
+        "langfuse.topics.response.max_output_tokens": 1000,
+        ...(outputTokens !== undefined && {
+          "langfuse.topics.response.output_tokens": outputTokens,
+        }),
+      });
+      expect(fields).not.toHaveProperty(
+        "langfuse.topics.response.reasoning_tokens",
+      );
+      if (outputTokens === undefined)
+        expect(fields).not.toHaveProperty(
+          "langfuse.topics.response.output_tokens",
+        );
+      expect(JSON.stringify(fields)).not.toMatch(/secret/);
+      expect(JSON.stringify(state.spanAttributes.mock.calls)).not.toMatch(
+        /secret/,
+      );
+      expect(state.increment).toHaveBeenCalledWith(
+        "langfuse.topics.llm_calls",
+        1,
+        {
+          stage: "naming",
+          adapter: LLMAdapter.Bedrock,
+          status: "invalid_output",
+        },
+      );
+    },
+  );
 
   it.each([
     [{}, "ok"],

@@ -4,10 +4,11 @@ import { encrypt } from "../../encryption";
 import { env } from "../../env";
 import { BEDROCK_USE_DEFAULT_CREDENTIALS } from "../../interfaces/customLLMProviderConfigSchemas";
 import { LLMAdapter, type TraceSinkParams } from "../llm/types";
+import { logger } from "../logger";
 import type { ResourceSpan } from "../otel/OtelIngestionProcessor";
 import { generateTopicEmbeddings } from "./embeddings";
 import type { TopicsModel } from "./model-config";
-import { generateTopicText } from "./text";
+import { generateTopicText, getTopicTextResponseMetadata } from "./text";
 
 const { publishToOtelIngestionQueue, processorConstructor } = vi.hoisted(
   () => ({
@@ -29,6 +30,10 @@ vi.mock("../otel/OtelIngestionProcessor", () => ({
 // Request-shape tests use the real SDK and replace the separately tested secure transport.
 vi.mock("../llm/secureLlmFetch", () => ({
   createSecureLlmFetch: () => globalThis.fetch,
+}));
+
+vi.mock("../logger", () => ({
+  logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 
 const trace: TraceSinkParams = {
@@ -97,6 +102,112 @@ function bedrockModel(slot: TopicsModel["slot"], model: string): TopicsModel {
 }
 
 describe("generateTopicText", () => {
+  it.each([
+    ["max_tokens", "length", "", "AI_NoOutputGeneratedError"],
+    ["refusal", "other", "", "AI_NoOutputGeneratedError"],
+    ["guardrail_intervened", "content-filter", "", "AI_NoOutputGeneratedError"],
+    ["end_turn", "stop", "private invalid JSON", "AI_NoObjectGeneratedError"],
+    ["private provider reason", "other", "", "AI_NoOutputGeneratedError"],
+  ])(
+    "retains bounded response metadata before structured output fails: %s",
+    async (stopReason, finishReason, text, errorName) => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () =>
+          Response.json({
+            output: {
+              message: {
+                role: "assistant",
+                content: [
+                  {
+                    reasoningContent: {
+                      reasoningText: {
+                        text: "private reasoning",
+                        signature: "private signature",
+                      },
+                    },
+                  },
+                  ...(text ? [{ text }] : []),
+                ],
+              },
+            },
+            stopReason,
+            usage: { inputTokens: 12, outputTokens: 4, totalTokens: 16 },
+            metrics: { latencyMs: 1 },
+          }),
+        ),
+      );
+      const error = await generateTopicText({
+        model: bedrockModel("clustering", "eu.anthropic.claude-sonnet-5-5"),
+        system: [{ text: "private system prompt" }],
+        input: "private input",
+        schema: z.object({ name: z.string() }),
+        maxOutputTokens: 256,
+      }).catch((error: unknown) => error);
+
+      expect(error).toMatchObject({ name: errorName });
+      const metadata = getTopicTextResponseMetadata(error);
+      expect(metadata).toEqual({
+        finishReason,
+        rawFinishReason: stopReason.startsWith("private")
+          ? "other"
+          : stopReason,
+        textCharacters: 0,
+        textPartCount: text ? 1 : 0,
+        reasoningCharacters: "private reasoning".length,
+        reasoningPartCount: 1,
+        toolCallCount: 0,
+        outputTokens: 4,
+        reasoningTokens: undefined,
+        maxOutputTokens: 256,
+      });
+      expect(JSON.stringify(metadata)).not.toContain("private");
+      expect(publishToOtelIngestionQueue).not.toHaveBeenCalled();
+    },
+  );
+
+  it("retains cached InvokeModel metadata without the refusal text", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          choices: [
+            {
+              finish_reason: "stop",
+              message: { content: null, refusal: "private refusal" },
+            },
+          ],
+          usage: {
+            prompt_tokens: 12,
+            completion_tokens: 4,
+            total_tokens: 16,
+            completion_tokens_details: { reasoning_tokens: 3 },
+          },
+        }),
+      ),
+    );
+    const error = await generateTopicText({
+      model: bedrockModel("summary", "us.openai.gpt-6-luna"),
+      system: [{ text: "Summarize.", cache: true }],
+      input: "Hi",
+      schema: z.object({ summary: z.string() }),
+      maxOutputTokens: 256,
+    }).catch((error: unknown) => error);
+    expect(error).toMatchObject({ name: "AI_NoOutputGeneratedError" });
+    expect(getTopicTextResponseMetadata(error)).toEqual({
+      finishReason: "stop",
+      rawFinishReason: "stop",
+      textCharacters: 0,
+      textPartCount: 0,
+      reasoningCharacters: 0,
+      reasoningPartCount: 0,
+      toolCallCount: 0,
+      outputTokens: 4,
+      reasoningTokens: 3,
+      maxOutputTokens: 256,
+    });
+  });
+
   it("clusters with Bedrock Sonnet 5.5 without forcing tool use", async () => {
     const output = { name: "Account access" };
     const fetch = vi.fn<typeof globalThis.fetch>(async (...args) => {
@@ -349,7 +460,10 @@ describe("generateTopicText", () => {
     "generates and traces Topics on %s / %s",
     async (baseURL, model, reasoning, completionTokens) => {
       publishToOtelIngestionQueue.mockRejectedValueOnce(
-        new Error("queue down"),
+        Object.assign(new Error("queue rejected secret model input/output"), {
+          body: "secret model input/output",
+          cause: new Error("secret model input/output"),
+        }),
       );
       vi.stubGlobal(
         "fetch",
@@ -425,6 +539,13 @@ describe("generateTopicText", () => {
         inputTokens: 3000,
         cacheReadTokens: 2560,
       });
+      expect(logger.error).toHaveBeenCalledWith(
+        "Failed to publish Topics model trace",
+        expect.objectContaining({ traceId: trace.traceId }),
+      );
+      expect(JSON.stringify(vi.mocked(logger.error).mock.calls)).not.toContain(
+        "secret",
+      );
     },
   );
   it("retains SDK usage when no output is generated", async () => {

@@ -1,6 +1,11 @@
 import { Sha256 } from "@aws-crypto/sha256-js";
 import { SignatureV4 } from "@smithy/signature-v4";
-import { NoObjectGeneratedError, Output, type LanguageModelUsage } from "ai";
+import {
+  NoObjectGeneratedError,
+  Output,
+  type FinishReason,
+  type LanguageModelUsage,
+} from "ai";
 import { z } from "zod";
 import { decrypt } from "../../encryption";
 import { BedrockConfigSchema } from "../../interfaces/customLLMProviderConfigSchemas";
@@ -18,6 +23,77 @@ import type { TopicsModel } from "./model-config";
 
 const TIMEOUT_MS = 60_000;
 
+type TopicTextResponseMetadata = {
+  finishReason: FinishReason;
+  rawFinishReason?: string;
+  textCharacters: number;
+  textPartCount: number;
+  reasoningCharacters: number;
+  reasoningPartCount: number;
+  toolCallCount: number;
+  outputTokens?: number;
+  reasoningTokens?: number;
+  maxOutputTokens: number;
+};
+
+// Error identity and lifetime are preserved, including for frozen SDK errors.
+const responseMetadataByError = new WeakMap<
+  object,
+  TopicTextResponseMetadata
+>();
+
+/** Bounded response diagnostics for the existing Topics failure log; no content. */
+export function getTopicTextResponseMetadata(error: unknown) {
+  return error !== null && typeof error === "object"
+    ? responseMetadataByError.get(error)
+    : undefined;
+}
+
+const RAW_FINISH_REASONS = new Set([
+  "stop",
+  "length",
+  "content_filter",
+  "tool_calls",
+  "function_call",
+  "end_turn",
+  "max_tokens",
+  "stop_sequence",
+  "tool_use",
+  "refusal",
+  "guardrail_intervened",
+  "content_filtered",
+  "model_context_window_exceeded",
+  "malformed_model_output",
+  "pause_turn",
+  "STOP",
+  "MAX_TOKENS",
+  "SAFETY",
+  "RECITATION",
+  "OTHER",
+]);
+
+function boundedResponseMetadata(
+  metadata: TopicTextResponseMetadata,
+): TopicTextResponseMetadata {
+  let rawFinishReason = metadata.rawFinishReason;
+  if (
+    rawFinishReason !== undefined &&
+    !RAW_FINISH_REASONS.has(rawFinishReason)
+  ) {
+    rawFinishReason = "other";
+  }
+  const count = (value: number | undefined) =>
+    value !== undefined && Number.isSafeInteger(value) && value >= 0
+      ? value
+      : undefined;
+  return {
+    ...metadata,
+    rawFinishReason,
+    outputTokens: count(metadata.outputTokens),
+    reasoningTokens: count(metadata.reasoningTokens),
+  };
+}
+
 /**
  * Structured Topics text through the project's LLM connection. GPT-5.6+ models
  * on Bedrock reuse a shared prompt prefix only with explicit cache breakpoints,
@@ -29,9 +105,14 @@ export async function generateTopicText<T>(
 ): Promise<TopicTextResult> {
   const startTimeISO = new Date().toISOString();
   let result: TopicTextResult | undefined;
+  let responseMetadata: TopicTextResponseMetadata | undefined;
   let failure: unknown;
-  const recordResponse = (response: TopicTextResult) => {
+  const recordResponse = (
+    response: TopicTextResult,
+    metadata: TopicTextResponseMetadata,
+  ) => {
     result = response;
+    responseMetadata = boundedResponseMetadata(metadata);
   };
   try {
     result =
@@ -41,6 +122,9 @@ export async function generateTopicText<T>(
     return result;
   } catch (error) {
     failure = error;
+    if (responseMetadata && error !== null && typeof error === "object") {
+      responseMetadataByError.set(error, responseMetadata);
+    }
     if (NoObjectGeneratedError.isInstance(error)) {
       result = { output: error.text, usage: topicUsage(error.usage) };
     }
@@ -86,9 +170,8 @@ async function writeTopicTrace<T>(
         },
       ],
     });
-  } catch (error) {
+  } catch {
     logger.error("Failed to publish Topics model trace", {
-      error,
       traceId: trace.traceId,
     });
   }
@@ -155,7 +238,10 @@ function topicUsage(
 
 async function generateWithConnection<T>(
   params: TopicTextParams<T>,
-  recordResponse: (result: TopicTextResult) => void,
+  recordResponse: (
+    result: TopicTextResult,
+    metadata: TopicTextResponseMetadata,
+  ) => void,
 ): Promise<TopicTextResult> {
   const nativeOpenAI = isFirstPartyOpenAI(params.model);
   const result = await generateLLMText({
@@ -182,10 +268,38 @@ async function generateWithConnection<T>(
     // The AI SDK retries 429 and 5xx responses with exponential backoff.
     maxRetries: 2,
     timeout: params.timeoutMs ?? TIMEOUT_MS,
+    // onEnd runs before structured-output parsing and the output getter can throw.
+    onEnd: ({ finalStep }) => {
+      const counts = {
+        textCharacters: 0,
+        textPartCount: 0,
+        reasoningCharacters: 0,
+        reasoningPartCount: 0,
+        toolCallCount: 0,
+      };
+      for (const part of finalStep.content) {
+        if (part.type === "text") {
+          counts.textCharacters += part.text.length;
+          counts.textPartCount++;
+        } else if (part.type === "reasoning") {
+          counts.reasoningCharacters += part.text.length;
+          counts.reasoningPartCount++;
+        } else if (part.type === "tool-call") counts.toolCallCount++;
+      }
+      recordResponse(
+        { output: finalStep.text, usage: topicUsage(finalStep.usage) },
+        {
+          finishReason: finalStep.finishReason,
+          rawFinishReason: finalStep.rawFinishReason,
+          ...counts,
+          outputTokens: finalStep.usage.outputTokens,
+          reasoningTokens: finalStep.usage.outputTokenDetails.reasoningTokens,
+          maxOutputTokens: params.maxOutputTokens,
+        },
+      );
+    },
   });
   const usage = topicUsage(result.usage);
-  // The SDK's output getter can throw after a response with billable usage.
-  recordResponse({ output: result.text, usage });
   return {
     output: result.output,
     usage,
@@ -299,7 +413,10 @@ async function bedrockRequestHeaders(
 
 async function invokeWithCache(
   params: TopicTextParams<unknown>,
-  recordResponse: (result: TopicTextResult) => void,
+  recordResponse: (
+    result: TopicTextResult,
+    metadata: TopicTextResponseMetadata,
+  ) => void,
 ): Promise<TopicTextResult> {
   const { region } = BedrockConfigSchema.parse(params.model.connection.config);
   assertValidBedrockRegion(region);
@@ -347,12 +464,17 @@ async function invokeWithCache(
   const json = (await response.json()) as {
     choices?: {
       finish_reason?: string;
-      message?: { content?: string | null; refusal?: string | null };
+      message?: {
+        content?: string | null;
+        refusal?: string | null;
+        tool_calls?: unknown[];
+      };
     }[];
     usage?: {
       prompt_tokens?: number;
       completion_tokens?: number;
       total_tokens?: number;
+      completion_tokens_details?: { reasoning_tokens?: number };
       prompt_tokens_details?: {
         cached_tokens?: number;
         cache_write_tokens?: number;
@@ -371,7 +493,32 @@ async function invokeWithCache(
     },
   };
   // Retain paid usage and the original response if parsing or validation fails.
-  recordResponse(result);
+  const rawFinishReason = json.choices?.[0]?.finish_reason;
+  let finishReason: FinishReason = "other";
+  if (rawFinishReason === "stop" || rawFinishReason === "length")
+    finishReason = rawFinishReason;
+  else if (rawFinishReason === "content_filter")
+    finishReason = "content-filter";
+  else if (
+    rawFinishReason === "tool_calls" ||
+    rawFinishReason === "function_call"
+  )
+    finishReason = "tool-calls";
+  recordResponse(result, {
+    finishReason,
+    rawFinishReason,
+    textCharacters:
+      typeof message?.content === "string" ? message.content.length : 0,
+    textPartCount: typeof message?.content === "string" ? 1 : 0,
+    reasoningCharacters: 0,
+    reasoningPartCount: 0,
+    toolCallCount: Array.isArray(message?.tool_calls)
+      ? message.tool_calls.length
+      : 0,
+    outputTokens: result.usage.outputTokens,
+    reasoningTokens: json.usage?.completion_tokens_details?.reasoning_tokens,
+    maxOutputTokens: params.maxOutputTokens,
+  });
 
   if (!message?.content || json.choices?.[0]?.finish_reason === "length")
     throw Object.assign(

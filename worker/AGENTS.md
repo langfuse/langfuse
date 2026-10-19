@@ -38,6 +38,8 @@
   organization `aiFeaturesEnabled` and `aiTelemetryEnabled` in `models.ts`;
   embeddings are untraced. Use `isInternalEvalEnvironment`
   to exclude internal sources.
+  Model failures add shared response diagnostics to the existing warning/span;
+  preserve one warning per failed call and bounded metric tags.
   Pass models explicitly; never put them on execution or batch state, which is
   persisted. Trace-batch jobs load enabled settings for all allowlisted batch
   projects in one query (`getEnabledTopicsModels`) and pause a project on

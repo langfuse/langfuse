@@ -125,7 +125,7 @@ async function topicModelCall<T>(
         return result;
       } catch (error) {
         const failure = topicProviderError(error, model);
-        const { httpStatus, message, type, code, param } = failure.details;
+        const { httpStatus, response } = failure.details;
         recordTopicModelCall(stage, model.adapter, {
           httpStatus,
           reason: failure.reason,
@@ -136,10 +136,31 @@ async function topicModelCall<T>(
           "langfuse.topics.error.type":
             error instanceof Error ? error.name : "unknown",
           ...(httpStatus && { "http.status_code": httpStatus }),
-          ...(message && { "langfuse.topics.provider.message": message }),
-          ...(type && { "langfuse.topics.provider.type": type }),
-          ...(code && { "langfuse.topics.provider.code": code }),
-          ...(param && { "langfuse.topics.provider.param": param }),
+          ...(response && {
+            ...(response.finishReason !== undefined && {
+              "langfuse.topics.response.finish_reason": response.finishReason,
+            }),
+            ...(response.rawFinishReason !== undefined && {
+              "langfuse.topics.response.raw_finish_reason":
+                response.rawFinishReason,
+            }),
+            "langfuse.topics.response.text_characters": response.textCharacters,
+            "langfuse.topics.response.text_part_count": response.textPartCount,
+            "langfuse.topics.response.reasoning_characters":
+              response.reasoningCharacters,
+            "langfuse.topics.response.reasoning_part_count":
+              response.reasoningPartCount,
+            "langfuse.topics.response.tool_call_count": response.toolCallCount,
+            "langfuse.topics.response.max_output_tokens":
+              response.maxOutputTokens,
+            ...(response.outputTokens !== undefined && {
+              "langfuse.topics.response.output_tokens": response.outputTokens,
+            }),
+            ...(response.reasoningTokens !== undefined && {
+              "langfuse.topics.response.reasoning_tokens":
+                response.reasoningTokens,
+            }),
+          }),
         };
         span.setAttributes(failed);
         logger.warn("Topics model request failed", failed);
