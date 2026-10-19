@@ -6,11 +6,13 @@ import { env } from "@langfuse/shared/src/env";
 import {
   logger,
   getLangfuseAITraceSinkParams,
+  instrumentAsync,
   LangfuseInternalTraceEnvironment,
 } from "@langfuse/shared/src/server";
 import {
   generateTopicEmbeddings,
   generateTopicText,
+  topicMessages,
   type TopicPromptPart,
   type TopicsModel,
   type TopicsModels,
@@ -20,8 +22,12 @@ import {
   type TopicFacetVersion,
   type TopicProcessingConfig,
 } from "@langfuse/shared/topics";
-import { recordTopicTokenUsage } from "./metrics";
 import { createEventLoopYielder } from "./event-loop";
+import { recordTopicModelCall, recordTopicTokenUsage } from "./metrics";
+import {
+  llmRequestEgressBytes,
+  recordExportVolume,
+} from "../../services/exportVolumeMetric";
 import type { TopicModelUsage } from "./summaryResult";
 import {
   TopicsProviderUnavailable,
@@ -83,6 +89,66 @@ function countTopicRequestTokens(
   }
 }
 
+/** The input exceeds the run's token limit; no model call was made. */
+export class TopicInputTooLarge extends Error {}
+
+/** One span, call counter and failure log per provider request. */
+async function topicModelCall<T>(
+  stage: "summary" | "embedding" | "naming",
+  model: TopicsModel,
+  projectId: string,
+  requestBytes: number,
+  context: Record<string, unknown>,
+  call: () => Promise<T>,
+): Promise<T> {
+  return instrumentAsync(
+    { name: `topics.llm.${stage}`, traceScope: "topics" },
+    async (span) => {
+      const fields: Record<string, string | number> = {
+        "langfuse.topics.stage": stage,
+        "langfuse.topics.model": model.model,
+        "langfuse.topics.adapter": model.adapter,
+        "langfuse.topics.request_bytes": requestBytes,
+      };
+      for (const [key, value] of Object.entries(context))
+        if (typeof value === "string") fields[`langfuse.topics.${key}`] = value;
+      span.setAttributes(fields);
+      try {
+        const result = await call();
+        recordTopicModelCall(stage, model.adapter, {});
+        // Shared egress metric; like llmaj, counted after a successful send.
+        recordExportVolume({
+          integration: "topics",
+          bytes: requestBytes,
+          projectId,
+        });
+        return result;
+      } catch (error) {
+        const failure = topicProviderError(error, model);
+        const { httpStatus, message, type, code, param } = failure.details;
+        recordTopicModelCall(stage, model.adapter, {
+          httpStatus,
+          reason: failure.reason,
+        });
+        const failed = {
+          ...fields,
+          "langfuse.topics.error.reason": failure.reason,
+          "langfuse.topics.error.type":
+            error instanceof Error ? error.name : "unknown",
+          ...(httpStatus && { "http.status_code": httpStatus }),
+          ...(message && { "langfuse.topics.provider.message": message }),
+          ...(type && { "langfuse.topics.provider.type": type }),
+          ...(code && { "langfuse.topics.provider.code": code }),
+          ...(param && { "langfuse.topics.provider.param": param }),
+        };
+        span.setAttributes(failed);
+        logger.warn("Topics model request failed", failed);
+        throw failure;
+      }
+    },
+  );
+}
+
 const summarySchema = z.object({
   summary: z.string(),
   status: z.enum(["applicable", "not_applicable", "insufficient_input"]),
@@ -106,21 +172,26 @@ async function structuredCall<T>(
     stage === "naming"
       ? TOPICS_NAMING_RATES.get(model.model)?.(tokens)
       : TOPICS_SUMMARY_RATES.get(model.model);
-  const result = await generateTopicText({
+  const trace = await topicTraceSink(traceName, projectId, metadata);
+  const result = await topicModelCall(
+    stage,
     model,
-    system,
-    input,
-    schema,
-    maxOutputTokens: outputLimit,
-    trace: await topicTraceSink(traceName, projectId, metadata),
-  }).catch((error: unknown) => {
-    logger.warn("Topics model request failed", {
-      model: model.model,
-      adapter: model.adapter,
-      errorType: error instanceof Error ? error.name : "unknown",
-    });
-    throw topicProviderError(error, model);
-  });
+    projectId,
+    llmRequestEgressBytes(topicMessages({ system, input }), schema),
+    {
+      trace_id: metadata?.source_trace_id,
+      execution_id: metadata?.execution_id,
+    },
+    () =>
+      generateTopicText({
+        model,
+        system,
+        input,
+        schema,
+        maxOutputTokens: outputLimit,
+        trace,
+      }),
+  );
   const actualRates = rates(result.usage.inputTokens ?? inputLimit);
   recordTopicTokenUsage(stage, {
     input: result.usage.inputTokens,
@@ -302,7 +373,7 @@ ${facetBlock(true)}`,
   const countedInputTokens =
     countTopicRequestTokens(system, input, schema) + 256;
   if (countedInputTokens > config.maxInputTokens)
-    throw new Error(
+    throw new TopicInputTooLarge(
       `The shared trace transcript and instructions are ${countedInputTokens} tokens, above this run's ${config.maxInputTokens}-token input limit. No model call was made; the transcript is never shortened per facet.`,
     );
   return structuredCall(
@@ -624,6 +695,7 @@ export async function embedTopicSummaries(
   model: TopicsModel,
   summaries: string[],
   dimensions: number,
+  projectId: string,
 ): Promise<TopicModelUsage & { embeddings: number[][] }> {
   if (
     summaries.length === 0 ||
@@ -635,13 +707,14 @@ export async function embedTopicSummaries(
       "Topics embeddings require non-empty text and 64 to 4,096 dimensions.",
       "invalid_input",
     );
-  const result = await generateTopicEmbeddings({
+  const result = await topicModelCall(
+    "embedding",
     model,
-    summaries,
-    dimensions,
-  }).catch((error: unknown) => {
-    throw topicProviderError(error, model);
-  });
+    projectId,
+    llmRequestEgressBytes(summaries),
+    {},
+    () => generateTopicEmbeddings({ model, summaries, dimensions }),
+  );
   recordTopicTokenUsage("embedding", { input: result.tokens });
   // ClickHouse stores Float32; calibration and future classification must use those same vectors.
   const embeddings = result.embeddings.map((vector) =>

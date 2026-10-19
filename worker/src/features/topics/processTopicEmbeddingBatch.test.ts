@@ -39,6 +39,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const { isInternalEvalEnvironment } =
     await importOriginal<typeof import("@langfuse/shared/src/server")>();
   return {
+    ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
     isInternalEvalEnvironment,
     logger: { error: vi.fn() },
     recordIncrement: vi.fn(),
@@ -146,6 +147,7 @@ describe("Topics embedding handoff", () => {
         expect.anything(),
         [allowed.summary],
         256,
+        "project",
       );
       expect(mocks.update).toHaveBeenCalledTimes(1);
       expect(mocks.write).toHaveBeenCalledExactlyOnceWith([

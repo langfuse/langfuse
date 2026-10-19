@@ -22,7 +22,8 @@ vi.mock("tiktoken", async (importOriginal) => {
   };
 });
 vi.mock("@langfuse/shared/src/env", () => ({ env: state.env }));
-vi.mock("@langfuse/shared/src/server", () => ({
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
   getLangfuseAITraceSinkParams: state.traceSink,
   LangfuseInternalTraceEnvironment: { Topics: "langfuse-topics" },
   logger: { warn: vi.fn() },
@@ -31,10 +32,19 @@ vi.mock("@langfuse/shared/src/server", () => ({
 vi.mock("@langfuse/shared/src/db", () => ({
   prisma: { project: { findFirst: state.project } },
 }));
-vi.mock("@langfuse/shared/topics/server", () => ({
+vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
+  topicMessages: (
+    await importOriginal<typeof import("@langfuse/shared/topics/server")>()
+  ).topicMessages,
   generateTopicText: (...args: unknown[]) => state.call(...args),
   generateTopicEmbeddings: (...args: unknown[]) => state.embed(...args),
 }));
+
+// Token counters only; every call also records call and request-byte counters.
+const tokenCalls = () =>
+  state.increment.mock.calls.filter(([name]) =>
+    String(name).startsWith("langfuse.topics.token"),
+  );
 
 import {
   embedTopicSummaries,
@@ -47,6 +57,8 @@ import {
   type TopicProcessingConfig,
 } from "@langfuse/shared/topics";
 import { LLMAdapter } from "@langfuse/shared";
+import { logger } from "@langfuse/shared/src/server";
+import { recordTopicModelCall } from "./metrics";
 import type { TopicsModel, TopicsModels } from "@langfuse/shared/topics/server";
 
 async function nameTopicGroup(
@@ -296,6 +308,100 @@ describe("Topics naming boundary", () => {
     expect(state.call).not.toHaveBeenCalled();
   });
 
+  it("logs the provider's error fields for a rejected request, never its bodies", async () => {
+    // The AI SDK identifies an APICallError by these markers.
+    const rejection = Object.assign(
+      new Error(
+        "Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead.",
+      ),
+      {
+        [Symbol.for("vercel.ai.error")]: true,
+        [Symbol.for("vercel.ai.error.AI_APICallError")]: true,
+        name: "AI_APICallError",
+        statusCode: 400,
+        isRetryable: false,
+        requestBodyValues: { messages: "secret transcript" },
+        responseBody: '{"error":{"message":"secret echo"}}',
+        data: {
+          error: {
+            type: "invalid_request_error",
+            code: "unsupported_parameter",
+            param: "max_tokens",
+          },
+        },
+      },
+    );
+    state.call.mockRejectedValue(rejection);
+    await expect(
+      summarizeOne(
+        topicsModels(),
+        "Trace evidence.",
+        topicProcessingConfigSchema.parse({
+          summaryModel: "us.openai.gpt-5.6-luna",
+        }),
+      ),
+    ).rejects.toMatchObject({ reason: "invalid_input" });
+    const [message, fields] = vi.mocked(logger.warn).mock.calls.at(-1)!;
+    expect(message).toBe("Topics model request failed");
+    expect(fields).toMatchObject({
+      "http.status_code": 400,
+      "langfuse.topics.provider.message": rejection.message,
+      "langfuse.topics.provider.code": "unsupported_parameter",
+      "langfuse.topics.provider.param": "max_tokens",
+    });
+    expect(JSON.stringify(fields)).not.toMatch(/secret/);
+    expect(state.increment).toHaveBeenCalledWith(
+      "langfuse.topics.llm_calls",
+      1,
+      {
+        stage: "summary",
+        adapter: LLMAdapter.Bedrock,
+        status: "400",
+      },
+    );
+  });
+
+  it.each([
+    [{}, "ok"],
+    [{ httpStatus: 429, reason: "rate_limit" }, "429"],
+    [{ httpStatus: 404, reason: "invalid_input" }, "4xx"],
+    [{ httpStatus: 503, reason: "provider_error" }, "5xx"],
+    [{ reason: "timeout" }, "timeout"],
+  ])("tags a model call outcome %o as %s", (outcome, status) => {
+    recordTopicModelCall("summary", LLMAdapter.OpenAI, outcome);
+    expect(state.increment).toHaveBeenCalledWith(
+      "langfuse.topics.llm_calls",
+      1,
+      {
+        stage: "summary",
+        adapter: LLMAdapter.OpenAI,
+        status,
+      },
+    );
+  });
+
+  it("logs only the status for an error whose message carries the response body", async () => {
+    // The direct Bedrock call throws a plain error with the response text.
+    state.call.mockRejectedValue(
+      Object.assign(
+        new Error('Bedrock InvokeModel failed with 400: {"secret": "echo"}'),
+        { status: 400 },
+      ),
+    );
+    await expect(
+      summarizeOne(
+        topicsModels(),
+        "Trace evidence.",
+        topicProcessingConfigSchema.parse({
+          summaryModel: "us.openai.gpt-5.6-luna",
+        }),
+      ),
+    ).rejects.toMatchObject({ reason: "invalid_input" });
+    const [, fields] = vi.mocked(logger.warn).mock.calls.at(-1)!;
+    expect(fields).toMatchObject({ "http.status_code": 400 });
+    expect(JSON.stringify(fields)).not.toMatch(/secret/);
+  });
+
   it("keeps fallback token counts out of provider-reported usage", async () => {
     state.call.mockResolvedValue({
       output: keyed({ summary: "A billing request.", status: "applicable" }),
@@ -310,7 +416,7 @@ describe("Topics naming boundary", () => {
       config,
     );
     expect(result.providedUsageDetails).toEqual({ summary_input: 100 });
-    expect(state.increment.mock.calls).toEqual([
+    expect(tokenCalls()).toEqual([
       ["langfuse.topics.tokens", 100, { stage: "summary", direction: "input" }],
       [
         "langfuse.topics.token_usage_missing",
@@ -724,7 +830,7 @@ describe("Topics naming boundary", () => {
       });
       await expect(nameTopicGroup(topicsModels(), evidence)).rejects.toThrow();
       // Provider work is billable even when local output validation rejects it.
-      expect(state.increment.mock.calls).toEqual([
+      expect(tokenCalls()).toEqual([
         [
           "langfuse.topics.tokens",
           100,
@@ -833,11 +939,12 @@ describe("Topics naming boundary", () => {
         topicsModels().embedding,
         ["An invoice request."],
         256,
+        "project",
       ),
     ).rejects.toMatchObject({
       reason: "invalid_output",
     });
-    expect(state.increment.mock.calls).toEqual([
+    expect(tokenCalls()).toEqual([
       [
         "langfuse.topics.tokens",
         12,
@@ -857,8 +964,9 @@ describe("Topics naming boundary", () => {
         topicsModels().embedding,
         ["An invoice request."],
         256,
+        "project",
       );
-      expect(state.increment.mock.calls).toEqual([
+      expect(tokenCalls()).toEqual([
         [
           "langfuse.topics.token_usage_missing",
           1,
