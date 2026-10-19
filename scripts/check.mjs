@@ -621,6 +621,61 @@ async function runCheck(check, outputDirectory, checkIndex) {
   return { failure: null, reports };
 }
 
+async function* runPlan(plan, outputDirectory) {
+  const pending = new Map();
+  const hasTurbo = plan.some((check) => check.isTurboBatch);
+  let nextIndex = 0;
+  let foreground = null;
+  let turboFailed = false;
+  try {
+    while (nextIndex < plan.length || pending.size) {
+      if (foreground === null && nextIndex < plan.length) {
+        const checkIndex = nextIndex++;
+        const check = plan[checkIndex];
+        if (check.requiresTurbo && turboFailed) {
+          yield { type: "skipped", check, checkIndex };
+          continue;
+        }
+        const promise = (async () => {
+          const startedAt = performance.now();
+          try {
+            const { failure, reports } = await runCheck(
+              check,
+              outputDirectory,
+              checkIndex,
+            );
+            return {
+              type: "completed",
+              check,
+              checkIndex,
+              result: failure,
+              reports,
+              durationMs: performance.now() - startedAt,
+            };
+          } catch (error) {
+            return { type: "completed", check, checkIndex, error };
+          }
+        })();
+        pending.set(checkIndex, promise);
+        if (!check.requiresTurbo && !(check.isKnip && hasTurbo)) {
+          foreground = checkIndex;
+        }
+        yield { type: "started", check, checkIndex };
+        continue;
+      }
+      const outcome = await Promise.race(pending.values());
+      pending.delete(outcome.checkIndex);
+      if (outcome.checkIndex === foreground) foreground = null;
+      if (outcome.check.isTurboBatch && outcome.result) turboFailed = true;
+      yield outcome;
+    }
+  } finally {
+    // An interrupted consumer or unexpected error must not delete logs while
+    // background checks are still writing to them. Promises capture rejections.
+    await Promise.all(pending.values());
+  }
+}
+
 function collectDiagnostics(outputFile, isTurboBatch) {
   const captured = readFileSync(outputFile, "utf8").trimEnd();
   if (!isTurboBatch) return { captured, tasks: [], complete: true };
@@ -747,7 +802,6 @@ async function main() {
   let passedChecks = 0;
   let emptyChecks = 0;
   const skipped = [];
-  let turboFailed = false;
   const rowWidth = Math.min(
     100,
     Math.max(60, ...plan.map((check) => check.label.length + 4)),
@@ -756,60 +810,27 @@ async function main() {
     const padding = " ".repeat(Math.max(2, rowWidth - label.length));
     return `${paint(code, marker)} ${label}${padding}${paint("2", duration)}`;
   };
-  const batches = [];
-  for (const [checkIndex, check] of plan.entries()) {
-    const previous = batches.at(-1);
-    if (check.requiresTurbo && previous?.[0].check.requiresTurbo) {
-      previous.push({ check, checkIndex });
-    } else {
-      batches.push([{ check, checkIndex }]);
-    }
-  }
+  const active = new Map();
   try {
-    for (const batch of batches) {
-      if (batch[0].check.requiresTurbo && turboFailed) {
-        for (const { check } of batch) {
-          console.error(statusLine("○", `${check.label} · skipped`, "—", "33"));
-          console.error(
-            indent("Package checks or dependency preparation failed."),
-          );
-          skipped.push(check.label);
-        }
-        continue;
-      }
-      const progress = `Running${batch.length > 1 ? " in parallel" : ""}: ${batch.map(({ check }) => check.label).join(", ")}…`;
-      if (terminal) {
-        const width = Math.max(1, (process.stdout.columns ?? 80) - 1);
-        const display =
-          progress.length > width
-            ? `${progress.slice(0, width - 1)}…`
-            : progress;
-        process.stdout.write(paint("2", display));
-      } else if (batch.length > 1) {
-        console.log(`\n${progress}\n`);
-      }
-      // Wait for every child before cleaning up shared log storage, even when
-      // one check encounters an unexpected filesystem or execution error.
-      const results = await Promise.allSettled(
-        batch.map(async ({ check, checkIndex }) => {
-          const checkStartedAt = performance.now();
-          const { failure, reports } = await runCheck(
-            check,
-            outputDirectory,
-            checkIndex,
-          );
-          return {
-            check,
-            result: failure,
-            reports,
-            duration: elapsed(checkStartedAt),
-          };
-        }),
-      );
+    for await (const outcome of runPlan(plan, outputDirectory)) {
       if (terminal) process.stdout.write("\r\x1b[2K");
-      for (const outcome of results) {
-        if (outcome.status === "rejected") throw outcome.reason;
-        const { check, result, reports, duration } = outcome.value;
+      if (outcome.type === "started") {
+        active.set(outcome.checkIndex, outcome.check);
+        if (!terminal && active.size === 2) {
+          console.log("\nRunning checks in parallel…\n");
+        }
+      } else if (outcome.type === "skipped") {
+        const { check } = outcome;
+        console.error(statusLine("○", `${check.label} · skipped`, "—", "33"));
+        console.error(
+          indent("Package checks or dependency preparation failed."),
+        );
+        skipped.push(check.label);
+      } else {
+        active.delete(outcome.checkIndex);
+        if (outcome.error) throw outcome.error;
+        const { check, result, reports, durationMs } = outcome;
+        const duration = `${(durationMs / 1000).toFixed(1)}s`;
         const { label, isTurboBatch } = check;
         const noTests =
           reports.length > 0 &&
@@ -892,13 +913,21 @@ async function main() {
               console.error(indent(diagnostics.captured));
           }
           failed.push(label);
-          if (isTurboBatch) turboFailed = true;
           console.error("");
           if (result.signal) {
             process.exitCode = 1;
             return;
           }
         }
+      }
+      if (terminal && active.size) {
+        const progress = `Running${active.size > 1 ? " in parallel" : ""}: ${[...active.values()].map((check) => check.label).join(", ")}…`;
+        const width = Math.max(1, (process.stdout.columns ?? 80) - 1);
+        const display =
+          progress.length > width
+            ? `${progress.slice(0, width - 1)}…`
+            : progress;
+        process.stdout.write(paint("2", display));
       }
     }
   } finally {
