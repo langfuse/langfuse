@@ -38,9 +38,8 @@ type TopicErrorReason =
   | "numerical"
   | "unknown";
 
-const COUNTED_HTTP_STATUSES = new Set([
-  400, 401, 402, 403, 404, 408, 413, 422, 429,
-]);
+// Statuses with their own operational meaning; exact codes are on the span.
+const COUNTED_HTTP_STATUSES = new Set([400, 401, 403, 429]);
 
 /** Provider usage is counted per call, before local validation or persistence. */
 export function recordTopicTokenUsage(
@@ -65,12 +64,11 @@ export function recordTopicModelCall(
   adapter: string,
   outcome: { httpStatus?: number; reason?: string },
 ): void {
-  const { httpStatus, reason } = outcome;
+  const { httpStatus = 0, reason } = outcome;
   let status = reason ?? "ok";
-  if (httpStatus)
-    status = COUNTED_HTTP_STATUSES.has(httpStatus)
-      ? String(httpStatus)
-      : `${Math.floor(httpStatus / 100)}xx`;
+  if (COUNTED_HTTP_STATUSES.has(httpStatus)) status = String(httpStatus);
+  else if (httpStatus >= 400 && httpStatus < 500) status = "4xx";
+  else if (httpStatus >= 500 && httpStatus < 600) status = "5xx";
   recordIncrement("langfuse.topics.llm_calls", 1, { stage, adapter, status });
 }
 

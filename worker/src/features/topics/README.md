@@ -520,8 +520,9 @@ name, or `custom`): the model decides `applicable`, `not_applicable` or
 `insufficient_input`; local rules decide `insufficient_input` (no transcript
 content), `invalid_output` and `input_too_large`.
 
-Every model call counts once in `.llm_calls{stage,adapter,status}` (`ok`, a
-4xx status, `5xx`, or the failure reason when there is no HTTP status). One
+Every model call counts once in `.llm_calls{stage,adapter,status}`: `ok`,
+`400`, `401`, `403`, `429`, `4xx` or `5xx` for any other code (the exact code is
+on the span), or the failure reason when there is no HTTP status. One
 embedding call can fan out into several provider requests (single-text Bedrock
 models, the retry without dimensions), and AI SDK retries are not counted
 separately. Each successful call adds its egress to the shared
