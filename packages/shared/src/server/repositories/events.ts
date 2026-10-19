@@ -3862,6 +3862,7 @@ export const getEvaluatorExecutionSummaries = async (
     projectId,
     groupByColumn: "e.trace_id, e.evaluator_id",
     selectExpression: [
+      "e.trace_id as trace_id",
       "e.evaluator_id as evaluator_id",
       "min(e.start_time) as started_at",
       "countIf(e.level = 'ERROR') > 0 as failed",
@@ -3880,13 +3881,18 @@ export const getEvaluatorExecutionSummaries = async (
     total: string;
     failed_count: string;
   }>({
-    query: `SELECT evaluator_id, count() as total, countIf(failed) as failed_count
+    // groupArraySorted keeps a bounded top-N per evaluator instead of sorting
+    // every execution of the week; trace_id makes ties deterministic.
+    query: `SELECT evaluator_id, length(recent) as total,
+        arrayCount(x -> x.3, recent) as failed_count
       FROM (
-        SELECT evaluator_id, failed FROM (${query})
-        ORDER BY started_at DESC
-        LIMIT {recentExecutions: UInt32} BY evaluator_id
-      )
-      GROUP BY evaluator_id`,
+        SELECT evaluator_id,
+          groupArraySorted({recentExecutions: UInt32})(
+            (-toUnixTimestamp64Micro(started_at), trace_id, failed)
+          ) as recent
+        FROM (${query})
+        GROUP BY evaluator_id
+      )`,
     params: { ...params, recentExecutions: EVALUATOR_HEALTH_RECENT_EXECUTIONS },
     tags: { projectId },
     preferredClickhouseService: "EventsReadOnly",
