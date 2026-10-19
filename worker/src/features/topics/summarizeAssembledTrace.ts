@@ -53,6 +53,7 @@ type TraceFacetResult =
 type AssembledTraceInput = {
   projectId: string;
   traceId: string;
+  sessionId: string | null;
   traceTimestamp: string;
   jobEnqueuedAt: Date;
   environment: string;
@@ -149,7 +150,19 @@ async function summarizeEnabledTrace(
   if (pending.length === 0) return { outcome: "unchanged", rows: [] };
 
   const bases = pending.map(({ version }) =>
-    baseSummary(input, version, config, embeddingModel),
+    baseTopicSummary({
+      projectId: input.projectId,
+      traceId: input.traceId,
+      sessionId: input.sessionId,
+      unitStartTime: input.traceTimestamp,
+      environment: input.environment,
+      traceName: input.traceName,
+      facet: version,
+      summaryModel: config.summaryModel!,
+      embeddingModel,
+      triggerType: "automatic",
+      metadata: { input: "assembled-transcript" },
+    }),
   );
   const summarized = await summarizeTraceFacets({
     models,
@@ -295,37 +308,39 @@ export async function summarizeTraceFacets(params: {
   };
 }
 
-function baseSummary(
-  input: {
-    projectId: string;
-    traceId: string;
-    traceTimestamp: string;
-    environment: string;
-    traceName: string;
-  },
-  facet: TopicFacetVersion,
-  config: ReturnType<typeof topicProcessingConfigSchema.parse>,
-  embeddingModel: string,
-): TopicSummary {
+/** The summary row both processing paths start from, before any model call. */
+export function baseTopicSummary(params: {
+  projectId: string;
+  traceId: string;
+  sessionId: string | null;
+  unitStartTime: string;
+  environment: string;
+  traceName: string;
+  facet: TopicFacetVersion;
+  summaryModel: string;
+  embeddingModel: string;
+  triggerType: "automatic" | "manual";
+  metadata: Record<string, unknown>;
+}): TopicSummary {
   return {
-    projectId: input.projectId,
-    facetId: facet.facetId,
-    facetVersion: facet.version,
-    traceId: input.traceId,
-    sessionId: null,
-    triggerType: "manual_poc",
-    unitStartTime: input.traceTimestamp,
-    environment: input.environment,
-    traceName: input.traceName,
+    projectId: params.projectId,
+    facetId: params.facet.facetId,
+    facetVersion: params.facet.version,
+    traceId: params.traceId,
+    sessionId: params.sessionId,
+    triggerType: params.triggerType,
+    unitStartTime: params.unitStartTime,
+    environment: params.environment,
+    traceName: params.traceName,
     state: "insufficient_input",
     summary: "",
     embedding: [],
     transcriptId: ASSEMBLED_TRANSCRIPT_ID,
     transcriptVersion: TOPICS_TRANSCRIPT_VERSION,
-    summaryModel: config.summaryModel!,
-    embeddingModel,
+    summaryModel: params.summaryModel,
+    embeddingModel: params.embeddingModel,
     ...NO_USAGE,
     processedAt: new Date().toISOString(),
-    metadata: { input: "assembled-transcript" },
+    metadata: params.metadata,
   };
 }

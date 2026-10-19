@@ -1834,6 +1834,7 @@ exports[`golden: events metadata map and session resolution > getTraceBatchEvent
     output,
     e.project_id,
     e.trace_id,
+    e.session_id,
     e.environment,
     e.span_id,
     e.parent_span_id,

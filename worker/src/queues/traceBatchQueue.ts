@@ -42,7 +42,10 @@ import { summarizeAssembledTrace } from "../features/topics/summarizeAssembledTr
 import { enqueueTopicsAutomation } from "../features/topics/topicsAutomation";
 import { recordTraceBatchTranscript } from "../features/traceBatching/traceBatchTranscript";
 
-type TraceBatchObservation = Observation & { eventTimestamp: string };
+type TraceBatchObservation = Observation & {
+  eventTimestamp: string;
+  sessionId: string | null;
+};
 
 // Rows include a failed trace's valid facets; the batch writes them once.
 type TraceOutcome = (
@@ -106,6 +109,27 @@ async function loadProjectRule(projectId: string) {
   };
 }
 
+/** Orders events like manual processing: event_ts, then span ID, then environment. */
+function newestEvent(observations: TraceBatchObservation[]) {
+  return observations.reduce<TraceBatchObservation | undefined>(
+    (current, row) => {
+      if (!current) return row;
+      if (row.eventTimestamp !== current.eventTimestamp)
+        return row.eventTimestamp > current.eventTimestamp ? row : current;
+      if (row.id !== current.id) return row.id > current.id ? row : current;
+      return row.environment > current.environment ? row : current;
+    },
+    undefined,
+  );
+}
+
+/** Session of the newest event that has one; events of a trace can carry different or no sessions. */
+function newestSessionId(observations: TraceBatchObservation[]) {
+  return (
+    newestEvent(observations.filter((row) => row.sessionId))?.sessionId ?? null
+  );
+}
+
 async function summarizeTraceBatch(
   observations: TraceBatchObservation[],
   transcript: Transcript | null,
@@ -128,12 +152,8 @@ async function summarizeTraceBatch(
     Math.min(...observations.map((row) => row.startTime.getTime())),
   ).toISOString();
   // Match manual processing and discovery, preserving event_ts microseconds.
-  const latest = observations.reduce((current, row) => {
-    if (row.eventTimestamp !== current.eventTimestamp)
-      return row.eventTimestamp > current.eventTimestamp ? row : current;
-    if (row.id !== current.id) return row.id > current.id ? row : current;
-    return row.environment > current.environment ? row : current;
-  });
+  const latest = newestEvent(observations)!;
+  const sessionId = newestSessionId(observations);
   let rows: TopicSummary[] = [];
   try {
     const project = await topics.get(first.projectId);
@@ -148,6 +168,7 @@ async function summarizeTraceBatch(
     const result = await summarizeAssembledTrace({
       projectId: first.projectId,
       traceId,
+      sessionId,
       traceTimestamp,
       jobEnqueuedAt,
       environment: latest.environment,
@@ -469,6 +490,7 @@ export const traceBatchQueueProcessor: Processor<
             cost_details: {},
           }),
           eventTimestamp: event.event_ts,
+          sessionId: event.session_id || null,
         });
       }
       // Reaching EOF completes the last trace; a failed stream must not flush it.

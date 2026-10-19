@@ -114,7 +114,7 @@ Summary and assignment records use `trace_id` as their source when present;
 `session_id` identifies the processed session. At least one ID is required.
 The current pipeline processes traces only. `unit_start_time` (`unitStartTime` in
 TypeScript) is the first observation's start time for the processed source. Summaries set
-`trigger_type=manual_poc`. Each clustering attempt records its own `started_at`. Failed updates start a fresh
+`trigger_type` to `automatic` (trace-batch) or `manual` (manual processing); rows written before that split hold `manual_poc`. Each clustering attempt records its own `started_at`. Failed updates start a fresh
 attempt while keeping the previous published map available.
 
 Summaries snapshot source environment and trace name; assignments copy that
