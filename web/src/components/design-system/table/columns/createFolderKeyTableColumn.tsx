@@ -1,6 +1,6 @@
 /* eslint-disable boundaries/dependencies */
 import { type CellContext, type RowData } from "@tanstack/react-table";
-import { Folder } from "lucide-react";
+import { Folder } from "@langfuse/icons";
 
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { Skeleton } from "@/src/components/ui/skeleton";

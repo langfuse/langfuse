@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { type AnnotationPanelData } from "@/src/features/scores/types";
 import { type CommentTarget } from "@/src/features/comments/state/commentOverlayStore";
 import { getCommentDrawerInitialStateFromUrl } from "@/src/features/comments/CommentDrawerController";
@@ -9,7 +10,7 @@ import { prepareTraceAnnotation } from "@/src/features/scores/lib/prepareTraceAn
 import { useStore } from "zustand";
 import { useEffect, useRef, type ReactNode } from "react";
 import { useRouter, type NextRouter } from "next/router";
-import { X } from "lucide-react";
+import { X } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { CommentList } from "@/src/features/comments/CommentList";
 import { AnnotationPanelContent } from "@/src/features/scores/components/AnnotationPanelContent";
@@ -39,7 +40,7 @@ function CloseReviewPanelButton() {
       aria-label="Close side panel"
       onClick={() => closeReviewPanel(store, router)}
     >
-      <X className="icon-sm text-icon-foreground" />
+      <X size="sm" color="default" />
     </Button>
   );
 }

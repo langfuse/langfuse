@@ -1,7 +1,8 @@
 import { Slot } from "@radix-ui/react-slot";
 import { cva } from "class-variance-authority";
-import { type LucideIcon } from "lucide-react";
+import { type IconComponent } from "@langfuse/icons";
 import { type ComponentPropsWithoutRef } from "react";
+import { cn } from "@/src/utils/tailwind";
 
 const inputControlVariants = cva(
   "bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring disabled:bg-muted/50 h-8 w-full rounded-md border text-sm file:border-0 file:bg-transparent file:text-sm file:font-bold focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
@@ -17,7 +18,7 @@ const inputControlVariants = cva(
         false: null,
       },
       error: {
-        true: "border-destructive [&_svg]:text-destructive",
+        true: "border-destructive focus-visible:ring-destructive/40 focus-visible:ring-offset-0 [&_svg]:text-destructive",
         false: "border-input",
       },
       disabled: {
@@ -40,7 +41,7 @@ type InputControlProps = Omit<
   disabled?: boolean;
   trailingAction?: {
     label: string;
-    icon: LucideIcon;
+    icon: IconComponent;
     disabled?: boolean;
     pressed?: boolean;
     onClick: () => void;
@@ -62,12 +63,14 @@ export function InputControl({
 }: InputControlProps) {
   const control = (
     <Slot
-      className={inputControlVariants({
-        contentLayout,
-        error,
-        disabled,
-        trailingAction: Boolean(trailingAction),
-      })}
+      className={cn(
+        inputControlVariants({
+          contentLayout,
+          error,
+          disabled,
+          trailingAction: Boolean(trailingAction),
+        }),
+      )}
       {...props}
     />
   );
@@ -91,11 +94,8 @@ export function InputControl({
       >
         <TrailingActionIcon
           aria-hidden="true"
-          className={
-            error
-              ? "text-destructive icon-base"
-              : "text-muted-foreground icon-base"
-          }
+          size="base"
+          color={error ? "destructive" : "muted"}
         />
       </button>
     </div>

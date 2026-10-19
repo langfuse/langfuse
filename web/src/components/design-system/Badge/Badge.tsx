@@ -1,6 +1,7 @@
+/* eslint-disable @repo/component-file-structure */
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
-import { type LucideIcon } from "lucide-react";
+import { type IconComponent } from "@langfuse/icons";
 import { type ComponentPropsWithoutRef } from "react";
 
 import { cn } from "@/src/utils/tailwind";
@@ -115,8 +116,8 @@ type BadgeProps = Omit<BadgeShellProps, "asChild" | "children"> & {
   text: string;
   /** Key shown muted before the value, e.g. `latency` before `0.71s`. */
   label?: string;
-  leadingIcon?: LucideIcon;
-  trailingIcon?: LucideIcon;
+  leadingIcon?: IconComponent;
+  trailingIcon?: IconComponent;
   /** Link badges tint the arrow and underline the text on hover. */
   trailingIconTone?: "default" | "link";
 };
@@ -135,12 +136,7 @@ export function Badge({
 }: BadgeProps) {
   return (
     <BadgeShell color={color} shouldWrap={shouldWrap} {...props}>
-      {LeadingIcon && (
-        <LeadingIcon
-          aria-hidden
-          className="icon-sm text-foreground-tertiary shrink-0"
-        />
-      )}
+      {LeadingIcon && <LeadingIcon aria-hidden size="sm" color="tertiary" />}
       {label && <span className="shrink-0 py-0.5">{label}:</span>}
       <span
         className={cn(
@@ -161,12 +157,9 @@ export function Badge({
       {TrailingIcon && (
         <TrailingIcon
           aria-hidden
-          className={cn(
-            "icon-sm shrink-0",
-            trailingIconTone === "link"
-              ? "text-foreground-tertiary -ml-0.5"
-              : "text-foreground-tertiary",
-          )}
+          size="sm"
+          color="tertiary"
+          __rawClassName={trailingIconTone === "link" ? "-ml-0.5" : undefined}
         />
       )}
     </BadgeShell>

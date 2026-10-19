@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 import { Fragment, useState, type CSSProperties } from "react";
 import {
   Check,
@@ -8,7 +8,7 @@ import {
   MoreVertical,
   Trash2,
   TriangleAlert,
-} from "lucide-react";
+} from "@langfuse/icons";
 import {
   closestCenter,
   DndContext,
@@ -261,7 +261,8 @@ function SortablePromptMessage({
     <Badge variant="tertiary" className="h-5 shrink-0 gap-1 leading-none">
       {warningReason ? (
         <TriangleAlert
-          className="icon-sm text-dark-yellow"
+          size="sm"
+          __rawClassName="text-dark-yellow"
           aria-label={
             hasEmptyContent
               ? "Empty prompt message"
@@ -303,7 +304,7 @@ function SortablePromptMessage({
           {...attributes}
           {...listeners}
         >
-          <GripVertical className="icon-base" />
+          <GripVertical size="base" />
         </button>
       ) : null}
       <PromptVariableEditor
@@ -331,8 +332,10 @@ function SortablePromptMessage({
               onClick={() => setExpanded((current) => !current)}
             >
               <ChevronDown
-                className={cn(
-                  "icon-sm text-icon-foreground shrink-0 transition-transform",
+                size="sm"
+                color="default"
+                __rawClassName={cn(
+                  "transition-transform",
                   !expanded && "-translate-x-0.5 -rotate-90",
                 )}
               />
@@ -372,7 +375,7 @@ function SortablePromptMessage({
                 aria-label="Prompt message settings"
                 title="Prompt message settings"
               >
-                <MoreVertical className="icon-sm text-icon-foreground" />
+                <MoreVertical size="sm" color="default" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44">
@@ -394,7 +397,7 @@ function SortablePromptMessage({
                   >
                     <span className="flex-1">{role.label}</span>
                     {message.role === role.value ? (
-                      <Check className="icon-base text-icon-foreground" />
+                      <Check size="base" color="default" />
                     ) : null}
                   </DropdownMenuItem>
                 );
@@ -405,7 +408,7 @@ function SortablePromptMessage({
                   copy(message.content).catch(() => undefined);
                 }}
               >
-                <Copy className="icon-base text-icon-foreground mr-2" />
+                <Copy size="base" color="default" __rawClassName="mr-2" />
                 Copy prompt
               </DropdownMenuItem>
               {messageCount > 1 ? (
@@ -413,7 +416,7 @@ function SortablePromptMessage({
                   className="text-destructive focus:text-destructive"
                   onSelect={onRemove}
                 >
-                  <Trash2 className="icon-base mr-2" />
+                  <Trash2 size="base" __rawClassName="mr-2" />
                   Delete message
                 </DropdownMenuItem>
               ) : null}

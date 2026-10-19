@@ -13,14 +13,9 @@ import nextConfig from "@repo/eslint-config/next";
 // no-restricted-imports must spread the full pattern list it wants.
 const restrictedImportPatterns = [
   {
-    regex: "^react-icons$",
+    regex: "^(lucide-react|react-icons)(/|$)",
     message:
-      "Only react-icons/si and react-icons/tb are allowed. Please use lucide-react for other icons.",
-  },
-  {
-    regex: "^react-icons/(?!si(?:/|$)|tb(?:/|$)).*",
-    message:
-      "Only react-icons/si and react-icons/tb are allowed. Please use lucide-react for other icons.",
+      "Import typed icons from @langfuse/icons, @langfuse/icons/si, or @langfuse/icons/tb instead.",
   },
   {
     // Relative paths escaping web/ bypass @langfuse/shared's exports
@@ -341,6 +336,23 @@ export default [
   },
 
   {
+    name: "langfuse/web/component-file-structure",
+    files: ["**/*.{tsx,jsx}"],
+    ignores: [
+      // Next.js owns route filenames and requires framework exports, so component file structure cannot apply.
+      "src/pages/**",
+      // Next.js App Router layouts also require the framework-defined layout filename.
+      "src/app/**/layout.{tsx,jsx}",
+      "src/components/design-system/**/*.stories.{ts,tsx}",
+      "**/*.{test,spec,clienttest,servertest}.{tsx,jsx}",
+      "**/{__tests__,__e2e__,tests,test}/**",
+    ],
+    rules: {
+      "@repo/component-file-structure": "error",
+    },
+  },
+
+  {
     name: "langfuse/web/design-system-component-exports",
     files: ["src/components/design-system/*/*.{ts,tsx}"],
     ignores: [
@@ -349,7 +361,6 @@ export default [
       "src/components/design-system/table/**",
     ],
     rules: {
-      "@repo/filename-matches-export": "error",
       "import/no-default-export": "error",
     },
   },
@@ -457,15 +468,6 @@ export default [
     files: ["src/**/*.{ts,tsx}"],
     rules: {
       "@repo/no-raw-font-weight": "error",
-      // Raw sizes of 40px and above are illustrations; the rule allows them by size.
-      // Spinner sizes follow their container, not the icon scale.
-      "@repo/no-raw-icon-size": [
-        "error",
-        {
-          exceptions: ["src/components/design-system/Spinner/Spinner.tsx"],
-          requireSize: true,
-        },
-      ],
       "@repo/no-arbitrary-colors": "error",
     },
   },

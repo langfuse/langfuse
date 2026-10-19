@@ -1,5 +1,6 @@
+/* eslint-disable @repo/component-file-structure */
 import { useMemo } from "react";
-import { Building2, Plug } from "lucide-react";
+import { Building2, Plug } from "@langfuse/icons";
 
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { Alert } from "@/src/components/design-system/Alert/Alert";

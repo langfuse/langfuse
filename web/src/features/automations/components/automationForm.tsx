@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import React from "react";
 import {
@@ -52,7 +52,7 @@ import { ActionHandlerRegistry } from "./actions";
 import { webhookSchema } from "./actions/WebhookActionForm";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import Link from "next/link";
-import { Info } from "lucide-react";
+import { Info } from "@langfuse/icons";
 
 // Define Slack action schema
 const slackSchema = z.object({

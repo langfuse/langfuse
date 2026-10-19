@@ -1,10 +1,10 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 import {
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { type Table } from "@tanstack/react-table";
 
 import { Button } from "@/src/components/ui/button";
@@ -273,7 +273,7 @@ export function DataTablePagination<TData>({
                 disabled={!table.getCanPreviousPage()}
               >
                 <span className="sr-only">Go to first page</span>
-                <ChevronsLeft className="icon-base text-icon-foreground" />
+                <ChevronsLeft size="base" color="default" />
               </Button>
             )}
             <Button
@@ -288,7 +288,7 @@ export function DataTablePagination<TData>({
               disabled={!table.getCanPreviousPage()}
             >
               <span className="sr-only">Go to previous page</span>
-              <ChevronLeft className="icon-base text-icon-foreground" />
+              <ChevronLeft size="base" color="default" />
             </Button>
             <Button
               variant="outline"
@@ -302,7 +302,7 @@ export function DataTablePagination<TData>({
               disabled={!table.getCanNextPage() || pageCount === -1}
             >
               <span className="sr-only">Go to next page</span>
-              <ChevronRight className="icon-base text-icon-foreground" />
+              <ChevronRight size="base" color="default" />
             </Button>
             {canJumpPages && (
               <Button
@@ -317,7 +317,7 @@ export function DataTablePagination<TData>({
                 disabled={!table.getCanNextPage() || pageCount === -1}
               >
                 <span className="sr-only">Go to last page</span>
-                <ChevronsRight className="icon-base text-icon-foreground" />
+                <ChevronsRight size="base" color="default" />
               </Button>
             )}
           </div>

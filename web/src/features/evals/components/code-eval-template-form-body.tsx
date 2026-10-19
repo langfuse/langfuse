@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 import { showErrorToast } from "@/src/features/notifications";
 import CodeMirror, {
   Decoration,
@@ -23,7 +23,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2 } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
@@ -415,7 +415,11 @@ export function CodeEvalTemplateFormBody({
       onClick={() => formatSource()}
     >
       {isFormatting && (
-        <Loader2 className="icon-base text-icon-foreground mr-1.5 animate-spin" />
+        <Loader2
+          size="base"
+          color="default"
+          __rawClassName="mr-1.5 animate-spin"
+        />
       )}
       Format
       <span className="ml-2 hidden md:inline-flex">

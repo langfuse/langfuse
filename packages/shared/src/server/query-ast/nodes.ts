@@ -80,17 +80,27 @@ export type ArrayIndexNode = {
   readonly kind: "ArrayIndexNode";
   readonly array: OperationNode;
   readonly index: OperationNode;
+  /**
+   * `metadata[key]` over one relation's `metadata_names`/`metadata_values`,
+   * so events routing can keep a short metadata predicate on `events_core`.
+   */
+  readonly metadataLookup?: true;
 };
 
 export const ArrayIndexNode = {
   is(node: { kind: string }): node is ArrayIndexNode {
     return node.kind === "ArrayIndexNode";
   },
-  create(array: OperationNode, index: OperationNode): ArrayIndexNode {
+  create(
+    array: OperationNode,
+    index: OperationNode,
+    metadataLookup = false,
+  ): ArrayIndexNode {
     return Object.freeze({
       kind: "ArrayIndexNode",
       array,
       index,
+      ...(metadataLookup ? { metadataLookup: true as const } : {}),
     });
   },
 };
@@ -107,6 +117,11 @@ export type ClickHouseSelectQueryNode = SelectQueryNode & {
   readonly limitBy?: LimitByNode;
   /** Set by `includeDeleted()`: the soft-delete pass skips this select. */
   readonly includeDeleted?: true;
+  /**
+   * Set by `softDeleteAfterLimit()`: the soft-delete pass filters this
+   * select's output instead of its relation.
+   */
+  readonly softDeleteAfterLimit?: true;
 };
 
 export function isClickHouseSelectQueryNode(

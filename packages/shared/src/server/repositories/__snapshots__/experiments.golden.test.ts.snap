@@ -8,11 +8,12 @@ exports[`golden: experiments simple aggregates family > getExperimentMetricsFrom
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param2": [
+      "param2": 0,
+      "param3": [
         "golden-experiment",
         "golden-experiment-b",
       ],
-      "param3": "",
+      "param4": "",
     },
     "route": "unknown",
     "sql": "SELECT
@@ -23,7 +24,10 @@ exports[`golden: experiments simple aggregates family > getExperimentMetricsFrom
         (e.span_id = e.experiment_item_root_span_id) AND (e.end_time IS NOT NULL)
     ) AS latency_avg
 FROM events_core AS e
-WHERE (e.project_id = {param1:String}) AND (e.experiment_id IN ({param2:Array(String)})) AND (e.experiment_id != {param3:String})
+WHERE (e.project_id = {param1:String})
+    AND (e.is_deleted = {param2:UInt8})
+    AND (e.experiment_id IN ({param3:Array(String)}))
+    AND (e.experiment_id != {param4:String})
 GROUP BY
     e.project_id,
     e.experiment_id",

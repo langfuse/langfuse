@@ -1,5 +1,5 @@
 import { startCase } from "lodash";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle } from "@langfuse/icons";
 
 import {
   type ColumnDefinition,

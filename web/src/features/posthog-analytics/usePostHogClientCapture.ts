@@ -149,7 +149,12 @@ const events = {
     "level_added",
   ],
   annotation: ["entry_click"],
-  annotation_queues: ["item_added", "item_removed", "manage_click"],
+  annotation_queues: [
+    "item_added",
+    "item_removed",
+    "manage_click",
+    "score_configs_saved",
+  ],
   score_configs: [
     "create_form_submit",
     "update_form_submit",

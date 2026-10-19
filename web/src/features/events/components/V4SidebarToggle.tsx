@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Label } from "@/src/components/ui/label";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
@@ -16,7 +17,7 @@ import {
   getV4PreviewEnabledRedirect,
 } from "@/src/features/events/lib/v4PreviewRedirect";
 import { api } from "@/src/utils/api";
-import { ZapIcon } from "lucide-react";
+import { ZapIcon } from "@langfuse/icons";
 import { useId, useState } from "react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
@@ -180,7 +181,7 @@ export function V4SidebarToggle() {
       >
         <div>
           <div className="flex min-w-0 flex-1 items-center gap-2 group-data-[collapsible=icon]:hidden">
-            <ZapIcon className="icon-base shrink-0" />
+            <ZapIcon size="base" />
             <Label
               htmlFor="v4-beta-toggle"
               className="block min-w-0 flex-1 cursor-pointer truncate text-sm font-normal"

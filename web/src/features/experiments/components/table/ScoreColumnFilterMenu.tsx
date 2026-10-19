@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import {
   forwardRef,
   type ComponentProps,
@@ -13,7 +14,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { Check, ListFilter } from "lucide-react";
+import { Check, ListFilter } from "@langfuse/icons";
 import { type ScoreComparisonOperator } from "@/src/features/experiments/fns/scoreComparisonFilter";
 import { cn } from "@/src/utils/tailwind";
 
@@ -61,7 +62,7 @@ export const ScoreColumnFilterMenuTrigger = forwardRef<
     )}
     {...triggerProps}
   >
-    <ListFilter className="icon-sm" />
+    <ListFilter size="sm" />
   </button>
 ));
 ScoreColumnFilterMenuTrigger.displayName = "ScoreColumnFilterMenuTrigger";
@@ -115,7 +116,7 @@ export const ScoreColumnFilterMenu = ({
                 onClick={() => onSelect(operator, targets[0].experimentId)}
               >
                 {isActive(operator, targets[0].experimentId) ? (
-                  <Check className="icon-base text-icon-foreground mr-2 shrink-0" />
+                  <Check size="base" color="default" __rawClassName="mr-2" />
                 ) : (
                   <span className="mr-2 h-4 w-4 shrink-0" />
                 )}
@@ -139,7 +140,11 @@ export const ScoreColumnFilterMenu = ({
                         onClick={() => onSelect(operator, target.experimentId)}
                       >
                         {isActive(operator, target.experimentId) ? (
-                          <Check className="icon-base text-icon-foreground mr-2 shrink-0" />
+                          <Check
+                            size="base"
+                            color="default"
+                            __rawClassName="mr-2"
+                          />
                         ) : (
                           <span className="mr-2 h-4 w-4 shrink-0" />
                         )}

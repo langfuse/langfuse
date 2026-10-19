@@ -4,7 +4,7 @@ export type RateLimitUpgradePath = {
   docsUrl: string;
 };
 
-export const OBSERVATIONS_API_V2_DOCS_URL =
+const OBSERVATIONS_API_V2_DOCS_URL =
   "https://langfuse.com/docs/api-and-data-platform/features/observations-api";
 
 export const legacyPublicApiRateLimitUpgradePaths = {

@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger */
+/* eslint-disable @repo/no-abstracted-overlay-trigger, @repo/component-file-structure */
 import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
@@ -28,7 +28,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod/v4";
 import { zodResolver } from "@hookform/resolvers/zod";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { Copy } from "lucide-react";
+import { Copy } from "@langfuse/icons";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useEntitlementLimit } from "@/src/features/entitlements";
 
@@ -115,7 +115,7 @@ export function DuplicateFolder({ folderPath }: { folderPath: string }) {
           title="Duplicate folder including prompts"
           onClick={() => capture("prompt_detail:duplicate_button_click")}
         >
-          <Copy className="icon-sm text-icon-foreground" />
+          <Copy size="sm" color="default" />
         </Button>
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] min-h-0 sm:max-w-md">

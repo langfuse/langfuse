@@ -7,7 +7,7 @@ import {
 } from "@/src/features/traces/components/AdvancedJsonViewer/MultiSectionJsonViewer";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { Button } from "@/src/components/ui/button";
-import { ChevronUp, ChevronDown, WrapText, Minus, Copy } from "lucide-react";
+import { ChevronUp, ChevronDown, WrapText, Minus, Copy } from "@langfuse/icons";
 import { useJsonViewPreferences } from "@/src/features/traces/components/AdvancedJsonViewer/hooks/useJsonViewPreferences";
 import { type MediaReturnType } from "@/src/features/media";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
@@ -400,12 +400,12 @@ function IOPreviewJSONInner({
 
   const wrapIcon = useMemo(() => {
     if (stringWrapMode === "truncate") {
-      return <Minus className="icon-base" />;
+      return <Minus size="base" />;
     }
     if (stringWrapMode === "wrap") {
-      return <WrapText className="icon-base" />;
+      return <WrapText size="base" />;
     }
-    return <ChevronDown className="icon-base -rotate-90" />;
+    return <ChevronDown size="base" __rawClassName="-rotate-90" />;
   }, [stringWrapMode]);
 
   // Build sections - memoized to prevent re-creation. A gated field renders as
@@ -705,7 +705,7 @@ function IOPreviewJSONInner({
               onClick={handlePreviousMatch}
               title="Previous match (Shift+Enter)"
             >
-              <ChevronUp className="icon-base text-icon-foreground" />
+              <ChevronUp size="base" color="default" />
             </Button>
             <Button
               variant="ghost"
@@ -714,7 +714,7 @@ function IOPreviewJSONInner({
               onClick={handleNextMatch}
               title="Next match (Enter)"
             >
-              <ChevronDown className="icon-base text-icon-foreground" />
+              <ChevronDown size="base" color="default" />
             </Button>
           </>
         )}
@@ -738,7 +738,7 @@ function IOPreviewJSONInner({
           onClick={handleCopy}
           title="Copy to clipboard"
         >
-          <Copy className="icon-base text-icon-foreground" />
+          <Copy size="base" color="default" />
         </Button>
       </div>
 

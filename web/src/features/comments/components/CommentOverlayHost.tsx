@@ -1,7 +1,8 @@
+/* eslint-disable @repo/component-file-structure */
 import { useState, type ComponentProps, type ReactNode } from "react";
 import { useStore } from "zustand";
 import { useRouter } from "next/router";
-import { X } from "lucide-react";
+import { X } from "@langfuse/icons";
 import { type CommentObjectType } from "@langfuse/shared";
 import {
   Drawer,
@@ -187,7 +188,7 @@ function CommentDrawerContent({
         <DrawerTitle>Comments</DrawerTitle>
         <DrawerClose asChild>
           <Button variant="ghost" size="icon" title="Close comments">
-            <X className="icon-base text-icon-foreground" />
+            <X size="base" color="default" />
           </Button>
         </DrawerClose>
       </DrawerHeader>

@@ -412,8 +412,8 @@ export const env = createEnv({
 
     API_AUTH_MIGRATION: z
       .enum(["legacy", "shadow", "enforce"])
-      .default("legacy"),
-    API_KEY_PROJECT_ROLES_ENABLE: z.enum(["true", "false"]).default("false"),
+      .default("enforce"),
+    API_KEY_PROJECT_ROLES_ENABLE: z.enum(["true", "false"]).default("true"),
     API_KEY_ORG_ROLES_ENABLE: z.enum(["true", "false"]).default("false"),
 
     // Multimodal media upload to S3

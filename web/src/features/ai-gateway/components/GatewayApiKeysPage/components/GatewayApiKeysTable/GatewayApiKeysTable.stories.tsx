@@ -50,10 +50,9 @@ const actions = {
   createAction: onCreate,
   onRevoke,
   pagination: {
-    mode: "cursor",
-    state: { pageIndex: 0, pageSize: 50 },
-    pageSizeOptions: [50],
-    hasNextPage: false,
+    mode: "offset",
+    totalCount: 1,
+    state: { pageIndex: 0, pageSize: 10 },
     onChange: onPageChange,
   },
 } satisfies Pick<
@@ -112,11 +111,15 @@ export const OverflowingMetadata = meta.story({
   },
 });
 
-export const ManyRowsWithMoreAvailable = meta.story({
+export const ManyRows = meta.story({
   args: {
     data: { status: "success", data: manyApiKeys },
     ...actions,
-    pagination: { ...actions.pagination, hasNextPage: true },
+    pagination: {
+      ...actions.pagination,
+      totalCount: 75,
+      state: { pageIndex: 0, pageSize: 30 },
+    },
   },
 });
 
@@ -149,32 +152,12 @@ export const MissingDescription = meta.story({
   },
 });
 
-export const MoreAvailable = meta.story({
-  args: {
-    data: { status: "success", data: apiKeys },
-    ...actions,
-    pagination: { ...actions.pagination, hasNextPage: true },
-  },
-});
-
-export const LoadingMore = meta.story({
-  args: {
-    data: { status: "success", data: apiKeys },
-    ...actions,
-    pagination: {
-      ...actions.pagination,
-      hasNextPage: true,
-      isLoadingNextPage: true,
-    },
-  },
-});
-
 export const NextPage = meta.story({
   name: "(Test) Next page",
   args: {
     data: { status: "success", data: apiKeys },
     ...actions,
-    pagination: { ...actions.pagination, hasNextPage: true },
+    pagination: { ...actions.pagination, totalCount: 25 },
   },
   play: async ({ canvas }) => {
     onPageChange.mockClear();
@@ -183,7 +166,7 @@ export const NextPage = meta.story({
     );
     await expect(onPageChange).toHaveBeenCalledWith({
       pageIndex: 1,
-      pageSize: 50,
+      pageSize: 10,
     });
   },
 });

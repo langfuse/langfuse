@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import React from "react";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import {
@@ -170,7 +171,7 @@ export const ChartTypePicker = React.memo(function ChartTypePicker({
               <TooltipTrigger asChild>
                 <span className="h-full min-w-0">
                   <Tabs.Trigger value={ct.value}>
-                    <Icon aria-hidden="true" className="icon-base shrink-0" />
+                    <Icon aria-hidden="true" size="base" />
                     <span className="sr-only">{ct.label}</span>
                   </Tabs.Trigger>
                 </span>

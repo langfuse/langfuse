@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import * as SelectPrimitive from "@radix-ui/react-select";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp } from "@langfuse/icons";
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { InputDropdown } from "@/src/components/design-system/internal/InputDropdown/InputDropdown";
@@ -162,7 +162,7 @@ export function SelectDropdown<V extends string>({
               aria-label="Scroll up"
               className="animate-in fade-in-0 fill-mode-both absolute inset-x-0 top-0 z-3 flex h-6 cursor-pointer items-center justify-center duration-300 [animation-delay:.5s]"
             >
-              <ChevronUp className="icon-base" />
+              <ChevronUp size="base" />
             </SelectPrimitive.ScrollUpButton>
             <InputDropdown.List>
               <SelectPrimitive.Viewport>
@@ -184,7 +184,7 @@ export function SelectDropdown<V extends string>({
               aria-label="Scroll down"
               className="animate-in fade-in-0 fill-mode-both absolute inset-x-0 bottom-0 z-3 flex h-6 cursor-pointer items-center justify-center duration-300 [animation-delay:.5s]"
             >
-              <ChevronDown className="icon-base" />
+              <ChevronDown size="base" />
             </SelectPrimitive.ScrollDownButton>
           </SelectPrimitive.Content>
         </InputDropdown.Content>

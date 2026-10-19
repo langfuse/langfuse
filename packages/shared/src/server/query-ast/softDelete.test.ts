@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 import { compileClickhouseQuery } from "./compile";
 import { getClickhouseKysely } from "./dialect";
 import { QueryCompileError } from "./errors";
-import { includeDeleted, limitBy } from "./extensions";
+import { includeDeleted, limitBy, softDeleteAfterLimit } from "./extensions";
 import { FinalTableNode } from "./nodes";
 import { SOFT_DELETE_COLUMNS } from "./schema";
 import { SoftDeleteFilterPlugin } from "./softDelete";
@@ -24,6 +24,7 @@ function compile(builder: Parameters<typeof compileClickhouseQuery>[0]) {
 describe("soft-delete filtering", () => {
   it("declares the flag on the events tables only", () => {
     expect(SOFT_DELETE_COLUMNS).toEqual({
+      events: "is_deleted",
       events_core: "is_deleted",
       events_full: "is_deleted",
     });
@@ -308,5 +309,154 @@ describe("soft-delete filtering", () => {
           .select("trace_id"),
       ),
     ).toThrow(QueryCompileError);
+  });
+
+  it("softDeleteAfterLimit() filters after the pick, projecting outputs by name", () => {
+    expect(
+      compile(
+        getClickhouseKysely()
+          .selectFrom("events_full as e")
+          .$call(softDeleteAfterLimit())
+          .select((eb) => [
+            "e.span_id as id",
+            "e.event_ts",
+            "input",
+            eb.fn<number>("length", ["e.output"]).as("len"),
+          ])
+          .where("e.span_id", "=", "o")
+          .orderBy("e.event_ts", "desc")
+          .limit(1),
+      ),
+    ).toMatchInlineSnapshot(
+      `"select latest.id, latest.event_ts, latest.input, latest.len from (select e.span_id as id, e.event_ts, input, length(e.output) as len, e.is_deleted as is_deleted from events_full as e where e.project_id = {p1:String} and e.span_id = {p2:String} order by e.event_ts desc limit {p3:Int64}) as latest where latest.is_deleted = {p4:UInt8}"`,
+    );
+  });
+
+  it("softDeleteAfterLimit() wraps a CTE body and keeps its LIMIT BY inside", () => {
+    expect(
+      compile(
+        getClickhouseKysely()
+          .with("latest_events", () =>
+            getClickhouseKysely()
+              .selectFrom("events_core as e")
+              .$call(softDeleteAfterLimit())
+              .select(["e.span_id as span_id", "e.trace_id as trace_id"])
+              .orderBy("e.event_ts", "desc")
+              .$call(limitBy({ count: 1, columns: ["e.span_id"] })),
+          )
+          .selectFrom("latest_events as e")
+          .select("e.trace_id"),
+      ),
+    ).toMatchInlineSnapshot(
+      `"with latest_events as (select latest.span_id, latest.trace_id from (select e.span_id as span_id, e.trace_id as trace_id, e.is_deleted as is_deleted from events_core as e where e.project_id = {p1:String} order by e.event_ts desc limit 1 by e.span_id) as latest where latest.is_deleted = {p2:UInt8}) select e.trace_id from latest_events as e"`,
+    );
+  });
+
+  it("softDeleteAfterLimit() qualifies the flag by table name on an unaliased FROM", () => {
+    expect(
+      compile(
+        getClickhouseKysely()
+          .selectFrom("events_core")
+          .$call(softDeleteAfterLimit())
+          .select("span_id")
+          .limit(1),
+      ),
+    ).toMatchInlineSnapshot(
+      `"select latest.span_id from (select span_id, events_core.is_deleted as is_deleted from events_core where project_id = {p1:String} limit {p2:Int64}) as latest where latest.is_deleted = {p3:UInt8}"`,
+    );
+  });
+
+  it("softDeleteAfterLimit() leaves nested selects filtered", () => {
+    expect(
+      compile(
+        getClickhouseKysely()
+          .selectFrom("events_core as e")
+          .$call(softDeleteAfterLimit())
+          .select("e.span_id")
+          .where("e.trace_id", "in", (eb) =>
+            eb.selectFrom("events_core").select("trace_id"),
+          )
+          .limit(1),
+      ),
+    ).toContain("events_core.is_deleted = {p2:UInt8}");
+  });
+
+  it("rejects softDeleteAfterLimit() on selects it cannot wrap", () => {
+    const marked = () =>
+      getClickhouseKysely()
+        .selectFrom("events_core as e")
+        .$call(softDeleteAfterLimit())
+        .limit(1);
+    const rejects = (
+      builder: Parameters<typeof compileClickhouseQuery>[0],
+      message: RegExp,
+    ) => expect(() => compile(builder)).toThrow(message);
+
+    rejects(marked(), /without outputs/);
+    rejects(
+      getClickhouseKysely()
+        .selectFrom("events_core as e")
+        .$call(softDeleteAfterLimit())
+        .select("e.span_id"),
+      /needs a LIMIT or LIMIT BY/,
+    );
+    rejects(
+      marked().select("e.trace_id").groupBy("e.trace_id"),
+      /cannot wrap a GROUP BY or set operation/,
+    );
+    rejects(
+      marked()
+        .select("e.span_id")
+        .unionAll(
+          getClickhouseKysely().selectFrom("events_core").select("span_id"),
+        ),
+      /cannot wrap a GROUP BY or set operation/,
+    );
+    rejects(marked().selectAll(), /every output named/);
+    rejects(marked().selectAll("e"), /every output named/);
+    rejects(marked().select("e.is_deleted"), /adds `is_deleted` itself/);
+    rejects(
+      marked().select((eb) => [eb.lit(0).as("is_deleted")]),
+      /adds `is_deleted` itself/,
+    );
+    rejects(
+      getClickhouseKysely()
+        .selectFrom("scores")
+        .$call(softDeleteAfterLimit())
+        .select("id"),
+      /reads 0/,
+    );
+    rejects(
+      marked()
+        .innerJoin("events_full as f", (join) =>
+          join.onRef("f.span_id", "=", "e.span_id"),
+        )
+        .select("e.span_id"),
+      /reads 2/,
+    );
+    rejects(
+      getClickhouseKysely()
+        .selectFrom("scores as s")
+        .leftJoin("events_core as e", (join) =>
+          join.onRef("e.trace_id", "=", "s.trace_id"),
+        )
+        .$call(softDeleteAfterLimit())
+        .select("s.id")
+        .limit(1),
+      /cannot wrap a LeftJoin/,
+    );
+    rejects(
+      marked()
+        .rightJoin("scores as s", (join) =>
+          join.onRef("s.trace_id", "=", "e.trace_id"),
+        )
+        .select("s.id"),
+      /cannot wrap a RightJoin/,
+    );
+    rejects(marked().distinct().select("e.span_id"), /cannot wrap a DISTINCT/);
+    rejects(
+      marked().$call(includeDeleted()).select("e.span_id"),
+      /cannot mark the same select/,
+    );
   });
 });

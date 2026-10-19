@@ -1,5 +1,5 @@
 import { type ReactNode } from "react";
-import { Trash2 } from "lucide-react";
+import { Trash2 } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
@@ -73,7 +73,7 @@ export function CategoryEditorPopover({
                   aria-label="Delete category"
                   onClick={onDelete}
                 >
-                  <Trash2 className="icon-base mr-1.5" />
+                  <Trash2 size="base" __rawClassName="mr-1.5" />
                   Delete
                 </Button>
               </PopoverClose>

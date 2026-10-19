@@ -22,6 +22,7 @@ import type { ScoreFieldGroupV3 } from "../../features/scores/interfaces/api/v3/
 import { filterAndValidateV3GetScoreList } from "../../features/scores/interfaces/api/v3/validation";
 import {
   commandClickhouse,
+  type ClickhouseQueryOpts,
   queryClickhouse,
   queryClickhouseStream,
   queryClickhouseExecRaw,
@@ -75,12 +76,7 @@ import {
 } from "../queries/clickhouse-sql/query-fragments";
 import { compileClickhouseQuery } from "../query-ast/compile";
 import { getClickhouseKysely } from "../query-ast/dialect";
-import {
-  includeDeleted,
-  limitBy,
-  mapKeys,
-  useFinal,
-} from "../query-ast/extensions";
+import { limitBy, mapKeys, useFinal } from "../query-ast/extensions";
 import { scoresTableCols } from "../../tableDefinitions/scoresTable";
 import { promptGenerationEvents } from "./prompt-events";
 import {
@@ -424,8 +420,7 @@ export const getTraceScoresForDatasetRuns = async (
 
 const experimentItemEventsQuery = (experimentIds: string[]) =>
   getClickhouseKysely()
-    .selectFrom("events_core as e")
-    .$call(includeDeleted())
+    .selectFrom("events as e")
     .select(["e.project_id", "e.experiment_id", "e.trace_id"])
     .where("e.experiment_id", "in", experimentIds)
     .where("e.experiment_id", "!=", "");
@@ -2254,7 +2249,6 @@ const aggregatedScoresForPromptsFromEventsQuery = (
           "e.prompt_id as prompt_id",
           "e.trace_id as trace_id",
           "e.span_id as span_id",
-          "e.is_deleted as is_deleted",
         ],
         timeWindow,
       ),
@@ -2281,17 +2275,13 @@ const aggregatedScoresForPromptsFromEventsQuery = (
       "s.timestamp as timestamp",
       eb(eb.fn("length", [mapKeys("s.metadata")]), ">", 0).as("has_metadata"),
     ])
-    .where("e.is_deleted", "=", 0)
     .where("s.name", "is not", null)
     .where("s.data_type", "in", [...LISTABLE_SCORE_TYPES])
     .$if(fetchScoreRelation === "trace", (qb) =>
       qb
         .where("s.observation_id", "is", null)
         .where("s.trace_id", "in", (eb) =>
-          eb
-            .selectFrom("prompt_events")
-            .select("trace_id")
-            .where("is_deleted", "=", 0),
+          eb.selectFrom("prompt_events").select("trace_id"),
         ),
     )
     .$if(fetchScoreRelation === "observation", (qb) =>
@@ -2303,7 +2293,6 @@ const aggregatedScoresForPromptsFromEventsQuery = (
             "in",
             selectFrom("prompt_events")
               .select(["trace_id", "span_id"])
-              .where("is_deleted", "=", 0)
               .$asTuple("trace_id", "span_id"),
           ),
         ),
@@ -3532,6 +3521,7 @@ export async function listScoresV3ForPublicApi(
     cursor?: ScoresCursorV3Type;
     fields: ScoreFieldGroupV3[];
   } & ListFilterParams,
+  options?: Pick<ClickhouseQueryOpts, "clickhouseSettings">,
 ): Promise<{ data: APIScoreV3[]; cursor?: string }> {
   const { query: filterClause, params: filterParams } =
     buildDynamicFilters(params);
@@ -3558,6 +3548,7 @@ export async function listScoresV3ForPublicApi(
     ),
     params: input.params,
     tags: input.tags,
+    clickhouseSettings: options?.clickhouseSettings,
     preferredClickhouseService: "ReadOnly",
   });
 

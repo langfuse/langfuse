@@ -4,7 +4,7 @@ import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import React, { useMemo, useRef } from "react";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { useRouter } from "next/router";
-import { type LucideIcon, Plus } from "lucide-react";
+import { type IconComponent, Plus } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -909,7 +909,7 @@ export const MonitorForm = ({
                               size="sm"
                               className="gap-1"
                             >
-                              <Plus className="icon-base" />
+                              <Plus size="base" />
                               Add tag
                             </Button>
                           }
@@ -989,7 +989,7 @@ const Header = ({
 }: {
   title: string;
   step?: number;
-  icon?: LucideIcon;
+  icon?: IconComponent;
 }) => (
   <div className="bg-card sticky top-0 z-10">
     <h3 className="flex items-center gap-2 py-2 text-lg font-bold">
@@ -998,7 +998,7 @@ const Header = ({
           {step}
         </span>
       ) : null}
-      {Icon ? <Icon className="icon-lg" aria-hidden="true" /> : null}
+      {Icon ? <Icon size="lg" aria-hidden="true" /> : null}
       {title}
     </h3>
   </div>
@@ -1014,7 +1014,7 @@ const Section = ({
 }: {
   title: string;
   step?: number;
-  icon?: LucideIcon;
+  icon?: IconComponent;
   children: React.ReactNode;
   className?: string;
 }) => (

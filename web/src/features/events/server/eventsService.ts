@@ -26,6 +26,7 @@ import {
   EVENTS_APPROX_TOTAL_COUNT_MARKER,
   type EventBatchIOResult,
   type EventFilterOptionColumn,
+  type ClickhouseQueryOpts,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/server";
 type TimeFilter = z.infer<typeof timeFilter>;
@@ -632,6 +633,7 @@ export async function getEventFilterValuePage(
       | "promptName";
     limit: number;
     offset: number;
+    clickhouseSettings?: ClickhouseQueryOpts["clickhouseSettings"];
   },
 ) {
   const scopedParams = ensureStartTimeFilterForEventFilterOptions(params);
@@ -645,6 +647,7 @@ export async function getEventFilterValuePage(
     column,
     limit: queryLimit,
     offset,
+    clickhouseSettings: scopedParams.clickhouseSettings,
   });
 
   const values = rows.map((row) =>
@@ -668,13 +671,19 @@ export async function getEventFilterNumericRange(
       NumericEventsTableColumnId,
       "inputTokens" | "outputTokens" | "inputCost" | "outputCost"
     >;
+    clickhouseSettings?: ClickhouseQueryOpts["clickhouseSettings"];
   },
 ) {
   const scopedParams = ensureStartTimeFilterForEventFilterOptions(params);
   const { projectId, column } = scopedParams;
   const { eventsFilter } = getEventFilterOptionsScope(scopedParams);
 
-  return getEventsNumericStatsByFilterColumn(projectId, eventsFilter, column);
+  return getEventsNumericStatsByFilterColumn(
+    projectId,
+    eventsFilter,
+    column,
+    scopedParams.clickhouseSettings,
+  );
 }
 
 /**

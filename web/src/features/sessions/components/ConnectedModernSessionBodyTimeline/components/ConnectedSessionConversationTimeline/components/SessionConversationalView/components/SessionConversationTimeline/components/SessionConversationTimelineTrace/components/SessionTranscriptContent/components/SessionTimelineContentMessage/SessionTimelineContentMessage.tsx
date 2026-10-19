@@ -1,5 +1,11 @@
 import React, { useState } from "react";
-import { Bot, ChevronDown, UserRound, Wrench } from "lucide-react";
+import {
+  Bot,
+  ChevronDown,
+  UserRound,
+  Wrench,
+  type IconComponent,
+} from "@langfuse/icons";
 import {
   type NormalizedMessage,
   type ReasoningPart,
@@ -20,7 +26,7 @@ const rolePresentation = {
     label: "Assistant",
     icon: Bot,
     wrapper: "justify-start",
-    container: "bg-muted/50 max-w-[min(85%,48rem)] rounded-2xl px-4 py-2.5",
+    container: "max-w-[min(85%,48rem)] rounded-2xl px-4 py-2.5",
   },
   tool: {
     label: "Tool",
@@ -32,7 +38,7 @@ const rolePresentation = {
   Exclude<NormalizedMessage["role"], "system">,
   {
     label: string;
-    icon: React.ComponentType<{ className?: string }>;
+    icon: IconComponent;
     wrapper: string;
     container: string;
   }
@@ -45,7 +51,9 @@ export function SessionTimelineContentMessage({
   timestamp,
   onOpenObservation,
   expandRequestId,
+  variant = "session",
 }: {
+  variant?: "session" | "single-trace";
   role: Exclude<NormalizedMessage["role"], "system">;
   parts: NormalizedMessage["parts"];
   senderName: NormalizedMessage["senderName"];
@@ -139,12 +147,14 @@ export function SessionTimelineContentMessage({
               className={cn(
                 "group/bubble min-w-0 overflow-hidden",
                 presentation.container,
+                role === "assistant" &&
+                  (variant === "single-trace" ? "bg-muted" : "bg-muted/50"),
                 ((isJsonOnly && isJsonExpanded) || hasToolParts) && "w-full",
               )}
             >
               {showSender && groupIndex === firstContentGroupIndex ? (
                 <div className="text-foreground mb-1 flex min-w-0 items-center gap-1.5 font-mono text-[11px]">
-                  <Icon className="icon-sm shrink-0" />
+                  <Icon size="sm" />
                   <span
                     className="text-foreground truncate"
                     title={senderName ?? presentation.label}
@@ -168,8 +178,10 @@ export function SessionTimelineContentMessage({
                   }
                 >
                   <ChevronDown
-                    className={cn(
-                      "text-foreground-tertiary icon-sm shrink-0 translate-y-px transition-transform",
+                    size="sm"
+                    color="tertiary"
+                    __rawClassName={cn(
+                      "translate-y-px transition-transform",
                       !isJsonExpanded && "-rotate-90",
                     )}
                     aria-hidden="true"

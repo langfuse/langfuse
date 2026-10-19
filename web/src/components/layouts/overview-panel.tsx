@@ -1,9 +1,9 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
 "use client";
 
 import * as React from "react";
 import { useMediaQuery } from "react-responsive";
-import { PanelRightClose, PanelRightOpen } from "lucide-react";
+import { PanelRightClose, PanelRightOpen } from "@langfuse/icons";
 
 import { cn } from "@/src/utils/tailwind";
 import { Button } from "@/src/components/ui/button";
@@ -32,9 +32,9 @@ const OverviewPanelToggle = React.forwardRef<
     {...props}
   >
     {open ? (
-      <PanelRightClose className="icon-base text-icon-foreground" />
+      <PanelRightClose size="base" color="default" />
     ) : (
-      <PanelRightOpen className="icon-base text-icon-foreground" />
+      <PanelRightOpen size="base" color="default" />
     )}
   </Button>
 ));

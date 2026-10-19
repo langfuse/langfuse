@@ -81,7 +81,7 @@ export function DecisionModelQuestionSummary({
         <span className="text-muted-foreground shrink-0 font-mono text-xs">
           {index + 1}
         </span>
-        <copy.icon className="icon-base shrink-0" aria-label={copy.label} />
+        <copy.icon size="base" aria-label={copy.label} />
         <Badge variant="secondary" className="shrink-0 font-mono">
           {question.scoreName}
         </Badge>

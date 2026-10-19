@@ -229,10 +229,19 @@ export function mapValue<V = number>(
   map: Expression<Record<string, V>>,
   key: string | Expression<string>,
 ): ChExpression<V> {
+  return subscript(map, key, false);
+}
+
+function subscript<V>(
+  map: Expression<Record<string, V>>,
+  key: string | Expression<string>,
+  metadataLookup: boolean,
+): ChExpression<V> {
   return new ExpressionWrapper<ClickHouseDatabase, keyof ClickHouseDatabase, V>(
     ArrayIndexNode.create(
       map.toOperationNode(),
       typeof key === "string" ? ValueNode.create(key) : key.toOperationNode(),
+      metadataLookup,
     ) as unknown as OperationNode,
   );
 }
@@ -370,6 +379,14 @@ export function greatest<T>(...values: Expression<T>[]): ChExpression<T> {
 /** ClickHouse `concat(a, b, …)`. */
 export function concat(...values: Expression<string>[]): ChExpression<string> {
   return functionCall("concat", values);
+}
+
+/** ClickHouse `startsWith(haystack, prefix)`, with `prefix` bound. */
+export function startsWith(
+  haystack: Expression<string>,
+  prefix: string,
+): ChExpression<SqlBool> {
+  return functionCall("startsWith", [haystack, ValueNode.create(prefix)]);
 }
 
 /** ClickHouse `length(array)`. */
@@ -648,9 +665,10 @@ export function metadataValue(
     new ExpressionWrapper<ClickHouseDatabase, "events_core", string[]>(
       qualifiedColumn(tableAlias, name),
     );
-  return mapValue<string>(
+  return subscript<string>(
     metadataMap(column("metadata_names"), column("metadata_values")),
     key,
+    true,
   );
 }
 
@@ -782,18 +800,6 @@ export function useFinal(tables: ReadonlyArray<keyof ClickHouseDatabase>) {
   ): SelectQueryBuilder<DB, TB, O> => qb.withPlugin(new FinalPlugin(names));
 }
 
-/** Plugin that marks the select so the soft-delete pass leaves it unfiltered. */
-class IncludeDeletedPlugin implements KyselyPlugin {
-  transformQuery(args: PluginTransformQueryArgs): RootOperationNode {
-    if (args.node.kind !== "SelectQueryNode") return args.node;
-    return { ...args.node, includeDeleted: true } as RootOperationNode;
-  }
-
-  async transformResult(args: PluginTransformResultArgs) {
-    return args.result;
-  }
-}
-
 /**
  * Read soft-deleted rows too: `qb.$call(includeDeleted())`. Applies to this
  * select's FROM/JOIN relations only; nested selects are still filtered. A
@@ -802,5 +808,39 @@ class IncludeDeletedPlugin implements KyselyPlugin {
 export function includeDeleted() {
   return <DB, TB extends keyof DB, O>(
     qb: SelectQueryBuilder<DB, TB, O>,
-  ): SelectQueryBuilder<DB, TB, O> => qb.withPlugin(new IncludeDeletedPlugin());
+  ): SelectQueryBuilder<DB, TB, O> =>
+    qb.withPlugin(new SoftDeleteMarkerPlugin("includeDeleted"));
+}
+
+/**
+ * Drop soft-deleted rows after this select's ORDER BY / LIMIT / LIMIT BY
+ * instead of before: `qb.$call(softDeleteAfterLimit())`. For a latest-version
+ * pick, where a deletion is a newer version with the flag set; filtering
+ * first would return the older live version. Compiles to
+ * `select latest.<output>, … from (<this select, flag added>) as latest where
+ * latest.<flag> = 0`. The select reads exactly one soft-delete table, has a
+ * LIMIT or LIMIT BY, has no GROUP BY or set operation, names every output (no
+ * `*`, unaliased expressions), and does not select the flag itself.
+ */
+export function softDeleteAfterLimit() {
+  return <DB, TB extends keyof DB, O>(
+    qb: SelectQueryBuilder<DB, TB, O>,
+  ): SelectQueryBuilder<DB, TB, O> =>
+    qb.withPlugin(new SoftDeleteMarkerPlugin("softDeleteAfterLimit"));
+}
+
+/** Sets a soft-delete marker on the select; the soft-delete pass reads it. */
+class SoftDeleteMarkerPlugin implements KyselyPlugin {
+  constructor(
+    private readonly marker: "includeDeleted" | "softDeleteAfterLimit",
+  ) {}
+
+  transformQuery(args: PluginTransformQueryArgs): RootOperationNode {
+    if (args.node.kind !== "SelectQueryNode") return args.node;
+    return { ...args.node, [this.marker]: true } as RootOperationNode;
+  }
+
+  async transformResult(args: PluginTransformResultArgs) {
+    return args.result;
+  }
 }

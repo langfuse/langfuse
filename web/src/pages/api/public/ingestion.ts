@@ -30,6 +30,7 @@ import { env } from "@/src/env.mjs";
 import {
   attachDeprecation,
   INGESTION_DEPRECATION,
+  setDeprecationHeaders,
 } from "@/src/features/public-api/server/deprecations";
 import {
   SDK_NAME_ATTRIBUTE,
@@ -231,6 +232,7 @@ export default async function handler(
             ? INGESTION_DEPRECATION
             : undefined;
 
+        if (deprecation) setDeprecationHeaders(res, deprecation);
         return res.status(207).json(attachDeprecation(result, deprecation));
       } catch (error) {
         if (!(error instanceof BaseError && error.isUserError())) {

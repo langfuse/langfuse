@@ -136,7 +136,7 @@ function defineTable<const Cols extends Record<string, ChColumnType>>(spec: {
   /**
    * Column that marks a soft-deleted row. The soft-delete pass injects
    * `<column> = 0` on every read of this table unless the select opts out
-   * with `includeDeleted()`.
+   * with `includeDeleted()`, or after its LIMIT with `softDeleteAfterLimit()`.
    */
   softDelete?: keyof Cols & string;
 }) {
@@ -229,6 +229,23 @@ const EVENTS_COLUMNS = {
   ingestion_api_key: "String",
 } as const satisfies Record<string, ChColumnType>;
 
+/**
+ * Columns whose `events_core` copy differs from `events_full`:
+ * `events_core_mv` keeps the first 200 code points of `input`, `output`, and
+ * each `metadata_values` element, and `input_length` / `output_length` are
+ * materialized from the truncated copy. Any other read of them needs
+ * `events_full`. Must match the truncations in the latest `events_core_mv`
+ * definition (`clickhouse/migrations/canonical/0053_add_skill_observation_references.up.sql`);
+ * nothing checks this automatically.
+ */
+export const EVENTS_CORE_TRUNCATED_COLUMNS: ReadonlySet<string> = new Set([
+  "input",
+  "output",
+  "metadata_values",
+  "input_length",
+  "output_length",
+] satisfies ReadonlyArray<keyof typeof EVENTS_COLUMNS>);
+
 const TABLE_REGISTRY = {
   traces: defineTable({
     columns: {
@@ -258,6 +275,14 @@ const TABLE_REGISTRY = {
   // for the same reasons; selected when a point-read needs untruncated
   // input/output or metadata.
   events_full: defineTable({
+    columns: EVENTS_COLUMNS,
+    dedup: { strategy: "none" },
+    softDelete: "is_deleted",
+  }),
+  // Logical relation over events_core / events_full. The routing pass
+  // (`eventsRouting.ts`) replaces it with one of them before any other pass
+  // runs, so ClickHouse never sees this name.
+  events: defineTable({
     columns: EVENTS_COLUMNS,
     dedup: { strategy: "none" },
     softDelete: "is_deleted",
@@ -303,14 +328,18 @@ export type ClickHouseDatabase = {
 };
 
 /**
- * Declared ClickHouse type per column, per registry table. A servertest checks
- * it against `system.columns` of the migrated database.
+ * Declared ClickHouse type per column, per physical registry table. A
+ * servertest checks it against `system.columns` of the migrated database. The
+ * logical `events` relation has no table of its own; its columns are
+ * `events_core`'s and `events_full`'s.
  */
 export const TABLE_COLUMN_TYPES: Record<
   string,
   Record<string, ChColumnType>
 > = Object.fromEntries(
-  Object.entries(TABLE_REGISTRY).map(([table, spec]) => [table, spec.columns]),
+  Object.entries(TABLE_REGISTRY)
+    .filter(([table]) => table !== "events")
+    .map(([table, spec]) => [table, spec.columns]),
 );
 
 /**

@@ -1,5 +1,5 @@
 import { headerActionClassName } from "@/src/features/traces/components/headerActionClassName";
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 /* eslint-disable @repo/no-style-props, @repo/no-null-render */
 import { cn } from "@/src/utils/tailwind";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
@@ -47,7 +47,7 @@ import {
   MessageSquareOff,
   Plus,
   SquarePen,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
@@ -177,7 +177,7 @@ function SessionUsers({
               <span className="truncate" title={userBadgeText}>
                 {userBadgeText}
               </span>
-              <ExternalLinkIcon className="icon-sm ml-1" />
+              <ExternalLinkIcon size="sm" __rawClassName="ml-1" />
             </Badge>
           </Link>
         );
@@ -214,7 +214,7 @@ function SessionUsers({
                           <span className="truncate" title={userBadgeText}>
                             {userBadgeText}
                           </span>
-                          <ExternalLinkIcon className="icon-sm ml-1" />
+                          <ExternalLinkIcon size="sm" __rawClassName="ml-1" />
                         </Badge>
                       </Link>
                     );
@@ -402,9 +402,9 @@ const CopySessionIdButton: React.FC<{
         onClick={onCopy}
       >
         {isCopied ? (
-          <CheckIcon className="icon-base text-muted-green" />
+          <CheckIcon size="base" __rawClassName="text-muted-green" />
         ) : (
-          <CopyIcon className="icon-base text-icon-foreground" />
+          <CopyIcon size="base" color="default" />
         )}
         <span className="text-sm">Copy session ID</span>
       </Button>
@@ -420,9 +420,9 @@ const CopySessionIdButton: React.FC<{
       onClick={onCopy}
     >
       {isCopied ? (
-        <CheckIcon className="icon-sm text-muted-green" />
+        <CheckIcon size="sm" __rawClassName="text-muted-green" />
       ) : (
-        <CopyIcon className="icon-sm text-icon-foreground" />
+        <CopyIcon size="sm" color="default" />
       )}
     </Button>
   );
@@ -639,7 +639,7 @@ export const SessionPage: React.FC<{
                   onClick={onDownloadSessionAsJson}
                   title="Download session as JSON"
                 >
-                  <Download className="icon-base text-icon-foreground" />
+                  <Download size="base" color="default" />
                 </Button>
                 {!router.query.peek && (
                   <DetailPageNav
@@ -671,10 +671,10 @@ export const SessionPage: React.FC<{
                       className="gap-1"
                     >
                       {disabled ? (
-                        <MessageSquareOff className="icon-base text-muted-foreground" />
+                        <MessageSquareOff size="base" color="muted" />
                       ) : (
                         <>
-                          <MessageSquare className="icon-base text-icon-foreground" />
+                          <MessageSquare size="base" color="default" />
                           <span>
                             {getNumberFromMap(
                               sessionCommentCounts.data,
@@ -725,9 +725,17 @@ export const SessionPage: React.FC<{
                         }
                       >
                         {disabled ? (
-                          <LockIcon className="icon-base text-icon-foreground mr-1.5" />
+                          <LockIcon
+                            size="base"
+                            color="default"
+                            __rawClassName="mr-1.5"
+                          />
                         ) : (
-                          <SquarePen className="icon-base text-icon-foreground mr-1.5" />
+                          <SquarePen
+                            size="base"
+                            color="default"
+                            __rawClassName="mr-1.5"
+                          />
                         )}
                         <span>Annotate</span>
                       </Button>
@@ -744,7 +752,7 @@ export const SessionPage: React.FC<{
                         className="gap-1.5"
                         {...getTriggerProps()}
                       >
-                        <Plus className="icon-base text-icon-foreground" />
+                        <Plus size="base" color="default" />
                         <span>Add to</span>
                         {totalCount > 0 && (
                           <ActionButtonCountBadge count={totalCount} />
@@ -803,9 +811,9 @@ export const SessionPage: React.FC<{
                       className="w-full justify-start gap-2 font-normal"
                     >
                       {disabled ? (
-                        <MessageSquareOff className="icon-base text-muted-foreground" />
+                        <MessageSquareOff size="base" color="muted" />
                       ) : (
-                        <MessageSquare className="icon-base text-icon-foreground" />
+                        <MessageSquare size="base" color="default" />
                       )}
                       <span className="text-sm">
                         {getNumberFromMap(sessionCommentCounts.data, sessionId)
@@ -849,9 +857,9 @@ export const SessionPage: React.FC<{
                   }}
                 >
                   {annotateDisabled ? (
-                    <LockIcon className="icon-base text-icon-foreground" />
+                    <LockIcon size="base" color="default" />
                   ) : (
-                    <SquarePen className="icon-base text-icon-foreground" />
+                    <SquarePen size="base" color="default" />
                   )}
                   <span className="text-sm">Annotate</span>
                 </Button>
@@ -869,7 +877,7 @@ export const SessionPage: React.FC<{
                         disabled={disabled !== undefined}
                         className="w-full justify-start gap-2 font-normal"
                       >
-                        <Plus className="icon-base text-icon-foreground" />
+                        <Plus size="base" color="default" />
                         <span className="text-sm">Add to</span>
                         {totalCount > 0 && (
                           <AnnotationQueueItemCountBadge
@@ -890,7 +898,7 @@ export const SessionPage: React.FC<{
                   onClick={onDownloadSessionAsJson}
                   className="w-full justify-start gap-2 font-normal"
                 >
-                  <Download className="icon-base text-icon-foreground" />
+                  <Download size="base" color="default" />
                   <span className="text-sm">Download JSON</span>
                 </Button>
                 <label className="hover:bg-accent flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5">
@@ -1794,10 +1802,7 @@ const LoadedSessionEventsPage: React.FC<{
                       className={headerActionClassName}
                       {...getTriggerProps()}
                     >
-                      <Plus
-                        className="icon-base text-icon-foreground"
-                        aria-hidden="true"
-                      />
+                      <Plus size="base" color="default" aria-hidden="true" />
                       Add to
                       {totalCount > 0 && (
                         <ActionButtonCountBadge count={totalCount} />
@@ -1830,9 +1835,9 @@ const LoadedSessionEventsPage: React.FC<{
                       }
                     >
                       {disabled ? (
-                        <LockIcon className="icon-base text-icon-foreground" />
+                        <LockIcon size="base" color="default" />
                       ) : (
-                        <SquarePen className="icon-base text-icon-foreground" />
+                        <SquarePen size="base" color="default" />
                       )}
                       Annotate
                       {isModernSessionEnabled && annotationCount > 0 ? (
@@ -1862,9 +1867,9 @@ const LoadedSessionEventsPage: React.FC<{
                       }
                     >
                       {disabled ? (
-                        <MessageSquareOff className="icon-base text-icon-foreground" />
+                        <MessageSquareOff size="base" color="default" />
                       ) : (
-                        <MessageSquare className="icon-base text-icon-foreground" />
+                        <MessageSquare size="base" color="default" />
                       )}
                       {getNumberFromMap(sessionCommentCounts.data, sessionId)
                         ? "Comments"
@@ -1953,9 +1958,9 @@ const LoadedSessionEventsPage: React.FC<{
                         label={commentCount ? "Comments" : "Comment"}
                         icon={
                           disabled ? (
-                            <MessageSquareOff className="icon-base" />
+                            <MessageSquareOff size="base" />
                           ) : (
-                            <MessageSquare className="icon-base" />
+                            <MessageSquare size="base" />
                           )
                         }
                         badge={
@@ -1980,9 +1985,9 @@ const LoadedSessionEventsPage: React.FC<{
                   label="Score"
                   icon={
                     annotateDisabled ? (
-                      <LockIcon className="icon-base" />
+                      <LockIcon size="base" />
                     ) : (
-                      <Plus className="icon-base" />
+                      <Plus size="base" />
                     )
                   }
                   badge={
@@ -2016,7 +2021,7 @@ const LoadedSessionEventsPage: React.FC<{
                   {({ getTriggerProps, totalCount }) => (
                     <HeaderActionMenuRow
                       label="Add to"
-                      icon={<Plus className="icon-base" />}
+                      icon={<Plus size="base" />}
                       badge={
                         totalCount > 0 ? (
                           <ActionButtonCountBadge count={totalCount} />

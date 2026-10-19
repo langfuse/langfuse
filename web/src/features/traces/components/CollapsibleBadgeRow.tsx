@@ -10,7 +10,7 @@
  */
 
 import { useState } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import { useIsMobile } from "@/src/hooks/use-mobile";
@@ -61,9 +61,9 @@ export function CollapsibleBadgeRow({
         onClick={() => setExpanded((prev) => !prev)}
       >
         {expanded ? (
-          <ChevronUp className="icon-sm text-icon-foreground" />
+          <ChevronUp size="sm" color="default" />
         ) : (
-          <ChevronDown className="icon-sm text-icon-foreground" />
+          <ChevronDown size="sm" color="default" />
         )}
       </Button>
     </div>

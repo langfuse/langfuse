@@ -7,7 +7,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useSupportDrawer } from "@/src/features/support-chat";
 import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
-import { AlertTriangle, Check, Copy, X } from "lucide-react";
+import { AlertTriangle, Check, Copy, X } from "@langfuse/icons";
 import { useRef } from "react";
 
 interface ErrorNotificationProps {
@@ -66,7 +66,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
     <div ref={captureShown} className="flex justify-between">
       <div className="flex min-w-[300px] flex-1 flex-col gap-2">
         <div className="flex items-center gap-2">
-          <AlertTriangle className={`icon-lg ${textColor}`} />
+          <AlertTriangle size="lg" __rawClassName={`${textColor}`} />
           <div className={`m-0 text-sm leading-tight font-bold ${textColor}`}>
             {error}
           </div>
@@ -97,11 +97,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
               aria-label="Copy error ID"
               title="Copy error ID"
             >
-              {isCopied ? (
-                <Check className="icon-base" />
-              ) : (
-                <Copy className="icon-base" />
-              )}
+              {isCopied ? <Check size="base" /> : <Copy size="base" />}
             </button>
           </div>
         )}
@@ -147,7 +143,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
         }}
         aria-label="Close"
       >
-        <X className="icon-base" />
+        <X size="base" />
       </button>
     </div>
   );

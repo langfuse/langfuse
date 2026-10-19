@@ -1,5 +1,6 @@
+/* eslint-disable @repo/component-file-structure */
 import React, { useEffect, useImperativeHandle, useRef, useState } from "react";
-import { ExternalLink, Plus } from "lucide-react";
+import { ExternalLink, Plus } from "@langfuse/icons";
 import { ScoreDataTypeEnum, type ScoreConfigDataType } from "@langfuse/shared";
 import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -95,7 +96,7 @@ const getEmptySelectedConfigIdsStorageKey = (scoreTarget: ScoreTarget) => {
 };
 
 export function AnnotationFormContent({
-  targets,
+  targets: suppliedTargets,
   actionButtons,
   isActive = true,
   refreshRef,
@@ -106,19 +107,46 @@ export function AnnotationFormContent({
   refreshRef?: React.Ref<AnnotationRefreshHandle>;
 }) {
   const capture = usePostHogClientCapture();
-  const primaryTarget = targets[0]!;
-  const { scoreMetadata, analyticsData } = primaryTarget;
-  const allowManualSelection = targets.some(
+  const [initialTargets] = useState(() => suppliedTargets);
+  const allowManualSelection = suppliedTargets.some(
     (target) => target.configControl.allowManualSelection,
   );
-  const initialFormData = targets
-    .flatMap((target) =>
-      target.initialFormData.map((field) => ({
-        ...field,
-        targetKey: target.key,
-      })),
-    )
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const targets = allowManualSelection
+    ? suppliedTargets
+    : initialTargets.map((initialTarget) => {
+        const liveTarget = suppliedTargets.find(
+          (target) => target.key === initialTarget.key,
+        );
+        const liveConfigs = new Map(
+          liveTarget?.configControl.configs.map((config) => [
+            config.id,
+            config,
+          ]),
+        );
+        return {
+          ...initialTarget,
+          configControl: {
+            ...initialTarget.configControl,
+            // Keep this item's fields and order, but accept definition updates
+            // such as a category added while annotating. Removed queue fields
+            // retain their definition until the item is reopened.
+            configs: initialTarget.configControl.configs.map(
+              (config) => liveConfigs.get(config.id) ?? config,
+            ),
+          },
+        };
+      });
+  const primaryTarget = targets[0]!;
+  const { scoreMetadata, analyticsData } = primaryTarget;
+  const initialFormData = targets.flatMap((target) =>
+    target.initialFormData.map((field) => ({
+      ...field,
+      targetKey: target.key,
+    })),
+  );
+  if (allowManualSelection) {
+    initialFormData.sort((a, b) => a.name.localeCompare(b.name));
+  }
   const form = useForm<AnnotateFormSchemaType>({
     resolver: zodResolver(AnnotateFormSchema),
     defaultValues: { scoreData: initialFormData },
@@ -169,6 +197,7 @@ export function AnnotationFormContent({
           transformToAnnotationScores(scores, target.configControl.configs),
           target.configControl.configs,
           selected,
+          target.configControl.allowManualSelection ? "name" : "selected",
         ).map((field) => ({ ...field, targetKey: target.key }));
       });
       actions.reconcileServerFields(refreshed);
@@ -323,7 +352,8 @@ export function AnnotationFormContent({
                           {...getTriggerProps()}
                         >
                           <Plus
-                            className="icon-base text-icon-foreground"
+                            size="base"
+                            color="default"
                             aria-hidden="true"
                           />
                           Add score
@@ -351,7 +381,7 @@ export function AnnotationFormContent({
             {description}
           </p>
         ) : null}
-        <div className="grid grid-flow-row gap-2.5">
+        <div className="grid grid-flow-row gap-4">
           {fields.map((field, index) => {
             const target = targetFor(field);
             const config = configFor(field);
@@ -476,6 +506,7 @@ export function usePreparedAnnotationFormTarget<Target extends ScoreTarget>({
     annotationScores,
     availableConfigs,
     selectedConfigIds,
+    configSelection.mode === "fixed" ? "selected" : "name",
   );
 
   return {

@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, ExternalLink, MoreHorizontal } from "lucide-react";
+import { Copy, ExternalLink, MoreHorizontal } from "@langfuse/icons";
 
 import {
   DropdownMenu,
@@ -43,7 +43,7 @@ function getOpenSessionItem({
   }
   if (!telemetryProjectId) {
     return unavailable(
-      "Assistant telemetry is not recorded for this organization or instance.",
+      "Halo telemetry is not recorded for this organization or instance.",
     );
   }
   return {
@@ -112,7 +112,7 @@ export function InAppAgentInternalSessionMenu({
           aria-label="Internal session actions"
           {...getTriggerProps()}
         >
-          <MoreHorizontal className="icon-base text-icon-foreground" />
+          <MoreHorizontal size="base" color="default" />
         </Button>
       )}
     </DropdownMenu>

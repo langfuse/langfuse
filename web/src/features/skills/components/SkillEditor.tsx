@@ -6,6 +6,7 @@ import {
   useState,
 } from "react";
 import { useMediaQuery } from "react-responsive";
+import dynamic from "next/dynamic";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { MAX_SKILL_FILES } from "@langfuse/shared";
 import { useStore } from "zustand";
@@ -17,7 +18,7 @@ import {
   RotateCcw,
   Save,
   Terminal,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
@@ -61,12 +62,19 @@ import {
 import { SkillVersionHistory } from "@/src/features/skills/components/SkillVersionHistory";
 import { SkillFileView } from "@/src/features/skills/components/SkillFileView";
 import { useSkillFileContents } from "@/src/features/skills/hooks/useSkillFileContents";
+import { useLangfuseV4WriteMode } from "@/src/features/organizations/hooks";
 import {
   parseSkillFrontmatterMetadata,
   SKILL_NAME_RULES,
 } from "@/src/features/skills/utils/parseSkillFrontmatterMetadata";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
+
+const SkillAnalytics = dynamic(() =>
+  import("@/src/features/skills/components/SkillAnalytics").then(
+    (module) => module.SkillAnalytics,
+  ),
+);
 
 export function SkillEditor({
   projectId,
@@ -84,7 +92,12 @@ export function SkillEditor({
   canCreate: boolean;
   view:
     | { kind: "draft"; onDiscard: () => Promise<void> }
-    | { kind: "version"; hasDraft: boolean; onEdit: () => Promise<void> };
+    | {
+        kind: "version";
+        skillId: string;
+        hasDraft: boolean;
+        onEdit: () => Promise<void>;
+      };
   onCreated: (created: { name: string; version: number }) => Promise<void>;
   history:
     | { kind: "new" }
@@ -174,12 +187,18 @@ export function SkillEditor({
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const isDraft = view.kind === "draft";
+  const v4WriteMode = useLangfuseV4WriteMode();
+  const canReadMetrics = v4WriteMode !== null && v4WriteMode !== "legacy";
   const [selectedTab, setSelectedTab] = useQueryParam(
     "tab",
     withDefault(StringParam, "files"),
   );
   const activeTab =
-    !isDraft && selectedTab === "linked-traces" ? "linked-traces" : "files";
+    !isDraft &&
+    (selectedTab === "linked-traces" ||
+      (selectedTab === "metrics" && canReadMetrics))
+      ? selectedTab
+      : "files";
   const canEditFiles = isDraft && canCreate && !isSaving;
   const isDesktop = useMediaQuery({ query: "(min-width: 768px)" });
   const [treeState, setTreeState] = useState<SkillFileExplorerState>(() => ({
@@ -391,9 +410,13 @@ export function SkillEditor({
           aria-label={`Download version ${baseVersion}`}
         >
           {isDownloading ? (
-            <Loader2 className="icon-base text-icon-foreground mr-1.5 animate-spin" />
+            <Loader2
+              size="base"
+              color="default"
+              __rawClassName="mr-1.5 animate-spin"
+            />
           ) : (
-            <Download className="icon-base text-icon-foreground mr-1.5" />
+            <Download size="base" color="default" __rawClassName="mr-1.5" />
           )}
           Download
         </Button>
@@ -418,7 +441,7 @@ export function SkillEditor({
               className="text-dark-yellow flex shrink-0 items-center"
               {...getTriggerProps()}
             >
-              <TriangleAlert className="icon-base" />
+              <TriangleAlert size="base" />
             </button>
           )}
         </Tooltip>
@@ -445,7 +468,7 @@ export function SkillEditor({
             if (view.kind === "version") await view.onEdit();
           }}
         >
-          <Pencil className="icon-base mr-1.5" />
+          <Pencil size="base" __rawClassName="mr-1.5" />
           {view.kind === "version" && view.hasDraft ? "Resume draft" : "Edit"}
         </Button>
       ) : (
@@ -477,7 +500,7 @@ export function SkillEditor({
             }
             title={createButtonTitle}
           >
-            <Save className="icon-base mr-1.5" />
+            <Save size="base" __rawClassName="mr-1.5" />
             Publish
           </Button>
         </>
@@ -662,11 +685,27 @@ export function SkillEditor({
                     <Tabs.List variant="underline">
                       <Tabs.Trigger value="files" label="Files" />
                       <Tabs.Trigger
+                        value="metrics"
+                        label="Metrics"
+                        disabled={isDraft || !canReadMetrics}
+                      />
+                      <Tabs.Trigger
                         value="linked-traces"
-                        label="Traces"
+                        label="Observations"
                         disabled={isDraft}
                       />
                     </Tabs.List>
+                    {canReadMetrics &&
+                    view.kind === "version" &&
+                    baseVersion !== null ? (
+                      <Tabs.Content value="metrics" layout="fill">
+                        <SkillAnalytics
+                          projectId={projectId}
+                          skillId={view.skillId}
+                          paths={Object.keys(store.getState().files).toSorted()}
+                        />
+                      </Tabs.Content>
+                    ) : null}
                     {!isDraft && baseVersion !== null ? (
                       <Tabs.Content value="linked-traces" layout="fill">
                         <SkillLinkedTraces
@@ -808,7 +847,7 @@ function SkillFileEditor({
     if (content === undefined) {
       return (
         <div role="status" className="flex items-center gap-2 text-sm">
-          <Loader2 className="icon-base animate-spin" /> Loading file…
+          <Loader2 size="base" __rawClassName="animate-spin" /> Loading file…
         </div>
       );
     }

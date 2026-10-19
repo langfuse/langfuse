@@ -1,4 +1,3 @@
-import { useSession } from "next-auth/react";
 import type { TopicTimeRange } from "@langfuse/shared/topics";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { cn } from "@/src/utils/tailwind";
@@ -6,9 +5,6 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { getQueryKey } from "@trpc/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { api, type RouterOutputs } from "@/src/utils/api";
-import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
-import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
-import { SummaryInspector } from "./SummaryInspector";
 import { isValidTopicTimeRange } from "./time-range";
 import { CurrentTopicsView } from "./CurrentTopicsView";
 import type { useTopicTraceFilters } from "./useTopicTraceFilters";
@@ -68,7 +64,6 @@ function CurrentFacet({
   onGenerateTopics,
   canGenerateTopics,
 }: CurrentFacetProps) {
-  const { data: session } = useSession();
   const mapResult = useCurrentTopicMap(projectId, facet.map?.runId, timeRange);
   const peekNavigation = usePeekNavigation({
     tableName: "topics-traces",
@@ -77,40 +72,17 @@ function CurrentFacet({
   });
   const peekView = { itemType: "TRACE" as const, ...peekNavigation };
   return (
-    <DialogController<SummarySource>
-      renderDialog={({ state }) => (
-        <Dialog title="Summary source" size="lg" closeOnInteractionOutside>
-          <Dialog.Body>
-            <div className="ph-no-capture flex flex-col gap-4">
-              <p className="text-muted-foreground">
-                View the current trace transcript for this summary.
-              </p>
-              <SummaryInspector
-                projectId={projectId}
-                facetId={facet.facetId}
-                {...state}
-              />
-            </div>
-          </Dialog.Body>
-        </Dialog>
-      )}
-    >
-      {({ openDialog }) => (
-        <CurrentTopicsView
-          projectId={projectId}
-          facet={facet}
-          mapResult={mapResult}
-          tracePanelRef={tracePanelRef}
-          traceFilters={traceFilters}
-          onGenerateTopics={onGenerateTopics}
-          canGenerateTopics={canGenerateTopics}
-          onOpenTrace={peekNavigation.openPeek}
-          canInspectTranscript={session?.user?.admin === true}
-          onInspectTranscript={openDialog}
-          peekView={peekView}
-        />
-      )}
-    </DialogController>
+    <CurrentTopicsView
+      projectId={projectId}
+      facet={facet}
+      mapResult={mapResult}
+      tracePanelRef={tracePanelRef}
+      traceFilters={traceFilters}
+      onGenerateTopics={onGenerateTopics}
+      canGenerateTopics={canGenerateTopics}
+      onOpenTrace={peekNavigation.openPeek}
+      peekView={peekView}
+    />
   );
 }
 
@@ -188,9 +160,5 @@ type CurrentFacetProps = {
 };
 
 type Facet = RouterOutputs["topics"]["currentResults"]["facets"][number];
-type SummarySource = Pick<
-  Facet["rows"][number],
-  "traceId" | "facetVersion" | "unitStartTime"
->;
 
 export const __test = { useCurrentTopics };

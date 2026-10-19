@@ -18,14 +18,12 @@ import {
   useContext,
   type ReactNode,
 } from "react";
-import { PanelRightOpen } from "lucide-react";
+import { PanelRightOpen } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { TraceReviewLayout } from "./TraceReviewLayout";
-import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
-import { useReadPath } from "@/src/features/events";
 import { resolveEffectiveWidthFraction } from "@/src/components/table/peek/store/peekPanelStore";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 
@@ -266,7 +264,6 @@ function TraceNavigationDetailLayout({
     pendingPanelExpand: pendingExpand,
     setPendingPanelExpand: setPendingExpand,
     openDetails,
-    selectedTab,
   } = useSelection();
   const isNavigationPanelCollapsed =
     navigationPanelCollapsed ??
@@ -487,15 +484,6 @@ function TraceNavigationDetailLayout({
     openDetails();
   };
 
-  const internalFeaturesEnabled = useInternalFeaturesEnabled();
-  const { isV4 } = useReadPath();
-  const showMessages =
-    selectedTab === "messages" && internalFeaturesEnabled && isV4;
-  useEffect(() => {
-    if (!showMessages || reviewOpen) return;
-    panelRef.current?.collapse();
-  }, [showMessages, reviewOpen, panelRef]);
-
   // Apply the caller's first-use default. A restored layout always wins.
   useEffect(() => {
     if (
@@ -692,7 +680,7 @@ TraceLayoutDesktop.DetailPanel = function Detail({
             onClick={expandDetailPanel}
             className="h-7 w-7 shrink-0"
           >
-            <PanelRightOpen className="icon-base text-icon-foreground" />
+            <PanelRightOpen size="base" color="default" />
           </Button>
         </div>
       )}

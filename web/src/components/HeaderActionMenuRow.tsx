@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import * as React from "react";
 
 import { type DropdownMenuItemDefinition } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
@@ -65,10 +66,8 @@ export function HeaderActionMenuRows({
             icon={
               Icon && (
                 <Icon
-                  className={cn(
-                    "icon-base",
-                    item.variant !== "destructive" && "text-icon-foreground",
-                  )}
+                  size="base"
+                  color={item.variant !== "destructive" ? "default" : "inherit"}
                 />
               )
             }

@@ -1,4 +1,4 @@
-import { Globe, Link, Share2 } from "lucide-react";
+import { Globe, Link, Share2 } from "@langfuse/icons";
 
 import { type DropdownMenuItemDefinition } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import {

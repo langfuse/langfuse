@@ -1,5 +1,5 @@
 import { api } from "@/src/utils/api";
-import { MoreHorizontal, X } from "lucide-react";
+import { MoreHorizontal, X } from "@langfuse/icons";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { Button } from "@/src/components/ui/button";
 import { MultiSelectCombobox } from "@/src/components/ui/multi-select-combobox";
@@ -127,7 +127,7 @@ export const UserAssignmentSection = ({
                 className="hover:bg-muted-foreground/20 h-4 w-4 p-0"
                 onClick={onRemove}
               >
-                <X className="icon-base text-icon-foreground" />
+                <X size="base" color="default" />
               </Button>
             </div>
           );
@@ -201,7 +201,7 @@ export const UserAssignmentSection = ({
                           }
                           onClick={() => handleUserRemove(user.id)}
                         >
-                          <X className="icon-base text-icon-foreground" />
+                          <X size="base" color="default" />
                         </Button>
                       </div>
                       {(index <
@@ -215,7 +215,7 @@ export const UserAssignmentSection = ({
               )}
               {hasMoreAssignedUsers && (
                 <div className="text-muted-foreground flex items-center gap-3 px-3 py-2">
-                  <MoreHorizontal className="icon-base" />
+                  <MoreHorizontal size="base" />
                   <div className="min-w-0 flex-1">
                     <p className="text-xs italic">
                       {queueAssignmentsQuery.data.totalCount -

@@ -22,6 +22,7 @@ vi.mock("../queries/clickhouse-sql/query-options", () => ({
 import {
   clickhouseFormatAvailable,
   formatSql,
+  layoutSql,
   normalizeParams,
 } from "./goldenHarness";
 import {
@@ -51,7 +52,11 @@ function snapshotCapturedQuery() {
     query: string;
     params: Record<string, unknown>;
   };
-  return normalizeParams(formatSql(query), params);
+  const { sql, params: normalizedParams } = normalizeParams(
+    formatSql(query),
+    params,
+  );
+  return { sql: layoutSql(sql), params: normalizedParams };
 }
 
 describeWithClickhouse("golden: scores.getScoresForExperimentItems", () => {

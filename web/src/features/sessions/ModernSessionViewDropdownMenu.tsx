@@ -1,5 +1,5 @@
 import { type TableViewPresetState } from "@langfuse/shared";
-import { Check, Filter, Settings2 } from "lucide-react";
+import { Check, Filter, Settings2 } from "@langfuse/icons";
 
 import { SESSION_DETAIL_SYSTEM_PRESETS } from "@/src/features/sessions/session-detail-presets";
 import {

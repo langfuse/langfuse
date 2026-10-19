@@ -1,4 +1,3 @@
-import { SiAnthropic, SiOpenai } from "react-icons/si";
 import Link from "next/link";
 import { useMemo } from "react";
 
@@ -12,9 +11,9 @@ import {
   type PaginationBarProps,
 } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
+import { providerIcons } from "@/src/features/ai-gateway/constants/providerIcons";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
 import type { ApiFormat } from "@/src/features/ai-gateway/components/GatewayModelsPage/fns/aggregateModels";
-import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
 import { buildGatewayModelsUrl } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayModelsUrl";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import type { GatewayModelRow } from "../../fns/filterGatewayModels";
@@ -102,7 +101,7 @@ function ProviderBadge({
   const ProviderIcon = providerIcons[model.provider];
   const content = (
     <>
-      <ProviderIcon aria-hidden className="icon-sm shrink-0" />
+      <ProviderIcon aria-hidden size="sm" />
       <span className="truncate py-0.5" title={model.connectionName}>
         {model.connectionName}
       </span>
@@ -125,11 +124,6 @@ function ProviderBadge({
     </BadgeShell>
   );
 }
-
-const providerIcons = {
-  OPENAI: SiOpenai,
-  ANTHROPIC: SiAnthropic,
-} satisfies Record<GatewayProvider, typeof SiOpenai>;
 
 const apiFormatLabels = {
   "Anthropic Messages": "Messages",

@@ -29,7 +29,9 @@ Use their technical rules, not their implementation or handoff workflows.
   as a linear sequence of named calls. Extract dense branches, even if that adds lines.
 - Group components, hooks, and helpers under `features/<feature>/`, not top-level
   folders grouped by kind.
-- Return results instead of mutating inputs.
+- Return results instead of mutating inputs by default. In Rust, allow mutation
+  of clearly owned state and explicit `&mut` output buffers or accumulators when
+  it keeps the API clear or avoids unnecessary allocations and copies.
 - Inject dependencies through constructors. Call ordinary helpers directly.
 - Reuse and extend existing functionality. Keep solutions simple. When flagging
   complexity, show a simpler alternative that meets the same requirements.

@@ -63,6 +63,7 @@ export function topicProviderError(
       record.name === "AI_NoOutputGeneratedError" ||
       record.name === "AI_TypeValidationError" ||
       record.name === "AI_JSONParseError" ||
+      record.name === "SyntaxError" ||
       record.name === "ZodError"
     )
       reason = "invalid_output";

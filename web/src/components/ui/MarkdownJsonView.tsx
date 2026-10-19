@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
 import {
   OpenAIContentParts,
   OpenAIContentSchema,
@@ -8,7 +8,7 @@ import { Button } from "@/src/components/ui/button";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import { type MediaReturnType } from "@/src/features/media";
-import { Check, Copy } from "lucide-react";
+import { Check, Copy } from "@langfuse/icons";
 import { useMemo, useState } from "react";
 import { type z } from "zod";
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
@@ -76,9 +76,9 @@ export function MarkdownJsonViewHeader({
             className="text-muted-foreground hover:text-foreground hover:bg-transparent"
           >
             {isCopied ? (
-              <Check className="icon-base text-icon-foreground" />
+              <Check size="base" color="default" />
             ) : (
-              <Copy className="icon-base text-icon-foreground" />
+              <Copy size="base" color="default" />
             )}
           </Button>
         )}

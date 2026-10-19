@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 import {
   Select,
   SelectContent,
@@ -51,7 +51,7 @@ import { DetailPageNav } from "@/src/features/navigate-detail-pages";
 import { useEvalConfigMappingData } from "@/src/features/evals/hooks/useEvalConfigMappingData";
 import { useEffect, useState } from "react";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { AlertCircle, ExternalLink } from "lucide-react";
+import { AlertCircle, ExternalLink } from "@langfuse/icons";
 import { useVariableMappingSync } from "@/src/features/evals/hooks/useVariableMappingSync";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
@@ -232,7 +232,11 @@ export const VariableMappingCard = ({
                 rel="noopener noreferrer"
               >
                 Edit prompt
-                <ExternalLink className="icon-base text-icon-foreground ml-1" />
+                <ExternalLink
+                  size="base"
+                  color="default"
+                  __rawClassName="ml-1"
+                />
               </Link>
             </Button>
           ) : (
@@ -243,7 +247,7 @@ export const VariableMappingCard = ({
               title="Only user-managed templates can be edited"
             >
               Edit prompt
-              <ExternalLink className="icon-base text-icon-foreground ml-1" />
+              <ExternalLink size="base" color="default" __rawClassName="ml-1" />
             </Button>
           )}
         </div>

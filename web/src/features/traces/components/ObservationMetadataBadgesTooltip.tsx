@@ -1,6 +1,7 @@
+/* eslint-disable @repo/component-file-structure */
 /** Cost and token metrics for the trace, observation and session headers; breakdowns open on hover. */
 
-import { TriangleAlert } from "lucide-react";
+import { TriangleAlert } from "@langfuse/icons";
 
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";

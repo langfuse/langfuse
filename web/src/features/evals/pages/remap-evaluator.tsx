@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 import { useState, useMemo } from "react";
 import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/page";
@@ -16,7 +16,7 @@ import { Callout } from "@/src/components/design-system/Callout/Callout";
 import { DismissController } from "@/src/components/DismissController";
 import { Separator } from "@/src/components/ui/separator";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
-import { BotMessageSquare, Check, ChevronDown, Zap } from "lucide-react";
+import { BotMessageSquare, Check, ChevronDown, Zap } from "@langfuse/icons";
 import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
 import {
   useIsInAppAgentLauncherVisible,
@@ -184,7 +184,7 @@ export default function RemapEvaluatorPage() {
                     ? [
                         {
                           type: "button" as const,
-                          label: "Use Assistant to help with upgrade",
+                          label: "Use Halo to help with upgrade",
                           icon: BotMessageSquare,
                           onClick: handleUseAssistant,
                         },
@@ -195,7 +195,7 @@ export default function RemapEvaluatorPage() {
                 onDismiss={onDismiss}
               >
                 <div className="flex items-start gap-2">
-                  <Zap className="icon-base mt-0.5 shrink-0" />
+                  <Zap size="base" __rawClassName="mt-0.5" />
                   <span>
                     <span className="font-bold">
                       This evaluator needs an upgrade for Langfuse v4.
@@ -348,7 +348,7 @@ export default function RemapEvaluatorPage() {
                               className="mt-3 rounded-l-none rounded-r-md border-l-2"
                               {...getTriggerProps()}
                             >
-                              <ChevronDown className="icon-base" />
+                              <ChevronDown size="base" />
                             </Button>
                           )}
                         </DropdownMenu>

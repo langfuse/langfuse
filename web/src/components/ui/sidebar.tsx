@@ -1,11 +1,11 @@
-/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements */
+/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements, @repo/component-file-structure */
 "use client";
 
 import * as React from "react";
 import { useRouter } from "next/router";
 import { Slot } from "@radix-ui/react-slot";
 import { type VariantProps, cva } from "class-variance-authority";
-import { Menu, PanelLeft } from "lucide-react";
+import { Menu, PanelLeft } from "@langfuse/icons";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { cn } from "@/src/utils/tailwind";
@@ -316,8 +316,8 @@ const SidebarTrigger = React.forwardRef<
     >
       {/* Hamburger below `md` (opens the sheet); panel-collapse glyph on
           desktop (toggles the docked sidebar). */}
-      <Menu className="icon-lg text-icon-foreground md:hidden" />
-      <PanelLeft className="icon-base text-icon-foreground hidden md:block" />
+      <Menu size="lg" color="default" __rawClassName="md:hidden" />
+      <PanelLeft size="base" color="default" __rawClassName="hidden md:block" />
       <span className="sr-only">Toggle Sidebar</span>
     </Button>
   );

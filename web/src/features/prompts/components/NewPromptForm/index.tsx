@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import capitalize from "lodash/capitalize";
 import router from "next/router";
 import { useState, useEffect, useMemo, useRef } from "react";
@@ -36,7 +37,7 @@ import {
 } from "./validation";
 import { Input } from "@/src/components/ui/input";
 import Link from "next/link";
-import { SquareArrowOutUpRight } from "lucide-react";
+import { SquareArrowOutUpRight } from "@langfuse/icons";
 import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { PromptLinkingEditor } from "@/src/components/editor/PromptLinkingEditor";
@@ -265,7 +266,10 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                             className="flex flex-row items-center"
                           >
                             Create a new version for it here.
-                            <SquareArrowOutUpRight className="icon-sm ml-1" />
+                            <SquareArrowOutUpRight
+                              size="sm"
+                              __rawClassName="ml-1"
+                            />
                           </Link>
                         ) : null}
                       </div>

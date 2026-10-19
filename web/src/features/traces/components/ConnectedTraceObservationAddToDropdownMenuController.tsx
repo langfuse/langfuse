@@ -1,5 +1,5 @@
 import { AnnotationQueueObjectType, type Prisma } from "@langfuse/shared";
-import { Database, PlusIcon, Terminal } from "lucide-react";
+import { Database, PlusIcon, Terminal } from "@langfuse/icons";
 import { type ComponentProps, type ReactNode, useMemo } from "react";
 
 import {

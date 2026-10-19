@@ -6,7 +6,7 @@ import { type TranscriptMessageGroup } from "@/src/features/sessions/components/
 import { getSessionTranscriptRows } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/getSessionTranscriptRows";
 import { getSessionTranscriptThreads } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/getSessionTranscriptThreads";
 import { SessionTimelineToolRow } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTranscriptContent/components/SessionTimelineToolRow/SessionTimelineToolRow";
-import { Wrench } from "lucide-react";
+import { Wrench } from "@langfuse/icons";
 import { getSessionToolOutputPreview } from "./components/SessionTimelineToolRow/getSessionToolOutputPreview";
 import { type NormalizedMessage } from "@langfuse/shared/src/utils/normalized-io";
 import { type SessionTraceTranscriptState } from "@/src/features/sessions/hooks/useSessionTraceTranscripts";
@@ -25,21 +25,31 @@ export function SessionTranscriptContent({
   onOpenObservation,
   scrollTarget,
   threadIndex: selectedThreadIndex,
+  variant,
+  includeNestedThreads = false,
 }: {
+  includeNestedThreads?: boolean;
+  variant?: ComponentProps<typeof SessionTimelineContentMessage>["variant"];
   threadIndex?: number;
   result: Extract<SessionTraceTranscriptState, { state: "loaded" }>;
-  onOpenObservation: (observationId: string) => void;
+  onOpenObservation?: (observationId: string) => void;
   scrollTarget: {
     observationId: string;
     rowId?: string;
     requestId: number;
   } | null;
 }) {
-  const rows = getSessionTranscriptRows(result.transcript).filter(
+  const rows = getSessionTranscriptRows(
+    result.transcript,
+    includeNestedThreads,
+  ).filter(
     ({ threadIndex }) =>
       selectedThreadIndex === undefined || threadIndex === selectedThreadIndex,
   );
-  const { visibleThreads } = getSessionTranscriptThreads(result.transcript);
+  const { visibleThreads } = getSessionTranscriptThreads(
+    result.transcript,
+    includeNestedThreads,
+  );
   return (
     <div className="ph-no-capture space-y-4">
       {rows.length === 0 && (
@@ -59,6 +69,7 @@ export function SessionTranscriptContent({
               </h3>
             )}
             <SessionTranscriptThread
+              variant={variant}
               rows={rows.filter((row) => row.threadIndex === threadIndex)}
               onOpenObservation={onOpenObservation}
               scrollTarget={scrollTarget}
@@ -80,11 +91,13 @@ type DisplayMessage = NormalizedMessage & {
 
 function SessionTranscriptThread({
   rows,
+  variant,
   onOpenObservation,
   scrollTarget,
 }: {
   rows: ReturnType<typeof getSessionTranscriptRows>;
-  onOpenObservation: (observationId: string) => void;
+  variant?: ComponentProps<typeof SessionTimelineContentMessage>["variant"];
+  onOpenObservation?: (observationId: string) => void;
   scrollTarget: {
     observationId: string;
     rowId?: string;
@@ -131,6 +144,7 @@ function SessionTranscriptThread({
     >
       {group.type === "tools" ? (
         <SessionTranscriptToolGroup
+          variant={variant}
           summary={group.summary}
           title={group.title}
           rows={group.rows}
@@ -139,6 +153,7 @@ function SessionTranscriptThread({
         />
       ) : (
         <SessionTranscriptRow
+          variant={variant}
           item={group.row}
           onOpenObservation={onOpenObservation}
           scrollTarget={scrollTarget}
@@ -150,6 +165,7 @@ function SessionTranscriptThread({
 
 function SessionTranscriptRow({
   item,
+  variant,
   onOpenObservation,
   scrollTarget,
 }: {
@@ -169,7 +185,7 @@ function SessionTranscriptRow({
   const metadata = (isTool || isSystem) &&
     (timing || row.message.observationId) && (
       <div className="text-muted-foreground flex items-center gap-3 font-mono text-xs opacity-0 group-hover/collapsible-row:opacity-100 group-has-[:focus-visible]/collapsible-row:opacity-100 group-data-[expanded=true]/collapsible-row:opacity-100">
-        {row.message.observationId && (
+        {row.message.observationId && onOpenObservation && (
           <button
             type="button"
             className="hover:text-foreground hover:underline"
@@ -207,6 +223,7 @@ function SessionTranscriptRow({
         <SessionTranscriptTool row={row} trailingContent={metadata} />
       ) : (
         <SessionTranscriptMessage
+          variant={variant}
           expandRequestId={scrollRequestId}
           message={row.message}
           trailingContent={isSystem ? metadata : null}
@@ -280,7 +297,7 @@ function SessionTranscriptToolGroup({
       labelTitle={title}
       showHoverDivider={false}
       labelActionName={`${isOpen ? "Hide" : "Show"} tools: ${title}`}
-      icon={<Wrench className="icon-base text-observation-tool shrink-0" />}
+      icon={<Wrench size="base" __rawClassName="text-observation-tool" />}
       isExpanded={isOpen}
       onExpandedChange={(isExpanded) =>
         setExpansion({
@@ -397,13 +414,15 @@ function SessionTranscriptTool({
 
 function SessionTranscriptMessage({
   message,
+  variant,
   trailingContent,
   onOpenObservation,
   expandRequestId,
 }: {
   message: DisplayMessage;
+  variant?: ComponentProps<typeof SessionTimelineContentMessage>["variant"];
   trailingContent: ReactNode;
-  onOpenObservation: (observationId: string) => void;
+  onOpenObservation?: (observationId: string) => void;
   expandRequestId?: number;
 }) {
   if (message.role === "system") {
@@ -417,13 +436,14 @@ function SessionTranscriptMessage({
   }
   return (
     <SessionTimelineContentMessage
+      variant={variant}
       expandRequestId={expandRequestId}
       role={message.role}
       parts={message.parts}
       senderName={message.senderName}
       timestamp={message.timing?.startTime ?? null}
       onOpenObservation={
-        message.observationId
+        message.observationId && onOpenObservation
           ? () => onOpenObservation(message.observationId!)
           : undefined
       }

@@ -8,7 +8,7 @@ import {
   Plus,
   Terminal,
   Trash,
-} from "lucide-react";
+} from "@langfuse/icons";
 import {
   NumberParam,
   ObjectParam,
@@ -45,7 +45,7 @@ import {
 } from "@/src/features/search-bar";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { InternalFeatureBadge } from "@/src/features/feature-flags";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
@@ -89,7 +89,7 @@ export function SkillsPage() {
         <Page
           headerProps={{
             title: "Skills",
-            titleBadges: <InternalFeatureBadge />,
+            titleBadges: <Badge text="Beta" color="blue" size="sm" />,
             help: {
               description:
                 "Create, version, and distribute reusable agent skills from one place.",
@@ -149,6 +149,11 @@ function SkillsHeaderActions({
 
   return (
     <div className="flex max-w-full flex-wrap items-center gap-2">
+      <DesignSystemButton
+        text="API reference"
+        variant="ghost"
+        href="https://api.reference.langfuse.com/#tag/unstableskills"
+      />
       <DesignSystemButton
         text="Install with CLI"
         icon={Terminal}
@@ -464,14 +469,14 @@ function NewSkillButton({
   if (!canCreate) {
     return (
       <Button disabled title="You do not have write access">
-        <Plus className="icon-base mr-1.5" /> New skill
+        <Plus size="base" __rawClassName="mr-1.5" /> New skill
       </Button>
     );
   }
   return (
     <Button asChild>
       <Link href={href} onClick={onOpen}>
-        <Plus className="icon-base mr-1.5" /> New skill
+        <Plus size="base" __rawClassName="mr-1.5" /> New skill
       </Link>
     </Button>
   );

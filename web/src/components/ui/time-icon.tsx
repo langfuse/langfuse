@@ -1,5 +1,6 @@
+/* eslint-disable @repo/component-file-structure */
 import * as React from "react";
-import { Clock, Moon, Sun } from "lucide-react";
+import { Clock, Moon, Sun } from "@langfuse/icons";
 import { type Period } from "@/src/components/ui/time-picker-utils";
 
 const isNoon = (date: Date) =>
@@ -10,18 +11,18 @@ const isMidnight = (date: Date) =>
 
 const getIconForPeriod = (period: Period) => {
   const icons = {
-    PM: <Sun className="icon-lg" />,
-    AM: <Moon className="icon-lg" />,
+    PM: <Sun size="lg" />,
+    AM: <Moon size="lg" />,
   };
 
-  return icons[period] || <Clock className="icon-lg" />;
+  return icons[period] || <Clock size="lg" />;
 };
 
 export const TimeIcon: React.FC<{ time: Date | Period }> = ({ time }) => {
   if (time instanceof Date) {
-    if (isNoon(time)) return <Sun className="icon-lg" />;
-    if (isMidnight(time)) return <Moon className="icon-lg" />;
-    return <Clock className="icon-lg" />;
+    if (isNoon(time)) return <Sun size="lg" />;
+    if (isMidnight(time)) return <Moon size="lg" />;
+    return <Clock size="lg" />;
   }
 
   return getIconForPeriod(time);

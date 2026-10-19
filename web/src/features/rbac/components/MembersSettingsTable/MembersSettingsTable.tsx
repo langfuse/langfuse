@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-import { Trash } from "lucide-react";
+import { Trash } from "@langfuse/icons";
 import { type Role } from "@langfuse/shared";
 
 import { type TableProps } from "@/src/components/design-system/table/Table";
@@ -16,7 +16,7 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { RoleSelect } from "@/src/features/rbac/components/RoleSelect";
 import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
 import type { FeaturePreviewFlag } from "@/src/features/feature-flags";
-import { UserFeaturePreviewsControl } from "@/src/features/feature-flags/components/UserFeaturePreviewsPopover";
+import { UserFeaturePreviewsControl } from "@/src/features/feature-flags/components/UserFeaturePreviewsControl";
 import type { RouterOutput } from "@/src/utils/types";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import Link from "next/link";

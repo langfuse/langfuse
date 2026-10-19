@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 /* eslint-disable @repo/no-style-props, @repo/no-null-render */
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import { type ReactNode, useEffect, useRef, useState } from "react";
@@ -10,7 +10,7 @@ import {
   ChevronRight,
   Copy,
   Info,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { env } from "@/src/env.mjs";
 import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
@@ -188,7 +188,11 @@ function Section({
         </span>
         <span className="flex-1" />
         {meta && <span className="text-muted-foreground text-xs">{meta}</span>}
-        <ChevronRight className="text-foreground-tertiary icon-base shrink-0 transition-transform group-data-[state=open]:rotate-90" />
+        <ChevronRight
+          size="base"
+          color="tertiary"
+          __rawClassName="transition-transform group-data-[state=open]:rotate-90"
+        />
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className="pt-0.5 pb-4 pl-4.25">{children}</div>
@@ -330,9 +334,9 @@ function CodeBlockWithCopy({
         className="text-muted-foreground absolute top-1 right-1 h-6 w-6"
       >
         {copied ? (
-          <Check className="icon-base text-icon-foreground" />
+          <Check size="base" color="default" />
         ) : (
-          <Copy className="icon-base text-icon-foreground" />
+          <Copy size="base" color="default" />
         )}
       </Button>
     </div>
@@ -784,8 +788,12 @@ export function V4MigrationEvalsSection({
             <Button variant="outline" size="sm" onClick={assistant.onMigrate}>
               {assistant.aiFeaturesEnabled !== false ? (
                 <>
-                  <BotMessageSquare className="icon-base text-icon-foreground mr-1.5" />
-                  Use Assistant
+                  <BotMessageSquare
+                    size="base"
+                    color="default"
+                    __rawClassName="mr-1.5"
+                  />
+                  Use Halo
                 </>
               ) : (
                 "Update evals"
@@ -1369,7 +1377,7 @@ export function V4MigrationHeaderContent({
             href={LANGFUSE_ASSISTANT_URL}
             analytics={{ section: "header", link: "langfuse_assistant_docs" }}
           >
-            Langfuse Assistant
+            Langfuse Halo
           </ExternalLink>
           .
           {actionNeeded
@@ -1480,7 +1488,7 @@ export function V4MigrationAgentUpgradeSection({
       </div>
       <div className="flex flex-col gap-2">
         <RainbowButton className="w-full" onClick={handleCopyPrompt}>
-          <Copy className="icon-base mr-1.5 shrink-0" />
+          <Copy size="base" __rawClassName="mr-1.5" />
           <span className="min-w-0 truncate" title="Copy prompt">
             Copy prompt
           </span>
@@ -1790,7 +1798,7 @@ export function V4MigrationDetailsContent({
                       className="shrink-0"
                       {...getTriggerProps()}
                     >
-                      <Info className="icon-base" />
+                      <Info size="base" />
                     </button>
                   )}
                 </HoverCard>

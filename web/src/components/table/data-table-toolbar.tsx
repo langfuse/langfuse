@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
 import React, {
   type Dispatch,
   type ReactNode,
@@ -70,7 +70,7 @@ import {
   SheetTrigger,
 } from "@/src/components/ui/sheet";
 import { Button } from "@/src/components/ui/button";
-import { Filter, X } from "lucide-react";
+import { Filter, X } from "@langfuse/icons";
 import { useMediaQuery } from "react-responsive";
 import {
   SearchBarDraftCacheContext,
@@ -644,7 +644,7 @@ export function DataTableToolbar<TData, TValue>({
                       size="sm"
                       className="flex h-8 items-center gap-2 text-sm md:hidden"
                     >
-                      <Filter className="icon-base text-icon-foreground" />
+                      <Filter size="base" color="default" />
                       <span>Filters</span>
                       {filterState.length > 0 && (
                         <span className="bg-input ml-1 rounded-sm px-1.5 text-xs shadow-xs">
@@ -673,7 +673,7 @@ export function DataTableToolbar<TData, TValue>({
                           emitLegacyMobileFiltersToggled(false, "header");
                         }}
                       >
-                        <X className="icon-base text-icon-foreground" />
+                        <X size="base" color="default" />
                       </Button>
                     </div>
                     <div className="shrink-0 border-b px-2 py-2">

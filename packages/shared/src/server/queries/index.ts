@@ -21,9 +21,9 @@ export {
   encodeBooleanScoreEntry,
   filtersRequireEventsFull,
   metadataFilterCanPruneEventsFull,
-  metadataFilterIsEventsCoreSafe,
   type ClickhouseOperator,
 } from "./clickhouse-sql/clickhouse-filter";
+export { metadataFilterIsEventsCoreSafe } from "./clickhouse-sql/events-core-truncation";
 export {
   orderByToClickhouseSql,
   orderByToEntries,

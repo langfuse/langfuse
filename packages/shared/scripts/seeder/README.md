@@ -59,6 +59,21 @@ Common flags: `--project` (defaults to the seeded example project),
 `--environment`, `--seed`, `--id-prefix`, `--dry-run` (instant, arithmetic
 counts, writes nothing), `--json` (machine mode: pure-JSON stdout).
 
+For queue setup testing, use `annotation-queue --setup-demo --core-items 4`.
+It seeds Answer quality and Safety review queues with different, nonalphabetical
+score config orders and a shared Feedback config, plus a Start here queue with
+four pending items and intentionally empty `scoreConfigIds`. This empty queue is
+a test fixture; the application still requires a config when saving. The demo
+uses separate queue names and adds `-setup` to the ID prefix, preserving the
+default keyboard QA fixtures. It includes observation, session, and completed
+examples but skips the missing-object item.
+
+Add `--score-config-count 60` to seed a larger, varied project catalog. With
+`--setup-demo`, Answer quality selects 35 fields and Safety review selects 34,
+using different subsets and orders; Start here stays unconfigured. The default
+is nine configs, and the supported range is 9–500. Use a fresh project and
+`--id-prefix` for an independent fixture: queue names are reused within a project.
+
 Scenarios compose: e.g. a session where one trace has zero observations is
 two `long-session` runs sharing a `--session-id` with different
 `--id-prefix` values.

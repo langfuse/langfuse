@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
 "use client";
 
 import * as React from "react";
@@ -7,7 +7,7 @@ import {
   ChevronRight,
   ChevronUp,
   ChevronDown,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { DayPicker, UI, SelectionState, DayFlag } from "react-day-picker";
 
 import { cn } from "@/src/utils/tailwind";
@@ -90,7 +90,7 @@ const Chevron = ({
   orientation?: keyof typeof chevronIcons;
 }) => {
   const Icon = chevronIcons[orientation];
-  return <Icon className="icon-base" />;
+  return <Icon size="base" />;
 };
 
 export { Calendar };

@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import { Card } from "@/src/components/ui/card";
@@ -8,7 +8,7 @@ import React from "react";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { deepParseJson, type FilterState } from "@langfuse/shared";
 import { SessionObservationIO } from "@/src/features/sessions/SessionObservationIO";
-import { FilterX } from "lucide-react";
+import { FilterX } from "@langfuse/icons";
 import { SESSION_DETAIL_VIEW_TRIGGER_ID } from "@/src/features/sessions/session-detail-presets";
 import { SessionTraceActionButtons } from "@/src/features/sessions/SessionTraceActionButtons";
 import {
@@ -154,7 +154,7 @@ const openSessionViewMenu = () => {
 const ViewMismatchNotice = ({ viewLabel }: { viewLabel: string | null }) => (
   <div className="flex flex-col items-start gap-1.5 rounded-md border border-dashed border-amber-500/50 bg-amber-500/5 p-3">
     <div className="flex items-center gap-2 text-xs font-bold text-amber-700 dark:text-amber-500">
-      <FilterX className="icon-base shrink-0" />
+      <FilterX size="base" />
       {viewLabel
         ? `No observation matches the "${viewLabel}" view in this trace`
         : "No observation matches the current filter in this trace"}

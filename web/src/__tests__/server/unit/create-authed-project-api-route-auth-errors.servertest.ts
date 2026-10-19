@@ -236,7 +236,6 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
       replacementEndpoint: "GET /api/public/v2/observations",
       documentationUrl:
         "https://langfuse.com/docs/api-and-data-platform/features/observations-api",
-      _deprecation: deprecation,
     });
     expect(mockRateLimitRequest).toHaveBeenCalledOnce();
     expect(mockRecordIncrement).toHaveBeenCalledWith(
@@ -320,11 +319,20 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     const res = await callRoute({ deprecation });
 
     expect(res.statusCode).toBe(200);
-    expect(res._getJSONData()).toEqual({
-      ok: true,
-      _deprecation: deprecation,
-    });
+    expect(res._getJSONData()).toEqual({ ok: true });
     expect(mockFindOrganization).not.toHaveBeenCalled();
+  });
+
+  it("exposes the route deprecation for withMiddlewares", () => {
+    const handler = createAuthedProjectAPIRoute({
+      name: "Test Route",
+      action: "project:read",
+      responseSchema: z.object({ ok: z.literal(true) }),
+      deprecation,
+      fn: async () => ({ ok: true as const }),
+    });
+
+    expect(handler.deprecation).toBe(deprecation);
   });
 
   it("does not apply the organization cutoff outside Langfuse Cloud", async () => {

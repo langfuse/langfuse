@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 "use client";
 
 import * as React from "react";

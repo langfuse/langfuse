@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { Button } from "@/src/components/ui/button";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { api } from "@/src/utils/api";
@@ -11,7 +12,7 @@ import {
   getEvaluatorBlockMetadata,
   getEvaluatorBlockResolutionPath,
 } from "@langfuse/shared";
-import { AlertTriangle, ExternalLinkIcon, RefreshCcw } from "lucide-react";
+import { AlertTriangle, ExternalLinkIcon, RefreshCcw } from "@langfuse/icons";
 import Link from "next/link";
 import { Fragment } from "react";
 
@@ -100,7 +101,7 @@ export function EvaluatorPausedCallout({
       className="border-light-yellow bg-light-yellow rounded-lg border"
     >
       <div className="flex gap-3 p-4">
-        <AlertTriangle className="text-dark-yellow icon-base mt-0.5 shrink-0" />
+        <AlertTriangle size="base" __rawClassName="text-dark-yellow mt-0.5" />
 
         <div className="min-w-0 flex-1">
           <h3 className="text-foreground text-base font-bold">
@@ -132,7 +133,11 @@ export function EvaluatorPausedCallout({
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <ExternalLinkIcon className="icon-base text-icon-foreground mr-1.5" />
+                <ExternalLinkIcon
+                  size="base"
+                  color="default"
+                  __rawClassName="mr-1.5"
+                />
                 {resolutionActionLabel}
               </Link>
             </Button>
@@ -153,7 +158,11 @@ export function EvaluatorPausedCallout({
                 }
                 className="h-8 px-3"
               >
-                <RefreshCcw className="icon-base text-icon-foreground mr-1.5" />
+                <RefreshCcw
+                  size="base"
+                  color="default"
+                  __rawClassName="mr-1.5"
+                />
                 Reactivate
               </Button>
             ) : null}

@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 import { useHasProjectAccess } from "@/src/features/rbac";
 import * as React from "react";
 import { EvalTemplateForm } from "@/src/features/evals/components/template-form";
@@ -20,7 +20,7 @@ import {
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { DeleteEvalTemplateDialog } from "@/src/features/evals/components/delete-eval-template-dialog";
 import { IconOnlyButton } from "@/src/components/IconOnlyButton";
-import { TrashIcon } from "lucide-react";
+import { TrashIcon } from "@langfuse/icons";
 
 export const EvalTemplateDetail = () => {
   const router = useRouter();
@@ -111,9 +111,7 @@ export const EvalTemplateDetail = () => {
             {template.data?.projectId ? (
               <>
                 <IconOnlyButton
-                  icon={
-                    <TrashIcon className="icon-base text-icon-foreground" />
-                  }
+                  icon={<TrashIcon size="base" color="default" />}
                   label="Delete"
                   aria-label="delete"
                   variant="outline"

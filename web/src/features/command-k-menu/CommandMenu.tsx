@@ -24,8 +24,8 @@ import {
   Settings,
   Sun,
   Zap,
-  type LucideIcon,
-} from "lucide-react";
+  type IconComponent,
+} from "@langfuse/icons";
 import { useTheme } from "next-themes";
 import { keepPreviousData } from "@tanstack/react-query";
 import { Fragment, useEffect, memo, useState } from "react";
@@ -111,7 +111,7 @@ const ENTITY_GROUPS: Record<
     heading: string;
     navHref: string;
     scope: ProjectScope;
-    icon: LucideIcon;
+    icon: IconComponent;
     keywords: string[];
     /** Path segment after the page URL that identifies one item. */
     pathKey: "id" | "name";
@@ -154,7 +154,7 @@ const ENTITY_GROUPS: Record<
   },
 };
 
-const RECENT_ICON_BY_TYPE: Record<string, LucideIcon> = {
+const RECENT_ICON_BY_TYPE: Record<string, IconComponent> = {
   create_action: Plus,
   dashboard: LayoutDashboard,
   prompt: FileJson,
@@ -240,7 +240,7 @@ function RecentGroup({
   onNavigate,
 }: {
   recents: RecentEntry[];
-  iconByUrl: Map<string, LucideIcon | undefined>;
+  iconByUrl: Map<string, IconComponent | undefined>;
   onNavigate: (entry: RecentEntry) => void;
 }) {
   if (recents.length === 0) return null;
@@ -269,7 +269,7 @@ function RecentItem({
   onNavigate,
 }: {
   entry: RecentEntry;
-  icon: LucideIcon | undefined;
+  icon: IconComponent | undefined;
   onNavigate: (entry: RecentEntry) => void;
 }) {
   const router = useRouter();
@@ -283,7 +283,7 @@ function RecentItem({
 
   return (
     <CommandItem value={`recent:${entry.url}`} onSelect={handleSelect}>
-      {Icon && <Icon className="icon-base" />}
+      {Icon && <Icon size="base" />}
       {entry.title}
     </CommandItem>
   );
@@ -319,7 +319,7 @@ function CreateActionItem({
       keywords={action.keywords}
       onSelect={handleSelect}
     >
-      <Plus className="icon-base" />
+      <Plus size="base" />
       {action.title}
     </CommandItem>
   );
@@ -343,7 +343,7 @@ function AssistantItem({ onDone }: { onDone: () => void }) {
       keywords={["assistant", "ai", "agent", "chat", "new chat", "ask"]}
       onSelect={handleSelect}
     >
-      <BotMessageSquare className="icon-base" />
+      <BotMessageSquare size="base" />
       Ask Assistant
       <CommandShortcut keys={["Mod", "I"]} variant="subtle" />
     </CommandItem>
@@ -371,7 +371,7 @@ function ThemeItem({ onDone }: { onDone: () => void }) {
       keywords={["theme", "dark", "light", "mode", "appearance"]}
       onSelect={handleSelect}
     >
-      <Icon className="icon-base" />
+      <Icon size="base" />
       Switch to {nextTheme} theme
     </CommandItem>
   );
@@ -474,7 +474,7 @@ function MainNavigationItem({
       keywords={[item.title, ...(item.keywords ?? [])]}
       onSelect={handleSelect}
     >
-      {item.icon && <item.icon className="icon-base" />}
+      {item.icon && <item.icon size="base" />}
       {item.title}
     </CommandItem>
   );
@@ -515,7 +515,7 @@ function ProjectsGroup({
               });
             }}
           >
-            <Grid2X2 className="icon-base" />
+            <Grid2X2 size="base" />
             {item.title}
           </CommandItem>
         ))}
@@ -578,7 +578,7 @@ function DashboardsGroup({
               onNavigate({ title: dashboard.name, url, type: "dashboard" });
             }}
           >
-            <LayoutDashboard className="icon-base" />
+            <LayoutDashboard size="base" />
             {dashboard.name}
           </CommandItem>
         ))}
@@ -636,7 +636,7 @@ function EntityItem({
       keywords={[...keywords, item.name.toLowerCase()]}
       onSelect={handleSelect}
     >
-      <Icon className="icon-base" />
+      <Icon size="base" />
       {item.name}
     </CommandItem>
   );
@@ -651,7 +651,7 @@ function IdNavigationGroup({
 }: {
   heading: string;
   item: IdNavigationItem;
-  icon: LucideIcon;
+  icon: IconComponent;
   search: string;
   onNavigate: () => void;
 }) {
@@ -667,7 +667,7 @@ function IdNavigationGroup({
   return (
     <CommandGroup heading={heading}>
       <CommandItem value={`${item.title} ${search}`} onSelect={handleSelect}>
-        <Icon className="icon-base" />
+        <Icon size="base" />
         {item.title}
       </CommandItem>
     </CommandGroup>
@@ -717,7 +717,7 @@ function ProjectSettingsGroup({
               });
             }}
           >
-            <Settings className="icon-base" />
+            <Settings size="base" />
             {item.title}
           </CommandItem>
         ))}
@@ -769,7 +769,7 @@ function OrganizationSettingsGroup({
               });
             }}
           >
-            <Settings className="icon-base" />
+            <Settings size="base" />
             {item.title}
           </CommandItem>
         ))}
@@ -820,7 +820,7 @@ function AccountSettingsGroup({
               });
             }}
           >
-            <Settings className="icon-base" />
+            <Settings size="base" />
             {item.title}
           </CommandItem>
         ))}
@@ -1400,7 +1400,7 @@ type CreateActions = {
 type NavMenuItem = {
   title: string;
   url: string;
-  icon?: LucideIcon;
+  icon?: IconComponent;
   keywords?: string[];
 };
 

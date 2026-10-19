@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
@@ -16,7 +17,7 @@ import { StringMapEditor } from "./StringMapEditor";
 import { MatchedModelCard } from "./MatchedModelCard";
 import { MatchedTierCard } from "./MatchedTierCard";
 import { NoMatchDisplay } from "./NoMatchDisplay";
-import { CheckCircle, SquareArrowOutUpRight } from "lucide-react";
+import { CheckCircle, SquareArrowOutUpRight } from "@langfuse/icons";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 type TestModelMatchDialogProps = {
@@ -199,7 +200,10 @@ export function TestModelMatchDialogContent({
                     (data.matched ? (
                       <>
                         <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-2.5 dark:border-green-900 dark:bg-green-950">
-                          <CheckCircle className="icon-base text-green-600 dark:text-green-400" />
+                          <CheckCircle
+                            size="base"
+                            __rawClassName="text-green-600 dark:text-green-400"
+                          />
                           <span className="text-sm font-bold text-green-900 dark:text-green-100">
                             Match Found
                           </span>
@@ -223,7 +227,11 @@ export function TestModelMatchDialogContent({
                     target="_blank"
                   >
                     View Model Details
-                    <SquareArrowOutUpRight className="icon-base text-icon-foreground ml-2" />
+                    <SquareArrowOutUpRight
+                      size="base"
+                      color="default"
+                      __rawClassName="ml-2"
+                    />
                   </Link>
                 </Button>
               </div>

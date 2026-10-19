@@ -11,7 +11,7 @@ import {
   Loader2,
   ThumbsDown,
   ThumbsUp,
-} from "lucide-react";
+} from "@langfuse/icons";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { Streamdown } from "streamdown";
@@ -316,9 +316,9 @@ function TextMessageWithActions({
         onClick={handleCopy}
       >
         {isCopied ? (
-          <Check className={isCompact ? "icon-sm" : "icon-base"} />
+          <Check __rawClassName={isCompact ? "icon-sm" : "icon-base"} />
         ) : (
-          <Copy className={isCompact ? "icon-sm" : "icon-base"} />
+          <Copy __rawClassName={isCompact ? "icon-sm" : "icon-base"} />
         )}
       </button>
       {canSubmitFeedback ? (
@@ -433,8 +433,10 @@ function InAppAgentReasoningBlock({
           {content.isStreaming ? "Thinking" : "Thought"}
         </span>
         <ChevronDown
-          className={cn(
-            "text-foreground-tertiary icon-base shrink-0 translate-y-px transition-transform",
+          size="base"
+          color="tertiary"
+          __rawClassName={cn(
+            "translate-y-px transition-transform",
             !isOpen && "-rotate-90",
           )}
         />
@@ -444,7 +446,7 @@ function InAppAgentReasoningBlock({
         // the drawer's auto-follow keeps the newest text visible while
         // streaming, and the block collapses when streaming ends.
         <div
-          aria-label="Assistant reasoning"
+          aria-label="Halo reasoning"
           data-testid="in-app-agent-reasoning-content"
           className={cn(
             // Vertical spacing is margin, not padding, so the left border
@@ -576,10 +578,8 @@ function MessageFeedbackControls({
           }}
         >
           <ThumbsUp
-            className={cn(
-              isCompact ? "icon-sm" : "icon-base",
-              selectedValue === "thumbs_up" && "text-foreground",
-            )}
+            color={selectedValue === "thumbs_up" ? "foreground" : "inherit"}
+            __rawClassName={cn(isCompact ? "icon-sm" : "icon-base")}
           />
         </FeedbackButton>
       </PopoverAnchor>
@@ -592,10 +592,8 @@ function MessageFeedbackControls({
         }}
       >
         <ThumbsDown
-          className={cn(
-            isCompact ? "icon-sm" : "icon-base",
-            selectedValue === "thumbs_down" && "text-foreground",
-          )}
+          color={selectedValue === "thumbs_down" ? "foreground" : "inherit"}
+          __rawClassName={cn(isCompact ? "icon-sm" : "icon-base")}
         />
       </FeedbackButton>
       {committedComment ? (
@@ -665,7 +663,7 @@ function SourcesPopover({
             isCompact && "py-0.5",
           )}
         >
-          <BookOpenText className={isCompact ? "icon-sm" : "icon-base"} />
+          <BookOpenText __rawClassName={isCompact ? "icon-sm" : "icon-base"} />
           Sources
         </button>
       </PopoverTrigger>
@@ -764,7 +762,7 @@ function RedirectActionButton({
       }}
     >
       {content.label}
-      <ArrowRight className="icon-base text-icon-foreground ml-1" />
+      <ArrowRight size="base" color="default" __rawClassName="ml-1" />
     </Button>
   );
 }
@@ -838,18 +836,18 @@ function ToolCallStatusIcon({
   status: InAppAgentToolCallContent["status"];
 }) {
   if (status === "running") {
-    return <Loader2 className="icon-base shrink-0 animate-spin" />;
+    return <Loader2 size="base" __rawClassName="animate-spin" />;
   }
 
   if (status === "succeeded") {
-    return <Check className="text-dark-green icon-base shrink-0" />;
+    return <Check size="base" __rawClassName="text-dark-green" />;
   }
 
   if (status === "failed") {
-    return <CircleX className="text-destructive icon-base shrink-0" />;
+    return <CircleX size="base" color="destructive" />;
   }
 
-  return <Ban className="text-dark-yellow icon-base shrink-0" />;
+  return <Ban size="base" __rawClassName="text-dark-yellow" />;
 }
 
 function MessageText({
@@ -1122,11 +1120,7 @@ function CodeBlock({ children }: { children: ReactNode }) {
           codeCopyVisibilityClass,
         )}
       >
-        {isCopied ? (
-          <Check className="icon-base" />
-        ) : (
-          <Copy className="icon-base" />
-        )}
+        {isCopied ? <Check size="base" /> : <Copy size="base" />}
       </button>
       {children}
     </pre>
@@ -1230,11 +1224,7 @@ function TableCopyButton({
         isInteractive && "pointer-events-auto",
       )}
     >
-      {isCopied ? (
-        <Check className="icon-base" />
-      ) : (
-        <Copy className="icon-base" />
-      )}
+      {isCopied ? <Check size="base" /> : <Copy size="base" />}
       <span>{caption}</span>
     </button>
   );
@@ -1258,7 +1248,7 @@ function ThinkingIndicator({
       )}
     >
       <Loader2
-        className={cn("animate-spin", isCompact ? "icon-sm" : "icon-base")}
+        __rawClassName={cn("animate-spin", isCompact ? "icon-sm" : "icon-base")}
       />
       <span>{label}</span>
     </div>
