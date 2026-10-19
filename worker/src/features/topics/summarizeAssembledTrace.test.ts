@@ -512,7 +512,7 @@ describe("summarizeAssembledTrace", () => {
 
   it("counts an unusable response as a rule rejection of every facet", async () => {
     state.summarize.mockRejectedValue(
-      new TopicsProviderUnavailable("unparseable", "invalid_output"),
+      new TopicsProviderUnavailable("unparsable", "invalid_output"),
     );
     await expect(
       summarize({
