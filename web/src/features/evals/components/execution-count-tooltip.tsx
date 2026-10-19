@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { type EvalFormType } from "@/src/features/evals/utils/evaluator-form-utils";
 import { api } from "@/src/utils/api";
 import { compactNumberFormatter } from "@/src/utils/numbers";
@@ -26,20 +27,18 @@ export const ExecutionCountTooltip = ({
   });
 
   return (
-    <>
-      <span className="text-sm leading-none font-bold peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-        (
-        {isLoading ? (
-          <span className="inline-block font-mono">...</span>
-        ) : (
-          compactNumberFormatter(
-            !globalConfig.data || (totalCount && totalCount < globalConfig.data)
-              ? totalCount
-              : globalConfig.data,
-          )
-        )}
-        {isTraceTarget ? " traces" : " dataset run items"})
-      </span>
-    </>
+    <span className="text-sm leading-none font-bold peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+      (
+      {isLoading ? (
+        <span className="inline-block font-mono">...</span>
+      ) : (
+        compactNumberFormatter(
+          !globalConfig.data || (totalCount && totalCount < globalConfig.data)
+            ? totalCount
+            : globalConfig.data,
+        )
+      )}
+      {isTraceTarget ? " traces" : " dataset run items"})
+    </span>
   );
 };

@@ -394,6 +394,7 @@ export enum QueueName {
   Topics = "topics",
   TopicsUpdate = "topics-update",
   TopicsEmbedding = "topics-embedding",
+  TopicsAutomation = "topics-automation",
   TraceBatch = "trace-batch",
   TraceUpsert = "trace-upsert", // Ingestion pipeline adds events on each Trace upsert
   TraceDelete = "trace-delete",
@@ -439,6 +440,7 @@ export enum QueueName {
 export enum QueueJobs {
   Topics = "topics",
   TopicsEmbedding = "topics-embedding",
+  TopicsAutomation = "topics-automation",
   TraceBatch = "trace-batch",
   TraceUpsert = "trace-upsert",
   TraceDelete = "trace-delete",
@@ -450,6 +452,7 @@ export enum QueueJobs {
   BatchExportJob = "batch-export-job",
   CloudUsageMeteringJob = "cloud-usage-metering-job",
   CloudSpendAlertJob = "cloud-spend-alert-job",
+  CloudSpendAlertFanOutJob = "cloud-spend-alert-fan-out-job",
   CloudFreeTierUsageThresholdJob = "cloud-free-tier-usage-threshold-job",
   OtelIngestionJob = "otel-ingestion-job",
   IngestionJob = "ingestion-job",
@@ -501,6 +504,25 @@ export const TopicEmbeddingBatchSchema = z.object({
     .min(1),
 });
 
+// Summaries one trace batch stored for a project, with the facets and vector space they used.
+export const TopicAutomationBatchSchema = z.object({
+  projectId: z.string().min(1),
+  traceIds: z.array(z.string().min(1)).min(1).max(100),
+  facets: z
+    .array(
+      z.object({
+        facetId: z.string().min(1),
+        version: z.number().int().positive(),
+      }),
+    )
+    .min(1),
+  embeddingConfig: z.object({
+    embeddingModel: z.string().min(1),
+    embeddingDimensions: z.number().int().positive(),
+  }),
+  timeRange: z.object({ from: z.coerce.date(), to: z.coerce.date() }),
+});
+
 export const TraceBatchEventSchema = z.object({
   timestamp: z.coerce.date(),
   id: z.string(),
@@ -545,6 +567,12 @@ export type TQueueJobTypes = {
     id: string;
     name: QueueJobs.TopicsEmbedding;
     payload: z.infer<typeof TopicEmbeddingBatchSchema>;
+  };
+  [QueueName.TopicsAutomation]: {
+    timestamp: Date;
+    id: string;
+    name: QueueJobs.TopicsAutomation;
+    payload: z.infer<typeof TopicAutomationBatchSchema>;
   };
   [QueueName.TraceBatch]: z.infer<typeof TraceBatchEventSchema>;
   [QueueName.TraceUpsert]: {
@@ -703,12 +731,21 @@ export type TQueueJobTypes = {
     payload: EntityChangeEventType;
     name: QueueJobs.EntityChangeJob;
   };
-  [QueueName.CloudSpendAlertQueue]: {
-    timestamp: Date;
-    id: string;
-    payload: CloudSpendAlertJobType;
-    name: QueueJobs.CloudSpendAlertJob;
-  };
+  // Per-org evaluation, plus the recurring fan-out that produces those jobs
+  // for ClickHouse-billed orgs (Stripe-billed ones are enqueued by the usage
+  // metering job, which only iterates Stripe customers).
+  [QueueName.CloudSpendAlertQueue]:
+    | {
+        timestamp: Date;
+        id: string;
+        payload: CloudSpendAlertJobType;
+        name: QueueJobs.CloudSpendAlertJob;
+      }
+    | {
+        timestamp: Date;
+        id: string;
+        name: QueueJobs.CloudSpendAlertFanOutJob;
+      };
   [QueueName.CloudFreeTierUsageThresholdQueue]: {
     timestamp: Date;
     id: string;

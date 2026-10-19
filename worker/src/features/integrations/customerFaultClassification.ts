@@ -35,6 +35,8 @@ const CREDENTIAL_FAULT_CODES = new Set<string>([
   "InvalidAuthenticationInfo",
   "AccountIsDisabled",
   "InsufficientAccountPermissions",
+  // GCS — stored secret is not a service account JSON key (worker guard)
+  "InvalidGcsServiceAccountKey",
 ]);
 
 const BUCKET_FAULT_CODES = new Set<string>([
@@ -44,6 +46,8 @@ const BUCKET_FAULT_CODES = new Set<string>([
   // Azure — container & path
   "ContainerNotFound",
   "InvalidResourceName",
+  // GCS — bucket not allowed for default credentials (Langfuse guard)
+  "GcsBucketNotAllowedError",
 ]);
 
 // Langfuse outbound-URL / SSRF validation rejections (OutboundUrlValidationError
@@ -56,6 +60,7 @@ const BUCKET_FAULT_CODES = new Set<string>([
 const SSRF_BLOCKED_OUTBOUND_URL_CODES = new Set<string>([
   "blocked-hostname",
   "blocked-ip",
+  "host-not-allowed",
 ]);
 
 const INVALID_URL_OUTBOUND_URL_CODES = new Set<string>([

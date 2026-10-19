@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 import { eventsSearchRegistry } from "../config/eventsSearchRegistry";
 import {
   useEventsSearchBar,
@@ -56,20 +56,20 @@ import {
 } from "@langfuse/shared";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
+import { createTagTableColumn } from "@/src/components/design-system/table/columns/createTagTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createDurationTableColumn } from "@/src/components/design-system/table/columns/createDurationTableColumn";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { createItemBadgeTableColumn } from "@/src/components/design-system/table/columns/createItemBadgeTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
-import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
+import { createTableColumn } from "@/src/components/design-system/table/columns/utils/createTableColumn";
 import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 
 import { cn } from "@/src/utils/tailwind";
-import { getObservationLevelStatus } from "@/src/components/level-colors";
+import { ObservationLevelTag } from "@/src/components/level-colors";
 import {
   compactNumberFormatter,
   numberFormatter,
@@ -81,7 +81,9 @@ import {
 } from "@/src/utils/observationCost";
 import { useOrderByState } from "@/src/features/orderBy";
 import {
+  customRowHeightMenu,
   getRowHeightIOCharLimit,
+  isCompactRowHeight,
   useRowHeightLocalStorage,
 } from "@/src/components/table/data-table-row-height-switch";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
@@ -254,6 +256,7 @@ export type EventsTableProps = {
   userId?: string;
   promptName?: string;
   promptVersion?: number;
+  skill?: { name: string; version?: number };
   omittedFilter?: ObservationEventsOmittableFilterColumn[];
   hideControls?: boolean;
   // External control props for embedded preview tables
@@ -307,6 +310,7 @@ export default function ObservationsEventsTable({
   userId,
   promptName,
   promptVersion,
+  skill,
   omittedFilter = [],
   hideControls = false,
   externalFilterState,
@@ -364,9 +368,14 @@ export default function ObservationsEventsTable({
 
   const [paginationState, setPaginationState] = usePaginationState(1, 50);
 
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
+  const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
     "observations",
     "s",
+  );
+  const compactRows = isCompactRowHeight(
+    rowHeight,
+    rowHeights.mode,
+    rowHeights.activeHeightPx,
   );
 
   const [orderByState, setOrderByState] = useOrderByState({
@@ -647,6 +656,21 @@ export default function ObservationsEventsTable({
             },
           ]
         : []),
+      ...(skill
+        ? [
+            {
+              column:
+                skill.version === undefined ? "skillNames" : "skillVersions",
+              type: "arrayOptions" as const,
+              operator: "any of" as const,
+              value: [
+                skill.version === undefined
+                  ? skill.name
+                  : `${skill.name}@${skill.version}`,
+              ],
+            },
+          ]
+        : []),
       ...(promptName
         ? [
             {
@@ -668,7 +692,7 @@ export default function ObservationsEventsTable({
           ]
         : []),
     ],
-    [userId, sessionId, promptName, promptVersion],
+    [userId, sessionId, promptName, promptVersion, skill],
   );
 
   const facetRefiningFilter = useMemo(
@@ -886,7 +910,7 @@ export default function ObservationsEventsTable({
   // scoped. Unlike the old gate, an unsupported filter no longer HIDES the
   // chart: the chart forwards what it can and the sidebar + search bar mark the
   // rest as "not applied" (see chartFilterExclusions below).
-  const chartEnabled = !hideControls && !userId && !sessionId;
+  const chartEnabled = !hideControls && !userId && !sessionId && !skill;
 
   // Hide the strip where it would silently diverge from the table: prompt-version scope (not forwardable, no "not applied" affordance) or external date/filter pins.
   const outlierStripEnabled =
@@ -950,7 +974,11 @@ export default function ObservationsEventsTable({
     // In chart mode the table is hidden and the chart runs its own aggregate
     // query — don't also run the expensive row + batched-I/O fetches.
     rowsEnabled: !chartActive,
-    ioCharLimit: getRowHeightIOCharLimit(rowHeight),
+    ioCharLimit: getRowHeightIOCharLimit(
+      rowHeight,
+      rowHeights.mode,
+      rowHeights.activeHeightPx,
+    ),
   });
 
   useApplyAppRootFallback({
@@ -1264,7 +1292,7 @@ export default function ObservationsEventsTable({
       size: 300,
       getCell: (value, { row }) =>
         isIoPending(row.original.id) ? { type: "loading" } : value || undefined,
-      singleLine: rowHeight === "s",
+      singleLine: compactRows,
       enableHiding: true,
     }),
     createIOTableColumn<EventsTableRow>({
@@ -1273,7 +1301,7 @@ export default function ObservationsEventsTable({
       size: 300,
       getCell: (value, { row }) =>
         isIoPending(row.original.id) ? { type: "loading" } : value || undefined,
-      singleLine: rowHeight === "s",
+      singleLine: compactRows,
       variant: "output",
       enableHiding: true,
     }),
@@ -1287,10 +1315,10 @@ export default function ObservationsEventsTable({
       },
       getCell: (value, { row }) =>
         isIoPending(row.original.id) ? { type: "loading" } : value || undefined,
-      singleLine: rowHeight === "s",
+      singleLine: compactRows,
       enableHiding: true,
     }),
-    createStatusTableColumn<EventsTableRow, ObservationLevelType>({
+    createTableColumn<EventsTableRow, ObservationLevelType>({
       accessorKey: "level",
       header: getEventsColumnName("level"),
       size: 100,
@@ -1301,9 +1329,9 @@ export default function ObservationsEventsTable({
       },
       enableHiding: true,
       enableSorting,
-      isLive: false,
-      getStatus: (level) =>
-        level ? getObservationLevelStatus(level) : undefined,
+      loadingCell: <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />,
+      renderCell: (level) =>
+        level ? <ObservationLevelTag level={level} /> : <EmptyValue />,
     }),
     createIOTableColumn<EventsTableRow>({
       accessorKey: "statusMessage",
@@ -1317,7 +1345,7 @@ export default function ObservationsEventsTable({
       enableHiding: true,
       defaultHidden: true,
       getCell: (value) => value || undefined,
-      singleLine: rowHeight === "s",
+      singleLine: compactRows,
     }),
     createDurationTableColumn<EventsTableRow>({
       accessorKey: "latency",
@@ -1553,7 +1581,7 @@ export default function ObservationsEventsTable({
           : undefined;
       },
     }),
-    createBadgeTableColumn<EventsTableRow>({
+    createTagTableColumn<EventsTableRow>({
       accessorKey: "environment",
       header: getEventsColumnName("environment"),
       size: 150,
@@ -1564,7 +1592,7 @@ export default function ObservationsEventsTable({
       header: getEventsColumnName("traceTags"),
       size: 250,
       enableHiding: true,
-      shouldWrap: rowHeight !== "s",
+      shouldWrap: !compactRows,
     }),
     {
       accessorKey: "scores",
@@ -1875,6 +1903,7 @@ export default function ObservationsEventsTable({
                 searchBarMode ? (
                   <div className="flex min-w-0 flex-col gap-2">
                     <EventsSearchBarRow
+                      size={showControlsInPageHeader ? "large" : "default"}
                       key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
                       registry={searchRegistry}
                       projectId={projectId}
@@ -1993,8 +2022,8 @@ export default function ObservationsEventsTable({
               // This is a table-internal sticky band below PageHeader. Using
               // top-banner-offset here pushes the band down by the viewport
               // header/banner offset and leaves a large blank gap above it.
-              // pb-1.5 gives the band a bit more breathing room above the table.
-              searchBarMode && "bg-background sticky top-0 z-30 pb-1.5",
+              // pb-3 gives the band breathing room above the table.
+              searchBarMode && "bg-background sticky top-0 z-30 pb-3",
             )}
           >
             {/* Search bar row: full-width query composer. In bar mode it sticks
@@ -2008,6 +2037,7 @@ export default function ObservationsEventsTable({
               <div className="flex min-w-0 items-center gap-2">
                 <div className="min-w-0 flex-1">
                   <EventsSearchBarRow
+                    size={showControlsInPageHeader ? "large" : "default"}
                     key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
                     registry={searchRegistry}
                     projectId={projectId}
@@ -2029,6 +2059,7 @@ export default function ObservationsEventsTable({
                     onRequestColumns={requestColumns}
                     aiDataContext={aiDataContext}
                     aiScoreNames={aiScoreNames}
+                    className="px-3 pt-3"
                   />
                 </div>
               </div>
@@ -2036,6 +2067,7 @@ export default function ObservationsEventsTable({
             {/* Toolbar spanning full width */}
             <DataTableToolbar
               columns={columns}
+              className={searchBarMode ? "px-3" : undefined}
               rowClassName={searchBarMode ? "my-1" : undefined}
               filterState={queryFilter.explicitFilterState}
               tableName={eventsFilterConfig.tableName}
@@ -2078,6 +2110,7 @@ export default function ObservationsEventsTable({
               orderByState={orderByState}
               rowHeight={rowHeight}
               setRowHeight={setRowHeight}
+              customRowHeight={customRowHeightMenu(rowHeights)}
               timeRange={showControlsInPageHeader ? undefined : timeRange}
               setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
               viewModeToggle={
@@ -2340,6 +2373,11 @@ export default function ObservationsEventsTable({
                 columnVisibility={columnVisibility}
                 onColumnVisibilityChange={handleColumnVisibilityChange}
                 rowHeight={rowHeight}
+                customRowHeightPx={rowHeights.activeHeightPx}
+                onCustomRowHeightChange={
+                  hideControls ? undefined : rowHeights.setCustomPx
+                }
+                onSelectRowHeight={hideControls ? undefined : setRowHeight}
                 onRowClick={(row, event) => {
                   // Handle Command/Ctrl+click to open observation in new tab
                   if (event && (event.metaKey || event.ctrlKey)) {

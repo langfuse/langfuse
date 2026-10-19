@@ -13,6 +13,8 @@ import {
 } from "@/src/server/api/trpc";
 import {
   type OrderByState,
+  type SkillsAvailable,
+  type SkillsResourceLoaded,
   normalizeOrderByForTable,
   paginationZod,
   singleFilterList,
@@ -37,7 +39,6 @@ import { loadTraceTranscript } from "./loadTraceTranscript";
 import {
   instrumentAsync,
   getScoresAndCorrectionsForTraces,
-  convertDateToClickhouseDateTime,
   getAgentGraphDataFromEventsTable,
   getObservationsForTraceFromEventsTable,
   MAX_OBSERVATIONS_PER_TRACE,
@@ -75,6 +76,8 @@ export type EventBatchIOOutput = {
   input: string | null;
   output: string | null;
   metadata: MetadataDomainClient;
+  skillsAvailable?: SkillsAvailable;
+  skillsResourceLoaded?: SkillsResourceLoaded;
 };
 
 export type GetAllEventsInput = z.infer<typeof GetAllEventsInput>;
@@ -124,6 +127,7 @@ const BatchIOInput = zodSchema.object({
   // rendering anyway (IO_TABLE_CHAR_LIMIT).
   ioCharLimit: zodSchema.number().int().positive().max(10_000).optional(),
   includeToolCalls: zodSchema.boolean().optional(), // Defaults to false; tool-call arrays can be large
+  includeSkills: zodSchema.boolean().optional(),
   // Opts into trace-level auth (public traces) in protectedGetEventsTraceProcedure
   traceId: zodSchema.string().optional(),
 });
@@ -350,6 +354,7 @@ export const eventsRouter = createTRPCRouter({
             truncated: input.truncated,
             ioCharLimit: input.ioCharLimit,
             includeToolCallFields: input.includeToolCalls,
+            includeSkillFields: input.includeSkills,
           });
 
           return batchIO.map(toDomainWithStringifiedMetadata);
@@ -375,6 +380,7 @@ export const eventsRouter = createTRPCRouter({
             truncated: input.truncated,
             ioCharLimit: input.ioCharLimit,
             includeToolCallFields: input.includeToolCalls,
+            includeSkillFields: input.includeSkills,
           });
 
           return batchIO.map(toDomainWithStringifiedMetadata);
@@ -399,6 +405,7 @@ export const eventsRouter = createTRPCRouter({
             ioCharLimit: input.ioCharLimit,
             includeExperimentFields: true,
             includeToolCallFields: input.includeToolCalls,
+            includeSkillFields: input.includeSkills,
           });
 
           return batchIO.map(toDomainWithStringifiedMetadata);
@@ -445,14 +452,14 @@ export const eventsRouter = createTRPCRouter({
         projectId: zodSchema.string(),
         traceId: zodSchema.string(),
         timestamp: zodSchema.date().optional(),
-        pairTextToolResponses: zodSchema.boolean().default(false),
+        fallbackToRootIO: zodSchema.boolean().default(false),
       }),
     )
     .query(async ({ input, ctx }) => {
       const isSessionTimelineEnabled =
         getContextualFeatureFlags(ctx.session?.user, {
           projectId: input.projectId,
-        })?.sessionTimeline === true;
+        })?.sessionViewV2Timeline === true;
       if (
         !isSessionTimelineEnabled &&
         !hasInternalAccess({
@@ -493,7 +500,7 @@ export const eventsRouter = createTRPCRouter({
             projectId: input.projectId,
             traceId: input.traceId,
             timestamp,
-            pairTextToolResponses: input.pairTextToolResponses,
+            fallbackToRootIO: input.fallbackToRootIO,
           });
         },
       );
@@ -561,18 +568,11 @@ export const eventsRouter = createTRPCRouter({
 
           const { traceId, minStartTime, maxStartTime } = input;
 
-          const chMinStartTime = convertDateToClickhouseDateTime(
-            new Date(minStartTime),
-          );
-          const chMaxStartTime = convertDateToClickhouseDateTime(
-            new Date(maxStartTime),
-          );
-
           const records = await getAgentGraphDataFromEventsTable({
             projectId: input.projectId,
             traceId,
-            chMinStartTime,
-            chMaxStartTime,
+            minStartTime: new Date(minStartTime),
+            maxStartTime: new Date(maxStartTime),
           });
 
           // Transform to AgentGraphDataResponse format

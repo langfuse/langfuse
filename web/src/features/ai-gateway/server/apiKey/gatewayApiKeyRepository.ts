@@ -5,16 +5,17 @@ export class GatewayApiKeyRepository {
 
   async listGatewayApiKeys(params: {
     organizationId: string;
-    cursor?: string;
+    page: number;
     limit: number;
   }) {
-    const rows = await this.prisma.gatewayApiKeyAssociation.findMany({
-      where: {
-        apiKey: {
-          orgId: params.organizationId,
-          scope: "ORGANIZATION",
-        },
+    const where = {
+      apiKey: {
+        orgId: params.organizationId,
+        scope: "ORGANIZATION",
       },
+    } as const;
+    const findPage = this.prisma.gatewayApiKeyAssociation.findMany({
+      where,
       select: {
         metadata: true,
         apiKey: {
@@ -31,17 +32,14 @@ export class GatewayApiKeyRepository {
         },
       },
       orderBy: [{ apiKey: { createdAt: "asc" } }, { apiKeyId: "asc" }],
-      take: params.limit + 1,
-      ...(params.cursor
-        ? { cursor: { apiKeyId: params.cursor }, skip: 1 }
-        : undefined),
+      take: params.limit,
+      skip: params.page * params.limit,
     });
-    const hasMore = rows.length > params.limit;
-    const data = hasMore ? rows.slice(0, params.limit) : rows;
-    return {
-      data,
-      nextCursor: hasMore ? (data.at(-1)?.apiKey.id ?? null) : null,
-    };
+    const [data, totalCount] = await Promise.all([
+      findPage,
+      this.prisma.gatewayApiKeyAssociation.count({ where }),
+    ]);
+    return { data, totalCount };
   }
 
   getGatewayApiKey(params: { organizationId: string; apiKeyId: string }) {

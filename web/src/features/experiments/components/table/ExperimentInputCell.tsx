@@ -50,10 +50,19 @@ export function ExperimentInputCell({
           <ArrowUpRight className="icon-base" aria-hidden />
         </Link>
       ) : null}
+      {/* Display chooses text or JSON. Row height does not. */}
       {isLoading ? (
-        <ConnectedIOTableCell isLoading singleLine={singleLine} />
+        <ConnectedIOTableCell
+          isLoading
+          followRowHeight={false}
+          singleLine={singleLine}
+        />
       ) : (
-        <ConnectedIOTableCell data={input ?? null} singleLine={singleLine} />
+        <ConnectedIOTableCell
+          data={input ?? null}
+          followRowHeight={false}
+          singleLine={singleLine}
+        />
       )}
     </div>
   );

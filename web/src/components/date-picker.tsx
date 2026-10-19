@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 /* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger, @repo/no-margin-on-root-elements */
 "use client";
 
@@ -18,7 +18,7 @@ import { type DateRange as RDPDateRange } from "react-day-picker";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { setBeginningOfDay, setEndOfDay } from "@/src/utils/dates";
 import { TimePicker } from "@/src/components/ui/time-picker";
-import { DashboardDateRangeDropdown } from "@/src/components/date-range-dropdowns";
+import { DashboardDateRangeDropdown } from "@/src/components/DashboardDateRangeDropdown";
 import {
   DASHBOARD_AGGREGATION_PLACEHOLDER,
   type DashboardDateRangeOptions,

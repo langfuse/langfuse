@@ -1,5 +1,12 @@
-/* eslint-disable no-nested-ternary */
+import { cn } from "@/src/utils/tailwind";
+import { OverflowCountBadge } from "@/src/components/OverflowCountBadge";
+import { groupScoresByName } from "@/src/components/grouped-score-badge";
 import { ScoreBadge } from "@/src/components/ScoreBadge/ScoreBadge";
+import {
+  formatMetricCost,
+  formatMetricTokens,
+} from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
+/* eslint-disable no-nested-ternary */
 import { type ScoreDomain } from "@langfuse/shared";
 import { Plus, Search, X } from "lucide-react";
 import { type ReactNode, type SyntheticEvent, useState } from "react";
@@ -20,6 +27,7 @@ import {
 } from "@/src/features/sessions/sessionUsers";
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { Label } from "@/src/components/ui/label";
 import {
   Popover,
@@ -28,14 +36,11 @@ import {
 } from "@/src/components/ui/popover";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
-import {
-  compactNumberFormatter,
-  numberFormatter,
-  usdFormatter,
-} from "@/src/utils/numbers";
+import { numberFormatter } from "@/src/utils/numbers";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 type ModernSessionHeaderProps = {
+  dividerTone: "default" | "orange";
   projectId: string;
   countTraces: number;
   minTimestamp: Date;
@@ -68,9 +73,6 @@ type SessionHeaderDetail = {
 const ChipKey = ({ children }: { children: React.ReactNode }) => (
   <span>{children}</span>
 );
-
-const compactTokenFormatter = (tokens: number) =>
-  compactNumberFormatter(tokens, 0).toLowerCase();
 
 const scoreChipValue = (
   score: Pick<WithStringifiedMetadata<ScoreDomain>, "stringValue" | "value">,
@@ -269,6 +271,7 @@ const MetadataJsonPathEditorContent = ({
 };
 
 export function ModernSessionHeader({
+  dividerTone,
   projectId,
   countTraces,
   minTimestamp,
@@ -342,20 +345,22 @@ export function ModernSessionHeader({
     ),
   });
 
-  pills.push({
-    key: "cost",
-    searchText: `cost ${totalCost}`,
-    type: "cost",
-    content: (
-      <Badge
-        font="mono"
-        color="ghost"
-        data-session-header-pill="true"
-        text={usdFormatter(totalCost, 2, 3)}
-        title={`exact $${totalCost.toFixed(6)}`}
-      />
-    ),
-  });
+  if (totalCost > 0) {
+    pills.push({
+      key: "cost",
+      searchText: `cost ${totalCost}`,
+      type: "cost",
+      content: (
+        <Badge
+          font="mono"
+          color="ghost"
+          data-session-header-pill="true"
+          text={formatMetricCost(totalCost)}
+          title={`exact $${totalCost.toFixed(6)}`}
+        />
+      ),
+    });
+  }
 
   if (totalTokens > 0) {
     pills.push({
@@ -372,7 +377,7 @@ export function ModernSessionHeader({
             color="ghost"
             interactive
             data-session-header-pill="true"
-            text={`${compactTokenFormatter(totalTokens)} tokens`}
+            text={formatMetricTokens(totalTokens)}
           />
         </BreakdownTooltip>
       ),
@@ -399,14 +404,16 @@ export function ModernSessionHeader({
     (detail) => !visibleUserDetailKeySet.has(detail.key),
   );
 
-  scores.forEach((score) => {
+  Object.entries(groupScoresByName([...scores])).forEach(([name, group]) => {
     pills.push({
-      key: `score-${score.id}`,
-      searchText: `score ${score.name} ${scoreChipValue(score)}`,
+      key: `score-${name}`,
+      searchText: group
+        .map((score) => `score ${score.name} ${scoreChipValue(score)}`)
+        .join(" "),
       type: "score",
       content: (
         <span data-session-header-pill="true" className="inline-flex min-w-0">
-          <ScoreBadge name={score.name} scores={[score]} />
+          <ScoreBadge name={name} scores={group} />
         </span>
       ),
     });
@@ -430,7 +437,13 @@ export function ModernSessionHeader({
     });
   });
   return (
-    <div className="border-b px-4 pt-1 pb-1.5 font-mono">
+    <div
+      className={cn(
+        "border-b px-4 pt-1 pb-1.5 font-mono",
+        dividerTone === "orange" &&
+          "border-orange-200/50 dark:border-orange-900/50",
+      )}
+    >
       <SingleLineOverflowList
         spacing="comfortable"
         items={pills}
@@ -443,17 +456,22 @@ export function ModernSessionHeader({
             open={isMetadataEditorOpen}
             onOpenChange={handleMetadataEditorOpenChange}
           >
-            <PopoverTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                aria-label="Add metadata JSONPath"
-                data-session-header-pill="true"
-              >
-                <Plus className="icon-base" />
-              </Button>
-            </PopoverTrigger>
+            <Tooltip label="Edit Metadata" placement="bottom">
+              {({ getTriggerProps }) => (
+                <PopoverTrigger asChild>
+                  <Button
+                    {...getTriggerProps()}
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label="Edit Metadata"
+                    data-session-header-pill="true"
+                  >
+                    <Plus className="icon-base" />
+                  </Button>
+                </PopoverTrigger>
+              )}
+            </Tooltip>
             {isMetadataEditorOpen ? (
               <MetadataJsonPathEditorContent
                 metadataJsonPaths={metadataJsonPaths}
@@ -490,14 +508,11 @@ export function ModernSessionHeader({
               }}
             >
               <PopoverTrigger asChild>
-                <BadgeShell font="mono" asChild data-session-header-pill="true">
-                  <button
-                    type="button"
-                    aria-label={`Show ${overflowItemCount} more session details`}
-                  >
-                    +{overflowItemCount}
-                  </button>
-                </BadgeShell>
+                <OverflowCountBadge
+                  count={overflowItemCount}
+                  data-session-header-pill="true"
+                  aria-label={`Show ${overflowItemCount} more session details`}
+                />
               </PopoverTrigger>
               <PopoverContent
                 align="end"

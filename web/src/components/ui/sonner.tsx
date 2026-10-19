@@ -1,6 +1,8 @@
+/* eslint-disable @repo/component-file-structure */
 "use client";
 
 import { Toaster as Sonner } from "sonner";
+import { cn } from "@/src/utils/tailwind";
 
 type ToasterProps = React.ComponentProps<typeof Sonner>;
 
@@ -8,7 +10,6 @@ const Toaster = ({ ...props }: ToasterProps) => {
   return (
     <Sonner
       theme="light"
-      className="toaster group"
       position="top-right"
       toastOptions={{
         classNames: {
@@ -22,6 +23,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
         },
       }}
       {...props}
+      className={cn("toaster group ph-no-capture", props.className)}
     />
   );
 };

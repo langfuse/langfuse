@@ -1,3 +1,4 @@
+/* eslint-disable @repo/storybook-play-no-implementation-detail-assertions */
 import preview from "../../../../../.storybook/preview";
 import { expect } from "storybook/test";
 
@@ -66,6 +67,9 @@ function IOTableColumnStory({
       data={data}
       hidePagination
       cellPadding="none"
+      // Inside a data table the row height decides single-line vs JSON.
+      // Large is this table's expanded height, so the multi-line story stays a preview.
+      rowHeight={config.singleLine ? "s" : "l"}
     />
   );
 }

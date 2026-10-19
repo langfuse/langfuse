@@ -38,7 +38,7 @@ import { useAnnotationQueueData } from "./shared/hooks/useAnnotationQueueData";
 import { useAnnotationObjectData } from "./shared/hooks/useAnnotationObjectData";
 import { TraceAnnotationProcessor } from "./processors/TraceAnnotationProcessor";
 import { SessionAnnotationProcessor } from "./processors/SessionAnnotationProcessor";
-import { ObjectNotFoundCard } from "@/src/features/annotation-queues/components/object-not-found-card";
+import { ObjectNotFoundCard } from "@/src/features/annotation-queues/components/ObjectNotFoundCard";
 import { useSession } from "next-auth/react";
 import { SplashScreen } from "@/src/components/ui/splash-screen";
 
@@ -149,6 +149,7 @@ function AnnotationQueueRunLoader({
     refetchOnMount: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
+    meta: { toastOperation: "annotation_queue.load" },
   });
   if (bootstrap.isPending) return <Skeleton className="h-full w-full" />;
   if (bootstrap.isError) {
@@ -201,7 +202,10 @@ function AnnotationQueueRunContent({
     { projectId, itemId: itemId as string },
     { enabled: !!itemId, refetchOnMount: false },
   );
-  const { configs } = useAnnotationQueueData({ annotationQueueId, projectId });
+  const { configs, isLoading: queueConfigsLoading } = useAnnotationQueueData({
+    annotationQueueId,
+    projectId,
+  });
   const unseenPendingItemCount =
     api.annotationQueueItems.unseenPendingItemCountByQueueId.useQuery(
       { queueId: annotationQueueId, projectId, seenItemIds },
@@ -259,7 +263,8 @@ function AnnotationQueueRunContent({
       // not complete or skip an item the annotator hasn't actually seen yet
       // (e.g. a quick → between ⌘/Ctrl+Enter and onSuccess advancing would skip
       // the next item, which only flashed as a Skeleton).
-      if (objectData.isLoading || isTransitioning) return;
+      if (queueConfigsLoading || objectData.isLoading || isTransitioning)
+        return;
 
       // Complete + next — the Cmd/Ctrl+Enter submit chord. Handled first and
       // *before* the typing guard so it works even while the annotator is in the
@@ -357,6 +362,7 @@ function AnnotationQueueRunContent({
     isTransitioning,
     objectData.isError,
     objectData.isLoading,
+    queueConfigsLoading,
     handleComplete,
     handleNavigateNext,
     handleNavigateBack,
@@ -367,6 +373,7 @@ function AnnotationQueueRunContent({
     (seenItemData.isPending && itemId) ||
     (isTransitioning && !itemId) ||
     unseenPendingItemCount.isPending ||
+    queueConfigsLoading ||
     objectData.isLoading
   ) {
     return <Skeleton className="h-full w-full" />;
@@ -468,16 +475,13 @@ function AnnotationQueueRunContent({
                   }
                   size="lg"
                   className={cn(
-                    "gap-1.5 px-4 transition-colors duration-150",
+                    "px-4 transition-colors duration-150",
                     shortcutPulse === "back" &&
                       "border-primary/60 bg-accent/60 ring-primary/20 ring-2",
                   )}
                   aria-label="Previous item"
                 >
                   <ArrowLeft className="icon-base text-icon-foreground" />
-                  <span className="hidden md:inline-flex">
-                    <KeyboardShortcut keys={["ArrowLeft"]} />
-                  </span>
                 </Button>
               )}
             </Tooltip>
@@ -514,7 +518,7 @@ function AnnotationQueueRunContent({
                   }
                   size="lg"
                   className={cn(
-                    "gap-1.5 px-4 transition-colors duration-150",
+                    "px-4 transition-colors duration-150",
                     !relevantItem ? "w-full" : "",
                     shortcutPulse === "next" &&
                       "border-primary/60 bg-accent/60 ring-primary/20 ring-2",
@@ -523,9 +527,6 @@ function AnnotationQueueRunContent({
                   aria-label="Skip to next item"
                 >
                   <ArrowRight className="icon-base text-icon-foreground" />
-                  <span className="hidden md:inline-flex">
-                    <KeyboardShortcut keys={["ArrowRight"]} />
-                  </span>
                 </Button>
               )}
             </Tooltip>

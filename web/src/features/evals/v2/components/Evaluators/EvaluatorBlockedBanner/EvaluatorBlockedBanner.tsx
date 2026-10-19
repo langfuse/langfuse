@@ -5,7 +5,6 @@ import {
 } from "@langfuse/shared";
 import { AlertTriangle, ExternalLinkIcon, RefreshCcw } from "lucide-react";
 import Link from "next/link";
-import { Fragment } from "react";
 
 import { Button } from "@/src/components/ui/button";
 
@@ -81,12 +80,10 @@ export function EvaluatorBlockedBanner({
             <span className="text-muted-foreground font-bold">
               {blockMetadata.shortLabel}
             </span>
-            <Fragment>
-              <span className="bg-border h-1 w-1 rounded-full" />
-              <span title={blockedAt.toLocaleString()}>
-                Paused {blockedAtLabel}
-              </span>
-            </Fragment>
+            <span className="bg-border h-1 w-1 rounded-full" />
+            <span title={blockedAt.toLocaleString()}>
+              Paused {blockedAtLabel}
+            </span>
           </div>
 
           <p className="text-muted-foreground mt-2 max-w-3xl text-sm">

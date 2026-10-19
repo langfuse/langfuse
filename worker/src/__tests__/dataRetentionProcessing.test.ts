@@ -25,7 +25,7 @@ import {
   StorageServiceFactory,
   toClickhouseDateTime,
 } from "@langfuse/shared/src/server";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, Prisma, PrismaClient } from "@langfuse/shared/src/db";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { isEnterpriseLicenseAvailable } from "@langfuse/shared/src/server/ee/licenseCheck";
 import { handleDataRetentionProcessingJob } from "../ee/dataRetention/handleDataRetentionProcessingJob";
@@ -33,6 +33,7 @@ import { Job } from "bullmq";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import { InAppAgentRunStatus } from "@langfuse/shared/in-app-agent";
+import { InAppAgentRetentionCleaner } from "../features/in-app-agent-retention-cleaner";
 
 type LicenseCheckModule =
   typeof import("@langfuse/shared/src/server/ee/licenseCheck");
@@ -114,11 +115,16 @@ describe("DataRetentionProcessingJob", () => {
       recentLegacyId,
     ];
 
-    await prisma.project.update({
-      where: { id: projectId },
-      data: { retentionDays: 7 },
+    const { id: projectId, orgId } = await prisma.project.create({
+      data: {
+        name: "Assistant retention test",
+        retentionDays: 7,
+        organization: { create: { name: "Assistant retention test" } },
+      },
     });
 
+    const queryRaw = prisma.$queryRaw.bind(prisma);
+    const candidateQuery = vi.spyOn(prisma, "$queryRaw");
     try {
       const creator = await prisma.user.create({
         data: {
@@ -241,9 +247,49 @@ describe("DataRetentionProcessingJob", () => {
         ],
       });
 
-      await handleDataRetentionProcessingJob({
-        data: { payload: { projectId, retention: 7 } },
-      } as Job);
+      // API-key fixture setup also queries projects while assigning its role.
+      candidateQuery.mockClear();
+      candidateQuery.mockImplementation((query, ...values) =>
+        queryRaw(Prisma.sql`
+          WITH in_app_agent_conversations AS (
+            SELECT * FROM public.in_app_agent_conversations
+            WHERE project_id = ${projectId}
+          )
+          ${"sql" in query ? query : Prisma.sql(query, ...values)}
+        `),
+      );
+      const cleaner = new InAppAgentRetentionCleaner();
+      // A conversation with 101 keys remains eligible until its last key is cleaned.
+      expect(await cleaner.processBatch()).toBe(0);
+      expect(
+        await prisma.inAppAgentRun.count({
+          where: {
+            projectId,
+            conversationId: expiredId,
+            mcpApiKeyId: { not: null },
+          },
+        }),
+      ).toBe(1);
+      expect(await cleaner.processBatch()).toBe(0);
+      expect(await cleaner.processBatch()).toBe(600_000);
+      const [backlog] = await candidateQuery.mock.results[3]!.value;
+      // Thirty-day-old conversations with seven-day retention are 23 days overdue.
+      expect(backlog.overdueSeconds).toBeGreaterThanOrEqual(23 * 24 * 60 * 60);
+      expect(backlog.overdueSeconds).toBeLessThan(
+        (Date.now() - expiredAt.getTime()) / 1000 - 7 * 24 * 60 * 60 + 1,
+      );
+      const discovered = (
+        await Promise.all(candidateQuery.mock.results.map(({ value }) => value))
+      )
+        .flat()
+        .filter((row) => "projectId" in row);
+      expect(discovered).toHaveLength(3);
+      expect(discovered).toEqual(
+        expect.arrayContaining([
+          { id: expiredId, projectId },
+          { id: eventlessId, projectId },
+        ]),
+      );
 
       const conversations = await prisma.inAppAgentConversation.findMany({
         where: { projectId, id: { in: ids } },
@@ -279,48 +325,178 @@ describe("DataRetentionProcessingJob", () => {
         }),
       ).toBe(1);
     } finally {
+      candidateQuery.mockRestore();
       await prisma.inAppAgentConversation.deleteMany({
         where: { projectId, id: { in: ids } },
       });
       await prisma.apiKey.deleteMany({ where: { id: { in: keyIds } } });
-      await prisma.project.update({
-        where: { id: projectId },
-        data: { retentionDays: null },
-      });
+      await prisma.organization.delete({ where: { id: orgId } });
     }
   });
 
-  it("retains assistant conversations when retention is disabled after the job was queued", async () => {
-    const id = randomUUID();
-    await prisma.project.update({
-      where: { id: projectId },
-      data: { retentionDays: null },
-    });
-
-    try {
-      await prisma.inAppAgentConversation.create({
+  it.each([
+    { retentionDays: null, deletedAt: null },
+    { retentionDays: 0, deletedAt: null },
+    { retentionDays: 7, deletedAt: new Date() },
+  ])(
+    "does not discover assistant conversations with policy %j",
+    async ({ retentionDays, deletedAt }) => {
+      const id = randomUUID();
+      const { id: projectId, orgId } = await prisma.project.create({
         data: {
-          id,
-          projectId,
-          createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+          name: "Assistant retention policy test",
+          retentionDays,
+          deletedAt,
+          organization: { create: { name: "Assistant retention policy test" } },
         },
       });
+      const queryRaw = prisma.$queryRaw.bind(prisma);
+      const candidateQuery = vi.spyOn(prisma, "$queryRaw");
+      candidateQuery.mockImplementation((query, ...values) =>
+        queryRaw(Prisma.sql`
+          WITH in_app_agent_conversations AS (
+            SELECT * FROM public.in_app_agent_conversations
+            WHERE project_id = ${projectId}
+          )
+          ${"sql" in query ? query : Prisma.sql(query, ...values)}
+        `),
+      );
+      try {
+        const expiredAt = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        await prisma.inAppAgentConversation.create({
+          data: { id, projectId, createdAt: expiredAt, updatedAt: expiredAt },
+        });
+        expect(await new InAppAgentRetentionCleaner().processBatch()).toBe(
+          600_000,
+        );
+        expect(await candidateQuery.mock.results[0]!.value).toEqual([]);
+        expect(
+          await prisma.inAppAgentConversation.count({
+            where: { id, projectId },
+          }),
+        ).toBe(1);
+      } finally {
+        candidateQuery.mockRestore();
+        await prisma.inAppAgentConversation.deleteMany({
+          where: { id, projectId },
+        });
+        await prisma.organization.delete({ where: { id: orgId } });
+      }
+    },
+  );
 
-      await handleDataRetentionProcessingJob({
-        data: { payload: { projectId, retention: 7 } },
-      } as Job);
-
-      expect(
-        await prisma.inAppAgentConversation.findUnique({
-          where: { id_projectId: { id, projectId } },
-        }),
-      ).not.toBeNull();
-    } finally {
-      await prisma.inAppAgentConversation.deleteMany({
-        where: { id, projectId },
+  it.each(["Asia/Tokyo", "America/Los_Angeles"])(
+    "uses UTC retention boundaries in the %s session timezone",
+    async (timezone) => {
+      const { id: projectId, orgId } = await prisma.project.create({
+        data: {
+          name: "Assistant retention timezone test",
+          retentionDays: 7,
+          organization: {
+            create: { name: "Assistant retention timezone test" },
+          },
+        },
       });
-    }
-  });
+      const expiredId = randomUUID();
+      const retainedId = randomUUID();
+      const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      const hour = 60 * 60 * 1000;
+      const timezonePrisma = new PrismaClient();
+      const candidateQuery = vi.spyOn(prisma, "$queryRaw");
+      const deletionQuery = vi.spyOn(prisma, "$executeRaw");
+
+      try {
+        await prisma.inAppAgentConversation.createMany({
+          data: [
+            { id: expiredId, projectId, updatedAt: new Date(cutoff - hour) },
+            { id: retainedId, projectId, updatedAt: new Date(cutoff + hour) },
+          ],
+        });
+        // SET LOCAL stays on the transaction's connection and cannot leak
+        // timezone changes to other tests using the pool.
+        candidateQuery.mockImplementation((query, ...values) =>
+          timezonePrisma.$transaction(async (tx) => {
+            await tx.$queryRaw`SELECT set_config('TimeZone', ${timezone}, true)`;
+            return tx.$queryRaw(Prisma.sql`
+              WITH in_app_agent_conversations AS (
+                SELECT * FROM public.in_app_agent_conversations
+                WHERE project_id = ${projectId}
+              )
+              ${"sql" in query ? query : Prisma.sql(query, ...values)}
+            `);
+          }),
+        );
+        deletionQuery.mockImplementation((query, ...values) =>
+          timezonePrisma.$transaction(async (tx) => {
+            await tx.$queryRaw`SELECT set_config('TimeZone', ${timezone}, true)`;
+            return tx.$executeRaw(query, ...values);
+          }),
+        );
+
+        await new InAppAgentRetentionCleaner().processBatch();
+        expect(await candidateQuery.mock.results[0]!.value).toEqual([
+          { id: expiredId, projectId },
+        ]);
+        expect(
+          await prisma.inAppAgentConversation.findMany({
+            where: { projectId },
+            select: { id: true },
+          }),
+        ).toEqual([{ id: retainedId }]);
+
+        // Independently exercise the live deletion guard with a candidate
+        // whose timestamp no longer qualifies for retention.
+        candidateQuery.mockResolvedValue([{ id: retainedId, projectId }]);
+        await new InAppAgentRetentionCleaner().processBatch();
+        expect(
+          await prisma.inAppAgentConversation.count({ where: { projectId } }),
+        ).toBe(1);
+      } finally {
+        candidateQuery.mockRestore();
+        deletionQuery.mockRestore();
+        await timezonePrisma.$disconnect();
+        await prisma.organization.delete({ where: { id: orgId } });
+      }
+    },
+  );
+
+  it.each([null, 0])(
+    "retains assistant conversations when retention changes to %s after discovery",
+    async (retentionDays) => {
+      const id = randomUUID();
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { retentionDays },
+      });
+
+      const candidateQuery = vi.spyOn(prisma, "$queryRaw");
+      try {
+        await prisma.inAppAgentConversation.create({
+          data: {
+            id,
+            projectId,
+            createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+            updatedAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+          },
+        });
+
+        // Simulate a policy change after discovery without sweeping other fixtures.
+        candidateQuery.mockResolvedValue([{ id, projectId }]);
+        await new InAppAgentRetentionCleaner().processBatch();
+
+        expect(
+          await prisma.inAppAgentConversation.findUnique({
+            where: { id_projectId: { id, projectId } },
+          }),
+        ).not.toBeNull();
+      } finally {
+        candidateQuery.mockRestore();
+        await prisma.inAppAgentConversation.deleteMany({
+          where: { id, projectId },
+        });
+      }
+    },
+  );
 
   it("should NOT delete event files from cloud storage if after expiry cutoff", async () => {
     // Setup: Set retention in database to match job payload

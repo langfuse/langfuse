@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { ChevronDownIcon, PlusCircleIcon } from "lucide-react";
 import { useCallback, useEffect, useRef } from "react";
 

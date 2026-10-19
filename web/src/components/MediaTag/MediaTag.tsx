@@ -27,6 +27,7 @@ import { getMappedMediaLabel } from "@/src/fns/getMappedMediaLabel";
  */
 export type MediaTagStatus = "idle" | "loading" | "ready" | "error";
 type MediaTagIntent = "default" | "attachment";
+type MediaTagSize = "sm" | "md";
 
 export interface MediaTagProps {
   /**
@@ -53,6 +54,8 @@ export interface MediaTagProps {
   openActionLabel?: string;
   /** Visual framing for the collapsed chip. */
   intent?: MediaTagIntent;
+  /** Height of the collapsed chip. */
+  size?: MediaTagSize;
   /** Controlled open state of the peek popover (used by stories/tests). */
   open?: boolean;
   /**
@@ -99,7 +102,7 @@ const MEDIA_KIND_ICON = {
 } satisfies Record<MediaKind, LucideIcon>;
 
 const mediaTagVariants = cva(
-  "focus-visible:ring-ring inline-flex h-3.5 max-w-full items-center gap-1 rounded-sm border px-1 py-0 align-middle text-xs leading-4 transition-colors focus-visible:ring-2 focus-visible:outline-hidden",
+  "focus-visible:ring-ring inline-flex w-fit max-w-full items-center gap-1 rounded-sm border px-1 py-0 align-middle text-xs leading-4 transition-colors focus-visible:ring-2 focus-visible:outline-hidden",
   {
     variants: {
       intent: {
@@ -107,9 +110,14 @@ const mediaTagVariants = cva(
         attachment:
           "border-blue-500/40 bg-blue-50 text-blue-800 hover:bg-blue-100 dark:bg-blue-950/30 dark:text-blue-200 dark:hover:bg-blue-950/50",
       },
+      size: {
+        sm: "h-3.5",
+        md: "h-5",
+      },
     },
     defaultVariants: {
       intent: "default",
+      size: "md",
     },
   },
 );
@@ -226,6 +234,7 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
       errorDetail,
       openActionLabel,
       intent,
+      size,
       open,
       onOpenChange,
     },
@@ -327,7 +336,7 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
             // Containers detect chip hover via event delegation to suppress their own previews.
             data-media-tag=""
             aria-label={`${chipLabel} media`}
-            className={mediaTagVariants({ intent })}
+            className={mediaTagVariants({ intent, size })}
             {...getTriggerProps({
               ref,
               onClick: openPeek,

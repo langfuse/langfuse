@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 /* eslint-disable @repo/no-style-props, @repo/no-null-render */
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import { type ReactNode, useEffect, useRef, useState } from "react";
@@ -30,6 +30,7 @@ import { copyTextToClipboard } from "@/src/utils/clipboard";
 import {
   formatSdkUpgradeRequirement,
   formatSdkVersion,
+  getAvailableSdkMajorUpgrade,
   getCustomInstrumentationSectionState,
   getDetectedInstrumentationSeries,
   getOtelSectionState,
@@ -57,6 +58,7 @@ import {
 } from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { encodeFiltersGeneric, type FilterState } from "@langfuse/shared";
 import { EvaluatorMigrationDialog } from "@/src/features/v4-migration/EvaluatorMigrationDialog";
 import { buildDeprecatedRulesUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
@@ -520,9 +522,7 @@ export function V4MigrationSdkSection({
         needsAction={isActionableSdkSeries}
         suffix={(usage) => {
           if (usage.v4MigrationStatus === "upgrade_required") {
-            return (
-              <span>· {formatSdkUpgradeRequirement(usage.latestSdkMajor)}</span>
-            );
+            return <span>· {formatSdkUpgradeRequirement(usage)}</span>;
           }
           if (usage.v4MigrationStatus === "unknown") {
             return <span>· version not recognized</span>;
@@ -675,21 +675,35 @@ export function V4MigrationDetectedInstrumentationSection({
       tone="muted"
     >
       <p className="text-muted-foreground text-sm leading-relaxed">
-        These configurations are already on the latest SDK major or use
-        real-time OTel ingestion.
+        These configurations are on a V4-compatible SDK major or use real-time
+        OTel ingestion.
       </p>
       <SdkUsageSeriesRows
         series={series}
         projectId={projectId}
         analyticsSection="detected_instrumentation"
         needsAction={() => false}
-        suffix={(usage) =>
-          usage.remediationType === "update_sdk" ? (
-            <span>· up to date</span>
-          ) : (
-            <span>· real-time</span>
-          )
-        }
+        suffix={(usage) => {
+          if (usage.remediationType !== "update_sdk") {
+            return <span>· real-time</span>;
+          }
+          const majorUpgrade = getAvailableSdkMajorUpgrade(usage);
+          if (!majorUpgrade) return <span>· up to date</span>;
+          return (
+            <span>
+              · {majorUpgrade.label} is available ·{" "}
+              <ExternalLink
+                href={majorUpgrade.upgradeGuideUrl}
+                analytics={{
+                  section: "detected_instrumentation",
+                  link: "sdk_major_upgrade_docs",
+                }}
+              >
+                Upgrade guide
+              </ExternalLink>
+            </span>
+          );
+        }}
       />
     </Section>
   );
@@ -771,7 +785,7 @@ export function V4MigrationEvalsSection({
               {assistant.aiFeaturesEnabled !== false ? (
                 <>
                   <BotMessageSquare className="icon-base text-icon-foreground mr-1.5" />
-                  Use Assistant
+                  Use Halo
                 </>
               ) : (
                 "Update evals"
@@ -1040,19 +1054,54 @@ export function V4MigrationApisSection({
                             ) : guidance.currentMethod &&
                               guidance.replacementMethod ? (
                               <p className="text-muted-foreground mt-1 pl-5 text-xs">
-                                Replace{" "}
-                                <MonoValue>{guidance.currentMethod}</MonoValue>{" "}
-                                with{" "}
-                                <MonoValue>
-                                  {guidance.replacementMethod}
-                                </MonoValue>
-                                {guidance.requiresUpgrade &&
-                                guidance.minimumVersion ? (
+                                {guidance.currentMethod ===
+                                guidance.replacementMethod ? (
                                   <>
-                                    . First upgrade to SDK version{" "}
+                                    Upgrade to SDK v{guidance.latestMajor},
+                                    where{" "}
+                                    <MonoValue>
+                                      {guidance.replacementMethod}
+                                    </MonoValue>{" "}
+                                    calls the new API
+                                  </>
+                                ) : (
+                                  <>
+                                    Replace{" "}
+                                    <MonoValue>
+                                      {guidance.currentMethod}
+                                    </MonoValue>{" "}
+                                    with{" "}
+                                    <MonoValue>
+                                      {guidance.replacementMethod}
+                                    </MonoValue>
+                                    {guidance.previousMajorReplacementMethod
+                                      ? ` (SDK v${guidance.latestMajor})`
+                                      : null}
+                                  </>
+                                )}
+                                {guidance.previousMajorReplacementMethod &&
+                                guidance.minimumVersion &&
+                                guidance.latestMajor ? (
+                                  <>
+                                    . On{" "}
+                                    <MonoValue>
+                                      {guidance.minimumVersion}–
+                                      {guidance.latestMajor - 1}.x
+                                    </MonoValue>
+                                    , use{" "}
+                                    <MonoValue>
+                                      {guidance.previousMajorReplacementMethod}
+                                    </MonoValue>
+                                  </>
+                                ) : guidance.requiresUpgrade &&
+                                  guidance.minimumVersion ? (
+                                  <>
+                                    . First upgrade to SDK v
+                                    {guidance.latestMajor} (
                                     <MonoValue>
                                       {guidance.minimumVersion} or newer
-                                    </MonoValue>
+                                    </MonoValue>{" "}
+                                    also works)
                                   </>
                                 ) : null}
                                 .{" "}
@@ -1320,7 +1369,7 @@ export function V4MigrationHeaderContent({
             href={LANGFUSE_ASSISTANT_URL}
             analytics={{ section: "header", link: "langfuse_assistant_docs" }}
           >
-            Langfuse Assistant
+            Langfuse Halo
           </ExternalLink>
           .
           {actionNeeded
@@ -1393,6 +1442,7 @@ export function V4MigrationAgentUpgradeSection({
         showErrorToast(
           "Could not create API keys",
           "Something went wrong. Please try again.",
+          classifyTrpcToastError(error, "project_api_key.create"),
         );
       });
   };

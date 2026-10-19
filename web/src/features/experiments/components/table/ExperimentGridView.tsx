@@ -29,7 +29,7 @@ import { useHasProjectAccess } from "@/src/features/rbac";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 // Grid view row heights (matching DatasetCompareRunsTable)
-const GRID_VIEW_ROW_HEIGHTS = {
+export const GRID_VIEW_ROW_HEIGHTS = {
   s: "h-48", // 192px
   m: "h-64", // 256px
   l: "h-96", // 384px
@@ -53,6 +53,12 @@ type ExperimentGridViewProps = {
    */
   ioLoading: boolean;
   rowHeight: RowHeight;
+  /** Free height in pixels. Null while a preset is active. */
+  customRowHeightPx?: number | null;
+  /** Dragging a row edge sets one height for every run column. */
+  onCustomRowHeightChange?: (heightPx: number) => void;
+  /** Selects a preset when a drag lands on that preset's height. */
+  onSelectRowHeight?: (rowHeight: RowHeight) => void;
   /** Whether any item in view has an expected output worth a column. */
   showExpectedOutput: boolean;
   observationScoreOrder: string[];
@@ -88,6 +94,9 @@ export const ExperimentGridView = ({
   isLoading,
   ioLoading,
   rowHeight,
+  customRowHeightPx,
+  onCustomRowHeightChange,
+  onSelectRowHeight,
   showExpectedOutput,
   observationScoreOrder,
   traceScoreOrder,
@@ -333,6 +342,8 @@ export const ExperimentGridView = ({
               size: 200,
               getCell: (value) =>
                 ioLoading ? { type: "loading" } : value || undefined,
+              // Display chooses text or JSON. Row height does not.
+              followRowHeight: false,
               singleLine,
               variant: "output",
             }),
@@ -364,6 +375,9 @@ export const ExperimentGridView = ({
       pagination={pagination}
       rowHeight={rowHeight}
       customRowHeights={GRID_VIEW_ROW_HEIGHTS}
+      customRowHeightPx={customRowHeightPx}
+      onCustomRowHeightChange={onCustomRowHeightChange}
+      onSelectRowHeight={onSelectRowHeight}
       topAlignCells
       peekView={peekView}
       columnVisibility={columnVisibility}

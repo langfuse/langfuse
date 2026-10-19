@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { Button } from "@/src/components/ui/button";
 import { Label } from "@/src/components/ui/label";
 import {
@@ -50,6 +51,7 @@ export function usePublishObject(props: PublishObjectProps) {
   const sessionQueryInput = { projectId, sessionId: objectId };
 
   const mutation = useMutation({
+    meta: { toastOperation: "sharing.update" },
     mutationFn: (isPublic: boolean) =>
       kind === "trace"
         ? utils.client.traces.publish.mutate({
@@ -117,7 +119,7 @@ export function usePublishObject(props: PublishObjectProps) {
 
       return { previousTrace };
     },
-    onError: (err, _input, context) => {
+    onError: (err, input, context) => {
       if (kind === "session") {
         utils.sessions.byIdWithScores.setData(
           sessionQueryInput,
@@ -138,7 +140,7 @@ export function usePublishObject(props: PublishObjectProps) {
           context?.previousTrace,
         );
       }
-      trpcErrorToast(err);
+      trpcErrorToast(err, input ? "sharing.enable" : "sharing.disable");
     },
     onSuccess: async () => {
       if (kind === "session") {
@@ -344,7 +346,7 @@ const Base = (props: {
                     loading={props.isLoading}
                     onClick={handleOnClick}
                   >
-                    Share
+                    Make Public
                   </Button>
                 </div>
               </>

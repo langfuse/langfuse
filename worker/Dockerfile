@@ -1,121 +1,101 @@
-# FIPS 140-3 base: Alpine with the distribution's nodejs package instead of
-# node:24-alpine. Alpine's Node dynamically links the system libcrypto.so.3, so
-# node:crypto routes through the OpenSSL 3.1.2 FIPS provider
-# (/usr/lib/ossl-modules/fips.so, CMVP certificate #4985). Upstream node images
+# FIPS 140-3 base: UBI 9 with the nodejs:24 module-stream RPM
+# instead of node:24-alpine. The RPM Node dynamically links the system
+# libcrypto.so.3, so node:crypto routes through RHEL's CMVP-validated OpenSSL
+# FIPS provider (/usr/lib64/ossl-modules/fips.so). Upstream node images
 # statically bundle their own non-validated OpenSSL and bypass the platform
 # module entirely.
-# The default is the public Alpine image, so the build needs no credentials.
-# Iron Bank's Alpine compiles the FIPS provider from the validated source and
-# serves it from an authenticated registry with DoD provenance and scan
-# attestations. Release builds opt in after `docker login registry1.dso.mil`
-# (free P1 account plus a CLI secret):
-#   --build-arg BASE_IMAGE=registry1.dso.mil/ironbank/opensource/alpinelinux/alpine:3.24
-ARG BASE_IMAGE=alpine:3.24
-
-# The FIPS provider plus its self-test record (fipsmodule.cnf) and the opt-in
-# config that activates it. Iron Bank's Alpine already carries the provider; on
-# any other base it is compiled here from the checksum-pinned OpenSSL 3.1.2
-# source with the configure flags Iron Bank uses
-# (repo1.dso.mil/dsop/opensource/alpinelinux/alpine), so both bases ship the
-# same module. Only these files leave the stage; libcrypto and libssl stay
-# Alpine's packages, which load the 3.1.2 provider like any other.
-FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE} AS fips-provider
-RUN set -eux; \
-    if [ ! -f /usr/lib/ossl-modules/fips.so ]; then \
-    apk add --no-cache gcc linux-headers make musl-dev perl; \
-    wget -qO /tmp/openssl.tar.gz https://github.com/openssl/openssl/releases/download/openssl-3.1.2/openssl-3.1.2.tar.gz; \
-    echo "a0ce69b8b97ea6a35b96875235aa453b966ba3cba8af2de23657d8b6767d6539  /tmp/openssl.tar.gz" | sha256sum -c -; \
-    mkdir /tmp/openssl; \
-    tar -xzf /tmp/openssl.tar.gz -C /tmp/openssl --strip-components=1; \
-    cd /tmp/openssl; \
-    perl ./Configure --prefix=/usr --libdir=lib --openssldir=/etc/ssl \
-    enable-ktls shared no-zlib no-async no-comp no-idea no-mdc2 no-rc5 \
-    no-ec2m no-sm2 no-sm4 no-ssl3 no-seed no-weak-ssl-ciphers enable-fips \
-    enable-ec_nistp_64_gcc_128 -Wa,--noexecstack; \
-    make -j"$(nproc)" build_sw; \
-    make install_sw install_fips; \
-    openssl fipsinstall -pedantic -out /etc/ssl/fipsmodule.cnf -module /usr/lib/ossl-modules/fips.so; \
-    fi; \
-    mkdir -p /out/usr/lib/ossl-modules /out/etc/ssl; \
-    cp /usr/lib/ossl-modules/fips.so /out/usr/lib/ossl-modules/fips.so; \
-    cp /etc/ssl/fipsmodule.cnf /out/etc/ssl/fipsmodule.cnf
-
-# FIPS mode is opt-in, so installs without it keep OpenSSL's default policy:
-# entrypoint.sh points OPENSSL_CONF here when LANGFUSE_REQUIRE_FIPS=true, and
-# deployments that override the entrypoint set
-# OPENSSL_CONF=/etc/ssl/openssl-fips.cnf themselves. Node reads the nodejs_conf
-# section and every other OpenSSL user (e.g. the Prisma engines) openssl_conf,
-# so both select it. Only the fips and base providers load, and fips=yes keeps
-# every algorithm fetch on the validated module. With
-# LANGFUSE_REQUIRE_FIPS=true, startup fails unless it is active and an
-# enterprise license is configured.
-COPY <<EOF /out/etc/ssl/openssl-fips.cnf
-nodejs_conf = fips_init
-openssl_conf = fips_init
-
-.include /etc/ssl/fipsmodule.cnf
-
-[fips_init]
-providers = provider_sect
-alg_section = algorithm_sect
-
-[provider_sect]
-fips = fips_sect
-base = base_sect
-
-[base_sect]
-activate = 1
-
-[algorithm_sect]
-default_properties = fips=yes
-EOF
+# The defaults are Red Hat's public UBI9 images, so the build needs no
+# credentials. Iron Bank serves the same content from an authenticated registry
+# with DoD provenance and scan attestations. Release builds opt in by overriding
+# both args after `docker login registry1.dso.mil` (free P1 account plus a CLI
+# secret):
+#   --build-arg BASE_IMAGE=registry1.dso.mil/ironbank/redhat/ubi/ubi9:9.8
+#   --build-arg MICRO_BASE_IMAGE=registry1.dso.mil/ironbank/redhat/ubi/ubi9-micro:9.8
+ARG BASE_IMAGE=registry.access.redhat.com/ubi9/ubi:9.8
+ARG MICRO_BASE_IMAGE=registry.access.redhat.com/ubi9/ubi-micro:9.8
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE} AS base
 
-COPY --from=fips-provider /out/ /
-
-# Iron Bank's Alpine activates the FIPS provider in the system openssl.cnf;
-# restore the stock file so FIPS stays opt-in on either base (see
-# fips-provider above).
-# icu-data-full is required: Alpine's Node uses the system ICU, whose default
-# data package only covers English, and V8 segfaults in Intl.Segmenter (used
-# e.g. by the prisma CLI's output formatting) without the full ICU data.
-RUN apk upgrade --no-cache && \
-    apk add --no-cache nodejs npm icu-data-full && \
-    cp /etc/ssl/openssl.cnf.dist /etc/ssl/openssl.cnf && \
-    rm -f /etc/ssl/*.apk-new
+# nodejs:24 and openssl (incl. the FIPS provider) come from the freely
+# redistributable UBI repos, so no RHEL entitlement is required.
+# nodejs-full-i18n is required: the RPM Node is a small-ICU build and V8
+# segfaults in Intl.Segmenter (used e.g. by the prisma CLI's output
+# formatting) without the full ICU data.
+RUN dnf -y upgrade && \
+    dnf -y module enable nodejs:24 && \
+    dnf -y install --setopt=install_weak_deps=0 nodejs npm nodejs-full-i18n && \
+    dnf clean all
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS build-base
 # Pin turbo to avoid nondeterministic prune output from future patch releases.
 # pnpm is installed pinned via npm instead of corepack: the corepack shim would
 # fetch pnpm from an unpinned CDN on first use.
-RUN npm install -g turbo@2.11.6 pnpm@12.8.2
+RUN npm install -g turbo@2.11.7 pnpm@12.8.2
 # Pass --build-arg NODE_USE_ENV_PROXY=1 when building behind a proxy.
 ARG NODE_USE_ENV_PROXY
 
-# The runtime image carries no package manager, python, or curl: apk-tools is
-# removed after the install below, and its database stays for scanners.
-FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE} AS runtime-base
+# Runtime rootfs assembled with dnf --installroot and layered onto ubi9-micro:
+# the final image carries no package manager, python, or curl. It holds only
+# the packages listed below plus their deps, with an intact rpmdb for scanners.
+FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS rpm-installer
 
+ARG TARGETARCH
 ARG UID=1001
 ARG GID=1001
 
-COPY --from=fips-provider /out/ /
+# nodejs-full-i18n is required: the RPM Node is a small-ICU build and V8
+# segfaults in Intl.Segmenter (used e.g. by the prisma CLI's output
+# formatting) without the full ICU data.
+# wget keeps exec-style container health checks working (e.g. `wget --spider
+# http://127.0.0.1:<port>/...` in ECS task definitions); it links GnuTLS,
+# which follows the host's FIPS mode like OpenSSL does.
+RUN dnf -y --installroot /mnt/rootfs --releasever 9 --setopt=install_weak_deps=0 \
+    --disableexcludes=all \
+    module enable nodejs:24 && \
+    dnf -y --installroot /mnt/rootfs --releasever 9 \
+    --setopt=install_weak_deps=0 --setopt=tsflags=nodocs \
+    --disableexcludes=all \
+    install nodejs nodejs-full-i18n bash coreutils-single sed \
+    tzdata ca-certificates crypto-policies wget && \
+    dnf --installroot /mnt/rootfs clean all && \
+    rm -rf /mnt/rootfs/var/cache /mnt/rootfs/var/log/dnf*
 
-# icu-data-full: see the base stage. tzdata provides the zoneinfo for TZ.
-# dumb-init preserves the semver-covered ENTRYPOINT contract. busybox (in the
-# base) provides the shell, and its wget keeps exec-style container health
-# checks working (e.g. `wget --spider http://127.0.0.1:<port>/...` in ECS task
-# definitions). Probe 127.0.0.1, not localhost: busybox wget only tries the
-# first address localhost resolves to, which is ::1, and the server listens on
-# IPv4.
-RUN apk upgrade --no-cache && \
-    apk add --no-cache nodejs icu-data-full tzdata ca-certificates dumb-init && \
-    cp /etc/ssl/openssl.cnf.dist /etc/ssl/openssl.cnf && \
-    rm -f /etc/ssl/*.apk-new && \
-    addgroup -S -g "${GID}" expressjs && \
-    adduser -S -D -H -u "${UID}" -G expressjs -h /home/expressjs -s /sbin/nologin expressjs && \
-    apk del --no-cache apk-tools
+# The nodejs RPM drags npm in as a dependency; the runtime image must carry
+# no package manager, so remove it from the rootfs (rpmdb stays consistent).
+RUN if rpm --root /mnt/rootfs -q npm >/dev/null 2>&1; then \
+    rpm --root /mnt/rootfs -e --nodeps npm; \
+    fi
+
+# The FIPS crypto policy for OpenSSL ships as an opt-in config instead of
+# being activated system-wide, so installs without FIPS mode keep the default
+# TLS policy. entrypoint.sh points OPENSSL_CONF at it when
+# LANGFUSE_REQUIRE_FIPS=true; deployments that override the entrypoint set
+# OPENSSL_CONF=/etc/pki/tls/openssl-fips.cnf themselves. The FIPS provider
+# itself loads only when the host kernel runs in FIPS mode; with
+# LANGFUSE_REQUIRE_FIPS=true, startup fails unless it is active and an
+# enterprise license is configured.
+RUN sed 's#/etc/crypto-policies/back-ends/opensslcnf.config#/usr/share/crypto-policies/FIPS/opensslcnf.txt#' \
+    /mnt/rootfs/etc/pki/tls/openssl.cnf > /mnt/rootfs/etc/pki/tls/openssl-fips.cnf && \
+    grep -q '/usr/share/crypto-policies/FIPS/opensslcnf.txt' /mnt/rootfs/etc/pki/tls/openssl-fips.cnf
+
+# dumb-init is not packaged in UBI; install the pinned, checksum-verified
+# static release binary (preserves the semver-covered ENTRYPOINT contract).
+RUN set -eux; \
+    case "${TARGETARCH:-amd64}" in \
+    amd64) di_arch=x86_64; di_sha256=e874b55f3279ca41415d290c512a7ba9d08f98041b28ae7c2acb19a545f1c4df ;; \
+    arm64) di_arch=aarch64; di_sha256=b7d648f97154a99c539b63c55979cd29f005f88430fb383007fe3458340b795e ;; \
+    *) echo "unsupported TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL -o /mnt/rootfs/usr/bin/dumb-init "https://github.com/Yelp/dumb-init/releases/download/v1.2.5/dumb-init_1.2.5_${di_arch}"; \
+    echo "${di_sha256}  /mnt/rootfs/usr/bin/dumb-init" | sha256sum -c -; \
+    chmod 0755 /mnt/rootfs/usr/bin/dumb-init
+
+# Bake the non-root user into the rootfs (micro has no shadow-utils).
+RUN echo "expressjs:x:${GID}:" >> /mnt/rootfs/etc/group && \
+    echo "expressjs:x:${UID}:${GID}::/home/expressjs:/sbin/nologin" >> /mnt/rootfs/etc/passwd
+
+FROM --platform=${TARGETPLATFORM:-linux/amd64} ${MICRO_BASE_IMAGE} AS runtime-base
+COPY --from=rpm-installer /mnt/rootfs /
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} build-base AS pruner
 
@@ -124,32 +104,28 @@ WORKDIR /app
 COPY . .
 RUN turbo prune worker --docker
 
-# Alpine build toolchain: Alpine's Node, pnpm, turbo, gcc and Rust. CI's
-# tests-fips job also runs the web and worker test suites on this stage with
-# OPENSSL_CONF=/etc/ssl/openssl-fips.cnf (scripts/ci/fips-tests.sh).
+# UBI build toolchain: RPM Node, pnpm, turbo, gcc and Rust. CI's tests-fips job
+# also runs the web and worker test suites on this stage with the OpenSSL FIPS
+# provider forced on (scripts/ci/fips-tests.sh).
 FROM --platform=${TARGETPLATFORM:-linux/amd64} build-base AS toolchain
 
 ARG TARGETARCH
 
 # @langfuse/native is a Rust addon (napi-rs) compiled by `turbo run build` for
-# the musl (`*-unknown-linux-musl`) target, so it loads in the runtime image.
-# gcc and musl-dev provide the linker and C runtime objects; bash runs the
-# toolchain installer; curl and patch prepare the small clickhouse source
-# overlay used by the native encoder. fips-tests.sh also needs bash and curl.
-RUN apk add --no-cache gcc musl-dev bash curl patch
-
-# rustc's musl targets default to a `<arch>-linux-musl-gcc` linker name that
-# Alpine does not ship; its gcc is reachable as `cc`.
-ENV CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=cc CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=cc
+# the glibc (`*-unknown-linux-gnu`) target, linked against UBI9's glibc so it
+# loads in the runtime image. gcc provides the linker; tar and gzip unpack the
+# pinned toolchain.
+RUN dnf -y install --setopt=install_weak_deps=0 gcc tar gzip && \
+    dnf clean all
 
 # Pinned standalone Rust installer, the exact channel from
 # packages/native/rust-toolchain.toml (bump the two together), checksum-verified
-# like the OpenSSL source above. Only rustc, cargo and the target's std are
+# like the dumb-init binary above. Only rustc, cargo and the target's std are
 # needed to build; clippy and rustfmt run outside Docker.
 RUN set -eux; \
     case "${TARGETARCH:-amd64}" in \
-    amd64) triple=x86_64-unknown-linux-musl; toolchain_sha256=b2cf07e41d4747ddf3b20962ca9de2a08da00646f55ab4c1b51cef99895bae0a ;; \
-    arm64) triple=aarch64-unknown-linux-musl; toolchain_sha256=c26e37bb6f20e49498c552e53e3f34871ba2f7610c7f8b2cce38a48e3570c7de ;; \
+    amd64) triple=x86_64-unknown-linux-gnu; toolchain_sha256=aa30409afa67bd1ada244cefd82c7980e6a65bc113bb978e934b2413c75e3900 ;; \
+    arm64) triple=aarch64-unknown-linux-gnu; toolchain_sha256=5fbb4282403046d52a4672765c6761a809bf9f33e699b17e6eb7a93ab7770cc3 ;; \
     *) echo "unsupported TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
     esac; \
     curl -fsSL -o /tmp/rust.tar.gz "https://static.rust-lang.org/dist/rust-1.98.0-${triple}.tar.gz"; \
@@ -158,6 +134,23 @@ RUN set -eux; \
     /tmp/rust-1.98.0-${triple}/install.sh --prefix=/usr/local \
     --components=rustc,cargo,rust-std-${triple}; \
     rm -rf /tmp/rust.tar.gz /tmp/rust-1.98.0-${triple}
+
+# cargo-about renders the third-party license notices for the native addon's
+# Rust dependencies. Pinned, checksum-verified static release binary (sha256
+# from the release's `.tar.gz.sha256` assets); keep the version in sync with
+# ai-gateway/Dockerfile.
+RUN set -eux; \
+    case "${TARGETARCH:-amd64}" in \
+    amd64) about_arch=x86_64; about_sha256=9099a59e820c38a68b9d65f300662a567d56562f9a10f6aa4c7e86c17c2566af ;; \
+    arm64) about_arch=aarch64; about_sha256=af5169282fb6f84e13471493f405437e43ac517744c9ae12fbe2cdf0a6f0e5a8 ;; \
+    *) echo "unsupported TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    about_dir="cargo-about-0.9.2-${about_arch}-unknown-linux-musl"; \
+    curl -fsSL -o /tmp/cargo-about.tar.gz "https://github.com/EmbarkStudios/cargo-about/releases/download/0.9.2/${about_dir}.tar.gz"; \
+    echo "${about_sha256}  /tmp/cargo-about.tar.gz" | sha256sum -c -; \
+    tar -xzf /tmp/cargo-about.tar.gz -C /tmp; \
+    install -m 0755 "/tmp/${about_dir}/cargo-about" /usr/local/bin/cargo-about; \
+    rm -rf /tmp/cargo-about.tar.gz "/tmp/${about_dir}"
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} toolchain AS builder
 
@@ -189,6 +182,16 @@ COPY --from=pruner /app/out/full/ .
 
 RUN turbo run build --filter=worker...
 
+# Runs after the build so `cargo fetch` adds the sources the build skipped (dev
+# and other-target dependencies) that cargo metadata still reads; `generate`
+# then reads licenses only from local crate sources and fails on any dependency
+# whose license packages/native/about.toml does not accept.
+RUN cd packages/native && \
+    mkdir -p /usr/share/licenses/langfuse-native && \
+    cargo fetch --locked && \
+    cargo about generate --frozen --fail about.hbs \
+    -o /usr/share/licenses/langfuse-native/THIRD_PARTY_LICENSES.txt
+
 FROM --platform=${TARGETPLATFORM:-linux/amd64} builder AS prod-deps
 
 # previously we copied the --from=builder /app . (includes full node_modules etc)
@@ -218,10 +221,12 @@ ENV BUILD_ID=$NEXT_PUBLIC_BUILD_ID
 ENV NODE_ENV production
 ENV DOCKER_BUILD 0
 
-# The non-root user (expressjs, uid 1001) is created in the runtime-base stage.
+# The non-root user (expressjs, uid 1001) is baked into the runtime rootfs by
+# the rpm-installer stage, since micro has no shadow-utils.
 
 # Copy only production worker payload instead of full builder workspace (just /prod/worker not entire /app)
 COPY --from=prod-deps --chown=expressjs:expressjs /prod/worker ./worker
+COPY --from=builder /usr/share/licenses/langfuse-native /usr/share/licenses/langfuse-native
 RUN chmod +x ./worker/entrypoint.sh
 # Numeric USER (uid of expressjs) so runAsNonRoot checks and Iron Bank
 # hardening validation can verify the user without resolving names.

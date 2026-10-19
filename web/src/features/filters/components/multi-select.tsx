@@ -1,10 +1,10 @@
-/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
+/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger, @repo/component-file-structure */
 import * as React from "react";
 import { Check, Loader2 } from "lucide-react";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
 import { cn } from "@/src/utils/tailwind";
-import { Badge } from "@/src/components/ui/badge";
+import { Tag } from "@/src/components/design-system/Tag/Tag";
 import { Button } from "@/src/components/ui/button";
 import {
   InputCommand,
@@ -149,27 +149,19 @@ export function MultiSelect({
 
   const selectedBadges =
     selectedValues.size > labelTruncateCutOff ? (
-      <Badge variant="secondary" className="rounded-sm px-1 font-normal">
-        {selectedValues.size} selected
-      </Badge>
+      <Tag text={`${selectedValues.size} selected`} />
     ) : (
       getSelectedOptions().map((option) => {
         const displayValue =
           option.displayValue ??
           (option.value === "" ? "(empty)" : option.value);
         return (
-          <Badge
-            variant="secondary"
+          <span
             key={option.value}
-            className={cn(
-              "min-w-0 rounded-sm px-1 font-normal",
-              option.value === "" && "italic",
-            )}
+            className={cn("flex min-w-0", option.value === "" && "italic")}
           >
-            <span className="truncate" title={displayValue}>
-              {displayValue}
-            </span>
-          </Badge>
+            <Tag text={displayValue} />
+          </span>
         );
       })
     );
@@ -182,7 +174,7 @@ export function MultiSelect({
           className={cn(
             // min-w-0 + overflow-hidden: the trigger must never grow past its
             // container — wide selected values truncate instead.
-            "border-input ring-offset-background placeholder:text-foreground-tertiary focus:ring-ring flex h-8 w-full min-w-0 items-center justify-between gap-x-2 overflow-hidden rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
+            "border-input ring-offset-background placeholder:text-muted-foreground focus:ring-ring flex h-8 w-full min-w-0 items-center justify-between gap-x-2 overflow-hidden rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
             className,
           )}
           disabled={disabled}
@@ -201,12 +193,9 @@ export function MultiSelect({
               {selectedValues.size > 0 && (
                 <>
                   <Separator orientation="vertical" className="mr-auto h-4" />
-                  <Badge
-                    variant="secondary"
-                    className="rounded-sm px-1 font-normal lg:hidden"
-                  >
-                    {selectedValues.size}
-                  </Badge>
+                  <span className="flex lg:hidden">
+                    <Tag text={String(selectedValues.size)} />
+                  </span>
                   <div className="hidden min-w-0 space-x-1 overflow-hidden lg:flex">
                     {selectedBadges}
                   </div>

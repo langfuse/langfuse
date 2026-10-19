@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 import { encodeFiltersGeneric } from "@langfuse/shared";
 import { LevelCountsDisplay } from "@/src/components/level-counts-display";
 import { DataTable } from "@/src/components/table/data-table";
@@ -443,6 +443,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         <SearchableTableFilterLayout
           search={
             <TableSearchBar
+              size="large"
               key={queryFilter.draftResetKey}
               projectId={projectId}
               tableName={evaluatorFilterConfig.tableName}

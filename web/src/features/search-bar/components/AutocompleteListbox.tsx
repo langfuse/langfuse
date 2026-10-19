@@ -7,7 +7,7 @@ import * as React from "react";
 import { Bookmark, Check, Clock, Parentheses, Search } from "lucide-react";
 
 import { cn } from "@/src/utils/tailwind";
-import { ScoreTag } from "@/src/components/score-tag";
+import { ScoreTag } from "@/src/components/ScoreTag";
 import type {
   CompletionOption,
   CompletionPlan,
@@ -130,7 +130,10 @@ export function AutocompleteListbox({
             >
               <OptionIcon kind={o.kind} />
               <span
-                className="max-w-[480px] min-w-0 flex-none truncate"
+                className={cn(
+                  "max-w-[480px] min-w-0 flex-none truncate",
+                  o.kind === "pattern" && o.textClassName,
+                )}
                 title={o.label}
               >
                 {o.label}

@@ -4,12 +4,13 @@ import {
   BooleanObjectFilter,
   FilterList,
   filtersRequireEventsFull,
-  metadataFilterIsEventsCoreSafe,
+  metadataFilterCanPruneEventsFull,
   NullFilter,
   NumberObjectFilter,
   StringFilter,
   StringObjectFilter,
 } from "./clickhouse-filter";
+import { metadataFilterIsEventsCoreSafe } from "./events-core-truncation";
 import { createFilterFromFilterState } from "./factory";
 import { experimentItemsTableNativeUiColumnDefinitions } from "../../tableMappings/mapExperimentItemsTable";
 
@@ -332,5 +333,20 @@ describe("filtersRequireEventsFull input/output routing", () => {
         ]),
       ),
     ).toBe(true);
+  });
+});
+
+describe("metadataFilterCanPruneEventsFull", () => {
+  it.each([
+    ["contains", "OMRA", true],
+    ["starts with", "OMRA", true],
+    ["ends with", "OMRA", true],
+    ["contains", "", false],
+    ["=", "OMRA", true],
+    ["=", "!!", false],
+    ["does not contain", "OMRA", false],
+    ["is not set", "", false],
+  ])("%s %j -> %s", (operator, value, expected) => {
+    expect(metadataFilterCanPruneEventsFull(operator, value)).toBe(expected);
   });
 });

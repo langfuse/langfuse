@@ -2,8 +2,11 @@ import { claimed, unmatched } from "../..";
 import {
   asRecord,
   compact,
+  nullableString,
   optionalString,
   parseArray,
+  parseIfString,
+  toJsonValue,
 } from "../../../core/utils/json";
 import {
   filePartFromMediaReference,
@@ -14,12 +17,12 @@ import {
   providerExecutedToolCall,
   toolCallPart,
 } from "../../../core/normalize/message-parts/tool-calls";
-import { toolResultPart } from "../../../core/normalize/message-parts/tool-results";
 import type {
   FilePart,
   NormalizedMessage,
   NormalizedMessagePart,
   ToolCallPart,
+  ToolResultPart,
 } from "../../../types";
 import type {
   ConventionResult,
@@ -144,10 +147,19 @@ const normalizeLangchainServerToolCall: PartHandler = (value) =>
     ),
   );
 
-const normalizeLangchainServerToolResult: PartHandler = (value) =>
-  claimed(
-    toolResultPart({ toolCallId: value.tool_call_id, output: value.output }),
+const normalizeLangchainServerToolResult: PartHandler = (value) => {
+  const raw = parseIfString(value.output ?? null);
+  return claimed(
+    compact<ToolResultPart>({
+      type: "tool-result",
+      toolCallId: nullableString(value.tool_call_id),
+      output:
+        typeof raw === "string"
+          ? { type: "text", value: raw }
+          : { type: "json", value: toJsonValue(raw) },
+    }),
   );
+};
 
 // LangChain invalid_tool_calls entries: { name, args, id, error }.
 function normalizeLangchainInvalidToolCall(

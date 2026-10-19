@@ -154,9 +154,10 @@ separate click event would answer.
 Rollback is a code revert; background execution does not require a schema
 rollback.
 
-Workers with `LANGFUSE_IN_APP_AGENT_ENABLED` set consume the run queue and
-reconcile stale runs; without it, runs commit as `QUEUED` and die at
-`queue_timeout`. Cloud is on unless the flag is `"false"`. Split-role workers
+Workers with `LANGFUSE_IN_APP_AGENT_ENABLED` set consume the run queue.
+Stale-run reconciliation runs independently of assistant enablement so abandoned
+runs cannot block retention after opt-out; it never executes agent work.
+Cloud is on unless the flag is `"false"`. Split-role workers
 can keep the instance on and set
 `QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED=false` (and
 `LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED=false`) to skip those
@@ -166,6 +167,14 @@ its default of 20 equals full US capacity and exceeds JP and staging.
 
 Conversation switching, detached invalidations, retry, and conversation-list run
 statuses remain separate project concerns.
+
+Assistant conversation retention runs independently of ingestion retention mode
+and assistant enablement, under an enterprise license. It is enabled by default;
+`QUEUE_CONSUMER_DATA_RETENTION_QUEUE_IS_ENABLED=false` no longer pauses assistant
+retention. Set `LANGFUSE_IN_APP_AGENT_RETENTION_CLEANER_ENABLED=false` on every
+worker to pause it. Conversations with unfinished runs remain excluded until
+reconciliation settles them. Keep at least one integrity runner enabled for
+stale-run reconciliation, including after assistant opt-out.
 
 Environment ownership:
 

@@ -1,9 +1,8 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 /* eslint-disable @repo/no-style-props */
 import { cn } from "@/src/utils/tailwind";
 import {
   type FC,
-  type ComponentProps,
   type ReactNode,
   type ReactElement,
   memo,
@@ -19,8 +18,9 @@ import ReactMarkdown, {
 } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Codeblock as CodeBlock } from "@/src/components/design-system/Codeblock/Codeblock";
+import { normalizeCodeblockLanguage } from "@/src/utils/normalizeCodeblockLanguage";
 import { useTheme } from "next-themes";
-import { ChevronRight, ImageOff, Info } from "lucide-react";
+import { ImageOff, Info } from "lucide-react";
 import { MentionBadge } from "@/src/features/comments/components/MentionBadge";
 import {
   OpenAIUrlImageUrl,
@@ -39,6 +39,7 @@ import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { type MediaReturnType } from "@/src/features/media";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
+import { SystemPromptCollapseButton } from "@/src/components/ui/SystemPromptCollapseButton";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { MENTION_USER_PREFIX } from "@/src/features/comments/lib/mentionParser";
 import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
@@ -62,6 +63,7 @@ import { exceedsMarkdownRenderLimits } from "@/src/components/ui/markdown-render
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 import {
   classifyMediaValue,
+  splitStringByMediaReferences,
   type MediaDescriptor,
 } from "@/src/components/ui/media/mediaUtils";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
@@ -243,17 +245,24 @@ function MarkdownCode({
   const theme = forcedTheme ?? resolvedTheme;
   const languageMatch = /language-(\w+)/.exec(className || "");
   const language = languageMatch ? languageMatch[1] : "";
+  const codeLanguage = normalizeCodeblockLanguage(language);
   const codeContent = String(children).replace(/\n$/, "");
   const isMultiLine = codeContent.includes("\n");
 
   return language || isMultiLine ? (
     <CodeBlock
-      language={language}
+      language={
+        codeLanguage === "text"
+          ? { value: codeLanguage, label: language }
+          : codeLanguage
+      }
       value={codeContent}
       theme={theme === "dark" ? "dark" : "light"}
     />
   ) : (
-    <code className="bg-secondary rounded border px-0.5">{codeContent}</code>
+    <code className="bg-secondary rounded border px-0.5 [:is(p,li,td,th)>&]:text-xs">
+      {codeContent}
+    </code>
   );
 }
 
@@ -275,7 +284,7 @@ const markdownUrlTransform: NonNullable<Options["urlTransform"]> = (
 const markdownComponents: NonNullable<Options["components"]> = {
   p({ children, node }) {
     if (isImageNode(node)) {
-      return <>{children}</>;
+      return children;
     }
     return <p className="mb-2 whitespace-pre-wrap last:mb-0">{children}</p>;
   },
@@ -344,7 +353,7 @@ const markdownComponents: NonNullable<Options["components"]> = {
     return <li className="mt-1">{transformListItemChildren(children)}</li>;
   },
   pre({ children }) {
-    return <pre className="rounded p-2">{children}</pre>;
+    return <pre className="py-2">{children}</pre>;
   },
   h1({ children }) {
     return <h1 className="text-2xl font-bold">{children}</h1>;
@@ -415,11 +424,9 @@ const markdownComponents: NonNullable<Options["components"]> = {
 function MarkdownRenderer({
   markdown,
   className,
-  fallbackDisplay,
 }: {
   markdown: string;
   className?: string;
-  fallbackDisplay?: "expanded" | "collapsed";
 }) {
   const promptReferenceProjectId = usePromptReferenceProjectId();
   const characterLimit = useMarkdownRenderCharacterLimit();
@@ -441,34 +448,9 @@ function MarkdownRenderer({
           Content is too large or deeply nested to render as markdown.
           Displaying as plain text.
         </div>
-        {fallbackDisplay === "collapsed" ? (
-          <details className="group" data-markdown-fallback>
-            <Button
-              asChild
-              variant="ghost"
-              size="sm"
-              className="text-muted-foreground w-fit cursor-pointer justify-start gap-1.5 text-left text-xs [&::-webkit-details-marker]:hidden"
-            >
-              <summary>
-                <ChevronRight
-                  className="icon-sm transition-transform group-open:rotate-90"
-                  aria-hidden="true"
-                />
-                <span className="group-open:hidden">Expand content</span>
-                <span className="hidden group-open:inline">
-                  Collapse content
-                </span>
-              </summary>
-            </Button>
-            <pre className="pt-2 text-base break-words whitespace-pre-wrap">
-              {markdown}
-            </pre>
-          </details>
-        ) : (
-          <pre className="text-base break-words whitespace-pre-wrap">
-            {markdown}
-          </pre>
-        )}
+        <pre className="text-base break-words whitespace-pre-wrap">
+          {markdown}
+        </pre>
       </div>
     );
   }
@@ -539,7 +521,6 @@ export function MarkdownView({
   controlButtons,
   afterHeader,
   isSystemPrompt,
-  fallbackDisplay,
 }: {
   /** The UNPARSED content shape — see `canRenderContentAsMarkdown`. Media
       reference strings must still be strings when they reach the part guards. */
@@ -556,7 +537,6 @@ export function MarkdownView({
       (`role === "system"`) — the title can be a message `name` instead of the
       role. Falls back to matching the title for callers without role data. */
   isSystemPrompt?: boolean;
-  fallbackDisplay?: ComponentProps<typeof MarkdownRenderer>["fallbackDisplay"];
 }) {
   const { forcedTheme, resolvedTheme } = useTheme();
   const theme = forcedTheme ?? resolvedTheme;
@@ -566,13 +546,17 @@ export function MarkdownView({
   const standaloneMediaDescriptor: MediaDescriptor | null =
     typeof markdown === "string" ? classifyMediaValue(markdown) : null;
 
-  // Collapse preview is built from text parts only: serialized image/audio
-  // parts (media-reference strings, base64 data URIs) neither survive the
-  // generic markdown renderer nor belong in a first-lines text preview — and
-  // media alone should not make a prompt collapsible.
+  // Collapse preview is built from text parts only: media references, base64
+  // data URIs and audio parts neither survive the generic markdown renderer nor
+  // belong in a first-lines text preview — and media alone should not make a
+  // prompt collapsible.
   const collapsibleContent =
     typeof markdown === "string"
-      ? markdown
+      ? splitStringByMediaReferences(markdown)
+          .filter((s) => s.type === "text")
+          .map((s) => s.value)
+          .join("")
+          .trim()
       : (markdown ?? [])
           .filter(isOpenAITextContentPart)
           .map((part) => part.text)
@@ -601,29 +585,40 @@ export function MarkdownView({
     getRenderedInlineMediaIds({ markdown, audio }),
   );
 
+  const handleCollapseInline = () => toggleCollapsed("inline");
+  const handleCollapseHeader = () => toggleCollapsed("header");
+
   const collapseToggle = shouldBeCollapsible ? (
     <Button
       variant="ghost"
       size="xs"
-      onClick={() => toggleCollapsed("inline")}
+      onClick={handleCollapseInline}
       className="w-fit text-xs underline"
     >
       {isCollapsed ? "Expand system prompt" : "Collapse system prompt"}
     </Button>
   ) : null;
 
+  const headerControlButtons =
+    shouldBeCollapsible && !isCollapsed ? (
+      <>
+        <SystemPromptCollapseButton onCollapse={handleCollapseHeader} />
+        {controlButtons}
+      </>
+    ) : (
+      controlButtons
+    );
+
   return (
     <div className="group/iosection overflow-hidden" key={theme}>
       {title ? (
-        <>
-          <MarkdownJsonViewHeader
-            title={title}
-            titleIcon={titleIcon}
-            handleOnCopy={handleOnCopy}
-            hoverRevealControls
-            controlButtons={controlButtons}
-          />
-        </>
+        <MarkdownJsonViewHeader
+          title={title}
+          titleIcon={titleIcon}
+          handleOnCopy={handleOnCopy}
+          hoverRevealControls
+          controlButtons={headerControlButtons}
+        />
       ) : null}
       {afterHeader}
       <div
@@ -656,7 +651,6 @@ export function MarkdownView({
               <>
                 <MarkdownRenderer
                   markdown={isCollapsed ? truncatedContent : markdown}
-                  fallbackDisplay={fallbackDisplay}
                 />
                 {collapseToggle}
               </>
@@ -669,10 +663,7 @@ export function MarkdownView({
             <>
               {isCollapsed ? (
                 <>
-                  <MarkdownRenderer
-                    markdown={truncatedContent}
-                    fallbackDisplay={fallbackDisplay}
-                  />
+                  <MarkdownRenderer markdown={truncatedContent} />
                   {(markdown ?? []).map((content, index) =>
                     isOpenAITextContentPart(content)
                       ? null
@@ -688,7 +679,6 @@ export function MarkdownView({
           {audio ? (
             <>
               <MarkdownRenderer
-                fallbackDisplay={fallbackDisplay}
                 markdown={
                   audio.transcript ? "[Audio] \n" + audio.transcript : ""
                 }
@@ -735,13 +725,7 @@ export function MarkdownView({
     }
 
     if (isOpenAITextContentPart(content)) {
-      return (
-        <MarkdownRenderer
-          key={index}
-          markdown={content.text}
-          fallbackDisplay={fallbackDisplay}
-        />
-      );
+      return <MarkdownRenderer key={index} markdown={content.text} />;
     }
 
     if (content.type === "image_url") {

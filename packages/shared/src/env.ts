@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { parseBlockedCidr } from "./server/webhooks/parseBlockedCidr";
 import { removeEmptyEnvVariables } from "./utils/environment";
 
 // Per-segment byte budget for S3 event keys. Off by default (2048 > 800-byte
@@ -27,34 +28,22 @@ export const redisSocketTimeoutMsSchema = z.coerce
   })
   .default(30_000);
 
-// ClickHouse rejects unknown settings on every query, so a malformed value
-// must fail the process at startup instead.
-const clickhouseExtraSettingsSchema = (name: string) =>
-  z
-    .string()
-    .transform((value, ctx) => {
-      try {
-        return JSON.parse(value) as unknown;
-      } catch {
-        ctx.addIssue({ code: "custom", message: `${name} must be valid JSON` });
-        return z.NEVER;
-      }
-    })
-    .pipe(
-      z.record(
-        z
-          .string()
-          .regex(
-            /^[A-Za-z_][A-Za-z0-9_]*$/,
-            `${name} keys must be ClickHouse setting names`,
-          ),
-        z.union([z.string(), z.number(), z.boolean()]),
-        {
-          error: `${name} must be a JSON object of setting names to string, number, or boolean values`,
-        },
-      ),
-    )
-    .optional();
+function commaSeparatedLowercase(value: string | undefined): string[] {
+  if (!value) return [];
+  return value
+    .split(",")
+    .map((part) => part.toLowerCase().trim())
+    .filter((part) => part.length > 0);
+}
+
+const optionalCommaSeparatedLowercase = z
+  .string()
+  .optional()
+  .transform(commaSeparatedLowercase);
+
+function isCidr(value: string): boolean {
+  return parseBlockedCidr(value) !== undefined;
+}
 
 const DEFAULT_LLM_COMPLETION_TIMEOUT_MS = 120_000;
 
@@ -73,10 +62,16 @@ const EnvSchema = z.object({
   NEXTAUTH_URL: z.url().optional(),
   // Internal Topics PoC controls; not a supported self-hosting configuration.
   LANGFUSE_TOPICS_ENABLED: z.enum(["true", "false"]).default("false"),
-  // Unset model IDs make Topics model processing unavailable.
-  LANGFUSE_TOPICS_SUMMARY_MODEL: z.string().trim().min(1).optional(),
-  LANGFUSE_TOPICS_EMBEDDING_MODEL: z.string().trim().min(1).optional(),
   LANGFUSE_TOPICS_ENABLED_PROJECT_IDS: z
+    .string()
+    .default("")
+    .transform((value) =>
+      value
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean),
+    ),
+  LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS: z
     .string()
     .default("")
     .transform((value) =>
@@ -165,6 +160,12 @@ const EnvSchema = z.object({
     .default(20_000),
   LANGFUSE_CACHE_PROMPT_ENABLED: z.enum(["true", "false"]).default("true"),
   LANGFUSE_CACHE_PROMPT_TTL_SECONDS: z.coerce.number().default(3600), // 1h
+  LANGFUSE_CACHE_SKILL_ENABLED: z.enum(["true", "false"]).default("true"),
+  LANGFUSE_CACHE_SKILL_TTL_SECONDS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(3600), // 1h
   CLICKHOUSE_URL: z.url(),
   CLICKHOUSE_READ_ONLY_URL: z.url().optional(),
   CLICKHOUSE_EVENTS_READ_ONLY_URL: z.url().optional(),
@@ -213,18 +214,6 @@ const EnvSchema = z.object({
   CLICKHOUSE_USE_QUERY_CONDITION_CACHE: z
     .enum(["true", "false"])
     .default("false"),
-  // JSON objects of ClickHouse setting name to value. Every client gets
-  // CLICKHOUSE_EXTRA_SETTINGS; the service variants add to it for clients of
-  // that service. Settings set by Langfuse itself take precedence.
-  CLICKHOUSE_EXTRA_SETTINGS: clickhouseExtraSettingsSchema(
-    "CLICKHOUSE_EXTRA_SETTINGS",
-  ),
-  CLICKHOUSE_EXTRA_SETTINGS_READ_ONLY: clickhouseExtraSettingsSchema(
-    "CLICKHOUSE_EXTRA_SETTINGS_READ_ONLY",
-  ),
-  CLICKHOUSE_EXTRA_SETTINGS_EVENTS_READ_ONLY: clickhouseExtraSettingsSchema(
-    "CLICKHOUSE_EXTRA_SETTINGS_EVENTS_READ_ONLY",
-  ),
   LANGFUSE_ENABLE_SINGLE_LEVEL_QUERY_OPTIMIZATION: z
     .enum(["true", "false"])
     .default("false"),
@@ -291,6 +280,18 @@ const EnvSchema = z.object({
     .number()
     .nonnegative()
     .default(5_000),
+  LANGFUSE_LARGE_PROJECT_IDS: z
+    .string()
+    .default("")
+    .transform(
+      (value) =>
+        new Set(
+          value
+            .split(",")
+            .map((id) => id.trim())
+            .filter(Boolean),
+        ),
+    ),
   LANGFUSE_DELETE_SKIP_PROJECT_IDS: z
     .string()
     .optional()
@@ -341,6 +342,16 @@ const EnvSchema = z.object({
   LANGFUSE_S3_EVENT_UPLOAD_SSE_KMS_KEY_ID: z.string().optional(),
   LANGFUSE_S3_EVENT_KEY_MAX_SEGMENT_BYTES:
     langfuseS3EventKeyMaxSegmentBytesSchema,
+  LANGFUSE_OTEL_MEDIA_UPLOAD_CONCURRENCY: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(100),
+  LANGFUSE_OTEL_MEDIA_UPLOAD_MAX_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(128 * 1024 * 1024),
   LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: z.string().default(""),
   LANGFUSE_S3_MEDIA_UPLOAD_REGION: z.string().optional(),
@@ -353,6 +364,11 @@ const EnvSchema = z.object({
     .default("false"),
   LANGFUSE_S3_MEDIA_UPLOAD_SSE: z.enum(["AES256", "aws:kms"]).optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_SSE_KMS_KEY_ID: z.string().optional(),
+  LANGFUSE_S3_MEDIA_UPLOAD_REQUEST_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(30_000),
   LANGFUSE_USE_AZURE_BLOB: z.enum(["true", "false"]).default("false"),
   LANGFUSE_AZURE_SKIP_CONTAINER_CHECK: z
     .enum(["true", "false"])
@@ -497,6 +513,11 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
+  // When non-empty, webhook URLs must use one of these hosts. Distinct from
+  // LANGFUSE_WEBHOOK_WHITELISTED_HOST, which only exempts a host from the
+  // private-address block. Does not apply to other callers of that exemption
+  // list. Entries are exact hostnames (no scheme or port; IPv6 in brackets).
+  LANGFUSE_WEBHOOK_ALLOWED_HOSTS: optionalCommaSeparatedLowercase,
   LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS: z
     .string()
     .optional()
@@ -515,6 +536,12 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
+  // When non-empty, every outbound LLM request must use one of these hosts,
+  // including provider default hosts and Langfuse AI. Bedrock checks
+  // bedrock-runtime.<region>.<partition>, or the host of
+  // AWS_ENDPOINT_URL_BEDROCK_RUNTIME / AWS_ENDPOINT_URL when one of those is
+  // set. Ignored on Langfuse Cloud, same as the LLM exemption list above.
+  LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS: optionalCommaSeparatedLowercase,
   LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS: z
     .string()
     .optional()
@@ -551,6 +578,26 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
+  // When non-empty, external media storage endpoints must use one of these
+  // hosts. Ignored on Langfuse Cloud.
+  LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_ALLOWED_HOSTS:
+    optionalCommaSeparatedLowercase,
+  // Buckets that keyless GOOGLE_CLOUD_STORAGE blob exports (default credentials,
+  // no service account key) may write to. Those run as the deployment's own GCP
+  // identity (ADC), so without this allowlist any project owner could export into
+  // any bucket that identity can write. Empty disables keyless GCS exports;
+  // exports with a service account key are unaffected.
+  LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s
+        ? s
+            .split(",")
+            .map((s) => s.toLowerCase().trim())
+            .filter(Boolean)
+        : [],
+    ),
   LANGFUSE_SSO_DISCOVERY_WHITELISTED_IPS: z
     .string()
     .optional()
@@ -569,6 +616,17 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
+  // Extra CIDR ranges merged into the private-address block for outbound URL
+  // checks that already run. Blob storage stays opt-in: these ranges apply
+  // there only when blob endpoint validation is already enabled. Exemptions
+  // in the per-surface *_WHITELISTED_* lists still win.
+  LANGFUSE_OUTBOUND_BLOCKED_IP_SEGMENTS: optionalCommaSeparatedLowercase.refine(
+    (segments) => segments.every(isCidr),
+    {
+      message:
+        "LANGFUSE_OUTBOUND_BLOCKED_IP_SEGMENTS must be a comma-separated list of CIDR ranges",
+    },
+  ),
   SLACK_CLIENT_ID: z.string().optional(),
   SLACK_CLIENT_SECRET: z.string().optional(),
   SLACK_STATE_SECRET: z.string().optional(),
@@ -645,6 +703,16 @@ const EnvSchema = z.object({
       },
     ),
   LANGFUSE_AI_AWS_BEDROCK_REGION: z.string().optional(),
+  // Cloud runtime credentials require an operator-provisioned connection.
+  LANGFUSE_BEDROCK_LLM_CONNECTION_RUNTIME_CREDENTIALS_ALLOWED_PROJECT_IDS: z
+    .string()
+    .default("")
+    .transform((value) =>
+      value
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean),
+    ),
   // Local AI credentials; production normally uses the AWS role chain.
   AWS_PROFILE: z.string().optional(),
   LANGFUSE_AI_FEATURES_AWS_PROFILE: z.string().optional(),

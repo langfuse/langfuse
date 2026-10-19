@@ -557,9 +557,13 @@ async fn streamed_messages_upload_one_generation_with_native_usage() {
             provider.try_admit().unwrap(),
             context,
             &headers,
-            Bytes::from_static(REQUEST),
+            crate::providers::RequestBody {
+                bytes: Bytes::from_static(REQUEST),
+                model_range: crate::providers::model_range(REQUEST).unwrap(),
+                streaming: true,
+                reservation: None,
+            },
             Route::AnthropicMessages,
-            None,
             &mut crate::correlation::RequestCorrelation::default(),
         )
         .await

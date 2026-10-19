@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { type AnnotationPanelData } from "@/src/features/scores/types";
 import { type CommentTarget } from "@/src/features/comments/state/commentOverlayStore";
 import { getCommentDrawerInitialStateFromUrl } from "@/src/features/comments/CommentDrawerController";
@@ -16,6 +17,7 @@ import { AnnotationPanelContent } from "@/src/features/scores/components/Annotat
 import { hasBlockingOverlay } from "@/src/features/scores/lib/keyboardShortcuts";
 import { useTraceReviewPanel } from "../contexts/TraceReviewPanelContext";
 import { type TraceReviewPanelStore } from "../state/traceReviewPanelStore";
+import { traceNodeId } from "../fns/treeBuilding";
 
 function closeReviewPanel(store: TraceReviewPanelStore, router: NextRouter) {
   store.getState().actions.close();
@@ -129,7 +131,12 @@ function TraceAnnotationPanel() {
   const { isV4 } = useReadPath();
   const observation = observations.find((item) => item.id === selectedNodeId);
   const active = useRouter().query.annotation === "open";
-  if (selectedNodeId && selectedNodeId !== trace.id && !observation) {
+  if (
+    selectedNodeId &&
+    selectedNodeId !== trace.id &&
+    selectedNodeId !== traceNodeId(trace.id) &&
+    !observation
+  ) {
     return (
       <div className="p-4 text-sm" hidden={!active}>
         Loading annotation…

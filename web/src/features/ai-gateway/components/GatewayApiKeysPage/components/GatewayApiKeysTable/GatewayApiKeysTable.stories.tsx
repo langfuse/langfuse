@@ -1,3 +1,4 @@
+/* eslint-disable @repo/storybook-play-no-implementation-detail-assertions */
 import type { ComponentProps } from "react";
 import { expect, fn, screen, userEvent, waitFor } from "storybook/test";
 
@@ -19,6 +20,7 @@ const apiKeys = [
       displaySecretKey: "sk-lf-gw-...91bc",
       note: "Production application",
       createdAt: new Date("2026-09-04T12:00:00.000Z"),
+      expiresAt: new Date("2027-09-04T23:59:59.999Z"),
     },
   },
 ] satisfies Extract<
@@ -37,6 +39,7 @@ const manyApiKeys = Array.from({ length: 30 }, (_, index) => ({
     displaySecretKey: `sk-lf-gw-...${String(index + 1).padStart(4, "0")}`,
     note: `Application ${index + 1}`,
     createdAt: new Date(Date.UTC(2026, 8, 4 - (index % 28))),
+    expiresAt: null,
   },
 })) satisfies Extract<
   ComponentProps<typeof GatewayApiKeysTable>["data"],
@@ -47,10 +50,9 @@ const actions = {
   createAction: onCreate,
   onRevoke,
   pagination: {
-    mode: "cursor",
-    state: { pageIndex: 0, pageSize: 50 },
-    pageSizeOptions: [50],
-    hasNextPage: false,
+    mode: "offset",
+    totalCount: 1,
+    state: { pageIndex: 0, pageSize: 10 },
     onChange: onPageChange,
   },
 } satisfies Pick<
@@ -67,7 +69,7 @@ export const PopulatedMetadata = meta.story({
   play: async ({ canvas }) => {
     const cells = canvas.getAllByRole("row")[1]!.querySelectorAll("td");
     await expect(cells[1]).toHaveClass("ph-no-capture");
-    await expect(cells[3]).toHaveClass("ph-no-capture");
+    await expect(cells[4]).toHaveClass("ph-no-capture");
   },
 });
 
@@ -98,7 +100,7 @@ export const OverflowingMetadata = meta.story({
   play: async ({ canvas }) => {
     const metadataCell = canvas
       .getAllByRole("row")[1]!
-      .querySelectorAll("td")[3]!;
+      .querySelectorAll("td")[4]!;
     await waitFor(() => {
       expect(metadataCell).toHaveTextContent(/\+\d+/);
     });
@@ -109,11 +111,15 @@ export const OverflowingMetadata = meta.story({
   },
 });
 
-export const ManyRowsWithMoreAvailable = meta.story({
+export const ManyRows = meta.story({
   args: {
     data: { status: "success", data: manyApiKeys },
     ...actions,
-    pagination: { ...actions.pagination, hasNextPage: true },
+    pagination: {
+      ...actions.pagination,
+      totalCount: 75,
+      state: { pageIndex: 0, pageSize: 30 },
+    },
   },
 });
 
@@ -146,32 +152,12 @@ export const MissingDescription = meta.story({
   },
 });
 
-export const MoreAvailable = meta.story({
-  args: {
-    data: { status: "success", data: apiKeys },
-    ...actions,
-    pagination: { ...actions.pagination, hasNextPage: true },
-  },
-});
-
-export const LoadingMore = meta.story({
-  args: {
-    data: { status: "success", data: apiKeys },
-    ...actions,
-    pagination: {
-      ...actions.pagination,
-      hasNextPage: true,
-      isLoadingNextPage: true,
-    },
-  },
-});
-
 export const NextPage = meta.story({
   name: "(Test) Next page",
   args: {
     data: { status: "success", data: apiKeys },
     ...actions,
-    pagination: { ...actions.pagination, hasNextPage: true },
+    pagination: { ...actions.pagination, totalCount: 25 },
   },
   play: async ({ canvas }) => {
     onPageChange.mockClear();
@@ -180,7 +166,7 @@ export const NextPage = meta.story({
     );
     await expect(onPageChange).toHaveBeenCalledWith({
       pageIndex: 1,
-      pageSize: 50,
+      pageSize: 10,
     });
   },
 });

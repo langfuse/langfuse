@@ -1,4 +1,5 @@
 import { type NextApiRequest } from "next";
+import { type Span } from "@opentelemetry/api";
 
 import {
   type ForbiddenError,
@@ -7,7 +8,11 @@ import {
   type ServiceUnavailableError,
   type UnauthorizedError,
 } from "@langfuse/shared";
-import { type ApiAccessScope } from "@langfuse/shared/src/server";
+import {
+  addUserToSpan,
+  instrumentAsync,
+  type ApiAccessScope,
+} from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   isOrgAction,
@@ -48,24 +53,25 @@ export async function enforceAuth({
   allowInAppAgentKey,
   isAdminApiKeyAuthAllowed,
 }: EnforceAuthParams): Promise<EnforceAuthResult> {
-  const auth = await authenticator.authenticate({
-    headers: req.headers,
-    allowInAppAgentKey: allowInAppAgentKey,
-    isAdminApiKeyAuthAllowed: isAdminApiKeyAuthAllowed,
-  });
-  if (!auth.success) return auth;
+  return instrumentAsync({ name: "api-auth-enforce" }, async (span) => {
+    span.setAttribute("langfuse.authz.action", action);
+    const auth = await authenticator.authenticate({
+      headers: req.headers,
+      allowInAppAgentKey: allowInAppAgentKey,
+      isAdminApiKeyAuthAllowed: isAdminApiKeyAuthAllowed,
+    });
+    if (!auth.success) return auth;
 
-  const { context } = auth;
-  switch (context.principal.kind) {
-    case "admin":
-      return enforceAdminAuthz(context, req, action);
-    case "apiKey":
-      return action !== __dangerouslySkipAuthz && isOrgAction(action)
-        ? enforceOrgAuthz(context, req, action)
-        : enforceProjectAuthz(context, req, action);
-    default:
-      return internalServerError(`Unexpected principal on the public api`);
-  }
+    const { context } = auth;
+    switch (context.principal.kind) {
+      case "admin":
+        return enforceAdminAuthz(context, req, action, span);
+      case "apiKey":
+        return enforceApiKeyAuthz(context, req, action, span);
+      default:
+        return internalServerError(`Unexpected principal on the public api`);
+    }
+  });
 }
 
 /** enforceAdminAuthz resolves, authorizes, and scopes a self-host admin-key request against its target project; the authenticator admits admin keys only on opted-in, non-Cloud routes. */
@@ -73,12 +79,15 @@ async function enforceAdminAuthz(
   context: AuthorizationContext,
   req: NextApiRequest,
   action: ApiAction,
+  span: Span,
 ): Promise<EnforceAuthResult> {
   const projectId = getHeaderProjectId(req);
   if (!projectId) return forbiddenError(`Missing '${projectIdHeader}' header`);
+  addUserToSpan({ projectId }, span);
 
   const org = await lookupProjectOrgId(projectId);
   if (!org.success) return org;
+  addUserToSpan({ orgId: org.orgId }, span);
 
   const decision = authorizeAction(
     context,
@@ -91,14 +100,34 @@ async function enforceAdminAuthz(
   return access(context, org.orgId, projectId);
 }
 
+/** enforceApiKeyAuthz records key metadata and dispatches authorization by action scope. */
+function enforceApiKeyAuthz(
+  context: AuthorizationContext,
+  req: NextApiRequest,
+  action: ApiAction,
+  span: Span,
+): EnforceAuthResult {
+  if (context.principal.kind !== "apiKey") {
+    return internalServerError(`Unexpected principal on the public api`);
+  }
+  const { apiKeyId, publicKey } = context.principal;
+  addUserToSpan({ apiKeyId, publicKey }, span);
+  if (action !== __dangerouslySkipAuthz && isOrgAction(action)) {
+    return enforceOrgAuthz(context, req, action, span);
+  }
+  return enforceProjectAuthz(context, req, action, span);
+}
+
 /** enforceOrgAuthz resolves, authorizes, and scopes an organization-scoped api-key request. */
 function enforceOrgAuthz(
   context: AuthorizationContext,
   req: NextApiRequest,
   action: ApiAction,
+  span: Span,
 ): EnforceAuthResult {
   const org = getOrgId(context, req);
   if (!org.success) return org;
+  addUserToSpan({ orgId: org.orgId }, span);
 
   const decision = authorizeAction(
     context,
@@ -116,9 +145,11 @@ function enforceProjectAuthz(
   context: AuthorizationContext,
   req: NextApiRequest,
   action: ApiAction,
+  span: Span,
 ): EnforceAuthResult {
   const project = getProjectId(context, req);
   if (!project.success) return project;
+  addUserToSpan({ projectId: project.projectId }, span);
 
   if (!ownsProject(context.principal, project.projectId)) {
     return notFoundError("Project not found or you don't have access to it");
@@ -126,6 +157,7 @@ function enforceProjectAuthz(
 
   const orgId = getBoundOrgId(context);
   if (!orgId) return internalServerError(`Missing bound org on api-key`);
+  addUserToSpan({ orgId }, span);
 
   const decision = authorizeAction(
     context,
@@ -163,19 +195,19 @@ function getOrgId(
   return { success: true, orgId };
 }
 
-/** getProjectId resolves the target project the key's bound project, the URL param, and the header agree on. */
+/** getProjectId prioritizes the bound project, then the query parameter, then the header, refusing a bound key whose path names another project. */
 function getProjectId(
   context: AuthorizationContext,
   req: NextApiRequest,
 ): ResolvedProject | ErrorResult<ForbiddenError> {
-  const requested = [
-    getBoundProjectId(context),
-    getUrlProjectId(req),
-    getHeaderProjectId(req),
-  ];
+  const boundProjectId = getBoundProjectId(context);
+  if (!equal([boundProjectId, getPathProjectId(req)])) {
+    return forbiddenError();
+  }
 
-  const projectId = first(requested);
-  if (!equal(requested) || !projectId) {
+  const projectId =
+    boundProjectId ?? getUrlProjectId(req) ?? getHeaderProjectId(req);
+  if (!projectId) {
     return forbiddenError();
   }
 
@@ -228,6 +260,24 @@ function getUrlProjectId(req: NextApiRequest): string | undefined {
   return typeof req.query.projectId === "string"
     ? req.query.projectId
     : undefined;
+}
+
+/** getPathProjectId returns the URL projectId only when it is a path segment, ignoring a query-string projectId. */
+function getPathProjectId(req: NextApiRequest): string | undefined {
+  const projectId = getUrlProjectId(req);
+  if (!projectId || isQueryOnly(req.url, projectId)) return undefined;
+  return projectId;
+}
+
+/** isQueryOnly reports whether a value is absent from the url's path, failing closed when the path is missing or undecodable. */
+function isQueryOnly(url: string | undefined, value: string): boolean {
+  if (!url) return false;
+  const path = url.split("?")[0] ?? "";
+  try {
+    return !path.split("/").map(decodeURIComponent).includes(value);
+  } catch {
+    return false;
+  }
 }
 
 /** getHeaderValue prefers the X-prefixed alias and normalizes repeated headers to their first value. */

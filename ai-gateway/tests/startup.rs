@@ -12,6 +12,10 @@ fn invalid_configuration_exits_without_disclosing_the_value() {
         "LANGFUSE_AI_GATEWAY_WEB_URL",
         "LANGFUSE_AI_GATEWAY_MAX_ACTIVE_REQUESTS",
         "LANGFUSE_AI_GATEWAY_MAX_CONCURRENT_RESOLUTIONS",
+        "LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES",
+        "LANGFUSE_AI_GATEWAY_SHARED_REQUEST_BUFFER_BYTES",
+        "LANGFUSE_AI_GATEWAY_MAX_EXECUTION_SECONDS",
+        "LANGFUSE_AI_GATEWAY_STALL_TIMEOUT_SECONDS",
     ] {
         let output = Command::new(env!("CARGO_BIN_EXE_ai-gateway"))
             .env_clear()

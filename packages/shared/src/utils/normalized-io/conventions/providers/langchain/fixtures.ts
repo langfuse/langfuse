@@ -279,7 +279,7 @@ export const langchainSerializedEnvelopeFixture = {
           {
             type: "tool-result",
             toolCallId: "call_lc_1",
-            output: "Weather service unavailable.",
+            output: { type: "text", value: "Weather service unavailable." },
             isError: true,
             // Side-band artifact data, preserved without becoming output.
             providerMetadata: { artifact: { attempts: 2 } },
@@ -471,7 +471,7 @@ export const langchainDictToolMessageFixture = {
             type: "tool-result",
             toolCallId: "call_pNLR4DoZiptb5xGlb299QsoN",
             toolName: "search",
-            output: "It's 60 degrees and foggy.",
+            output: { type: "text", value: "It's 60 degrees and foggy." },
           },
         ],
         source: "input",
@@ -609,7 +609,7 @@ export const langchainStandardOutputBlocksFixture = {
           {
             type: "tool-result",
             toolCallId: "search_1",
-            output: "Rain.",
+            output: { type: "text", value: "Rain." },
             providerMetadata: { status: "success" },
           },
         ],
@@ -932,7 +932,7 @@ export const langgraphProductionShapeFixture = {
           {
             type: "tool-result",
             toolCallId: "call_001",
-            output: "synthetic-value-016",
+            output: { type: "text", value: "synthetic-value-016" },
           },
         ],
         source: "input",
@@ -943,7 +943,7 @@ export const langgraphProductionShapeFixture = {
           {
             type: "tool-result",
             toolCallId: "call_002",
-            output: "synthetic-value-017",
+            output: { type: "text", value: "synthetic-value-017" },
           },
         ],
         source: "input",

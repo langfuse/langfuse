@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { SelectItem } from "@/src/components/ui/select";
 import * as React from "react";

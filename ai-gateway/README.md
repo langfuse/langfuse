@@ -78,9 +78,13 @@ do not load dotenv files:
 | `LANGFUSE_LOG_FORMAT`                          | `text`         | `text`, `json`                                     |
 | `LANGFUSE_LOG_LEVEL`                           | `info`         | `debug`, `info`, `warn`, `error`, `fatal` |
 | `LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS` | `10`           | Integer from 1 to 300                              |
-| `LANGFUSE_AI_GATEWAY_MAX_ACTIVE_REQUESTS` | `128` | Positive integer up to Tokio's semaphore capacity; authenticated requests per instance |
-| `LANGFUSE_AI_GATEWAY_MAX_CONCURRENT_RESOLUTIONS` | `128` | Positive integer up to Tokio's semaphore capacity; concurrent Web resolutions per instance |
+| `LANGFUSE_AI_GATEWAY_MAX_ACTIVE_REQUESTS` | `128` | Positive integer up to Tokio's semaphore capacity; buffered and active requests per instance |
+| `LANGFUSE_AI_GATEWAY_MAX_CONCURRENT_RESOLUTIONS` | `128` | Positive integer up to Tokio's semaphore capacity; separate model-catalog and Web-resolution budgets per instance |
 | `LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_BYTES` | `67108864` (64 MiB) | Integer from 4194304 (4 MiB) to 4294967296 (4 GiB); span and credential bytes an instance holds for upload before dropping new records |
+| `LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES` | `16777216` (16 MiB) | Integer from 1048576 (1 MiB) to 4294967295; largest accepted request body |
+| `LANGFUSE_AI_GATEWAY_SHARED_REQUEST_BUFFER_BYTES` | `1073741824` (1 GiB) | Integer from the request limit up to Tokio's semaphore capacity; request body bytes all in-flight requests of an instance may buffer together |
+| `LANGFUSE_AI_GATEWAY_MAX_EXECUTION_SECONDS` | `600` | Integer of at least 60; ceiling from execution admission until the response completes. Web ingestion tokens last 15 minutes, so traces of longer executions may be dropped |
+| `LANGFUSE_AI_GATEWAY_STALL_TIMEOUT_SECONDS` | `120` | Integer from 1 to the execution ceiling; longest wait without progress |
 
 The gateway shares `LANGFUSE_LOG_LEVEL` with Web and worker. Values are lowercase;
 `fatal` maps to Rust's `error` level and therefore includes ordinary error logs.
@@ -172,11 +176,10 @@ does not set CORS headers, so no `Access-Control-Expose-Headers` is involved.
 ### Resolution context
 
 Once Web resolution succeeds, the request also carries its tenant, and once it is
-sent upstream, the provider connection it was sent to. Requests rejected
-before resolution carry none of them. A resolved request that fails before reaching
-the provider, such as a 413 body or 503 execution capacity rejection, carries only
-the tenant. Provider failures before response headers (502/504) still name the
-connection that was tried.
+sent upstream, the provider connection it was sent to. Requests rejected before
+resolution, including invalid or oversized bodies, carry none of them. A resolved
+request rejected by execution admission carries only the tenant. Provider failures
+before response headers (502/504) still name the connection that was tried.
 
 | Response header | Server span field | JSON log key | Value |
 | --- | --- | --- | --- |
@@ -194,7 +197,7 @@ generation routes listed above, when the body is uncompressed JSON of at most 5 
 The span fields are declared empty on the `http.server` span and recorded after
 resolution; child spans do not repeat them. JSON log lines emitted inside the
 request after they are recorded repeat them as top-level keys, like `request_id`.
-They are never metric attributes.
+Apart from the bounded `gateway.provider`, they are never metric attributes.
 
 Each inference request phase has a child span of the server span so a waterfall
 has no unattributed wall time:
@@ -220,17 +223,36 @@ Client spans measure the HTTP send through response headers;
 streaming execution and inference-telemetry delivery are tracked separately.
 
 A small Axum middleware records `http.server.request.duration` through the
-OpenTelemetry SDK, with method, matched route, and HTTP status as its only
-dimensions. The histogram's count supplies request volume and error rates,
-including responses rejected before provider execution. Metrics are independent
-of trace sampling. Health probes are excluded.
+OpenTelemetry SDK, with method, matched route, HTTP status, `error.origin`,
+`error.reason`, and `gateway.provider` as its dimensions. The histogram's count
+supplies request volume and error rates, including responses rejected before
+provider execution. Metrics are independent of trace sampling. Health probes are
+excluded.
 
-Gateway-specific metrics include `gateway.active` (resolution/execution),
-`gateway.phase.duration` (execution/provider.first_byte), `gateway.executions`,
-`gateway.admission.rejected`, and `gateway.telemetry.records`. Durations use seconds;
-first-byte timing measures provider bytes arriving at the gateway, not first-token
-delivery to the caller. Metric attributes contain bounded categories, not tenant
-or request identifiers.
+`error.origin` names who caused a failed response: `none`, `client`,
+`gateway`, `control_plane`, `provider_transport`, or `provider` (an error status
+relayed unchanged, with `error.reason` `provider_rate_limited`, `provider_auth`,
+`provider_4xx`, or `provider_5xx`). The server span carries the same origin and
+reason (as `error.type`); it has an error status only for 5xx.
+
+Gateway-specific metrics:
+
+- `gateway.overhead.duration` (`http.route`, `gateway.provider`): time to response
+  headers minus the caller's upload and the provider's wait; recorded only for
+  requests that reached the provider.
+- `http.server.request.body.size` (`http.route`, `gateway.provider`) and
+  `http.server.response.body.size` (`gateway.provider`), in bytes: the buffered
+  request body, and the bytes relayed from the provider, including truncated or
+  cancelled streams.
+- `gateway.active`, `gateway.admission.capacity`, and `gateway.active.peak`
+  (`phase`): in-flight, configured, and most-held-since-last-export slots for
+  model_catalog/resolution/execution.
+- `gateway.phase.duration` (execution/provider.first_byte), `gateway.executions`,
+  `gateway.admission.rejected`, and `gateway.telemetry.records`.
+
+Durations use seconds; first-byte timing measures provider bytes arriving at the
+gateway, not first-token delivery to the caller. Metric attributes contain
+bounded categories, not tenant or request identifiers.
 
 Trace export uses a 512-span queue, batches of up to 64, and a one-second interval.
 Metrics export every 30 seconds. Export calls use a three-second timeout; failures
@@ -372,25 +394,36 @@ error type follows the status (`authentication_error`, `permission_error`,
 `not_found_error`, `request_too_large`, `invalid_request_error`, `overloaded_error`,
 `api_error`).
 
-The gateway authenticates through Web before reserving execution capacity or
-reading the request body. Web resolution uses a separate concurrency budget,
-released after resolution finishes; authenticated requests then reserve execution
-capacity through body reading and response completion. Either budget returns 503
-immediately when full, without a waiting queue. Both defaults of 128 are provisional
-guardrails, not measured capacity: tune them independently using load tests for the
-instance resources, request sizes and stream durations. These limits bound work;
-they do not guarantee fairness between clients or tenants.
+After validating the credential header, the gateway buffers and validates the request
+under the active-request admission budget and a shared request-byte budget, then resolves the credential and
+model-aware route through Web under a separate budget. A declared `Content-Length` is
+checked against the request limit before reading. The byte budget covers the buffer's
+allocation and grows as bytes arrive, so a client that declares a large body and stalls
+holds only what it sent. The body slot and its bytes stay reserved with the execution
+until the response ends. Model catalogs use another budget so slow catalog discovery
+cannot block inference resolution.
+Execution capacity remains reserved through response completion. An exhausted budget
+returns 503 immediately without a waiting queue. Request-body and execution budgets
+use the active-request limit, and buffered bodies also share
+`LANGFUSE_AI_GATEWAY_SHARED_REQUEST_BUFFER_BYTES`; model-catalog and Web-call budgets use the resolution
+limit. Their defaults of 128 are provisional
+guardrails, not measured capacity: tune them using load tests for the instance
+resources, request sizes and stream durations. These limits bound work; they do not
+guarantee fairness between clients or tenants.
 
-Other limits are 10 MiB request bodies in both namespaces, 30 seconds to read a request, 5 seconds to
-connect, 120 seconds for provider response headers or an individual upstream read,
-and 600 seconds overall from execution admission in both namespaces. Response size is not capped: a single task pumps chunks
+Request bodies are limited to 16 MiB by default in both namespaces. The body read deadline
+scales with that limit: at least 30 seconds, and enough for the maximal body at 10 MiB per
+30 seconds (49 seconds at 16 MiB).
+Connecting to a provider may take 5 seconds. Executions end at a ten-minute ceiling from
+admission by default, and earlier when they stall: 120 seconds by default without an
+upstream chunk, without the downstream accepting a chunk, or, for streamed calls
+(`"stream": true`) and token counting, without provider response
+headers. A non-streamed generation waits for headers until the ceiling, because
+providers send nothing until the response is generated. Response size is not capped: a single task pumps chunks
 through a one-slot channel, with chunks at most 64 KiB. It stops reading when that
-channel fills. Completion, disconnect and deadline release admission and context;
-the deadline runs even when the downstream stops polling. A failure after headers
+channel fills. Completion, disconnect, stall and ceiling release admission and context;
+both timeouts run even when the downstream stops polling. A failure after headers
 terminates the response body without adding an error event or retrying.
-There is no separate downstream stall timeout; a client that stops reading can
-retain execution capacity until the overall deadline. A progress-based downstream
-stall policy is deferred to a separate change.
 
 Only request content type/encoding and accept cross the provider boundary, plus the
 resolved credential in its provider's header (`Authorization: Bearer` for OpenAI,
@@ -799,6 +832,13 @@ grace period longer than the gateway shutdown timeout. The smoke test uses an
 isolated container and an ephemeral host port, checks read-only/non-root startup,
 probes, rejection of unauthenticated inference and a clean SIGTERM exit, then removes it.
 
+The image ships the license notices of every third-party crate compiled into the
+binary at `/usr/share/licenses/ai-gateway/THIRD_PARTY_LICENSES.txt`, rendered by
+[cargo-about](https://github.com/EmbarkStudios/cargo-about) from `about.hbs`.
+`about.toml` lists the accepted licenses; the image build fails when a dependency
+uses any other license, so a new license needs an explicit entry there. To render
+the file locally: `cargo about generate --locked --fail about.hbs`.
+
 ## Tests and module boundaries
 
 ### Web resolution client
@@ -818,15 +858,19 @@ async fn example(web_base_url: &str, service_key: &str, gateway_key: &str)
     -> Result<(), ResolutionError>
 {
     let control_plane = ControlPlaneClient::new(ControlPlaneConfig::new(web_base_url, service_key)?)?;
-    let context = control_plane.resolve(gateway_key, ApiFormat::OpenAiResponses).await?;
+    let request_id = "018f47a2-4d6e-7a61-b495-5e5f665c1e12";
+    let context = control_plane
+        .resolve(gateway_key, ApiFormat::OpenAiResponses, "gpt-4.1", request_id)
+        .await?;
     assert_eq!(context.connection().base_url(), "https://api.openai.com/v1");
     Ok(())
 }
 ```
 
-Each call sends `POST <base path>/api/internal/ai-gateway/v1/resolve` with
+After extracting the model, inference sends
+`POST <base path>/api/internal/ai-gateway/v1/resolve` with
 `Authorization: Bearer <gateway key>`, the Web v1 HMAC header, and exactly
-`{"apiFormat":"<format>"}`, where the format is the one the public route serves
+`{"apiFormat":"<format>","model":"<model>"}`, where the format is the one the public route serves
 (`openai.chat-completions` for `/openai/v1/chat/completions`, `openai.responses` for
 the other `/openai/v1` routes). The client neither receives nor
 parses an inference request body. Reuse the resolver across requests: its connection
@@ -896,8 +940,9 @@ cargo test --locked
 - `http.rs`: credential extraction, bounded body reads and gateway error envelopes.
 - `inference.rs`: `InferenceService` coordinates resolution, admission and forwarding.
 - `providers/mod.rs`: `ProviderTransport` with shared admission, the `Route` enum of
-  official operations (method, upstream path, capture, forwarded query) and credential
+  official operations (method, upstream path and capture), model rewriting and credential
   placement.
+- `providers/model_list`: provider-native OpenAI and Anthropic model catalog responses.
 - `transport/mod.rs`: per-format header policies, bounded byte relay and response lifetime.
 - `resolution/mod.rs`: trusted base URL configuration and bounded Web HTTP client.
 - `resolution/contracts.rs`: strict Web response validation and immutable execution context.

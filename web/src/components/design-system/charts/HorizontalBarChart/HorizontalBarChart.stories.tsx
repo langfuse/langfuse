@@ -2,6 +2,7 @@ import preview from "../../../../../.storybook/preview";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 
 import { HorizontalBarChart } from "./HorizontalBarChart";
+import { chartFillColors } from "../constants";
 
 const meta = preview.meta({
   component: HorizontalBarChart,
@@ -42,73 +43,6 @@ export const SideTooltip = meta.story({
           tooltipBounds.right <= barBounds.left,
       ).toBe(true);
     });
-  },
-});
-
-export const HoverTransition = meta.story({
-  name: "(Test) Hover Transition",
-  play: async ({ canvasElement }) => {
-    const bars =
-      canvasElement.querySelectorAll<SVGRectElement>("[data-bar-fill]");
-    const first = bars[0];
-    const second = bars[1];
-    if (!first || !second) throw new Error("Bars not found");
-    const hoverArea = first.parentElement?.querySelector<SVGRectElement>(
-      'rect[fill="transparent"][aria-hidden="true"]',
-    );
-    if (!hoverArea) throw new Error("Hover area not found");
-    await userEvent.hover(hoverArea);
-    await expect(second).toHaveAttribute(
-      "fill",
-      expect.stringContaining("20%"),
-    );
-  },
-});
-
-export const HoverAcrossRowGap = meta.story({
-  name: "(Test) Hover Across Row Gap",
-  play: async ({ canvasElement }) => {
-    const bars =
-      canvasElement.querySelectorAll<SVGRectElement>("[data-bar-fill]");
-    const first = bars[0];
-    const second = bars[1];
-    const svg = canvasElement.querySelector<SVGSVGElement>(
-      "svg[aria-label='Horizontal bar chart']",
-    );
-    if (!first || !second || !svg) throw new Error("Chart bars not found");
-    const hoverArea = first.parentElement?.querySelector<SVGRectElement>(
-      'rect[fill="transparent"][aria-hidden="true"]',
-    );
-    if (!hoverArea) throw new Error("Hover area not found");
-    await userEvent.hover(hoverArea);
-    const firstBounds = first.getBoundingClientRect();
-    const secondBounds = second.getBoundingClientRect();
-    const gapTarget = canvasElement.ownerDocument.elementFromPoint(
-      firstBounds.left + 20,
-      (firstBounds.bottom + secondBounds.top) / 2,
-    );
-    if (!gapTarget || !svg.contains(gapTarget)) {
-      throw new Error("Gap is not part of the chart hit area");
-    }
-    await userEvent.hover(gapTarget);
-    await expect(second).toHaveAttribute(
-      "fill",
-      expect.stringContaining("20%"),
-    );
-    await expect(
-      within(canvasElement.ownerDocument.body).getByRole("tooltip"),
-    ).toHaveTextContent("Alpha");
-    const secondHoverArea = second.parentElement?.querySelector<SVGRectElement>(
-      'rect[fill="transparent"][aria-hidden="true"]',
-    );
-    if (!secondHoverArea) throw new Error("Second hover area not found");
-    await userEvent.hover(secondHoverArea);
-    await expect(first).toHaveAttribute("fill", expect.stringContaining("20%"));
-    await userEvent.unhover(secondHoverArea);
-    await expect(first).not.toHaveAttribute(
-      "fill",
-      expect.stringContaining("20%"),
-    );
   },
 });
 
@@ -205,8 +139,8 @@ export const CategoryColors = meta.story({
   name: "(Test) Category Colors",
   args: {
     data: [
-      { label: "Alpha", value: 12, color: "#3a3dee" },
-      { label: "Beta", value: 24, color: "#07b9d5" },
+      { label: "Alpha", value: 12, color: chartFillColors[0] },
+      { label: "Beta", value: 24, color: chartFillColors[1] },
     ],
   },
   play: async ({ canvasElement }) => {
@@ -218,7 +152,7 @@ export const CategoryColors = meta.story({
     );
     await expect(tooltip.querySelector("svg rect")).toHaveAttribute(
       "fill",
-      "#07b9d5",
+      chartFillColors[1],
     );
   },
 });

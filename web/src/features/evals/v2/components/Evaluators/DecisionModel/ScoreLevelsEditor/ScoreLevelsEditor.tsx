@@ -6,7 +6,7 @@ import { Button } from "@/src/components/ui/button";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
-import { SortableList } from "@/src/features/evals/v2/components/SortableList/SortableList";
+import { SortableList } from "@/src/components/design-system/SortableList/SortableList";
 import { moveItem } from "@/src/features/evals/v2/fns/moveItem";
 
 export type ScoreLevelDraft = { description: string };
@@ -90,7 +90,7 @@ export function ScoreLevelsEditor({
                   : `Keep at least ${DECISION_MODEL_LIMITS.minScoreLevels} levels`
               }
             >
-              <Trash2 className="icon-sm" />
+              <Trash2 className="text-icon-foreground icon-sm" />
             </Button>
           </div>
         )}

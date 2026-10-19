@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { type ReactNode } from "react";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 

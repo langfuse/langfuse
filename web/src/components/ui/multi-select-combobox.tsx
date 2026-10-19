@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 /* eslint-disable @repo/no-style-props */
 import { useState, useEffect, useRef, type ReactNode } from "react";
 import { Input } from "@/src/components/ui/input";
@@ -188,7 +188,7 @@ export function MultiSelectCombobox<T>({
               onFocus={handleInputFocus}
               onBlur={handleInputBlur}
               disabled={disabled}
-              className="placeholder:text-foreground-tertiary min-w-24 flex-1 border-none bg-transparent text-xs outline-hidden"
+              className="placeholder:text-muted-foreground min-w-24 flex-1 border-none bg-transparent text-xs outline-hidden"
             />
           </div>
           {searchQuery && (

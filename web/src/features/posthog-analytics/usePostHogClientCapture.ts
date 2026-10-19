@@ -38,6 +38,7 @@ const events = {
     "observation_tree_toggle_scores",
     "observation_tree_toggle_metrics",
     "io_mode_switch",
+    "io_parser_comparison",
     "test_in_playground_button_click",
     "display_mode_switch",
     "download_button_click",
@@ -148,7 +149,12 @@ const events = {
     "level_added",
   ],
   annotation: ["entry_click"],
-  annotation_queues: ["item_added", "item_removed", "manage_click"],
+  annotation_queues: [
+    "item_added",
+    "item_removed",
+    "manage_click",
+    "score_configs_saved",
+  ],
   score_configs: [
     "create_form_submit",
     "update_form_submit",
@@ -185,6 +191,9 @@ const events = {
     "duplicate_form_submit",
   ],
   session_detail: [
+    "announcement_learn_more_click",
+    "announcement_feedback_click",
+    "announcement_dismiss",
     "publish_button_click",
     "download_button_click",
     "copy_session_id_click",
@@ -394,6 +403,7 @@ const events = {
     "tracing_api_key_create_clicked",
     "tracing_agent_prompt_copy_clicked",
     "tracing_manual_docs_link_clicked",
+    "signup_survey_submitted",
   ],
   user_settings: ["theme_changed", "feature_preview_toggled"],
   project_settings: [
@@ -418,11 +428,15 @@ const events = {
     "delete_membership",
     "api_key_create",
     "api_key_delete",
+    "llm_api_key_create",
+    "llm_api_key_update",
+    "llm_api_key_delete",
     "pricing_dialog_opened",
     "delete_organization",
     "ai_features_toggle",
     "ai_telemetry_toggle",
     "feature_flag_default_toggled",
+    "personal_feature_previews_opened",
     "user_feature_flag_toggled",
   ],
   help_popup: ["opened", "href_clicked"],
@@ -523,8 +537,9 @@ export const usePostHogClientCapture = () => {
   return useCallback(
     function capture<E extends EventName>(
       eventName: E,
-      properties?: EventProperties[E],
-      options?: CaptureOptions,
+      ...[properties, options]: E extends keyof ToastEventMap
+        ? [properties: EventProperties[E], options?: CaptureOptions]
+        : [properties?: EventProperties[E], options?: CaptureOptions]
     ): CaptureResult | void {
       return posthog.capture(eventName, properties, options);
     },

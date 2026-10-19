@@ -444,7 +444,7 @@ function InAppAgentReasoningBlock({
         // the drawer's auto-follow keeps the newest text visible while
         // streaming, and the block collapses when streaming ends.
         <div
-          aria-label="Assistant reasoning"
+          aria-label="Halo reasoning"
           data-testid="in-app-agent-reasoning-content"
           className={cn(
             // Vertical spacing is margin, not padding, so the left border
@@ -628,7 +628,7 @@ function MessageFeedbackControls({
               rows={3}
               maxLength={500}
               className={cn(
-                "border-input bg-background text-foreground placeholder:text-foreground-tertiary w-full resize-none rounded-md border px-2 py-1",
+                "border-input bg-background text-foreground placeholder:text-muted-foreground w-full resize-none rounded-md border px-2 py-1",
                 isCompact ? "text-xs" : "text-sm",
               )}
             />

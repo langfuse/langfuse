@@ -1,9 +1,11 @@
 import { createHash, getFips } from "crypto";
+import { createServer } from "http";
 import { PassThrough, Readable } from "stream";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { S3Client } from "@aws-sdk/client-s3";
+import type { NodeHttpHandler } from "@smithy/node-http-handler";
 
 import { BLOB_STORAGE_REGION_INVALID_MESSAGE } from "../../utils/stringChecks";
 import { env } from "../../env";
@@ -29,6 +31,53 @@ vi.mock("@aws-sdk/lib-storage", () => ({
 }));
 
 describe("S3StorageService region normalization", () => {
+  it("configures a failing request timeout when requested", async () => {
+    const server = createServer(() => {});
+    await new Promise<void>((resolve) =>
+      server.listen(0, "127.0.0.1", resolve),
+    );
+    const address = server.address();
+    if (!address || typeof address === "string") {
+      throw new Error("Expected a local HTTP port");
+    }
+
+    try {
+      const service = StorageServiceFactory.getInstance({
+        accessKeyId: "test-access-key",
+        secretAccessKey: "test-secret-key",
+        bucketName: "test-bucket",
+        endpoint: undefined,
+        region: "us-west-2",
+        forcePathStyle: false,
+        useAzureBlob: false,
+        useGoogleCloudStorage: false,
+        useOCIObjectStorage: false,
+        awsSse: undefined,
+        awsSseKmsKeyId: undefined,
+        s3RequestTimeoutMs: 50,
+      });
+      const client = (service as unknown as { client: S3Client }).client;
+      const handler = client.config.requestHandler as NodeHttpHandler;
+      await expect(
+        handler.handle({
+          protocol: "http:",
+          hostname: "127.0.0.1",
+          port: address.port,
+          method: "GET",
+          path: "/",
+        } as Parameters<NodeHttpHandler["handle"]>[0]),
+      ).rejects.toMatchObject({ name: "TimeoutError" });
+
+      expect(handler.httpHandlerConfigs()).toMatchObject({
+        requestTimeout: 50,
+        throwOnRequestTimeout: true,
+      });
+    } finally {
+      server.closeAllConnections();
+      server.close();
+    }
+  });
+
   it("trims a persisted region before configuring the AWS client", async () => {
     const service = StorageServiceFactory.getInstance({
       accessKeyId: "test-access-key",
@@ -395,6 +444,56 @@ describe("GoogleCloudStorageService signed-URL retry", () => {
   });
 });
 
+describe("StorageServiceFactory GCS credentials", () => {
+  const original = env.LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS;
+  afterEach(() => {
+    env.LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS = original;
+  });
+
+  const keyFilenameOf = (service: unknown) =>
+    (service as { storage: { authClient: { keyFilename?: string } } }).storage
+      .authClient.keyFilename;
+
+  it("uses ADC, not the deployment storage key, when GCS is selected explicitly without credentials", () => {
+    env.LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS = "/etc/deployment-key.json";
+    const service = StorageServiceFactory.getInstance({
+      accessKeyId: undefined,
+      secretAccessKey: undefined,
+      bucketName: "test-bucket",
+      endpoint: undefined,
+      region: undefined,
+      forcePathStyle: false,
+      useGoogleCloudStorage: true,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+    });
+
+    expect(keyFilenameOf(service)).toBeUndefined();
+  });
+
+  it("uses the deployment storage key when GCS is selected by env", () => {
+    env.LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS = "/etc/deployment-key.json";
+    const originalUseGcs = env.LANGFUSE_USE_GOOGLE_CLOUD_STORAGE;
+    env.LANGFUSE_USE_GOOGLE_CLOUD_STORAGE = "true";
+    try {
+      const service = StorageServiceFactory.getInstance({
+        accessKeyId: undefined,
+        secretAccessKey: undefined,
+        bucketName: "test-bucket",
+        endpoint: undefined,
+        region: undefined,
+        forcePathStyle: false,
+        awsSse: undefined,
+        awsSseKmsKeyId: undefined,
+      });
+
+      expect(keyFilenameOf(service)).toBe("/etc/deployment-key.json");
+    } finally {
+      env.LANGFUSE_USE_GOOGLE_CLOUD_STORAGE = originalUseGcs;
+    }
+  });
+});
+
 /**
  * Source-stream errors on GCS uploads must reject the awaited upload instead
  * of escaping as an uncaught 'error' event. `.pipe().on("error")` only
@@ -735,5 +834,58 @@ describe("S3StorageService SlowDown logging", () => {
 
     expect(errorSpy).toHaveBeenCalled();
     expect(warnSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("S3StorageService request handler socket limit", () => {
+  const originalConcurrentWrites = env.LANGFUSE_S3_CONCURRENT_WRITES;
+
+  const setConcurrentWrites = (value: number) => {
+    (
+      env as { LANGFUSE_S3_CONCURRENT_WRITES: number }
+    ).LANGFUSE_S3_CONCURRENT_WRITES = value;
+  };
+
+  afterEach(() => {
+    setConcurrentWrites(originalConcurrentWrites);
+  });
+
+  type ResolvedHandlerConfig = {
+    httpAgentProvider: () => Promise<{ maxSockets: number }>;
+    httpsAgent: { maxSockets: number };
+  };
+
+  const resolveHandlerConfig = (endpoint: string) => {
+    const service = StorageServiceFactory.getInstance({
+      accessKeyId: "test-access-key",
+      secretAccessKey: "test-secret-key",
+      bucketName: "test-bucket",
+      endpoint,
+      region: "us-east-1",
+      forcePathStyle: true,
+      useAzureBlob: false,
+      useGoogleCloudStorage: false,
+      useOCIObjectStorage: false,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+    });
+
+    const client = (service as unknown as { client: S3Client }).client;
+    const handler = client.config.requestHandler as unknown as {
+      configProvider: Promise<ResolvedHandlerConfig>;
+    };
+
+    return handler.configProvider;
+  };
+
+  it("applies LANGFUSE_S3_CONCURRENT_WRITES to plain-HTTP endpoints such as MinIO", async () => {
+    setConcurrentWrites(123);
+
+    const config = await resolveHandlerConfig("http://127.0.0.1:9000");
+
+    // The HTTP agent is created lazily on the first non-TLS request.
+    const httpAgent = await config.httpAgentProvider();
+    expect(httpAgent.maxSockets).toBe(123);
+    expect(config.httpsAgent.maxSockets).toBe(123);
   });
 });

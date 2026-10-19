@@ -25,15 +25,19 @@ export function SessionConversationTimelineTrace({
   scrollTarget,
   itemId,
   threadIndex,
-  threadNumber,
   displayNumber,
+  threadCount,
+  variant = "session",
+  includeNestedThreads = false,
 }: {
+  includeNestedThreads?: boolean;
+  variant?: "session" | "single-trace";
   itemId?: string;
   threadIndex?: number;
   threadNumber?: number;
   displayNumber?: string;
   threadCount?: number;
-  trace: EventSessionTrace;
+  trace: Pick<EventSessionTrace, "id" | "name">;
   turnNumber: number;
   state: PreparedSessionConversationTimelineTraceState;
   onOpenTrace: () => void;
@@ -45,80 +49,85 @@ export function SessionConversationTimelineTrace({
     requestId: number;
   } | null;
 }) {
+  const showHeader = variant === "session" || (threadCount ?? 0) > 1;
   const hiddenThreadCount =
     state.type === "transcript"
-      ? getSessionTranscriptThreads(state.result.transcript).hiddenThreadCount
+      ? getSessionTranscriptThreads(
+          state.result.transcript,
+          includeNestedThreads,
+        ).hiddenThreadCount
       : 0;
   return (
     <div
-      className="px-4 pb-14 sm:px-6 lg:px-10"
+      className={cn(
+        variant === "single-trace" ? "p-0" : "px-4 pb-14 sm:px-6 lg:px-10",
+      )}
       data-session-trace-id={trace.id}
       data-session-item-id={itemId}
     >
-      <div className="group/trace-header mb-6 flex items-center gap-4 pt-5">
-        <button
-          type="button"
-          className="text-muted-foreground hover:text-foreground ph-no-capture flex min-w-0 items-center gap-2 font-mono text-xs transition-colors"
-          onClick={onOpenTrace}
-          title={`${trace.name ?? "Trace"} (${trace.id})`}
-        >
-          <span className="border-border bg-tertiary text-foreground flex h-4 min-w-4 shrink-0 items-center justify-center rounded-sm border px-0.5 font-mono text-[10px]">
-            {displayNumber ?? turnNumber}
-          </span>
-          <span
-            className="truncate"
-            title={`${trace.name ?? "Trace"} · ${trace.id}`}
+      {showHeader && (
+        <div className="group/trace-header mb-6 flex items-center gap-4 pt-5">
+          <button
+            type="button"
+            className="text-muted-foreground hover:text-foreground ph-no-capture flex min-w-0 items-center gap-2 font-mono text-xs transition-colors"
+            onClick={onOpenTrace}
+            title={`${trace.name ?? "Trace"} (${trace.id})`}
           >
-            {trace.name ?? "Trace"} · {trace.id}
-          </span>
-          {threadNumber !== undefined && (
-            <span className="shrink-0">(Thread {threadNumber})</span>
+            <span className="border-border bg-tertiary text-foreground flex h-4 min-w-4 shrink-0 items-center justify-center rounded-sm border px-0.5 font-mono text-[10px]">
+              {displayNumber ?? turnNumber}
+            </span>
+            <span
+              className="truncate"
+              title={`${trace.name ?? "Trace"} · ${trace.id}`}
+            >
+              {trace.name ?? "Trace"} · {trace.id}
+            </span>
+          </button>
+          <div className="border-border min-w-0 flex-1 border-t border-dashed" />
+          <button
+            type="button"
+            className="text-muted-foreground hover:text-foreground hidden shrink-0 font-mono text-xs group-focus-within/trace-header:block group-hover/trace-header:block hover:underline"
+            onClick={onOpenTrace}
+          >
+            Open trace
+          </button>
+          {variant === "session" && hiddenThreadCount > 0 && (
+            <Tooltip
+              label={`${hiddenThreadCount} nested ${hiddenThreadCount === 1 ? "thread" : "threads"} hidden`}
+            >
+              {({ getTriggerProps }) => (
+                <button
+                  {...getTriggerProps()}
+                  type="button"
+                  className="bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors"
+                  aria-label={`${hiddenThreadCount} nested ${hiddenThreadCount === 1 ? "thread" : "threads"} hidden`}
+                >
+                  <GitBranch className="icon-base" aria-hidden="true" />
+                </button>
+              )}
+            </Tooltip>
           )}
-        </button>
-        <div className="border-border min-w-0 flex-1 border-t border-dashed" />
-        <button
-          type="button"
-          className="text-muted-foreground hover:text-foreground hidden shrink-0 font-mono text-xs group-focus-within/trace-header:block group-hover/trace-header:block hover:underline"
-          onClick={onOpenTrace}
-        >
-          Open trace
-        </button>
-        {hiddenThreadCount > 0 && (
-          <Tooltip
-            label={`${hiddenThreadCount} nested ${hiddenThreadCount === 1 ? "thread" : "threads"} hidden`}
-          >
-            {({ getTriggerProps }) => (
-              <button
-                {...getTriggerProps()}
-                type="button"
-                className="bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors"
-                aria-label={`${hiddenThreadCount} nested ${hiddenThreadCount === 1 ? "thread" : "threads"} hidden`}
-              >
-                <GitBranch className="icon-base" aria-hidden="true" />
-              </button>
-            )}
-          </Tooltip>
-        )}
-        {state.type === "transcript" && state.result.cutoff && (
-          <Tooltip label="This transcript may be incomplete because the observation limit was reached.">
-            {({ getTriggerProps }) => (
-              <button
-                {...getTriggerProps()}
-                type="button"
-                className="bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors"
-                aria-label="Transcript may be incomplete"
-              >
-                <MessageSquareOff className="icon-base" aria-hidden="true" />
-              </button>
-            )}
-          </Tooltip>
-        )}
-      </div>
+          {state.type === "transcript" && state.result.cutoff && (
+            <Tooltip label="Some messages may be missing because the observation limit was reached.">
+              {({ getTriggerProps }) => (
+                <button
+                  {...getTriggerProps()}
+                  type="button"
+                  className="bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors"
+                  aria-label="Some messages may be missing"
+                >
+                  <MessageSquareOff className="icon-base" aria-hidden="true" />
+                </button>
+              )}
+            </Tooltip>
+          )}
+        </div>
+      )}
 
       {state.type === "loading" && (
         <div
           role="status"
-          aria-label="Loading transcript"
+          aria-label="Loading messages"
           className="flex flex-col gap-5 py-2"
         >
           <div className="flex items-center gap-2 py-1">
@@ -151,16 +160,18 @@ export function SessionConversationTimelineTrace({
       )}
       {state.type === "error" && (
         <div className="border-destructive/40 bg-destructive/5 text-foreground rounded-lg border p-4 text-xs">
-          Failed to load transcript.
+          Failed to load messages.
         </div>
       )}
       {state.type === "empty" && (
         <div className="text-muted-foreground flex items-center justify-between gap-4 rounded-lg border border-dashed p-4 text-xs">
-          <span>This trace has no transcript messages.</span>
+          <span>This trace has no messages.</span>
         </div>
       )}
       {state.type === "transcript" && (
         <SessionTranscriptContent
+          includeNestedThreads={includeNestedThreads}
+          variant={variant}
           {...state}
           onOpenObservation={onOpenObservation}
           scrollTarget={scrollTarget}

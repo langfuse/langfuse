@@ -59,10 +59,17 @@ this.
 | See all scenarios and flags                                                                                                                      | `pnpm run seed -- list --json`                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | Predict without writing                                                                                                                          | add `--dry-run`                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
+For comparing filters across experiments, run `pnpm run seed -- experiment-filters`:
+three runs over 60 shared items with shifted numeric/categorical/boolean scores,
+status, item/event metadata, missing scores and missing results. Per-experiment
+expected matches are documented in `packages/shared/scripts/seeder/README.md`.
+
 For a v4 experiment with chat messages and nested JSON input/output, run
 `pnpm run seed -- experiment-io`. It creates one dataset, one experiment, and
-three items, then prints the experiment results link. Set `NEXTAUTH_URL` to
-your local app URL when using a port other than 3000.
+three items, then prints the experiment results link. Add `--compare` for a
+second run on that dataset whose chat output is long enough to need a taller
+comparison row. Set `NEXTAUTH_URL` to your local app URL when using a port
+other than 3000.
 
 For Topics discovery and later assignment, run `pnpm run seed -- topics`.
 For the 100-trace Intent/Issues evaluation, run

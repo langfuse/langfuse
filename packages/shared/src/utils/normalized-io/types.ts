@@ -74,11 +74,24 @@ export type ToolCallPart = NormalizedPartBase & {
   invalid?: true;
 };
 
+/** Content belonging to one execution; nested calls/results are not content. */
+export type ToolResultContentPart =
+  | TextPart
+  | DataPart
+  | FilePart
+  | ReasoningPart
+  | CustomPart;
+
+export type ToolResultOutput =
+  | { type: "text"; value: string }
+  | { type: "json"; value: JsonValue }
+  | { type: "content"; value: ToolResultContentPart[] };
+
 export type ToolResultPart = NormalizedPartBase & {
   type: "tool-result";
   toolCallId: string | null;
   toolName?: string;
-  output: JsonValue;
+  output: ToolResultOutput;
   isError?: boolean;
 };
 

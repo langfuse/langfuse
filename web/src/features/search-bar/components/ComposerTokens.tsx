@@ -43,7 +43,7 @@ const composerTokenVariants = cva("max-w-full", {
     kind: {
       filter: "",
       freeText:
-        "mr-1 inline rounded border px-1.5 py-0.5 border-transparent bg-muted/70 text-foreground/90 transition-colors hover:border-border hover:bg-accent",
+        "mr-1 inline rounded-sm border px-1.5 py-0.5 border-transparent bg-muted/70 text-foreground/90 transition-colors hover:border-border-contrast",
       operator: "font-bold uppercase text-qlang-keyword",
       paren: "text-muted-foreground",
       invalid:
@@ -55,7 +55,7 @@ const composerTokenVariants = cva("max-w-full", {
     deactivated: { true: "opacity-50 line-through decoration-1", false: "" },
     // The token whose explanation is showing. Mirrors the hover treatment, so
     // the caret (keyboard) path highlights exactly like the pointer does.
-    highlighted: { true: "border-border bg-accent", false: "" },
+    highlighted: { true: "border-ring", false: "" },
   },
   defaultVariants: { kind: "freeText", deactivated: false, highlighted: false },
 });
@@ -74,8 +74,17 @@ function renderPlainText(text: string, keyPrefix: string): React.ReactNode[] {
 }
 
 function FilterTokenBody({ segment }: { segment: FilterSegment }) {
-  const raw = segment.raw;
+  const raw = segment.target
+    ? segment.raw.slice(0, segment.target.from) +
+      segment.raw.slice(segment.target.to)
+    : segment.raw;
   const dash = segment.negated ? "-" : "";
+  const prefixTarget = segment.target && segment.target.from <= dash.length;
+  const targetText = segment.target ? (
+    <span data-part="target" className={segment.target.textClassName}>
+      {segment.raw.slice(segment.target.from, segment.target.to)}
+    </span>
+  ) : null;
   const body = segment.negated ? raw.slice(1) : raw;
   // Quote-aware split: a dot-path key may carry a quoted segment with an inner
   // colon (`metadata."foo:bar":*x*`), so the field/value separator is the first
@@ -96,6 +105,7 @@ function FilterTokenBody({ segment }: { segment: FilterSegment }) {
           The value stays outside so long grouped values can still wrap. */}
       <span className="whitespace-nowrap">
         {dash && <span className="text-muted-foreground">-</span>}
+        {prefixTarget && targetText}
         <span data-part="field" className="text-qlang-field">
           {segment.displayField}
         </span>
@@ -109,6 +119,7 @@ function FilterTokenBody({ segment }: { segment: FilterSegment }) {
       >
         {value}
       </span>
+      {!prefixTarget && targetText}
     </>
   );
 }
@@ -226,5 +237,5 @@ export function ComposerTokens({
     freeTextReason,
     highlightedSegmentId,
   ]);
-  return <>{out}</>;
+  return out;
 }

@@ -14,6 +14,7 @@ import {
 import { defineTool } from "../../../core/define-tool";
 import { McpAdvancedFilterBaseSchema } from "../../../core/filter-schema";
 import { runMcpTool } from "../../../core/run-mcp-tool";
+import { MCP_CLICKHOUSE_SETTINGS } from "../../../core/clickhouse-settings";
 import { clampToDataAccessDays } from "@/src/features/entitlements/server";
 import { z } from "zod";
 
@@ -123,8 +124,16 @@ const MetricsQueryObjectV2BaseSchema = z.object({
       granularity: publicGranularities,
     })
     .optional(),
-  fromTimestamp: z.iso.datetime({ offset: true }),
-  toTimestamp: z.iso.datetime({ offset: true }),
+  fromTimestamp: z.iso
+    .datetime({ offset: true })
+    .describe(
+      "Required start of the analytics time range, as an ISO 8601 timestamp with timezone (Z or an explicit offset). Must be before toTimestamp.",
+    ),
+  toTimestamp: z.iso
+    .datetime({ offset: true })
+    .describe(
+      "Required end of the analytics time range, as an ISO 8601 timestamp with timezone. Must be after fromTimestamp. timeDimension.granularity controls aggregation buckets; it does not replace these explicit time bounds.",
+    ),
   orderBy: z
     .array(
       z.object({
@@ -190,6 +199,7 @@ export const [queryMetricsTool, handleQueryMetrics] = defineTool({
           queryParams,
           "v2",
           true,
+          { clickhouseSettings: MCP_CLICKHOUSE_SETTINGS },
         );
 
         return { data: result };
