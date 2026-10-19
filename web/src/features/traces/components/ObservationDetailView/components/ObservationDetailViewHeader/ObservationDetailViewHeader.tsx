@@ -260,9 +260,7 @@ export const ObservationDetailViewHeader = memo(
               {({ getTriggerProps }) => (
                 <HeaderActionButton
                   label="Options"
-                  icon={
-                    <EllipsisVertical className="icon-base text-icon-foreground" />
-                  }
+                  icon={<EllipsisVertical size="base" color="default" />}
                   {...getTriggerProps()}
                 />
               )}
@@ -395,7 +393,7 @@ export const ObservationDetailViewHeader = memo(
                                 ref: mobileActionsTriggerRef,
                               })}
                             >
-                              <EllipsisVertical className="icon-base text-icon-foreground" />
+                              <EllipsisVertical size="base" color="default" />
                             </Button>
                           )}
                         </DropdownMenu>
@@ -508,7 +506,7 @@ export const ObservationDetailViewHeader = memo(
                   {({ getTriggerProps }) => (
                     <HeaderActionButton
                       label="Add to"
-                      icon={<PlusIcon className="icon-base" />}
+                      icon={<PlusIcon size="base" />}
                       {...getTriggerProps()}
                     />
                   )}
@@ -516,7 +514,7 @@ export const ObservationDetailViewHeader = memo(
               ) : (
                 <HeaderActionButton
                   label="Add to"
-                  icon={<PlusIcon className="icon-base" />}
+                  icon={<PlusIcon size="base" />}
                   disabled
                 />
               )}
@@ -527,9 +525,9 @@ export const ObservationDetailViewHeader = memo(
                       label="Annotate"
                       icon={
                         disabled ? (
-                          <LockIcon className="icon-base" />
+                          <LockIcon size="base" />
                         ) : (
-                          <SquarePen className="icon-base" />
+                          <SquarePen size="base" />
                         )
                       }
                       disabled={disabled}
@@ -554,9 +552,9 @@ export const ObservationDetailViewHeader = memo(
                 label={commentActionLabel}
                 icon={
                   commentDrawerControl.disabled ? (
-                    <MessageSquareOff className="icon-base" />
+                    <MessageSquareOff size="base" />
                   ) : (
-                    <MessageSquare className="icon-base" />
+                    <MessageSquare size="base" />
                   )
                 }
                 disabled={commentDrawerControl.disabled}

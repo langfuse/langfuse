@@ -174,9 +174,7 @@ function LoadedTraceDetailViewHeader({
             {({ getTriggerProps }) => (
               <HeaderActionButton
                 label="Options"
-                icon={
-                  <EllipsisVertical className="icon-base text-icon-foreground" />
-                }
+                icon={<EllipsisVertical size="base" color="default" />}
                 {...getTriggerProps()}
               />
             )}
@@ -282,7 +280,7 @@ function LoadedTraceDetailViewHeader({
                               ref: mobileActionsTriggerRef,
                             })}
                           >
-                            <EllipsisVertical className="icon-base text-icon-foreground" />
+                            <EllipsisVertical size="base" color="default" />
                           </Button>
                         )}
                       </DropdownMenu>
@@ -384,7 +382,7 @@ function LoadedTraceDetailViewHeader({
               {({ getTriggerProps }) => (
                 <HeaderActionButton
                   label="Add to"
-                  icon={<PlusIcon className="icon-base" />}
+                  icon={<PlusIcon size="base" />}
                   {...getTriggerProps()}
                 />
               )}
@@ -396,9 +394,9 @@ function LoadedTraceDetailViewHeader({
                     label="Annotate"
                     icon={
                       disabled ? (
-                        <LockIcon className="icon-base" />
+                        <LockIcon size="base" />
                       ) : (
-                        <SquarePen className="icon-base" />
+                        <SquarePen size="base" />
                       )
                     }
                     disabled={disabled}
@@ -421,9 +419,9 @@ function LoadedTraceDetailViewHeader({
               label={commentActionLabel}
               icon={
                 commentDrawerControl.disabled ? (
-                  <MessageSquareOff className="icon-base" />
+                  <MessageSquareOff size="base" />
                 ) : (
-                  <MessageSquare className="icon-base" />
+                  <MessageSquare size="base" />
                 )
               }
               disabled={commentDrawerControl.disabled}
