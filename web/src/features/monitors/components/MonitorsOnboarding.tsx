@@ -20,7 +20,6 @@ const channels: OnboardingChannel[] = [
   {
     actionType: "SLACK",
     label: "Connect Slack",
-    // eslint-disable-next-line @typescript-eslint/no-deprecated -- brand icon retained for parity with MonitorAutomationsPanel.
     icon: <Slack size="base" aria-hidden="true" />,
   },
   {
@@ -31,7 +30,6 @@ const channels: OnboardingChannel[] = [
   {
     actionType: "GITHUB_DISPATCH",
     label: "Connect Github Actions",
-    // eslint-disable-next-line @typescript-eslint/no-deprecated -- see Slack note above.
     icon: <Github size="base" aria-hidden="true" />,
   },
 ];

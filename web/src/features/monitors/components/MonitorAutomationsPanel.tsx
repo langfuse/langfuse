@@ -42,9 +42,7 @@ const actionLabel: Record<ActionTypes, string> = {
 
 const actionIcon = {
   WEBHOOK: WebhookIcon,
-  // eslint-disable-next-line @typescript-eslint/no-deprecated -- Preserve existing automation brand icons until their replacements are migrated.
   SLACK: Slack,
-  // eslint-disable-next-line @typescript-eslint/no-deprecated -- Preserve existing automation brand icons until their replacements are migrated.
   GITHUB_DISPATCH: Github,
 } satisfies Record<ActionTypes, typeof WebhookIcon>;
 
@@ -402,10 +400,8 @@ const ActionIcon = ({
     case "WEBHOOK":
       return <WebhookIcon __rawClassName={className} />;
     case "SLACK":
-      // eslint-disable-next-line @typescript-eslint/no-deprecated -- see import note.
       return <Slack __rawClassName={className} />;
     case "GITHUB_DISPATCH":
-      // eslint-disable-next-line @typescript-eslint/no-deprecated -- see import note.
       return <Github __rawClassName={className} />;
   }
 };

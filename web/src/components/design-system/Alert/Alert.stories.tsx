@@ -1,4 +1,3 @@
-/* eslint-disable @repo/storybook-play-no-implementation-detail-assertions */
 import React from "react";
 import { AlertTriangle, Info, X } from "@langfuse/icons";
 import { expect, fn, userEvent, within } from "storybook/test";
@@ -108,15 +107,7 @@ export const DismissAction = meta.story({
     const icon = alert.querySelector('[data-slot="alert-icon"]');
     const dismissButton = canvas.getByRole("button", { name: "Dismiss alert" });
 
-    await expect(alert).toHaveClass("pr-10");
-    await expect(alert.className).not.toContain("[&>svg");
-    await expect(alert).toHaveClass(
-      "[&>[data-slot=alert-icon]]:top-3",
-      "[&>[data-slot=alert-icon]]:left-3",
-    );
-    await expect(icon).toHaveClass("absolute", "icon-base");
     await expect(icon).toHaveAttribute("aria-hidden", "true");
-    await expect(dismissButton).not.toHaveClass("pl-6");
     await userEvent.click(dismissButton);
     await expect(dismiss).toHaveBeenCalledOnce();
   },
