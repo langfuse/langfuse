@@ -1,0 +1,230 @@
+name: Apply OTEL patch
+
+on:
+  push:
+    branches:
+      - fix/otel-write-errors
+
+permissions:
+  contents: write
+
+jobs:
+  apply-patch:
+    if: ${{ !contains(github.event.head_commit.message, '[otel-patch]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: fix/otel-write-errors
+
+      - name: Apply requested OTEL changes
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          source = Path('packages/shared/src/server/otel/OtelIngestionProcessor.ts')
+          text = source.read_text()
+
+          replacements = [
+              ('''    // Process all events normally first
+              const allEvents = resourceSpans.flatMap((resourceSpan) => {
+                if (!resourceSpan) return [];
+                return this.processResourceSpan(resourceSpan);
+              });''', '''    // Process all events normally first
+              const allEvents = resourceSpans.flatMap((resourceSpan) => {
+                if (!resourceSpan) return [];
+                return this.processResourceSpan(resourceSpan, resourceSpans);
+              });'''),
+              ('''          // Log error but don't throw to avoid breaking the ingestion pipeline
+              logger.error("Error processing OTEL spans:", {
+                error,
+                ...this.getConversionFailureLogContext(resourceSpans),
+              });
+              traceException(error, span);
+
+              return [];''', '''          logger.error('Error processing OTEL spans:', {
+                error,
+                ...this.getConversionFailureLogContext(resourceSpans),
+              });
+              traceException(error, span);
+              throw error;'''),
+              ('''  private processResourceSpan(
+              resourceSpan: ResourceSpan,
+            ): IngestionEventType[] {
+              const resourceAttributes = this.extractResourceAttributes(resourceSpan);
+              const events: IngestionEventType[] = [];
+
+              for (const scopeSpan of resourceSpan?.scopeSpans ?? []) {
+                const isLangfuseSDKSpans =
+                  scopeSpan.scope?.name?.startsWith("langfuse-sdk") ?? false;
+                const scopeAttributes = this.extractScopeAttributes(scopeSpan);
+
+                if (isLangfuseSDKSpans) {
+                  recordIncrement("langfuse.otel.ingestion.langfuse_sdk_batch", 1);
+                }
+
+                for (const span of scopeSpan?.spans ?? []) {
+                  const spanEvents = this.processSpan(
+                    span,
+                    scopeSpan,
+                    resourceAttributes,
+                    scopeAttributes,
+                    isLangfuseSDKSpans,
+                  );
+                  events.push(...spanEvents);
+                }
+              }
+
+              return events;
+            }''', '''  private processResourceSpan(
+              resourceSpan: ResourceSpan,
+              resourceSpans: ResourceSpan[] = [resourceSpan],
+            ): IngestionEventType[] {
+              const resourceAttributes = this.extractResourceAttributes(resourceSpan);
+              const events: IngestionEventType[] = [];
+
+              for (const scopeSpan of resourceSpan?.scopeSpans ?? []) {
+                const isLangfuseSDKSpans =
+                  scopeSpan.scope?.name?.startsWith("langfuse-sdk") ?? false;
+                const scopeAttributes = this.extractScopeAttributes(scopeSpan);
+
+                if (isLangfuseSDKSpans) {
+                  recordIncrement("langfuse.otel.ingestion.langfuse_sdk_batch", 1);
+                }
+
+                for (const span of scopeSpan?.spans ?? []) {
+                  try {
+                    const spanEvents = this.processSpan(
+                      span,
+                      scopeSpan,
+                      resourceAttributes,
+                      scopeAttributes,
+                      isLangfuseSDKSpans,
+                    );
+                    events.push(...spanEvents);
+                  } catch (error) {
+                    if (error instanceof ForbiddenError) {
+                      throw error;
+                    }
+                    logger.error('Error processing OTEL spans:', {
+                      error,
+                      ...this.getConversionFailureLogContext(resourceSpans),
+                    });
+                    traceException(error);
+                  }
+                }
+              }
+
+              return events;
+            }'''),
+              ('''    const traceIds: Set<string> = new Set();
+              if (Array.isArray(resourceSpans)) {
+                resourceSpans.forEach((resourceSpan) => {
+                  for (const scopeSpan of resourceSpan?.scopeSpans ?? []) {
+                    for (const span of scopeSpan?.spans ?? []) {
+                      traceIds.add(this.parseId(span.traceId?.data ?? span.traceId));
+                    }
+                  }
+                });
+              }
+
+              try {
+                const results = await Promise.all(
+                  [...traceIds].map(async (traceId) => {
+                    const key = `langfuse:project:${this.projectId}:trace:${traceId}:seen`;
+                    const TTLSeconds = 600; // 10 minutes
+                    const result = await redis?.set(key, "1", "EX", TTLSeconds, "NX");
+
+                    return {
+                      traceId: traceId,
+                      wasSeen: result !== "OK", // Redis returns "OK" if key did not exist, i.e. trace was NOT seen in last TTL seconds
+                    };
+                  }),
+                );
+
+                const seenTraceIds: Set<string> = new Set();
+                results.forEach((r) => {
+                  if (r.wasSeen) {
+                    seenTraceIds.add(r.traceId);
+                  }
+                });
+
+                return seenTraceIds;
+              } catch (error) {
+                // Redis error will be captured by parent span, just log and continue
+                logger.error("Redis operation failed in getSeenTracesSet:", error);
+
+                // Return empty set to continue processing (fail-safe behavior)
+                return new Set();
+              }''', '''    const traceIds: Set<string> = new Set();
+              if (Array.isArray(resourceSpans)) {
+                for (const resourceSpan of resourceSpans) {
+                  for (const scopeSpan of resourceSpan?.scopeSpans ?? []) {
+                    for (const span of scopeSpan?.spans ?? []) {
+                      try {
+                        traceIds.add(this.parseId(span.traceId?.data ?? span.traceId));
+                      } catch (error) {
+                        logger.warn(
+                          'Failed to parse traceId in getSeenTracesSet:',
+                          error,
+                        );
+                      }
+                    }
+                  }
+                }
+              }
+
+              try {
+                const results = await Promise.all(
+                  [...traceIds].map(async (traceId) => {
+                    const key = `langfuse:project:${this.projectId}:trace:${traceId}:seen`;
+                    const TTLSeconds = 600; // 10 minutes
+                    const result = await redis?.set(key, "1", "EX", TTLSeconds, "NX");
+
+                    return {
+                      traceId: traceId,
+                      wasSeen: result !== "OK", // Redis returns "OK" if key did not exist, i.e. trace was NOT seen in last TTL seconds
+                    };
+                  }),
+                );
+
+                const seenTraceIds: Set<string> = new Set();
+                results.forEach((r) => {
+                  if (r.wasSeen) {
+                    seenTraceIds.add(r.traceId);
+                  }
+                });
+
+                return seenTraceIds;
+              } catch (error) {
+                logger.error('Redis operation failed in getSeenTracesSet:', error);
+                throw error;
+              }'''),
+          ]
+
+          for old, new in replacements:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'Expected exactly one match, found {count}: {old[:80]!r}')
+              text = text.replace(old, new)
+
+          source.write_text(text)
+
+          test = Path('worker/src/queues/__tests__/otelConversionFailureLogging.test.ts')
+          test_text = test.read_text()
+          old_test = '''  it(\n    "rethrows batch-level failures such as Redis errors in getSeenTracesSet",\n    async () => {\n      const processor = createProcessor();\n      const redisError = new Error("Redis connection lost");\n      vi.spyOn(\n        processor as unknown as { getSeenTracesSet: () => Promise<Set<string>> },\n        "getSeenTracesSet",\n      ).mockRejectedValueOnce(redisError);\n\n      await expect(\n        processor.processToIngestionEvents(batchWithSpanWithoutTraceId),\n      ).rejects.toThrow("Redis connection lost");\n    },\n  );'''
+          new_test = '''  it(\n    'rethrows batch-level failures such as Redis errors in getSeenTracesSet',\n    async () => {\n      const errorSpy = vi.spyOn(logger, 'error');\n      const processor = createProcessor();\n      const redisError = new Error('Redis connection lost');\n      vi.spyOn(\n        processor as unknown as {\n          getSeenTracesSet: () => Promise<Set<string>>;\n        },\n        'getSeenTracesSet',\n      ).mockRejectedValueOnce(redisError);\n\n      await expect(\n        processor.processToIngestionEvents(batchWithSpanWithoutTraceId),\n      ).rejects.toThrow('Redis connection lost');\n\n      expect(errorSpy).toHaveBeenCalledWith(\n        'Error processing OTEL spans:',\n        expect.objectContaining({\n          ...expectedContext,\n          error: redisError,\n        }),\n      );\n    },\n  );'''
+          if test_text.count(old_test) != 1:
+              raise SystemExit(f'Expected exactly one existing Redis test block, found {test_text.count(old_test)}')
+          test.write_text(test_text.replace(old_test, new_test))
+          PY
+
+          rm .github/workflows/apply-otel-patch.yml
+          git config user.name "akhilbharati244"
+          git config user.email "80946603+akhilbharati244@users.noreply.github.com"
+          git add packages/shared/src/server/otel/OtelIngestionProcessor.ts worker/src/queues/__tests__/otelConversionFailureLogging.test.ts .github/workflows/apply-otel-patch.yml
+          git diff --cached --check
+          git commit -m "fix(worker): propagate OTel conversion failures [otel-patch]"
+          git push origin HEAD:fix/otel-write-errors
