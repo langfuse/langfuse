@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 export const CloudPrivacyNotice = ({ action }: { action: string }) => (
   <div className="text-muted-foreground mx-auto mt-10 max-w-lg text-center text-xs">
     By {action} you are agreeing to our{" "}

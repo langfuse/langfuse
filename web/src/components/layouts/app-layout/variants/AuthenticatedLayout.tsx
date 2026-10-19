@@ -22,7 +22,7 @@ import {
   useSidebar,
 } from "@/src/components/ui/sidebar";
 import { AppSidebar } from "@/src/components/nav/AppSidebar/AppSidebar";
-import { SidebarPresenceProvider } from "@/src/components/nav/sidebar-presence";
+import { SidebarPresenceProvider } from "@/src/components/nav/SidebarPresenceProvider";
 import { Toaster } from "@/src/components/ui/sonner";
 import { Layer } from "@/src/components/design-system/Layer/Layer";
 import {
@@ -40,6 +40,7 @@ import type { Session } from "next-auth";
 import type { NavigationItem } from "@/src/components/layouts/utilities/routes";
 import type { RouteGroup } from "@/src/components/layouts/routes";
 import dynamic from "next/dynamic";
+import { canOpenPersonalFeaturePreviews } from "@/src/features/feature-previews/canOpenPersonalFeaturePreviews";
 import { ControlledFeaturePreviewModal } from "@/src/features/feature-previews/components/ControlledFeaturePreviewModal";
 import { InAppAgentWindowHost } from "@/src/features/in-app-agent/components/InAppAgentWindowHost";
 import {
@@ -172,8 +173,11 @@ export function AuthenticatedLayout({
     },
   }));
 
-  const hasFeaturePreviews =
-    isLangfuseCloud || user.v4BetaEnabled === true || user.admin === true;
+  const hasFeaturePreviews = canOpenPersonalFeaturePreviews({
+    isLangfuseCloud,
+    v4BetaEnabled: user.v4BetaEnabled === true,
+    isAdmin: user.admin === true,
+  });
 
   // User navigation items for sidebar dropdown
   const sidebarUser = {

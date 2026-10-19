@@ -20,7 +20,7 @@ const rolePresentation = {
     label: "Assistant",
     icon: Bot,
     wrapper: "justify-start",
-    container: "bg-muted/50 max-w-[min(85%,48rem)] rounded-2xl px-4 py-2.5",
+    container: "max-w-[min(85%,48rem)] rounded-2xl px-4 py-2.5",
   },
   tool: {
     label: "Tool",
@@ -45,7 +45,9 @@ export function SessionTimelineContentMessage({
   timestamp,
   onOpenObservation,
   expandRequestId,
+  variant = "session",
 }: {
+  variant?: "session" | "single-trace";
   role: Exclude<NormalizedMessage["role"], "system">;
   parts: NormalizedMessage["parts"];
   senderName: NormalizedMessage["senderName"];
@@ -139,6 +141,8 @@ export function SessionTimelineContentMessage({
               className={cn(
                 "group/bubble min-w-0 overflow-hidden",
                 presentation.container,
+                role === "assistant" &&
+                  (variant === "single-trace" ? "bg-muted" : "bg-muted/50"),
                 ((isJsonOnly && isJsonExpanded) || hasToolParts) && "w-full",
               )}
             >

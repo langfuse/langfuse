@@ -10,16 +10,15 @@ import { logger } from "../../server";
 import { recordRunTerminalOutcome } from "./runMetrics";
 import { buildInAppAgentApprovalDecisionEvent } from "../approvalEvents";
 import type { AgUiEvent } from "../schema";
+import type { InAppAgentToolInputs } from "../toolInputs";
 import type { InAppAgentPrefixedLangfuseMcpToolName } from "./mcpPolicy";
 import {
+  IN_APP_AGENT_UNSETTLED_RUN_STATUSES,
   InAppAgentRunRequestSchema,
+  isSettledInAppAgentRunStatus,
   resolveInAppAgentRootRunId,
   type InAppAgentRunRequest,
 } from "../../features/inAppAgent/types";
-import {
-  IN_APP_AGENT_UNSETTLED_RUN_STATUSES,
-  isSettledInAppAgentRunStatus,
-} from "../constants";
 import {
   ACTIVE_RUN_CONFLICT_MESSAGE,
   lockConversation,
@@ -230,6 +229,8 @@ export async function decideToolApproval(params: {
   decidedByUserId: string;
   /** Prefixed tool resolved from the persisted interrupt, never client input. */
   alwaysAllowToolName?: InAppAgentPrefixedLangfuseMcpToolName;
+  /** Tool input, already validated against the persisted interrupt. */
+  toolInputs?: InAppAgentToolInputs;
   model?: string;
 }): Promise<InAppAgentRun> {
   const outcome = await params.prisma.$transaction(async (tx) => {
@@ -379,6 +380,7 @@ export async function decideToolApproval(params: {
           continuationNumber,
           toolCallId: params.toolCallId,
           approved: params.approved,
+          ...(params.toolInputs ? { toolInputs: params.toolInputs } : {}),
           context: parentRequest.success ? parentRequest.data.context : [],
         },
       }),

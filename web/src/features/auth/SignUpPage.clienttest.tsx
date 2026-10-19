@@ -1,12 +1,17 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { signInMock, fetchMock, routerPushMock, envState } = vi.hoisted(() => ({
-  signInMock: vi.fn(),
-  fetchMock: vi.fn(),
-  routerPushMock: vi.fn(),
-  envState: { siteKey: undefined as string | undefined },
-}));
+const { signInMock, fetchMock, routerPushMock, routerState, envState } =
+  vi.hoisted(() => ({
+    signInMock: vi.fn(),
+    fetchMock: vi.fn(),
+    routerPushMock: vi.fn(),
+    routerState: { query: {} as Record<string, string> },
+    envState: {
+      siteKey: undefined as string | undefined,
+      region: undefined as string | undefined,
+    },
+  }));
 
 vi.mock("next-auth/react", () => ({
   signIn: (...args: unknown[]) => signInMock(...args),
@@ -16,7 +21,7 @@ vi.mock("next-auth/react", () => ({
 vi.mock("next/router", () => ({
   useRouter: () => ({
     push: routerPushMock,
-    query: {},
+    query: routerState.query,
     asPath: "/auth/sign-up",
     isReady: true,
   }),
@@ -30,6 +35,9 @@ vi.mock("@/src/env.mjs", () => ({
   env: {
     get NEXT_PUBLIC_TURNSTILE_SITE_KEY() {
       return envState.siteKey;
+    },
+    get NEXT_PUBLIC_LANGFUSE_CLOUD_REGION() {
+      return envState.region;
     },
     NEXT_PUBLIC_BASE_PATH: "",
   },
@@ -100,7 +108,9 @@ describe("VerifiedSignupFlow captcha", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
     routerPushMock.mockReset();
+    routerState.query = {};
     envState.siteKey = undefined;
+    envState.region = undefined;
   });
 
   it("sends the setup code without a captcha token when Turnstile is off", async () => {
@@ -168,4 +178,53 @@ describe("VerifiedSignupFlow captcha", () => {
     });
     expect(fetchMock).toHaveBeenCalledOnce();
   });
+});
+
+describe("VerifiedSignupFlow target path", () => {
+  beforeEach(() => {
+    signInMock.mockReset();
+    signInMock.mockResolvedValue({ ok: true, error: null });
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({}) });
+    vi.stubGlobal("fetch", fetchMock);
+    routerPushMock.mockReset();
+    envState.siteKey = undefined;
+  });
+
+  it.each([
+    {
+      region: undefined,
+      targetPath: "/project/p1/traces?view=v1",
+      setupPasswordPath:
+        "/auth/setup-password?targetPath=%2Fproject%2Fp1%2Ftraces%3Fview%3Dv1",
+    },
+    {
+      region: "EU",
+      targetPath: "/demo/datasets",
+      setupPasswordPath: "/auth/setup-password?targetPath=%2Fdemo%2Fdatasets",
+    },
+    {
+      region: "EU",
+      targetPath: "/project/p1/traces",
+      setupPasswordPath: "/auth/setup-password",
+    },
+  ])(
+    "sends $targetPath on to $setupPasswordPath (Cloud region $region)",
+    async ({ region, targetPath, setupPasswordPath }) => {
+      envState.region = region;
+      routerState.query = { targetPath };
+      renderVerifiedSignup();
+      await fillSignupForm();
+      fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+      await waitFor(() => {
+        expect(routerPushMock).toHaveBeenCalledWith(setupPasswordPath);
+      });
+      expect(signInMock).toHaveBeenCalledWith("email", {
+        email: "jane@example.com",
+        callbackUrl: setupPasswordPath,
+        redirect: false,
+      });
+    },
+  );
 });

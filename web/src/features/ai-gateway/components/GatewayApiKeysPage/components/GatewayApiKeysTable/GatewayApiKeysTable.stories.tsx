@@ -1,3 +1,4 @@
+/* eslint-disable @repo/storybook-play-no-implementation-detail-assertions */
 import type { ComponentProps } from "react";
 import { expect, fn, screen, userEvent, waitFor } from "storybook/test";
 

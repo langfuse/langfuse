@@ -21,11 +21,14 @@ export function RolePermissionPopup({
   open,
   onOpenChange,
   role,
+  transformName = (name) => name,
   emptyStateComment,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   role: SystemRole | null;
+  /** transformName rewrites the role name before it is shown. */
+  transformName?: (name: string) => string;
   emptyStateComment?: string;
 }) {
   const def = role ? systemRoleAccessRights[role] : undefined;
@@ -46,7 +49,7 @@ export function RolePermissionPopup({
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Icon className="icon-base shrink-0" />
-                <span>{def.name}</span>
+                <span>{transformName(def.name)}</span>
                 <Badge
                   variant="tertiary"
                   className="ml-1 shrink-0 text-[0.7rem] tabular-nums"

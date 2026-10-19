@@ -1,4 +1,5 @@
-import { type TraceDomain, type ScoreDomain } from "@langfuse/shared";
+import { type ScoreDomain } from "@langfuse/shared";
+import { type buildTraceUiData } from "@/src/features/traces/fns/treeBuilding";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import {
@@ -38,14 +39,16 @@ import { useHasProjectAccess } from "@/src/features/rbac";
 import { staleProps } from "@/src/features/traces/fns/staleProps";
 import { cn } from "@/src/utils/tailwind";
 import { SkeletonGroup } from "@/src/components/ui/skeleton";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
+import { useReadPath } from "@/src/features/events";
+import { StringParam, useQueryParam } from "use-query-params";
+import { TraceMessagesView } from "./TraceMessagesView/TraceMessagesView";
 
 export type TraceProps = {
   isLoading?: false;
   observations: Array<ObservationReturnTypeWithMetadata>;
-  trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
-    input: string | null;
-    output: string | null;
-  };
+  trace: Parameters<typeof buildTraceUiData>[0];
   scores: WithStringifiedMetadata<ScoreDomain>[];
   corrections: ScoreDomain[];
   projectId: string;
@@ -94,10 +97,21 @@ export function Trace(props: TraceProps | TraceLoadingProps) {
       ? "peek-observation-focused"
       : traceContext;
   const desktopLayout = DESKTOP_LAYOUTS[desktopLayoutKey];
+  const isMobile = useIsMobile();
+  const trace = props.isLoading === true ? null : props.trace;
+  const observations = props.isLoading === true ? null : props.observations;
+  const defaultObservationId = useMemo(
+    () => resolveDefaultObservationId(trace, observations),
+    [trace, observations],
+  );
 
   return (
     <ViewPreferencesProvider traceContext={traceContext}>
-      <SelectionProvider>
+      <SelectionProvider
+        defaultObservationId={defaultObservationId}
+        isMobile={isMobile}
+        expandDetailOnMount={desktopLayout.expandDetailOnMount}
+      >
         {props.isLoading === true ? (
           <TraceLoading desktopLayout={desktopLayout} />
         ) : (
@@ -218,6 +232,12 @@ function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
   const isMobile = useIsMobile();
   const { isGraphViewAvailable } = useTraceGraphData();
   const { isPlaceholderData } = useTraceData();
+  const [traceView, setTraceView] = useQueryParam("traceView", StringParam);
+  const internalFeaturesEnabled = useInternalFeaturesEnabled();
+  const { isV4 } = useReadPath();
+  const showMessagesTab = isV4 && internalFeaturesEnabled;
+  const activeView =
+    showMessagesTab && traceView === "messages" ? "messages" : "trace";
   const stale = staleProps(isPlaceholderData);
 
   const panels = isMobile ? (
@@ -232,7 +252,31 @@ function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
       className={cn(traceContentClassName, stale.className)}
     >
       <TraceHeader />
-      <div className="min-h-0 flex-1">{panels}</div>
+      {showMessagesTab ? (
+        <Tabs
+          value={activeView}
+          onValueChange={(value) => {
+            if (value === "messages") setTraceView("messages", "pushIn");
+            if (value === "trace") setTraceView(undefined, "pushIn");
+          }}
+          layout="fill"
+        >
+          <Tabs.List variant="underline">
+            <Tabs.Trigger value="trace" label="Trace" />
+            <Tabs.Trigger value="messages" label="Messages" internal />
+          </Tabs.List>
+          <Tabs.Content value="trace" layout="fill">
+            {panels}
+          </Tabs.Content>
+          <Tabs.Content value="messages" layout="fill">
+            <div className="min-h-0 flex-1 p-4">
+              <TraceMessagesView />
+            </div>
+          </Tabs.Content>
+        </Tabs>
+      ) : (
+        <div className="min-h-0 flex-1">{panels}</div>
+      )}
     </div>
   );
 }
@@ -394,4 +438,22 @@ function MobileTraceContent({ shouldShowGraph }: { shouldShowGraph: boolean }) {
       info={<TracePanelDetail />}
     />
   );
+}
+
+function resolveDefaultObservationId(
+  trace: TraceProps["trace"] | null,
+  observations: TraceProps["observations"] | null,
+) {
+  /** V4 defaults to observation details; v3 keeps the trace-level view. */
+  if (!trace?.rootObservationType || !observations) return null;
+  if (trace.rootObservationId) return trace.rootObservationId;
+
+  let firstRoot: ObservationReturnTypeWithMetadata | undefined;
+  for (const observation of observations) {
+    if (observation.parentObservationId) continue;
+    if (!firstRoot || observation.startTime < firstRoot.startTime) {
+      firstRoot = observation;
+    }
+  }
+  return firstRoot?.id ?? null;
 }

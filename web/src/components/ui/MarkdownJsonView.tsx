@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
 import {
   OpenAIContentParts,
   OpenAIContentSchema,
@@ -168,32 +168,28 @@ export function MarkdownJsonView({
     [content, characterLimit],
   );
 
-  return (
-    <>
-      {markdownContent ? (
-        <MarkdownView
-          markdown={markdownContent.value}
-          title={title}
-          titleIcon={titleIcon}
-          audio={audio}
-          media={media}
-          controlButtons={controlButtons}
-          afterHeader={afterHeader}
-          isSystemPrompt={isSystemPrompt}
-        />
-      ) : (
-        <PrettyJsonView
-          json={content ?? (audio ? { audio } : null)}
-          title={title}
-          titleIcon={titleIcon}
-          className={className}
-          media={media}
-          currentView="pretty"
-          controlButtons={controlButtons}
-          afterHeader={afterHeader}
-          isSystemPrompt={isSystemPrompt}
-        />
-      )}
-    </>
+  return markdownContent ? (
+    <MarkdownView
+      markdown={markdownContent.value}
+      title={title}
+      titleIcon={titleIcon}
+      audio={audio}
+      media={media}
+      controlButtons={controlButtons}
+      afterHeader={afterHeader}
+      isSystemPrompt={isSystemPrompt}
+    />
+  ) : (
+    <PrettyJsonView
+      json={content ?? (audio ? { audio } : null)}
+      title={title}
+      titleIcon={titleIcon}
+      className={className}
+      media={media}
+      currentView="pretty"
+      controlButtons={controlButtons}
+      afterHeader={afterHeader}
+      isSystemPrompt={isSystemPrompt}
+    />
   );
 }

@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger */
+/* eslint-disable @repo/no-abstracted-overlay-trigger, @repo/component-file-structure */
 import { Button } from "@/src/components/ui/button";
 import {
   DropdownMenu,
@@ -481,7 +481,7 @@ export const DataTableRowHeightSwitch = ({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          variant="outline"
+          variant="ghost"
           size="icon"
           title={customActive ? "Row height: Custom" : "Row height"}
         >

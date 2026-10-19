@@ -52,6 +52,13 @@ export const isRootObservation = ({
 // absent (NULL != '' is NULL, i.e. not true), so only real payloads match.
 export const eventsTableHasInputSql = "e.input != ''";
 export const eventsTableHasOutputSql = "e.output != ''";
+export const eventsTableLoadedSkillNamesSql =
+  "e.skills_resource_loaded.skillName";
+export const eventsTableLoadedSkillVersionsSql =
+  "arrayMap(skill -> concat(skill.skillName, '@', toString(skill.skillVersion)), e.skills_resource_loaded)";
+export const eventsTableAvailableSkillNamesSql = "e.skills_available.skillName";
+export const eventsTableAvailableSkillVersionsSql =
+  "arrayMap(skill -> concat(skill.skillName, '@', toString(skill.skillVersion)), e.skills_available)";
 
 const isCachedInputMetric = (key: string): boolean => {
   const normalizedKey = key.toLowerCase();
@@ -491,6 +498,34 @@ const eventsTableColsDefinition = [
     nullable: true,
   },
   {
+    name: "Loaded Skill Names",
+    id: "skillsNamesLoaded",
+    type: "arrayOptions",
+    internal: eventsTableLoadedSkillNamesSql,
+    options: [],
+  },
+  {
+    name: "Loaded Skill Versions",
+    id: "skillsVersionsLoaded",
+    type: "arrayOptions",
+    internal: eventsTableLoadedSkillVersionsSql,
+    options: [],
+  },
+  {
+    name: "Available Skill Names",
+    id: "skillNamesAvailable",
+    type: "arrayOptions",
+    internal: eventsTableAvailableSkillNamesSql,
+    options: [],
+  },
+  {
+    name: "Available Skill Versions",
+    id: "skillVersionsAvailable",
+    type: "arrayOptions",
+    internal: eventsTableAvailableSkillVersionsSql,
+    options: [],
+  },
+  {
     name: "Available Tool Names",
     id: "toolNames",
     type: "arrayOptions",
@@ -550,10 +585,11 @@ export const isNumericEventsTableColumnId = (
   );
 
 // Subset of columns that are allowed to be used as filters in the MCP observations API
+// listObservations has explicit fromStartTime and toStartTime arguments to bound database scans.
+// A startTime condition in its filter array would replace both bounds, bypassing the 14-day limit.
 const OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMN_IDS = [
   "id",
   "traceId",
-  "startTime",
   "endTime",
   "name",
   "type",

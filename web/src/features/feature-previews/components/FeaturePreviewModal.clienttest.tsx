@@ -8,6 +8,24 @@ vi.mock("next/image", () => ({
 }));
 
 describe("FeaturePreviewModal", () => {
+  it("lets users opt into Skill Management without other previews", () => {
+    const onToggle = vi.fn();
+
+    render(
+      <FeaturePreviewModal
+        open
+        onOpenChange={vi.fn()}
+        state={{ skillManagement: { enabled: false, onToggle } }}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("switch", { name: "Toggle Skill Management" }),
+    );
+
+    expect(onToggle).toHaveBeenCalledWith(true);
+  });
+
   it("renders the session timeline toggle inside Redesigned Session View", () => {
     const onTimelineToggle = vi.fn();
 

@@ -37,6 +37,38 @@ fn datetime_strings_are_explicitly_utc() {
     assert_eq!(offset, utc);
 }
 
+#[test]
+fn string_column_overflow_bisects_rows_in_order() {
+    let rows = [0u8, 1, 2, 3, 4];
+    let mut attempts = 0;
+    let mut encode = |chunk: &[u8]| {
+        attempts += 1;
+        if chunk.len() > 1 {
+            Err(NativeColumnError::StringColumnTooLarge)
+        } else {
+            Ok(vec![chunk[0]])
+        }
+    };
+    let mut blocks = Vec::new();
+    encode_with_bisection(&rows, &mut encode, &mut blocks).unwrap();
+
+    assert_eq!(
+        blocks
+            .iter()
+            .map(|block| (block.row_count, block.bytes[0]))
+            .collect::<Vec<_>>(),
+        vec![(1, 0), (1, 1), (1, 2), (1, 3), (1, 4)]
+    );
+    assert_eq!(attempts, 9);
+
+    let mut encode = |_: &[u8]| -> Result<Vec<u8>, NativeColumnError> {
+        Err(NativeColumnError::StringColumnTooLarge)
+    };
+    let mut blocks = Vec::new();
+    let error = encode_with_bisection(&[0u8], &mut encode, &mut blocks).unwrap_err();
+    assert_eq!(error, NativeColumnError::StringColumnTooLarge);
+}
+
 proptest! {
     #[test]
     fn decimal_inputs_with_extreme_exponents_are_handled(

@@ -36,6 +36,7 @@ export default function EventsPage() {
     <Page
       headerProps={{
         title: "Tracing - Events Table (New)",
+        divider: false,
         help: {
           description:
             "An observation captures a single function call in an application. This view uses the new ClickHouse events table.",

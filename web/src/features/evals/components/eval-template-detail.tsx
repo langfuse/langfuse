@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 import { useHasProjectAccess } from "@/src/features/rbac";
 import * as React from "react";
 import { EvalTemplateForm } from "@/src/features/evals/components/template-form";

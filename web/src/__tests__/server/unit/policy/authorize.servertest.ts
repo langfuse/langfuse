@@ -127,7 +127,13 @@ describe("authorize — org resources need an exact match", () => {
 
 describe("authorize — deny-overrides and deny-by-default", () => {
   it("denies by default when nothing matches", () => {
-    expect(authorize(ctx([]), TENANT, "prompts:read", PRJ).success).toBe(false);
+    const decision = authorize(ctx([]), TENANT, "prompts:read", PRJ);
+    expect(decision.success).toBe(false);
+    expect(decision.error).toMatchObject({
+      httpCode: 403,
+      message:
+        'Access denied. The "prompts:read" permission is required to access this resource.',
+    });
   });
   it("a matching deny beats a matching allow on the same resource", () => {
     const suspended = ctx([
@@ -138,23 +144,27 @@ describe("authorize — deny-overrides and deny-by-default", () => {
       false,
     );
   });
-  it("a deny carries the generic Forbidden message", () => {
+  it("an explicit deny carries the required action", () => {
     const decision = authorize(
       ctx([policy({ actions: ["traces:create"], effect: "DENY" })]),
       TENANT,
       "traces:create",
       PRJ,
     );
-    expect(decision.error?.message).toBe(new ForbiddenError().message);
+    expect(decision.error).toMatchObject({
+      httpCode: 403,
+      message:
+        'Access denied. The "traces:create" permission is required to access this resource.',
+    });
   });
 });
 
 describe("authorize — kind wildcards are never a target", () => {
   it("denies an authorization check against project/*", () => {
     const wildcardGrant = ctx([policy({ resources: [WILDCARD] })]);
-    expect(
-      authorize(wildcardGrant, TENANT, "prompts:read", WILDCARD).success,
-    ).toBe(false);
+    const decision = authorize(wildcardGrant, TENANT, "prompts:read", WILDCARD);
+    expect(decision.success).toBe(false);
+    expect(decision.error?.message).toBe(new ForbiddenError().message);
   });
   it("denies an authorization check against organization/*", () => {
     const wildcardGrant = ctx([

@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements */
+/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements, @repo/component-file-structure */
 import Link from "next/link";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
@@ -103,9 +103,11 @@ function BaseHeader({ ...props }: HeaderProps & { level: "h3" | "h4" | "h5" }) {
             </Link>
           )}
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          {props.actionButtons ?? null}
-        </div>
+        {props.actionButtons ? (
+          <div className="flex flex-wrap items-center gap-3">
+            {props.actionButtons}
+          </div>
+        ) : null}
       </div>
     </div>
   );

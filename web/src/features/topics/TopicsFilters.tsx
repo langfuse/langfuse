@@ -1,3 +1,6 @@
+import { Plus } from "lucide-react";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { type ReactNode } from "react";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { resolveTopicFacetId } from "./topic-facet-selection";
@@ -23,6 +26,16 @@ export function TopicsFilters({
                 label={facet.name}
               />
             ))}
+            <div className="flex shrink-0 items-center gap-1 px-2">
+              <Button
+                text="Custom facet"
+                icon={Plus}
+                variant="ghost"
+                size="sm"
+                disabled
+              />
+              <Badge text="Coming soon" color="blue" size="sm" />
+            </div>
           </Tabs.List>
         </div>
         <Tabs.Content value={selectedFacet} layout="fill">

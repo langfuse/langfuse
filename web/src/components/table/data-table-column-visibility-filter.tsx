@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 import React, {
   useCallback,
   useMemo,
@@ -582,11 +582,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
     >
       {({ Trigger }) => (
         <Trigger asChild>
-          <Button
-            variant="outline"
-            size={triggerSize}
-            title="Show/hide columns"
-          >
+          <Button variant="ghost" size={triggerSize} title="Show/hide columns">
             <span>Columns</span>
             <div className="bg-input ml-1 rounded-sm px-1 text-xs">{`${count}/${total}`}</div>
           </Button>

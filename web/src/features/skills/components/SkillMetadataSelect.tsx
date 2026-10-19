@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { useId, useMemo, useState } from "react";
 import { CircleCheckIcon, CircleIcon, Plus, TagIcon, X } from "lucide-react";
 import { PromptLabelSchema, SKILL_LATEST_LABEL } from "@langfuse/shared";

@@ -54,6 +54,14 @@ export type PreviewState = {
 // Previews may include separate light/dark illustrations.
 const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
   {
+    flag: "skillManagement",
+    description:
+      "Create, version, and distribute reusable agent skills from one place.",
+    details:
+      "Import skills, manage their versions and labels, install them with the CLI, and inspect the skills available or loaded in your traces.",
+    feedbackUrl: "https://github.com/orgs/langfuse/discussions",
+  },
+  {
     flag: "langfuseTopics",
     description:
       "Discover common topics across traces, with summaries and an interactive topic map.",

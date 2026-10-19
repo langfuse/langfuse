@@ -15,10 +15,12 @@ import {
   readLatestTopicAssignments,
   getLatestFacetSummaries,
   getTopicSummaryCounts,
+  getTopicExecutionCosts,
   getTopicClusteringSummaries,
   writeTopicSummaries,
   getTopicDefinitions,
   writeTopicDefinitions,
+  hasStoredTopicSummaries,
 } from "./clickhouse";
 
 const mocks = vi.hoisted(() => ({
@@ -26,9 +28,16 @@ const mocks = vi.hoisted(() => ({
   exec: vi.fn(),
   query: vi.fn(),
   publishedRuns: vi.fn(),
+  cacheGet: vi.fn(),
+  cacheSet: vi.fn(),
 }));
 vi.mock("../../db", () => ({
-  prisma: { topicClusteringRun: { findMany: mocks.publishedRuns } },
+  prisma: {
+    topicClusteringRun: { findMany: mocks.publishedRuns },
+  },
+}));
+vi.mock("../redis/redis", () => ({
+  redis: { get: mocks.cacheGet, set: mocks.cacheSet },
 }));
 vi.mock("../clickhouse/client", () => ({
   clickhouseClient: () => ({ insert: mocks.insert, exec: mocks.exec }),
@@ -38,12 +47,67 @@ vi.mock("../clickhouse/queryTags", () => ({
   buildClickHouseLogComment: () => "{}",
 }));
 vi.mock("../repositories/clickhouse", () => ({ queryClickhouse: mocks.query }));
+vi.mock("../instrumentation", () => ({ traceException: vi.fn() }));
+vi.mock("../logger", () => ({ logger: { warn: vi.fn() } }));
 
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.query.mockResolvedValue([]);
   mocks.exec.mockImplementation(async () => ({ stream: Readable.from([]) }));
   mocks.publishedRuns.mockResolvedValue([{ id: "published-run" }]);
+  mocks.cacheGet.mockResolvedValue(null);
+});
+
+describe("Topics execution estimates", () => {
+  it("keeps history readable when ClickHouse cannot provide an estimate", async () => {
+    mocks.query.mockRejectedValue(new Error("ClickHouse unavailable"));
+    expect(await getTopicExecutionCosts("project-a", ["execution-a"])).toEqual(
+      {},
+    );
+  });
+});
+
+describe("Topics summary readiness", () => {
+  it("returns ClickHouse readiness even when Redis reads and writes fail", async () => {
+    mocks.cacheGet.mockRejectedValue(new Error("Redis unavailable"));
+    mocks.cacheSet.mockRejectedValue(new Error("Redis unavailable"));
+    mocks.query.mockResolvedValue([{ found: 1 }]);
+
+    expect(await hasStoredTopicSummaries("project-a")).toBe(true);
+    expect(mocks.query).toHaveBeenCalledOnce();
+  });
+
+  it("skips ClickHouse once a project has collected summaries", async () => {
+    mocks.cacheGet.mockResolvedValue("1");
+
+    expect(await hasStoredTopicSummaries("project-a")).toBe(true);
+    expect(mocks.query).not.toHaveBeenCalled();
+  });
+
+  it("caches empty projects briefly and detects summaries after the cache expires", async () => {
+    expect(await hasStoredTopicSummaries("project-a")).toBe(false);
+    expect(mocks.cacheSet).toHaveBeenCalledWith(
+      "langfuse:topics:has-summaries:project-a",
+      "0",
+      "EX",
+      30,
+    );
+
+    mocks.cacheGet.mockResolvedValue("0");
+    expect(await hasStoredTopicSummaries("project-a")).toBe(false);
+    expect(mocks.query).toHaveBeenCalledTimes(1);
+
+    mocks.cacheGet.mockResolvedValue(null);
+    mocks.query.mockResolvedValue([{ found: 1 }]);
+    expect(await hasStoredTopicSummaries("project-a")).toBe(true);
+    expect(mocks.query).toHaveBeenCalledTimes(2);
+    expect(mocks.cacheSet).toHaveBeenCalledWith(
+      "langfuse:topics:has-summaries:project-a",
+      "1",
+      "EX",
+      1800,
+    );
+  });
 });
 
 const clickhouseNumberMap = (values: Record<string, number>) =>
