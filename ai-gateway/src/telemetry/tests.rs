@@ -669,7 +669,7 @@ async fn full_input_at_capture_limit_is_uploaded() {
     let quotes = (crate::capture::MAX_INPUT_CAPTURE_BYTES - 16) / 2;
     let input = json!({"input": "\"".repeat(quotes)});
     assert!(input.to_string().len() <= crate::capture::MAX_INPUT_CAPTURE_BYTES);
-    large.inference.input = Some(input);
+    large.inference.input = Some(serde_json::value::to_raw_value(&input).unwrap());
     large.inference.output = Some(json!([
         "x".repeat(crate::capture::MAX_OUTPUT_CAPTURE_BYTES - 16)
     ]));
@@ -735,7 +735,8 @@ async fn input_that_does_not_fit_is_omitted_instead_of_dropping_the_generation()
         });
         let mut large = facts("project-1");
         large.metadata["ingestion_mode"] = json!("full");
-        large.inference.input = Some(json!("x".repeat(input_size)));
+        large.inference.input =
+            Some(serde_json::value::to_raw_value(&"x".repeat(input_size)).unwrap());
         large.inference.output = Some(json!(["output-canary"]));
         telemetry.record(grant().await, large);
         drop(held);

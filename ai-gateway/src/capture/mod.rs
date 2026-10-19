@@ -2,6 +2,7 @@ mod anthropic_messages;
 mod facts;
 mod openai_chat_completions;
 mod openai_responses;
+mod request;
 mod response;
 mod sse;
 
@@ -21,6 +22,7 @@ pub(crate) use facts::ProviderFacts;
 pub(crate) use facts::{InferenceFacts, InputOmission, InputOmissionReason, RelayOutcome};
 use openai_chat_completions::OpenAiChatCompletionsCapture;
 use openai_responses::OpenAiResponsesCapture;
+use request::RequestMembers;
 
 pub(crate) const MAX_INPUT_CAPTURE_BYTES: usize = 5 * 1024 * 1024;
 pub(crate) const MAX_OUTPUT_CAPTURE_BYTES: usize = 1024 * 1024;
@@ -152,7 +154,7 @@ impl ExecutionCapture {
             .collect();
         let full = context.ingestion_mode() == IngestionMode::Full;
         let span = tracing::Span::current();
-        // Parsing the whole request is CPU-bound and scales with the body.
+        // Scanning the whole request is CPU-bound and scales with the body.
         let protocol = tracing::info_span!(
             "request.capture",
             otel.kind = "internal",
@@ -269,12 +271,18 @@ impl Drop for ExecutionCapture {
     }
 }
 
-fn parse_request(headers: &HeaderMap, body: &[u8]) -> Result<Map<String, Value>, InputOmission> {
+/// Parses only the top-level `keys`; full mode keeps the other members as raw input.
+fn parse_request<'a>(
+    headers: &HeaderMap,
+    body: &'a [u8],
+    keys: &[&'static str],
+    mode: IngestionMode,
+) -> Result<RequestMembers<'a>, InputOmission> {
     let reason = if !identity_encoding(headers) {
         InputOmissionReason::ContentEncoding
     } else if body.len() > MAX_INPUT_CAPTURE_BYTES {
         InputOmissionReason::SizeLimit
-    } else if let Ok(Value::Object(request)) = serde_json::from_slice(body) {
+    } else if let Ok(request) = RequestMembers::parse(body, keys, mode == IngestionMode::Full) {
         return Ok(request);
     } else {
         InputOmissionReason::InvalidJson
@@ -283,6 +291,35 @@ fn parse_request(headers: &HeaderMap, body: &[u8]) -> Result<Map<String, Value>,
         reason,
         body_bytes: body.len(),
     })
+}
+
+/// Approximate bytes a parsed value retains, so the output cap bounds memory
+/// rather than serialized size: small objects cost far more parsed than as text.
+fn value_memory(value: &Value) -> usize {
+    size_of::<Value>()
+        + match value {
+            Value::String(text) => text.capacity(),
+            Value::Array(items) => {
+                items.capacity() * size_of::<Value>()
+                    + items
+                        .iter()
+                        .map(|item| value_memory(item) - size_of::<Value>())
+                        .sum::<usize>()
+            }
+            Value::Object(fields) => object_memory(fields),
+            Value::Null | Value::Bool(_) | Value::Number(_) => 0,
+        }
+}
+
+fn object_memory(fields: &Map<String, Value>) -> usize {
+    // `Map` is a B-tree; each leaf node holds up to 11 entries and is
+    // measured at about 640 bytes, about half full on average.
+    const NODE: usize = 640;
+    fields.len().div_ceil(6) * NODE
+        + fields
+            .iter()
+            .map(|(key, value)| key.capacity() + value_memory(value) - size_of::<Value>())
+            .sum::<usize>()
 }
 
 fn bounded_string(value: &str) -> Option<String> {

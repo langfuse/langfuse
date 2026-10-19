@@ -478,34 +478,12 @@ fn codex_body_snapshot_is_preferred_and_flat_keys_fill_missing_snapshots() {
 }
 
 #[test]
-fn agent_client_metadata_is_taken_only_when_recognized_and_bounded() {
-    let mut request: Map<String, Value> = json!({
-        "input": "hello",
-        "client_metadata": codex_client_metadata(Some(&codex_turn_metadata())),
-    })
-    .as_object()
-    .unwrap()
-    .clone();
-    let taken = take_agent_client_metadata(&mut request).unwrap();
-    assert_eq!(taken["x-codex-installation-id"], "install-1");
-    assert_eq!(
-        request,
-        json!({"input": "hello"}).as_object().unwrap().clone()
-    );
-
-    for client_metadata in [
-        json!({"team": "search"}),
-        json!("x-codex-turn-metadata"),
-        json!({"x-codex-turn-metadata": "a".repeat(MAX_CLIENT_METADATA_BYTES)}),
-    ] {
-        let mut request: Map<String, Value> =
-            json!({"input": "hello", "client_metadata": client_metadata})
-                .as_object()
-                .unwrap()
-                .clone();
-        let before = request.clone();
-        assert!(take_agent_client_metadata(&mut request).is_none());
-        assert_eq!(request, before);
+fn agent_client_metadata_is_recognized_by_codex_keys() {
+    assert!(is_agent_client_metadata(&Value::Object(
+        codex_client_metadata(Some(&codex_turn_metadata()))
+    )));
+    for client_metadata in [json!({"team": "search"}), json!("x-codex-turn-metadata")] {
+        assert!(!is_agent_client_metadata(&client_metadata));
     }
 }
 

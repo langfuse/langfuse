@@ -18,7 +18,7 @@ const MAX_ENTRIES: usize = 64;
 const MAX_AGENT_HEADER_BYTES: usize = 8 * 1024;
 const MAX_AGENT_METADATA_BYTES: usize = 4 * 1024;
 /// Codex's body blob additionally carries its tool inventory, so it is bounded separately.
-const MAX_CLIENT_METADATA_BYTES: usize = 64 * 1024;
+pub(crate) const MAX_CLIENT_METADATA_BYTES: usize = 64 * 1024;
 const CODEX_TURN_METADATA_KEY: &str = "x-codex-turn-metadata";
 /// Codex turn metadata retained as `agent.*`. Nested objects such as the tool inventory
 /// and workspaces are not copied; the tool inventory already lives in the captured input.
@@ -125,7 +125,7 @@ impl GenerationContext {
     }
 
     /// `client_metadata` is the request body's agent metadata object, already
-    /// removed from the captured input by [`take_agent_client_metadata`].
+    /// removed from the captured input when [`is_agent_client_metadata`].
     pub(super) fn from_request(
         headers: &HeaderMap,
         client_metadata: Option<&Map<String, Value>>,
@@ -426,27 +426,13 @@ impl AgentContext {
     }
 }
 
-/// Remove a coding agent's `client_metadata` object from a captured request so its
-/// identifiers are recorded as `agent.*` metadata rather than as prompt input.
-/// Unrecognized or oversized objects stay in the request untouched.
-pub(crate) fn take_agent_client_metadata(
-    request: &mut Map<String, Value>,
-) -> Option<Map<String, Value>> {
-    let recognized = request
-        .get("client_metadata")
-        .and_then(Value::as_object)
-        .is_some_and(|metadata| {
-            is_codex_client_metadata(metadata)
-                && serde_json::to_vec(metadata)
-                    .is_ok_and(|bytes| bytes.len() <= MAX_CLIENT_METADATA_BYTES)
-        });
-    if !recognized {
-        return None;
-    }
-    match request.remove("client_metadata") {
-        Some(Value::Object(metadata)) => Some(metadata),
-        _ => None,
-    }
+/// Whether a request's `client_metadata` belongs to a coding agent, so capture
+/// records its identifiers as `agent.*` metadata rather than as prompt input.
+/// Capture parses it only up to [`MAX_CLIENT_METADATA_BYTES`] of raw JSON.
+pub(crate) fn is_agent_client_metadata(client_metadata: &Value) -> bool {
+    client_metadata
+        .as_object()
+        .is_some_and(is_codex_client_metadata)
 }
 
 fn is_codex_client_metadata(metadata: &Map<String, Value>) -> bool {

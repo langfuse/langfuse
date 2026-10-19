@@ -96,7 +96,7 @@ async fn captures_completed_items_only_in_order_without_duplication() {
         40
     );
     assert_eq!(
-        capture.facts.input.as_ref().unwrap()["instructions"],
+        capture.facts.input_json().unwrap()["instructions"],
         "prompt-canary"
     );
     assert!(capture.facts.output_complete);
@@ -206,7 +206,7 @@ async fn request_configuration_is_projected_out_of_input() {
     )
     .into_facts();
     assert_eq!(
-        capture.input.unwrap(),
+        capture.input_json().unwrap(),
         json!({
             "input": "hello", "instructions": "be brief",
             "tools": [{"type": "function", "name": "weather"}],
@@ -245,7 +245,7 @@ async fn agent_client_metadata_is_projected_out_of_input_in_both_modes() {
         let facts = capture.into_facts();
         if mode == IngestionMode::Full {
             assert_eq!(
-                facts.input.unwrap(),
+                facts.input_json().unwrap(),
                 json!({"input": "hello", "future_field": {"keep": true}})
             );
         } else {
@@ -253,20 +253,37 @@ async fn agent_client_metadata_is_projected_out_of_input_in_both_modes() {
         }
     }
 
-    let unknown = json!({
-        "model": "requested", "input": "hello",
-        "client_metadata": {"team": "search"}
-    });
-    let capture = OpenAiResponsesCapture::new(
-        &HeaderMap::new(),
-        unknown.to_string().as_bytes(),
-        IngestionMode::Full,
-    );
-    assert!(capture.client_metadata().is_none());
+    for client_metadata in [
+        json!({"team": "search"}),
+        json!({"x-codex-turn-metadata": "a".repeat(telemetry::MAX_CLIENT_METADATA_BYTES)}),
+    ] {
+        let request = json!({
+            "model": "requested", "input": "hello", "client_metadata": client_metadata
+        });
+        let capture = OpenAiResponsesCapture::new(
+            &HeaderMap::new(),
+            request.to_string().as_bytes(),
+            IngestionMode::Full,
+        );
+        assert!(capture.client_metadata().is_none());
+        assert_eq!(
+            capture.into_facts().input_json().unwrap(),
+            json!({"input": "hello", "client_metadata": client_metadata})
+        );
+    }
+}
+
+#[test]
+fn full_mode_input_is_the_clients_raw_json() {
+    let request = br#"{"model": "requested",
+        "input": [ {"role": "user", "content": "hi"} ], "temperature": 1, "future": {"b": 1, "a": 2}}"#;
+    let facts =
+        OpenAiResponsesCapture::new(&HeaderMap::new(), request, IngestionMode::Full).into_facts();
     assert_eq!(
-        capture.into_facts().input.unwrap(),
-        json!({"input": "hello", "client_metadata": {"team": "search"}})
+        facts.input.unwrap().get(),
+        r#"{"input":[ {"role": "user", "content": "hi"} ],"future":{"b": 1, "a": 2}}"#
     );
+    assert_eq!(facts.model_parameters["temperature"], 1);
 }
 
 #[tokio::test]
@@ -373,6 +390,24 @@ async fn oversized_and_malformed_events_do_not_prevent_later_facts() {
         capture.facts.usage_details.as_ref().unwrap()["total_tokens"],
         130
     );
+}
+
+#[tokio::test]
+async fn output_limit_counts_parsed_memory_rather_than_serialized_bytes() {
+    let tiny_objects = vec![json!({"a": 1}); 50_000];
+    let body = json!({
+        "status": "completed",
+        "output": [{"type": "message", "content": tiny_objects}],
+    })
+    .to_string();
+    assert!(body.len() < MAX_OUTPUT_CAPTURE_BYTES);
+    let mut observer = observer("full").await;
+    record_response(&mut observer, "application/json");
+    observer.push_bytes(body.as_bytes());
+    observer.end_body();
+    let capture = captured(&observer);
+    assert!(capture.items.is_empty());
+    assert!(!capture.facts.output_complete);
 }
 
 #[tokio::test]
@@ -930,10 +965,7 @@ async fn request_at_input_limit_is_captured_in_full() {
     assert!(facts.input_complete);
     assert!(facts.input_omission.is_none());
     assert_eq!(
-        facts.input.as_ref().unwrap()["input"]
-            .as_str()
-            .unwrap()
-            .len(),
+        facts.input_json().unwrap()["input"].as_str().unwrap().len(),
         MAX_INPUT_CAPTURE_BYTES - 12
     );
 }
@@ -975,7 +1007,7 @@ async fn capture_regression_preserves_native_request_and_usage() {
                 let mut expected_input = request.clone();
                 expected_input.as_object_mut().unwrap().remove("model");
                 assert_eq!(
-                    facts.input.as_ref(),
+                    facts.input_json().as_ref(),
                     if mode == "full" {
                         Some(&expected_input)
                     } else {

@@ -1,7 +1,7 @@
 //! `OpenAI` Chat Completions request, JSON response and streamed choice capture.
 use super::{
-    MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, bounded_string, facts::ProviderFacts,
-    parse_request, response::ResponseBody,
+    MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, RequestMembers, bounded_string,
+    facts::ProviderFacts, object_memory, parse_request, response::ResponseBody, value_memory,
 };
 use crate::resolution::IngestionMode;
 use axum::http::HeaderMap;
@@ -118,7 +118,7 @@ impl Choices {
                     }
                 }
                 "finish_reason" if !value.is_null() => {
-                    reserve(bytes, value.to_string().len())?;
+                    reserve(bytes, value_memory(value))?;
                     choice.fields.insert(key.clone(), value.clone());
                 }
                 _ => merge_field(&mut choice.fields, key, value, bytes)?,
@@ -145,12 +145,16 @@ impl Choices {
     }
 
     /// A non-streamed response carries its complete choices at once.
-    fn record_choices(&mut self, choices: &[Value]) -> Result<(), Gap> {
+    fn record_choices(&mut self, choices: Vec<Value>) -> Result<(), Gap> {
         if choices.len() > MAX_ITEMS {
             return Err(Gap);
         }
-        for (position, choice) in choices.iter().enumerate() {
-            let fields = choice.as_object().ok_or(Gap)?.clone();
+        for (position, choice) in choices.into_iter().enumerate() {
+            let Value::Object(fields) = choice else {
+                return Err(Gap);
+            };
+            let bytes = object_memory(&fields);
+            reserve(&mut self.bytes, bytes)?;
             let index = fields
                 .get("index")
                 .and_then(Value::as_u64)
@@ -159,6 +163,7 @@ impl Choices {
                 index,
                 Choice {
                     fields,
+                    bytes,
                     ..Choice::default()
                 },
             );
@@ -218,7 +223,7 @@ fn merge_field(
             Ok(())
         }
         (Some(Value::Array(current)), Value::Array(items)) => {
-            reserve(bytes, value.to_string().len())?;
+            reserve(bytes, items.iter().map(value_memory).sum())?;
             current.extend(items.iter().cloned());
             Ok(())
         }
@@ -230,7 +235,7 @@ fn merge_field(
         }
         (Some(current), _) if current.is_object() || current.is_array() => Err(Gap),
         (_, value) => {
-            reserve(bytes, value.to_string().len())?;
+            reserve(bytes, value_memory(value))?;
             target.insert(key.to_owned(), value.clone());
             Ok(())
         }
@@ -282,7 +287,13 @@ impl OpenAiChatCompletionsCapture {
             request_complete: false,
             response_valid: true,
         };
-        match parse_request(headers, body) {
+        let keys: Vec<&'static str> = ["model"]
+            .into_iter()
+            .chain(SCALAR_PARAMETERS)
+            .chain(STRUCTURED_PARAMETERS)
+            .chain(REQUEST_METADATA)
+            .collect();
+        match parse_request(headers, body, &keys, mode) {
             Ok(request) => {
                 capture.capture_request(request);
                 capture.request_complete = true;
@@ -321,9 +332,9 @@ impl OpenAiChatCompletionsCapture {
     pub(super) fn end_body(&mut self) {
         match std::mem::replace(&mut self.body, ResponseBody::Unavailable) {
             ResponseBody::Json(bytes) => match serde_json::from_slice::<Value>(&bytes) {
-                Ok(Value::Object(response)) => {
+                Ok(Value::Object(mut response)) => {
                     self.capture_chunk_facts(&response);
-                    if let Some(choices) = response.get("choices").and_then(Value::as_array) {
+                    if let Some(Value::Array(choices)) = response.remove("choices") {
                         self.capture_json_choices(choices);
                         self.terminal = true;
                     }
@@ -349,15 +360,15 @@ impl OpenAiChatCompletionsCapture {
         self.facts
     }
 
-    fn capture_request(&mut self, mut request: Map<String, Value>) {
+    fn capture_request(&mut self, mut request: RequestMembers<'_>) {
         self.facts.requested_model = request
-            .remove("model")
+            .take_value("model")
             .as_ref()
             .and_then(Value::as_str)
             .and_then(bounded_string);
         self.facts.model.clone_from(&self.facts.requested_model);
         for key in SCALAR_PARAMETERS {
-            if let Some(value) = request.remove(key).filter(|v| {
+            if let Some(value) = request.take_value(key).filter(|v| {
                 self.mode == IngestionMode::Full
                     || v.is_number()
                     || v.is_boolean()
@@ -368,23 +379,23 @@ impl OpenAiChatCompletionsCapture {
         }
         if self.mode == IngestionMode::Full {
             for key in STRUCTURED_PARAMETERS {
-                if let Some(value) = request.remove(key) {
+                if let Some(value) = request.take_value(key) {
                     self.facts.model_parameters.insert(key.to_owned(), value);
                 }
             }
             for key in REQUEST_METADATA {
-                if let Some(value) = request.remove(key) {
+                if let Some(value) = request.take_value(key) {
                     self.facts.request_metadata.insert(key.to_owned(), value);
                 }
             }
             // `messages`, `tools`, legacy `functions` and unknown fields remain native.
-            self.facts.input = Some(Value::Object(request));
-            self.facts.input_complete = true;
+            self.facts.input = request.into_input();
+            self.facts.input_complete = self.facts.input.is_some();
         }
     }
 
-    fn capture_json_choices(&mut self, choices: &[Value]) {
-        for choice in choices {
+    fn capture_json_choices(&mut self, choices: Vec<Value>) {
+        for choice in &choices {
             if let Some(reason) = choice.get("finish_reason") {
                 self.capture_finish_reason(reason);
             }

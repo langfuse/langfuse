@@ -1,6 +1,6 @@
 use super::{
-    MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, bounded_string, facts::ProviderFacts,
-    parse_request, response::ResponseBody,
+    MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, RequestMembers, bounded_string,
+    facts::ProviderFacts, object_memory, parse_request, response::ResponseBody, value_memory,
 };
 use crate::resolution::IngestionMode;
 use axum::http::HeaderMap;
@@ -60,8 +60,7 @@ impl AssistantMessage {
         if self.blocks.contains_key(&index) || self.blocks.len() >= MAX_ITEMS {
             return Err(Gap);
         }
-        let size = serde_json::to_string(&fields).map_or(usize::MAX, |json| json.len());
-        reserve(&mut self.bytes, size)?;
+        reserve(&mut self.bytes, object_memory(&fields))?;
         self.blocks.insert(
             index,
             Block {
@@ -91,7 +90,7 @@ impl AssistantMessage {
         let kind = delta.get("type").and_then(Value::as_str).ok_or(Gap)?;
         if kind == "citations_delta" {
             let citation = delta.get("citation").ok_or(Gap)?;
-            reserve(&mut self.bytes, citation.to_string().len())?;
+            reserve(&mut self.bytes, value_memory(citation))?;
             match block.fields.get_mut("citations") {
                 Some(Value::Array(citations)) => citations.push(citation.clone()),
                 _ => {
@@ -132,10 +131,16 @@ impl AssistantMessage {
             .ok_or(Gap)?;
         // Tool inputs stream as JSON fragments that only parse once complete.
         if !block.partial_json.is_empty() {
-            let Ok(input) = serde_json::from_str::<Value>(&block.partial_json) else {
+            // The parsed input replaces the fragments counted while streaming.
+            let mut bytes = self.bytes.saturating_sub(block.partial_json.len());
+            let parsed = serde_json::from_str::<Value>(&block.partial_json)
+                .map_err(|_| Gap)
+                .and_then(|input| reserve(&mut bytes, value_memory(&input)).map(|()| input));
+            let Ok(input) = parsed else {
                 self.blocks.remove(&index);
                 return Err(Gap);
             };
+            self.bytes = bytes;
             block.fields.insert("input".to_owned(), input);
             block.partial_json = String::new();
         }
@@ -144,12 +149,15 @@ impl AssistantMessage {
     }
 
     /// A non-streamed response carries its complete content at once.
-    fn record_content(&mut self, content: Option<&Vec<Value>>) -> Result<(), Gap> {
+    fn record_content(&mut self, content: Option<Vec<Value>>) -> Result<(), Gap> {
         let content = content
             .filter(|content| content.len() <= MAX_ITEMS)
             .ok_or(Gap)?;
-        for (index, fields) in content.iter().enumerate() {
-            let fields = fields.as_object().ok_or(Gap)?.clone();
+        for (index, fields) in content.into_iter().enumerate() {
+            let Value::Object(fields) = fields else {
+                return Err(Gap);
+            };
+            reserve(&mut self.bytes, object_memory(&fields))?;
             self.blocks.insert(
                 index as u64,
                 Block {
@@ -216,7 +224,12 @@ impl AnthropicMessagesCapture {
             request_complete: false,
             response_valid: true,
         };
-        match parse_request(headers, body) {
+        let keys: Vec<&'static str> = ["model", "metadata"]
+            .into_iter()
+            .chain(SCALAR_PARAMETERS)
+            .chain(STRUCTURED_PARAMETERS)
+            .collect();
+        match parse_request(headers, body, &keys, mode) {
             Ok(request) => {
                 capture.capture_request(request);
                 capture.request_complete = true;
@@ -255,12 +268,12 @@ impl AnthropicMessagesCapture {
     pub(super) fn end_body(&mut self) {
         match std::mem::replace(&mut self.body, ResponseBody::Unavailable) {
             ResponseBody::Json(bytes) => match serde_json::from_slice::<Value>(&bytes) {
-                Ok(Value::Object(response)) => {
+                Ok(Value::Object(mut response)) => {
                     if response.get("type").and_then(Value::as_str) == Some("error") {
                         self.record_failure(&response);
                     } else {
                         self.capture_message(&response);
-                        self.capture_json_content(&response);
+                        self.capture_json_content(&mut response);
                         self.terminal = true;
                     }
                 }
@@ -289,15 +302,15 @@ impl AnthropicMessagesCapture {
         self.facts
     }
 
-    fn capture_request(&mut self, mut request: Map<String, Value>) {
+    fn capture_request(&mut self, mut request: RequestMembers<'_>) {
         self.facts.requested_model = request
-            .remove("model")
+            .take_value("model")
             .as_ref()
             .and_then(Value::as_str)
             .and_then(bounded_string);
         self.facts.model.clone_from(&self.facts.requested_model);
         for key in SCALAR_PARAMETERS {
-            if let Some(value) = request.remove(key).filter(|v| {
+            if let Some(value) = request.take_value(key).filter(|v| {
                 v.is_number()
                     || v.is_boolean()
                     || v.as_str().is_some_and(|s| s.len() <= MAX_FACT_STRING)
@@ -307,25 +320,28 @@ impl AnthropicMessagesCapture {
         }
         if self.mode == IngestionMode::Full {
             for key in STRUCTURED_PARAMETERS {
-                if let Some(value) = request.remove(key) {
+                if let Some(value) = request.take_value(key) {
                     self.facts.model_parameters.insert(key.to_owned(), value);
                 }
             }
             // Claude Code stores its session identifiers here; it is request
             // metadata rather than prompt content.
-            if let Some(value) = request.remove("metadata") {
+            if let Some(value) = request.take_value("metadata") {
                 self.facts
                     .request_metadata
                     .insert("metadata".to_owned(), value);
             }
             // `system`, `messages`, `tools` and unknown fields remain native.
-            self.facts.input = Some(Value::Object(request));
-            self.facts.input_complete = true;
+            self.facts.input = request.into_input();
+            self.facts.input_complete = self.facts.input.is_some();
         }
     }
 
-    fn capture_json_content(&mut self, message: &Map<String, Value>) {
-        let content = message.get("content").and_then(Value::as_array);
+    fn capture_json_content(&mut self, message: &mut Map<String, Value>) {
+        let content = match message.remove("content") {
+            Some(Value::Array(content)) => Some(content),
+            _ => None,
+        };
         if self
             .output
             .as_mut()

@@ -1,12 +1,39 @@
 //! `OpenAI` Responses request, JSON response and completed SSE item capture.
 use super::{
-    MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, bounded_string, facts::ProviderFacts,
-    parse_request, response::ResponseBody,
+    MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, RequestMembers, bounded_string,
+    facts::ProviderFacts, parse_request, response::ResponseBody, value_memory,
 };
 use crate::{resolution::IngestionMode, telemetry};
 use axum::http::HeaderMap;
 use serde_json::{Map, Value};
 use std::collections::BTreeMap;
+
+const SCALAR_PARAMETERS: [&str; 12] = [
+    "temperature",
+    "top_p",
+    "top_logprobs",
+    "max_output_tokens",
+    "service_tier",
+    "parallel_tool_calls",
+    "max_tool_calls",
+    "truncation",
+    "stream",
+    "background",
+    "store",
+    "prompt_cache_retention",
+];
+/// Structured configuration projected out of the recorded input in full mode.
+const STRUCTURED_PARAMETERS: [&str; 8] = [
+    "reasoning",
+    "text",
+    "tool_choice",
+    "context_management",
+    "stream_options",
+    "include",
+    "moderation",
+    "prompt_cache_options",
+];
+const REQUEST_METADATA: [&str; 4] = ["metadata", "prompt_cache_key", "safety_identifier", "user"];
 
 pub(super) struct OpenAiResponsesCapture {
     facts: ProviderFacts,
@@ -35,7 +62,13 @@ impl OpenAiResponsesCapture {
             response_valid: true,
             client_metadata: None,
         };
-        match parse_request(headers, body) {
+        let keys: Vec<&'static str> = ["model", "client_metadata"]
+            .into_iter()
+            .chain(SCALAR_PARAMETERS)
+            .chain(STRUCTURED_PARAMETERS)
+            .chain(REQUEST_METADATA)
+            .collect();
+        match parse_request(headers, body, &keys, mode) {
             Ok(request) => {
                 capture.capture_request(request);
                 capture.request_complete = true;
@@ -74,11 +107,11 @@ impl OpenAiResponsesCapture {
     pub(super) fn end_body(&mut self) {
         match std::mem::replace(&mut self.body, ResponseBody::Unavailable) {
             ResponseBody::Json(bytes) => match serde_json::from_slice::<Value>(&bytes) {
-                Ok(Value::Object(response)) => {
+                Ok(Value::Object(mut response)) => {
                     self.capture_response_facts(&response);
-                    if let Some(output) = response.get("output").and_then(Value::as_array) {
-                        for (index, item) in output.iter().enumerate() {
-                            self.store_item(index as u64, item.clone());
+                    if let Some(Value::Array(output)) = response.remove("output") {
+                        for (index, item) in output.into_iter().enumerate() {
+                            self.store_item(index as u64, item);
                         }
                         self.facts.output_complete = self.response_valid;
                     }
@@ -115,30 +148,25 @@ impl OpenAiResponsesCapture {
         self.client_metadata.as_ref()
     }
 
-    fn capture_request(&mut self, mut request: Map<String, Value>) {
+    fn capture_request(&mut self, mut request: RequestMembers<'_>) {
         self.facts.requested_model = request
-            .get("model")
+            .take_value("model")
+            .as_ref()
             .and_then(Value::as_str)
             .and_then(bounded_string);
         self.facts.model.clone_from(&self.facts.requested_model);
-        request.remove("model");
-        // Agent identifiers are recorded as `agent.*` metadata in both ingestion modes.
-        self.client_metadata = telemetry::take_agent_client_metadata(&mut request);
-        for key in [
-            "temperature",
-            "top_p",
-            "top_logprobs",
-            "max_output_tokens",
-            "service_tier",
-            "parallel_tool_calls",
-            "max_tool_calls",
-            "truncation",
-            "stream",
-            "background",
-            "store",
-            "prompt_cache_retention",
-        ] {
-            if let Some(value) = request.remove(key).filter(|v| {
+        // Agent identifiers are recorded as `agent.*` metadata in both ingestion modes;
+        // unrecognized or oversized objects stay in the input untouched.
+        self.client_metadata = match request.take_value_within(
+            "client_metadata",
+            telemetry::MAX_CLIENT_METADATA_BYTES,
+            telemetry::is_agent_client_metadata,
+        ) {
+            Some(Value::Object(metadata)) => Some(metadata),
+            _ => None,
+        };
+        for key in SCALAR_PARAMETERS {
+            if let Some(value) = request.take_value(key).filter(|v| {
                 self.mode == IngestionMode::Full
                     || v.is_number()
                     || v.is_boolean()
@@ -148,28 +176,19 @@ impl OpenAiResponsesCapture {
             }
         }
         if self.mode == IngestionMode::Full {
-            for key in [
-                "reasoning",
-                "text",
-                "tool_choice",
-                "context_management",
-                "stream_options",
-                "include",
-                "moderation",
-                "prompt_cache_options",
-            ] {
-                if let Some(value) = request.remove(key) {
+            for key in STRUCTURED_PARAMETERS {
+                if let Some(value) = request.take_value(key) {
                     self.facts.model_parameters.insert(key.to_owned(), value);
                 }
             }
-            for key in ["metadata", "prompt_cache_key", "safety_identifier", "user"] {
-                if let Some(value) = request.remove(key) {
+            for key in REQUEST_METADATA {
+                if let Some(value) = request.take_value(key) {
                     self.facts.request_metadata.insert(key.to_owned(), value);
                 }
             }
             // Preserve native prompt context and unknown fields after projecting configuration.
-            self.facts.input = Some(Value::Object(request));
-            self.facts.input_complete = true;
+            self.facts.input = request.into_input();
+            self.facts.input_complete = self.facts.input.is_some();
         }
     }
 
@@ -250,11 +269,8 @@ impl OpenAiResponsesCapture {
         if self.mode != IngestionMode::Full {
             return;
         }
-        let size = item.to_string().len();
-        let previous = self
-            .items
-            .get(&index)
-            .map_or(0, |item| item.to_string().len());
+        let size = value_memory(&item);
+        let previous = self.items.get(&index).map_or(0, value_memory);
         if self.output_bytes - previous + size > MAX_OUTPUT_CAPTURE_BYTES
             || (!self.items.contains_key(&index) && self.items.len() >= MAX_ITEMS)
         {

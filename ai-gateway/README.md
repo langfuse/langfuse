@@ -774,8 +774,13 @@ batched upload. Capture and upload run independently of log level; debug emissio
 alone is gated.
 
 Capture is limited to 5 MiB request inspection, 1 MiB JSON/SSE event inspection,
-1 MiB retained output and 256 output items per execution. The active-request limit
-bounds the number of captures. Trusted key metadata is bounded by the resolver's
+1 MiB retained output and 256 output items per execution. Only the request's
+top-level members are scanned: projected model, configuration and metadata (at
+most 64 KiB in total; larger members stay in the input) are parsed, and full-mode
+input keeps the client's raw JSON for those members, so it retains about one body
+of memory. The retained-output limit counts the parsed output's estimated memory,
+which for many small objects is far larger than its serialized size. The
+active-request limit bounds the number of captures. Trusted key metadata is bounded by the resolver's
 256 KiB response limit. In full mode, an input that is not recorded (over 5 MiB,
 content-encoded or not a JSON object) is explained in generation metadata:
 `langfuse.gateway.request.input_omitted` (`size_limit`, `content_encoding` or

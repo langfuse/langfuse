@@ -186,7 +186,7 @@ async fn request_configuration_and_metadata_are_projected_out_of_input() {
     let mut observer = new_observer("full").await;
     let (_, facts) = finalized(&mut observer);
     assert_eq!(
-        facts.input,
+        facts.input_json(),
         Some(json!({
             "messages": [{"role":"system","content":"system-canary"},{"role":"user","content":"prompt-canary"}],
             "tools": [{"type":"function","function":{"name":"lookup","parameters":{"type":"object"}}}],
