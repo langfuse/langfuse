@@ -37,7 +37,7 @@ import {
 import type { ClickHouseDatabase } from "../query-ast/schema";
 import type { FieldSetFieldKey } from "./events-field-sets";
 
-/** One row of the session aggregation (`sessionAggregationSelects`). */
+/** One row of the session aggregation (`sessionAggregationSelectMap`). */
 export type SessionEventsMetricsRow = {
   session_id: string;
   max_timestamp: string;
@@ -69,29 +69,48 @@ type StringColumn = {
 }[EventsColumn];
 type EventsSelection = SelectExpression<EventsDb, "e">;
 
-/**
- * The expression builder of a query that reads an events table as `e`. Every
- * expression in this module is built from the calling query's builder, so
- * using one in a query without `e` in scope is a type error: helper results
- * don't carry their table scope in their own type.
- */
 type EventsExpressionBuilder = ExpressionBuilder<EventsDb, "e">;
+
+/**
+ * The expression builder of a query that has a full events row in scope as
+ * `e` (`events_core`, `events_full` or `events`, joins allowed). Anything else
+ * resolves to `never`: no `e`, or an `e` missing an events column
+ * (`observations as e`, a narrower subquery). `ExpressionBuilder` alone would
+ * accept the narrower `e`, because it is contravariant in `DB`.
+ */
+type ReadsEvents<DB, TB extends keyof DB> = ExpressionBuilder<DB, TB> &
+  ([DB] extends [EventsDb] ? ("e" extends TB ? unknown : never) : never);
+
+/**
+ * Makes `build` callable with the calling query's expression builder, which
+ * must satisfy {@link ReadsEvents}. Every export of this module goes through
+ * it, so using one where `e` is not a full events row is a type error: helper
+ * results don't carry their table scope in their own type.
+ */
+function scoped<A extends unknown[], R>(
+  build: (eb: EventsExpressionBuilder, ...args: A) => R,
+) {
+  return <DB, TB extends keyof DB>(eb: ReadsEvents<DB, TB>, ...args: A): R =>
+    // Sound: `ReadsEvents` proves `e` is in scope with every events column.
+    build(eb as unknown as EventsExpressionBuilder, ...args);
+}
 
 const eventsMetadataMap = (eb: EventsExpressionBuilder) =>
   metadataMap(eb.ref("e.metadata_names"), eb.ref("e.metadata_values"));
 
 /** The event is a root observation: no parent span, or an app root. */
-export const eventsIsRootObservation = (eb: EventsExpressionBuilder) =>
+export const eventsIsRootObservation = scoped((eb) =>
   eb.or([
     eb("e.parent_span_id", "=", literal("")),
     eb("e.is_app_root", "=", literal(true)),
-  ]);
+  ]),
+);
 
 /**
  * An event's trace name: the stored `trace_name`, else the name of a root
  * observation, else NULL.
  */
-export const eventsTraceName = (eb: EventsExpressionBuilder) =>
+export const eventsTraceName = scoped((eb) =>
   eb.fn.coalesce(
     nullIf(eb.ref("e.trace_name"), literal("")),
     ifElse(
@@ -99,7 +118,8 @@ export const eventsTraceName = (eb: EventsExpressionBuilder) =>
       nullIf(eb.ref("e.name"), literal("")),
       literal(null),
     ),
-  );
+  ),
+);
 
 /**
  * {@link eventsTraceName} as a non-null String, '' when the event has no trace
@@ -107,8 +127,9 @@ export const eventsTraceName = (eb: EventsExpressionBuilder) =>
  * physical String column of the same name once a query also filters and sorts
  * on it (ClickHouse AMBIGUOUS_COLUMN_NAME).
  */
-export const eventsTraceNameOrEmpty = (eb: EventsExpressionBuilder) =>
-  ifNull(eventsTraceName(eb), literal(""));
+export const eventsTraceNameOrEmpty = scoped((eb) =>
+  ifNull(eventsTraceName(eb), literal("")),
+);
 
 const traceNameSelect = (eb: EventsExpressionBuilder) =>
   eventsTraceNameOrEmpty(eb).as("trace_name");
@@ -135,102 +156,104 @@ const countLevel = (eb: EventsExpressionBuilder, level: string) =>
  * One row per trace, aggregated from its events. Grouped by
  * `trace_id, project_id`.
  */
-export const traceAggregationSelects = (eb: EventsExpressionBuilder) =>
-  [
-    eb.ref("trace_id").as("id"),
-    "project_id",
-    eb.fn
-      .coalesce(
-        nullIf(
-          argMaxIf(
-            eb.ref("e.trace_name"),
-            eb.ref("e.event_ts"),
-            eb("e.trace_name", "<>", literal("")),
-          ),
-          literal(""),
-        ),
-        nullIf(
-          argMaxIf(
-            eb.ref("e.name"),
-            eb.ref("e.event_ts"),
-            eb.and([
-              eventsIsRootObservation(eb),
-              eb("e.name", "<>", literal("")),
-            ]),
-          ),
-          literal(""),
-        ),
-      )
-      .as("name"),
-    eb.fn.min("start_time").as("timestamp"),
-    latestNonEmpty(eb, "environment").as("environment"),
-    latestNonEmpty(eb, "version").as("version"),
-    traceSessionId().as("session_id"),
-    latestNonEmpty(eb, "user_id").as("user_id"),
-    ofRootSpan(eb, "input").as("input"),
-    ofRootSpan(eb, "output").as("output"),
-    argMaxIf(
-      eventsMetadataMap(eb),
-      eb.ref("event_ts"),
-      eb("parent_span_id", "=", literal("")),
-    ).as("metadata"),
-    eb.fn.min("created_at").as("created_at"),
-    eb.fn.max("updated_at").as("updated_at"),
-    eb.fn.sum("total_cost").as("total_cost"),
-    ifElse(
-      eb(eb.fn.max("end_time"), "is", null),
-      literal(null),
-      dateDiff(
-        "millisecond",
-        eb.fn.min("start_time"),
-        greatest(eb.fn.max("start_time"), eb.fn.max("end_time")),
-      ),
-    ).as("latency_milliseconds"),
-    groupUniqArrayIf(eb.ref("span_id"), eb("span_id", "<>", literal(""))).as(
-      "observation_ids",
-    ),
-    arrayLength(
-      groupUniqArrayIf(
-        eb.ref("span_id"),
-        eb.and([
-          eb("span_id", "<>", literal("")),
-          eb("span_id", "<>", concat(literal("t-"), eb.ref("trace_id"))),
-        ]),
-      ),
-    ).as("observation_count"),
-    ofRootSpan(eb, "bookmarked").as("bookmarked"),
-    eb.fn.max("public").as("public"),
-    latestNonEmpty(eb, "experiment_item_id").as("experiment_item_id"),
-    sumMap(eb.ref("usage_details")).as("usage_details"),
-    sumMap(eb.ref("cost_details")).as("cost_details"),
-    multiIf(
-      ["ERROR", "WARNING", "DEFAULT"].map(
-        (level) =>
-          [
-            arrayExists(
-              (x) => eb(x, "=", literal(level)),
-              groupArray(eb.ref("level")),
+export const traceAggregationSelects = scoped(
+  (eb) =>
+    [
+      eb.ref("trace_id").as("id"),
+      "project_id",
+      eb.fn
+        .coalesce(
+          nullIf(
+            argMaxIf(
+              eb.ref("e.trace_name"),
+              eb.ref("e.event_ts"),
+              eb("e.trace_name", "<>", literal("")),
             ),
-            literal(level),
-          ] as const,
+            literal(""),
+          ),
+          nullIf(
+            argMaxIf(
+              eb.ref("e.name"),
+              eb.ref("e.event_ts"),
+              eb.and([
+                eventsIsRootObservation(eb),
+                eb("e.name", "<>", literal("")),
+              ]),
+            ),
+            literal(""),
+          ),
+        )
+        .as("name"),
+      eb.fn.min("start_time").as("timestamp"),
+      latestNonEmpty(eb, "environment").as("environment"),
+      latestNonEmpty(eb, "version").as("version"),
+      traceSessionId().as("session_id"),
+      latestNonEmpty(eb, "user_id").as("user_id"),
+      ofRootSpan(eb, "input").as("input"),
+      ofRootSpan(eb, "output").as("output"),
+      argMaxIf(
+        eventsMetadataMap(eb),
+        eb.ref("event_ts"),
+        eb("parent_span_id", "=", literal("")),
+      ).as("metadata"),
+      eb.fn.min("created_at").as("created_at"),
+      eb.fn.max("updated_at").as("updated_at"),
+      eb.fn.sum("total_cost").as("total_cost"),
+      ifElse(
+        eb(eb.fn.max("end_time"), "is", null),
+        literal(null),
+        dateDiff(
+          "millisecond",
+          eb.fn.min("start_time"),
+          greatest(eb.fn.max("start_time"), eb.fn.max("end_time")),
+        ),
+      ).as("latency_milliseconds"),
+      groupUniqArrayIf(eb.ref("span_id"), eb("span_id", "<>", literal(""))).as(
+        "observation_ids",
       ),
-      literal("DEBUG"),
-    ).as("aggregated_level"),
-    countLevel(eb, "WARNING").as("warning_count"),
-    countLevel(eb, "ERROR").as("error_count"),
-    countLevel(eb, "DEFAULT").as("default_count"),
-    countLevel(eb, "DEBUG").as("debug_count"),
-    argMaxIf(eb.ref("tags"), eb.ref("event_ts"), notEmpty(eb.ref("tags"))).as(
-      "tags",
-    ),
-    latestNonEmpty(eb, "release").as("release"),
-    latestNonEmpty(eb, "evaluator_id").as("evaluator_id"),
-    latestNonEmpty(eb, "evaluation_rule_id").as("evaluation_rule_id"),
-    anyValue(eb.ref("experiment_id")).as("experiment_id"),
-  ] satisfies EventsSelection[];
+      arrayLength(
+        groupUniqArrayIf(
+          eb.ref("span_id"),
+          eb.and([
+            eb("span_id", "<>", literal("")),
+            eb("span_id", "<>", concat(literal("t-"), eb.ref("trace_id"))),
+          ]),
+        ),
+      ).as("observation_count"),
+      ofRootSpan(eb, "bookmarked").as("bookmarked"),
+      eb.fn.max("public").as("public"),
+      latestNonEmpty(eb, "experiment_item_id").as("experiment_item_id"),
+      sumMap(eb.ref("usage_details")).as("usage_details"),
+      sumMap(eb.ref("cost_details")).as("cost_details"),
+      multiIf(
+        ["ERROR", "WARNING", "DEFAULT"].map(
+          (level) =>
+            [
+              arrayExists(
+                (x) => eb(x, "=", literal(level)),
+                groupArray(eb.ref("level")),
+              ),
+              literal(level),
+            ] as const,
+        ),
+        literal("DEBUG"),
+      ).as("aggregated_level"),
+      countLevel(eb, "WARNING").as("warning_count"),
+      countLevel(eb, "ERROR").as("error_count"),
+      countLevel(eb, "DEFAULT").as("default_count"),
+      countLevel(eb, "DEBUG").as("debug_count"),
+      argMaxIf(eb.ref("tags"), eb.ref("event_ts"), notEmpty(eb.ref("tags"))).as(
+        "tags",
+      ),
+      latestNonEmpty(eb, "release").as("release"),
+      latestNonEmpty(eb, "evaluator_id").as("evaluator_id"),
+      latestNonEmpty(eb, "evaluation_rule_id").as("evaluation_rule_id"),
+      anyValue(eb.ref("experiment_id")).as("experiment_id"),
+    ] satisfies EventsSelection[],
+);
 
 /** Session-level aggregates over events, keyed by field. Grouped by `session_id`. */
-export const sessionAggregationSelects = (eb: EventsExpressionBuilder) =>
+const sessionAggregationSelectMap = (eb: EventsExpressionBuilder) =>
   ({
     session_id: "session_id",
     max_timestamp: eb.fn.max("start_time").as("max_timestamp"),
@@ -293,65 +316,78 @@ export const sessionAggregationSelects = (eb: EventsExpressionBuilder) =>
     ).as("session_total_usage"),
   }) satisfies Record<SessionEventsField, EventsSelection>;
 
+/** {@link sessionAggregationSelectMap} entries of `fields`, in that order. */
+export const sessionAggregationSelects = (
+  fields: ReadonlyArray<SessionEventsField>,
+) =>
+  scoped((eb) => {
+    const selects = sessionAggregationSelectMap(eb);
+    return fields.map((field) => selects[field]);
+  });
+
 /** One observation's fields, without input/output. */
-export const observationByIdSelects = (eb: EventsExpressionBuilder) =>
-  [
-    "e.span_id as id",
-    "e.trace_id as trace_id",
-    "e.project_id as project_id",
-    "e.environment as environment",
-    "e.type as type",
-    "e.parent_span_id as parent_observation_id",
-    "e.name as name",
-    "e.level as level",
-    "e.status_message as status_message",
-    "e.version as version",
-    "e.bookmarked as bookmarked",
-    "e.public as public",
-    "e.user_id as user_id",
-    "e.session_id as session_id",
-    traceNameSelect(eb),
-    "e.start_time as start_time",
-    "e.end_time as end_time",
-    "e.completion_start_time as completion_start_time",
-    "e.created_at as created_at",
-    "e.updated_at as updated_at",
-    "e.event_ts",
-    "e.provided_model_name as provided_model_name",
-    "e.model_id as internal_model_id",
-    "e.model_parameters as model_parameters",
-    "e.provided_usage_details as provided_usage_details",
-    "e.usage_details as usage_details",
-    "e.provided_cost_details as provided_cost_details",
-    "e.cost_details as cost_details",
-    "e.total_cost as total_cost",
-    "e.prompt_id as prompt_id",
-    "e.prompt_name as prompt_name",
-    "e.prompt_version as prompt_version",
-    sql.ref<SkillsAvailable>("e.skills_available").as("skills_available"),
-    sql
-      .ref<SkillsResourceLoaded>("e.skills_resource_loaded")
-      .as("skills_resource_loaded"),
-    "e.tool_definitions as tool_definitions",
-    "e.tool_calls as tool_calls",
-    "e.tool_call_names as tool_call_names",
-    "e.usage_pricing_tier_id as usage_pricing_tier_id",
-    "e.usage_pricing_tier_name as usage_pricing_tier_name",
-    eventsMetadataMap(eb).as("metadata"),
-    "e.tags as tags",
-    "e.release as release",
-  ] satisfies EventsSelection[];
+export const observationByIdSelects = scoped(
+  (eb) =>
+    [
+      "e.span_id as id",
+      "e.trace_id as trace_id",
+      "e.project_id as project_id",
+      "e.environment as environment",
+      "e.type as type",
+      "e.parent_span_id as parent_observation_id",
+      "e.name as name",
+      "e.level as level",
+      "e.status_message as status_message",
+      "e.version as version",
+      "e.bookmarked as bookmarked",
+      "e.public as public",
+      "e.user_id as user_id",
+      "e.session_id as session_id",
+      traceNameSelect(eb),
+      "e.start_time as start_time",
+      "e.end_time as end_time",
+      "e.completion_start_time as completion_start_time",
+      "e.created_at as created_at",
+      "e.updated_at as updated_at",
+      "e.event_ts",
+      "e.provided_model_name as provided_model_name",
+      "e.model_id as internal_model_id",
+      "e.model_parameters as model_parameters",
+      "e.provided_usage_details as provided_usage_details",
+      "e.usage_details as usage_details",
+      "e.provided_cost_details as provided_cost_details",
+      "e.cost_details as cost_details",
+      "e.total_cost as total_cost",
+      "e.prompt_id as prompt_id",
+      "e.prompt_name as prompt_name",
+      "e.prompt_version as prompt_version",
+      sql.ref<SkillsAvailable>("e.skills_available").as("skills_available"),
+      sql
+        .ref<SkillsResourceLoaded>("e.skills_resource_loaded")
+        .as("skills_resource_loaded"),
+      "e.tool_definitions as tool_definitions",
+      "e.tool_calls as tool_calls",
+      "e.tool_call_names as tool_call_names",
+      "e.usage_pricing_tier_id as usage_pricing_tier_id",
+      "e.usage_pricing_tier_name as usage_pricing_tier_name",
+      eventsMetadataMap(eb).as("metadata"),
+      "e.tags as tags",
+      "e.release as release",
+    ] satisfies EventsSelection[],
+);
 
 /** Milliseconds from an event's start to `end`, NULL while `end` is unset. */
-export const millisecondsSinceStart = (
-  eb: EventsExpressionBuilder,
-  end: "e.end_time" | "e.completion_start_time",
-) =>
-  ifElse(
-    isNull(eb.ref(end)),
-    literal(null),
-    dateDiff("millisecond", eb.ref("e.start_time"), eb.ref(end)),
-  );
+export const millisecondsSinceStart = scoped(
+  (
+    eb: EventsExpressionBuilder,
+    end: "e.end_time" | "e.completion_start_time",
+  ) =>
+    ifElse(
+      isNull(eb.ref(end)),
+      literal(null),
+      dateDiff("millisecond", eb.ref("e.start_time"), eb.ref(end)),
+    ),
+);
 
 /** {@link millisecondsSinceStart} in seconds. */
 const secondsSinceStart = (
@@ -386,7 +422,7 @@ type RowFieldSet =
  * them in `eventsFieldSetKeys` order: clustered reads align result blocks by
  * column position.
  */
-export const eventsRowFieldSelects = (eb: EventsExpressionBuilder) =>
+const rowFieldSelectMap = (eb: EventsExpressionBuilder) =>
   ({
     id: "e.span_id as id",
     traceId: "e.trace_id as trace_id",
@@ -435,9 +471,22 @@ export const eventsRowFieldSelects = (eb: EventsExpressionBuilder) =>
     ),
   }) satisfies Record<FieldSetFieldKey<RowFieldSet>, EventsSelection>;
 
+/** {@link rowFieldSelectMap} entries of `keys`, in that order. */
+export const eventsRowFieldSelects = (
+  keys: ReadonlyArray<FieldSetFieldKey<RowFieldSet>>,
+) =>
+  scoped((eb) => {
+    const selects = rowFieldSelectMap(eb);
+    return keys.map((key) => selects[key]);
+  });
+
 /** The `metrics` field set with latencies in seconds instead of milliseconds. */
-export const eventsMetricsSecondsSelects = (eb: EventsExpressionBuilder) =>
-  [
-    secondsSinceStart(eb, "e.end_time").as("latency"),
-    secondsSinceStart(eb, "e.completion_start_time").as("time_to_first_token"),
-  ] satisfies EventsSelection[];
+export const eventsMetricsSecondsSelects = scoped(
+  (eb) =>
+    [
+      secondsSinceStart(eb, "e.end_time").as("latency"),
+      secondsSinceStart(eb, "e.completion_start_time").as(
+        "time_to_first_token",
+      ),
+    ] satisfies EventsSelection[],
+);

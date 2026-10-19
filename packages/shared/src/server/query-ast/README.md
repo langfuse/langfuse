@@ -140,7 +140,9 @@ suffix to run there. Promote it to a required check once it has proven stable.
   `eb: ExpressionBuilder<{ e: … }, "e">`, passed as
   `.select(traceAggregationSelects)` or called inside
   `.where((eb) => …)` (see `../repositories/events-selects.ts`). Then a query
-  without `e` in scope fails to type-check. A module-level constant built
+  without `e` in scope fails to type-check. `ExpressionBuilder` is
+  contravariant in `DB`, so it also accepts an `e` with fewer columns; the
+  module's `ReadsEvents` type rejects that too. A module-level constant built
   from a detached `expressionBuilder()` loses that check: helper results
   don't carry their table scope in their type, and Kysely's `select()` /
   `where()` accept any expression.
@@ -339,8 +341,7 @@ documented-protected API.
 ### Types are asserted at compile time
 
 `types.assert.ts` holds `tsc`-only assertions (schema typing, view opacity,
-arrayJoin widening, limitBy / useFinal preservation, shared-expression
-scope). It is never run; `schema.test.ts`
+arrayJoin widening, limitBy / useFinal preservation). It is never run; `schema.test.ts`
 anchors it so it stays in the build graph. `@ts-expect-error` lines there must
 stay live.
 

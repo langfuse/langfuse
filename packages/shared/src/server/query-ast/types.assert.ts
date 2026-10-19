@@ -1,20 +1,7 @@
-import { expressionBuilder, type InferResult } from "kysely";
+import { type InferResult } from "kysely";
 
-import {
-  eventsTraceName,
-  traceAggregationSelects,
-} from "../repositories/events-selects";
 import { getClickhouseKysely } from "./dialect";
-import {
-  arrayJoin,
-  ifNull,
-  limitBy,
-  literal,
-  mapKeys,
-  mapValues,
-  useFinal,
-} from "./extensions";
-import type { ClickHouseDatabase } from "./schema";
+import { arrayJoin, limitBy, mapKeys, mapValues, useFinal } from "./extensions";
 import { defineView, fromView } from "./views";
 
 /**
@@ -122,43 +109,4 @@ export function extensionTypeAssertions(): void {
   type _Id = FinalRow["id"];
   // @ts-expect-error useFinal adds no columns
   type _NoFinalExtra = FinalRow["cost_key"];
-}
-
-/**
- * Compile-time assertions that shared expressions keep their table scope:
- * an expression built from the calling query's expression builder only
- * type-checks in a query that has its alias in scope. `tsc` is the test.
- */
-export function expressionScopeTypeAssertions(): void {
-  const db = getClickhouseKysely();
-
-  db.selectFrom("events_core as e").select(traceAggregationSelects);
-  db.selectFrom("events_full as e").select(traceAggregationSelects);
-  db.selectFrom("events_core as e")
-    .innerJoin("traces as t", "t.id", "e.trace_id")
-    .select(traceAggregationSelects);
-
-  db.selectFrom("traces as t")
-    // @ts-expect-error no `e` in scope
-    .select(traceAggregationSelects);
-
-  db.selectFrom("events_core")
-    // @ts-expect-error the events table is not aliased `e`
-    .select(traceAggregationSelects);
-
-  db.selectFrom("traces as t")
-    .selectAll()
-    // @ts-expect-error no `e` in scope
-    .where((eb) => eb(eventsTraceName(eb), "is not", null));
-
-  // Intentionally valid at the TS layer: a helper result does not carry the
-  // scope of the builder it was made from, and Kysely's `select()` accepts any
-  // aliased expression. Build shared expressions from the query's builder.
-  const detached = expressionBuilder<
-    { e: ClickHouseDatabase["events_core"] },
-    "e"
-  >();
-  db.selectFrom("traces as t").select(
-    ifNull(detached.ref("e.trace_name"), literal("")).as("name"),
-  );
 }

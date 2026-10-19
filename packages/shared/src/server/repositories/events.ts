@@ -3422,10 +3422,7 @@ const buildEventsForBlobStorageExportQuery = (
 
   const builder = getClickhouseKysely()
     .selectFrom(includeIO ? "events_full as e" : "events_core as e")
-    .select((eb) => {
-      const selects = eventsRowFieldSelects(eb);
-      return eventsFieldSetKeys(...fieldSets).map((key) => selects[key]);
-    })
+    .select(eventsRowFieldSelects(eventsFieldSetKeys(...fieldSets)))
     .$if(includeIO, (qb) => qb.select(["input", "output"]))
     .$if(metricsInSeconds, (qb) => qb.select(eventsMetricsSecondsSelects))
     .where("e.start_time", ">=", minTimestamp)
@@ -3528,10 +3525,7 @@ export const getEventsForAnalyticsIntegrations = async function* (
     .selectFrom("events_core as e")
     // Use export field set for most fields (id, traceId, name, type, level, version,
     // environment, userId, sessionId, tags, release, traceName, totalCost, latency, etc.)
-    .select((eb) => {
-      const selects = eventsRowFieldSelects(eb);
-      return eventsFieldSetKeys("export").map((key) => selects[key]);
-    })
+    .select(eventsRowFieldSelects(eventsFieldSetKeys("export")))
     // Add analytics-specific computed fields
     .select((eb) => [
       // Token counts from usage/cost details
@@ -3931,10 +3925,7 @@ export const getSessionMetricsFromEvents = async <
   const { projectId, sessionIds, fields, queryFromTimestamp } = props;
   const builder = getClickhouseKysely()
     .selectFrom("events as e")
-    .select((eb) => {
-      const selects = sessionAggregationSelects(eb);
-      return fields.map((field) => selects[field]);
-    })
+    .select(sessionAggregationSelects(fields))
     .where("session_id", "in", sessionIds)
     .$if(queryFromTimestamp != null, (qb) =>
       qb.where(
