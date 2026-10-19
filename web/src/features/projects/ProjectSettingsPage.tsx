@@ -15,7 +15,7 @@ import {
   useHasOrganizationAccess,
 } from "@/src/features/rbac";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import { PostHogLogo } from "@/src/components/PosthogLogo";
+import { PostHogLogo } from "@/src/components/PostHogLogo";
 import { MixpanelLogo } from "@/src/components/MixpanelLogo";
 import { Card } from "@/src/components/ui/card";
 import { TransferProjectDialogController } from "@/src/features/projects/components/TransferProjectDialogController";
