@@ -70,22 +70,11 @@ export class WorkerManager {
     return oldest ? nowMs - (oldest.finishedOn ?? oldest.timestamp) : 0;
   }
 
-  // Wait time for the current pickup, i.e. how long the job sat in the queue
-  // before this attempt started. BullMQ (5.x) keeps job.timestamp at creation
-  // time across retries and stall re-runs, so `now - timestamp` on a later
-  // attempt also counts every earlier attempt's runtime plus backoff.
-  //
-  // - First pickup: measured from timestamp + opts.delay, so an intentional
-  //   delay is not counted as wait. job.delay can't be used: BullMQ resets it
-  //   to 0 when it promotes the job from delayed to wait.
-  // - Retries and stall re-runs: BullMQ doesn't persist when the job became
-  //   ready again (processedOn is overwritten on pickup, the delayed-set score
-  //   is gone, finishedOn is only set on terminal failure), so waitMs is
-  //   undefined rather than a number that includes earlier runtime.
-  //
-  // attemptsStarted is incremented on every move to active, so it is 1 on the
-  // first pickup. A stall re-run leaves attemptsMade at 0 but bumps
-  // attemptsStarted and stalledCounter.
+  /**
+   * Queue wait before the current pickup: first attempts measure from
+   * timestamp + opts.delay; retries and stall re-runs return undefined because
+   * BullMQ keeps no record of when they became ready again.
+   */
   public static computeWaitTimeMs(
     job: Pick<
       Job,

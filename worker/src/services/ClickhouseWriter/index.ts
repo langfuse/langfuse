@@ -632,8 +632,7 @@ type ClickhouseQueue<PayloadMap extends WriterPayloadMap> = {
 };
 
 type ClickhouseWriterQueueItem<Payload> = {
-  // When the item last entered the in-memory queue. Reset on requeue so the
-  // "wait" metric doesn't count earlier failed or split flushes.
+  /** When the item last entered the in-memory queue, including requeues. */
   enqueuedAt: number;
   requeued: boolean;
   attempts: number;
