@@ -116,20 +116,7 @@ function providerErrorDetails(
       : undefined;
   const text = (value: unknown) =>
     typeof value === "string" ? value.slice(0, 500) : undefined;
-  let finish: Record<string, unknown> | undefined;
-  for (let current = record(error), depth = 0; current && depth < 4; depth++) {
-    if (typeof current.finishReason === "string") finish = current;
-    current = record(current.cause);
-  }
-  // Finish reasons are provider enums; anything else could be model text.
-  const enumValue = (value: unknown) =>
-    typeof value === "string" && /^[\w-]{1,40}$/.test(value)
-      ? value
-      : undefined;
-  const reasons = {
-    finishReason: enumValue(finish?.finishReason),
-    rawFinishReason: enumValue(finish?.rawFinishReason),
-  };
+  const reasons = finishReasons(error);
   const provider = getLLMErrorInfo(error)?.providerError;
   const httpStatus = provider?.statusCode ?? status;
   if (!httpStatus) return reasons;
@@ -176,4 +163,27 @@ export async function pauseForRejectedConnection(
         pauseError instanceof Error ? pauseError.message : String(pauseError),
     });
   }
+}
+
+/** Finish reasons are provider enums; anything else could be model text. */
+function finishReasons(
+  error: unknown,
+): Pick<TopicProviderErrorDetails, "finishReason" | "rawFinishReason"> {
+  const record = (value: unknown) =>
+    value && typeof value === "object"
+      ? (value as Record<string, unknown>)
+      : undefined;
+  const enumValue = (value: unknown) =>
+    typeof value === "string" && /^[\w-]{1,40}$/.test(value)
+      ? value
+      : undefined;
+  for (let current = record(error), depth = 0; current && depth < 4; depth++) {
+    if (typeof current.finishReason === "string")
+      return {
+        finishReason: enumValue(current.finishReason),
+        rawFinishReason: enumValue(current.rawFinishReason),
+      };
+    current = record(current.cause);
+  }
+  return {};
 }

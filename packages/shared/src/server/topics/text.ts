@@ -390,6 +390,7 @@ async function invokeWithCache(
         finishReason: message?.refusal
           ? "refusal"
           : json.choices?.[0]?.finish_reason,
+        rawFinishReason: json.choices?.[0]?.finish_reason,
       },
     );
   // A model can append text after a valid object; the caller treats that as unusable output.

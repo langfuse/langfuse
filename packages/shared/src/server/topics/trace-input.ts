@@ -176,13 +176,7 @@ export async function loadTopicTranscript(params: {
       });
     }
   } catch (error) {
-    // ClickHouse stops oversized results before the reader can count them.
-    if (
-      (error as { type?: unknown }).type === "TOO_MANY_ROWS_OR_BYTES" ||
-      (error instanceof Error &&
-        error.message.includes("Limit for result exceeded"))
-    )
-      throw new TopicTraceTooLarge();
+    if (isResultOverflow(error)) throw new TopicTraceTooLarge();
     throw error;
   }
   if (!observations.length)
@@ -206,4 +200,13 @@ export async function loadTopicTranscript(params: {
     // Uncapped, like trace-batch; the summary input limit rejects oversized traces.
     transcript: assembleTranscript(orderObservations(observations)),
   };
+}
+
+/** ClickHouse stops oversized results before the reader can count them. */
+function isResultOverflow(error: unknown): boolean {
+  return (
+    (error as { type?: unknown }).type === "TOO_MANY_ROWS_OR_BYTES" ||
+    (error instanceof Error &&
+      error.message.includes("Limit for result exceeded"))
+  );
 }
