@@ -1111,7 +1111,12 @@ async function getObservationByIdFromEventsTableInternal({
     .$call(softDeleteAfterLimit())
     .select(OBSERVATION_BY_ID_SELECTS)
     .$if(fetchWithInputOutput, (qb) =>
-      qb.select((eb) => observationIoSelects(eb, renderingProps.truncated)),
+      qb.select((eb) =>
+        observationIoSelects(
+          { input: eb.ref("input"), output: eb.ref("output") },
+          renderingProps.truncated,
+        ),
+      ),
     )
     .where("span_id", "=", id)
     .$if(startTime != null, (qb) =>
@@ -1148,7 +1153,7 @@ async function getObservationByIdFromEventsTableInternal({
 
 /** `input`/`output`, capped to the server-side char limit on a truncated read. */
 function observationIoSelects(
-  eb: { ref(column: "input" | "output"): Expression<string> },
+  io: { input: Expression<string>; output: Expression<string> },
   truncated: boolean | undefined,
 ): ReadonlyArray<
   "input" | "output" | AliasedExpression<string, "input" | "output">
@@ -1156,8 +1161,8 @@ function observationIoSelects(
   if (!truncated) return ["input", "output"];
   const charLimit = env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT;
   return [
-    leftUTF8(eb.ref("input"), charLimit).as("input"),
-    leftUTF8(eb.ref("output"), charLimit).as("output"),
+    leftUTF8(io.input, charLimit).as("input"),
+    leftUTF8(io.output, charLimit).as("output"),
   ];
 }
 
@@ -1236,7 +1241,11 @@ export const getTraceByIdFromEventsTable = async ({
       "t.updated_at",
       metadataSelect,
       literal(0).as("is_deleted"),
-      ...traceIoSelects(eb, excludeInputOutput, truncated),
+      ...traceIoSelects(
+        { input: eb.ref("t.input"), output: eb.ref("t.output") },
+        excludeInputOutput,
+        truncated,
+      ),
     ])
     .$if(timestamp != null, (qb) =>
       qb.where((eb) =>
@@ -1281,7 +1290,7 @@ function observationsToTraceLowerBound(anchor: Date): Date {
 }
 
 function traceIoSelects(
-  eb: { ref(column: "t.input" | "t.output"): Expression<string> },
+  io: { input: Expression<string>; output: Expression<string> },
   excludeInputOutput: boolean,
   truncated: boolean,
 ): ReadonlyArray<
@@ -1292,8 +1301,8 @@ function traceIoSelects(
   if (truncated) {
     const charLimit = env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT;
     return [
-      leftUTF8(eb.ref("t.input"), charLimit).as("input"),
-      leftUTF8(eb.ref("t.output"), charLimit).as("output"),
+      leftUTF8(io.input, charLimit).as("input"),
+      leftUTF8(io.output, charLimit).as("output"),
     ];
   }
   return ["t.input", "t.output"];

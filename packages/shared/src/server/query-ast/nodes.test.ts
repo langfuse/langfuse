@@ -806,6 +806,33 @@ describe("ARRAY JOIN and LIMIT BY nodes", () => {
     expect(node.limitBy!.count.kind).toBe("ValueNode");
   });
 
+  it("emits the ARRAY JOIN variant", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("observations")
+      .select("environment")
+      .$call(
+        arrayJoin(
+          (eb) => ({ cost_key: mapKeys(eb.ref("cost_details")) }),
+          "left",
+        ),
+      );
+
+    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
+    expect(compiled.toLowerCase()).toContain(
+      "left array join mapkeys(cost_details) as cost_key",
+    );
+  });
+
+  it("emits the LIMIT BY count", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("events_core")
+      .select("span_id")
+      .$call(limitBy({ count: 2, columns: (eb) => [eb.ref("span_id")] }));
+
+    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
+    expect(compiled.toLowerCase()).toContain("limit 2 by span_id");
+  });
+
   it("emits LIMIT BY before a plain LIMIT", () => {
     const qb = getClickhouseKysely()
       .selectFrom("events_core")

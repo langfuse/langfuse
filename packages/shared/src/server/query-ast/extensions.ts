@@ -630,16 +630,9 @@ export function argMaxIf<T>(
  * columns, for a trace-level aggregate over one events table.
  */
 export function traceSessionId(): ChExpression<string> {
-  const sessionId = new ExpressionWrapper<
-    ClickHouseDatabase,
-    keyof ClickHouseDatabase,
-    string
-  >(ColumnNode.create("session_id"));
-  return argMaxIf(
-    sessionId,
-    new ExpressionWrapper(ColumnNode.create("event_ts")),
-    nonEmpty(sessionId),
-  );
+  const eb = expressionBuilder<ClickHouseDatabase, "events_core">();
+  const sessionId = eb.ref("session_id");
+  return argMaxIf(sessionId, eb.ref("event_ts"), nonEmpty(sessionId));
 }
 
 /**
