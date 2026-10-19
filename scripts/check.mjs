@@ -81,6 +81,8 @@ const checkTasks = [
   },
 ];
 
+const components = ["format", "typecheck", "lint", "knip", "tests"];
+
 export function parseOptions(args) {
   const options = {
     branch: false,
@@ -93,7 +95,20 @@ export function parseOptions(args) {
     if (arg === "--branch") options.branch = true;
     else if (arg === "--all") options.all = true;
     else if (arg === "--dry-run") options.dryRun = true;
-    else if (arg === "--base") {
+    else if (["--only", "-o", "--skip", "-s"].includes(arg)) {
+      const value = args[++index];
+      if (!value || value.startsWith("-"))
+        throw new Error(`${arg} requires a comma-separated list of checks`);
+      const names = value.split(",");
+      for (const name of names) {
+        if (!components.includes(name))
+          throw new Error(
+            `Unknown check: ${JSON.stringify(name)}. Choose from: ${components.join(", ")}`,
+          );
+      }
+      const key = arg === "--only" || arg === "-o" ? "only" : "skip";
+      options[key] = [...new Set([...(options[key] ?? []), ...names])];
+    } else if (arg === "--base") {
       const base = args[++index];
       if (!base || base.startsWith("-"))
         throw new Error("--base requires a Git ref");
@@ -102,6 +117,8 @@ export function parseOptions(args) {
     } else if (arg === "--help" || arg === "-h") options.help = true;
     else throw new Error(`Unknown argument: ${arg}`);
   }
+  if (options.only && options.skip)
+    throw new Error("--only and --skip cannot be combined");
   return options;
 }
 
@@ -152,6 +169,11 @@ export function createPlan(
   exists = existsSync,
 ) {
   const commands = [];
+  const checks = new Set(
+    (options.only ?? components).filter(
+      (name) => !options.skip?.includes(name),
+    ),
+  );
   if (!options.all && files.length === 0) return commands;
   const codeFiles = files.filter(
     (file) => !/\.(md|mdx|png|jpg|jpeg|svg|gif|ico)$/.test(file),
@@ -234,6 +256,10 @@ export function createPlan(
     for (const name of names) targets.add(`${name}#${task}`);
   };
   const isSelected = (pkg, task) => {
+    const component = checkTasks.find((check) => check.name === task)?.suite
+      ? "tests"
+      : task;
+    if (!checks.has(component)) return false;
     if (!pkg.scripts[task]) return false;
     if (broad) return true;
     if (
@@ -401,11 +427,13 @@ export function createPlan(
     codeFiles.some((file) => /prettier|(^|\/)\.editorconfig$/.test(file));
   const repositoryChecks = [
     {
+      component: "format",
       when: repositoryFormatting,
       label: "Formatting · repository-wide",
       args: ["run", "format:check"],
     },
     {
+      component: "format",
       when: !repositoryFormatting && formatted.length > 0,
       label: `Formatting · ${formatted.length} file${formatted.length === 1 ? "" : "s"}`,
       args: [
@@ -417,6 +445,7 @@ export function createPlan(
       ],
     },
     {
+      component: "tests",
       when:
         options.all ||
         files.some((file) =>
@@ -426,6 +455,7 @@ export function createPlan(
       args: ["exec", "node", "--test", "scripts/vitest/ci-reporter.test.mjs"],
     },
     {
+      component: "knip",
       // Removing an import can orphan unchanged exports anywhere in the graph.
       when:
         options.all ||
@@ -445,8 +475,8 @@ export function createPlan(
   ];
   return [
     ...repositoryChecks
-      .filter((check) => check.when)
-      .map(({ when, ...check }) => check),
+      .filter((check) => check.when && checks.has(check.component))
+      .map(({ when, component, ...check }) => check),
     ...packageChecks,
   ];
 }
@@ -754,7 +784,7 @@ async function main() {
   const options = parseOptions(process.argv.slice(2));
   if (options.help) {
     console.log(
-      "Usage: pnpm check [--branch] [--base <ref>] [--all] [--dry-run]\n\nDefault: staged, unstaged, and untracked changes.\n--branch: changes since merge-base with origin/main, plus local changes.\n--base: override branch target (implies --branch).\n--all: check every package.\n--dry-run: print checks without running them.",
+      "Usage: pnpm check [--branch] [--base <ref>] [--all] [--only <checks> | --skip <checks>] [--dry-run]\n\nDefault: all applicable checks for staged, unstaged, and untracked changes.\n--branch: changes since merge-base with origin/main, plus local changes.\n--base: override branch target (implies --branch).\n--all: check every package within the selected checks.\n--only, -o: run only the comma-separated checks.\n--skip, -s: exclude the comma-separated checks. Cannot combine with --only.\nChecks: format, typecheck, lint, knip, tests. Build/generation prerequisites still run.\n--dry-run: print checks without running them.",
     );
     return;
   }
@@ -773,7 +803,7 @@ async function main() {
   console.log(
     paint(
       "1",
-      `${options.all ? "All packages" : options.branch ? `Branch checks · ${options.base}` : "Local checks"} · ${files.length} changed file${files.length === 1 ? "" : "s"}`,
+      `${options.all ? "All packages" : options.branch ? `Branch checks · ${options.base}` : "Local checks"} · ${options.only ? `only ${options.only.join(", ")}` : options.skip ? `skip ${options.skip.join(", ")}` : "all checks"} · ${files.length} changed file${files.length === 1 ? "" : "s"}`,
     ),
   );
   for (const file of files) {
