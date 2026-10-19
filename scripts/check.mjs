@@ -242,7 +242,7 @@ export function createPlan(
       // pass package-specific paths without forwarding them to other tasks.
       prepare(`${pkg.name}#lint`);
       commands.push({
-        label: `Linting changed files in ${pkg.name}`,
+        label: `Linting ${ownFiles.length} changed file${ownFiles.length === 1 ? "" : "s"} in ${pkg.name}`,
         args: [
           "--filter",
           pkg.name,
@@ -307,8 +307,15 @@ export function createPlan(
           "--passWithNoTests",
         ];
       });
+      let label = `Running related tests in ${pkg.name}`;
+      if (pkg.name === "web") {
+        const suites = tests.map((task) =>
+          task === "test-client" ? "client" : "server",
+        );
+        label += ` (${suites.join(" + ")})`;
+      }
       commands.push({
-        label: `Running related tests in ${pkg.name}`,
+        label,
         steps,
         requiresTurbo: true,
       });
@@ -333,9 +340,18 @@ export function createPlan(
       )
     )
       checks.push("tests");
+    const checkPackages = new Set(
+      [...targets]
+        .filter((target) =>
+          ["typecheck", "lint", "test", "test-client"].includes(
+            target.slice(target.lastIndexOf("#") + 1),
+          ),
+        )
+        .map((target) => target.slice(0, target.lastIndexOf("#"))),
+    );
     commands.unshift({
       label: checks.length
-        ? `Checking ${checks.join(", ")} and preparing dependencies`
+        ? `Checking ${checks.join(", ")} in ${[...checkPackages].join(", ")} and preparing dependencies`
         : "Preparing dependencies",
       args: [
         "exec",
@@ -356,15 +372,18 @@ export function createPlan(
     options.all ||
     codeFiles.some((file) => /prettier|(^|\/)\.editorconfig$/.test(file))
   )
-    add("Checking formatting", ["run", "format:check"]);
+    add("Checking formatting (repository-wide)", ["run", "format:check"]);
   else if (formatted.length)
-    add("Checking formatting", [
-      "exec",
-      "prettier",
-      "--check",
-      "--",
-      ...formatted.map((file) => `./${file}`),
-    ]);
+    add(
+      `Checking formatting (${formatted.length} file${formatted.length === 1 ? "" : "s"})`,
+      [
+        "exec",
+        "prettier",
+        "--check",
+        "--",
+        ...formatted.map((file) => `./${file}`),
+      ],
+    );
   if (
     options.all ||
     analysisFiles.some((file) =>
@@ -373,7 +392,7 @@ export function createPlan(
   ) {
     // Removing an import can orphan an unchanged export anywhere in the graph,
     // so Knip must analyze the repository rather than just changed files.
-    add("Checking unused code", ["exec", "knip"]);
+    add("Checking unused code (repository-wide)", ["exec", "knip"]);
   }
   if (
     options.all ||
@@ -411,6 +430,9 @@ function main() {
     );
     return;
   }
+  const commandStartedAt = performance.now();
+  const elapsed = (startedAt) =>
+    `${((performance.now() - startedAt) / 1000).toFixed(1)}s`;
   const git = (args) => capture("git", args);
   // Compare branch work to the common ancestor, not the target branch's tip.
   // Callers must fetch stale remote refs; missing refs deliberately fail rather
@@ -420,8 +442,11 @@ function main() {
     : git(["rev-parse", "HEAD"]).trim();
   const files = collectChanges(git, base);
   console.log(
-    `Checking ${options.all ? "all packages" : options.branch ? `branch against ${options.base}` : "local changes"} (${files.length} changed files)`,
+    `Checking ${options.all ? "all packages" : options.branch ? `branch against ${options.base}` : "local changes"} (${files.length} changed file${files.length === 1 ? "" : "s"}):`,
   );
+  for (const file of files) console.log(`  ${file}`);
+  if (!files.length) console.log("  No changed files.");
+  console.log("");
   const workspace = JSON.parse(
     capture("pnpm", [
       "exec",
@@ -511,7 +536,7 @@ function main() {
   }
   const plan = createPlan(files, packages, options, base, taskGraph);
   if (!plan.length) {
-    console.log("No applicable checks.");
+    console.log(`No applicable checks (${elapsed(commandStartedAt)}).`);
     return;
   }
   for (const check of plan) {
@@ -543,6 +568,7 @@ function main() {
   let retainLogs = false;
   let commandIndex = 0;
   const failed = [];
+  let completedChecks = 0;
   let turboFailed = false;
   try {
     for (const { label, args, steps, requiresTurbo, isTurboBatch } of plan) {
@@ -553,6 +579,8 @@ function main() {
         failed.push(label);
         continue;
       }
+      const checkStartedAt = performance.now();
+      let checkFailed = false;
       console.log(`${label}…`);
       for (const command of steps ?? [args]) {
         // Disk-backed capture avoids truncating verbose failures or exhausting a
@@ -569,7 +597,8 @@ function main() {
           closeSync(output);
         }
         if (result.error || result.signal || result.status !== 0) {
-          console.error(`\nFailed: ${label}.`);
+          checkFailed = true;
+          console.error(`  Failed (${elapsed(checkStartedAt)}).`);
           if (result.error) console.error(result.error.message);
           if (isTurboBatch) {
             // Read task logs from the summary rather than trying to strip runner
@@ -636,14 +665,21 @@ function main() {
           break;
         }
       }
+      completedChecks++;
+      if (!checkFailed) console.log(`  Passed (${elapsed(checkStartedAt)}).`);
     }
   } finally {
     if (!retainLogs) rmSync(outputDirectory, { recursive: true, force: true });
   }
   if (failed.length) {
-    console.error(`\nChecks failed: ${failed.join("; ")}.`);
+    console.error(
+      `\nChecks failed after ${elapsed(commandStartedAt)}: ${failed.join("; ")}.`,
+    );
     process.exitCode = 1;
-  } else console.log("\nAll selected checks passed.");
+  } else
+    console.log(
+      `\nAll ${completedChecks} check${completedChecks === 1 ? "" : "s"} passed in ${elapsed(commandStartedAt)}.`,
+    );
 }
 
 if (
