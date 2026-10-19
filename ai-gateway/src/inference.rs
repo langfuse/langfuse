@@ -5,7 +5,7 @@ use axum::{
     body::Body,
     http::{HeaderMap, Response},
 };
-use tokio::sync::{OwnedSemaphorePermit, Semaphore, SemaphorePermit};
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tracing::Instrument;
 
 use crate::{
@@ -21,26 +21,9 @@ use crate::{
 pub struct InferenceService {
     control_plane: ControlPlaneClient,
     provider: ProviderTransport,
-    request_body_capacity: Arc<Semaphore>,
     request_limits: RequestLimits,
-    request_bytes_capacity: Arc<Semaphore>,
-    model_catalog_capacity: Semaphore,
-    resolution_capacity: Semaphore,
+    memory_budget: Arc<Semaphore>,
     telemetry: Option<crate::telemetry::Telemetry>,
-}
-
-pub(crate) enum RequestPreparationError {
-    Resolution(ResolutionError),
-    Provider(ProviderError),
-}
-
-impl RequestPreparationError {
-    pub(crate) fn origin(&self) -> (ErrorOrigin, &'static str) {
-        match *self {
-            Self::Resolution(error) => resolution_origin(error),
-            Self::Provider(error) => provider_origin(error),
-        }
-    }
 }
 
 /// `error.origin` and `error.reason` for a failed resolution or catalog fetch.
@@ -66,27 +49,34 @@ pub(crate) fn resolution_origin(error: ResolutionError) -> (ErrorOrigin, &'stati
 pub(crate) fn provider_origin(error: ProviderError) -> (ErrorOrigin, &'static str) {
     match error {
         ProviderError::Configuration => (ErrorOrigin::Gateway, "configuration"),
-        ProviderError::Busy => (ErrorOrigin::Gateway, "capacity"),
         ProviderError::Timeout => (ErrorOrigin::ProviderTransport, "timeout"),
         ProviderError::Transport => (ErrorOrigin::ProviderTransport, "transport"),
     }
 }
 
-/// One request-body slot plus the body bytes reserved so far from the shared budget.
-/// It is held with the execution and released once the response ends.
-pub(crate) struct RequestBodyPermit {
-    _slot: OwnedSemaphorePermit,
+/// Bytes one in-flight request holds from the shared memory budget: a fixed overhead
+/// for response capture and connection buffers, plus its body as it arrives. It is held
+/// with the execution and released once the response ends.
+pub(crate) struct MemoryReservation {
     bytes: OwnedSemaphorePermit,
+    overhead: usize,
     budget: Arc<Semaphore>,
 }
 
-impl RequestBodyPermit {
-    /// Grow the reservation to `total` body bytes without waiting.
+impl MemoryReservation {
+    /// Grow the reservation to the overhead plus `body` bytes without waiting.
     ///
     /// # Errors
-    /// Returns [`ResolutionError::Busy`] when the shared budget cannot cover `total`.
-    pub(crate) fn try_reserve_bytes(&mut self, total: usize) -> Result<(), ResolutionError> {
-        let Some(missing) = total
+    /// Returns [`ResolutionError::Busy`] when the shared budget cannot cover `body`,
+    /// recording the rejection under `phase`.
+    pub(crate) fn try_reserve_body(
+        &mut self,
+        body: usize,
+        phase: &'static str,
+    ) -> Result<(), ResolutionError> {
+        let Some(missing) = self
+            .overhead
+            .saturating_add(body)
             .checked_sub(self.bytes.num_permits())
             .filter(|missing| *missing > 0)
         else {
@@ -100,11 +90,18 @@ impl RequestBodyPermit {
                     .ok()
             })
             .ok_or_else(|| {
-                crate::observability::rejected("request_bytes");
+                crate::observability::rejected(phase);
                 ResolutionError::Busy
             })?;
+        crate::observability::memory_reserved(missing);
         self.bytes.merge(reserved);
         Ok(())
+    }
+}
+
+impl Drop for MemoryReservation {
+    fn drop(&mut self) {
+        crate::observability::memory_released(self.bytes.num_permits());
     }
 }
 
@@ -116,31 +113,24 @@ impl InferenceService {
     /// Initialize pooled clients for resolution and provider requests.
     ///
     /// # Errors
-    /// Returns a sanitized configuration error for invalid capacities or client setup.
+    /// Returns a sanitized configuration error for invalid limits or client setup.
     pub fn new(
         control_plane: ControlPlaneConfig,
         config: &GatewayConfig,
     ) -> Result<Self, ResolutionError> {
-        let max_concurrent_resolutions = config.max_concurrent_resolutions;
-        if !(1..=Semaphore::MAX_PERMITS).contains(&max_concurrent_resolutions) {
+        if config.request_limits.memory_budget_bytes > Semaphore::MAX_PERMITS {
             return Err(ResolutionError::Configuration);
         }
         let telemetry =
             crate::telemetry::Telemetry::new(&control_plane, config.telemetry_buffer_bytes)?;
-        crate::observability::record_capacity("model_catalog", max_concurrent_resolutions);
-        crate::observability::record_capacity("resolution", max_concurrent_resolutions);
+        crate::observability::record_memory_budget(config.request_limits.memory_budget_bytes);
         Ok(Self {
             control_plane: ControlPlaneClient::new(control_plane)?,
-            provider: ProviderTransport::new(config.max_active_requests, config.execution_limits)
+            provider: ProviderTransport::new(config.execution_limits)
                 .map_err(|_| ResolutionError::Configuration)?
                 .with_telemetry(telemetry.clone()),
-            request_body_capacity: Arc::new(Semaphore::new(config.max_active_requests)),
             request_limits: config.request_limits,
-            request_bytes_capacity: Arc::new(Semaphore::new(
-                config.request_limits.shared_buffer_bytes,
-            )),
-            model_catalog_capacity: Semaphore::new(max_concurrent_resolutions),
-            resolution_capacity: Semaphore::new(max_concurrent_resolutions),
+            memory_budget: Arc::new(Semaphore::new(config.request_limits.memory_budget_bytes)),
             telemetry: Some(telemetry),
         })
     }
@@ -149,29 +139,31 @@ impl InferenceService {
         self.telemetry.clone()
     }
 
-    fn try_reserve_resolution(&self) -> Result<SemaphorePermit<'_>, ResolutionError> {
-        self.resolution_capacity.try_acquire().map_err(|_| {
-            crate::observability::rejected("resolution");
-            ResolutionError::Busy
-        })
-    }
-
-    pub(crate) fn try_reserve_request_body(
+    /// Reserve the fixed per-request overhead without waiting. `phase` labels a rejection.
+    ///
+    /// # Errors
+    /// Returns [`ResolutionError::Busy`] when the shared budget cannot cover the overhead.
+    pub(crate) fn try_reserve_memory(
         &self,
-    ) -> Result<RequestBodyPermit, RequestPreparationError> {
-        let slot = Arc::clone(&self.request_body_capacity)
-            .try_acquire_owned()
-            .map_err(|_| {
-                crate::observability::rejected("request_body");
-                RequestPreparationError::Resolution(ResolutionError::Busy)
+        phase: &'static str,
+    ) -> Result<MemoryReservation, ResolutionError> {
+        let overhead = self.request_limits.request_overhead_bytes;
+        let bytes = u32::try_from(overhead)
+            .ok()
+            .and_then(|overhead| {
+                Arc::clone(&self.memory_budget)
+                    .try_acquire_many_owned(overhead)
+                    .ok()
+            })
+            .ok_or_else(|| {
+                crate::observability::rejected(phase);
+                ResolutionError::Busy
             })?;
-        let bytes = Arc::clone(&self.request_bytes_capacity)
-            .try_acquire_many_owned(0)
-            .map_err(|_| RequestPreparationError::Resolution(ResolutionError::Unavailable))?;
-        Ok(RequestBodyPermit {
-            _slot: slot,
+        crate::observability::memory_reserved(overhead);
+        Ok(MemoryReservation {
             bytes,
-            budget: Arc::clone(&self.request_bytes_capacity),
+            overhead,
+            budget: Arc::clone(&self.memory_budget),
         })
     }
 
@@ -195,29 +187,32 @@ impl InferenceService {
         gateway_key: &str,
         api_format: ApiFormat,
         correlation: &RequestCorrelation,
-    ) -> Result<Vec<u8>, ResolutionError> {
-        let _permit = self.model_catalog_capacity.try_acquire().map_err(|_| {
-            crate::observability::rejected("model_catalog");
-            ResolutionError::Busy
-        })?;
+    ) -> Result<Body, ResolutionError> {
+        let mut reservation = self.try_reserve_memory("model_catalog")?;
         let _active = crate::observability::Active::new("model_catalog");
         let body = self
             .control_plane
-            .models(gateway_key, api_format, correlation.id())
+            .models(gateway_key, api_format, correlation.id(), &mut |capacity| {
+                reservation.try_reserve_body(capacity, "model_catalog")
+            })
             .await?;
-        crate::providers::model_list::provider_response(&body, api_format)
+        // Parsing holds the typed catalog and the provider-shaped output beside the body.
+        reservation.try_reserve_body(body.len().saturating_mul(3), "model_catalog")?;
+        let catalog = crate::providers::model_list::provider_response(&body, api_format)?;
+        drop(body);
+        // The reservation is released once the client has read the catalog.
+        Ok(self.provider.relay_buffered(catalog, reservation))
     }
 
-    /// Authenticate, then reserve execution capacity. The API format comes from the public route,
-    /// so Web selects a compatible connection. A successful resolution is recorded even if
-    /// execution admission then fails.
+    /// Authenticate, then start the execution. The API format comes from the public route,
+    /// so Web selects a compatible connection. Memory is already reserved by the caller.
     pub(crate) async fn resolve_and_admit(
         &self,
         gateway_key: &str,
         api_format: ApiFormat,
         model: &str,
         correlation: &mut RequestCorrelation,
-    ) -> Result<(RequestPermit, ResolvedRequestContext), RequestPreparationError> {
+    ) -> Result<(RequestPermit, ResolvedRequestContext), ResolutionError> {
         let span = tracing::info_span!(
             "resolution",
             otel.kind = "internal",
@@ -226,57 +221,36 @@ impl InferenceService {
             error.type = tracing::field::Empty
         );
         async {
-            let prepared = self
-                .prepare(gateway_key, api_format, model, correlation)
-                .await;
+            let resolved = {
+                let _active = crate::observability::Active::new("resolution");
+                self.control_plane
+                    .resolve(gateway_key, api_format, model, correlation.id())
+                    .await
+            };
             let span = tracing::Span::current();
             span.record(
                 "gateway.outcome",
-                match &prepared {
-                    Ok(_) => "admitted",
-                    Err(RequestPreparationError::Resolution(_)) => "resolution_failed",
-                    Err(RequestPreparationError::Provider(_)) => "busy",
+                if resolved.is_ok() {
+                    "admitted"
+                } else {
+                    "resolution_failed"
                 },
             );
             // Caller-caused failures (bad key, forbidden model) stay unset so
             // Datadog error rates track gateway and control-plane faults only.
-            if let Err(error) = &prepared
-                && let (origin, reason) = error.origin()
+            if let Err(error) = resolved
+                && let (origin, reason) = resolution_origin(error)
                 && origin.is_ours()
             {
                 span.record("otel.status_code", "ERROR");
                 span.record("error.type", reason);
             }
-            prepared
+            let context = resolved?;
+            correlation.record_resolution(&context);
+            Ok((self.provider.admit(), context))
         }
         .instrument(span)
         .await
-    }
-
-    async fn prepare(
-        &self,
-        gateway_key: &str,
-        api_format: ApiFormat,
-        model: &str,
-        correlation: &mut RequestCorrelation,
-    ) -> Result<(RequestPermit, ResolvedRequestContext), RequestPreparationError> {
-        let resolution_permit = self
-            .try_reserve_resolution()
-            .map_err(RequestPreparationError::Resolution)?;
-        let context = {
-            let _active = crate::observability::Active::new("resolution");
-            self.control_plane
-                .resolve(gateway_key, api_format, model, correlation.id())
-                .await
-                .map_err(RequestPreparationError::Resolution)?
-        };
-        drop(resolution_permit);
-        correlation.record_resolution(&context);
-        let permit = self
-            .provider
-            .try_admit()
-            .map_err(RequestPreparationError::Provider)?;
-        Ok((permit, context))
     }
 
     pub(crate) async fn forward(
@@ -294,29 +268,25 @@ impl InferenceService {
     }
 
     #[cfg(test)]
-    pub(crate) fn for_test(
-        control_plane: ControlPlaneClient,
-        provider: ProviderTransport,
-        resolutions: usize,
-    ) -> Self {
+    pub(crate) fn for_test(control_plane: ControlPlaneClient, provider: ProviderTransport) -> Self {
         Self {
             control_plane,
             provider,
-            request_body_capacity: Arc::new(Semaphore::new(resolutions)),
             request_limits: RequestLimits::default(),
-            request_bytes_capacity: Arc::new(Semaphore::new(
-                RequestLimits::default().shared_buffer_bytes,
-            )),
-            model_catalog_capacity: Semaphore::new(resolutions),
-            resolution_capacity: Semaphore::new(resolutions),
+            memory_budget: Arc::new(Semaphore::new(RequestLimits::default().memory_budget_bytes)),
             telemetry: None,
         }
     }
 
     #[cfg(test)]
     pub(crate) fn with_request_limits(mut self, request_limits: RequestLimits) -> Self {
-        self.request_bytes_capacity = Arc::new(Semaphore::new(request_limits.shared_buffer_bytes));
+        self.memory_budget = Arc::new(Semaphore::new(request_limits.memory_budget_bytes));
         self.request_limits = request_limits;
         self
+    }
+
+    #[cfg(test)]
+    pub(crate) fn available_memory(&self) -> usize {
+        self.memory_budget.available_permits()
     }
 }

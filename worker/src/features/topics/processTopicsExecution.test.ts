@@ -55,6 +55,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const { assembleTranscript, isInternalEvalEnvironment } =
     await importOriginal<typeof import("@langfuse/shared/src/server")>();
   return {
+    ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
     assembleTranscript,
     isInternalEvalEnvironment,
     recordIncrement: vi.fn(),
@@ -324,6 +325,7 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
   };
 });
 vi.mock("./models", () => ({
+  TopicInputTooLarge: class extends Error {},
   // One request per trace; `state.summarize` answers each facet, and one failure fails the request.
   summarizeTopicTraceFacets: async (
     _models: unknown,
