@@ -24,8 +24,6 @@ import { cn } from "@/src/utils/tailwind";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { TraceReviewLayout } from "./TraceReviewLayout";
-import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
-import { useReadPath } from "@/src/features/events";
 import { resolveEffectiveWidthFraction } from "@/src/components/table/peek/store/peekPanelStore";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 
@@ -266,7 +264,6 @@ function TraceNavigationDetailLayout({
     pendingPanelExpand: pendingExpand,
     setPendingPanelExpand: setPendingExpand,
     openDetails,
-    selectedTab,
   } = useSelection();
   const isNavigationPanelCollapsed =
     navigationPanelCollapsed ??
@@ -486,15 +483,6 @@ function TraceNavigationDetailLayout({
     if (!detailPanelRef.current?.isCollapsed()) return;
     openDetails();
   };
-
-  const internalFeaturesEnabled = useInternalFeaturesEnabled();
-  const { isV4 } = useReadPath();
-  const showMessages =
-    selectedTab === "messages" && internalFeaturesEnabled && isV4;
-  useEffect(() => {
-    if (!showMessages || reviewOpen) return;
-    panelRef.current?.collapse();
-  }, [showMessages, reviewOpen, panelRef]);
 
   // Apply the caller's first-use default. A restored layout always wins.
   useEffect(() => {

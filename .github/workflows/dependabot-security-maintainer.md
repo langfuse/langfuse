@@ -118,9 +118,8 @@ steps:
 
   # The agent runs Cargo only through the cargo-security wrapper. The sandbox
   # mounts runner.temp/gh-aw read-only, so the agent can change neither the
-  # wrapper, the per-crate pinned toolchains, nor the clickhouse overlay that
-  # the packages/native lockfile was resolved against. Only the wrapper's
-  # CARGO_HOME, /tmp/gh-aw/rust/cargo, is writable.
+  # wrapper nor the per-crate pinned toolchains. Only the wrapper's CARGO_HOME,
+  # /tmp/gh-aw/rust/cargo, is writable.
   - name: Install the cargo-security wrapper and pinned Rust toolchains
     env:
       INSTALL_DIR: ${{ runner.temp }}/gh-aw/cargo-security
@@ -135,8 +134,6 @@ steps:
         rustup toolchain install "$channel" --profile minimal --no-self-update
         ln -s "$(dirname "$(rustup which --toolchain "$channel" cargo)")" "$INSTALL_DIR/toolchains/$slug"
       done
-      sh packages/native/scripts/prepare-clickhouse-rs.sh
-      cp packages/native/.cargo/config.toml "$INSTALL_DIR/native-cargo-config.toml"
       install -m 0755 scripts/ci/cargo-security.sh "$INSTALL_DIR/cargo-security"
       echo "$INSTALL_DIR" >> "$GITHUB_PATH"
 

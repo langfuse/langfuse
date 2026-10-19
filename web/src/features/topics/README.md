@@ -8,8 +8,8 @@ project permissions. Processing additionally requires the project allowlist.
 - `TopicsPage.tsx` owns facet configuration, the execution history drawer,
   the current-results query and facet selection. A compact header keeps the facet
   picker, time range and processing action on one row; configuration, history and
-  refresh live in the overflow menu. `CurrentTopics.tsx` owns the map query, trace
-  navigation and summary inspector; `CurrentTopicsView.tsx` presents the selected
+  refresh live in the overflow menu. `CurrentTopics.tsx` owns the map query and
+  trace navigation; `CurrentTopicsView.tsx` presents the selected
   facet in independently scrolling, resizable panels: map and groups on the left,
   traces on the right. Both splits use the shared `useDefaultLayout` helper with
   localStorage preferences shared across facets and projects, with separate
@@ -112,11 +112,6 @@ project permissions. Processing additionally requires the project allowlist.
   Matching counts can change between preview and submission, and source trace
   content can change before the worker loads it. Preview responses are not a
   historical trace snapshot.
-- `SummaryInspector.tsx` displays the current transcript for a saved summary.
-  The current-results table owns its dialog and fetches only when inspection is
-  open. It uses the same deterministic transcript loader as the worker, does
-  not run inference, and explains when the source is unavailable or may differ
-  from the original input. Transcript content is marked `ph-no-capture`.
 - `TopicEmbeddingMap.tsx` renders the published map's loading, error and ready states
   from supplied query data and trace-navigation callbacks.
   `EmbeddingMapView.tsx` preserves the controlled selection contract as a drop-in
@@ -178,10 +173,9 @@ project permissions. Processing additionally requires the project allowlist.
   in the persisted discovery cohort’s order. It returns only map points and counts for
   missing or unpositioned summaries, never embedding vectors.
   History and detail reads reconcile interrupted/queued retries with the queue.
-  Current results return summaries and their applicable assignments; inspection
-  accepts a saved summary identity scoped to the project. Maps read their original
-  discovery cohort and coordinates while summary text reflects the latest stored
-  result. These reads survive transient job state expiry.
+  Current results return summaries and their applicable assignments. Maps read
+  their original discovery cohort and coordinates while summary text reflects the
+  latest stored result. These reads survive transient job state expiry.
   Resume requeues retained job inputs; if they have expired, start a new run.
   Facet prompt edits are a separate page from this setup.
 - `parse-trace-input.ts` validates pasted trace IDs and links without fetching.

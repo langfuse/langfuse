@@ -37,7 +37,7 @@ import {
   byteLength,
   count,
   dateDiff,
-  includeDeleted,
+  softDeleteAfterLimit,
   leftUTF8,
   limitBy,
   literal,
@@ -669,7 +669,6 @@ export const getObservationMetricsForPromptsFromEvents = async (
           "e.end_time as end_time",
           "e.usage_details as usage_details",
           "e.cost_details as cost_details",
-          "e.is_deleted as is_deleted",
         ],
         { fromTimestamp, toTimestamp },
       ),
@@ -694,7 +693,6 @@ export const getObservationMetricsForPromptsFromEvents = async (
         dateDiff("millisecond", eb.ref("e.start_time"), eb.ref("e.end_time")),
       ).as("median_latency_ms"),
     ])
-    .where("e.is_deleted", "=", 0)
     .groupBy(["e.prompt_id", "e.prompt_version"])
     .orderBy("e.prompt_version", "desc");
   const { sql: query, params } = compileClickhouseQuery(builder, projectId);
@@ -1104,12 +1102,13 @@ async function getObservationByIdFromEventsTableInternal({
   const needsFullTable =
     fetchWithInputOutput && renderingProps.truncated !== true;
 
+  // A soft-deleted latest version reads as not found, not as an older version.
   const builder = (
     needsFullTable
       ? db.selectFrom("events_full as e")
       : db.selectFrom("events_core as e")
   )
-    .$call(includeDeleted())
+    .$call(softDeleteAfterLimit())
     .select(OBSERVATION_BY_ID_SELECTS)
     .$if(fetchWithInputOutput, (qb) =>
       qb.select(observationIoSelects(renderingProps.truncated)),
@@ -1197,7 +1196,6 @@ export const getTraceByIdFromEventsTable = async ({
       ? qb.selectFrom("events_core as e")
       : qb.selectFrom("events_full as e");
     return from
-      .$call(includeDeleted())
       .select(TRACE_AGGREGATION_SELECTS)
       .where("trace_id", "in", [traceId])
       .$if(fromTimestamp != null, (inner) =>
@@ -2641,7 +2639,6 @@ export async function getAgentGraphDataFromEventsTable(params: {
 
   const builder = db
     .selectFrom("events_core as e")
-    .$call(includeDeleted())
     .select((eb) => {
       const metadata = metadataMap(
         eb.ref("e.metadata_names"),
@@ -2814,7 +2811,6 @@ export const getObservationsBatchIOFromEventsTable = async <
   // for exact trace/observation matching.
   const builder = getClickhouseKysely()
     .selectFrom(truncated ? "events_core as e" : "events_full as e")
-    .$call(includeDeleted())
     .select((eb) => [
       "e.span_id as id",
       "e.trace_id as trace_id",
@@ -2861,7 +2857,6 @@ export const getObservationsBatchIOFromEventsTable = async <
       qb.where("e.trace_id", "in", (eb) =>
         eb
           .selectFrom("events_core")
-          .$call(includeDeleted())
           .select("trace_id")
           .where("trace_id", "in", traceIds)
           .groupBy("trace_id")
@@ -2962,16 +2957,15 @@ interface ObservationIOReadOpts {
 // The field expression is chosen from the validated `field` enum — never
 // string-interpolated user input. The length pre-query and the byte stream share
 // this builder so they can never drift; a mismatch would make the route's
-// Content-Length integrity check wrong.
+// Content-Length integrity check wrong. A soft-deleted latest version reads as
+// no row.
 function compileObservationIOFieldRead<A extends string>(
   opts: ObservationIOReadOpts,
   select: (field: AliasableExpression<string>) => AliasedExpression<unknown, A>,
 ) {
-  const db = getClickhouseKysely();
-
-  const query = db
+  const query = getClickhouseKysely()
     .selectFrom("events_full as e")
-    .$call(includeDeleted())
+    .$call(softDeleteAfterLimit())
     .select((eb) =>
       select(
         opts.field === "metadata"
@@ -3088,9 +3082,10 @@ export const getObservationFullIOForSessionFromEventsTable = async (opts: {
   const maxTimestamp = new Date(opts.startTime.getTime() + 1000);
 
   const db = getClickhouseKysely();
+  // A soft-deleted latest version reads as not found.
   const builder = db
     .selectFrom("events_full as e")
-    .$call(includeDeleted())
+    .$call(softDeleteAfterLimit())
     .select((eb) => [
       "e.span_id as id",
       "e.input as input",
@@ -3160,7 +3155,6 @@ export const getObservationsTraceIdsFromEventsTable = async (opts: {
 
   const builder = db
     .selectFrom("events_core as e")
-    .$call(includeDeleted())
     .select(["e.trace_id as trace_id", "e.span_id as span_id"])
     .where("e.span_id", "in", observationIds);
 
@@ -3906,7 +3900,6 @@ export const getSessionMetricsFromEvents = async <
   const { projectId, sessionIds, fields, queryFromTimestamp } = props;
   const builder = getClickhouseKysely()
     .selectFrom("events_core as e")
-    .$call(includeDeleted())
     .select(fields.map((field) => SESSION_AGGREGATION_SELECTS[field]))
     .where("session_id", "in", sessionIds)
     .$if(queryFromTimestamp != null, (qb) =>

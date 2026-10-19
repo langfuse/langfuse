@@ -242,6 +242,29 @@ describe("organization API keys trpc", () => {
       );
     });
 
+    it("filters AI Gateway keys", async () => {
+      const gatewayKey = await createApiKey(prisma, {
+        owner: OrganizationId(organizationId),
+        role: SystemRoleId("AI_GATEWAY"),
+        createdBy: UserId("user-1"),
+        name: "Gateway key",
+      });
+      const ingestKey = await createApiKey(prisma, {
+        owner: OrganizationId(organizationId),
+        role: SystemRoleId("INGEST"),
+        createdBy: UserId("user-1"),
+        name: "Ingestion key",
+      });
+
+      const apiKeys = await ownerCaller.organizationApiKeys.byOrganizationId({
+        orgId: organizationId,
+      });
+      const ids = apiKeys.map((key) => key.id);
+
+      expect(ids).not.toContain(gatewayKey.id);
+      expect(ids).toContain(ingestKey.id);
+    });
+
     it("regular member cannot fetch organization API keys", async () => {
       await expect(
         memberCaller.organizationApiKeys.byOrganizationId({

@@ -13,7 +13,6 @@ import {
 import {
   ArrowRight,
   ArrowDown,
-  BotMessageSquare,
   ChevronRight,
   History,
   Info,
@@ -50,11 +49,13 @@ import {
   type InAppAgentMessageContent,
   type InAppAgentMessageRole,
 } from "./InAppAgentMessage";
-import type {
-  InAppAgentMessageFeedbackValue,
-  InAppAgentMessageSource,
-} from "../schema";
-import { IN_APP_AGENT_GENERIC_ERROR_MESSAGE } from "@langfuse/shared/in-app-agent";
+import type { InAppAgentMessageFeedbackValue } from "../schema";
+import {
+  IN_APP_AGENT_GENERIC_ERROR_MESSAGE,
+  IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
+  type InAppAgentQuestionnaireAnswers,
+  type InAppAgentQuestionnaireQuestion,
+} from "@langfuse/shared/in-app-agent";
 import type { InAppAgentScreenContextDescription } from "@/src/features/in-app-agent/context";
 import type { InAppAgentActivityByConversationId } from "@/src/features/in-app-agent/lib/inAppAgentActivity";
 import type { SettledActivityOutcome } from "@/src/features/in-app-agent/lib/backgroundExecutionSession";
@@ -63,12 +64,19 @@ import { InAppAgentBackgroundHint } from "@/src/features/in-app-agent/components
 import { InAppAgentNotice } from "@/src/features/in-app-agent/components/InAppAgentNotice";
 import { useInAppAgentBackgroundHint } from "@/src/features/in-app-agent/lib/useInAppAgentBackgroundHint";
 import { InAppAgentToolCallCard } from "@/src/features/in-app-agent/components/InAppAgentToolCallCard";
+import { InAppAgentQuestionnaireCard } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireCard/InAppAgentQuestionnaireCard";
+import { parseQuestionnaireQuestions } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireCard/fns/parseQuestionnaireQuestions";
+import { InAppAgentQuestionnaireSummary } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireSummary/InAppAgentQuestionnaireSummary";
+import {
+  buildConversationDisplayItems,
+  type ConversationDisplayItem,
+} from "@/src/features/in-app-agent/fns/buildConversationDisplayItems";
 import {
   getInAppAgentActivityProgressLabel,
   type InAppAgentError,
+  type InAppAgentToolCallContent,
   isInAppAgentRateLimited,
 } from "@/src/features/in-app-agent/components/utils/utils";
-import { deduplicateBy } from "@/src/utils/arrays";
 import styles from "./InAppAgentWindow.module.css";
 import { assertUnreachable } from "@/src/utils/types";
 import {
@@ -83,6 +91,7 @@ import {
 } from "@/src/features/in-app-agent/quickActions";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { HaloIcon } from "@/src/features/in-app-agent/components/HaloIcon";
 
 const AUTO_SCROLL_THRESHOLD_PX = 50;
 const SCROLL_DIRECTION_TOLERANCE_PX = 1;
@@ -133,7 +142,7 @@ function InAppAgentQuickActionPicker({
   return (
     <>
       <p className="text-foreground mt-3 text-sm font-bold">
-        Welcome to the Langfuse Assistant
+        Hi I&apos;m Halo, your Langfuse assistant
       </p>
       <p className="text-muted-foreground mt-1 max-w-xs text-center text-xs leading-relaxed">
         What do you want to do?
@@ -269,242 +278,6 @@ export type InAppAgentWindowMessage = {
   role: InAppAgentMessageRole;
   content: InAppAgentMessageContent;
 };
-
-type ConversationDisplayItem =
-  | {
-      type: "user";
-      message: InAppAgentWindowMessage;
-      hasPreviousMessage: boolean;
-    }
-  | {
-      type: "activity";
-      /** Identifies the turn, not its contents: the drawer must survive both
-       * the first activity arriving and the run settling without remounting,
-       * or an expanded drawer collapses under the user. */
-      key: string;
-      messages: InAppAgentWindowMessage[];
-      startTimestamp?: number;
-      endTimestamp?: number;
-      followsUser: boolean;
-      isInProgress: boolean;
-    }
-  | {
-      type: "assistant";
-      message: InAppAgentWindowMessage;
-      followsUser: boolean;
-      isFinalAnswer: boolean;
-    };
-
-type InAppAgentTextMessage = InAppAgentWindowMessage & {
-  content: Extract<InAppAgentMessageContent, { type: "text" }>;
-};
-
-type InAppAgentRedirectActionContent = Extract<
-  InAppAgentMessageContent,
-  { type: "redirectAction" }
->;
-
-/**
- * Fold a turn's answer blocks into the single bubble the user reads. Each field
- * takes the last block that defined it, except `sources`, which arrive already
- * unioned across the whole turn so a citation earned mid-turn is not lost.
- */
-function joinAnswerMessages(
-  messages: InAppAgentWindowMessage[],
-  turnSources: InAppAgentMessageSource[],
-  turnRedirectAction: InAppAgentRedirectActionContent | undefined,
-): InAppAgentWindowMessage | null {
-  const textMessages = messages.filter(
-    (message): message is InAppAgentTextMessage =>
-      message.content.type === "text",
-  );
-  const lastText = textMessages.at(-1);
-
-  // A turn can end on a bare redirect with no text to attach it to.
-  if (!lastText) {
-    return messages.at(-1) ?? null;
-  }
-
-  const lastDefined = <T,>(
-    pick: (message: InAppAgentTextMessage) => T | undefined,
-  ): T | undefined =>
-    textMessages.reduce<T | undefined>(
-      (found, message) => pick(message) ?? found,
-      undefined,
-    );
-  const runId = lastDefined((message) => message.runId);
-  const feedbackMessageId = lastDefined((message) => message.feedbackMessageId);
-  const feedback = lastDefined((message) => message.content.feedback);
-
-  return {
-    ...lastText,
-    ...(runId ? { runId } : {}),
-    ...(feedbackMessageId ? { feedbackMessageId } : {}),
-    content: {
-      type: "text",
-      text: textMessages.map((message) => message.content.text).join("\n\n"),
-      ...(textMessages.some((message) => message.content.isStreaming)
-        ? { isStreaming: true }
-        : {}),
-      ...(turnSources.length > 0 ? { sources: turnSources } : {}),
-      ...(feedback ? { feedback } : {}),
-      ...(turnRedirectAction ? { redirectAction: turnRedirectAction } : {}),
-    },
-  };
-}
-
-function buildConversationDisplayItems(
-  messages: InAppAgentWindowMessage[],
-  isRunUnsettled: boolean,
-): ConversationDisplayItem[] {
-  const items: ConversationDisplayItem[] = [];
-  // A tool call awaiting approval is hoisted into its own card above the
-  // composer, and the drawer speaks for a turn that has produced nothing yet,
-  // so neither belongs in the transcript.
-  const visibleMessages = messages.flatMap((message) => {
-    if (message.content.type === "loading") {
-      return [];
-    }
-
-    if (message.content.type !== "toolGroup") {
-      return [message];
-    }
-
-    const visibleTools = message.content.tools.filter((tool) => !tool.approval);
-    if (visibleTools.length === 0) {
-      return [];
-    }
-
-    return [
-      {
-        ...message,
-        content: { ...message.content, tools: visibleTools },
-      } satisfies InAppAgentWindowMessage,
-    ];
-  });
-
-  for (let index = 0; index < visibleMessages.length; ) {
-    const message = visibleMessages[index];
-    if (!message) {
-      break;
-    }
-
-    if (message.role === "user") {
-      items.push({
-        type: "user",
-        message,
-        hasPreviousMessage: index > 0,
-      });
-      index++;
-      continue;
-    }
-
-    const turnStartIndex = index;
-    while (
-      index < visibleMessages.length &&
-      visibleMessages[index]?.role === "assistant"
-    ) {
-      index++;
-    }
-
-    const turnMessages = visibleMessages.slice(turnStartIndex, index);
-    const isInProgress = isRunUnsettled && index === visibleMessages.length;
-    const lastReasoningIndex = turnMessages.findLastIndex(
-      (turnMessage) => turnMessage.content.type === "reasoning",
-    );
-    // Trailing text is the answer; text before the turn's last thought is still
-    // work. A proposed redirect is always actionable, so it never stays behind
-    // in the drawer. Declared once, with the activity bucket as its exact
-    // complement, so no message can fall out of both.
-    const isAnswerPart = (
-      turnMessage: InAppAgentWindowMessage,
-      turnIndex: number,
-    ) =>
-      !isInProgress &&
-      (turnMessage.content.type === "redirectAction" ||
-        (turnMessage.content.type === "text" &&
-          turnIndex > lastReasoningIndex));
-    const answerMessages = turnMessages.filter(isAnswerPart);
-    const activityMessages = turnMessages.filter(
-      (turnMessage, turnIndex) => !isAnswerPart(turnMessage, turnIndex),
-    );
-    const turnSources = deduplicateBy(
-      turnMessages.flatMap((turnMessage) =>
-        turnMessage.content.type === "text"
-          ? (turnMessage.content.sources ?? [])
-          : [],
-      ),
-      (source) => source.url,
-    );
-    // A proposed redirect belongs to the turn, not to whichever block carried
-    // it: the tool result is merged into a preceding text message when there is
-    // one and emitted standalone when there is not, and either can land in the
-    // drawer.
-    const turnRedirectAction = turnMessages.reduce<
-      InAppAgentRedirectActionContent | undefined
-    >(
-      (found, turnMessage) =>
-        (turnMessage.content.type === "redirectAction"
-          ? turnMessage.content
-          : turnMessage.content.type === "text"
-            ? turnMessage.content.redirectAction
-            : undefined) ?? found,
-      undefined,
-    );
-    const joinedAnswer = joinAnswerMessages(
-      answerMessages,
-      turnSources,
-      turnRedirectAction,
-    );
-    const precedingMessage = visibleMessages[turnStartIndex - 1];
-    const followsUser = precedingMessage?.role === "user";
-
-    if (activityMessages.length > 0) {
-      items.push({
-        type: "activity",
-        key: getActivityKey(
-          followsUser ? precedingMessage?.id : turnMessages[0]?.id,
-        ),
-        messages: activityMessages,
-        startTimestamp: turnMessages.find(
-          (turnMessage) => turnMessage.timestamp !== undefined,
-        )?.timestamp,
-        endTimestamp:
-          joinedAnswer?.timestamp ?? activityMessages.at(-1)?.timestamp,
-        followsUser,
-        isInProgress,
-      });
-    }
-
-    if (joinedAnswer) {
-      items.push({
-        type: "assistant",
-        message: joinedAnswer,
-        followsUser: activityMessages.length === 0 && followsUser,
-        isFinalAnswer: !isInProgress,
-      });
-    }
-  }
-
-  const lastItem = items.at(-1);
-  if (isRunUnsettled && lastItem?.type === "user") {
-    // Same key the turn will claim once its first message lands, so the caret
-    // the user may already have opened is not torn down underneath them.
-    items.push({
-      type: "activity",
-      key: getActivityKey(lastItem.message.id),
-      messages: [],
-      followsUser: true,
-      isInProgress: true,
-    });
-  }
-
-  return items;
-}
-
-function getActivityKey(turnAnchorMessageId: string | undefined) {
-  return `activity-${turnAnchorMessageId ?? "start"}`;
-}
 
 function formatWorkedDuration(totalSeconds: number) {
   const hours = Math.floor(totalSeconds / 3600);
@@ -887,6 +660,10 @@ export type InAppAgentWindowProps = {
   onApproveToolCall: (approvalId: string) => Promise<void>;
   onAlwaysAllowToolCall?: (approvalId: string) => Promise<void>;
   onRejectToolCall: (approvalId: string) => Promise<void>;
+  onAnswerQuestionnaire: (
+    approvalId: string,
+    answers: InAppAgentQuestionnaireAnswers,
+  ) => Promise<void>;
   onOpenConversationHistory: () => void;
   onSelectConversation: (conversationId: string) => void;
   onSubmit: (
@@ -946,7 +723,7 @@ function InAppAgentRateLimitError({
     >
       <span className="space-y-0.5">
         <span className="block font-bold">
-          You&apos;ve reached the assistant request limit
+          You&apos;ve reached the Halo request limit
         </span>
         <span className="block">
           Try again in about {formatApproximateDuration(secondsRemaining)}.
@@ -991,6 +768,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     onApproveToolCall,
     onAlwaysAllowToolCall,
     onRejectToolCall,
+    onAnswerQuestionnaire,
     onOpenConversationHistory,
     onSelectConversation,
     onSubmit,
@@ -1135,7 +913,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
 
   return (
     <section
-      aria-label="Assistant"
+      aria-label="Halo"
       className={cn(
         "bg-background flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-xl border shadow/5",
         // Full-bleed on mobile: the drawer owns the edge, so drop the window chrome.
@@ -1177,11 +955,8 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               {conversationTitle}
             </p>
           ) : (
-            <p
-              className="shrink-0 truncate text-sm font-bold"
-              title="Assistant"
-            >
-              Assistant
+            <p className="shrink-0 truncate text-sm font-bold" title="Halo">
+              Halo
             </p>
           )}
           {titleActions ? (
@@ -1362,9 +1137,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   className="size-6"
                   // Full-screen has nothing to minimize into, and with no
                   // drag-to-dismiss this is the only way out.
-                  aria-label={
-                    isHandheld ? "Close assistant" : "Minimize assistant"
-                  }
+                  aria-label={isHandheld ? "Close Halo" : "Minimize Halo"}
                   onClick={props.onClose}
                 >
                   {isHandheld ? (
@@ -1375,7 +1148,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                {isHandheld ? "Close assistant" : "Minimize assistant"}
+                {isHandheld ? "Close Halo" : "Minimize Halo"}
               </TooltipContent>
             </Tooltip>
           ) : null}
@@ -1401,7 +1174,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             isSelectedConversationHydrating ? null : messages.length === 0 ? (
               <div className="flex h-full w-full flex-1 flex-col items-center justify-center px-2">
                 <div>
-                  <BotMessageSquare className="text-muted-foreground icon-xl mx-auto" />
+                  <HaloIcon variant="emptyState" />
                 </div>
                 <InAppAgentQuickActionPicker
                   key={`${selectedConversationId ?? "new"}:${quickActionResetKey}`}
@@ -1465,6 +1238,14 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   );
                 }
 
+                if (item.type === "questionnaire") {
+                  return (
+                    <li key={item.key} className="w-full">
+                      <InAppAgentQuestionnaireSummary answers={item.answers} />
+                    </li>
+                  );
+                }
+
                 const message = item.message;
                 const feedbackRunId =
                   message.content.type === "text" && item.isFinalAnswer
@@ -1502,12 +1283,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
           </div>
         </ConversationScroller>
         {pendingToolCalls.length > 0 ? (
-          <div
-            className={cn(
-              "shrink-0 pt-1.5",
-              isExpanded ? "px-1.5 pb-2" : "px-3 pb-2",
-            )}
-          >
+          <div className="shrink-0 px-1.5 pt-1.5 pb-2">
             <div
               className={cn(
                 "flex flex-col gap-2",
@@ -1515,13 +1291,14 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               )}
             >
               {pendingToolCalls.map((tool, index) => (
-                <InAppAgentToolCallCard
+                <PendingToolCallCard
                   key={`${tool.approval?.id ?? tool.name}-${index}`}
                   tool={tool}
                   isCompact={!isExpanded}
                   isDisabled={isRateLimited}
                   onApproveToolCall={onApproveToolCall}
                   onAlwaysAllowToolCall={onAlwaysAllowToolCall}
+                  onAnswerQuestionnaire={onAnswerQuestionnaire}
                   onRejectToolCall={onRejectToolCall}
                 />
               ))}
@@ -1592,7 +1369,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               rounded corners. */}
           <form
             className={cn(
-              "border-border bg-card focus-within:border-border-contrast relative flex w-full cursor-text flex-col overflow-hidden rounded-xl border shadow-sm transition-colors",
+              "border-border bg-card focus-within:border-border-contrast relative flex w-full cursor-text flex-col overflow-hidden rounded-md border shadow-sm transition-colors",
               isExpanded && "mx-auto max-w-3xl",
             )}
             onClick={() => {
@@ -1623,7 +1400,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 }
               }}
               disabled={isComposerDisabled}
-              aria-label="Message the assistant"
+              aria-label="Message Halo"
               placeholder={
                 hasSettledAssistantReply
                   ? "Reply..."
@@ -1669,5 +1446,92 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
         </div>
       </div>
     </section>
+  );
+}
+
+type PendingToolCallCardProps = {
+  tool: InAppAgentToolCallContent;
+  isCompact: boolean;
+  isDisabled: boolean;
+} & Pick<
+  InAppAgentWindowProps,
+  | "onApproveToolCall"
+  | "onAlwaysAllowToolCall"
+  | "onAnswerQuestionnaire"
+  | "onRejectToolCall"
+>;
+
+function PendingToolCallCard({
+  tool,
+  isCompact,
+  isDisabled,
+  onApproveToolCall,
+  onAlwaysAllowToolCall,
+  onAnswerQuestionnaire,
+  onRejectToolCall,
+}: PendingToolCallCardProps) {
+  const isQuestionnaire = tool.name === IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME;
+  const questions = useMemo(
+    () => (isQuestionnaire ? parseQuestionnaireQuestions(tool.args) : null),
+    [isQuestionnaire, tool.args],
+  );
+
+  if (tool.approval && questions) {
+    return (
+      <PendingQuestionnaireCard
+        approval={tool.approval}
+        questions={questions}
+        isDisabled={isDisabled}
+        onAnswerQuestionnaire={onAnswerQuestionnaire}
+      />
+    );
+  }
+
+  // A questionnaire with malformed questions cannot be answered, only declined.
+  if (isQuestionnaire) {
+    return (
+      <InAppAgentToolCallCard
+        tool={tool}
+        isCompact={isCompact}
+        isDisabled={isDisabled}
+        onRejectToolCall={onRejectToolCall}
+      />
+    );
+  }
+
+  return (
+    <InAppAgentToolCallCard
+      tool={tool}
+      isCompact={isCompact}
+      isDisabled={isDisabled}
+      onApproveToolCall={onApproveToolCall}
+      onAlwaysAllowToolCall={onAlwaysAllowToolCall}
+      onRejectToolCall={onRejectToolCall}
+    />
+  );
+}
+
+type PendingQuestionnaireCardProps = {
+  approval: NonNullable<InAppAgentToolCallContent["approval"]>;
+  questions: readonly InAppAgentQuestionnaireQuestion[];
+  isDisabled: boolean;
+} & Pick<InAppAgentWindowProps, "onAnswerQuestionnaire">;
+
+function PendingQuestionnaireCard({
+  approval,
+  questions,
+  isDisabled,
+  onAnswerQuestionnaire,
+}: PendingQuestionnaireCardProps) {
+  const handleSubmit = (answers: InAppAgentQuestionnaireAnswers) =>
+    onAnswerQuestionnaire(approval.id, answers);
+
+  return (
+    <InAppAgentQuestionnaireCard
+      questions={questions}
+      isSubmitting={approval.status === "submitting"}
+      isDisabled={isDisabled}
+      onSubmit={handleSubmit}
+    />
   );
 }

@@ -34,10 +34,6 @@ updates:
         patterns:
           - "*"
 
-  # Dependabot resolves without the clickhouse overlay from
-  # packages/native/scripts/prepare-clickhouse-rs.sh, so its Cargo.lock adds
-  # `source` and `checksum` lines to the `clickhouse` entry. Drop those two
-  # lines before merging, or CI's `--locked` builds reject the lockfile.
   - package-ecosystem: cargo
     directory: "/packages/native"
     assignees:

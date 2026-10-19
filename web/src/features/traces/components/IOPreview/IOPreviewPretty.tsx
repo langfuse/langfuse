@@ -214,7 +214,6 @@ export function IOPreviewPretty({
     toolCallCounts,
     toolCallsByName,
     messageToToolCallNumbers,
-    toolNameToDefinitionNumber,
     inputMessageCount,
   } = parserResult;
 
@@ -298,7 +297,6 @@ export function IOPreviewPretty({
           tools={allTools}
           toolCallCounts={toolCallCounts}
           toolCallsByName={toolCallsByName}
-          toolNameToDefinitionNumber={toolNameToDefinitionNumber}
         />
       ) : null}
 

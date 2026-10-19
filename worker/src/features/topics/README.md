@@ -226,9 +226,7 @@ Required for a local run, in addition to Postgres, ClickHouse, and Redis:
    summaries whose source started in the last seven days. Initial discovery and later updates use this same
    operation. It does not load traces, summarize, or generate embeddings.
 4. Inspect the resulting summaries, names, representative examples, and outliers.
-   The inspector regenerates the shared transcript from current trace data and
-   reports unavailable source data. Non-applicable and insufficient-input
-   results remain separate from outliers.
+   Non-applicable and insufficient-input results remain separate from outliers.
 5. Process subsequent trace batches as they arrive. Update topics manually when
    ready to incorporate new evidence into the clustering and names.
 
@@ -300,7 +298,7 @@ not exact historical batch membership. A late older job may win by timestamp.
 ## Algorithm and queue recovery
 
 The worker loads each trace lazily, shares one in-memory transcript across facets,
-and releases it before the next trace. Worker and inspector use the same assembly.
+and releases it before the next trace.
 Accepted summary references resume without fetching source data; source snapshots,
 transcripts and model request bodies are not persisted.
 
@@ -461,6 +459,9 @@ Provider usage and calculated model costs use the events-style
 `provided_usage_details`, `usage_details`, `provided_cost_details` and `cost_details`
 maps. Summary and embedding keys are prefixed by stage; effective maps include
 combined totals.
+Manual processing summaries carry their execution ID in metadata. Run estimates
+sum retained summary and embedding costs with available pricing. They exclude
+topic naming and failed provider calls, and can change after reprocessing or deletion.
 Priced model IDs: global Bedrock text rates per million input/output tokens are $0.20/$1.20 for
 [Luna](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-luna.html)
 and $2/$12 for

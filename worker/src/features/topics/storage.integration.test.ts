@@ -15,6 +15,7 @@ import {
   getLatestFacetSummaries,
   getTopicClusteringSummaries,
   getTopicSummaryCounts,
+  getTopicExecutionCosts,
   createTopicFacet,
   createTopicFacetVersion,
   ensureDefaultTopicFacets,
@@ -385,6 +386,31 @@ describe("Topics definition persistence", () => {
   const projectId = randomUUID();
   const otherProjectId = randomUUID();
 
+  const summary: TopicSummary = {
+    projectId,
+    facetId: "facet",
+    facetVersion: 1,
+    traceId: randomUUID(),
+    sessionId: null,
+    triggerType: "manual_poc",
+    environment: "default",
+    traceName: "trace",
+    unitStartTime: "2026-08-31T23:59:59.999Z",
+    state: "complete",
+    summary: "old",
+    embedding: [1, ...Array<number>(255).fill(0)],
+    transcriptId: "poc",
+    transcriptVersion: "poc",
+    summaryModel: "test",
+    embeddingModel: "eu.cohere.embed-v4:0",
+    providedUsageDetails: {},
+    usageDetails: {},
+    providedCostDetails: {},
+    costDetails: {},
+    processedAt: "2026-09-01T00:00:00.000Z",
+    metadata: {},
+  };
+
   afterAll(async () => {
     for (const table of [
       "topics",
@@ -399,30 +425,6 @@ describe("Topics definition persistence", () => {
   });
 
   it("partitions by source time while preserving replacement and published map identities", async () => {
-    const summary: TopicSummary = {
-      projectId,
-      facetId: "facet",
-      facetVersion: 1,
-      traceId: randomUUID(),
-      sessionId: null,
-      triggerType: "manual_poc",
-      environment: "default",
-      traceName: "trace",
-      unitStartTime: "2026-08-31T23:59:59.999Z",
-      state: "complete",
-      summary: "old",
-      embedding: [1, ...Array<number>(255).fill(0)],
-      transcriptId: "poc",
-      transcriptVersion: "poc",
-      summaryModel: "test",
-      embeddingModel: "eu.cohere.embed-v4:0",
-      providedUsageDetails: {},
-      usageDetails: {},
-      providedCostDetails: {},
-      costDetails: {},
-      processedAt: "2026-09-01T00:00:00.000Z",
-      metadata: {},
-    };
     const latest = {
       ...summary,
       summary: "latest",
@@ -675,6 +677,42 @@ describe("Topics definition persistence", () => {
     expect(counts).toEqual([
       { facetId: internalFacet, facetVersion: 1, count: 1 },
     ]);
+  });
+
+  it("sums priced summary and embedding costs scoped to the project and executions", async () => {
+    const priced: TopicSummary = {
+      ...summary,
+      facetId: randomUUID(),
+      costDetails: { summary_input: 0.1, summary_output: 0.2, total: 0.3 },
+      metadata: { executionId: "priced" },
+    };
+    await writeTopicSummaries([
+      priced,
+      { ...priced, projectId: otherProjectId },
+      { ...priced, traceId: "other-run", metadata: { executionId: "other" } },
+      {
+        ...priced,
+        facetId: randomUUID(),
+        costDetails: { embedding_input: 0.05, total: 0.05 },
+      },
+      {
+        ...priced,
+        traceId: "unpriced",
+        costDetails: {},
+        metadata: { executionId: "unpriced" },
+      },
+      {
+        ...priced,
+        traceId: "zero",
+        costDetails: { total: 0 },
+        metadata: { executionId: "zero" },
+      },
+    ]);
+    const requested = ["priced", "unpriced", "zero"];
+    expect(await getTopicExecutionCosts(projectId, requested)).toEqual({
+      priced: 0.35,
+      zero: 0,
+    });
   });
 
   it("round-trips Float64 geometry and normalized source references through ClickHouse", async () => {

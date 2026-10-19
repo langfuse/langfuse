@@ -8,6 +8,7 @@ import type { NavigationFilterContext } from "./navigationFilters.types";
 import { hasProjectAccess, hasOrganizationAccess } from "@/src/features/rbac";
 import type { Session } from "next-auth";
 import { isAdminOnlyFeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
+import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
 
 /** Organization type from user session (can be null when not in project/org context) */
 type Organization =
@@ -72,6 +73,13 @@ const filters = {
   featureFlags: (route: Route, ctx: NavigationFilterContext): Route | null => {
     if (route.featureFlag === undefined) return route;
 
+    if (
+      route.featureFlag === "skillManagement" &&
+      ctx.session?.user?.v4BetaEnabled !== true
+    ) {
+      return null;
+    }
+
     if (isAdminOnlyFeaturePreviewFlag(route.featureFlag)) {
       return ctx.session?.user?.featureFlags?.[route.featureFlag] === true
         ? route
@@ -92,8 +100,11 @@ const filters = {
 
     const hasFlag =
       ctx.enableExperimentalFeatures ||
-      ctx.cloudAdmin ||
-      ctx.session?.user?.featureFlags?.[route.featureFlag] === true;
+      (ctx.cloudAdmin && route.featureFlag !== "skillManagement") ||
+      getContextualFeatureFlags(ctx.session?.user, {
+        projectId: ctx.routerProjectId,
+        organizationId: ctx.routerOrganizationId,
+      })?.[route.featureFlag] === true;
 
     return hasFlag ? route : null;
   },

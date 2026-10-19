@@ -7,6 +7,7 @@ import {
   getObservationsCountFromEventsTable,
   getObservationsCountsFromEventsTable,
   getObservationByIdFromEventsTable,
+  getObservationFullIOForSessionFromEventsTable,
   getAgentGraphDataFromEventsTable,
   getObservationsFromEventsTableForPublicApi,
   getObservationsCountFromEventsTableForPublicApi,
@@ -38,6 +39,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
 import {
+  LangfuseNotFoundError,
   type EventsTableFilterState,
   type FilterCondition,
   type TimeFilter,
@@ -1177,6 +1179,41 @@ describe("Clickhouse Events Repository Test", () => {
           startTimeLowerBound: new Date(observationStart + 3 * DAY_MS),
         }),
       ).rejects.toThrow();
+    });
+  });
+
+  maybe("latest-version reads of a soft-deleted observation", () => {
+    it("read it as missing even though an older live version exists", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+      const sessionId = randomUUID();
+      const start = Date.now() - 60_000;
+      const version = {
+        id: observationId,
+        span_id: observationId,
+        project_id: projectId,
+        trace_id: traceId,
+        session_id: sessionId,
+        start_time: start,
+      };
+
+      await createEventsCh([
+        createEvent({ ...version, event_ts: start }),
+        createEvent({ ...version, event_ts: start + 1000, is_deleted: 1 }),
+      ]);
+
+      await expect(
+        getObservationByIdFromEventsTable({ id: observationId, projectId }),
+      ).rejects.toThrow(LangfuseNotFoundError);
+      await expect(
+        getObservationFullIOForSessionFromEventsTable({
+          projectId,
+          sessionId,
+          traceId,
+          observationId,
+          startTime: new Date(start),
+        }),
+      ).resolves.toBeNull();
     });
   });
 

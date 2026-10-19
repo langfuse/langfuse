@@ -62,8 +62,6 @@ const defaultArgs: ComponentProps<typeof CurrentTopicsView> = {
   onOpenTrace: fn(),
   onGenerateTopics: fn(),
   canGenerateTopics: true,
-  onInspectTranscript: fn(),
-  canInspectTranscript: false,
   peekView: {
     itemType: "TRACE",
     tableName: "topics-current-traces",
@@ -321,31 +319,12 @@ export const SummariesWithoutTopics = meta.story({
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
     await expect(
-      canvas.queryByRole("button", { name: "Debug transcript" }),
-    ).not.toBeInTheDocument();
-    await expect(
       canvas.getByRole("region", { name: "Topic traces" }),
     ).toBeVisible();
     await userEvent.click(
       canvas.getByRole("button", { name: "Generate topics" }),
     );
     await expect(args.onGenerateTopics).toHaveBeenCalledOnce();
-  },
-});
-
-export const InternalAdminTranscript = meta.story({
-  name: "(Test) Langfuse admins can debug transcripts",
-  args: { canInspectTranscript: true },
-  play: async ({ canvasElement, args }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(
-      canvas.getAllByRole("button", { name: "Debug transcript" })[0],
-    );
-    await expect(args.onInspectTranscript).toHaveBeenCalledWith({
-      traceId: "trace-0",
-      facetVersion: 1,
-      unitStartTime: "2026-10-01T00:00:00.000Z",
-    });
   },
 });
 

@@ -3455,25 +3455,43 @@ export class OtelIngestionProcessor {
   private extractCostDetails(
     attributes: Record<string, unknown>,
     context: { spanId: string; traceId: string; source: string },
-  ): Record<string, unknown> {
+  ): Record<string, number> {
     const fromAttribute = this.parseJsonObjectAttribute(
       attributes,
       LangfuseOtelSpanAttributes.OBSERVATION_COST_DETAILS,
       context,
     );
-    if (fromAttribute !== null) return fromAttribute;
+    if (fromAttribute !== null) return this.toNumericEntries(fromAttribute);
 
     const genAiUsageCost = attributes["gen_ai.usage.cost"];
     if (genAiUsageCost != null && genAiUsageCost !== "") {
-      return { total: genAiUsageCost };
+      return this.toNumericEntries({ total: genAiUsageCost });
     }
 
     const openInferenceTotalCost = attributes["llm.cost.total"];
     if (openInferenceTotalCost != null && openInferenceTotalCost !== "") {
-      return { total: openInferenceTotalCost };
+      return this.toNumericEntries({ total: openInferenceTotalCost });
     }
 
     return {};
+  }
+
+  /** Keeps finite numbers and non-blank numeric strings (as numbers); drops other entries such as currency. */
+  private toNumericEntries(
+    details: Record<string, unknown>,
+  ): Record<string, number> {
+    const result: Record<string, number> = {};
+    for (const [key, value] of Object.entries(details)) {
+      const numeric = this.toFiniteNumber(value);
+      if (Number.isFinite(numeric)) result[key] = numeric;
+    }
+    return result;
+  }
+
+  private toFiniteNumber(value: unknown): number {
+    if (typeof value === "number") return value;
+    if (typeof value === "string" && value.trim() !== "") return Number(value);
+    return NaN;
   }
 
   private extractCompletionStartTime(

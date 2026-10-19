@@ -157,7 +157,7 @@ async function summarizeTrace(
     providedCostDetails: {},
     costDetails: {},
     processedAt: new Date().toISOString(),
-    metadata: {},
+    metadata: { executionId: execution.id },
   });
   const pending: { facet: TraceFacet; summary: TopicSummary }[] = [];
   for (const facet of remaining) {
@@ -203,6 +203,7 @@ async function summarizeTrace(
         summary: reusable.summary,
         embedding: reuseEmbedding ? reusable.embedding : [],
         metadata: {
+          ...summary.metadata,
           summaryReusedFromProcessedAt: reusable.processedAt,
           ...(reuseEmbedding
             ? { embeddingReusedFromProcessedAt: reusable.processedAt }
