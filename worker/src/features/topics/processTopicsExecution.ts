@@ -44,6 +44,7 @@ import { env } from "../../env";
 import { nameTopicGroup } from "./models";
 import {
   ASSEMBLED_TRANSCRIPT_ID,
+  baseTopicSummary,
   summarizeTraceFacets,
   type TraceFacet,
 } from "./summarizeAssembledTrace";
@@ -127,7 +128,19 @@ async function summarizeTrace(
       if (isInternalEvalEnvironment(input.environment))
         throw new Error("Topics does not process internal Langfuse traces.");
       const base = (facet: TraceFacet) =>
-        baseSummary(execution, traceId, facet.version, input);
+        baseTopicSummary({
+          projectId: execution.projectId,
+          traceId,
+          sessionId: input.sessionId,
+          unitStartTime: input.unitStartTime,
+          environment: input.environment,
+          traceName: input.traceName,
+          facet: facet.version,
+          summaryModel: execution.input.processingConfig.summaryModel!,
+          embeddingModel: execution.input.embeddingConfig.embeddingModel!,
+          triggerType: "manual",
+          metadata: { executionId: execution.id },
+        });
       // Each step records a facet as soon as it is staged, so a later failure keeps it.
       await reuseSummaries(metrics, execution, unresolved(), base, results);
       await summarizePending(
@@ -169,38 +182,6 @@ function acceptedSummaries(
     results.set(facet, accepted);
   }
   return results;
-}
-
-function baseSummary(
-  execution: ProcessExecution,
-  traceId: string,
-  facet: TopicFacetVersion,
-  input: TraceInput,
-): TopicSummary {
-  return {
-    projectId: execution.projectId,
-    facetId: facet.facetId,
-    facetVersion: facet.version,
-    traceId,
-    sessionId: input.sessionId,
-    triggerType: "manual",
-    unitStartTime: input.unitStartTime,
-    environment: input.environment,
-    traceName: input.traceName,
-    state: "insufficient_input",
-    summary: "",
-    embedding: [],
-    transcriptId: ASSEMBLED_TRANSCRIPT_ID,
-    transcriptVersion: TOPICS_TRANSCRIPT_VERSION,
-    summaryModel: execution.input.processingConfig.summaryModel!,
-    embeddingModel: execution.input.embeddingConfig.embeddingModel!,
-    providedUsageDetails: {},
-    usageDetails: {},
-    providedCostDetails: {},
-    costDetails: {},
-    processedAt: new Date().toISOString(),
-    metadata: { executionId: execution.id },
-  };
 }
 
 /** Stages compatible stored summaries when the execution opted into reuse. */

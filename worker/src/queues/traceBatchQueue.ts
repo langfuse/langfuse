@@ -42,7 +42,10 @@ import { summarizeAssembledTrace } from "../features/topics/summarizeAssembledTr
 import { enqueueTopicsAutomation } from "../features/topics/topicsAutomation";
 import { recordTraceBatchTranscript } from "../features/traceBatching/traceBatchTranscript";
 
-type TraceBatchObservation = Observation & { eventTimestamp: string };
+type TraceBatchObservation = Observation & {
+  eventTimestamp: string;
+  sessionId: string | null;
+};
 
 // Rows include a failed trace's valid facets; the batch writes them once.
 type TraceOutcome = (
@@ -134,6 +137,12 @@ async function summarizeTraceBatch(
     if (row.id !== current.id) return row.id > current.id ? row : current;
     return row.environment > current.environment ? row : current;
   });
+  // Like manual processing: the session of the newest event that has one.
+  const sessionId =
+    observations
+      .filter((row) => row.sessionId)
+      .sort((a, b) => b.eventTimestamp.localeCompare(a.eventTimestamp))[0]
+      ?.sessionId ?? null;
   let rows: TopicSummary[] = [];
   try {
     const project = await topics.get(first.projectId);
@@ -148,6 +157,7 @@ async function summarizeTraceBatch(
     const result = await summarizeAssembledTrace({
       projectId: first.projectId,
       traceId,
+      sessionId,
       traceTimestamp,
       jobEnqueuedAt,
       environment: latest.environment,
@@ -469,6 +479,7 @@ export const traceBatchQueueProcessor: Processor<
             cost_details: {},
           }),
           eventTimestamp: event.event_ts,
+          sessionId: event.session_id || null,
         });
       }
       // Reaching EOF completes the last trace; a failed stream must not flush it.
