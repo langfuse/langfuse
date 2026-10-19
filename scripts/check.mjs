@@ -296,33 +296,24 @@ export function createPlan(
     if (related) {
       // Git-dependent selection must not populate full-suite caches. Only the
       // existing package test scripts receive Vitest flags, never prerequisites.
-      const steps = tests.map((task) => {
+      for (const task of tests) {
         prepare(`${pkg.name}#${task}`);
-        return [
-          "--filter",
-          pkg.name,
-          "run",
-          task,
-          "--changed",
-          base,
-          "--passWithNoTests",
-        ];
-      });
-      let label = `Running related tests in ${pkg.name}`;
-      if (pkg.name === "web") {
-        const suites = tests.map((task) =>
-          task === "test-client" ? "client" : "server",
-        );
-        label += ` (${suites.join(" + ")})`;
+        const suite = task === "test-client" ? "client" : "server";
+        packageChecks.push({
+          label: `Running related tests in ${pkg.name} (${suite})`,
+          args: [
+            "--filter",
+            pkg.name,
+            "run",
+            task,
+            "--changed",
+            base,
+            "--passWithNoTests",
+          ],
+          requiresTurbo: true,
+          testSuites: [suite],
+        });
       }
-      packageChecks.push({
-        label,
-        steps,
-        requiresTurbo: true,
-        testSuites: tests.map((task) =>
-          task === "test-client" ? "client" : "server",
-        ),
-      });
     } else {
       if (tests.includes("test")) fullTests.push(pkg.name);
       if (tests.includes("test-client")) clientTests.push(pkg.name);
