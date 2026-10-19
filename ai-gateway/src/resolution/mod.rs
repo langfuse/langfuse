@@ -318,7 +318,7 @@ pub enum ResolutionError {
     ModelNotAllowed,
     #[error("no eligible connection")]
     NoRoute,
-    /// The gateway's own resolution or catalog capacity is exhausted.
+    /// The gateway's memory budget cannot cover another request.
     #[error("gateway at capacity")]
     Busy,
     #[error("resolution unavailable")]

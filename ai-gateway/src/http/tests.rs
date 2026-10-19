@@ -17,7 +17,7 @@ use tokio::{net::TcpListener, sync::oneshot, task::JoinHandle};
 use tower::ServiceExt;
 
 #[tokio::test]
-async fn control_plane_rejections_do_not_consume_provider_capacity() {
+async fn control_plane_rejections_release_their_memory() {
     let web = FakeServer::start(|_| async {
         Response::builder()
             .status(StatusCode::UNAUTHORIZED)
@@ -26,22 +26,16 @@ async fn control_plane_rejections_do_not_consume_provider_capacity() {
     })
     .await;
     let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
-    let provider_client = ProviderTransport::for_test(
-        provider.url.clone(),
-        ProviderLimits {
-            active: 1,
-            ..ProviderLimits::default()
-        },
-    );
-    let permit = provider_client.try_admit().unwrap();
-    let gateway = Gateway::start(Some(InferenceService::for_test(
-        web.control_plane(),
-        provider_client,
-        1,
-    )))
+    let gateway = Gateway::start(Some(
+        InferenceService::for_test(
+            web.control_plane(),
+            ProviderTransport::for_test(provider.url.clone(), ProviderLimits::default()),
+        )
+        .with_request_limits(single_request_memory()),
+    ))
     .await;
-    // Exercise both an exhausted and an available execution pool.
-    for occupied in [Some(permit), None] {
+    // A leaked reservation would turn the second rejection into a 503.
+    for _ in 0..2 {
         let response = tokio::time::timeout(
             Duration::from_secs(2),
             gateway.app.clone().oneshot(
@@ -55,10 +49,18 @@ async fn control_plane_rejections_do_not_consume_provider_capacity() {
         .unwrap()
         .unwrap();
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
-        drop(occupied);
     }
     assert_eq!(web.calls(), 2);
     assert_eq!(provider.calls(), 0);
+}
+
+/// The budget fits one request: any held reservation leaves less than the overhead.
+fn single_request_memory() -> RequestLimits {
+    RequestLimits {
+        max_request_bytes: MAX_REQUEST_BYTES,
+        memory_budget_bytes: 2 * MAX_REQUEST_BYTES + 1,
+        request_overhead_bytes: MAX_REQUEST_BYTES + 1,
+    }
 }
 
 struct Gateway {
@@ -69,7 +71,7 @@ struct Gateway {
 }
 
 #[tokio::test]
-async fn resolution_capacity_is_bounded_and_released_on_cancellation_and_failure() {
+async fn request_memory_is_bounded_and_released_on_cancellation_and_failure() {
     let entered = Arc::new(tokio::sync::Notify::new());
     let started = entered.clone();
     let web = FakeServer::start(move |request| {
@@ -93,8 +95,8 @@ async fn resolution_capacity_is_bounded_and_released_on_cancellation_and_failure
     let service = InferenceService::for_test(
         web.control_plane(),
         ProviderTransport::for_test(provider.url.clone(), ProviderLimits::default()),
-        1,
-    );
+    )
+    .with_request_limits(single_request_memory());
     let gateway = Gateway::start(Some(service)).await;
     let request = |key| {
         Request::post("/openai/v1/responses")
@@ -153,7 +155,7 @@ async fn resolution_capacity_is_bounded_and_released_on_cancellation_and_failure
 }
 
 #[tokio::test]
-async fn slow_body_reads_do_not_consume_resolution_capacity() {
+async fn stalled_body_uploads_hold_memory_until_the_client_goes_away() {
     let web = FakeServer::start(|request| async move {
         if request.uri().path() == "/api/internal/ai-gateway/v1/models" {
             return Response::new(Body::from(
@@ -164,11 +166,13 @@ async fn slow_body_reads_do_not_consume_resolution_capacity() {
     })
     .await;
     let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
-    let gateway = Gateway::start(Some(InferenceService::for_test(
-        web.control_plane(),
-        ProviderTransport::for_test(provider.url.clone(), ProviderLimits::default()),
-        1,
-    )))
+    let gateway = Gateway::start(Some(
+        InferenceService::for_test(
+            web.control_plane(),
+            ProviderTransport::for_test(provider.url.clone(), ProviderLimits::default()),
+        )
+        .with_request_limits(single_request_memory()),
+    ))
     .await;
     let body_entered = Arc::new(tokio::sync::Notify::new());
     let entered = body_entered.clone();
@@ -222,8 +226,8 @@ async fn slow_body_reads_do_not_consume_resolution_capacity() {
         )
         .await
         .unwrap();
-    assert_eq!(models.status(), StatusCode::OK);
-    assert_eq!(web.calls(), 1);
+    assert_eq!(models.status(), StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(web.calls(), 0);
     assert_eq!(provider.calls(), 0);
     drop(held);
     let response = gateway
@@ -238,12 +242,12 @@ async fn slow_body_reads_do_not_consume_resolution_capacity() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(web.calls(), 2);
+    assert_eq!(web.calls(), 1);
     assert_eq!(provider.calls(), 1);
 }
 
 #[tokio::test]
-async fn slow_model_catalogs_do_not_consume_resolution_capacity() {
+async fn slow_model_catalogs_hold_memory_until_cancelled() {
     let entered = Arc::new(tokio::sync::Notify::new());
     let started = entered.clone();
     let web = FakeServer::start(move |request| {
@@ -258,11 +262,13 @@ async fn slow_model_catalogs_do_not_consume_resolution_capacity() {
     })
     .await;
     let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
-    let gateway = Gateway::start(Some(InferenceService::for_test(
-        web.control_plane(),
-        ProviderTransport::for_test(provider.url.clone(), ProviderLimits::default()),
-        1,
-    )))
+    let gateway = Gateway::start(Some(
+        InferenceService::for_test(
+            web.control_plane(),
+            ProviderTransport::for_test(provider.url.clone(), ProviderLimits::default()),
+        )
+        .with_request_limits(single_request_memory()),
+    ))
     .await;
     let mut held = Box::pin(
         gateway.app.clone().oneshot(
@@ -281,33 +287,23 @@ async fn slow_model_catalogs_do_not_consume_resolution_capacity() {
     .await
     .unwrap();
 
-    let inference = gateway
-        .app
-        .clone()
-        .oneshot(
+    let inference = || {
+        gateway.app.clone().oneshot(
             Request::post("/openai/v1/responses")
                 .header(header::AUTHORIZATION, "Bearer inference")
                 .body(Body::from(r#"{"model":"connection:model"}"#))
                 .unwrap(),
         )
-        .await
-        .unwrap();
-    assert_eq!(inference.status(), StatusCode::OK);
-    let busy = gateway
-        .app
-        .clone()
-        .oneshot(
-            Request::get("/openai/v1/models")
-                .header(header::AUTHORIZATION, "Bearer models-busy")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
+    };
+    let busy = inference().await.unwrap();
     assert_eq!(busy.status(), StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(web.calls(), 1);
+    assert_eq!(provider.calls(), 0);
+    drop(held);
+    let released = inference().await.unwrap();
+    assert_eq!(released.status(), StatusCode::OK);
     assert_eq!(web.calls(), 2);
     assert_eq!(provider.calls(), 1);
-    drop(held);
 }
 
 impl Gateway {
@@ -592,7 +588,6 @@ fn inference(web: &FakeServer, provider: &FakeServer) -> InferenceService {
     InferenceService::for_test(
         web.control_plane(),
         ProviderTransport::for_test(format!("{}/v1", provider.url), ProviderLimits::default()),
-        128,
     )
 }
 
@@ -804,20 +799,14 @@ async fn model_routes_request_the_matching_control_plane_catalog() {
 }
 
 #[tokio::test]
-async fn malformed_credentials_skip_resolution_and_oversized_body_releases_capacity() {
+async fn malformed_credentials_skip_resolution_and_oversized_body_releases_memory() {
     let web = FakeServer::start(|_| async { resolution_response("provider-secret") }).await;
     let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
     let service = InferenceService::for_test(
         web.control_plane(),
-        ProviderTransport::for_test(
-            provider.url.clone(),
-            ProviderLimits {
-                active: 1,
-                ..ProviderLimits::default()
-            },
-        ),
-        1,
-    );
+        ProviderTransport::for_test(provider.url.clone(), ProviderLimits::default()),
+    )
+    .with_request_limits(single_request_memory());
     let gateway = Gateway::start(Some(service)).await;
     for authorization in [
         None,
@@ -1066,14 +1055,12 @@ async fn pre_header_provider_failures_export_the_status_returned_to_the_caller()
                     stall_timeout: Duration::from_millis(100),
                     ..ExecutionLimits::default()
                 },
-                ..ProviderLimits::default()
             },
         )
         .with_telemetry(telemetry.clone());
         let gateway = Gateway::start(Some(InferenceService::for_test(
             web.control_plane(),
             provider,
-            1,
         )))
         .await;
         let response = gateway
@@ -1165,7 +1152,6 @@ async fn chat_completions_streams_carry_the_request_and_generation_ids() {
         web.control_plane(),
         ProviderTransport::for_test(format!("{}/v1", provider.url), ProviderLimits::default())
             .with_telemetry(telemetry.clone()),
-        128,
     )))
     .await;
     let response = gateway
@@ -1273,7 +1259,7 @@ async fn unconfigured_gateway_is_live_but_not_ready_and_inference_is_unavailable
 }
 
 #[tokio::test]
-async fn active_admission_is_held_through_stream_and_shutdown_drains_it() {
+async fn request_memory_is_held_through_stream_and_shutdown_drains_it() {
     let (release, released) = tokio::sync::watch::channel(false);
     let web = FakeServer::start(|_| async { resolution_response("provider") }).await;
     let provider = FakeServer::start(move |_| {
@@ -1294,15 +1280,9 @@ async fn active_admission_is_held_through_stream_and_shutdown_drains_it() {
     .await;
     let service = InferenceService::for_test(
         web.control_plane(),
-        ProviderTransport::for_test(
-            provider.url.clone(),
-            ProviderLimits {
-                active: 1,
-                ..ProviderLimits::default()
-            },
-        ),
-        1,
-    );
+        ProviderTransport::for_test(provider.url.clone(), ProviderLimits::default()),
+    )
+    .with_request_limits(single_request_memory());
     let mut gateway = Gateway::start(Some(service)).await;
     let mut response = gateway
         .post()
@@ -1339,7 +1319,7 @@ async fn active_admission_is_held_through_stream_and_shutdown_drains_it() {
 }
 
 #[tokio::test]
-async fn client_disconnect_releases_capacity_for_the_next_request() {
+async fn client_disconnect_releases_memory_for_the_next_request() {
     let web = FakeServer::start(|_| async { resolution_response("provider") }).await;
     let provider = FakeServer::start(|_| async {
         let stream =
@@ -1352,15 +1332,9 @@ async fn client_disconnect_releases_capacity_for_the_next_request() {
     .await;
     let service = InferenceService::for_test(
         web.control_plane(),
-        ProviderTransport::for_test(
-            provider.url.clone(),
-            ProviderLimits {
-                active: 1,
-                ..ProviderLimits::default()
-            },
-        ),
-        1,
-    );
+        ProviderTransport::for_test(provider.url.clone(), ProviderLimits::default()),
+    )
+    .with_request_limits(single_request_memory());
     let gateway = Gateway::start(Some(service)).await;
     let mut first = gateway
         .post()
@@ -1603,24 +1577,17 @@ async fn model_policy_rejections_use_provider_native_permission_errors() {
 #[tokio::test]
 async fn anthropic_capacity_rejections_use_the_native_envelope() {
     let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
-    let busy = ProviderTransport::for_test(
-        format!("{}/v1", provider.url),
-        ProviderLimits {
-            active: 1,
-            ..ProviderLimits::default()
-        },
-    );
-    let _held = busy.try_admit().unwrap();
     let web = FakeServer::start(|_| async {
         resolution_response_for(ApiFormat::AnthropicMessages, "provider-anthropic")
     })
     .await;
-    let gateway = Gateway::start(Some(InferenceService::for_test(
+    let service = InferenceService::for_test(
         web.control_plane(),
-        busy,
-        1,
-    )))
-    .await;
+        ProviderTransport::for_test(format!("{}/v1", provider.url), ProviderLimits::default()),
+    )
+    .with_request_limits(single_request_memory());
+    let _held = service.try_reserve_memory("request").unwrap();
+    let gateway = Gateway::start(Some(service)).await;
     let response = reqwest::Client::new()
         .post(format!("{}/anthropic/v1/messages", gateway.url))
         .header("x-api-key", "gateway-anthropic")
@@ -1786,7 +1753,8 @@ async fn buffered_request_bytes_are_released_once_the_response_ends() {
     .await;
     let service = inference(&web, &provider).with_request_limits(RequestLimits {
         max_request_bytes: 64,
-        shared_buffer_bytes: 100,
+        memory_budget_bytes: 100,
+        request_overhead_bytes: 0,
     });
     let gateway = Gateway::start(Some(service)).await;
     let body = |size: usize| {
@@ -1830,7 +1798,8 @@ async fn budgeted_service() -> (FakeServer, FakeServer, InferenceService) {
     let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
     let service = inference(&web, &provider).with_request_limits(RequestLimits {
         max_request_bytes: 64,
-        shared_buffer_bytes: 100,
+        memory_budget_bytes: 100,
+        request_overhead_bytes: 0,
     });
     (web, provider, service)
 }
@@ -1849,7 +1818,7 @@ async fn a_stalled_upload_holds_only_the_bytes_it_sent() {
     let (_web, _provider, service) = budgeted_service().await;
     let mut headers = HeaderMap::new();
     headers.insert(header::CONTENT_LENGTH, "60".parse().unwrap());
-    let stalled = service.try_reserve_request_body().ok().unwrap();
+    let stalled = service.try_reserve_memory("request").ok().unwrap();
     let read = read_request_body(
         streamed_body(vec![&[b'x'; 10]], true),
         &headers,
@@ -1862,15 +1831,15 @@ async fn a_stalled_upload_holds_only_the_bytes_it_sent() {
             .await
             .is_err()
     );
-    let mut next = service.try_reserve_request_body().ok().unwrap();
-    assert!(next.try_reserve_bytes(91).is_err());
-    assert!(next.try_reserve_bytes(90).is_ok());
+    let mut next = service.try_reserve_memory("request").ok().unwrap();
+    assert!(next.try_reserve_body(91).is_err());
+    assert!(next.try_reserve_body(90).is_ok());
 }
 
 #[tokio::test]
 async fn buffered_bytes_reserve_the_allocation_not_just_the_length() {
     let (_web, _provider, service) = budgeted_service().await;
-    let held = service.try_reserve_request_body().ok().unwrap();
+    let held = service.try_reserve_memory("request").ok().unwrap();
     let (bytes, _held) = read_request_body(
         streamed_body(vec![&[b'x'; 32], b"x"], false),
         &HeaderMap::new(),
@@ -1881,9 +1850,28 @@ async fn buffered_bytes_reserve_the_allocation_not_just_the_length() {
     .ok()
     .unwrap();
     assert_eq!(bytes.len(), 33);
-    let mut next = service.try_reserve_request_body().ok().unwrap();
-    assert!(next.try_reserve_bytes(37).is_err());
-    assert!(next.try_reserve_bytes(36).is_ok());
+    let mut next = service.try_reserve_memory("request").ok().unwrap();
+    assert!(next.try_reserve_body(37).is_err());
+    assert!(next.try_reserve_body(36).is_ok());
+}
+
+#[tokio::test]
+async fn the_body_reservation_sits_on_top_of_the_fixed_overhead() {
+    let (_web, _provider, service) = budgeted_service().await;
+    let service = service.with_request_limits(RequestLimits {
+        max_request_bytes: 64,
+        memory_budget_bytes: 100,
+        request_overhead_bytes: 10,
+    });
+    let mut reservation = service.try_reserve_memory("request").ok().unwrap();
+    assert_eq!(service.available_memory(), 90);
+    assert!(reservation.try_reserve_body(60).is_ok());
+    assert_eq!(service.available_memory(), 30);
+    assert!(reservation.try_reserve_body(40).is_ok());
+    assert_eq!(service.available_memory(), 30);
+    assert!(reservation.try_reserve_body(91).is_err());
+    drop(reservation);
+    assert_eq!(service.available_memory(), 100);
 }
 
 #[test]
@@ -1933,10 +1921,8 @@ async fn only_non_streamed_generations_wait_past_the_stall_for_provider_headers(
                     stall_timeout: Duration::from_millis(100),
                     ..ExecutionLimits::default()
                 },
-                ..ProviderLimits::default()
             },
         ),
-        128,
     );
     let gateway = Gateway::start(Some(service)).await;
     let client = reqwest::Client::new();

@@ -29,8 +29,6 @@ use tokio::{
 pub enum ProviderError {
     #[error("invalid provider configuration")]
     Configuration,
-    #[error("gateway execution capacity exhausted")]
-    Busy,
     #[error("provider deadline exceeded")]
     Timeout,
     #[error("provider transport failed")]
