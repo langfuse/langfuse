@@ -1,0 +1,272 @@
+{
+  "window": { "from": "2026-10-13", "to": "2026-10-19" },
+  "isoWeekNote": "2026-10-19 is the Sunday of ISO W43; the trailing-7-day window is exactly W43 Tue..Sun plus Mon 10-13. Filed as 2026-W43-1019.json.",
+  "generatedAt": "2026-10-19",
+  "dataQuality": {
+    "denseDays": ["2026-10-13", "2026-10-14", "2026-10-15", "2026-10-16"],
+    "denseDaySampleSize": 6,
+    "thinDays": [{ "day": "2026-10-18", "successfulMergeGroupRuns": 2, "charted": true, "inAggregate": false }],
+    "emptyDays": ["2026-10-17", "2026-10-19"],
+    "note": "10-17 (Fri) and 10-19 (Sun) had ZERO merge_group runs, confirmed against an unfiltered fetch. Third consecutive Friday-or-adjacent collapse in merge_group volume (09-19 zero, 09-26 n=2, 10-17 zero). The weekly aggregate is the median of the 4 dense daily medians."
+  },
+  "weeklyAggregate": {
+    "perceived": 291,
+    "gated": 269.5,
+    "execution": 286.3,
+    "runnerWait": 6.3,
+    "webBuildStep": 55.5,
+    "webRunTestsStep": 94.5,
+    "workerBuildStep": 41.3,
+    "workerRunTestsStep": 108.3,
+    "e2eTestsJob": 162.5,
+    "e2eBuildStep": 53.3,
+    "e2eRunStep": 46,
+    "fipsMaxJob": 274,
+    "executionMinusE2e": 123.8,
+    "unit": "seconds"
+  },
+  "dailyMedians": {
+    "2026-10-13": { "n": 6, "perceived": 330.5, "gated": 285.5, "execution": 323, "runnerWait": 7.5, "webBuildStep": 52, "webRunTestsStep": 89, "workerBuildStep": 37.5, "workerRunTestsStep": 99.5, "e2eTestsJob": 157, "e2eBuildStep": 54, "e2eRunStep": 41.5, "fipsMaxJob": 249.5, "executionMinusE2e": 166 },
+    "2026-10-14": { "n": 6, "perceived": 293, "gated": 257, "execution": 288.5, "runnerWait": 6.5, "webBuildStep": 56, "webRunTestsStep": 93, "workerBuildStep": 42.5, "workerRunTestsStep": 109, "e2eTestsJob": 168, "e2eBuildStep": 52.5, "e2eRunStep": 47, "fipsMaxJob": 285, "executionMinusE2e": 120.5 },
+    "2026-10-15": { "n": 6, "perceived": 273, "gated": 233, "execution": 267, "runnerWait": 6, "webBuildStep": 55, "webRunTestsStep": 97.5, "workerBuildStep": 40.5, "workerRunTestsStep": 107.5, "e2eTestsJob": 153, "e2eBuildStep": 37.5, "e2eRunStep": 45, "fipsMaxJob": 265, "executionMinusE2e": 114 },
+    "2026-10-16": { "n": 6, "perceived": 289, "gated": 282, "execution": 284, "runnerWait": 5.5, "webBuildStep": 57, "webRunTestsStep": 96, "workerBuildStep": 42, "workerRunTestsStep": 114, "e2eTestsJob": 186, "e2eBuildStep": 54.5, "e2eRunStep": 47, "fipsMaxJob": 283, "executionMinusE2e": 98 },
+    "2026-10-18": { "n": 2, "thin": true, "perceived": 247, "gated": 211.5, "execution": 241.5, "runnerWait": 5.5, "webBuildStep": 51, "webRunTestsStep": 88.5, "workerBuildStep": 35.5, "workerRunTestsStep": 99, "e2eTestsJob": 157, "e2eBuildStep": 45.5, "e2eRunStep": 40, "fipsMaxJob": 240.5, "executionMinusE2e": 84.5 }
+  },
+  "pooledPercentiles": {
+    "n": 26,
+    "perceived": { "p50": 281, "p90": 408, "max": 588 },
+    "gated": { "p50": 252, "p90": 395, "max": 563 },
+    "execution": { "p50": 274, "p90": 401, "max": 495 }
+  },
+  "vsPreviousWindow": {
+    "comparator": "2026-W42-partial-1012.json",
+    "perceived": "+15.7%",
+    "gated": "+19.1%",
+    "execution": "+17.9%",
+    "runnerWait": "-16.0%",
+    "webBuildStep": "+11.4%",
+    "webRunTestsStep": "+9.9%",
+    "workerBuildStep": "+31.1%",
+    "workerRunTestsStep": "+19.7%",
+    "e2eTestsJob": "+3.2%",
+    "perceivedP90": "302.4 -> 408 (+34.9%)",
+    "note": "Regression is broad and execution-bound, not queue-bound: runner wait FELL. The p90 grew far faster than the p50, which is the signature of a bimodal long pole rather than a uniform slowdown."
+  },
+  "sustainedShiftScan": {
+    "result": "NONE",
+    "method": "Daily perceived medians 330.5 / 293 / 273 / 289 / 247; max/min = 1.34, well under the 1.5 bar, and the trend is DOWNWARD across the week rather than a step up. The week-over-week regression is therefore concentrated in 10-13/10-14, which are the days before the 10-15 CI fix batch landed."
+  },
+  "criticalPath": {
+    "longestJob": "tests-fips (worker)",
+    "evidence": "Median job end-offset 277s / duration 265s, the highest of any job. fipsMaxJob ~= execution on a per-run basis. Bimodal: ~240-285s normal vs 346-400s slow, which is what drives perceived p90 to 408s.",
+    "executionMinusE2e": "W40 17.8 -> W41 36 -> W42 85 -> W43 123.8 (weekly). Daily within W43 it FALLS: 166 / 120.5 / 114 / 98 / 84.5. e2e-tests is definitively no longer the critical path; tests-fips is.",
+    "gatingGap": {
+      "acpStartMinusLastGatingJobEnd": { "median": 5, "note": "Fan-in is tight; no scheduling waste. Range 1-9s with one 197s outlier." },
+      "runUpdatedMinusAcpEnd": { "median": 32.5 },
+      "fipsEndMinusAcpEnd": { "median": 31.5, "range": "-114 to +73", "fipsEndsAfterAcpIn": "21/26 runs", "note": "tests-fips adds ~31.5s of pure non-gating wall time after the merge queue is already unblocked. This is the whole perceived-vs-gated gap." }
+    },
+    "queueHealth": "Only 1/26 runs had any job queue >60s (run 38394061469, q=348s). All jobs queue at ~6-8s normally."
+  },
+  "jobNames": [
+    "test-ai-gateway-e2e (node24, pg15)", "tests-fips (worker)", "tests-fips (web)", "all-ci-passed",
+    "tests-worker (node24, pg15, mode)", "tests-storybook", "tests-web (node24, pg15, mode-redis-cluster, otel-worker-shadow=true)",
+    "tests-worker (node24, pg15, mode-azure)", "tests-web (node24, pg15, mode, otel-worker-shadow=true)",
+    "tests-web (node24, pg15, mode-azure, otel-worker-shadow=false)", "e2e-server-tests", "e2e-tests",
+    "test-docker-build (worker)", "tests-ai-gateway", "tests-worker (node24, pg15, mode-redis-cluster)",
+    "lint", "test-docker-build (web)", "tests-web-client", "tests-shared",
+    "test-worker-llm-connections (node24, pg15)", "notify-flaky-merge-queue"
+  ],
+  "medianJobEndOffsets": {
+    "note": "seconds from run_started_at to job completion, median over the 26 sampled successful merge_group runs; 'dur' is median job duration",
+    "test-ai-gateway-e2e (node24, pg15)": { "end": 329, "dur": 311, "n": 3, "new": "added 2026-10-16 by 825ac84ea (#18915), conditional on ai-gateway crate changes" },
+    "tests-fips (worker)": { "end": 277, "dur": 265 },
+    "tests-fips (web)": { "end": 258, "dur": 250 },
+    "all-ci-passed": { "end": 257, "dur": 3, "queue": 255 },
+    "tests-worker (node24, pg15, mode)": { "end": 231, "dur": 219 },
+    "tests-storybook": { "end": 217, "dur": 207 },
+    "tests-web (redis-cluster, shadow=true)": { "end": 213, "dur": 206 },
+    "tests-worker (azure)": { "end": 207, "dur": 192 },
+    "tests-web (mode, shadow=true)": { "end": 203, "dur": 195 },
+    "tests-web (azure, shadow=false)": { "end": 199, "dur": 190 },
+    "e2e-server-tests": { "end": 194, "dur": 184 },
+    "e2e-tests": { "end": 171, "dur": 165 },
+    "test-docker-build (worker)": { "end": 157, "dur": 151 },
+    "tests-ai-gateway": { "end": 152, "dur": 145 },
+    "tests-worker (redis-cluster)": { "end": 151, "dur": 142 },
+    "lint": { "end": 148, "dur": 141 },
+    "test-docker-build (web)": { "end": 144, "dur": 133 },
+    "tests-web-client": { "end": 133, "dur": 122 },
+    "tests-shared": { "end": 71, "dur": 64 }
+  },
+  "runVolumes": {
+    "byDay": {
+      "2026-10-13": { "success": 48, "failure": 6 },
+      "2026-10-14": { "success": 55, "failure": 9 },
+      "2026-10-15": { "success": 43, "failure": 7 },
+      "2026-10-16": { "success": 91, "failure": 13, "note": "+1 workflow_dispatch success, not counted" },
+      "2026-10-17": { "success": 0, "failure": 0 },
+      "2026-10-18": { "success": 2, "failure": 0 },
+      "2026-10-19": { "success": 0, "failure": 0 }
+    },
+    "mergeGroupSuccess": 239,
+    "mergeGroupFailure": 35,
+    "failureRate": "12.8%",
+    "previousWeekFailureRate": "10.3% (25/243)",
+    "timedOut": 0
+  },
+  "failureTaxonomy": {
+    "method": "ALL 35 failed merge_group runs fetched and attributed to failing job + failing step; 11 job logs read to attribute to the failing test. No sampling.",
+    "A_buildBreak": {
+      "runs": 9,
+      "ids": ["38887249947", "38886975184", "38868948226", "38785098115", "38702102661", "38702070949", "38701064956", "38602305214", "38599026654"],
+      "days": ["10-14 x2", "10-15 x4", "10-16 x3"],
+      "shape": "All 15 jobs in the run fail. Matrix jobs fail at Build / Build images, lint at 'lint web', tests-shared at 'run shared tests', tests-fips (web|worker) at 'Run X tests under forced FIPS'.",
+      "rootCause": "packages/shared build: src/utils/normalized-io/conventions/providers/pydantic-ai/fixtures.ts(121,13): error TS2322: Type 'string' is not assignable to type 'ToolResultOutput'. A TypeScript compile break in a candidate PR, plus a co-occurring deterministic assertion failure in packages/shared/src/utils/normalized-io/conventions/providers/pydantic-ai/pydantic-ai.test.ts > 'extracts Pydantic agent history and m...'.",
+      "retryEvidence": "tests-shared log shows '##[error]Both attempts failed (exit 1, then 1): pnpm --filter @langfuse/shared run test' -> d22b43062's retry wrapper is live and correctly declined to mask a deterministic failure.",
+      "classification": "AUTHOR / PRODUCT CODE, deterministic. Not CI flake, not infrastructure."
+    },
+    "B_testsWebClientLeakedTimer": {
+      "runs": 13,
+      "share": "37% of all merge-queue failures, the single largest bucket",
+      "ids": ["38909579047", "38908642408", "38907387165", "38906529785", "38897023821", "38881234921", "38880570455", "38876704751", "38586081368", "38584486784", "38566521578", "38545448846", "38420938041"],
+      "days": ["10-13 x1", "10-14 x4", "10-16 x8"],
+      "job": "tests-web-client",
+      "step": "run test-client",
+      "rootCause": "FALSE FAILURE. Every sampled log reports ZERO failing tests (e.g. 'Test Files 544 passed | 1 skipped (545)' / 'Tests 5243 passed | 51 skipped (5294)'), yet the job exits 1 on an unhandled timer callback: '❯ Timeout._onTimeout src/features/auth/SignInPage.tsx:819:31' / '❯ listOnTimeout node:internal/timers:635:17' / '[ELIFECYCLE] Command failed with exit code 1.'",
+      "sourceLocation": "web/src/features/auth/SignInPage.tsx:816-825 — a bare uncleaned setTimeout(..., 100) whose callback calls document.querySelector('input[name=\"password\"]') at line 819. It fires after the test environment is torn down.",
+      "retryCoverage": "NOT COVERED. 'run test-client' (pipeline.yml:1000-1002) is a plain run: with no retry-on-merge-queue.sh wrapper, so none of these 13 got a second attempt. A retry would not help anyway: the failure is an unhandled rejection outside any test, which vitest per-test retry cannot catch either.",
+      "classification": "PRODUCT CODE DEFECT surfacing as pure CI noise."
+    },
+    "C_fipsOnlyNonGating": {
+      "runs": 2,
+      "ids": ["38896576256", "38773411813"],
+      "job": "tests-fips (worker)",
+      "step": "Run worker tests under forced FIPS",
+      "keyFinding": "Neither run has a failing all-ci-passed job. These two runs are marked 'failure' but did NOT block the merge queue, because the only failing job is non-gating. They inflate the headline failure rate by 0.7pp.",
+      "classification": "NON-GATING NOISE."
+    },
+    "D_aiGatewayDocker": {
+      "runs": 3,
+      "ids": ["38896314977", "38583962661", "38703566949"],
+      "steps": ["Smoke test runtime image x2", "Build runtime image x1"],
+      "classification": "INFRASTRUCTURE."
+    },
+    "E_e2eAndContainers": {
+      "runs": 5,
+      "infra": {
+        "count": 3,
+        "38766740813": "e2e-tests -> 'Wait for dev containers'; test-ai-gateway-e2e -> 'Start dev containers'",
+        "38420549421": "e2e-server-tests -> 'Check worker health'",
+        "38435646285": "e2e-tests and test-worker-llm-connections -> 'install dependencies'; plus fips web/worker and docker-build worker"
+      },
+      "flake": {
+        "count": 2,
+        "ids": ["38628414209", "38561954556"],
+        "day": "both 10-14",
+        "test": "web/src/__e2e__/app-shell-overflow.spec.ts:23:5 > a right drawer's absolutely-positioned content does not scroll the document",
+        "error": "TimeoutError: page.waitForURL: Timeout 60000ms exceeded. waiting for navigation to \"/\" until \"load\" at signIn (web/src/__e2e__/utils/auth.ts:54:8)",
+        "shape": "1 failed / 1 skipped / 15 passed. It is the FIRST test to start ([1/17]), i.e. it races the web server's cold start.",
+        "retryCoverage": "web run test:e2e IS wrapped (pipeline.yml:1442), but both occurrences are 10-14, BEFORE d22b43062 landed on 10-15. Untested against the retry."
+      }
+    },
+    "F_nativeOtelMediaTimeout": {
+      "runs": 2,
+      "ids": ["38426540287", "38422317294"],
+      "day": "both 10-13",
+      "job": "tests-worker (node24, pg15, mode-redis-cluster)",
+      "step": "run tests",
+      "test": "worker/src/__tests__/nativeOtelMedia.unit.test.ts > native media matches the TypeScript payload contract > compares generated media spellings without canonicalizing raw JSON",
+      "error": "Error: Test timed out in 5000ms. Observed durations 5012ms and 5013ms — a 0.3% timeout-margin flake.",
+      "shape": "Test Files 1 failed | 215 passed | 2 skipped (218); Tests 1 failed | 2874 passed | 10 skipped (2885)",
+      "siblingCancellation": "In BOTH runs the sibling tests-worker (node24, pg15, mode) leg was CANCELLED. These predate 8c753fe97 'ci: stop a failing matrix leg from cancelling its siblings (#18853)' which landed 10-15, so that fix is corroborated by its absence afterwards.",
+      "relatedCommit": "358f6237d 'chore(native): replace patched ClickHouse encoder with ch-core (#18968)' touches this surface.",
+      "classification": "GENUINE TEST FLAKE (timeout margin)."
+    },
+    "G_massServerTestCollapse": {
+      "runs": 1,
+      "ids": ["38420548365"],
+      "day": "10-13",
+      "job": "tests-web (node24, pg15, mode-redis-cluster, otel-worker-shadow=true)",
+      "step": "run tests",
+      "shape": "At least 515 numbered failed entries across 18 distinct *.servertest.ts files, EVERY ONE carrying retries=3 (i.e. exhausted). Top files: organizations-api 63, llm-connections-api 47, scores-api-v1 46, scores-api-v2 42, ingestion-api 33.",
+      "classification": "INFRASTRUCTURE — a wholesale backing-service collapse on that leg, not a test defect. All affected files are DB/ClickHouse/Redis-backed servertests."
+    },
+    "totals": { "A": 9, "B": 13, "C": 2, "D": 3, "E": 5, "F": 2, "G": 1, "sum": 35 },
+    "shares": {
+      "productCodeDefects": { "runs": 22, "pct": "62.9%", "detail": "A (9 build break) + B (13 leaked timer)" },
+      "genuineTestFlakes": { "runs": 4, "pct": "11.4%", "detail": "E-flake 2 + F 2" },
+      "infrastructure": { "runs": 7, "pct": "20.0%", "detail": "D 3 + E-infra 3 + G 1" },
+      "nonGatingOnly": { "runs": 2, "pct": "5.7%", "detail": "C" }
+    },
+    "retryEraObservation": "All 4 genuine test flakes and the one mass infra collapse occurred on 10-13/10-14, BEFORE d22b43062 (retry-on-merge-queue, #18287) landed on 10-15. From 10-15 onward the only recurring failure class is tests-web-client, which is precisely the one suite the wrapper does not cover and whose failure mode a retry could not fix. CONFOUNDED: only 4 flake datapoints, and the wrapper covers only 6 commands."
+  },
+  "failuresByTest": [
+    { "job": "tests-web-client", "file": "web/src/features/auth/SignInPage.tsx (source, not a test)", "test": "(none — 0 failing tests; unhandled timer after teardown)", "runs": 13, "firstSeen": "2026-10-13", "lastSeen": "2026-10-16", "lifetime": 13, "status": "NEW this week, dominant" },
+    { "job": "tests-shared", "file": "packages/shared/src/utils/normalized-io/conventions/providers/pydantic-ai/pydantic-ai.test.ts", "test": "extracts Pydantic agent history and m...", "runs": 9, "firstSeen": "2026-10-14", "lastSeen": "2026-10-16", "lifetime": 9, "status": "NEW, deterministic (co-occurs with the TS2322 build break)" },
+    { "job": "tests-worker (node24, pg15, mode-redis-cluster)", "file": "worker/src/__tests__/nativeOtelMedia.unit.test.ts", "test": "compares generated media spellings without canonicalizing raw JSON", "runs": 2, "firstSeen": "2026-10-13", "lastSeen": "2026-10-13", "lifetime": 2, "status": "NEW, WATCHLIST — 5012ms vs a 5000ms timeout" },
+    { "job": "e2e-tests", "file": "web/src/__e2e__/app-shell-overflow.spec.ts", "test": "a right drawer's absolutely-positioned content does not scroll the document", "runs": 2, "firstSeen": "2026-10-14", "lastSeen": "2026-10-14", "lifetime": 2, "status": "NEW, WATCHLIST — signIn waitForURL 60s timeout, races cold start" },
+    { "job": "tests-web (node24, pg15, mode-redis-cluster, otel-worker-shadow=true)", "file": "18 distinct *.servertest.ts files", "test": "(515+ tests, all retries=3 exhausted)", "runs": 1, "firstSeen": "2026-10-13", "lastSeen": "2026-10-13", "lifetime": 1, "status": "INFRA, not a test defect" }
+  ],
+  "vitestAnalysis": {
+    "population": "9 success-path shard logs across 10-13..10-18",
+    "web": [
+      { "day": "2026-10-13", "files": 339, "tests": 6250, "duration": 78.94, "msPerTest": 12.63 },
+      { "day": "2026-10-14", "files": 342, "tests": 6275, "duration": 105.65, "msPerTest": 16.84 },
+      { "day": "2026-10-15", "files": 345, "tests": 6347, "duration": 84.35, "msPerTest": 13.29 },
+      { "day": "2026-10-16", "files": 347, "tests": 6398, "duration": 81.54, "msPerTest": 12.74 },
+      { "day": "2026-10-16", "files": 348, "tests": 6461, "duration": 100.04, "msPerTest": 15.48 },
+      { "day": "2026-10-18", "files": 348, "tests": 6463, "duration": 82.71, "msPerTest": 12.79 }
+    ],
+    "worker": [
+      { "day": "2026-10-13", "files": 216, "tests": 2829, "duration": 93.8, "msPerTest": 33.2 },
+      { "day": "2026-10-16", "files": 221, "tests": 2941, "duration": 124.08, "msPerTest": 42.2 },
+      { "day": "2026-10-18", "files": 221, "tests": 2948, "duration": 99.29, "msPerTest": 33.7 }
+    ],
+    "verdict": "Per-test cost is FLAT (web ~13.0 vs W42 12.45; worker ~33.7 vs W42 32.9). The run-tests step growth is coverage (+4.2% web tests, +8.6% worker tests vs W42) plus a slow-runner tail, NOT a code regression.",
+    "retriedTests": "ZERO in all 9 success-path samples",
+    "failedTests": "ZERO in all 9 success-path samples",
+    "flakyStreak": "7th consecutive zero-retry week ON THE SUCCESS PATH. IMPORTANT CAVEAT, new this week: the failed merge_group runs are NOT retry-free — see failureTaxonomy. Prior weeks' 'zero retries' claims were measured on the same success-path population and should be read the same narrow way."
+  },
+  "slowestWebTests": [
+    { "name": "event-repository.servertest.ts > streams complete trace batches...", "seconds": 4.25 },
+    { "name": "ingestion-api > should create observations... (generation)", "seconds": 2.21 },
+    { "name": "unit/teardown > closes clients created through the built shared server export", "seconds": 2.09 },
+    { "name": "score-comparison-analytics > skip FINAL and apply hash-based sampling", "seconds": 1.47 },
+    { "name": "traces-api > 422 if observations are too large", "seconds": 1.45 }
+  ],
+  "slowestWebFiles": [
+    { "file": "event-repository.servertest.ts", "seconds": 25.22, "tests": 106, "w43_10_13": 22.77 },
+    { "file": "score-comparison-analytics.servertest.ts", "seconds": 21.74, "tests": 46, "w43_10_13": 16.33 },
+    { "file": "traces-api.servertest.ts", "seconds": 18.0, "tests": 84, "w43_10_13": 12.81 },
+    { "file": "ingestion-api.servertest.ts", "seconds": 16.14, "tests": 63, "w43_10_13": 14.92 },
+    { "file": "dataset-service.servertest.ts", "seconds": 14.34, "tests": 35, "w43_10_13": 10.25 },
+    { "file": "datasets-api.servertest.ts", "seconds": 12.58, "tests": 25, "w43_10_13": 8.2 },
+    { "file": "scores-api-v3.servertest.ts", "seconds": 11.11, "tests": 80, "w43_10_13": 10.23 },
+    { "file": "queryBuilder.servertest.ts", "seconds": 10.75, "tests": 115, "w43_10_13": 11.36 },
+    { "file": "observation-api.servertest.ts", "seconds": 9.0, "tests": 39 },
+    { "file": "observations-api-v2.servertest.ts", "seconds": 8.9, "tests": 42, "w43_10_13": 7.35 }
+  ],
+  "ciCommitsInWindow": [
+    { "sha": "a9a58dfb1", "day": "2026-10-16", "title": "build: ship Rust license notices and cache AI gateway dependency builds (#18889)" },
+    { "sha": "825ac84ea", "day": "2026-10-16", "title": "ci: run ai-gateway e2e tests on ai-gateway crate changes (#18915)", "effect": "adds the new 311s test-ai-gateway-e2e job (conditional)" },
+    { "sha": "a15686861", "day": "2026-10-16", "title": "ci(rust): audit ai-gateway and native addon deps with cargo-deny/cargo-machete (#18882)" },
+    { "sha": "a8f9a7a5e", "day": "2026-10-15", "title": "ci: drive flake tracking from the merge queue's own failures (#18759)", "effect": "adds notify-flaky-merge-queue job" },
+    { "sha": "8c753fe97", "day": "2026-10-15", "title": "ci: stop a failing matrix leg from cancelling its siblings (#18853)" },
+    { "sha": "415ba0c10", "day": "2026-10-15", "title": "fix(ci): stop turbo serving e2e-server-tests a cached start (#18289)" },
+    { "sha": "6efb65e4c", "day": "2026-10-15", "title": "ci: wait for the server to be ready before running web tests (#18288)" },
+    { "sha": "d22b43062", "day": "2026-10-15", "title": "ci: retry failed test steps once in the merge queue (#18287)", "effect": "step-level retry, merge_group only, 6 commands wrapped" }
+  ],
+  "retryWrapperCoverage": {
+    "script": "scripts/ci/retry-on-merge-queue.sh",
+    "wrappedAt": [214, 446, 492, 494, 608, 1442],
+    "commands": ["cargo test --locked", "@repo/eslint-plugin run test", "@repo/in-app-agent-sandbox-runtime run test", "@repo/in-app-agent-sandbox-runtime run test:e2e", "@langfuse/shared run test", "web run test:e2e"],
+    "notWrapped": ["tests-web-client 'run test-client' (line 1002)", "tests-web 'run tests' (944)", "tests-worker 'run tests' (1109)", "tests-fips", "e2e-server-tests"],
+    "semantics": "merge_group only (PRs never retry, deliberately). Does NOT retry when exit status >= 128 (signal/OOM). On double failure exits with the FIRST attempt's status and emits '::error title=Merge-queue retry failed::'. On retry success emits FLAKY_MARKER=LANGFUSE_CI_FLAKY_RETRY_SUCCEEDED and exits 0 explicitly. Header comment: wraps only suites with no retry of their own, because the second attempt runs against state the first left behind."
+  },
+  "followUpsAnswered": {
+    "re-measure gated with a full fips week": "DONE. gated 269.5 vs perceived 291; gap 21.5s (W42 gap was 25.2s). The gap is stable, so perceived overstates developer-visible merge latency by ~22s every run.",
+    "does tests-fips gate yet": "NO, still non-gating. New evidence that this matters: 2 merge_group runs (Class C) were marked failure solely because tests-fips (worker) failed while all-ci-passed passed — the non-gating job inflates the failure rate without ever blocking the queue.",
+    "execution minus e2e": "Widened to 123.8s weekly (W42 85, W41 36, W40 17.8), but FALLS day-over-day within the week (166 -> 84.5). e2e is not the critical path; tests-fips (worker) is.",
+    "web shard import cost": "Still parked, still unverifiable (no node_modules/pnpm, DB blocked)."
+  }
+}
