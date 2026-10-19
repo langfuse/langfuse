@@ -23,6 +23,37 @@ import { stripVTControlCharacters } from "node:util";
  */
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
+export function createOutput(
+  env = process.env,
+  stdout = process.stdout,
+  stderr = process.stderr,
+) {
+  const terminal = Boolean(stdout.isTTY && stderr.isTTY && env.TERM !== "dumb");
+  let color = terminal;
+  if (Object.hasOwn(env, "NO_COLOR") || env.TERM === "dumb") color = false;
+  else if (Object.hasOwn(env, "FORCE_COLOR")) color = env.FORCE_COLOR !== "0";
+  else if (stdout.hasColors && stderr.hasColors)
+    color = terminal && stdout.hasColors() && stderr.hasColors();
+  // Children write to log files, so their TTY detection cannot see our terminal.
+  const childEnv = {
+    ...env,
+    FORCE_COLOR: color ? (env.FORCE_COLOR ?? "1") : "0",
+  };
+  if (color) delete childEnv.NO_COLOR;
+  else childEnv.NO_COLOR = "1";
+  return {
+    terminal,
+    childEnv,
+    paint: (code, text) =>
+      color ? `\x1b[${code}m${text}\x1b[0m` : stripVTControlCharacters(text),
+    indent: (text) =>
+      (color ? text : stripVTControlCharacters(text))
+        .split("\n")
+        .map((line) => `    ${line}`)
+        .join("\n"),
+  };
+}
+
 const checkTasks = [
   { name: "typecheck", label: "Types" },
   { name: "lint", label: "Lint", runner: "eslint" },
@@ -70,6 +101,7 @@ function capture(command, args) {
   const result = spawnSync(command, args, {
     cwd: root,
     encoding: "utf8",
+    env: createOutput({ ...process.env, NO_COLOR: "1" }).childEnv,
     maxBuffer: 64 * 1024 * 1024,
   });
   if (result.error) throw result.error;
@@ -569,6 +601,7 @@ async function runCheck(check, outputDirectory, checkIndex) {
       result = await new Promise((resolve) => {
         const child = spawn("pnpm", args, {
           cwd: root,
+          env: createOutput().childEnv,
           stdio: ["ignore", output, output],
         });
         let error;
@@ -730,16 +763,7 @@ async function main() {
     ? git(["merge-base", "HEAD", options.base]).trim()
     : git(["rev-parse", "HEAD"]).trim();
   const files = collectChanges(git, base);
-  const terminal = Boolean(
-    process.stdout.isTTY && process.stderr.isTTY && process.env.TERM !== "dumb",
-  );
-  const color = terminal && !Object.hasOwn(process.env, "NO_COLOR");
-  const paint = (code, text) => (color ? `\x1b[${code}m${text}\x1b[0m` : text);
-  const indent = (text) =>
-    text
-      .split("\n")
-      .map((line) => `    ${line}`)
-      .join("\n");
+  const { terminal, paint, indent } = createOutput();
   console.log(
     paint(
       "1",
@@ -949,7 +973,12 @@ if (
   try {
     await main();
   } catch (error) {
-    console.error(error instanceof Error ? error.message : String(error));
+    console.error(
+      createOutput().paint(
+        "31",
+        error instanceof Error ? error.message : String(error),
+      ),
+    );
     process.exitCode = 1;
   }
 }
