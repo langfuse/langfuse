@@ -431,10 +431,15 @@ export function normalizeCapturedQueries(
     return {
       fn: c.fn,
       route: routeOf(c.tags),
-      sql: wrapLongSql(splitConditions(sql)),
+      sql: layoutSql(sql),
       params,
     };
   });
+}
+
+/** Line layout every golden snapshot shares, applied to formatted SQL. */
+export function layoutSql(sql: string): string {
+  return wrapLongSql(splitConditions(sql));
 }
 
 const CONDITION_CLAUSE = /^(\s*)(PREWHERE|WHERE|HAVING) (.*)$/;
@@ -566,7 +571,7 @@ function splitTopLevelAnd(expr: string): string[] {
   let start = 0;
   for (const [i, c] of unquoted(expr)) {
     depth += bracketDelta(c);
-    if (depth === 0 && i >= start && expr.startsWith(AND, i)) {
+    if (depth === 0 && expr.startsWith(AND, i)) {
       parts.push(expr.slice(start, i));
       start = i + AND.length;
     }
