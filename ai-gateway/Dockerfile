@@ -154,6 +154,37 @@ COPY --from=licenses /app/THIRD_PARTY_LICENSES.txt /usr/share/licenses/ai-gatewa
 ARG BUILD_ID
 ENV BUILD_ID=$BUILD_ID
 
+# ubi9-micro's labels describe Red Hat's base image (name, vendor, version,
+# build date, git revision), and Docker Hub and scanners read them as this
+# image's identity, so every one that names the base is overridden. Labels the
+# release pipeline passes at build time (version, created, revision) take
+# precedence over these. cpe, architecture and com.redhat.license_terms stay:
+# they still describe the base OS layers.
+ARG MICRO_BASE_IMAGE
+LABEL org.opencontainers.image.title="Langfuse AI Gateway" \
+    org.opencontainers.image.description="Gateway for native OpenAI and Anthropic provider APIs that records each generation in Langfuse" \
+    org.opencontainers.image.vendor="Langfuse" \
+    org.opencontainers.image.url="https://langfuse.com" \
+    org.opencontainers.image.source="https://github.com/langfuse/langfuse" \
+    org.opencontainers.image.licenses="MIT" \
+    org.opencontainers.image.revision="${BUILD_ID}" \
+    org.opencontainers.image.version="" \
+    org.opencontainers.image.created="" \
+    org.opencontainers.image.base.name="${MICRO_BASE_IMAGE}" \
+    name="langfuse/langfuse-ai-gateway" \
+    summary="Langfuse AI Gateway" \
+    description="Gateway for native OpenAI and Anthropic provider APIs that records each generation in Langfuse" \
+    vendor="Langfuse" \
+    maintainer="Langfuse <engineering@langfuse.com>" \
+    url="https://langfuse.com" \
+    version="" \
+    release="" \
+    build-date="" \
+    vcs-ref="${BUILD_ID}" \
+    com.redhat.component="langfuse-ai-gateway" \
+    io.k8s.display-name="Langfuse AI Gateway" \
+    io.k8s.description="Gateway for native OpenAI and Anthropic provider APIs that records each generation in Langfuse"
+
 # The gateway handles SIGTERM itself with a bounded drain (see
 # scripts/smoke-image.sh), so no init process is needed.
 USER 10001:10001
