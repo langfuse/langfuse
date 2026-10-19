@@ -761,7 +761,7 @@ async function clusterFacet(
               metrics,
               models,
               named,
-              prepared,
+              { ...prepared, facetName },
               {
                 facet_id: facet.facetId,
                 facet_name: facetName,
