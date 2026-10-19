@@ -8,6 +8,7 @@ import {
   streamText,
   tool,
   type GenerateTextAbortEvent,
+  type GenerateTextInclude,
   type GenerateTextOnAbortCallback,
   type GenerateTextOnEndCallback,
   type GenerateTextResult,
@@ -136,7 +137,9 @@ type BaseLLMTextOptions<TOOLS extends ToolSet, OUTPUT extends Output.Output> = {
 export type GenerateLLMTextOptions<
   TOOLS extends ToolSet = {},
   OUTPUT extends Output.Output = Output.Output<string, string, never>,
-> = BaseLLMTextOptions<TOOLS, OUTPUT>;
+> = BaseLLMTextOptions<TOOLS, OUTPUT> & {
+  include?: GenerateTextInclude;
+};
 
 export type StreamLLMTextOptions<
   TOOLS extends ToolSet = {},
@@ -193,6 +196,7 @@ export async function generateLLMText<
         model: prepared.languageModel,
         ...prepared.callOptions,
         output: options.output,
+        include: options.include,
         onEnd: options.onEnd,
       }),
     );

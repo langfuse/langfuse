@@ -111,6 +111,90 @@ function bedrockModel(slot: TopicsModel["slot"], model: string): TopicsModel {
 
 describe("generateTopicText", () => {
   it.each([
+    ["chat", true],
+    ["responses", true],
+    ["chat", false],
+    ["bedrock-cache", true],
+  ] as const)(
+    "classifies only explicit wire refusals (%s, refused: %s)",
+    async (api, refused) => {
+      const message = {
+        role: "assistant",
+        content: null,
+        refusal: "private refusal",
+      };
+      // Application data can resemble a provider response without being a refusal.
+      const invalidOutput = JSON.stringify({ choices: [{ message }] });
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () =>
+          Response.json(
+            api === "responses"
+              ? {
+                  output: [
+                    {
+                      id: "msg-refusal",
+                      type: "message",
+                      role: "assistant",
+                      content: [
+                        { type: "refusal", refusal: "private refusal" },
+                      ],
+                    },
+                  ],
+                }
+              : {
+                  choices: [
+                    {
+                      index: 0,
+                      finish_reason: "stop",
+                      message: refused
+                        ? message
+                        : {
+                            role: "assistant",
+                            content: invalidOutput,
+                            refusal: null,
+                          },
+                    },
+                  ],
+                },
+          ),
+        ),
+      );
+      const error = await generateTopicText({
+        model:
+          api === "bedrock-cache"
+            ? bedrockModel("clustering", "us.openai.gpt-6-luna")
+            : {
+                slot: "clustering",
+                provider: "openai-topics",
+                adapter: LLMAdapter.OpenAI,
+                model: "gpt-6-luna",
+                connection: {
+                  secretKey: encrypt("sk-test"),
+                  config: { useResponsesApi: api === "responses" },
+                },
+              },
+        system: [
+          { text: "private system prompt", cache: api === "bedrock-cache" },
+        ],
+        input: "private input",
+        schema: z.object({ name: z.string() }),
+        maxOutputTokens: 256,
+      }).catch((error: unknown) => error);
+
+      expect(error).toBeInstanceOf(Error);
+      const metadata = getTopicTextResponseMetadata(error);
+      expect(metadata).toMatchObject({
+        "langfuse.topics.response.finish_reason": refused
+          ? "content-filter"
+          : "stop",
+      });
+      expect(JSON.stringify(metadata)).not.toContain("private");
+      expect(fetch).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each([
     ["max_tokens", "length", "", "AI_NoOutputGeneratedError"],
     ["refusal", "other", "", "AI_NoOutputGeneratedError"],
     ["guardrail_intervened", "content-filter", "", "AI_NoOutputGeneratedError"],
