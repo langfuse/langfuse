@@ -1,8 +1,9 @@
 import { InvalidRequestError } from "@langfuse/shared";
-import type {
+import {
   GatewayIngestionMode,
-  PrismaClient,
+  type PrismaClient,
 } from "@langfuse/shared/src/db";
+import { env } from "@/src/env.mjs";
 import { auditLog } from "@/src/features/audit-logs/server";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
@@ -25,6 +26,15 @@ export class GatewayConfigService {
     ingestionMode: GatewayIngestionMode;
     session: OrgAuthedContext["session"];
   }) {
+    if (
+      params.ingestionMode === GatewayIngestionMode.NONE &&
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+    ) {
+      throw new InvalidRequestError(
+        "Ingestion mode NONE is only available on self-hosted deployments",
+      );
+    }
+
     const before = await this.getConfig(params.organizationId);
 
     if (params.defaultIngestionProjectId) {

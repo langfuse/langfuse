@@ -51,7 +51,7 @@ export const GatewayResolveResponseSchema = z
         provider_connection_id: z.string(),
       })
       .strict(),
-    ingestion_mode: z.enum(["usage", "full"]),
+    ingestion_mode: z.enum(["none", "usage", "full"]),
     ingestion: z
       .object({
         access_token: z.string(),
