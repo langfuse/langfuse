@@ -1132,7 +1132,16 @@ async function updateTopics(
           maxRows: env.LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS,
           maxBytes: env.LANGFUSE_TOPICS_MAX_CLUSTERING_BYTES,
         },
-      );
+      ).catch(async (error: unknown) => {
+        if (accepted?.status === "pending")
+          await saveTopicRun({
+            ...accepted,
+            status: "failed",
+            error: errorMessage(error),
+            finishedAt: new Date().toISOString(),
+          });
+        throw error;
+      });
       countSummaries(progress, summaries);
       progress.counts.requested = summaries.length;
       await clusterFacet(

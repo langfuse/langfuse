@@ -191,11 +191,19 @@ switch (`TOPICS`, `TOPICS_UPDATE`, `TOPICS_EMBEDDING`, `TOPICS_AUTOMATION`); set
 them to `false` on fleets that only run trace batches.
 
 A facet version without any map starts one automatic **Update topics** execution
-once it has 100 compatible summaries from the last seven days, while automatic
-processing is on with the embedding model those summaries used. It appears in
-History under the `system:topics` actor. A queued execution is queued again by
-the next job; a failed one is never restarted automatically and is resumed from
-History. An existing map or fit in progress for the version, even an
+once a recent window contains at least 100 compatible summaries within the
+worker's row and byte limits, while automatic processing is on with the embedding
+model those summaries used. It first checks seven days, then searches for a
+smaller recent window using database counts and byte estimates. Metadata-only
+counts narrow row-oversized windows before estimating text payloads; byte
+estimates are projected before sorting. Searches are throttled per facet and
+embedding configuration for 60 seconds, with one deferred check per minute when
+another batch arrives during that cooldown. The entire
+selected window uses the same clustering and naming pipeline as a manual update.
+It appears in History under the `system:topics` actor. A queued execution is queued
+again by the next job. A discovery that failed at the capacity guard gets one
+replacement request with a newly selected window; other failures, including a
+failed replacement, are resumed from History. An existing map or fit in progress for the version, even an
 incompatible one, blocks discovery; replace it with **Update topics**. Summaries
 stored while the first map is being fitted stay unassigned until the next
 **Update topics**.
@@ -388,8 +396,9 @@ controlled by `LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS` and
 `LANGFUSE_TOPICS_MAX_CLUSTERING_BYTES`. A metadata count rejects excessive rows
 or embedding payload before loading vectors; the streamed read also enforces
 rows and bytes to cover large texts and changes after the count. Exceeding a
-limit fails the update with a smaller-window message; discovery never silently
-samples a cohort. These are initial capacity limits, not a guarantee about
+limit fails the update with a smaller-window message. Automatic discovery selects
+a fitting window before queuing; manual updates retain their requested window.
+Neither samples the clustering cohort. These are initial capacity limits, not a guarantee about
 container RSS: parent/child serialization, native fitting, and concurrent queue
 jobs need additional headroom. Exact neighbor search has quadratic cost; admitted
 cohorts can still exceed the deadline. Map coordinates are repeatable on the same platform

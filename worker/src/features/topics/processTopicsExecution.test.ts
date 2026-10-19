@@ -12,6 +12,7 @@ import type {
 } from "@langfuse/shared/topics";
 import {
   TOPICS_TRANSCRIPT_VERSION,
+  getTopicClusteringSummaries,
   type TopicEmbeddingBatch,
   type TopicEmbeddingRef,
 } from "@langfuse/shared/topics/server";
@@ -224,28 +225,30 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
             a.createdAt.localeCompare(b.createdAt),
         )
         .at(-1) ?? null,
-    getTopicClusteringSummaries: async (
-      projectId: string,
-      facetId: string,
-      facetVersion: number,
-      embeddingConfig: TopicEmbeddingConfig,
-      timeRange: TopicTimeRange,
-    ) =>
-      [...state.summaries.values()]
-        .filter(
-          (row) =>
-            row.projectId === projectId &&
-            row.facetId === facetId &&
-            row.facetVersion === facetVersion &&
-            row.traceId !== null &&
-            row.state === "complete" &&
-            row.embeddingModel === embeddingConfig.embeddingModel &&
-            row.embedding.length === embeddingConfig.embeddingDimensions &&
-            inTimeRange(row, timeRange),
-        )
-        .sort((a, b) =>
-          a.traceId < b.traceId ? -1 : a.traceId > b.traceId ? 1 : 0,
-        ),
+    getTopicClusteringSummaries: vi.fn(
+      async (
+        projectId: string,
+        facetId: string,
+        facetVersion: number,
+        embeddingConfig: TopicEmbeddingConfig,
+        timeRange: TopicTimeRange,
+      ) =>
+        [...state.summaries.values()]
+          .filter(
+            (row) =>
+              row.projectId === projectId &&
+              row.facetId === facetId &&
+              row.facetVersion === facetVersion &&
+              row.traceId !== null &&
+              row.state === "complete" &&
+              row.embeddingModel === embeddingConfig.embeddingModel &&
+              row.embedding.length === embeddingConfig.embeddingDimensions &&
+              inTimeRange(row, timeRange),
+          )
+          .sort((a, b) =>
+            a.traceId < b.traceId ? -1 : a.traceId > b.traceId ? 1 : 0,
+          ),
+    ),
     getTopicRun: async (_project: string, id: string) =>
       state.runs.get(id) ?? null,
     readTopicRunTraceIds: async (
@@ -1033,6 +1036,31 @@ describe("Topics execution", () => {
       state.executions.get("source-failure")?.facets[0].counts,
     ).toMatchObject({ complete: 2, failed: 1 });
     expect(state.summarize).toHaveBeenCalledTimes(2);
+  });
+
+  it("fails the pending discovery run when loading its cohort fails, preserving the published map", async () => {
+    await processSelection("source", 100);
+    await updateSelection("published");
+    const published = [...state.runs.values()].at(-1)!;
+    state.numeric.mockClear();
+    state.name.mockClear();
+    vi.mocked(getTopicClusteringSummaries).mockRejectedValueOnce(
+      new Error("Clustering cohort exceeds capacity"),
+    );
+
+    await updateSelection("capacity-failure");
+
+    const failed = state.executions.get("capacity-failure")!;
+    expect(failed.status).toBe("completed_with_errors");
+    expect(failed.facets[0].outcome).toBe("failed");
+    expect(state.runs.get(failed.facets[0].runId!)).toMatchObject({
+      status: "failed",
+      error: "Clustering cohort exceeds capacity",
+      finishedAt: expect.any(String),
+    });
+    expect(state.runs.get(published.id)).toEqual(published);
+    expect(state.numeric).not.toHaveBeenCalled();
+    expect(state.name).not.toHaveBeenCalled();
   });
 
   it("restarts a failed update with fresh membership and naming while preserving the published map", async () => {
