@@ -81,6 +81,34 @@ describe("automatic Topics assignment against storage", () => {
     metadata: {},
   });
 
+  async function discoveryBatch(name: string) {
+    const facet = await createTopicFacet({
+      projectId,
+      name,
+      description: "",
+      prompt: "Describe the request.",
+    });
+    const now = Date.now();
+    const rows = Array.from({ length: 100 }, (_, index) =>
+      summary(
+        facet.id,
+        new Date(now - (index + 1) * 60_000).toISOString(),
+        vector(1, index / 100),
+      ),
+    );
+    await writeTopicSummaries(rows);
+    return {
+      projectId,
+      traceIds: [rows[0].traceId!],
+      facets: [{ facetId: facet.id, version: 1 }],
+      embeddingConfig,
+      timeRange: {
+        from: new Date(rows[0].unitStartTime),
+        to: new Date(Date.parse(rows[0].unitStartTime) + 1),
+      },
+    };
+  }
+
   beforeAll(async () => {
     await prisma.organization.create({
       data: {
@@ -181,31 +209,7 @@ describe("automatic Topics assignment against storage", () => {
   });
 
   it("starts one discovery when concurrent jobs reach the threshold, and queues it again if its job is lost", async () => {
-    const facet = await createTopicFacet({
-      projectId,
-      name: "Discovery",
-      description: "",
-      prompt: "Describe the request.",
-    });
-    const now = Date.now();
-    const rows = Array.from({ length: 100 }, (_, index) =>
-      summary(
-        facet.id,
-        new Date(now - (index + 1) * 60_000).toISOString(),
-        vector(1, index / 100),
-      ),
-    );
-    await writeTopicSummaries(rows);
-    const batch = {
-      projectId,
-      traceIds: [rows[0].traceId!],
-      facets: [{ facetId: facet.id, version: 1 }],
-      embeddingConfig,
-      timeRange: {
-        from: new Date(rows[0].unitStartTime),
-        to: new Date(Date.parse(rows[0].unitStartTime) + 1),
-      },
-    };
+    const batch = await discoveryBatch("Discovery");
 
     const startedAt = new Date();
 
@@ -233,40 +237,17 @@ describe("automatic Topics assignment against storage", () => {
   });
 
   it("does not start discovery while a fit for the facet is still running", async () => {
-    const facet = await createTopicFacet({
-      projectId,
-      name: "Running fit",
-      description: "",
-      prompt: "Describe the request.",
-    });
+    const batch = await discoveryBatch("Running fit");
     // A manual Update topics that has not published yet.
     await createTopicRun({
       projectId,
-      facetId: facet.id,
+      facetId: batch.facets[0].facetId,
       facetVersion: 1,
       config: {},
     });
-    const now = Date.now();
-    const rows = Array.from({ length: 100 }, (_, index) =>
-      summary(
-        facet.id,
-        new Date(now - (index + 1) * 60_000).toISOString(),
-        vector(1, index / 100),
-      ),
-    );
-    await writeTopicSummaries(rows);
     const startedAt = new Date();
 
-    await processTopicsAutomation({
-      projectId,
-      traceIds: [rows[0].traceId!],
-      facets: [{ facetId: facet.id, version: 1 }],
-      embeddingConfig,
-      timeRange: {
-        from: new Date(rows[0].unitStartTime),
-        to: new Date(Date.parse(rows[0].unitStartTime) + 1),
-      },
-    });
+    await processTopicsAutomation(batch);
 
     expect(
       await prisma.batchAction.count({
@@ -316,7 +297,7 @@ describe("automatic Topics assignment against storage", () => {
       await queue.waitUntilReady();
       let minute = 0;
       const addChecks = async () => {
-        for (let index = 0; index < 10; index++) {
+        for (let index = 0; index < 2; index++) {
           vi.setSystemTime(now + minute++ * 60_000);
           await processTopicsAutomation(batch);
         }

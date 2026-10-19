@@ -502,55 +502,46 @@ export async function getTopicClusteringSummaries(
   facetVersion: number,
   embeddingConfig: TopicEmbeddingConfig,
   timeRange: TopicTimeRange,
-  limits?: { maxRows: number; maxBytes: number },
+  limits: { maxRows: number; maxBytes: number },
 ): Promise<TopicSummary[]> {
   const capacityError = () => new Error(TOPIC_CLUSTERING_CAPACITY_ERROR);
-  if (limits) {
-    if (
-      !Number.isSafeInteger(limits.maxRows) ||
-      limits.maxRows < 1 ||
-      limits.maxRows >= Number.MAX_SAFE_INTEGER ||
-      !Number.isSafeInteger(limits.maxBytes) ||
-      limits.maxBytes < 1
-    )
-      throw new Error(
-        "Topics clustering limits must be positive safe integers.",
-      );
-    const [{ count }] = await getTopicSummaryCounts(
-      projectId,
-      [{ facetId, version: facetVersion }],
-      embeddingConfig,
-      timeRange,
-    );
-    if (
-      count > limits.maxRows ||
-      count * embeddingConfig.embeddingDimensions * 8 > limits.maxBytes
-    )
-      throw capacityError();
-  }
-  const options = {
-    query: `${clusteringSummariesSql(summaryColumns)}
-    ORDER BY trace_id${limits ? " LIMIT {maximumRows:UInt64}" : ""}`,
-    params: {
-      projectId,
-      facetId,
-      facetVersion,
-      ...embeddingConfig,
-      ...timeRangeParams(timeRange),
-      internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
-      publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
-      ...(limits ? { maximumRows: limits.maxRows + 1 } : {}),
-    },
-    tags: { route: "topics-clustering-summaries", projectId },
-  };
-  if (!limits)
-    return (await queryClickhouse<SummaryRow>(options)).map(summaryResult);
+  if (
+    !Number.isSafeInteger(limits.maxRows) ||
+    limits.maxRows < 1 ||
+    limits.maxRows >= Number.MAX_SAFE_INTEGER ||
+    !Number.isSafeInteger(limits.maxBytes) ||
+    limits.maxBytes < 1
+  )
+    throw new Error("Topics clustering limits must be positive safe integers.");
+  const [{ count }] = await getTopicSummaryCounts(
+    projectId,
+    [{ facetId, version: facetVersion }],
+    embeddingConfig,
+    timeRange,
+  );
+  if (
+    count > limits.maxRows ||
+    count * embeddingConfig.embeddingDimensions * 8 > limits.maxBytes
+  )
+    throw capacityError();
 
   const summaries: TopicSummary[] = [];
   let bytes = 0;
   try {
     for await (const row of queryClickhouseStream<SummaryRow>({
-      ...options,
+      query: `${clusteringSummariesSql(summaryColumns)}
+        ORDER BY trace_id LIMIT {maximumRows:UInt64}`,
+      params: {
+        projectId,
+        facetId,
+        facetVersion,
+        ...embeddingConfig,
+        ...timeRangeParams(timeRange),
+        internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
+        publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
+        maximumRows: limits.maxRows + 1,
+      },
+      tags: { route: "topics-clustering-summaries", projectId },
       clickhouseSettings: {
         max_result_bytes: String(limits.maxBytes),
         result_overflow_mode: "throw",
@@ -856,13 +847,12 @@ export async function readTopicRunTraceIds(
   facet: TopicFacetRef,
   runId: string,
   timeRange: TopicTimeRange,
-  maxRows?: number,
+  maxRows: number,
 ): Promise<string[]> {
   if (
-    maxRows !== undefined &&
-    (!Number.isSafeInteger(maxRows) ||
-      maxRows < 1 ||
-      maxRows >= Number.MAX_SAFE_INTEGER)
+    !Number.isSafeInteger(maxRows) ||
+    maxRows < 1 ||
+    maxRows >= Number.MAX_SAFE_INTEGER
   )
     throw new Error("Topics continuity limit must be a positive safe integer.");
   const rows = await queryClickhouse<{ traceId: string }>({
@@ -871,18 +861,18 @@ export async function readTopicRunTraceIds(
         AND facet_id = {facetId:String} AND facet_version = {facetVersion:UInt32}
         AND origin = 'initial'
         AND trace_id != ''
-      ORDER BY traceId${maxRows === undefined ? "" : " LIMIT {maximumRows:UInt64}"}`,
+      ORDER BY traceId LIMIT {maximumRows:UInt64}`,
     params: {
       projectId,
       ...timeRangeParams(timeRange),
       runId,
       facetId: facet.facetId,
       facetVersion: facet.version,
-      ...(maxRows === undefined ? {} : { maximumRows: maxRows + 1 }),
+      maximumRows: maxRows + 1,
     },
     tags: { route: "topics-run-summaries", projectId },
   });
-  if (maxRows !== undefined && rows.length > maxRows)
+  if (rows.length > maxRows)
     throw new Error(
       "Previous Topics map exceeds this worker's clustering capacity; its continuity cohort cannot be loaded.",
     );

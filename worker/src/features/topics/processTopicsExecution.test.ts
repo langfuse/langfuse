@@ -336,20 +336,18 @@ vi.mock("./models", () => ({
     members: { summary: string }[];
     contrasts: { id: string; summary: string }[];
   }) => {
-    if (state.sampleNaming) group.members.reverse();
+    const members = state.sampleNaming
+      ? group.members
+          .toReversed()
+          .filter((_, index) => index === 2 || index === 4)
+      : group.members;
     return {
       // Citation IDs are opaque to the caller; packing can skip candidates.
-      members: group.members.flatMap((member, index) =>
-        !state.sampleNaming || index === 2 || index === 4
-          ? [
-              {
-                id: state.sampleNaming ? `selected-${index}` : `m${index + 1}`,
-                summary: member.summary,
-                source: member,
-              },
-            ]
-          : [],
-      ),
+      members: members.map((source, index) => ({
+        id: state.sampleNaming ? `selected-${index}` : `m${index + 1}`,
+        summary: source.summary,
+        source,
+      })),
       totalMemberCount: group.members.length,
       sampled: state.sampleNaming,
     };
@@ -1224,34 +1222,31 @@ describe("Topics execution", () => {
     expect(state.name).not.toHaveBeenCalled();
   });
 
-  it.each([false, true])(
-    "maps local naming citations back to their scoped source references (sampled: %s)",
-    async (sampled) => {
-      state.sampleNaming = sampled;
-      await processSelection("source", 100);
-      await updateSelection("named");
-      const topics = [...state.runs.values()].at(-1)!.topics;
-      expect(topics).toHaveLength(2);
-      for (const [index, [group]] of state.name.mock.calls.entries()) {
-        const source = [...state.summaries.values()].find(
-          (summary) => summary.summary === group.members[0].summary,
-        )!;
-        expect(topics[index].metadata).toMatchObject({
-          effectiveMemberCount: 50,
-          selectedMemberCount: sampled ? 2 : 50,
-          namingSampled: sampled,
-        });
-        expect(topics[index].representativeSummaries).toEqual([
-          {
-            facetId: source.facetId,
-            facetVersion: source.facetVersion,
-            traceId: source.traceId,
-            sessionId: null,
-          },
-        ]);
-      }
-    },
-  );
+  it("maps sampled naming citations back to their scoped source references", async () => {
+    state.sampleNaming = true;
+    await processSelection("source", 100);
+    await updateSelection("named");
+    const topics = [...state.runs.values()].at(-1)!.topics;
+    expect(topics).toHaveLength(2);
+    for (const [index, [group]] of state.name.mock.calls.entries()) {
+      const source = [...state.summaries.values()].find(
+        (summary) => summary.summary === group.members[0].summary,
+      )!;
+      expect(topics[index].metadata).toMatchObject({
+        effectiveMemberCount: 50,
+        selectedMemberCount: 2,
+        namingSampled: true,
+      });
+      expect(topics[index].representativeSummaries).toEqual([
+        {
+          facetId: source.facetId,
+          facetVersion: source.facetVersion,
+          traceId: source.traceId,
+          sessionId: null,
+        },
+      ]);
+    }
+  });
 
   it.each([0, 3])(
     "recovers a skipped cohort of %s after a lost progress acknowledgement",
@@ -1428,7 +1423,7 @@ describe("Topics execution", () => {
     },
   );
 
-  it("bounds assignment writes and verifies every batch before publication", async () => {
+  it("bounds assignment writes and retries publication when a batch is not visible", async () => {
     await processSelection("source", 1);
     const template = [...state.summaries.values()][0];
     for (let index = 1; index < 2001; index++) {
@@ -1452,17 +1447,10 @@ describe("Topics execution", () => {
     expect(state.executions.get("batched")?.facets[0].error).toContain(
       "not fully visible",
     );
-  });
-
-  it("defers publication when assignments are not visible", async () => {
-    await processSelection("source", 100);
-    state.visible = false;
-    await updateSelection("hidden");
-    expect([...state.runs.values()][0].status).toBe("failed");
     state.visible = true;
     await processTopicsExecution({
       projectId: "project",
-      executionId: "hidden",
+      executionId: "batched",
     });
     expect([...state.runs.values()].at(-1)?.status).toBe("completed");
     expect(state.numeric).toHaveBeenCalledTimes(2);

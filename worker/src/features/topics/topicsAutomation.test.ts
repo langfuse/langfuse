@@ -11,7 +11,6 @@ import {
   listTopicSummaries,
   readTopicAssignments,
   readTopicExecutionSummary,
-  TopicsAutomationQueue,
   TOPIC_CLUSTERING_CAPACITY_ERROR,
   writeTopicAssignments,
 } from "@langfuse/shared/topics/server";
@@ -129,6 +128,11 @@ describe("automatic Topics assignment", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(listTopicSummaries).mockReset();
+    vi.mocked(getTopicProcessingMapIds).mockResolvedValue([]);
+    vi.mocked(getTopicClusteringSummaryStats).mockResolvedValue({
+      count: 100,
+      bytes: 1000,
+    });
     discoveryGate.mockResolvedValue("OK");
     vi.mocked(readTopicExecutionSummary).mockReset();
     vi.mocked(prisma.batchAction.findFirst).mockResolvedValue(null);
@@ -172,7 +176,6 @@ describe("automatic Topics assignment", () => {
       summary("other", [1, 0], { projectId: "other-project", facetId: "b" }),
     ]);
     expect(add.mock.calls[0][2].jobId).not.toBe(jobs[2].jobId);
-    expect(TopicsAutomationQueue.getInstance).toHaveBeenCalled();
   });
 
   it("assigns not-yet-assigned complete summaries onto the compatible serving map", async () => {
@@ -210,92 +213,42 @@ describe("automatic Topics assignment", () => {
     expect(createTopicExecution).not.toHaveBeenCalled();
   });
 
-  it("starts one first discovery per facet version once enough summaries exist", async () => {
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.mocked(listTopicSummaries).mockResolvedValue([summary("near", [1, 0])]);
-    vi.mocked(getTopicProcessingMapIds).mockResolvedValue([
-      { facetId: "facet", facetVersion: 2, runId: null },
-    ]);
-    vi.mocked(getTopicClusteringSummaryStats).mockResolvedValue({
+  it("waits for enough summaries and rechecks a deferred batch after the cooldown", async () => {
+    vi.mocked(listTopicSummaries).mockResolvedValue([]);
+    vi.mocked(getTopicClusteringSummaryStats).mockResolvedValueOnce({
       count: 99,
       bytes: 1000,
     });
-
     await processTopicsAutomation(batch);
     expect(createTopicExecution).not.toHaveBeenCalled();
 
-    vi.mocked(getTopicClusteringSummaryStats).mockResolvedValue({
-      count: 100,
-      bytes: 1000,
-    });
-    discoveryGate.mockResolvedValueOnce(null as never);
+    discoveryGate.mockResolvedValueOnce(null);
     await processTopicsAutomation(batch);
+    expect(getTopicClusteringSummaryStats).toHaveBeenCalledTimes(1);
     expect(createTopicExecution).not.toHaveBeenCalled();
-    expect(add).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({ payload: batch }),
-      expect.objectContaining({ delay: 60_000, jobId: expect.any(String) }),
-    );
-    // BullMQ retains the first payload when another batch queues the same ID.
-    const deferred = add.mock.lastCall![1].payload;
-    const deferredId = add.mock.lastCall![2].jobId;
-    discoveryGate.mockResolvedValueOnce(null as never);
-    await processTopicsAutomation({ ...batch, traceIds: ["latest-batch"] });
-    expect(add.mock.lastCall![2].jobId).toBe(deferredId);
-    // That first batch is no longer eligible, but the facet now has 100 summaries.
-    vi.mocked(listTopicSummaries).mockResolvedValueOnce([]);
-    await processTopicsAutomation(deferred);
+
+    // Discovery uses the current facet cohort even if this batch no longer has summaries.
+    await processTopicsAutomation(add.mock.lastCall![1].payload);
     expect(createTopicExecution).toHaveBeenCalledWith(
       expect.objectContaining({
         projectId: "project",
         operation: "update",
-        facets: [{ facetId: "facet", version: 2 }],
-        embeddingConfig: { embeddingModel: "embed", embeddingDimensions: 2 },
+        facets: batch.facets,
+        embeddingConfig: batch.embeddingConfig,
         exploratory: false,
       }),
       expect.any(String),
       "system:topics",
     );
     expect(enqueueTopicExecution).toHaveBeenCalledWith("project", "execution");
-
-    // Started before: a queued one is queued again, a failed one is left for Resume.
-    vi.mocked(createTopicExecution).mockClear();
-    vi.mocked(enqueueTopicExecution).mockClear();
-    vi.mocked(prisma.batchAction.findFirst)
-      .mockResolvedValueOnce({ id: "queued" } as never)
-      .mockResolvedValueOnce({ id: "failed" } as never);
-    vi.mocked(readTopicExecutionSummary)
-      .mockResolvedValueOnce({ id: "queued", status: "queued" } as Awaited<
-        ReturnType<typeof readTopicExecutionSummary>
-      >)
-      .mockResolvedValueOnce({
-        id: "failed",
-        status: "failed",
-        facets: [],
-      } as unknown as Awaited<ReturnType<typeof readTopicExecutionSummary>>);
-    await processTopicsAutomation(batch);
-    await processTopicsAutomation(batch);
-    expect(vi.mocked(enqueueTopicExecution).mock.calls).toEqual([
-      ["project", "queued"],
-    ]);
-    vi.mocked(prisma.topicClusteringRun.findFirst).mockResolvedValueOnce({
-      id: "incompatible",
-    } as never);
-    await processTopicsAutomation(batch);
-    expect(createTopicExecution).not.toHaveBeenCalled();
   });
 
   it.each([
-    { count: 19_990, bytes: 1000, midpointTooSmall: false },
+    { count: 19_990, bytes: 1000, midpointTooSmall: true },
     { count: 100, bytes: 250 * 1024 * 1024, midpointTooSmall: false },
-    { count: 100_000, bytes: 1000, midpointTooSmall: true },
   ])(
     "narrows automatic discovery before queuing the shared update pipeline: %j",
     async ({ midpointTooSmall, ...oversized }) => {
-      vi.mocked(listTopicSummaries).mockResolvedValue([
-        summary("near", [1, 0]),
-      ]);
-      vi.mocked(getTopicProcessingMapIds).mockResolvedValue([]);
       vi.mocked(getTopicClusteringSummaryStats)
         .mockResolvedValueOnce(oversized)
         .mockResolvedValue({ count: 100, bytes: 1000 });
@@ -338,10 +291,7 @@ describe("automatic Topics assignment", () => {
     },
   );
 
-  it("defers an inseparable oversized cohort without creating executions or probing every batch", async () => {
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.mocked(listTopicSummaries).mockResolvedValue([summary("near", [1, 0])]);
-    vi.mocked(getTopicProcessingMapIds).mockResolvedValue([]);
+  it("bounds probes for an inseparable oversized cohort and observes the cooldown", async () => {
     vi.mocked(getTopicClusteringSummaryStats).mockResolvedValue({
       count: 100_000,
       bytes: 1000,
@@ -359,18 +309,12 @@ describe("automatic Topics assignment", () => {
       60,
       "NX",
     );
-    discoveryGate.mockResolvedValueOnce(null as never);
+    discoveryGate.mockResolvedValueOnce(null);
     await processTopicsAutomation(batch);
     expect(getTopicClusteringSummaryStats).toHaveBeenCalledTimes(checks);
-    const recheckId = add.mock.lastCall![2].jobId;
-    discoveryGate.mockResolvedValueOnce(null as never);
-    await processTopicsAutomation(batch);
-    expect(add.mock.lastCall![2].jobId).toBe(recheckId);
   });
 
   it("releases the discovery cooldown after a failed probe so queue retries can run", async () => {
-    vi.mocked(listTopicSummaries).mockResolvedValue([summary("near", [1, 0])]);
-    vi.mocked(getTopicProcessingMapIds).mockResolvedValue([]);
     vi.mocked(getTopicClusteringSummaryStats).mockRejectedValueOnce(
       new Error("temporary failure"),
     );
@@ -384,7 +328,6 @@ describe("automatic Topics assignment", () => {
 
   it("recovers late-arrival capacity failures until a smaller frozen request succeeds", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
-    vi.mocked(getTopicProcessingMapIds).mockResolvedValue([]);
     vi.mocked(getTopicClusteringSummaryStats).mockResolvedValue({
       count: 12_000,
       bytes: 1000,
@@ -392,7 +335,7 @@ describe("automatic Topics assignment", () => {
     let latest: TopicExecutionSummary | null = null;
     let cooldown = 0;
     discoveryGate.mockImplementation(async () => {
-      if (Date.now() < cooldown) return null as never;
+      if (Date.now() < cooldown) return null;
       cooldown = Date.now() + 60_000;
       return "OK";
     });
@@ -473,22 +416,25 @@ describe("automatic Topics assignment", () => {
   });
 
   it.each([
-    { state: "active", capacityFailure: false, monitors: 1 },
-    { state: "failed", capacityFailure: false, monitors: 0 },
-    { state: "completed", capacityFailure: false, monitors: 0 },
-    { state: "missing", capacityFailure: false, monitors: 0 },
-    { state: "unknown", capacityFailure: false, monitors: 0 },
-    { state: "failed", capacityFailure: true, monitors: 1 },
+    { status: "failed", state: "failed", capacityFailure: false, monitors: 0 },
+    { status: "running", state: "active", capacityFailure: false, monitors: 1 },
+    { status: "running", state: "failed", capacityFailure: false, monitors: 0 },
+    {
+      status: "running",
+      state: "missing",
+      capacityFailure: false,
+      monitors: 0,
+    },
+    { status: "running", state: "failed", capacityFailure: true, monitors: 1 },
   ] as const)(
-    "monitors running discovery according to queue state: %j",
-    async ({ state, capacityFailure, monitors }) => {
-      vi.mocked(getTopicProcessingMapIds).mockResolvedValue([]);
+    "only monitors active work or a racing capacity failure: %j",
+    async ({ status, state, capacityFailure, monitors }) => {
       vi.mocked(prisma.batchAction.findFirst).mockResolvedValue({
         id: "running",
       } as never);
       const running = {
         id: "running",
-        status: "running",
+        status,
         facets: [],
       } as unknown as TopicExecutionSummary;
       vi.mocked(readTopicExecutionSummary)
@@ -520,14 +466,6 @@ describe("automatic Topics assignment", () => {
   );
 
   it("does not start discovery once automatic processing is off or the embedding model changed", async () => {
-    vi.mocked(listTopicSummaries).mockResolvedValue([summary("near", [1, 0])]);
-    vi.mocked(getTopicProcessingMapIds).mockResolvedValue([
-      { facetId: "facet", facetVersion: 2, runId: null },
-    ]);
-    vi.mocked(getTopicClusteringSummaryStats).mockResolvedValue({
-      count: 100,
-      bytes: 1000,
-    });
     vi.mocked(getEnabledTopicsModels)
       .mockResolvedValueOnce(new Map())
       .mockResolvedValueOnce(

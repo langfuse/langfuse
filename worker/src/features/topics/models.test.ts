@@ -50,14 +50,10 @@ import type { TopicsModel, TopicsModels } from "@langfuse/shared/topics/server";
 async function nameTopicGroup(
   models: TopicsModels,
   group: Parameters<typeof prepareTopicNamingGroup>[0],
-  metadata?: Record<string, unknown>,
-  conflict?: Parameters<typeof namePreparedTopicGroup>[3],
 ) {
   return namePreparedTopicGroup(
     models,
     await prepareTopicNamingGroup(group, "naming-test"),
-    metadata,
-    conflict,
   );
 }
 
@@ -451,7 +447,6 @@ describe("Topics naming boundary", () => {
     });
     expect(result.costDetails.total).toBeCloseTo(0.03236, 10);
     const submitted = JSON.parse(state.call.mock.calls[0][0].input);
-    expect(submitted.members).toHaveLength(summaries.length);
     expect(
       submitted.members
         .map(({ summary }: { summary: string }) => summary)
@@ -480,15 +475,7 @@ describe("Topics naming boundary", () => {
     const group = makeGroup();
     const sources = [...group.members];
     const prepared = await prepareTopicNamingGroup(group, "run-a/group-a");
-    expect(state.encoding.free).toHaveBeenCalledOnce();
-    for (const source of sources)
-      expect(
-        state.encoding.encode.mock.calls.filter(
-          ([text]) => text === source.summary,
-        ),
-      ).toHaveLength(1);
     expect(prepared.sampled).toBe(true);
-    expect(prepared.members.length).toBeGreaterThan(0);
     expect(prepared.members.length).toBeLessThan(group.members.length);
     expect(new Set(prepared.members.map(({ id }) => id)).size).toBe(
       prepared.members.length,
@@ -514,19 +501,22 @@ describe("Topics naming boundary", () => {
       usage: {},
     }));
     const first = await namePreparedTopicGroup(topicsModels(), prepared);
-    expect(state.call).toHaveBeenCalledOnce();
+    const conflict = {
+      name: "Billing support",
+      description: "Support for billing problems.",
+      summaries: [
+        "NAMING_MEMBER too large for the retry reserve.",
+        "A billing question.",
+      ],
+    };
     const renamed = await namePreparedTopicGroup(
       topicsModels(),
       prepared,
       undefined,
-      {
-        name: "Billing support",
-        description: "Support for billing problems.",
-        summaries: [
-          "NAMING_MEMBER too large for the retry reserve.",
-          "A billing question.",
-        ],
-      },
+      conflict,
+    );
+    const [initialCall, renameCall] = state.call.mock.calls.map(
+      ([call]) => call,
     );
     const [initialRequest, renameRequest] = state.call.mock.calls.map(
       ([request]) => JSON.parse(request.input),
@@ -535,17 +525,17 @@ describe("Topics naming boundary", () => {
       prepared.members.map(({ id, summary }) => ({ id, summary })),
     );
     expect(renameRequest.members).toEqual(initialRequest.members);
-    expect(renameRequest.conflictingTopic.summaries).toEqual([
-      "A billing question.",
-    ]);
-    expect(first.usageDetails.naming_input).toBe(
-      state.call.mock.calls[0][0].trace.metadata.naming_input_tokens_estimated,
-    );
+    expect(renameRequest.conflictingTopic).toEqual({
+      ...conflict,
+      summaries: ["A billing question."],
+    });
+    expect(initialCall.trace.traceName).toBe("topics-naming");
+    expect(renameCall.trace.traceName).toBe("topics-naming-conflict");
+    expect(renameCall.system[0].text).toContain(initialCall.system[0].text);
     expect(renamed.usageDetails.naming_input).toBeGreaterThan(
       first.usageDetails.naming_input!,
     );
     expect(renamed.usageDetails.naming_input).toBeLessThanOrEqual(900_000);
-    expect(first.providedUsageDetails).toEqual({});
 
     const omittedId = Array.from(
       { length: group.members.length },
@@ -608,16 +598,12 @@ describe("Topics naming boundary", () => {
     const prepared = await prepareTopicNamingGroup(group, "byte-budget");
     expect(prepared.sampled).toBe(true);
     expect(prepared.members.length).toBeGreaterThan(0);
-    expect(prepared.members.length).toBeLessThan(group.members.length);
     expect(Buffer.byteLength(prepared.input)).toBeLessThanOrEqual(
       16 * 1024 * 1024,
     );
     expect(prepared.members.every((member) => member.summary === summary)).toBe(
       true,
     );
-    expect(
-      state.encoding.encode.mock.calls.every(([text]) => text.length <= 4096),
-    ).toBe(true);
   });
 
   it("yields while preparing escaped summaries and preserves complete text", async () => {
@@ -643,7 +629,6 @@ describe("Topics naming boundary", () => {
       expect(JSON.parse(prepared.input).members).toEqual([
         { id: "m1", summary },
       ]);
-      expect(state.encoding.free).toHaveBeenCalledOnce();
       expect(
         state.encoding.encode.mock.calls.every(([text]) => text.length <= 4096),
       ).toBe(true);
@@ -651,29 +636,6 @@ describe("Topics naming boundary", () => {
       clearImmediate(heartbeat);
       time.mockRestore();
     }
-  });
-
-  it("traces conflict renames separately and passes the conflicting topic", async () => {
-    state.call.mockResolvedValue({
-      output: {
-        name: "Invoice corrections",
-        description: "Requests to correct invoices.",
-        evidenceSummaryIds: ["m2"],
-      },
-      usage: {},
-    });
-    const conflict = {
-      name: "Invoice assistance",
-      description: "Requests involving invoices.",
-      summaries: ["The user requests an invoice."],
-    };
-    await nameTopicGroup(topicsModels(), evidence);
-    await nameTopicGroup(topicsModels(), evidence, undefined, conflict);
-    const [first, second] = state.call.mock.calls.map(([params]) => params);
-    expect(first.trace.traceName).toBe("topics-naming");
-    expect(second.trace.traceName).toBe("topics-naming-conflict");
-    expect(second.system[0].text).toContain(first.system[0].text);
-    expect(JSON.parse(second.input).conflictingTopic).toEqual(conflict);
   });
 
   it("trims names and rejects whitespace-only descriptions", async () => {

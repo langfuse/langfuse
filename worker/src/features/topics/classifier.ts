@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { setImmediate as yieldToEventLoop } from "node:timers/promises";
-import { topicSourceKey, type TopicSummary } from "@langfuse/shared/topics";
+import type { TopicSummary } from "@langfuse/shared/topics";
 
 interface TopicPrototype {
   id: string;
@@ -222,7 +222,7 @@ async function classifyBulkRow(
   return nearestTopic(prototypes, (_, index) => distances[index]);
 }
 
-/** Removing an unused nearest prototype can expose another serving population. */
+/** Removing competitors cannot displace a retained prototype's accepted members. */
 export async function retainPopulatedTopics<T extends TopicPrototype>(
   summaries: Pick<TopicSummary, "embedding">[],
   prototypes: T[],
@@ -230,24 +230,20 @@ export async function retainPopulatedTopics<T extends TopicPrototype>(
   const checkpoint = bulkCheckpoint();
   const vector: number[] = [];
   const distances: number[] = [];
-  for (;;) {
-    const active = new Set<string | null>();
-    for (const summary of summaries)
-      active.add(
-        (
-          await classifyBulkRow(
-            summary.embedding,
-            prototypes,
-            vector,
-            distances,
-            checkpoint,
-          )
-        ).topicId,
-      );
-    const retained = prototypes.filter((prototype) => active.has(prototype.id));
-    if (retained.length === prototypes.length) return retained;
-    prototypes = retained;
-  }
+  const active = new Set<string | null>();
+  for (const summary of summaries)
+    active.add(
+      (
+        await classifyBulkRow(
+          summary.embedding,
+          prototypes,
+          vector,
+          distances,
+          checkpoint,
+        )
+      ).topicId,
+    );
+  return prototypes.filter((prototype) => active.has(prototype.id));
 }
 
 /** Names only populations produced by the same classifier used for new traces. */
@@ -261,7 +257,7 @@ export async function buildNamingEvidence(
   type Example = { summary: TopicSummary; distance: number };
   const populations = prototypes.map(({ id }) => ({
     id,
-    members: [] as (Example & { sourceKey: string })[],
+    members: [] as TopicSummary[],
     contrasts: [] as Example[],
   }));
   for (const summary of summaries) {
@@ -275,12 +271,7 @@ export async function buildNamingEvidence(
     for (let index = 0; index < populations.length; index++) {
       const population = populations[index];
       const distance = distances[index];
-      if (population.id === result.topicId)
-        population.members.push({
-          summary,
-          distance,
-          sourceKey: topicSourceKey(summary),
-        });
+      if (population.id === result.topicId) population.members.push(summary);
       else {
         const contrasts = population.contrasts;
         const before = contrasts.findIndex((item) => distance < item.distance);
@@ -296,22 +287,14 @@ export async function buildNamingEvidence(
   }
   const evidence = [];
   for (const population of populations) {
-    population.members.sort(
-      (a, b) =>
-        a.distance - b.distance || a.sourceKey.localeCompare(b.sourceKey),
-    );
-    const members: TopicSummary[] = [];
-    for (const member of population.members) {
-      members.push(member.summary);
-      const pause = checkpoint();
-      if (pause) await pause;
-    }
     evidence.push({
       id: population.id,
-      count: members.length,
-      members,
+      count: population.members.length,
+      members: population.members,
       contrasts: population.contrasts.map((item) => item.summary),
     });
+    const pause = checkpoint();
+    if (pause) await pause;
   }
   return evidence;
 }

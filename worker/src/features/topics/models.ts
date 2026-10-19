@@ -443,7 +443,6 @@ async function encodeNamingString(
     if (tokens > tokenBudget) return null;
     chunks.push(escaped);
   }
-  if (tokens > tokenBudget) return null;
   chunks.push('"');
   return { json: chunks.join(""), tokens, bytes };
 }

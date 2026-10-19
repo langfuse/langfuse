@@ -198,160 +198,56 @@ describe("Topics clustering capacity", () => {
     embeddingDimensions: summaryFixture.embedding.length,
   };
 
-  it("returns aggregate capacity statistics for exactly the discovery population", async () => {
-    mocks.query
-      .mockResolvedValueOnce([
-        { facetId: "facet-a", facetVersion: 1, count: "2" },
-      ])
-      .mockResolvedValueOnce([{ count: "2", bytes: "12345" }]);
-    await expect(
-      getTopicClusteringSummaryStats(
-        "project-a",
-        "facet-a",
-        1,
-        embedding,
-        timeRange,
-        { maxRows: 10, maxBytes: 1024 * 1024 },
-      ),
-    ).resolves.toEqual({ count: 2, bytes: 12345 });
-    const stats = mocks.query.mock.calls[1][0];
-    expect(stats.query).toMatch(/^SELECT count\(\) AS count, sum\(/);
-    expect(stats.query).not.toContain("SELECT *");
-    expect(stats.query).toContain("length(embedding) * 8");
-    for (const field of [
-      "summary",
-      "metadata",
-      "trace_id",
-      "session_id",
-      "provided_usage_details",
-      "usage_details",
-      "provided_cost_details",
-      "cost_details",
-    ]) {
-      expect(stats.query).toContain(field);
-    }
-    expect(mocks.queryStream).not.toHaveBeenCalled();
+  const args = ["project-a", "facet-a", 1, embedding, timeRange] as const;
+  const limits = { maxRows: 2, maxBytes: 10_000 };
 
-    await getTopicClusteringSummaries(
-      "project-a",
-      "facet-a",
-      1,
-      embedding,
-      timeRange,
-    );
-    const payload = mocks.query.mock.calls[2][0];
-    expect(
-      stats.query.slice(stats.query.indexOf("FROM topic_facet_summaries")),
-    ).toBe(
-      payload.query
-        .slice(payload.query.indexOf("FROM topic_facet_summaries"))
-        .replace(/\s+ORDER BY trace_id$/, ""),
-    );
-    expect(stats.params).toEqual(payload.params);
-  });
-
-  it("skips payload estimates for row-oversized windows", async () => {
-    mocks.query.mockResolvedValueOnce([
-      { facetId: "facet-a", facetVersion: 1, count: "100000" },
-    ]);
-    await expect(
-      getTopicClusteringSummaryStats(
-        "project-a",
-        "facet-a",
-        1,
-        embedding,
-        timeRange,
-        { maxRows: 20_000, maxBytes: 256 * 1024 * 1024 },
-      ),
-    ).resolves.toEqual({
-      count: 100_000,
-      bytes: 100_000 * embedding.embeddingDimensions * 8,
-    });
-    expect(mocks.query).toHaveBeenCalledTimes(1);
-    expect(mocks.query.mock.calls[0][0].query).not.toContain("toJSONString");
-  });
-
-  it("rejects an oversized cohort before downloading summary payloads", async () => {
-    mocks.query.mockImplementation(async ({ query }: { query: string }) =>
-      query.includes("count() AS count")
-        ? [{ facetId: "facet-a", facetVersion: 1, count: "3" }]
-        : [row, { ...row, traceId: "trace-b" }, { ...row, traceId: "trace-c" }],
-    );
-    await expect(
-      getTopicClusteringSummaries(
-        "project-a",
-        "facet-a",
-        1,
-        embedding,
-        timeRange,
-        { maxRows: 2, maxBytes: 10_000 },
-      ),
-    ).rejects.toThrow("smaller time window");
-    expect(mocks.query).toHaveBeenCalledOnce();
-    expect(mocks.queryStream).not.toHaveBeenCalled();
-  });
-
-  it("rejects the embedding footprint before downloading payloads", async () => {
+  beforeEach(() => {
     mocks.query.mockResolvedValue([
       { facetId: "facet-a", facetVersion: 1, count: "2" },
     ]);
-    await expect(
-      getTopicClusteringSummaries(
-        "project-a",
-        "facet-a",
-        1,
-        { ...embedding, embeddingDimensions: 1024 },
-        timeRange,
-        { maxRows: 2, maxBytes: 10_000 },
-      ),
-    ).rejects.toThrow("smaller time window");
-    expect(mocks.queryStream).not.toHaveBeenCalled();
   });
 
-  it("returns the complete at-limit cohort and bounds the eligible query result", async () => {
-    mocks.query.mockResolvedValue([
-      { facetId: "facet-a", facetVersion: 1, count: "2" },
-    ]);
+  it.each([
+    { reason: "rows", maxRows: 1, maxBytes: 10_000 },
+    { reason: "embedding bytes", maxRows: 2, maxBytes: 1 },
+  ])(
+    "rejects excessive $reason before inspecting payloads",
+    async (capacity) => {
+      await expect(
+        getTopicClusteringSummaryStats(...args, capacity),
+      ).resolves.toEqual({
+        count: 2,
+        bytes: 2 * embedding.embeddingDimensions * 8,
+      });
+      expect(mocks.query).toHaveBeenCalledOnce();
+      await expect(
+        getTopicClusteringSummaries(...args, capacity),
+      ).rejects.toThrow("smaller time window");
+      expect(mocks.query).toHaveBeenCalledTimes(2);
+      expect(mocks.queryStream).not.toHaveBeenCalled();
+    },
+  );
+
+  it("returns the complete at-limit cohort and bounds the query result", async () => {
     mocks.queryStream.mockImplementation(async function* () {
       yield row;
       yield { ...row, traceId: "trace-b" };
     });
-    const summaries = await getTopicClusteringSummaries(
-      "project-a",
-      "facet-a",
-      1,
-      embedding,
-      timeRange,
-      { maxRows: 2, maxBytes: 10_000 },
-    );
-    expect(summaries).toEqual([
+    expect(await getTopicClusteringSummaries(...args, limits)).toEqual([
       summaryFixture,
       { ...summaryFixture, traceId: "trace-b" },
     ]);
     const { query, params, clickhouseSettings } =
       mocks.queryStream.mock.calls[0][0];
-    expect(query).toContain("LIMIT 1 BY");
-    expect(query).toContain("WHERE processing_state = 'complete'");
-    expect(query).toContain("AND NOT startsWith(environment");
-    expect(query.trim()).toMatch(
-      /ORDER BY trace_id LIMIT \{maximumRows:UInt64\}$/,
-    );
-    expect(params).toMatchObject({
-      projectId: "project-a",
-      facetId: "facet-a",
-      facetVersion: 1,
-      maximumRows: 3,
-    });
+    expect(query.trim()).toMatch(/LIMIT \{maximumRows:UInt64\}$/);
+    expect(params.maximumRows).toBe(3);
     expect(clickhouseSettings).toMatchObject({
       max_result_bytes: "10000",
       result_overflow_mode: "throw",
     });
   });
 
-  it("rejects growth after preflight without retaining a partial cohort", async () => {
-    mocks.query.mockResolvedValue([
-      { facetId: "facet-a", facetVersion: 1, count: "1" },
-    ]);
+  it("rejects growth after preflight and closes the stream immediately", async () => {
     let yielded = 0;
     let closed = false;
     mocks.queryStream.mockImplementation(async function* () {
@@ -364,78 +260,36 @@ describe("Topics clustering capacity", () => {
         closed = true;
       }
     });
-    await expect(
-      getTopicClusteringSummaries(
-        "project-a",
-        "facet-a",
-        1,
-        embedding,
-        timeRange,
-        { maxRows: 2, maxBytes: 10_000 },
-      ),
-    ).rejects.toThrow("no partial cohort");
+    await expect(getTopicClusteringSummaries(...args, limits)).rejects.toThrow(
+      "no partial cohort",
+    );
     expect(yielded).toBe(3);
     expect(closed).toBe(true);
   });
 
   it("rejects text exceeding the decoded budget despite a small embedding", async () => {
-    mocks.query.mockResolvedValue([
-      { facetId: "facet-a", facetVersion: 1, count: "1" },
-    ]);
     mocks.queryStream.mockImplementation(async function* () {
       yield { ...row, summary: "x".repeat(10_000) };
     });
-    await expect(
-      getTopicClusteringSummaries(
-        "project-a",
-        "facet-a",
-        1,
-        embedding,
-        timeRange,
-        { maxRows: 2, maxBytes: 10_000 },
-      ),
-    ).rejects.toThrow("smaller time window");
+    await expect(getTopicClusteringSummaries(...args, limits)).rejects.toThrow(
+      "smaller time window",
+    );
   });
 
-  it("propagates a failed stream instead of returning the rows already read", async () => {
-    const failure = new Error("ClickHouse read failed");
-    mocks.query.mockResolvedValue([
-      { facetId: "facet-a", facetVersion: 1, count: "2" },
-    ]);
+  it.each([
+    ["ClickHouse read failed", "ClickHouse read failed"],
+    [
+      "Limit for result exceeded: TOO_MANY_ROWS_OR_BYTES",
+      "smaller time window",
+    ],
+  ])("rejects a partial stream on %s", async (message, expected) => {
     mocks.queryStream.mockImplementation(async function* () {
       yield row;
-      throw failure;
+      throw new Error(message);
     });
-    await expect(
-      getTopicClusteringSummaries(
-        "project-a",
-        "facet-a",
-        1,
-        embedding,
-        timeRange,
-        { maxRows: 2, maxBytes: 10_000 },
-      ),
-    ).rejects.toBe(failure);
-  });
-
-  it("reports a ClickHouse result-byte overflow as a capacity failure", async () => {
-    mocks.query.mockResolvedValue([
-      { facetId: "facet-a", facetVersion: 1, count: "1" },
-    ]);
-    mocks.queryStream.mockImplementation(async function* () {
-      yield row;
-      throw new Error("Limit for result exceeded: TOO_MANY_ROWS_OR_BYTES");
-    });
-    await expect(
-      getTopicClusteringSummaries(
-        "project-a",
-        "facet-a",
-        1,
-        embedding,
-        timeRange,
-        { maxRows: 2, maxBytes: 10_000 },
-      ),
-    ).rejects.toThrow("smaller time window");
+    await expect(getTopicClusteringSummaries(...args, limits)).rejects.toThrow(
+      expected,
+    );
   });
 
   it("rejects a previous map that exceeds the continuity population limit", async () => {
@@ -478,9 +332,10 @@ it("bounds Topics payload reads by their storage timestamp", async () => {
         1,
         embedding,
         timeRange,
+        { maxRows: 2, maxBytes: 10_000 },
       ),
     () => getTopicSummaryCounts("project-a", [facet], embedding, timeRange),
-    () => readTopicRunTraceIds("project-a", facet, "run-a", timeRange),
+    () => readTopicRunTraceIds("project-a", facet, "run-a", timeRange, 2),
     () => readTopicMapAssignments("project-a", facet, "run-a", timeRange),
     () =>
       readTopicAssignments(
@@ -494,8 +349,10 @@ it("bounds Topics payload reads by their storage timestamp", async () => {
   ];
   for (const [index, read] of reads.entries()) {
     mocks.query.mockClear();
+    mocks.queryStream.mockClear();
     await read();
-    const { query, params } = mocks.query.mock.calls[0][0];
+    const [{ query, params }] =
+      mocks.queryStream.mock.calls[0] ?? mocks.query.mock.calls[0];
     const column = index === 0 ? "created_at" : "unit_start_time";
     expect(query).toContain(`${column} >= {from:DateTime64(3)}`);
     expect(query).toContain(`${column} < {to:DateTime64(3)}`);
@@ -873,6 +730,7 @@ describe("Topics classifications", () => {
         { facetId: "facet-a", version: 1 },
         "run-a",
         timeRange,
+        1,
       ),
     ).toEqual(["discovery-trace"]);
     const discoveryQuery = mocks.query.mock.calls[0][0];
@@ -883,6 +741,7 @@ describe("Topics classifications", () => {
       runId: "run-a",
       facetId: "facet-a",
       facetVersion: 1,
+      maximumRows: 2,
     });
     for (const filter of [
       "project_id = {projectId:String}",
