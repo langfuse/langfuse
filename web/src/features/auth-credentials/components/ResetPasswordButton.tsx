@@ -1,36 +1,68 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/component-file-structure */
 import { signIn, useSession } from "next-auth/react";
 import { Button } from "@/src/components/ui/button";
-import { Input } from "@/src/components/ui/input";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { env } from "@/src/env.mjs";
+import {
+  TURNSTILE_ACTIONS,
+  TURNSTILE_FAILED_MESSAGE,
+  type TurnstileAction,
+} from "@/src/features/auth/constants";
+import {
+  TurnstileWidget,
+  type TurnstileWidgetHandle,
+} from "@/src/features/auth/components/TurnstileWidget";
 
 export function RequestResetPasswordEmailButton({
   email,
-  className,
-  variant = "default",
   callbackUrl,
+  onEmailSent,
+  label,
+  sharedTurnstile,
 }: {
   email: string;
-  className?: string;
-  variant?: "default" | "secondary";
   callbackUrl?: string;
+  onEmailSent: () => void;
+  label?: string;
+  // Set when the page already shows a Turnstile widget. This button then
+  // uses that widget instead of mounting a second one.
+  sharedTurnstile?: {
+    token: string | undefined;
+    action: TurnstileAction;
+    onPreparePasswordReset: () => void;
+    onRejectToken: () => void;
+  };
 }) {
-  const [isEmailSent, setIsEmailSent] = useState(false);
-  const [code, setCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [awaitingSharedToken, setAwaitingSharedToken] = useState(false);
+  const sendStarted = useRef(false);
+  const sendResetEmailRef = useRef<
+    (token: string | undefined) => Promise<void>
+  >(async () => {});
   const session = useSession();
   const capture = usePostHogClientCapture();
   const isValidEmail = z.email().safeParse(email).success;
+  const turnstileSiteKey = env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+  const [turnstileToken, setTurnstileToken] = useState<string>();
+  const turnstileRef = useRef<TurnstileWidgetHandle>(null);
 
-  const handleResetPassword = async () => {
-    if (!isValidEmail) return;
+  const captchaToken = sharedTurnstile?.token ?? turnstileToken;
+  const awaitingPasswordResetToken =
+    awaitingSharedToken ||
+    (sharedTurnstile
+      ? sharedTurnstile.action === TURNSTILE_ACTIONS.passwordReset &&
+        !sharedTurnstile.token
+      : Boolean(turnstileSiteKey) && !turnstileToken);
+
+  async function sendResetEmail(token: string | undefined) {
+    if ((sharedTurnstile || turnstileSiteKey) && !token) return;
     capture("auth:reset_password_email_requested");
     setIsLoading(true);
     setErrorMessage(null);
+    let sent = false;
     try {
       const targetCallbackUrl = callbackUrl
         ? `${env.NEXT_PUBLIC_BASE_PATH ?? ""}${callbackUrl}`
@@ -39,87 +71,77 @@ export function RequestResetPasswordEmailButton({
         email: email,
         callbackUrl: targetCallbackUrl,
         redirect: false,
+        ...(token ? { turnstileToken: token } : {}),
       });
       if (res?.error) {
-        setErrorMessage(
-          res.error === "AccessDenied"
-            ? "This email is not associated with any account."
-            : res.error,
-        );
+        setErrorMessage(resetEmailSignInError(res.error));
       } else if (res?.ok) {
-        setIsEmailSent(true);
+        sent = true;
+        onEmailSent();
       }
     } catch (error) {
       console.error("Error sending reset password email:", error);
       setErrorMessage("An unexpected error occurred. Please try again.");
     } finally {
+      // The token was redeemed (or rejected) by this attempt either way.
+      if (sharedTurnstile) {
+        if (!sent) sharedTurnstile.onRejectToken();
+      } else {
+        turnstileRef.current?.reset();
+      }
       setIsLoading(false);
     }
-  };
+  }
 
-  const handleVerify = async (_e: React.MouseEvent<HTMLButtonElement>) => {
-    if (!code) return;
-    setIsLoading(true);
-    setErrorMessage(null);
-    try {
-      const formattedEmail = encodeURIComponent(email.toLowerCase().trim());
-      const formattedCode = encodeURIComponent(code.trim());
-      const targetCb = callbackUrl
-        ? `${env.NEXT_PUBLIC_BASE_PATH ?? ""}${callbackUrl}`
-        : `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/reset-password`;
-      const callback = encodeURIComponent(targetCb);
-      const url = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth/callback/email?email=${formattedEmail}&token=${formattedCode}&callbackUrl=${callback}`;
-      // Existing hard navigation is accepted during the Next.js 16.3 migration.
-      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-      window.location.href = url;
-    } catch (error) {
-      console.error("Error verifying code:", error);
-      setErrorMessage("An unexpected error occurred. Please try again.");
-    } finally {
-      setIsLoading(false);
+  sendResetEmailRef.current = sendResetEmail;
+
+  useEffect(() => {
+    if (!awaitingSharedToken || !sharedTurnstile?.token) return;
+    if (sharedTurnstile.action !== TURNSTILE_ACTIONS.passwordReset) return;
+    if (sendStarted.current) return;
+    sendStarted.current = true;
+    const token = sharedTurnstile.token;
+    setAwaitingSharedToken(false);
+    sendResetEmailRef.current(token).finally(() => {
+      sendStarted.current = false;
+    });
+  }, [awaitingSharedToken, sharedTurnstile?.action, sharedTurnstile?.token]);
+
+  const handleResetPassword = () => {
+    if (!isValidEmail) return;
+    if (
+      sharedTurnstile &&
+      sharedTurnstile.action !== TURNSTILE_ACTIONS.passwordReset
+    ) {
+      setAwaitingSharedToken(true);
+      sharedTurnstile.onPreparePasswordReset();
+      return;
     }
+    sendResetEmail(captchaToken);
   };
 
   return (
     <>
-      {isEmailSent ? (
-        <div>
-          <label htmlFor="otp-code" className="mb-2 block text-sm font-bold">
-            Check your inbox for the code
-          </label>
-          <Input
-            id="otp-code"
-            type="number"
-            minLength={6}
-            maxLength={6}
-            value={code}
-            onChange={(e) => setCode(e.target.value.trim())}
-            placeholder="One time passcode"
-            className="mb-8 w-full"
-          />
-          <Button
-            onClick={handleVerify}
-            className={className}
-            loading={isLoading}
-            disabled={!code || code.length !== 6}
-            variant={variant}
-          >
-            Verify code
-          </Button>
-        </div>
-      ) : (
-        <Button
-          onClick={handleResetPassword}
-          className={className}
-          loading={isLoading}
-          disabled={!isValidEmail}
-          variant={variant}
-        >
-          {session.status === "authenticated"
-            ? "Verify email to change password"
-            : "Request password reset"}
-        </Button>
-      )}
+      {turnstileSiteKey && !sharedTurnstile ? (
+        <TurnstileWidget
+          ref={turnstileRef}
+          siteKey={turnstileSiteKey}
+          action={TURNSTILE_ACTIONS.passwordReset}
+          onTokenChange={setTurnstileToken}
+        />
+      ) : null}
+      <Button
+        type="button"
+        onClick={handleResetPassword}
+        loading={isLoading}
+        disabled={!isValidEmail || awaitingPasswordResetToken}
+        className="w-full"
+      >
+        {label ??
+          (session.status === "authenticated"
+            ? "Send verification code"
+            : "Request password reset")}
+      </Button>
       {errorMessage && (
         <div className="text-destructive mt-3 text-center text-sm">
           {errorMessage}
@@ -127,4 +149,16 @@ export function RequestResetPasswordEmailButton({
       )}
     </>
   );
+}
+
+// NextAuth's email sign-in catch puts the thrown Error into the query via
+// URLSearchParams, which stringifies it as "Error: <message>".
+function resetEmailSignInError(error: string): string {
+  if (error === "AccessDenied") {
+    return "This email is not associated with any account.";
+  }
+  if (error.includes(TURNSTILE_FAILED_MESSAGE)) {
+    return TURNSTILE_FAILED_MESSAGE;
+  }
+  return error;
 }

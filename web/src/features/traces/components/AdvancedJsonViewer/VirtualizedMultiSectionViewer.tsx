@@ -36,7 +36,7 @@ import {
   type CommentedPathsByField,
 } from "./utils/commentRanges";
 import { pathArrayToJsonPath } from "./utils/pathUtils";
-import { type MediaReturnType } from "@/src/features/media/validation";
+import { type MediaReturnType } from "@/src/features/media";
 
 export interface VirtualizedMultiSectionViewerHandle {
   scrollToSection: (sectionKey: string) => void;

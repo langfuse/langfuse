@@ -1,6 +1,6 @@
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import { submitFeedback } from "@/src/features/feedback/server/FeedbackService";
+import { submitFeedback } from "@/src/features/feedback/server";
 import {
   PostFeedbackBody,
   PostFeedbackResponse,
@@ -9,6 +9,7 @@ import {
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
     name: "Submit Feedback",
+    action: "feedback:create",
     bodySchema: PostFeedbackBody,
     responseSchema: PostFeedbackResponse,
     successStatusCode: 201,

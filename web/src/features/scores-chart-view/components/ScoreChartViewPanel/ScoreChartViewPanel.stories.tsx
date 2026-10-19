@@ -1,6 +1,6 @@
 import preview from "../../../../../.storybook/preview";
 import { fn } from "storybook/test";
-import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
+import type { DataPoint } from "@/src/features/widgets";
 import { DEFAULT_SCORE_CHART_CONFIG } from "@/src/features/scores-chart-view/constants/defaultScoreChartConfig";
 import { type ScoreChartViewConfig } from "@/src/features/scores-chart-view/types";
 import { ScoreChartViewPanel } from "@/src/features/scores-chart-view/components/ScoreChartViewPanel/ScoreChartViewPanel";
@@ -47,11 +47,6 @@ const meta = preview.meta({
     config: CONFIG,
     data: DATA,
     onConfigChange: fn(),
-    // In production the panel fills a bounded-height flex ancestor (`flex-1`
-    // inside `ScoresChartView`); standalone it needs an explicit height. Give it
-    // one through the component's own `className` prop rather than a layout
-    // decorator (Storybook guide: render the component as it is).
-    className: "h-[420px]",
   },
 });
 

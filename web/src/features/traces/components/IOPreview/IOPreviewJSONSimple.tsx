@@ -1,17 +1,22 @@
 import { useMemo } from "react";
 import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import { type MediaReturnType } from "@/src/features/media/validation";
+import { type MediaReturnType } from "@/src/features/media";
 import { CorrectedOutputField } from "./components/CorrectedOutputField";
 import { LargeJsonFieldFallback } from "./components/LargeJsonFieldFallback";
 import {
   JSON_VIEW_RENDER_CHAR_LIMIT,
   probeJsonField,
 } from "./fns/jsonViewSizeGate";
+import { StatusMessageSection } from "./components/StatusMessageSection";
+import type { ObservationStatusMessage } from "./components/statusMessagePresentation";
+import { IO_SECTIONS_FLUSH_CLASS } from "../../constants/ioSectionClasses";
+import { cn } from "@/src/utils/tailwind";
 
 export interface IOPreviewJSONSimpleProps {
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
+  status?: ObservationStatusMessage;
   metadata?: Prisma.JsonValue;
   outputCorrection?: ScoreDomain;
   // Pre-parsed data (optional, from useParsedObservation hook for performance)
@@ -24,6 +29,7 @@ export interface IOPreviewJSONSimpleProps {
   media?: MediaReturnType[];
   hideOutput?: boolean;
   hideInput?: boolean;
+  hideMetadata?: boolean;
   observationId?: string;
   projectId: string;
   traceId: string;
@@ -56,6 +62,7 @@ export interface IOPreviewJSONSimpleProps {
 export function IOPreviewJSONSimple({
   input,
   output,
+  status,
   metadata,
   outputCorrection,
   parsedInput,
@@ -66,6 +73,7 @@ export function IOPreviewJSONSimple({
   hideIfNull = false,
   hideOutput = false,
   hideInput = false,
+  hideMetadata = false,
   media,
   inputExpanded,
   outputExpanded,
@@ -123,12 +131,16 @@ export function IOPreviewJSONSimple({
     !hideInput && (inputTooLarge || !(hideIfNull && !effectiveInput));
   const showOutput =
     !hideOutput && (outputTooLarge || !(hideIfNull && !effectiveOutput));
-  const showMetadata = metadataTooLarge || !(hideIfNull && !effectiveMetadata);
+  const showMetadata =
+    !hideMetadata && (metadataTooLarge || !(hideIfNull && !effectiveMetadata));
 
   const downloadName = observationId ?? traceId;
 
   return (
-    <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
+    <div className={cn("pt-3", IO_SECTIONS_FLUSH_CLASS)}>
+      {status ? (
+        <StatusMessageSection status={status} currentView="json" />
+      ) : null}
       {showInput &&
         (inputTooLarge ? (
           <LargeJsonFieldFallback

@@ -25,15 +25,16 @@ export type CompareOp =
   | ">="
   | "<=";
 
-export type AndNode = { kind: "and"; children: ASTNode[]; parenSpan?: Span };
-export type OrNode = { kind: "or"; children: ASTNode[]; parenSpan?: Span };
-export type NotNode = {
+type AndNode = { kind: "and"; children: ASTNode[]; parenSpan?: Span };
+type OrNode = { kind: "or"; children: ASTNode[]; parenSpan?: Span };
+type NotNode = {
   kind: "not";
   child: ASTNode;
   span?: Span;
   parenSpan?: Span;
 };
 export type FilterNode = {
+  target?: { kind: "name" | "keyword"; value: string; span?: Span };
   kind: "filter";
   /** Canonical field id (registry-resolved) or `metadata.<key>`. */
   key: string;
@@ -79,6 +80,8 @@ export function astEquals(a: ASTNode | null, b: ASTNode | null): boolean {
       const o = b as FilterNode;
       return (
         a.key === o.key &&
+        a.target?.kind === o.target?.kind &&
+        a.target?.value === o.target?.value &&
         a.op === o.op &&
         (a.valueOp ?? "or") === (o.valueOp ?? "or") &&
         a.values.length === o.values.length &&

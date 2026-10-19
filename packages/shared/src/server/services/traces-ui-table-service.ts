@@ -111,7 +111,10 @@ export const convertToUiTableRows = (
 export const convertToUITableMetrics = (
   row: TracesTableMetricsClickhouseReturnType,
 ): Omit<TracesMetricsUiReturnType, "scores"> => {
+  // Both are aggregates, not raw buckets: reduceUsageOrCostDetails sums every
+  // bucket whose key contains "input"/"output"
   const usageDetails = reduceUsageOrCostDetails(row.usage_details);
+  const costDetails = reduceUsageOrCostDetails(row.cost_details);
 
   return {
     id: row.id,
@@ -136,11 +139,11 @@ export const convertToUITableMetrics = (
     calculatedTotalCost: row.cost_details?.total
       ? new Decimal(row.cost_details.total)
       : null,
-    calculatedInputCost: row.cost_details?.input
-      ? new Decimal(row.cost_details.input)
+    calculatedInputCost: costDetails.input
+      ? new Decimal(costDetails.input)
       : null,
-    calculatedOutputCost: row.cost_details?.output
-      ? new Decimal(row.cost_details.output)
+    calculatedOutputCost: costDetails.output
+      ? new Decimal(costDetails.output)
       : null,
     level: row.level,
     debugCount: BigInt(row.debug_count ?? 0),
@@ -308,7 +311,7 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
         COUNT(*) AS observation_count,
         sumMap(usage_details) as usage_details,
         SUM(total_cost) AS total_cost,
-        date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds,
+        if(min(end_time) IS NULL, NULL, date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time)))) as latency_milliseconds,
         countIf(level = 'ERROR') as error_count,
         countIf(level = 'WARNING') as warning_count,
         countIf(level = 'DEFAULT') as default_count,
@@ -479,12 +482,15 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
     usesNonFinalTraceReadPath
       ? "LIMIT 1 BY id, project_id"
       : "";
-  const limitClause =
-    limit !== undefined && traceDeleteCursorOrder
-      ? "LIMIT {limit: Int32}"
-      : limit !== undefined && page !== undefined
-        ? "LIMIT {limit: Int32} OFFSET {offset: Int32}"
-        : "";
+  const limitClause = (() => {
+    if (limit !== undefined && traceDeleteCursorOrder) {
+      return "LIMIT {limit: Int32}";
+    }
+    if (limit !== undefined && page !== undefined) {
+      return "LIMIT {limit: Int32} OFFSET {offset: Int32}";
+    }
+    return "";
+  })();
 
   // complex query ahead:
   // - we only join scores and observations if we really need them to speed up default views

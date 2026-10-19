@@ -1,7 +1,7 @@
 import { type PreviewData } from "@/src/features/evals/hooks/usePreviewData";
 import { type VariableMapping } from "@/src/features/evals/utils/evaluator-form-utils";
 import { api } from "@/src/utils/api";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showErrorToast } from "@/src/features/notifications";
 import {
   EvalTargetObject,
   extractValueFromObjectAsString,
@@ -79,7 +79,17 @@ export function useExtractVariables({
       extractionError.kind === "jsonPath"
         ? "Invalid JSONPath in variable mapping"
         : "Failed to extract variable";
-    showErrorToast(title, extractionError.message, "WARNING");
+    showErrorToast(
+      title,
+      extractionError.message,
+      {
+        operation: "evaluator_variable.extract",
+        errorOrigin: "frontend",
+        errorCategory:
+          extractionError.kind === "jsonPath" ? "user_input" : "internal",
+      },
+      "WARNING",
+    );
   }, [extractionError]);
 
   useEffect(() => {

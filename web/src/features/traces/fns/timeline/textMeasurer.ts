@@ -5,10 +5,7 @@
  * Measures each digit and unit string ONCE against a canvas, then sums cached
  * glyph widths per label. That is what lets `layout()` decide inside the pure
  * function whether a duration label fits in its bar or has to sit outside it —
- * a decision CSS flow currently makes, and makes wrong in a narrow lane.
- *
- * Production code, arriving one PR before its callers: the renderer beside it
- * (`TimelineV2.tsx`) is a Storybook harness and says so, this is not.
+ * a decision CSS flow makes wrong in a narrow lane.
  */
 
 /** Manual measurement average; used when no 2D context is available. */
@@ -35,13 +32,6 @@ const unitAt = (text: string, index: number): string | null => {
 
 export type TextMeasurer = {
   measure: (text: string) => number;
-  /**
-   * The same text as the browser will set it in BOLD. Callers that reserve room
-   * for bold content need this: measuring it at the regular weight came out
-   * ~4% short on one font stack and fitted on another, which is a reservation
-   * that clips only on some machines.
-   */
-  measureBold: (text: string) => number;
 };
 
 export function createTextMeasurer(font = "12px ui-sans-serif"): TextMeasurer {
@@ -62,12 +52,18 @@ export function createTextMeasurerFrom(
   context: CanvasRenderingContext2D | null,
   font = "12px ui-sans-serif",
 ): TextMeasurer {
-  return {
-    measure: measurerFor(context, font),
-    // A CSS font shorthand takes the weight first, and the callers here build
-    // theirs from a probe's `font-size` + `font-family`.
-    measureBold: measurerFor(context, `700 ${font}`),
-  };
+  return { measure: measurerFor(context, font) };
+}
+
+/**
+ * The px size out of a CSS font shorthand — the SIZE, not the first number in
+ * the string. A shorthand can lead with a weight (`700 11px …`), and reading the
+ * leading number there takes the weight: paired with the correction below, that
+ * scales every width by seventy rather than by one.
+ */
+function pxSizeOf(font: string): number {
+  const match = /(\d*\.?\d+)px/.exec(font);
+  return match ? Number.parseFloat(match[1]!) : NaN;
 }
 
 function measurerFor(
@@ -78,18 +74,36 @@ function measurerFor(
   const units = new Map<string, number>();
   const cache = new Map<string, number>();
 
+  // A canvas can REFUSE a font string and say nothing: `context.font` keeps its
+  // previous value — `10px sans-serif` on a fresh context — and every width
+  // afterwards is short by the size ratio. That is invisible, and it is the
+  // direction that clips: a caller pricing a 12px label against 10px metrics
+  // admits content that does not fit. So the size is read back and any
+  // difference is corrected rather than trusted.
+  const scale = (() => {
+    if (!context) return 1;
+    context.font = font;
+    const asked = pxSizeOf(font);
+    const got = pxSizeOf(context.font);
+    return Number.isFinite(asked) && Number.isFinite(got) && got > 0
+      ? asked / got
+      : 1;
+  })();
+
   if (context) {
     context.font = font;
     // One width for every digit keeps tabular labels stable as they tick.
     let digit = 0;
     for (let i = 0; i < 10; i++) {
-      digit = Math.max(digit, context.measureText(String(i)).width);
+      digit = Math.max(digit, context.measureText(String(i)).width * scale);
     }
     for (let i = 0; i < 10; i++) glyphs.set(String(i), digit);
     for (const char of [".", ",", " "]) {
-      glyphs.set(char, context.measureText(char).width);
+      glyphs.set(char, context.measureText(char).width * scale);
     }
-    for (const unit of UNITS) units.set(unit, context.measureText(unit).width);
+    for (const unit of UNITS) {
+      units.set(unit, context.measureText(unit).width * scale);
+    }
   } else {
     for (const unit of UNITS) units.set(unit, unit.length * PX_PER_LETTER);
   }
@@ -105,10 +119,10 @@ function measurerFor(
     const flush = () => {
       if (!run) return;
       if (context) {
-        // Set every time: the bold twin shares this context, and whichever
-        // measured last would otherwise decide the font for both.
+        // Set every time: the context is not ours alone, and whatever drew on
+        // it last would otherwise decide the font for these widths.
         context.font = font;
-        width += context.measureText(run).width;
+        width += context.measureText(run).width * scale;
       } else {
         width += run.length * PX_PER_LETTER;
       }

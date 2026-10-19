@@ -4,10 +4,10 @@
 // AutocompletePopover (positioning); Storybook renders it directly.
 
 import * as React from "react";
-import { Check, Clock, Parentheses, Search } from "lucide-react";
+import { Bookmark, Check, Clock, Parentheses, Search } from "lucide-react";
 
 import { cn } from "@/src/utils/tailwind";
-import { ScoreTag } from "@/src/components/score-tag";
+import { ScoreTag } from "@/src/components/ScoreTag";
 import type {
   CompletionOption,
   CompletionPlan,
@@ -15,8 +15,9 @@ import type {
 import { optionDomId } from "@/src/features/search-bar/components/presentation";
 
 function OptionIcon({ kind }: { kind: CompletionOption["kind"] }) {
-  const cls = "h-3.5 w-3.5 flex-none opacity-55";
+  const cls = "icon-base flex-none opacity-55";
   if (kind === "recent") return <Clock className={cls} aria-hidden />;
+  if (kind === "preset") return <Bookmark className={cls} aria-hidden />;
   if (kind === "operator" || kind === "pattern")
     return <Parentheses className={cls} aria-hidden />;
   return <Search className={cls} aria-hidden />;
@@ -72,7 +73,7 @@ export function AutocompleteListbox({
       data-testid="search-bar-autocomplete"
       data-stage={plan.stage}
       className={cn(
-        "w-max max-w-[calc(100vw-16px)] min-w-[min(420px,calc(100vw-16px))]",
+        "ph-no-capture w-max max-w-[calc(100vw-16px)] min-w-[min(420px,calc(100vw-16px))]",
         "max-h-[min(420px,40vh)] overflow-x-hidden overflow-y-auto",
         "bg-popover text-popover-foreground rounded-md border py-1 shadow-md",
       )}
@@ -129,18 +130,21 @@ export function AutocompleteListbox({
             >
               <OptionIcon kind={o.kind} />
               <span
-                className="max-w-[480px] min-w-0 flex-none truncate"
+                className={cn(
+                  "max-w-[480px] min-w-0 flex-none truncate",
+                  o.kind === "pattern" && o.textClassName,
+                )}
                 title={o.label}
               >
                 {o.label}
               </span>
               {o.kind === "field" &&
                 o.scoreLevels?.map((level) => (
-                  <ScoreTag key={level} level={level} className="flex-none" />
+                  <ScoreTag key={level} level={level} />
                 ))}
               {o.kind === "value" && o.active && (
                 <Check
-                  className="text-foreground/80 h-3.5 w-3.5 flex-none"
+                  className="text-foreground/80 icon-base flex-none"
                   aria-label="selected"
                 />
               )}

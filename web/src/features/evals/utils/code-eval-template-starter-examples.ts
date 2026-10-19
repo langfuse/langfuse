@@ -137,13 +137,13 @@ type Expect<T extends true> = T;
 // Compile-time lockstep with the runtime evaluator payload: adding or
 // removing a field on ToolCallForEval breaks the web build until the editor
 // completions (and, via the hover-doc Record checks, the hover docs) follow.
-export type TypeScriptToolCallCompletionsMatchRuntime = Expect<
+type _TypeScriptToolCallCompletionsMatchRuntime = Expect<
   MutuallyExtends<
     Labels<TypeScriptCompletionContract["toolCallProperties"]>,
     keyof ToolCallForEval
   >
 >;
-export type PythonToolCallCompletionsMatchRuntime = Expect<
+type _PythonToolCallCompletionsMatchRuntime = Expect<
   MutuallyExtends<
     Labels<PythonCompletionContract["toolCallProperties"]>,
     keyof ToolCallForEval

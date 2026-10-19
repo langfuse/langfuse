@@ -1,5 +1,9 @@
 import { MinusCircle, PlusCircle } from "lucide-react";
-import { useWatch } from "react-hook-form";
+import {
+  useWatch,
+  type FieldArrayWithId,
+  type UseFormReturn,
+} from "react-hook-form";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import {
@@ -11,7 +15,6 @@ import {
 } from "@/src/components/ui/form";
 import { parsePriceInput } from "@/src/features/models/fns/parsePriceInput";
 import { PricePreview } from "@/src/features/models/components/PricePreview";
-import type { FieldArrayWithId, UseFormReturn } from "react-hook-form";
 import type { FormUpsertModel } from "@/src/features/models/validation";
 
 type TierPriceEditorProps = {
@@ -124,7 +127,7 @@ export function TierPriceEditor({
                 disabled={usageTypeRows.length <= 1}
                 onClick={() => onRemoveUsageType(index)}
               >
-                <MinusCircle className="h-4 w-4" />
+                <MinusCircle className="icon-base text-icon-foreground" />
               </Button>
             )}
           </div>
@@ -137,7 +140,7 @@ export function TierPriceEditor({
           onClick={onAddUsageType}
           className="flex items-center gap-1"
         >
-          <PlusCircle className="h-4 w-4" />
+          <PlusCircle className="icon-base text-icon-foreground" />
           <span>Add Price</span>
         </Button>
       )}

@@ -37,8 +37,10 @@ vi.mock("@/src/components/ui/LangfuseMediaView", () => ({
 import { ChatMlArraySchema } from "@langfuse/shared";
 
 import { ChatMessage } from "./ChatMessage";
-import { type ChatMlMessage } from "../../../fns/chatMessageUtils";
-import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
+import {
+  type ChatMlMessage,
+  getMessageTitle,
+} from "../../../fns/chatMessageUtils";
 import { type IOPreviewContentMode } from "../IOPreview";
 
 function createMemoryStorage(): Storage {
@@ -78,14 +80,13 @@ function renderChatMessage(
   } = {},
 ) {
   return render(
-    <MarkdownContextProvider>
-      <ChatMessage
-        message={message}
-        shouldRenderMarkdown={shouldRenderMarkdown}
-        currentView="pretty"
-        contentMode={contentMode}
-      />
-    </MarkdownContextProvider>,
+    <ChatMessage
+      message={message}
+      title={getMessageTitle(message)}
+      shouldRenderMarkdown={shouldRenderMarkdown}
+      currentView="pretty"
+      contentMode={contentMode}
+    />,
   );
 }
 
@@ -119,10 +120,20 @@ describe("ChatMessage content modes", () => {
 
 // getByRole ignores elements hidden via display:none, so queries only see the
 // active render path (markdown vs json), even though ChatMessage mounts both.
-const expandButton = () =>
-  screen.queryByRole("button", { name: /expand system prompt/i });
-const collapseButton = () =>
-  screen.queryByRole("button", { name: /collapse system prompt/i });
+const expandButtons = () =>
+  screen.queryAllByRole("button", { name: /expand system prompt/i });
+const collapseButtons = () =>
+  screen.queryAllByRole("button", { name: /collapse system prompt/i });
+const expandButton = () => expandButtons()[0] ?? null;
+const collapseButton = () => collapseButtons()[0] ?? null;
+
+// An expanded prompt offers one control at each end of the message: the header
+// (reachable without scrolling) and the inline one after the body.
+const isInHeader = (el: HTMLElement) =>
+  el.closest(".io-message-header") !== null;
+const headerCollapseButtons = () => collapseButtons().filter(isInHeader);
+const inlineCollapseButtons = () =>
+  collapseButtons().filter((el) => !isInHeader(el));
 
 describe("ChatMessage system prompt collapse", () => {
   beforeEach(() => {
@@ -136,7 +147,10 @@ describe("ChatMessage system prompt collapse", () => {
       content: longSystemPrompt,
     } as ChatMlMessage);
 
-    expect(expandButton()).toBeInTheDocument();
+    // One control only, and it sits with the prompt body rather than being
+    // duplicated into the message header.
+    expect(expandButtons()).toHaveLength(1);
+    expect(expandButtons()[0].closest(".io-message-header")).toBeNull();
   });
 
   it("collapses a long system message that carries a name", () => {
@@ -157,7 +171,10 @@ describe("ChatMessage system prompt collapse", () => {
       { shouldRenderMarkdown: false },
     );
 
-    expect(expandButton()).toBeInTheDocument();
+    // Same collapsed-state guarantee as the markdown path: exactly one control,
+    // and it sits with the prompt body rather than in the message header.
+    expect(expandButtons()).toHaveLength(1);
+    expect(expandButtons()[0].closest(".io-message-header")).toBeNull();
   });
 
   it("expands on click and persists the expanded preference", () => {
@@ -172,7 +189,7 @@ describe("ChatMessage system prompt collapse", () => {
     expect(localStorage.getItem("collapseSystemPrompt")).toBe("false");
   });
 
-  it("respects a persisted expanded preference and does not force-collapse", () => {
+  it("respects a persisted expanded preference and collapses back on click", () => {
     localStorage.setItem("collapseSystemPrompt", "false");
 
     renderChatMessage({
@@ -180,9 +197,57 @@ describe("ChatMessage system prompt collapse", () => {
       content: longSystemPrompt,
     } as ChatMlMessage);
 
-    // rendered expanded, with the option to collapse still offered
-    expect(expandButton()).not.toBeInTheDocument();
-    expect(collapseButton()).toBeInTheDocument();
+    // rendered expanded, with one collapse control at each end of the message:
+    // an expanded prompt is too tall for the inline one to be reachable.
+    expect(expandButtons()).toHaveLength(0);
+    expect(collapseButtons()).toHaveLength(2);
+    expect(headerCollapseButtons()).toHaveLength(1);
+    expect(inlineCollapseButtons()).toHaveLength(1);
+
+    // Click the INLINE control — the header test below covers the header path.
+    fireEvent.click(inlineCollapseButtons()[0]!);
+
+    expect(expandButtons().length).toBeGreaterThan(0);
+    expect(localStorage.getItem("collapseSystemPrompt")).toBe("true");
+  });
+
+  it("collapses from the header control without scrolling to the body", () => {
+    localStorage.setItem("collapseSystemPrompt", "false");
+
+    renderChatMessage({
+      role: "system",
+      content: longSystemPrompt,
+    } as ChatMlMessage);
+
+    fireEvent.click(headerCollapseButtons()[0]);
+
+    // back to the collapsed shape: one control, inline only
+    expect(expandButtons()).toHaveLength(1);
+    expect(expandButtons()[0].closest(".io-message-header")).toBeNull();
+    expect(collapseButtons()).toHaveLength(0);
+    expect(localStorage.getItem("collapseSystemPrompt")).toBe("true");
+  });
+
+  it("offers a header collapse control on the json/pretty path too", () => {
+    // PrettyJsonView delegates the body to a title-less MarkdownView, which
+    // renders no header of its own — so a fix confined to MarkdownViewer would
+    // leave this path collapsible only from the bottom.
+    localStorage.setItem("collapseSystemPrompt", "false");
+
+    renderChatMessage(
+      { role: "system", content: longSystemPrompt } as ChatMlMessage,
+      { shouldRenderMarkdown: false },
+    );
+
+    expect(collapseButtons()).toHaveLength(2);
+    expect(headerCollapseButtons()).toHaveLength(1);
+    expect(inlineCollapseButtons()).toHaveLength(1);
+
+    fireEvent.click(headerCollapseButtons()[0]);
+
+    expect(expandButtons()).toHaveLength(1);
+    expect(expandButtons()[0].closest(".io-message-header")).toBeNull();
+    expect(localStorage.getItem("collapseSystemPrompt")).toBe("true");
   });
 
   it("migrates the legacy expanded preference key and writes it through", () => {
@@ -357,6 +422,26 @@ describe("ChatMessage media content parts", () => {
     } as unknown as ChatMlMessage);
 
     expect(screen.getByText("here is the thermostat")).toBeInTheDocument();
+    expect(screen.getByTestId("langfuse-media")).toHaveAttribute(
+      "data-media-ref",
+      referenceString,
+    );
+  });
+
+  it("renders an AI SDK file part carrying a langfuse media reference", () => {
+    renderChatMessage({
+      role: "user",
+      content: [
+        { type: "text", text: "attached report" },
+        {
+          type: "file",
+          data: referenceString,
+          mediaType: "image/png",
+        },
+      ],
+    } as unknown as ChatMlMessage);
+
+    expect(screen.getByText("attached report")).toBeInTheDocument();
     expect(screen.getByTestId("langfuse-media")).toHaveAttribute(
       "data-media-ref",
       referenceString,

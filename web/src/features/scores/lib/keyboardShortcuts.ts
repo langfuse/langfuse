@@ -95,7 +95,7 @@ export function isOpenDialogPresent(): boolean {
 export function hasBlockingOverlay(root: HTMLElement | null): boolean {
   if (typeof document === "undefined") return false;
   const overlays = document.querySelectorAll(
-    '[role="dialog"]:not([aria-hidden="true"]), [role="menu"][data-state="open"]',
+    '[role="dialog"]:not([aria-hidden="true"]):not([data-state="closed"]), [role="menu"]:not([data-state="closed"])',
   );
   for (const overlay of overlays) {
     if (!root || !overlay.contains(root)) return true;
@@ -115,16 +115,6 @@ export function hasBlockingOverlay(root: HTMLElement | null): boolean {
  */
 export function isCompleteShortcut(event: KeyboardEvent): boolean {
   return event.key === "Enter" && (event.metaKey || event.ctrlKey);
-}
-
-/**
- * Best-effort "is this an Apple device" check, used only to render `⌘` vs `Ctrl`
- * in shortcut hints. Call from an effect (not during render) to avoid an SSR
- * hydration mismatch.
- */
-export function isAppleDevice(): boolean {
-  if (typeof navigator === "undefined") return false;
-  return navigator.userAgent.includes("Mac");
 }
 
 /**

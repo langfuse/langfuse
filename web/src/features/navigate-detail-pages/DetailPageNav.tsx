@@ -1,17 +1,13 @@
+/* eslint-disable @repo/no-null-render */
 import { Button, type ButtonProps } from "@/src/components/ui/button";
-import { InputCommandShortcut } from "@/src/components/ui/input-command";
-import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { HeaderActionButton } from "@/src/components/HeaderActionButton";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import {
   type ListEntry,
   useDetailPageLists,
 } from "@/src/features/navigate-detail-pages/context";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useReadPath } from "@/src/features/events";
 import { cn } from "@/src/utils/tailwind";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { useRouter } from "next/router";
@@ -29,9 +25,8 @@ export const DetailPageNav = (props: {
   /** Button size; defaults to the cva default. Pass "sm" to match icon-xs rows. */
   size?: ButtonProps["size"];
   /**
-   * Compact mode for dense toolbars (e.g. the peek header): icon-only ghost
-   * arrows with the K/J hint moved to the tooltip, so the buttons match a row
-   * of icon-xs controls instead of standing out. Shortcuts still work.
+   * Compact mode for header action rows: icon-only ghost arrows with the K/J
+   * hint moved to the tooltip. Shortcuts still work.
    */
   compact?: boolean;
 }) => {
@@ -44,7 +39,7 @@ export const DetailPageNav = (props: {
   );
 
   const capture = usePostHogClientCapture();
-  const { isBetaEnabled: isV4 } = useV4Beta();
+  const { isV4 } = useReadPath();
   const router = useRouter();
   const currentIndex = entries.findIndex((entry) => entry.id === currentId);
   const previousPageEntry =
@@ -137,20 +132,51 @@ export const DetailPageNav = (props: {
   }, [previousPageEntry, nextPageEntry, navigateToEntry, pulseShortcut]);
 
   if (entries.length > 1) {
+    if (compact) {
+      return (
+        <div className="flex flex-row gap-1">
+          <HeaderActionButton
+            label="Navigate up"
+            shortcut="K"
+            icon={<ArrowUp className="icon-base" />}
+            active={shortcutPulse === "previous"}
+            disabled={!previousPageEntry}
+            onClick={() => {
+              if (previousPageEntry) {
+                navigateToEntry(previousPageEntry, "previous", "button");
+              }
+            }}
+          />
+          <HeaderActionButton
+            label="Navigate down"
+            shortcut="J"
+            icon={<ArrowDown className="icon-base" />}
+            active={shortcutPulse === "next"}
+            disabled={!nextPageEntry}
+            onClick={() => {
+              if (nextPageEntry) {
+                navigateToEntry(nextPageEntry, "next", "button");
+              }
+            }}
+          />
+        </div>
+      );
+    }
     const buttonClassName = (active: boolean) =>
       cn(
-        "transition-[background-color,border-color,box-shadow,color] duration-150",
-        !compact && "gap-1.5 px-2",
+        "px-2 transition-[background-color,border-color,box-shadow,color] duration-150",
         active && "border-primary/60 bg-accent/60 ring-primary/20 ring-2",
       );
     return (
       <div className="flex flex-row gap-1">
-        <Tooltip>
-          <TooltipTrigger asChild>
+        <Tooltip label="Navigate up" shortcut={{ keys: ["K"] }}>
+          {({ getTriggerProps }) => (
             <Button
-              variant={compact ? "ghost" : "outline"}
+              {...getTriggerProps()}
+              aria-label="Navigate up"
+              variant="outline"
               type="button"
-              size={compact ? "icon-xs" : size}
+              size={size}
               className={buttonClassName(shortcutPulse === "previous")}
               disabled={!previousPageEntry}
               onClick={() => {
@@ -159,22 +185,19 @@ export const DetailPageNav = (props: {
                 }
               }}
             >
-              <ArrowUp className="h-4 w-4" />
-              {!compact && <KeyboardShortcut>K</KeyboardShortcut>}
+              <ArrowUp className="icon-base text-icon-foreground" />
             </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <span>Navigate up</span>
-            <InputCommandShortcut className="ml-2">K</InputCommandShortcut>
-          </TooltipContent>
+          )}
         </Tooltip>
 
-        <Tooltip>
-          <TooltipTrigger asChild>
+        <Tooltip label="Navigate down" shortcut={{ keys: ["J"] }}>
+          {({ getTriggerProps }) => (
             <Button
-              variant={compact ? "ghost" : "outline"}
+              {...getTriggerProps()}
+              aria-label="Navigate down"
+              variant="outline"
               type="button"
-              size={compact ? "icon-xs" : size}
+              size={size}
               className={buttonClassName(shortcutPulse === "next")}
               disabled={!nextPageEntry}
               onClick={() => {
@@ -183,14 +206,9 @@ export const DetailPageNav = (props: {
                 }
               }}
             >
-              <ArrowDown className="h-4 w-4" />
-              {!compact && <KeyboardShortcut>J</KeyboardShortcut>}
+              <ArrowDown className="icon-base text-icon-foreground" />
             </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <span>Navigate down</span>
-            <InputCommandShortcut className="ml-2">J</InputCommandShortcut>
-          </TooltipContent>
+          )}
         </Tooltip>
       </div>
     );

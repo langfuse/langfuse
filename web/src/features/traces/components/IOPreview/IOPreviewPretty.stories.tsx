@@ -1,4 +1,5 @@
 import preview from "../../../../../.storybook/preview";
+import { expect, within } from "storybook/test";
 import { IOPreviewPretty } from "./IOPreviewPretty";
 
 const meta = preview.meta({
@@ -24,24 +25,36 @@ export const Default = meta.story({
   },
 });
 
-export const Chat = meta.story({
+export const OversizedSibling = meta.story({
+  args: {
+    input: {
+      attachment: JSON.stringify({ text: "x".repeat(523_000) }),
+      details: JSON.stringify({ status: "ready", count: 2 }),
+    },
+  },
+});
+
+export const LongSystemPrompt = meta.story({
   args: {
     input: {
       messages: [
         {
           role: "system",
-          content: "Answer questions using the product documentation.",
+          content: Array.from(
+            { length: 12 },
+            (_, i) =>
+              `system-prompt-line-${i + 1} lorem ipsum dolor sit amet consectetur adipiscing elit`,
+          ).join("\n"),
         },
         {
           role: "user",
-          content: "How can I inspect a slow trace?",
+          content: "Summarize the constraints above.",
         },
       ],
     },
     output: {
       role: "assistant",
-      content:
-        "Open the trace detail and compare the **latency** of each observation.",
+      content: "Stay within the listed role and constraints.",
     },
   },
 });
@@ -78,6 +91,32 @@ const generation = trace.generation({
 
 generation.end({ output: "Your response" });
 \`\`\``,
+    },
+  },
+});
+
+export const NestedMarkdownLists = meta.story({
+  args: {
+    input: {
+      messages: [
+        {
+          role: "user",
+          content: "What is Langfuse useful for?",
+        },
+      ],
+    },
+    output: {
+      role: "assistant",
+      content: `Langfuse is an open-source observability and analytics tool for LLM applications.
+
+In practical terms, it helps you:
+
+- **Track and debug LLM calls**
+  - Log prompts, model responses, latency, errors, and metadata
+- **Evaluate quality**
+  - Run evaluations on outputs (automatic metrics or human feedback)
+- **Monitor in production**
+  - Dashboards for usage, cost, latency, and failure rates`,
     },
   },
 });
@@ -122,7 +161,7 @@ export const ToolCall = meta.story({
   },
 });
 
-export const WithMetadata = meta.story({
+export const MetadataNotInPreview = meta.story({
   args: {
     input: "Summarize this support conversation.",
     output: "The customer needs help configuring prompt caching.",
@@ -131,7 +170,6 @@ export const WithMetadata = meta.story({
       region: "eu-west-1",
       cached: true,
     },
-    showMetadata: true,
   },
 });
 
@@ -142,5 +180,16 @@ export const Loading = meta.story({
     },
     output: null,
     isLoading: true,
+  },
+});
+
+export const Empty = meta.story({
+  name: "(Test) Empty",
+  args: { input: undefined, output: undefined },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getAllByText("undefined", { exact: true }),
+    ).toHaveLength(2);
   },
 });

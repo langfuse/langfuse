@@ -1,10 +1,11 @@
+/* eslint-disable @repo/no-null-render */
 "use client";
 
 import { useLayoutEffect, useRef } from "react";
 
 import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
 import { DialogController } from "@/src/features/in-app-agent/components/dialog-controller";
-import { Layer } from "@/src/components/ui/layer";
+import { Layer } from "@/src/components/design-system/Layer/Layer";
 import { ControlledInAppAgentWindow } from "@/src/features/in-app-agent/components/ControlledInAppAgentWindow";
 import type { InAppAgentWindowConversation } from "@/src/features/in-app-agent/components/InAppAgentWindow";
 import {
@@ -142,7 +143,7 @@ export function InAppAgentWindowHost() {
         // <body>-level layer container that floats above page content and
         // panel surfaces, but below true modals and transient overlays by DOM
         // order alone. No z-index: layer ORDER stacks it (see
-        // components/ui/layer.tsx). This replaces the old body portal + z-51,
+        // context/LayerContext/LayerContext.tsx). This replaces the old body portal + z-51,
         // which fought the nav-user dropdown's z-60 at <body> level.
         <Layer name="agent">
           <InAppAgentWindowShell

@@ -1,18 +1,11 @@
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
+import { useHasProjectAccess } from "@/src/features/rbac";
 import * as React from "react";
 import { EvalTemplateForm } from "@/src/features/evals/components/template-form";
 import { api } from "@/src/utils/api";
 import { type EvalTemplate } from "@langfuse/shared";
 import { useRouter } from "next/router";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import Page from "@/src/components/layouts/page";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Command } from "@/src/components/ui/command";
@@ -39,7 +32,7 @@ export const EvalTemplateDetail = () => {
   const capture = usePostHogClientCapture();
   const hasDeleteAccess = useHasProjectAccess({
     projectId,
-    scope: "evalTemplate:CUD",
+    scope: "evaluator:CUD",
   });
 
   // get the current template by id
@@ -118,7 +111,9 @@ export const EvalTemplateDetail = () => {
             {template.data?.projectId ? (
               <>
                 <IconOnlyButton
-                  icon={<TrashIcon className="h-4 w-4" />}
+                  icon={
+                    <TrashIcon className="icon-base text-icon-foreground" />
+                  }
                   label="Delete"
                   aria-label="delete"
                   variant="outline"
@@ -226,46 +221,7 @@ export const EvalTemplateDetail = () => {
   );
 };
 
-export function EvalVersionDropdown(props: {
-  disabled: boolean;
-  options?: EvalTemplate[];
-  defaultOption?: EvalTemplate;
-  onSelect?: (template: EvalTemplate) => void;
-}) {
-  const capture = usePostHogClientCapture();
-  const handleSelect = (value: string) => {
-    const selectedTemplate = props.options?.find(
-      (template) => template.id === value,
-    );
-    if (selectedTemplate && props.onSelect) {
-      props.onSelect(selectedTemplate);
-      capture("eval_templates:view_version");
-    }
-  };
-
-  return (
-    <Select
-      disabled={props.disabled}
-      onValueChange={handleSelect}
-      defaultValue={props.defaultOption ? props.defaultOption.id : undefined}
-    >
-      <SelectTrigger className="w-[180px]">
-        <SelectValue placeholder="Version" />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectGroup>
-          {props.options?.map((template) => (
-            <SelectItem key={template.id} value={template.id}>
-              v{template.version} - {template.createdAt.toLocaleDateString()}
-            </SelectItem>
-          ))}
-        </SelectGroup>
-      </SelectContent>
-    </Select>
-  );
-}
-
-export function UpdateTemplate({
+function UpdateTemplate({
   projectId,
   isEditing,
   setIsEditing,
@@ -278,7 +234,7 @@ export function UpdateTemplate({
 }) {
   const hasAccess = useHasProjectAccess({
     projectId,
-    scope: "evalTemplate:CUD",
+    scope: "evaluator:CUD",
   });
   const capture = usePostHogClientCapture();
 

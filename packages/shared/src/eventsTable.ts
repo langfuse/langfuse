@@ -52,6 +52,54 @@ export const isRootObservation = ({
 // absent (NULL != '' is NULL, i.e. not true), so only real payloads match.
 export const eventsTableHasInputSql = "e.input != ''";
 export const eventsTableHasOutputSql = "e.output != ''";
+export const eventsTableLoadedSkillNamesSql =
+  "e.skills_resource_loaded.skillName";
+export const eventsTableLoadedSkillVersionsSql =
+  "arrayMap(skill -> concat(skill.skillName, '@', toString(skill.skillVersion)), e.skills_resource_loaded)";
+export const eventsTableAvailableSkillNamesSql = "e.skills_available.skillName";
+export const eventsTableAvailableSkillVersionsSql =
+  "arrayMap(skill -> concat(skill.skillName, '@', toString(skill.skillVersion)), e.skills_available)";
+
+const isCachedInputMetric = (key: string): boolean => {
+  const normalizedKey = key.toLowerCase();
+  return (
+    normalizedKey.includes("cached") || normalizedKey.includes("cache_read")
+  );
+};
+
+const findCachedInputMetric = (
+  details?: Record<string, number> | null,
+): number | undefined => {
+  const values = Object.entries(details ?? {})
+    .filter(([key]) => isCachedInputMetric(key))
+    .map(([, value]) => Number(value));
+
+  return values.length > 0
+    ? values.reduce((sum, value) => sum + value, 0)
+    : undefined;
+};
+
+export const getCachedInputMetric = (
+  details?: Record<string, number> | null,
+): number | undefined => findCachedInputMetric(details);
+
+export const getCachedInputCost = (
+  details?: Record<string, number> | null,
+): number | undefined => findCachedInputMetric(details);
+
+const cachedInputMetricSql = (detailsColumn: string): string => {
+  const keyPredicate = (key: string) =>
+    `(positionCaseInsensitive(${key}, 'cached') > 0 OR positionCaseInsensitive(${key}, 'cache_read') > 0)`;
+  const filteredDetails = `mapFilter(x -> ${keyPredicate("x.1")}, ${detailsColumn})`;
+  const sum = `arraySum(mapValues(${filteredDetails}))`;
+
+  return `if(mapExists((k, v) -> ${keyPredicate("k")}, ${detailsColumn}), ${sum}, NULL)`;
+};
+
+export const eventsTableCachedInputTokensSql =
+  cachedInputMetricSql("e.usage_details");
+export const eventsTableCachedInputCostSql =
+  cachedInputMetricSql("e.cost_details");
 
 type MutableDeep<T> = T extends readonly (infer U)[]
   ? MutableDeep<U>[]
@@ -176,11 +224,12 @@ const eventsTableColsDefinition = [
     nullable: true,
   },
   {
-    name: "Level",
+    name: "Status",
     id: "level",
     type: "stringOptions",
     internal: "e.level",
     options: [],
+    aliases: ["Level"],
   },
   {
     name: "Status Message",
@@ -237,6 +286,13 @@ const eventsTableColsDefinition = [
     nullable: true,
   },
   {
+    name: "Cached Input Tokens",
+    id: "cachedInputTokens",
+    type: "number",
+    internal: eventsTableCachedInputTokensSql,
+    nullable: true,
+  },
+  {
     name: "Output Tokens",
     id: "outputTokens",
     type: "number",
@@ -258,6 +314,13 @@ const eventsTableColsDefinition = [
     type: "number",
     internal:
       "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, cost_details)))",
+    nullable: true,
+  },
+  {
+    name: "Cached Input Cost ($)",
+    id: "cachedInputCost",
+    type: "number",
+    internal: eventsTableCachedInputCostSql,
     nullable: true,
   },
   {
@@ -310,6 +373,20 @@ const eventsTableColsDefinition = [
     id: "metadata",
     type: "stringObject",
     internal: "e.metadata",
+  },
+  {
+    name: "Evaluator ID",
+    id: "evaluatorId",
+    type: "stringOptions",
+    internal: "e.evaluator_id",
+    options: [],
+  },
+  {
+    name: "Rule ID",
+    id: "ruleId",
+    type: "stringOptions",
+    internal: "e.evaluation_rule_id",
+    options: [],
   },
   {
     name: "Trace Tags",
@@ -421,6 +498,34 @@ const eventsTableColsDefinition = [
     nullable: true,
   },
   {
+    name: "Loaded Skill Names",
+    id: "skillsNamesLoaded",
+    type: "arrayOptions",
+    internal: eventsTableLoadedSkillNamesSql,
+    options: [],
+  },
+  {
+    name: "Loaded Skill Versions",
+    id: "skillsVersionsLoaded",
+    type: "arrayOptions",
+    internal: eventsTableLoadedSkillVersionsSql,
+    options: [],
+  },
+  {
+    name: "Available Skill Names",
+    id: "skillNamesAvailable",
+    type: "arrayOptions",
+    internal: eventsTableAvailableSkillNamesSql,
+    options: [],
+  },
+  {
+    name: "Available Skill Versions",
+    id: "skillVersionsAvailable",
+    type: "arrayOptions",
+    internal: eventsTableAvailableSkillVersionsSql,
+    options: [],
+  },
+  {
     name: "Available Tool Names",
     id: "toolNames",
     type: "arrayOptions",
@@ -480,10 +585,11 @@ export const isNumericEventsTableColumnId = (
   );
 
 // Subset of columns that are allowed to be used as filters in the MCP observations API
+// listObservations has explicit fromStartTime and toStartTime arguments to bound database scans.
+// A startTime condition in its filter array would replace both bounds, bypassing the 14-day limit.
 const OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMN_IDS = [
   "id",
   "traceId",
-  "startTime",
   "endTime",
   "name",
   "type",

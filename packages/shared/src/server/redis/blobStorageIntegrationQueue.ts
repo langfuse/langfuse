@@ -20,7 +20,7 @@ export class BlobStorageIntegrationQueue {
           ...queueOptionsWithRedis,
           defaultJobOptions: {
             removeOnComplete: true,
-            removeOnFail: 100,
+            removeOnFail: { age: 7 * 24 * 3600, count: 1000 },
             attempts: 5,
             backoff: {
               type: "exponential",

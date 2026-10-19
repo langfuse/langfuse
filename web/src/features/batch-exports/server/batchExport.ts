@@ -1,14 +1,19 @@
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { env } from "@/src/env.mjs";
 import { parseBatchExportFileKeyFromUrl } from "@/src/features/batch-exports/server/batchExportFileKey";
 import { getBatchExportStorageServiceClient } from "@/src/features/batch-exports/server/getBatchExportStorageClient";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
+  hasEntitlement,
+  throwIfNoEntitlement,
+} from "@/src/features/entitlements/server";
+import { hasProjectAccess, throwIfNoProjectAccess } from "@/src/features/rbac";
+import {
+  type AuthedSession,
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import {
+  BATCH_EXPORT_ABANDONED_AFTER_MS,
   BatchExportStatus,
   BatchExportTableName,
   CreateBatchExportSchema,
@@ -16,6 +21,7 @@ import {
   LangfuseNotFoundError,
   paginationZod,
 } from "@langfuse/shared";
+import { type Prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import {
   BatchExportQueue,
   logger,
@@ -23,7 +29,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { assertLegacyTracingIoSearchCanCreateBatchJob } from "@/src/features/traces/server/legacyIoSearch";
+import { assertLegacyTracingIoSearchCanCreateBatchJob } from "@/src/features/traces/server";
 
 // Fallback for legacy rows that predate the worker stamping expiresAt;
 // matches the worker's BATCH_EXPORT_DOWNLOAD_LINK_EXPIRATION_HOURS default.
@@ -32,6 +38,42 @@ const LEGACY_DOWNLOAD_WINDOW_MS = 24 * 60 * 60 * 1000;
 // The fresh URL only needs to cover the click-through: object stores check
 // signature expiry when the request starts, not while the download streams.
 const FRESH_DOWNLOAD_URL_TTL_SECONDS = 10 * 60;
+
+// A persisted export's query is a Json column, so its table name is only
+// known at runtime. On create the query is still the validated input, where
+// `tableName` is typed and compared directly.
+const isAuditLogExport = (query: Prisma.JsonValue): boolean =>
+  typeof query === "object" &&
+  query !== null &&
+  !Array.isArray(query) &&
+  query.tableName === BatchExportTableName.AuditLogs;
+
+const canReadAuditLogs = (session: AuthedSession, projectId: string) =>
+  hasEntitlement({
+    entitlement: "audit-logs",
+    sessionUser: session.user,
+    projectId,
+  }) &&
+  hasProjectAccess({ session, projectId, scope: "projectAuditLogs:read" });
+
+// An audit-log export holds actor identifiers and admin actions, so reading
+// one needs the audit-log gates too, not just the batch-export ones.
+const assertCanReadAuditLogs = (session: AuthedSession, projectId: string) => {
+  throwIfNoEntitlement({
+    entitlement: "audit-logs",
+    sessionUser: session.user,
+    projectId,
+  });
+  throwIfNoProjectAccess({
+    session,
+    projectId,
+    scope: "projectAuditLogs:read",
+  });
+};
+
+/** Formats a timestamp as "YYYY-MM-DD HH:mm UTC" for server-rendered messages. */
+const formatUtc = (date: Date) =>
+  `${date.toISOString().slice(0, 16).replace("T", " ")} UTC`;
 
 const isDownloadWindowExpired = (batchExport: {
   finishedAt: Date | null;
@@ -68,16 +110,7 @@ export const batchExportRouter = createTRPCRouter({
         };
 
         if (query.tableName === BatchExportTableName.AuditLogs) {
-          throwIfNoEntitlement({
-            entitlement: "audit-logs",
-            sessionUser: ctx.session.user,
-            projectId,
-          });
-          throwIfNoProjectAccess({
-            session: ctx.session,
-            projectId,
-            scope: "auditLogs:read",
-          });
+          assertCanReadAuditLogs(ctx.session, projectId);
         }
 
         assertLegacyTracingIoSearchCanCreateBatchJob({
@@ -88,6 +121,8 @@ export const batchExportRouter = createTRPCRouter({
 
         logger.info("[BATCH EXPORT] Creating export job", { job: input });
         const userId = ctx.session.user.id;
+
+        await assertNoActiveExport({ prisma: ctx.prisma, projectId, userId });
 
         // Create export job
         const exportJob = await ctx.prisma.batchExport.create({
@@ -111,15 +146,10 @@ export const batchExportRouter = createTRPCRouter({
           after: exportJob,
         });
 
-        // Notify worker
-        await BatchExportQueue.getInstance()?.add(QueueJobs.BatchExportJob, {
-          id: exportJob.id, // Use the batchExportId to deduplicate when the same job is sent multiple times
-          name: QueueJobs.BatchExportJob,
-          timestamp: new Date(),
-          payload: {
-            batchExportId: exportJob.id,
-            projectId,
-          },
+        await enqueueExportOrMarkFailed({
+          prisma: ctx.prisma,
+          projectId,
+          batchExportId: exportJob.id,
         });
       } catch (e) {
         logger.error("[BATCH EXPORT] Failed to create export job", e);
@@ -146,10 +176,13 @@ export const batchExportRouter = createTRPCRouter({
         scope: "batchExports:create",
       });
 
-      await ctx.prisma.batchExport.update({
+      const { count } = await ctx.prisma.batchExport.updateMany({
         where: { id: input.batchExportId, projectId: input.projectId },
         data: { status: BatchExportStatus.CANCELLED },
       });
+      if (count === 0) {
+        throw new LangfuseNotFoundError("Batch export not found");
+      }
     }),
   downloadUrl: protectedProjectProcedure
     .input(
@@ -171,6 +204,11 @@ export const batchExportRouter = createTRPCRouter({
       if (!batchExport) {
         throw new LangfuseNotFoundError("Batch export not found");
       }
+
+      if (isAuditLogExport(batchExport.query)) {
+        assertCanReadAuditLogs(ctx.session, input.projectId);
+      }
+
       if (
         batchExport.status !== BatchExportStatus.COMPLETED ||
         !batchExport.url
@@ -234,11 +272,23 @@ export const batchExportRouter = createTRPCRouter({
         scope: "batchExports:read",
       });
 
+      const where = {
+        projectId: input.projectId,
+        ...(canReadAuditLogs(ctx.session, input.projectId)
+          ? {}
+          : {
+              NOT: {
+                query: {
+                  path: ["tableName"],
+                  equals: BatchExportTableName.AuditLogs,
+                },
+              },
+            }),
+      };
+
       const [exports, totalCount] = await Promise.all([
         ctx.prisma.batchExport.findMany({
-          where: {
-            projectId: input.projectId,
-          },
+          where,
           take: input.limit,
           skip: input.page * input.limit,
           orderBy: {
@@ -246,9 +296,7 @@ export const batchExportRouter = createTRPCRouter({
           },
         }),
         ctx.prisma.batchExport.count({
-          where: {
-            projectId: input.projectId,
-          },
+          where,
         }),
       ]);
 
@@ -300,3 +348,63 @@ export const batchExportRouter = createTRPCRouter({
       };
     }),
 });
+
+/** Rejects a new export while the user still has a queued or running one in the project. */
+const assertNoActiveExport = async ({
+  prisma,
+  projectId,
+  userId,
+}: {
+  prisma: PrismaClient;
+  projectId: string;
+  userId: string;
+}) => {
+  const activeExport = await prisma.batchExport.findFirst({
+    where: {
+      projectId,
+      userId,
+      status: { in: [BatchExportStatus.QUEUED, BatchExportStatus.PROCESSING] },
+      updatedAt: {
+        gte: new Date(Date.now() - BATCH_EXPORT_ABANDONED_AFTER_MS),
+      },
+    },
+    select: { createdAt: true },
+    orderBy: { createdAt: "asc" },
+  });
+  if (activeExport) {
+    throw new TRPCError({
+      code: "CONFLICT",
+      message: `Your export started at ${formatUtc(activeExport.createdAt)} is still running. Wait for it to finish or cancel it under Settings > Exports.`,
+    });
+  }
+};
+
+/** Queues the export job; marks the row FAILED if queueing throws so it does not block a retry. */
+const enqueueExportOrMarkFailed = async ({
+  prisma,
+  projectId,
+  batchExportId,
+}: {
+  prisma: PrismaClient;
+  projectId: string;
+  batchExportId: string;
+}) => {
+  try {
+    await BatchExportQueue.getInstance()?.add(QueueJobs.BatchExportJob, {
+      id: batchExportId, // Use the batchExportId to deduplicate when the same job is sent multiple times
+      name: QueueJobs.BatchExportJob,
+      timestamp: new Date(),
+      payload: { batchExportId, projectId },
+    });
+  } catch (enqueueError) {
+    await prisma.batchExport.update({
+      where: { id: batchExportId, projectId },
+      data: {
+        status: BatchExportStatus.FAILED,
+        finishedAt: new Date(),
+        log: "The export could not be queued. Please try again.",
+      },
+    });
+    throw enqueueError;
+  }
+};

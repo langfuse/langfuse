@@ -135,15 +135,34 @@ vi.mock("../env", () => ({
     LANGFUSE_MIGRATION_V4_WRITE_MODE: "legacy",
     LANGFUSE_POSTHOG_FLUSH_DELAY_MS: 0,
     LANGFUSE_MIXPANEL_FLUSH_DELAY_MS: 0,
-    // Must stay non-zero, else the Mixpanel abort timer fires at ~0ms and masks
-    // the SSRF block with a spurious timeout error.
-    LANGFUSE_MIXPANEL_TIMEOUT_MS: 30_000,
+    // Keep this non-zero so connect-time validation wins the race with the
+    // abort while still bounding the test when the protected request stalls.
+    LANGFUSE_MIXPANEL_TIMEOUT_MS: 1_000,
   },
   v4WritesToLegacyTables: (e: { LANGFUSE_MIGRATION_V4_WRITE_MODE: string }) =>
     e.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "events_only",
   v4WritesToEventsTable: (e: { LANGFUSE_MIGRATION_V4_WRITE_MODE: string }) =>
     e.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "legacy",
 }));
+
+vi.mock("posthog-node", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("posthog-node")>();
+  return {
+    ...actual,
+    PostHog: class extends actual.PostHog {
+      constructor(
+        apiKey: string,
+        options: ConstructorParameters<typeof actual.PostHog>[1],
+      ) {
+        super(apiKey, {
+          ...options,
+          requestTimeout: 1_000,
+          fetchRetryCount: 0,
+        });
+      }
+    },
+  };
+});
 
 // Imported after mocks are registered.
 import {
@@ -362,7 +381,7 @@ describe("Mixpanel sender — SSRF connect-time pinning", () => {
     expect(causeChainIncludes(thrown, "Blocked IP address detected")).toBe(
       true,
     );
-  }, 40_000);
+  }, 5_000);
 });
 
 describe("outbound validation classification", () => {
@@ -442,15 +461,15 @@ function captureRethrow(error: unknown): unknown {
 }
 
 describe("terminal outbound failure reporting", () => {
-  // The rejected redirect target is embedded verbatim in the validation error —
-  // in its message, its stack, and its enumerable `redirectUrl` field — so a
-  // credentialed Location header would otherwise reach the log line and
-  // BullMQ's persisted failedReason.
+  // The Location URL is copied into the error message, the stack, and the
+  // enumerable `redirectUrl` field. A query-string secret or userinfo must
+  // not survive on any of those, because the webhook executor logs the
+  // original error and BullMQ persists failedReason.
   const credentialedRedirect = () =>
     Object.assign(new TypeError("fetch failed"), {
       cause: new RedirectValidationError(
         "Blocked IP address detected: 169.254.169.254",
-        "http://exporter:hunter2@169.254.169.254/",
+        "http://exporter:hunter2@169.254.169.254/latest?sig=super-secret-sig",
         0,
         new OutboundUrlValidationError(
           "blocked-ip",
@@ -465,19 +484,27 @@ describe("terminal outbound failure reporting", () => {
     expect(isUnrecoverableError(thrown)).toBe(true);
     const message = (thrown as Error).message;
     expect(message).not.toContain("hunter2");
-    expect(message).toContain("http://***@169.254.169.254/");
+    expect(message).not.toContain("super-secret-sig");
+    expect(message).toContain("http://169.254.169.254/latest");
     // The diagnostic reason must survive redaction, otherwise the operator
     // cannot tell a blocked IP from a rejected scheme.
     expect(message).toContain("Blocked IP address detected: 169.254.169.254");
   });
 
   it("keeps credentials out of every field a logger or tracer can serialize", () => {
-    const thrown = captureRethrow(credentialedRedirect());
+    const source = credentialedRedirect();
+    // The webhook executor logs this error directly, before any queue-level
+    // sanitizer runs, so the original object has to be clean too.
+    expect(serializableSurface(source)).not.toContain("hunter2");
+    expect(serializableSurface(source)).not.toContain("super-secret-sig");
+
+    const thrown = captureRethrow(source);
 
     // Redacting only the message is not enough: the queue's generic `failed`
     // handler passes the whole error to the logger and to traceException, so a
     // raw error retained as an enumerable `cause` leaks the URL anyway.
     expect(serializableSurface(thrown)).not.toContain("hunter2");
+    expect(serializableSurface(thrown)).not.toContain("super-secret-sig");
     expect(serializableSurface(thrown)).not.toContain(
       "exporter:hunter2@169.254.169.254",
     );

@@ -8,25 +8,21 @@
  * - Non-blocking: Parsing happens in Web Worker
  * - Cached: React Query caches both raw data AND parsed data independently
  * - Progressive: UI renders immediately, data populates when ready
- * - Graceful fallback: Uses sync parsing if Web Workers unavailable
+ * - Graceful fallback: parses on this thread whenever the worker cannot
  */
 
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useEffect } from "react";
 import { api, sendAsPostOption } from "@/src/utils/api";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
-import { type EventBatchIOOutput } from "@/src/features/events/server/eventsRouter";
+import { useReadPath } from "@/src/features/events";
+import type { EventBatchIOOutput } from "@/src/features/events/server";
 import {
   type ObservationReturnTypeWithMetadata,
   type ObservationReturnType,
 } from "@/src/server/api/routers/traces";
 import { stringifyMetadata } from "@/src/utils/clientSideDomainTypes";
-import type {
-  ParseRequest,
-  ParseResponse,
-} from "@/src/workers/json-parser.worker";
 import { cheapHash } from "@/src/hooks/parsedIoCacheKey";
-import { reportParserWorkerError } from "@/src/hooks/parserWorkerError";
+import { parseIoOffThread } from "@/src/workers/jsonParserWorkerClient";
 
 type ObservationWithStringifiedIO = ObservationReturnTypeWithMetadata & {
   input: string | null;
@@ -38,67 +34,6 @@ type ParsedObservationResult =
   | EventBatchIOOutput
   | undefined;
 
-/**
- * Threshold for using Web Worker vs sync parsing (in characters).
- * Below this: sync parse (faster, no message-passing overhead)
- * Above this: Web Worker (non-blocking, prevents UI freeze)
- */
-const PARSE_IN_WEBWORKER_THRESHOLD = 100_000; // 100KB
-
-/**
- * Estimate the size of a value in characters (for threshold check)
- */
-function estimateSize(value: unknown): number {
-  if (value === null || value === undefined) return 0;
-  if (typeof value === "string") return value.length;
-  // For objects/arrays, estimate via JSON stringification length
-  // This is approximate but good enough for threshold decisions
-  try {
-    return JSON.stringify(value).length;
-  } catch {
-    return 0;
-  }
-}
-
-// Singleton worker instance shared across all hook calls
-let workerInstance: Worker | null = null;
-const pendingCallbacks = new Map<
-  string,
-  (data: ParseResponse & { error?: string }) => void
->();
-
-function getOrCreateWorker(): Worker | null {
-  if (typeof window === "undefined" || !window.Worker) {
-    return null; // SSR or no Worker support
-  }
-
-  if (!workerInstance) {
-    try {
-      // Next.js will bundle this as a separate chunk
-      workerInstance = new Worker(
-        new URL("@/src/workers/json-parser.worker.ts", import.meta.url),
-      );
-
-      workerInstance.onmessage = (e: MessageEvent<ParseResponse>) => {
-        const callback = pendingCallbacks.get(e.data.id);
-        if (callback) {
-          callback(e.data);
-          pendingCallbacks.delete(e.data.id);
-        }
-      };
-
-      workerInstance.onerror = (event) => {
-        reportParserWorkerError("useParsedObservation", event);
-      };
-    } catch (error) {
-      console.error("[useParsedObservation] Failed to create worker:", error);
-      return null;
-    }
-  }
-
-  return workerInstance;
-}
-
 interface UseParsedObservationParams {
   observationId: string;
   traceId: string;
@@ -108,98 +43,6 @@ interface UseParsedObservationParams {
   baseObservation?: ObservationReturnType | ObservationReturnTypeWithMetadata;
 }
 
-interface ParsedData {
-  input: unknown;
-  output: unknown;
-  metadata: unknown;
-  parseTime: number;
-}
-
-/**
- * Sync parse helper - used for small payloads or when Web Worker unavailable
- */
-async function syncParseObservationData(
-  input: unknown,
-  output: unknown,
-  metadata: unknown,
-): Promise<ParsedData> {
-  const { deepParseJsonIterative } = await import("@langfuse/shared");
-  const startTime = performance.now();
-
-  return {
-    input: deepParseJsonIterative(input, {
-      maxDepth: 50,
-      maxSize: 500_000,
-    }),
-    output: deepParseJsonIterative(output, {
-      maxDepth: 50,
-      maxSize: 500_000,
-    }),
-    metadata: deepParseJsonIterative(metadata, {
-      maxDepth: 50,
-      maxSize: 500_000,
-    }),
-    parseTime: performance.now() - startTime,
-  };
-}
-
-/**
- * Parse observation data in Web Worker (or sync for small payloads)
- * Returns a promise that resolves with parsed data
- */
-async function parseObservationData(
-  input: unknown,
-  output: unknown,
-  metadata: unknown,
-): Promise<ParsedData> {
-  // Estimate total size to decide sync vs worker
-  const totalSize =
-    estimateSize(input) + estimateSize(output) + estimateSize(metadata);
-
-  // Small payloads: sync parse (faster, no message-passing overhead)
-  if (totalSize < PARSE_IN_WEBWORKER_THRESHOLD) {
-    return syncParseObservationData(input, output, metadata);
-  }
-
-  const worker = getOrCreateWorker();
-
-  // Fallback to sync parsing if no worker support
-  if (!worker) {
-    return syncParseObservationData(input, output, metadata);
-  }
-
-  // Large payloads: parse in Web Worker (non-blocking)
-  return new Promise<ParsedData>((resolve, reject) => {
-    const parseId = `${Date.now()}-${Math.random()}`;
-
-    pendingCallbacks.set(parseId, (result) => {
-      pendingCallbacks.delete(parseId);
-
-      if (result.error) {
-        console.error(`[useParsedObservation] Parse error: ${result.error}`);
-        reject(new Error(result.error));
-        return;
-      }
-
-      resolve({
-        input: result.parsedInput,
-        output: result.parsedOutput,
-        metadata: result.parsedMetadata,
-        parseTime: result.parseTime ?? 0,
-      });
-    });
-
-    const request: ParseRequest = {
-      id: parseId,
-      input,
-      output,
-      metadata,
-    };
-
-    worker.postMessage(request);
-  });
-}
-
 export function useParsedObservation({
   observationId,
   traceId,
@@ -207,7 +50,7 @@ export function useParsedObservation({
   startTime,
   baseObservation,
 }: UseParsedObservationParams) {
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
 
   // Step 1a: Fetch raw observation data from observations table (beta OFF)
   const observationQuery = api.observations.byId.useQuery(
@@ -218,7 +61,7 @@ export function useParsedObservation({
       startTime,
     },
     {
-      enabled: !isBetaEnabled,
+      enabled: !isV4,
       staleTime: 5 * 60 * 1000, // 5 minutes
     },
   );
@@ -232,22 +75,25 @@ export function useParsedObservation({
       minStartTime: startTime ?? new Date(0),
       maxStartTime: startTime ?? new Date(),
       truncated: false,
+      includeSkills: true,
     },
     {
       ...sendAsPostOption,
-      enabled: isBetaEnabled,
+      enabled: isV4,
       staleTime: 5 * 60 * 1000, // 5 minutes
-      select: (data) => data[0], // Extract single result from batch
+      select: (data): EventBatchIOOutput | undefined => data[0],
     },
   );
 
   const mergedObservation = useMemo<ParsedObservationResult>(() => {
-    if (isBetaEnabled) {
+    if (isV4) {
       if (baseObservation && eventsQuery.data) {
         return {
           ...baseObservation,
           input: eventsQuery.data.input,
           output: eventsQuery.data.output,
+          skillsAvailable: eventsQuery.data.skillsAvailable,
+          skillsResourceLoaded: eventsQuery.data.skillsResourceLoaded,
           // Stringify metadata to match ObservationReturnTypeWithMetadata format
           metadata: stringifyMetadata(eventsQuery.data.metadata),
         } satisfies ObservationWithStringifiedIO;
@@ -257,20 +103,20 @@ export function useParsedObservation({
     }
     // Beta OFF: return full observation from observations table
     return observationQuery.data;
-  }, [isBetaEnabled, baseObservation, eventsQuery.data, observationQuery.data]);
+  }, [isV4, baseObservation, eventsQuery.data, observationQuery.data]);
 
   // TODO: remove when going into prod
   // Log warning if baseObservation missing when beta ON (helps catch issues in testing)
   useEffect(() => {
-    if (isBetaEnabled && eventsQuery.data && !baseObservation) {
+    if (isV4 && eventsQuery.data && !baseObservation) {
       console.warn(
         "[useParsedObservation] baseObservation missing - JumpToPlaygroundButton may not work correctly",
         { observationId },
       );
     }
-  }, [isBetaEnabled, eventsQuery.data, baseObservation, observationId]);
+  }, [isV4, eventsQuery.data, baseObservation, observationId]);
 
-  const isLoadingRaw = isBetaEnabled
+  const isLoadingRaw = isV4
     ? eventsQuery.isLoading
     : observationQuery.isLoading;
 
@@ -307,15 +153,17 @@ export function useParsedObservation({
         throw new Error("No observation data to parse");
       }
 
-      return parseObservationData(
-        mergedObservation.input,
-        mergedObservation.output,
-        mergedObservation.metadata,
-      );
+      return parseIoOffThread({
+        source: "useParsedObservation",
+        input: mergedObservation.input,
+        output: mergedObservation.output,
+        metadata: mergedObservation.metadata,
+      });
     },
     enabled: !!mergedObservation, // Only run when we have data
     staleTime: Infinity, // Parsed data never goes stale (input data is the source of truth)
     gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes after unmount
+    meta: { toastOperation: "observation.parse" },
   });
 
   return {

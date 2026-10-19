@@ -4,20 +4,28 @@ import { OrderByState } from "../../interfaces/orderBy";
 import { FilterState } from "../../types";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import {
+  ALL_SESSION_EVENTS_FIELDS,
   CTEQueryBuilder,
+  normalizeSessionCounts,
   DateTimeFilter,
   FilterList,
   StringOptionsFilter,
+  filtersRequireEventsFull,
+  metadataFilterCanPruneEventsFull,
   orderByToClickhouseSql,
+  type SessionEventsField,
+  type SessionEventsFields,
   type SessionEventsMetricsRow,
 } from "../queries";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
+import { compileClickhouseQuery } from "../query-ast/compile";
+import { getClickhouseKysely } from "../query-ast/dialect";
 import {
   eventsSessionsAggregation,
   eventsSessionScoresAggregation,
-  eventsTracesAggregation,
 } from "../queries/clickhouse-sql/query-fragments";
 import { queryClickhouse } from "../repositories";
+import { TRACE_AGGREGATION_SELECTS } from "../repositories/events-selects";
 import {
   sessionEventsCols,
   sessionEventsOrderByCols,
@@ -25,26 +33,6 @@ import {
 import { sessionsEventsViewCols } from "../../tableDefinitions/sessionsView";
 import { findUiColumnMapping } from "../../tableDefinitions";
 import { parseClickhouseUTCDateTimeFormat } from "../repositories/clickhouse";
-
-type SessionEventsBaseReturnType = {
-  session_id: string;
-  max_timestamp: string;
-  min_timestamp: string;
-  trace_ids: string[];
-  user_ids: string[];
-  trace_count: number;
-  trace_tags: string[];
-  environment?: string;
-};
-
-type SessionScoreFields = {
-  scores_avg?: Array<Array<[string, number]>>;
-  score_categories?: Array<Array<string>>;
-  score_booleans?: Array<Array<string>>;
-};
-
-export type SessionEventsDataReturnType = SessionEventsBaseReturnType &
-  SessionScoreFields;
 
 export type SessionTraceFromEvents = {
   id: string;
@@ -60,29 +48,14 @@ export const getSessionTracesFromEvents = async (props: {
   projectId: string;
   sessionId: string;
 }) => {
-  const tracesBuilder = eventsTracesAggregation({
-    projectId: props.projectId,
-  })
-    .whereRaw("e.session_id = {sessionId: String}", {
-      sessionId: props.sessionId,
-    })
-    .whereRaw("e.is_deleted = 0")
-    .orderByColumns([{ column: "timestamp", direction: "ASC" }]);
-
-  const tracesCte = tracesBuilder.buildWithParams();
-
-  const query = `
-    ${tracesCte.query}
-  `;
-
-  const input = {
-    params: {
-      ...tracesCte.params,
-      projectId: props.projectId,
-      sessionId: props.sessionId,
-    },
-    tags: { projectId: props.projectId },
-  };
+  const { projectId, sessionId } = props;
+  const builder = getClickhouseKysely()
+    .selectFrom("events_full as e")
+    .select(TRACE_AGGREGATION_SELECTS)
+    .where("e.session_id", "=", sessionId)
+    .groupBy(["trace_id", "project_id"])
+    .orderBy("timestamp", "asc");
+  const { sql: query, params } = compileClickhouseQuery(builder, projectId);
 
   const rows = await queryClickhouse<{
     id: string;
@@ -94,8 +67,8 @@ export const getSessionTracesFromEvents = async (props: {
     latency_milliseconds: number | string | null;
   }>({
     query,
-    params: input.params,
-    tags: input.tags,
+    params,
+    tags: { projectId },
     preferredClickhouseService: "EventsReadOnly",
   });
 
@@ -132,62 +105,34 @@ export const getSessionsTableCountFromEvents = async (props: {
   return rows.length > 0 ? Number(rows[0].count) : 0;
 };
 
-export const getSessionsTableFromEvents = async (props: {
+export const getSessionsTableFromEvents = async <
+  F extends SessionEventsField,
+>(props: {
   projectId: string;
   filter: FilterState;
-  orderBy?: OrderByState;
-  limit?: number;
-  page?: number;
-}) => {
-  const rows =
-    await getSessionsTableFromEventsGeneric<SessionEventsDataReturnType>({
-      select: "rows",
-      projectId: props.projectId,
-      filter: props.filter,
-      orderBy: props.orderBy,
-      limit: props.limit,
-      page: props.page,
-    });
-
-  return rows.map((row) => ({
-    ...row,
-    trace_count: Number(row.trace_count),
-  }));
-};
-
-// Single-query equivalent of getSessionsTableFromEvents + getSessionMetricsFromEvents,
-// mirroring the legacy getSessionsWithMetrics. Used by batch export so the metrics
-// aggregation inherits the same filter (incl. the createdAt cutoff) and clickhouseConfigs
-// (extended HTTP timeouts) as the row query, in a single round-trip.
-export const getSessionsWithMetricsFromEvents = async (props: {
-  projectId: string;
-  filter: FilterState;
+  fields: SessionEventsFields<F>;
   orderBy?: OrderByState;
   limit?: number;
   page?: number;
   clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
 }) => {
-  const rows = await getSessionsTableFromEventsGeneric<SessionEventsMetricsRow>(
-    {
-      select: "metrics",
-      projectId: props.projectId,
-      filter: props.filter,
-      orderBy: props.orderBy,
-      limit: props.limit,
-      page: props.page,
-      clickhouseConfigs: props.clickhouseConfigs,
-    },
-  );
+  const rows = await getSessionsTableFromEventsGeneric<
+    Pick<SessionEventsMetricsRow, F>
+  >({
+    select: { fields: props.fields },
+    projectId: props.projectId,
+    filter: props.filter,
+    orderBy: props.orderBy,
+    limit: props.limit,
+    page: props.page,
+    clickhouseConfigs: props.clickhouseConfigs,
+  });
 
-  return rows.map((row) => ({
-    ...row,
-    trace_count: Number(row.trace_count),
-    total_observations: Number(row.total_observations),
-  }));
+  return rows.map(normalizeSessionCounts);
 };
 
 export type FetchSessionsTableFromEventsProps = {
-  select: "count" | "rows" | "metrics";
+  select: "count" | { fields: SessionEventsFields<SessionEventsField> };
   projectId: string;
   filter: FilterState;
   searchQuery?: string;
@@ -249,15 +194,27 @@ const getSessionsTableFromEventsGeneric = async <T>(
     (filter) =>
       filter.clickhouseTable === "events_proto" && filter.field === "metadata",
   );
+  const fullTable = filtersRequireEventsFull(sessionFilters);
+  const metadataSessionPrefilter = fullTable
+    ? buildMetadataSessionPrefilter(filter)
+    : null;
+  const toolColumns = ["toolNames", "calledToolNames", "toolCalls"];
+  const requiresTools =
+    filter.some((item) => toolColumns.includes(item.column)) ||
+    (orderBy != null && toolColumns.includes(orderBy.column));
 
   // Build session_data CTE
   const sessionsBuilder = eventsSessionsAggregation({
     projectId,
+    fields: ALL_SESSION_EVENTS_FIELDS,
     sessionIds: sessionIdFilter?.values,
     startTimeFrom: traceTimestampFilter
       ? convertDateToClickhouseDateTime(traceTimestampFilter.value)
       : null,
     includeMetadata: requiresMetadata,
+    includeTools: requiresTools,
+    fullTable,
+    metadataSessionPrefilter,
   });
 
   // Compose query using CTEQueryBuilder
@@ -266,7 +223,7 @@ const getSessionsTableFromEventsGeneric = async <T>(
     .from("session_data", "s");
 
   // Conditionally add scores CTE
-  if (select === "metrics" || requiresScoresJoin) {
+  if (requiresScoresJoin) {
     queryBuilder = queryBuilder
       .withCTE("scores_agg", eventsSessionScoresAggregation({ projectId }))
       .leftJoin(
@@ -276,51 +233,12 @@ const getSessionsTableFromEventsGeneric = async <T>(
       );
   }
 
-  // Select fields based on query type
-  switch (select) {
-    case "count":
-      queryBuilder.select("count(s.session_id) as count");
-      break;
-    case "rows":
-      queryBuilder.selectColumns(
-        "s.session_id",
-        "s.max_timestamp",
-        "s.min_timestamp",
-        "s.trace_ids",
-        "s.user_ids",
-        "s.trace_count",
-        "s.trace_tags",
-        "s.environment",
-      );
-      break;
-    case "metrics":
-      queryBuilder
-        .selectColumns(
-          "s.session_id",
-          "s.max_timestamp",
-          "s.min_timestamp",
-          "s.trace_ids",
-          "s.user_ids",
-          "s.trace_count",
-          "s.trace_tags",
-          "s.environment",
-          "s.total_observations",
-          "s.duration",
-          "s.session_usage_details",
-          "s.session_cost_details",
-          "s.session_input_cost",
-          "s.session_output_cost",
-          "s.session_total_cost",
-          "s.session_input_usage",
-          "s.session_output_usage",
-          "s.session_total_usage",
-        )
-        .select("sc.scores_avg", "sc.score_categories", "sc.score_booleans");
-      break;
-    default: {
-      const exhaustiveCheckDefault: never = select;
-      throw new Error(`Unknown select type: ${exhaustiveCheckDefault}`);
-    }
+  if (select === "count") {
+    queryBuilder.select("count(s.session_id) as count");
+  } else {
+    queryBuilder.selectColumns(
+      ...select.fields.map((field) => `s.${field}` as const),
+    );
   }
 
   // Apply filters, ordering, and pagination
@@ -357,4 +275,31 @@ const getSessionsTableFromEventsGeneric = async <T>(
     clickhouseConfigs,
     preferredClickhouseService: "EventsReadOnly",
   });
+};
+
+// Keeps only metadata filters an events_full skip index can prune on, so the
+// prefilter subquery stays bounded. Any subset of the conjuncts is still a
+// necessary condition for the outer filter. Returns null when none qualify.
+const buildMetadataSessionPrefilter = (filter: FilterState) => {
+  const prunableMetadataFilters = filter.filter(
+    (item) =>
+      item.type === "stringObject" &&
+      findUiColumnMapping(sessionEventsCols, item.column)?.uiTableId ===
+        "metadata" &&
+      metadataFilterCanPruneEventsFull(item.operator, item.value),
+  );
+  if (prunableMetadataFilters.length === 0) {
+    return null;
+  }
+  return new FilterList(
+    createFilterFromFilterState(
+      prunableMetadataFilters,
+      sessionEventsCols.map((column) =>
+        column.uiTableId === "metadata"
+          ? { ...column, queryPrefix: "m" }
+          : column,
+      ),
+      sessionsEventsViewCols,
+    ),
+  ).apply();
 };

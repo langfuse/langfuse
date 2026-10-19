@@ -1,4 +1,5 @@
 import { UiColumnMappings } from "../../tableDefinitions";
+import { EvalExecutionMetadataKey } from "../../features/evals/evalExecutionMetadata";
 
 // Lowercased boolean string_value ('true'/'false', '' for non-boolean rows) —
 // matches the lowercase options offered by the scores view's Boolean Value
@@ -58,6 +59,26 @@ export const scoresTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "scores",
     clickhouseSelect: "name",
     queryPrefix: "s",
+  },
+  {
+    uiTableName: "Evaluator ID",
+    uiTableId: "evaluatorId",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "evaluator_id",
+    queryPrefix: "s",
+  },
+  {
+    uiTableName: "Rule ID",
+    uiTableId: "ruleId",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "evaluation_rule_id",
+    queryPrefix: "s",
+  },
+  {
+    uiTableName: "Evaluator Test",
+    uiTableId: "isEvaluatorTest",
+    clickhouseTableName: "scores",
+    clickhouseSelect: `toBool(s.metadata['${EvalExecutionMetadataKey.EVALUATOR_TEST}'] = 'true')`,
   },
   {
     uiTableName: "Value",

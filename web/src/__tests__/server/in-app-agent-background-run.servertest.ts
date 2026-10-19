@@ -4,8 +4,8 @@
  * the lifecycle helpers directly, because the contracts worth protecting are
  * the ones a browser can actually reach.
  */
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
-import type { Flags } from "@/src/features/feature-flags/types";
 import { EventType } from "@ag-ui/core";
 import { randomUUID } from "crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -13,11 +13,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type Plan } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
+import { LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE } from "@langfuse/shared/in-app-agent/server/modelProvider";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import {
   IN_APP_AGENT_APPROVAL_DECISION_EVENT_NAME,
+  IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
+  type InAppAgentQuestionnaireAnswers,
+  type InAppAgentToolInputs,
 } from "@langfuse/shared/in-app-agent";
 import {
   createInAppAgentConversationId,
@@ -96,10 +100,13 @@ vi.mock("@/src/server/auth", () => ({
 
 describe("in-app agent background runs", () => {
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-  const originalBedrockModel = env.LANGFUSE_AWS_BEDROCK_MODEL;
+  const originalModel = env.LANGFUSE_AI_MODEL;
   const originalSharedCloudRegion = sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-  const originalSharedBedrockModel = sharedEnv.LANGFUSE_AWS_BEDROCK_MODEL;
-  const originalSharedBedrockRegion = sharedEnv.LANGFUSE_AWS_BEDROCK_REGION;
+  const originalSharedModel = sharedEnv.LANGFUSE_AI_MODEL;
+  const originalSharedSmallModel = sharedEnv.LANGFUSE_AI_SMALL_MODEL;
+  const originalSharedProvider = sharedEnv.LANGFUSE_AI_PROVIDER;
+  const originalSharedApiKey = sharedEnv.LANGFUSE_AI_API_KEY;
+  const originalSharedRegion = sharedEnv.LANGFUSE_AI_AWS_BEDROCK_REGION;
   const originalSharedInAppAgentEnabled =
     sharedEnv.LANGFUSE_IN_APP_AGENT_ENABLED;
   const originalMaxActiveRunsPerUser =
@@ -109,10 +116,15 @@ describe("in-app agent background runs", () => {
 
   beforeEach(() => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
-    (env as any).LANGFUSE_AWS_BEDROCK_MODEL = "test-model";
+    (env as any).LANGFUSE_AI_MODEL = "test-model";
     (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
-    (sharedEnv as any).LANGFUSE_AWS_BEDROCK_MODEL = "test-model";
-    (sharedEnv as any).LANGFUSE_AWS_BEDROCK_REGION = "eu-central-1";
+    // Pin Bedrock: a local .env with LANGFUSE_AI_PROVIDER=anthropic would
+    // otherwise route these cases through the Anthropic branch.
+    (sharedEnv as any).LANGFUSE_AI_PROVIDER = "bedrock";
+    (sharedEnv as any).LANGFUSE_AI_API_KEY = undefined;
+    (sharedEnv as any).LANGFUSE_AI_MODEL = "test-model";
+    (sharedEnv as any).LANGFUSE_AI_SMALL_MODEL = undefined;
+    (sharedEnv as any).LANGFUSE_AI_AWS_BEDROCK_REGION = "eu-central-1";
     (sharedEnv as any).LANGFUSE_IN_APP_AGENT_ENABLED = undefined;
     enqueuedJobs.length = 0;
     enqueueShouldFail = false;
@@ -126,12 +138,14 @@ describe("in-app agent background runs", () => {
   afterEach(() => {
     vi.useRealTimers();
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
-    (env as any).LANGFUSE_AWS_BEDROCK_MODEL = originalBedrockModel;
+    (env as any).LANGFUSE_AI_MODEL = originalModel;
     (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION =
       originalSharedCloudRegion;
-    (sharedEnv as any).LANGFUSE_AWS_BEDROCK_MODEL = originalSharedBedrockModel;
-    (sharedEnv as any).LANGFUSE_AWS_BEDROCK_REGION =
-      originalSharedBedrockRegion;
+    (sharedEnv as any).LANGFUSE_AI_MODEL = originalSharedModel;
+    (sharedEnv as any).LANGFUSE_AI_SMALL_MODEL = originalSharedSmallModel;
+    (sharedEnv as any).LANGFUSE_AI_PROVIDER = originalSharedProvider;
+    (sharedEnv as any).LANGFUSE_AI_API_KEY = originalSharedApiKey;
+    (sharedEnv as any).LANGFUSE_AI_AWS_BEDROCK_REGION = originalSharedRegion;
     (sharedEnv as any).LANGFUSE_IN_APP_AGENT_ENABLED =
       originalSharedInAppAgentEnabled;
     (env as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER =
@@ -185,7 +199,7 @@ describe("in-app agent background runs", () => {
             ],
           },
         ],
-        featureFlags: {} as Flags,
+        featureFlags: testFeatureFlags({ templateFlag: false }),
         admin: false,
       },
       environment: {} as any,
@@ -278,8 +292,8 @@ describe("in-app agent background runs", () => {
   it("lists conversations when the in-app agent model is not configured", async () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
-    (sharedEnv as any).LANGFUSE_AWS_BEDROCK_MODEL = undefined;
-    (sharedEnv as any).LANGFUSE_AWS_BEDROCK_REGION = undefined;
+    (sharedEnv as any).LANGFUSE_AI_MODEL = undefined;
+    (sharedEnv as any).LANGFUSE_AI_AWS_BEDROCK_REGION = undefined;
 
     const listed = await caller.listConversations({ projectId, limit: 50 });
 
@@ -288,10 +302,10 @@ describe("in-app agent background runs", () => {
     ]);
   });
 
-  it("starts a Cloud run when LANGFUSE_AWS_BEDROCK_REGION is unset", async () => {
+  it("starts a Cloud run when LANGFUSE_AI_AWS_BEDROCK_REGION is unset", async () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
-    (sharedEnv as any).LANGFUSE_AWS_BEDROCK_REGION = undefined;
+    (sharedEnv as any).LANGFUSE_AI_AWS_BEDROCK_REGION = undefined;
 
     await expect(
       caller.startRun({
@@ -307,8 +321,8 @@ describe("in-app agent background runs", () => {
 
   it("rejects requests before queueing when the in-app agent model is not configured", async () => {
     const { caller, projectId } = await createCaller();
-    (sharedEnv as any).LANGFUSE_AWS_BEDROCK_MODEL = undefined;
-    (sharedEnv as any).LANGFUSE_AWS_BEDROCK_REGION = undefined;
+    (sharedEnv as any).LANGFUSE_AI_MODEL = undefined;
+    (sharedEnv as any).LANGFUSE_AI_AWS_BEDROCK_REGION = undefined;
 
     await expect(
       caller.startRun({
@@ -318,8 +332,7 @@ describe("in-app agent background runs", () => {
       }),
     ).rejects.toMatchObject({
       code: "PRECONDITION_FAILED",
-      message:
-        "In-app agent Bedrock model is not configured. Set LANGFUSE_AWS_BEDROCK_MODEL.",
+      message: LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE,
     });
 
     expect(enqueuedJobs).toHaveLength(0);
@@ -333,6 +346,8 @@ describe("in-app agent background runs", () => {
     toolCallId: string;
     context?: Array<{ description: string; value: string }>;
     parkedAt?: Date;
+    toolName?: string;
+    args?: unknown;
   }) => {
     const runId = createInAppAgentRunId();
 
@@ -364,8 +379,8 @@ describe("in-app agent background runs", () => {
           value: {
             type: "mastra_suspend",
             toolCallId: params.toolCallId,
-            toolName: "langfuse_createTextPrompt",
-            args: { name: "from-persisted-event" },
+            toolName: params.toolName ?? "langfuse_createTextPrompt",
+            args: params.args ?? { name: "from-persisted-event" },
             runId,
           },
         },
@@ -726,7 +741,31 @@ describe("in-app agent background runs", () => {
     });
     expect(decisionEvent.event).toMatchObject({
       name: IN_APP_AGENT_APPROVAL_DECISION_EVENT_NAME,
-      value: { toolCallId: "tool-call-grant" },
+      value: {
+        toolCallId: "tool-call-grant",
+        approved: true,
+        alwaysAllow: true,
+        toolName: "langfuse_createTextPrompt",
+      },
+    });
+
+    const onceDecisionEvent = await prisma.inAppAgentEvent.findFirstOrThrow({
+      where: {
+        projectId,
+        conversationId: onceConversation.id,
+        runId: onceRunId,
+      },
+      orderBy: { sequenceNumber: "desc" },
+    });
+    expect(onceDecisionEvent.event).toMatchObject({
+      name: IN_APP_AGENT_APPROVAL_DECISION_EVENT_NAME,
+      value: {
+        toolCallId: "tool-call-once",
+        approved: true,
+      },
+    });
+    expect(onceDecisionEvent.event).not.toMatchObject({
+      value: { alwaysAllow: true },
     });
   });
 
@@ -815,6 +854,98 @@ describe("in-app agent background runs", () => {
         },
       }),
     ).toBe(1);
+  });
+
+  it("validates questionnaire answers against the persisted questions", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const parkedRunId = await parkRunForApproval({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+      toolCallId: "tool-call-1",
+      toolName: IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
+      args: {
+        questions: [
+          {
+            question: "Which evaluator type?",
+            options: [
+              {
+                label: "LLM-as-a-judge",
+                description: "Model-graded",
+                recommended: true,
+              },
+              {
+                label: "Code",
+                description: "Deterministic",
+                recommended: false,
+              },
+            ],
+            allowMultiple: false,
+          },
+        ],
+      },
+    });
+    const decide = (toolInputs?: InAppAgentToolInputs) =>
+      caller.decideToolApproval({
+        projectId,
+        conversationId: conversation.id,
+        runId: parkedRunId,
+        toolCallId: "tool-call-1",
+        approved: true,
+        toolInputs,
+      });
+    const withAnswers = (answers: InAppAgentQuestionnaireAnswers) => ({
+      [IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME]: { answers },
+    });
+
+    await expect(decide()).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(
+      decide(withAnswers([{ selectedOptionIndexes: [2], otherText: null }])),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(
+      (
+        await prisma.inAppAgentRun.findFirstOrThrow({
+          where: { id: parkedRunId, projectId },
+        })
+      ).status,
+    ).toBe(InAppAgentRunStatus.AWAITING_APPROVAL);
+
+    const toolInputs = withAnswers([
+      { selectedOptionIndexes: [1], otherText: null },
+    ]);
+    const { runId: continuationRunId } = await decide(toolInputs);
+
+    const continuation = await prisma.inAppAgentRun.findFirstOrThrow({
+      where: { id: continuationRunId, projectId },
+    });
+    expect(continuation.request).toMatchObject({
+      kind: "approvalDecision",
+      approved: true,
+      toolInputs,
+    });
+  });
+
+  it("rejects tool inputs for a tool that does not take input", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const parkedRunId = await parkRunForApproval({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+      toolCallId: "tool-call-1",
+    });
+
+    await expect(
+      caller.decideToolApproval({
+        projectId,
+        conversationId: conversation.id,
+        runId: parkedRunId,
+        toolCallId: "tool-call-1",
+        approved: true,
+        toolInputs: { [IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME]: { answers: [] } },
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 
   it("preserves context through an approved then rejected chained continuation", async () => {
@@ -1338,7 +1469,7 @@ describe("in-app agent background runs", () => {
             ],
           },
         ],
-        featureFlags: {} as Flags,
+        featureFlags: testFeatureFlags({ templateFlag: false }),
         admin: false,
       },
       environment: {} as any,

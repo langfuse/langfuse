@@ -1,3 +1,5 @@
+/* eslint-disable @repo/component-file-structure */
+import { showErrorToast } from "@/src/features/notifications";
 import React, {
   createContext,
   useCallback,
@@ -12,8 +14,7 @@ import { v4 as uuidv4 } from "uuid";
 import { createEmptyMessage } from "@/src/components/ChatMessages/utils/createEmptyMessage";
 import { useModelParams } from "@/src/features/playground/page/hooks/useModelParams";
 import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
   ChatMessageRole,
@@ -36,6 +37,7 @@ import type { ModelParamsContext } from "@/src/components/ModelParameters";
 import { env } from "@/src/env.mjs";
 import {
   type PlaygroundSchema,
+  type PlaygroundSourcePrompt,
   type PlaygroundTool,
   type PlaceholderMessageFillIn,
   type PlaygroundProviderProps,
@@ -67,6 +69,8 @@ type PlaygroundContextType = {
 
   structuredOutputSchema: PlaygroundSchema | null;
   setStructuredOutputSchema: (schema: PlaygroundSchema | null) => void;
+
+  sourcePrompt: PlaygroundSourcePrompt | null;
 
   output: string;
   outputReasoning: string;
@@ -113,6 +117,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
   const capture = usePostHogClientCapture();
   const projectId = useProjectIdFromURL();
   const { playgroundCache, setPlaygroundCache } = usePlaygroundCache(windowId);
+  const sourcePrompt = playgroundCache?.sourcePrompt ?? null;
   const [promptVariables, setPromptVariables] = useState<PromptVariable[]>([]);
   const [messagePlaceholders, setMessagePlaceholders] = useState<
     PlaceholderMessageFillIn[]
@@ -459,6 +464,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
           messagePlaceholders,
           tools,
           structuredOutputSchema,
+          sourcePrompt,
         });
         capture("playground:execute_button_click", {
           inputLength: finalMessages.length,
@@ -471,7 +477,11 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
       } catch (err) {
         const errorMessage =
           err instanceof Error ? err.message : "An error occurred";
-        showErrorToast("Error", errorMessage);
+        showErrorToast("Error", errorMessage, {
+          operation: "playground.execute",
+          errorOrigin: err instanceof TypeError ? "network" : "backend",
+          errorCategory: err instanceof TypeError ? "transient" : "internal",
+        });
       } finally {
         setIsStreaming(false);
       }
@@ -485,6 +495,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
       capture,
       setPlaygroundCache,
       structuredOutputSchema,
+      sourcePrompt,
       projectId,
     ],
   );
@@ -574,6 +585,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
         messagePlaceholders,
         tools,
         structuredOutputSchema,
+        sourcePrompt,
       });
     }
   }, [
@@ -584,6 +596,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
     messagePlaceholders,
     tools,
     structuredOutputSchema,
+    sourcePrompt,
     setPlaygroundCache,
     cacheLoaded,
   ]);
@@ -727,6 +740,8 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
 
         structuredOutputSchema,
         setStructuredOutputSchema,
+
+        sourcePrompt,
 
         messages,
         addMessage,

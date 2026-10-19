@@ -1,17 +1,11 @@
 /* eslint-disable @repo/no-style-props */
-import { ChevronRight, ChevronDown, Wrench } from "lucide-react";
-import { Badge } from "@/src/components/ui/badge";
+import { ChevronDown, ChevronRight, Wrench } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { useMemo, useState } from "react";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
 import type { ToolCallInvocation } from "../../../hooks/useChatMLParser";
 
 // Tool definition extracted from messages
@@ -26,20 +20,13 @@ export interface ToolCallDefinitionCardProps {
   tools: ToolDefinition[];
   toolCallCounts: Map<string, number>;
   toolCallsByName?: Map<string, ToolCallInvocation[]>;
-  toolNameToDefinitionNumber?: Map<string, number>;
   className?: string;
 }
 
-const CALLED_TOOLS_COLLAPSE_THRESHOLD = 5;
-const AVAILABLE_TOOLS_COLLAPSE_THRESHOLD = 3;
-const TOOL_GROUP_EXPANSION_STORAGE_KEY = "trace2-expansion:tools";
+type ToolTab = "called" | "not-called";
 
-type ToolGroupExpansionState = {
-  calledToolsExpanded: boolean;
-  availableToolsExpanded: boolean;
-};
-
-type ToolGroupKind = "called" | "available";
+/** Above this many tools the section starts collapsed. */
+const TOOLS_COLLAPSE_THRESHOLD = 5;
 
 function parseToolCallArguments(argumentsValue: unknown): unknown {
   if (typeof argumentsValue !== "string") {
@@ -79,7 +66,7 @@ function ToolCallArgumentsList({
             className="min-w-0"
           >
             <div className="mb-1.5 flex min-w-0 items-center justify-between gap-2">
-              <div className="text-foreground font-mono text-xs font-bold">
+              <div className="text-muted-foreground text-xs font-bold">
                 Call {toolCall.invocationNumber}
               </div>
               {toolCall.id && (
@@ -109,336 +96,115 @@ function ToolCallArgumentsList({
   );
 }
 
-function getStatusText(callCount: number) {
-  if (callCount === 0) return "not called";
-  if (callCount === 1) return "called";
-  return `called ${callCount}x`;
-}
-
-function ToolGroupHoverContent({
-  tools,
-  toolCallCounts,
-  toolNameToDefinitionNumber,
-}: {
-  tools: ToolDefinition[];
-  toolCallCounts: Map<string, number>;
-  toolNameToDefinitionNumber?: Map<string, number>;
-}) {
-  return (
-    <HoverCardContent
-      side="bottom"
-      align="start"
-      sideOffset={6}
-      className="max-h-96 w-80 max-w-[calc(100vw-2rem)] overflow-auto p-0"
-    >
-      <div className="flex flex-col gap-1 p-2">
-        {tools.map((tool, index) => {
-          const callCount = toolCallCounts.get(tool.name) ?? 0;
-          const toolDefinitionNumber = toolNameToDefinitionNumber?.get(
-            tool.name,
-          );
-
-          return (
-            <div
-              key={`${tool.name}-${index}`}
-              className="flex min-w-0 items-center justify-between gap-2 rounded-sm px-2 py-1"
-            >
-              <div className="flex min-w-0 items-center gap-2">
-                <Wrench className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
-                <span
-                  className="ph-no-capture text-foreground block truncate font-mono text-xs font-bold"
-                  title={tool.name}
-                >
-                  {toolDefinitionNumber !== undefined && (
-                    <span className="mr-1">{toolDefinitionNumber}.</span>
-                  )}
-                  {tool.name}
-                </span>
-              </div>
-              <Badge
-                variant={callCount > 0 ? undefined : "secondary"}
-                className={cn(
-                  "shrink-0 text-xs font-bold",
-                  callCount > 0 &&
-                    "bg-light-green text-dark-green hover:bg-light-green border-transparent select-none",
-                )}
-              >
-                {getStatusText(callCount)}
-              </Badge>
-            </div>
-          );
-        })}
-      </div>
-    </HoverCardContent>
-  );
-}
-
-function ToolGroupSummary({
-  kind,
-  tools,
-  expanded,
-  onToggle,
-  toolCallCounts,
-  toolNameToDefinitionNumber,
-}: {
-  kind: ToolGroupKind;
-  tools: ToolDefinition[];
-  expanded: boolean;
-  onToggle: () => void;
-  toolCallCounts: Map<string, number>;
-  toolNameToDefinitionNumber?: Map<string, number>;
-}) {
-  const isCalledGroup = kind === "called";
-  const summaryText = isCalledGroup
-    ? `${tools.length} ${tools.length === 1 ? "tool was" : "tools were"} called`
-    : `${tools.length} available ${tools.length === 1 ? "tool was" : "tools were"} not called`;
-
-  const summaryButton = (
-    <button
-      type="button"
-      className={cn(
-        "hover:bg-muted/20 flex w-full items-center justify-between gap-2 rounded-sm border px-3 py-2 text-left",
-        isCalledGroup &&
-          "border-light-green bg-accent-light-green hover:bg-accent-light-green/80",
-      )}
-      aria-expanded={expanded}
-      onClick={onToggle}
-    >
-      <div className="flex min-w-0 items-center gap-2">
-        <Wrench
-          className={cn(
-            "text-muted-foreground h-3.5 w-3.5 shrink-0",
-            isCalledGroup && "text-dark-green",
-          )}
-        />
-        <span
-          className={cn(
-            "truncate text-sm font-bold",
-            isCalledGroup ? "text-dark-green" : "text-foreground",
-          )}
-          title={summaryText}
-        >
-          {summaryText}
-        </span>
-      </div>
-      <div className="flex shrink-0 items-center gap-1.5">
-        <Badge
-          variant={isCalledGroup ? undefined : "secondary"}
-          className={cn(
-            "text-xs font-bold",
-            isCalledGroup &&
-              "bg-light-green text-dark-green hover:bg-light-green border-transparent select-none",
-          )}
-        >
-          {expanded ? "hide" : "show"}
-        </Badge>
-        {expanded ? (
-          <ChevronDown className="text-muted-foreground h-3.5 w-3.5" />
-        ) : (
-          <ChevronRight className="text-muted-foreground h-3.5 w-3.5" />
-        )}
-      </div>
-    </button>
-  );
-
-  if (expanded) {
-    return summaryButton;
-  }
-
-  return (
-    <HoverCard openDelay={200} closeDelay={100}>
-      <HoverCardTrigger asChild>{summaryButton}</HoverCardTrigger>
-      <ToolGroupHoverContent
-        tools={tools}
-        toolCallCounts={toolCallCounts}
-        toolNameToDefinitionNumber={toolNameToDefinitionNumber}
-      />
-    </HoverCard>
-  );
-}
-
-function ToolCallStatusBadge({
-  isCalled,
-  statusText,
-  toolCalls,
-}: {
-  isCalled: boolean;
-  statusText: string;
-  toolCalls: ToolCallInvocation[];
-}) {
-  const badge = (
-    <Badge
-      variant={isCalled ? undefined : "secondary"}
-      className={cn(
-        "text-xs font-bold whitespace-nowrap",
-        isCalled &&
-          "bg-light-green text-dark-green hover:bg-light-green border-transparent select-none",
-      )}
-    >
-      {statusText}
-    </Badge>
-  );
-
-  if (!isCalled || toolCalls.length === 0) {
-    return badge;
-  }
-
-  return (
-    <HoverCard openDelay={200} closeDelay={100}>
-      <HoverCardTrigger asChild>
-        <div className="inline-flex">{badge}</div>
-      </HoverCardTrigger>
-      <HoverCardContent
-        side="bottom"
-        align="end"
-        sideOffset={6}
-        className="max-h-96 w-96 max-w-[calc(100vw-2rem)] overflow-auto p-0"
-      >
-        <div className="border-border border-b px-3 py-2">
-          <div className="text-foreground text-xs font-bold">
-            Tool call arguments
-          </div>
-          <div className="text-muted-foreground text-xs">
-            {toolCalls.length === 1 ? "1 call" : `${toolCalls.length} calls`}
-          </div>
-        </div>
-        <ToolCallArgumentsList toolCalls={toolCalls} className="p-3" />
-      </HoverCardContent>
-    </HoverCard>
-  );
-}
-
 function ToolDefinitionRow({
   tool,
   isExpanded,
   onToggle,
-  callCount,
+  isCalled,
   toolCalls,
-  toolDefinitionNumber,
+  rowNumber,
   currentView,
   setCurrentView,
 }: {
   tool: ToolDefinition;
   isExpanded: boolean;
   onToggle: () => void;
-  callCount: number;
+  isCalled: boolean;
   toolCalls: ToolCallInvocation[];
-  toolDefinitionNumber?: number;
+  rowNumber: number;
   currentView: "formatted" | "json";
   setCurrentView: (value: "formatted" | "json") => void;
 }) {
-  const isCalled = callCount > 0;
-  const statusText = getStatusText(callCount);
+  const Caret = isExpanded ? ChevronDown : ChevronRight;
 
   return (
-    <div className="w-full overflow-hidden rounded-sm border">
+    <div className="group/tool-row w-full">
       <button
         type="button"
-        className="hover:bg-muted/20 flex w-full cursor-pointer items-center justify-between gap-2 px-3 py-1.5 text-left"
+        className={cn(
+          "hover:bg-muted/20 flex w-full cursor-pointer items-center gap-2 py-1.5 text-left group-first/tool-row:pt-0",
+          // Expanded details draw their own top border; keep the gap above it.
+          !isExpanded && "group-last/tool-row:pb-0",
+        )}
         onClick={onToggle}
         aria-expanded={isExpanded}
       >
-        <div className="flex min-w-0 items-center gap-2">
-          <Wrench className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
-          <span
-            className="ph-no-capture text-foreground block truncate font-mono text-xs font-bold"
-            title={tool.name}
-          >
-            {toolDefinitionNumber !== undefined && (
-              <span className="mr-1">{toolDefinitionNumber}.</span>
-            )}
-            {tool.name}
-          </span>
-        </div>
-
-        <div className="flex shrink-0 items-center gap-1.5">
-          <ToolCallStatusBadge
-            isCalled={isCalled}
-            statusText={statusText}
-            toolCalls={toolCalls}
-          />
-
-          {isExpanded ? (
-            <ChevronDown className="text-muted-foreground h-3.5 w-3.5" />
-          ) : (
-            <ChevronRight className="text-muted-foreground h-3.5 w-3.5" />
+        <Caret
+          className="icon-base text-icon-foreground shrink-0"
+          aria-hidden
+        />
+        <Wrench className="text-muted-foreground icon-base shrink-0" />
+        <span
+          className={cn(
+            "ph-no-capture block truncate text-sm",
+            isCalled ? "text-foreground" : "text-muted-foreground",
           )}
-        </div>
+          title={tool.name}
+        >
+          <span className="mr-1">{rowNumber}.</span>
+          {tool.name}
+        </span>
       </button>
 
       {isExpanded && (
-        <div className="border-border bg-muted/30 relative border-t px-4 py-3">
-          <div className="absolute top-1 right-4">
-            <Tabs
-              className="h-fit py-0.5"
-              value={currentView}
-              onValueChange={(value) =>
-                setCurrentView(value as "formatted" | "json")
-              }
-            >
-              <TabsList className="h-fit p-0.5">
-                <TabsTrigger value="formatted" className="h-fit px-1 text-xs">
-                  Formatted
-                </TabsTrigger>
-                <TabsTrigger value="json" className="h-fit px-1 text-xs">
-                  JSON
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
-
-          {currentView === "formatted" && (
-            <div className="space-y-4">
-              {tool.description && (
-                <div>
-                  <div className="text-muted-foreground mb-1.5 text-xs font-bold">
-                    Description
-                  </div>
-                  <div className="ph-no-capture text-foreground text-sm">
-                    {tool.description}
-                  </div>
+        // Indented to the tool name (caret + wrench + gaps).
+        <div className="border-border border-t py-3 pl-11">
+          <div className="space-y-4">
+            {tool.description && (
+              <div>
+                <div className="text-muted-foreground mb-1.5 text-xs font-bold">
+                  Description
                 </div>
-              )}
+                <div className="ph-no-capture text-muted-foreground text-sm">
+                  {tool.description}
+                </div>
+              </div>
+            )}
 
-              {tool.parameters && (
-                <div>
-                  <div className="text-muted-foreground mb-1.5 text-xs font-bold">
+            {tool.parameters && (
+              <div>
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <div className="text-muted-foreground text-xs font-bold">
                     Parameters
                   </div>
-                  <PrettyJsonView
-                    json={tool.parameters}
-                    currentView="pretty"
-                    codeClassName="text-xs"
-                  />
+                  {/* Switches the parameters table only. */}
+                  <Tabs
+                    value={currentView}
+                    onValueChange={(value) =>
+                      setCurrentView(value as "formatted" | "json")
+                    }
+                  >
+                    <Tabs.List variant="inset" size="sm">
+                      <Tabs.Trigger value="formatted" label="Formatted" />
+                      <Tabs.Trigger value="json" label="Raw" />
+                    </Tabs.List>
+                  </Tabs>
+                </div>
+                <PrettyJsonView
+                  json={tool.parameters}
+                  currentView={currentView === "json" ? "json" : "pretty"}
+                  codeClassName="text-xs"
+                />
+              </div>
+            )}
+
+            {toolCalls.length > 0 && (
+              <div>
+                <div className="text-muted-foreground mb-1.5 text-xs font-bold">
+                  Tool call arguments
+                </div>
+                <ToolCallArgumentsList toolCalls={toolCalls} />
+              </div>
+            )}
+
+            {!tool.description &&
+              !tool.parameters &&
+              toolCalls.length === 0 && (
+                <div className="text-muted-foreground text-sm">
+                  No additional details available
                 </div>
               )}
-
-              {toolCalls.length > 0 && (
-                <div>
-                  <div className="text-muted-foreground mb-1.5 text-xs font-bold">
-                    Tool call arguments
-                  </div>
-                  <ToolCallArgumentsList toolCalls={toolCalls} />
-                </div>
-              )}
-
-              {!tool.description &&
-                !tool.parameters &&
-                toolCalls.length === 0 && (
-                  <div className="text-muted-foreground text-sm">
-                    No additional details available
-                  </div>
-                )}
-            </div>
-          )}
-
-          {currentView === "json" && (
-            <PrettyJsonView
-              json={tool}
-              currentView="json"
-              codeClassName="text-xs"
-            />
-          )}
+          </div>
         </div>
       )}
     </div>
@@ -446,133 +212,115 @@ function ToolDefinitionRow({
 }
 
 /**
- * ToolCallDefinitionCard renders expandable cards for tool definitions.
- *
- * Features:
- * - Accordion-style expansion (one tool at a time)
- * - Status badges showing call count
- * - Formatted/JSON view toggle for parameters
- * - Definition numbers for reference
+ * ToolCallDefinitionCard renders the Tools section: a header with a
+ * collapse caret and a Called / Not called switch (only when both sides
+ * have tools), and the active tab's tools as expandable rows numbered
+ * from 1. Long lists start collapsed; the user's choice lasts the session.
  */
 export function ToolCallDefinitionCard({
   tools,
   toolCallCounts,
   toolCallsByName,
-  toolNameToDefinitionNumber,
   className,
 }: ToolCallDefinitionCardProps) {
   const [expandedToolKey, setExpandedToolKey] = useState<string | null>(null);
-  const [toolGroupExpansion, setToolGroupExpansion] =
-    useSessionStorage<ToolGroupExpansionState>(
-      TOOL_GROUP_EXPANSION_STORAGE_KEY,
-      {
-        calledToolsExpanded: false,
-        availableToolsExpanded: false,
-      },
-    );
+  const [activeTab, setActiveTab] = useState<ToolTab>("called");
+  const [collapsedPreference, setCollapsedPreference] = useSessionStorage<
+    boolean | null
+  >("toolsSectionCollapsed", null);
   const [currentView, setCurrentView] = useLocalStorage<"formatted" | "json">(
     "toolCallPillViewPreference",
     "formatted",
   );
 
-  const { calledTools, availableTools } = useMemo(
+  const { calledTools, notCalledTools } = useMemo(
     () =>
       tools.reduce(
         (groups, tool) => {
-          const callCount = toolCallCounts.get(tool.name) ?? 0;
-          if (callCount > 0) {
+          if ((toolCallCounts.get(tool.name) ?? 0) > 0) {
             groups.calledTools.push(tool);
           } else {
-            groups.availableTools.push(tool);
+            groups.notCalledTools.push(tool);
           }
           return groups;
         },
         {
           calledTools: [] as ToolDefinition[],
-          availableTools: [] as ToolDefinition[],
+          notCalledTools: [] as ToolDefinition[],
         },
       ),
     [tools, toolCallCounts],
   );
 
-  if (!tools || tools.length === 0) {
-    return null;
-  }
+  const hasSwitch = calledTools.length > 0 && notCalledTools.length > 0;
+  const tabTools = activeTab === "called" ? calledTools : notCalledTools;
+  const visibleTools = hasSwitch ? tabTools : tools;
+  const isCollapsed =
+    collapsedPreference ?? tools.length > TOOLS_COLLAPSE_THRESHOLD;
+  const Caret = isCollapsed ? ChevronRight : ChevronDown;
 
-  const calledToolsShouldCollapse =
-    calledTools.length > CALLED_TOOLS_COLLAPSE_THRESHOLD;
-  const availableToolsShouldCollapse =
-    availableTools.length > AVAILABLE_TOOLS_COLLAPSE_THRESHOLD;
-  const showCalledTools =
-    !calledToolsShouldCollapse || toolGroupExpansion.calledToolsExpanded;
-  const showAvailableTools =
-    !availableToolsShouldCollapse || toolGroupExpansion.availableToolsExpanded;
-
-  const renderToolRows = (
-    toolsToRender: ToolDefinition[],
-    groupKind: ToolGroupKind,
-  ) =>
-    toolsToRender.map((tool, index) => {
-      const callCount = toolCallCounts.get(tool.name) || 0;
-      const toolCalls = toolCallsByName?.get(tool.name) ?? [];
-      const toolDefinitionNumber = toolNameToDefinitionNumber?.get(tool.name);
-      const toolKey = `${groupKind}-${tool.name}-${index}`;
-      const isExpanded = expandedToolKey === toolKey;
-
-      return (
-        <ToolDefinitionRow
-          key={toolKey}
-          tool={tool}
-          isExpanded={isExpanded}
-          onToggle={() =>
-            setExpandedToolKey((current) =>
-              current === toolKey ? null : toolKey,
-            )
-          }
-          callCount={callCount}
-          toolCalls={toolCalls}
-          toolDefinitionNumber={toolDefinitionNumber}
-          currentView={currentView}
-          setCurrentView={setCurrentView}
-        />
-      );
-    });
+  const handleCollapseToggle = () => setCollapsedPreference(!isCollapsed);
 
   return (
-    <div className={cn("flex flex-col gap-2", className)}>
-      {calledToolsShouldCollapse && (
-        <ToolGroupSummary
-          kind="called"
-          tools={calledTools}
-          expanded={toolGroupExpansion.calledToolsExpanded}
-          onToggle={() =>
-            setToolGroupExpansion((current) => ({
-              ...current,
-              calledToolsExpanded: !current.calledToolsExpanded,
-            }))
-          }
-          toolCallCounts={toolCallCounts}
-          toolNameToDefinitionNumber={toolNameToDefinitionNumber}
-        />
-      )}
-      {showCalledTools && renderToolRows(calledTools, "called")}
+    <div className={cn("flex flex-col", className)}>
+      <div className="io-message-header flex items-center justify-between gap-2 px-1 py-1">
+        <button
+          type="button"
+          onClick={handleCollapseToggle}
+          aria-expanded={!isCollapsed}
+          className="focus-visible:ring-ring flex items-center gap-1.5 rounded-sm text-base font-bold focus-visible:ring-2 focus-visible:outline-hidden"
+        >
+          <Caret
+            aria-hidden="true"
+            className="icon-base text-icon-foreground shrink-0"
+          />
+          Tools
+        </button>
+        {hasSwitch && !isCollapsed && (
+          <Tabs
+            value={activeTab}
+            onValueChange={(value) => setActiveTab(value as ToolTab)}
+          >
+            <Tabs.List variant="inset" size="sm">
+              <Tabs.Trigger
+                value="called"
+                label="Called"
+                count={calledTools.length}
+              />
+              <Tabs.Trigger
+                value="not-called"
+                label="Not called"
+                count={notCalledTools.length}
+              />
+            </Tabs.List>
+          </Tabs>
+        )}
+      </div>
+      {!isCollapsed && (
+        <div className="divide-border flex flex-col divide-y">
+          {visibleTools.map((tool, index) => {
+            const toolKey = `${activeTab}-${tool.name}-${index}`;
 
-      {availableToolsShouldCollapse && (
-        <ToolGroupSummary
-          kind="available"
-          tools={availableTools}
-          expanded={toolGroupExpansion.availableToolsExpanded}
-          onToggle={() =>
-            setToolGroupExpansion((current) => ({
-              ...current,
-              availableToolsExpanded: !current.availableToolsExpanded,
-            }))
-          }
-          toolCallCounts={toolCallCounts}
-          toolNameToDefinitionNumber={toolNameToDefinitionNumber}
-        />
+            return (
+              <ToolDefinitionRow
+                key={toolKey}
+                tool={tool}
+                isExpanded={expandedToolKey === toolKey}
+                onToggle={() =>
+                  setExpandedToolKey((current) =>
+                    current === toolKey ? null : toolKey,
+                  )
+                }
+                isCalled={(toolCallCounts.get(tool.name) ?? 0) > 0}
+                toolCalls={toolCallsByName?.get(tool.name) ?? []}
+                rowNumber={index + 1}
+                currentView={currentView}
+                setCurrentView={setCurrentView}
+              />
+            );
+          })}
+        </div>
       )}
-      {showAvailableTools && renderToolRows(availableTools, "available")}
     </div>
   );
 }

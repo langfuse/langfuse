@@ -1,8 +1,6 @@
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+/* eslint-disable @repo/component-file-structure */
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
+import { ControlledHoverCard } from "@/src/components/design-system/ControlledHoverCard/ControlledHoverCard";
 import {
   type CategoricalAggregate,
   type AggregatedScoreData,
@@ -19,10 +17,6 @@ import React from "react";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { Button } from "@/src/components/ui/button";
 
-const COLOR_MAP = new Map([
-  ["True", "bg-light-green p-0.5 text-dark-green"],
-  ["False", "bg-light-red p-0.5 text-dark-red"],
-]);
 const COLLAPSE_CATEGORICAL_SCORES_AFTER = 2;
 
 const ScoreValueCounts = ({
@@ -50,11 +44,19 @@ export const ScoresTableCell = ({
   displayFormat,
   wrap = true,
   hasMetadata,
+  valueTitle,
 }: {
   aggregate: AggregatedScoreData;
   displayFormat: "smart" | "aggregate";
   wrap?: boolean;
   hasMetadata?: boolean;
+  /**
+   * What the value belongs to, prefixed onto its hover title — for a table
+   * where one column holds several rows' values and the value alone does not
+   * say whose it is (the experiment comparison). Omitted everywhere else, and
+   * the title is then the value, unchanged.
+   */
+  valueTitle?: string;
 }) => {
   const projectId = useProjectIdFromURL();
   const [copied, setCopied] = React.useState(false);
@@ -75,40 +77,57 @@ export const ScoresTableCell = ({
         : aggregate.values[0];
 
     return (
-      <span
-        className={cn(
-          "flex min-w-0 flex-row gap-0.5 rounded-sm",
-          COLOR_MAP.get(value),
-        )}
-      >
-        <span className="truncate" title={value}>
-          {value}
+      // The value and its icons are one line, so they are centred as one:
+      // `inline-flex` triggers keep each icon's box the size of the icon, which
+      // the row then centres. Left to stretch, a trigger's box grows with the
+      // row and pins the icon to its top, off the value's centre.
+      <span className="flex min-w-0 flex-row items-center gap-0.5 rounded-sm">
+        <span
+          className="truncate"
+          title={valueTitle ? `${valueTitle}: ${value}` : value}
+        >
+          {aggregate.type === "NUMERIC" ? aggregate.average.toFixed(2) : value}
         </span>
         {aggregate.comment && (
-          <HoverCard>
-            <HoverCardTrigger className="inline-block shrink-0 cursor-pointer">
-              <MessageCircleMore size={12} />
-            </HoverCardTrigger>
-            <HoverCardContent className="flex flex-col p-0 text-xs break-normal whitespace-normal">
-              <div className="bg-popover sticky top-0 z-10 flex h-8 items-center justify-end px-1">
-                <Button
-                  onClick={handleCopy}
-                  variant="ghost"
-                  size="icon-xs"
-                  className="hover:bg-accent rounded p-1"
-                  aria-label={copied ? "Copied" : "Copy to clipboard"}
-                >
-                  {copied ? (
-                    <Check className="h-3 w-3" />
-                  ) : (
-                    <Copy className="h-3 w-3" />
-                  )}
-                </Button>
+          <HoverCard
+            content={
+              <div className="flex w-64 flex-col p-0 text-xs break-normal whitespace-normal">
+                {/* Name what the icon opened: a bare block of text next to a
+                  score does not say it is the score's comment. */}
+                <div className="bg-popover sticky top-0 z-10 flex h-8 items-center justify-between px-1">
+                  <span className="text-muted-foreground pl-1.5 text-[10px] font-bold uppercase">
+                    Score comment
+                  </span>
+                  <Button
+                    onClick={handleCopy}
+                    variant="ghost"
+                    size="icon-xs"
+                    className="hover:bg-accent rounded p-1"
+                    aria-label={copied ? "Copied" : "Copy to clipboard"}
+                  >
+                    {copied ? (
+                      <Check className="icon-sm text-icon-foreground" />
+                    ) : (
+                      <Copy className="icon-sm text-icon-foreground" />
+                    )}
+                  </Button>
+                </div>
+                <div className="max-h-[40vh] overflow-y-auto p-3 pt-0">
+                  <p className="whitespace-pre-wrap">{aggregate.comment}</p>
+                </div>
               </div>
-              <div className="max-h-[40vh] overflow-y-auto p-3 pt-0">
-                <p className="whitespace-pre-wrap">{aggregate.comment}</p>
-              </div>
-            </HoverCardContent>
+            }
+          >
+            {({ getTriggerProps }) => (
+              <button
+                type="button"
+                aria-label="View score comment"
+                className="inline-flex shrink-0 cursor-pointer items-center"
+                {...getTriggerProps()}
+              >
+                <MessageCircleMore className="icon-sm" />
+              </button>
+            )}
           </HoverCard>
         )}
         {hasMetadata && !!aggregate.id && (
@@ -123,20 +142,30 @@ export const ScoresTableCell = ({
 
   if (aggregate.type === "NUMERIC") {
     return (
-      <span className="rounded-sm">{`Ø ${aggregate.average.toFixed(4)}`}</span>
+      <span className="rounded-sm" title={aggregate.average.toFixed(4)}>
+        {`Ø ${aggregate.average.toFixed(2)}`}
+      </span>
     );
   }
 
   return (
     <div className="group">
       {aggregate.valueCounts.length > COLLAPSE_CATEGORICAL_SCORES_AFTER ? (
-        <HoverCard>
-          <HoverCardTrigger asChild>
+        <HoverCard
+          content={
+            <div className="flex max-h-[40vh] w-64 max-w-64 flex-col overflow-y-auto p-3 text-xs break-normal whitespace-normal">
+              <ScoreValueCounts valueCounts={aggregate.valueCounts} wrap />
+            </div>
+          }
+        >
+          {({ getTriggerProps }) => (
             <div
+              tabIndex={0}
               className={cn(
                 "group-hover:text-accent-dark-blue/55 cursor-pointer overflow-hidden",
                 wrap ? "line-clamp-5" : "text-ellipsis whitespace-nowrap",
               )}
+              {...getTriggerProps()}
             >
               <ScoreValueCounts
                 valueCounts={aggregate.valueCounts.slice(
@@ -146,10 +175,7 @@ export const ScoresTableCell = ({
                 wrap={wrap}
               />
             </div>
-          </HoverCardTrigger>
-          <HoverCardContent className="z-20 flex max-h-[40vh] max-w-64 flex-col overflow-y-auto text-xs break-normal whitespace-normal">
-            <ScoreValueCounts valueCounts={aggregate.valueCounts} wrap />
-          </HoverCardContent>
+          )}
         </HoverCard>
       ) : (
         <div className={cn("flex", wrap ? "flex-col" : "flex-row")}>
@@ -191,17 +217,29 @@ function AggregateScoreMetadataPeek({
   const metadataLoaded = metadata && Object.keys(metadata).length > 0;
 
   return (
-    <HoverCard onOpenChange={setIsOpen}>
-      <HoverCardTrigger className="inline-block cursor-pointer">
-        <BracesIcon size={12} />
-      </HoverCardTrigger>
-      <HoverCardContent className="overflow-hidden rounded-md border-none p-0 text-xs break-normal whitespace-normal">
-        {metadataLoaded ? (
-          <JSONView codeClassName="rounded-md!" json={metadata} />
-        ) : (
-          <Skeleton className="h-12 w-full" />
-        )}
-      </HoverCardContent>
-    </HoverCard>
+    <ControlledHoverCard
+      open={isOpen}
+      onOpenChange={setIsOpen}
+      content={
+        <div className="w-64 overflow-hidden rounded-md p-0 text-xs break-normal whitespace-normal">
+          {metadataLoaded ? (
+            <JSONView codeClassName="rounded-md!" json={metadata} />
+          ) : (
+            <Skeleton className="h-12 w-full" />
+          )}
+        </div>
+      }
+    >
+      {({ getTriggerProps }) => (
+        <button
+          type="button"
+          aria-label="View score metadata"
+          className="inline-flex shrink-0 cursor-pointer items-center"
+          {...getTriggerProps()}
+        >
+          <BracesIcon className="icon-sm" />
+        </button>
+      )}
+    </ControlledHoverCard>
   );
 }

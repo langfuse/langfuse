@@ -5,7 +5,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showErrorToast } from "@/src/features/notifications";
 import { z } from "zod";
 import { parseCsvClient } from "@/src/features/datasets/lib/csv/helpers";
 import { DialogBody } from "@/src/components/ui/dialog";
@@ -33,12 +33,20 @@ export const UploadDatasetCsv = ({
 
     const result = FileSchema.safeParse(file);
     if (!result.success) {
-      showErrorToast("Invalid file type", "Please select a valid CSV file");
+      showErrorToast("Invalid file type", "Please select a valid CSV file", {
+        operation: "dataset_items.import",
+        errorOrigin: "frontend",
+        errorCategory: "user_input",
+      });
       return;
     }
 
     if (file.size > MAX_FILE_SIZE_BYTES) {
-      showErrorToast("File too large", "Maximum file size is 10MB");
+      showErrorToast("File too large", "Maximum file size is 10MB", {
+        operation: "dataset_items.import",
+        errorOrigin: "frontend",
+        errorCategory: "resource_limit",
+      });
       return;
     }
 
@@ -50,7 +58,11 @@ export const UploadDatasetCsv = ({
       });
 
       if (!Boolean(preview.columns.length)) {
-        showErrorToast("Invalid CSV", "CSV must have at least 1 column");
+        showErrorToast("Invalid CSV", "CSV must have at least 1 column", {
+          operation: "dataset_items.import",
+          errorOrigin: "frontend",
+          errorCategory: "user_input",
+        });
         return;
       }
 
@@ -59,6 +71,11 @@ export const UploadDatasetCsv = ({
       showErrorToast(
         "Failed to parse CSV",
         error instanceof Error ? error.message : "Unknown error",
+        {
+          operation: "dataset_items.import",
+          errorOrigin: "frontend",
+          errorCategory: "user_input",
+        },
       );
     }
   };

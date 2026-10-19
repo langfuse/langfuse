@@ -1,17 +1,88 @@
 import { assertUnreachable } from "@langfuse/shared";
 
+export const organizationOnlyFeaturePreviewFlags = [
+  "externalMediaStorage",
+] as const;
+
+export const userFeaturePreviewFlags = [
+  "skillManagement",
+  "sessionViewV2",
+  "sessionViewV2Timeline",
+] as const;
+
+export type UserFeaturePreviewFlag = (typeof userFeaturePreviewFlags)[number];
+
+export const defaultOnFeaturePreviewFlags = [
+  "sessionViewV2",
+  "sessionViewV2Timeline",
+] as const;
+
 export const featurePreviewFlags = [
-  "modernSession",
-  // TODO(remove ~2026-06-19): "searchBar" is retired — the grammar search bar
-  // is now GA on the v4 events tables for everyone (see useSearchBarEnabled),
-  // no longer a per-user Feature Preview opt-in. Kept as dead plumbing for a
-  // safe rollback; drop once the GA rollout is confirmed stable.
-  "searchBar",
-  "v4UpgradeUi",
-  "compactTimeline",
+  ...organizationOnlyFeaturePreviewFlags,
+  ...userFeaturePreviewFlags,
 ] as const;
 
 export type FeaturePreviewFlag = (typeof featurePreviewFlags)[number];
+
+export const isOrganizationOnlyFeaturePreviewFlag = (
+  flag: FeaturePreviewFlag,
+): flag is (typeof organizationOnlyFeaturePreviewFlags)[number] =>
+  organizationOnlyFeaturePreviewFlags.some(
+    (organizationFlag) => organizationFlag === flag,
+  );
+
+const adminOnlyFeaturePreviewFlags = ["langfuseTopics"] as const;
+
+export const personalFeaturePreviewFlags = [
+  ...userFeaturePreviewFlags,
+  ...adminOnlyFeaturePreviewFlags,
+] as const;
+
+export type PersonalFeaturePreviewFlag =
+  (typeof personalFeaturePreviewFlags)[number];
+
+export const isAdminOnlyFeaturePreviewFlag = (
+  flag: string,
+): flag is (typeof adminOnlyFeaturePreviewFlags)[number] =>
+  adminOnlyFeaturePreviewFlags.some((adminFlag) => adminFlag === flag);
+
+const restrictedFlags = ["aiGateway"] as const;
+
+type RestrictedFlag = (typeof restrictedFlags)[number];
+
+export const isRestrictedFlag = (flag: string): flag is RestrictedFlag =>
+  restrictedFlags.some((restrictedFlag) => restrictedFlag === flag);
+
+/**
+ * Internal surfaces share one user preference, separate from customer previews.
+ * The preference never grants access to users without internal eligibility.
+ */
+export const INTERNAL_FEATURE_FLAG = "internalFeatures" as const;
+
+export type UserFeatureFlag =
+  | PersonalFeaturePreviewFlag
+  | typeof INTERNAL_FEATURE_FLAG;
+
+export const isInternalFlag = (
+  flag: string,
+): flag is typeof INTERNAL_FEATURE_FLAG => flag === INTERNAL_FEATURE_FLAG;
+
+export const isFeaturePreviewFlag = (
+  flag: string,
+): flag is FeaturePreviewFlag =>
+  featurePreviewFlags.some((previewFlag) => previewFlag === flag);
+
+export const filterFeaturePreviewFlags = (
+  flags: string[],
+): FeaturePreviewFlag[] => flags.filter(isFeaturePreviewFlag);
+
+export const featurePreviewLabels = {
+  skillManagement: "Skill Management",
+  externalMediaStorage: "External Media Storage",
+  sessionViewV2: "Redesigned Session View",
+  sessionViewV2Timeline: "Session Timeline",
+  langfuseTopics: "Langfuse Topics",
+} satisfies Record<FeaturePreviewFlag | PersonalFeaturePreviewFlag, string>;
 
 export type FeaturePreviewAvailabilityContext = {
   v4BetaEnabled: boolean;
@@ -21,20 +92,15 @@ export const isFeaturePreviewAvailable = (
   flag: FeaturePreviewFlag,
   context: FeaturePreviewAvailabilityContext,
 ) => {
-  if (flag === "modernSession") {
+  if (flag === "externalMediaStorage") {
+    return true;
+  }
+  if (
+    flag === "sessionViewV2" ||
+    flag === "sessionViewV2Timeline" ||
+    flag === "skillManagement"
+  ) {
     return context.v4BetaEnabled;
-  }
-
-  if (flag === "searchBar") {
-    return true;
-  }
-
-  if (flag === "v4UpgradeUi") {
-    return true;
-  }
-
-  if (flag === "compactTimeline") {
-    return true;
   }
 
   return assertUnreachable(flag);
@@ -42,6 +108,10 @@ export const isFeaturePreviewAvailable = (
 
 export const availableFlags = [
   ...featurePreviewFlags,
+  ...adminOnlyFeaturePreviewFlags,
+  ...restrictedFlags,
+  INTERNAL_FEATURE_FLAG,
+  "searchBar",
   "templateFlag",
   "excludeClickhouseRead",
   "v4BetaToggleVisible",

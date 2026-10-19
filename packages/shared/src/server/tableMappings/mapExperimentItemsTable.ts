@@ -2,22 +2,29 @@ import { UiColumnMappings } from "../../tableDefinitions";
 
 export const experimentItemsTableNativeUiColumnDefinitions: UiColumnMappings = [
   {
-    uiTableName: "Scores (numeric)",
-    uiTableId: "obs_scores_avg",
+    uiTableName: "Numeric Scores",
+    uiTableId: "scores_avg",
     clickhouseTableName: "scores",
-    clickhouseSelect: "s.scores_avg",
+    // The level-agnostic aggregate: one array entry per (name, level), so a
+    // filter matches a score recorded on the item's root span OR on its trace.
+    // The `obs_*` ids are aliases so existing links and saved views keep
+    // resolving - and start matching trace-level scores, which is the fix.
+    clickhouseSelect: "ias.scores_avg",
+    aliases: ["obs_scores_avg"],
   },
   {
-    uiTableName: "Scores (categorical)",
-    uiTableId: "obs_score_categories",
+    uiTableName: "Categorical Scores",
+    uiTableId: "score_categories",
     clickhouseTableName: "scores",
-    clickhouseSelect: "s.score_categories",
+    clickhouseSelect: "ias.score_categories",
+    aliases: ["obs_score_categories"],
   },
   {
-    uiTableName: "Scores (boolean)",
-    uiTableId: "obs_score_booleans",
+    uiTableName: "Boolean Scores",
+    uiTableId: "score_booleans",
     clickhouseTableName: "scores",
-    clickhouseSelect: "s.score_booleans",
+    clickhouseSelect: "ias.score_booleans",
+    aliases: ["obs_score_booleans"],
   },
   {
     uiTableName: "Trace Scores (numeric)",
@@ -50,5 +57,14 @@ export const experimentItemsTableNativeUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "events_proto",
     clickhouseSelect: "metadata",
     queryPrefix: "e",
+  },
+  {
+    uiTableName: "Status",
+    uiTableId: "level",
+    aliases: ["Level"],
+    clickhouseTableName: "events_proto",
+    // Worst level across every event on the item, not just the root span.
+    // An item whose children carry ERROR still matches Status=ERROR.
+    clickhouseSelect: "il.aggregated_level",
   },
 ];

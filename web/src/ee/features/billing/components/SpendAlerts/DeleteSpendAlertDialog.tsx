@@ -9,8 +9,9 @@ import {
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
 import { api, reportNonTrpcError } from "@/src/utils/api";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { toast } from "sonner";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { showSuccessToast, showToast } from "@/src/features/notifications";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 interface DeleteSpendAlertDialogProps {
   orgId: string;
@@ -43,11 +44,19 @@ export function DeleteSpendAlertDialog({
         orgId,
         alertId,
       });
-      toast.success("Spend alert deleted successfully");
+      showSuccessToast({
+        operation: "spend_alert.delete",
+        title: "Spend alert deleted successfully",
+        description: "",
+      });
       onSuccess();
     } catch (error) {
       reportNonTrpcError(error, "billing");
-      toast.error("Failed to delete spend alert. Please try again.");
+      showToast({
+        type: "ERROR",
+        title: "Failed to delete spend alert. Please try again.",
+        analytics: classifyTrpcToastError(error, "spend_alert.delete"),
+      });
     } finally {
       setIsDeleting(false);
     }

@@ -1,6 +1,6 @@
 import { pipeline, Transform, type Readable } from "stream";
 import { monitorEventLoopDelay } from "perf_hooks";
-import { Job } from "bullmq";
+import { Job, UnrecoverableError } from "bullmq";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   QueueName,
@@ -21,8 +21,6 @@ import {
   getEventsForBlobStorageExportParquet,
   getCurrentSpan,
   instrumentAsync,
-  recordGauge,
-  recordHistogram,
   recordIncrement,
   BlobStorageIntegrationProcessingQueue,
   queryClickhouse,
@@ -30,6 +28,7 @@ import {
   enrichObservationWithModelData,
   createModelCache,
   blobStorageEndpointConnectionValidationOptions,
+  assertGcsBlobStorageBucketAllowed,
   validateBlobStorageEndpoint,
   dispatchProjectNotification,
 } from "@langfuse/shared/src/server";
@@ -51,6 +50,7 @@ import {
   classifyCustomerFault,
   type CustomerFaultReason,
 } from "./isCustomerFaultError";
+import { isMultipartPartLimitError } from "./partLimitError";
 import { isRecordNotFoundError } from "../integrations/prismaErrors";
 import { isFinalBullmqAttempt } from "../integrations/bullmqAttempts";
 import { ByteCounter, TimedByteCounter } from "./byteCounters";
@@ -75,6 +75,7 @@ import { SpanKind } from "@opentelemetry/api";
 import { env } from "../../env";
 import { assertExportSourceWritable } from "../exportWriteModeGuard";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
+import { isExportCaughtUp } from "../../services/exportStalenessMetric";
 import {
   buildBlobExportManifest,
   buildBlobExportManifestKey,
@@ -85,8 +86,9 @@ import {
   buildBlobExportDeprecationNotice,
   buildBlobExportDeprecationNoticeKey,
 } from "./deprecationNotice";
+import { resolveFirstExportStart } from "./firstExportStart";
 
-export const BlobExportFormat = {
+const BlobExportFormat = {
   JSON_RAW: "json-raw",
   JSON_GZIP: "json-gzip",
   CSV_RAW: "csv-raw",
@@ -97,7 +99,7 @@ export const BlobExportFormat = {
   // Parquet, so there is no separate raw/gzip split.
   PARQUET: "parquet",
 } as const;
-export type BlobExportFormat =
+type BlobExportFormat =
   (typeof BlobExportFormat)[keyof typeof BlobExportFormat];
 
 // Text formats only; PARQUET is absent because callers branch on parquetEligible first.
@@ -133,6 +135,25 @@ function resolveBlobExportFormat(
 }
 
 export const BLOB_STORAGE_LAG_BUFFER_MS = 20 * 60 * 1000; // 20-minute lag buffer
+
+// When a catch-up run lands within this distance of the frontier, treat it as
+// caught up rather than emitting a tiny trailing chunk. Object keys are truncated
+// to whole-second precision (formatBlobExportTimestamp), so a sub-second remainder
+// chunk can share a wall-clock second with the full-interval chunk it follows and
+// silently overwrite that window's files and manifest. Suppressing the remainder
+// removes the collision at its source; the deferred tail is picked up by the next
+// scheduled run (its minTimestamp = lastSyncAt already covers it). Must be >= 1000ms
+// (the key granularity) and well below any frequencyInterval so no meaningful data
+// is deferred.
+export const BLOB_STORAGE_REMAINDER_COALESCE_MS = 1000;
+
+// Persisted as lastError when a window exceeds S3's 10,000-part multipart cap.
+// Retrying re-queries a retention-shrinking window until a truncated object
+// commits as success, so the run stops loud instead of degrading silently.
+export const BLOB_EXPORT_PART_LIMIT_ERROR_MESSAGE =
+  "Blob storage export stopped: the export window exceeded the storage provider's " +
+  "10,000-part multipart upload limit. Increase the upload part size or reduce the " +
+  "export frequency so each window fits within the limit.";
 
 export async function* enrichObservationStream(
   stream: AsyncGenerator<Record<string, unknown>>,
@@ -191,13 +212,15 @@ const getMinTimestampForExport = async (
     return lastSyncAt;
   }
 
-  // For first export, use the export mode to determine start date
-  switch (exportMode) {
-    case BlobStorageExportMode.FULL_HISTORY:
-      // Query ClickHouse for the actual minimum timestamp from traces, observations, and scores tables
-      try {
-        const result = await queryClickhouse<{ min_timestamp: number | null }>({
-          query: `
+  // For a first FULL_HISTORY export, probe ClickHouse for the actual minimum
+  // timestamp across every source table. This is the real data minimum, not
+  // project createdAt: projects legitimately backfill data that predates the
+  // project, and a full-history export must include it.
+  let historicalMinTimestampMs: number | null = null;
+  if (exportMode === BlobStorageExportMode.FULL_HISTORY) {
+    try {
+      const result = await queryClickhouse<{ min_timestamp: number | null }>({
+        query: `
               SELECT min(toUnixTimestamp(ts)) * 1000 as min_timestamp
               FROM (
                 SELECT min(timestamp) as ts
@@ -215,46 +238,40 @@ const getMinTimestampForExport = async (
                 SELECT min(timestamp) as ts
                 FROM scores
                 WHERE project_id = {projectId: String}
+
+                UNION ALL
+
+                SELECT min(start_time) as ts
+                FROM events_core
+                WHERE project_id = {projectId: String}
+                AND is_deleted = 0 -- match the events export query's visibility
               )
               WHERE ts > 0 -- Ignore 0 results (usually empty tables)
             `,
-          params: { projectId },
-        });
+        params: { projectId },
+      });
 
-        // Extract the minimum timestamp
-        logger.info(
-          `[BLOB INTEGRATION] ClickHouse min_timestamp for project ${projectId}: ${result[0]?.min_timestamp}, type: ${typeof result[0]?.min_timestamp}`,
-        );
-        const minTimestampValue = Number(result[0]?.min_timestamp);
-
-        if (minTimestampValue && minTimestampValue > 0) {
-          const date = new Date(minTimestampValue);
-          logger.info(
-            `[BLOB INTEGRATION] Created Date from min_timestamp for project ${projectId}: ${date}, isValid: ${!isNaN(date.getTime())}, getTime: ${date.getTime()}`,
-          );
-          return date;
-        }
-
-        // If no data exists, use current time as a fallback
-        logger.info(
-          `[BLOB INTEGRATION] No historical data found for project ${projectId}, using current time`,
-        );
-        return new Date(0);
-      } catch (error) {
-        logger.error(
-          `[BLOB INTEGRATION] Error querying ClickHouse for minimum timestamp for project ${projectId}`,
-          error,
-        );
-        throw new Error(`Failed to fetch minimum timestamp: ${error}`);
+      const minTimestampValue = Number(result[0]?.min_timestamp);
+      if (minTimestampValue && minTimestampValue > 0) {
+        historicalMinTimestampMs = minTimestampValue;
       }
-    case BlobStorageExportMode.FROM_TODAY:
-    case BlobStorageExportMode.FROM_CUSTOM_DATE:
-      return exportStartDate || new Date(); // Use export start date or current time as fallback
-    default:
-      // eslint-disable-next-line no-case-declarations
-      const _exhaustiveCheck: never = exportMode;
-      throw new Error(`Invalid export mode: ${exportMode}`);
+      logger.info(
+        `[BLOB INTEGRATION] ClickHouse min_timestamp for project ${projectId}: ${historicalMinTimestampMs}`,
+      );
+    } catch (error) {
+      logger.error(
+        `[BLOB INTEGRATION] Error querying ClickHouse for minimum timestamp for project ${projectId}`,
+        error,
+      );
+      throw new Error(`Failed to fetch minimum timestamp: ${error}`);
+    }
   }
+
+  return resolveFirstExportStart({
+    exportMode,
+    exportStartDate,
+    historicalMinTimestampMs,
+  });
 };
 
 /**
@@ -342,10 +359,31 @@ type BlobStorageConnectionConfig = {
 
 const createBlobStorageService = (
   config: BlobStorageConnectionConfig,
-): StorageService =>
-  StorageServiceFactory.getInstance({
-    accessKeyId: config.accessKeyId,
-    secretAccessKey: config.secretAccessKey,
+): StorageService => {
+  const useGoogleCloudStorage =
+    config.type === BlobStorageIntegrationType.GOOGLE_CLOUD_STORAGE;
+  // GCS: a stored secret is the customer's service account JSON key; none means
+  // default credentials (the deployment identity).
+  const gcsServiceAccountKey = useGoogleCloudStorage
+    ? config.secretAccessKey
+    : undefined;
+  if (useGoogleCloudStorage && !gcsServiceAccountKey) {
+    // Re-checked per run so removing a bucket from the allowlist stops keyless
+    // exports that were saved while it was allowed.
+    assertGcsBlobStorageBucketAllowed(config.bucketName);
+  }
+  // The GCS client treats a non-JSON string as a key *file path*; a customer
+  // secret must never be read as one.
+  if (gcsServiceAccountKey && !gcsServiceAccountKey.trim().startsWith("{")) {
+    // Named so classifyCustomerFault disables the integration instead of retrying.
+    throw Object.assign(
+      new Error("GCS credentials must be a service account JSON key"),
+      { name: "InvalidGcsServiceAccountKey" },
+    );
+  }
+  return StorageServiceFactory.getInstance({
+    accessKeyId: useGoogleCloudStorage ? undefined : config.accessKeyId,
+    secretAccessKey: useGoogleCloudStorage ? undefined : config.secretAccessKey,
     bucketName: config.bucketName,
     endpoint: config.endpoint ?? undefined,
     region: config.region,
@@ -353,10 +391,13 @@ const createBlobStorageService = (
     awsSse: undefined,
     awsSseKmsKeyId: undefined,
     useAzureBlob: config.type === BlobStorageIntegrationType.AZURE_BLOB_STORAGE,
-    useGoogleCloudStorage: false, // Not supported in blob storage integration
+    // Undefined → ADC (the deployment's own identity), allowlist-gated above.
+    useGoogleCloudStorage,
+    googleCloudCredentials: gcsServiceAccountKey,
     useOCIObjectStorage: false, // Not supported in blob storage integration
     connectionValidation: blobStorageEndpointConnectionValidationOptions(),
   });
+};
 
 const processBlobStorageExport = async (config: {
   projectId: string;
@@ -454,7 +495,6 @@ const processBlobStorageExport = async (config: {
       // Outside the try so the catch can distinguish a real upload success from
       // a failure.
       let uploadSucceeded = false;
-      let heartbeat: ReturnType<typeof setInterval> | undefined;
 
       // Per-stage errors so the catch can name the originating cause instead of
       // the bare "aborted" the pipeline teardown propagates to every stage.
@@ -480,25 +520,37 @@ const processBlobStorageExport = async (config: {
           (config.table === "observations" ||
             config.table === "observations_v2");
 
-        const exportPath = parquetEligible
-          ? "parquet"
-          : passthroughEligible
-            ? "passthrough"
-            : "standard";
+        const exportPath = (() => {
+          if (parquetEligible) {
+            return "parquet";
+          }
+          if (passthroughEligible) {
+            return "passthrough";
+          }
+          return "standard";
+        })();
 
         const timestamp = formatBlobExportTimestamp(config.maxTimestamp);
         // Parquet: fixed `.parquet` extension (no `.gz`) and Parquet content type.
-        const extension = parquetEligible
-          ? "parquet"
-          : config.compressed
-            ? `${blobStorageProps.extension}.gz`
-            : blobStorageProps.extension;
+        const extension = (() => {
+          if (parquetEligible) {
+            return "parquet";
+          }
+          if (config.compressed) {
+            return `${blobStorageProps.extension}.gz`;
+          }
+          return blobStorageProps.extension;
+        })();
         const filePath = `${config.prefix ?? ""}${config.projectId}/${config.table}/${timestamp}.${extension}`;
-        const uploadContentType = parquetEligible
-          ? "application/vnd.apache.parquet"
-          : config.compressed
-            ? "application/gzip"
-            : blobStorageProps.contentType;
+        const uploadContentType = (() => {
+          if (parquetEligible) {
+            return "application/vnd.apache.parquet";
+          }
+          if (config.compressed) {
+            return "application/gzip";
+          }
+          return blobStorageProps.contentType;
+        })();
 
         const exportFieldGroups =
           config.exportFieldGroups && config.exportFieldGroups.length > 0
@@ -544,26 +596,6 @@ const processBlobStorageExport = async (config: {
               backpressureMs: 0,
             }
           : null;
-
-        const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
-        const heartbeatTags = {
-          table: config.table,
-          projectId: config.projectId,
-        };
-        heartbeat = setInterval(() => {
-          recordGauge(
-            "langfuse.blobstorage.export_heartbeat.rows",
-            sourceStats.rows,
-            heartbeatTags,
-          );
-          recordGauge(
-            "langfuse.blobstorage.export_heartbeat.serialized_bytes",
-            compressedCounter
-              ? compressedCounter.bytes
-              : serializedCounter.bytes,
-            heartbeatTags,
-          );
-        }, HEARTBEAT_INTERVAL_MS);
 
         let fileStream: Readable;
 
@@ -766,7 +798,8 @@ const processBlobStorageExport = async (config: {
           partFailures: 0,
         };
         const producesUploadStats =
-          config.type !== BlobStorageIntegrationType.AZURE_BLOB_STORAGE &&
+          (config.type === BlobStorageIntegrationType.S3 ||
+            config.type === BlobStorageIntegrationType.S3_COMPATIBLE) &&
           sharedEnv.LANGFUSE_S3_UPLOAD_ENABLE_BUFFERED === "true";
         let uploadStartMs: number | undefined;
         let uploadDurationMsFinal: number | undefined;
@@ -858,11 +891,15 @@ const processBlobStorageExport = async (config: {
               )
             : 0;
           // Measured backpressure (gzip / parquet boundary), else duration residual.
-          const uploadWaitMs = gzipStats
-            ? Math.round(gzipStats.backpressureMs)
-            : parquetEligible
-              ? Math.round(sourceStats.backpressureMs)
-              : Math.max(0, uploadDurationMs - chReadMs - enrichMs);
+          const uploadWaitMs = (() => {
+            if (gzipStats) {
+              return Math.round(gzipStats.backpressureMs);
+            }
+            if (parquetEligible) {
+              return Math.round(sourceStats.backpressureMs);
+            }
+            return Math.max(0, uploadDurationMs - chReadMs - enrichMs);
+          })();
 
           logger.info(
             `[BLOB INTEGRATION] Successfully exported ${config.table} for project ${config.projectId}: ` +
@@ -908,54 +945,24 @@ const processBlobStorageExport = async (config: {
               uploadDurationMsFinal ??
               Math.round(performance.now() - uploadStartMs);
             span.setAttribute("blob.uploadDurationMs", totalUploadMs);
-            // Emit stage timings on both success and failure. On failure the
-            // values are partial (the upload aborted mid-stream), so an
-            // `outcome` tag keeps them out of the happy-path percentiles while
-            // still capturing where a failed export spent its time.
+            // On failure the values are partial (the upload aborted mid-stream).
             const finalGzipCpuMs = gzipStats
               ? Math.max(
                   0,
                   Math.round(gzipStats.activeMs - gzipStats.backpressureMs),
                 )
               : 0;
-            const finalUploadWaitMs = gzipStats
-              ? Math.round(gzipStats.backpressureMs)
-              : parquetEligible
-                ? Math.round(sourceStats.backpressureMs)
-                : Math.max(0, totalUploadMs - finalChReadMs - finalEnrichMs);
+            const finalUploadWaitMs = (() => {
+              if (gzipStats) {
+                return Math.round(gzipStats.backpressureMs);
+              }
+              if (parquetEligible) {
+                return Math.round(sourceStats.backpressureMs);
+              }
+              return Math.max(0, totalUploadMs - finalChReadMs - finalEnrichMs);
+            })();
             span.setAttribute("blob.gzipCpuMs", finalGzipCpuMs);
             span.setAttribute("blob.uploadWaitMs", finalUploadWaitMs);
-            const finalExportFormat = parquetEligible
-              ? BlobExportFormat.PARQUET
-              : resolveBlobExportFormat(config.fileType, config.compressed);
-            const stageTags = {
-              table: config.table,
-              path: exportPath,
-              source: finalExportFormat,
-              outcome: (uploadSucceeded
-                ? "success"
-                : "failure") satisfies BlobTableExportOutcome,
-            };
-            recordHistogram(
-              "langfuse.blob_export.ch_read_ms",
-              finalChReadMs,
-              stageTags,
-            );
-            recordHistogram(
-              "langfuse.blob_export.enrich_ms",
-              finalEnrichMs,
-              stageTags,
-            );
-            recordHistogram(
-              "langfuse.blob_export.gzip_cpu_ms",
-              finalGzipCpuMs,
-              stageTags,
-            );
-            recordHistogram(
-              "langfuse.blob_export.upload_wait_ms",
-              finalUploadWaitMs,
-              stageTags,
-            );
           }
           if (producesUploadStats) {
             span.setAttribute("blob.upload.parts", uploadStats.partsUploaded);
@@ -986,27 +993,6 @@ const processBlobStorageExport = async (config: {
             span.setAttribute(
               "blob.gzip.throughputMbPerSec",
               Number(throughputMbPerSec.toFixed(2)),
-            );
-
-            const metricTags = {
-              table: config.table,
-              path: exportPath,
-              gzipLevel: gzipStats.level,
-            };
-            recordHistogram(
-              "langfuse.blob_export.gzip.active_ms",
-              activeMs,
-              metricTags,
-            );
-            recordHistogram(
-              "langfuse.blob_export.gzip.ratio",
-              ratio,
-              metricTags,
-            );
-            recordHistogram(
-              "langfuse.blob_export.gzip.throughput_mb_per_sec",
-              throughputMbPerSec,
-              metricTags,
             );
           }
         }
@@ -1039,7 +1025,6 @@ const processBlobStorageExport = async (config: {
         );
         throw error;
       } finally {
-        clearInterval(heartbeat);
         unregisterInFlightBlobExport(inFlightHandle);
 
         // ns → ms; the histogram yields NaN/Infinity with zero samples.
@@ -1049,17 +1034,6 @@ const processBlobStorageExport = async (config: {
         const maxMs = toFiniteMs(eventLoopDelay.max);
         const p99Ms = toFiniteMs(eventLoopDelay.percentile(99));
         const meanMs = toFiniteMs(eventLoopDelay.mean);
-        const delayTags = { table: config.table, unit: "milliseconds" };
-        recordGauge(
-          "langfuse.blobstorage.event_loop_delay.max",
-          maxMs,
-          delayTags,
-        );
-        recordGauge(
-          "langfuse.blobstorage.event_loop_delay.p99",
-          p99Ms,
-          delayTags,
-        );
         span.setAttribute("blob.eventLoopDelay.maxMs", Math.round(maxMs));
         span.setAttribute("blob.eventLoopDelay.p99Ms", Math.round(p99Ms));
         span.setAttribute("blob.eventLoopDelay.meanMs", Math.round(meanMs));
@@ -1205,9 +1179,10 @@ export const handleBlobStorageIntegrationProjectJob = async (
     return;
   }
 
+  const runStartTime = new Date();
   const { count: claimed } = await prisma.blobStorageIntegration.updateMany({
     where: { projectId },
-    data: { runStartedAt: new Date() },
+    data: { runStartedAt: runStartTime },
   });
   if (claimed === 0) {
     logger.info(
@@ -1262,6 +1237,12 @@ export const handleBlobStorageIntegrationProjectJob = async (
         nextSyncAt: new Date(now.getTime() + frequencyIntervalMs),
         lastError: null,
         lastErrorAt: null,
+        ...(isExportCaughtUp({
+          lastSyncAt: blobStorageIntegration.lastSyncAt,
+          runStartTime,
+        })
+          ? { backfill: false }
+          : {}),
       },
     });
     return;
@@ -1451,8 +1432,14 @@ export const handleBlobStorageIntegrationProjectJob = async (
       }
     }
 
-    // Determine if we've caught up with present-day data
-    const caughtUp = maxTimestamp.getTime() >= uncappedMaxTimestamp.getTime();
+    // Determine if we've caught up with present-day data. A remainder below
+    // BLOB_STORAGE_REMAINDER_COALESCE_MS is treated as caught up so we never emit
+    // a sub-second trailing chunk that would collide with the full-interval chunk
+    // on the same second-precision object key (see the constant's doc comment).
+    const remainderMs = uncappedMaxTimestamp.getTime() - maxTimestamp.getTime();
+    const caughtUp =
+      maxTimestamp.getTime() >= uncappedMaxTimestamp.getTime() ||
+      remainderMs < BLOB_STORAGE_REMAINDER_COALESCE_MS;
 
     let nextSyncAt: Date;
     if (caughtUp) {
@@ -1483,6 +1470,9 @@ export const handleBlobStorageIntegrationProjectJob = async (
           lastError: null,
           lastErrorAt: null,
           runStartedAt: null,
+          ...(isExportCaughtUp({ lastSyncAt: maxTimestamp, runStartTime })
+            ? { backfill: false }
+            : {}),
         },
       },
     );
@@ -1518,6 +1508,57 @@ export const handleBlobStorageIntegrationProjectJob = async (
       `[BLOB INTEGRATION] Successfully processed blob storage integration for project ${projectId}`,
     );
   } catch (error) {
+    // A part-count-limit exhaustion is terminal, not transient: the window is
+    // too large for the configured part size and no retry can shrink it safely.
+    // Fail loud and stop before BullMQ burns its remaining attempts re-querying
+    // ClickHouse against a retention-shrinking window. Runs BEFORE the generic
+    // customer-fault/transient handling below.
+    if (isMultipartPartLimitError(error)) {
+      // Missing-row-safe: a delete mid-run makes the job obsolete. lastSyncAt /
+      // nextSyncAt are left untouched so the window is not advanced past a
+      // failed export. enabled is left untouched: a too-large window is not a
+      // customer-config fault, so this never auto-disables. update (not
+      // updateMany) so the notification can read the post-write enabled state.
+      let integration;
+      try {
+        integration = await prisma.blobStorageIntegration.update({
+          where: { projectId },
+          data: {
+            lastError: BLOB_EXPORT_PART_LIMIT_ERROR_MESSAGE,
+            lastErrorAt: new Date(),
+            runStartedAt: null,
+          },
+        });
+      } catch (persistError) {
+        if (isRecordNotFoundError(persistError)) {
+          logger.info(
+            `[BLOB INTEGRATION] Blob storage integration for project ${projectId} was deleted before the part-limit failure could be recorded; dropping obsolete job`,
+          );
+          return;
+        }
+        throw persistError;
+      }
+
+      // Cooldown-gated, not bypassed: the integration stays enabled and the
+      // watermark does not advance, so every scheduled run re-attempts the same
+      // too-large window and re-enters here. The cooldown caps this to one alert
+      // per cooldown window instead of one per run. (The disable notification
+      // bypasses the cooldown because it is a one-shot terminal event.)
+      //
+      // Gated on the post-write enabled state, mirroring the generic terminal
+      // path's stillEnabled check: a user who disabled the integration mid-run
+      // must not get an "export failed" alert for a run they already turned off.
+      if (integration.enabled) {
+        await notifyBlobStorageExportFailed(projectId, { disabled: false });
+      }
+
+      logger.error(
+        `[BLOB INTEGRATION] Blob storage export for project ${projectId} exceeded the multipart part-count limit; failing terminally without retry: ${errorChainText(error)}`,
+      );
+      // UnrecoverableError so BullMQ fails the job now instead of retrying.
+      throw new UnrecoverableError(BLOB_EXPORT_PART_LIMIT_ERROR_MESSAGE);
+    }
+
     const errorMessage = extractStorageErrorMessage(error);
 
     const isFinalAttempt = isFinalBullmqAttempt(job, error);
@@ -1539,7 +1580,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
       case "disabled-by-us":
         // Awaited: the integration is now off, so the scheduler never revisits
         // it and nothing would carry an interrupted dispatch.
-        await notifyBlobStorageExportFailed(projectId, true);
+        await notifyBlobStorageExportFailed(projectId, { disabled: true });
         return; // resolving is the point; a throw would light the monitor
       case "lost-disable-race":
         return; // the winner sent the terminal email
@@ -1548,7 +1589,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
         // scheduled export" is no longer true. Not awaited: this path rethrows,
         // so the job is about to fail and be retried regardless.
         if (isFinalAttempt && outcome.stillEnabled) {
-          notifyBlobStorageExportFailed(projectId, false);
+          notifyBlobStorageExportFailed(projectId, { disabled: false });
         }
         break;
       case "persist-failed":
@@ -1656,16 +1697,19 @@ async function recordTerminalExportError({
 // even on the awaited path; the persisted lastError is the durable signal.
 async function notifyBlobStorageExportFailed(
   projectId: string,
-  disabled = false,
+  {
+    disabled = false,
+    bypassCooldown = disabled,
+  }: { disabled?: boolean; bypassCooldown?: boolean } = {},
 ): Promise<void> {
   try {
     // Called once per exhausted run. The cooldown gates across scheduled
     // runs (the scheduler re-enqueues every frequency period, and each
-    // failing run would otherwise email again). The disable notification
-    // bypasses it: it is a one-time, terminal event — the integration
-    // won't run again until the customer re-enables it — and a cooldown
-    // claim could silently drop the one email that says it was turned off.
-    if (!disabled) {
+    // failing run would otherwise email again). The disable notice bypasses
+    // it: that is a one-shot terminal event and a cooldown claim could
+    // silently drop the single email saying the integration was turned off.
+    // Recurring failures stay gated so they alert once per window, not per run.
+    if (!bypassCooldown) {
       const cooldownMs =
         env.LANGFUSE_BLOB_STORAGE_FAILURE_NOTIFICATION_COOLDOWN_HOURS *
         60 *
@@ -1757,12 +1801,15 @@ function extractStorageErrorMessage(error: unknown): string {
   const errorDetails = (error as unknown as { Details?: unknown }).Details;
   const causeDetails = (cause as unknown as { Details?: unknown } | undefined)
     ?.Details;
-  const details =
-    typeof errorDetails === "string"
-      ? errorDetails
-      : typeof causeDetails === "string"
-        ? causeDetails
-        : undefined;
+  const details = (() => {
+    if (typeof errorDetails === "string") {
+      return errorDetails;
+    }
+    if (typeof causeDetails === "string") {
+      return causeDetails;
+    }
+    return undefined;
+  })();
 
   const full = details ? `${message} Details: ${details}` : message;
   return full.slice(0, 1000);

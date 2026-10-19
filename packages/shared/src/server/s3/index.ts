@@ -9,34 +9,65 @@ export { S3_DELETE_OBJECTS_CHUNK_SIZE } from "../services/StorageService";
 let s3MediaStorageClient: StorageService;
 let s3EventStorageClient: StorageService;
 
+export function resolveMediaStorageEndpoints(params: {
+  endpoint: string | undefined;
+  internalEndpoint: string | undefined;
+}) {
+  return {
+    endpoint: params.internalEndpoint ?? params.endpoint,
+    externalEndpoint: params.internalEndpoint ? params.endpoint : undefined,
+  };
+}
+
 export const getS3MediaStorageClient = (bucketName: string): StorageService => {
   if (!s3MediaStorageClient) {
+    const endpoints = resolveMediaStorageEndpoints({
+      endpoint: env.LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT,
+      internalEndpoint: env.LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT,
+    });
     s3MediaStorageClient = StorageServiceFactory.getInstance({
       bucketName,
       accessKeyId: env.LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID,
       secretAccessKey: env.LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY,
-      endpoint: env.LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT,
+      ...endpoints,
       region: env.LANGFUSE_S3_MEDIA_UPLOAD_REGION,
       forcePathStyle: env.LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE === "true",
       awsSse: env.LANGFUSE_S3_MEDIA_UPLOAD_SSE,
       awsSseKmsKeyId: env.LANGFUSE_S3_MEDIA_UPLOAD_SSE_KMS_KEY_ID,
+      s3RequestTimeoutMs: env.LANGFUSE_S3_MEDIA_UPLOAD_REQUEST_TIMEOUT_MS,
     });
   }
   return s3MediaStorageClient;
 };
 
+/**
+ * Storage client for the ingestion event bucket. Callers share this
+ * configuration and keep their own instance.
+ *
+ * SlowDown is logged as a warning. Ingestion and OTEL jobs escalate to an
+ * error once their BullMQ attempts are spent.
+ */
+export function createEventUploadStorageService(
+  bucketName: string,
+  options?: { maxAttempts?: number },
+): StorageService {
+  return StorageServiceFactory.getInstance({
+    bucketName,
+    accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
+    secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
+    endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
+    region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
+    forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+    awsSse: env.LANGFUSE_S3_EVENT_UPLOAD_SSE,
+    awsSseKmsKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_SSE_KMS_KEY_ID,
+    logSlowDownAsWarning: true,
+    maxAttempts: options?.maxAttempts,
+  });
+}
+
 export const getS3EventStorageClient = (bucketName: string): StorageService => {
   if (!s3EventStorageClient) {
-    s3EventStorageClient = StorageServiceFactory.getInstance({
-      bucketName,
-      accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
-      endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
-      region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
-      forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
-      awsSse: env.LANGFUSE_S3_EVENT_UPLOAD_SSE,
-      awsSseKmsKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_SSE_KMS_KEY_ID,
-    });
+    s3EventStorageClient = createEventUploadStorageService(bucketName);
   }
   return s3EventStorageClient;
 };

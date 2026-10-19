@@ -1,6 +1,7 @@
 import { useWatch } from "react-hook-form";
 import { Info, ExternalLink } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import {
   FormControl,
   FormDescription,
@@ -9,13 +10,6 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
 import {
   Tooltip,
   TooltipContent,
@@ -30,7 +24,7 @@ import {
   getExportSourceOptions,
   getExportSourceUnavailableMessage,
   shouldHideExportSourceSelector,
-} from "@/src/features/analytics-integrations/exportSource";
+} from "@/src/features/analytics-integrations";
 import { type BlobStorageFormControl } from "@/src/features/blobstorage-integration/components/formValues";
 
 // Export source selector plus the blocked-save alert for a persisted source
@@ -71,7 +65,7 @@ export const ExportSourceField = ({
                 Export Source
                 <Tooltip>
                   <TooltipTrigger>
-                    <Info className="text-muted-foreground h-3.5 w-3.5" />
+                    <Info className="text-muted-foreground icon-base" />
                   </TooltipTrigger>
                   <TooltipContent
                     side="bottom"
@@ -87,42 +81,38 @@ export const ExportSourceField = ({
                     ))}
                     <div className="border-t pt-2">
                       <a
-                        href="https://langfuse.com/docs/integrations/export-sources"
+                        href="https://langfuse.com/docs/api-and-data-platform/features/export-to-blob-storage#upgrade-path"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 text-xs hover:underline"
                       >
                         For further information see
-                        <ExternalLink className="h-3 w-3" />
+                        <ExternalLink className="icon-sm" />
                       </a>
                     </div>
                   </TooltipContent>
                 </Tooltip>
               </FormLabel>
-              <Select
-                onValueChange={field.onChange}
-                value={field.value}
-                disabled={exportSourceLocked}
-              >
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select data to export" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {exportSourceOptions.map((option) => (
-                    <SelectItem
-                      key={option.value}
-                      value={option.value}
-                      disabled={option.unavailable}
-                    >
-                      {option.unavailable
-                        ? `${option.label} (not available on this deployment)`
-                        : option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <FormControl>
+                <SelectInput
+                  onValueChange={field.onChange}
+                  value={field.value}
+                  disabled={exportSourceLocked}
+                  placeholder="Select data to export"
+                  options={exportSourceOptions.map((option) => {
+                    if (option.unavailable) {
+                      return {
+                        value: option.value,
+                        label: `${option.label} (not available on this deployment)`,
+                        disabled: true as const,
+                        disabledReason: "Not available on this deployment.",
+                      };
+                    }
+
+                    return { value: option.value, label: option.label };
+                  })}
+                />
+              </FormControl>
               <FormDescription>
                 Choose which data sources to export to blob storage. Scores are
                 always included.
@@ -135,11 +125,11 @@ export const ExportSourceField = ({
 
       {!watchedValidation.ok && (
         <Alert variant="destructive">
-          <AlertTitle>Saved export source is no longer available</AlertTitle>
-          <AlertDescription>
+          <Alert.Title>Saved export source is no longer available</Alert.Title>
+          <Alert.Description>
             {/* Reason-specific body; texts live in the shared lookup. */}
             {getExportSourceUnavailableMessage(watchedValidation.reason)}
-          </AlertDescription>
+          </Alert.Description>
         </Alert>
       )}
     </>

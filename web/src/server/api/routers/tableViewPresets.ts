@@ -4,7 +4,7 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { hasProjectAccess, throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
   TableViewService,
   CreateTableViewPresetsInput,
@@ -151,9 +151,29 @@ export const TableViewPresetsRouter = createTRPCRouter({
         scope: "TableViewPresets:read",
       });
 
-      return await TableViewService.getTableViewPresetsByTableName(
+      const presets = await TableViewService.getTableViewPresetsByTableName(
         input.tableName,
         input.projectId,
+      );
+
+      // Creator email follows projectMembers:read, the same scope as the members list.
+      if (
+        hasProjectAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "projectMembers:read",
+        })
+      ) {
+        return presets;
+      }
+
+      return presets.map((preset) =>
+        preset.createdByUser
+          ? {
+              ...preset,
+              createdByUser: { ...preset.createdByUser, email: null },
+            }
+          : preset,
       );
     }),
 

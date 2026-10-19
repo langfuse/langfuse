@@ -1,10 +1,11 @@
+/* eslint-disable no-nested-ternary */
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { useSession } from "next-auth/react";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
-import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useReadPath, V4_PREVIEW_LABEL } from "@/src/features/events";
+import { featurePreviewLabels } from "@/src/features/feature-flags";
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 import {
   FeaturePreviewModal,
@@ -17,19 +18,12 @@ type ControlledFeaturePreviewModalProps = {
   onOpenChange: (open: boolean) => void;
 };
 
-const PREVIEW_LABEL: Record<PreviewFlag, string> = {
-  modernSession: "Compact Session View",
-  searchBar: "Filter Search Bar",
-  v4UpgradeUi: "V4 Migration",
-  compactTimeline: "Compact Timeline",
-};
-
 export function ControlledFeaturePreviewModal({
   open,
   onOpenChange,
 }: ControlledFeaturePreviewModalProps) {
   const authSession = useSession();
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
   const capture = usePostHogClientCapture();
   const setFeaturePreviewEnabled =
     api.userAccount.setFeaturePreviewEnabled.useMutation({
@@ -40,62 +34,84 @@ export function ControlledFeaturePreviewModal({
           isEnabled: variables.enabled,
         });
         showSuccessToast({
+          operation: "user_feature_preview.update",
           title: "Feature preview updated",
-          description: `${PREVIEW_LABEL[variables.flag]} preview has been ${
-            variables.enabled ? "enabled" : "disabled"
-          }.`,
+          description: `${featurePreviewLabels[variables.flag]} preview has been ${variables.enabled ? "enabled" : "disabled"}.`,
         });
       },
       onError: (error) => {
-        showErrorToast("Failed to update feature preview", error.message);
+        showErrorToast(
+          "Failed to update feature preview",
+          error.message,
+          classifyTrpcToastError(error, "user_feature_preview.update"),
+        );
       },
     });
 
   const onToggle = (flag: PreviewFlag) => (enabled: boolean) =>
     setFeaturePreviewEnabled.mutate({ flag, enabled });
 
+  const isModernSessionEnabled =
+    authSession.data?.user?.featureFlags.sessionViewV2 === true ||
+    authSession.data?.environment.enableExperimentalFeatures === true;
+
   const state: Partial<Record<PreviewFlag, PreviewState>> = {
-    modernSession: {
+    skillManagement: {
       enabled:
-        authSession.data?.user?.featureFlags.modernSession === true ||
-        authSession.data?.environment.enableExperimentalFeatures === true,
+        isV4 &&
+        (authSession.data?.user?.featureFlags.skillManagement === true ||
+          authSession.data?.environment.enableExperimentalFeatures === true),
       disabled:
-        !isBetaEnabled ||
+        !isV4 ||
         authSession.data?.environment.enableExperimentalFeatures === true,
-      warningReason: !isBetaEnabled
-        ? `Compact Session View is only available on the events-backed session view. Turn on ${V4_PREVIEW_LABEL} to enable it.`
+      warningReason: !isV4
+        ? `Skill Management requires ${V4_PREVIEW_LABEL}. Turn it on to enable this preview.`
         : authSession.data?.environment.enableExperimentalFeatures === true
           ? "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."
           : undefined,
-      onToggle: onToggle("modernSession"),
+      onToggle: onToggle("skillManagement"),
       isToggling: setFeaturePreviewEnabled.isPending,
     },
-    v4UpgradeUi: {
-      enabled: authSession.data?.user?.featureFlags.v4UpgradeUi === true,
-      onToggle: onToggle("v4UpgradeUi"),
-      isToggling: setFeaturePreviewEnabled.isPending,
-    },
-    compactTimeline: {
-      enabled:
-        authSession.data?.user?.featureFlags.compactTimeline === true ||
-        authSession.data?.environment.enableExperimentalFeatures === true,
+    ...(authSession.data?.user?.admin === true
+      ? {
+          langfuseTopics: {
+            enabled: authSession.data.user.featureFlags.langfuseTopics === true,
+            onToggle: onToggle("langfuseTopics"),
+            isToggling: setFeaturePreviewEnabled.isPending,
+          },
+        }
+      : {}),
+    sessionViewV2: {
+      enabled: isModernSessionEnabled,
       disabled:
+        !isV4 ||
         authSession.data?.environment.enableExperimentalFeatures === true,
-      warningReason:
-        authSession.data?.environment.enableExperimentalFeatures === true
+      warningReason: !isV4
+        ? `Redesigned Session View is only available on the events-backed session view. Turn on ${V4_PREVIEW_LABEL} to enable it.`
+        : authSession.data?.environment.enableExperimentalFeatures === true
           ? "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."
           : undefined,
-      onToggle: onToggle("compactTimeline"),
+      onToggle: onToggle("sessionViewV2"),
       isToggling: setFeaturePreviewEnabled.isPending,
     },
-    // The "Filter Search Bar" preview is retired — the bar is now generally
-    // available on the v4 events tables for everyone (see useSearchBarEnabled),
-    // so it no longer renders a tile here. The `searchBar` flag plumbing
-    // (PreviewFlag type, registry entry, the userAccount allowlist) is kept for
-    // now so a rollback is a one-line revert; restore the `searchBar: { ... }`
-    // state entry to bring the tile back.
-    // TODO(remove ~2026-06-19): delete the dead searchBar plumbing once the GA
-    // rollout is confirmed stable — see useSearchBarEnabled for the full list.
+    sessionViewV2Timeline: {
+      enabled:
+        authSession.data?.user?.featureFlags.sessionViewV2Timeline === true ||
+        authSession.data?.environment.enableExperimentalFeatures === true,
+      disabled:
+        !isV4 ||
+        !isModernSessionEnabled ||
+        authSession.data?.environment.enableExperimentalFeatures === true,
+      warningReason: !isV4
+        ? `Redesigned Session View is only available on the events-backed session view. Turn on ${V4_PREVIEW_LABEL} to enable it.`
+        : !isModernSessionEnabled
+          ? "Enable Redesigned Session View before enabling the Session Timeline."
+          : authSession.data?.environment.enableExperimentalFeatures === true
+            ? "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."
+            : undefined,
+      onToggle: onToggle("sessionViewV2Timeline"),
+      isToggling: setFeaturePreviewEnabled.isPending,
+    },
   };
 
   return (

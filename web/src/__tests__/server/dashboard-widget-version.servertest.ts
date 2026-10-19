@@ -1,8 +1,10 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { v4 as uuidv4 } from "uuid";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
-import { DashboardService } from "@langfuse/shared/src/server";
-import { DashboardWidgetViews } from "@langfuse/shared/src/db";
-import { prisma } from "@langfuse/shared/src/db";
+import {
+  createOrgProjectAndApiKey,
+  DashboardService,
+} from "@langfuse/shared/src/server";
+import { DashboardWidgetViews, prisma } from "@langfuse/shared/src/db";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import {
   LANGFUSE_HOME_DASHBOARD_DEFINITION,
@@ -81,14 +83,7 @@ describe("dashboard widget minVersion", () => {
             ],
           },
         ],
-        featureFlags: {
-          excludeClickhouseRead: false,
-          templateFlag: true,
-          v4BetaToggleVisible: false,
-          observationEvals: false,
-          experimentsV4Enabled: false,
-          searchBar: false,
-        },
+        featureFlags: testFeatureFlags(),
         v4BetaEnabled,
         admin: true,
       },

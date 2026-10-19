@@ -1,6 +1,6 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import type { LanguageModel } from "ai";
+import type { EmbeddingModel, LanguageModel } from "ai";
 
 import { parseOutboundUrl } from "../../../outbound-url/validation";
 import { processOpenAIBaseURL } from "../../utils";
@@ -15,6 +15,7 @@ export function buildOpenAIModel(params: {
   baseURL?: string | null;
   extraHeaders?: Record<string, string>;
   apiMode: OpenAIApiMode;
+  chatProvider?: "native";
   fetch: typeof fetch;
 }): LanguageModel {
   const { apiKey, baseURL, extraHeaders, apiMode, modelId } = params;
@@ -26,6 +27,7 @@ export function buildOpenAIModel(params: {
 
   if (
     apiMode === "chat-completions" &&
+    params.chatProvider !== "native" &&
     isOpenAICompatibleEndpoint(processedBaseURL)
   ) {
     const provider = createOpenAICompatible({
@@ -55,6 +57,37 @@ export function buildOpenAIModel(params: {
     : provider.chat(modelId);
 }
 
+export function buildOpenAIEmbeddingModel(params: {
+  modelId: string;
+  apiKey: string;
+  baseURL?: string | null;
+  extraHeaders?: Record<string, string>;
+  fetch: typeof fetch;
+}): EmbeddingModel {
+  const { apiKey, baseURL, extraHeaders, modelId } = params;
+  const processedBaseURL = processOpenAIBaseURL({
+    url: baseURL,
+    modelName: modelId,
+  });
+
+  if (isOpenAICompatibleEndpoint(processedBaseURL))
+    return createOpenAICompatible({
+      name: "openai",
+      apiKey,
+      baseURL: processedBaseURL,
+      headers: extraHeaders,
+      fetch: params.fetch,
+    }).embeddingModel(modelId);
+
+  return createOpenAI({
+    apiKey,
+    baseURL: processedBaseURL ?? undefined,
+    headers: extraHeaders,
+    fetch: params.fetch,
+  }).embedding(modelId);
+}
+
+/** Preserves custom-URL routing and raw provider options for saved connections. */
 export function isOpenAICompatibleEndpoint(
   baseURL: string | null | undefined,
 ): baseURL is string {
@@ -66,8 +99,7 @@ export function isOpenAICompatibleEndpoint(
       return false;
     }
 
-    const hostname = url.hostname;
-    return hostname !== "api.openai.com";
+    return url.hostname !== "api.openai.com";
   } catch {
     return false;
   }

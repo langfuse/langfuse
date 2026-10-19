@@ -16,10 +16,16 @@ import {
   createScoresCh,
   createTraceScore,
   queryClickhouse,
+  toClickhouseDateTime,
   traceException,
 } from "@langfuse/shared/src/server";
+import { isEnterpriseLicenseAvailable } from "@langfuse/shared/src/server/ee/licenseCheck";
 import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
+
+vi.mock("@langfuse/shared/src/server/ee/licenseCheck", () => ({
+  isEnterpriseLicenseAvailable: vi.fn(() => true),
+}));
 
 const integrationHooks = vi.hoisted(() => ({
   failExactEnrichmentForProjectId: null as string | null,
@@ -167,8 +173,8 @@ async function insertRetentionTestRows(
     format: "JSONEachRow",
     values: rows.map((row) => ({
       project_id: row.projectId,
-      start_time: row.startTime,
-      event_ts: Date.now(),
+      start_time: toClickhouseDateTime(row.startTime),
+      event_ts: toClickhouseDateTime(),
     })),
   });
 }
@@ -206,6 +212,13 @@ function getLastGaugeValue(stat: string): number {
 }
 
 describe("BatchDataRetentionCleaner", () => {
+  beforeEach(() => {
+    // Retention only runs under an enterprise license. Pin that here rather
+    // than inheriting it from the ambient env, so the suite does not depend on
+    // which .env example the run happens to have loaded.
+    vi.mocked(isEnterpriseLicenseAvailable).mockReturnValue(true);
+  });
+
   describe("processBatch - traces", () => {
     const TABLE = "traces" as const;
 
@@ -238,6 +251,36 @@ describe("BatchDataRetentionCleaner", () => {
 
       // Verify trace was deleted (10 days > 7 days retention)
       expect(await getClickhouseCount(TABLE, projectId)).toBe(0);
+    });
+
+    it("should NOT delete traces when no enterprise license is available", async () => {
+      const now = Date.now();
+      const tenDaysAgo = now - 10 * 24 * 60 * 60 * 1000;
+
+      const { projectId } = await createOrgProjectAndApiKey();
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { retentionDays: 7 },
+      });
+
+      await createTracesCh([
+        createTrace({
+          id: randomUUID(),
+          project_id: projectId,
+          timestamp: tenDaysAgo,
+        }),
+      ]);
+
+      expect(await getClickhouseCount(TABLE, projectId)).toBe(1);
+
+      // Simulate a self-hosted deployment whose license key was removed.
+      vi.mocked(isEnterpriseLicenseAvailable).mockReturnValue(false);
+      const cleaner = new BatchDataRetentionCleaner(TABLE);
+      await cleaner.processBatch();
+
+      // Retention is an enterprise entitlement, so the stored policy must stop
+      // being applied once the instance can no longer configure it.
+      expect(await getClickhouseCount(TABLE, projectId)).toBe(1);
     });
 
     it("should NOT delete traces within retention period", async () => {
@@ -654,7 +697,9 @@ describe("BatchDataRetentionCleaner", () => {
       const extend = vi.fn(async () => {
         const isCandidateStreamActive =
           integrationHooks.activeCandidateStreams > 0;
-        extendedDuringCandidateStream ||= isCandidateStreamActive;
+        if (isCandidateStreamActive) {
+          extendedDuringCandidateStream = true;
+        }
         return isCandidateStreamActive;
       });
       (

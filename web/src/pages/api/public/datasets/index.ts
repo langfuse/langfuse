@@ -14,6 +14,7 @@ import {
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
     name: "Create or Update Dataset",
+    action: "datasets:CUD",
     bodySchema: PostDatasetsV1Body,
     responseSchema: PostDatasetsV1Response,
     rateLimitResource: "datasets",
@@ -33,6 +34,7 @@ export default withMiddlewares({
   }),
   GET: createAuthedProjectAPIRoute({
     name: "Get Datasets",
+    action: "datasets:read",
     querySchema: GetDatasetsV1Query,
     responseSchema: GetDatasetsV1Response,
     rateLimitResource: "datasets",

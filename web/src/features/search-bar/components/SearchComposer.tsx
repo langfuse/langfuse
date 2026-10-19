@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 // Grammar-aware search composer.
 //
 // The per-mount store owns draft/committed query state. This component owns
@@ -18,7 +19,7 @@ import * as React from "react";
 import { useShallow } from "zustand/react/shallow";
 import { AlertCircle, WandSparkles, X } from "lucide-react";
 
-import { Layer } from "@/src/components/ui/layer";
+import { Layer } from "@/src/components/design-system/Layer/Layer";
 import { cn } from "@/src/utils/tailwind";
 
 import {
@@ -30,6 +31,10 @@ import {
   type ObservedOptions,
 } from "@/src/features/search-bar/lib/observed-options";
 import { explainSegment } from "@/src/features/search-bar/lib/explain";
+import {
+  EVENTS_FIELD_REGISTRY,
+  type FieldRegistry,
+} from "@/src/features/search-bar/lib/fields";
 import { getRecentSearches } from "@/src/features/search-bar/lib/recent-searches";
 import {
   applyPick,
@@ -37,6 +42,7 @@ import {
   planInputCompletions,
   type CompletionOption,
   type CompletionPlan,
+  type QueryPresetSection,
 } from "@/src/features/search-bar/lib/completions";
 import {
   useSearchBarStore,
@@ -50,14 +56,15 @@ import {
   WORD_JOINER,
 } from "@/src/features/search-bar/components/ComposerTokens";
 import {
-  COMPOSER_PLACEHOLDER,
+  composerPlaceholder,
   deactivationReason,
   optionDomId,
 } from "@/src/features/search-bar/components/presentation";
 import {
-  COMPOSER_SURFACE_CLASSES,
-  COMPOSER_TEXT_CLASSES,
-} from "@/src/features/search-bar/components/composer-chrome";
+  ComposerSurface,
+  type ComposerSize,
+  ComposerText,
+} from "@/src/features/search-bar/components/ComposerSurface";
 
 const LISTBOX_ID = "search-bar-listbox";
 // Word joiners (shared with ComposerTokens) give the DOM caret boundaries
@@ -85,6 +92,22 @@ type LogicalRange = { start: number; end: number };
 
 function textFromRoot(root: HTMLElement): string {
   return (root.textContent ?? "").replace(WORD_JOINER_RE, "");
+}
+
+// IME composition (Korean, Chinese, Japanese) inserts a text node the
+// contenteditable root does not already own. React will not remove that
+// sibling when it later projects a token, so the composed run doubles and
+// state-based delete cannot reach it. Strip those unmanaged nodes after
+// reading textContent — token spans are all ELEMENT_NODE.
+function stripUnmanagedRootChildren(root: HTMLElement): boolean {
+  let removed = false;
+  for (const child of Array.from(root.childNodes)) {
+    if (child.nodeType !== Node.ELEMENT_NODE) {
+      child.remove();
+      removed = true;
+    }
+  }
+  return removed;
 }
 
 function rawOffsetForLogicalOffset(
@@ -300,10 +323,16 @@ export function SearchComposer({
   erroredColumns,
   onActivateAi,
   onRequestColumns,
+  onQueryPresetPick,
+  presetSections,
   fieldReason,
   freeTextReason,
+  registry = EVENTS_FIELD_REGISTRY,
+  size = "default",
 }: {
-  projectId: string;
+  projectId?: string;
+  /** `large` on full-page lists; embedded toolbars keep the default. */
+  size?: ComposerSize;
   /** Observed facet values for value suggestions; undefined = loading. */
   observed: ObservedOptions | undefined;
   /** Columns whose lazy fetch terminally errored — settle the value-stage
@@ -318,11 +347,16 @@ export function SearchComposer({
    * loading is wired by the host table.
    */
   onRequestColumns?: (columns: readonly string[]) => void;
+  /** Complete-query sections supplied by the host view. Presets remain visible
+   * at every blank top-level term and replace the full query when picked. */
+  presetSections?: QueryPresetSection[];
+  onQueryPresetPick?: (presetId: string) => void;
   /** Given a filter token's field, the reason it is not applied on the current
    *  surface (dims the pill + hover), or null. Undefined leaves all active. */
   fieldReason?: (field: string) => string | null;
   /** Reason free-text tokens are not applied on the current surface, or null. */
   freeTextReason?: string | null;
+  registry?: FieldRegistry;
 }) {
   const storeApi = useSearchBarStoreApi();
   const commitToFilterState = useSearchBarCommit();
@@ -350,6 +384,10 @@ export function SearchComposer({
   const containerRef = React.useRef<HTMLDivElement>(null);
   // Selection to restore after the next reprojection of a controlled edit.
   const pendingSelectionRef = React.useRef<LogicalRange | null>(null);
+  // Bumped after IME composition so token spans remount instead of keeping
+  // text nodes the IME mutated in place (React skips an update when the
+  // last rendered string is unchanged).
+  const [tokensGeneration, setTokensGeneration] = React.useState(0);
 
   const selectionCollapsed = selectionSnapshot.start === selectionSnapshot.end;
   const caret = selectionSnapshot.end;
@@ -371,23 +409,28 @@ export function SearchComposer({
   // so the plan memo doesn't churn).
   const recents = React.useMemo(
     () =>
-      autocompleteOpen && draft.trim().length === 0
+      projectId && autocompleteOpen && draft.trim().length === 0
         ? getRecentSearches(projectId)
         : NO_RECENTS,
     [autocompleteOpen, draft, projectId],
   );
 
-  const plan: CompletionPlan | null =
+  const unrestrictedPlan: CompletionPlan | null =
     autocompleteOpen && selectionCollapsed
-      ? planInputCompletions({
-          input: draft,
-          caret: Math.min(caret, draft.length),
-          observed,
-          erroredColumns,
-          recents,
-          currentQueryText: draft,
-        })
+      ? planInputCompletions(
+          {
+            input: draft,
+            caret: Math.min(caret, draft.length),
+            observed,
+            erroredColumns,
+            recents,
+            presetSections,
+            currentQueryText: draft,
+          },
+          registry,
+        )
       : null;
+  const plan = unrestrictedPlan;
   // Lazy filter-options: when the current completion stage needs option columns
   // that have not loaded yet, ask the host table to fetch them. Keyed on the
   // joined column list so it fires once per distinct need, not every keystroke.
@@ -541,10 +584,10 @@ export function SearchComposer({
     setHighlightedOptionId(null);
   }, []);
 
-  // Restore selection after a controlled mutation reprojected the DOM. Runs
-  // before paint so the caret never visibly jumps. External draft changes
-  // (URL nav) leave pendingSelectionRef null and the browser keeps whatever
-  // selection state it had.
+  // Restore selection after a controlled mutation reprojected the DOM, and
+  // after an IME remount of the token spans. Runs before paint so the caret
+  // never visibly jumps. External draft changes (URL nav) leave
+  // pendingSelectionRef null and the browser keeps whatever selection it had.
   React.useLayoutEffect(() => {
     const root = rootRef.current;
     const pending = pendingSelectionRef.current;
@@ -553,7 +596,7 @@ export function SearchComposer({
     pendingSelectionRef.current = null;
     setSelectionRange(root, pending.start, pending.end);
     setSelectionSnapshot(pending);
-  }, [draft]);
+  }, [draft, tokensGeneration]);
 
   // Mirror the native selection. Read-only: this effect never moves the
   // selection, it only snapshots it for completion planning and hover/focus
@@ -579,8 +622,14 @@ export function SearchComposer({
     const root = rootRef.current;
     if (root === null) return;
     const next = textFromRoot(root);
-    if (next === draftRef.current) return;
     const caretNow = selectionOffsets(root).end;
+    const stripped = stripUnmanagedRootChildren(root);
+    if (next === draftRef.current && !stripped) return;
+    setTokensGeneration((generation) => generation + 1);
+    if (next === draftRef.current) {
+      pendingSelectionRef.current = { start: caretNow, end: caretNow };
+      return;
+    }
     setDraftWithSelection(next, caretNow);
     openAutocompleteAfterEdit();
   }, [draftRef, openAutocompleteAfterEdit, setDraftWithSelection]);
@@ -715,6 +764,9 @@ export function SearchComposer({
         const sel = selectionOffsets(root);
         caretAtEnd =
           sel.start === sel.end && sel.end === text.length && text.length > 0;
+        if (stripUnmanagedRootChildren(root)) {
+          setTokensGeneration((generation) => generation + 1);
+        }
         if (text !== storeApi.getState().draft) actions.setDraft(text);
       }
       // The container validates, lowers, and writes the filter state; on failure
@@ -747,6 +799,7 @@ export function SearchComposer({
           typedSpaced,
           committedText,
           scoreTypes,
+          registry,
         )
           ? typedSpaced
           : committedText;
@@ -762,7 +815,13 @@ export function SearchComposer({
         setAutocompleteOpen(false);
       }
     },
-    [storeApi, commitToFilterState, setDraftWithSelection, scoreTypes],
+    [
+      storeApi,
+      commitToFilterState,
+      setDraftWithSelection,
+      scoreTypes,
+      registry,
+    ],
   );
 
   // Structured edits (autocomplete picks, chip removal) apply immediately, but
@@ -779,21 +838,23 @@ export function SearchComposer({
     (option: CompletionOption) => {
       const currentPlan = planRef.current;
       if (currentPlan === null) return;
-      if (option.kind === "recent") {
-        // Land in the RESTING (trailing-space) form like every other commit
-        // landing, so a later click past the text doesn't have to mutate the
-        // draft (= the caret flicker this PR removed). A recent is stored
-        // canonical/trimmed, so one space never doubles.
+      if (option.kind === "recent" || option.kind === "preset") {
+        // Complete-query picks replace the full draft and land in the RESTING
+        // trailing-space form like every other commit landing.
         const resting =
           option.query.length === 0 ? option.query : `${option.query} `;
         setDraftWithSelection(resting, resting.length);
-        // A recent is a COMPLETE query the user explicitly picked, so it gets
-        // the same Enter/blur reveal semantics: commit if valid, otherwise
-        // reveal the red invalid state instead of silently no-op'ing (e.g. a
-        // recent stored before a grammar tightening, or a since-retyped score).
+        // Explicit complete-query picks commit when valid and otherwise reveal
+        // the invalid state instead of silently no-op'ing.
         const state = storeApi.getState();
-        if (state.draftValid) commitToFilterState("pick");
-        else state.actions.revealInvalid();
+        if (state.draftValid) {
+          const committed = commitToFilterState(
+            "pick",
+            option.kind === "preset" ? { replaceHidden: true } : undefined,
+          );
+          if (option.kind === "preset" && committed !== null)
+            onQueryPresetPick?.(option.id);
+        } else state.actions.revealInvalid();
         setAutocompleteOpen(false);
         return;
       }
@@ -828,6 +889,7 @@ export function SearchComposer({
       setDraftWithSelection,
       commitStructuredEdit,
       commitToFilterState,
+      onQueryPresetPick,
       storeApi,
     ],
   );
@@ -1035,12 +1097,15 @@ export function SearchComposer({
       const current = highlightedRef.current;
       const idx = current === null ? -1 : ids.indexOf(current);
       const delta = event.key === "ArrowDown" ? 1 : -1;
-      const next =
-        idx === -1
-          ? delta > 0
-            ? 0
-            : ids.length - 1
-          : (idx + delta + ids.length) % ids.length;
+      const next = (() => {
+        if (idx === -1) {
+          if (delta > 0) {
+            return 0;
+          }
+          return ids.length - 1;
+        }
+        return (idx + delta + ids.length) % ids.length;
+      })();
       setHighlightedOptionId(ids[next]!);
     }
   };
@@ -1138,7 +1203,7 @@ export function SearchComposer({
       // or its padding) nudges the collapsed caret across the whitespace run,
       // so typing starts the next entry instead of gluing to the previous
       // token. Clicks on token text keep their native caret untouched.
-      const segment = deriveComposerSegments(draft, scoreTypes).find(
+      const segment = deriveComposerSegments(draft, scoreTypes, registry).find(
         (s) => s.to === end,
       );
       const el =
@@ -1173,7 +1238,8 @@ export function SearchComposer({
     setHoveredTokenId(token?.getAttribute("data-segment-id") ?? null);
   };
 
-  const segments = deriveComposerSegments(draft, scoreTypes);
+  const placeholder = composerPlaceholder(registry);
+  const segments = deriveComposerSegments(draft, scoreTypes, registry);
   // The token holding a collapsed caret — the keyboard counterpart to hover.
   // Not at the trailing insertion point, where the user is appending, not
   // editing. Every segment kind qualifies: an operator explains itself on the
@@ -1212,7 +1278,9 @@ export function SearchComposer({
           : null;
   const explainTargetId = explainTarget?.id ?? null;
   const explanation =
-    explainTarget === null ? null : explainSegment(explainTarget);
+    explainTarget === null
+      ? null
+      : explainSegment(explainTarget, registry, draft);
   const explainDeactivatedReason =
     explainTarget === null
       ? null
@@ -1221,7 +1289,9 @@ export function SearchComposer({
   // description regardless of the popover — including the "not applied" note,
   // which the visible tooltip also carries.
   const caretExplanation =
-    caretSegment === null ? null : explainSegment(caretSegment);
+    caretSegment === null
+      ? null
+      : explainSegment(caretSegment, registry, draft);
   const caretDeactivatedReason =
     caretSegment === null
       ? null
@@ -1268,12 +1338,15 @@ export function SearchComposer({
   const removeTargetIdActual = removeTarget?.id ?? null;
   // Measured separately from the remove target: an operator token explains
   // itself but is not editable, so it never has a remove X to anchor to.
-  const tooltipTargetId =
-    errorTarget !== null
-      ? errorTarget.id
-      : explanation !== null
-        ? explainTargetId
-        : null;
+  const tooltipTargetId = (() => {
+    if (errorTarget !== null) {
+      return errorTarget.id;
+    }
+    if (explanation !== null) {
+      return explainTargetId;
+    }
+    return null;
+  })();
   const measurePositions = React.useCallback(() => {
     const root = rootRef.current;
     const container = containerRef.current;
@@ -1330,173 +1403,160 @@ export function SearchComposer({
       ref={containerRef}
       data-testid="search-bar"
       role="search"
-      className="relative w-full"
+      className="ph-no-capture relative w-full"
     >
-      <div
-        data-testid="search-bar-surface"
-        data-composer-text={draft}
-        onMouseLeave={() => setHoveredTokenId(null)}
-        className={cn(
-          // Prominent primary control. Block (not flex) so inline pills never
-          // break across a wrap. Balanced padding: a small, even gutter on all
-          // sides (the left no longer dwarfs the inter-pill gap and top), py
-          // centers a single line near min-h-9 and the box grows when wrapped.
-          // Right gutter keeps the last token clear of the top-right control:
-          // the "Ask AI" button (pr-20), or the error icon (pr-8).
-          // Box + text metrics are shared with the preview surface
-          // (composer-chrome.ts) so the overlay renders pixel-identical.
-          COMPOSER_SURFACE_CLASSES,
+      <ComposerSurface
+        size={size}
+        interactive
+        error={showGlobalDiagnostics}
+        trailing={
           onActivateAi !== undefined && !showGlobalDiagnostics
-            ? "pr-20"
-            : "pr-8",
-          "focus-within:ring-ring focus-within:ring-1",
-          showGlobalDiagnostics &&
-            "border-destructive focus-within:ring-destructive/40",
-        )}
+            ? "button"
+            : "icon"
+        }
       >
-        {draft.length === 0 && (
-          <div
-            className={cn(
-              // Bound the right edge (not just pr-*) so `truncate` has a width
-              // to clip against — otherwise the placeholder grows to its full
-              // text width and runs under the top-right "Ask AI" button. The
-              // reserved gap matches the surface's pr-20/pr-8.
-              "text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 truncate font-mono text-xs",
-              // Mirror the surface's right reservation exactly: the "Ask AI"
-              // button (right-20) is hidden while diagnostics show, when the
-              // error icon takes over the top-right corner (right-8).
-              onActivateAi !== undefined && !showGlobalDiagnostics
-                ? "right-20"
-                : "right-8",
-            )}
-            title={COMPOSER_PLACEHOLDER}
-          >
-            {COMPOSER_PLACEHOLDER}
-          </div>
-        )}
         <div
-          ref={rootRef}
-          role="combobox"
-          aria-label="Search"
-          aria-expanded={plan !== null}
-          aria-controls={plan !== null ? LISTBOX_ID : undefined}
-          aria-autocomplete="list"
-          aria-activedescendant={
-            plan !== null && highlightedId !== null
-              ? optionDomId(LISTBOX_ID, highlightedId)
-              : undefined
-          }
-          aria-describedby={describedBy}
-          contentEditable
-          suppressContentEditableWarning
-          // The query is code-like grammar, not prose: suppress every mobile-
-          // keyboard mutation, not just the spellcheck squiggle. Without these,
-          // iOS/Android default autocorrect + sentence-capitalization can
-          // rewrite a partial token (`tps` → something) before commit.
-          spellCheck={false}
-          autoCorrect="off"
-          autoCapitalize="none"
-          inputMode="text"
-          data-testid="search-bar-input"
-          // leading-6 (not 7): WebKit/Safari sizes the text caret to the line
-          // box, so a 28px (leading-7) line made the caret tower ~4px above/
-          // below the ~24px pills ("too big"). 24px matches the pill height so
-          // the caret aligns with the pills. Trade-off: tighter gap between
-          // wrapped lines of pills (single-line is unaffected).
-          className={cn(
-            COMPOSER_TEXT_CLASSES,
-            "caret-[hsl(var(--foreground))] outline-none",
-          )}
-          onInput={(event) => {
-            if (!(event.nativeEvent as InputEvent).isComposing) syncFromDom();
-          }}
-          onCompositionEnd={syncFromDom}
-          // Disable drag-and-drop: an intra-bar drag fires deleteByDrag (which
-          // the delete branch applies) without a matching insert, silently
-          // dropping the dragged text. Drop is unsupported anyway; selection
-          // and copy/cut/paste stay fully functional.
-          onDragStart={(e) => e.preventDefault()}
-          onKeyDown={onKeyDown}
-          onCopy={onCopy}
-          onCut={onCut}
-          onPaste={onPaste}
-          onFocus={onFocus}
-          onBlur={onBlur}
-          onClick={onRootClick}
-          onMouseOver={onRootMouseOver}
+          data-testid="search-bar-surface"
+          data-composer-text={draft}
+          onMouseLeave={() => setHoveredTokenId(null)}
         >
-          <ComposerTokens
-            draft={draft}
-            showDiagnostics={showTokenDiagnostics}
-            scoreTypes={scoreTypes}
-            fieldReason={fieldReason}
-            freeTextReason={freeTextReason}
-            highlightedSegmentId={
-              explanation !== null ? explainTargetId : errorTarget?.id
-            }
-          />
-        </div>
-        {/* "Ask AI" affordance — a plain button, always available so filters can
+          {draft.length === 0 && (
+            <div
+              className={cn(
+                // Bound the right edge (not just pr-*) so `truncate` has a width
+                // to clip against — otherwise the placeholder grows to its full
+                // text width and runs under the top-right "Ask AI" button. The
+                // reserved gap matches the surface's pr-20/pr-8.
+                "text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 truncate font-mono text-xs",
+                // Mirror the surface's right reservation exactly: the "Ask AI"
+                // button (right-20) is hidden while diagnostics show, when the
+                // error icon takes over the top-right corner (right-8).
+                onActivateAi !== undefined && !showGlobalDiagnostics
+                  ? "right-20"
+                  : "right-8",
+              )}
+              title={placeholder}
+            >
+              {placeholder}
+            </div>
+          )}
+          <ComposerText>
+            <div
+              ref={rootRef}
+              role="combobox"
+              aria-label="Search"
+              aria-expanded={plan !== null}
+              aria-controls={plan !== null ? LISTBOX_ID : undefined}
+              aria-autocomplete="list"
+              aria-activedescendant={
+                plan !== null && highlightedId !== null
+                  ? optionDomId(LISTBOX_ID, highlightedId)
+                  : undefined
+              }
+              aria-describedby={describedBy}
+              contentEditable
+              suppressContentEditableWarning
+              // The query is code-like grammar, not prose: suppress every mobile-
+              // keyboard mutation, not just the spellcheck squiggle. Without these,
+              // iOS/Android default autocorrect + sentence-capitalization can
+              // rewrite a partial token (`tps` → something) before commit.
+              spellCheck={false}
+              autoCorrect="off"
+              autoCapitalize="none"
+              inputMode="text"
+              data-testid="search-bar-input"
+              className="ph-no-capture caret-[hsl(var(--foreground))] outline-none"
+              onInput={(event) => {
+                if (!(event.nativeEvent as InputEvent).isComposing)
+                  syncFromDom();
+              }}
+              onCompositionEnd={syncFromDom}
+              // Disable drag-and-drop: an intra-bar drag fires deleteByDrag (which
+              // the delete branch applies) without a matching insert, silently
+              // dropping the dragged text. Drop is unsupported anyway; selection
+              // and copy/cut/paste stay fully functional.
+              onDragStart={(e) => e.preventDefault()}
+              onKeyDown={onKeyDown}
+              onCopy={onCopy}
+              onCut={onCut}
+              onPaste={onPaste}
+              onFocus={onFocus}
+              onBlur={onBlur}
+              onClick={onRootClick}
+              onMouseOver={onRootMouseOver}
+            >
+              <ComposerTokens
+                key={tokensGeneration}
+                draft={draft}
+                showDiagnostics={showTokenDiagnostics}
+                scoreTypes={scoreTypes}
+                fieldReason={fieldReason}
+                freeTextReason={freeTextReason}
+                registry={registry}
+                highlightedSegmentId={
+                  explanation !== null ? explainTargetId : errorTarget?.id
+                }
+              />
+            </div>
+          </ComposerText>
+          {/* "Ask AI" affordance — a plain button, always available so filters can
             be built from scratch OR refined. Placed AFTER the field in the DOM so
             forward Tab moves from the field onto this button (not past the bar).
             Deliberately NOT a Tab shortcut: while typing, Tab belongs to
             autocomplete navigation. Hidden while the error icon occupies the
             corner. bg-background keeps it legible; onMouseDown preventDefault so a
             click doesn't blur the editor first. */}
-        {onActivateAi !== undefined && !showGlobalDiagnostics && (
-          <button
-            type="button"
-            data-testid="search-bar-ask-ai"
-            aria-label="Ask AI to build or refine filters"
-            title={
-              draft.trim().length === 0
-                ? "Describe filters in natural language"
-                : "Refine these filters with AI"
-            }
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={(event) => {
-              event.stopPropagation();
-              onActivateAi();
-            }}
-            className={cn(
-              "absolute top-1.5 right-2 z-20 inline-flex items-center gap-1.5 rounded-md border border-transparent px-1.5 py-0.5",
-              "bg-background text-muted-foreground font-sans text-xs",
-              "hover:border-border hover:text-foreground hover:bg-accent transition-colors",
-              // Match the app's focus ring (ring-ring) instead of the browser's
-              // default blue outline, like the shared Button used elsewhere.
-              "ring-offset-background focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
-            )}
-          >
-            <WandSparkles className="h-3.5 w-3.5" aria-hidden="true" />
-            <span>Ask AI</span>
-          </button>
-        )}
-        {/* Bar-local overlay stacking ladder: token text (base) < remove-X
-            (z-20) < autocomplete popover (z-50). Both the X and the popover drop
-            BELOW the bar, staying in-flow inside the table. The error tooltip is
-            the exception: when the popover is open it flips ABOVE the offending
-            block, into the page header's band — an ancestor it can't beat
-            in-flow (`#page > main` is overflow:hidden and the header is its own
-            z-50 stacking context). So it renders through the "tooltip" <Layer>,
-            which portals it to a body-level layer container (see the render
-            below + components/ui/layer.tsx). */}
-        {removeTarget !== null && removePosition !== null && (
-          <RemoveTokenButton
-            segment={removeTarget}
-            position={removePosition}
-            onRemove={removeSegment}
-          />
-        )}
-      </div>
+          {onActivateAi !== undefined && !showGlobalDiagnostics && (
+            <button
+              type="button"
+              data-testid="search-bar-ask-ai"
+              aria-label="Ask AI to build or refine filters"
+              title={
+                draft.trim().length === 0
+                  ? "Describe filters in natural language"
+                  : "Refine these filters with AI"
+              }
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={(event) => {
+                event.stopPropagation();
+                onActivateAi();
+              }}
+              className={cn(
+                "absolute right-2 z-20 inline-flex items-center gap-1.5 rounded-md border border-transparent px-1.5 py-0.5",
+                size === "large" ? "top-1.25" : "top-0.75",
+                "bg-background text-muted-foreground font-sans text-xs",
+                "hover:text-foreground transition-colors",
+                // Match the app's focus ring (ring-ring) instead of the browser's
+                // default blue outline, like the shared Button used elsewhere.
+                "ring-offset-background focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
+              )}
+            >
+              <WandSparkles className="icon-base" aria-hidden="true" />
+              <span>Ask AI</span>
+            </button>
+          )}
+          {/* Bar-local overlay stacking ladder: token text (base) < remove-X
+            (z-20). The autocomplete and token tooltip both render through app
+            overlay layers so they escape clipped table, panel, and dialog
+            ancestors. */}
+          {removeTarget !== null && removePosition !== null && (
+            <RemoveTokenButton
+              segment={removeTarget}
+              position={removePosition}
+              onRemove={removeSegment}
+            />
+          )}
+        </div>
+      </ComposerSurface>
 
       {showGlobalDiagnostics && (
-        <div className="absolute top-1.5 right-2 flex items-center gap-1">
+        <div className="absolute top-1/2 right-2 flex -translate-y-1/2 items-center gap-1">
           <span
             className="text-destructive"
             title={visibleDiagnostics.map((d) => d.message).join("; ")}
             aria-label="invalid query"
           >
-            <AlertCircle className="h-4 w-4" />
+            <AlertCircle className="icon-base" />
           </span>
         </div>
       )}
@@ -1521,7 +1581,6 @@ export function SearchComposer({
           onHighlight={setHighlightedOptionId}
           listboxId={LISTBOX_ID}
           anchorLeft={0}
-          containerRef={containerRef}
         />
       )}
 
@@ -1551,7 +1610,7 @@ export function SearchComposer({
                     }
               }
               className={cn(
-                "pointer-events-none fixed max-w-[min(360px,calc(100vw-32px))]",
+                "ph-no-capture pointer-events-none fixed max-w-[min(360px,calc(100vw-32px))]",
                 "bg-popover rounded-md border",
                 "px-2 py-1 font-sans text-xs leading-snug shadow-md",
                 errorTarget !== null
@@ -1616,7 +1675,7 @@ function RemoveTokenButton({
         onRemove(segment);
       }}
     >
-      <X className="h-3 w-3" aria-hidden="true" />
+      <X className="icon-sm" aria-hidden="true" />
     </button>
   );
 }

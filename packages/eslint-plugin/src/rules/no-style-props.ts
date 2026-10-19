@@ -2,8 +2,6 @@ import { AST_NODE_TYPES, type TSESTree } from "@typescript-eslint/utils";
 import { createComponentPropTypeVisitors } from "../react-components.js";
 import { createRule } from "../util.js";
 
-const FORBIDDEN_PROP_NAMES = new Set(["className", "style"]);
-
 function getPropertyName(
   key: TSESTree.PropertyName | TSESTree.PrivateIdentifier,
 ): string | null {
@@ -12,6 +10,15 @@ function getPropertyName(
     return key.value;
   }
   return null;
+}
+
+function isForbiddenStyleProp(propName: string): boolean {
+  return (
+    propName === "className" ||
+    propName === "style" ||
+    propName.endsWith("ClassName") ||
+    propName.endsWith("Style")
+  );
 }
 
 const rule = createRule({
@@ -33,7 +40,7 @@ const rule = createRule({
       node: TSESTree.Node,
       propName: string | null,
     ): void {
-      if (!propName || !FORBIDDEN_PROP_NAMES.has(propName)) return;
+      if (!propName || !isForbiddenStyleProp(propName)) return;
       context.report({
         node,
         messageId: "unexpectedProp",

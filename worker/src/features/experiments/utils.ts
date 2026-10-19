@@ -3,6 +3,7 @@ import {
   ChatMessageRole,
   ChatMessageType,
   compileChatMessages,
+  compileTemplateString,
   extractPlaceholderNames,
   extractVariables,
   hasPromptToolStructuredOutputConflict,
@@ -13,7 +14,6 @@ import {
   PromptType,
   stringifyValue,
 } from "@langfuse/shared";
-import { compileTemplateString } from "../utils/utilities";
 import {
   logger,
   parsePromptToolConfig,
@@ -24,6 +24,7 @@ import {
   ExperimentMetadataSchema,
   LLMApiKeySchema,
   PromptContentSchema,
+  resolveLlmApiKey,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import z from "zod";
@@ -51,10 +52,7 @@ export const parseDatasetItemInput = (
   }
 };
 
-export const fetchDatasetRun = async (
-  datasetRunId: string,
-  projectId: string,
-) => {
+const fetchDatasetRun = async (datasetRunId: string, projectId: string) => {
   return await prisma.datasetRuns.findFirst({
     where: {
       id: datasetRunId,
@@ -63,7 +61,7 @@ export const fetchDatasetRun = async (
   });
 };
 
-export const fetchPrompt = async (promptId: string, projectId: string) => {
+const fetchPrompt = async (promptId: string, projectId: string) => {
   const promptService = new PromptService(prisma, redis);
 
   const rawPrompt = await prisma.prompt.findUnique({
@@ -221,9 +219,7 @@ export async function validateAndSetupExperiment(
   }
 
   // Fetch and validate API key
-  const apiKey = await prisma.llmApiKeys.findFirst({
-    where: { projectId, provider },
-  });
+  const apiKey = await resolveLlmApiKey({ projectId, provider });
   if (!apiKey) {
     throw new UnrecoverableError(`API key for provider ${provider} not found`);
   }

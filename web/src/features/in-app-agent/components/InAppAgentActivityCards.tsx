@@ -1,17 +1,8 @@
-import { BotMessageSquare, X } from "lucide-react";
+import { X } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
-import { cn } from "@/src/utils/tailwind";
 import type { InAppAgentActivityState } from "@/src/features/in-app-agent/lib/inAppAgentActivity";
-
-/** Approvals first: a question outranks a result the user can read later. */
-const CARD_PRIORITY: Record<string, number> = {
-  approval: 0,
-  "failed-unread": 1,
-  "done-unread": 2,
-};
-
-const MAX_VISIBLE_CARDS = 3;
+import { HaloIcon } from "@/src/features/in-app-agent/components/HaloIcon";
 
 export type InAppAgentActivityCard = {
   conversationId: string;
@@ -21,31 +12,21 @@ export type InAppAgentActivityCard = {
   state: Exclude<InAppAgentActivityState, "running">;
 };
 
-export function selectInAppAgentActivityCards(
-  cards: readonly InAppAgentActivityCard[],
-): InAppAgentActivityCard[] {
-  return [...cards]
-    .sort(
-      (a, b) => (CARD_PRIORITY[a.state] ?? 9) - (CARD_PRIORITY[b.state] ?? 9),
-    )
-    .slice(0, MAX_VISIBLE_CARDS);
-}
-
 function getCardCopy(state: InAppAgentActivityCard["state"]) {
-  // Lead with "Assistant" so the toast reads as the same product as the
-  // launcher (BotMessageSquare), not a generic system alert.
+  // Lead with "Halo" so the toast reads as the same product as the
+  // launcher icon, not a generic system alert.
   if (state === "approval") {
     return {
-      label: "Assistant needs your approval",
+      label: "Halo needs your approval",
       tone: "accent" as const,
     };
   }
 
   if (state === "failed-unread") {
-    return { label: "Assistant run failed", tone: "destructive" as const };
+    return { label: "Halo run failed", tone: "destructive" as const };
   }
 
-  return { label: "Assistant finished", tone: "accent" as const };
+  return { label: "Halo finished", tone: "accent" as const };
 }
 
 /** Pure floating stack: ordering/cap live here; callers own delivery lifecycle. */
@@ -54,19 +35,13 @@ export function InAppAgentActivityCards({
   onOpen,
   onDismiss,
 }: {
-  cards: readonly InAppAgentActivityCard[];
+  cards: readonly [InAppAgentActivityCard, ...InAppAgentActivityCard[]];
   onOpen: (card: InAppAgentActivityCard) => void;
   onDismiss: (card: InAppAgentActivityCard) => void;
 }) {
-  const visible = selectInAppAgentActivityCards(cards);
-
-  if (visible.length === 0) {
-    return null;
-  }
-
   return (
     <div className="top-banner-offset pointer-events-none fixed right-4 flex w-80 flex-col gap-2 pt-4">
-      {visible.map((card) => {
+      {cards.map((card) => {
         const { label, tone } = getCardCopy(card.state);
         const conversationTitle = card.title?.trim() || "Untitled conversation";
 
@@ -76,14 +51,12 @@ export function InAppAgentActivityCards({
             role="status"
             className="bg-background pointer-events-auto flex items-start gap-2 rounded-md border p-3 shadow-lg"
           >
-            <BotMessageSquare
-              className={cn(
-                "mt-0.5 size-4 shrink-0",
+            <HaloIcon
+              variant={
                 tone === "destructive"
-                  ? "text-destructive"
-                  : "text-primary-accent",
-              )}
-              aria-hidden
+                  ? "activityDestructive"
+                  : "activityAccent"
+              }
             />
             <button
               type="button"
@@ -112,7 +85,7 @@ export function InAppAgentActivityCards({
                 onDismiss(card);
               }}
             >
-              <X className="size-3" />
+              <X className="icon-sm text-icon-foreground" />
             </Button>
           </div>
         );

@@ -1,0 +1,114 @@
+import { InternalServerError, LangfuseNotFoundError } from "@langfuse/shared";
+import type { PrismaClient } from "@langfuse/shared/src/db";
+import {
+  createApiKey,
+  deleteApiKeyFromDb,
+} from "@langfuse/shared/src/server/auth/apiKeys";
+import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
+import type { Cluster, Redis } from "ioredis";
+
+import { auditLog } from "@/src/features/audit-logs/server";
+import type { GatewayMetadata } from "@/src/features/ai-gateway/server/provider";
+import type { OrgAuthedContext } from "@/src/server/api/trpc";
+import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
+import { GatewayApiKeyRepository } from "./gatewayApiKeyRepository";
+
+export class GatewayApiKeyService {
+  private readonly repository: GatewayApiKeyRepository;
+
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly redis?: Redis | Cluster | null,
+  ) {
+    this.repository = new GatewayApiKeyRepository(prisma);
+  }
+
+  list(params: { organizationId: string; cursor?: string; limit: number }) {
+    return this.repository.listGatewayApiKeys(params);
+  }
+
+  async create(params: {
+    organizationId: string;
+    name?: string;
+    metadata: GatewayMetadata;
+    expiresAt?: Date | null;
+    session: OrgAuthedContext["session"];
+  }) {
+    const key = await this.prisma.$transaction(async (tx) => {
+      const key = await createApiKey(tx, {
+        owner: OrganizationId(params.organizationId),
+        role: SystemRoleId("AI_GATEWAY"),
+        createdBy: UserId(params.session.user.id),
+        name: params.name,
+        expiresAt: params.expiresAt,
+      });
+      await tx.gatewayApiKeyAssociation.create({
+        data: {
+          apiKeyId: key.id,
+          metadata: params.metadata,
+        },
+      });
+      return key;
+    });
+    await auditLog(
+      {
+        session: params.session,
+        resourceType: "apiKey",
+        resourceId: key.id,
+        action: "create",
+        after: {
+          id: key.id,
+          publicKey: key.publicKey,
+          displaySecretKey: key.displaySecretKey,
+          note: key.note,
+          expiresAt: params.expiresAt ?? null,
+        },
+      },
+      this.prisma,
+    );
+    return key;
+  }
+
+  async revoke(params: {
+    organizationId: string;
+    apiKeyId: string;
+    session: OrgAuthedContext["session"];
+  }): Promise<void> {
+    const association = await this.repository.getGatewayApiKey(params);
+    if (!association) {
+      throw new LangfuseNotFoundError("Gateway API key not found");
+    }
+    // Read the hash before the row is gone; it is the resolve cache key.
+    const revoked = await this.prisma.apiKey.findFirst({
+      where: {
+        id: params.apiKeyId,
+        orgId: params.organizationId,
+        scope: "ORGANIZATION",
+      },
+      select: { fastHashedSecretKey: true },
+    });
+    const deleted = await deleteApiKeyFromDb({
+      prisma: this.prisma,
+      id: params.apiKeyId,
+      entityId: params.organizationId,
+      scope: "ORGANIZATION",
+      redis: this.redis,
+    });
+    if (!deleted) {
+      throw new InternalServerError("Failed to revoke gateway API key");
+    }
+    if (revoked?.fastHashedSecretKey) {
+      await invalidateGatewayResolveCacheForApiKey(revoked.fastHashedSecretKey);
+    }
+    await auditLog(
+      {
+        session: params.session,
+        resourceType: "apiKey",
+        resourceId: params.apiKeyId,
+        action: "delete",
+        before: association,
+      },
+      this.prisma,
+    );
+  }
+}

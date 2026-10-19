@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import {
+  ForbiddenError,
   InvalidRequestError,
   resolveInAppAgentRootRunId,
   ScoreDataTypeEnum,
@@ -16,6 +17,8 @@ import {
   AgUiContextSchema,
   getInAppAgentInstrumentationObservationId,
   getInAppAgentInstrumentationTraceId,
+  IN_APP_AGENT_PRODUCT_ENVIRONMENT,
+  InAppAgentToolInputsSchema,
 } from "@langfuse/shared/in-app-agent";
 import { InAppAgentMessageFeedbackValueSchema } from "../schema";
 import {
@@ -37,6 +40,7 @@ import {
   getInAppAgentApiAccessScope,
 } from "@/src/features/in-app-agent/server/rateLimit";
 import { assertInAppAgentRunCapacity } from "@/src/features/in-app-agent/server/runCapacity";
+import { hasInternalAccess } from "@/src/features/feature-flags/server";
 import {
   cancelBackgroundRun,
   decideBackgroundApproval,
@@ -82,10 +86,17 @@ const DecideToolApprovalInput = ConversationIdInput.extend({
   approved: z.boolean(),
   // "conversation" also approves this call; it never means approve-without-run.
   approvalScope: z.enum(["once", "conversation"]).default("once"),
-}).refine((input) => input.approved || input.approvalScope === "once", {
-  message: "A rejection cannot grant a tool",
-  path: ["approvalScope"],
-});
+  /** Validated against the persisted tool call in the service. */
+  toolInputs: InAppAgentToolInputsSchema.optional(),
+})
+  .refine((input) => input.approved || input.approvalScope === "once", {
+    message: "A rejection cannot grant a tool",
+    path: ["approvalScope"],
+  })
+  .refine((input) => input.approved || input.toolInputs === undefined, {
+    message: "A rejection cannot carry tool inputs",
+    path: ["toolInputs"],
+  });
 
 const SubmitFeedbackInput = ConversationIdInput.extend({
   messageId: z.string(),
@@ -95,7 +106,7 @@ const SubmitFeedbackInput = ConversationIdInput.extend({
 });
 
 const IN_APP_AGENT_FEEDBACK_SCORE_NAME = "in_app_agent_feedback";
-const IN_APP_AGENT_FEEDBACK_ENVIRONMENT = "langfuse-in-app-agent";
+const IN_APP_AGENT_FEEDBACK_ENVIRONMENT = IN_APP_AGENT_PRODUCT_ENVIRONMENT;
 
 export const inAppAgentRouter = createTRPCRouter({
   // Each row carries its newest run summary for the activity poll and badges.
@@ -212,7 +223,7 @@ export const inAppAgentRouter = createTRPCRouter({
         projectId: input.projectId,
         user: ctx.session.user,
       });
-      assertInAppAgentModelConfigured();
+      const modelConfig = assertInAppAgentModelConfigured();
 
       const rateLimitScope = getInAppAgentApiAccessScope(
         ctx.session.user,
@@ -234,7 +245,7 @@ export const inAppAgentRouter = createTRPCRouter({
         message: input.message,
         context: input.context,
         isV4Enabled: ctx.session.user.v4BetaEnabled === true,
-        model: env.LANGFUSE_AWS_BEDROCK_MODEL,
+        model: modelConfig.modelId,
         aiTelemetryEnabled: projectAvailability.aiTelemetryEnabled,
       });
     }),
@@ -272,7 +283,7 @@ export const inAppAgentRouter = createTRPCRouter({
         projectId: input.projectId,
         user: ctx.session.user,
       });
-      assertInAppAgentModelConfigured();
+      const modelConfig = assertInAppAgentModelConfigured();
 
       const rateLimitScope = getInAppAgentApiAccessScope(
         ctx.session.user,
@@ -299,8 +310,9 @@ export const inAppAgentRouter = createTRPCRouter({
         toolCallId: input.toolCallId,
         approved: input.approved,
         approvalScope: input.approvalScope,
+        toolInputs: input.toolInputs,
         userId: ctx.session.user.id,
-        model: env.LANGFUSE_AWS_BEDROCK_MODEL,
+        model: modelConfig.modelId,
       });
     }),
 
@@ -447,5 +459,38 @@ export const inAppAgentRouter = createTRPCRouter({
       }
 
       return { feedback: { value: input.value, comment } };
+    }),
+
+  /**
+   * The project this instance traces assistant turns into, where each
+   * conversation is a session. Internal surface only: null when the
+   * organization opted out of AI telemetry or tracing is not configured.
+   */
+  telemetryProject: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      if (
+        !hasInternalAccess({
+          isAdmin: ctx.session.user.admin === true,
+          isExperimentalFeaturesEnabled:
+            env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
+        })
+      ) {
+        throw new ForbiddenError(
+          "The assistant telemetry project is an internal surface.",
+        );
+      }
+
+      const projectAvailability = await assertInAppAgentAvailable({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        user: ctx.session.user,
+      });
+
+      return {
+        projectId: projectAvailability.aiTelemetryEnabled
+          ? (env.LANGFUSE_AI_FEATURES_PROJECT_ID ?? null)
+          : null,
+      };
     }),
 });

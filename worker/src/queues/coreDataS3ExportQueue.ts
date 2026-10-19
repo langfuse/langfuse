@@ -1,11 +1,13 @@
 import { Processor } from "bullmq";
 import { Readable } from "node:stream";
+import { DashboardWidgetChartType } from "@prisma/client";
 import pLimit from "p-limit";
 import {
   logger,
   StorageServiceFactory,
   type StorageService,
 } from "@langfuse/shared/src/server";
+import { metricAggregations, viewDeclarations } from "@langfuse/shared/query";
 import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
 
@@ -59,20 +61,158 @@ export const mapUserToCoreDataRow = ({
 type JobConfigurationCoreDataInput = {
   evalTemplate: { name: string } | null;
   sampling: { toNumber: () => number };
+  variableMapping?: unknown;
 } & Record<string, unknown>;
 
-// Flattens the joined eval template into a plain column so the export stays
-// one JSONL row per configured evaluator. The sampling Decimal is cast to a
-// JS number so it lands as a JSON number instead of a quoted string.
+// Airbyte's JSONL schema inference cannot merge null with array for one column.
+// Empty mappings are exported as [] so every row has an array.
+const variableMappingForExport = (variableMapping: unknown) =>
+  variableMapping == null ? [] : variableMapping;
+
 export const mapJobConfigurationToCoreDataRow = ({
   evalTemplate,
   sampling,
+  variableMapping,
   ...jobConfiguration
 }: JobConfigurationCoreDataInput) => ({
   ...jobConfiguration,
+  variableMapping: variableMappingForExport(variableMapping),
   sampling: sampling.toNumber(),
   evalTemplateName: evalTemplate?.name ?? null,
 });
+
+type EvaluationRuleCoreDataInput = {
+  sampling: { toNumber: () => number };
+} & Record<string, unknown>;
+
+export const mapEvaluationRuleToCoreDataRow = ({
+  sampling,
+  ...evaluationRule
+}: EvaluationRuleCoreDataInput) => ({
+  ...evaluationRule,
+  sampling: sampling.toNumber(),
+});
+
+type EvaluatorVersionCoreDataInput = {
+  variableMapping: unknown;
+} & Record<string, unknown>;
+
+export const mapEvaluatorVersionToCoreDataRow = ({
+  variableMapping,
+  ...version
+}: EvaluatorVersionCoreDataInput) => ({
+  ...version,
+  variableMapping: variableMappingForExport(variableMapping),
+});
+
+type EvaluationRuleEvaluatorAssignmentCoreDataInput = {
+  variableMapping: unknown;
+} & Record<string, unknown>;
+
+export const mapEvaluationRuleEvaluatorAssignmentToCoreDataRow = ({
+  variableMapping,
+  ...assignment
+}: EvaluationRuleEvaluatorAssignmentCoreDataInput) => ({
+  ...assignment,
+  variableMapping: variableMappingForExport(variableMapping),
+});
+
+// Widget dimensions/metrics/chart config are persisted as free-form strings
+// (DimensionSchema/MetricSchema accept any z.string()), so an API client can
+// smuggle arbitrary text into them. The export therefore allowlists every
+// string against the query-model declarations and replaces unknown values
+// with a sentinel instead of forwarding them.
+const KNOWN_WIDGET_MEASURES = new Set(
+  Object.values(viewDeclarations).flatMap((versionViews) =>
+    Object.values(versionViews).flatMap((view) => Object.keys(view.measures)),
+  ),
+);
+const KNOWN_WIDGET_DIMENSIONS = new Set(
+  Object.values(viewDeclarations).flatMap((versionViews) =>
+    Object.values(versionViews).flatMap((view) => Object.keys(view.dimensions)),
+  ),
+);
+const KNOWN_WIDGET_AGGREGATIONS = new Set<string>(metricAggregations.options);
+const KNOWN_WIDGET_CHART_TYPES = new Set<string>(
+  Object.values(DashboardWidgetChartType),
+);
+const INVALID_SENTINEL = "__invalid__";
+
+const allowlisted = (value: unknown, allowlist: Set<string>): string | null => {
+  if (value == null) {
+    return null;
+  }
+  if (typeof value === "string" && allowlist.has(value)) {
+    return value;
+  }
+  return INVALID_SENTINEL;
+};
+
+type DashboardWidgetCoreDataInput = {
+  dimensions: unknown;
+  metrics: unknown;
+  chartConfig: unknown;
+  /** Drops a supplied filters column so it cannot leak through the rest spread. */
+  filters?: unknown;
+} & Record<string, unknown>;
+
+/** Allowlists widget dimensions, metrics, and chart type, and keeps numeric chartConfig limits. */
+export const mapDashboardWidgetToCoreDataRow = ({
+  dimensions,
+  metrics,
+  filters: _filters,
+  chartConfig,
+  ...widget
+}: DashboardWidgetCoreDataInput) => {
+  const config = (chartConfig ?? {}) as Record<string, unknown>;
+  return {
+    ...widget,
+    dimensions: Array.isArray(dimensions)
+      ? dimensions.map((dimension: Record<string, unknown>) => ({
+          field: allowlisted(dimension.field, KNOWN_WIDGET_DIMENSIONS),
+        }))
+      : [],
+    metrics: Array.isArray(metrics)
+      ? metrics.map((metric: Record<string, unknown>) => ({
+          measure: allowlisted(metric.measure, KNOWN_WIDGET_MEASURES),
+          agg: allowlisted(metric.agg, KNOWN_WIDGET_AGGREGATIONS),
+        }))
+      : [],
+    chartConfig: {
+      type: allowlisted(config.type, KNOWN_WIDGET_CHART_TYPES),
+      row_limit: typeof config.row_limit === "number" ? config.row_limit : null,
+      bins: typeof config.bins === "number" ? config.bins : null,
+    },
+  };
+};
+
+type DashboardCoreDataInput = {
+  definition: unknown;
+} & Record<string, unknown>;
+
+// Dashboard definitions hold widget placements; explicit field picks keep any
+// unexpected persisted keys out of the export.
+export const mapDashboardToCoreDataRow = ({
+  definition,
+  ...dashboard
+}: DashboardCoreDataInput) => {
+  const widgets = (definition as { widgets?: unknown })?.widgets;
+  return {
+    ...dashboard,
+    definition: {
+      widgets: Array.isArray(widgets)
+        ? widgets.map((placement: Record<string, unknown>) => ({
+            type: placement.type ?? null,
+            widgetId: placement.widgetId ?? null,
+            x: placement.x ?? null,
+            y: placement.y ?? null,
+            x_size: placement.x_size ?? null,
+            y_size: placement.y_size ?? null,
+          }))
+        : [],
+    },
+  };
+};
 
 type TablePageArgs<TCursor> = {
   lastRow: TCursor | null;
@@ -172,7 +312,7 @@ export const uploadTableCoreDataJsonl = async <TRow>({
 
 // One entry per exported table. The tableName doubles as the S3 object base
 // name — keep names stable, downstream DWH consumers depend on them.
-const coreDataTableExports: Array<
+export const coreDataTableExports: Array<
   (args: { s3Client: StorageService; uploadPrefix: string }) => Promise<void>
 > = [
   (args) =>
@@ -488,8 +628,7 @@ const coreDataTableExports: Array<
     uploadTableCoreDataJsonl({
       ...args,
       tableName: "jobConfigurations",
-      // blockMessage is excluded as free-text; the eval template relation is
-      // flattened to evalTemplateName below
+      /** Omits the customer-authored job-configuration filter. */
       fetchPage: ({ lastRow, take }: TablePageArgs<{ id: string }>) =>
         prisma.jobConfiguration.findMany({
           take,
@@ -504,7 +643,6 @@ const coreDataTableExports: Array<
             blockReason: true,
             evalTemplateId: true,
             scoreName: true,
-            filter: true,
             targetObject: true,
             variableMapping: true,
             sampling: true,
@@ -512,14 +650,156 @@ const coreDataTableExports: Array<
             timeScope: true,
             createdAt: true,
             updatedAt: true,
-            evalTemplate: {
-              select: {
-                name: true,
-              },
-            },
+            evalTemplate: { select: { name: true } },
           },
         }),
       mapRow: mapJobConfigurationToCoreDataRow,
+    }),
+  (args) =>
+    uploadTableCoreDataJsonl({
+      ...args,
+      tableName: "evaluators",
+      // Customer-authored descriptions and block messages are free text and
+      // intentionally excluded from the core-data analytics export.
+      fetchPage: ({ lastRow, take }: TablePageArgs<{ id: string }>) =>
+        prisma.evaluator.findMany({
+          take,
+          ...(lastRow ? { cursor: { id: lastRow.id }, skip: 1 } : {}),
+          orderBy: { id: "asc" },
+          select: {
+            id: true,
+            projectId: true,
+            name: true,
+            type: true,
+            createdByUserId: true,
+            blockedAt: true,
+            blockReason: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        }),
+    }),
+  (args) =>
+    uploadTableCoreDataJsonl({
+      ...args,
+      tableName: "evaluatorVersions",
+      /** Exports version metadata, vars, and variableMapping, and omits prompt, code, and model params. */
+      fetchPage: ({ lastRow, take }: TablePageArgs<{ id: string }>) =>
+        prisma.evaluatorVersion.findMany({
+          take,
+          ...(lastRow ? { cursor: { id: lastRow.id }, skip: 1 } : {}),
+          orderBy: { id: "asc" },
+          select: {
+            id: true,
+            evaluatorId: true,
+            version: true,
+            createdByUserId: true,
+            partner: true,
+            model: true,
+            provider: true,
+            vars: true,
+            variableMapping: true,
+            sourceCodeLanguage: true,
+            createdAt: true,
+          },
+        }),
+      mapRow: mapEvaluatorVersionToCoreDataRow,
+    }),
+  (args) =>
+    uploadTableCoreDataJsonl({
+      ...args,
+      tableName: "evaluationRules",
+      /** Omits the customer-authored evaluation-rule filter. */
+      fetchPage: ({ lastRow, take }: TablePageArgs<{ id: string }>) =>
+        prisma.evaluationRule.findMany({
+          take,
+          ...(lastRow ? { cursor: { id: lastRow.id }, skip: 1 } : {}),
+          orderBy: { id: "asc" },
+          select: {
+            id: true,
+            projectId: true,
+            createdByUserId: true,
+            name: true,
+            status: true,
+            targetObject: true,
+            sampling: true,
+            delay: true,
+            timeScope: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        }),
+      mapRow: mapEvaluationRuleToCoreDataRow,
+    }),
+  (args) =>
+    uploadTableCoreDataJsonl({
+      ...args,
+      tableName: "evaluationRuleEvaluatorAssignments",
+      fetchPage: ({ lastRow, take }: TablePageArgs<{ id: string }>) =>
+        prisma.evaluationRuleEvaluatorAssignment.findMany({
+          take,
+          ...(lastRow ? { cursor: { id: lastRow.id }, skip: 1 } : {}),
+          orderBy: { id: "asc" },
+          select: {
+            id: true,
+            projectId: true,
+            evaluationRuleId: true,
+            evaluatorId: true,
+            variableMapping: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        }),
+      mapRow: mapEvaluationRuleEvaluatorAssignmentToCoreDataRow,
+    }),
+  (args) =>
+    uploadTableCoreDataJsonl({
+      ...args,
+      tableName: "dashboards",
+      // Customer-authored name/description are free text and intentionally
+      // excluded; the definition JSON holds only widget placements (ids,
+      // positions, sizes). projectId NULL marks Langfuse-owned templates.
+      fetchPage: ({ lastRow, take }: TablePageArgs<{ id: string }>) =>
+        prisma.dashboard.findMany({
+          take,
+          ...(lastRow ? { cursor: { id: lastRow.id }, skip: 1 } : {}),
+          orderBy: { id: "asc" },
+          select: {
+            id: true,
+            projectId: true,
+            createdBy: true,
+            definition: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        }),
+      mapRow: mapDashboardToCoreDataRow,
+    }),
+  (args) =>
+    uploadTableCoreDataJsonl({
+      ...args,
+      tableName: "dashboardWidgets",
+      /** Allowlists widget dimensions, metrics, and chart type, and omits customer-authored filters. */
+      fetchPage: ({ lastRow, take }: TablePageArgs<{ id: string }>) =>
+        prisma.dashboardWidget.findMany({
+          take,
+          ...(lastRow ? { cursor: { id: lastRow.id }, skip: 1 } : {}),
+          orderBy: { id: "asc" },
+          select: {
+            id: true,
+            projectId: true,
+            createdBy: true,
+            view: true,
+            dimensions: true,
+            metrics: true,
+            chartType: true,
+            chartConfig: true,
+            minVersion: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        }),
+      mapRow: mapDashboardWidgetToCoreDataRow,
     }),
 ];
 

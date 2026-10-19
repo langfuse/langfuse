@@ -10,6 +10,9 @@ export type NumericDiff = {
 export type CategoricalDiff = {
   type: "CATEGORICAL";
   isDifferent: true;
+  /** The two values, when each side carries exactly one. */
+  from?: string;
+  to?: string;
 };
 
 export type BaselineDiff = NumericDiff | CategoricalDiff | null;
@@ -69,9 +72,13 @@ export function calculateScoreDiff(
     // Same value → no diff
     if (currentValue === baselineValue) return null;
 
+    // A categorical score has no distance, so the diff is the move itself.
     return {
       type: "CATEGORICAL",
       isDifferent: true,
+      ...(current.values.length === 1 && baseline.values.length === 1
+        ? { from: baselineValue, to: currentValue }
+        : {}),
     };
   }
 

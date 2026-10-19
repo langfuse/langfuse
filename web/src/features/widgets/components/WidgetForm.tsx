@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import {
   Card,
   CardContent,
@@ -25,7 +26,7 @@ import {
 import {
   mapWidgetUiTableFilterToView,
   partitionWidgetUiTableFiltersToView,
-} from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+} from "@/src/features/dashboard";
 import React, { useMemo, useRef } from "react";
 import {
   useController,
@@ -46,15 +47,15 @@ import {
 } from "@/src/components/ui/select";
 import { WidgetPropertySelectItem } from "@/src/features/widgets/components/WidgetPropertySelectItem";
 import { Label } from "@/src/components/ui/label";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 
 import { type z } from "zod";
 
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events";
 import { Input } from "@/src/components/ui/input";
 import startCase from "lodash/startCase";
 import { DatePickerWithRange } from "@/src/components/date-picker";
-import { MetricsFilterBuilder } from "@/src/features/metrics/components/MetricsFilterBuilder";
+import { MetricsFilterBuilder } from "@/src/features/metrics";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import {
   toAbsoluteTimeRange,
@@ -64,22 +65,11 @@ import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import { Button } from "@/src/components/ui/button";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showErrorToast } from "@/src/features/notifications";
 import { type FilterState } from "@langfuse/shared";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
-import {
-  BarChart,
-  PieChart,
-  LineChart,
-  BarChartHorizontal,
-  Hash,
-  BarChart3,
-  Table,
-  Plus,
-  X,
-  AlertCircle,
-  Sparkles,
-} from "lucide-react";
+import { Plus, X, AlertCircle, Sparkles } from "lucide-react";
+import { dashboardWidgetChartTypeIcons } from "@/src/features/widgets/chart-library/chartTypeIcons";
 import {
   Popover,
   PopoverContent,
@@ -111,6 +101,7 @@ import {
   effectiveWidgetName,
   makeWidgetFormSchema,
   normalizeWidgetFormValues,
+  resolveMeasureChangeAggregation,
   resolveWidgetFormVersion,
   toDefaultValues,
   toSavePayload,
@@ -140,49 +131,49 @@ const chartTypes: ChartType[] = [
     group: "total-value",
     name: "Big Number",
     value: "NUMBER",
-    icon: Hash,
+    icon: dashboardWidgetChartTypeIcons.NUMBER,
   },
   {
     group: "time-series",
     name: "Line Chart",
     value: "LINE_TIME_SERIES",
-    icon: LineChart,
+    icon: dashboardWidgetChartTypeIcons.LINE_TIME_SERIES,
   },
   {
     group: "time-series",
     name: "Vertical Bar Chart",
     value: "BAR_TIME_SERIES",
-    icon: BarChart,
+    icon: dashboardWidgetChartTypeIcons.BAR_TIME_SERIES,
   },
   {
     group: "total-value",
     name: "Horizontal Bar Chart",
     value: "HORIZONTAL_BAR",
-    icon: BarChartHorizontal,
+    icon: dashboardWidgetChartTypeIcons.HORIZONTAL_BAR,
   },
   {
     group: "total-value",
     name: "Vertical Bar Chart",
     value: "VERTICAL_BAR",
-    icon: BarChart,
+    icon: dashboardWidgetChartTypeIcons.VERTICAL_BAR,
   },
   {
     group: "total-value",
     name: "Histogram",
     value: "HISTOGRAM",
-    icon: BarChart3,
+    icon: dashboardWidgetChartTypeIcons.HISTOGRAM,
   },
   {
     group: "total-value",
     name: "Pie Chart",
     value: "PIE",
-    icon: PieChart,
+    icon: dashboardWidgetChartTypeIcons.PIE,
   },
   {
     group: "total-value",
     name: "Pivot Table",
     value: "PIVOT_TABLE",
-    icon: Table,
+    icon: dashboardWidgetChartTypeIcons.PIVOT_TABLE,
   },
 ];
 
@@ -222,13 +213,13 @@ export function WidgetForm({
   onSave: (widgetData: WidgetSavePayload) => void;
   widgetId?: string;
 }) {
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
 
   // The initial widget's persisted version is a local hint frozen at mount.
   // The resolver and live viewVersion additionally derive v2 from the current
   // form shape; the server derives the value that gets persisted.
   const baseMinVersion = deriveWidgetBaseMinVersion(initialValues);
-  const activeVersion: ViewVersion = isBetaEnabled ? "v2" : "v1";
+  const activeVersion: ViewVersion = isV4 ? "v2" : "v1";
 
   // The auto-suggestions change on every keystroke; a ref keeps the resolver
   // closure from being rebuilt on each one (the filled name/description do not
@@ -346,6 +337,7 @@ export function WidgetForm({
   const chartTypeError: string | undefined = formErrors.chart?.type?.message;
   const metricsError: string | undefined =
     formErrors.metrics?.message ??
+    formErrors.metrics?.root?.message ??
     formErrors.metrics?.[0]?.measure?.message ??
     formErrors.metrics?.[0]?.aggregation?.message;
   const dimensionsError: string | undefined = formErrors.dimensions?.message;
@@ -580,7 +572,7 @@ export function WidgetForm({
     },
     {
       trpc: { context: { skipBatch: true } },
-      meta: { silentHttpCodes: [422] },
+      meta: { silentHttpCodes: [412, 422] },
       enabled: queryValidation.valid,
     },
   );
@@ -751,10 +743,23 @@ export function WidgetForm({
   };
 
   // Single (non-pivot) measure change — heals the aggregation + chart type in
-  // the same action (the histogram fix, in the initiating event handler).
+  // the same action (the histogram fix, in the initiating event handler). A
+  // carried-over "count" aggregation jumps to the new measure's natural
+  // default (e.g. sum for toolCalls) instead of counting observations.
   const onMeasureChange = (newMeasure: string) => {
     const nextMetrics = values.metrics.map((m, i) =>
-      i === 0 ? { ...m, measure: newMeasure } : m,
+      i === 0
+        ? {
+            ...m,
+            measure: newMeasure,
+            aggregation: resolveMeasureChangeAggregation({
+              currentAggregation: m.aggregation,
+              newMeasure,
+              view: selectedView,
+              viewVersion,
+            }),
+          }
+        : m,
     );
     const candidate = normalizeWidgetFormValues(
       { ...values, metrics: nextMetrics },
@@ -830,7 +835,11 @@ export function WidgetForm({
 
   const onSubmit = form.handleSubmit((submitted) => {
     if (!queryValidation.valid) {
-      showErrorToast("Invalid query", queryValidation.reason);
+      showErrorToast("Invalid query", queryValidation.reason, {
+        operation: "widget.validate",
+        errorOrigin: "frontend",
+        errorCategory: "user_input",
+      });
       return;
     }
     const s = deriveWidgetSuggestions(submitted);
@@ -870,12 +879,12 @@ export function WidgetForm({
           <CardHeader>
             <div className="flex items-start justify-between gap-3">
               <CardTitle>Widget Configuration</CardTitle>
-              {!widgetId && isBetaEnabled && (
+              {!widgetId && isV4 && (
                 <WidgetImporter
                   projectId={projectId}
                   viewVersion={viewVersion}
                   dateRange={dateRange}
-                  isBetaEnabled={isBetaEnabled}
+                  isV4={isV4}
                   onImport={handleImportedWidget}
                 />
               )}
@@ -885,20 +894,14 @@ export function WidgetForm({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 overflow-y-auto">
-            {isBetaEnabled && selectedView === "traces" && (
-              <Alert
-                variant="default"
-                className="border-yellow-500/50 bg-yellow-50 dark:bg-yellow-950/20"
-              >
-                <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-500" />
-                <AlertTitle className="text-yellow-800 dark:text-yellow-400">
-                  Traces view is not available in v4
-                </AlertTitle>
-                <AlertDescription className="text-yellow-700 dark:text-yellow-500">
+            {isV4 && selectedView === "traces" && (
+              <Alert variant="warning" icon={AlertCircle}>
+                <Alert.Title>Traces view is not available in v4</Alert.Title>
+                <Alert.Description>
                   This widget uses the traces view which is not supported in v4.
                   It will continue to use v3 definitions. To use v4, change the
                   view to observations or scores.
-                </AlertDescription>
+                </Alert.Description>
               </Alert>
             )}
             {/* Data Selection Section */}
@@ -909,7 +912,7 @@ export function WidgetForm({
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button variant="outline" size="sm">
-                        <Sparkles className="mr-2 h-4 w-4" />
+                        <Sparkles className="icon-base text-icon-foreground mr-2" />
                         Presets
                       </Button>
                     </PopoverTrigger>
@@ -922,7 +925,7 @@ export function WidgetForm({
                               variant="ghost"
                               onClick={() => applyPreset(preset)}
                             >
-                              <preset.icon className="mr-2 h-4 w-4" />
+                              <preset.icon className="icon-base mr-2" />
                               {preset.label}
                             </Button>
                           </PopoverClose>
@@ -1083,11 +1086,14 @@ export function WidgetForm({
           {!queryValidation.valid ? (
             <CardContent>
               <div className="flex h-[300px] items-center justify-center">
-                <Alert variant="destructive" className="max-w-sm">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>Invalid query</AlertTitle>
-                  <AlertDescription>{queryValidation.reason}</AlertDescription>
-                </Alert>
+                <div className="w-full max-w-sm">
+                  <Alert variant="destructive" icon={AlertCircle}>
+                    <Alert.Title>Invalid query</Alert.Title>
+                    <Alert.Description>
+                      {queryValidation.reason}
+                    </Alert.Description>
+                  </Alert>
+                </div>
               </div>
             </CardContent>
           ) : queryResult.data || chartLoadingState.isLoading ? (
@@ -1154,14 +1160,15 @@ export function WidgetForm({
                     selectedAggregation,
                   )}
                 />
-                <ChartLoadingState
-                  isLoading={chartLoadingState.isLoading}
-                  showSpinner={chartLoadingState.showSpinner}
-                  showHintImmediately={chartLoadingState.showHintImmediately}
-                  hintText={chartLoadingState.hintText}
-                  progress={loadingProgress}
-                  className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
-                />
+                {chartLoadingState.isLoading && (
+                  <ChartLoadingState
+                    showSpinner={chartLoadingState.showSpinner}
+                    showHintImmediately={chartLoadingState.showHintImmediately}
+                    hintText={chartLoadingState.hintText}
+                    progress={loadingProgress}
+                    className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
+                  />
+                )}
               </div>
             </div>
           ) : (
@@ -1169,7 +1176,6 @@ export function WidgetForm({
               <div className="flex h-[300px] items-center justify-center">
                 {chartLoadingState.isLoading ? (
                   <ChartLoadingState
-                    isLoading={chartLoadingState.isLoading}
                     showSpinner={chartLoadingState.showSpinner}
                     showHintImmediately={chartLoadingState.showHintImmediately}
                     hintText={chartLoadingState.hintText}
@@ -1266,60 +1272,67 @@ function SingleMetricField({
 
   return (
     <div className="space-y-2">
-      <Select value={measure} onValueChange={(value) => onMeasureChange(value)}>
-        <SelectTrigger
-          id="metrics-select"
-          aria-invalid={error ? true : undefined}
-          aria-describedby={error ? "single-metric-error" : undefined}
-        >
-          <SelectValue placeholder="Select metrics" />
-        </SelectTrigger>
-        <SelectContent>
-          {availableMetrics.map((metric) => {
-            const meta =
-              viewDeclarations[ctx.viewVersion][ctx.view]?.measures?.[
-                metric.value
-              ];
-            return (
-              <WidgetPropertySelectItem
-                key={metric.value}
-                value={metric.value}
-                label={metric.label}
-                description={meta?.description}
-                unit={meta?.unit}
-                type={meta?.type}
-              />
-            );
-          })}
-        </SelectContent>
-      </Select>
-      {measure !== "count" && (
-        <div className="space-y-1">
+      <div className="flex items-center gap-2">
+        <div className="flex-1">
           <Select
-            value={aggField.value}
-            disabled={ctx.chartType === "HISTOGRAM"}
-            onValueChange={(value) =>
-              aggField.onChange(value as z.infer<typeof metricAggregations>)
-            }
+            value={measure}
+            onValueChange={(value) => onMeasureChange(value)}
           >
-            <SelectTrigger id="aggregation-select">
-              <SelectValue placeholder="Select Aggregation" />
+            <SelectTrigger
+              id="metrics-select"
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? "single-metric-error" : undefined}
+            >
+              <SelectValue placeholder="Select metrics" />
             </SelectTrigger>
             <SelectContent>
-              {aggregationOptions.map((aggregation) => (
-                <SelectItem key={aggregation} value={aggregation}>
-                  {startCase(aggregation)}
-                </SelectItem>
-              ))}
+              {availableMetrics.map((metric) => {
+                const meta =
+                  viewDeclarations[ctx.viewVersion][ctx.view]?.measures?.[
+                    metric.value
+                  ];
+                return (
+                  <WidgetPropertySelectItem
+                    key={metric.value}
+                    value={metric.value}
+                    label={metric.label}
+                    description={meta?.description}
+                    unit={meta?.unit}
+                    type={meta?.type}
+                  />
+                );
+              })}
             </SelectContent>
           </Select>
-          {ctx.chartType === "HISTOGRAM" && (
-            <p className="text-muted-foreground text-xs">
-              Aggregation is automatically set to &quot;histogram&quot; for
-              histogram charts
-            </p>
-          )}
         </div>
+        {measure !== "count" && (
+          <div className="flex-1">
+            <Select
+              value={aggField.value}
+              disabled={ctx.chartType === "HISTOGRAM"}
+              onValueChange={(value) =>
+                aggField.onChange(value as z.infer<typeof metricAggregations>)
+              }
+            >
+              <SelectTrigger id="aggregation-select">
+                <SelectValue placeholder="Select Aggregation" />
+              </SelectTrigger>
+              <SelectContent>
+                {aggregationOptions.map((aggregation) => (
+                  <SelectItem key={aggregation} value={aggregation}>
+                    {startCase(aggregation)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </div>
+      {measure !== "count" && ctx.chartType === "HISTOGRAM" && (
+        <p className="text-muted-foreground text-xs">
+          Aggregation is automatically set to &quot;histogram&quot; for
+          histogram charts
+        </p>
       )}
       {error && (
         <p id="single-metric-error" className="text-destructive text-xs">
@@ -1365,10 +1378,15 @@ function PivotMetricsField({
         finalAggregation = "count";
       } else {
         const available = getAvailablePivotAggregations(index, measure);
+        const defaultAggregation =
+          viewDeclarations[ctx.viewVersion][ctx.view]?.measures?.[measure]
+            ?.defaultAggregation;
         finalAggregation =
           aggregation && available.includes(aggregation)
             ? aggregation
-            : (available[0] ?? "sum");
+            : defaultAggregation && available.includes(defaultAggregation)
+              ? defaultAggregation
+              : (available[0] ?? "sum");
       }
       next[index] = { measure, aggregation: finalAggregation };
     } else {
@@ -1421,7 +1439,7 @@ function PivotMetricsField({
                   onClick={() => removeSlot(index)}
                   className="text-muted-foreground hover:text-destructive h-6 w-6 p-0"
                 >
-                  <X className="h-4 w-4" />
+                  <X className="icon-base" />
                 </Button>
               )}
             </div>
@@ -1511,7 +1529,7 @@ function PivotMetricsField({
             onClick={addSlot}
             className="w-full"
           >
-            <Plus className="mr-1 h-3 w-3" />
+            <Plus className="icon-base text-icon-foreground mr-1" />
             Add Metric {metrics.length + 1}
           </Button>
         )}

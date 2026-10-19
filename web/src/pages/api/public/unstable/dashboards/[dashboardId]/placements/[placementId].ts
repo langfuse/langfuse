@@ -11,11 +11,12 @@ import {
 import {
   deletePublicDashboardPlacement,
   updatePublicDashboardPlacement,
-} from "@/src/features/dashboard/server/public-dashboard-service";
+} from "@/src/features/dashboard/server";
 
 export default withUnstablePublicApiMiddlewares({
   PATCH: createUnstablePublicApiRoute({
     name: "Update Unstable Dashboard Placement",
+    action: "dashboards:CUD",
     querySchema: DashboardPlacementQuery,
     bodySchema: PatchDashboardPlacementBody,
     responseSchema: PatchDashboardPlacementResponse,
@@ -29,6 +30,7 @@ export default withUnstablePublicApiMiddlewares({
   }),
   DELETE: createUnstablePublicApiRoute({
     name: "Delete Unstable Dashboard Placement",
+    action: "dashboards:CUD",
     querySchema: DashboardPlacementQuery,
     responseSchema: DeleteDashboardPlacementResponse,
     fn: ({ query, auth }) =>

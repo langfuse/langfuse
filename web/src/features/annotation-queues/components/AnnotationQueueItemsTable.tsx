@@ -1,29 +1,25 @@
+/* eslint-disable no-nested-ternary */
 import { DataTable } from "@/src/components/table/data-table";
-import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { type AnnotationQueueStatus } from "@langfuse/shared";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import { ChevronDown, ListTree, Trash } from "lucide-react";
-import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/src/components/ui/avatar";
+  useColumnOrder,
+  useColumnVisibility,
+} from "@/src/features/column-visibility";
+import { type AnnotationQueueStatus } from "@langfuse/shared";
+import {
+  customRowHeightMenu,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
+import { ListTree, Trash } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { type RouterOutput } from "@/src/utils/types";
 import { type RowSelectionState } from "@tanstack/react-table";
 import { useState } from "react";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from "@/src/components/ui/dropdown-menu";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
@@ -34,28 +30,66 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
-import TableIdOrName from "@/src/components/table/table-id";
+import { useHasProjectAccess } from "@/src/features/rbac";
+import { useReadPath } from "@/src/features/events";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
+import { type Status } from "@/src/components/ui/StatusBadge/StatusBadge";
+import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
+import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
+import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 
 const QueueItemTableMultiSelectAction = ({
-  selectedItemIds,
+  selectedItems,
   projectId,
+  isV4,
   onDeleteSuccess,
 }: {
-  selectedItemIds: string[];
+  selectedItems: Pick<QueueItemRowData, "id" | "objectType">[];
   projectId: string;
+  isV4: boolean;
   onDeleteSuccess: () => void;
 }) => {
   const utils = api.useUtils();
+  const capture = usePostHogClientCapture();
   const [open, setOpen] = useState(false);
+  const selectedItemIds = selectedItems.map((item) => item.id);
 
   const hasDeleteAccess = useHasProjectAccess({
     projectId,
     scope: "annotationQueues:CUD",
   });
   const mutDeleteItems = api.annotationQueueItems.deleteMany.useMutation({
-    onSuccess: () => {
+    onMutate: (variables) => {
+      const itemIds = new Set(variables.itemIds);
+      return {
+        isV4,
+        objectTypes: new Set(
+          selectedItems
+            .filter((item) => itemIds.has(item.id))
+            .map((item) => item.objectType),
+        ),
+      };
+    },
+    onSuccess: (data, _variables, context) => {
+      if (context && data.deletedCount > 0) {
+        for (const objectType of context.objectTypes) {
+          capture("annotation_queues:item_removed", {
+            type: objectType === "SESSION" ? "session" : "trace",
+            source: "AnnotationQueue",
+            targetType: (
+              {
+                TRACE: "trace",
+                OBSERVATION: "observation",
+                SESSION: "session",
+              } as const
+            )[objectType],
+            objectType,
+            queueCount: 1,
+            isV4: context.isV4,
+          });
+        }
+      }
       onDeleteSuccess();
       utils.annotationQueueItems.itemsByQueueId.invalidate();
     },
@@ -63,24 +97,29 @@ const QueueItemTableMultiSelectAction = ({
 
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button disabled={selectedItemIds.length < 1}>
-            Actions ({selectedItemIds.length} selected)
-            <ChevronDown className="h-5 w-5" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent>
-          <DropdownMenuItem
-            disabled={!hasDeleteAccess}
-            onClick={() => {
+      <DropdownMenu
+        disabled={selectedItemIds.length < 1}
+        items={[
+          {
+            type: "item",
+            id: "delete",
+            title: "Delete",
+            icon: Trash,
+            disabled: hasDeleteAccess
+              ? undefined
+              : { reason: "Missing permission to delete queue items" },
+            onClick: () => {
               setOpen(true);
-            }}
-          >
-            <Trash className="mr-2 h-4 w-4" />
-            <span>Delete</span>
-          </DropdownMenuItem>
-        </DropdownMenuContent>
+            },
+          },
+        ]}
+      >
+        {({ getTriggerProps }) => (
+          <Button disabled={selectedItemIds.length < 1} {...getTriggerProps()}>
+            Actions ({selectedItemIds.length} selected)
+            <DropdownIndicator nudge />
+          </Button>
+        )}
       </DropdownMenu>
       <Dialog
         open={open}
@@ -164,19 +203,25 @@ export function AnnotationQueueItemsTable({
   projectId: string;
   queueId: string;
 }) {
+  const { isV4 } = useReadPath();
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
 
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage("queueItems", "s");
+  const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
+    "queueItems",
+    "s",
+  );
   const items = api.annotationQueueItems.itemsByQueueId.useQuery({
     projectId,
     queueId,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
   });
+  const selectedItems =
+    items.data?.queueItems.filter((item) => selectedRows[item.id]) ?? [];
 
   const columns: LangfuseColumnDef<QueueItemRowData>[] = [
     {
@@ -221,22 +266,25 @@ export function AnnotationQueueItemsTable({
         );
       },
     },
-    {
+    createLinkTableColumn<QueueItemRowData>({
       accessorKey: "id",
       header: "Id",
-      id: "id",
       size: 70,
       isFixedPosition: true,
-      cell: ({ row }) => {
-        const id: QueueItemRowData["id"] = row.getValue("id");
-        return (
-          <TableLink
-            path={`/project/${projectId}/annotation-queues/${queueId}/items/${id}?singleItem=true`}
-            value={id}
-          />
-        );
+      getCell: (id) => {
+        if (id) {
+          return {
+            type: "link",
+            props: {
+              path: `/project/${projectId}/annotation-queues/${queueId}/items/${id}?singleItem=true`,
+              value: id,
+            },
+          };
+        }
+
+        return undefined;
       },
-    },
+    }),
     {
       accessorKey: "objectType",
       header: "Type",
@@ -248,71 +296,72 @@ export function AnnotationQueueItemsTable({
         return <span className="capitalize">{objectType.toLowerCase()}</span>;
       },
     },
-    {
+    createLinkTableColumn<QueueItemRowData, QueueItemRowData["source"]>({
       accessorKey: "source",
       header: "Source",
       headerTooltip: {
         description:
           "Link to the source trace, observation or session based on which this item was added",
       },
-      id: "source",
       size: 50,
-      cell: ({ row }) => {
+      getCell: (_, { row }) => {
         const rowData = row.original;
-        if (!rowData.source) return null;
+        if (!rowData.source) return undefined;
 
-        switch (rowData.objectType) {
-          case "OBSERVATION":
-            return (
-              <TableLink
-                path={`/project/${projectId}/traces/${rowData.source.traceId}?observation=${rowData.source.observationId}`}
-                value={`Observation: ${rowData.source.observationId}`}
-                icon={<ListTree className="h-4 w-4" />}
-              />
-            );
-          case "TRACE":
-            return (
-              <TableLink
-                path={`/project/${projectId}/traces/${rowData.source.traceId}`}
-                value={`Trace: ${rowData.source.traceId}`}
-                icon={<ListTree className="h-4 w-4" />}
-              />
-            );
-          case "SESSION":
-            return (
-              <TableLink
-                path={`/project/${projectId}/sessions/${rowData.source.sessionId}`}
-                value={`Session: ${rowData.source.sessionId}`}
-                icon={<ListTree className="h-4 w-4" />}
-              />
-            );
-          default:
-            throw new Error(`Unknown object type`);
+        if (rowData.objectType === "OBSERVATION") {
+          return {
+            type: "link",
+            props: {
+              path: `/project/${projectId}/traces/${rowData.source.traceId}?observation=${rowData.source.observationId}`,
+              value: `Observation: ${rowData.source.observationId}`,
+              icon: ListTree,
+            },
+          };
         }
+
+        if (rowData.objectType === "TRACE") {
+          return {
+            type: "link",
+            props: {
+              path: `/project/${projectId}/traces/${rowData.source.traceId}`,
+              value: `Trace: ${rowData.source.traceId}`,
+              icon: ListTree,
+            },
+          };
+        }
+
+        return {
+          type: "link",
+          props: {
+            path: `/project/${projectId}/sessions/${rowData.source.sessionId}`,
+            value: `Session: ${rowData.source.sessionId}`,
+            icon: ListTree,
+          },
+        };
       },
-    },
-    {
+    }),
+    createIdTableColumn<QueueItemRowData>({
       accessorKey: "sourceId",
       header: "Source ID",
-      id: "sourceId",
       size: 50,
-      cell: ({ row }) => {
-        const sourceId: QueueItemRowData["sourceId"] = row.getValue("sourceId");
-        return <TableIdOrName value={sourceId} />;
-      },
       enableHiding: true,
       defaultHidden: true,
-    },
-    {
+    }),
+    createStatusTableColumn<QueueItemRowData, AnnotationQueueStatus>({
       accessorKey: "status",
       header: "Status",
-      id: "status",
+      getStatus: (status) =>
+        status
+          ? (
+              {
+                PENDING: "pending",
+                COMPLETED: "completed",
+              } satisfies Record<AnnotationQueueStatus, Status>
+            )[status]
+          : undefined,
       size: 60,
-      cell: ({ row }) => {
-        const status: QueueItemRowData["status"] = row.getValue("status");
-        return <StatusBadge type={status.toLowerCase()} isLive={false} />;
-      },
-    },
+      isLive: false,
+    }),
     {
       accessorKey: "completedAt",
       header: "Completed At",
@@ -321,40 +370,23 @@ export function AnnotationQueueItemsTable({
       enableHiding: true,
       size: 60,
     },
-    {
+    createUserTableColumn<QueueItemRowData, QueueItemRowData["annotatorUser"]>({
       accessorKey: "annotatorUser",
       header: "Completed by",
-      id: "annotatorUser",
       enableHiding: true,
       size: 80,
-      cell: ({ row }) => {
-        const annotatorUser: QueueItemRowData["annotatorUser"] =
-          row.getValue("annotatorUser");
-        if (!annotatorUser || !annotatorUser.userId) return null;
+      variant: "avatar",
+      emptyValue: "",
+      getUser: (annotatorUser) => {
+        if (!annotatorUser || !annotatorUser.userId) return undefined;
 
         const { userId, userName, image } = annotatorUser;
-        return (
-          <div className="flex items-center space-x-2">
-            <Avatar className="h-7 w-7">
-              <AvatarImage
-                src={image ?? undefined}
-                alt={userName ?? "User Avatar"}
-              />
-              <AvatarFallback>
-                {userName
-                  ? userName
-                      .split(" ")
-                      .map((word) => word[0])
-                      .slice(0, 2)
-                      .concat("")
-                  : null}
-              </AvatarFallback>
-            </Avatar>
-            <span>{userName ?? userId}</span>
-          </div>
-        );
+        return {
+          type: "user",
+          user: { id: userId, name: userName, image },
+        };
       },
-    },
+    }),
   ];
 
   const convertToTableRow = (
@@ -417,6 +449,7 @@ export function AnnotationQueueItemsTable({
   return (
     <>
       <DataTableToolbar
+        tableName="annotation-queue-items"
         columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
@@ -424,16 +457,13 @@ export function AnnotationQueueItemsTable({
         setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        customRowHeight={customRowHeightMenu(rowHeights)}
         actionButtons={[
-          Object.keys(selectedRows).filter((itemId) =>
-            items.data?.queueItems.map((item) => item.id).includes(itemId),
-          ).length > 0 ? (
+          selectedItems.length > 0 ? (
             <QueueItemTableMultiSelectAction
-              // Exclude items that are not in the current page
-              selectedItemIds={Object.keys(selectedRows).filter((itemId) =>
-                items.data?.queueItems.map((item) => item.id).includes(itemId),
-              )}
+              selectedItems={selectedItems}
               projectId={projectId}
+              isV4={isV4}
               onDeleteSuccess={() => {
                 setSelectedRows({});
               }}
@@ -478,6 +508,9 @@ export function AnnotationQueueItemsTable({
         columnOrder={columnOrder}
         onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
+        customRowHeightPx={rowHeights.activeHeightPx}
+        onCustomRowHeightChange={rowHeights.setCustomPx}
+        onSelectRowHeight={setRowHeight}
       />
     </>
   );

@@ -8,26 +8,47 @@ import {
   createSessionScore,
   createTracesCh,
   getSessionsWithMetrics,
-  getSessionsWithMetricsFromEvents,
   getSessionMetricsFromEvents,
   getSessionsTable,
   getSessionsTableFromEvents,
+  getSessionsTableCountFromEvents,
   createEvent,
   createEventsCh,
   type TraceRecordInsertType,
   type ObservationRecordInsertType,
   type EventRecordInsertType,
+  createTrace,
 } from "@langfuse/shared/src/server";
-import { createTrace } from "@langfuse/shared/src/server";
 import { type FilterState } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 
 const isEventsPath = env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
 
+const metricsFields = [
+  "session_id",
+  "trace_count",
+  "user_ids",
+  "trace_tags",
+  "total_observations",
+  "duration",
+  "session_input_cost",
+  "session_output_cost",
+  "session_total_cost",
+  "session_input_usage",
+  "session_output_usage",
+  "session_total_usage",
+] as const;
+
 // Pick the right listing function based on env flag
-const sessionsTable = isEventsPath
-  ? getSessionsTableFromEvents
-  : getSessionsTable;
+async function sessionsTable(props: Parameters<typeof getSessionsTable>[0]) {
+  if (!isEventsPath) {
+    return getSessionsTable(props);
+  }
+  return getSessionsTableFromEvents({
+    ...props,
+    fields: ["session_id", "trace_count", "user_ids", "trace_tags"],
+  });
+}
 
 // Adapter for metrics: legacy takes filter/orderBy, events-based takes sessionIds
 async function sessionsWithMetrics(props: {
@@ -43,6 +64,7 @@ async function sessionsWithMetrics(props: {
   return getSessionMetricsFromEvents({
     projectId: props.projectId,
     sessionIds,
+    fields: metricsFields,
   });
 }
 
@@ -68,7 +90,7 @@ function asEventInsert(
  *
  * One root event per trace (parent_span_id = ''), plus one event per
  * observation with trace-level fields denormalized.
- * Timestamps are converted from ms to µs (* 1000).
+ * DateTime64 fields are already ClickHouse datetime strings on insert types.
  */
 function buildMatchingEvents(
   traces: TraceRecordInsertType[],
@@ -101,15 +123,15 @@ function buildMatchingEvents(
           input: t.input ?? null,
           output: t.output ?? null,
           metadata: t.metadata ?? {},
-          start_time: t.timestamp * 1000,
+          start_time: t.timestamp,
           end_time: null,
           cost_details: {},
           provided_cost_details: {},
           usage_details: {},
           provided_usage_details: {},
-          created_at: t.created_at * 1000,
-          updated_at: t.updated_at * 1000,
-          event_ts: t.event_ts * 1000,
+          created_at: t.created_at,
+          updated_at: t.updated_at,
+          event_ts: t.event_ts,
         }),
       ),
     );
@@ -153,14 +175,12 @@ function buildMatchingEvents(
           tool_definitions: o.tool_definitions ?? {},
           tool_calls: o.tool_calls ?? [],
           tool_call_names: o.tool_call_names ?? [],
-          start_time: o.start_time * 1000,
-          end_time: o.end_time ? o.end_time * 1000 : null,
-          completion_start_time: o.completion_start_time
-            ? o.completion_start_time * 1000
-            : null,
-          created_at: o.created_at * 1000,
-          updated_at: o.updated_at * 1000,
-          event_ts: o.event_ts * 1000,
+          start_time: o.start_time,
+          end_time: o.end_time ?? null,
+          completion_start_time: o.completion_start_time ?? null,
+          created_at: o.created_at,
+          updated_at: o.updated_at,
+          event_ts: o.event_ts,
         }),
       ),
     );
@@ -746,7 +766,7 @@ maybeEventsTable("parity: sessions metrics from events vs legacy", () => {
 
     const [legacy, fromEvents] = await Promise.all([
       getSessionsWithMetrics({ projectId, filter }),
-      getSessionsWithMetricsFromEvents({ projectId, filter }),
+      getSessionsTableFromEvents({ projectId, filter, fields: metricsFields }),
     ]);
 
     expect(legacy).toHaveLength(1);
@@ -757,7 +777,6 @@ maybeEventsTable("parity: sessions metrics from events vs legacy", () => {
 
     expect(e.session_id).toBe(l.session_id);
     expect(e.trace_count).toBe(l.trace_count);
-    expect([...e.trace_ids].sort()).toEqual([...l.trace_ids].sort());
     expect([...e.user_ids].sort()).toEqual([...l.user_ids].sort());
     expect(e.total_observations).toBe(l.total_observations);
 
@@ -849,6 +868,7 @@ maybeEventsTable("parity: sessions metrics from events vs legacy", () => {
     const tableRows = await getSessionsTableFromEvents({
       projectId,
       filter: filterState,
+      fields: ["session_id"],
       orderBy: null,
       limit: 10,
       page: 0,
@@ -889,12 +909,56 @@ maybeEventsTable("parity: sessions metrics from events vs legacy", () => {
 
     const [legacy, fromEvents] = await Promise.all([
       getSessionsWithMetrics({ projectId, filter }),
-      getSessionsWithMetricsFromEvents({ projectId, filter }),
+      getSessionsTableFromEvents({ projectId, filter, fields: metricsFields }),
     ]);
 
     expect(legacy).toHaveLength(1);
     expect(fromEvents).toHaveLength(1);
     expect(legacy[0].session_id).toBe(targetId);
     expect(fromEvents[0].session_id).toBe(targetId);
+  });
+});
+
+maybeEventsTable("sessions from events: metadata filters", () => {
+  it("matches a metadata substring beyond the events_core truncation limit", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const matchingSessionId = v4();
+    const otherSessionId = v4();
+
+    // events_core keeps only the first 200 code points of each metadata value.
+    await createEventsCh([
+      createEvent({
+        project_id: projectId,
+        session_id: matchingSessionId,
+        parent_span_id: "",
+        metadata_names: ["experiments"],
+        metadata_values: [`${"x".repeat(250)}OMRA`],
+      }),
+      createEvent({
+        project_id: projectId,
+        session_id: otherSessionId,
+        parent_span_id: "",
+        metadata_names: ["experiments"],
+        metadata_values: ["x".repeat(250)],
+      }),
+    ]);
+
+    const filter: FilterState = [
+      {
+        column: "metadata",
+        type: "stringObject",
+        key: "experiments",
+        operator: "contains",
+        value: "OMRA",
+      },
+    ];
+
+    const [rows, count] = await Promise.all([
+      getSessionsTableFromEvents({ projectId, filter, fields: ["session_id"] }),
+      getSessionsTableCountFromEvents({ projectId, filter }),
+    ]);
+
+    expect(rows.map((row) => row.session_id)).toEqual([matchingSessionId]);
+    expect(count).toBe(1);
   });
 });

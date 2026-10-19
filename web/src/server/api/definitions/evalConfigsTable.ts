@@ -1,11 +1,11 @@
 import {
   EvalTargetObject,
   type ColumnDefinition,
-  JobConfigState,
+  type JobConfigState,
   JobTimeScopeZod,
 } from "@langfuse/shared";
 
-export const evalConfigTargetOptions = Object.values(EvalTargetObject).map(
+const evalConfigTargetOptions = Object.values(EvalTargetObject).map(
   (value) => ({
     value,
   }),
@@ -16,6 +16,14 @@ export const evalConfigTargetValues = evalConfigTargetOptions.map(
 );
 
 export const evalConfigTimeScopeValues = JobTimeScopeZod.options;
+
+// Client-safe mirror of the Prisma enum. Vite/Storybook resolve shared from
+// source and cannot turn `export * from "@prisma/client"` into named ESM
+// exports; this file is imported by client filter hooks.
+const JOB_CONFIG_STATES = [
+  "ACTIVE",
+  "INACTIVE",
+] as const satisfies readonly JobConfigState[];
 
 const evaluatorDisplayStatusSql = `CASE
   WHEN jc."status" = 'INACTIVE' THEN 'INACTIVE'
@@ -35,7 +43,7 @@ export const evalConfigFilterColumns: ColumnDefinition[] = [
     id: "status",
     type: "stringOptions",
     internal: evaluatorDisplayStatusSql,
-    options: [...Object.values(JobConfigState), "PAUSED"].map((value) => ({
+    options: [...JOB_CONFIG_STATES, "PAUSED"].map((value) => ({
       value,
     })),
   },

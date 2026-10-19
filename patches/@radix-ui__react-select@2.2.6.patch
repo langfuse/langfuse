@@ -1,0 +1,26 @@
+diff --git a/dist/index.js b/dist/index.js
+index dc37ac4a018a086c4244a09a67215dbaa9b4de65..f93254344e337621db1377f65eeb2a0fa44b011f 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -448,7 +448,7 @@ var SelectContentImpl = React.forwardRef(
+       const currentItem = enabledItems.find((item) => item.ref.current === document.activeElement);
+       const nextItem = findNextItem(enabledItems, search, currentItem);
+       if (nextItem) {
+-        setTimeout(() => nextItem.ref.current.focus());
++        setTimeout(() => nextItem.ref.current?.focus());
+       }
+     });
+     const itemRefCallback = React.useCallback(
+diff --git a/dist/index.mjs b/dist/index.mjs
+index f9b94f39dfddef678ef3086354f8d7413ae27e52..9c06f97c1b81a252cf17c448d92364a7dfd77cae 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -381,7 +381,7 @@ var SelectContentImpl = React.forwardRef(
+       const currentItem = enabledItems.find((item) => item.ref.current === document.activeElement);
+       const nextItem = findNextItem(enabledItems, search, currentItem);
+       if (nextItem) {
+-        setTimeout(() => nextItem.ref.current.focus());
++        setTimeout(() => nextItem.ref.current?.focus());
+       }
+     });
+     const itemRefCallback = React.useCallback(

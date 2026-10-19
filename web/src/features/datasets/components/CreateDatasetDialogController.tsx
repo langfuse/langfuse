@@ -1,10 +1,10 @@
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { Dialog } from "@/src/components/ui/dialog";
 import {
   CreateDatasetDialogContent,
   type CreateDatasetDialogProps,
 } from "@/src/features/datasets/components/CreateDatasetDialogContent";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { type ReactNode, useState } from "react";
 
 export function CreateDatasetDialogController({

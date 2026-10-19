@@ -1,10 +1,8 @@
-import { z } from "zod";
-import { singleFilter } from "@langfuse/shared";
+import type { z } from "zod";
+import { singleFilterList } from "@langfuse/shared";
 import { type views } from "@langfuse/shared/query";
 
-// Exported to silence @typescript-eslint/no-unused-vars v8 warning
-// (used for type extraction via typeof, which is a legitimate pattern)
-export const FilterArray = z.array(singleFilter);
+export const FilterArray = singleFilterList;
 
 /**
  * Central compatibility layer for dashboard/widget filter columns.
@@ -57,6 +55,23 @@ const defineField = (
   current,
   legacy,
 });
+
+const evaluatorFilterDefinitions = [
+  defineField(
+    "evaluatorId",
+    sourceSpec("Evaluator", {
+      uiTableId: "evaluatorId",
+      aliases: ["Evaluator ID"],
+    }),
+  ),
+  defineField(
+    "isEvaluatorTest",
+    sourceSpec("Evaluator test run", {
+      uiTableId: "isEvaluatorTest",
+      aliases: ["Evaluator execution"],
+    }),
+  ),
+] as const;
 
 const viewFilterDefinitions: Record<
   ViewName,
@@ -117,7 +132,20 @@ const viewFilterDefinitions: Record<
       "providedModelName",
       sourceSpec("Model", { uiTableId: "model" }),
     ),
-    defineField("level", sourceSpec("Level", { uiTableId: "level" })),
+    defineField(
+      "level",
+      sourceSpec("Status", { uiTableId: "level", aliases: ["Level"] }),
+    ),
+    defineField(
+      "skillNamesAvailable",
+      sourceSpec("Skill Names (Available)", {
+        uiTableId: "skillNamesAvailable",
+      }),
+    ),
+    defineField(
+      "skillsNamesLoaded",
+      sourceSpec("Skill Names (Loaded)", { uiTableId: "skillsNamesLoaded" }),
+    ),
     defineField(
       "toolNames",
       sourceSpec("Tool Names (Available)", { uiTableId: "toolNames" }),
@@ -144,6 +172,7 @@ const viewFilterDefinitions: Record<
       "environment",
       sourceSpec("Environment", { uiTableId: "environment" }),
     ),
+    ...evaluatorFilterDefinitions,
     defineField(
       "release",
       sourceSpec("Release", {
@@ -219,6 +248,7 @@ const viewFilterDefinitions: Record<
       "traceVersion",
       sourceSpec("Version", { uiTableId: "version" }),
     ),
+    ...evaluatorFilterDefinitions,
   ],
   "scores-boolean": [
     defineField("name", sourceSpec("Score Name", { uiTableId: "scoreName" })),
@@ -266,6 +296,7 @@ const viewFilterDefinitions: Record<
       "traceVersion",
       sourceSpec("Version", { uiTableId: "version" }),
     ),
+    ...evaluatorFilterDefinitions,
   ],
   "scores-categorical": [
     defineField("name", sourceSpec("Score Name", { uiTableId: "scoreName" })),
@@ -313,6 +344,7 @@ const viewFilterDefinitions: Record<
       "traceVersion",
       sourceSpec("Version", { uiTableId: "version" }),
     ),
+    ...evaluatorFilterDefinitions,
   ],
 };
 

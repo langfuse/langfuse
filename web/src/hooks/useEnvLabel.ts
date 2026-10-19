@@ -1,9 +1,7 @@
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { useSession } from "next-auth/react";
-import { useState } from "react";
 
 export const useEnvLabel = () => {
-  const [isHidden, setIsHidden] = useState(false);
   const session = useSession();
   const { isLangfuseCloud, region } = useLangfuseCloudRegion();
 
@@ -11,11 +9,9 @@ export const useEnvLabel = () => {
   if (!session.data?.user?.email?.endsWith("@langfuse.com")) {
     return { visible: false } as const;
   }
-  if (isHidden) return { visible: false } as const;
 
   return {
     visible: true,
     region: region,
-    dismiss: () => setIsHidden(true),
   } as const;
 };

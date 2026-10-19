@@ -1,1 +1,0 @@
-ALTER TABLE dataset_run_items_rmt DROP COLUMN IF EXISTS dataset_item_version;

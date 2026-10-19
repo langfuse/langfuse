@@ -1,9 +1,10 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 import { useCallback, useMemo, useRef, useState } from "react";
 import { cn } from "@/src/utils/tailwind";
 import { X } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
-import { Layer } from "@/src/components/ui/layer";
+import { Layer } from "@/src/components/design-system/Layer/Layer";
 import {
   formatBucketRange,
   OUTLIER_STRIP_METRICS,
@@ -31,6 +32,21 @@ const METRIC_COLOR: Record<OutlierStripMetricKey, string> = {
   cost: "hsl(var(--chart-1))",
   latency: "hsl(var(--chart-2))",
 };
+
+/** Widest y-axis label in px at the strip's default height and scale. */
+export function estimateYLabelWidthPx(
+  maxValue: number,
+  metric: OutlierStripMetricKey,
+): number {
+  const ticks = prepareOutlierYTicks({
+    maxValue,
+    metric,
+    plotHeightPx: 49,
+    scale: "sqrt",
+  });
+  const chars = Math.max(0, ...ticks.map((tick) => tick.label.length));
+  return chars * 6;
+}
 
 /** Pointer travel before a press becomes a range-drag instead of a click. */
 const DRAG_THRESHOLD_PX = 5;
@@ -161,7 +177,7 @@ export function OutlierBarStrip({
   const barWidth = Math.max(slotPx - 1, 0.5);
   // Bars sit ON the 1px baseline, never across it.
   const plotHeight = heightPx - 1;
-  const labelHeight = showTimeLabels ? 13 : 0;
+  const labelHeight = showTimeLabels ? 16 : 0;
   const hasData = maxValue > 0;
   const hasActivity = dense.some((bin) => bin.count > 0);
 
@@ -265,33 +281,28 @@ export function OutlierBarStrip({
             <text
               key={`label-${tick.index}`}
               x={tick.x}
-              y={heightPx + 9}
+              y={heightPx + 12}
               textAnchor={tick.textAnchor}
               className="fill-muted-foreground/80 font-sans"
-              fontSize={9}
+              fontSize={10}
             >
               {tick.label}
             </text>
           ))}
 
-        {/* Y-axis labels — after the bars so they stay legible on top; the
-            background-colored stroke (paint-order) keeps them readable where
-            they overlap a bar. Every label hangs BELOW its gridline: the top
-            gridline can hug the plot's top edge (no room above), and one
-            consistent side means the preparer's line spacing is also the
-            label spacing. */}
+        {/* Y-axis labels sit in the left gutter, centred on their gridlines. */}
         {yTicks.map((tick) => {
           const lineY = plotHeight - tick.offsetPx;
           return (
             <text
               key={`y-label-${tick.value}`}
-              x={3}
-              y={lineY + 9}
-              textAnchor="start"
-              className="fill-muted-foreground stroke-background font-sans"
-              fontSize={9}
-              strokeWidth={2.5}
-              style={{ paintOrder: "stroke" }}
+              x={-4}
+              // Half a line below the top edge so a top tick never paints above the plot.
+              y={Math.max(lineY, 5)}
+              textAnchor="end"
+              dominantBaseline="middle"
+              className="fill-muted-foreground font-sans"
+              fontSize={10}
             >
               {tick.label}
             </text>
@@ -379,7 +390,7 @@ export function OutlierBarStrip({
         // Crosshair over the whole plot: the standard "this surface supports
         // range selection" affordance (Grafana/Datadog) — it makes the
         // drag-to-zoom brush discoverable where a pointer only said "click".
-        className="block cursor-crosshair touch-pan-y select-none"
+        className="block cursor-crosshair touch-pan-y overflow-visible select-none"
         onPointerLeave={(event) => {
           if (event.pointerType !== "mouse") return;
           setHoverIndex(null);
@@ -540,15 +551,15 @@ export function OutlierBarStrip({
       </svg>
 
       {!hasData && (
-        // Centered on the bar canvas, not the svg: inset-0 would include the
-        // time-label band and push the notice below the plot's middle.
+        // Centered on the bar canvas, nudged up so it reads optically centred
+        // with the time labels underneath.
         <span
-          className="text-muted-foreground/70 pointer-events-none absolute inset-x-0 top-0 flex items-center justify-center text-[10px]"
+          className="text-muted-foreground pointer-events-none absolute inset-x-0 top-0 flex items-center justify-center pb-2 text-sm"
           style={{ height: heightPx }}
         >
           {hasActivity
-            ? `No ${metricSpec.shortLabel.toLowerCase()} data in range`
-            : "No observations in range"}
+            ? `No ${metricSpec.shortLabel.toLowerCase()} data`
+            : "No data"}
         </span>
       )}
 
@@ -651,7 +662,7 @@ export function OutlierBarStrip({
                   onSelectionChange?.(null);
                 }}
               >
-                <X className="h-3 w-3" />
+                <X className="icon-sm" />
               </button>
             </div>
             {previewHasData && (

@@ -19,13 +19,3 @@ export interface FlatLogItem {
   /** Whether this node is the last sibling at its level */
   isLastSibling: boolean;
 }
-
-/**
- * View mode for log view display.
- */
-export type LogViewMode = "chronological" | "tree-order";
-
-/**
- * Tree style for tree-order view.
- */
-export type LogViewTreeStyle = "flat" | "indented";

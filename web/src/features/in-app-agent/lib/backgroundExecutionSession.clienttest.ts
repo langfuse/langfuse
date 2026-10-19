@@ -18,6 +18,7 @@ import { BackgroundExecutionConnectionError } from "./backgroundExecutionErrors"
 import {
   BackgroundExecutionSessionController,
   getBackgroundRunNotice,
+  getSettledActivityOutcome,
   type BackgroundExecutionView,
 } from "./backgroundExecutionSession";
 
@@ -1374,9 +1375,9 @@ describe("getBackgroundRunNotice", () => {
   });
 
   const assistantFailedContinue =
-    "The assistant failed. Send another message to continue.";
+    "Halo failed. Send another message to continue.";
   const assistantFailedTryAgain =
-    "The assistant failed. Send another message to try again.";
+    "Halo failed. Send another message to try again.";
 
   it.each([
     [InAppAgentRunErrorCode.WORKER_LOST, assistantFailedContinue],
@@ -1396,7 +1397,7 @@ describe("getBackgroundRunNotice", () => {
     ],
     [
       InAppAgentRunErrorCode.AGENT_ERROR,
-      "The assistant hit an error before finishing. Send another message to continue.",
+      "Halo hit an error before finishing. Send another message to continue.",
     ],
     ["mystery_code", "The run failed. Try again."],
   ] as const)("maps FAILED %s to the user-facing notice", (errorCode, text) => {
@@ -1404,6 +1405,41 @@ describe("getBackgroundRunNotice", () => {
       text,
       tone: "info",
     });
+  });
+
+  const truncatedRun = (errorCode: InAppAgentRunErrorCode) => ({
+    id: "run-1",
+    status: InAppAgentRunStatus.SUCCEEDED,
+    errorCode,
+    cancelRequested: false,
+  });
+
+  it.each([
+    [
+      InAppAgentRunErrorCode.STEP_LIMIT,
+      "Halo had to stop before finishing this answer. Too many steps in one turn. Send another message to continue.",
+    ],
+    [
+      InAppAgentRunErrorCode.OUTPUT_LIMIT,
+      "Halo had to stop before finishing this answer. The response hit the model's output limit. Send another message to continue.",
+    ],
+  ] as const)("warns and marks SUCCEEDED %s as stopped", (errorCode, text) => {
+    const run = truncatedRun(errorCode);
+
+    expect(getBackgroundRunNotice(run)).toEqual({ text, tone: "warning" });
+    expect(getSettledActivityOutcome(run)).toBe("stopped");
+  });
+
+  it("shows no notice and marks a plain SUCCEEDED run as worked", () => {
+    const run = {
+      id: "run-1",
+      status: InAppAgentRunStatus.SUCCEEDED,
+      errorCode: null,
+      cancelRequested: false,
+    };
+
+    expect(getBackgroundRunNotice(run)).toBeNull();
+    expect(getSettledActivityOutcome(run)).toBe("worked");
   });
 });
 

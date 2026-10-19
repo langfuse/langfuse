@@ -6,10 +6,12 @@ import useLocalStorage from "@/src/components/useLocalStorage";
 import {
   LLMAdapter,
   supportedModels,
+  type ModelParams,
   type UIModelParams,
 } from "@langfuse/shared";
 import { type ModelParamsContext } from "@/src/components/ModelParameters";
 import { getModelNameKey, getModelProviderKey } from "../storage/keys";
+import { getEnabledModelParamState } from "@/src/utils/getFinalModelParams";
 
 type PromptConfigModel = {
   selectionKey?: string;
@@ -19,6 +21,7 @@ type PromptConfigModel = {
 
 type UseModelParamsOptions = {
   promptConfigModel?: PromptConfigModel | null;
+  initialModel?: ModelParams;
 };
 
 /**
@@ -32,15 +35,19 @@ export const useModelParams = (
   windowId?: string,
   options?: UseModelParamsOptions,
 ) => {
-  const [modelParams, setModelParams] = useState<UIModelParams>({
-    ...getDefaultAdapterParams(LLMAdapter.OpenAI),
-    provider: { value: "", enabled: true },
-    model: { value: "", enabled: true },
+  const [modelParams, setModelParams] = useState<UIModelParams>(() => {
+    const initialModel = options?.initialModel;
+    return {
+      ...getDefaultAdapterParams(initialModel?.adapter ?? LLMAdapter.OpenAI),
+      ...getEnabledModelParamState(initialModel ?? {}),
+      provider: { value: initialModel?.provider ?? "", enabled: true },
+      model: { value: initialModel?.model ?? "", enabled: true },
+    };
   });
 
   // Set initial model params
   const projectId = useProjectIdFromURL();
-  const availableLLMApiKeys = api.llmApiKey.all.useQuery(
+  const availableLLMApiKeys = api.llmApiKey.effective.useQuery(
     {
       projectId: projectId as string,
     },
@@ -243,7 +250,10 @@ export const useModelParams = (
 
   // Update adapter, max temperature, temperature, max_tokens, top_p when provider changes
   useEffect(() => {
-    if (selectedProviderApiKey?.adapter) {
+    if (
+      selectedProviderApiKey?.adapter &&
+      selectedProviderApiKey.adapter !== modelParams.adapter.value
+    ) {
       setModelParams((prev) => ({
         ...prev,
         adapter: {
@@ -279,7 +289,7 @@ export const useModelParams = (
         },
       }));
     }
-  }, [selectedProviderApiKey?.adapter]);
+  }, [modelParams.adapter.value, selectedProviderApiKey?.adapter]);
 
   return {
     modelParams,
@@ -377,6 +387,20 @@ function getDefaultAdapterParams(
         temperature: { value: 1, enabled: false },
         maxTemperature: { value: 2, enabled: false },
         max_tokens: { value: 4096, enabled: false },
+        top_p: { value: 1, enabled: false },
+        maxReasoningTokens: { value: 0, enabled: false },
+        providerOptions: { value: {}, enabled: false },
+      };
+
+    case LLMAdapter.TypeSafe:
+      return {
+        adapter: {
+          value: adapter,
+          enabled: true,
+        },
+        temperature: { value: 0, enabled: false },
+        maxTemperature: { value: 0, enabled: false },
+        max_tokens: { value: 0, enabled: false },
         top_p: { value: 1, enabled: false },
         maxReasoningTokens: { value: 0, enabled: false },
         providerOptions: { value: {}, enabled: false },

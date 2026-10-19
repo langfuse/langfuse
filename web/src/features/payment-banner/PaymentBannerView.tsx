@@ -6,7 +6,7 @@ import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 
 const paymentBannerVariants = cva(
-  "fixed top-0 z-51 flex w-full flex-col gap-1 px-4 py-1.5 sm:flex-row sm:items-center sm:gap-3 sm:py-1",
+  "flex w-full flex-col gap-1 px-4 py-1.5 sm:flex-row sm:items-center sm:gap-3 sm:py-1",
   {
     variants: {
       severity: {
@@ -54,7 +54,7 @@ export function PaymentBannerView({
     >
       <div className="flex min-w-0 flex-1 items-start gap-3 sm:items-center">
         {/* mt-0.5 optically centers the 16px icon on the first 20px text line */}
-        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 sm:mt-0" />
+        <AlertCircle className="icon-base mt-0.5 shrink-0 sm:mt-0" />
         <p className="min-w-0 text-sm wrap-break-word">
           <span className="font-bold">Billing Issue:</span>{" "}
           {`We have problems collecting subscription payment for your organization '${organizationName}'. Please update your payment information to continue using Langfuse.`}
@@ -67,7 +67,7 @@ export function PaymentBannerView({
         className="shrink-0 self-end sm:self-auto"
       >
         <Link href={billingSettingsHref}>
-          <CreditCard className="mr-2 h-4 w-4" />
+          <CreditCard className="icon-base text-icon-foreground mr-2" />
           Update Payment
         </Link>
       </Button>

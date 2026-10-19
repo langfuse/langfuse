@@ -1,19 +1,13 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements, @repo/component-file-structure */
 "use client";
 
 // Adapted command to be used as a form field with suggestions
 // Find original shadcn/ui command component in /components/ui/command.tsx
 
 import * as React from "react";
-import { type DialogProps } from "@radix-ui/react-dialog";
 import { Command as CommandPrimitive } from "cmdk";
 import { Search } from "lucide-react";
 
-import { Dialog, DialogBody, DialogContent } from "@/src/components/ui/dialog";
-import {
-  KeyboardShortcut,
-  type KeyboardShortcutProps,
-} from "@/src/components/ui/keyboard-shortcut";
 import { cn } from "@/src/utils/tailwind";
 
 const InputCommand = React.forwardRef<
@@ -31,25 +25,6 @@ const InputCommand = React.forwardRef<
 ));
 InputCommand.displayName = CommandPrimitive.displayName;
 
-interface InputCommandDialogProps extends DialogProps {}
-
-const InputCommandDialog = ({
-  children,
-  ...props
-}: InputCommandDialogProps) => {
-  return (
-    <Dialog {...props}>
-      <DialogContent className="overflow-hidden p-0 shadow-lg">
-        <DialogBody>
-          <InputCommand className="**:[[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 [&_[cmdk-item]_svg]:h-5 [&_[cmdk-item]_svg]:w-5 **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:font-bold **:[[cmdk-group]]:px-2 **:[[cmdk-input]]:h-12 **:[[cmdk-item]]:px-2 **:[[cmdk-item]]:py-3">
-            {children}
-          </InputCommand>
-        </DialogBody>
-      </DialogContent>
-    </Dialog>
-  );
-};
-
 const InputCommandInput = React.forwardRef<
   React.ComponentRef<typeof CommandPrimitive.Input>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive.Input> & {
@@ -64,11 +39,11 @@ const InputCommandInput = React.forwardRef<
       "cmdk-input-wrapper",
     )}
   >
-    <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+    <Search className="icon-base mr-2 shrink-0 opacity-50" />
     <CommandPrimitive.Input
       ref={ref}
       className={cn(
-        "placeholder:text-foreground-tertiary flex h-8 w-full rounded border-transparent bg-transparent py-3 text-sm outline-hidden focus:border-0 focus:border-none focus:border-transparent focus:ring-0 disabled:cursor-not-allowed disabled:opacity-50",
+        "placeholder:text-muted-foreground flex h-8 w-full rounded border-transparent bg-transparent py-3 font-mono text-xs outline-hidden focus:border-0 focus:border-none focus:border-transparent focus:ring-0 disabled:cursor-not-allowed disabled:opacity-50",
         className,
       )}
       {...props}
@@ -139,7 +114,7 @@ const InputCommandItem = React.forwardRef<
   <CommandPrimitive.Item
     ref={ref}
     className={cn(
-      "aria-selected:bg-accent aria-selected:text-accent-foreground relative flex cursor-default items-center rounded-sm px-2 py-1.5 text-sm outline-hidden select-none",
+      "aria-selected:bg-accent aria-selected:text-accent-foreground relative flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm outline-hidden select-none data-[disabled=true]:cursor-not-allowed",
       className,
     )}
     {...props}
@@ -148,22 +123,12 @@ const InputCommandItem = React.forwardRef<
 
 InputCommandItem.displayName = CommandPrimitive.Item.displayName;
 
-const InputCommandShortcut = ({
-  className,
-  ...props
-}: KeyboardShortcutProps) => {
-  return <KeyboardShortcut className={cn("ml-auto", className)} {...props} />;
-};
-InputCommandShortcut.displayName = "CommandShortcut";
-
 export {
   InputCommand,
-  InputCommandDialog,
   InputCommandInput,
   InputCommandList,
   InputCommandEmpty,
   InputCommandGroup,
   InputCommandItem,
-  InputCommandShortcut,
   InputCommandSeparator,
 };

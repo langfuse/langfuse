@@ -1,28 +1,26 @@
 import { prisma } from "@langfuse/shared/src/db";
-import type {
-  CreatePromptSchema,
-  GetPromptByNameSchema,
-  GetPromptsMetaSchema,
-  Prompt,
-} from "@langfuse/shared";
 import {
+  type CreatePromptSchema,
+  type GetPromptByNameSchema,
+  type GetPromptsMetaSchema,
+  type Prompt,
   InvalidRequestError,
   LangfuseConflictError,
   LangfuseNotFoundError,
 } from "@langfuse/shared";
 import type { z } from "zod";
 
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
+import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { createPrompt } from "./actions/createPrompt";
+import { deletePrompt } from "./actions/deletePrompt";
 import { getPromptByName } from "./actions/getPromptByName";
 import { getPromptsMeta } from "./actions/getPromptsMeta";
 import { updatePrompt } from "./actions/updatePrompts";
-
-type ApiKeyProjectContext = {
-  projectId: string;
-  orgId: string;
-  apiKeyId: string;
-};
+import {
+  authorizeProtectedLabelMutation,
+  type ApiKeyProjectContext,
+} from "./utils/authorizeProtectedLabelMutation";
 
 type ListPromptsForApiInput = z.infer<typeof GetPromptsMetaSchema> & {
   projectId: string;
@@ -43,10 +41,21 @@ export const getPromptForApi = async (input: GetPromptForApiInput) => {
 export const createPromptForApi = async ({
   context,
   input,
+  ctx,
 }: {
   context: ApiKeyProjectContext;
   input: z.infer<typeof CreatePromptSchema>;
+  ctx?: AuthorizationContext;
 }) => {
+  await authorizeProtectedLabelMutation({
+    prisma,
+    context,
+    ctx,
+    labelsToCheck: input.labels ?? [],
+    forbiddenErrorMessage:
+      "You don't have permission to create a prompt with a protected label. Please contact your project admin for assistance.",
+  });
+
   const createdPrompt = await createPrompt({
     ...input,
     config: input.config ?? {},
@@ -91,11 +100,13 @@ export const updatePromptLabelsForApi = async ({
   promptName,
   promptVersion,
   newLabels,
+  ctx,
 }: {
   context: ApiKeyProjectContext;
   promptName: string;
   promptVersion: number;
   newLabels: string[];
+  ctx?: AuthorizationContext;
 }) => {
   const existingPrompt = await prisma.prompt.findUnique({
     where: {
@@ -112,6 +123,21 @@ export const updatePromptLabelsForApi = async ({
       `Prompt '${promptName}' version ${promptVersion} not found in project`,
     );
   }
+
+  // updatePrompt is additive; labels already on this version are not a
+  // mutation. Moving a protected label onto this version still counts as add.
+  const addedLabels = newLabels.filter(
+    (label) => !existingPrompt.labels.includes(label),
+  );
+
+  await authorizeProtectedLabelMutation({
+    prisma,
+    context,
+    ctx,
+    labelsToCheck: addedLabels,
+    forbiddenErrorMessage:
+      "You don't have permission to add a protected label to a prompt. Please contact your project admin for assistance.",
+  });
 
   const updatedPrompt = await updatePrompt({
     promptName,
@@ -135,4 +161,56 @@ export const updatePromptLabelsForApi = async ({
     existingPrompt: Prompt;
     updatedPrompt: Prompt;
   };
+};
+
+export const deletePromptForApi = async ({
+  context,
+  promptName,
+  version,
+  label,
+  ctx,
+}: {
+  context: ApiKeyProjectContext;
+  promptName: string;
+  version?: number | null;
+  label?: string;
+  ctx?: AuthorizationContext;
+}) => {
+  const where = {
+    projectId: context.projectId,
+    name: promptName,
+    ...(version ? { version } : {}),
+    ...(label ? { labels: { has: label } } : {}),
+  };
+
+  const prompts = await prisma.prompt.findMany({ where });
+
+  await authorizeProtectedLabelMutation({
+    prisma,
+    context,
+    ctx,
+    labelsToCheck: prompts.flatMap((prompt) => prompt.labels),
+    forbiddenErrorMessage:
+      "You don't have permission to delete a prompt with a protected label. Please contact your project admin for assistance.",
+  });
+
+  for (const prompt of prompts) {
+    await auditLog({
+      action: "delete",
+      resourceType: "prompt",
+      resourceId: prompt.id,
+      projectId: context.projectId,
+      orgId: context.orgId,
+      apiKeyId: context.apiKeyId,
+      before: prompt,
+    });
+  }
+
+  await deletePrompt({
+    promptName,
+    projectId: context.projectId,
+    version,
+    label,
+    promptVersions: prompts,
+  });
 };

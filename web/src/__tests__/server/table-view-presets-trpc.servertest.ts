@@ -1,5 +1,6 @@
 /** @jest-environment node */
 
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { TableViewPresetTableName } from "@langfuse/shared";
@@ -8,12 +9,13 @@ import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
 import { randomUUID } from "node:crypto";
 
-const prepare = async () => {
+const prepare = async (projectRole: "ADMIN" | "VIEWER" = "ADMIN") => {
   const { project, org } = await createOrgProjectAndApiKey();
+  const userId = `table-view-user-${randomUUID()}`;
   const session: Session = {
     expires: "1",
     user: {
-      id: `table-view-user-${randomUUID()}`,
+      id: userId,
       canCreateOrganizations: true,
       name: "Table View Test User",
       organizations: [
@@ -29,7 +31,7 @@ const prepare = async () => {
           projects: [
             {
               id: project.id,
-              role: "ADMIN",
+              role: projectRole,
               retentionDays: 30,
               deletedAt: null,
               hasTraces: false,
@@ -40,14 +42,7 @@ const prepare = async () => {
           ],
         },
       ],
-      featureFlags: {
-        searchBar: false,
-        excludeClickhouseRead: false,
-        templateFlag: true,
-        v4BetaToggleVisible: false,
-        observationEvals: false,
-        experimentsV4Enabled: false,
-      },
+      featureFlags: testFeatureFlags(),
       admin: false,
     },
     environment: {
@@ -60,10 +55,132 @@ const prepare = async () => {
   return {
     caller: appRouter.createCaller({ ...ctx, prisma }),
     projectId: project.id,
+    userId,
   };
 };
 
 describe("table view presets tRPC", () => {
+  it("creates separate saved views for evaluator and rule tables", async () => {
+    const { caller, projectId, userId } = await prepare();
+    await prisma.user.create({
+      data: {
+        id: userId,
+        name: "Table View Test User",
+        email: `${userId}@example.com`,
+      },
+    });
+    const [evaluatorView, ruleView] = await Promise.all([
+      caller.TableViewPresets.create({
+        projectId,
+        name: `evaluator-view-${randomUUID()}`,
+        tableName: TableViewPresetTableName.Evaluators,
+        filters: [
+          {
+            column: "status",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["ACTIVE"],
+          },
+        ],
+        columnOrder: ["name", "status"],
+        columnVisibility: { name: true, status: true },
+        searchQuery: "quality",
+        orderBy: null,
+      }),
+      caller.TableViewPresets.create({
+        projectId,
+        name: `rule-view-${randomUUID()}`,
+        tableName: TableViewPresetTableName.EvaluationRules,
+        filters: [
+          {
+            column: "enabled",
+            type: "boolean",
+            operator: "=",
+            value: true,
+          },
+        ],
+        columnOrder: ["name", "enabled"],
+        columnVisibility: { name: true, enabled: true },
+        orderBy: null,
+      }),
+    ]);
+
+    await expect(
+      caller.TableViewPresets.getByTableName({
+        projectId,
+        tableName: TableViewPresetTableName.Evaluators,
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: evaluatorView.view.id,
+        tableName: TableViewPresetTableName.Evaluators,
+        searchQuery: "quality",
+        createdByUser: {
+          image: null,
+          name: "Table View Test User",
+          email: `${userId}@example.com`,
+        },
+      }),
+    ]);
+    await expect(
+      caller.TableViewPresets.getByTableName({
+        projectId,
+        tableName: TableViewPresetTableName.EvaluationRules,
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: ruleView.view.id,
+        tableName: TableViewPresetTableName.EvaluationRules,
+      }),
+    ]);
+    await prisma.tableViewPreset.deleteMany({ where: { projectId } });
+    await prisma.user.delete({ where: { id: userId } });
+  });
+
+  it("omits creator emails when the caller cannot read project members", async () => {
+    const { caller, projectId, userId } = await prepare("VIEWER");
+    await prisma.user.create({
+      data: {
+        id: userId,
+        name: "Table View Test User",
+        email: `${userId}@example.com`,
+      },
+    });
+    const preset = await prisma.tableViewPreset.create({
+      data: {
+        projectId,
+        name: `viewer-view-${randomUUID()}`,
+        tableName: TableViewPresetTableName.Evaluators,
+        createdBy: userId,
+        updatedBy: userId,
+        filters: [],
+        columnOrder: [],
+        columnVisibility: {},
+        searchQuery: null,
+        orderBy: null as unknown as Prisma.NullableJsonNullValueInput,
+      },
+    });
+
+    await expect(
+      caller.TableViewPresets.getByTableName({
+        projectId,
+        tableName: TableViewPresetTableName.Evaluators,
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: preset.id,
+        createdByUser: {
+          image: null,
+          name: "Table View Test User",
+          email: null,
+        },
+      }),
+    ]);
+
+    await prisma.tableViewPreset.deleteMany({ where: { projectId } });
+    await prisma.user.delete({ where: { id: userId } });
+  });
+
   it("deletes an already-deleted preset idempotently", async () => {
     const { caller, projectId } = await prepare();
     const preset = await prisma.tableViewPreset.create({

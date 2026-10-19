@@ -4,7 +4,7 @@ import { api } from "@/src/utils/api";
 import { Combobox } from "@/src/components/ui/combobox";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { Button } from "@/src/components/ui/button";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 
 /**
  * Home's dashboard picker: selecting immediately shows ("peeks") the chosen
@@ -48,7 +48,7 @@ export function HomeDashboardSelect({
       value: d.id,
       label: d.name,
       ...(d.owner === "LANGFUSE" ? { icon: <LangfuseIcon size={14} /> } : {}),
-      ...(d.id === defaultDashboardId ? { badge: "Default" } : {}),
+      ...(d.id === defaultDashboardId ? { badge: "default" } : {}),
     });
     const curated = items.filter((d) => d.owner === "LANGFUSE");
     const project = items.filter((d) => d.owner === "PROJECT");
@@ -76,7 +76,7 @@ export function HomeDashboardSelect({
         title="The dashboard shown on this project's home page"
         className="text-muted-foreground my-0"
       >
-        <LayoutDashboard className="mr-1 h-4 w-4" />
+        <LayoutDashboard className="icon-base text-icon-foreground mr-1" />
         {currentDashboardName}
       </Button>
     );
@@ -93,7 +93,7 @@ export function HomeDashboardSelect({
       placeholder={currentDashboardName}
       searchPlaceholder="Search dashboards..."
       emptyText="No dashboards found"
-      className="my-0 w-auto max-w-56"
+      className="my-0 w-auto max-w-60"
       name="home-dashboard"
     />
   );

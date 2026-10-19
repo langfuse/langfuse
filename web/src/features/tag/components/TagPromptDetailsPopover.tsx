@@ -1,7 +1,7 @@
 /* eslint-disable @repo/no-style-props */
 import React, { useState } from "react";
 import { api } from "@/src/utils/api";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { type RouterOutput } from "@/src/utils/types";
 import TagManager from "@/src/features/tag/components/TagManager";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
@@ -44,7 +44,7 @@ export function TagPromptDetailsPopover({
       return { prev };
     },
     onError: (err, _newTags, context) => {
-      trpcErrorToast(err);
+      trpcErrorToast(err, "prompt_tags.update");
       // Rollback to the previous value if mutation fails
       utils.prompts.allVersions.setData(allVersionsInput, context?.prev);
     },

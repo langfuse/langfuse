@@ -1,19 +1,31 @@
+/* eslint-disable no-nested-ternary */
 import { useEffect } from "react";
-import { type ScoreDomain, type Prisma } from "@langfuse/shared";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import {
+  type ObservationType,
+  type ScoreDomain,
+  type Prisma,
+} from "@langfuse/shared";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePreserveRelativeScroll } from "@/src/features/traces/hooks/usePreserveRelativeScroll";
-import { type MediaReturnType } from "@/src/features/media/validation";
+import { type MediaReturnType } from "@/src/features/media";
 import { type ExpansionState } from "@/src/features/traces/components/AdvancedJsonViewer/types";
 
 import { ViewModeToggle, type ViewMode } from "./components/ViewModeToggle";
+import {
+  DEFAULT_JSON_VIEW_PREFERENCE,
+  JSON_VIEW_PREFERENCE_STORAGE_KEY,
+  normalizeJsonViewPreference,
+} from "@/src/components/ui/jsonViewPreference";
 import { IOPreviewJSON, type IOPreviewJSONProps } from "./IOPreviewJSON";
 import { IOPreviewJSONSimple } from "./IOPreviewJSONSimple";
 import { IOPreviewPretty } from "./IOPreviewPretty";
+import type { SectionSkillsProps } from "./components/SectionSkills";
 import { type ChatMLParserResult } from "../../hooks/useChatMLParser";
 import { Button } from "@/src/components/ui/button";
 import { ActionButton } from "@/src/components/ActionButton";
 import { BookOpen, X } from "lucide-react";
+import type { ObservationStatusMessage } from "./components/statusMessagePresentation";
 
 export type { ViewMode };
 export type IOPreviewContentMode = "all" | "conversation";
@@ -51,8 +63,10 @@ export interface ExpansionStateProps {
 }
 
 export interface IOPreviewProps extends ExpansionStateProps {
+  skills?: SectionSkillsProps["skills"];
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
+  status?: ObservationStatusMessage;
   metadata?: Prisma.JsonValue;
   outputCorrection?: ScoreDomain;
   // Pre-parsed data (optional, from useParsedObservation hook for performance)
@@ -61,6 +75,7 @@ export interface IOPreviewProps extends ExpansionStateProps {
   parsedMetadata?: unknown;
   chatMLParserResult?: ChatMLParserResult;
   observationName?: string;
+  observationType?: ObservationType;
   isLoading?: boolean;
   isParsing?: boolean;
   hideIfNull?: boolean;
@@ -75,9 +90,6 @@ export interface IOPreviewProps extends ExpansionStateProps {
   enableInlineComments?: boolean;
   onAddInlineComment?: IOPreviewJSONProps["onAddInlineComment"];
   commentedPathsByField?: IOPreviewJSONProps["commentedPathsByField"];
-  // Whether to show metadata section in pretty view (default: false)
-  // JSON view always shows metadata
-  showMetadata?: boolean;
   // Callback to inform parent if virtualization is being used (for scroll handling)
   onVirtualizationChange?: (isVirtualized: boolean) => void;
   // For CorrectedOutputField
@@ -102,8 +114,10 @@ export interface IOPreviewProps extends ExpansionStateProps {
  * - Pre-parsed data from Web Worker eliminates duplicate parsing
  */
 export function IOPreview({
+  skills,
   input,
   output,
+  status,
   outputCorrection,
   metadata,
   parsedInput,
@@ -111,6 +125,7 @@ export function IOPreview({
   parsedMetadata,
   chatMLParserResult,
   observationName,
+  observationType,
   isLoading = false,
   isParsing = false,
   hideIfNull = false,
@@ -138,7 +153,6 @@ export function IOPreview({
   enableInlineComments,
   onAddInlineComment,
   commentedPathsByField,
-  showMetadata = false,
   onVirtualizationChange,
   observationId,
   projectId,
@@ -152,10 +166,11 @@ export function IOPreview({
 
   // View state management
   const [localCurrentView, setLocalCurrentView] = useLocalStorage<ViewMode>(
-    "jsonViewPreference",
-    "pretty",
+    JSON_VIEW_PREFERENCE_STORAGE_KEY,
+    DEFAULT_JSON_VIEW_PREFERENCE,
   );
-  const selectedView = currentView ?? localCurrentView;
+  const selectedView =
+    currentView ?? normalizeJsonViewPreference(localCurrentView);
   const showViewToggle = currentView === undefined;
 
   const [compensateScrollRef, startPreserveScroll] =
@@ -176,8 +191,10 @@ export function IOPreview({
 
   // Shared props for both view components
   const sharedProps = {
+    skills,
     input,
     output,
+    status,
     outputCorrection,
     metadata,
     parsedInput,
@@ -197,6 +214,7 @@ export function IOPreview({
     onOutputExpansionChange,
     onMetadataExpansionChange,
     observationId,
+    observationType,
     projectId,
     traceId,
     environment,
@@ -237,12 +255,12 @@ export function IOPreview({
        */}
       {selectedView === "json-beta" ? (
         <IOPreviewJSON
+          hideMetadata
           input={input}
           output={output}
-          metadata={metadata}
+          status={status}
           parsedInput={parsedInput}
           parsedOutput={parsedOutput}
-          parsedMetadata={parsedMetadata}
           outputCorrection={outputCorrection}
           isParsing={isParsing}
           hideIfNull={hideIfNull}
@@ -263,13 +281,13 @@ export function IOPreview({
         />
       ) : selectedView === "json" ? (
         <IOPreviewJSONSimple
+          hideMetadata
           input={input}
           output={output}
-          metadata={metadata}
+          status={status}
           outputCorrection={outputCorrection}
           parsedInput={parsedInput}
           parsedOutput={parsedOutput}
-          parsedMetadata={parsedMetadata}
           isLoading={isLoading}
           isParsing={isParsing}
           hideIfNull={hideIfNull}
@@ -286,12 +304,11 @@ export function IOPreview({
           projectId={projectId}
           traceId={traceId}
           environment={environment}
+          showCorrections={showCorrections}
         />
       ) : (
         <IOPreviewPretty
           {...sharedProps}
-          observationName={observationName}
-          showMetadata={showMetadata}
           contentMode={contentMode}
           showSystemPrompt={showSystemPrompt}
         />
@@ -299,7 +316,7 @@ export function IOPreview({
 
       {showEmptyState && (
         <div className="py-2">
-          <div className="relative mx-2 flex flex-col items-start gap-2 rounded-lg border border-dashed p-4">
+          <div className="relative flex flex-col items-start gap-2 rounded-lg border border-dashed p-4">
             <Button
               variant="ghost"
               size="sm"
@@ -316,17 +333,17 @@ export function IOPreview({
               }}
               title="Dismiss"
             >
-              <X className="h-3.5 w-3.5" />
+              <X className="icon-base text-icon-foreground" />
             </Button>
             <div className="flex w-full flex-row items-center gap-2 pr-6">
               <div className="bg-accent flex h-8 w-8 items-center justify-center rounded-full">
-                <BookOpen className="text-muted-foreground h-4 w-4" />
+                <BookOpen className="text-muted-foreground icon-base" />
               </div>
-              <h3 className="text-sm font-bold">
+              <h3 className="text-base font-bold">
                 Looks like this trace didn&apos;t receive an input or output.
               </h3>
             </div>
-            <p className="text-muted-foreground max-w-sm text-sm">
+            <p className="text-muted-foreground max-w-sm text-base">
               Add it in your code to make debugging a lot easier.
             </p>
             <ActionButton

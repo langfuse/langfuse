@@ -11,10 +11,16 @@
 // the word the predicate already carries ("Exactly. … is exactly …"), and the
 // field is the half users actually misread (`env`, `tps`, `-`).
 
-import { INVERTED_COMPARISON } from "./adapter";
-import type { CompareOp } from "./ast";
+import { astToFilterState, INVERTED_COMPARISON } from "./adapter";
+import type { ASTNode, CompareOp } from "./ast";
 import type { ComposerSegment, FilterSegment } from "./composer-segments";
-import { resolveField, type FieldDef, type FieldRef } from "./fields";
+import {
+  EVENTS_FIELD_REGISTRY,
+  type FieldDef,
+  type FieldRef,
+  type FieldRegistry,
+} from "./fields";
+import { parse } from "./langQ";
 
 export type TokenExplanation = {
   /** Bold lead-in: the field this token filters on. */
@@ -69,6 +75,8 @@ function subjectOf(ref: FieldRef): string {
       return ref.level === "trace"
         ? `Trace score ${quote(ref.key)}`
         : `Score ${quote(ref.key)}`;
+    case "searchScope":
+      return ref.scope.label;
     case "pseudo":
       return ref.id;
   }
@@ -185,9 +193,12 @@ function explainBoolean(field: FieldDef, seg: FilterSegment): TokenExplanation {
 }
 
 /** `has:` reads about its VALUE — the field that is (or isn't) set. */
-function explainHas(seg: FilterSegment): TokenExplanation {
+function explainHas(
+  seg: FilterSegment,
+  registry: FieldRegistry,
+): TokenExplanation {
   const labels = seg.values.map((value) => {
-    const ref = resolveField(value);
+    const ref = registry.resolveField(value);
     return ref === null ? value : subjectOf(ref);
   });
   const verb = labels.length > 1 ? "are" : "is";
@@ -203,17 +214,41 @@ const KEYWORDS: Record<string, TokenExplanation> = {
   NOT: { subject: "NOT", predicate: "— excludes the filter that follows." },
 };
 
+function hasCompatibilityScope(ast: ASTNode, registry: FieldRegistry): boolean {
+  if (ast.kind === "and")
+    return ast.children.some((node) => hasCompatibilityScope(node, registry));
+  const ref = ast.kind === "filter" ? registry.resolveField(ast.key) : null;
+  return ref?.type === "pseudo" && ref.id === "in";
+}
+
 /**
  * Explain one token in plain language, or null when there is nothing useful to
  * say (parentheses, an unknown field, an invalid token — those carry their own
  * diagnostic).
  */
-export function explainSegment(seg: ComposerSegment): TokenExplanation | null {
+export function explainSegment(
+  seg: ComposerSegment,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
+  queryText?: string,
+): TokenExplanation | null {
   switch (seg.kind) {
     case "filter": {
-      const ref = resolveField(seg.displayField);
+      const ref = registry.resolveField(seg.displayField);
       if (ref === null) return null;
-      if (ref.type === "pseudo") return explainHas(seg);
+      if (ref.type === "pseudo") {
+        return ref.id === "has"
+          ? explainHas(seg, registry)
+          : {
+              subject: "Search scope",
+              predicate: `uses ${seg.values.join(" or ")}.`,
+            };
+      }
+      if (ref.type === "searchScope") {
+        return {
+          subject: ref.scope.label,
+          predicate: `— ${ref.scope.description} for ${quote(seg.values[0] ?? "")}.`,
+        };
+      }
       if (ref.type === "field" && ref.field.kind === "boolean") {
         return explainBoolean(ref.field, seg);
       }
@@ -222,11 +257,46 @@ export function explainSegment(seg: ComposerSegment): TokenExplanation | null {
         predicate: `${predicateOf(ref, seg)}.`,
       };
     }
-    case "freeText":
+    case "freeText": {
+      const parsed = parse(seg.raw, registry);
+      const lowered = astToFilterState(parsed.ast, undefined, registry);
+      if (!registry.allowFreeText && registry.defaultTextField !== null) {
+        const ref = registry.resolveField(registry.defaultTextField);
+        const filter = lowered.filters[0];
+        if (
+          ref?.type !== "field" ||
+          !parsed.valid ||
+          lowered.errors.length > 0 ||
+          filter?.type !== "string"
+        )
+          return null;
+        return {
+          subject: ref.field.label,
+          predicate: `${filter.operator} ${quote(filter.value)}.`,
+        };
+      }
+      const phrase = quote(lowered.searchQuery ?? seg.raw.trim());
+      if (queryText !== undefined) {
+        const query = parse(queryText, registry);
+        if (
+          query.valid &&
+          query.ast !== null &&
+          hasCompatibilityScope(query.ast, registry) &&
+          astToFilterState(query.ast, undefined, registry).errors.length === 0
+        ) {
+          return {
+            subject: "Full-text search",
+            predicate: `for ${phrase} — uses the scope selected by in:.`,
+          };
+        }
+      }
       return {
         subject: "Full-text search",
-        predicate: `for ${quote(seg.raw.trim())} — matches id, name, input and output.`,
+        predicate: registry.freeTextScopeLabel
+          ? `for ${phrase} — matches ${registry.freeTextScopeLabel}.`
+          : `for ${phrase}.`,
       };
+    }
     case "operator":
       return KEYWORDS[seg.raw.toUpperCase()] ?? null;
     default:

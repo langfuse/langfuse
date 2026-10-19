@@ -1,0 +1,43 @@
+[package]
+name = "langfuse-native"
+version = "0.0.0"
+edition = "2021"
+# holomap requires Rust 1.93.
+rust-version = "1.93"
+license = "MIT"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+aho-corasick = "1.1"
+base64 = { version = "0.23.1", features = ["simd-unsafe"] }
+chrono = { version = "0.4", default-features = false, features = ["alloc", "std"] }
+ch-core-rs = { git = "https://github.com/ClickHouse/ch-core-rs.git", rev = "afb8f67cb71a810b83fac9c7b5a43173589e56c1" }
+hdbscan-rs = { version = "=0.6.1", default-features = false }
+getrandom = "0.3"
+memchr = "2"
+holomap = { version = "=0.3.0", default-features = false }
+metrics = "0.24"
+metrics-exporter-dogstatsd = "0.9"
+napi = { version = "3", default-features = false, features = ["napi9"] }
+napi-derive = "3"
+ndarray = "0.16"
+jiter = { version = "=0.17.0", default-features = false }
+rust_decimal = { version = "1.37.2", default-features = false, features = ["std"] }
+serde = "1"
+serde_json = { version = "1", features = ["float_roundtrip", "raw_value"] }
+sha2 = { version = "0.10", features = ["asm"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+[dev-dependencies]
+proptest = { version = "1", default-features = false, features = ["std"] }
+
+[build-dependencies]
+napi-build = "2"
+
+[profile.release]
+lto = true
+strip = "symbols"

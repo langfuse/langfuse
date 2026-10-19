@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 // Search-bar query language: tolerant hand-rolled lexer + recursive-descent
 // parser and the canonical serializer.
 //
@@ -6,7 +7,8 @@
 //   orExpr    := andExpr (OR andExpr)*
 //   andExpr   := unary ((AND)? unary)*            -- implicit AND on adjacency
 //   unary     := NOT unary | '-'term | '(' expr ')' | term
-//   term      := key ':' valueExpr | freeText
+//   term      := (target '.')? key ':' valueExpr | freeText
+//   target    := quotedName | hostKeyword        -- registry capability only
 //   valueExpr := ('>'|'<'|'>='|'<=') scalar | '=' scalar | globValue | '(' value (OR value)* ')'
 //   globValue := value with optional leading/trailing '*' wildcards:
 //                'v*' starts-with, '*v' ends-with, '*v*' contains, 'v' default
@@ -17,14 +19,18 @@
 // Langfuse filter contract can represent (e.g. cross-field OR) — those forms
 // are rejected with targeted messages in validate.ts, not here.
 
+import { readTargetPrefix, serializeTarget } from "./targeting";
 import type { ASTNode, CompareOp, FilterNode, Span, TextNode } from "./ast";
-import { canonicalKey, operatorIssue, resolveField } from "./fields";
+import {
+  canonicalKey,
+  EVENTS_FIELD_REGISTRY,
+  operatorIssue,
+  type FieldRegistry,
+} from "./fields";
 import { NEEDS_QUOTES, quote, unquote } from "./quoting";
 
 // Re-exported for back-compat: quoting primitives now live in the shared
 // dependency-free `quoting.ts` (so `fields.ts` can use them too).
-export { NEEDS_QUOTES };
-
 export type Diagnostic = {
   from: number;
   to: number;
@@ -261,6 +267,49 @@ function parseTermNode(
   raw: string,
   span: Span,
   diagnostics: Diagnostic[],
+  registry: FieldRegistry,
+): FilterNode | TextNode {
+  const prefix = readTargetPrefix(raw, registry);
+  if (!prefix) return parseUnscopedTermNode(raw, span, diagnostics, registry);
+  const fieldRaw = raw.slice(prefix.length);
+  const fieldSpan = { from: span.from + prefix.length, to: span.to };
+  const node = parseUnscopedTermNode(
+    fieldRaw,
+    fieldSpan,
+    diagnostics,
+    registry,
+  );
+  if (node.kind !== "filter") {
+    diagnostics.push({
+      ...span,
+      severity: "error",
+      message: "Incomplete targeted filter — choose a field and value",
+    });
+    return {
+      kind: "filter",
+      key: fieldRaw,
+      rawKey: fieldRaw,
+      values: [],
+      op: "=",
+      target: {
+        ...prefix.target,
+        span: { from: span.from, to: fieldSpan.from },
+      },
+      span,
+    };
+  }
+  return {
+    ...node,
+    target: { ...prefix.target, span: { from: span.from, to: fieldSpan.from } },
+    span,
+  };
+}
+
+function parseUnscopedTermNode(
+  raw: string,
+  span: Span,
+  diagnostics: Diagnostic[],
+  registry: FieldRegistry,
 ): FilterNode | TextNode {
   const reserved = reservedTokenIssue(raw);
   if (reserved !== null) {
@@ -282,7 +331,7 @@ function parseTermNode(
 
   const keyRaw = raw.slice(0, colon);
   const valueRaw = raw.slice(colon + 1);
-  const ref = keyRaw.length === 0 ? null : resolveField(keyRaw);
+  const ref = keyRaw.length === 0 ? null : registry.resolveField(keyRaw);
 
   if (ref === null) {
     diagnostics.push({
@@ -560,7 +609,10 @@ function parseGroupedValues(
 
 // ---- parser ----
 
-export function parse(input: string): ParseResult {
+export function parse(
+  input: string,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
+): ParseResult {
   const diagnostics: Diagnostic[] = [];
   const tokens = lex(input, diagnostics);
   let pos = 0;
@@ -645,6 +697,45 @@ export function parse(input: string): ParseResult {
         }
       }
       const node = parseUnary();
+      const suffix = peek();
+      if (
+        registry.targeting &&
+        suffix?.type === "term" &&
+        suffix.raw.startsWith("@")
+      ) {
+        let filter: FilterNode | null = null;
+        if (node?.kind === "filter") {
+          filter = node;
+        } else if (node?.kind === "not" && node.child.kind === "filter") {
+          filter = node.child;
+        }
+
+        if (filter && !node?.parenSpan && !filter.parenSpan) {
+          next();
+          if (filter.target) {
+            diagnostics.push({
+              ...suffix.span,
+              severity: "error",
+              message: "A filter can only have one experiment target",
+            });
+          }
+          const raw = suffix.raw.slice(1);
+          const decoded = unquote(raw);
+          filter.target = {
+            kind: decoded.quoted ? "name" : "keyword",
+            value: decoded.value,
+            span: suffix.span,
+          };
+          if (!decoded.value)
+            diagnostics.push({
+              ...suffix.span,
+              severity: "error",
+              message: "Missing target after @",
+            });
+          if (filter.span) filter.span.to = suffix.span.to;
+          if (node?.kind === "not" && node.span) node.span.to = suffix.span.to;
+        }
+      }
       if (node !== null) children.push(node);
     }
     if (children.length === 0) return null;
@@ -733,13 +824,14 @@ export function parse(input: string): ParseResult {
         severity: "error",
         message: "Negation (-) only applies to field filters, e.g. -env:dev",
       });
-      return parseTermNode(t.raw, t.span, diagnostics);
+      return parseTermNode(t.raw, t.span, diagnostics, registry);
     }
     if (t.raw.startsWith("-") && t.raw.length > 1) {
       const inner = parseTermNode(
         t.raw.slice(1),
         { from: t.span.from + 1, to: t.span.to },
         diagnostics,
+        registry,
       );
       if (inner.kind === "text") {
         // "-foo" as free text would be a negated search term; not supported.
@@ -753,7 +845,7 @@ export function parse(input: string): ParseResult {
       }
       return { kind: "not", child: inner, span: t.span };
     }
-    return parseTermNode(t.raw, t.span, diagnostics);
+    return parseTermNode(t.raw, t.span, diagnostics, registry);
   }
 
   let ast = parseOr();
@@ -870,7 +962,12 @@ const OP_SYMBOL: Partial<Record<CompareOp, string>> = {
   "<=": "<=",
 };
 
-export function serializeFilter(node: FilterNode): string {
+function serializeFilter(node: FilterNode): string {
+  const text = serializeBareFilter(node);
+  return node.target ? `${serializeTarget(node.target)}${text}` : text;
+}
+
+function serializeBareFilter(node: FilterNode): string {
   // Prefer the user's typed key (alias/casing) — surgery fallbacks shouldn't
   // canonicalize untouched filters.
   const key = node.rawKey ?? node.key;
@@ -881,8 +978,15 @@ export function serializeFilter(node: FilterNode): string {
   // Text-match ops render as positional `*` globs around the value.
   if (node.op === "~" || node.op === "^" || node.op === "$") {
     const v = serializeValue(node.values[0] ?? "");
-    const wrapped =
-      node.op === "~" ? `*${v}*` : node.op === "^" ? `${v}*` : `*${v}`;
+    const wrapped = (() => {
+      if (node.op === "~") {
+        return `*${v}*`;
+      }
+      if (node.op === "^") {
+        return `${v}*`;
+      }
+      return `*${v}`;
+    })();
     return `${key}:${wrapped}`;
   }
   return `${key}:${OP_SYMBOL[node.op] ?? ""}${node.values.map(serializeValue).join(",")}`;
@@ -891,7 +995,7 @@ export function serializeFilter(node: FilterNode): string {
 function sameFieldOrGroup(node: ASTNode): FilterNode[] | null {
   if (node.kind !== "or") return null;
   const filters = node.children.filter(
-    (c): c is FilterNode => c.kind === "filter",
+    (c): c is FilterNode => c.kind === "filter" && !c.target,
   );
   if (filters.length !== node.children.length || filters.length < 2)
     return null;
@@ -924,8 +1028,12 @@ function serializeSameFieldOr(filters: FilterNode[], negated = false): string {
 // free-text word (part of a multi-word phrase like `type error`): those must
 // NOT be quoted per-word, or the phrase corrupts to `"type" error`. Mirror
 // invariant with validate.ts's standalone-field-token check.
-function serializeText(node: TextNode, phraseInternal: boolean): string {
-  if (!phraseInternal && resolveField(node.value) !== null) {
+function serializeText(
+  node: TextNode,
+  phraseInternal: boolean,
+  registry: FieldRegistry,
+): string {
+  if (!phraseInternal && registry.resolveField(node.value) !== null) {
     return quote(node.value);
   }
   // Otherwise route through serializeValue so bare keywords (AND/OR/NOT) and
@@ -933,22 +1041,25 @@ function serializeText(node: TextNode, phraseInternal: boolean): string {
   return serializeValue(node.value);
 }
 
-export function serialize(ast: ASTNode | null): string {
+export function serialize(
+  ast: ASTNode | null,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
+): string {
   if (ast === null) return "";
   switch (ast.kind) {
     case "filter":
       return serializeFilter(ast);
     case "text":
       // A top-level lone text node is standalone by definition.
-      return serializeText(ast, false);
+      return serializeText(ast, false, registry);
     case "not": {
       const child = ast.child;
       if (child.kind === "filter") return `-${serializeFilter(child)}`;
       const sameField = sameFieldOrGroup(child);
       if (sameField !== null) return serializeSameFieldOr(sameField, true);
-      if (child.kind === "not") return `NOT (${serialize(child)})`;
-      if (child.kind === "text") return `NOT ${serialize(child)}`;
-      return `NOT (${serialize(child)})`;
+      if (child.kind === "not") return `NOT (${serialize(child, registry)})`;
+      if (child.kind === "text") return `NOT ${serialize(child, registry)}`;
+      return `NOT (${serialize(child, registry)})`;
     }
     case "and":
       // Nested groups keep their parens: OR for precedence, AND so the
@@ -958,10 +1069,10 @@ export function serialize(ast: ASTNode | null): string {
         .map((c, i) => {
           if (c.kind === "or") {
             return sameFieldOrGroup(c) !== null
-              ? serialize(c)
-              : `(${serialize(c)})`;
+              ? serialize(c, registry)
+              : `(${serialize(c, registry)})`;
           }
-          if (c.kind === "and") return `(${serialize(c)})`;
+          if (c.kind === "and") return `(${serialize(c, registry)})`;
           // A text child glued to a text sibling is part of a phrase — don't
           // force-quote a field-name word inside it (see serializeText).
           if (c.kind === "text") {
@@ -969,9 +1080,9 @@ export function serialize(ast: ASTNode | null): string {
             const phraseInternal =
               children[i - 1]?.kind === "text" ||
               children[i + 1]?.kind === "text";
-            return serializeText(c, phraseInternal);
+            return serializeText(c, phraseInternal, registry);
           }
-          return serialize(c);
+          return serialize(c, registry);
         })
         .join(" ");
     case "or": {
@@ -981,7 +1092,11 @@ export function serialize(ast: ASTNode | null): string {
       // chain flattens on reparse; AND children reparse correctly bare
       // (implicit AND binds tighter than OR).
       return ast.children
-        .map((c) => (c.kind === "or" ? `(${serialize(c)})` : serialize(c)))
+        .map((c) =>
+          c.kind === "or"
+            ? `(${serialize(c, registry)})`
+            : serialize(c, registry),
+        )
         .join(" OR ");
     }
   }

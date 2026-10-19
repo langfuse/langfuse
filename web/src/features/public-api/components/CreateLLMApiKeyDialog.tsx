@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger */
+/* eslint-disable @repo/no-abstracted-overlay-trigger, @repo/no-null-render */
 import { PlusIcon } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -8,9 +8,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
+import { useUiCustomization } from "@/src/ee/features/ui-customization";
 import { CreateLLMApiKeyForm } from "@/src/features/public-api/components/CreateLLMApiKeyForm";
 
 export function CreateLLMApiKeyDialog({
@@ -36,7 +36,7 @@ export function CreateLLMApiKeyDialog({
   });
   const uiCustomization = useUiCustomization();
 
-  if (!hasAccess) return null;
+  if (!projectId || !hasAccess) return null;
 
   return (
     <Dialog
@@ -48,7 +48,7 @@ export function CreateLLMApiKeyDialog({
       {!hideTrigger && (
         <DialogTrigger asChild>
           <Button variant="secondary">
-            <PlusIcon className="mr-1.5 -ml-0.5 h-5 w-5" aria-hidden="true" />
+            <PlusIcon className="icon-base mr-1.5 -ml-0.5" aria-hidden="true" />
             Add LLM Connection
           </Button>
         </DialogTrigger>
@@ -59,7 +59,7 @@ export function CreateLLMApiKeyDialog({
         </DialogHeader>
         {open && (
           <CreateLLMApiKeyForm
-            projectId={projectId}
+            owner={{ scope: "project", projectId }}
             onSuccess={() => setOpen(false)}
             customization={uiCustomization}
           />

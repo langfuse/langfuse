@@ -1,0 +1,267 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`golden: events.getEventsExactFilterOptionsForColumns > scope=scoredTraces — project + scores.timestamp window semi-join 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": 1000,
+      "param2": "golden-project",
+      "param3": "2026-01-01 00:00:00.000",
+      "param4": "2026-01-01 00:30:00.000",
+    },
+    "route": "unknown",
+    "sql": "WITH
+    aggregated_options AS
+    (
+        SELECT
+            sumMapIf(
+                [toString(ifNull(e.user_id, ''))],
+                [toUInt64(1)],
+                (e.user_id IS NOT NULL) AND (length(e.user_id) > 0)
+            ) AS userId_hist,
+            arraySort(
+                pair -> tuple(-toInt64(tupleElement(pair, 2)), tupleElement(pair, 1)),
+                arrayZip(tupleElement(userId_hist, 1), tupleElement(userId_hist, 2))
+            ) AS userId_ranked,
+            arraySlice(userId_ranked, 1, {param1:UInt64}) AS userIdTopOptions,
+            sumMapIf(
+                [tuple(toString(ifNull(e.experiment_id, '')), toString(ifNull(e.experiment_name, '')))],
+                [toUInt64(1)],
+                (e.experiment_id IS NOT NULL) AND (length(e.experiment_id) > 0)
+            ) AS experimentId_hist,
+            arraySort(
+                pair -> tuple(-toInt64(tupleElement(pair, 2)), tupleElement(pair, 1)),
+                arrayZip(tupleElement(experimentId_hist, 1), tupleElement(experimentId_hist, 2))
+            ) AS experimentId_ranked,
+            arraySlice(experimentId_ranked, 1, {param1:UInt64}) AS experimentIdTopOptions,
+            sumMap(
+                arrayMap(
+                    value -> toString(value),
+                    arrayFilter(value -> (length(toString(value)) > 0), arrayDistinct(e.tags))
+                ),
+                arrayMap(
+                    value -> toUInt64(1),
+                    arrayFilter(value -> (length(toString(value)) > 0), arrayDistinct(e.tags))
+                )
+            ) AS traceTags_hist,
+            arraySort(
+                pair -> tupleElement(pair, 1),
+                arrayZip(tupleElement(traceTags_hist, 1), tupleElement(traceTags_hist, 2))
+            ) AS traceTags_ranked,
+            arraySlice(traceTags_ranked, 1, {param1:UInt64}) AS traceTagsTopOptions,
+            arrayFilter(
+                option -> (tupleElement(option, 2) > 0),
+                [
+                    tuple('false', countIf(NOT ((e.parent_span_id = '') OR (e.is_app_root = true))), toUInt64(0)),
+                    tuple('true', countIf((e.parent_span_id = '') OR (e.is_app_root = true)), toUInt64(0))
+                ]
+            ) AS isRootObservationTopOptions,
+            any(e._sample_factor) AS sample_factor
+        FROM events_core AS e
+        SAMPLE 6000000
+        WHERE (e.project_id = {param2:String}) AND (e.trace_id IN (
+            SELECT DISTINCT trace_id
+            FROM scores
+            WHERE (project_id = {param2:String}) AND (timestamp >= {param3:DateTime64(3, 'UTC')}) AND (timestamp <= {param4:DateTime64(3, 'UTC')})
+        ))
+    ),
+    option_rows AS
+    (
+        SELECT
+            arrayJoin(
+                arrayConcat(
+                    arrayMap(
+                        option -> CAST(
+                            tuple(
+                                'userId',
+                                tupleElement(option, 1),
+                                tupleElement(option, 2),
+                                -toInt64(tupleElement(option, 2)),
+                                ''
+                            ),
+                            'Tuple(column String, value String, count UInt64, sortKey Int64, displayValue String)'
+                        ),
+                        userIdTopOptions
+                    ),
+                    arrayMap(
+                        option -> CAST(
+                            tuple(
+                                'experimentId',
+                                tupleElement(tupleElement(option, 1), 1),
+                                tupleElement(option, 2),
+                                -toInt64(tupleElement(option, 2)),
+                                tupleElement(tupleElement(option, 1), 2)
+                            ),
+                            'Tuple(column String, value String, count UInt64, sortKey Int64, displayValue String)'
+                        ),
+                        experimentIdTopOptions
+                    ),
+                    arrayMap(
+                        option -> CAST(
+                            tuple('traceTags', tupleElement(option, 1), tupleElement(option, 2), toInt64(0), ''),
+                            'Tuple(column String, value String, count UInt64, sortKey Int64, displayValue String)'
+                        ),
+                        traceTagsTopOptions
+                    ),
+                    arrayMap(
+                        option -> CAST(
+                            tuple(
+                                'isRootObservation',
+                                tupleElement(option, 1),
+                                tupleElement(option, 2),
+                                if(tupleElement(option, 1) = 'true', toInt64(1), toInt64(0)),
+                                ''
+                            ),
+                            'Tuple(column String, value String, count UInt64, sortKey Int64, displayValue String)'
+                        ),
+                        isRootObservationTopOptions
+                    )
+                )
+            ) AS option,
+            sample_factor
+        FROM aggregated_options
+    )
+SELECT
+    option.column AS column,
+    option.value AS value,
+    toUInt64(round(option.count * sample_factor)) AS count,
+    option.displayValue AS displayValue
+FROM option_rows
+ORDER BY
+    column ASC,
+    option.sortKey ASC,
+    option.value ASC",
+  },
+]
+`;
+
+exports[`golden: events.getEventsExactFilterOptionsForColumns > scope=unset — project-only WHERE, no scores semi-join 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": 1000,
+      "param2": "golden-project",
+    },
+    "route": "unknown",
+    "sql": "WITH
+    aggregated_options AS
+    (
+        SELECT
+            sumMapIf(
+                [toString(ifNull(e.user_id, ''))],
+                [toUInt64(1)],
+                (e.user_id IS NOT NULL) AND (length(e.user_id) > 0)
+            ) AS userId_hist,
+            arraySort(
+                pair -> tuple(-toInt64(tupleElement(pair, 2)), tupleElement(pair, 1)),
+                arrayZip(tupleElement(userId_hist, 1), tupleElement(userId_hist, 2))
+            ) AS userId_ranked,
+            arraySlice(userId_ranked, 1, {param1:UInt64}) AS userIdTopOptions,
+            sumMapIf(
+                [tuple(toString(ifNull(e.experiment_id, '')), toString(ifNull(e.experiment_name, '')))],
+                [toUInt64(1)],
+                (e.experiment_id IS NOT NULL) AND (length(e.experiment_id) > 0)
+            ) AS experimentId_hist,
+            arraySort(
+                pair -> tuple(-toInt64(tupleElement(pair, 2)), tupleElement(pair, 1)),
+                arrayZip(tupleElement(experimentId_hist, 1), tupleElement(experimentId_hist, 2))
+            ) AS experimentId_ranked,
+            arraySlice(experimentId_ranked, 1, {param1:UInt64}) AS experimentIdTopOptions,
+            sumMap(
+                arrayMap(
+                    value -> toString(value),
+                    arrayFilter(value -> (length(toString(value)) > 0), arrayDistinct(e.tags))
+                ),
+                arrayMap(
+                    value -> toUInt64(1),
+                    arrayFilter(value -> (length(toString(value)) > 0), arrayDistinct(e.tags))
+                )
+            ) AS traceTags_hist,
+            arraySort(
+                pair -> tupleElement(pair, 1),
+                arrayZip(tupleElement(traceTags_hist, 1), tupleElement(traceTags_hist, 2))
+            ) AS traceTags_ranked,
+            arraySlice(traceTags_ranked, 1, {param1:UInt64}) AS traceTagsTopOptions,
+            arrayFilter(
+                option -> (tupleElement(option, 2) > 0),
+                [
+                    tuple('false', countIf(NOT ((e.parent_span_id = '') OR (e.is_app_root = true))), toUInt64(0)),
+                    tuple('true', countIf((e.parent_span_id = '') OR (e.is_app_root = true)), toUInt64(0))
+                ]
+            ) AS isRootObservationTopOptions,
+            any(e._sample_factor) AS sample_factor
+        FROM events_core AS e
+        SAMPLE 6000000
+        WHERE e.project_id = {param2:String}
+    ),
+    option_rows AS
+    (
+        SELECT
+            arrayJoin(
+                arrayConcat(
+                    arrayMap(
+                        option -> CAST(
+                            tuple(
+                                'userId',
+                                tupleElement(option, 1),
+                                tupleElement(option, 2),
+                                -toInt64(tupleElement(option, 2)),
+                                ''
+                            ),
+                            'Tuple(column String, value String, count UInt64, sortKey Int64, displayValue String)'
+                        ),
+                        userIdTopOptions
+                    ),
+                    arrayMap(
+                        option -> CAST(
+                            tuple(
+                                'experimentId',
+                                tupleElement(tupleElement(option, 1), 1),
+                                tupleElement(option, 2),
+                                -toInt64(tupleElement(option, 2)),
+                                tupleElement(tupleElement(option, 1), 2)
+                            ),
+                            'Tuple(column String, value String, count UInt64, sortKey Int64, displayValue String)'
+                        ),
+                        experimentIdTopOptions
+                    ),
+                    arrayMap(
+                        option -> CAST(
+                            tuple('traceTags', tupleElement(option, 1), tupleElement(option, 2), toInt64(0), ''),
+                            'Tuple(column String, value String, count UInt64, sortKey Int64, displayValue String)'
+                        ),
+                        traceTagsTopOptions
+                    ),
+                    arrayMap(
+                        option -> CAST(
+                            tuple(
+                                'isRootObservation',
+                                tupleElement(option, 1),
+                                tupleElement(option, 2),
+                                if(tupleElement(option, 1) = 'true', toInt64(1), toInt64(0)),
+                                ''
+                            ),
+                            'Tuple(column String, value String, count UInt64, sortKey Int64, displayValue String)'
+                        ),
+                        isRootObservationTopOptions
+                    )
+                )
+            ) AS option,
+            sample_factor
+        FROM aggregated_options
+    )
+SELECT
+    option.column AS column,
+    option.value AS value,
+    toUInt64(round(option.count * sample_factor)) AS count,
+    option.displayValue AS displayValue
+FROM option_rows
+ORDER BY
+    column ASC,
+    option.sortKey ASC,
+    option.value ASC",
+  },
+]
+`;

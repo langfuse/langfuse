@@ -1,9 +1,11 @@
+/* eslint-disable @repo/component-file-structure */
 import {
   BookOpen,
   LockIcon,
   MessageSquareText,
   Settings,
   Users,
+  PlusIcon,
 } from "lucide-react";
 import {
   Card,
@@ -16,11 +18,10 @@ import {
 import { Separator } from "@/src/components/ui/separator";
 import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
-import { PlusIcon } from "lucide-react";
 import Link from "next/link";
 import { StringParam, useQueryParams } from "use-query-params";
 import { Input } from "@/src/components/ui/input";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useHasOrganizationAccess } from "@/src/features/rbac";
 import { env } from "@/src/env.mjs";
 import { Fragment } from "react";
 import { useRouter } from "next/router";
@@ -28,18 +29,23 @@ import { useSession } from "next-auth/react";
 import {
   createOrganizationRoute,
   createProjectRoute,
-} from "@/src/features/setup/setupRoutes";
+} from "@/src/features/setup";
 import { isCloudPlan, planLabels } from "@langfuse/shared";
 import ContainerPage from "@/src/components/layouts/container-page";
 import { type Session } from "next-auth";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { AgentToolsBanner } from "@/src/features/developer-tools/components/AgentToolsBanner";
-import { V4MigrationBanner } from "@/src/features/v4-migration/V4MigrationBanner";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { AgentToolsBanner } from "@/src/features/developer-tools";
+import {
+  V4MigrationBanner,
+  useV4MigrationBannerState,
+} from "@/src/features/v4-migration/V4MigrationBanner";
 import { V4MigrationProjectChip } from "@/src/features/v4-migration/V4MigrationProjectChip";
 import { api } from "@/src/utils/api";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { useAccountV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
+import { getProjectMigrationReadiness } from "@/src/features/v4-migration/migrationData";
+import { ErrorPage } from "@/src/components/error-page";
 
 const OrganizationProjectTiles = ({
   org,
@@ -71,8 +77,13 @@ const OrganizationProjectTiles = ({
         .filter(
           (p) => !search || p.name.toLowerCase().includes(search.toLowerCase()),
         )
-        .map((project) =>
-          v4UpgradeUiEnabled ? (
+        .map((project) => {
+          const migrationStatus = migrationStatusByProjectId.get(project.id);
+          const migrationReadiness = migrationStatus
+            ? getProjectMigrationReadiness(migrationStatus)
+            : "checking";
+
+          return v4UpgradeUiEnabled ? (
             <Card
               key={project.id}
               className="group hover:bg-muted/50 relative transition-colors"
@@ -92,12 +103,14 @@ const OrganizationProjectTiles = ({
                   >
                     {project.name}
                   </CardTitle>
-                  {!project.deletedAt && (
-                    <V4MigrationProjectChip
-                      project={{ id: project.id, name: project.name }}
-                      status={migrationStatusByProjectId.get(project.id)}
-                    />
-                  )}
+                  {!project.deletedAt &&
+                    (migrationReadiness === "action-needed" ||
+                      migrationReadiness === "partner-managed") && (
+                      <V4MigrationProjectChip
+                        project={{ id: project.id, name: project.name }}
+                        readiness={migrationReadiness}
+                      />
+                    )}
                 </div>
               </CardHeader>
               {!project.deletedAt && (
@@ -136,7 +149,7 @@ const OrganizationProjectTiles = ({
                   </Button>
                   <Button asChild variant="ghost">
                     <Link href={`/project/${project.id}/settings`}>
-                      <Settings size={16} />
+                      <Settings className="icon-base text-icon-foreground" />
                     </Link>
                   </Button>
                 </CardFooter>
@@ -146,8 +159,8 @@ const OrganizationProjectTiles = ({
                 </CardContent>
               )}
             </Card>
-          ),
-        )}
+          );
+        })}
     </div>
   );
 };
@@ -202,26 +215,26 @@ const OrganizationActionButtons = ({
     <>
       <Button asChild variant="ghost">
         <Link href={`/organization/${orgId}/settings`}>
-          <Settings size={14} />
+          <Settings className="icon-base text-icon-foreground" />
         </Link>
       </Button>
       {membersViewAccess && (
         <Button asChild variant="ghost">
           <Link href={`/organization/${orgId}/settings/members`}>
-            <Users size={14} />
+            <Users className="icon-base text-icon-foreground" />
           </Link>
         </Button>
       )}
       {createProjectAccess ? (
         <Button asChild variant={primaryButtonVariant}>
           <Link href={createProjectRoute(orgId)}>
-            <PlusIcon className="mr-2 h-4 w-4" aria-hidden="true" />
+            <PlusIcon className="icon-base mr-2" aria-hidden="true" />
             New project
           </Link>
         </Button>
       ) : (
         <Button disabled variant={primaryButtonVariant}>
-          <LockIcon className="mr-2 h-4 w-4" aria-hidden="true" />
+          <LockIcon className="icon-base mr-2" aria-hidden="true" />
           New project
         </Button>
       )}
@@ -230,21 +243,14 @@ const OrganizationActionButtons = ({
 };
 
 const SingleOrganizationPage = ({
-  orgId,
+  org,
   search,
 }: {
-  orgId: string;
+  org: NonNullable<Session["user"]>["organizations"][number];
   search?: string;
 }) => {
-  const session = useSession();
-  const org = session.data?.user?.organizations.find((o) => o.id === orgId);
-
-  if (!org) {
-    return null;
-  }
-
   const isDemoOrg =
-    env.NEXT_PUBLIC_DEMO_ORG_ID === orgId &&
+    env.NEXT_PUBLIC_DEMO_ORG_ID === org.id &&
     org.projects.some((p) => p.id === env.NEXT_PUBLIC_DEMO_PROJECT_ID);
 
   if (isDemoOrg) {
@@ -262,8 +268,8 @@ const SingleOrganizationPage = ({
   return (
     <ContainerPage
       headerProps={{
-        title: org?.name ?? "Organization",
-        actionButtonsRight: <OrganizationActionButtons orgId={orgId} />,
+        title: org.name,
+        actionButtonsRight: <OrganizationActionButtons orgId={org.id} />,
       }}
     >
       <OrganizationProjectTiles org={org} search={search} />
@@ -272,38 +278,31 @@ const SingleOrganizationPage = ({
 };
 
 const SingleOrganizationProjectOverviewTile = ({
-  orgId,
+  org,
   search,
 }: {
-  orgId: string;
+  org: NonNullable<Session["user"]>["organizations"][number];
   search?: string;
 }) => {
-  const session = useSession();
-  const org = session.data?.user?.organizations.find((o) => o.id === orgId);
-
-  if (!org) {
-    return null;
-  }
-
   const isDemoOrg =
-    env.NEXT_PUBLIC_DEMO_ORG_ID === orgId &&
+    env.NEXT_PUBLIC_DEMO_ORG_ID === org.id &&
     org.projects.some((p) => p.id === env.NEXT_PUBLIC_DEMO_PROJECT_ID);
 
   if (isDemoOrg) {
     return (
-      <div key={orgId}>
+      <div key={org.id}>
         <DemoOrganizationTile />
       </div>
     );
   }
 
   return (
-    <div key={orgId}>
+    <div key={org.id}>
       <Header
         title={org.name}
         className="truncate"
         labelBadge={
-          orgId === env.NEXT_PUBLIC_DEMO_ORG_ID ? "Demo Org" : undefined
+          org.id === env.NEXT_PUBLIC_DEMO_ORG_ID ? "Demo Org" : undefined
         }
         label={
           isCloudPlan(org.plan)
@@ -315,7 +314,7 @@ const SingleOrganizationProjectOverviewTile = ({
         }
         actionButtons={
           <OrganizationActionButtons
-            orgId={orgId}
+            orgId={org.id}
             primaryButtonVariant="secondary"
           />
         }
@@ -333,6 +332,7 @@ export const OrganizationProjectOverview = () => {
   const canCreateOrg = session.data?.user?.canCreateOrganizations;
   const organizations = session.data?.user?.organizations;
   const [{ search }, setQueryParams] = useQueryParams({ search: StringParam });
+  const v4MigrationBannerState = useV4MigrationBannerState(v4UpgradeUiEnabled);
 
   if (organizations === undefined) {
     return "loading...";
@@ -346,12 +346,15 @@ export const OrganizationProjectOverview = () => {
     const org = organizations.find((org) => org.id === queryOrgId);
 
     if (!org) {
-      return null;
+      return (
+        <ErrorPage
+          title="Organization not found"
+          message="This organization does not exist or you do not have access to it."
+        />
+      );
     }
 
-    return (
-      <SingleOrganizationPage orgId={org.id} search={search ?? undefined} />
-    );
+    return <SingleOrganizationPage org={org} search={search ?? undefined} />;
   }
 
   return (
@@ -379,7 +382,10 @@ export const OrganizationProjectOverview = () => {
             {canCreateOrg && (
               <Button data-testid="create-organization-btn" asChild>
                 <Link href={createOrganizationRoute}>
-                  <PlusIcon className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                  <PlusIcon
+                    className="icon-base text-icon-foreground mr-1.5"
+                    aria-hidden="true"
+                  />
                   New Organization
                 </Link>
               </Button>
@@ -388,7 +394,18 @@ export const OrganizationProjectOverview = () => {
         ),
       }}
     >
-      {v4UpgradeUiEnabled ? <V4MigrationBanner /> : <AgentToolsBanner />}
+      {v4UpgradeUiEnabled ? (
+        v4MigrationBannerState.projectsNeedingMigration > 0 && (
+          <V4MigrationBanner
+            projectsNeedingMigration={
+              v4MigrationBannerState.projectsNeedingMigration
+            }
+            totalProjects={v4MigrationBannerState.totalProjects}
+          />
+        )
+      ) : (
+        <AgentToolsBanner />
+      )}
       {showOnboarding && <Onboarding />}
       {organizations
         .map((org) => {
@@ -406,7 +423,7 @@ export const OrganizationProjectOverview = () => {
               {!queryOrgId && isDemo && <Separator className="my-8" />}
               <div key={org.id} className={index > 0 && !isDemo ? "mt-8" : ""}>
                 <SingleOrganizationProjectOverviewTile
-                  orgId={org.id}
+                  org={org}
                   search={search ?? undefined}
                 />
               </div>
@@ -438,20 +455,20 @@ const Onboarding = () => {
         {canCreateOrgs && (
           <Button data-testid="create-project-btn" asChild>
             <Link href={createOrganizationRoute}>
-              <PlusIcon className="mr-2 h-4 w-4" aria-hidden="true" />
+              <PlusIcon className="icon-base mr-2" aria-hidden="true" />
               New Organization
             </Link>
           </Button>
         )}
         <Button variant="secondary" asChild>
           <Link href="https://langfuse.com/docs" target="_blank">
-            <BookOpen className="mr-2 h-4 w-4" aria-hidden="true" />
+            <BookOpen className="icon-base mr-2" aria-hidden="true" />
             Docs
           </Link>
         </Button>
         <Button variant="secondary" asChild>
           <Link href="https://langfuse.com/docs/ask-ai" target="_blank">
-            <MessageSquareText className="mr-2 h-4 w-4" aria-hidden="true" />
+            <MessageSquareText className="icon-base mr-2" aria-hidden="true" />
             Ask AI
           </Link>
         </Button>

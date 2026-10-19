@@ -52,6 +52,44 @@ function compileMatchPattern(rawPattern, label) {
   }
 }
 
+// Per-query prices (e.g. $14 per 1K grounding queries) are not per-token and
+// keep their natural notation.
+const NON_TOKEN_PRICE_KEYS = new Set([
+  "grounding_queries",
+  "groundingQueries",
+  "web_search_queries",
+  "webSearchQueries",
+]);
+const TOKEN_PRICE_LITERAL = /^(0|[0-9]+(\.[0-9]+)?e-6)$/;
+
+const MODEL_NAME_KEY = /"modelName"\s*:\s*("(?:[^"\\]|\\.)*")/g;
+
+// JSON.parse drops number notation, so this reads the raw source text.
+function validatePriceNotation(rawText, modelName) {
+  const modelNameMatches = [...rawText.matchAll(MODEL_NAME_KEY)];
+  const index = modelNameMatches.findIndex(
+    (match) => JSON.parse(match[1]) === modelName,
+  );
+  if (index === -1) return;
+  const block = rawText.slice(
+    modelNameMatches[index].index,
+    modelNameMatches[index + 1]?.index ?? rawText.length,
+  );
+
+  for (const pricesMatch of block.matchAll(/"prices"\s*:\s*\{([^}]*)\}/g)) {
+    for (const [, key, literal] of pricesMatch[1].matchAll(
+      /"([^"]+)"\s*:\s*([^,\s}]+)/g,
+    )) {
+      if (NON_TOKEN_PRICE_KEYS.has(key)) continue;
+      if (!TOKEN_PRICE_LITERAL.test(literal)) {
+        failures.push(
+          `${modelName}: price for ${key} must be written as <USD per 1M tokens>e-6 (got ${literal})`,
+        );
+      }
+    }
+  }
+}
+
 function keysOfPrices(prices) {
   return Object.keys(prices).sort();
 }
@@ -115,7 +153,11 @@ function validateUsageKeyCoverage(model) {
         model,
         tier,
         "OpenAI cache-write",
-        ["input_cache_creation", "cache_write_tokens"],
+        [
+          "input_cache_creation",
+          "cache_write_tokens",
+          "input_cache_write_tokens",
+        ],
         false,
       );
       requireAliasFamily(
@@ -411,6 +453,7 @@ for (const model of models) {
 
   if (usageKeyModels.has(model.modelName)) {
     validateUsageKeyCoverage(model);
+    validatePriceNotation(raw, model.modelName);
   }
 }
 

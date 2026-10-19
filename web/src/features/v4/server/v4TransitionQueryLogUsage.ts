@@ -18,6 +18,7 @@ export type LegacyApiUsageSummaryByProjectResultRow = {
   entrypoint: string;
   count: number;
   lastSeen: string;
+  callers?: CachedLegacyApiUsageRow["callers"];
 };
 
 /**

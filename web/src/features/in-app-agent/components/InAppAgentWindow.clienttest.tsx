@@ -1,3 +1,4 @@
+/* eslint-disable @repo/prefer-stories-over-client-tests */
 import {
   fireEvent,
   render,
@@ -8,6 +9,7 @@ import {
 import { ScanSearch } from "lucide-react";
 import { InAppAgentRunStatus } from "@langfuse/shared/in-app-agent";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
+import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 import {
   InAppAgentWindow,
   type InAppAgentWindowProps,
@@ -26,6 +28,7 @@ const controlledAgent = vi.hoisted(() => ({
     isLoadingMoreConversations: false,
     isRunning: true,
     isSelectedConversationHydrating: false,
+    isSelectedConversationPersisted: false,
     isSubmitting: false,
     execution: {
       run: null as {
@@ -44,11 +47,40 @@ const controlledAgent = vi.hoisted(() => ({
     pendingToolApprovals: [] as Array<{ id: string }>,
     approveToolCall: vi.fn(),
     rejectToolCall: vi.fn(),
-    selectedConversationId: undefined,
+    selectedConversationId: undefined as string | undefined,
     selectedConversationTitle: null,
     selectConversation: vi.fn(),
     submit: vi.fn(),
     submitFeedback: vi.fn(),
+  },
+}));
+const sessionUser = vi.hoisted(() => ({ admin: false }));
+const telemetryProjectQuery = vi.hoisted(() => ({
+  value: {
+    data: { projectId: "ai-features-project" } as
+      | { projectId: string | null }
+      | undefined,
+    isPending: false,
+    isError: false,
+  },
+}));
+
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: {
+      user: { ...sessionUser, featureFlags: {}, organizations: [] },
+      environment: { enableExperimentalFeatures: false },
+    },
+  }),
+}));
+
+vi.mock("@/src/utils/api", () => ({
+  api: {
+    inAppAgent: {
+      telemetryProject: {
+        useQuery: () => telemetryProjectQuery.value,
+      },
+    },
   },
 }));
 
@@ -57,7 +89,7 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
 }));
 
 vi.mock("next/router", () => ({
-  useRouter: () => ({ asPath: "/" }),
+  useRouter: () => ({ asPath: "/", query: { projectId: "project-1" } }),
 }));
 
 vi.mock("./InAppAiAgentProvider", () => ({
@@ -103,6 +135,7 @@ function windowElement(
     onNewConversation: vi.fn(),
     onOpenConversationHistory: vi.fn(),
     onRejectToolCall: vi.fn(),
+    onAnswerQuestionnaire: vi.fn(),
     onSelectConversation: vi.fn(),
     onSubmit: vi.fn().mockResolvedValue(true),
     onSubmitFeedback: vi.fn(),
@@ -139,12 +172,12 @@ describe("InAppAgentWindow quick actions", () => {
       screen.queryByRole("button", { name: /stop run/i }),
     ).not.toBeInTheDocument();
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
-      "Observability",
+      "Observe",
       "Prompts",
       "Evaluation",
       "Dashboard",
     ]);
-    expect(screen.getByRole("tab", { name: "Observability" })).toHaveAttribute(
+    expect(screen.getByRole("tab", { name: "Observe" })).toHaveAttribute(
       "aria-selected",
       "true",
     );
@@ -161,7 +194,7 @@ describe("InAppAgentWindow quick actions", () => {
         quickActionResetKey: "/project/project-1/observations",
       }),
     );
-    expect(screen.getByRole("tab", { name: "Observability" })).toHaveAttribute(
+    expect(screen.getByRole("tab", { name: "Observe" })).toHaveAttribute(
       "aria-selected",
       "true",
     );
@@ -267,14 +300,14 @@ describe("InAppAgentWindow header", () => {
       }),
     );
 
-    expect(screen.getByText("Assistant")).toBeInTheDocument();
+    expect(screen.getByText("Halo")).toBeInTheDocument();
   });
 
   it("toggles expanded on a header double-click, but not from its actions", () => {
     const onExpandedChange = vi.fn();
     render(windowElement({ onExpandedChange }));
 
-    fireEvent.dblClick(screen.getByText("Assistant"));
+    fireEvent.dblClick(screen.getByText("Halo"));
     expect(onExpandedChange).toHaveBeenCalledWith(true);
 
     fireEvent.dblClick(
@@ -316,7 +349,7 @@ describe("ControlledInAppAgentWindow composer", () => {
     );
 
     const input = screen.getByRole("textbox", {
-      name: "Message the assistant",
+      name: "Message Halo",
     });
     fireEvent.change(input, { target: { value: "Follow up" } });
 
@@ -349,9 +382,7 @@ describe("ControlledInAppAgentWindow composer", () => {
       </TooltipProvider>,
     );
 
-    expect(
-      screen.getByRole("textbox", { name: "Message the assistant" }),
-    ).toBeEnabled();
+    expect(screen.getByRole("textbox", { name: "Message Halo" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Send message" })).toBeDisabled();
     expect(
       screen.getByRole("button", { name: "Start new conversation" }),
@@ -395,6 +426,113 @@ describe("ControlledInAppAgentWindow stop", () => {
     // buffered block keeps typing out, which reads as "stop did nothing".
     expect(cancel).toHaveBeenCalledOnce();
     expect(finishAnimation).toHaveBeenCalledOnce();
+  });
+});
+
+describe("ControlledInAppAgentWindow internal session menu", () => {
+  beforeAll(() => {
+    // jsdom has no ResizeObserver; the menu's scroll gradients observe it.
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+  });
+
+  afterAll(() => {
+    vi.unstubAllGlobals();
+  });
+
+  afterEach(() => {
+    sessionUser.admin = false;
+    controlledAgent.value.selectedConversationId = undefined;
+    controlledAgent.value.isSelectedConversationPersisted = false;
+    telemetryProjectQuery.value = {
+      data: { projectId: "ai-features-project" },
+      isPending: false,
+      isError: false,
+    };
+  });
+
+  function renderControlledWindow() {
+    return render(
+      <LayerProvider>
+        <TooltipProvider>
+          <ControlledInAppAgentWindow
+            isExpanded={false}
+            onClose={vi.fn()}
+            onDeleteConversation={vi.fn()}
+            onExpandedChange={vi.fn()}
+          />
+        </TooltipProvider>
+      </LayerProvider>,
+    );
+  }
+
+  it("offers session actions in the internal view once the conversation is persisted", async () => {
+    controlledAgent.value.selectedConversationId = "aconv_1";
+    controlledAgent.value.isSelectedConversationPersisted = true;
+    const external = renderControlledWindow();
+
+    expect(
+      screen.queryByRole("button", { name: "Internal session actions" }),
+    ).not.toBeInTheDocument();
+    external.unmount();
+
+    sessionUser.admin = true;
+    controlledAgent.value.isSelectedConversationPersisted = false;
+    const unpersisted = renderControlledWindow();
+
+    expect(
+      screen.queryByRole("button", { name: "Internal session actions" }),
+    ).not.toBeInTheDocument();
+    unpersisted.unmount();
+
+    controlledAgent.value.isSelectedConversationPersisted = true;
+    renderControlledWindow();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Internal session actions" }),
+    );
+
+    const menu = await screen.findByRole("menu", {
+      name: "Internal session actions",
+    });
+    expect(within(menu).getByText("Internal")).toBeInTheDocument();
+    expect(within(menu).getByText("Copy session ID")).toBeInTheDocument();
+    const openSession = within(menu).getByRole("link", {
+      name: "Open session in Langfuse",
+    });
+    expect(openSession).toHaveAttribute(
+      "href",
+      "/project/ai-features-project/sessions/aconv_1",
+    );
+    expect(openSession).toHaveAttribute("target", "_blank");
+  });
+
+  it("keeps the open-session action inert when the telemetry lookup fails", async () => {
+    sessionUser.admin = true;
+    controlledAgent.value.selectedConversationId = "aconv_1";
+    controlledAgent.value.isSelectedConversationPersisted = true;
+    telemetryProjectQuery.value = {
+      data: undefined,
+      isPending: false,
+      isError: true,
+    };
+    renderControlledWindow();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Internal session actions" }),
+    );
+
+    const menu = await screen.findByRole("menu", {
+      name: "Internal session actions",
+    });
+    expect(within(menu).queryByRole("link")).not.toBeInTheDocument();
+    expect(
+      within(menu).getByRole("menuitem", { name: "Open session in Langfuse" }),
+    ).toHaveAttribute("title", "Could not load the telemetry project.");
   });
 });
 
@@ -604,7 +742,7 @@ describe("InAppAgentWindow composer", () => {
     const { rerender } = render(windowElement());
 
     expect(
-      screen.getByRole("textbox", { name: "Message the assistant" }),
+      screen.getByRole("textbox", { name: "Message Halo" }),
     ).toHaveAttribute("placeholder", "Let me know what I can do for you...");
 
     rerender(
@@ -628,7 +766,7 @@ describe("InAppAgentWindow composer", () => {
     );
 
     expect(
-      screen.getByRole("textbox", { name: "Message the assistant" }),
+      screen.getByRole("textbox", { name: "Message Halo" }),
     ).toHaveAttribute("placeholder", "Reply...");
   });
 
@@ -679,7 +817,7 @@ describe("InAppAgentWindow composer", () => {
       screen.queryByRole("button", { name: "Good response" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("textbox", { name: "Message the assistant" }),
+      screen.getByRole("textbox", { name: "Message Halo" }),
     ).toHaveAttribute("placeholder", "Let me know what I can do for you...");
 
     fireEvent.click(
@@ -737,7 +875,7 @@ describe("InAppAgentWindow composer", () => {
       screen.getByRole("button", { name: "Copy message" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("textbox", { name: "Message the assistant" }),
+      screen.getByRole("textbox", { name: "Message Halo" }),
     ).toHaveAttribute("placeholder", "Reply...");
   });
 });

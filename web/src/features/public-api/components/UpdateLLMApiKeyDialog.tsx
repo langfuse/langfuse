@@ -1,70 +1,47 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger */
-import { useState } from "react";
-import { Button } from "@/src/components/ui/button";
+import { type ComponentProps } from "react";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import {
-  Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/src/components/ui/dialog";
-import { CreateLLMApiKeyForm } from "./CreateLLMApiKeyForm";
-import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { PencilIcon } from "lucide-react";
-import { type RouterOutputs } from "@/src/utils/api";
-
-type LlmApiKeyListItem = RouterOutputs["llmApiKey"]["all"]["data"][number];
+import {
+  CreateLLMApiKeyForm,
+  type LlmApiKeyListItem,
+  type LlmConnectionFormOwner,
+} from "./CreateLLMApiKeyForm";
+import { useUiCustomization } from "@/src/ee/features/ui-customization";
 
 export function UpdateLLMApiKeyDialog({
-  apiKey,
-  projectId,
-  open,
-  onOpenChange,
+  owner,
+  children,
 }: {
-  apiKey: LlmApiKeyListItem;
-  projectId: string;
-  open?: boolean;
-  onOpenChange?: (open: boolean) => void;
+  owner: LlmConnectionFormOwner;
+  children: ComponentProps<
+    typeof DialogController<LlmApiKeyListItem>
+  >["children"];
 }) {
-  const [internalOpen, setInternalOpen] = useState(false);
   const uiCustomization = useUiCustomization();
 
-  // Use external state if provided, otherwise use internal state
-  const isOpen = open !== undefined ? open : internalOpen;
-  const setIsOpen = onOpenChange || setInternalOpen;
-
-  const hasAccess = useHasProjectAccess({
-    projectId,
-    scope: "llmApiKeys:update",
-  });
-
-  if (!hasAccess) return null;
-
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="icon">
-          <PencilIcon className="h-4 w-4" />
-        </Button>
-      </DialogTrigger>
-      <DialogContent
-        className="max-h-[90%] min-w-[40vw] overflow-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <DialogHeader>
-          <DialogTitle>Update LLM Connection</DialogTitle>
-        </DialogHeader>
-        {isOpen && (
+    <DialogController<LlmApiKeyListItem>
+      renderDialog={({ state: apiKey, closeDialog }) => (
+        <DialogContent className="max-h-[90%] min-w-[40vw] overflow-auto">
+          <DialogHeader>
+            <DialogTitle>Update LLM Connection</DialogTitle>
+          </DialogHeader>
           <CreateLLMApiKeyForm
-            projectId={projectId}
-            onSuccess={() => setIsOpen(false)}
+            key={apiKey.id}
+            owner={owner}
+            onSuccess={closeDialog}
             customization={uiCustomization}
             mode="update"
             existingKey={apiKey}
           />
-        )}
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      )}
+    >
+      {children}
+    </DialogController>
   );
 }

@@ -1,14 +1,7 @@
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 import { Button } from "@/src/components/ui/button";
-import {
-  X,
-  Plus,
-  ChevronDown,
-  Link,
-  MoreVertical,
-  Pen,
-  Lock,
-} from "lucide-react";
-import { Badge } from "@/src/components/ui/badge";
+import { X, Plus, Link, MoreVertical, Pen, Lock } from "lucide-react";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import {
   DrawerTrigger,
@@ -30,11 +23,7 @@ import {
 } from "@/src/components/ui/command";
 import { useViewMutations } from "@/src/components/table/table-view-presets/hooks/useViewMutations";
 import { cn } from "@/src/utils/tailwind";
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/src/components/ui/avatar";
+import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
 import {
   Dialog,
   DialogContent,
@@ -53,18 +42,24 @@ import {
   type FilterState,
   type TableViewPresetTableName,
   type TableViewPresetState,
+  buildCurrentPageSavedViewPermalink,
+  tableViewPresetPermalinkUsesCurrentPath,
 } from "@langfuse/shared";
 import { type ReactNode, useCallback, useMemo, useState } from "react";
 import {
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuSeparator,
 } from "@/src/components/ui/dropdown-menu";
-import { DropdownMenu } from "@/src/components/ui/dropdown-menu";
-import { DropdownMenuContent } from "@/src/components/ui/dropdown-menu";
 import { DeleteButton } from "@/src/components/deleteButton";
 import { api } from "@/src/utils/api";
-import { Popover, PopoverContent } from "@/src/components/ui/popover";
-import { PopoverTrigger } from "@/src/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/src/components/ui/popover";
 import {
   Form,
   FormControl,
@@ -76,42 +71,48 @@ import {
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import isEqual from "lodash/isEqual";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { useDefaultViewMutations } from "../hooks/useDefaultViewMutations";
-import { DropdownMenuSeparator } from "@/src/components/ui/dropdown-menu";
 import { summarizeTableViewPreset } from "../lib/viewPreview";
+import { TableViewPresetsButton } from "./TableViewPresetsButton";
 
 /**
  * Prefix for system preset IDs. These are page-specific presets defined in code
  * (not stored in DB). Using this prefix prevents DB lookups and allows special handling.
  * Convention: `__langfuse_{preset_name}__`
  */
-export const SYSTEM_PRESET_ID_PREFIX = "__langfuse_";
+const SYSTEM_PRESET_ID_PREFIX = "__langfuse_";
 
 /** Check if a view ID is a system preset (defined in code, not stored in DB) */
 export const isSystemPresetId = (id: string | undefined | null): boolean =>
   !!id?.startsWith(SYSTEM_PRESET_ID_PREFIX);
 
-/** Recursively remove undefined values for consistent comparison */
-function normalizeForComparison<T>(obj: T): T {
-  if (Array.isArray(obj)) {
-    return obj.map(normalizeForComparison) as T;
-  }
-  if (obj !== null && typeof obj === "object") {
-    return Object.fromEntries(
-      Object.entries(obj)
-        .filter(([, v]) => v !== undefined)
-        .map(([k, v]) => [k, normalizeForComparison(v)]),
-    ) as T;
-  }
-  return obj;
-}
+const copyPermalinkAndToast = (href: string) => {
+  copyTextToClipboard(href)
+    .then(() =>
+      showSuccessToast({
+        operation: "saved_view.permalink_copy",
+        title: "Permalink copied to clipboard",
+        description: "You can now share the permalink with others",
+      }),
+    )
+    .catch(() =>
+      showErrorToast(
+        "Failed to copy permalink",
+        "Could not write to the clipboard. Please copy the page URL manually.",
+        {
+          operation: "saved_view.permalink_copy",
+          errorOrigin: "frontend",
+          errorCategory: "permission",
+        },
+        "WARNING",
+      ),
+    );
+};
 
 interface SystemPreset {
   id: string;
@@ -143,6 +144,10 @@ interface TableViewPresetsDrawerContentProps {
       /** The view whose full state was actually applied this session (null on a
        * shared-link visit where the view is intentionally not applied). */
       appliedViewId: string | null;
+      viewUpdateTarget?: {
+        viewId: string;
+        columnsApplied: boolean;
+      } | null;
       handleSetViewId: (viewId: string | null) => void;
       applyViewState: (
         viewData: TableViewPresetState,
@@ -248,20 +253,34 @@ export function TableViewPresetsDrawer({
         view.id === defaultAssignments?.userDefaultViewId ||
         view.id === defaultAssignments?.projectDefaultViewId,
     ).length ?? 0;
+  const selectedView =
+    TableViewPresetsList?.find(
+      // Categorized presets show their selection in the pattern controls.
+      (view) => view.id === controllers.selectedViewId && !view.category,
+    ) ??
+    systemFilterPresets?.find((view) => view.id === controllers.selectedViewId);
 
   return (
     <TableViewPresetsDrawerRoot tableName={tableName}>
       <DrawerTrigger asChild>
-        <Button variant="outline" id={triggerId} title="My Views">
-          <span>My Views</span>
-          {controllers.selectedViewId ? (
-            <ChevronDown className="ml-1 h-4 w-4" />
-          ) : (
-            <div className="bg-input ml-1 rounded-sm px-1 text-xs">
-              {drawerPresetCount}
-            </div>
-          )}
-        </Button>
+        <TableViewPresetsButton
+          id={triggerId}
+          count={drawerPresetCount}
+          selectedView={
+            selectedView
+              ? {
+                  name: selectedView.name,
+                  defaultLabel:
+                    selectedView.id === defaultAssignments?.userDefaultViewId
+                      ? "Your default"
+                      : selectedView.id ===
+                          defaultAssignments?.projectDefaultViewId
+                        ? "Project default"
+                        : null,
+                }
+              : null
+          }
+        />
       </DrawerTrigger>
       <TableViewPresetsDrawerContentBody
         viewConfig={viewConfig}
@@ -304,8 +323,14 @@ function TableViewPresetsDrawerContentBody({
   ReturnType<typeof useTableViewPresetsDrawerData>) {
   const [searchQuery, setSearchQueryLocal] = useState("");
   const { tableName, projectId, controllers } = viewConfig;
-  const { handleSetViewId, applyViewState, selectedViewId, appliedViewId } =
-    controllers;
+  const {
+    handleSetViewId,
+    applyViewState,
+    selectedViewId,
+    appliedViewId,
+    viewUpdateTarget,
+  } = controllers;
+  const updateViewId = selectedViewId ?? viewUpdateTarget?.viewId;
   const {
     createMutation,
     updateConfigMutation,
@@ -418,12 +443,13 @@ function TableViewPresetsDrawerContentBody({
     setIsCreateDialogOpen(false);
   };
 
-  const handleUpdateViewConfig = (updatedView: { name: string }) => {
-    if (!selectedViewId) return;
-
+  const handleUpdateViewConfig = (updatedView: {
+    id: string;
+    name: string;
+  }) => {
     capture("saved_views:update_config", {
       tableName,
-      viewId: selectedViewId,
+      viewId: updatedView.id,
       name: updatedView.name,
     });
 
@@ -435,9 +461,12 @@ function TableViewPresetsDrawerContentBody({
     // the view's stored column layout instead (LFE-10486). Filters/sort/search
     // always come from the live state, since updating those to what the visitor
     // currently sees is exactly the intent.
-    const viewWasApplied = appliedViewId === selectedViewId;
+    const viewWasApplied =
+      appliedViewId === updatedView.id ||
+      (viewUpdateTarget?.viewId === updatedView.id &&
+        viewUpdateTarget.columnsApplied);
     const storedView = TableViewPresetsList?.find(
-      (view) => view.id === selectedViewId,
+      (view) => view.id === updatedView.id,
     );
     const columnOrder =
       viewWasApplied || !storedView
@@ -451,7 +480,7 @@ function TableViewPresetsDrawerContentBody({
     updateConfigMutation.mutate({
       projectId,
       name: updatedView.name,
-      id: selectedViewId,
+      id: updatedView.id,
       tableName,
       orderBy: currentState.orderBy,
       filters: currentState.filters,
@@ -517,20 +546,27 @@ function TableViewPresetsDrawerContentBody({
     ) {
       // Toast on the clipboard write's resolution: a permission failure must
       // surface an error instead of falsely reporting success.
-      copyTextToClipboard(window.location.href)
-        .then(() =>
-          showSuccessToast({
-            title: "Permalink copied to clipboard",
-            description: "You can now share the permalink with others",
-          }),
-        )
-        .catch(() =>
-          showErrorToast(
-            "Failed to copy permalink",
-            "Could not write to the clipboard. Please copy the page URL manually.",
-            "WARNING",
-          ),
-        );
+      copyPermalinkAndToast(window.location.href);
+      return;
+    }
+
+    // Session detail (and any future resource-scoped table) cannot be
+    // expressed as `/project/:id/<table>?viewId=…` — the session id lives
+    // in the path. Build that on the client instead of hitting the server,
+    // which would 400 (and previously 500'd as a generic Error).
+    if (
+      tableViewPresetPermalinkUsesCurrentPath(tableName) &&
+      typeof window !== "undefined" &&
+      window.location?.origin &&
+      window.location?.pathname
+    ) {
+      copyPermalinkAndToast(
+        buildCurrentPageSavedViewPermalink({
+          origin: window.location.origin,
+          pathname: window.location.pathname,
+          viewId,
+        }),
+      );
       return;
     }
 
@@ -545,6 +581,11 @@ function TableViewPresetsDrawerContentBody({
       showErrorToast(
         "Failed to generate permalink",
         "Please reach out to langfuse support and report this issue.",
+        {
+          operation: "saved_view.permalink_generate",
+          errorOrigin: "frontend",
+          errorCategory: "internal",
+        },
         "WARNING",
       );
     }
@@ -567,7 +608,7 @@ function TableViewPresetsDrawerContentBody({
             </DrawerTitle>
             <DrawerClose asChild>
               <Button variant="outline" size="icon">
-                <X className="h-4 w-4" />
+                <X className="icon-base text-icon-foreground" />
               </Button>
             </DrawerClose>
           </DrawerHeader>
@@ -612,12 +653,7 @@ function TableViewPresetsDrawerContentBody({
                     onSelect={() => handleSelectSystemFilterPreset(preset)}
                     className={cn(
                       "hover:bg-muted/50 group mt-1 flex cursor-pointer items-center justify-between rounded-md p-2 transition-colors",
-                      selectedViewId === preset.id &&
-                        isEqual(
-                          normalizeForComparison(currentState.filters),
-                          normalizeForComparison(preset.filters),
-                        ) &&
-                        "bg-muted",
+                      selectedViewId === preset.id && "bg-muted",
                     )}
                   >
                     <div className="flex flex-col">
@@ -671,16 +707,8 @@ function TableViewPresetsDrawerContentBody({
                             {isSystemView && <LangfuseIcon size={14} />}
                             {view.name}
                           </span>
-                          {isUserDefault && (
-                            <Badge variant="secondary" className="text-xs">
-                              Your default
-                            </Badge>
-                          )}
-                          {isProjectDefault && (
-                            <Badge variant="outline" className="text-xs">
-                              Project default
-                            </Badge>
-                          )}
+                          {isUserDefault && <Badge text="Your default" />}
+                          {isProjectDefault && <Badge text="Project default" />}
                         </div>
                         {isSystemView ? (
                           view.description ? (
@@ -696,7 +724,7 @@ function TableViewPresetsDrawerContentBody({
                             {previewText}
                           </span>
                         ) : null}
-                        {!isSystemView && view.id === selectedViewId && (
+                        {!isSystemView && view.id === updateViewId && (
                           <Button
                             variant="ghost"
                             size="xs"
@@ -709,6 +737,7 @@ function TableViewPresetsDrawerContentBody({
                             onClick={(e) => {
                               e.stopPropagation();
                               handleUpdateViewConfig({
+                                id: view.id,
                                 name: view.name,
                               });
                             }}
@@ -728,7 +757,7 @@ function TableViewPresetsDrawerContentBody({
                           }}
                           className="w-4 opacity-0 group-hover:opacity-100 peer-data-[state=open]:opacity-100"
                         >
-                          <Link className="h-4 w-4" />
+                          <Link className="icon-base text-icon-foreground" />
                         </Button>
                         <DropdownMenu
                           open={dropdownId === view.id}
@@ -745,7 +774,7 @@ function TableViewPresetsDrawerContentBody({
                               }}
                               className="opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100"
                             >
-                              <MoreVertical className="h-4 w-4" />
+                              <MoreVertical className="icon-base text-icon-foreground" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent className="flex flex-col *:w-full *:justify-start">
@@ -780,9 +809,9 @@ function TableViewPresetsDrawerContentBody({
                                         disabled={!hasWriteAccess}
                                       >
                                         {hasWriteAccess ? (
-                                          <Pen className="mr-2 h-4 w-4" />
+                                          <Pen className="icon-base text-icon-foreground mr-2" />
                                         ) : (
-                                          <Lock className="mr-2 h-4 w-4" />
+                                          <Lock className="icon-base text-icon-foreground mr-2" />
                                         )}
                                         Rename
                                       </Button>
@@ -873,7 +902,7 @@ function TableViewPresetsDrawerContentBody({
                                 <>Set as project default</>
                               )}
                               {!hasWriteAccess && (
-                                <Lock className="ml-auto h-4 w-4" />
+                                <Lock className="icon-base text-icon-foreground ml-auto" />
                               )}
                             </DropdownMenuItem>
                             {!isSystemView && (
@@ -909,21 +938,16 @@ function TableViewPresetsDrawerContentBody({
                         </DropdownMenu>
                         {!isSystemView && (
                           <div className="text-muted-foreground flex items-center text-xs">
-                            <Avatar className="h-6 w-6">
-                              <AvatarImage
-                                src={view.createdByUser?.image ?? undefined}
-                                alt={view.createdByUser?.name ?? "User Avatar"}
-                              />
-                              <AvatarFallback className="bg-tertiary">
-                                {view.createdByUser?.name
-                                  ? view.createdByUser?.name
-                                      .split(" ")
-                                      .map((word) => word[0])
-                                      .slice(0, 2)
-                                      .concat("")
-                                  : null}
-                              </AvatarFallback>
-                            </Avatar>
+                            <Avatar
+                              size="sm"
+                              src={view.createdByUser?.image ?? undefined}
+                              displayName={
+                                view.createdByUser?.name?.trim() ||
+                                view.createdByUser?.email?.trim() ||
+                                "User"
+                              }
+                              email={view.createdByUser?.email ?? undefined}
+                            />
                           </div>
                         )}
                       </div>
@@ -937,17 +961,19 @@ function TableViewPresetsDrawerContentBody({
           <Separator />
 
           <div className="p-2">
-            <Button
-              onClick={() => {
-                setIsCreateDialogOpen(true);
-                capture("saved_views:create_form_open", { tableName });
-              }}
-              variant="ghost"
-              className="w-full justify-start px-1"
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Create Custom View
-            </Button>
+            <DrawerClose asChild>
+              <Button
+                onClick={() => {
+                  setIsCreateDialogOpen(true);
+                  capture("saved_views:create_form_open", { tableName });
+                }}
+                variant="ghost"
+                className="w-full justify-start px-1"
+              >
+                <Plus className="icon-base text-icon-foreground mr-2" />
+                Create Custom View
+              </Button>
+            </DrawerClose>
           </div>
         </div>
       </DrawerContent>
@@ -1018,7 +1044,7 @@ function TableViewPresetsDrawerContentBody({
                     !hasWriteAccess
                   }
                 >
-                  {!hasWriteAccess && <Lock className="mr-2 h-4 w-4" />}
+                  {!hasWriteAccess && <Lock className="icon-base mr-2" />}
                   {createMutation.isPending ? "Saving..." : "Save View"}
                 </Button>
               </DialogFooter>

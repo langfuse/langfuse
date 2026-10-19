@@ -1,37 +1,27 @@
+/* eslint-disable @repo/component-file-structure */
 /**
  * TraceMetadataBadges - Extracted badge components for trace metadata
  *
  * Following the pattern from ObservationDetailView/ObservationMetadataBadgesSimple.tsx
- * Each badge handles its own null check and returns null when data is unavailable.
  */
 
-import Link from "next/link";
-import { ExternalLinkIcon } from "lucide-react";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { LinkBadge } from "@/src/components/design-system/LinkBadge/LinkBadge";
 
 export function SessionBadge({
   sessionId,
   projectId,
 }: {
-  sessionId: string | null;
+  sessionId: string;
   projectId: string;
 }) {
-  if (!sessionId) return null;
-
-  const text = `Session: ${sessionId}`;
-
   return (
-    <Link
+    <LinkBadge
       href={`/project/${projectId}/sessions/${encodeURIComponent(sessionId)}`}
-      className="inline-flex"
-    >
-      <Badge>
-        <span className="truncate" title={text}>
-          {text}
-        </span>
-        <ExternalLinkIcon className="ml-1 h-3 w-3" />
-      </Badge>
-    </Link>
+      noCapture
+      text="session"
+      title={sessionId}
+    />
   );
 }
 
@@ -39,25 +29,19 @@ export function UserIdBadge({
   userId,
   projectId,
 }: {
-  userId: string | null;
+  userId: string;
   projectId: string;
 }) {
-  if (!userId) return null;
-
-  const text = `User ID: ${userId}`;
+  const label = "user";
+  const text = userId;
 
   return (
-    <Link
+    <LinkBadge
       href={`/project/${projectId}/users/${encodeURIComponent(userId)}`}
-      className="inline-flex"
-    >
-      <Badge>
-        <span className="truncate" title={text}>
-          {text}
-        </span>
-        <ExternalLinkIcon className="ml-1 h-3 w-3" />
-      </Badge>
-    </Link>
+      noCapture
+      label={label}
+      text={text}
+    />
   );
 }
 
@@ -65,43 +49,30 @@ export function TargetTraceBadge({
   targetTraceId,
   projectId,
 }: {
-  targetTraceId: string | null;
+  targetTraceId: string;
   projectId: string;
 }) {
-  if (!targetTraceId) return null;
-
-  const text = `Target Trace: ${targetTraceId}`;
+  const label = "trace";
+  const text = targetTraceId;
 
   return (
-    <Link
+    <LinkBadge
       href={`/project/${projectId}/traces/${encodeURIComponent(targetTraceId)}`}
-      className="inline-flex"
-    >
-      <Badge>
-        <span className="truncate" title={text}>
-          {text}
-        </span>
-        <ExternalLinkIcon className="ml-1 h-3 w-3" />
-      </Badge>
-    </Link>
+      noCapture
+      label={label}
+      text={text}
+    />
   );
 }
 
-export function EnvironmentBadge({
-  environment,
-}: {
-  environment: string | null;
-}) {
-  if (!environment) return null;
-  return <Badge variant="tertiary">Env: {environment}</Badge>;
+export function EnvironmentBadge({ environment }: { environment: string }) {
+  return <Badge font="mono" color="ghost" label="env" text={environment} />;
 }
 
-export function ReleaseBadge({ release }: { release: string | null }) {
-  if (!release) return null;
-  return <Badge variant="tertiary">Release: {release}</Badge>;
+export function ReleaseBadge({ release }: { release: string }) {
+  return <Badge font="mono" color="ghost" label="release" text={release} />;
 }
 
-export function VersionBadge({ version }: { version: string | null }) {
-  if (!version) return null;
-  return <Badge variant="tertiary">Version: {version}</Badge>;
+export function VersionBadge({ version }: { version: string }) {
+  return <Badge font="mono" color="ghost" label="version" text={version} />;
 }

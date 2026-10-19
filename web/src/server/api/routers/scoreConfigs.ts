@@ -1,12 +1,13 @@
 import { z } from "zod";
 
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import {
   filterAndValidateDbScoreConfigList,
+  InternalServerError,
   InvalidRequestError,
   LangfuseNotFoundError,
   optionalPaginationZod,
@@ -17,7 +18,8 @@ import {
   validateDbScoreConfigSafe,
 } from "@langfuse/shared";
 import { traceException } from "@langfuse/shared/src/server";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
+import { appendCategoryToExisting } from "@/src/features/scores/lib/annotationFormHelpers";
 
 const ScoreConfigAllInput = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -155,6 +157,94 @@ export const scoreConfigsRouter = createTRPCRouter({
 
       return validateDbScoreConfig(config);
     }),
+  appendCategory: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        id: z.string(),
+        label: z.string().trim().min(1),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "scoreConfigs:CUD",
+      });
+
+      const { before, after } = await ctx.prisma.$transaction(async (tx) => {
+        // Serialize concurrent appends so each reads the latest categories.
+        await tx.$queryRaw`
+          SELECT 1
+          FROM score_configs
+          WHERE id = ${input.id}
+            AND project_id = ${input.projectId}
+          FOR UPDATE
+        `;
+
+        const existingConfig = await tx.scoreConfig.findFirst({
+          where: {
+            id: input.id,
+            projectId: input.projectId,
+          },
+        });
+        if (!existingConfig) {
+          throw new LangfuseNotFoundError(
+            "No score config with this id in this project.",
+          );
+        }
+        if (existingConfig.dataType !== ScoreConfigDataType.CATEGORICAL) {
+          throw new InvalidRequestError(
+            "Only categorical score configs can append categories.",
+          );
+        }
+        if (existingConfig.isArchived) {
+          throw new InvalidRequestError(
+            "Cannot add a category to an archived score config.",
+          );
+        }
+
+        const parsedExisting = validateDbScoreConfig(existingConfig);
+        const appended = appendCategoryToExisting(
+          parsedExisting.categories ?? [],
+          input.label,
+        );
+        if (!appended.ok) {
+          throw new InvalidRequestError(appended.error);
+        }
+
+        const result = validateDbScoreConfigSafe({
+          ...existingConfig,
+          categories: appended.categories,
+        });
+        if (!result.success) {
+          throw new InvalidRequestError(
+            result.error.issues.map((issue) => issue.message).join(", "),
+          );
+        }
+
+        const updated = await tx.scoreConfig.update({
+          where: {
+            id: input.id,
+            projectId: input.projectId,
+          },
+          data: { categories: appended.categories },
+        });
+
+        return { before: existingConfig, after: updated };
+      });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "scoreConfig",
+        resourceId: after.id,
+        action: "update",
+        before,
+        after,
+      });
+
+      return validateDbScoreConfig(after);
+    }),
   byId: protectedProjectProcedure
     .input(
       z.object({
@@ -177,9 +267,17 @@ export const scoreConfigsRouter = createTRPCRouter({
       });
 
       if (!config) {
-        throw new Error("No score config with this id in this project.");
+        throw new LangfuseNotFoundError(
+          "No score config with this id in this project.",
+        );
       }
 
-      return validateDbScoreConfig(config);
+      const parsedConfig = validateDbScoreConfigSafe(config);
+      if (!parsedConfig.success) {
+        traceException(parsedConfig.error);
+        throw new InternalServerError("Requested score config is corrupted");
+      }
+
+      return parsedConfig.data;
     }),
 });

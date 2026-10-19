@@ -9,7 +9,7 @@ import { PrismaInstrumentation } from "@prisma/instrumentation";
 import { WinstonInstrumentation } from "@opentelemetry/instrumentation-winston";
 import { AwsInstrumentation } from "@opentelemetry/instrumentation-aws-sdk";
 import { BullMQInstrumentation } from "@appsignal/opentelemetry-instrumentation-bullmq";
-import { ioredisRequestHook } from "@langfuse/shared/src/server";
+import { ioredisRequestHook } from "@langfuse/shared/instrumentation/bootstrap";
 import { envDetector, resourceFromAttributes } from "@opentelemetry/resources";
 import { awsEcsDetector } from "@opentelemetry/resource-detector-aws";
 import { containerDetector } from "@opentelemetry/resource-detector-container";
@@ -95,7 +95,12 @@ const sdk = new NodeSDK({
     new WinstonInstrumentation({ disableLogSending: true }),
     new BullMQInstrumentation({ useProducerSpanAsConsumerParent: true }),
   ],
-  resourceDetectors: [envDetector, awsEcsDetector, containerDetector],
+  resourceDetectors: [
+    envDetector,
+    ...(env.OTEL_CONTAINER_RESOURCE_DETECTORS_ENABLED === "true"
+      ? [awsEcsDetector, containerDetector]
+      : []),
+  ],
 });
 
 sdk.start();

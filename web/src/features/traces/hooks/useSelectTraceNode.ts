@@ -1,9 +1,7 @@
 import { useCallback } from "react";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
-import { useDesktopLayoutContextOptional } from "@/src/features/traces/components/TraceLayoutDesktop";
-import { useMobileLayoutContextOptional } from "@/src/features/traces/components/TraceLayoutMobile";
 
 /** Which view is reporting the selection — the only thing that differs. */
 export type TraceNodeSelectionSource = "tree" | "timeline" | "timeline_compact";
@@ -19,11 +17,9 @@ export type TraceNodeSelectionSource = "tree" | "timeline" | "timeline_compact";
  * bring the detail back after you collapsed it.
  */
 export function useSelectTraceNode(source: TraceNodeSelectionSource) {
-  const { setSelectedNodeId } = useSelection();
+  const { selectNode } = useSelection();
   const capture = usePostHogClientCapture();
   const analyticsDimensions = useTraceAnalyticsDimensions();
-  const layout = useDesktopLayoutContextOptional();
-  const mobileLayout = useMobileLayoutContextOptional();
 
   return useCallback(
     (nodeId: string | null) => {
@@ -33,17 +29,8 @@ export function useSelectTraceNode(source: TraceNodeSelectionSource) {
           ...analyticsDimensions,
         });
       }
-      setSelectedNodeId(nodeId);
-      layout?.expandDetailPanel();
-      if (nodeId) mobileLayout?.switchToInfoTab();
+      selectNode(nodeId);
     },
-    [
-      source,
-      capture,
-      analyticsDimensions,
-      setSelectedNodeId,
-      layout,
-      mobileLayout,
-    ],
+    [source, capture, analyticsDimensions, selectNode],
   );
 }

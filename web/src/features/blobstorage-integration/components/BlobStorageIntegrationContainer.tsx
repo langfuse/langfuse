@@ -1,19 +1,21 @@
+import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import { useMemo } from "react";
 import { Button } from "@/src/components/ui/button";
-import { IntegrationSettingsSkeleton } from "@/src/features/analytics-integrations/components/IntegrationSettingsSkeleton";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import {
+  IntegrationSettingsSkeleton,
+  buildExportSourceContext,
+} from "@/src/features/analytics-integrations";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import {
   type V4WriteMode,
   type BlobStorageIntegration,
   type ExportSourceContext,
 } from "@langfuse/shared";
-import { buildExportSourceContext } from "@/src/features/analytics-integrations/exportSource";
 import { type BlobStorageIntegrationFormSchema } from "@/src/features/blobstorage-integration/types";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { useQueryProject } from "@/src/features/projects/hooks";
+import { useLangfuseCloudRegion } from "@/src/features/organizations";
+import { useQueryProject } from "@/src/features/projects";
 import { buildBlobStorageFormValues } from "@/src/features/blobstorage-integration/components/formValues";
 import { BlobStorageIntegrationForm } from "@/src/features/blobstorage-integration/components/BlobStorageIntegrationForm";
 
@@ -29,7 +31,9 @@ export const BlobStorageIntegrationContainer = ({
   projectId,
   writeMode,
 }: {
-  config: Partial<BlobStorageIntegration> | null;
+  config:
+    | (Partial<BlobStorageIntegration> & { hasSecretAccessKey?: boolean })
+    | null;
   projectId: string;
   writeMode: V4WriteMode;
 }) => {
@@ -62,7 +66,11 @@ export const BlobStorageIntegrationContainer = ({
       utils.blobStorageIntegration.invalidate();
     },
     onError: (error) => {
-      showErrorToast("Failed to save integration", error.message);
+      showErrorToast(
+        "Failed to save integration",
+        error.message,
+        classifyTrpcToastError(error, "blob_storage.save"),
+      );
     },
   });
   const mutDelete = api.blobStorageIntegration.delete.useMutation({
@@ -78,12 +86,17 @@ export const BlobStorageIntegrationContainer = ({
   const mutValidate = api.blobStorageIntegration.validate.useMutation({
     onSuccess: (data) => {
       showSuccessToast({
+        operation: "blob_storage.validate",
         title: data.message,
         description: `Test file: ${data.testFileName}`,
       });
     },
     onError: (error) => {
-      showErrorToast("Validation failed", error.message);
+      showErrorToast(
+        "Validation failed",
+        error.message,
+        classifyTrpcToastError(error, "blob_storage.validate"),
+      );
     },
   });
 
@@ -94,12 +107,12 @@ export const BlobStorageIntegrationContainer = ({
     return <IntegrationSettingsSkeleton />;
   }
 
-  const handleSubmit = (values: BlobStorageIntegrationFormSchema) => {
+  const handleSubmit = (
+    values: BlobStorageIntegrationFormSchema,
+    onSaved: () => void,
+  ) => {
     capture("integrations:blob_storage_form_submitted");
-    mut.mutate({
-      projectId,
-      ...values,
-    });
+    mut.mutate({ projectId, ...values }, { onSuccess: onSaved });
   };
 
   return (
@@ -119,48 +132,60 @@ export const BlobStorageIntegrationContainer = ({
       isSaving={mut.isPending}
       onSubmit={handleSubmit}
     >
-      <Button
-        variant="secondary"
-        loading={mutValidate.isPending}
-        disabled={!config}
-        title="Test your saved configuration by uploading a small test file to your storage"
-        onClick={() => {
-          mutValidate.mutate({ projectId });
-        }}
-      >
-        Validate
-      </Button>
-      <Button
-        variant="secondary"
-        loading={mutRunNow.isPending}
-        disabled={!config?.enabled}
-        title="Trigger an immediate export of all data since the last sync"
-        onClick={() => {
-          if (
-            confirm(
-              "Are you sure you want to run the blob storage export now? This will export all data since the last sync.",
-            )
-          )
-            mutRunNow.mutate({ projectId });
-        }}
-      >
-        Run Now
-      </Button>
-      <Button
-        variant="ghost"
-        loading={mutDelete.isPending}
-        disabled={!config}
-        onClick={() => {
-          if (
-            confirm(
-              "Are you sure you want to reset the Blob Storage integration for this project?",
-            )
-          )
-            mutDelete.mutate({ projectId });
-        }}
-      >
-        Reset
-      </Button>
+      {({ isDirty }) => (
+        <>
+          <Button
+            variant="secondary"
+            loading={mutValidate.isPending}
+            disabled={!config || isDirty}
+            title={
+              isDirty
+                ? "Please save latest changes before validate"
+                : "Test your saved configuration by uploading a small test file to your storage"
+            }
+            onClick={() => {
+              mutValidate.mutate({ projectId });
+            }}
+          >
+            Validate
+          </Button>
+          <Button
+            variant="secondary"
+            loading={mutRunNow.isPending}
+            disabled={!config?.enabled || isDirty}
+            title={
+              isDirty
+                ? "Please save latest changes before running an export"
+                : "Trigger an immediate export of all data since the last sync"
+            }
+            onClick={() => {
+              if (
+                confirm(
+                  "Are you sure you want to run the blob storage export now? This will export all data since the last sync.",
+                )
+              )
+                mutRunNow.mutate({ projectId });
+            }}
+          >
+            Run Now
+          </Button>
+          <Button
+            variant="ghost"
+            loading={mutDelete.isPending}
+            disabled={!config}
+            onClick={() => {
+              if (
+                confirm(
+                  "Are you sure you want to reset the Blob Storage integration for this project?",
+                )
+              )
+                mutDelete.mutate({ projectId });
+            }}
+          >
+            Reset
+          </Button>
+        </>
+      )}
     </BlobStorageIntegrationForm>
   );
 };

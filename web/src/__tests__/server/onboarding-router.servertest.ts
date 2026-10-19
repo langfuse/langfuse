@@ -1,11 +1,12 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
-import { V4_DEFAULT_ENABLED_FROM_AT } from "@/src/features/events/lib/v4Rollout";
-import { createProjectRoute } from "@/src/features/setup/setupRoutes";
+import { V4_DEFAULT_ENABLED_FROM_AT } from "@/src/features/events/server";
+import { createProjectRoute } from "@/src/features/setup";
 import { prisma, Role } from "@langfuse/shared/src/db";
 
 const makeSession = ({
@@ -29,10 +30,7 @@ const makeSession = ({
       name,
       canCreateOrganizations,
       organizations,
-      featureFlags: {
-        excludeClickhouseRead: false,
-        templateFlag: true,
-      },
+      featureFlags: testFeatureFlags(),
       admin: false,
     },
     environment: {} as Session["environment"],
@@ -141,6 +139,7 @@ describe("onboarding router", () => {
 
     expect(result).toEqual({
       redirectTo: `/project/${starterProjectId}/traces`,
+      surveyCreated: true,
     });
     expect(organizationMembership.role).toBe(Role.OWNER);
     expect(organizationMembership.organization.projects).toHaveLength(1);
@@ -173,6 +172,7 @@ describe("onboarding router", () => {
 
     expect(result).toEqual({
       redirectTo: "/setup",
+      surveyCreated: true,
     });
   });
 
@@ -226,6 +226,7 @@ describe("onboarding router", () => {
 
     expect(result).toEqual({
       redirectTo: `/project/${project.id}`,
+      surveyCreated: true,
     });
 
     const projectCount = await prisma.project.count({
@@ -313,6 +314,7 @@ describe("onboarding router", () => {
 
     expect(result).toEqual({
       redirectTo: `/project/${project.id}`,
+      surveyCreated: true,
     });
 
     const organizationMemberships =
@@ -437,6 +439,7 @@ describe("onboarding router", () => {
     );
     expect(result).toEqual({
       redirectTo: `/project/${starterOrganizationMembership?.organization.projects[0]?.id}/traces`,
+      surveyCreated: true,
     });
   });
 
@@ -480,6 +483,165 @@ describe("onboarding router", () => {
 
     expect(result).toEqual({
       redirectTo: createProjectRoute(organization.id),
+      surveyCreated: true,
+    });
+  });
+  describe("survey answers", () => {
+    const createCallerForNewUser = async () => {
+      const userId = randomUUID();
+      const email = `build-intent-${userId}@example.com`;
+      createdUserIds.push(userId);
+      await prisma.user.create({ data: { id: userId, email } });
+
+      const caller = appRouter.createCaller({
+        ...createInnerTRPCContext({
+          session: makeSession({ userId, email }),
+          headers: {},
+        }),
+        prisma,
+      });
+
+      return { caller, userId };
+    };
+
+    it("stores trimmed answers with their shown positions", async () => {
+      const { caller, userId } = await createCallerForNewUser();
+
+      await caller.onboarding.complete({
+        buildIntents: ["rag", "other"],
+        buildIntentPositions: [2, 6],
+        buildIntentOther: "  voice agent  ",
+      });
+
+      const survey = await prisma.survey.findFirstOrThrow({
+        where: { userId },
+      });
+      expect(survey.response).toEqual({
+        buildIntents: ["rag", "other"],
+        buildIntentOther: "voice agent",
+        buildIntentPositions: [2, 6],
+      });
+    });
+
+    describe("newsletter result", () => {
+      const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+
+      afterEach(() => {
+        Object.assign(env, {
+          NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalCloudRegion,
+        });
+      });
+
+      const completeAsOrganizationMember = async ({
+        role,
+        cloudRegion,
+        clientLists,
+      }: {
+        role: Role;
+        cloudRegion?: string;
+        clientLists: string[];
+      }) => {
+        Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: cloudRegion });
+        const { caller, userId } = await createCallerForNewUser();
+        const organization = await prisma.organization.create({
+          data: {
+            name: `Newsletter Org ${userId}`,
+            organizationMemberships: { create: { userId, role } },
+          },
+        });
+        createdOrgIds.push(organization.id);
+
+        await caller.onboarding.complete({
+          newsletter: { outcome: "subscribed", lists: clientLists },
+        } as Parameters<typeof caller.onboarding.complete>[0]);
+
+        const survey = await prisma.survey.findFirstOrThrow({
+          where: { userId },
+        });
+        return survey.response;
+      };
+
+      it.each([
+        {
+          role: Role.VIEWER,
+          clientLists: ["product", "oss"],
+          storedLists: ["product"],
+        },
+        {
+          role: Role.OWNER,
+          clientLists: ["product"],
+          storedLists: ["product", "oss"],
+        },
+      ])(
+        "stores the lists offered to a $role on self-hosted, not the client's",
+        async ({ role, clientLists, storedLists }) => {
+          await expect(
+            completeAsOrganizationMember({ role, clientLists }),
+          ).resolves.toEqual({
+            newsletter: { lists: storedLists, outcome: "subscribed" },
+          });
+        },
+      );
+
+      it("stores no newsletter result in Cloud", async () => {
+        await expect(
+          completeAsOrganizationMember({
+            role: Role.OWNER,
+            cloudRegion: "US",
+            clientLists: ["product", "oss"],
+          }),
+        ).resolves.toEqual({});
+      });
+    });
+
+    it.each([
+      [
+        "duplicate picks",
+        { buildIntents: ["rag", "rag"], buildIntentPositions: [0, 0] },
+      ],
+      [
+        "just exploring with another pick",
+        {
+          buildIntents: ["just_exploring", "rag"],
+          buildIntentPositions: [5, 0],
+        },
+      ],
+      [
+        "more than three picks",
+        {
+          buildIntents: ["rag", "chat_agent", "coding_agents", "other"],
+          buildIntentPositions: [0, 1, 2, 6],
+        },
+      ],
+      [
+        "an unknown id",
+        { buildIntents: ["unknown"], buildIntentPositions: [0] },
+      ],
+      [
+        "other text over 500 characters",
+        {
+          buildIntents: ["other"],
+          buildIntentPositions: [6],
+          buildIntentOther: "x".repeat(501),
+        },
+      ],
+      [
+        "positions that don't match the picks",
+        { buildIntents: ["rag", "other"], buildIntentPositions: [2] },
+      ],
+      [
+        "a newsletter result with an unknown outcome",
+        { newsletter: { outcome: "bounced" } },
+      ],
+    ])("rejects %s", async (_case, input) => {
+      const { caller, userId } = await createCallerForNewUser();
+
+      await expect(
+        caller.onboarding.complete(
+          input as Parameters<typeof caller.onboarding.complete>[0],
+        ),
+      ).rejects.toThrow();
+      expect(await prisma.survey.count({ where: { userId } })).toBe(0);
     });
   });
 });

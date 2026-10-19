@@ -68,16 +68,36 @@ describe("reduceUsageOrCostDetails", () => {
       output: null,
       total: 5,
     });
+    expect(reduceUsageOrCostDetails({})).toEqual({
+      input: null,
+      output: null,
+      total: null,
+    });
     expect(reduceUsageOrCostDetails(null)).toEqual({
       input: null,
       output: null,
-      total: 0,
+      total: null,
     });
     expect(reduceUsageOrCostDetails(undefined)).toEqual({
       input: null,
       output: null,
+      total: null,
+    });
+  });
+
+  it("preserves an explicit zero total instead of treating it as missing", () => {
+    expect(reduceUsageOrCostDetails({ total: 0 })).toEqual({
+      input: null,
+      output: null,
       total: 0,
     });
+    expect(reduceUsageOrCostDetails({ input: 0, output: 0, total: 0 })).toEqual(
+      {
+        input: 0,
+        output: 0,
+        total: 0,
+      },
+    );
   });
 
   it("does not misclassify the total key", () => {

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { z } from "zod";
 import {
   createTRPCRouter,
@@ -5,17 +6,17 @@ import {
 } from "@/src/server/api/trpc";
 import { Prisma, type Dataset } from "@langfuse/shared/src/db";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { createMediaUploadUrl } from "@/src/features/media/server/mediaService";
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
+import { auditLog } from "@/src/features/audit-logs/server";
 import {
+  createMediaUploadUrl,
   datasetItemMediaReferenceKey,
   resolveDatasetItemMediaReferences,
-} from "@/src/features/media/server/datasetItemMediaReferences";
-import { MediaContentType } from "@/src/features/media/validation";
+  MediaContentType,
+} from "@/src/features/media/server";
 import {
   paginationZod,
-  singleFilter,
+  singleFilterList,
   StringNoHTML,
   StringNoHTMLNonEmpty,
   type FilterState,
@@ -33,6 +34,7 @@ import {
   ActionId,
   BatchActionType,
   BatchExportTableName,
+  type BulkDatasetItemValidationError,
 } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import { TRPCError } from "@trpc/server";
@@ -82,6 +84,7 @@ import {
   getDatasetItemVersionHistory,
   getDatasetItemChangesSinceVersion,
   getDatasetItemsCountGrouped,
+  getDatasetExperimentMetricsFromEvents,
   getDatasetVersionForRun,
   escapeSqlLikePattern,
   fetchWithSecureRedirects,
@@ -90,12 +93,11 @@ import {
   deleteDatasetsByIds,
   findDatasetsForDeletion,
 } from "@langfuse/shared/src/server";
-import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
+import { aggregateScores } from "@/src/features/scores/server";
 import {
   updateDataset,
   upsertDataset,
 } from "@/src/features/datasets/server/actions/createDataset";
-import { type BulkDatasetItemValidationError } from "@langfuse/shared";
 import {
   buildRemoteExperimentRequest,
   ensureRemoteExperimentSecret,
@@ -106,7 +108,7 @@ import {
   RemoteExperimentHeadersSchema,
 } from "@/src/features/datasets/server/remoteExperimentHelpers";
 import { v4 } from "uuid";
-import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
+import { createBatchActionJob } from "@/src/features/table/server";
 
 // Batch size kept small (100) as items may have large input/output/metadata JSON
 const DUPLICATE_DATASET_ITEMS_BATCH_SIZE = 100;
@@ -167,7 +169,7 @@ const resolveSearchCondition = (searchQuery?: string | null) => {
   if (!searchQuery || searchQuery.trim() === "") return Prisma.empty;
 
   // Add case-insensitive search condition
-  return Prisma.sql`AND d.name ILIKE ${`%${searchQuery}%`}`;
+  return Prisma.sql`AND d.name ILIKE ${`%${escapeSqlLikePattern(searchQuery)}%`}`;
 };
 
 const buildPathPrefixFilter = (pathPrefix?: string): Prisma.Sql => {
@@ -185,7 +187,7 @@ const buildPathPrefixFilter = (pathPrefix?: string): Prisma.Sql => {
  * @param filters - Array of filter conditions to evaluate
  * @returns true if any filter requires DRI metrics, false if using basic dataset run data is sufficient
  */
-export const requiresClickhouseLookups = (filters: FilterState): boolean => {
+const requiresClickhouseLookups = (filters: FilterState): boolean => {
   if (filters.length === 0) {
     return false;
   }
@@ -490,31 +492,40 @@ export const datasetRouter = createTRPCRouter({
 
       if (input.datasetIds.length === 0) return { metrics: [] };
 
-      // Get dataset runs metrics
-      const runsMetrics = await ctx.prisma.$queryRaw<
-        Array<{
-          id: string;
-          countDatasetRuns: number;
-          lastRunAt: Date | null;
-        }>
-      >`
-        SELECT d.id, COUNT(DISTINCT dr.id) AS "countDatasetRuns", MAX(dr.created_at) AS "lastRunAt"
-        FROM datasets d
-        LEFT JOIN dataset_runs dr ON d.id = dr.dataset_id AND dr.project_id = ${input.projectId}
-        WHERE d.project_id = ${input.projectId}
-        AND d.id IN (${Prisma.join(input.datasetIds)})
-        GROUP BY d.id
-      `;
-
-      // Get dataset items count for all datasets
-      const itemsCounts = await getDatasetItemsCountGrouped({
-        projectId: input.projectId,
-        datasetIds: input.datasetIds,
-      });
+      const [runsMetrics, itemsCounts] = await Promise.all([
+        ctx.session.user.v4BetaEnabled === true
+          ? getDatasetExperimentMetricsFromEvents({
+              projectId: input.projectId,
+              datasetIds: input.datasetIds,
+            })
+          : ctx.prisma.$queryRaw<
+              Array<{
+                datasetId: string;
+                countDatasetRuns: bigint;
+                lastRunAt: Date | null;
+              }>
+            >`
+                SELECT d.id AS "datasetId", COUNT(DISTINCT dr.id) AS "countDatasetRuns", MAX(dr.created_at) AS "lastRunAt"
+                FROM datasets d
+                LEFT JOIN dataset_runs dr ON d.id = dr.dataset_id AND dr.project_id = ${input.projectId}
+                WHERE d.project_id = ${input.projectId}
+                AND d.id IN (${Prisma.join(input.datasetIds)})
+                GROUP BY d.id
+              `.then((rows) =>
+              rows.map((row) => ({
+                ...row,
+                countDatasetRuns: Number(row.countDatasetRuns),
+              })),
+            ),
+        getDatasetItemsCountGrouped({
+          projectId: input.projectId,
+          datasetIds: input.datasetIds,
+        }),
+      ]);
 
       // Merge the metrics
       const metrics = input.datasetIds.map((datasetId) => {
-        const runsMetric = runsMetrics.find((m) => m.id === datasetId);
+        const runsMetric = runsMetrics.find((m) => m.datasetId === datasetId);
         const itemsCount = itemsCounts.find((m) => m.datasetId === datasetId);
 
         return {
@@ -532,7 +543,7 @@ export const datasetRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(), // Required for protectedProjectProcedure
-        filter: z.array(singleFilter).nullable(),
+        filter: singleFilterList.nullable(),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -1098,7 +1109,7 @@ export const datasetRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         datasetId: z.string(),
-        filter: z.array(singleFilter).nullish(),
+        filter: singleFilterList.nullish(),
         searchQuery: z.string().optional(),
         searchType: z.array(TracingSearchType).optional(),
         version: z.date().optional(),
@@ -1841,7 +1852,7 @@ export const datasetRouter = createTRPCRouter({
         datasetId: z.string(),
         datasetRunId: z.string(),
         datasetItemIds: z.array(z.string()).optional(),
-        filter: z.array(singleFilter),
+        filter: singleFilterList,
         ...optionalPaginationZod,
       }),
     )
@@ -1940,9 +1951,7 @@ export const datasetRouter = createTRPCRouter({
         datasetId: z.string(),
         runIds: z.array(z.string()),
         filterByRun: z
-          .array(
-            z.object({ runId: z.string(), filters: z.array(singleFilter) }),
-          )
+          .array(z.object({ runId: z.string(), filters: singleFilterList }))
           .nullish(),
         ...paginationZod,
       }),
@@ -2016,9 +2025,7 @@ export const datasetRouter = createTRPCRouter({
         datasetId: z.string(),
         runIds: z.array(z.string()),
         filterByRun: z
-          .array(
-            z.object({ runId: z.string(), filters: z.array(singleFilter) }),
-          )
+          .array(z.object({ runId: z.string(), filters: singleFilterList }))
           .nullish(),
       }),
     )

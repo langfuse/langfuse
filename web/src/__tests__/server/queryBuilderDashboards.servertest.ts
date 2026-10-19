@@ -1,9 +1,11 @@
+/* eslint-disable no-nested-ternary */
 import { randomUUID } from "crypto";
 import {
   createTrace,
   createTracesCh,
   createObservation,
   createObservationsCh,
+  convertDateToClickhouseDateTime,
 } from "@langfuse/shared/src/server";
 import { executeQuery } from "@langfuse/shared/query/server";
 import { type QueryType } from "@langfuse/shared/query";
@@ -220,7 +222,8 @@ describe("selfServeDashboards", () => {
     // Count recent production traces (within the last hour)
     stats.recentProductionTraces = traces.filter(
       (t) =>
-        t.environment === "production" && t.timestamp >= oneHourAgo.getTime(),
+        t.environment === "production" &&
+        t.timestamp >= convertDateToClickhouseDateTime(oneHourAgo),
     ).length;
   });
 

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { singleFilter } from "@langfuse/shared";
+import { singleFilterList } from "@langfuse/shared";
 
 const pagination = z.object({
   page: z.coerce.number().int().positive().default(1),
@@ -15,7 +15,7 @@ const placementPosition = {
   width: z.number().int().positive(),
   height: z.number().int().positive(),
 };
-export const PublicWidgetPlacementSchema = z
+const PublicWidgetPlacementSchema = z
   .object({
     type: z.literal("widget"),
     id: z.string(),
@@ -23,7 +23,7 @@ export const PublicWidgetPlacementSchema = z
     ...placementPosition,
   })
   .strict();
-export const PublicPresetPlacementSchema = z
+const PublicPresetPlacementSchema = z
   .object({
     type: z.literal("preset"),
     id: z.string(),
@@ -35,7 +35,7 @@ export const DashboardPlacementSchema = z.discriminatedUnion("type", [
   PublicWidgetPlacementSchema,
   PublicPresetPlacementSchema,
 ]);
-export const PublicDashboardDefinitionSchema = z
+const PublicDashboardDefinitionSchema = z
   .object({
     widgets: z.array(DashboardPlacementSchema),
   })
@@ -54,7 +54,7 @@ export const DashboardSchema = z
     name: z.string(),
     description: z.string(),
     definition: PublicDashboardDefinitionSchema,
-    filters: z.array(singleFilter),
+    filters: singleFilterList,
   })
   .strict();
 
@@ -73,7 +73,7 @@ export const PostUnstableDashboardBody = z.object({
   name: z.string().min(1),
   description: z.string().default(""),
   definition: PublicDashboardDefinitionSchema.optional(),
-  filters: z.array(singleFilter).optional(),
+  filters: singleFilterList.optional(),
 });
 /** @alias */
 export const PostUnstableDashboardResponse = DashboardSchema;
@@ -86,7 +86,7 @@ export const PatchUnstableDashboardBody = z
     name: z.string().min(1).optional(),
     description: z.string().optional(),
     definition: PublicDashboardDefinitionSchema.optional(),
-    filters: z.array(singleFilter).optional(),
+    filters: singleFilterList.optional(),
   })
   .refine(
     (value) => Object.keys(value).length > 0,

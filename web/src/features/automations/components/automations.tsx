@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { useRouter } from "next/router";
 import { AutomationSidebar } from "@/src/features/automations/components/AutomationSidebar";
 import { AutomationDetails } from "@/src/features/automations/components/AutomationDetails";
@@ -10,7 +11,7 @@ import { Button } from "@/src/components/ui/button";
 import { Plus } from "lucide-react";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import Page from "@/src/components/layouts/page";
-import { api } from "@/src/utils/api";
+import { api, getPathnameWithoutBasePath } from "@/src/utils/api";
 import { useQueryParams, StringParam, withDefault } from "use-query-params";
 import {
   Dialog,
@@ -23,7 +24,6 @@ import {
 } from "@/src/components/ui/dialog";
 import { type AutomationDomain } from "@langfuse/shared";
 import { ErrorPage } from "@/src/components/error-page";
-import { getPathnameWithoutBasePath } from "@/src/utils/api";
 
 export default function AutomationsPage() {
   const router = useRouter();
@@ -397,7 +397,7 @@ export default function AutomationsPage() {
         ],
         actionButtonsRight: (
           <Button onClick={handleCreateAutomation}>
-            <Plus className="mr-2 h-4 w-4" />
+            <Plus className="icon-base text-icon-foreground mr-2" />
             Create Automation
           </Button>
         ),

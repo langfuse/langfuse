@@ -1,4 +1,5 @@
-import { createContext, useContext, useMemo } from "react";
+/* eslint-disable @repo/component-file-structure */
+import { createContext, useMemo } from "react";
 import type { SectionContext } from "../types";
 import type { TreeState } from "../utils/treeStructure";
 import { getSectionContext, getSectionKeys } from "../utils/multiSectionTree";
@@ -53,32 +54,4 @@ export function SectionContextProvider({
       {children}
     </SectionContextMapContext.Provider>
   );
-}
-
-/**
- * Hook for header/footer components to access section context
- *
- * Usage in header component:
- *   const context = useSectionContext('input');
- *   <div onClick={() => context.setExpanded(!context.isExpanded)}>
- *     {context.isExpanded ? '▼' : '▶'} Input ({context.rowCount} rows)
- *   </div>
- */
-export function useSectionContext(sectionKey: string): SectionContext {
-  const map = useContext(SectionContextMapContext);
-
-  const context = map[sectionKey];
-
-  if (!context) {
-    // Default context if not found
-    console.warn(`Section context not found for key: ${sectionKey}`);
-    return {
-      sectionKey,
-      rowCount: 0,
-      isExpanded: false,
-      setExpanded: () => {},
-    };
-  }
-
-  return context;
 }

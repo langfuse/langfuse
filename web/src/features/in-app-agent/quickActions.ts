@@ -40,7 +40,7 @@ export const IN_APP_AGENT_QUICK_ACTION_CONTEXT_LABELS: Record<
   InAppAgentQuickActionContext,
   string
 > = {
-  observability: "Observability",
+  observability: "Observe",
   prompts: "Prompts",
   evaluation: "Evaluation",
   dashboards: "Dashboard",
@@ -68,7 +68,7 @@ export type InAppAgentSubmitOptions = {
   /** Force a fresh conversation instead of appending to the selected one. */
   newConversation?: boolean;
   /** Which surface sent the message; PostHog only. Defaults to "chat". */
-  entryPoint?: "chat" | "add-widget-modal";
+  entryPoint?: "chat" | "add-widget-modal" | "evaluators-empty-state";
 };
 
 // Version 1 starter sets. Idea is that periodic curation replaces sets when usage

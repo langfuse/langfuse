@@ -1,23 +1,21 @@
 import { z } from "zod";
 import {
   EvalTargetObjectSchema,
-  singleFilter,
+  singleFilterList,
   type langfuseObjects,
   TimeScopeSchema,
+  wipVariableMapping,
 } from "@langfuse/shared";
-import { wipVariableMapping } from "@langfuse/shared";
 import { OUTPUT_MAPPING } from "@/src/features/evals/utils/evaluator-constants";
+import { getJsonPathCompatibilityWarning } from "@/src/features/evals/utils/json-path-compatibility";
 
-// Legacy eval targets (TRACE, DATASET) use full variable mapping UI with object selector
-// Modern eval targets (EVENT, EXPERIMENT) use simplified UI with just column selection
-export const isLegacyEvalTarget = (target: string): boolean =>
-  target === "trace" || target === "dataset";
+export { getJsonPathCompatibilityWarning } from "@/src/features/evals/utils/json-path-compatibility";
 
 export const evalConfigFormSchema = z
   .object({
     scoreName: z.string(),
     target: EvalTargetObjectSchema,
-    filter: z.array(singleFilter).nullable(), // reusing the filter type from the tables
+    filter: singleFilterList.nullable(),
     mapping: z.array(wipVariableMapping),
     sampling: z.coerce.number().gt(0).lte(1),
     delay: z.coerce.number().min(0).optional().default(10),
@@ -68,57 +66,6 @@ export const fieldHasJsonSelectorOption = (
   selectedColumnId === "experimentItemExpectedOutput" ||
   selectedColumnId === "experimentItemMetadata" ||
   selectedColumnId === "toolCalls";
-
-const stripJsonPathStringLiterals = (selector: string): string => {
-  let quote: "'" | '"' | "`" | null = null;
-  let isEscaped = false;
-
-  // Ignore expression-like text inside quoted property names to avoid false warnings.
-  return [...selector]
-    .map((character) => {
-      if (quote) {
-        if (isEscaped) {
-          isEscaped = false;
-        } else if (character === "\\") {
-          isEscaped = true;
-        } else if (character === quote) {
-          quote = null;
-        }
-
-        return " ";
-      }
-
-      if (character === "'" || character === '"' || character === "`") {
-        quote = character;
-        return " ";
-      }
-
-      return character;
-    })
-    .join("");
-};
-
-export function getJsonPathCompatibilityWarning(
-  selector: string | null | undefined,
-): string | null {
-  if (!selector) return null;
-
-  const selectorWithoutStrings = stripJsonPathStringLiterals(selector);
-
-  if (/\[\s*\?/u.test(selectorWithoutStrings)) {
-    return "Filter expressions ([?...]) are not supported and will not be applied.";
-  }
-
-  if (/\[\s*\(/u.test(selectorWithoutStrings)) {
-    return "Script expressions ([(...)]) are not supported. The evaluator will use the unfiltered value instead.";
-  }
-
-  if (/\[\s*-\d+\s*\]/u.test(selectorWithoutStrings)) {
-    return "Negative array indices (for example, [-1]) are not supported. Use a slice such as [-1:] instead.";
-  }
-
-  return null;
-}
 
 /**
  * Only warns while the row's JsonPath input is rendered: a target switch nulls

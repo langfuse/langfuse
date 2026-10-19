@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
@@ -45,14 +46,7 @@ describe("traces trpc", () => {
           ],
         },
       ],
-      featureFlags: {
-        excludeClickhouseRead: false,
-        templateFlag: true,
-        searchBar: false,
-        v4BetaToggleVisible: false,
-        observationEvals: false,
-        experimentsV4Enabled: false,
-      },
+      featureFlags: testFeatureFlags(),
       admin: true,
     },
     environment: {} as any,
@@ -62,6 +56,20 @@ describe("traces trpc", () => {
   const caller = appRouter.createCaller({ ...ctx, prisma });
 
   describe("generations.all", () => {
+    it("accepts leaked tracing time-column orderBy aliases", async () => {
+      await expect(
+        caller.generations.all({
+          projectId,
+          page: 0,
+          limit: 10,
+          filter: [],
+          searchQuery: null,
+          searchType: ["id"],
+          orderBy: { column: "timestamp", order: "DESC" },
+        }),
+      ).resolves.toBeDefined();
+    });
+
     it("should get all generations with full text search and trace + scores filter", async () => {
       const traceId = randomUUID();
       const generationId = randomUUID();

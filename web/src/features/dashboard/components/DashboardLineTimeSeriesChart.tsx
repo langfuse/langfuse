@@ -1,11 +1,11 @@
 import React, { useMemo } from "react";
-import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
-import { type TimeSeriesChartDataPoint } from "@/src/features/dashboard/components/hooks";
 import {
+  Chart,
   type LegendSummaryMode,
   type MissingBucketValue,
-} from "@/src/features/widgets/chart-library/chart-props";
+} from "@/src/features/widgets";
+import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
+import { type TimeSeriesChartDataPoint } from "@/src/features/dashboard/components/hooks";
 
 /**
  * Memoized LINE_TIME_SERIES card shared by the dashboard time-series panels.
@@ -25,7 +25,7 @@ export const DashboardLineTimeSeriesChart = React.memo(
     unit,
     legendSummary,
     syncId,
-    subtleFill,
+    sync,
     missingValue,
   }: {
     data: TimeSeriesChartDataPoint[];
@@ -33,7 +33,10 @@ export const DashboardLineTimeSeriesChart = React.memo(
     unit?: string;
     legendSummary?: LegendSummaryMode;
     syncId?: string;
-    subtleFill?: boolean;
+    sync?: {
+      activeKey: string | undefined;
+      onActiveKeyChange: (key: string | undefined) => void;
+    };
     /** See {@link MissingBucketValue}. Defaults to `"gap"`. */
     missingValue?: MissingBucketValue;
   }) {
@@ -47,9 +50,8 @@ export const DashboardLineTimeSeriesChart = React.memo(
         type: "LINE_TIME_SERIES" as const,
         unit,
         show_data_point_dots: false,
-        subtle_fill: subtleFill,
       }),
-      [unit, subtleFill],
+      [unit],
     );
 
     return (
@@ -61,6 +63,7 @@ export const DashboardLineTimeSeriesChart = React.memo(
         chartConfig={chartConfig}
         legendSummary={legendSummary}
         syncId={syncId}
+        sync={sync}
         missingValue={missingValue}
       />
     );

@@ -4,17 +4,28 @@ import {
   Role,
   SurveyName,
 } from "@langfuse/shared/src/db";
-import { resolveProjectRole } from "@langfuse/shared/src/server";
+import {
+  resolveProjectRole,
+  invalidateCachedOrgApiKeys,
+} from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import {
   organizationRoleAccessRights,
   type OrganizationScope,
-} from "@/src/features/rbac/constants/organizationAccessRights";
+} from "@/src/features/rbac";
 import { projectRoleAccessRights } from "@langfuse/shared";
-import { createProjectRoute } from "@/src/features/setup/setupRoutes";
+import { createProjectRoute } from "@/src/features/setup";
+import { type BuildIntentId } from "@/src/features/onboarding/lib/buildIntent";
+import { getFallbackRedirectPath } from "@/src/features/onboarding/lib/fallbackRedirect";
+import {
+  type NewsletterList,
+  type NewsletterOutcome,
+} from "@/src/features/onboarding/lib/newsletterSignup";
 
 const DEFAULT_STARTER_PROJECT_NAME = "My Project";
+const INSTALLER_NEWSLETTER_LISTS: NewsletterList[] = ["product", "oss"];
+const INVITED_NEWSLETTER_LISTS: NewsletterList[] = ["product"];
 const STARTER_ORGANIZATION_METADATA = {
   langfuseOnboarding: {
     starterOrganization: true,
@@ -107,6 +118,7 @@ export type RealOrganizationMembership = Awaited<
 export type OnboardingRedirectTarget = {
   redirectTo: string;
   orgId?: string;
+  canConfigureAiFeatures?: true;
 };
 
 const getAccessibleProjects = (
@@ -144,12 +156,14 @@ export const resolveOnboardingRedirectTarget = async ({
 }: {
   prisma: Pick<PrismaClient, "organizationMembership">;
   userId: string;
-}): Promise<OnboardingRedirectTarget | null> => {
-  const organizationMemberships = await getRealOrganizationMemberships({
-    prisma,
-    userId,
-  });
+}): Promise<OnboardingRedirectTarget | null> =>
+  getRedirectTargetForMemberships(
+    await getRealOrganizationMemberships({ prisma, userId }),
+  );
 
+const getRedirectTargetForMemberships = (
+  organizationMemberships: RealOrganizationMembership[],
+): OnboardingRedirectTarget | null => {
   const starterOrganizationMembership = organizationMemberships.find(
     (membership) =>
       membership.role === Role.OWNER &&
@@ -170,6 +184,7 @@ export const resolveOnboardingRedirectTarget = async ({
       return {
         redirectTo: `/project/${starterProject.id}/traces`,
         orgId: starterOrganizationMembership.organization.id,
+        canConfigureAiFeatures: true,
       };
     }
   }
@@ -208,7 +223,7 @@ export const resolveOnboardingRedirectTarget = async ({
   return null;
 };
 
-export const resolveOnboardingRedirectTargetWithFallback = async ({
+const resolveOnboardingRedirectTargetWithFallback = async ({
   prisma,
   userId,
   canCreateOrganizations,
@@ -217,11 +232,19 @@ export const resolveOnboardingRedirectTargetWithFallback = async ({
   userId: string;
   canCreateOrganizations: boolean;
 }): Promise<OnboardingRedirectTarget> =>
-  (await resolveOnboardingRedirectTarget({ prisma, userId })) ?? {
-    redirectTo: canCreateOrganizations ? "/setup" : "/",
-  };
+  (await resolveOnboardingRedirectTarget({ prisma, userId })) ??
+  getFallbackRedirectTarget(canCreateOrganizations);
 
-export const getCloudSignupOnboardingStatus = async ({
+/**
+ * Always on for Cloud. Self-hosted turns it off with
+ * `LANGFUSE_DISABLE_SIGNUP_ONBOARDING=true`: status then reports the step as
+ * completed and completion writes nothing.
+ */
+export const isSignupOnboardingEnabled = () =>
+  Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) ||
+  env.LANGFUSE_DISABLE_SIGNUP_ONBOARDING !== "true";
+
+export const getSignupOnboardingStatus = async ({
   prisma,
   userId,
   canCreateOrganizations,
@@ -230,7 +253,46 @@ export const getCloudSignupOnboardingStatus = async ({
   userId: string;
   canCreateOrganizations: boolean;
 }) => {
-  const completedSurvey = await prisma.survey.findFirst({
+  const organizationMemberships = await getRealOrganizationMemberships({
+    prisma,
+    userId,
+  });
+  const redirectTarget =
+    getRedirectTargetForMemberships(organizationMemberships) ??
+    getFallbackRedirectTarget(canCreateOrganizations);
+
+  if (
+    !isSignupOnboardingEnabled() ||
+    (await hasCompletedOnboardingSurvey({ prisma, userId }))
+  ) {
+    return {
+      completed: true as const,
+      redirectTo: redirectTarget.redirectTo,
+    };
+  }
+
+  return {
+    completed: false as const,
+    canConfigureAiFeatures: redirectTarget.canConfigureAiFeatures === true,
+    ...(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+      ? {}
+      : {
+          newsletterLists: getNewsletterLists({
+            organizationMemberships,
+            canCreateOrganizations,
+          }),
+        }),
+  };
+};
+
+const hasCompletedOnboardingSurvey = async ({
+  prisma,
+  userId,
+}: {
+  prisma: Pick<PrismaClient, "survey">;
+  userId: string;
+}) =>
+  (await prisma.survey.findFirst({
     where: {
       userId,
       surveyName: SurveyName.USER_ONBOARDING,
@@ -238,40 +300,62 @@ export const getCloudSignupOnboardingStatus = async ({
     select: {
       id: true,
     },
-  });
+  })) !== null;
 
-  if (!completedSurvey) {
-    return {
-      completed: false as const,
-    };
-  }
+/** Installers (no membership yet, free to create an org) and org owners/admins also get the self-hosting list. */
+const getNewsletterLists = ({
+  organizationMemberships,
+  canCreateOrganizations,
+}: {
+  organizationMemberships: RealOrganizationMembership[];
+  canCreateOrganizations: boolean;
+}) => {
+  const isInstaller =
+    organizationMemberships.length === 0 && canCreateOrganizations;
+  const isOrganizationAdmin = organizationMemberships.some(
+    (membership) =>
+      membership.role === Role.OWNER || membership.role === Role.ADMIN,
+  );
 
-  const redirectTarget = await resolveOnboardingRedirectTargetWithFallback({
-    prisma,
-    userId,
-    canCreateOrganizations,
-  });
-
-  return {
-    completed: true as const,
-    redirectTo: redirectTarget.redirectTo,
-  };
+  return isInstaller || isOrganizationAdmin
+    ? INSTALLER_NEWSLETTER_LISTS
+    : INVITED_NEWSLETTER_LISTS;
 };
 
-export const completeCloudSignupOnboarding = async ({
+export const completeSignupOnboarding = async ({
   prisma,
   userId,
   userEmail,
   canCreateOrganizations,
   referralSource,
+  aiFeaturesEnabled,
+  buildIntents,
+  buildIntentPositions,
+  buildIntentOther,
+  newsletter,
 }: {
   prisma: PrismaClient;
   userId: string;
   userEmail?: string | null;
   canCreateOrganizations: boolean;
   referralSource?: string;
-}) =>
-  prisma.$transaction(async (tx) => {
+  aiFeaturesEnabled?: boolean;
+  buildIntents?: BuildIntentId[];
+  buildIntentPositions?: number[];
+  buildIntentOther?: string;
+  newsletter?: { outcome: NewsletterOutcome };
+}) => {
+  if (!isSignupOnboardingEnabled()) {
+    const redirectTarget = await resolveOnboardingRedirectTargetWithFallback({
+      prisma,
+      userId,
+      canCreateOrganizations,
+    });
+
+    return { redirectTo: redirectTarget.redirectTo, surveyCreated: false };
+  }
+
+  return prisma.$transaction(async (tx) => {
     await tx.$queryRaw`
       SELECT id
       FROM users
@@ -279,33 +363,58 @@ export const completeCloudSignupOnboarding = async ({
       FOR UPDATE
     `;
 
-    const existingSurvey = await tx.survey.findFirst({
-      where: {
-        userId,
-        surveyName: SurveyName.USER_ONBOARDING,
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    const redirectTarget = await resolveOnboardingRedirectTargetWithFallback({
+    const hasCompletedSurvey = await hasCompletedOnboardingSurvey({
       prisma: tx,
       userId,
-      canCreateOrganizations,
     });
+    const organizationMemberships = await getRealOrganizationMemberships({
+      prisma: tx,
+      userId,
+    });
+    const redirectTarget =
+      getRedirectTargetForMemberships(organizationMemberships) ??
+      getFallbackRedirectTarget(canCreateOrganizations);
 
-    if (!existingSurvey) {
+    if (!hasCompletedSurvey) {
       const normalizedReferralSource = referralSource?.trim();
+
+      if (
+        redirectTarget.canConfigureAiFeatures &&
+        aiFeaturesEnabled !== undefined &&
+        redirectTarget.orgId
+      ) {
+        await tx.organization.update({
+          where: { id: redirectTarget.orgId },
+          data: { aiFeaturesEnabled },
+        });
+      }
 
       await tx.survey.create({
         data: {
           surveyName: SurveyName.USER_ONBOARDING,
-          response: normalizedReferralSource
-            ? {
-                referralSource: normalizedReferralSource,
-              }
-            : {},
+          response: {
+            ...(normalizedReferralSource
+              ? { referralSource: normalizedReferralSource }
+              : {}),
+            ...(buildIntents && buildIntents.length > 0
+              ? {
+                  buildIntents,
+                  buildIntentPositions: buildIntentPositions ?? [],
+                  ...(buildIntentOther ? { buildIntentOther } : {}),
+                }
+              : {}),
+            ...(newsletter && !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+              ? {
+                  newsletter: {
+                    lists: getNewsletterLists({
+                      organizationMemberships,
+                      canCreateOrganizations,
+                    }),
+                    outcome: newsletter.outcome,
+                  },
+                }
+              : {}),
+          },
           userId,
           userEmail: userEmail ?? undefined,
           orgId: redirectTarget.orgId,
@@ -315,8 +424,10 @@ export const completeCloudSignupOnboarding = async ({
 
     return {
       redirectTo: redirectTarget.redirectTo,
+      surveyCreated: !hasCompletedSurvey,
     };
   });
+};
 
 export const provisionStarterOrganizationForNewUser = async ({
   prisma,
@@ -410,5 +521,19 @@ export const provisionStarterOrganizationForNewUser = async ({
     prisma,
   );
 
+  // After the tx commits: refresh org-scoped keys' baked projectIds for the
+  // new starter project.
+  await invalidateCachedOrgApiKeys(createdResources.organization.id);
+
   return createdResources;
 };
+
+/** Only reached without real memberships: any membership has its own target in getRedirectTargetForMemberships. */
+const getFallbackRedirectTarget = (
+  canCreateOrganizations: boolean,
+): OnboardingRedirectTarget => ({
+  redirectTo: getFallbackRedirectPath({
+    hasOrganizations: false,
+    canCreateOrganizations,
+  }),
+});

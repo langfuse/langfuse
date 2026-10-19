@@ -154,19 +154,36 @@ separate click event would answer.
 Rollback is a code revert; background execution does not require a schema
 rollback.
 
-`QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED` must be on wherever turns run
-in background, otherwise runs commit as `QUEUED` and die at `queue_timeout`. It
-is already enabled in every Langfuse Cloud region. Check
+Workers with `LANGFUSE_IN_APP_AGENT_ENABLED` set consume the run queue.
+Stale-run reconciliation runs independently of assistant enablement so abandoned
+runs cannot block retention after opt-out; it never executes agent work.
+Cloud is on unless the flag is `"false"`. Split-role workers
+can keep the instance on and set
+`QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED=false` (and
+`LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED=false`) to skip those
+surfaces. Check
 `LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG` against execution capacity too:
 its default of 20 equals full US capacity and exceeds JP and staging.
 
 Conversation switching, detached invalidations, retry, and conversation-list run
 statuses remain separate project concerns.
 
+Assistant conversation retention runs independently of ingestion retention mode
+and assistant enablement, under an enterprise license. It is enabled by default;
+`QUEUE_CONSUMER_DATA_RETENTION_QUEUE_IS_ENABLED=false` no longer pauses assistant
+retention. Set `LANGFUSE_IN_APP_AGENT_RETENTION_CLEANER_ENABLED=false` on every
+worker to pause it. Conversations with unfinished runs remain excluded until
+reconciliation settles them. Keep at least one integrity runner enabled for
+stale-run reconciliation, including after assistant opt-out.
+
 Environment ownership:
 
-- Worker: queue enable/concurrency, sandbox provider and Lambda MicroVM values,
-  and development-only `LANGFUSE_IN_APP_AGENT_AWS_PROFILE`.
+- Worker: queue concurrency, sandbox provider and Lambda MicroVM values.
+  Enablement is `LANGFUSE_IN_APP_AGENT_ENABLED` (shared with web); optional `"false"`
+  queue and integrity flags opt a split-role worker out.
+- Shared: local `LANGFUSE_AI_FEATURES_AWS_PROFILE` for Topics, Assistant, and
+  Ask AI. `AWS_PROFILE` takes precedence; `LANGFUSE_IN_APP_AGENT_AWS_PROFILE`
+  remains a fallback for existing local setups. Production uses IAM roles.
 - Fixed lifecycle policy: queue timeout (300000 ms), maximum run duration
   (900000 ms), and approval TTL (86400000 ms). These are shared constants, so
   web and worker cannot diverge.

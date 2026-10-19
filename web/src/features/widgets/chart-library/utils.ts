@@ -120,10 +120,6 @@ export const isTimeSeriesChart = (
   }
 };
 
-// Used for a combination of YAxis styling workarounds as discussed in https://github.com/recharts/recharts/issues/2027#issuecomment-769674096.
-export const formatAxisLabel = (label: string): string =>
-  label.length > 13 ? label.slice(0, 13).concat("…") : label;
-
 /**
  * Picks a recharts numeric x-axis `interval` (= ticks skipped between two shown
  * ticks) that yields UNIFORM gaps targeting ~`maxTicks` labels. We use this
@@ -387,12 +383,16 @@ export function formatMetric(
     );
 
     const normalizedValue = absValue / durationDivisors[tier];
+    const maxFractionDigits =
+      normalizedValue > 0 && normalizedValue < 1
+        ? Math.min(20, 2 - Math.floor(Math.log10(normalizedValue)))
+        : 2;
 
     return applyNegative(
       formatWithConstrainedDecimals({
         value: normalizedValue,
         maxCharacters: magnitudeMaxCharacters,
-        maxFractionDigits: 2,
+        maxFractionDigits,
         createFormatter: (fractionDigits) =>
           new Intl.NumberFormat("en-US", {
             style: "unit",

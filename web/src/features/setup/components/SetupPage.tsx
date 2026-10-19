@@ -8,9 +8,9 @@ import {
   BreadcrumbSeparator,
 } from "@/src/components/ui/breadcrumb";
 import { Card } from "@/src/components/ui/card";
-import { NewOrganizationForm } from "@/src/features/organizations/components/NewOrganizationForm";
+import { ConnectedNewOrganizationForm } from "@/src/features/organizations/components/ConnectedNewOrganizationForm";
 import { NewProjectForm } from "@/src/features/projects/components/NewProjectForm";
-import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { useQueryProjectOrOrganization } from "@/src/features/projects";
 import { createProjectRoute } from "@/src/features/setup/setupRoutes";
 import { cn } from "@/src/utils/tailwind";
 import { Check } from "lucide-react";
@@ -55,7 +55,7 @@ export function SetupPage() {
               )}
             >
               1. Create Organization
-              {stepInt > 1 && <Check className="ml-1 inline-block h-3 w-3" />}
+              {stepInt > 1 && <Check className="icon-sm ml-1 inline-block" />}
             </BreadcrumbPage>
           </BreadcrumbItem>
           <BreadcrumbSeparator />
@@ -81,9 +81,15 @@ export function SetupPage() {
               <p className="text-muted-foreground mb-4 text-sm">
                 Organizations are used to manage your projects and teams.
               </p>
-              <NewOrganizationForm
-                onSuccess={(orgId) => {
-                  router.push(createProjectRoute(orgId));
+              <ConnectedNewOrganizationForm
+                onSuccess={async (orgId, sessionRefreshed) => {
+                  const projectRoute = createProjectRoute(orgId);
+                  await router.push(projectRoute);
+
+                  if (!sessionRefreshed) {
+                    // The setup page resolves the new organization from the session.
+                    router.reload();
+                  }
                 }}
               />
             </div>

@@ -1,13 +1,24 @@
 import { type CaptureResult, type CaptureOptions } from "posthog-js";
 import { usePostHog } from "posthog-js/react";
 import { useCallback } from "react";
+import type { AnnotationEventMap } from "@/src/features/scores/lib/annotationAnalytics";
+import type { EvalOnboardingEventMap } from "@/src/features/evals/v2/types/evalOnboardingAnalytics";
+import type {
+  ToastInteractionEventProperties,
+  ToastShownEventProperties,
+} from "@/src/features/notifications/toastAnalytics";
 
 export const V4_BETA_ENABLED_POSTHOG_PROPERTY = "v4BetaEnabled";
 
+type ToastEventMap = {
+  "toast:shown": ToastShownEventProperties;
+  "toast:report_issue": ToastInteractionEventProperties;
+  "toast:dismiss": ToastInteractionEventProperties;
+};
+
 // resource:action, only use snake_case
-// Exported to silence @typescript-eslint/no-unused-vars v8 warning
-// (used for type extraction via typeof, which is a legitimate pattern)
-export const events = {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via typeof
+const events = {
   table: [
     "filter_builder_open",
     "filter_builder_close",
@@ -27,7 +38,7 @@ export const events = {
     "observation_tree_toggle_scores",
     "observation_tree_toggle_metrics",
     "io_mode_switch",
-    "io_pretty_format_toggle_group",
+    "io_parser_comparison",
     "test_in_playground_button_click",
     "display_mode_switch",
     "download_button_click",
@@ -36,19 +47,13 @@ export const events = {
     "graph_view_toggle",
     // Aggregated vs expanded graph build mode (LFE-10676).
     "graph_mode_switch",
-    // `source` distinguishes the inline expand/collapse button from the
-    // trace settings switch; `collapsed` is the new preference value.
+    // `source` distinguishes the inline expand/collapse button, the message
+    // header control, and the trace settings switch; `collapsed` is the new
+    // preference value.
     "system_prompt_collapse_toggle",
     // Fired from the tree, timeline, graph, and search-result click handlers;
     // `source` says which surface drove the navigation.
     "node_selected",
-    // Trace playhead transport in the navigation header (and the overflow
-    // menu on a narrow panel). Distinguishes play vs pause vs stop; `viewMode`
-    // is tree vs timeline at click time; `observationCount` is the loaded
-    // trace size. Metadata only — never a trace/observation id.
-    "playback_play",
-    "playback_pause",
-    "playback_stop",
     // Download from the large-string IO fallback (LFE-10991): a top-level
     // string over the render limit is shown as a bounded preview + download
     // instead of the full Pretty/JSON viewer. Measures how often users hit it.
@@ -56,6 +61,30 @@ export const events = {
     // Raw download from the JSON-view fallback shown when a field is too large
     // to render in the unvirtualized viewer (LFE-10989).
     "json_view_large_field_download",
+    // Detail-panel tab switch (Preview / Log View / Scores). `tab` is the
+    // target tab, `target` is trace vs observation. Answers whether the Log
+    // View and Scores tabs earn their place.
+    "detail_tab_switch",
+    // Row actions on the Attributes, Model parameters and Metadata tables in
+    // the detail panel: `table` is which of the three, `action` is copy,
+    // include_filter or exclude_filter. Never the key or value text.
+    "attribute_table_action",
+    // Controls used *inside* the Log View tab, so a removal decision can weigh
+    // what people actually do there. `target` is trace vs observation;
+    // `action` is one of (see `LogViewAction` in TraceLogView.tsx):
+    // search_focus (once per focus, not per keystroke), indent_toggle,
+    // milliseconds_toggle, expand_all, collapse_all, row_expand, row_collapse,
+    // copy_json, json_mode_collapse_toggle, and view_mode_switch (the
+    // Formatted/JSON toggle, emitted by the hosting detail views).
+    // Metadata only — never an observation id or the search text.
+    "log_view_interaction",
+    // The JSON-view Beta switch (legacy JSON <-> virtualized json-beta).
+    // `enabled` is the new value. Decides whether json-beta graduates.
+    "json_beta_toggle",
+    // Whole-section collapse chevrons on Input/Output/Metadata/Corrected
+    // Output. `section` is a fixed enum (never content), `collapsed` the new
+    // state. Informs future default-collapsed decisions.
+    "io_section_collapse_toggle",
   ],
   // The shared table peek panel (opened via the `peek` URL param). Props carry
   // `routePattern` (the Next.js route pattern, never a concrete URL) so opens
@@ -114,11 +143,23 @@ export const events = {
     "create_form_open",
     "update_comment",
     "delete_comment",
+    "form_abandoned",
+    "value_set",
+    "level_changed",
+    "level_added",
+  ],
+  annotation: ["entry_click"],
+  annotation_queues: [
+    "item_added",
+    "item_removed",
+    "manage_click",
+    "score_configs_saved",
   ],
   score_configs: [
     "create_form_submit",
     "update_form_submit",
     "manage_configs_item_click",
+    "add_category_inline",
     "archive_form_open",
     "archive_form_submit",
   ],
@@ -131,6 +172,15 @@ export const events = {
     "bulk_export",
     "bulk_import_submit",
   ],
+  skills: [
+    "new_form_open",
+    "version_create",
+    "version_download",
+    "version_compare",
+    "delete",
+    "import_open",
+    "import",
+  ],
   prompt_detail: [
     "test_in_playground_button_click",
     "add_label_submit",
@@ -141,6 +191,9 @@ export const events = {
     "duplicate_form_submit",
   ],
   session_detail: [
+    "announcement_learn_more_click",
+    "announcement_feedback_click",
+    "announcement_dismiss",
     "publish_button_click",
     "download_button_click",
     "copy_session_id_click",
@@ -168,6 +221,58 @@ export const events = {
     "delete_form_open",
     "delete_template_button_click",
   ],
+  evaluators: [
+    "create",
+    "update",
+    "delete",
+    "test",
+    "saved_dialog_submit",
+    "overview_action_click",
+    "variable_mapping_configured",
+    "version_history_interaction",
+    "default_model_update",
+    "reactivate",
+    "gallery_creation_source_select",
+    "empty_state_template_select",
+    "empty_state_browse_library",
+    "empty_state_detect_topics",
+    "alert_create_clicked",
+  ],
+  evaluation_rules: [
+    "create",
+    "update",
+    "delete",
+    "status_change",
+    "attach_evaluator",
+    "detach_evaluator",
+    "filter_reused",
+  ],
+  // Evaluator creation funnel (gallery -> setup page -> saved dialog). Props
+  // are typed in EvalOnboardingEventMap: metadata only, never search text,
+  // prompt content, names or filter values.
+  eval: [
+    "onboarding_started",
+    "onboarding_step_completed",
+    "onboarding_completed",
+    "onboarding_gallery_searched",
+    "onboarding_gallery_section_selected",
+    "onboarding_evaluator_type_changed",
+    "onboarding_preview_toggled",
+    "onboarding_sample_observation_previewed",
+    "onboarding_prompt_modified",
+    "onboarding_llm_connection_tab_opened",
+    "onboarding_model_picker_opened",
+    "onboarding_model_changed",
+    "onboarding_ai_generate_requested",
+    "onboarding_sampling_changed",
+    "onboarding_historic_eval_toggled",
+    "onboarding_scope_changed",
+    "onboarding_create_rule_opened",
+    "onboarding_execution_skipped",
+  ],
+  // One-shot batch evaluation from the events / experiments tables.
+  // Counts and enums only — never mapping contents or observation payloads.
+  batch_eval: ["run"],
   integrations: [
     "posthog_form_submitted",
     "blob_storage_form_submitted",
@@ -186,6 +291,8 @@ export const events = {
     "save_to_prompt_version_button_click",
   ],
   dashboard: [
+    "view",
+    "widget_saved",
     "clone_dashboard",
     "home_dashboard_viewed",
     "home_dashboard_peeked",
@@ -207,7 +314,6 @@ export const events = {
     "add_widget_dialog_open",
     "add_widget_tab_switch",
     "widget_added",
-    "dashboard_renamed_inline",
     "chart_tab_switch",
     "date_range_changed",
     "new_widget_form_open",
@@ -216,7 +322,7 @@ export const events = {
     "delete_dashboard_form_open",
     "delete_dashboard_button_click",
   ],
-  monitors: ["delete_form_open", "delete_monitor_button_click"],
+  monitors: ["create", "delete_form_open", "delete_monitor_button_click"],
   datasets: [
     "delete_form_open",
     "delete_dataset_button_click",
@@ -256,12 +362,35 @@ export const events = {
     "compare_run_added",
     "compare_run_removed",
   ],
+  // Experiments UI (v4). Metadata only — counts/enums/booleans/field names;
+  // never experiment or dataset names, score values, or item content.
+  // `isV4` + `tableName` on every event. `source` on comparison/baseline
+  // distinguishes picker vs table-selection vs url (deep link / redirect) vs
+  // auto — so the auto-selected comparison stays out of "users who compare".
+  //
+  experiment: [
+    "comparison_changed",
+    "comparison_picker_opened",
+    "baseline_changed",
+    "auto_comparison_preference_changed",
+    "chart_metric_changed",
+    "chart_added",
+    "chart_removed",
+    "chart_type_changed",
+    "layout_changed",
+    "diff_mode_changed",
+    "score_column_scope_toggled",
+    "item_regression_filter_applied",
+  ],
   // Version-update reload notification (LFE-10978). `banner_shown` fires once
   // per appearance; the two actions measure the reload-vs-dismiss split. No
   // props carry user content.
   version_update: ["banner_shown", "reload_clicked", "dismissed"],
   notification: ["click_link", "dismiss_notification"],
-  toast: ["report_issue", "dismiss"],
+  // User-visible toast denominator. Metadata only: `path` is a static tRPC
+  // procedure, `operation` is a static action id, and `errorId` is the opaque
+  // ID shown in the toast. Never send toast text or error payloads.
+  toast: ["shown", "report_issue", "dismiss"],
   tag: [
     "add_existing_tag",
     "remove_tag",
@@ -274,6 +403,7 @@ export const events = {
     "tracing_api_key_create_clicked",
     "tracing_agent_prompt_copy_clicked",
     "tracing_manual_docs_link_clicked",
+    "signup_survey_submitted",
   ],
   user_settings: ["theme_changed", "feature_preview_toggled"],
   project_settings: [
@@ -298,10 +428,16 @@ export const events = {
     "delete_membership",
     "api_key_create",
     "api_key_delete",
+    "llm_api_key_create",
+    "llm_api_key_update",
+    "llm_api_key_delete",
     "pricing_dialog_opened",
     "delete_organization",
     "ai_features_toggle",
     "ai_telemetry_toggle",
+    "feature_flag_default_toggled",
+    "personal_feature_previews_opened",
+    "user_feature_flag_toggled",
   ],
   help_popup: ["opened", "href_clicked"],
   navigate_detail_pages: ["button_click_prev_or_next"],
@@ -369,6 +505,8 @@ export const events = {
     "facet_added",
     "facet_search",
     "facet_mode_switched",
+    "expand_all_toggled",
+    "facet_toggled",
     "sidebar_toggled",
     "search_submitted",
     "search_error",
@@ -383,16 +521,25 @@ type EventName = {
   [Resource in keyof typeof events]: `${Resource}:${(typeof events)[Resource][number]}`;
 }[keyof typeof events];
 
+type TypedEventMap = AnnotationEventMap &
+  EvalOnboardingEventMap &
+  ToastEventMap;
+
+type EventProperties = TypedEventMap & {
+  [E in Exclude<EventName, keyof TypedEventMap>]: Record<string, any> | null;
+};
+
 export const usePostHogClientCapture = () => {
   const posthog = usePostHog();
 
   // wrapped posthog.capture function that only allows events that are in the
   // allowlist; stable identity so it is safe in useCallback/useMemo deps
   return useCallback(
-    function capture(
-      eventName: EventName,
-      properties?: Record<string, any> | null,
-      options?: CaptureOptions,
+    function capture<E extends EventName>(
+      eventName: E,
+      ...[properties, options]: E extends keyof ToastEventMap
+        ? [properties: EventProperties[E], options?: CaptureOptions]
+        : [properties?: EventProperties[E], options?: CaptureOptions]
     ): CaptureResult | void {
       return posthog.capture(eventName, properties, options);
     },

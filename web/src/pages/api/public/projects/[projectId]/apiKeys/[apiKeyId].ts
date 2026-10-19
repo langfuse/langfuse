@@ -1,15 +1,19 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { prisma } from "@langfuse/shared/src/db";
-import { logger, redis } from "@langfuse/shared/src/server";
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { logger } from "@langfuse/shared/src/server";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import {
   validateQueryParams,
   handleDeleteApiKey,
 } from "@/src/ee/features/admin-api/server/projects/projectById/apiKeys/apiKeyById";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
+import {
+  shadowAuth,
+  writeProjectError,
+} from "@/src/features/public-api/server";
 
+/** handler deletes project keys for authorized organization credentials. */
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -22,28 +26,21 @@ export default async function handler(
       return;
     }
 
-    // CHECK AUTH
-    const authCheck = await new ApiAuthService(
-      prisma,
-      redis,
-    ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
-    if (!authCheck.validKey) {
-      return res.status(401).json({
-        message: authCheck.error,
-      });
+    const authCheck = await shadowAuth({
+      req,
+      action: "apiKeys:CUD",
+      allowedAccessLevels: ["organization"],
+    });
+    if (!authCheck.success) {
+      return writeProjectError(res, authCheck.error);
     }
 
-    // Check if using an organization API key
-    if (
-      authCheck.scope.accessLevel !== "organization" ||
-      !authCheck.scope.orgId
-    ) {
-      return res.status(403).json({
-        message:
-          "Invalid API key. Organization-scoped API key required for this operation.",
-      });
+    const params = validateQueryParams(req.query);
+    if (!params) {
+      return res.status(400).json({ message: "Invalid request parameters" });
     }
-    // END CHECK AUTH
+
+    const { projectId, apiKeyId } = params;
 
     if (
       !hasEntitlementBasedOnPlan({
@@ -65,14 +62,6 @@ export default async function handler(
       return rateLimitCheck.sendRestResponseIfLimited(res);
     }
 
-    const params = validateQueryParams(req.query);
-    if (!params) {
-      return res.status(400).json({ message: "Invalid request parameters" });
-    }
-
-    const { projectId, apiKeyId } = params;
-
-    // Check if project exists and belongs to the organization
     const project = await prisma.project.findFirst({
       where: {
         id: projectId,
@@ -86,7 +75,6 @@ export default async function handler(
         .json({ message: "Project not found or you don't have access to it" });
     }
 
-    // Handle different HTTP methods
     switch (req.method) {
       case "DELETE":
         return await handleDeleteApiKey(
@@ -95,6 +83,7 @@ export default async function handler(
           projectId,
           apiKeyId,
           authCheck.scope.orgId,
+          authCheck.scope.apiKeyId,
         );
       default:
         res.status(405).json({ message: "Method Not Allowed" });

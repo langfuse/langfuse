@@ -24,7 +24,7 @@ import {
 
 export const Messages: React.FC<MessagesContext> = (props) => {
   return (
-    <div className="flex h-full flex-col space-y-4 pt-2 pr-4">
+    <div className="flex h-full flex-col space-y-4 pt-2">
       <ResizablePanelGroup orientation="vertical">
         <ResizablePanel minSize="10%">
           <ChatMessages {...props} />
@@ -73,7 +73,7 @@ const SubmitButton = () => {
             className="h-8 w-8 focus:ring-0 focus:outline-hidden focus-visible:ring-0"
             disabled={isStreaming}
           >
-            <Settings className="h-4 w-4" />
+            <Settings className="icon-base text-icon-foreground" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-52">

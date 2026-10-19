@@ -14,15 +14,16 @@ export const TotalMetric = ({
   children?: ReactNode;
 }) => {
   return (
-    <div
-      className={cn(
-        "animate-in flex items-baseline justify-start space-x-2",
-        className,
-      )}
-    >
+    <div className={cn("animate-in flex flex-col items-start", className)}>
       <div className="text-3xl font-bold">{metric}</div>
-      <p className="text-muted-foreground text-sm">{description}</p>
-      {children}
+      {description || children ? (
+        <div className="flex min-w-0 items-center gap-1">
+          {description ? (
+            <p className="text-muted-foreground text-sm">{description}</p>
+          ) : null}
+          {children}
+        </div>
+      ) : null}
     </div>
   );
 };

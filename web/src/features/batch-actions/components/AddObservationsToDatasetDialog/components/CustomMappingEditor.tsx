@@ -1,7 +1,7 @@
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Plus, Trash2 } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 import { JsonPathInput } from "./JsonPathInput";
@@ -14,6 +14,7 @@ import type {
   MappingTarget,
 } from "../types";
 import { isJsonPath } from "@langfuse/shared";
+import { cn } from "@/src/utils/tailwind";
 
 type CustomMappingEditorProps = {
   config: CustomMappingConfig;
@@ -145,16 +146,17 @@ export function CustomMappingEditor({
     <div className="bg-muted/30 space-y-2 rounded-md border p-4">
       <div>
         <Label className="text-sm font-bold">Target</Label>
-        <Tabs
-          value={config.type}
-          onValueChange={(v) => handleTypeChange(v as MappingTarget)}
-          className="mt-2"
-        >
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="root">Root</TabsTrigger>
-            <TabsTrigger value="keyValueMap">Key-value map</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <div className="mt-2">
+          <Tabs
+            value={config.type}
+            onValueChange={(v) => handleTypeChange(v as MappingTarget)}
+          >
+            <Tabs.List variant="inset" size="md" layout="full">
+              <Tabs.Trigger value="root" label="Root" />
+              <Tabs.Trigger value="keyValueMap" label="Key-value map" />
+            </Tabs.List>
+          </Tabs>
+        </div>
       </div>
 
       {config.type === "root" && (
@@ -229,7 +231,7 @@ export function CustomMappingEditor({
             onClick={handleAddEntry}
             className="w-full"
           >
-            <Plus className="mr-2 h-4 w-4" />
+            <Plus className="icon-base text-icon-foreground mr-2" />
             Add field
           </Button>
         </div>
@@ -300,11 +302,12 @@ function KeyValueEntryRow({
             }
           >
             <Trash2
-              className={`h-4 w-4 ${
-                !canRemove
-                  ? "text-muted-foreground/30"
-                  : "text-muted-foreground"
-              }`}
+              className={cn(
+                "icon-base",
+                canRemove
+                  ? "text-muted-foreground"
+                  : "text-muted-foreground/30",
+              )}
             />
           </Button>
         </div>

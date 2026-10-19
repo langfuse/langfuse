@@ -1,6 +1,6 @@
 import { CloudConfigSchema } from "@langfuse/shared";
 import { Role, type PrismaClient } from "@langfuse/shared/src/db";
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
+import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
 import { type Session } from "next-auth";
 import { TRPCError } from "@trpc/server";
 

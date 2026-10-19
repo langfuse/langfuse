@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { cn } from "@/src/utils/tailwind";
 import { useState } from "react";
 import Link from "next/link";
@@ -39,7 +40,7 @@ const ImageErrorDisplay = ({
   return (
     <div className="grid grid-cols-[auto_1fr] items-center gap-2">
       <span title={displayError} className="h-4 w-4">
-        <ImageOff className="h-4 w-4" />
+        <ImageOff className="icon-base" />
       </span>
       {safeSrc ? (
         <Link
@@ -123,9 +124,9 @@ export const ResizableImage = ({
         <div
           className={cn(
             "group relative overflow-hidden",
-            fitContent
-              ? "w-full"
-              : cn("w-full", isZoomedIn ? "h-1/2 w-1/2" : "h-full w-full"),
+            fitContent && "w-full",
+            !fitContent && isZoomedIn && "w-fit max-w-full min-w-10",
+            !fitContent && !isZoomedIn && "h-full w-full",
           )}
         >
           {isImageVisible && safeSrc && isValidImage.data?.isValid ? (
@@ -140,7 +141,11 @@ export const ResizableImage = ({
                 title={safeSrc ?? src}
                 className={cn(
                   "rounded border",
-                  fitContent ? "h-auto w-full" : "h-full w-full object-contain",
+                  fitContent && "h-auto w-full",
+                  !fitContent &&
+                    isZoomedIn &&
+                    "h-auto max-h-52 w-auto max-w-full",
+                  !fitContent && !isZoomedIn && "h-full w-full object-contain",
                 )}
                 onError={() => {
                   // An image failing to load is an <img> error Event (a
@@ -159,9 +164,9 @@ export const ResizableImage = ({
                 onClick={() => setIsZoomedIn(!isZoomedIn)}
               >
                 {isZoomedIn ? (
-                  <Maximize2 className="h-4 w-4"></Maximize2>
+                  <Maximize2 className="icon-base text-icon-foreground"></Maximize2>
                 ) : (
-                  <Minimize2 className="h-4 w-4"></Minimize2>
+                  <Minimize2 className="icon-base text-icon-foreground"></Minimize2>
                 )}
               </Button>
             </>

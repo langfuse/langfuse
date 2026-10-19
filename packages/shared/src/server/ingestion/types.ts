@@ -89,6 +89,11 @@ const CostDetails = z
 const RawUsageDetails = z.record(z.string(), z.unknown()).transform((val) => {
   if (!val) return;
 
+  const result = extractUsageCounts(val);
+  return Object.keys(result).length > 0 ? result : undefined;
+});
+
+function extractUsageCounts(val: Record<string, unknown>) {
   const result: Record<string, number> = {};
 
   for (const [key, value] of Object.entries(val)) {
@@ -102,9 +107,53 @@ const RawUsageDetails = z.record(z.string(), z.unknown()).transform((val) => {
     }
   }
 
-  return Object.keys(result).length > 0 ? result : undefined;
-});
+  splitAnthropicCacheCreation(val.cache_creation, result);
 
+  return result;
+}
+
+/**
+ * Native Anthropic usage nests cache writes by TTL under `cache_creation`.
+ * The 5-minute and 1-hour writes are priced differently, so they are stored
+ * as `input_cache_creation_5m` / `input_cache_creation_1h`; the aggregate
+ * `cache_creation_input_tokens` keeps only the unattributed remainder so no
+ * write is priced twice.
+ */
+function splitAnthropicCacheCreation(
+  cacheCreation: unknown,
+  result: Record<string, number>,
+) {
+  if (typeof cacheCreation !== "object" || cacheCreation === null) return;
+
+  const split = cacheCreation as Record<string, unknown>;
+  const isCount = (value: unknown): value is number =>
+    typeof value === "number" && Number.isInteger(value) && value >= 0;
+  const fiveMinute = split["ephemeral_5m_input_tokens"];
+  const oneHour = split["ephemeral_1h_input_tokens"];
+  if (!isCount(fiveMinute) && !isCount(oneHour)) return;
+
+  let attributed = 0;
+  if (isCount(fiveMinute)) {
+    result["input_cache_creation_5m"] = fiveMinute;
+    attributed += fiveMinute;
+  }
+  if (isCount(oneHour)) {
+    result["input_cache_creation_1h"] = oneHour;
+    attributed += oneHour;
+  }
+
+  const remainder = (result["cache_creation_input_tokens"] ?? 0) - attributed;
+  if (remainder > 0) {
+    result["cache_creation_input_tokens"] = remainder;
+  } else {
+    delete result["cache_creation_input_tokens"];
+  }
+}
+
+// The OpenAI schemas accept unknown top-level keys: OpenAI-compatible providers
+// add fields such as `cost`, and rejecting those would route the payload to
+// `RawUsageDetails` and lose the normalization. Unknown keys are kept under the
+// same rules as `RawUsageDetails`; normalized keys take precedence.
 const OpenAICompletionUsageSchema = z
   .object({
     prompt_tokens: z.number().int().nonnegative(),
@@ -117,7 +166,7 @@ const OpenAICompletionUsageSchema = z
       .record(z.string(), z.number().int().nonnegative().nullish())
       .nullish(),
   })
-  .strict()
+  .loose()
   .transform((v) => {
     if (!v) return;
 
@@ -127,12 +176,14 @@ const OpenAICompletionUsageSchema = z
       total_tokens,
       prompt_tokens_details,
       completion_tokens_details,
+      ...unknownFields
     } = v;
     const result: z.infer<typeof RawUsageDetails> & {
       input: number;
       output: number;
       total: number;
     } = {
+      ...extractUsageCounts(unknownFields),
       input: prompt_tokens,
       output: completion_tokens,
       total: total_tokens,
@@ -172,7 +223,7 @@ const OpenAIResponseUsageSchema = z
       .record(z.string(), z.number().int().nonnegative().nullish())
       .nullish(),
   })
-  .strict()
+  .loose()
   .transform((v) => {
     if (!v) return;
 
@@ -182,12 +233,14 @@ const OpenAIResponseUsageSchema = z
       total_tokens,
       input_tokens_details,
       output_tokens_details,
+      ...unknownFields
     } = v;
     const result: z.infer<typeof RawUsageDetails> & {
       input: number;
       output: number;
       total: number;
     } = {
+      ...extractUsageCounts(unknownFields),
       input: input_tokens,
       output: output_tokens,
       total: total_tokens,

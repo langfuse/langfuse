@@ -15,7 +15,6 @@ expand(config({ path: "../.env" }));
 const sharedExclude = [
   "**/node_modules/**",
   "**/.next/**",
-  "**/.next-check/**",
   "**/dist/**",
 ];
 
@@ -37,7 +36,7 @@ const allServerTestFiles = globSync("src/**/server/**/*.servertest.{ts,tsx}", {
   exclude: ["**/node_modules/**", "src/__e2e__/**"],
 });
 const SHARED_SOURCE_IDENTITY_PATTERN =
-  /@langfuse\/shared\/(?:in-app-agent|src\/env)/;
+  /@langfuse\/shared\/(?:in-app-agent|topics|src\/env)/;
 // Derive membership from imports so new tests cannot silently miss aliases.
 const sharedSourceTestFiles = allServerTestFiles.filter((file) =>
   SHARED_SOURCE_IDENTITY_PATTERN.test(
@@ -81,11 +80,19 @@ const sharedSourcePath = (path: string) =>
   join(import.meta.dirname, "../packages/shared/src", path);
 
 // Shared's built dist is CJS, whose require() calls bypass Vitest's module
-// graph. Tests that mock in-app-agent storage/lifecycle or mutate shared's env need
+// graph. Tests that mock shared storage or mutate shared's env need
 // one source module identity; applying these aliases globally makes every
 // server test transform shared.
 const sharedSourceResolve = {
   alias: [
+    {
+      find: /^@langfuse\/shared\/topics\/server$/,
+      replacement: sharedSourcePath("server/topics/index.ts"),
+    },
+    {
+      find: /^@langfuse\/shared\/topics$/,
+      replacement: sharedSourcePath("topics/index.ts"),
+    },
     {
       find: /^@langfuse\/shared\/in-app-agent\/server\/(.+)$/,
       replacement: sharedSourcePath("in-app-agent/server/$1"),
@@ -130,11 +137,7 @@ const sharedSourceResolve = {
   ],
   // Runtime source resolves these through shared's node_modules symlinks.
   // Dedupe keeps one module identity so mocks registered from web intercept.
-  dedupe: [
-    "@ag-ui/core",
-    "@ag-ui/client",
-    "langfuse",
-  ],
+  dedupe: ["@ag-ui/core", "@ag-ui/client", "langfuse"],
 };
 
 function serverProject(
@@ -179,6 +182,13 @@ export default defineConfig({
         replacement: join(
           import.meta.dirname,
           "node_modules/next-query-params/dist/pages.esm.js",
+        ),
+      },
+      {
+        find: /^next\/font\/local$/,
+        replacement: join(
+          import.meta.dirname,
+          "src/__tests__/mocks/nextFontLocal.ts",
         ),
       },
     ],
@@ -261,11 +271,18 @@ export default defineConfig({
         ],
         test: {
           name: "storybook",
+          setupFiles: ["./.storybook/vitest.setup.ts"],
           browser: {
             enabled: true,
             provider: playwright(),
             headless: true,
             instances: [{ browser: "chromium" }],
+            commands: {
+              async resetStorybookPointer({ page }) {
+                /** Page-level pointer movement avoids depending on the test iframe. */
+                await page.mouse.move(-1000, -1000);
+              },
+            },
           },
         },
       },
@@ -280,6 +297,11 @@ export default defineConfig({
           globalSetup: ["./src/__tests__/vitest-test-db-setup.ts"],
         },
       },
+      serverProject(
+        "ai-gateway-e2e-server",
+        ["src/__e2e__/**/ai-gateway.gatewaye2e.{ts,tsx}"],
+        { isolate: true },
+      ),
     ],
   },
 });

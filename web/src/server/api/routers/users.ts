@@ -4,7 +4,7 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { paginationZod, singleFilter } from "@langfuse/shared";
+import { paginationZod, singleFilterList } from "@langfuse/shared";
 import {
   getTotalUserCount,
   getTracesGroupedByUsers,
@@ -18,7 +18,7 @@ import {
 
 const UserFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
-  filter: z.array(singleFilter).nullable(),
+  filter: singleFilterList.nullable(),
   searchQuery: z
     .string()
     .optional()
@@ -73,7 +73,7 @@ export const userRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         userIds: z.array(z.string().min(1)),
-        filter: z.array(singleFilter).nullable(),
+        filter: singleFilterList.nullable(),
       }),
     )
     .query(async ({ input }) => {
@@ -168,7 +168,7 @@ export const userRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         userIds: z.array(z.string().min(1)),
-        filter: z.array(singleFilter).nullable(),
+        filter: singleFilterList.nullable(),
       }),
     )
     .query(async ({ input }) => {

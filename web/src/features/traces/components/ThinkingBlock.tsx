@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
@@ -26,7 +27,7 @@ export function ThinkingBlock({
       >
         <ChevronRight
           className={cn(
-            "mt-0.5 h-3 w-3 shrink-0 transition-transform",
+            "text-foreground-tertiary icon-sm mt-0.5 shrink-0 translate-y-px transition-transform",
             expanded && "rotate-90",
           )}
         />
@@ -69,7 +70,7 @@ export function RedactedThinkingBlock({
       >
         <ChevronRight
           className={cn(
-            "mt-0.5 h-3 w-3 shrink-0 transition-transform",
+            "text-foreground-tertiary icon-sm mt-0.5 shrink-0 translate-y-px transition-transform",
             expanded && "rotate-90",
           )}
         />

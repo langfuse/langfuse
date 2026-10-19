@@ -29,7 +29,7 @@ import {
   type CommentedPathsByField,
 } from "./utils/commentRanges";
 import { pathArrayToJsonPath } from "./utils/pathUtils";
-import { type MediaReturnType } from "@/src/features/media/validation";
+import { type MediaReturnType } from "@/src/features/media";
 
 export interface SimpleMultiSectionViewerHandle {
   scrollToSection: (sectionKey: string) => void;
@@ -175,7 +175,7 @@ const SimpleMultiSectionViewerInner = forwardRef<
         );
         if (sectionElement) {
           sectionElement.scrollIntoView({
-            behavior: "smooth",
+            behavior: "instant",
             block: "start",
           });
         }

@@ -1,10 +1,8 @@
 import {
-  CODE_EVAL_TEMPLATE_VARIABLES,
   EvalTargetObject,
   type EvalTemplateSourceCodeLanguage,
   EvalTemplateType,
   type EvalTemplate,
-  type ObservationVariableMapping,
 } from "@langfuse/shared";
 
 export const isCodeEvalTemplate = (
@@ -35,14 +33,6 @@ export const shouldShowEvalTemplate = (
 
 export const CODE_EVAL_ESCAPE_CONFIRM_MESSAGE =
   "Close code editor? Unsaved changes will be lost.";
-
-export function getCodeEvalVariableMapping(): ObservationVariableMapping[] {
-  return CODE_EVAL_TEMPLATE_VARIABLES.map((variable) => ({
-    templateVariable: variable,
-    selectedColumnId: variable,
-    jsonSelector: null,
-  }));
-}
 
 export function resolveCodeEvalTarget(target: EvalTargetObject) {
   if (target === EvalTargetObject.TRACE) return EvalTargetObject.EVENT;

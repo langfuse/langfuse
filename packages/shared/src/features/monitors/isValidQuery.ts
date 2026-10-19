@@ -63,7 +63,9 @@ export function isValidQuery(input: {
     const metricReason = invalidMetricReason(declaration, input.view, m);
     if (metricReason) {
       rejected.push(m);
-      reason ??= metricReason;
+      if (reason === undefined) {
+        reason = metricReason;
+      }
     } else {
       accepted.push(m);
     }

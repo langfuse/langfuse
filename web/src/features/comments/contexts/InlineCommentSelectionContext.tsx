@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import {
   createContext,
   useContext,
@@ -50,16 +51,6 @@ export function InlineCommentSelectionProvider({
       {children}
     </InlineCommentSelectionContext.Provider>
   );
-}
-
-export function useInlineCommentSelection() {
-  const context = useContext(InlineCommentSelectionContext);
-  if (!context) {
-    throw new Error(
-      "useInlineCommentSelection must be used within InlineCommentSelectionProvider",
-    );
-  }
-  return context;
 }
 
 /**

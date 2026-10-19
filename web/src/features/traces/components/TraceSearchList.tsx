@@ -11,9 +11,9 @@ import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useSearch } from "@/src/features/traces/contexts/SearchContext";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHandlePrefetchObservation";
-import { useDesktopLayoutContextOptional } from "./TraceLayoutDesktop";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
+import { matchesSearchQuery } from "@/src/features/traces/fns/matchesSearchQuery";
 import { VirtualizedList } from "./VirtualizedList";
 import { TraceSearchListItem } from "./TraceSearchListItem";
 import { Button } from "@/src/components/ui/button";
@@ -22,13 +22,10 @@ import { XIcon } from "lucide-react";
 export function TraceSearchList() {
   const { searchItems } = useTraceData();
   const { searchQuery, setSearchInputValue } = useSearch();
-  const { selectedNodeId, setSelectedNodeId } = useSelection();
+  const { selectedNodeId, selectNode } = useSelection();
   const { handleHover } = useHandlePrefetchObservation();
   const capture = usePostHogClientCapture();
   const analyticsDimensions = useTraceAnalyticsDimensions();
-  // Optional (null on mobile): reopen the detail panel on select, including
-  // re-selecting the already-selected result.
-  const layout = useDesktopLayoutContextOptional();
   const handleSelectItem = (id: string | null) => {
     if (id) {
       capture("trace_detail:node_selected", {
@@ -36,24 +33,17 @@ export function TraceSearchList() {
         ...analyticsDimensions,
       });
     }
-    setSelectedNodeId(id);
-    layout?.expandDetailPanel();
+    selectNode(id);
   };
 
-  // Co-located filtering - only this component re-renders on search query change
-  const searchResults = useMemo(() => {
-    if (!searchQuery.trim()) return [];
-
-    const query = searchQuery.toLowerCase();
-    return searchItems.filter((item) => {
-      const node = item.node;
-      return (
-        node.type.toLowerCase().includes(query) ||
-        node.name.toLowerCase().includes(query) ||
-        node.id.toLowerCase().includes(query)
-      );
-    });
-  }, [searchItems, searchQuery]);
+  // Co-located filtering - only this component re-renders on search query change.
+  // What counts as a match lives in fns/matchesSearchQuery, because the Timeline
+  // highlights with the same rule and states a count next to it.
+  const searchResults = useMemo(
+    () =>
+      searchItems.filter((item) => matchesSearchQuery(item.node, searchQuery)),
+    [searchItems, searchQuery],
+  );
 
   // Empty state
   if (searchResults.length === 0 && searchQuery.trim()) {
@@ -69,7 +59,7 @@ export function TraceSearchList() {
             size="sm"
             onClick={() => setSearchInputValue("")}
           >
-            <XIcon className="mr-2 h-4 w-4" />
+            <XIcon className="icon-base text-icon-foreground mr-2" />
             Clear search
           </Button>
         </div>

@@ -55,6 +55,7 @@ const gcsError = (
 const OUTBOUND_URL_FAULTS = [
   ["blocked-ip", "ssrf_blocked_endpoint"],
   ["blocked-hostname", "ssrf_blocked_endpoint"],
+  ["host-not-allowed", "ssrf_blocked_endpoint"],
   ["invalid-syntax", "invalid_endpoint_url"],
   ["invalid-encoding", "invalid_endpoint_url"],
   ["https-required", "invalid_endpoint_url"],
@@ -106,6 +107,20 @@ describe("isCustomerFaultError", () => {
         true,
       );
     });
+
+    it("classifies a GCS default-credentials bucket rejection as bucket_or_container", () => {
+      const err = Object.assign(new Error("not allowed"), {
+        name: "GcsBucketNotAllowedError",
+      });
+      expect(classifyCustomerFault(err)).toBe("bucket_or_container");
+    });
+  });
+
+  it("classifies a non-JSON GCS key as credentials", () => {
+    const err = Object.assign(new Error("not a key"), {
+      name: "InvalidGcsServiceAccountKey",
+    });
+    expect(classifyCustomerFault(err)).toBe("credentials");
   });
 
   describe("customer_fault — bare HTTP status", () => {

@@ -1,6 +1,7 @@
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
-import React, { useEffect, useState, useRef, type ReactNode } from "react";
-import { CircleFadingArrowUp } from "lucide-react";
+import React, { useEffect, useState, useRef } from "react";
+import { Plus } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import {
@@ -14,7 +15,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import {
@@ -23,9 +24,12 @@ import {
   type Prompt,
 } from "@langfuse/shared";
 import { LabelCommandItem } from "./LabelCommandItem";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { isReservedPromptLabel } from "@/src/features/prompts/utils";
-import { TruncatedLabels } from "@/src/components/TruncatedLabels";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import {
+  isReservedPromptLabel,
+  toPromptLabelListItems,
+} from "@/src/features/prompts/utils";
+import { LabelList } from "@/src/components/design-system/LabelList/LabelList";
 import { cn } from "@/src/utils/tailwind";
 
 export function SetPromptVersionLabels({
@@ -33,16 +37,12 @@ export function SetPromptVersionLabels({
   prompt,
   isOpen,
   setIsOpen,
-  title,
-  showOnlyOnHover = false,
   maxVisibleLabels = 8,
 }: {
   promptLabels: string[];
   prompt: Prompt;
   isOpen: boolean;
   setIsOpen: (isOpen: boolean) => void;
-  title?: ReactNode;
-  showOnlyOnHover?: boolean;
   maxVisibleLabels?: number;
 }) {
   const projectId = useProjectIdFromURL();
@@ -170,31 +170,27 @@ export function SetPromptVersionLabels({
 
   return (
     <Popover open={isOpen} onOpenChange={handleOnOpenChange} modal={false}>
-      <PopoverTrigger asChild data-version-trigger="true">
-        <div
-          className={cn(
-            "flex w-fit max-w-full min-w-0 cursor-pointer flex-wrap gap-1",
-            !hasAccess && "cursor-not-allowed",
-          )}
-        >
-          {title && title}
-          <TruncatedLabels
-            labels={promptLabels}
-            maxVisibleLabels={maxVisibleLabels}
+      {/* Inline: labels wrap one by one inside the host's row. */}
+      <div className="contents">
+        {promptLabels.length > 0 && (
+          <LabelList
+            labels={toPromptLabelListItems(promptLabels)}
+            layout="inline"
+            maxVisible={maxVisibleLabels}
           />
+        )}
+        <PopoverTrigger asChild>
           <Button
-            variant="outline"
-            title="Add prompt label"
-            className={cn(
-              "bg-muted-gray text-primary h-6 w-6",
-              showOnlyOnHover && "opacity-0 group-hover:opacity-100",
-              !hasAccess && "cursor-not-allowed group-hover:opacity-50",
-            )}
+            variant="ghost"
+            size="sm"
+            disabled={!hasAccess}
+            className="gap-1"
           >
-            <CircleFadingArrowUp className="h-3.5 w-3.5 shrink-0" />
+            <Plus className="icon-sm text-icon-foreground" aria-hidden />
+            Add label
           </Button>
-        </div>
-      </PopoverTrigger>
+        </PopoverTrigger>
+      </div>
       <PopoverContent
         className="max-w-[90vw] sm:max-w-md"
         align="start"

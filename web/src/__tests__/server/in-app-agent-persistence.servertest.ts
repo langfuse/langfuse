@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 vi.mock("@langfuse/shared/src/server/llm/llmText", async () => {
   const actual = await vi.importActual(
     "@langfuse/shared/src/server/llm/llmText",
@@ -8,8 +9,8 @@ vi.mock("@langfuse/shared/src/server/llm/llmText", async () => {
   };
 });
 
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
-import type { Flags } from "@/src/features/feature-flags/types";
 import { EventType } from "@ag-ui/core";
 import { randomUUID } from "crypto";
 import { vi } from "vitest";
@@ -28,17 +29,16 @@ import {
   InAppAgentRunStatus,
   getInAppAgentInstrumentationObservationId,
   getInAppAgentInstrumentationTraceId,
+  dropEmptyAssistantMessages,
+  dropUnpairedAssistantToolCalls,
+  type AgUiEvent,
+  type InAppAgentRunRequest,
+  IN_APP_AGENT_REDIRECT_TOOL_NAME,
 } from "@langfuse/shared/in-app-agent";
 import {
   createInAppAgentConversationId,
   createInAppAgentRunId,
 } from "@/src/features/in-app-agent/ids";
-import {
-  dropEmptyAssistantMessages,
-  dropUnpairedAssistantToolCalls,
-  type AgUiEvent,
-} from "@langfuse/shared/in-app-agent";
-import type { InAppAgentRunRequest } from "@langfuse/shared/in-app-agent";
 import type { InAppAgentWatchFrame } from "@/src/features/in-app-agent/watchFrames";
 import {
   deserializeInAppAgentDisplayState,
@@ -58,7 +58,6 @@ import {
 import { finishClaimedRun } from "@langfuse/shared/in-app-agent/server/runLifecycle";
 import { watchConversationFrames } from "@/src/features/in-app-agent/server/watch";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@langfuse/shared/in-app-agent";
 
 vi.mock("@/src/server/auth", () => ({
   getServerAuthSession: vi.fn(),
@@ -126,7 +125,7 @@ describe("in-app agent persistence", () => {
             ],
           },
         ],
-        featureFlags: {} as Flags,
+        featureFlags: testFeatureFlags({ templateFlag: false }),
         admin: false,
       },
       environment: {} as any,
@@ -558,7 +557,7 @@ describe("in-app agent persistence", () => {
   });
 
   it("does not overwrite user-renamed conversation titles", async () => {
-    const originalBedrockSmallModel = env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL;
+    const originalBedrockSmallModel = env.LANGFUSE_AI_SMALL_MODEL;
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
 
@@ -569,7 +568,7 @@ describe("in-app agent persistence", () => {
     });
 
     try {
-      (env as any).LANGFUSE_AWS_BEDROCK_SMALL_MODEL = "small-title-model";
+      (env as any).LANGFUSE_AI_SMALL_MODEL = "small-title-model";
 
       await maybeInferAndPersistConversationTitle({
         prisma,
@@ -590,12 +589,45 @@ describe("in-app agent persistence", () => {
       });
       expect(mockGenerateLLMText).not.toHaveBeenCalled();
     } finally {
-      (env as any).LANGFUSE_AWS_BEDROCK_SMALL_MODEL = originalBedrockSmallModel;
+      (env as any).LANGFUSE_AI_SMALL_MODEL = originalBedrockSmallModel;
+    }
+  });
+
+  it("does not regenerate an already inferred conversation title", async () => {
+    const originalBedrockSmallModel = env.LANGFUSE_AI_SMALL_MODEL;
+    const { projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+
+    await prisma.inAppAgentConversation.update({
+      where: { id_projectId: { id: conversation.id, projectId } },
+      data: { title: "Cluster traces by tags" },
+    });
+
+    try {
+      (env as any).LANGFUSE_AI_SMALL_MODEL = "small-title-model";
+
+      await maybeInferAndPersistConversationTitle({
+        prisma,
+        projectId,
+        conversationId: conversation.id,
+        userId,
+        aiTelemetryEnabled: false,
+      });
+
+      await expect(
+        prisma.inAppAgentConversation.findUniqueOrThrow({
+          where: { id_projectId: { id: conversation.id, projectId } },
+          select: { title: true },
+        }),
+      ).resolves.toEqual({ title: "Cluster traces by tags" });
+      expect(mockGenerateLLMText).not.toHaveBeenCalled();
+    } finally {
+      (env as any).LANGFUSE_AI_SMALL_MODEL = originalBedrockSmallModel;
     }
   });
 
   it("keeps the default title when title generation fails", async () => {
-    const originalBedrockSmallModel = env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL;
+    const originalBedrockSmallModel = env.LANGFUSE_AI_SMALL_MODEL;
     const { projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
     const originalTitle = conversation.title;
@@ -613,7 +645,7 @@ describe("in-app agent persistence", () => {
     });
 
     try {
-      (env as any).LANGFUSE_AWS_BEDROCK_SMALL_MODEL = "small-title-model";
+      (env as any).LANGFUSE_AI_SMALL_MODEL = "small-title-model";
       mockGenerateLLMText.mockRejectedValue(new Error("Bedrock failed"));
 
       await expect(
@@ -633,7 +665,7 @@ describe("in-app agent persistence", () => {
         }),
       ).resolves.toEqual({ title: originalTitle });
     } finally {
-      (env as any).LANGFUSE_AWS_BEDROCK_SMALL_MODEL = originalBedrockSmallModel;
+      (env as any).LANGFUSE_AI_SMALL_MODEL = originalBedrockSmallModel;
     }
   });
 

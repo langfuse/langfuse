@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
 import { RightAlignedCell } from "@/src/features/dashboard/components/RightAlignedCell";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { DashboardTable } from "@/src/features/dashboard/components/cards/DashboardTable";
@@ -14,35 +14,70 @@ import { cn } from "@/src/utils/tailwind";
 import { Popup } from "@/src/components/layouts/doc-popup";
 import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
-import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
 
 export type LatencyTableKind = "traces" | "generations" | "observations";
 
 const LATENCY_TABLE_KINDS: Record<
   LatencyTableKind,
   {
-    title: string;
+    title: (metricsVersion: ViewVersion) => string;
     nameHeader: string;
+    /** Result field that carries the row label. */
+    nameField: (metricsVersion: ViewVersion) => string;
     buildQuery: (
       globalFilterState: FilterState,
       fromTimestamp: Date,
       toTimestamp: Date,
+      metricsVersion: ViewVersion,
     ) => QueryType;
   }
 > = {
   traces: {
-    title: "Trace latency percentiles",
+    title: (metricsVersion) =>
+      metricsVersion === "v2"
+        ? "Root observation latency percentiles"
+        : "Trace latency percentiles",
     nameHeader: "Trace Name",
-    buildQuery: (globalFilterState, fromTimestamp, toTimestamp) => ({
-      view: "traces",
-      dimensions: [{ field: "name" }],
+    nameField: (metricsVersion) =>
+      metricsVersion === "v2" ? "traceName" : "name",
+    buildQuery: (
+      globalFilterState,
+      fromTimestamp,
+      toTimestamp,
+      metricsVersion,
+    ) => ({
+      // v2 reads each trace's latency from its root observation instead of
+      // grouping every event in the window by trace. A trace whose only root
+      // is the synthetic trace span (no end time) has no root latency.
+      ...(metricsVersion === "v2"
+        ? {
+            view: "observations",
+            dimensions: [{ field: "traceName" }],
+            filters: [
+              ...mapLegacyUiTableFilterToView(
+                "observations",
+                globalFilterState,
+              ),
+              {
+                column: "isRootObservation",
+                operator: "=",
+                value: true,
+                type: "boolean",
+              },
+            ],
+          }
+        : {
+            view: "traces",
+            dimensions: [{ field: "name" }],
+            filters: mapLegacyUiTableFilterToView("traces", globalFilterState),
+          }),
       metrics: [
         { measure: "latency", aggregation: "p50" },
         { measure: "latency", aggregation: "p90" },
         { measure: "latency", aggregation: "p95" },
         { measure: "latency", aggregation: "p99" },
       ],
-      filters: mapLegacyUiTableFilterToView("traces", globalFilterState),
       timeDimension: null,
       fromTimestamp: fromTimestamp.toISOString(),
       toTimestamp: toTimestamp.toISOString(),
@@ -51,8 +86,9 @@ const LATENCY_TABLE_KINDS: Record<
     }),
   },
   generations: {
-    title: "Generation latency percentiles",
+    title: () => "Generation latency percentiles",
     nameHeader: "Generation Name",
+    nameField: () => "name",
     buildQuery: (globalFilterState, fromTimestamp, toTimestamp) => ({
       view: "observations",
       dimensions: [{ field: "name" }],
@@ -79,8 +115,9 @@ const LATENCY_TABLE_KINDS: Record<
     }),
   },
   observations: {
-    title: "Observation latency percentiles",
+    title: () => "Observation latency percentiles",
     nameHeader: "Observation",
+    nameField: () => "name",
     buildQuery: (globalFilterState, fromTimestamp, toTimestamp) => ({
       view: "observations",
       dimensions: [{ field: "type" }, { field: "name" }],
@@ -108,12 +145,15 @@ const LATENCY_TABLE_KINDS: Record<
   },
 };
 
-const generateLatencyData = (data?: Record<string, unknown>[]) => {
+const generateLatencyData = (
+  nameField: string,
+  data?: Record<string, unknown>[],
+) => {
   return data
     ? data
-        .filter((item) => item.name !== null)
+        .filter((item) => item[nameField] !== null)
         .map((item, i) => [
-          <div key={`${item.name as string}-${i}`}>
+          <div key={`${item[nameField] as string}-${i}`}>
             <Popup
               triggerContent={
                 item.type ? (
@@ -121,16 +161,16 @@ const generateLatencyData = (data?: Record<string, unknown>[]) => {
                     <span className="text-muted-foreground text-[10px] font-bold tracking-wide uppercase">
                       {String(item.type)}
                     </span>
-                    <span>{truncate(item.name as string)}</span>
+                    <span>{truncate(item[nameField] as string)}</span>
                   </div>
                 ) : (
-                  truncate(item.name as string)
+                  truncate(item[nameField] as string)
                 )
               }
               description={
                 item.type
-                  ? `${String(item.type)} · ${item.name as string}`
-                  : (item.name as string)
+                  ? `${String(item.type)} · ${item[nameField] as string}`
+                  : (item[nameField] as string)
               }
             />
           </div>,
@@ -176,15 +216,21 @@ export const LatencyTable = ({
   fromTimestamp: Date;
   toTimestamp: Date;
   isLoading?: boolean;
-  metricsVersion?: ViewVersion;
+  metricsVersion: ViewVersion;
   schedulerId?: string;
 }) => {
-  const { title, nameHeader, buildQuery } = LATENCY_TABLE_KINDS[kind];
+  const { title, nameHeader, nameField, buildQuery } =
+    LATENCY_TABLE_KINDS[kind];
 
   const latencies = useScheduledDashboardExecuteQuery(
     {
       projectId,
-      query: buildQuery(globalFilterState, fromTimestamp, toTimestamp),
+      query: buildQuery(
+        globalFilterState,
+        fromTimestamp,
+        toTimestamp,
+        metricsVersion,
+      ),
       version: metricsVersion,
     },
     {
@@ -205,7 +251,7 @@ export const LatencyTable = ({
       // shrink so the row area scrolls internally. (LFE-11035)
       className={cn(className, "h-full")}
       cardContentClassName="min-h-0"
-      title={title}
+      title={title(metricsVersion)}
       isLoading={isLoading || latencies.isPending}
     >
       <DashboardTable
@@ -218,7 +264,7 @@ export const LatencyTable = ({
           </RightAlignedCell>,
           <RightAlignedCell key="p99">p99</RightAlignedCell>,
         ]}
-        rows={generateLatencyData(latencies.data)}
+        rows={generateLatencyData(nameField(metricsVersion), latencies.data)}
         isLoading={isLoading || latencies.isPending}
         collapse={{ collapsed: 5, expanded: 20 }}
       />

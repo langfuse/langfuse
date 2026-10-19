@@ -142,7 +142,10 @@ The recurring shapes and their correct disposition:
   render user URLs as native `<a>`, not a framework `<Link>` (#15245).
 - **Perf detectors / third-party** — N+1, HTTP-overhead `info` issues, browser
   extensions, crawlers. → Sentry project settings (inbound filters, detectors),
-  not code.
+  not code. Stackless Chrome `chrome.runtime` lastError
+  (`Could not establish connection. Receiving end does not exist`) is the
+  exception: `denyUrls` cannot match with no frames, so a named predicate
+  drops it (LANGFUSE-614).
 - **Stale-deploy** — chunk 404s, `importScripts` failures, version-skew. → a
   reload-on-new-version prompt + release-aware handling (open work).
 

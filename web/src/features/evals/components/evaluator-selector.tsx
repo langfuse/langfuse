@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import {
   EvalTemplateSourceCodeLanguage,
   EvalTemplateType,
@@ -31,16 +32,20 @@ import { SiPython, SiTypescript } from "react-icons/si";
 const CodeTemplateLanguageIcon = ({
   sourceCodeLanguage,
 }: {
-  sourceCodeLanguage: EvalTemplate["sourceCodeLanguage"];
+  sourceCodeLanguage:
+    | typeof EvalTemplateSourceCodeLanguage.TYPESCRIPT
+    | typeof EvalTemplateSourceCodeLanguage.PYTHON;
 }) => {
-  const language =
-    sourceCodeLanguage === EvalTemplateSourceCodeLanguage.TYPESCRIPT
-      ? { Icon: SiTypescript, title: "TypeScript" }
-      : sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON
-        ? { Icon: SiPython, title: "Python" }
-        : null;
-
-  if (!language) return null;
+  const language = {
+    [EvalTemplateSourceCodeLanguage.TYPESCRIPT]: {
+      Icon: SiTypescript,
+      title: "TypeScript",
+    },
+    [EvalTemplateSourceCodeLanguage.PYTHON]: {
+      Icon: SiPython,
+      title: "Python",
+    },
+  }[sourceCodeLanguage];
 
   const { Icon } = language;
 
@@ -50,19 +55,22 @@ const CodeTemplateLanguageIcon = ({
       aria-label={language.title}
       className="text-muted-foreground ml-1 inline-flex shrink-0"
     >
-      <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+      <Icon className="icon-base" aria-hidden="true" />
     </span>
   );
 };
 
 const getCodeTemplateLanguageTitle = (
   sourceCodeLanguage: EvalTemplate["sourceCodeLanguage"],
-) =>
-  sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON
-    ? "Python"
-    : sourceCodeLanguage === EvalTemplateSourceCodeLanguage.TYPESCRIPT
-      ? "TypeScript"
-      : "Code";
+) => {
+  if (sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON) {
+    return "Python";
+  }
+  if (sourceCodeLanguage === EvalTemplateSourceCodeLanguage.TYPESCRIPT) {
+    return "TypeScript";
+  }
+  return "Code";
+};
 
 const TemplatePreviewTooltipContent = ({
   template,
@@ -185,7 +193,11 @@ export function EvaluatorSelector({
                           <span className="truncate" title={template.name}>
                             {template.name}
                           </span>
-                          {template.type === EvalTemplateType.CODE ? (
+                          {template.type === EvalTemplateType.CODE &&
+                          (template.sourceCodeLanguage ===
+                            EvalTemplateSourceCodeLanguage.TYPESCRIPT ||
+                            template.sourceCodeLanguage ===
+                              EvalTemplateSourceCodeLanguage.PYTHON) ? (
                             <CodeTemplateLanguageIcon
                               sourceCodeLanguage={template.sourceCodeLanguage}
                             />
@@ -202,7 +214,7 @@ export function EvaluatorSelector({
                     {isInvalid && (
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <AlertCircle className="ml-1 h-4 w-4 text-yellow-500" />
+                          <AlertCircle className="icon-base ml-1 text-yellow-500" />
                         </TooltipTrigger>
                         <TooltipContent className="max-h-[50dvh] overflow-y-auto text-sm break-normal whitespace-normal">
                           <p>Requires project-level evaluation model</p>
@@ -218,7 +230,7 @@ export function EvaluatorSelector({
                       </Tooltip>
                     )}
                     {template.id === selectedTemplateId && (
-                      <CheckIcon className="ml-auto h-4 w-4" />
+                      <CheckIcon className="icon-base ml-auto" />
                     )}
                   </InputCommandItem>
                 );
@@ -229,73 +241,75 @@ export function EvaluatorSelector({
         )}
 
         {filteredTemplates.langfuse.length > 0 && (
-          <>
-            <InputCommandGroup heading="Langfuse managed evaluators">
-              {filteredTemplates.langfuse.map((template) => {
-                const isInvalid = isTemplateInvalid(template);
+          <InputCommandGroup heading="Langfuse managed evaluators">
+            {filteredTemplates.langfuse.map((template) => {
+              const isInvalid = isTemplateInvalid(template);
 
-                return (
-                  <InputCommandItem
-                    key={`langfuse-${template.id}`}
-                    disabled={isInvalid}
-                    onSelect={() => {
-                      onTemplateSelect(
-                        template.id,
-                        template.name,
-                        template.version,
-                      );
-                    }}
-                    className={cn(
-                      template.id === selectedTemplateId && "bg-secondary",
-                    )}
-                  >
+              return (
+                <InputCommandItem
+                  key={`langfuse-${template.id}`}
+                  disabled={isInvalid}
+                  onSelect={() => {
+                    onTemplateSelect(
+                      template.id,
+                      template.name,
+                      template.version,
+                    );
+                  }}
+                  className={cn(
+                    template.id === selectedTemplateId && "bg-secondary",
+                  )}
+                >
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="mr-1 flex min-w-0 items-center">
+                        <span className="truncate" title={template.name}>
+                          {template.name}
+                        </span>
+                        {template.type === EvalTemplateType.CODE &&
+                        (template.sourceCodeLanguage ===
+                          EvalTemplateSourceCodeLanguage.TYPESCRIPT ||
+                          template.sourceCodeLanguage ===
+                            EvalTemplateSourceCodeLanguage.PYTHON) ? (
+                          <CodeTemplateLanguageIcon
+                            sourceCodeLanguage={template.sourceCodeLanguage}
+                          />
+                        ) : null}
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent
+                      side="right"
+                      className="max-h-[70dvh] w-[720px] max-w-[calc(100vw-3rem)] overflow-y-auto"
+                    >
+                      <TemplatePreviewTooltipContent template={template} />
+                    </TooltipContent>
+                  </Tooltip>
+                  <MaintainerTooltip maintainer={getMaintainer(template)} />
+                  {isInvalid && (
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <div className="mr-1 flex min-w-0 items-center">
-                          <span className="truncate" title={template.name}>
-                            {template.name}
-                          </span>
-                          {template.type === EvalTemplateType.CODE ? (
-                            <CodeTemplateLanguageIcon
-                              sourceCodeLanguage={template.sourceCodeLanguage}
-                            />
-                          ) : null}
-                        </div>
+                        <AlertCircle className="icon-base ml-1 text-yellow-500" />
                       </TooltipTrigger>
-                      <TooltipContent
-                        side="right"
-                        className="max-h-[70dvh] w-[720px] max-w-[calc(100vw-3rem)] overflow-y-auto"
-                      >
-                        <TemplatePreviewTooltipContent template={template} />
+                      <TooltipContent className="max-h-[50dvh] overflow-y-auto text-sm break-normal whitespace-normal">
+                        <p>Requires project-level evaluation model</p>
+                        <Link
+                          href={`/project/${projectId}/evals/default-model`}
+                          className="mt-2 block text-blue-600 hover:underline"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Configure default model
+                        </Link>
                       </TooltipContent>
                     </Tooltip>
-                    <MaintainerTooltip maintainer={getMaintainer(template)} />
-                    {isInvalid && (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <AlertCircle className="ml-1 h-4 w-4 text-yellow-500" />
-                        </TooltipTrigger>
-                        <TooltipContent className="max-h-[50dvh] overflow-y-auto text-sm break-normal whitespace-normal">
-                          <p>Requires project-level evaluation model</p>
-                          <Link
-                            href={`/project/${projectId}/evals/default-model`}
-                            className="mt-2 block text-blue-600 hover:underline"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            Configure default model
-                          </Link>
-                        </TooltipContent>
-                      </Tooltip>
-                    )}
-                    {template.id === selectedTemplateId && (
-                      <CheckIcon className="ml-auto h-4 w-4" />
-                    )}
-                  </InputCommandItem>
-                );
-              })}
-            </InputCommandGroup>
-          </>
+                  )}
+                  {template.id === selectedTemplateId && (
+                    <CheckIcon className="icon-base ml-auto" />
+                  )}
+                </InputCommandItem>
+              );
+            })}
+          </InputCommandGroup>
         )}
       </InputCommandList>
     </InputCommand>

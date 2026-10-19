@@ -5,7 +5,7 @@ import {
   type ObservationDetailPageListEntry,
   type TraceDetailPageListEntry,
   useFirstDetailPageListEntry,
-} from "@/src/features/navigate-detail-pages/context";
+} from "@/src/features/navigate-detail-pages";
 import { type NextRouter } from "next/router";
 import {
   EvalTargetObject,
@@ -118,7 +118,7 @@ export function buildEvalPreviewNavigationPath({
   return `${basePath}${basePath.includes("?") ? "&" : "?"}${params.toString()}`;
 }
 
-export function useFirstEvalPreviewNavigationEntry({
+function useFirstEvalPreviewNavigationEntry({
   target,
   useEventsTable,
 }: {

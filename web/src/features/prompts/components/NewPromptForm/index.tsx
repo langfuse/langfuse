@@ -1,6 +1,7 @@
+/* eslint-disable @repo/component-file-structure */
 import capitalize from "lodash/capitalize";
 import router from "next/router";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/src/components/ui/button";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
@@ -13,12 +14,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Textarea } from "@/src/components/ui/textarea";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
@@ -45,8 +41,8 @@ import { SquareArrowOutUpRight } from "lucide-react";
 import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { PromptLinkingEditor } from "@/src/components/editor/PromptLinkingEditor";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePlaygroundCache } from "@/src/features/playground";
 import { useQueryParam } from "use-query-params";
 import { usePromptNameValidation } from "@/src/features/prompts/hooks/usePromptNameValidation";
 import { getPromptDetailHref } from "@/src/features/prompts/utils";
@@ -69,15 +65,16 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
 
-  let initialPromptVariant: PromptVariant | null;
-  try {
-    initialPromptVariant = PromptVariantSchema.parse({
-      type: initialPrompt?.type,
-      prompt: initialPrompt?.prompt?.valueOf(),
-    });
-  } catch (_err) {
-    initialPromptVariant = null;
-  }
+  const initialPromptVariant = useMemo<PromptVariant | null>(() => {
+    try {
+      return PromptVariantSchema.parse({
+        type: initialPrompt?.type,
+        prompt: initialPrompt?.prompt?.valueOf(),
+      });
+    } catch (_err) {
+      return null;
+    }
+  }, [initialPrompt]);
 
   const defaultValues = {
     type: initialPromptVariant?.type ?? PromptType.Text,
@@ -269,7 +266,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                             className="flex flex-row items-center"
                           >
                             Create a new version for it here.
-                            <SquareArrowOutUpRight className="ml-1 h-3 w-3" />
+                            <SquareArrowOutUpRight className="icon-sm ml-1" />
                           </Link>
                         ) : null}
                       </div>
@@ -282,70 +279,70 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
         ) : null}
 
         {/* Prompt content field - text vs. chat */}
-        <>
-          <FormItem>
-            <FormLabel>Prompt</FormLabel>
-            <FormDescription>
-              Define your prompt template. You can use{" "}
-              <code className="text-xs">{"{{variable}}"}</code> to insert
-              variables into your prompt.
-              <b className="font-bold"> Note:</b> Variables must be alphabetical
-              characters or underscores. You can also link other text prompts
-              using the plus button.
-            </FormDescription>
-            <Tabs
-              value={form.watch("type")}
-              onValueChange={(e) => {
-                form.setValue("type", e as PromptType);
-              }}
-            >
-              {!initialPrompt ? (
-                <TabsList className="flex w-full">
-                  <TabsTrigger
+        <FormItem>
+          <FormLabel>Prompt</FormLabel>
+          <FormDescription>
+            Define your prompt template. You can use{" "}
+            <code className="text-xs">{"{{variable}}"}</code> to insert
+            variables into your prompt.
+            <b className="font-bold"> Note:</b> Variables must be alphabetical
+            characters or underscores. You can also link other text prompts
+            using the plus button.
+          </FormDescription>
+          <Tabs
+            value={form.watch("type")}
+            onValueChange={(e) => {
+              form.setValue("type", e as PromptType);
+            }}
+          >
+            {!initialPrompt ? (
+              <Tabs.List variant="inset" size="md" layout="full">
+                <span className="flex-1">
+                  <Tabs.Trigger
                     disabled={
                       Boolean(initialPromptVariant) &&
                       initialPromptVariant?.type !== PromptType.Text
                     }
-                    className="flex-1"
                     value={PromptType.Text}
-                  >
-                    {capitalize(PromptType.Text)}
-                  </TabsTrigger>
-                  <TabsTrigger
+                    label={capitalize(PromptType.Text)}
+                  />
+                </span>
+                <span className="flex-1">
+                  <Tabs.Trigger
                     disabled={
                       Boolean(initialPromptVariant) &&
                       initialPromptVariant?.type !== PromptType.Chat
                     }
-                    className="flex-1"
                     value={PromptType.Chat}
-                  >
-                    {capitalize(PromptType.Chat)}
-                  </TabsTrigger>
-                </TabsList>
-              ) : null}
-              {hadDraft && (
-                <p
-                  className={`text-muted-foreground mb-1 text-right text-xs ${initialPrompt ? "-mt-2" : "mt-1"}`}
+                    label={capitalize(PromptType.Chat)}
+                  />
+                </span>
+              </Tabs.List>
+            ) : null}
+            {hadDraft && (
+              <p
+                className={`text-muted-foreground mb-1 text-right text-xs ${initialPrompt ? "-mt-2" : "mt-1"}`}
+              >
+                Draft restored.{" "}
+                <button
+                  type="button"
+                  className="hover:text-foreground underline"
+                  onClick={() => {
+                    clearDraft();
+                    form.reset(defaultValues);
+                    setInitialMessages(
+                      initialPrompt?.type === PromptType.Chat
+                        ? initialPrompt.prompt
+                        : [],
+                    );
+                  }}
                 >
-                  Draft restored.{" "}
-                  <button
-                    type="button"
-                    className="hover:text-foreground underline"
-                    onClick={() => {
-                      clearDraft();
-                      form.reset(defaultValues);
-                      setInitialMessages(
-                        initialPrompt?.type === PromptType.Chat
-                          ? initialPrompt.prompt
-                          : [],
-                      );
-                    }}
-                  >
-                    Discard
-                  </button>
-                </p>
-              )}
-              <TabsContent value={PromptType.Text}>
+                  Discard
+                </button>
+              </p>
+            )}
+            <div className="mt-2">
+              <Tabs.Content value={PromptType.Text}>
                 <FormField
                   control={form.control}
                   name="textPrompt"
@@ -363,8 +360,10 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                     </>
                   )}
                 />
-              </TabsContent>
-              <TabsContent value={PromptType.Chat}>
+              </Tabs.Content>
+            </div>
+            <div className="mt-2">
+              <Tabs.Content value={PromptType.Chat}>
                 <FormField
                   control={form.control}
                   name="chatPrompt"
@@ -379,11 +378,13 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                     </>
                   )}
                 />
-              </TabsContent>
-            </Tabs>
-          </FormItem>
+              </Tabs.Content>
+            </div>
+          </Tabs>
+        </FormItem>
+        {currentExtractedVariables.length > 0 && (
           <PromptVariableListPreview variables={currentExtractedVariables} />
-        </>
+        )}
 
         {/* Prompt Config field */}
         <FormField

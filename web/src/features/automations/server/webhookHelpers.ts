@@ -1,8 +1,4 @@
-import {
-  decrypt,
-  encrypt,
-  generateWebhookSecret,
-} from "@langfuse/shared/encryption";
+import { encrypt, generateWebhookSecret } from "@langfuse/shared/encryption";
 import {
   type ActionCreate,
   type ActionConfig,
@@ -16,6 +12,7 @@ import {
   createDisplayHeaders,
   encryptSecretHeaders,
   validateWebhookURL,
+  webhookWhitelistFromEnv,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
@@ -55,7 +52,7 @@ export async function processWebhookActionConfig({
   }
 
   try {
-    await validateWebhookURL(actionConfig.url);
+    await validateWebhookURL(actionConfig.url, webhookWhitelistFromEnv());
   } catch (error) {
     throw new TRPCError({
       code: "BAD_REQUEST",
@@ -168,22 +165,4 @@ function processWebhookHeaders(
     displaySecretKey: "", // will be overwritten by the caller
     lastFailingExecutionId: existingConfig?.lastFailingExecutionId,
   };
-}
-
-/**
- * Extracts webhook secret for one-time display after creation
- */
-export function extractWebhookSecret(
-  actionConfig: ActionConfig,
-): string | undefined {
-  if (actionConfig.type !== "WEBHOOK" || !actionConfig.secretKey) {
-    return undefined;
-  }
-
-  try {
-    return decrypt(actionConfig.secretKey);
-  } catch (error) {
-    console.error("Failed to decrypt webhook secret for display:", error);
-    return undefined;
-  }
 }

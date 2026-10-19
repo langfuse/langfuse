@@ -1,3 +1,5 @@
+/* eslint-disable no-nested-ternary */
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import { v4TransitionRouter } from "@/src/features/v4/server/v4TransitionRouter";
@@ -129,13 +131,21 @@ const sharedServerMock = vi.hoisted(() => ({
       };
     }
 
-    const canonicalSdkName =
-      normalizedSdkName === "python" || normalizedSdkName === "langfuse-python"
-        ? "python"
-        : normalizedSdkName === "javascript" ||
-            normalizedSdkName.startsWith("@langfuse/")
-          ? "javascript"
-          : null;
+    const canonicalSdkName = (() => {
+      if (
+        normalizedSdkName === "python" ||
+        normalizedSdkName === "langfuse-python"
+      ) {
+        return "python";
+      }
+      if (
+        normalizedSdkName === "javascript" ||
+        normalizedSdkName.startsWith("@langfuse/")
+      ) {
+        return "javascript";
+      }
+      return null;
+    })();
 
     if (!canonicalSdkName) {
       return {
@@ -259,14 +269,18 @@ const mockSdkUsageRow = (overrides: {
     overrides.deliveryMode ?? (source === "otel" ? "realtime" : "delayed");
   const sdkName = overrides.sdkName ?? "python";
   const sdkVersion = overrides.sdkVersion ?? "4.7.0";
-  const canonicalSdkName =
-    overrides.canonicalSdkName !== undefined
-      ? overrides.canonicalSdkName
-      : sdkName === "python" || sdkName === "langfuse-python"
-        ? ("python" as const)
-        : sdkName === "javascript" || sdkName.startsWith("@langfuse/")
-          ? ("javascript" as const)
-          : null;
+  const canonicalSdkName = (() => {
+    if (overrides.canonicalSdkName !== undefined) {
+      return overrides.canonicalSdkName;
+    }
+    if (sdkName === "python" || sdkName === "langfuse-python") {
+      return "python" as const;
+    }
+    if (sdkName === "javascript" || sdkName.startsWith("@langfuse/")) {
+      return "javascript" as const;
+    }
+    return null;
+  })();
   const sdkVersionMajor =
     overrides.sdkVersionMajor !== undefined
       ? overrides.sdkVersionMajor
@@ -274,12 +288,15 @@ const mockSdkUsageRow = (overrides: {
   const resolvedMajor = Number.isFinite(Number(sdkVersionMajor))
     ? Number(sdkVersionMajor)
     : null;
-  const latestMajor =
-    canonicalSdkName === "python"
-      ? 4
-      : canonicalSdkName === "javascript"
-        ? 5
-        : null;
+  const latestMajor = (() => {
+    if (canonicalSdkName === "python") {
+      return 4;
+    }
+    if (canonicalSdkName === "javascript") {
+      return 5;
+    }
+    return null;
+  })();
   const v4MigrationStatus =
     overrides.v4MigrationStatus ??
     (canonicalSdkName === null || resolvedMajor === null
@@ -427,14 +444,7 @@ const session: Session = {
         ],
       },
     ],
-    featureFlags: {
-      excludeClickhouseRead: false,
-      observationEvals: false,
-      templateFlag: false,
-      searchBar: false,
-      v4BetaToggleVisible: false,
-      experimentsV4Enabled: false,
-    },
+    featureFlags: testFeatureFlags({ templateFlag: false }),
     admin: false,
   },
   environment: {
@@ -463,7 +473,7 @@ const accessibleProjectsFindManyArgs = {
 const TEST_NOW = new Date("2026-06-25T00:30:00Z");
 const HOT_START_ISO = "2026-06-25T00:00:00.000Z";
 const HOT_START_CLICKHOUSE = "2026-06-25 00:00:00.000";
-const WINDOW_START_CLICKHOUSE = "2026-06-11 01:00:00.000";
+const WINDOW_START_CLICKHOUSE = "2026-06-22 01:00:00.000";
 // Recent SDK gap cutoff: TEST_NOW floored to the minute (zero
 // seconds/millis) so repeated calls within the minute share one ClickHouse
 // query-cache key.
@@ -485,7 +495,19 @@ const experimentPostBlob = (
   });
 
 const legacyApiBlob = (
-  rows: { entrypoint: string; count: number; lastSeen: string }[],
+  rows: {
+    entrypoint: string;
+    count: number;
+    lastSeen: string;
+    callers?: {
+      sdkName?: "python" | "javascript";
+      sdkVersion?: string;
+      userAgent?: string;
+      isOther?: true;
+      count: number;
+      lastSeen: string;
+    }[];
+  }[],
 ) =>
   JSON.stringify({
     version: 1,
@@ -565,6 +587,15 @@ describe("v4TransitionRouter", () => {
           entrypoint: "publicapi: GET /api/public/traces/{id}",
           count: 2,
           lastSeen: "2026-06-24T15:00:00.000000Z",
+          callers: [
+            {
+              sdkName: "python",
+              sdkVersion: "4.8.1",
+              userAgent: "langfuse-python/4.8.1",
+              count: 2,
+              lastSeen: "2026-06-24T15:00:00.000000Z",
+            },
+          ],
         },
       ]),
     });
@@ -586,6 +617,15 @@ describe("v4TransitionRouter", () => {
         entrypoint: "publicapi: GET /api/public/traces/{id}",
         count: 2,
         lastSeen: "2026-06-24T15:00:00.000000Z",
+        callers: [
+          {
+            sdkName: "python",
+            sdkVersion: "4.8.1",
+            userAgent: "langfuse-python/4.8.1",
+            count: 2,
+            lastSeen: "2026-06-24T15:00:00.000000Z",
+          },
+        ],
       },
     ]);
     expect(mockedQueryClickhouse).not.toHaveBeenCalled();
@@ -602,6 +642,85 @@ describe("v4TransitionRouter", () => {
     ).resolves.toEqual([]);
     expect(mockedQueryClickhouse).not.toHaveBeenCalled();
     await expect(readRedisJson(legacyApiUsageCacheKey)).resolves.toBeNull();
+  });
+
+  it("returns the complete project migration data for agent consumers", async () => {
+    await seedRedisCache({
+      [legacyApiUsageCacheKey]: legacyApiBlob([
+        {
+          entrypoint: "publicapi: GET /api/public/traces/{id}",
+          count: 2,
+          lastSeen: "2026-06-24T15:00:00.000000Z",
+        },
+      ]),
+    });
+    mockedQueryClickhouse.mockResolvedValueOnce([
+      mockSdkUsageRow({
+        projectId,
+        sdkName: "python",
+        sdkVersion: "3.9.0",
+        actionLevel: "required",
+      }),
+    ]);
+    const caller = createCaller({
+      posthogIntegration: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            projectId,
+            enabled: true,
+            exportSource: "TRACES_OBSERVATIONS",
+          },
+        ]),
+      },
+      mixpanelIntegration: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+      blobStorageIntegration: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+      evaluationRule: {
+        groupBy: vi
+          .fn()
+          .mockResolvedValue([{ projectId, _count: { _all: 2 } }]),
+      },
+    });
+
+    const result = await caller.migrationData({ projectId });
+
+    expect(result).toMatchObject({
+      projectId,
+      forceV3Experience: false,
+      sdkUsage: {
+        projectId,
+        sdkUsageSeries: expect.arrayContaining([
+          expect.objectContaining({
+            sdkName: "python",
+            sdkVersion: "3.9.0",
+            actionLevel: "required",
+          }),
+        ]),
+      },
+      legacyIntegrations: {
+        projectId,
+        legacyIntegrationCount: 1,
+        legacyIntegrations: {
+          posthog: true,
+          mixpanel: false,
+          blobStorage: false,
+        },
+      },
+      legacyApiUsage: [
+        {
+          projectId,
+          entrypoint: "publicapi: GET /api/public/traces/{id}",
+          count: 2,
+        },
+      ],
+      traceLevelEvals: {
+        projectId,
+        traceLevelEvalCount: 2,
+      },
+    });
   });
 
   it("queries SDK usage for only the authorized project", async () => {
@@ -655,6 +774,11 @@ describe("v4TransitionRouter", () => {
       caller.legacyApiUsageSummary({
         projectId: outsideProjectId,
         ...range,
+      }),
+    ).rejects.toThrow("User is not a member of this project");
+    await expect(
+      caller.migrationData({
+        projectId: outsideProjectId,
       }),
     ).rejects.toThrow("User is not a member of this project");
     expect(mockedQueryClickhouse).not.toHaveBeenCalled();
@@ -718,7 +842,7 @@ describe("v4TransitionRouter", () => {
 
   it("summarizes trace-level evals", async () => {
     const mockPrisma = {
-      jobConfiguration: {
+      evaluationRule: {
         groupBy: vi.fn().mockResolvedValue([
           {
             projectId,
@@ -734,11 +858,10 @@ describe("v4TransitionRouter", () => {
       traceLevelEvalCount: 3,
     });
 
-    expect(mockPrisma.jobConfiguration.groupBy).toHaveBeenCalledWith({
+    expect(mockPrisma.evaluationRule.groupBy).toHaveBeenCalledWith({
       by: ["projectId"],
       where: {
         projectId: { in: [projectId] },
-        jobType: "EVAL",
         targetObject: { in: ["trace", "dataset"] },
         status: "ACTIVE",
         timeScope: { has: "NEW" },
@@ -749,7 +872,7 @@ describe("v4TransitionRouter", () => {
 
   it("returns zero evals when no active configs exist", async () => {
     const mockPrisma = {
-      jobConfiguration: {
+      evaluationRule: {
         groupBy: vi.fn().mockResolvedValue([]),
       },
     };
@@ -887,7 +1010,7 @@ describe("v4TransitionRouter", () => {
           { id: secondProjectId, name: "Second Project" },
         ]),
       },
-      jobConfiguration: {
+      evaluationRule: {
         groupBy: vi.fn().mockResolvedValue([
           {
             projectId,
@@ -914,11 +1037,10 @@ describe("v4TransitionRouter", () => {
     expect(mockPrisma.project.findMany).toHaveBeenCalledWith(
       accessibleProjectsFindManyArgs,
     );
-    expect(mockPrisma.jobConfiguration.groupBy).toHaveBeenCalledWith({
+    expect(mockPrisma.evaluationRule.groupBy).toHaveBeenCalledWith({
       by: ["projectId"],
       where: {
         projectId: { in: [projectId, secondProjectId] },
-        jobType: "EVAL",
         targetObject: { in: ["trace", "dataset"] },
         status: "ACTIVE",
         timeScope: { has: "NEW" },
@@ -1894,15 +2016,15 @@ describe("v4TransitionRouter", () => {
       });
     });
 
-    it("drops cached SDK series that aged out of the 14-day window", async () => {
+    it("drops cached SDK series that aged out of the 3-day window", async () => {
       await seedRedisCache({
         [sdkUsageCacheKey]: sdkUsageBlob([
           cachedSdkSeries(),
           cachedSdkSeries({
             sdkVersion: "2.0.0",
-            // Older than now - 14d (2026-06-11T00:30Z): trimmed at read time.
-            firstSeen: "2026-06-08T00:00:00Z",
-            lastSeen: "2026-06-10T00:00:00Z",
+            // Older than now - 3d (2026-06-22T00:30Z): trimmed at read time.
+            firstSeen: "2026-06-20T00:00:00Z",
+            lastSeen: "2026-06-21T00:00:00Z",
           }),
         ]),
         [experimentPostUsageCacheKey]: experimentPostBlob(false),
@@ -2091,7 +2213,7 @@ describe("v4TransitionRouter", () => {
       const mockPrismaForActions = ({
         evalCount = 0,
       }: { evalCount?: number } = {}) => ({
-        jobConfiguration: {
+        evaluationRule: {
           groupBy: vi
             .fn()
             .mockResolvedValue(
@@ -2185,6 +2307,105 @@ describe("v4TransitionRouter", () => {
         });
       });
 
+      it.each(["Claude Code/1.0", "codex-cli/1.2.3", "curl/8.7.1"])(
+        "does not require an API action for deprecated calls made only by %s",
+        async (userAgent) => {
+          await seedRedisCache({
+            [sdkUsageCacheKey]: sdkUsageBlob([]),
+            [experimentPostUsageCacheKey]: experimentPostBlob(false),
+            [legacyApiUsageCacheKey]: legacyApiBlob([
+              {
+                entrypoint: "publicapi: GET /api/public/traces",
+                count: 2,
+                lastSeen: "2026-06-24T12:00:00.000000Z",
+                callers: [
+                  {
+                    userAgent,
+                    count: 2,
+                    lastSeen: "2026-06-24T12:00:00.000000Z",
+                  },
+                ],
+              },
+            ]),
+          });
+          mockedQueryClickhouse.mockResolvedValue([]);
+          const caller = createCaller(mockPrismaForActions());
+
+          await expect(
+            caller.migrationActions({ projectId }),
+          ).resolves.toMatchObject({
+            sdkActionNeeded: false,
+            experimentsActionNeeded: false,
+            apisActionNeeded: false,
+            evalsActionNeeded: false,
+            exportsActionNeeded: false,
+          });
+        },
+      );
+
+      it("keeps the API action when any caller is not an agent or curl", async () => {
+        await seedRedisCache({
+          [sdkUsageCacheKey]: sdkUsageBlob([]),
+          [experimentPostUsageCacheKey]: experimentPostBlob(false),
+          [legacyApiUsageCacheKey]: legacyApiBlob([
+            {
+              entrypoint: "publicapi: GET /api/public/traces",
+              count: 3,
+              lastSeen: "2026-06-24T12:00:00.000000Z",
+              callers: [
+                {
+                  userAgent: "codex-cli/1.2.3",
+                  count: 2,
+                  lastSeen: "2026-06-24T12:00:00.000000Z",
+                },
+                {
+                  userAgent: "langfuse-python/3.9.0",
+                  count: 1,
+                  lastSeen: "2026-06-24T11:00:00.000000Z",
+                },
+              ],
+            },
+          ]),
+        });
+        mockedQueryClickhouse.mockResolvedValue([]);
+        const caller = createCaller(mockPrismaForActions());
+
+        await expect(
+          caller.migrationActions({ projectId }),
+        ).resolves.toMatchObject({
+          apisActionNeeded: true,
+        });
+      });
+
+      it("keeps the API action for an aggregated unknown caller", async () => {
+        await seedRedisCache({
+          [sdkUsageCacheKey]: sdkUsageBlob([]),
+          [experimentPostUsageCacheKey]: experimentPostBlob(false),
+          [legacyApiUsageCacheKey]: legacyApiBlob([
+            {
+              entrypoint: "publicapi: GET /api/public/traces",
+              count: 2,
+              lastSeen: "2026-06-24T12:00:00.000000Z",
+              callers: [
+                {
+                  isOther: true,
+                  count: 2,
+                  lastSeen: "2026-06-24T12:00:00.000000Z",
+                },
+              ],
+            },
+          ]),
+        });
+        mockedQueryClickhouse.mockResolvedValue([]);
+        const caller = createCaller(mockPrismaForActions());
+
+        await expect(
+          caller.migrationActions({ projectId }),
+        ).resolves.toMatchObject({
+          apisActionNeeded: true,
+        });
+      });
+
       it("short-circuits partner-managed (forced v3) projects without any I/O", async () => {
         await seedRedisCache();
         sharedServerMock.isForceV3ExperienceProject.mockReturnValueOnce(true);
@@ -2200,7 +2421,7 @@ describe("v4TransitionRouter", () => {
           exportsActionNeeded: false,
         });
 
-        expect(prismaMock.jobConfiguration.groupBy).not.toHaveBeenCalled();
+        expect(prismaMock.evaluationRule.groupBy).not.toHaveBeenCalled();
         expect(mockedQueryClickhouse).not.toHaveBeenCalled();
       });
 

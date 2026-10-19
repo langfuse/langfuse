@@ -12,6 +12,7 @@ import {
   QueueJobs,
   getCurrentSpan,
   classifyEvaluatorLlmError,
+  type EvaluatorLlmErrorClassification,
 } from "@langfuse/shared/src/server";
 import { createEvalJobs, evaluate } from "../features/evaluation/evalService";
 import { processObservationEval } from "../features/evaluation/observationEval";
@@ -20,6 +21,11 @@ import { isUnrecoverableError } from "../errors/UnrecoverableError";
 import { retryObservationNotFound } from "../features/evaluation/retryObservationNotFound";
 import { isObservationNotFoundError } from "../errors/ObservationNotFoundError";
 import { env } from "../env";
+import {
+  getLlmEvalTerminalErrorAttribution,
+  recordEvalTerminalOutcome,
+  recordEvalTimeToFirstAttempt,
+} from "../features/evaluation/evalExecutionMetrics";
 
 export const evalJobTraceCreatorQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.TraceUpsert]>,
@@ -256,7 +262,13 @@ export const evalJobExecutorQueueProcessorBuilder = (
         },
       });
 
-      if (llmError || isUnrecoverableError(e)) return;
+      if (llmError || isUnrecoverableError(e)) {
+        logger.warn(
+          `${queueName} job ${job.data.payload.jobExecutionId} failed terminally`,
+          getTerminalEvalErrorLogContext(job.data.payload, e, llmError),
+        );
+        return;
+      }
 
       traceException(e);
       logger.error(
@@ -273,6 +285,14 @@ export const evalJobExecutorQueueProcessorBuilder = (
 export const llmAsJudgeExecutionQueueProcessorBuilder =
   (queueName: string): Processor =>
   async (job: Job<TQueueJobTypes[QueueName.LLMAsJudgeExecution]>) => {
+    const retryAttempt = job.data.retryBaggage?.attempt ?? 0;
+    if (job.attemptsStarted === 1 && retryAttempt === 0) {
+      recordEvalTimeToFirstAttempt(
+        EvalTemplateType.LLM_AS_JUDGE,
+        Math.max(0, Date.now() - job.timestamp),
+      );
+    }
+
     try {
       logger.debug(
         "Executing LLM-as-Judge Observation Evaluation Job",
@@ -292,17 +312,29 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
         );
         span.setAttribute(
           "messaging.bullmq.job.input.retryBaggage.attempt",
-          job.data.retryBaggage?.attempt ?? 0,
+          retryAttempt,
         );
       }
 
-      await processObservationEval({
+      const outcome = await processObservationEval({
         event: job.data.payload,
         executionType: EvalTemplateType.LLM_AS_JUDGE,
       });
+
+      if (outcome === "completed") {
+        recordEvalTerminalOutcome(EvalTemplateType.LLM_AS_JUDGE, "success");
+      } else if (outcome === "cancelled") {
+        recordEvalTerminalOutcome(EvalTemplateType.LLM_AS_JUDGE, "cancelled");
+      }
+
       return true;
     } catch (e) {
       const llmError = classifyEvaluatorLlmError(e);
+      // Media may still be uploading when evaluation starts after ingestion.
+      // Retry only this evaluator job instead of making the error globally retryable.
+      const isMediaNotFoundError =
+        llmError?.kind === "validation" &&
+        llmError.validationError?.code === "media-not-found";
       const executionTraceId = createW3CTraceId(
         job.data.payload.jobExecutionId,
       );
@@ -335,23 +367,55 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
         }
       }
 
-      await prisma.jobExecution.update({
-        where: {
-          id: job.data.payload.jobExecutionId,
-          projectId: job.data.payload.projectId,
-        },
-        data: {
-          status: JobExecutionStatus.ERROR,
-          endTime: new Date(),
-          error:
-            llmError || isUnrecoverableError(e)
-              ? (llmError?.message ?? (e as Error).message)
-              : "An internal error occurred",
-          executionTraceId,
-        },
-      });
+      const isUnrecoverable = isUnrecoverableError(e);
+      const isTerminalError =
+        (Boolean(llmError) && !isMediaNotFoundError) || isUnrecoverable;
+      const totalAttempts = job.opts.attempts ?? 1;
+      const isFinalAttempt = job.attemptsMade + 1 >= totalAttempts;
 
-      if (llmError || isUnrecoverableError(e)) return;
+      // Only persist the terminal ERROR state when there will be no more
+      // retries; otherwise observationEvalProcessor would short-circuit the
+      // retry attempts because it skips jobs already in ERROR status.
+      if (isTerminalError || isFinalAttempt) {
+        await prisma.jobExecution.update({
+          where: {
+            id: job.data.payload.jobExecutionId,
+            projectId: job.data.payload.projectId,
+          },
+          data: {
+            status: JobExecutionStatus.ERROR,
+            endTime: new Date(),
+            error:
+              llmError || isUnrecoverable
+                ? (llmError?.message ?? (e as Error).message)
+                : "An internal error occurred",
+            executionTraceId,
+          },
+        });
+        const attribution = getLlmEvalTerminalErrorAttribution({
+          error: e,
+          classification: llmError,
+          isUnrecoverable,
+        });
+        recordEvalTerminalOutcome(
+          EvalTemplateType.LLM_AS_JUDGE,
+          attribution.outcome,
+          attribution.reason,
+        );
+
+        if (isTerminalError || isMediaNotFoundError) {
+          logger.warn(
+            `LLM-as-Judge execution job ${job.data.payload.jobExecutionId} failed terminally`,
+            {
+              ...getTerminalEvalErrorLogContext(job.data.payload, e, llmError),
+              outcome: attribution.outcome,
+              reason: attribution.reason,
+            },
+          );
+        }
+      }
+
+      if (isTerminalError || (isMediaNotFoundError && isFinalAttempt)) return;
 
       traceException(e);
       logger.error(
@@ -362,3 +426,21 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
       throw e;
     }
   };
+
+function getTerminalEvalErrorLogContext(
+  payload: { projectId: string; jobExecutionId: string },
+  error: unknown,
+  llmError: EvaluatorLlmErrorClassification | null,
+) {
+  return {
+    projectId: payload.projectId,
+    jobExecutionId: payload.jobExecutionId,
+    errorName: error instanceof Error ? error.name : typeof error,
+    errorMessage: (error instanceof Error
+      ? error.message
+      : String(error)
+    ).slice(0, 500),
+    llmErrorKind: llmError?.kind,
+    llmStatusCode: llmError?.statusCode,
+  };
+}

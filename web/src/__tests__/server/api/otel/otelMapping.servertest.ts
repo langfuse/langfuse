@@ -86,6 +86,124 @@ async function convertOtelSpanToIngestionEvent(
   ])) as unknown as TestIngestionEvent[];
 }
 
+describe("OTel user identity", () => {
+  const attributes = (values: Record<string, string>) =>
+    Object.entries(values).map(([key, stringValue]) => ({
+      key,
+      value: { stringValue },
+    }));
+
+  const batch = (
+    resource: Record<string, string>,
+    spans: Record<string, string>[],
+  ): ResourceSpan => ({
+    resource: { attributes: attributes(resource) },
+    scopeSpans: [
+      {
+        scope: { name: "test-scope", version: "1.0.0" },
+        spans: spans.map((span, index) => ({
+          traceId: Buffer.from("0123456789abcdef0123456789abcdef", "hex"),
+          spanId: Buffer.from(
+            index === 0 ? "0123456789abcdef" : "1111111111111111",
+            "hex",
+          ),
+          ...(index === 0
+            ? {}
+            : { parentSpanId: Buffer.from("0123456789abcdef", "hex") }),
+          name: index === 0 ? "invoke_agent" : "chat model",
+          kind: 1,
+          startTimeUnixNano: "1752384000000000000",
+          endTimeUnixNano: "1752384001000000000",
+          attributes: attributes(span),
+          status: {},
+        })),
+      },
+    ],
+  });
+
+  const cases: {
+    name: string;
+    span: Record<string, string>;
+    resource: Record<string, string>;
+    expected: string | undefined;
+  }[] = [
+    {
+      name: "span IDs take precedence over resource IDs and usernames",
+      span: { "user.id": "span-id", "user.name": "span-name" },
+      resource: { "langfuse.user.id": "resource-id" },
+      expected: "span-id",
+    },
+    {
+      name: "existing metadata IDs take precedence over resource IDs",
+      span: { "ai.telemetry.metadata.userId": "compat-id" },
+      resource: { "user.id": "resource-id" },
+      expected: "compat-id",
+    },
+    {
+      name: "resource IDs take precedence over span usernames",
+      span: { "user.name": "github-login" },
+      resource: { "user.id": "employee-id" },
+      expected: "employee-id",
+    },
+    {
+      name: "resource Langfuse IDs take precedence over resource OTel IDs",
+      span: { "user.name": "github-login" },
+      resource: { "langfuse.user.id": "employee-id", "user.id": "otel-id" },
+      expected: "employee-id",
+    },
+    {
+      name: "span usernames take precedence over resource usernames",
+      span: { "user.name": "github-login" },
+      resource: { "user.name": "resource-name" },
+      expected: "github-login",
+    },
+    {
+      name: "resource usernames are a final fallback",
+      span: { "user.name": "" },
+      resource: { "user.name": "resource-name" },
+      expected: "resource-name",
+    },
+    {
+      name: "OS accounts are not application users",
+      span: {},
+      resource: { "process.user.name": "root" },
+      expected: undefined,
+    },
+  ];
+
+  it.each(cases)("$name", async ({ span, resource, expected }) => {
+    const resourceSpan = batch(resource, [span]);
+    const observations = createTestOtelProcessor().processToEvent([
+      resourceSpan,
+    ]);
+    expect(observations).toHaveLength(1);
+    expect(observations[0].userId).toBe(expected);
+
+    const events = await convertOtelSpanToIngestionEvent(
+      resourceSpan,
+      new Set(),
+    );
+    expect(
+      events.find((event) => event.type === "trace-create")?.body.userId,
+    ).toBe(expected);
+  });
+
+  it("preserves explicit users on legacy child trace updates", async () => {
+    const events = await convertOtelSpanToIngestionEvent(
+      batch({ "user.id": "resource-default", "process.user.name": "node" }, [
+        { "user.id": "customer-id" },
+        { "user.name": "child-name", "langfuse.trace.name": "updated" },
+      ]),
+      new Set(),
+    );
+    expect(
+      events
+        .filter((event) => event.type === "trace-create")
+        .map((event) => event.body.userId),
+    ).toEqual(["customer-id", undefined]);
+  });
+});
+
 describe("OTel Resource Span Mapping", () => {
   describe("Langfuse OTEL SDK spans", () => {
     const publicKey = "pk-lf-1234567890";
@@ -1543,6 +1661,64 @@ describe("OTel Resource Span Mapping", () => {
       ],
     });
 
+    it.each([
+      [
+        "AI SDK 6 ai.response.msToFirstChunk (milliseconds)",
+        "ai.response.msToFirstChunk",
+        { doubleValue: 250.4 },
+      ],
+      [
+        "AI SDK 7 gen_ai.client.operation.time_to_first_chunk (seconds)",
+        "gen_ai.client.operation.time_to_first_chunk",
+        { doubleValue: 0.2505 },
+      ],
+    ])(
+      "should derive completionStartTime from %s",
+      async (_name, otelAttributeKey, otelAttributeValue) => {
+        const resourceSpan = {
+          scopeSpans: [
+            {
+              scope: { name: "ai" },
+              spans: [
+                {
+                  ...defaultSpanProps,
+                  name: "ai.streamText.doStream",
+                  attributes: [
+                    {
+                      key: "ai.operationId",
+                      value: { stringValue: "ai.streamText.doStream" },
+                    },
+                    { key: "ai.model.id", value: { stringValue: "gpt-4o" } },
+                    { key: otelAttributeKey, value: otelAttributeValue },
+                  ],
+                },
+              ],
+            },
+          ],
+        } as unknown as ResourceSpan;
+
+        const ttftMs = (startTime?: string, completionStartTime?: string) =>
+          new Date(completionStartTime!).getTime() -
+          new Date(startTime!).getTime();
+
+        const ingestionEvents = await convertOtelSpanToIngestionEvent(
+          resourceSpan,
+          new Set(),
+        );
+        const generation = ingestionEvents.find(
+          (event) => event.type === "generation-create",
+        )?.body as { startTime?: string; completionStartTime?: string };
+        expect(
+          ttftMs(generation?.startTime, generation?.completionStartTime),
+        ).toBe(251);
+
+        const [event] = createTestOtelProcessor().processToEvent([
+          resourceSpan,
+        ]);
+        expect(ttftMs(event.startTimeISO, event.completionStartTime)).toBe(251);
+      },
+    );
+
     it("should interpret an empty buffer as an unset parentSpanId", async () => {
       // https://github.com/langchain4j/langchain4j/issues/2328#issuecomment-2686129552
       // Empty buffers where detected as truthy, i.e. behaved like they had a parent span.
@@ -1980,6 +2156,81 @@ describe("OTel Resource Span Mapping", () => {
         expect(observation?.body.name).toBe(spanName);
       },
     );
+
+    it("should build chat input from lk.pii.instructions and lk.pii.user_input on a realtime agent_turn", async () => {
+      const events = await convertOtelSpanToIngestionEvent(
+        createLivekitSpan({
+          name: "agent_turn",
+          scopeName: "livekit-agents",
+          attributes: [
+            {
+              key: "lk.pii.instructions",
+              value: { stringValue: "Your name is Marin." },
+            },
+            {
+              key: "lk.pii.user_input",
+              value: { stringValue: "What is Langfuse?" },
+            },
+            {
+              key: "lk.pii.response.text",
+              value: {
+                stringValue: "Langfuse is an LLM engineering platform.",
+              },
+            },
+            {
+              key: "lk.pii.response.function_calls",
+              value: { stringValue: "[]" },
+            },
+          ],
+        }),
+        new Set([livekitTraceId]),
+      );
+
+      const observation = findObservationCreateEvent(events);
+      expect(observation?.body.input).toEqual([
+        { role: "system", content: "Your name is Marin." },
+        { role: "user", content: "What is Langfuse?" },
+      ]);
+      expect(observation?.body.output).toBe(
+        "Langfuse is an LLM engineering platform.",
+      );
+      expect(
+        observation?.body.metadata?.attributes?.["lk.pii.response.text"],
+      ).toBeUndefined();
+    });
+
+    it("should keep lk.pii.instructions as system input when the agent speaks first", async () => {
+      const events = await convertOtelSpanToIngestionEvent(
+        createLivekitSpan({
+          name: "agent_turn",
+          scopeName: "livekit-agents",
+          attributes: [
+            {
+              key: "lk.pii.instructions",
+              value: { stringValue: "Your name is Marin." },
+            },
+            {
+              key: "lk.pii.user_input",
+              value: { stringValue: "" },
+            },
+            {
+              key: "lk.pii.response.text",
+              value: { stringValue: "Hi, I am Marin." },
+            },
+          ],
+        }),
+        new Set([livekitTraceId]),
+      );
+
+      const observation = findObservationCreateEvent(events);
+      expect(observation?.body.input).toEqual([
+        { role: "system", content: "Your name is Marin." },
+      ]);
+      expect(observation?.body.output).toBe("Hi, I am Marin.");
+      expect(observation?.body.metadata?.attributes ?? {}).not.toHaveProperty(
+        "lk.pii.instructions",
+      );
+    });
 
     it("should not map LiveKit span names without livekit-agents scope", async () => {
       const events = await convertOtelSpanToIngestionEvent(
@@ -3944,6 +4195,105 @@ describe("OTel Resource Span Mapping", () => {
           entityAttributeValue: '{"temperature": 75, "condition": "sunny"}',
         },
       ],
+      // livekit-agents >= 1.8 marks content attributes with a `pii` segment
+      [
+        "should map lk.pii.input_text to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "lk.pii.input_text",
+          otelAttributeValue: {
+            stringValue: "What is the weather today?",
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: "What is the weather today?",
+        },
+      ],
+      [
+        "should map lk.pii.user_transcript to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "lk.pii.user_transcript",
+          otelAttributeValue: {
+            stringValue: "Hey there. What's the weather?",
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: "Hey there. What's the weather?",
+        },
+      ],
+      [
+        "should map lk.pii.chat_ctx to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "lk.pii.chat_ctx",
+          otelAttributeValue: {
+            stringValue: '{"items": [{"role": "user", "content": ["Hi"]}]}',
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue:
+            '{"items": [{"role": "user", "content": ["Hi"]}]}',
+        },
+      ],
+      [
+        "should map lk.pii.user_input to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "lk.pii.user_input",
+          otelAttributeValue: {
+            stringValue: "What is Langfuse?",
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: "What is Langfuse?",
+        },
+      ],
+      [
+        "should map lk.pii.function_tool.arguments to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "lk.pii.function_tool.arguments",
+          otelAttributeValue: {
+            stringValue: '{"query": "langfuse sessions"}',
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: '{"query": "langfuse sessions"}',
+        },
+      ],
+      [
+        "should map lk.pii.response.text to output",
+        {
+          entity: "observation",
+          otelAttributeKey: "lk.pii.response.text",
+          otelAttributeValue: {
+            stringValue: "The weather is sunny with a high of 75°F.",
+          },
+          entityAttributeKey: "output",
+          entityAttributeValue: "The weather is sunny with a high of 75°F.",
+        },
+      ],
+      [
+        "should map lk.pii.function_tool.output to output",
+        {
+          entity: "observation",
+          otelAttributeKey: "lk.pii.function_tool.output",
+          otelAttributeValue: {
+            stringValue: '{"temperature": 75, "condition": "sunny"}',
+          },
+          entityAttributeKey: "output",
+          entityAttributeValue: '{"temperature": 75, "condition": "sunny"}',
+        },
+      ],
+      [
+        "should map lk.pii.response.function_calls to output",
+        {
+          entity: "observation",
+          otelAttributeKey: "lk.pii.response.function_calls",
+          otelAttributeValue: {
+            stringValue: '[{"name": "searchLangfuseDocs", "arguments": "{}"}]',
+          },
+          entityAttributeKey: "output",
+          entityAttributeValue:
+            '[{"name": "searchLangfuseDocs", "arguments": "{}"}]',
+        },
+      ],
       [
         // OTLP/JSON encodes int64 attribute values as decimal strings (e.g. "100")
         // rather than the Long object produced by the protobuf decoder. See
@@ -4207,6 +4557,38 @@ describe("OTel Resource Span Mapping", () => {
         expect(eventInputs).toHaveLength(1);
         expect(eventInputs[0].promptName).toBe("my-prompt");
         expect(eventInputs[0].promptVersion).toBe(1);
+      });
+
+      it("should map string-encoded prompt version on generation observations", async () => {
+        const resourceSpan = buildResourceSpan([
+          {
+            key: "langfuse.observation.type",
+            value: { stringValue: "generation" },
+          },
+          {
+            key: "langfuse.observation.prompt.name",
+            value: { stringValue: "my-prompt" },
+          },
+          {
+            key: "langfuse.observation.prompt.version",
+            value: { stringValue: "3" },
+          },
+        ]);
+
+        const events = await convertOtelSpanToIngestionEvent(
+          resourceSpan,
+          new Set(),
+        );
+        const observation = events.find((e) => e.type !== "trace-create");
+        expect(observation?.type).toBe("generation-create");
+        expect(observation?.body.promptName).toBe("my-prompt");
+        expect(observation?.body.promptVersion).toBe(3);
+
+        const processor = createTestOtelProcessor();
+        const eventInputs = processor.processToEvent([resourceSpan]);
+        expect(eventInputs).toHaveLength(1);
+        expect(eventInputs[0].promptName).toBe("my-prompt");
+        expect(eventInputs[0].promptVersion).toBe(3);
       });
 
       it("should map legacy langfuse.prompt.name attributes on generation observations", async () => {
@@ -5501,6 +5883,376 @@ describe("OTel Resource Span Mapping", () => {
         "keep-tool",
       );
     });
+
+    it("should map Claude Managed Agents tool results to output in both ingestion paths", async () => {
+      const input = JSON.stringify({ path: "/workspace/example.txt" });
+      const output = JSON.stringify([
+        { type: "text", text: "Example file contents." },
+        { type: "text", text: "Second content block." },
+      ]);
+      const {
+        legacyObservations: [tool],
+        eventInputs,
+      } = await mapCmaSpans([
+        {
+          name: "read",
+          attributes: {
+            "gen_ai.provider.name": "anthropic",
+            "gen_ai.operation.name": "execute_tool",
+            "gen_ai.tool.name": "read",
+            "gen_ai.tool.call.arguments": input,
+            "anthropic.tool_result.content": output,
+          },
+        },
+      ]);
+
+      expect(tool).toMatchObject({
+        type: "tool-create",
+        body: { input, output },
+      });
+      expect(
+        tool?.body.metadata.attributes?.["anthropic.tool_result.content"],
+      ).toBeUndefined();
+
+      expect(eventInputs).toHaveLength(1);
+      expect(eventInputs[0]).toMatchObject({ type: "TOOL", input, output });
+      expect(
+        eventInputs[0].metadata.attributes["anthropic.tool_result.content"],
+      ).toBeUndefined();
+    });
+
+    it.each([
+      { scenario: "platform spans", expectedSessionId: "sesn_example" },
+      {
+        scenario: "SDK spans",
+        scopeName: "com.anthropic.sdk.typescript",
+        expectedSessionId: "sesn_example",
+      },
+      {
+        scenario: "other instrumentation keeps its conversation IDs",
+        scopeName: "other-sdk",
+        expectedSessionId: undefined,
+      },
+      {
+        scenario: "blank managed session IDs are ignored",
+        managedSessionId: "   ",
+        expectedSessionId: undefined,
+      },
+      {
+        scenario: "Langfuse session override wins",
+        extraAttributes: {
+          "langfuse.session.id": "custom-session",
+          "session.id": "other-session",
+        },
+        expectedSessionId: "custom-session",
+      },
+      {
+        scenario: "generic session override wins",
+        extraAttributes: { "session.id": "custom-session" },
+        expectedSessionId: "custom-session",
+      },
+    ])(
+      "groups Claude Managed Agents traces by session: $scenario",
+      async ({
+        scopeName = "com.anthropic.claude-platform",
+        managedSessionId = "sesn_example",
+        extraAttributes = {},
+        expectedSessionId,
+      }) => {
+        const rootId = Buffer.alloc(8, 1);
+        const agentId = Buffer.alloc(8, 2);
+        const { legacyTrace, eventInputs } = await mapCmaSpans(
+          (
+            [
+              ["anthropic.sessions.events.send", undefined, undefined],
+              ["anthropic.session.turn", "invoke_agent", rootId],
+              ["anthropic.tool_use bash", "execute_tool", agentId],
+              ["anthropic.model_request", "chat", agentId],
+            ] as const
+          ).map(([name, operation, parentSpanId]) => ({
+            name,
+            parentSpanId,
+            attributes: {
+              "anthropic.session.id": managedSessionId,
+              "gen_ai.operation.name": operation,
+              "gen_ai.conversation.id": operation ? "sthr_example" : undefined,
+              ...extraAttributes,
+            },
+          })),
+          scopeName,
+        );
+
+        expect(eventInputs.map((event) => event.sessionId)).toEqual([
+          expectedSessionId,
+          expectedSessionId ?? "sthr_example",
+          expectedSessionId ?? "sthr_example",
+          expectedSessionId ?? "sthr_example",
+        ]);
+        expect(
+          eventInputs[1].metadata.attributes["gen_ai.conversation.id"],
+        ).toBe("sthr_example");
+
+        expect(legacyTrace).toBeDefined();
+        expect(legacyTrace?.sessionId).toBe(expectedSessionId);
+      },
+    );
+
+    it("does not infer a trace session from CMA child spans", async () => {
+      const { legacyTrace, eventInputs } = await mapCmaSpans([
+        {
+          name: "anthropic.sessions.events.send",
+          parentSpanId: Buffer.alloc(8, 9),
+          attributes: {
+            "anthropic.session.id": "sesn_example",
+            "langfuse.trace.name": "app-request",
+          },
+        },
+      ]);
+      expect(legacyTrace).toMatchObject({
+        name: "app-request",
+        sessionId: undefined,
+      });
+      expect(eventInputs[0].sessionId).toBe("sesn_example");
+    });
+
+    it.each([
+      {
+        scenario: "maps platform session creation to a span",
+        expectedType: "SPAN",
+        expectedModel: undefined,
+      },
+      {
+        scenario: "maps SDK session creation to a span",
+        scopeName: "com.anthropic.sdk.python",
+        expectedType: "SPAN",
+        expectedModel: undefined,
+      },
+      {
+        scenario: "preserves other instrumentation scopes",
+        scopeName: "other-sdk",
+        expectedType: "GENERATION",
+        expectedModel: "claude-test-model",
+      },
+      {
+        scenario: "requires a managed session ID",
+        sessionId: null,
+        expectedType: "GENERATION",
+        expectedModel: "claude-test-model",
+      },
+      {
+        scenario: "preserves other model spans",
+        spanName: "anthropic.messages.create",
+        expectedType: "GENERATION",
+        expectedModel: "claude-test-model",
+      },
+      {
+        scenario: "respects an explicit generation type",
+        extraAttributes: { "langfuse.observation.type": "generation" },
+        expectedType: "GENERATION",
+        expectedModel: "claude-test-model",
+      },
+      {
+        scenario: "preserves model fields on explicitly typed chat spans",
+        extraAttributes: {
+          "langfuse.observation.type": "span",
+          "gen_ai.operation.name": "chat",
+        },
+        expectedType: "SPAN",
+        expectedModel: "claude-test-model",
+      },
+    ])(
+      "CMA session creation: $scenario",
+      async ({
+        scopeName = "com.anthropic.claude-platform",
+        spanName = "anthropic.sessions.create",
+        sessionId = "session-example",
+        extraAttributes = {},
+        expectedType,
+        expectedModel,
+      }) => {
+        const {
+          legacyObservations: [observation],
+          eventInputs,
+        } = await mapCmaSpans(
+          [
+            {
+              name: spanName,
+              attributes: {
+                "anthropic.session.id": sessionId ?? undefined,
+                "gen_ai.request.model": "claude-test-model",
+                "gen_ai.usage.input_tokens": "12",
+                "langfuse.observation.cost_details": JSON.stringify({
+                  total: 0.12,
+                }),
+                ...extraAttributes,
+              },
+            },
+          ],
+          scopeName,
+        );
+
+        const expectedUsage = expectedModel ? { input: 12 } : undefined;
+        const expectedCost = expectedModel ? { total: 0.12 } : {};
+        expect(observation).toMatchObject({
+          type: `${expectedType.toLowerCase()}-create`,
+          body: {
+            model: expectedModel,
+            metadata: {
+              attributes: { "gen_ai.request.model": "claude-test-model" },
+            },
+          },
+        });
+        expect(observation?.body.usageDetails).toEqual(expectedUsage ?? {});
+        expect(observation?.body).toHaveProperty("costDetails", expectedCost);
+
+        expect(eventInputs).toHaveLength(1);
+        expect(eventInputs[0]).toMatchObject({
+          type: expectedType,
+          modelName: expectedModel,
+          metadata: {
+            attributes: { "gen_ai.request.model": "claude-test-model" },
+          },
+        });
+        expect(eventInputs[0].providedUsageDetails).toEqual(expectedUsage);
+        expect(eventInputs[0].providedCostDetails).toEqual(expectedCost);
+      },
+    );
+
+    it.each([
+      {
+        scenario: "names the agent",
+        operation: "invoke_agent",
+        expectedType: "AGENT",
+        expectedName: "support-agent",
+      },
+      {
+        scenario: "preserves custom agent span names",
+        spanName: "custom-agent-run",
+        operation: "invoke_agent",
+        expectedType: "AGENT",
+        expectedName: "custom-agent-run",
+      },
+      {
+        scenario: "keeps generation names generic",
+        operation: "chat",
+        expectedType: "GENERATION",
+        expectedName: "anthropic.model_request",
+      },
+      {
+        scenario: "respects an explicit generation type",
+        operation: "invoke_agent",
+        explicitType: "generation",
+        expectedType: "GENERATION",
+        expectedName: "anthropic.session.turn",
+      },
+      {
+        scenario: "does not rename agents from other instrumentation scopes",
+        scopeName: "other-agent-sdk",
+        operation: "invoke_agent",
+        expectedType: "AGENT",
+        expectedName: "anthropic.session.turn",
+      },
+      {
+        scenario: "requires a managed session ID",
+        sessionId: null,
+        operation: "invoke_agent",
+        expectedType: "AGENT",
+        expectedName: "anthropic.session.turn",
+      },
+      {
+        scenario: "requires an invoke_agent operation",
+        spanName: "anthropic.session.turn",
+        operation: "chat",
+        explicitType: "agent",
+        expectedType: "AGENT",
+        expectedName: "anthropic.session.turn",
+      },
+    ])(
+      "Claude Managed Agents naming: $scenario",
+      async ({
+        scopeName = "com.anthropic.claude-platform",
+        sessionId = "session-example",
+        operation,
+        spanName = operation === "chat"
+          ? "anthropic.model_request"
+          : "anthropic.session.turn",
+        explicitType,
+        expectedType,
+        expectedName,
+      }) => {
+        const {
+          legacyTrace,
+          legacyObservations: [observation],
+          eventInputs,
+        } = await mapCmaSpans(
+          [
+            {
+              name: spanName,
+              attributes: {
+                "gen_ai.operation.name": operation,
+                "gen_ai.agent.name": "support-agent",
+                "anthropic.session.id": sessionId ?? undefined,
+                "langfuse.observation.type": explicitType,
+              },
+            },
+          ],
+          scopeName,
+        );
+
+        expect(observation).toMatchObject({
+          type: `${expectedType.toLowerCase()}-create`,
+          body: { name: expectedName },
+        });
+        expect(legacyTrace?.name).toBe(spanName);
+
+        expect(eventInputs).toHaveLength(1);
+        expect(eventInputs[0]).toMatchObject({
+          type: expectedType,
+          name: expectedName,
+        });
+      },
+    );
+
+    async function mapCmaSpans(
+      spans: Array<{
+        name: string;
+        parentSpanId?: Buffer;
+        attributes: Record<string, string | undefined>;
+      }>,
+      scopeName = "com.anthropic.claude-platform",
+    ) {
+      const resourceSpan: ResourceSpan = {
+        scopeSpans: [
+          {
+            scope: { name: scopeName },
+            spans: spans.map((span, index) => ({
+              ...defaultSpanProps,
+              ...span,
+              traceId: Buffer.from(defaultSpanProps.traceId.data),
+              spanId: Buffer.alloc(8, index + 1),
+              attributes: Object.entries(span.attributes).flatMap(
+                ([key, value]) =>
+                  value === undefined
+                    ? []
+                    : [{ key, value: { stringValue: value } }],
+              ),
+            })),
+          },
+        ],
+      };
+      const legacyEvents = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+      return {
+        legacyTrace: legacyEvents.find((event) => event.type === "trace-create")
+          ?.body,
+        legacyObservations: legacyEvents.filter(
+          (event) => event.type !== "trace-create",
+        ),
+        eventInputs: createTestOtelProcessor().processToEvent([resourceSpan]),
+      };
+    }
 
     it("should filter all input/output attribute patterns from metadata.attributes while preserving custom attributes", async () => {
       // This test verifies that extractInputAndOutput's filteredAttributes correctly removes
@@ -8077,6 +8829,77 @@ describe("OTel Resource Span Mapping", () => {
       expect(usageDetails.output_reasoning_tokens).toBe(25);
       expect(usageDetails["reasoning.output_tokens"]).toBeUndefined();
     });
+
+    it("should normalize the official cache-write token attribute", async () => {
+      const traceId = "abcdef1234567890abcdef1234567893";
+      const officialCacheUsageSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "opentelemetry",
+              version: "1.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcde2", "hex"),
+                name: "official-cache-usage",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: { intValue: { low: 300, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_read.input_tokens",
+                    value: { intValue: { low: 40, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_write.input_tokens",
+                    value: { intValue: { low: 25, high: 0, unsigned: false } },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        officialCacheUsageSpan,
+        new Set(),
+      );
+      const observationEvent = events.find(
+        (event) =>
+          event.type === "generation-create" || event.type === "span-create",
+      );
+
+      expect(observationEvent?.body.usageDetails).toEqual({
+        input: 235,
+        input_cached_tokens: 40,
+        input_cache_creation: 25,
+      });
+    });
+
     it("should normalize raw Anthropic cache_read_input_tokens / cache_creation_input_tokens into Langfuse canonical keys", async () => {
       // flat Anthropic cache spellings must map to cache aliases, not opaque passthrough buckets
       const traceId = "abcdef1234567890abcdef1234567893";
@@ -9611,6 +10434,360 @@ describe("OTel Resource Span Mapping", () => {
 
   describe("Prototype pollution protection", () => {
     const publicKey = "pk-lf-1234567890";
+    const traceId = "abcdef1234567890abcdef1234567890";
+    const spanId = "abcdef1234567890";
+
+    const createResourceSpan = (
+      attributes: Array<{ key: string; value: Record<string, unknown> }>,
+    ): ResourceSpan => ({
+      resource: {
+        attributes: [
+          {
+            key: "service.name",
+            value: { stringValue: "test-service" },
+          },
+        ],
+      },
+      scopeSpans: [
+        {
+          scope: {
+            name: "langfuse-sdk",
+            version: "2.0.0",
+            attributes: [
+              {
+                key: "public_key",
+                value: { stringValue: publicKey },
+              },
+            ],
+          },
+          spans: [
+            {
+              traceId: Buffer.from(traceId, "hex"),
+              spanId: Buffer.from(spanId, "hex"),
+              name: "prototype-protection-test",
+              kind: 1,
+              startTimeUnixNano: {
+                low: 1000000000,
+                high: 0,
+              },
+              endTimeUnixNano: {
+                low: 2000000000,
+                high: 0,
+              },
+              attributes,
+              status: {},
+            },
+          ],
+        },
+      ],
+    });
+
+    const convertAndObserveHasOwnPropertyCall = async (
+      attributes: Array<{ key: string; value: Record<string, unknown> }>,
+    ) => {
+      const hasOwnPropertyFunction = Object.prototype.hasOwnProperty;
+      const originalCall = hasOwnPropertyFunction.call;
+      const originalCallDescriptor = Object.getOwnPropertyDescriptor(
+        hasOwnPropertyFunction,
+        "call",
+      );
+
+      try {
+        const events = await convertOtelSpanToIngestionEvent(
+          createResourceSpan(attributes),
+          new Set([traceId]),
+          publicKey,
+        );
+        return {
+          events,
+          observedCall: hasOwnPropertyFunction.call,
+          originalCall,
+        };
+      } finally {
+        if (originalCallDescriptor) {
+          Object.defineProperty(
+            hasOwnPropertyFunction,
+            "call",
+            originalCallDescriptor,
+          );
+        } else {
+          delete (hasOwnPropertyFunction as { call?: unknown }).call;
+        }
+      }
+    };
+
+    it.each([
+      [
+        "flat object",
+        [
+          ["role", "user"],
+          ["content", "hello"],
+        ],
+        { role: "user", content: "hello" },
+      ],
+      [
+        "root array with shared prefixes",
+        [
+          ["1.content", "world"],
+          ["0.role", "user"],
+          ["0.content", "hello"],
+          ["1.role", "assistant"],
+        ],
+        [
+          { role: "user", content: "hello" },
+          { role: "assistant", content: "world" },
+        ],
+      ],
+      [
+        "nested objects and scalar arrays",
+        [
+          ["request.model", "test-model"],
+          ["request.parts.1", "second"],
+          ["request.parts.0", "first"],
+          ["request.options.temperature", "0.5"],
+        ],
+        {
+          request: {
+            model: "test-model",
+            parts: ["first", "second"],
+            options: { temperature: "0.5" },
+          },
+        },
+      ],
+    ] as const)(
+      "should preserve legacy reconstruction for %s",
+      (_name, attributes, expected) => {
+        const events = createTestOtelProcessor({ publicKey }).processToEvent([
+          createResourceSpan(
+            attributes.map(([path, stringValue]) => ({
+              key: `gen_ai.prompt.${path}`,
+              value: { stringValue },
+            })),
+          ),
+        ]);
+
+        expect(events).toHaveLength(1);
+        expect(events[0].input).toEqual(expected);
+      },
+    );
+
+    it("should not traverse inherited properties in nested gen_ai.prompt attributes", async () => {
+      const { events, observedCall, originalCall } =
+        await convertAndObserveHasOwnPropertyCall([
+          {
+            key: "gen_ai.prompt.a.safe",
+            value: { stringValue: "still-here" },
+          },
+          {
+            key: "gen_ai.prompt.a.hasOwnProperty.call",
+            value: { stringValue: "pwned" },
+          },
+        ]);
+
+      expect(observedCall).toBe(originalCall);
+      expect(
+        events.find((event) => event.type === "span-create")?.body.input,
+      ).toMatchObject({
+        a: {
+          safe: "still-here",
+          hasOwnProperty: { call: "pwned" },
+        },
+      });
+    });
+
+    it("should not traverse inherited properties through an array branch", async () => {
+      const { events, observedCall, originalCall } =
+        await convertAndObserveHasOwnPropertyCall([
+          {
+            key: "gen_ai.prompt.a.0",
+            value: { stringValue: "seed" },
+          },
+          {
+            key: "gen_ai.prompt.a.hasOwnProperty.call",
+            value: { stringValue: "pwned" },
+          },
+        ]);
+
+      expect(observedCall).toBe(originalCall);
+      const input = events.find((event) => event.type === "span-create")?.body
+        .input as { a?: unknown[] } | undefined;
+      expect(input?.a?.[0]).toBe("seed");
+      expect(Object.hasOwn(input?.a ?? [], "hasOwnProperty")).toBe(false);
+      expect(Reflect.get(input?.a ?? [], "hasOwnProperty")).toBe(
+        Object.prototype.hasOwnProperty,
+      );
+    });
+
+    it("should preserve a scalar leaf and ignore a conflicting nested attribute", () => {
+      const events = createTestOtelProcessor({ publicKey }).processToEvent([
+        createResourceSpan([
+          {
+            key: "gen_ai.prompt.a",
+            value: { stringValue: "leaf" },
+          },
+          {
+            key: "gen_ai.prompt.a.b",
+            value: { stringValue: "nested" },
+          },
+          {
+            key: "gen_ai.prompt.safe",
+            value: { stringValue: "still-here" },
+          },
+        ]),
+      ]);
+
+      expect(events).toHaveLength(1);
+      expect(events[0].input).toMatchObject({
+        a: "leaf",
+        safe: "still-here",
+      });
+    });
+
+    it("should preserve a reconstructed container and ignore a conflicting leaf", () => {
+      const events = createTestOtelProcessor({ publicKey }).processToEvent([
+        createResourceSpan([
+          {
+            key: "gen_ai.prompt.0.content",
+            value: { stringValue: "nested" },
+          },
+          {
+            key: "gen_ai.prompt.0",
+            value: { stringValue: "leaf" },
+          },
+        ]),
+      ]);
+
+      expect(events).toHaveLength(1);
+      expect(events[0].input).toEqual([{ content: "nested" }]);
+    });
+
+    it.each([
+      {
+        name: "array first",
+        attributes: [
+          {
+            key: "gen_ai.prompt.a.0",
+            value: { stringValue: "first" },
+          },
+          {
+            key: "gen_ai.prompt.a.length",
+            value: { stringValue: "pwned" },
+          },
+        ],
+        expected: ["first"],
+      },
+      {
+        name: "object first",
+        attributes: [
+          {
+            key: "gen_ai.prompt.a.length",
+            value: { stringValue: "pwned" },
+          },
+          {
+            key: "gen_ai.prompt.a.0",
+            value: { stringValue: "first" },
+          },
+        ],
+        expected: { 0: "first", length: "pwned" },
+      },
+    ])(
+      "should safely preserve the first reconstructed container kind ($name)",
+      ({ attributes, expected }) => {
+        const events = createTestOtelProcessor({ publicKey }).processToEvent([
+          createResourceSpan([
+            ...attributes,
+            {
+              key: "gen_ai.prompt.safe",
+              value: { stringValue: "still-here" },
+            },
+          ]),
+        ]);
+
+        expect(events).toHaveLength(1);
+        expect(events[0].input).toMatchObject({
+          a: expected,
+          safe: "still-here",
+        });
+      },
+    );
+
+    it("should not interpret noncanonical numeric syntax as an array index", () => {
+      const events = createTestOtelProcessor({ publicKey }).processToEvent([
+        createResourceSpan([
+          {
+            key: "gen_ai.prompt.0.content",
+            value: { stringValue: "safe" },
+          },
+          {
+            key: "gen_ai.prompt.1e6.content",
+            value: { stringValue: "pwned" },
+          },
+        ]),
+      ]);
+
+      expect(events).toHaveLength(1);
+      const input = events[0].input as Array<{ content: string }>;
+      expect(input).toHaveLength(1);
+      expect(input[0]).toEqual({ content: "safe" });
+    });
+
+    it("should drop paths that exceed the reconstruction depth limit", () => {
+      const deepPath = Array.from({ length: 65 }, () => "nested").join(".");
+      const events = createTestOtelProcessor({ publicKey }).processToEvent([
+        createResourceSpan([
+          {
+            key: `gen_ai.prompt.${deepPath}`,
+            value: { stringValue: "pwned" },
+          },
+          {
+            key: "gen_ai.prompt.safe",
+            value: { stringValue: "still-here" },
+          },
+        ]),
+      ]);
+
+      expect(events).toHaveLength(1);
+      expect(events[0].input).toEqual({ safe: "still-here" });
+    });
+
+    it("should not let a rejected path consume the array-slot budget", () => {
+      const events = createTestOtelProcessor({ publicKey }).processToEvent([
+        createResourceSpan([
+          {
+            key: "gen_ai.prompt.0.message.__proto__.9999.content",
+            value: { stringValue: "pwned" },
+          },
+          {
+            key: "gen_ai.prompt.1.content",
+            value: { stringValue: "still-here" },
+          },
+        ]),
+      ]);
+
+      expect(events).toHaveLength(1);
+      const input = events[0].input as Array<{ content?: string }>;
+      expect(input).toHaveLength(2);
+      expect(input[0]).toBeUndefined();
+      expect(input[1]).toEqual({ content: "still-here" });
+    });
+
+    it("should not let an over-budget array path change the root container type", () => {
+      const events = createTestOtelProcessor({ publicKey }).processToEvent([
+        createResourceSpan([
+          {
+            key: "gen_ai.prompt.5000.notes.5000.content",
+            value: { stringValue: "dropped" },
+          },
+          {
+            key: "gen_ai.prompt.name",
+            value: { stringValue: "still-here" },
+          },
+        ]),
+      ]);
+
+      expect(events).toHaveLength(1);
+      expect(events[0].input).toEqual({ name: "still-here" });
+    });
 
     it("should not pollute Object.prototype via __proto__ in gen_ai.prompt attributes", async () => {
       const traceId = "abcdef1234567890abcdef1234567890";

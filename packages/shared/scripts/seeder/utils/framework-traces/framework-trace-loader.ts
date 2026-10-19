@@ -145,27 +145,33 @@ export class FrameworkTraceLoader {
       }
 
       // Use usage/cost details from JSON if present, otherwise reconstruct from flat fields
-      const usageDetails =
-        obs.usageDetails && Object.keys(obs.usageDetails).length > 0
-          ? obs.usageDetails
-          : obs.totalUsage > 0
-            ? {
-                input: obs.inputUsage,
-                output: obs.outputUsage,
-                total: obs.totalUsage,
-              }
-            : undefined;
+      const usageDetails = (() => {
+        if (obs.usageDetails && Object.keys(obs.usageDetails).length > 0) {
+          return obs.usageDetails;
+        }
+        if (obs.totalUsage > 0) {
+          return {
+            input: obs.inputUsage,
+            output: obs.outputUsage,
+            total: obs.totalUsage,
+          };
+        }
+        return undefined;
+      })();
 
-      const costDetails =
-        obs.costDetails && Object.keys(obs.costDetails).length > 0
-          ? obs.costDetails
-          : obs.totalCost > 0
-            ? {
-                input: (obs.totalCost * obs.inputUsage) / obs.totalUsage,
-                output: (obs.totalCost * obs.outputUsage) / obs.totalUsage,
-                total: obs.totalCost,
-              }
-            : undefined;
+      const costDetails = (() => {
+        if (obs.costDetails && Object.keys(obs.costDetails).length > 0) {
+          return obs.costDetails;
+        }
+        if (obs.totalCost > 0) {
+          return {
+            input: (obs.totalCost * obs.inputUsage) / obs.totalUsage,
+            output: (obs.totalCost * obs.outputUsage) / obs.totalUsage,
+            total: obs.totalCost,
+          };
+        }
+        return undefined;
+      })();
 
       observations.push(
         createObservation({

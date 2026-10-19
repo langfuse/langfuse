@@ -1,5 +1,7 @@
+/* eslint-disable no-nested-ternary */
 import { format } from "date-fns";
 import {
+  compactNumberFormatter,
   latencyFormatter,
   numberFormatter,
   usdFormatter,
@@ -54,7 +56,7 @@ export const OUTLIER_STRIP_STEP_LADDER_SECONDS = [
  * excluded on purpose. Finer sub-minute steps need a backend addition —
  * tracked as a follow-up to LFE-14451.
  */
-export const OUTLIER_STRIP_GRANULARITIES = [
+const OUTLIER_STRIP_GRANULARITIES = [
   { granularity: "minute", stepSeconds: 60 },
   { granularity: "5m", stepSeconds: 300 },
   { granularity: "10m", stepSeconds: 600 },
@@ -115,8 +117,8 @@ export function pickChartGranularity(params: {
 // ---------------------------------------------------------------------------
 
 export type OutlierStripMetricKey = "count" | "cost" | "latency";
-export type OutlierStripLatencyAgg = "p95" | "p50";
-export type OutlierStripCostAgg = "sum";
+type OutlierStripLatencyAgg = "p95" | "p50";
+type OutlierStripCostAgg = "sum";
 export type OutlierStripAggKey =
   | "count"
   | OutlierStripLatencyAgg
@@ -138,6 +140,8 @@ export type OutlierStripMetricDef = {
   /** Raw result value → plotted unit (e.g. latency ms → s). */
   fromRaw: (raw: number) => number;
   format: (value: number) => string;
+  /** Y-axis tick label; defaults to `format`. */
+  formatTick?: (value: number) => string;
   /** Ascending "nice" y-tick values in the plotted unit. Metrics without a
    * ladder (plain numbers like cost) tick on 1-2-5 decades; durations need
    * time-native steps so ticks read "1m", not "1m 40s" (100). */
@@ -197,6 +201,7 @@ export const OUTLIER_STRIP_METRICS: Record<
     aggregations: [{ key: "count", queryAggregation: "count" }],
     fromRaw: (raw) => raw,
     format: (value) => numberFormatter(value, 0),
+    formatTick: (value) => compactNumberFormatter(value, 1),
   },
   cost: {
     shortLabel: "Cost",
@@ -260,7 +265,7 @@ export const outlierStripQueryMetrics = (): {
   );
 
 /** Resolves an aggregation option, falling back to the metric's default. */
-export const resolveAggregation = (
+const resolveAggregation = (
   metric: OutlierStripMetricKey,
   aggregation: string | undefined,
 ): AggregationDef => {
@@ -566,7 +571,11 @@ export function prepareOutlierYTicks(params: {
     const offsetPx = toOffsetPx(value);
     if (offsetPx < Y_TICK_MIN_OFFSET_PX) break;
     if (lastOffsetPx - offsetPx < Y_TICK_MIN_SPACING_PX) continue;
-    ticks.push({ value, label: def.format(value), offsetPx });
+    ticks.push({
+      value,
+      label: (def.formatTick ?? def.format)(value),
+      offsetPx,
+    });
     if (ticks.length >= Y_TICK_MAX_COUNT) break;
     lastOffsetPx = offsetPx;
   }

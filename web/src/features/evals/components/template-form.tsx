@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 import { useState } from "react";
 import Link from "next/link";
 import { useFieldArray, useForm } from "react-hook-form";
@@ -12,6 +13,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  hasArrayLevelFieldError,
 } from "@/src/components/ui/form";
 import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -28,16 +30,17 @@ import {
   resolvePersistedEvalOutputDefinition,
   EvalTemplateType,
   EvalTemplateSourceCodeLanguage,
+  type EvalTemplate,
+  type ModelParams,
+  ZodModelConfig,
 } from "@langfuse/shared";
 import router from "next/router";
-import { type EvalTemplate } from "@langfuse/shared";
 import { ModelParameters } from "@/src/components/ModelParameters";
-import { type ModelParams, ZodModelConfig } from "@langfuse/shared";
-import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { PromptVariableListPreview } from "@/src/features/prompts";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
-import { useModelParams } from "@/src/features/playground/page/hooks/useModelParams";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { useModelParams } from "@/src/features/playground";
+import { showSuccessToast } from "@/src/features/notifications";
 import {
   getDefaultOutputDefinitionFormValues,
   shouldReplaceDefaultOutputDefinitionField,
@@ -72,11 +75,8 @@ import {
   EvalTemplateTypeSelector,
   type EvalTemplateTypeSelectorMode,
 } from "@/src/features/evals/components/eval-template-type-selector";
-import { Alert, AlertDescription } from "@/src/components/ui/alert";
-import {
-  useEvalCapabilities,
-  type EvalCapabilities,
-} from "@/src/features/evals/hooks/useEvalCapabilities";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
 
 type PartialEvalTemplate = Partial<EvalTemplate> &
   Pick<EvalTemplate, "name" | "prompt" | "vars" | "outputDefinition">;
@@ -189,7 +189,7 @@ export type EvalTemplateFormPreFill = {
   shouldUseDefaultModel?: boolean;
 };
 
-export const InnerEvalTemplateForm = (props: {
+const InnerEvalTemplateForm = (props: {
   projectId: string;
   useDialog: boolean;
   // pre-filled values from langfuse-defined template or template from db
@@ -260,10 +260,13 @@ export const InnerEvalTemplateForm = (props: {
     defaultValues: {
       name:
         props.existingEvalTemplateName ?? props.preFilledFormValues?.name ?? "",
+      // The legacy editor only knows LLM and code templates.
       type:
         templateTypeSelectorMode === "code-only"
           ? EvalTemplateType.CODE
-          : (props.preFilledFormValues?.type ?? EvalTemplateType.LLM_AS_JUDGE),
+          : props.preFilledFormValues?.type === EvalTemplateType.CODE
+            ? EvalTemplateType.CODE
+            : EvalTemplateType.LLM_AS_JUDGE,
       prompt: props.preFilledFormValues?.prompt ?? undefined,
       variables: props.preFilledFormValues?.vars ?? [],
       sourceCode: props.preFilledFormValues?.sourceCode
@@ -318,13 +321,9 @@ export const InnerEvalTemplateForm = (props: {
   const isCategoricalOutput = scoreDataType === ScoreDataTypeEnum.CATEGORICAL;
   const isBooleanOutput = scoreDataType === ScoreDataTypeEnum.BOOLEAN;
   const shouldAllowMultipleMatches = form.watch("shouldAllowMultipleMatches");
-  const categoriesError = form.formState.errors.categories;
-  const categoriesErrorMessage =
-    typeof categoriesError?.message === "string"
-      ? categoriesError.message
-      : typeof categoriesError?.root?.message === "string"
-        ? categoriesError.root.message
-        : undefined;
+  const hasCategoriesArrayError = hasArrayLevelFieldError(
+    form.formState.errors.categories,
+  );
 
   const applyDefaultOutputDefinitionCopy = (params: {
     scoreDataType:
@@ -365,6 +364,7 @@ export const InnerEvalTemplateForm = (props: {
       utils.models.invalidate();
       if (data.updatedConfigCount > 0) {
         showSuccessToast({
+          operation: "evaluator.update",
           title: "Updated evaluators",
           description:
             "Updated referenced evaluators to use new template version.",
@@ -411,7 +411,6 @@ export const InnerEvalTemplateForm = (props: {
       return {
         intent: "clone" as const,
         cloneSourceId: props.cloneSourceId,
-        retargetUsingJobConfigs: false,
       };
     }
 
@@ -601,22 +600,52 @@ export const InnerEvalTemplateForm = (props: {
         </>
       ) : undefined}
 
-      <EvalTemplateTypeSelector
-        form={form}
-        codeEvalCapabilities={codeEvalCapabilities}
-        mode={templateTypeSelectorMode}
-        hasExistingTemplate={Boolean(props.existingEvalTemplateId)}
-        onChange={() => {
-          resetCodeEvalSourceValidation();
-          setFormError(null);
-        }}
-      />
+      {codeEvalCapabilities.enabled &&
+        !props.existingEvalTemplateId &&
+        templateTypeSelectorMode !== "hidden" && (
+          <EvalTemplateTypeSelector
+            form={form}
+            codeEvalCapabilities={codeEvalCapabilities}
+            mode={templateTypeSelectorMode}
+            onChange={() => {
+              resetCodeEvalSourceValidation();
+              setFormError(null);
+            }}
+          />
+        )}
 
       {showCodeTemplateForm ? (
         <div className="space-y-3">
-          {props.isEditing ? (
-            <CodeEvalSdkVersionCallout evalCapabilities={evalCapabilities} />
-          ) : null}
+          {props.isEditing &&
+            !evalCapabilities.isLoading &&
+            evalCapabilities.compatibilityCheckWasPerformed &&
+            !evalCapabilities.isNewCompatible && (
+              <div className="w-full max-w-4xl">
+                <Alert variant="warning" icon={AlertTriangle}>
+                  <Alert.Description>
+                    <div className="flex flex-col gap-1">
+                      <span className="text-foreground font-bold">
+                        Please verify your SDK version
+                      </span>
+                      <span className="text-foreground text-sm">
+                        Code evaluators require JS SDK v4+ or Python SDK v3+.
+                        You can create this evaluator now, but it will only run
+                        once your project ingests data with a compatible SDK.{" "}
+                        <a
+                          href="https://langfuse.com/docs/observability/sdk/upgrade-path"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-dark-blue font-bold hover:opacity-80"
+                        >
+                          Learn more
+                        </a>
+                        .
+                      </span>
+                    </div>
+                  </Alert.Description>
+                </Alert>
+              </div>
+            )}
           <FormField
             control={form.control}
             name="sourceCode"
@@ -630,6 +659,7 @@ export const InnerEvalTemplateForm = (props: {
                 }}
                 editable={Boolean(props.isEditing)}
                 validationResult={codeValidationResult}
+                ctxSample={null}
               />
             )}
           />
@@ -685,7 +715,7 @@ export const InnerEvalTemplateForm = (props: {
               {!useDefaultModel &&
                 (!props.isEditing && !isCustomModelValid ? (
                   <div className="text-destructive mt-2 flex items-center space-x-1 text-sm">
-                    <AlertCircle className="h-4 w-4" />
+                    <AlertCircle className="icon-base" />
                     <p>
                       This evaluator is configured to use{" "}
                       {modelParams.provider.value}s models but no API key
@@ -723,30 +753,30 @@ export const InnerEvalTemplateForm = (props: {
                   control={form.control}
                   name="prompt"
                   render={({ field }) => (
-                    <>
-                      <FormItem>
-                        <FormLabel>Evaluation prompt</FormLabel>
-                        <FormDescription>
-                          Define your llm-as-a-judge evaluation template. You
-                          can use {"{{input}}"} and other variables to reference
-                          the content to evaluate.
-                        </FormDescription>
-                        <FormControl>
-                          <CodeMirrorEditor
-                            value={field.value ?? ""}
-                            onChange={field.onChange}
-                            editable={props.isEditing}
-                            mode="prompt"
-                            minHeight={200}
-                            maxHeight="50dvh"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                        <PromptVariableListPreview
-                          variables={extractedVariables ?? []}
+                    <FormItem>
+                      <FormLabel>Evaluation prompt</FormLabel>
+                      <FormDescription>
+                        Define your llm-as-a-judge evaluation template. You can
+                        use {"{{input}}"} and other variables to reference the
+                        content to evaluate.
+                      </FormDescription>
+                      <FormControl>
+                        <CodeMirrorEditor
+                          value={field.value ?? ""}
+                          onChange={field.onChange}
+                          editable={props.isEditing}
+                          mode="prompt"
+                          minHeight={200}
+                          maxHeight="50dvh"
                         />
-                      </FormItem>
-                    </>
+                      </FormControl>
+                      <FormMessage />
+                      {extractedVariables?.length ? (
+                        <PromptVariableListPreview
+                          variables={extractedVariables}
+                        />
+                      ) : null}
+                    </FormItem>
                   )}
                 />
               </div>
@@ -868,7 +898,7 @@ export const InnerEvalTemplateForm = (props: {
                                 disabled={!props.isEditing}
                                 onClick={() => remove(index)}
                               >
-                                <Trash className="text-muted-foreground h-4 w-4" />
+                                <Trash className="icon-base text-muted-foreground" />
                               </Button>
                             </div>
                           </div>
@@ -881,7 +911,7 @@ export const InnerEvalTemplateForm = (props: {
                         disabled={!props.isEditing}
                         onClick={() => append({ value: "" })}
                       >
-                        <PlusIcon className="mr-1.5 h-4 w-4" />
+                        <PlusIcon className="icon-base text-icon-foreground mr-1.5" />
                         Add category
                       </Button>
                       <FormField
@@ -915,11 +945,7 @@ export const InnerEvalTemplateForm = (props: {
                           </FormItem>
                         )}
                       />
-                      {categoriesErrorMessage ? (
-                        <p className="text-destructive text-sm font-bold">
-                          {categoriesErrorMessage}
-                        </p>
-                      ) : null}
+                      {hasCategoriesArrayError ? <FormMessage /> : null}
                     </FormItem>
                   )}
                 />
@@ -1013,47 +1039,3 @@ export const InnerEvalTemplateForm = (props: {
     </Form>
   );
 };
-
-function CodeEvalSdkVersionCallout({
-  evalCapabilities,
-}: {
-  evalCapabilities: EvalCapabilities;
-}) {
-  if (
-    evalCapabilities.isLoading ||
-    !evalCapabilities.compatibilityCheckWasPerformed ||
-    evalCapabilities.isNewCompatible
-  ) {
-    return null;
-  }
-
-  return (
-    <Alert
-      variant="default"
-      className="border-dark-yellow bg-light-yellow max-w-4xl"
-    >
-      <AlertTriangle className="text-dark-yellow h-4 w-4" />
-      <AlertDescription>
-        <div className="flex flex-col gap-1">
-          <span className="text-foreground font-bold">
-            Please verify your SDK version
-          </span>
-          <span className="text-foreground text-sm">
-            Code evaluators require JS SDK v4+ or Python SDK v3+. You can create
-            this evaluator now, but it will only run once your project ingests
-            data with a compatible SDK.{" "}
-            <a
-              href="https://langfuse.com/docs/observability/sdk/upgrade-path"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-dark-blue font-bold hover:opacity-80"
-            >
-              Learn more
-            </a>
-            .
-          </span>
-        </div>
-      </AlertDescription>
-    </Alert>
-  );
-}

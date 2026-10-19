@@ -13,14 +13,11 @@ import {
 } from "@/src/components/ui/dialog";
 import { Input } from "@/src/components/ui/input";
 import { api } from "@/src/utils/api";
-import { toast } from "sonner";
+import { showSuccessToast, showToast } from "@/src/features/notifications";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { nanoid } from "nanoid";
 
-export const BillingDiscountCodeButton = ({
-  orgId,
-}: {
-  orgId: string | undefined;
-}) => {
+export const BillingDiscountCodeButton = ({ orgId }: { orgId: string }) => {
   const [code, setCode] = useState("");
   const [open, setOpen] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -30,7 +27,11 @@ export const BillingDiscountCodeButton = ({
 
   const mutation = api.cloudBilling.applyPromotionCode.useMutation({
     onSuccess: async () => {
-      toast.success("Promotion code applied");
+      showSuccessToast({
+        operation: "billing_discount.apply",
+        title: "Promotion code applied",
+        description: "",
+      });
       setProcessing(false);
       setOpen(false);
       setCode("");
@@ -42,11 +43,21 @@ export const BillingDiscountCodeButton = ({
     },
     onError: (err) => {
       setProcessing(false);
-      toast.error(err.message || "Failed to apply promotion code");
+      const analytics = classifyTrpcToastError(err, "billing_discount.apply");
+      showToast({
+        type: "ERROR",
+        title: err.message || "Failed to apply promotion code",
+        analytics:
+          analytics.trpcCode === "BAD_REQUEST"
+            ? {
+                ...analytics,
+                errorOrigin: "backend",
+                errorCategory: "user_input",
+              }
+            : analytics,
+      });
     },
   });
-
-  if (!orgId) return null;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

@@ -6,25 +6,25 @@ import {
   queryViewToDashboardWidgetView,
   resolveDashboardWidgetMinVersion,
   type WidgetDomain,
+  type ApiAccessScope,
 } from "@langfuse/shared/src/server";
-import type { ApiAccessScope } from "@langfuse/shared/src/server";
 import {
   getValidAggregationsForMeasureType,
   getViewDeclaration,
   type ViewVersion,
 } from "@langfuse/shared/query";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { createUnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
+import { auditLog } from "@/src/features/audit-logs/server";
+import { createStructuredPublicApiError } from "@/src/features/public-api";
 import {
   PostUnstableDashboardWidgetResponse,
   type DashboardWidgetViewOutputType,
   type PostUnstableDashboardWidgetBodyType,
-} from "@/src/features/public-api/types/unstable-dashboard-widgets";
+} from "@/src/features/public-api/server";
 import { ChartConfigSchema, LangfuseNotFoundError } from "@langfuse/shared";
 import {
   getWidgetImportFilterConfig,
   partitionStoredUiTableFiltersToView,
-} from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+} from "@/src/features/dashboard/server";
 import {
   MAX_PIVOT_TABLE_DIMENSIONS,
   MAX_PIVOT_TABLE_METRICS,
@@ -42,7 +42,7 @@ const throwInvalidWidget = (params: {
   field?: string;
   allowedValues?: string[];
 }): never => {
-  throw createUnstablePublicApiError({
+  throw createStructuredPublicApiError({
     httpCode: 400,
     code: "invalid_request",
     message: params.message,
@@ -255,7 +255,7 @@ export function validatePublicDashboardWidgetInput(
   }
 }
 
-export function toApiDashboardWidget(widget: WidgetDomain) {
+function toApiDashboardWidget(widget: WidgetDomain) {
   return PostUnstableDashboardWidgetResponse.parse({
     id: widget.id,
     createdAt: widget.createdAt,

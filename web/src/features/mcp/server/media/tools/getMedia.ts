@@ -1,0 +1,25 @@
+import { getMedia, GetMediaQuerySchema } from "@/src/features/media/server";
+import { defineTool } from "../../../core/define-tool";
+import { runMcpTool } from "../../../core/run-mcp-tool";
+
+export const [getMediaTool, handleGetMedia] = defineTool({
+  name: "getMedia",
+  description: "Fetch metadata and a signed download URL for one media asset.",
+  action: "media:read",
+  baseSchema: GetMediaQuerySchema,
+  inputSchema: GetMediaQuerySchema,
+  handler: async (input, context) => {
+    return await runMcpTool({
+      spanName: "mcp.media.get",
+      context,
+      attributes: { "mcp.media_id": input.mediaId },
+      fn: async () => {
+        return await getMedia({
+          projectId: context.projectId,
+          mediaId: input.mediaId,
+        });
+      },
+    });
+  },
+  readOnlyHint: true,
+});

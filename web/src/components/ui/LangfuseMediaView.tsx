@@ -1,7 +1,6 @@
+/* eslint-disable @repo/no-null-render */
 import { api } from "@/src/utils/api";
-import { cn } from "@/src/utils/tailwind";
-import { useState } from "react";
-import { Button } from "@/src/components/ui/button";
+import { useMemo } from "react";
 
 import { ImageOff } from "lucide-react";
 import {
@@ -9,23 +8,14 @@ import {
   OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE,
   type ParsedMediaReferenceType,
 } from "@langfuse/shared";
-import {
-  COMPACT_IMAGE_MAX_HEIGHT_REM,
-  ResizableImage,
-} from "@/src/components/ui/resizable-image";
+import { ResizableImage } from "@/src/components/ui/resizable-image";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
   type MediaContentType,
   type MediaReturnType,
-} from "@/src/features/media/validation";
-import {
-  ExternalLink,
-  File,
-  Image as ImageIcon,
-  Video,
-  Volume2,
-} from "lucide-react";
+} from "@/src/features/media";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
+import { MediaFileView } from "@/src/components/ui/media/MediaFileView";
 
 // Above this, "preview" media falls back to the click-to-open icon instead of
 // rendering inline, so a large file isn't fetched/decoded just by opening a view.
@@ -47,38 +37,42 @@ export const LangfuseMediaView = ({
   // Non-previewable types (e.g. PDF) are always a click-to-open icon.
   variant?: "inline" | "icon" | "preview";
 }) => {
-  let mediaData: {
+  const mediaData = useMemo<{
     id: string;
     type: MediaContentType;
     referenceString?: string;
     source?: string;
-  } | null = null;
+  } | null>(() => {
+    if (mediaReferenceString && typeof mediaReferenceString === "string") {
+      const { success, data: parsedTag } =
+        MediaReferenceStringSchema.safeParse(mediaReferenceString);
+      if (success)
+        return {
+          id: parsedTag.id,
+          type: parsedTag.type as MediaContentType,
+          referenceString: parsedTag.referenceString,
+          source: parsedTag.source,
+        };
+    } else if (
+      mediaReferenceString &&
+      typeof mediaReferenceString !== "string"
+    ) {
+      return {
+        id: mediaReferenceString.id,
+        type: mediaReferenceString.type as MediaContentType,
+        referenceString: mediaReferenceString.referenceString,
+        source: mediaReferenceString.source,
+      };
+    } else if (mediaAPIReturnValue) {
+      return {
+        id: mediaAPIReturnValue.mediaId,
+        type: mediaAPIReturnValue.contentType,
+      };
+    }
+    return null;
+  }, [mediaReferenceString, mediaAPIReturnValue]);
 
   const projectId = useProjectIdFromURL();
-
-  if (mediaReferenceString && typeof mediaReferenceString === "string") {
-    const { success, data: parsedTag } =
-      MediaReferenceStringSchema.safeParse(mediaReferenceString);
-    if (success)
-      mediaData = {
-        id: parsedTag.id,
-        type: parsedTag.type as MediaContentType,
-        referenceString: parsedTag.referenceString,
-        source: parsedTag.source,
-      };
-  } else if (mediaReferenceString && typeof mediaReferenceString !== "string") {
-    mediaData = {
-      id: mediaReferenceString.id,
-      type: mediaReferenceString.type as MediaContentType,
-      referenceString: mediaReferenceString.referenceString,
-      source: mediaReferenceString.source,
-    };
-  } else if (mediaAPIReturnValue) {
-    mediaData = {
-      id: mediaAPIReturnValue.mediaId,
-      type: mediaAPIReturnValue.contentType,
-    };
-  }
 
   if (!mediaData) {
     const text = "Invalid Langfuse Media Tag";
@@ -86,7 +80,7 @@ export const LangfuseMediaView = ({
     return (
       <div className="flex items-center gap-2">
         <span title={text}>
-          <ImageOff className="h-4 w-4" />
+          <ImageOff className="icon-base" />
         </span>
         <span className="truncate text-sm" title={text}>
           {text}
@@ -105,6 +99,7 @@ export const LangfuseMediaView = ({
     },
     {
       enabled: Boolean(projectId) && !isOversizedField,
+      meta: { silentHttpCodes: [404] },
       refetchOnWindowFocus: false,
       refetchOnMount: false,
       refetchOnReconnect: false,
@@ -135,7 +130,7 @@ export const LangfuseMediaView = ({
       variant === "preview" &&
       (data?.contentLength ?? 0) <= PREVIEW_AUTO_EXPAND_MAX_BYTES;
     return (
-      <FileViewer
+      <MediaFileView
         src={mediaUrl}
         contentType={mediaData.type}
         defaultExpanded={autoExpand}
@@ -156,142 +151,8 @@ export const LangfuseMediaView = ({
   } else if (mediaData.type.startsWith("video")) {
     return <VideoPlayer src={mediaUrl} />;
   }
-  return <FileViewer src={mediaUrl} contentType={mediaData.type} />;
+  return <MediaFileView src={mediaUrl} contentType={mediaData.type} />;
 };
-
-function FileViewer({
-  src,
-  contentType,
-  defaultExpanded = false,
-}: {
-  src?: string;
-  contentType: MediaContentType;
-  defaultExpanded?: boolean;
-}) {
-  const mimeType = String(contentType);
-  const fileType = mimeType.split("/")[0];
-  const isImage = fileType === "image";
-  const isAudio = fileType === "audio";
-  const isVideo = fileType === "video";
-  const isPreviewable = isImage || isAudio || isVideo;
-
-  const [isExpanded, setIsExpanded] = useState(
-    defaultExpanded && isPreviewable,
-  );
-  const [compactImageWidth, setCompactImageWidth] = useState<string>();
-
-  if (!src) return null;
-
-  const fileName = src.split("/").pop()?.split("?")[0] || "";
-  const fileExtension = mimeType.split("/")[1]?.toUpperCase() || "FILE";
-
-  const openInNewTab = () => {
-    window.open(src, "_blank", "noopener,noreferrer");
-  };
-
-  const expandPreview = () => {
-    if (!isImage || compactImageWidth) {
-      setIsExpanded(true);
-      return;
-    }
-
-    const image = new window.Image();
-    image.onload = () => {
-      const { naturalWidth, naturalHeight } = image;
-      if (naturalWidth && naturalHeight) {
-        setCompactImageWidth(
-          `${COMPACT_IMAGE_MAX_HEIGHT_REM * (naturalWidth / naturalHeight)}rem`,
-        );
-      }
-      setIsExpanded(true);
-    };
-    image.onerror = () => setIsExpanded(true);
-    image.src = src;
-  };
-
-  const iconTile = (
-    <div className="flex flex-col items-center gap-2">
-      {isImage ? (
-        <ImageIcon className="h-5 w-5 transition-transform group-hover:scale-110" />
-      ) : isAudio ? (
-        <Volume2 className="h-5 w-5 transition-transform group-hover:scale-110" />
-      ) : isVideo ? (
-        <Video className="h-5 w-5 transition-transform group-hover:scale-110" />
-      ) : (
-        <File className="h-5 w-5 transition-transform group-hover:scale-110" />
-      )}
-
-      <div className="flex flex-col items-center gap-1">
-        <span className="text-sm font-bold">{fileExtension}</span>
-        <span className="text-muted-foreground text-xs">
-          {fileName.length > 5 ? `${fileName.slice(0, 5)}...` : fileName}
-        </span>
-      </div>
-    </div>
-  );
-
-  const previewContent = isImage ? (
-    <ResizableImage
-      src={src}
-      alt={fileName}
-      isDefaultVisible={true}
-      shouldValidateImageSource={false}
-      fitContent
-      compactWidth={compactImageWidth}
-    />
-  ) : isAudio ? (
-    <AudioPlayer src={src} />
-  ) : isVideo ? (
-    <VideoPlayer src={src} />
-  ) : null;
-
-  return (
-    <div
-      className={cn(
-        "flex flex-col gap-2",
-        isPreviewable && isExpanded ? "basis-full" : "shrink-0",
-      )}
-    >
-      {isPreviewable && isExpanded ? (
-        <div className="flex max-w-3xl items-start gap-2">
-          <div className={cn(isImage ? "contents" : "min-w-0 flex-1")}>
-            {isAudio ? (
-              <div className="max-w-xl min-w-72">{previewContent}</div>
-            ) : (
-              previewContent
-            )}
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            onClick={openInNewTab}
-            aria-label={`Open ${fileName} in new tab`}
-            title={`Open ${fileName} in new tab`}
-            className="shrink-0"
-          >
-            <ExternalLink className="h-4 w-4" />
-          </Button>
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => (isPreviewable ? expandPreview() : openInNewTab())}
-          aria-label={
-            isPreviewable
-              ? `Show ${fileName} inline`
-              : `Open ${fileName} in new tab`
-          }
-          aria-expanded={isPreviewable ? isExpanded : undefined}
-          title={fileName}
-          className="from-accent-light-green/30 to-muted hover:from-accent-light-green/40 hover:to-muted/90 dark:from-accent-dark-green/20 dark:to-muted dark:hover:from-accent-dark-green/30 group relative flex h-24 w-24 flex-col items-center justify-center gap-2 rounded-md border bg-linear-to-br px-2 transition-colors"
-        >
-          {iconTile}
-        </button>
-      )}
-    </div>
-  );
-}
 
 function AudioPlayer({ src }: { src?: string }) {
   if (!src) return null;

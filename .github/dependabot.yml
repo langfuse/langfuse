@@ -19,3 +19,30 @@ updates:
       default-days: 7
     ignore:
       - dependency-name: "*"
+
+  - package-ecosystem: cargo
+    directory: "/ai-gateway"
+    assignees:
+      - "hassiebp"
+      - "wochinge"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    groups:
+      rust-dependencies:
+        patterns:
+          - "*"
+
+  - package-ecosystem: cargo
+    directory: "/packages/native"
+    assignees:
+      - "sumerman"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    groups:
+      rust-dependencies:
+        patterns:
+          - "*"

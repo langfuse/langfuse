@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 import { MonitorView as PrismaMonitorView, Prisma } from "@prisma/client";
 import { describe, it, expect } from "vitest";
 import { z } from "zod";
@@ -181,6 +182,48 @@ describe("toPrismaWhere", () => {
     expect(toPrismaWhere("proj_01", filter)).toEqual({
       projectId: "proj_01",
       AND: [{ NOT: { severity: { in: [MonitorSeveritySchema.enum.PAUSED] } } }],
+    });
+  });
+
+  it("translates evaluator IDs into monitor-filter JSON predicates", () => {
+    const filter: ListMonitorFilter = [
+      {
+        type: "stringOptions",
+        column: "evaluatorId",
+        operator: "any of",
+        value: ["eval-1", "eval-2"],
+      },
+    ];
+
+    expect(
+      toPrismaWhere("proj_01", filter, ["monitor-1", "monitor-2"]),
+    ).toEqual({
+      projectId: "proj_01",
+      AND: [
+        {
+          id: { in: ["monitor-1", "monitor-2"] },
+        },
+      ],
+    });
+  });
+
+  it("negates excluded evaluator IDs", () => {
+    const filter: ListMonitorFilter = [
+      {
+        type: "stringOptions",
+        column: "evaluatorId",
+        operator: "none of",
+        value: ["eval-1"],
+      },
+    ];
+
+    expect(toPrismaWhere("proj_01", filter, ["monitor-1"])).toEqual({
+      projectId: "proj_01",
+      AND: [
+        {
+          id: { notIn: ["monitor-1"] },
+        },
+      ],
     });
   });
 

@@ -1,4 +1,6 @@
 import { UiColumnMappings } from "../../tableDefinitions";
+import { EvalExecutionMetadataKey } from "../../features/evals/evalExecutionMetadata";
+import { tokenCountFilterClickhouseType } from "./tokenCountFilterType";
 
 export const tracesTableUiColumnDefinitions: UiColumnMappings = [
   {
@@ -8,8 +10,9 @@ export const tracesTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseSelect: "t.bookmarked",
   },
   {
-    uiTableName: "Level",
+    uiTableName: "Status",
     uiTableId: "level",
+    aliases: ["Level"],
     clickhouseTableName: "observations",
     clickhouseSelect: "aggregated_level",
     queryPrefix: "o",
@@ -70,6 +73,18 @@ export const tracesTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "traces",
     clickhouseSelect: "metadata",
     queryPrefix: "t",
+  },
+  {
+    uiTableName: "Evaluator ID",
+    uiTableId: "evaluatorId",
+    clickhouseTableName: "traces",
+    clickhouseSelect: `t.metadata['${EvalExecutionMetadataKey.EVALUATOR_ID}']`,
+  },
+  {
+    uiTableName: "Rule ID",
+    uiTableId: "ruleId",
+    clickhouseTableName: "traces",
+    clickhouseSelect: `if(notEmpty(t.metadata['${EvalExecutionMetadataKey.EVALUATION_RULE_ID}']), t.metadata['${EvalExecutionMetadataKey.EVALUATION_RULE_ID}'], t.metadata['${EvalExecutionMetadataKey.JOB_CONFIGURATION_ID}'])`,
   },
   {
     uiTableName: "Version",
@@ -141,7 +156,7 @@ export const tracesTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "observations",
     clickhouseSelect:
       "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, o.usage_details)))",
-    clickhouseTypeOverwrite: "Decimal64(3)",
+    clickhouseTypeOverwrite: tokenCountFilterClickhouseType,
   },
   {
     uiTableName: "Output Tokens",
@@ -149,7 +164,7 @@ export const tracesTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "observations",
     clickhouseSelect:
       "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, o.usage_details)))",
-    clickhouseTypeOverwrite: "Decimal64(3)",
+    clickhouseTypeOverwrite: tokenCountFilterClickhouseType,
   },
   {
     uiTableName: "Total Tokens",
@@ -157,7 +172,7 @@ export const tracesTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "observations",
     clickhouseSelect:
       "if(mapExists((k, v) -> (k = 'total'), o.usage_details), o.usage_details['total'], NULL)",
-    clickhouseTypeOverwrite: "Decimal64(3)",
+    clickhouseTypeOverwrite: tokenCountFilterClickhouseType,
   },
   {
     uiTableName: "Tokens",
@@ -165,7 +180,7 @@ export const tracesTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "observations",
     clickhouseSelect:
       "if(mapExists((k, v) -> (k = 'total'), o.usage_details), o.usage_details['total'], NULL)",
-    clickhouseTypeOverwrite: "Decimal64(3)",
+    clickhouseTypeOverwrite: tokenCountFilterClickhouseType,
   },
   // Scores column duplicated to allow renaming column name. Will be removed once session storage cache is outdated
   // Column names are cached in user sessions - changing them breaks existing filters

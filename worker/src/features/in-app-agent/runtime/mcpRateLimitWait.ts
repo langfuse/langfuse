@@ -2,7 +2,7 @@ import { InAppAgentRateLimitErrorResponseSchema } from "@langfuse/shared/in-app-
 import { logger, recordIncrement } from "@langfuse/shared/src/server";
 
 /** Total time a single MCP operation may spend waiting out rate limits. */
-export const IN_APP_AGENT_MCP_RATE_LIMIT_WAIT_BUDGET_MS = 60_000;
+const IN_APP_AGENT_MCP_RATE_LIMIT_WAIT_BUDGET_MS = 60_000;
 
 const MCP_RATE_LIMIT_WAIT_METRIC = "langfuse.in_app_agent.mcp_rate_limit_wait";
 
@@ -19,12 +19,15 @@ export function parseMcpRateLimitError(
     return { retryAfterSeconds: parsed.data.details.retryAfterSeconds };
   }
 
-  const message =
-    typeof error === "string"
-      ? error
-      : error instanceof Error
-        ? error.message
-        : null;
+  const message = (() => {
+    if (typeof error === "string") {
+      return error;
+    }
+    if (error instanceof Error) {
+      return error.message;
+    }
+    return null;
+  })();
 
   return message === null ? null : parseEmbeddedRateLimitError(message);
 }

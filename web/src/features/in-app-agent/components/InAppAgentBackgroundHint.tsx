@@ -1,8 +1,9 @@
-import { BotMessageSquare, Minus } from "lucide-react";
+import { Minus } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
-import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
+import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { InAppAgentNotice } from "@/src/features/in-app-agent/components/InAppAgentNotice";
+import { HaloIcon } from "@/src/features/in-app-agent/components/HaloIcon";
 
 /**
  * Transient nudge that the run keeps going without the drawer. Lives in the
@@ -17,7 +18,7 @@ export function InAppAgentBackgroundHint({
 }) {
   return (
     <InAppAgentNotice
-      icon={<BotMessageSquare aria-hidden="true" className="size-3 shrink-0" />}
+      icon={<HaloIcon variant="notice" />}
       isExpanded={isExpanded}
       role="status"
       tone="neutral"
@@ -26,21 +27,14 @@ export function InAppAgentBackgroundHint({
           type="button"
           variant="ghost"
           size="sm"
-          aria-label="Minimize assistant"
+          aria-label="Minimize Halo"
           className="-my-0.5 h-5 shrink-0 gap-1 px-1"
           onClick={onMinimize}
         >
-          <Minus className="size-3" />
-          <KeyboardShortcut
-            className="bg-transparent shadow-none"
-            keys={[
-              typeof navigator !== "undefined" &&
-              navigator.userAgent.includes("Mac")
-                ? "⌘"
-                : "Ctrl",
-              "I",
-            ]}
-          />
+          <Minus className="icon-base text-icon-foreground" />
+          <span className="hidden md:inline-flex">
+            <KeyboardShortcut variant="subtle" keys={["Mod", "I"]} />
+          </span>
         </Button>
       }
     >

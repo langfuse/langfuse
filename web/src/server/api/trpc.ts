@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /**
  * YOU PROBABLY DON'T NEED TO EDIT THIS FILE, UNLESS:
  * 1. You want to modify request context (see Part 1).
@@ -22,12 +23,16 @@ import { prisma, Role } from "@langfuse/shared/src/db";
 import * as z from "zod";
 import * as opentelemetry from "@opentelemetry/api";
 import { type IncomingHttpHeaders } from "node:http";
-import { getTRPCErrorCodeFromHTTPStatusCode } from "@/src/server/utils/trpc-utils";
+import {
+  createScrubbedError,
+  getTRPCErrorCodeFromHTTPStatusCode,
+} from "@/src/server/utils/trpc-utils";
 import { sendAdminAccessWebhook } from "@/src/server/adminAccessWebhook";
 
 type CreateContextOptions = {
   session: Session | null;
   headers: IncomingHttpHeaders;
+  requestSpan?: opentelemetry.Span;
 };
 
 /**
@@ -44,6 +49,7 @@ export const createInnerTRPCContext = (opts: CreateContextOptions) => {
   return {
     session: opts.session,
     headers: opts.headers,
+    requestSpan: opts.requestSpan,
     prisma,
   };
 };
@@ -67,7 +73,14 @@ export const createTRPCContext = async (opts: CreateNextContextOptions) => {
     userId: session?.user?.id,
   });
 
-  return createInnerTRPCContext({ session, headers });
+  return createInnerTRPCContext({
+    session,
+    headers,
+    // http.server span; procedure middlewares run inside the child "TRPC" span.
+    // Batched calls may target different projects, so they tag their own span.
+    requestSpan:
+      req.query.batch === "1" ? undefined : opentelemetry.trace.getActiveSpan(),
+  });
 };
 
 /**
@@ -89,12 +102,13 @@ import {
   addUserToSpan,
   contextWithLangfuseProps,
   ClickHouseResourceError,
+  getActiveTraceId,
+  isStorableTraceSessionId,
 } from "@langfuse/shared/src/server";
 
-import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
+import { AdminApiAuthService } from "@/src/ee/features/admin-api/server";
 import { env } from "@/src/env.mjs";
 import { isBaseError, parseIO } from "@langfuse/shared";
-import { type Flag } from "@/src/features/feature-flags/types";
 import { recordBackendActivity } from "@/src/features/posthog-analytics/server/backendActivity";
 
 setUpSuperjson();
@@ -108,6 +122,10 @@ const t = initTRPC.context<typeof createTRPCContext>().create({
       ...shape,
       data: {
         ...shape.data,
+        // OTEL trace id of the failing request, for frontend/support correlation
+        // with Datadog. Absent when OTEL is not running or the trace was not
+        // sampled (an unsampled id never reaches the tracing backend).
+        traceId: getActiveTraceId(),
         zodError:
           error.cause instanceof ZodError ? z.flattenError(error.cause) : null,
         errorName:
@@ -202,13 +220,19 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
         : "Please check error logs in your self-hosted deployment.";
 
       logErrorByStatus({ errorCode: code, httpStatus, error: res.error });
-      res.error = new TRPCError({
-        code,
-        cause: null, // do not expose stack traces
-        message: isSafeToExpose
-          ? res.error.message
-          : "Internal error. " + errorMessage,
-      });
+      if (isSafeToExpose) {
+        res.error = new TRPCError({
+          code,
+          cause: null, // do not expose stack traces
+          message: res.error.message,
+        });
+      } else {
+        res.error = createScrubbedError({
+          code,
+          message: "Internal error. " + errorMessage,
+          original: res.error.cause ?? res.error,
+        });
+      }
     }
   }
 
@@ -248,6 +272,12 @@ const withOtelTracingProcedure = t.procedure
  */
 
 export const publicProcedure = withOtelTracingProcedure.use(withErrorHandling);
+
+/**
+ * Public procedure for secret-bearing inputs such as passwords and OTPs.
+ * Unlike `publicProcedure`, its input and result are not collected in traces.
+ */
+export const publicProcedureWithoutTracing = t.procedure.use(withErrorHandling);
 
 /** Reusable middleware that enforces users are logged in before running the procedure. */
 const enforceUserIsAuthed = t.middleware(({ ctx, next }) => {
@@ -345,6 +375,7 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
         organizationId: dbProject.orgId,
         projectId,
       });
+      addUserToSpan({ projectId, orgId: dbProject.orgId }, ctx.requestSpan);
       return next({
         ctx: {
           // infers the `session` as non-nullable
@@ -380,6 +411,10 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
     organizationId: sessionProject.organization.id,
     projectId,
   });
+  addUserToSpan(
+    { projectId, orgId: sessionProject.organization.id },
+    ctx.requestSpan,
+  );
 
   return next({
     ctx: {
@@ -399,31 +434,6 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
 export const protectedProjectProcedure = withOtelTracingProcedure
   .use(withErrorHandling)
   .use(enforceUserIsAuthedAndProjectMember);
-
-/** requireFeatureFlag gates a procedure behind a server-side feature flag. */
-export const requireFeatureFlag = (flag: Flag) =>
-  t.middleware(({ ctx, next }) => {
-    const session = ctx.session;
-    const enabled =
-      (session?.user?.featureFlags?.[flag] ?? false) ||
-      (session?.user?.admin ?? false) ||
-      (session?.environment?.enableExperimentalFeatures ?? false);
-    if (!enabled) {
-      throw new TRPCError({
-        code: "FORBIDDEN",
-        message: `Feature "${flag}" is not enabled for this user`,
-      });
-    }
-    return next();
-  });
-
-/** requireLangfuseCloud rejects calls from non-Langfuse-Cloud deployments. */
-export const requireLangfuseCloud = t.middleware(({ next }) => {
-  if (!isLangfuseCloud) {
-    throw new TRPCError({ code: "NOT_FOUND", message: "Not found" });
-  }
-  return next();
-});
 
 /** requireV4Writes rejects calls from deployments without v4 event tables */
 export const requireV4Writes = t.middleware(({ next }) => {
@@ -495,6 +505,10 @@ const enforceIsAuthedAndOrgMember = t.middleware(async (opts) => {
 });
 
 export const protectedOrganizationProcedure = withOtelTracingProcedure
+  .use(withErrorHandling)
+  .use(enforceIsAuthedAndOrgMember);
+
+export const protectedOrganizationProcedureWithoutTracing = t.procedure
   .use(withErrorHandling)
   .use(enforceIsAuthedAndOrgMember);
 
@@ -611,17 +625,18 @@ const enforceTraceAccess = (readSource: "v3" | "v4") =>
       .flatMap((org) => org.projects)
       .find(({ id }) => id === projectId);
 
-    const traceSession = !!trace?.sessionId
-      ? await ctx.prisma.traceSession.findFirst({
-          where: {
-            id: trace.sessionId,
-            projectId,
-          },
-          select: {
-            public: true,
-          },
-        })
-      : null;
+    const traceSession =
+      !!trace?.sessionId && isStorableTraceSessionId(trace.sessionId)
+        ? await ctx.prisma.traceSession.findFirst({
+            where: {
+              id: trace.sessionId,
+              projectId,
+            },
+            select: {
+              public: true,
+            },
+          })
+        : null;
 
     const isSessionPublic = traceSession?.public === true;
 
@@ -647,6 +662,7 @@ const enforceTraceAccess = (readSource: "v3" | "v4") =>
         projectId,
       });
     }
+    addUserToSpan({ projectId }, ctx.requestSpan);
 
     return next({
       ctx: {
@@ -677,7 +693,7 @@ export const protectedGetEventsTraceProcedure = withOtelTracingProcedure
  */
 
 const inputSessionSchema = z.object({
-  sessionId: z.string(),
+  sessionId: z.string().min(1),
   projectId: z.string(),
 });
 
@@ -696,15 +712,17 @@ const enforceSessionAccess = t.middleware(async (opts) => {
   // trace_sessions should be a sparse metadata side-table: a row only exists once a
   // session has been bookmarked or published.
   // If it's not marked as public, we fallback to the usual user-based project access check.
-  const session = await ctx.prisma.traceSession.findFirst({
-    where: {
-      id: sessionId,
-      projectId,
-    },
-    select: {
-      public: true,
-    },
-  });
+  const session = isStorableTraceSessionId(sessionId)
+    ? await ctx.prisma.traceSession.findFirst({
+        where: {
+          id: sessionId,
+          projectId,
+        },
+        select: {
+          public: true,
+        },
+      })
+    : null;
 
   const isPublicSession = session?.public ?? false;
 
@@ -733,6 +751,7 @@ const enforceSessionAccess = t.middleware(async (opts) => {
       projectId,
     });
   }
+  addUserToSpan({ projectId }, ctx.requestSpan);
 
   return next({
     ctx: {
@@ -796,13 +815,10 @@ export const adminProcedure = withOtelTracingProcedure
 
 // Export context types for easier reuse
 // Base context from createTRPCContext
-export type TRPCContext = Awaited<ReturnType<typeof createTRPCContext>>;
+type TRPCContext = Awaited<ReturnType<typeof createTRPCContext>>;
 // After `enforceUserIsAuthed`: session & user are non-null
 export type AuthedSession = NonNullable<TRPCContext["session"]> & {
   user: NonNullable<NonNullable<TRPCContext["session"]>["user"]>;
-};
-export type AuthedContext = Omit<TRPCContext, "session"> & {
-  session: AuthedSession;
 };
 // After `enforceUserIsAuthedAndProjectMember`: extra fields guaranteed
 export type ProjectAuthedContext = Omit<TRPCContext, "session"> & {

@@ -1,5 +1,6 @@
 import { getAuthOptions } from "@/src/server/auth";
 import { getAdClickIdsFromRequest } from "@/src/features/auth/lib/signupAttribution";
+import { getTurnstileRemoteIp } from "@/src/features/auth/server/verifyTurnstile";
 import { getCookieName } from "@/src/server/utils/cookies";
 import { isValidCallbackUrl } from "@/src/server/utils/nextAuthCallbackUrl";
 import { env } from "@/src/env.mjs";
@@ -11,6 +12,10 @@ const maxAuthErrorLength = 1_000;
 const authErrorFallback = "Configuration";
 
 type AuthErrorSource = "query" | "path";
+type CallbackUrlInputSource = "query" | "cookie";
+
+const getCallbackUrlValueType = (value: unknown) =>
+  Array.isArray(value) ? "array" : typeof value;
 
 // Single parse of the [...nextauth] catch-all: [action, provider], e.g.
 // /api/auth/callback/credentials -> ["callback", "credentials"].
@@ -81,32 +86,60 @@ export default async function auth(req: NextApiRequest, res: NextApiResponse) {
   }
 
   // next-auth rejects malformed callbackUrl values (query param or cookie)
-  // with a hardcoded 500, so vulnerability scanners probing auth routes page
-  // our server-error monitors. Malformed client input is a 4xx; reject it
-  // before next-auth sees it. Two carve-outs keep parity with next-auth:
-  // falsy values are treated as absent (assertConfig checks truthiness), and
-  // GET requests to next-auth's HTML page actions are exempt — those never
-  // 500; next-auth redirects them to the configured error page.
+  // with a hardcoded 500 (`{ message }` JSON, no `url`). Vulnerability
+  // scanners probing auth routes would page our server-error monitors, and
+  // next-auth's client `signIn({ redirect: false })` then throws
+  // `new URL(undefined)` on that body. Falsy values are treated as absent
+  // because next-auth's assertConfig checks truthiness.
+  //
+  // Always strip an invalid callback-url COOKIE (stale browser state; the
+  // credentials POST sends callbackUrl in the body). For GET HTML page
+  // actions, also strip an invalid query param and let next-auth render.
+  // Other actions keep the 400 boundary for an invalid QUERY callbackUrl
+  // (scanner probes).
   const rendersHtmlErrorPage =
     req.method === "GET" &&
     ["signin", "signout", "error", "verify-request"].includes(
       nextAuthAction ?? "",
     );
+  const callbackUrlCookieName = getCookieName("next-auth.callback-url");
   const callbackUrlParam = req.query.callbackUrl;
-  const callbackUrlCookie =
-    req.cookies[getCookieName("next-auth.callback-url")];
-  const invalidCallbackUrl =
-    !rendersHtmlErrorPage &&
-    ((Boolean(callbackUrlParam) && !isValidCallbackUrl(callbackUrlParam)) ||
-      (Boolean(callbackUrlCookie) && !isValidCallbackUrl(callbackUrlCookie)));
-  if (invalidCallbackUrl) {
-    logger.warn("[NEXT_AUTH] Rejected invalid callback URL", {
-      callbackUrlParamType: Array.isArray(callbackUrlParam)
-        ? "array"
-        : typeof callbackUrlParam,
-      callbackUrlCookiePresent: Boolean(callbackUrlCookie),
+  const callbackUrlCookie = req.cookies[callbackUrlCookieName];
+  const invalidCallbackUrlParam =
+    Boolean(callbackUrlParam) && !isValidCallbackUrl(callbackUrlParam);
+  const invalidCallbackUrlCookie =
+    Boolean(callbackUrlCookie) && !isValidCallbackUrl(callbackUrlCookie);
+
+  const logInvalidCallbackUrl = (
+    inputSource: CallbackUrlInputSource,
+    value: unknown,
+  ) => {
+    logger.warn("[NEXT_AUTH] Invalid callback URL", {
+      action: nextAuthAction,
       path: req.url?.split("?")[0]?.slice(0, 200),
+      inputSource,
+      valueType: getCallbackUrlValueType(value),
     });
+  };
+
+  if (invalidCallbackUrlParam) {
+    logInvalidCallbackUrl("query", callbackUrlParam);
+  }
+  if (invalidCallbackUrlCookie) {
+    logInvalidCallbackUrl("cookie", callbackUrlCookie);
+    const {
+      [callbackUrlCookieName]: _invalidCallbackUrl,
+      ...sanitizedCookies
+    } = req.cookies;
+    req.cookies = sanitizedCookies;
+  }
+
+  if (rendersHtmlErrorPage) {
+    if (invalidCallbackUrlParam) {
+      const { callbackUrl: _invalidCallbackUrl, ...sanitizedQuery } = req.query;
+      req.query = sanitizedQuery;
+    }
+  } else if (invalidCallbackUrlParam) {
     return res.status(400).json({ message: "Invalid callback URL" });
   }
 
@@ -137,9 +170,30 @@ export default async function auth(req: NextApiRequest, res: NextApiResponse) {
   // Do whatever you want here, before the request is passed down to `NextAuth`
   // Pass Google Ads click attribution from first-party cookies so that new
   // SSO signups can be attributed to ad clicks (cloud_signup_complete event).
-  const authOptions = await getAuthOptions({
-    adClickIds: getAdClickIdsFromRequest(req),
-  });
+  // Password reset asks NextAuth's email provider for a code. The sign-in
+  // callback verifies this token before that email is sent.
+  //
+  // The Turnstile check itself lives in the `signIn` callback (auth.ts), which
+  // already limits it to the email provider's send request. This flag only
+  // controls when the token and client IP are read from the request body:
+  // for POST /api/auth/signin/email, the one request that consumes them. For
+  // every other request on this route, the request context is undefined and
+  // nothing in the body is inspected or forwarded.
+  const isPasswordResetEmailRequest =
+    req.method === "POST" &&
+    nextAuthAction === "signin" &&
+    nextAuthProvider === "email";
+  const authOptions = await getAuthOptions(
+    {
+      adClickIds: getAdClickIdsFromRequest(req),
+    },
+    isPasswordResetEmailRequest
+      ? {
+          turnstileToken: req.body?.turnstileToken,
+          turnstileRemoteIp: getTurnstileRemoteIp(req.headers),
+        }
+      : undefined,
+  );
   // https://github.com/nextauthjs/next-auth/issues/2408#issuecomment-1382629234
   // for api routes, we need to call the headers in the api route itself
   // disable caching for anything auth related

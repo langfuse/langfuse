@@ -1,7 +1,9 @@
 import type { InAppAgentLangfuseMcpToolName } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 import { safeJsonParse } from "@langfuse/shared";
-import { IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE } from "@langfuse/shared/in-app-agent";
-import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
+import {
+  IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE,
+  type AgUiMessage,
+} from "@langfuse/shared/in-app-agent";
 
 import type { api } from "@/src/utils/api";
 import { assertUnreachable } from "@/src/utils/types";
@@ -16,6 +18,7 @@ export type InAppAgentTrpcInvalidationTarget =
   | "datasets"
   | "evals"
   | "experiments"
+  | "externalMediaStorage"
   | "models"
   | "prompts"
   | "scoreAnalytics"
@@ -57,6 +60,7 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
   langfuse_listDatasets: [],
   langfuse_getDataset: [],
   langfuse_upsertDatasetItem: ["datasets"],
+  langfuse_batchUpsertDatasetItems: ["datasets"],
   langfuse_listDatasetItems: [],
   langfuse_getDatasetItem: [],
   langfuse_deleteDatasetItem: ["datasets"],
@@ -66,19 +70,29 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
   langfuse_getDatasetRun: [],
   langfuse_deleteDatasetRun: ["datasets", "experiments"],
   langfuse_listEvaluators: [],
+  langfuse_listManagedEvaluatorTemplates: [],
   langfuse_getEvaluator: [],
-  langfuse_upsertEvaluator: ["evals", "models"],
+  langfuse_testEvaluator: ["evals"],
+  langfuse_createEvaluator: ["evals", "models"],
+  langfuse_updateEvaluator: ["evals", "models"],
   langfuse_deleteEvaluator: ["evals", "models"],
   langfuse_listEvaluationRules: [],
   langfuse_getEvaluationRule: [],
   langfuse_createEvaluationRule: ["evals"],
   langfuse_updateEvaluationRule: ["evals"],
+  langfuse_attachEvaluatorToEvaluationRule: ["evals"],
+  langfuse_detachEvaluatorFromEvaluationRule: ["evals"],
   langfuse_deleteEvaluationRule: ["evals"],
   langfuse_listExperiments: [],
   langfuse_listExperimentItems: [],
   langfuse_submitFeedback: ["scores", "scoreAnalytics"],
   langfuse_getHealth: [],
+  langfuse_getV4MigrationData: [],
   langfuse_getMedia: [],
+  langfuse_getExternalMediaStorage: [],
+  langfuse_configureExternalMediaStorage: ["externalMediaStorage"],
+  langfuse_deleteExternalMediaStorage: ["externalMediaStorage"],
+  langfuse_testExternalMediaStorage: [],
   langfuse_queryMetrics: [],
   langfuse_getMetricsSchema: [],
   langfuse_listModels: [],
@@ -177,6 +191,9 @@ function performTargetInvalidation(
   }
   if (target === "experiments") {
     return utils.experiments.invalidate();
+  }
+  if (target === "externalMediaStorage") {
+    return utils.externalMediaStorage.invalidate();
   }
   if (target === "models") {
     return utils.models.invalidate();

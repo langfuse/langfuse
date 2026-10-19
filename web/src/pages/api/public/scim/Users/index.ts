@@ -1,15 +1,15 @@
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@langfuse/shared/src/db";
-import { logger, redis } from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/src/server";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
-import { type Role } from "@langfuse/shared";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { isBaseError, type Role } from "@langfuse/shared";
+import { auditLog } from "@/src/features/audit-logs/server";
+import { assertValidOwnershipChange } from "@/src/ee/features/admin-api/server/memberships";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
-
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
+import { shadowAuth, writeScimError } from "@/src/features/public-api/server";
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -28,31 +28,18 @@ export default async function handler(
   }
 
   // CHECK AUTH
-  const authCheck = await new ApiAuthService(
-    prisma,
-    redis,
-  ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
-  if (!authCheck.validKey) {
-    return res.status(401).json({
-      schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
-      detail: authCheck.error,
-      status: 401,
-    });
+  const authCheck = await shadowAuth({
+    req,
+    action:
+      req.method === "GET"
+        ? "organizationMembers:read"
+        : "organizationMembers:CUD",
+    allowedAccessLevels: ["organization"],
+  });
+  if (!authCheck.success) {
+    return writeScimError(res, authCheck.error);
   }
   // END CHECK AUTH
-
-  // Check if using an organization API key
-  if (
-    authCheck.scope.accessLevel !== "organization" ||
-    !authCheck.scope.orgId
-  ) {
-    return res.status(403).json({
-      schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
-      detail:
-        "Invalid API key. Organization-scoped API key required for this operation.",
-      status: 403,
-    });
-  }
 
   // Gate SCIM provisioning behind the `admin-api` entitlement, matching the
   // sibling organization admin endpoints (memberships, projects, apiKeys).
@@ -211,6 +198,14 @@ export default async function handler(
         role = parsedRoles.data[0];
       }
 
+      await assertValidOwnershipChange({
+        tx: prisma,
+        context: authCheck.ctx,
+        orgId: authCheck.scope.orgId,
+        from: undefined,
+        to: role,
+      });
+
       // Check if user already exists. Normalize the email to lowercase to
       // stay consistent with the upsert below; otherwise a case-variant
       // userName slips past the duplicate check and the upsert can collide
@@ -304,6 +299,9 @@ export default async function handler(
       });
     } catch (error) {
       logger.error("[SCIM] Failed to create user", error);
+      if (isBaseError(error)) {
+        return writeScimError(res, error);
+      }
       return res.status(500).json({
         schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
         detail: "Internal server error",

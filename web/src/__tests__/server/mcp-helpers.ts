@@ -5,9 +5,13 @@
  * These helpers allow direct testing of tool handlers without HTTP overhead.
  */
 
-import { prisma } from "@langfuse/shared/src/db";
+import { randomUUID } from "crypto";
+import { prisma, type Role } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
+import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import type { ServerContext } from "@/src/features/mcp/types";
+import { authenticator } from "@/src/features/apiKey/server";
 
 /**
  * Creates a complete MCP test setup including:
@@ -36,6 +40,11 @@ export async function createMcpTestSetup(): Promise<{
     throw new Error("Failed to create API key for test setup");
   }
 
+  const authenticated = await authenticator.authenticate({
+    headers: { authorization: auth },
+  });
+  if (!authenticated.success) throw authenticated.error;
+
   const context: ServerContext = {
     projectId,
     orgId,
@@ -44,6 +53,7 @@ export async function createMcpTestSetup(): Promise<{
     publicKey: result.publicKey,
     plan: "oss",
     rateLimitOverrides: [],
+    auth: authenticated.context,
   };
 
   return {
@@ -53,6 +63,90 @@ export async function createMcpTestSetup(): Promise<{
     auth,
     context,
   };
+}
+
+/**
+ * Creates a user with an org membership of the given role. Project role is
+ * inherited from the org membership unless a project override is added later.
+ */
+export async function createUserWithOrgRole(params: {
+  orgId: string;
+  role: Role;
+}): Promise<{ userId: string }> {
+  const user = await prisma.user.create({
+    data: {
+      email: `mcp-rbac-${randomUUID()}@langfuse.com`,
+      name: `MCP ${params.role} user`,
+    },
+  });
+
+  await prisma.organizationMembership.create({
+    data: {
+      orgId: params.orgId,
+      userId: user.id,
+      role: params.role,
+    },
+  });
+
+  return { userId: user.id };
+}
+
+/**
+ * Mints a project API key with isInAppAgentKey + createdByUserId, matching
+ * the temporary keys the in-app agent runtime issues for MCP.
+ */
+export async function createInAppAgentMcpContext(params: {
+  projectId: string;
+  orgId: string;
+  createdByUserId?: string;
+}): Promise<{ apiKeyId: string; context: ServerContext }> {
+  const creatorUserId =
+    params.createdByUserId ??
+    (
+      await prisma.user.create({
+        data: { email: `apikey-creator-${randomUUID()}@example.com` },
+      })
+    ).id;
+  const apiKey = await createApiKey(prisma, {
+    owner: ProjectId(params.projectId),
+    role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+    createdBy: UserId(creatorUserId),
+    name: "In-app agent MCP session",
+    isInAppAgentKey: true,
+  });
+  const authenticated = await authenticator.authenticate({
+    headers: {
+      authorization: `Basic ${Buffer.from(`${apiKey.publicKey}:${apiKey.secretKey}`).toString("base64")}`,
+    },
+    allowInAppAgentKey: true,
+  });
+  if (!authenticated.success) throw authenticated.error;
+
+  return {
+    apiKeyId: apiKey.id,
+    context: {
+      projectId: params.projectId,
+      orgId: params.orgId,
+      apiKeyId: apiKey.id,
+      accessLevel: "project",
+      publicKey: apiKey.publicKey,
+      plan: "oss",
+      rateLimitOverrides: [],
+      auth: authenticated.context,
+    },
+  };
+}
+
+export async function protectPromptLabel(params: {
+  projectId: string;
+  label: string;
+}): Promise<void> {
+  await prisma.promptProtectedLabels.create({
+    data: {
+      projectId: params.projectId,
+      label: params.label,
+    },
+  });
 }
 
 /**
@@ -79,69 +173,6 @@ export const mcpEvalOutputDefinition = {
   reasoning: { description: "Why the score was assigned" },
   score: { description: "A score between 0 and 1" },
 };
-
-/**
- * Verifies that a response follows the MCP content block format.
- * MCP tools return { content: [{ type: "text", text: "..." }] }
- */
-export function verifyMcpResponseFormat(
-  response: unknown,
-): asserts response is {
-  content: Array<{ type: "text"; text: string }>;
-} {
-  if (!response || typeof response !== "object") {
-    throw new Error("Response must be an object");
-  }
-
-  const resp = response as Record<string, unknown>;
-
-  if (!Array.isArray(resp.content)) {
-    throw new Error("Response must have 'content' array");
-  }
-
-  if (resp.content.length === 0) {
-    throw new Error("Response content array must not be empty");
-  }
-
-  for (const block of resp.content) {
-    if (typeof block !== "object" || block === null) {
-      throw new Error("Each content block must be an object");
-    }
-
-    const blockTyped = block as Record<string, unknown>;
-
-    if (blockTyped.type !== "text") {
-      throw new Error(
-        `Content block type must be 'text', got: ${blockTyped.type}`,
-      );
-    }
-
-    if (typeof blockTyped.text !== "string") {
-      throw new Error("Content block text must be a string");
-    }
-  }
-}
-
-/**
- * Extracts the text content from an MCP tool response.
- * Assumes the response has been validated with verifyMcpResponseFormat.
- */
-export function extractMcpResponseText(response: {
-  content: Array<{ type: "text"; text: string }>;
-}): string {
-  return response.content.map((block) => block.text).join("");
-}
-
-/**
- * Parses JSON from an MCP tool response text.
- * Handles the common case where tool responses are JSON strings.
- */
-export function parseMcpResponseJson<T = unknown>(response: {
-  content: Array<{ type: "text"; text: string }>;
-}): T {
-  const text = extractMcpResponseText(response);
-  return JSON.parse(text) as T;
-}
 
 /**
  * Verifies that an audit log entry was created for an MCP operation.
@@ -224,16 +255,6 @@ export async function createPromptInDb(params: {
         connect: { id: params.projectId },
       },
     },
-  });
-}
-
-/**
- * Deletes all prompts for a specific project.
- * Useful for cleanup in tests.
- */
-export async function cleanupProjectPrompts(projectId: string): Promise<void> {
-  await prisma.prompt.deleteMany({
-    where: { projectId },
   });
 }
 

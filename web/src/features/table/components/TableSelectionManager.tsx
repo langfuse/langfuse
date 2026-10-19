@@ -1,6 +1,7 @@
+/* eslint-disable no-nested-ternary */
 import { useRef, type RefObject } from "react";
-import { TableCheckboxLoadingCell } from "@/src/components/table/loading-cells";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   type TableSelectionStoreLike,
   useTableRowIsSelected,
@@ -129,6 +130,7 @@ function SelectionRowCheckbox<TData>({
 
   return (
     <div
+      className="flex items-center"
       onClick={(e) => {
         e.stopPropagation();
       }}
@@ -203,10 +205,10 @@ export function TableSelectionManager<TData>({
     selectActionColumn: {
       id: "select",
       accessorKey: "select",
-      size: 35,
+      size: 32,
       isFixedPosition: true,
       isPinnedLeft: true,
-      loadingCell: <TableCheckboxLoadingCell />,
+      loadingCell: <Skeleton className="h-4 w-4 shrink-0 rounded-sm" />,
       header: ({ table }: { table: Table<TData> }) => (
         <SelectionHeaderCheckbox
           table={table}

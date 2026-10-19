@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { CodeMirrorEditor } from "@/src/components/editor";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
@@ -11,25 +12,21 @@ import {
   usePreviewData,
 } from "@/src/features/evals/hooks/usePreviewData";
 import { useFirstEvalPreviewPointer } from "@/src/features/evals/hooks/useEvalPreviewNavigation";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
-import { detailPageListKeys } from "@/src/features/navigate-detail-pages/context";
+import { useReadPath } from "@/src/features/events";
+import { detailPageListKeys } from "@/src/features/navigate-detail-pages";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import {
   deepParseJson,
   EvalTargetObject,
   type EvalTemplate,
+  getCodeEvalVariableMapping,
 } from "@langfuse/shared";
 import { ExternalLink, ListTree, Play, RotateCcw } from "lucide-react";
 import Link from "next/link";
 import { useMemo } from "react";
-import { toast } from "sonner";
+import { showToast } from "@/src/features/notifications";
 
 import { type EvalFormType } from "@/src/features/evals/utils/evaluator-form-utils";
-import { getCodeEvalVariableMapping } from "@/src/features/evals/utils/code-eval-template-utils";
-import {
-  isEventTarget,
-  isExperimentTarget,
-} from "@/src/features/evals/utils/typeHelpers";
 
 type CodeEvalTestRunResult =
   | RouterOutputs["evals"]["testRunCodeEval"]
@@ -43,41 +40,31 @@ type CodeEvalInputPreviewData = Extract<
   { type: typeof EvalTargetObject.EVENT }
 >;
 
-function isCodeEvalTestTarget(
-  target: EvalFormType["target"],
-): target is
-  | typeof EvalTargetObject.EVENT
-  | typeof EvalTargetObject.EXPERIMENT {
-  return isEventTarget(target) || isExperimentTarget(target);
-}
-
 export function CodeEvalTestRunCard({
   projectId,
   evalTemplate,
   target,
   scoreName,
-  disabled = false,
   enableExecutionTracePeek = true,
 }: {
   projectId: string;
   evalTemplate: EvalTemplate;
-  target: EvalFormType["target"];
+  target: typeof EvalTargetObject.EVENT | typeof EvalTargetObject.EXPERIMENT;
   scoreName: EvalFormType["scoreName"];
-  disabled?: boolean;
   enableExecutionTracePeek?: boolean;
 }) {
-  const { isBetaEnabled } = useV4Beta();
-  const isSupportedTarget = isCodeEvalTestTarget(target);
-  const canPreview = isSupportedTarget && !disabled;
+  const { isV4 } = useReadPath();
   const previewPointer = useFirstEvalPreviewPointer({
     target,
-    useEventsTable: isBetaEnabled,
+    useEventsTable: isV4,
   });
   const peekNavigationProps = usePeekNavigation({
     // traceId: not written here, but cleared (and preferred by the trace
     // reader) so a stray param cannot pin the peek to a foreign trace
     // (LFE-11041).
     queryParams: ["observation", "display", "timestamp", "traceId"],
+    tableName: "evalTemplates",
+    isV4,
     expandConfig: {
       basePath: `/project/${projectId}/traces`,
     },
@@ -93,7 +80,7 @@ export function CodeEvalTestRunCard({
 
   const { previewData, isLoading } = usePreviewData({
     projectId,
-    enabled: canPreview && Boolean(previewPointer),
+    enabled: Boolean(previewPointer),
     target,
     traceId: previewPointer?.traceId,
     observationId: previewPointer?.observationId,
@@ -110,11 +97,17 @@ export function CodeEvalTestRunCard({
         return;
       }
 
-      toast.error(result.error.message);
+      showToast({
+        type: "ERROR",
+        title: result.error.message,
+        analytics: {
+          operation: "evaluator.test",
+          errorOrigin: "backend",
+          errorCategory: getCodeEvalErrorCategory(result.error.code),
+        },
+      });
     },
   });
-
-  if (!isSupportedTarget || !canPreview) return null;
 
   return (
     <>
@@ -132,7 +125,7 @@ export function CodeEvalTestRunCard({
                   rel="noopener noreferrer"
                 >
                   Source code
-                  <ExternalLink className="ml-1 h-3.5 w-3.5" />
+                  <ExternalLink className="icon-base text-icon-foreground ml-1" />
                 </Link>
               </Button>
             ) : (
@@ -142,7 +135,7 @@ export function CodeEvalTestRunCard({
                 title="Only user-managed templates can be edited"
               >
                 Source code
-                <ExternalLink className="ml-1 h-3.5 w-3.5" />
+                <ExternalLink className="icon-base text-icon-foreground ml-1" />
               </Button>
             )}
             <Button
@@ -162,14 +155,14 @@ export function CodeEvalTestRunCard({
                   observationId,
                   traceId,
                   startTime: timestamp,
-                  shouldReadFromObservationsTable: !isBetaEnabled,
+                  shouldReadFromObservationsTable: !isV4,
                 });
               }}
             >
               {testRunMutation.data ? (
-                <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+                <RotateCcw className="icon-base text-icon-foreground mr-1.5" />
               ) : (
-                <Play className="mr-1.5 h-3.5 w-3.5" />
+                <Play className="icon-base text-icon-foreground mr-1.5" />
               )}
               Test
             </Button>
@@ -323,7 +316,7 @@ function CodeEvalTestRunResultView({
             size="sm"
             onClick={() => onShowExecutionTrace(result.executionTraceId)}
           >
-            <ListTree className="mr-1.5 h-3.5 w-3.5" />
+            <ListTree className="icon-base text-icon-foreground mr-1.5" />
             Show execution trace
           </Button>
         ) : null}
@@ -352,4 +345,32 @@ function toUserFacingCodeEvalScore(
   };
 
   return userFacingScore;
+}
+
+function getCodeEvalErrorCategory(
+  code: string,
+): "resource_limit" | "rate_limit" | "user_input" | "internal" {
+  if (
+    [
+      "PAYLOAD_TOO_LARGE",
+      "RESULT_TOO_LARGE",
+      "SOURCE_TOO_LARGE",
+      "TIMEOUT",
+      "OUT_OF_MEMORY",
+    ].includes(code)
+  ) {
+    return "resource_limit";
+  }
+  if (code === "LAMBDA_CONCURRENCY_LIMIT") return "rate_limit";
+  if (
+    [
+      "INVALID_RESULT",
+      "INVALID_SOURCE",
+      "UNSUPPORTED_RUNTIME",
+      "USER_CODE_ERROR",
+    ].includes(code)
+  ) {
+    return "user_input";
+  }
+  return "internal";
 }

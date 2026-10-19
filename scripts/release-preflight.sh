@@ -86,34 +86,57 @@ collect_prisma_migrations_not_in_production() {
     | sort -u
 }
 
-collect_clickhouse_migrations_not_in_production() {
-  git diff --name-only origin/production..HEAD -- packages/shared/clickhouse/migrations \
-    | sed -E 's#.*/([0-9]+_[^.]+)\.(up|down)\.sql#\1#' \
+collect_clickhouse_migration_names_at_ref() {
+  local ref="$1"
+  git ls-tree -r --name-only "$ref" -- packages/shared/clickhouse/migrations \
+    | sed -nE 's#.*/([0-9]+_[^.]+)\.(up|down)\.sql$#\1#p' \
     | sort -u
+}
+
+collect_clickhouse_migrations_not_in_production() {
+  comm -23 \
+    <(collect_clickhouse_migration_names_at_ref HEAD) \
+    <(collect_clickhouse_migration_names_at_ref origin/production)
+}
+
+migration_authors() {
+  local authors
+  authors="$(git log --format='%aN' origin/production..HEAD -- "$@" \
+    | sort -u \
+    | awk 'NR > 1 {printf ", "} {printf "%s", $0} END {print ""}')"
+  printf '%s\n' "${authors:-unknown (check Git history)}"
 }
 
 confirm_migrations_are_applied() {
   local prisma_migrations="$1"
   local clickhouse_migrations="$2"
+  local migration authors
 
-  log "Detected migrations in main that are not yet on production."
+  echo
+  log "🚨🚨🚨 MIGRATIONS REQUIRE ATTENTION 🚨🚨🚨"
+  log "Detected migrations in main that are not yet on production. Verify they have been applied before releasing."
 
   if [[ -n "$prisma_migrations" ]]; then
     log "Postgres (Prisma) migrations not yet promoted:"
     while IFS= read -r migration; do
-      [[ -n "$migration" ]] && echo "  - $migration"
+      [[ -n "$migration" ]] || continue
+      authors="$(migration_authors "packages/shared/prisma/migrations/$migration")"
+      echo "  - $migration (authors: $authors)"
     done <<< "$prisma_migrations"
   fi
 
   if [[ -n "$clickhouse_migrations" ]]; then
     log "ClickHouse migrations not yet promoted:"
     while IFS= read -r migration; do
-      [[ -n "$migration" ]] && echo "  - $migration"
+      [[ -n "$migration" ]] || continue
+      authors="$(migration_authors ":(glob)packages/shared/clickhouse/migrations/**/${migration}.*.sql")"
+      echo "  - $migration (AUTHORS: $authors)"
     done <<< "$clickhouse_migrations"
   fi
 
   echo
-  log "Confirm you have reviewed these migrations and applied them to the production Postgres and ClickHouse databases."
+  log "📣 Authors must apply their migrations AND deploy afterward. Please let the authors know."
+  log "🛑 Confirm you have reviewed these migrations and applied them to the production Postgres and ClickHouse databases."
   read -r -p "Type '${MIGRATION_CONFIRMATION_TOKEN}' to continue: " confirmation
 
   if [[ "$confirmation" != "$MIGRATION_CONFIRMATION_TOKEN" ]]; then

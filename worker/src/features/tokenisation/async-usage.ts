@@ -1,6 +1,6 @@
 import { Worker } from "worker_threads";
 import { Model } from "@langfuse/shared";
-import { logger } from "@langfuse/shared/src/server";
+import { logger, recordIncrement } from "@langfuse/shared/src/server";
 import path from "path";
 import { env } from "../../env";
 
@@ -17,11 +17,12 @@ interface TokenCountWorkerPool {
   >;
 }
 
-class TokenCountWorkerManager {
+export class TokenCountWorkerManager {
   private pool: TokenCountWorkerPool;
   private readonly workerPath: string;
   private readonly poolSize: number;
   private requestCounter = 0;
+  private isShuttingDown = false;
 
   constructor(poolSize: number) {
     this.poolSize = poolSize;
@@ -71,12 +72,15 @@ class TokenCountWorkerManager {
     );
 
     worker.on("error", (error) => {
+      // Terminating workers surface as errors/non-zero exits; don't respawn
+      // into a pool we are tearing down.
+      if (this.isShuttingDown) return;
       logger.error("Worker thread error:", error);
-      // Recreate worker on error
       this.replaceWorker(worker);
     });
 
     worker.on("exit", (code) => {
+      if (this.isShuttingDown) return;
       if (code !== 0) {
         logger.error(`Worker stopped with exit code ${code}`);
         this.replaceWorker(worker);
@@ -106,7 +110,10 @@ class TokenCountWorkerManager {
     }
   }
 
-  private getNextWorker(): Worker {
+  private getNextWorker(): Worker | undefined {
+    if (this.pool.workers.length === 0) {
+      return undefined;
+    }
     const worker = this.pool.workers[this.pool.currentWorkerIndex];
     this.pool.currentWorkerIndex =
       (this.pool.currentWorkerIndex + 1) % this.poolSize;
@@ -117,9 +124,23 @@ class TokenCountWorkerManager {
     params: { model: Model; text: unknown },
     timeoutMs = 30000,
   ): Promise<number | undefined> {
+    // Once the pool is terminating, drop the count instead of posting to a
+    // terminating or already-gone worker. undefined means usage unknown, which
+    // the caller commits as absent rather than as a zero; count the drop so it
+    // stays observable.
+    if (this.isShuttingDown) {
+      recordIncrement("langfuse.tokenisation.skipped_on_shutdown", 1);
+      return undefined;
+    }
+
     return new Promise((resolve, reject) => {
       const id = `token-count-${++this.requestCounter}-${Date.now()}`;
       const worker = this.getNextWorker();
+
+      if (!worker) {
+        resolve(undefined);
+        return;
+      }
 
       const timeout = setTimeout(() => {
         this.pool.pendingRequests.delete(id);
@@ -142,14 +163,30 @@ class TokenCountWorkerManager {
   }
 
   async terminate() {
-    // Clear all pending requests
+    // Set before touching the pool so concurrent tokenCount() calls and the
+    // workers' own exit/error events see the shutdown and stop early.
+    this.isShuttingDown = true;
+
+    // In-flight requests can no longer get a response from the terminating
+    // workers. Resolve them with undefined (usage unknown) rather than
+    // rejecting, and count the drop so it stays observable without the caller
+    // logging each one as a tokenization failure.
+    const droppedOnShutdown = this.pool.pendingRequests.size;
+    if (droppedOnShutdown > 0) {
+      recordIncrement(
+        "langfuse.tokenisation.skipped_on_shutdown",
+        droppedOnShutdown,
+      );
+      logger.info(
+        `Dropped ${droppedOnShutdown} in-flight token-count request(s) on shutdown.`,
+      );
+    }
     for (const [, request] of this.pool.pendingRequests.entries()) {
       clearTimeout(request.timeout);
-      request.reject(new Error("Worker pool is terminating"));
+      request.resolve(undefined);
     }
     this.pool.pendingRequests.clear();
 
-    // Terminate all workers
     await Promise.all(this.pool.workers.map((worker) => worker.terminate()));
     this.pool.workers = [];
   }

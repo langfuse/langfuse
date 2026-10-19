@@ -1,9 +1,10 @@
+/* eslint-disable no-nested-ternary */
 import { type ReactNode, useState } from "react";
 import { ActionId, BatchExportTableName } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import { Dialog, DialogContent } from "@/src/components/ui/dialog";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
+import { useHasProjectAccess } from "@/src/features/rbac";
+import { useEntitlementLimit } from "@/src/features/entitlements";
 import { AddTracesToAnnotationQueueSelectDialogContent } from "@/src/features/annotation-queues/components/AddTracesToAnnotationQueueSelectDialogContent";
 import { AnnotationQueueFormDialogController } from "@/src/features/annotation-queues/components/AnnotationQueueFormDialogController";
 
@@ -11,6 +12,10 @@ type AddTracesToAnnotationQueueDialogControllerProps = {
   projectId: string;
   onSuccess: () => void;
   description: string;
+  actionId?: ActionId;
+  tableName?: BatchExportTableName;
+  alternateTableName?: BatchExportTableName;
+  objectLabel?: string;
   onAddToQueue: (params: {
     projectId: string;
     targetId: string;
@@ -25,6 +30,10 @@ export function AddTracesToAnnotationQueueDialogController({
   projectId,
   onSuccess,
   description,
+  actionId = ActionId.TraceAddToAnnotationQueue,
+  tableName = BatchExportTableName.Traces,
+  alternateTableName,
+  objectLabel = "traces",
   onAddToQueue,
   children,
 }: AddTracesToAnnotationQueueDialogControllerProps) {
@@ -39,7 +48,7 @@ export function AddTracesToAnnotationQueueDialogController({
   const disabled = hasQueueAccess
     ? undefined
     : {
-        reason: "You don't have permission to add traces to annotation queues.",
+        reason: `You don't have permission to add ${objectLabel} to annotation queues.`,
       };
   const openDialog = () => {
     if (!hasQueueAccess) return;
@@ -60,11 +69,22 @@ export function AddTracesToAnnotationQueueDialogController({
   const isInProgress = api.table.getIsBatchActionInProgress.useQuery(
     {
       projectId,
-      tableName: BatchExportTableName.Traces,
-      actionId: ActionId.TraceAddToAnnotationQueue,
+      tableName,
+      actionId,
     },
     {
       enabled: open,
+      refetchInterval: 2 * 60 * 1000,
+    },
+  );
+  const isAlternateInProgress = api.table.getIsBatchActionInProgress.useQuery(
+    {
+      projectId,
+      tableName: alternateTableName ?? tableName,
+      actionId,
+    },
+    {
+      enabled: open && alternateTableName !== undefined,
       refetchInterval: 2 * 60 * 1000,
     },
   );
@@ -74,17 +94,21 @@ export function AddTracesToAnnotationQueueDialogController({
     typeof queueCountQuery.data === "number" &&
     queueCountQuery.data >= queueLimit;
 
-  const createQueueState = !hasQueueAccess
-    ? ({
+  const createQueueState = (() => {
+    if (!hasQueueAccess) {
+      return {
         status: "disabled",
         reason: "You don't have permission to create annotation queues.",
-      } as const)
-    : atQueueLimit
-      ? ({
-          status: "disabled",
-          reason: "Maximum number of annotation queues reached for your plan.",
-        } as const)
-      : ({ status: "enabled" } as const);
+      } as const;
+    }
+    if (atQueueLimit) {
+      return {
+        status: "disabled",
+        reason: "Maximum number of annotation queues reached for your plan.",
+      } as const;
+    }
+    return { status: "enabled" } as const;
+  })();
 
   const handleSelectSubmit = async (targetId: string) => {
     await onAddToQueue({ projectId, targetId });
@@ -128,9 +152,9 @@ export function AddTracesToAnnotationQueueDialogController({
                 createQueueState={createQueueState}
                 hasAccess={hasQueueAccess}
                 batchActionState={
-                  isInProgress.isLoading
+                  isInProgress.isLoading || isAlternateInProgress.isLoading
                     ? { status: "checking" }
-                    : isInProgress.data
+                    : isInProgress.data || isAlternateInProgress.data
                       ? { status: "inProgress" }
                       : { status: "ready" }
                 }

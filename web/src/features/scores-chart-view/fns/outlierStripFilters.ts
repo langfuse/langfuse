@@ -1,5 +1,5 @@
 import { type FilterState } from "@langfuse/shared";
-import { partitionStoredUiTableFiltersToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+import { partitionStoredUiTableFiltersToView } from "@/src/features/dashboard";
 
 /**
  * Whether every active scores-table filter can be forwarded to the strip's

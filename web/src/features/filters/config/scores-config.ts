@@ -23,7 +23,7 @@ const SCORES_HIDDEN_COLUMN_TO_FILTER_COLUMN: Partial<
   traceTags: "tags",
 };
 
-export const scoreFilterConfig: FilterConfig = {
+const scoreFilterConfig: FilterConfig = {
   tableName: "scores",
 
   columnDefinitions: scoresTableCols,
@@ -49,9 +49,19 @@ export const scoreFilterConfig: FilterConfig = {
       label: "Source",
     },
     {
+      type: "boolean" as const,
+      column: "isEvaluatorTest",
+      label: "Evaluator Test",
+    },
+    {
       type: "categorical" as const,
       column: "dataType",
       label: "Data Type",
+    },
+    {
+      type: "stringKeyValue" as const,
+      column: "metadata",
+      label: "Metadata",
     },
     {
       type: "numeric" as const,

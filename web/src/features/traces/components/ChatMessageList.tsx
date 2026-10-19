@@ -1,11 +1,12 @@
-import { Fragment, useMemo, useState } from "react";
-import { Button } from "@/src/components/ui/button";
+import { useMemo, useState } from "react";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import {
   filterAlreadyRenderedMedia,
   getRenderedInlineMediaIds,
 } from "@/src/components/ui/markdown-media.utils";
 import { canRenderContentAsMarkdown } from "@/src/components/ui/MarkdownJsonView";
+import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 import {
   ChatMessage,
   type ViewMode,
@@ -13,9 +14,10 @@ import {
 import { SectionMedia } from "@/src/features/traces/components/IOPreview/components/SectionMedia";
 import {
   type ChatMlMessage,
+  getMessageTitle,
   shouldRenderMessageForContentMode,
 } from "@/src/features/traces/fns/chatMessageUtils";
-import { type MediaReturnType } from "@/src/features/media/validation";
+import { type MediaReturnType } from "@/src/features/media";
 import { type IOPreviewContentMode } from "@/src/features/traces/components/IOPreview/IOPreview";
 
 const COLLAPSE_THRESHOLD = 3;
@@ -32,6 +34,8 @@ export interface ChatMessageListProps {
   inputMessageCount?: number;
   contentMode?: IOPreviewContentMode;
   showSystemPrompt?: boolean;
+  /** Title messages Input / Output by side instead of by role. */
+  titleBySide?: boolean;
 }
 
 /**
@@ -54,6 +58,7 @@ export function ChatMessageList({
   inputMessageCount,
   contentMode = "all",
   showSystemPrompt,
+  titleBySide = false,
 }: ChatMessageListProps) {
   // Filter messages to only those with renderable content
   const messagesToRender = useMemo(
@@ -88,6 +93,8 @@ export function ChatMessageList({
     [isCollapsed, messagesToRender],
   );
 
+  const characterLimit = useMarkdownRenderCharacterLimit();
+
   const remainingMedia = useMemo(() => {
     if (!shouldRenderMarkdown) {
       return media ?? [];
@@ -96,60 +103,58 @@ export function ChatMessageList({
     const renderedMediaIds = new Set<string>();
 
     visibleMessages.forEach(({ message }) => {
-      const content = message.content;
+      const content = message.content || "";
 
       // Only content that ChatMessage renders through MarkdownView shows its
       // media inline; anything falling back to a JSON table still needs the
       // shared strip, so ask the renderer's own predicate.
-      if (typeof content === "string" || canRenderContentAsMarkdown(content)) {
+      if (canRenderContentAsMarkdown(content, characterLimit)) {
         getRenderedInlineMediaIds({
           markdown: content,
-          audio: message.audio,
-        }).forEach((mediaId) => renderedMediaIds.add(mediaId));
-        return;
-      }
-
-      if (message.audio) {
-        getRenderedInlineMediaIds({
-          markdown: "",
           audio: message.audio,
         }).forEach((mediaId) => renderedMediaIds.add(mediaId));
       }
     });
 
     return filterAlreadyRenderedMedia(media, renderedMediaIds);
-  }, [media, shouldRenderMarkdown, visibleMessages]);
+  }, [media, shouldRenderMarkdown, visibleMessages, characterLimit]);
 
   return (
     <div className="flex max-h-full min-h-0 flex-col gap-2">
-      <div className="flex max-h-full min-h-0 flex-col gap-2">
-        <div className="flex flex-col gap-2">
-          {visibleMessages.map(({ message, originalIndex }) => (
-            <Fragment key={originalIndex}>
-              <ChatMessage
-                message={message}
-                shouldRenderMarkdown={shouldRenderMarkdown}
-                currentView={currentView}
-                toolCallNumbers={messageToToolCallNumbers.get(originalIndex)}
-                isOutputMessage={originalIndex >= (inputMessageCount ?? 0)}
-                contentMode={contentMode}
-              />
-              {/* Show collapse/expand button after first message */}
-              {isCollapsed !== null &&
-                originalIndex === messagesToRender[0]?.originalIndex && (
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    onClick={() => setCollapsed((v) => !v)}
-                    className="underline"
-                  >
-                    {isCollapsed
-                      ? `Show ${messagesToRender.length - COLLAPSE_THRESHOLD} more ...`
-                      : "Hide history"}
-                  </Button>
-                )}
-            </Fragment>
-          ))}
+      <div className="flex max-h-full min-h-0 flex-col gap-3">
+        <div className="flex flex-col gap-3">
+          {visibleMessages.map(({ message, originalIndex }) => {
+            const isOutputMessage = originalIndex >= (inputMessageCount ?? 0);
+            const sideTitle = isOutputMessage ? "Output" : "Input";
+            return (
+              <div className="flex flex-col" key={originalIndex}>
+                <ChatMessage
+                  message={message}
+                  title={titleBySide ? sideTitle : getMessageTitle(message)}
+                  shouldRenderMarkdown={shouldRenderMarkdown}
+                  currentView={currentView}
+                  toolCallNumbers={messageToToolCallNumbers.get(originalIndex)}
+                  isOutputMessage={isOutputMessage}
+                  contentMode={contentMode}
+                />
+                {/* Show collapse/expand button after first message */}
+                {isCollapsed !== null &&
+                  originalIndex === messagesToRender[0]?.originalIndex && (
+                    <div className="mt-1 mb-2 flex">
+                      <Button
+                        variant="text"
+                        onClick={() => setCollapsed((v) => !v)}
+                        text={
+                          isCollapsed
+                            ? `Show ${messagesToRender.length - COLLAPSE_THRESHOLD} more`
+                            : "Hide history"
+                        }
+                      />
+                    </div>
+                  )}
+              </div>
+            );
+          })}
         </div>
 
         {/* Additional input section */}

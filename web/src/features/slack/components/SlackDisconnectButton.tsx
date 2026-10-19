@@ -11,10 +11,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 /**
  * Props for the SlackDisconnectButton component
@@ -92,6 +92,7 @@ export const SlackDisconnectButton: React.FC<SlackDisconnectButtonProps> = ({
       setIsDialogOpen(false);
 
       showSuccessToast({
+        operation: "slack.disconnect",
         title: "Slack Disconnected",
         description: "Successfully disconnected from your Slack workspace.",
       });
@@ -103,7 +104,11 @@ export const SlackDisconnectButton: React.FC<SlackDisconnectButtonProps> = ({
 
       const errorMessage = error.message || "Failed to disconnect from Slack";
 
-      showErrorToast("Disconnection Failed", errorMessage);
+      showErrorToast(
+        "Disconnection Failed",
+        errorMessage,
+        classifyTrpcToastError(error, "slack.disconnect"),
+      );
 
       onError?.(new Error(errorMessage));
     },
@@ -139,7 +144,7 @@ export const SlackDisconnectButton: React.FC<SlackDisconnectButtonProps> = ({
           <Spinner size="sm" />
         </div>
       ) : (
-        <Unlink className={showText ? "mr-2 h-4 w-4" : "h-4 w-4"} />
+        <Unlink className={showText ? "icon-base mr-2" : "icon-base"} />
       )}
       {showText && (isDisconnecting ? "Disconnecting..." : buttonText)}
     </>
@@ -161,7 +166,7 @@ export const SlackDisconnectButton: React.FC<SlackDisconnectButtonProps> = ({
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="text-destructive h-5 w-5" />
+              <AlertTriangle className="text-destructive icon-lg" />
               Disconnect Slack Integration
             </DialogTitle>
             <DialogDescription className="space-y-2">
@@ -206,7 +211,7 @@ export const SlackDisconnectButton: React.FC<SlackDisconnectButtonProps> = ({
                 </>
               ) : (
                 <>
-                  <Unlink className="mr-2 h-4 w-4" />
+                  <Unlink className="icon-base mr-2" />
                   Disconnect
                 </>
               )}

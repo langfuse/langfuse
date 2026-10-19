@@ -20,11 +20,11 @@ export {
   type CodeEvalSourceCodeLanguage,
 } from "@/src/features/evals/utils/code-eval-template-starter-examples";
 
-export const CODE_EVAL_SOURCE_MAX_BYTES = 256 * 1024;
+const CODE_EVAL_SOURCE_MAX_BYTES = 256 * 1024;
 
-export type CodeEvalDiagnosticSeverity = "error" | "warning";
+type CodeEvalDiagnosticSeverity = "error" | "warning";
 
-export type CodeEvalDiagnostic = {
+type CodeEvalDiagnostic = {
   from: number;
   to: number;
   severity: CodeEvalDiagnosticSeverity;
@@ -70,6 +70,9 @@ interface Array<T> {
   flatMap<U>(
     callbackfn: (value: T, index: number, array: T[]) => U | U[],
   ): U[];
+  filter<S extends T>(
+    predicate: (value: T, index: number, array: T[]) => value is S,
+  ): S[];
   filter(callbackfn: (value: T, index: number, array: T[]) => unknown): T[];
   find(callbackfn: (value: T, index: number, array: T[]) => unknown): T | undefined;
   findIndex(callbackfn: (value: T, index: number, array: T[]) => unknown): number;
@@ -611,7 +614,7 @@ export async function validateCodeEvalSourceWithLanguage({
   return validateCodeEvalSourceWithTypescript(source);
 }
 
-export async function validateCodeEvalSourceWithTypescript(
+async function validateCodeEvalSourceWithTypescript(
   source: string,
 ): Promise<CodeEvalValidationResult> {
   const tsModule = await import("@typescript/typescript6");
@@ -684,7 +687,7 @@ export async function formatPythonCodeEvalSourceWithRuff(source: string) {
   return ruffWorkspace.format(source);
 }
 
-export function validateCodeEvalSource(
+function validateCodeEvalSource(
   source: string,
   tsModule: TypeScriptModule,
 ): CodeEvalValidationResult {
@@ -933,9 +936,11 @@ function hasEvaluateFunction(
     if (tsModule.isExportDeclaration(node) && !node.moduleSpecifier) {
       const exportClause = node.exportClause;
       if (exportClause && tsModule.isNamedExports(exportClause)) {
-        hasEvaluate ||= exportClause.elements.some(
-          (element) => element.name.text === "evaluate",
-        );
+        if (!hasEvaluate) {
+          hasEvaluate = exportClause.elements.some(
+            (element) => element.name.text === "evaluate",
+          );
+        }
       }
     }
 
@@ -1033,15 +1038,17 @@ function collectPythonContractDiagnostics(
 }
 
 async function getPythonRuffWorkspace(): Promise<RuffWorkspace> {
-  ruffWorkspacePromise ??= import("@astral-sh/ruff-wasm-web").then(
-    async (ruffModule) => {
-      await ruffModule.default();
-      return new ruffModule.Workspace(
-        PYTHON_RUFF_SETTINGS,
-        ruffModule.PositionEncoding.Utf16,
-      ) as RuffWorkspace;
-    },
-  );
+  if (ruffWorkspacePromise === null) {
+    ruffWorkspacePromise = import("@astral-sh/ruff-wasm-web").then(
+      async (ruffModule) => {
+        await ruffModule.default();
+        return new ruffModule.Workspace(
+          PYTHON_RUFF_SETTINGS,
+          ruffModule.PositionEncoding.Utf16,
+        ) as RuffWorkspace;
+      },
+    );
+  }
 
   return ruffWorkspacePromise;
 }
@@ -1143,6 +1150,6 @@ function sortDiagnostics(diagnostics: CodeEvalDiagnostic[]) {
   return [...diagnostics].sort((a, b) => a.from - b.from || a.to - b.to);
 }
 
-export function getUtf8ByteLength(value: string) {
+function getUtf8ByteLength(value: string) {
   return new TextEncoder().encode(value).length;
 }

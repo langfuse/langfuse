@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 import { ExternalLinkIcon } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -5,9 +6,9 @@ import { useState } from "react";
 import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 type ReferencingEvaluator = {
   id: string;
@@ -22,13 +23,13 @@ const EvaluatorLink = ({
   evaluator: ReferencingEvaluator;
 }) => (
   <Link
-    href={`/project/${projectId}/evals?peek=${evaluator.id}`}
+    href={`/project/${projectId}/evals/legacy?peek=${evaluator.id}`}
     target="_blank"
     rel="noopener noreferrer"
     className="inline-flex items-center gap-1 text-blue-600 hover:underline"
   >
     {evaluator.scoreName}
-    <ExternalLinkIcon className="h-3 w-3" />
+    <ExternalLinkIcon className="icon-sm" />
   </Link>
 );
 
@@ -65,13 +66,18 @@ export function DeleteEvalTemplateDialog({
   const templateMutation = api.evals.deleteEvalTemplate.useMutation({
     onSuccess: () => {
       showSuccessToast({
+        operation: "evaluator.delete",
         title: "Evaluator deleted",
         description: `Evaluator "${templateName}" was deleted.`,
       });
       utils.evals.invalidate();
     },
     onError: (error) =>
-      showErrorToast("Failed to delete evaluator", error.message),
+      showErrorToast(
+        "Failed to delete evaluator",
+        error.message,
+        classifyTrpcToastError(error, "evaluator.delete"),
+      ),
   });
 
   // Once deletion starts, the usage query must go inactive so post-delete

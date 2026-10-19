@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 /**
  * TraceGraphView wrapper
  *
@@ -6,26 +7,32 @@
  */
 
 import { useCallback } from "react";
-import { TraceGraphView as TraceGraphViewComponent } from "@/src/features/trace-graph-view/components/TraceGraphView";
-import { type GraphViewMode } from "@/src/features/trace-graph-view/types";
+import {
+  TraceGraphView as TraceGraphViewComponent,
+  type GraphViewMode,
+} from "@/src/features/trace-graph-view";
 import { useTraceGraphData } from "@/src/features/traces/contexts/TraceGraphDataContext";
-import { useActiveObservationIds } from "@/src/features/traces/contexts/PlayheadContext";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
-import { useMobileLayoutContextOptional } from "../TraceLayoutMobile";
+import { useTraceSearchMatches } from "@/src/features/traces/hooks/useTraceSearchMatches";
+import { useSelection } from "../../contexts/SelectionContext";
 
 export function TraceGraphView() {
+  const {
+    defaultObservationId,
+    selectedNodeId,
+    setSelectedNodeId,
+    selectNode,
+  } = useSelection();
   const { agentGraphData, isLoading } = useTraceGraphData();
-  const activeObservationIds = useActiveObservationIds();
   const { graphViewMode, setGraphViewMode } = useViewPreferences();
+  // The trace panel's search box, resolved by the same hook the Timeline reads.
+  // The graph projects these observation ids onto its own nodes, which is
+  // view-mode dependent and therefore its job, not this wrapper's.
+  const search = useTraceSearchMatches();
   const capture = usePostHogClientCapture();
   const analyticsDimensions = useTraceAnalyticsDimensions();
-  // Optional (null on desktop): jump to the Info tab when a canvas click selects
-  // an observation. The graph writes `?observation=` directly, so the tab effect
-  // already covers a genuine change; this also handles cycling a repeated node
-  // back to the same id, where the URL param wouldn't change.
-  const mobileLayout = useMobileLayoutContextOptional();
   // Analytics live here (not in the feature component) so the feature module
   // stays free of trace-view context dependencies.
   const handleObservationSelect = useCallback(() => {
@@ -34,8 +41,7 @@ export function TraceGraphView() {
       graphViewMode,
       ...analyticsDimensions,
     });
-    mobileLayout?.switchToInfoTab();
-  }, [capture, graphViewMode, analyticsDimensions, mobileLayout]);
+  }, [capture, graphViewMode, analyticsDimensions]);
   const handleViewModeChange = useCallback(
     (mode: GraphViewMode) => {
       // Clicking the already-active segment is a no-op — don't count it.
@@ -48,6 +54,17 @@ export function TraceGraphView() {
       setGraphViewMode(mode);
     },
     [capture, graphViewMode, setGraphViewMode, analyticsDimensions],
+  );
+  const handleSelectedObservationChange = useCallback(
+    (id: string | null) => {
+      // Synthetic graph nodes clear selection without opening details.
+      if (id === null) {
+        setSelectedNodeId(null);
+        return;
+      }
+      selectNode(id);
+    },
+    [setSelectedNodeId, selectNode],
   );
 
   if (isLoading) {
@@ -64,11 +81,18 @@ export function TraceGraphView() {
 
   return (
     <TraceGraphViewComponent
+      selectedObservationId={selectedNodeId}
+      defaultObservationId={defaultObservationId}
+      onSelectedObservationChange={handleSelectedObservationChange}
       agentGraphData={agentGraphData}
-      activeObservationIds={activeObservationIds}
       viewMode={graphViewMode}
       onViewModeChange={handleViewModeChange}
       onObservationSelect={handleObservationSelect}
+      search={
+        search
+          ? { matchedObservationIds: search.matchedIds, label: search.label }
+          : undefined
+      }
     />
   );
 }

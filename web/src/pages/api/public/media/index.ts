@@ -1,9 +1,9 @@
 import { env } from "@/src/env.mjs";
-import { createMediaUploadUrl } from "@/src/features/media/server/mediaService";
 import {
+  createMediaUploadUrl,
   GetMediaUploadUrlQuerySchema,
   GetMediaUploadUrlResponseSchema,
-} from "@/src/features/media/validation";
+} from "@/src/features/media/server";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { ForbiddenError, InvalidRequestError } from "@langfuse/shared";
@@ -12,6 +12,7 @@ import { instrumentAsync } from "@langfuse/shared/src/server";
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
     name: "Get Media Upload URL",
+    action: "media:create",
     bodySchema: GetMediaUploadUrlQuerySchema,
     responseSchema: GetMediaUploadUrlResponseSchema,
     successStatusCode: 201,

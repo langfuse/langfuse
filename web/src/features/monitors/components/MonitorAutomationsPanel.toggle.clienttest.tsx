@@ -24,7 +24,7 @@ vi.mock("@/src/utils/api", () => ({
 
 import { MonitorAutomationsPanel } from "./MonitorAutomationsPanel";
 
-describe("MonitorAutomationsPanel toggle immutability", () => {
+describe("MonitorAutomationsPanel selection", () => {
   it("does not mutate the memoized set: toggling the same unselected row twice reports it selected both times", () => {
     useQueryMock.mockReturnValue({ data: [automationRow], isPending: false });
     const onTriggerIdsChange = vi.fn();

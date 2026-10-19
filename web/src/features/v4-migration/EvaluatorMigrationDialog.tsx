@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { BotMessageSquare, Wrench } from "lucide-react";
 import { useState } from "react";
 import {
@@ -9,14 +10,14 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
-import { CodeBlock } from "@/src/components/design-system/Codeblock/Codeblock";
+import { Codeblock as CodeBlock } from "@/src/components/design-system/Codeblock/Codeblock";
 import {
   useIsInAppAgentLauncherVisible,
   useInAppAiAgent,
-} from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+} from "@/src/features/in-app-agent";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useQueryProjectOrOrganization } from "@/src/features/projects";
+import { useHasOrganizationAccess } from "@/src/features/rbac";
 
 type EvaluatorMigrationScope = { type: "all" } | { type: "single" };
 
@@ -36,7 +37,7 @@ type EvaluatorMigrationDialogProps = {
 type SelectedMigrationAction = "assistant";
 
 const ADMIN_REQUEST_MESSAGE =
-  "Hi! Could you enable AI features for our Langfuse organization? I need them to use the Assistant to upgrade our deprecated evaluators for v4. Thanks!";
+  "Hi! Could you enable AI features for our Langfuse organization? I need them to use Halo to upgrade our deprecated evaluators for v4. Thanks!";
 
 export function EvaluatorMigrationDialog({
   open,
@@ -132,8 +133,8 @@ export function EvaluatorMigrationDialog({
             {effectiveAction === "assistant" ? (
               <p className="text-muted-foreground text-sm">
                 {aiFeaturesEnabled
-                  ? "The Assistant will review your deprecated evaluators and suggest upgrading all of them at once."
-                  : "Enable AI features in the other tab, then return here to start the upgrade with the Assistant."}
+                  ? "Halo will review your deprecated evaluators and suggest upgrading all of them at once."
+                  : "Enable AI features in the other tab, then return here to start the upgrade with Halo."}
               </p>
             ) : (
               <>
@@ -144,9 +145,9 @@ export function EvaluatorMigrationDialog({
                     className="h-auto justify-start gap-3 p-4 text-left"
                     onClick={handleAssistantClick}
                   >
-                    <BotMessageSquare className="h-5 w-5 shrink-0" />
+                    <BotMessageSquare className="icon-base text-icon-foreground shrink-0" />
                     <span className="flex flex-col gap-1">
-                      <span className="font-bold">Use Assistant</span>
+                      <span className="font-bold">Use Halo</span>
                       <span className="text-muted-foreground text-sm font-normal">
                         Suggest upgrading all deprecated evaluators at once.
                       </span>
@@ -159,7 +160,7 @@ export function EvaluatorMigrationDialog({
                   className="h-auto justify-start gap-3 p-4 text-left"
                   onClick={handleManualClick}
                 >
-                  <Wrench className="h-5 w-5 shrink-0" />
+                  <Wrench className="icon-base text-icon-foreground shrink-0" />
                   <span className="flex flex-col gap-1">
                     <span className="font-bold">
                       {isSingleEvaluator
@@ -217,8 +218,8 @@ export function EvaluatorMigrationDialog({
           </DialogHeader>
           <DialogBody className="gap-3">
             <p className="text-muted-foreground text-sm">
-              The Assistant can help you upgrade all deprecated evaluators at
-              once. An organization admin needs to enable AI features for your
+              Halo can help you upgrade all deprecated evaluators at once. An
+              organization admin needs to enable AI features for your
               organization before you can use it.
             </p>
             <a

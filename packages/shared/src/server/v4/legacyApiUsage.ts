@@ -36,15 +36,15 @@ import { z } from "zod/v4";
 const HOUR_MS = 60 * 60 * 1000;
 
 /** Detection window served to the UI; must match the web-side window. */
-export const V4_LEGACY_API_USAGE_WINDOW_MS = 14 * 24 * HOUR_MS;
+export const V4_LEGACY_API_USAGE_WINDOW_MS = 3 * 24 * HOUR_MS;
 
 /** GC horizon for hour buckets: window plus one day of slack. */
-export const V4_LEGACY_API_HOUR_BUCKET_TTL_SECONDS = 15 * 24 * 60 * 60;
+export const V4_LEGACY_API_HOUR_BUCKET_TTL_SECONDS = 4 * 24 * 60 * 60;
 
 /**
  * Redis TTL for an hour bucket keyed by that hour's start, not by write time.
- * A hole-repaired bucket from 10 days ago must expire in ~5 days (horizon
- * minus age), not live another full 15 days from the repair write.
+ * A hole-repaired bucket from two days ago must expire in ~2 days (horizon
+ * minus age), not live another full 4 days from the repair write.
  */
 export const v4LegacyApiHourBucketTtlSeconds = (
   hourStartMs: number,
@@ -113,10 +113,24 @@ export const v4LegacyApiUsageProjectKey = (projectId: string): string =>
 export const v4ExperimentPostUsageProjectKey = (projectId: string): string =>
   `langfuse:v4:experiment-post-usage:v1:${projectId}`;
 
+const legacyApiCallerSchema = z.object({
+  sdkName: z.enum(["python", "javascript"]).optional(),
+  sdkVersion: z.string().optional(),
+  userAgent: z.string().optional(),
+  count: z.number(),
+  lastSeen: z.string(),
+  isOther: z.literal(true).optional(),
+});
+
+export type V4LegacyApiCaller = z.infer<typeof legacyApiCallerSchema>;
+
+export const MAX_V4_LEGACY_API_CALLERS_PER_ENDPOINT = 20;
+
 const legacyApiUsageRowSchema = z.object({
   entrypoint: z.string(),
   count: z.number(),
   lastSeen: z.string(),
+  callers: z.array(legacyApiCallerSchema).optional(),
 });
 
 export type V4LegacyApiUsageRow = z.infer<typeof legacyApiUsageRowSchema>;
@@ -213,6 +227,82 @@ export type V4LegacyApiUsageRollup = {
   experimentPostLastSeenByProjectId: Map<string, string | null>;
 };
 
+const legacyApiCallerKey = (caller: V4LegacyApiCaller): string =>
+  caller.isOther
+    ? "other"
+    : [
+        caller.sdkName ?? "",
+        caller.sdkVersion ?? "",
+        caller.userAgent ?? "",
+      ].join("\u0000");
+
+export const mergeV4LegacyApiCallers = (
+  callers: V4LegacyApiCaller[],
+  options: { maxCallers?: number | null } = {},
+): V4LegacyApiCaller[] => {
+  const merged = new Map<string, V4LegacyApiCaller>();
+  let otherCaller: V4LegacyApiCaller | undefined;
+  for (const caller of callers) {
+    if (caller.isOther) {
+      otherCaller = otherCaller
+        ? {
+            isOther: true,
+            count: otherCaller.count + caller.count,
+            lastSeen:
+              otherCaller.lastSeen > caller.lastSeen
+                ? otherCaller.lastSeen
+                : caller.lastSeen,
+          }
+        : caller;
+      continue;
+    }
+    const key = legacyApiCallerKey(caller);
+    const existing = merged.get(key);
+    merged.set(
+      key,
+      existing
+        ? {
+            ...existing,
+            count: existing.count + caller.count,
+            lastSeen:
+              existing.lastSeen > caller.lastSeen
+                ? existing.lastSeen
+                : caller.lastSeen,
+          }
+        : caller,
+    );
+  }
+
+  const sorted = Array.from(merged.values()).sort(
+    (left, right) =>
+      right.count - left.count ||
+      right.lastSeen.localeCompare(left.lastSeen) ||
+      legacyApiCallerKey(left).localeCompare(legacyApiCallerKey(right)),
+  );
+  const maxCallers =
+    options.maxCallers === null
+      ? null
+      : (options.maxCallers ?? MAX_V4_LEGACY_API_CALLERS_PER_ENDPOINT);
+  if (maxCallers === null) {
+    return otherCaller ? [...sorted, otherCaller] : sorted;
+  }
+  if (!otherCaller && sorted.length <= maxCallers) return sorted;
+
+  const kept = sorted.slice(0, maxCallers - 1);
+  const overflow = sorted.slice(maxCallers - 1);
+  kept.push({
+    isOther: true,
+    count:
+      (otherCaller?.count ?? 0) +
+      overflow.reduce((sum, caller) => sum + caller.count, 0),
+    lastSeen: [
+      ...(otherCaller ? [otherCaller.lastSeen] : []),
+      ...overflow.map((caller) => caller.lastSeen),
+    ].reduce((latest, lastSeen) => (latest > lastSeen ? latest : lastSeen), ""),
+  });
+  return kept;
+};
+
 /**
  * Aggregates hour buckets into the per-project trailing-window answer:
  * counts add per entrypoint, `lastSeen` takes the maximum. Buckets carry raw
@@ -233,6 +323,10 @@ export const aggregateV4LegacyApiHourBuckets = (
         rowsByProjectAndEntrypoint.get(row.projectId) ??
         new Map<string, V4LegacyApiUsageRow>();
       const existing = rowsByEntrypoint.get(row.entrypoint);
+      const callers =
+        row.callers && row.callers.length > 0
+          ? row.callers
+          : [{ count: row.count, lastSeen: row.lastSeen }];
       rowsByEntrypoint.set(
         row.entrypoint,
         existing
@@ -243,11 +337,16 @@ export const aggregateV4LegacyApiHourBuckets = (
                 existing.lastSeen > row.lastSeen
                   ? existing.lastSeen
                   : row.lastSeen,
+              callers: mergeV4LegacyApiCallers(
+                [...(existing.callers ?? []), ...callers],
+                { maxCallers: null },
+              ),
             }
           : {
               entrypoint: row.entrypoint,
               count: row.count,
               lastSeen: row.lastSeen,
+              callers: mergeV4LegacyApiCallers(callers, { maxCallers: null }),
             },
       );
       rowsByProjectAndEntrypoint.set(row.projectId, rowsByEntrypoint);
@@ -276,9 +375,12 @@ export const aggregateV4LegacyApiHourBuckets = (
   for (const [projectId, rowsByEntrypoint] of rowsByProjectAndEntrypoint) {
     apiRowsByProjectId.set(
       projectId,
-      Array.from(rowsByEntrypoint.values()).sort((left, right) =>
-        left.entrypoint.localeCompare(right.entrypoint),
-      ),
+      Array.from(rowsByEntrypoint.values())
+        .map((row) => ({
+          ...row,
+          callers: mergeV4LegacyApiCallers(row.callers ?? []),
+        }))
+        .sort((left, right) => left.entrypoint.localeCompare(right.entrypoint)),
     );
   }
 

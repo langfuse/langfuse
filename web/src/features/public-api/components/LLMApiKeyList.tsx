@@ -1,201 +1,111 @@
-import { TrashIcon } from "lucide-react";
-import { useState } from "react";
+/* eslint-disable @repo/component-file-structure */
+import { useMemo } from "react";
+import { Building2, Plug } from "lucide-react";
+
+import { useHasProjectAccess } from "@/src/features/rbac";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import Header from "@/src/components/layouts/header";
-import { Button } from "@/src/components/ui/button";
-import { Card } from "@/src/components/ui/card";
-import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/src/components/ui/table";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { api, reportNonTrpcError } from "@/src/utils/api";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
-import { CreateLLMApiKeyDialog } from "./CreateLLMApiKeyDialog";
-import { UpdateLLMApiKeyDialog } from "./UpdateLLMApiKeyDialog";
+import { LlmConnectionEmptyState } from "@/src/features/public-api/components/LlmConnectionEmptyState/LlmConnectionEmptyState";
+import { ConnectedLLMApiKeySettingsTable } from "./LLMApiKeySettingsTable/ConnectedLLMApiKeySettingsTable";
+import { type LLMApiKeySettingsTableRow } from "./LLMApiKeySettingsTable/LLMApiKeySettingsTable";
+import type { AsyncTableData } from "@/src/components/design-system/table/Table";
+import { api } from "@/src/utils/api";
 
-export function LlmApiKeyList(props: { projectId: string }) {
-  const [editingKeyId, setEditingKeyId] = useState<string | null>(null);
-  const [open, setOpen] = useState(false);
-
+export function LlmApiKeyList(props: {
+  organizationId: string;
+  organizationName: string;
+  projectId: string;
+  projectName: string;
+}) {
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "llmApiKeys:read",
   });
-
-  const apiKeys = api.llmApiKey.all.useQuery(
+  const inherited = api.llmApiKey.inherited.useQuery(
     {
       projectId: props.projectId,
+      includeDecisionModels: true,
     },
-    {
-      enabled: hasAccess,
-    },
+    { enabled: hasAccess },
   );
-
-  const hasExtraHeaderKeys = apiKeys.data?.data.some(
-    (key) => key.extraHeaderKeys.length > 0,
+  const organizationTableData = useMemo<
+    AsyncTableData<LLMApiKeySettingsTableRow[]>
+  >(() => {
+    if (inherited.isLoading) return { status: "loading" };
+    if (inherited.isError) {
+      return {
+        status: "error",
+        error: "Failed to load organization connections",
+      };
+    }
+    return {
+      status: "success",
+      data: (inherited.data ?? []).map((apiKey) => ({
+        ...apiKey,
+        overriddenByProject: undefined,
+      })),
+    };
+  }, [inherited.data, inherited.isError, inherited.isLoading]);
+  const organizationProviders = useMemo(
+    () => new Set((inherited.data ?? []).map((apiKey) => apiKey.provider)),
+    [inherited.data],
   );
 
   if (!hasAccess) {
     return (
-      <div>
-        <Header title="LLM Connections" />
-        <Alert>
-          <AlertTitle>Access Denied</AlertTitle>
-          <AlertDescription>
-            You do not have permission to view LLM API keys for this project.
-          </AlertDescription>
-        </Alert>
-      </div>
+      <Alert>
+        <Alert.Title>Access Denied</Alert.Title>
+        <Alert.Description>
+          You do not have permission to view LLM API keys for this project.
+        </Alert.Description>
+      </Alert>
     );
   }
 
   return (
     <div id="llm-api-keys">
-      <Header title="LLM Connections" />
-      <p className="mb-4 text-sm">
-        Connect your LLM services to enable evaluations and playground features.
-        Your provider will charge based on usage.
-      </p>
-      <Card className="mb-4 overflow-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="text-primary md:table-cell">
-                Provider
-              </TableHead>
-              <TableHead className="text-primary md:table-cell">
-                Adapter
-              </TableHead>
-              <TableHead className="text-primary md:table-cell">
-                Base URL
-              </TableHead>
-              <TableHead className="text-primary">API Key</TableHead>
-              {hasExtraHeaderKeys ? (
-                <TableHead className="text-primary">Extra headers</TableHead>
-              ) : null}
-              <TableHead />
-            </TableRow>
-          </TableHeader>
-          <TableBody className="text-muted-foreground">
-            {apiKeys.data?.data.length === 0 ? (
-              <TableRow>
-                <TableCell
-                  density="comfortable"
-                  colSpan={6}
-                  className="text-center"
-                >
-                  None
-                </TableCell>
-              </TableRow>
-            ) : (
-              apiKeys.data?.data.map((apiKey) => (
-                <TableRow
-                  key={apiKey.id}
-                  className="hover:bg-primary-foreground cursor-default"
-                  onClick={() => setEditingKeyId(apiKey.id)}
-                >
-                  <TableCell density="comfortable" className="font-mono">
-                    {apiKey.provider}
-                  </TableCell>
-                  <TableCell density="comfortable" className="font-mono">
-                    {apiKey.adapter}
-                  </TableCell>
-                  <TableCell
-                    density="comfortable"
-                    className="max-w-md overflow-auto font-mono"
-                  >
-                    {apiKey.baseURL ?? "default"}
-                  </TableCell>
-                  <TableCell density="comfortable" className="font-mono">
-                    {apiKey.displaySecretKey}
-                  </TableCell>
-                  {hasExtraHeaderKeys ? (
-                    <TableCell density="comfortable">
-                      {" "}
-                      {apiKey.extraHeaderKeys.join(", ")}{" "}
-                    </TableCell>
-                  ) : null}
-                  <TableCell density="comfortable" className="text-right">
-                    <div
-                      className="flex justify-end space-x-2"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <UpdateLLMApiKeyDialog
-                        apiKey={apiKey}
-                        projectId={props.projectId}
-                        open={editingKeyId === apiKey.id}
-                        onOpenChange={(open: boolean) => {
-                          if (open) {
-                            setEditingKeyId(apiKey.id);
-                          } else {
-                            setEditingKeyId(null);
-                          }
-                        }}
-                      />
-                      <DeleteApiKeyButton
-                        projectId={props.projectId}
-                        apiKeyId={apiKey.id}
-                      />
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </Card>
-      <CreateLLMApiKeyDialog open={open} setOpen={setOpen} />
+      <section>
+        <ConnectedLLMApiKeySettingsTable
+          owner={{
+            scope: "organization",
+            organizationId: props.organizationId,
+          }}
+          data={organizationTableData}
+          emptyState={
+            <LlmConnectionEmptyState
+              icon={Building2}
+              title="No organization connections"
+              description={`Organization connections are shared with every project in ${props.organizationName}.`}
+            />
+          }
+          toolbarContent={
+            <div className="flex items-center gap-1">
+              <Header title="Organization connections" className="mb-0!" />
+              <InfoTooltip label="About organization connections">
+                Organization connections are inherited by this project. Project
+                connections with the same provider name take precedence.
+              </InfoTooltip>
+            </div>
+          }
+        />
+      </section>
+      <section className="mt-6">
+        <ConnectedLLMApiKeySettingsTable
+          owner={{ scope: "project", projectId: props.projectId }}
+          overriddenProviders={organizationProviders}
+          emptyState={
+            <LlmConnectionEmptyState
+              icon={Plug}
+              title="No project connections"
+              description={`Project connections are only available in ${props.projectName} and take precedence over organization connections with the same provider.`}
+            />
+          }
+          toolbarContent={
+            <Header title="Project connections" className="mb-0!" />
+          }
+        />
+      </section>
     </div>
-  );
-}
-
-// show dialog to let user confirm that this is a destructive action
-function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
-  const capture = usePostHogClientCapture();
-  const hasAccess = useHasProjectAccess({
-    projectId: props.projectId,
-    scope: "llmApiKeys:delete",
-  });
-
-  const utils = api.useUtils();
-  const mutDeleteApiKey = api.llmApiKey.delete.useMutation({
-    onSuccess: () => utils.llmApiKey.invalidate(),
-  });
-  const [open, setOpen] = useState(false);
-
-  if (!hasAccess) return null;
-
-  return (
-    <ConfirmDialog
-      open={open}
-      onOpenChange={setOpen}
-      trigger={
-        <Button variant="ghost" size="icon">
-          <TrashIcon className="h-4 w-4" />
-        </Button>
-      }
-      title="Delete LLM Connection"
-      description="Are you sure you want to delete this connection? This action cannot be undone."
-      confirmLabel="Permanently delete"
-      loading={mutDeleteApiKey.isPending}
-      onConfirm={() => {
-        mutDeleteApiKey
-          .mutateAsync({
-            projectId: props.projectId,
-            id: props.apiKeyId,
-          })
-          .then(() => {
-            capture("project_settings:llm_api_key_delete");
-            setOpen(false);
-          })
-          .catch((error) => reportNonTrpcError(error, "llm-api-keys"));
-      }}
-    />
   );
 }

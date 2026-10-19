@@ -75,6 +75,7 @@ const ACCEPTED_AUTO_IN_APP_AGENT_PROGRESS_LABELS: Record<string, string> = {
   langfuse_getPrompt: "Inspecting prompt",
   langfuse_getScore: "Inspecting score",
   langfuse_getScoreConfig: "Inspecting score config",
+  langfuse_getV4MigrationData: "Inspecting v4 migration data",
   langfuse_listAlerts: "Browsing alerts",
   langfuse_listAnnotationQueueItems: "Browsing annotation queue items",
   langfuse_listAnnotationQueues: "Browsing annotation queues",
@@ -86,6 +87,8 @@ const ACCEPTED_AUTO_IN_APP_AGENT_PROGRESS_LABELS: Record<string, string> = {
   langfuse_listDatasets: "Browsing datasets",
   langfuse_listEvaluationRules: "Browsing evaluation rules",
   langfuse_listEvaluators: "Browsing evaluators",
+  langfuse_listManagedEvaluatorTemplates:
+    "Browsing managed evaluator templates",
   langfuse_listExperimentItems: "Browsing experiment items",
   langfuse_listExperiments: "Browsing experiments",
   langfuse_listModels: "Browsing models",
@@ -99,7 +102,12 @@ const ACCEPTED_AUTO_IN_APP_AGENT_PROGRESS_LABELS: Record<string, string> = {
   langfuse_updateScoreConfig: "Updating score config",
   langfuse_upsertDataset: "Saving dataset",
   langfuse_upsertDatasetItem: "Saving dataset item",
-  langfuse_upsertEvaluator: "Saving evaluator",
+  langfuse_createEvaluator: "Creating evaluator",
+  langfuse_updateEvaluator: "Updating evaluator",
+  langfuse_attachEvaluatorToEvaluationRule:
+    "Attach Evaluator To Evaluation Rule",
+  langfuse_detachEvaluatorFromEvaluationRule:
+    "Detach Evaluator From Evaluation Rule",
 };
 
 describe("getInAppAgentToolProgressLabel", () => {

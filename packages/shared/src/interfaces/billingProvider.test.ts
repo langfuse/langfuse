@@ -4,8 +4,10 @@ import { getBillingProvider, hasPaidBillingState } from "./billingProvider";
 import { CloudConfigSchema } from "./cloudConfigSchema";
 
 const CHB_ORG_ID = "0d5e6f7a-1b2c-4d3e-8f9a-0b1c2d3e4f5a";
+const ORG_ID = "org-1";
 
 const orgWith = (cloudConfig: unknown) => ({
+  id: ORG_ID,
   cloudConfig:
     cloudConfig === null ? null : CloudConfigSchema.parse(cloudConfig),
 });
@@ -80,6 +82,28 @@ describe("getBillingProvider", () => {
       ).toBe("stripe");
     });
   });
+
+  describe("opted-in orgs resolve to clickhouse without a cutoff", () => {
+    it("a never-billed org on the opt-in list resolves to clickhouse", () => {
+      expect(getBillingProvider(orgWith({}), { optInOrgIds: [ORG_ID] })).toBe(
+        "clickhouse",
+      );
+    });
+
+    it("an org missing from the opt-in list stays on stripe", () => {
+      expect(
+        getBillingProvider(orgWith({}), { optInOrgIds: ["org-other"] }),
+      ).toBe("stripe");
+    });
+
+    it("the opt-in does not move an org with Stripe state", () => {
+      expect(
+        getBillingProvider(orgWith({ stripe: { customerId: "cus_123" } }), {
+          optInOrgIds: [ORG_ID],
+        }),
+      ).toBe("stripe");
+    });
+  });
 });
 
 describe("hasPaidBillingState", () => {
@@ -91,8 +115,8 @@ describe("hasPaidBillingState", () => {
     ],
     ["manual plan override", { plan: "Team" }, true],
     [
-      "CHB bundle",
-      { clickhouse: { organizationId: CHB_ORG_ID, bundleId: "bdl_123" } },
+      "CHB attached plan",
+      { clickhouse: { organizationId: CHB_ORG_ID, attachedPlanId: "ap_123" } },
       true,
     ],
     [

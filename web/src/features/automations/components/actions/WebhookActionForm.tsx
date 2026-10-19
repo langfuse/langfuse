@@ -35,8 +35,9 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { WebhookSecretRender } from "../WebhookSecretRender";
-import { CodeView } from "@/src/components/ui/CodeJsonViewer";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { CodeSection } from "@/src/components/design-system/CodeSection/CodeSection";
+import { showSuccessToast } from "@/src/features/notifications";
+import { cn } from "@/src/utils/tailwind";
 
 export const webhookSchema = z.object({
   url: z.url(),
@@ -59,8 +60,6 @@ export const webhookSchema = z.object({
     }),
   ),
 });
-
-export type WebhookFormValues = z.infer<typeof webhookSchema>;
 
 interface WebhookActionFormProps {
   form: UseFormReturn<any>;
@@ -236,9 +235,9 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
                 title={isSecret ? "Make header public" : "Make header secret"}
               >
                 {isSecret ? (
-                  <Lock className="h-4 w-4 text-orange-500" />
+                  <Lock className="icon-base text-orange-500" />
                 ) : (
-                  <LockOpen className="text-muted-foreground h-4 w-4" />
+                  <LockOpen className="icon-base text-muted-foreground" />
                 )}
               </Button>
               <Button
@@ -248,7 +247,7 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
                 onClick={() => removeHeader(originalIndex)}
                 disabled={disabled}
               >
-                <X className="h-4 w-4" />
+                <X className="icon-base text-icon-foreground" />
               </Button>
             </div>
           );
@@ -261,7 +260,7 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
           disabled={disabled}
           className="mt-2"
         >
-          <Plus className="mr-1 h-4 w-4" />
+          <Plus className="icon-base text-icon-foreground mr-1" />
           Add Custom Header
         </Button>
       </div>
@@ -278,12 +277,11 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
           <div className="rounded-md border p-3">
             <div className="flex items-center gap-2">
               <div className="flex-1">
-                <CodeView
-                  className="bg-muted/50"
+                <CodeSection
+                  variant="outline"
                   content={
                     (action.config as SafeWebhookActionConfig).displaySecretKey
                   }
-                  defaultCollapsed={false}
                 />
               </div>
               <div className="flex gap-2">
@@ -308,7 +306,7 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
   );
 };
 
-export const RegenerateWebhookSecretButton = ({
+const RegenerateWebhookSecretButton = ({
   projectId,
   action,
 }: {
@@ -326,6 +324,7 @@ export const RegenerateWebhookSecretButton = ({
     api.automations.regenerateWebhookSecret.useMutation({
       onSuccess: (data) => {
         showSuccessToast({
+          operation: "webhook_secret.regenerate",
           title: "Webhook Secret Regenerated",
           description: "Your webhook secret has been successfully regenerated.",
         });
@@ -360,7 +359,10 @@ export const RegenerateWebhookSecretButton = ({
             disabled={regenerateSecretMutation.isPending}
           >
             <RefreshCw
-              className={`mr-2 h-4 w-4 ${regenerateSecretMutation.isPending ? "animate-spin" : ""}`}
+              className={cn(
+                "icon-base text-icon-foreground mr-2",
+                regenerateSecretMutation.isPending && "animate-spin",
+              )}
             />
             Regenerate
           </Button>

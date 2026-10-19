@@ -18,14 +18,14 @@ export const CrashModal = ({
   return (
     <div className="border-border bg-card w-full max-w-xl rounded-xl border p-6 shadow-sm sm:p-8">
       <div className="bg-destructive/10 text-destructive flex size-10 items-center justify-center rounded-full">
-        <CircleAlert className="size-5" aria-hidden="true" />
+        <CircleAlert className="icon-lg" aria-hidden="true" />
       </div>
 
       <div className="mt-4 min-w-0">
         <h1 className="text-2xl font-bold tracking-tight">
           Something went wrong
         </h1>
-        <p className="text-muted-foreground mt-2 text-sm leading-5">
+        <p className="text-muted-foreground mt-2 text-sm">
           {statusCode ? (
             <span className="text-foreground mr-2 font-bold whitespace-nowrap">
               Error {statusCode}
@@ -49,10 +49,17 @@ export const CrashModal = ({
           </div>
         ) : null}
 
-        {showReturnHome ? (
-          <Button asChild className="mt-6">
-            <Link href="/">Return home</Link>
-          </Button>
+        {!statusCode || showReturnHome ? (
+          <div className="mt-6 flex flex-wrap gap-3">
+            {!statusCode ? (
+              <Button onClick={() => window.location.reload()}>Reload</Button>
+            ) : null}
+            {showReturnHome ? (
+              <Button asChild variant={!statusCode ? "secondary" : "default"}>
+                <Link href="/">Return home</Link>
+              </Button>
+            ) : null}
+          </div>
         ) : null}
       </div>
     </div>

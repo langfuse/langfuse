@@ -2,7 +2,7 @@
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { X, Slash } from "lucide-react";
+import { X } from "lucide-react";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -13,16 +13,14 @@ import {
 } from "@/src/components/ui/breadcrumb";
 import { IntroSection } from "@/src/features/support-chat/IntroSection";
 import { SuccessSection } from "@/src/features/support-chat/SuccessSection";
-import { SupportFormSection } from "@/src/features/support-chat/SupportFormSection";
+import { ConnectedSupportFormSection } from "@/src/features/support-chat/ConnectedSupportFormSection";
 import { cn } from "@/src/utils/tailwind";
 
 export const SupportDrawer = (props: {
   showCloseButton?: boolean;
   className?: string;
 }) => {
-  const { open, openEpoch } = useSupportDrawer();
-
-  if (!open) return null;
+  const { openEpoch } = useSupportDrawer();
 
   // Keyed by openEpoch so re-opening (openWithMode while already open)
   // remounts the content and re-seeds mode/topic from the provider.
@@ -70,8 +68,8 @@ const SupportDrawerContent = ({
                       </button>
                     </BreadcrumbLink>
                   </BreadcrumbItem>
-                  <BreadcrumbSeparator>
-                    <Slash />
+                  <BreadcrumbSeparator className="text-foreground-tertiary">
+                    /
                   </BreadcrumbSeparator>
                   <BreadcrumbItem>
                     <BreadcrumbPage>Email Engineer</BreadcrumbPage>
@@ -87,7 +85,7 @@ const SupportDrawerContent = ({
               onClick={close}
               aria-label="Close"
             >
-              <X className="h-4 w-4" />
+              <X className="icon-base text-icon-foreground" />
             </Button>
           )}
         </div>
@@ -100,7 +98,7 @@ const SupportDrawerContent = ({
                 <IntroSection onStartForm={() => setCurrentMode("form")} />
               )}
               {currentMode === "form" && (
-                <SupportFormSection
+                <ConnectedSupportFormSection
                   onSuccess={() => setCurrentMode("success")}
                   onCancel={() => setCurrentMode("intro")}
                 />

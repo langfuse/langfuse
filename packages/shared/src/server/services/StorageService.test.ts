@@ -1,12 +1,220 @@
-import { createHash } from "crypto";
-import { Readable } from "stream";
+import { createHash, getFips } from "crypto";
+import { createServer } from "http";
+import { PassThrough, Readable } from "stream";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { S3Client } from "@aws-sdk/client-s3";
+import type { NodeHttpHandler } from "@smithy/node-http-handler";
 
+import { BLOB_STORAGE_REGION_INVALID_MESSAGE } from "../../utils/stringChecks";
 import { env } from "../../env";
+import { logger } from "../logger";
+import { resolveMediaStorageEndpoints } from "../s3";
 import { StorageServiceFactory } from "./StorageService";
+
+// Capture the options handed to lib-storage's Upload so the non-buffered
+// fallback's part size can be asserted without real network I/O.
+const s3UploadCtorOptions = vi.hoisted(
+  () => [] as Array<{ partSize?: number; queueSize?: number }>,
+);
+
+vi.mock("@aws-sdk/lib-storage", () => ({
+  Upload: class {
+    constructor(options: { partSize?: number; queueSize?: number }) {
+      s3UploadCtorOptions.push(options);
+    }
+    done() {
+      return Promise.resolve(undefined);
+    }
+  },
+}));
+
+describe("S3StorageService region normalization", () => {
+  it("configures a failing request timeout when requested", async () => {
+    const server = createServer(() => {});
+    await new Promise<void>((resolve) =>
+      server.listen(0, "127.0.0.1", resolve),
+    );
+    const address = server.address();
+    if (!address || typeof address === "string") {
+      throw new Error("Expected a local HTTP port");
+    }
+
+    try {
+      const service = StorageServiceFactory.getInstance({
+        accessKeyId: "test-access-key",
+        secretAccessKey: "test-secret-key",
+        bucketName: "test-bucket",
+        endpoint: undefined,
+        region: "us-west-2",
+        forcePathStyle: false,
+        useAzureBlob: false,
+        useGoogleCloudStorage: false,
+        useOCIObjectStorage: false,
+        awsSse: undefined,
+        awsSseKmsKeyId: undefined,
+        s3RequestTimeoutMs: 50,
+      });
+      const client = (service as unknown as { client: S3Client }).client;
+      const handler = client.config.requestHandler as NodeHttpHandler;
+      await expect(
+        handler.handle({
+          protocol: "http:",
+          hostname: "127.0.0.1",
+          port: address.port,
+          method: "GET",
+          path: "/",
+        } as Parameters<NodeHttpHandler["handle"]>[0]),
+      ).rejects.toMatchObject({ name: "TimeoutError" });
+
+      expect(handler.httpHandlerConfigs()).toMatchObject({
+        requestTimeout: 50,
+        throwOnRequestTimeout: true,
+      });
+    } finally {
+      server.closeAllConnections();
+      server.close();
+    }
+  });
+
+  it("trims a persisted region before configuring the AWS client", async () => {
+    const service = StorageServiceFactory.getInstance({
+      accessKeyId: "test-access-key",
+      secretAccessKey: "test-secret-key",
+      bucketName: "test-bucket",
+      endpoint: undefined,
+      region: " us-west-2",
+      forcePathStyle: false,
+      useAzureBlob: false,
+      useGoogleCloudStorage: false,
+      useOCIObjectStorage: false,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+    });
+    const client = (service as unknown as { client: S3Client }).client;
+
+    await expect(client.config.region()).resolves.toBe("us-west-2");
+  });
+
+  it("rejects malformed persisted regions before creating an AWS client", () => {
+    expect(() =>
+      StorageServiceFactory.getInstance({
+        accessKeyId: "test-access-key",
+        secretAccessKey: "test-secret-key",
+        bucketName: "test-bucket",
+        endpoint: undefined,
+        region: "us west-2",
+        forcePathStyle: false,
+        useAzureBlob: false,
+        useGoogleCloudStorage: false,
+        useOCIObjectStorage: false,
+        awsSse: undefined,
+        awsSseKmsKeyId: undefined,
+      }),
+    ).toThrow(BLOB_STORAGE_REGION_INVALID_MESSAGE);
+  });
+
+  it.each(["europe-west1", "eastus", "auto"])(
+    "configures an S3-compatible client with region %s",
+    async (region) => {
+      const service = StorageServiceFactory.getInstance({
+        accessKeyId: "test-access-key",
+        secretAccessKey: "test-secret-key",
+        bucketName: "test-bucket",
+        endpoint: "https://storage.googleapis.com",
+        region,
+        forcePathStyle: true,
+        useAzureBlob: false,
+        useGoogleCloudStorage: false,
+        useOCIObjectStorage: false,
+        awsSse: undefined,
+        awsSseKmsKeyId: undefined,
+      });
+      const client = (service as unknown as { client: S3Client }).client;
+
+      await expect(client.config.region()).resolves.toBe(region);
+    },
+  );
+
+  it("follows S3's region redirect when region is auto on AWS", async () => {
+    const service = StorageServiceFactory.getInstance({
+      accessKeyId: "test-access-key",
+      secretAccessKey: "test-secret-key",
+      bucketName: "test-bucket",
+      endpoint: undefined,
+      region: "auto",
+      forcePathStyle: false,
+      useAzureBlob: false,
+      useGoogleCloudStorage: false,
+      useOCIObjectStorage: false,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+    });
+    const client = (service as unknown as { client: S3Client }).client;
+    const hostnames: string[] = [];
+
+    // Answer the first request like S3 does for a bucket in another region,
+    // then succeed. No network I/O happens.
+    const fakeS3 = () => async (args: { request: unknown }) => {
+      hostnames.push((args.request as { hostname: string }).hostname);
+      const redirect = hostnames.length === 1;
+      return {
+        response: {
+          statusCode: redirect ? 301 : 200,
+          headers: {
+            "content-type": "application/xml",
+            ...(redirect ? { "x-amz-bucket-region": "eu-west-1" } : {}),
+          },
+          body: Readable.from([
+            Buffer.from(
+              redirect
+                ? "<Error><Code>PermanentRedirect</Code></Error>"
+                : "<ListBucketResult></ListBucketResult>",
+            ),
+          ]),
+        },
+      };
+    };
+    client.middlewareStack.add(
+      fakeS3 as unknown as Parameters<typeof client.middlewareStack.add>[0],
+      { step: "deserialize", priority: "low", name: "fakeS3", override: true },
+    );
+
+    await service.listFiles("exports/");
+
+    expect(hostnames).toEqual([
+      "test-bucket.s3.us-east-1.amazonaws.com",
+      "test-bucket.s3.eu-west-1.amazonaws.com",
+    ]);
+  });
+});
+
+describe("resolveMediaStorageEndpoints", () => {
+  it("keeps the existing endpoint for both server access and signed URLs by default", () => {
+    expect(
+      resolveMediaStorageEndpoints({
+        endpoint: "http://localhost:9090",
+        internalEndpoint: undefined,
+      }),
+    ).toEqual({
+      endpoint: "http://localhost:9090",
+      externalEndpoint: undefined,
+    });
+  });
+
+  it("uses the internal override for server access and the existing endpoint for signed URLs", () => {
+    expect(
+      resolveMediaStorageEndpoints({
+        endpoint: "http://localhost:9090",
+        internalEndpoint: "http://minio:9000",
+      }),
+    ).toEqual({
+      endpoint: "http://minio:9000",
+      externalEndpoint: "http://localhost:9090",
+    });
+  });
+});
 
 /**
  * Regression tests for the Azure Blob download path.
@@ -236,6 +444,129 @@ describe("GoogleCloudStorageService signed-URL retry", () => {
   });
 });
 
+describe("StorageServiceFactory GCS credentials", () => {
+  const original = env.LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS;
+  afterEach(() => {
+    env.LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS = original;
+  });
+
+  const keyFilenameOf = (service: unknown) =>
+    (service as { storage: { authClient: { keyFilename?: string } } }).storage
+      .authClient.keyFilename;
+
+  it("uses ADC, not the deployment storage key, when GCS is selected explicitly without credentials", () => {
+    env.LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS = "/etc/deployment-key.json";
+    const service = StorageServiceFactory.getInstance({
+      accessKeyId: undefined,
+      secretAccessKey: undefined,
+      bucketName: "test-bucket",
+      endpoint: undefined,
+      region: undefined,
+      forcePathStyle: false,
+      useGoogleCloudStorage: true,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+    });
+
+    expect(keyFilenameOf(service)).toBeUndefined();
+  });
+
+  it("uses the deployment storage key when GCS is selected by env", () => {
+    env.LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS = "/etc/deployment-key.json";
+    const originalUseGcs = env.LANGFUSE_USE_GOOGLE_CLOUD_STORAGE;
+    env.LANGFUSE_USE_GOOGLE_CLOUD_STORAGE = "true";
+    try {
+      const service = StorageServiceFactory.getInstance({
+        accessKeyId: undefined,
+        secretAccessKey: undefined,
+        bucketName: "test-bucket",
+        endpoint: undefined,
+        region: undefined,
+        forcePathStyle: false,
+        awsSse: undefined,
+        awsSseKmsKeyId: undefined,
+      });
+
+      expect(keyFilenameOf(service)).toBe("/etc/deployment-key.json");
+    } finally {
+      env.LANGFUSE_USE_GOOGLE_CLOUD_STORAGE = originalUseGcs;
+    }
+  });
+});
+
+/**
+ * Source-stream errors on GCS uploads must reject the awaited upload instead
+ * of escaping as an uncaught 'error' event. `.pipe().on("error")` only
+ * listens on the destination; `pipeline()` forwards source errors too.
+ */
+describe("GoogleCloudStorageService.uploadFile source stream errors", () => {
+  it("rejects when the source stream fails without leaking process events", async () => {
+    const service = StorageServiceFactory.getInstance({
+      accessKeyId: undefined,
+      secretAccessKey: undefined,
+      bucketName: "test-bucket",
+      endpoint: undefined,
+      region: undefined,
+      forcePathStyle: false,
+      useGoogleCloudStorage: true,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+    });
+
+    (
+      service as unknown as { bucket: { file: (name: string) => unknown } }
+    ).bucket = {
+      file: () => ({
+        createWriteStream: () => new PassThrough(),
+      }),
+    };
+
+    const unhandled: unknown[] = [];
+    const uncaught: unknown[] = [];
+    const onUnhandled = (reason: unknown) => {
+      unhandled.push(reason);
+    };
+    const onUncaught = (err: unknown) => {
+      uncaught.push(err);
+    };
+    process.on("unhandledRejection", onUnhandled);
+    process.on("uncaughtException", onUncaught);
+
+    try {
+      const source = new Readable({
+        read() {
+          this.destroy(new Error("source stream failed"));
+        },
+      });
+
+      await expect(
+        (
+          service as unknown as {
+            uploadFile(params: {
+              fileName: string;
+              fileType: string;
+              data: Readable;
+            }): Promise<void>;
+          }
+        ).uploadFile({
+          fileName: "export.json",
+          fileType: "application/json",
+          data: source,
+        }),
+      ).rejects.toThrow();
+
+      await new Promise<void>((resolve) => {
+        setImmediate(resolve);
+      });
+      expect(unhandled).toHaveLength(0);
+      expect(uncaught).toHaveLength(0);
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+      process.off("uncaughtException", onUncaught);
+    }
+  });
+});
+
 /**
  * Regression tests for the DeleteObjects checksum sent to S3-compatible
  * stores.
@@ -345,25 +676,216 @@ describe("S3StorageService DeleteObjects checksum", () => {
     expect(findHeader(request, "content-md5")).toBeUndefined();
   });
 
-  it("sends Content-MD5 on DeleteObjects when the algorithm is set to MD5", async () => {
-    setChecksumAlgorithm("MD5");
-    const { service, captured } = makeServiceWithCapture(
-      EMPTY_DELETE_RESULT_XML,
+  // MD5 checksums are unavailable when OpenSSL runs in FIPS mode.
+  it.skipIf(getFips() === 1)(
+    "sends Content-MD5 on DeleteObjects when the algorithm is set to MD5",
+    async () => {
+      setChecksumAlgorithm("MD5");
+      const { service, captured } = makeServiceWithCapture(
+        EMPTY_DELETE_RESULT_XML,
+      );
+
+      await service.deleteFiles([
+        "events/project-1/file-1.json",
+        "media/project-1/file-2.png",
+      ]);
+
+      expect(captured).toHaveLength(1);
+      const request = captured[0];
+      expect(typeof request.body).toBe("string");
+
+      const expectedMd5 = createHash("md5")
+        .update(request.body as string)
+        .digest("base64");
+      expect(findHeader(request, "content-md5")).toBe(expectedMd5);
+      expect(findHeader(request, "x-amz-checksum-crc32")).toBeUndefined();
+    },
+  );
+});
+
+describe("S3StorageService non-buffered upload part size", () => {
+  const bufferedKey = "LANGFUSE_S3_UPLOAD_ENABLE_BUFFERED" as const;
+  const originalBuffered = env[bufferedKey];
+
+  afterEach(() => {
+    (env as Record<string, unknown>)[bufferedKey] = originalBuffered;
+    s3UploadCtorOptions.length = 0;
+  });
+
+  const makeService = () =>
+    StorageServiceFactory.getInstance({
+      accessKeyId: "test-access-key",
+      secretAccessKey: "test-secret-key",
+      bucketName: "test-bucket",
+      endpoint: "http://127.0.0.1:9000",
+      region: "us-east-1",
+      forcePathStyle: true,
+      useAzureBlob: false,
+      useGoogleCloudStorage: false,
+      useOCIObjectStorage: false,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+    });
+
+  it("forwards the caller's part size so the 10k-part cap does not truncate large exports", async () => {
+    (env as Record<string, unknown>)[bufferedKey] = "false";
+
+    await makeService().uploadFileBuffered({
+      fileName: "export.csv",
+      fileType: "text/csv",
+      data: Readable.from(["a,b,c\n"]),
+      partSizeBytes: 100 * 1024 * 1024,
+    });
+
+    expect(s3UploadCtorOptions).toHaveLength(1);
+    const { partSize } = s3UploadCtorOptions[0];
+    expect(partSize).toBe(100 * 1024 * 1024);
+    // Above lib-storage's 5 MiB default, which caps a single object at ~48.83 GiB.
+    expect(partSize).toBeGreaterThan(5 * 1024 * 1024);
+  });
+
+  it("caps concurrency so parallel callers do not multiply peak buffer memory", async () => {
+    (env as Record<string, unknown>)[bufferedKey] = "false";
+
+    await makeService().uploadFileBuffered({
+      fileName: "export.csv",
+      fileType: "text/csv",
+      data: Readable.from(["a,b,c\n"]),
+      partSizeBytes: 100 * 1024 * 1024,
+      maxConcurrentParts: 2,
+    });
+
+    expect(s3UploadCtorOptions).toHaveLength(1);
+    // Caller's concurrency is honored instead of lib-storage's default of 4,
+    // which would otherwise buffer partSize x 4 per concurrent upload.
+    expect(s3UploadCtorOptions[0].queueSize).toBe(2);
+  });
+});
+
+describe("S3StorageService SlowDown logging", () => {
+  const slowDown = Object.assign(
+    new Error("Please reduce your request rate."),
+    { name: "SlowDown" },
+  );
+
+  function makeService(logSlowDownAsWarning = false) {
+    return StorageServiceFactory.getInstance({
+      accessKeyId: "test-access-key",
+      secretAccessKey: "test-secret-key",
+      bucketName: "test-bucket",
+      endpoint: "http://127.0.0.1:9000",
+      region: "us-east-1",
+      forcePathStyle: true,
+      useAzureBlob: false,
+      useGoogleCloudStorage: false,
+      useOCIObjectStorage: false,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+      logSlowDownAsWarning,
+    });
+  }
+
+  async function rejectUpload(
+    service: ReturnType<typeof makeService>,
+    err: unknown,
+  ) {
+    vi.spyOn(
+      (service as unknown as { client: { send: () => Promise<unknown> } })
+        .client,
+      "send",
+    ).mockRejectedValue(err);
+    await expect(service.uploadJson("events/key.json", [])).rejects.toThrow(
+      /Failed to upload JSON/,
+    );
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("logs SlowDown as an error unless the caller owns retries", async () => {
+    const errorSpy = vi.spyOn(logger, "error").mockImplementation(() => logger);
+    const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => logger);
+
+    await rejectUpload(makeService(), slowDown);
+
+    expect(errorSpy).toHaveBeenCalled();
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it("logs SlowDown as a warning when the caller owns retries", async () => {
+    const errorSpy = vi.spyOn(logger, "error").mockImplementation(() => logger);
+    const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => logger);
+
+    await rejectUpload(makeService(true), slowDown);
+
+    expect(warnSpy).toHaveBeenCalled();
+    expect(errorSpy).not.toHaveBeenCalled();
+  });
+
+  it("still logs other failures as errors when SlowDown is a warning", async () => {
+    const errorSpy = vi.spyOn(logger, "error").mockImplementation(() => logger);
+    const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => logger);
+
+    await rejectUpload(
+      makeService(true),
+      Object.assign(new Error("missing"), { name: "NoSuchKey" }),
     );
 
-    await service.deleteFiles([
-      "events/project-1/file-1.json",
-      "media/project-1/file-2.png",
-    ]);
+    expect(errorSpy).toHaveBeenCalled();
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+});
 
-    expect(captured).toHaveLength(1);
-    const request = captured[0];
-    expect(typeof request.body).toBe("string");
+describe("S3StorageService request handler socket limit", () => {
+  const originalConcurrentWrites = env.LANGFUSE_S3_CONCURRENT_WRITES;
 
-    const expectedMd5 = createHash("md5")
-      .update(request.body as string)
-      .digest("base64");
-    expect(findHeader(request, "content-md5")).toBe(expectedMd5);
-    expect(findHeader(request, "x-amz-checksum-crc32")).toBeUndefined();
+  const setConcurrentWrites = (value: number) => {
+    (
+      env as { LANGFUSE_S3_CONCURRENT_WRITES: number }
+    ).LANGFUSE_S3_CONCURRENT_WRITES = value;
+  };
+
+  afterEach(() => {
+    setConcurrentWrites(originalConcurrentWrites);
+  });
+
+  type ResolvedHandlerConfig = {
+    httpAgentProvider: () => Promise<{ maxSockets: number }>;
+    httpsAgent: { maxSockets: number };
+  };
+
+  const resolveHandlerConfig = (endpoint: string) => {
+    const service = StorageServiceFactory.getInstance({
+      accessKeyId: "test-access-key",
+      secretAccessKey: "test-secret-key",
+      bucketName: "test-bucket",
+      endpoint,
+      region: "us-east-1",
+      forcePathStyle: true,
+      useAzureBlob: false,
+      useGoogleCloudStorage: false,
+      useOCIObjectStorage: false,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+    });
+
+    const client = (service as unknown as { client: S3Client }).client;
+    const handler = client.config.requestHandler as unknown as {
+      configProvider: Promise<ResolvedHandlerConfig>;
+    };
+
+    return handler.configProvider;
+  };
+
+  it("applies LANGFUSE_S3_CONCURRENT_WRITES to plain-HTTP endpoints such as MinIO", async () => {
+    setConcurrentWrites(123);
+
+    const config = await resolveHandlerConfig("http://127.0.0.1:9000");
+
+    // The HTTP agent is created lazily on the first non-TLS request.
+    const httpAgent = await config.httpAgentProvider();
+    expect(httpAgent.maxSockets).toBe(123);
+    expect(config.httpsAgent.maxSockets).toBe(123);
   });
 });

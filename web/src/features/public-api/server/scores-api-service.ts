@@ -6,12 +6,12 @@ import {
   convertScoreToPublicApi,
   type ScoreQueryType,
 } from "@/src/features/public-api/server/scores";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import {
   InternalServerError,
   LISTABLE_SCORE_TYPES,
   type ScoreSourceType,
-  type PostScoresBodyV1,
+  type PostScoreBodyV1,
   scoresTableCols,
   type ScoreDataTypeType,
 } from "@langfuse/shared";
@@ -217,6 +217,22 @@ function determineTraceJoinRequirement(
   return { includeTrace, needsTraceJoin };
 }
 
+function toScoreCreateEvent(body: unknown) {
+  const isRecord =
+    typeof body === "object" && body !== null && !Array.isArray(body);
+
+  const { timestamp, ...scoreBody } = isRecord
+    ? (body as Record<string, unknown>)
+    : {};
+
+  return {
+    id: randomUUID(),
+    type: eventTypes.SCORE_CREATE,
+    timestamp: timestamp ?? new Date().toISOString(),
+    body: isRecord ? scoreBody : body,
+  };
+}
+
 export class ScoresApiService {
   constructor(private readonly apiVersion: "v1" | "v2") {}
 
@@ -227,7 +243,7 @@ export class ScoresApiService {
     scoreId = body.id ?? randomUUID(),
     attribution,
   }: {
-    body: z.infer<typeof PostScoresBodyV1>;
+    body: z.infer<typeof PostScoreBodyV1>;
     auth: AuthHeaderValidVerificationResultIngestion;
     auditScope?: { projectId: string; orgId: string; apiKeyId: string };
     scoreId?: string;
@@ -246,14 +262,7 @@ export class ScoresApiService {
       : undefined;
 
     const result = await processEventBatch(
-      [
-        {
-          id: randomUUID(),
-          type: eventTypes.SCORE_CREATE,
-          timestamp: new Date().toISOString(),
-          body: { ...body, id: scoreId },
-        },
-      ],
+      [toScoreCreateEvent({ ...body, id: scoreId })],
       auth,
       { attribution },
     );
@@ -278,6 +287,24 @@ export class ScoresApiService {
     }
 
     return { id: scoreId, result };
+  }
+
+  async createScores({
+    bodies,
+    auth,
+    attribution,
+  }: {
+    bodies: unknown[];
+    auth: AuthHeaderValidVerificationResultIngestion;
+    attribution: IngestionAttribution;
+  }) {
+    const result = await processEventBatch(
+      bodies.map((body) => toScoreCreateEvent(body)),
+      auth,
+      { attribution },
+    );
+
+    return { result };
   }
 
   async deleteScore({

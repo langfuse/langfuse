@@ -12,7 +12,7 @@ import {
   makeAPICall,
   makeZodVerifiedAPICall,
 } from "@/src/__tests__/test-utils";
-import { v4 } from "uuid";
+import { v4, v4 as uuidv4 } from "uuid";
 import {
   GetDatasetItemV1Response,
   GetDatasetItemsV1Response,
@@ -30,7 +30,6 @@ import {
   DeleteDatasetRunV1Response,
   GetDatasetRunItemsV1Response,
 } from "@/src/features/public-api/types/datasets";
-import { v4 as uuidv4 } from "uuid";
 import {
   createObservation,
   createObservationsCh,
@@ -1975,6 +1974,22 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     );
     expect(updatedItem?.input).toEqual({ value: "version 2" });
     expect(updatedItem?.expectedOutput).toEqual({ result: "v2" });
+
+    // Each response carries the version of the item it returns
+    expect(new Date(item1Updated.body.version).getTime()).toBeGreaterThan(
+      new Date(item1.body.version).getTime(),
+    );
+    expect(itemsV1.body.data[0].version).toEqual(item1.body.version);
+    expect(updatedItem?.version).toEqual(item1Updated.body.version);
+
+    const itemById = await makeZodVerifiedAPICall(
+      GetDatasetItemV1Response,
+      "GET",
+      "/api/public/dataset-items/versioned-item-1",
+      undefined,
+      auth,
+    );
+    expect(itemById.body.version).toEqual(item1Updated.body.version);
 
     // Test 4: Verify version parameter requires datasetName
     const invalidVersion = await makeAPICall(
