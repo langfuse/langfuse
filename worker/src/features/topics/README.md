@@ -191,19 +191,23 @@ switch (`TOPICS`, `TOPICS_UPDATE`, `TOPICS_EMBEDDING`, `TOPICS_AUTOMATION`); set
 them to `false` on fleets that only run trace batches.
 
 A facet version without any map starts one automatic **Update topics** execution
-once a recent window contains at least 100 compatible summaries within the
-worker's row and byte limits, while automatic processing is on with the embedding
-model those summaries used. It first checks seven days, then searches for a
-smaller recent window using database counts and byte estimates. Metadata-only
+once a recent window contains at least 100 compatible summaries, targeting 80%
+of the worker's row and byte limits to leave room for late summaries. The row
+target stays at least 100 when the hard limit permits it. Automatic processing
+must be on with the embedding model those summaries used. It first checks seven
+days, then searches for a smaller recent window using database counts and byte estimates. Metadata-only
 counts narrow row-oversized windows before estimating text payloads; byte
 estimates are projected before sorting. Searches are throttled per facet and
-embedding configuration for 60 seconds, with one deferred check per minute when
-another batch arrives during that cooldown. The entire
+embedding configuration for 60 seconds. Redis deduplicates deferred checks to
+one pending check per facet/model, including a successor to a running check. The entire
 selected window uses the same clustering and naming pipeline as a manual update.
-It appears in History under the `system:topics` actor. A queued execution is queued
-again by the next job. A discovery that failed at the capacity guard gets one
-replacement request with a newly selected window; other failures, including a
-failed replacement, are resumed from History. An existing map or fit in progress for the version, even an
+It appears in History under the `system:topics` actor. Active discoveries schedule
+a follow-up before dispatch, so a lost queue job or capacity failure is checked
+even without another incoming batch. Each capacity failure can create one new
+request after the cooldown, starting the search at half the failed window's
+duration. Requests keep their selected windows unchanged. If no admissible
+window exists, discovery waits for another summary batch; other failures are
+resumed from History. An existing map or fit in progress for the version, even an
 incompatible one, blocks discovery; replace it with **Update topics**. Summaries
 stored while the first map is being fitted stay unassigned until the next
 **Update topics**.

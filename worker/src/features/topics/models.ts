@@ -1,6 +1,5 @@
 import { get_encoding } from "tiktoken";
 import { createHash } from "node:crypto";
-import { setImmediate as yieldToEventLoop } from "node:timers/promises";
 import { z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
 import { env } from "@langfuse/shared/src/env";
@@ -22,6 +21,7 @@ import {
   type TopicProcessingConfig,
 } from "@langfuse/shared/topics";
 import { recordTopicTokenUsage } from "./metrics";
+import { createEventLoopYielder } from "./event-loop";
 import type { TopicModelUsage } from "./summaryResult";
 import {
   TopicsProviderUnavailable,
@@ -399,12 +399,7 @@ const namingInputTokens = (tokens: number) => Math.ceil(tokens * 1.1) + 512;
 /** One WASM instance per preparation, with bounded synchronous encoding work. */
 function namingTokenCounter() {
   const encoding = get_encoding("o200k_base");
-  let deadline = performance.now() + 8;
-  const yieldIfNeeded = async () => {
-    if (performance.now() < deadline) return;
-    await yieldToEventLoop();
-    deadline = performance.now() + 8;
-  };
+  const yieldIfNeeded = createEventLoopYielder();
   return {
     async count(text: string) {
       let tokens = 0;
@@ -498,7 +493,7 @@ export async function prepareTopicNamingGroup<T extends { summary: string }>(
   group: { members: T[]; contrasts: NamingSummary[] },
   seed: string,
 ): Promise<PreparedTopicNamingGroup<T>> {
-  if (!group.members.length)
+  if (group.members.length === 0)
     throw new Error("Naming requires one non-empty effective group.");
   const counter = namingTokenCounter();
   try {
@@ -557,7 +552,7 @@ export async function prepareTopicNamingGroup<T extends { summary: string }>(
       memberTokens += encoded.tokens + 1;
       memberBytes += encoded.bytes + 1;
     }
-    if (!members.length)
+    if (members.length === 0)
       throw new TopicsProviderUnavailable(
         "No complete cluster member summary fits the naming request's token and byte limits.",
         "invalid_input",

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { Queue, Worker } from "bullmq";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { TopicSummary } from "@langfuse/shared/topics";
 import {
@@ -7,8 +8,16 @@ import {
   enqueueTopicExecution,
   readTopicAssignments,
   saveTopicRun,
+  TopicsAutomationQueue,
   writeTopicSummaries,
 } from "@langfuse/shared/topics/server";
+import {
+  createNewRedisInstance,
+  getQueuePrefix,
+  redis,
+  type QueueName,
+  type TQueueJobTypes,
+} from "@langfuse/shared/src/server";
 import { clickhouseClient } from "@langfuse/shared/src/server/clickhouse";
 import { prisma } from "@langfuse/shared/src/db";
 import { processTopicsAutomation } from "./topicsAutomation";
@@ -268,5 +277,89 @@ describe("automatic Topics assignment against storage", () => {
         },
       }),
     ).toBe(0);
+  });
+
+  it("keeps one deferred discovery check and one successor scheduled by an active check", async () => {
+    const facet = await createTopicFacet({
+      projectId,
+      name: "Deferred discovery",
+      description: "",
+      prompt: "Describe the request.",
+    });
+    const name = `topics-discovery-test-${randomUUID()}`;
+    const connection = createNewRedisInstance();
+    if (!connection || !redis)
+      throw new Error("Redis is required for this test");
+    const options = { connection, prefix: getQueuePrefix(name) };
+    const queue = new Queue<TQueueJobTypes[QueueName.TopicsAutomation]>(
+      name,
+      options,
+    );
+    const worker = new Worker(queue.name, undefined, {
+      ...options,
+      autorun: false,
+    });
+    const queueSpy = vi
+      .spyOn(TopicsAutomationQueue, "getInstance")
+      .mockReturnValue(queue);
+    const gate = vi.spyOn(redis, "set").mockResolvedValue(null);
+    const now = Date.now();
+    const batch = {
+      projectId,
+      traceIds: [randomUUID()],
+      facets: [{ facetId: facet.id, version: 1 }],
+      embeddingConfig,
+      timeRange: { from: new Date(now - 1), to: new Date(now) },
+    };
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      await queue.waitUntilReady();
+      let minute = 0;
+      const addChecks = async () => {
+        for (let index = 0; index < 10; index++) {
+          vi.setSystemTime(now + minute++ * 60_000);
+          await processTopicsAutomation(batch);
+        }
+      };
+      await addChecks();
+      expect(await queue.getJobCounts("delayed", "wait", "active")).toEqual({
+        delayed: 1,
+        wait: 0,
+        active: 0,
+      });
+
+      const [first] = await queue.getDelayed();
+      await first.promote();
+      const active = await worker.getNextJob("first", { block: false });
+      expect(active?.id).toBe(first.id);
+      await addChecks();
+      await active!.moveToCompleted(null, "first", false);
+
+      const [successor] = await queue.getDelayed();
+      expect(successor.id).not.toBe(first.id);
+      expect(successor.opts.delay).toBe(60_000);
+      await addChecks();
+      expect(await queue.getJobCounts("delayed", "wait", "active")).toEqual({
+        delayed: 1,
+        wait: 0,
+        active: 0,
+      });
+      await successor.promote();
+      const last = await worker.getNextJob("last", { block: false });
+      await last!.moveToCompleted(null, "last", false);
+      expect(await queue.getJobCounts("delayed", "wait", "active")).toEqual({
+        delayed: 0,
+        wait: 0,
+        active: 0,
+      });
+    } finally {
+      vi.useRealTimers();
+      gate.mockRestore();
+      queueSpy.mockRestore();
+      await worker.close(true);
+      await queue.obliterate({ force: true });
+      await queue.close();
+      await connection.quit();
+    }
   });
 });

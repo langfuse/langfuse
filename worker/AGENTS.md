@@ -108,8 +108,10 @@
   records its own metrics and logs; see `../packages/native/AGENTS.md`. Topics runs
   its synchronous numerical fit in a killable Node child via `src/features/topics/numeric.ts`.
   Discovery reads pass worker row/byte capacity limits before materializing a
-  cohort. Automatic discovery selects a smaller recent window when needed, then
-  uses the same update and naming pipeline as manual processing. Bulk classifier
+  cohort. Automatic discovery targets 80% of those limits and retries capacity
+  failures with smaller recent windows through a deduplicated 60-second check.
+  It uses the same update and naming pipeline as manual processing, keeping
+  each request's window immutable. Bulk classifier
   helpers are asynchronous and must be awaited. Naming
   prepares one bounded selection per group and reuses it for conflict retries;
   selected members carry source references for resolving citations.

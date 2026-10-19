@@ -6,16 +6,18 @@ import {
   getTopicProcessingMapIds,
   getTopicRun,
   getTopicClusteringSummaryStats,
+  getTopicExecutionQueueState,
   getEnabledTopicsModels,
   listTopicSummaries,
   readTopicAssignments,
-  readTopicExecutionForRequest,
+  readTopicExecutionSummary,
   TopicsAutomationQueue,
   TOPIC_CLUSTERING_CAPACITY_ERROR,
   writeTopicAssignments,
 } from "@langfuse/shared/topics/server";
 import type {
   TopicAssignment,
+  TopicExecutionSummary,
   TopicRun,
   TopicSummary,
 } from "@langfuse/shared/topics";
@@ -26,6 +28,7 @@ import {
 
 vi.mock("@langfuse/shared/src/db", () => ({
   prisma: {
+    batchAction: { findFirst: vi.fn(async () => null) },
     topicClusteringRun: {
       findFirst: vi.fn(async () => null),
       updateMany: vi.fn(async () => ({ count: 1 })),
@@ -33,7 +36,11 @@ vi.mock("@langfuse/shared/src/db", () => ({
   },
 }));
 
-const discoveryGate = vi.hoisted(() => vi.fn(async () => "OK"));
+const discoveryGate = vi.hoisted(() =>
+  vi.fn<(key: string, ...args: unknown[]) => Promise<string | null>>(
+    async () => "OK",
+  ),
+);
 const releaseDiscoveryGate = vi.hoisted(() => vi.fn());
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
@@ -42,6 +49,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
 
 const add = vi.fn();
 vi.mock("@langfuse/shared/topics/server", () => ({
+  TOPICS_ACTION: "topics",
   TOPICS_SYSTEM_USER_ID: "system:topics",
   TOPICS_TRACE_BATCH_SIZE: 100,
   TopicsAutomationQueue: { getInstance: vi.fn(() => ({ add })) },
@@ -50,6 +58,7 @@ vi.mock("@langfuse/shared/topics/server", () => ({
   getTopicProcessingMapIds: vi.fn(),
   getTopicRun: vi.fn(),
   getTopicClusteringSummaryStats: vi.fn(),
+  getTopicExecutionQueueState: vi.fn(async () => "active"),
   TOPIC_CLUSTERING_CAPACITY_ERROR:
     "Topics clustering exceeds this worker's capacity. Choose a smaller time window; no partial cohort was used.",
   getEnabledTopicsModels: vi.fn(
@@ -58,7 +67,7 @@ vi.mock("@langfuse/shared/topics/server", () => ({
   ),
   listTopicSummaries: vi.fn(),
   readTopicAssignments: vi.fn(async () => []),
-  readTopicExecutionForRequest: vi.fn(async () => null),
+  readTopicExecutionSummary: vi.fn(async () => null),
   writeTopicAssignments: vi.fn(),
 }));
 
@@ -121,7 +130,13 @@ describe("automatic Topics assignment", () => {
     vi.clearAllMocks();
     vi.mocked(listTopicSummaries).mockReset();
     discoveryGate.mockResolvedValue("OK");
-    vi.mocked(readTopicExecutionForRequest).mockResolvedValue(null);
+    vi.mocked(readTopicExecutionSummary).mockReset();
+    vi.mocked(prisma.batchAction.findFirst).mockResolvedValue(null);
+    vi.mocked(createTopicExecution).mockResolvedValue({
+      id: "execution",
+    } as never);
+    vi.mocked(enqueueTopicExecution).mockReset();
+    vi.mocked(getTopicExecutionQueueState).mockResolvedValue("active");
     vi.mocked(prisma.topicClusteringRun.findFirst).mockResolvedValue(null);
   });
 
@@ -246,15 +261,18 @@ describe("automatic Topics assignment", () => {
     // Started before: a queued one is queued again, a failed one is left for Resume.
     vi.mocked(createTopicExecution).mockClear();
     vi.mocked(enqueueTopicExecution).mockClear();
-    vi.mocked(readTopicExecutionForRequest)
+    vi.mocked(prisma.batchAction.findFirst)
+      .mockResolvedValueOnce({ id: "queued" } as never)
+      .mockResolvedValueOnce({ id: "failed" } as never);
+    vi.mocked(readTopicExecutionSummary)
       .mockResolvedValueOnce({ id: "queued", status: "queued" } as Awaited<
-        ReturnType<typeof readTopicExecutionForRequest>
+        ReturnType<typeof readTopicExecutionSummary>
       >)
       .mockResolvedValueOnce({
         id: "failed",
         status: "failed",
         facets: [],
-      } as unknown as Awaited<ReturnType<typeof readTopicExecutionForRequest>>);
+      } as unknown as Awaited<ReturnType<typeof readTopicExecutionSummary>>);
     await processTopicsAutomation(batch);
     await processTopicsAutomation(batch);
     expect(vi.mocked(enqueueTopicExecution).mock.calls).toEqual([
@@ -268,8 +286,8 @@ describe("automatic Topics assignment", () => {
   });
 
   it.each([
-    { count: 100_000, bytes: 1000, midpointTooSmall: false },
-    { count: 100, bytes: 300 * 1024 * 1024, midpointTooSmall: false },
+    { count: 19_990, bytes: 1000, midpointTooSmall: false },
+    { count: 100, bytes: 250 * 1024 * 1024, midpointTooSmall: false },
     { count: 100_000, bytes: 1000, midpointTooSmall: true },
   ])(
     "narrows automatic discovery before queuing the shared update pipeline: %j",
@@ -364,38 +382,80 @@ describe("automatic Topics assignment", () => {
     );
   });
 
-  it("recovers a capacity failure once with a new frozen request and releases its orphaned pending run", async () => {
-    vi.mocked(listTopicSummaries).mockResolvedValue([summary("near", [1, 0])]);
+  it("recovers late-arrival capacity failures until a smaller frozen request succeeds", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
     vi.mocked(getTopicProcessingMapIds).mockResolvedValue([]);
     vi.mocked(getTopicClusteringSummaryStats).mockResolvedValue({
-      count: 100,
+      count: 12_000,
       bytes: 1000,
     });
-    const failed = {
-      id: "failed",
-      status: "completed_with_errors",
-      facets: [
-        {
-          facetId: "facet",
-          facetVersion: 2,
-          runId: "orphaned",
-          outcome: "failed",
-          error: TOPIC_CLUSTERING_CAPACITY_ERROR,
-        },
-      ],
-    } as unknown as NonNullable<
-      Awaited<ReturnType<typeof readTopicExecutionForRequest>>
-    >;
-    vi.mocked(readTopicExecutionForRequest)
-      .mockResolvedValueOnce(failed)
-      .mockResolvedValueOnce(null);
+    let latest: TopicExecutionSummary | null = null;
+    let cooldown = 0;
+    discoveryGate.mockImplementation(async () => {
+      if (Date.now() < cooldown) return null as never;
+      cooldown = Date.now() + 60_000;
+      return "OK";
+    });
+    vi.mocked(prisma.batchAction.findFirst).mockImplementation(
+      async () => (latest ? { id: latest.id } : null) as never,
+    );
+    vi.mocked(readTopicExecutionSummary).mockImplementation(async () => latest);
+    vi.mocked(createTopicExecution).mockImplementation(async (input) => {
+      latest = {
+        id: input.requestId,
+        input,
+        status: "queued",
+        facets: [],
+      } as unknown as TopicExecutionSummary;
+      return latest as Awaited<ReturnType<typeof createTopicExecution>>;
+    });
+    vi.mocked(enqueueTopicExecution).mockImplementation(async () => {
+      // The check is queued before dispatch, even when no further batches arrive.
+      expect(add).toHaveBeenCalled();
+      // Late summaries push the first two admitted cohorts past the hard guard.
+      const overflow = vi.mocked(createTopicExecution).mock.calls.length < 3;
+      latest = {
+        ...latest!,
+        status: overflow ? "completed_with_errors" : "completed",
+        facets: [
+          {
+            facetId: "facet",
+            facetVersion: 2,
+            runId: "orphaned",
+            outcome: overflow ? "failed" : "published",
+            error: overflow ? TOPIC_CLUSTERING_CAPACITY_ERROR : null,
+          },
+        ],
+      } as TopicExecutionSummary;
+    });
 
     await processTopicsAutomation(batch);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await processTopicsAutomation(batch);
+      expect(createTopicExecution).toHaveBeenCalledTimes(attempt + 1);
+      const deferred = add.mock.lastCall![1].payload;
+      vi.setSystemTime(Date.now() + 60_000);
+      await Promise.all([
+        processTopicsAutomation(deferred),
+        processTopicsAutomation(deferred),
+      ]);
+    }
+    await processTopicsAutomation(add.mock.lastCall![1].payload);
 
-    const [original, replacement] = vi
-      .mocked(readTopicExecutionForRequest)
-      .mock.calls.map((args) => args[1]);
-    expect(replacement).not.toBe(original);
+    const inputs = vi
+      .mocked(createTopicExecution)
+      .mock.calls.map(([input]) => input);
+    expect(inputs).toHaveLength(3);
+    expect(new Set(inputs.map((input) => input.requestId)).size).toBe(3);
+    expect(
+      inputs.map((input) =>
+        input.operation === "update"
+          ? input.timeRange.to.getTime() - input.timeRange.from.getTime()
+          : 0,
+      ),
+    ).toEqual([7, 3.5, 1.75].map((days) => days * 24 * 60 * 60_000));
+    expect(getTopicClusteringSummaryStats).toHaveBeenCalledTimes(3);
+    expect(new Set(discoveryGate.mock.calls.map(([key]) => key)).size).toBe(1);
     expect(prisma.topicClusteringRun.updateMany).toHaveBeenCalledWith({
       where: {
         projectId: "project",
@@ -410,19 +470,54 @@ describe("automatic Topics assignment", () => {
         finishedAt: expect.any(Date),
       },
     });
-    expect(createTopicExecution).toHaveBeenCalledWith(
-      expect.objectContaining({ requestId: replacement }),
-      replacement,
-      "system:topics",
-    );
-
-    vi.mocked(readTopicExecutionForRequest)
-      .mockResolvedValueOnce(failed)
-      .mockResolvedValueOnce({ ...failed, id: "replacement-failed" });
-    await processTopicsAutomation(batch);
-    expect(createTopicExecution).toHaveBeenCalledOnce();
-    expect(getTopicClusteringSummaryStats).toHaveBeenCalledOnce();
   });
+
+  it.each([
+    { state: "active", capacityFailure: false, monitors: 1 },
+    { state: "failed", capacityFailure: false, monitors: 0 },
+    { state: "completed", capacityFailure: false, monitors: 0 },
+    { state: "missing", capacityFailure: false, monitors: 0 },
+    { state: "unknown", capacityFailure: false, monitors: 0 },
+    { state: "failed", capacityFailure: true, monitors: 1 },
+  ] as const)(
+    "monitors running discovery according to queue state: %j",
+    async ({ state, capacityFailure, monitors }) => {
+      vi.mocked(getTopicProcessingMapIds).mockResolvedValue([]);
+      vi.mocked(prisma.batchAction.findFirst).mockResolvedValue({
+        id: "running",
+      } as never);
+      const running = {
+        id: "running",
+        status: "running",
+        facets: [],
+      } as unknown as TopicExecutionSummary;
+      vi.mocked(readTopicExecutionSummary)
+        .mockResolvedValueOnce(running)
+        .mockResolvedValue(
+          capacityFailure
+            ? ({
+                ...running,
+                status: "completed_with_errors",
+                facets: [
+                  {
+                    facetId: "facet",
+                    facetVersion: 2,
+                    outcome: "failed",
+                    error: TOPIC_CLUSTERING_CAPACITY_ERROR,
+                  },
+                ],
+              } as TopicExecutionSummary)
+            : running,
+        );
+      vi.mocked(getTopicExecutionQueueState).mockResolvedValue(state);
+
+      await processTopicsAutomation(batch);
+
+      expect(add).toHaveBeenCalledTimes(monitors);
+      expect(createTopicExecution).not.toHaveBeenCalled();
+      expect(enqueueTopicExecution).not.toHaveBeenCalled();
+    },
+  );
 
   it("does not start discovery once automatic processing is off or the embedding model changed", async () => {
     vi.mocked(listTopicSummaries).mockResolvedValue([summary("near", [1, 0])]);

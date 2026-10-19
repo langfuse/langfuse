@@ -66,6 +66,7 @@ import {
   TOPICS_NUMERIC_VERSION,
 } from "./numeric";
 import { matchTopicContinuity } from "./continuity";
+import { createEventLoopYielder } from "./event-loop";
 import { TopicMetrics } from "./metrics";
 import { topicSummaryOutputError } from "./summaryResult";
 
@@ -585,7 +586,7 @@ async function clusterFacet(
         traceId: string;
         topicVersionId: string | null;
       }[] = [];
-      let yieldedAt = performance.now();
+      const yieldIfNeeded = createEventLoopYielder();
       for (const summary of summaries) {
         if (summary.traceId === null)
           throw new Error("Topics processing requires a trace summary.");
@@ -593,10 +594,8 @@ async function clusterFacet(
           traceId: summary.traceId,
           topicVersionId: classifyTopic(summary.embedding, prototypes).topicId,
         });
-        if (performance.now() - yieldedAt >= 8) {
-          await yieldToEventLoop();
-          yieldedAt = performance.now();
-        }
+        const pause = yieldIfNeeded();
+        if (pause) await pause;
       }
       candidates = matchTopicContinuity({
         previousTopics: previous.topics,
