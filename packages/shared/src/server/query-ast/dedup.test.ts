@@ -61,7 +61,12 @@ describe("per-table dedup lowering", () => {
         .selectFrom("events_core")
         .select("span_id")
         .orderBy("event_ts", "desc")
-        .$call(limitBy({ count: 1, columns: ["span_id", "project_id"] })),
+        .$call(
+          limitBy({
+            count: 1,
+            columns: (eb) => [eb.ref("span_id"), eb.ref("project_id")],
+          }),
+        ),
     );
     expect(sql.toLowerCase().split("limit 1 by").length - 1).toBe(1);
   });
