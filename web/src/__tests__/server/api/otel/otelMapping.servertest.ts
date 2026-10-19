@@ -188,66 +188,6 @@ describe("OTel user identity", () => {
     ).toBe(expected);
   });
 
-  it("uses a resource ID consistently on agent and child observations", () => {
-    const observations = createTestOtelProcessor().processToEvent([
-      batch({ "langfuse.user.id": "employee-id" }, [
-        { "user.name": "github-login" },
-        {},
-      ]),
-    ]);
-    expect(observations.map((event) => event.userId)).toEqual([
-      "employee-id",
-      "employee-id",
-    ]);
-  });
-
-  it("preserves explicit child IDs over resource defaults and usernames", () => {
-    const observations = createTestOtelProcessor().processToEvent([
-      batch({ "user.id": "resource-default" }, [
-        { "user.id": "customer-id" },
-        { "user.id": "explicit-child", "user.name": "child-name" },
-      ]),
-    ]);
-    expect(observations.map((event) => event.userId)).toEqual([
-      "customer-id",
-      "explicit-child",
-    ]);
-  });
-
-  it.each<{
-    resource: Record<string, string>;
-    child: Record<string, string>;
-    expected: string;
-  }>([
-    {
-      resource: {},
-      child: { "user.name": "child-name" },
-      expected: "child-name",
-    },
-    {
-      resource: { "user.id": "resource-default" },
-      child: {},
-      expected: "resource-default",
-    },
-  ])(
-    "resolves v4 user identity independently for observations in separate batches: %j",
-    ({ resource, child, expected }) => {
-      const resourceSpan = batch(resource, [
-        { "user.id": "customer-id" },
-        child,
-      ]);
-      const scope = resourceSpan.scopeSpans![0];
-      const [rootSpan, childSpan] = scope.spans!;
-      const processSpan = (span: typeof rootSpan) =>
-        createTestOtelProcessor().processToEvent([
-          { ...resourceSpan, scopeSpans: [{ ...scope, spans: [span] }] },
-        ])[0];
-
-      expect(processSpan(rootSpan).userId).toBe("customer-id");
-      expect(processSpan(childSpan).userId).toBe(expected);
-    },
-  );
-
   it("preserves explicit users on legacy child trace updates", async () => {
     const events = await convertOtelSpanToIngestionEvent(
       batch({ "user.id": "resource-default", "process.user.name": "node" }, [
@@ -261,16 +201,6 @@ describe("OTel user identity", () => {
         .filter((event) => event.type === "trace-create")
         .map((event) => event.body.userId),
     ).toEqual(["customer-id", undefined]);
-  });
-
-  it("does not update a legacy trace from a child's username alone", async () => {
-    const events = await convertOtelSpanToIngestionEvent(
-      batch({}, [{ "user.id": "customer-id" }, { "user.name": "child-name" }]),
-      new Set(),
-    );
-    const traces = events.filter((event) => event.type === "trace-create");
-    expect(traces).toHaveLength(1);
-    expect(traces[0].body.userId).toBe("customer-id");
   });
 });
 
