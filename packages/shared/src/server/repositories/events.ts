@@ -10,6 +10,7 @@ import {
   type AliasableExpression,
   type AliasedExpression,
   type Expression,
+  type ExpressionBuilder,
   type SqlBool,
 } from "kysely";
 import type {
@@ -186,6 +187,9 @@ import type {
   SkillsAvailable,
   SkillsResourceLoaded,
 } from "../../features/skills/trace";
+
+/** The `input`/`output` pair an I/O select reads from one relation. */
+type IoColumns = { input: string; output: string };
 
 export type EventBatchIOStringOutput = {
   id: string;
@@ -1110,19 +1114,8 @@ async function getObservationByIdFromEventsTableInternal({
   )
     .$call(softDeleteAfterLimit())
     .select(OBSERVATION_BY_ID_SELECTS)
-    .$if(fetchWithInputOutput && !renderingProps.truncated, (qb) =>
-      qb.select(["input", "output"]),
-    )
-    // A truncated read caps `input`/`output` to the server-side char limit.
-    .$if(fetchWithInputOutput && !!renderingProps.truncated, (qb) =>
-      qb.select((eb) => [
-        leftUTF8(eb.ref("input"), env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT).as(
-          "input",
-        ),
-        leftUTF8(eb.ref("output"), env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT).as(
-          "output",
-        ),
-      ]),
+    .$if(fetchWithInputOutput, (qb) =>
+      qb.select((eb) => observationIoSelects(eb, renderingProps.truncated)),
     )
     .where("span_id", "=", id)
     .$if(startTime != null, (qb) =>
@@ -1155,6 +1148,19 @@ async function getObservationByIdFromEventsTableInternal({
     tags: { projectId },
     preferredClickhouseService,
   });
+}
+
+/** `input`/`output`, capped to the server-side char limit on a truncated read. */
+function observationIoSelects(
+  eb: ExpressionBuilder<{ e: IoColumns }, "e">,
+  truncated: boolean | undefined,
+) {
+  if (!truncated) return ["input", "output"] as const;
+  const charLimit = env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT;
+  return [
+    leftUTF8(eb.ref("input"), charLimit).as("input"),
+    leftUTF8(eb.ref("output"), charLimit).as("output"),
+  ];
 }
 
 /**
@@ -1215,7 +1221,7 @@ export const getTraceByIdFromEventsTable = async ({
       tracesCte(qb as ReturnType<typeof getClickhouseKysely>),
     )
     .selectFrom("traces as t")
-    .select([
+    .select((eb) => [
       "t.id",
       "t.name",
       "t.user_id",
@@ -1232,24 +1238,8 @@ export const getTraceByIdFromEventsTable = async ({
       "t.updated_at",
       metadataSelect,
       literal(0).as("is_deleted"),
+      ...traceIoSelects(eb, excludeInputOutput, truncated),
     ])
-    .$if(excludeInputOutput, (qb) =>
-      qb.select([literal("").as("input"), literal("").as("output")]),
-    )
-    .$if(!excludeInputOutput && !truncated, (qb) =>
-      qb.select(["t.input", "t.output"]),
-    )
-    // A truncated read caps `input`/`output` to the server-side char limit.
-    .$if(!excludeInputOutput && truncated, (qb) =>
-      qb.select((eb) => [
-        leftUTF8(eb.ref("t.input"), env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT).as(
-          "input",
-        ),
-        leftUTF8(eb.ref("t.output"), env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT).as(
-          "output",
-        ),
-      ]),
-    )
     .$if(timestamp != null, (qb) =>
       qb.where((eb) =>
         eb(toDate(eb.ref("t.timestamp")), "=", toDate(timestamp!)),
@@ -1290,6 +1280,24 @@ function observationsToTraceLowerBound(anchor: Date): Date {
     anchor.getTime() -
       OBSERVATIONS_TO_TRACE_INTERVAL_DAYS * 24 * 60 * 60 * 1000,
   );
+}
+
+/** `input`/`output` of the trace CTE `t`: empty, capped on a truncated read, or full. */
+function traceIoSelects(
+  eb: ExpressionBuilder<{ t: IoColumns }, "t">,
+  excludeInputOutput: boolean,
+  truncated: boolean,
+) {
+  if (excludeInputOutput)
+    return [literal("").as("input"), literal("").as("output")];
+  if (truncated) {
+    const charLimit = env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT;
+    return [
+      leftUTF8(eb.ref("t.input"), charLimit).as("input"),
+      leftUTF8(eb.ref("t.output"), charLimit).as("output"),
+    ];
+  }
+  return ["t.input", "t.output"] as const;
 }
 
 /**
