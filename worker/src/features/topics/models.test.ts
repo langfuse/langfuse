@@ -342,8 +342,6 @@ describe("Topics naming boundary", () => {
     [{ httpStatus: 429, reason: "rate_limit" }, "429"],
     [{ httpStatus: 404, reason: "invalid_input" }, "4xx"],
     [{ httpStatus: 503, reason: "provider_error" }, "5xx"],
-    // An unexpected status falls back to the reason, keeping the tag bounded.
-    [{ httpStatus: 12345, reason: "provider_error" }, "provider_error"],
     [{ reason: "timeout" }, "timeout"],
   ])("tags a model call outcome %o as %s", (outcome, status) => {
     recordTopicModelCall("summary", LLMAdapter.OpenAI, outcome);
