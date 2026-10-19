@@ -75,11 +75,7 @@ export class EventsTableRoutingPlugin implements KyselyPlugin {
     const analysis = new EventsReadAnalysis();
     analysis.transformNode(tree);
     if (!analysis.readsLogicalEvents) return args.node;
-    if (analysis.physicalEventsCte) {
-      throw new QueryCompileError(
-        `A CTE named "${analysis.physicalEventsCte}" would capture the routed logical "${LOGICAL_EVENTS}" relation; rename the CTE.`,
-      );
-    }
+    rejectPhysicalEventsCte(analysis);
     return new EventsTableRouter(analysis.fullRelations).transformNode(
       tree,
     ) as RootOperationNode;
@@ -87,6 +83,14 @@ export class EventsTableRoutingPlugin implements KyselyPlugin {
 
   async transformResult(args: PluginTransformResultArgs) {
     return args.result;
+  }
+}
+
+function rejectPhysicalEventsCte(analysis: EventsReadAnalysis): void {
+  if (analysis.physicalEventsCte) {
+    throw new QueryCompileError(
+      `A CTE named "${analysis.physicalEventsCte}" would capture the routed logical "${LOGICAL_EVENTS}" relation; rename the CTE.`,
+    );
   }
 }
 

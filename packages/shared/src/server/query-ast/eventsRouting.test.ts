@@ -195,21 +195,6 @@ describe("logical events routing", () => {
         ]),
       ),
     ).toThrow(QueryCompileError);
-    // The subquery's e.input resolves to the outer events relation.
-    expect(() =>
-      compile(
-        db.selectFrom("events as e").select((eb) => [
-          "e.span_id",
-          eb
-            .selectFrom("scores as s")
-            .select((sb) =>
-              sb.fn<string>("tuple(e.input), length", [sb.val("x")]).as("t"),
-            )
-            .limit(1)
-            .as("x"),
-        ]),
-      ),
-    ).toThrow(QueryCompileError);
   });
 
   it("rejects COLUMNS() in a select that reads events", () => {

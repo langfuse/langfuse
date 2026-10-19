@@ -278,9 +278,9 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
   }
 
   /**
-   * Function, aggregate and collation names are written verbatim, so a name
-   * that is not a plain identifier would be raw SQL: `fn("tuple(e.input), f")`
-   * emits `tuple(e.input), f(…)`.
+   * Function and aggregate names are written verbatim, so a name that is not
+   * a plain identifier would be raw SQL: `fn("tuple(e.input), f")` emits
+   * `tuple(e.input), f(…)`.
    */
   protected override visitFunction(node: FunctionNode): void {
     assertPlainName("Function", node.func);
@@ -292,9 +292,14 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     super.visitAggregateFunction(node);
   }
 
+  /**
+   * ClickHouse parses only a string literal after `collate`; the name is
+   * written verbatim, so no collation compiles to valid SQL.
+   */
   protected override visitCollate(node: CollateNode): void {
-    assertPlainName("Collation", node.collation.name);
-    super.visitCollate(node);
+    throw new QueryCompileError(
+      `Collation "${node.collation.name}" is not supported: ClickHouse expects a string literal after collate.`,
+    );
   }
 
   protected override appendValue(parameter: unknown): void {

@@ -872,16 +872,20 @@ describe("names the compiler writes verbatim", () => {
     },
   );
 
-  it("rejects a collation that is not a plain identifier", () => {
-    const sorted = (collation: string) =>
-      compileClickhouseQuery(
-        db
-          .selectFrom("scores as s")
-          .select("s.id")
-          .orderBy("s.name", (ob) => ob.collate(collation)),
-        projectId,
-      );
-    expect(() => sorted("'en', s.comment")).toThrow(QueryCompileError);
-    expect(sorted("en").sql).toMatch(/collate en/);
-  });
+  // ClickHouse parses only a string literal after `collate`, which Kysely
+  // does not emit.
+  it.each(["en", "'en', s.comment"])(
+    "rejects the collation %j",
+    (collation) => {
+      expect(() =>
+        compileClickhouseQuery(
+          db
+            .selectFrom("scores as s")
+            .select("s.id")
+            .orderBy("s.name", (ob) => ob.collate(collation)),
+          projectId,
+        ),
+      ).toThrow(QueryCompileError);
+    },
+  );
 });

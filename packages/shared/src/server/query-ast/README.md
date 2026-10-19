@@ -98,8 +98,9 @@ suffix to run there. Promote it to a required check once it has proven stable.
   `events_core` to read the truncated copy on purpose; `events_core` /
   `events_full` stay selectable by name, which is also the override for a
   shape the pass rejects.
-- **Function, aggregate and collation names must be plain identifiers.**
+- **Function and aggregate names must be plain identifiers.**
   The compiler writes them verbatim, so anything else fails to compile.
+  `collate` is not supported.
 - **Never filter `is_deleted` on a physical table yourself.** Tables that
   declare `softDelete` in the registry (`events_core`, `events_full`) get
   `is_deleted = 0` on every FROM/JOIN. A latest-version read (ordered by
