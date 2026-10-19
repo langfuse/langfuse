@@ -1,12 +1,50 @@
 import { ToolSchema } from "@modelcontextprotocol/sdk/types.js";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
+import { isoDateTime } from "@langfuse/shared";
+import { mockServerContext } from "../mcp-helpers";
 
 import { __dangerouslySkipAuthz } from "@/src/features/public-api/server";
 import { defineTool } from "../../../features/mcp/core/define-tool";
 import type { ServerContext } from "../../../features/mcp/types";
 
 describe("defineTool", () => {
+  it("publishes and validates both ISO timestamp precisions without a union", async () => {
+    const schema = z.object({ timestamp: isoDateTime({ offset: true }) });
+    const handler = vi.fn(async (input: z.infer<typeof schema>) => input);
+    const [tool, run] = defineTool({
+      name: "timestampTool",
+      description: "",
+      action: __dangerouslySkipAuthz,
+      baseSchema: schema,
+      inputSchema: schema,
+      handler,
+    });
+    const property = (
+      tool.inputSchema.properties as Record<
+        string,
+        { type: string; pattern: string }
+      >
+    ).timestamp;
+    expect(property).toEqual({ type: "string", pattern: expect.any(String) });
+    const pattern = new RegExp(property.pattern);
+    const context = mockServerContext();
+    for (const timestamp of [
+      "2024-02-29T06:15Z",
+      "2024-02-29T06:15:00.123+02:30",
+    ]) {
+      expect(pattern.test(timestamp)).toBe(true);
+      await run({ timestamp }, context);
+      expect(handler).toHaveBeenLastCalledWith({ timestamp }, context);
+    }
+    const invalid = "2024-02-30T06:15Z";
+    expect(pattern.test(invalid)).toBe(false);
+    await expect(run({ timestamp: invalid }, context)).rejects.toThrow(
+      "Validation failed",
+    );
+    expect(handler).toHaveBeenCalledTimes(2);
+  });
+
   it("rejects intersections that emit allOf", () => {
     const schema = z
       .object({ id: z.string() })

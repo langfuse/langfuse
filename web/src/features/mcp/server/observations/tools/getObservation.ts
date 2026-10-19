@@ -1,4 +1,4 @@
-import { LangfuseNotFoundError } from "@langfuse/shared";
+import { isoDateTime, LangfuseNotFoundError } from "@langfuse/shared";
 import { z } from "zod";
 import {
   getObservationsV2FromEventsTableForPublicApi,
@@ -22,16 +22,12 @@ const OBSERVATION_MAX_RANGE_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
 const GetObservationBaseSchema = z.object({
   observationId: z.string().min(1),
   traceId: z.string().min(1).optional(),
-  fromStartTime: z.iso
-    .datetime({ offset: true })
-    .describe(
-      "Required inclusive lower bound on observation startTime, as an ISO 8601 timestamp with timezone (Z or an explicit offset). Must be before toStartTime; the elapsed duration must not exceed 90 days (2160 hours).",
-    ),
-  toStartTime: z.iso
-    .datetime({ offset: true })
-    .describe(
-      "Required exclusive upper bound on observation startTime, as an ISO 8601 timestamp with timezone. Must be after fromStartTime and at most 2160 hours later. The observation's startTime must be strictly before this bound.",
-    ),
+  fromStartTime: isoDateTime({ offset: true }).describe(
+    "Required inclusive lower bound on observation startTime, as an ISO 8601 timestamp with timezone (Z or an explicit offset). Must be before toStartTime; the elapsed duration must not exceed 90 days (2160 hours).",
+  ),
+  toStartTime: isoDateTime({ offset: true }).describe(
+    "Required exclusive upper bound on observation startTime, as an ISO 8601 timestamp with timezone. Must be after fromStartTime and at most 2160 hours later. The observation's startTime must be strictly before this bound.",
+  ),
   fields: ObservationFieldsSchema,
   expandMetadataKeys: ExpandMetadataKeysSchema,
 });

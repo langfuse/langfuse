@@ -1,4 +1,5 @@
 import {
+  isoDateTime,
   InvalidRequestError,
   ObservationTypeDomain,
   isNumericEventsTableColumnId,
@@ -46,14 +47,12 @@ type FilterValueColumn = z.infer<typeof FilterValueColumnSchema>;
 
 const GetObservationFilterValuesBaseSchema = z.object({
   column: FilterValueColumnSchema,
-  fromStartTime: z.iso
-    .datetime({ offset: true })
+  fromStartTime: isoDateTime({ offset: true })
     .optional()
     .describe(
       "Optional inclusive lower bound on observation startTime, as an ISO 8601 timestamp with timezone (Z or an explicit offset). Use the same time window as the observations you intend to search.",
     ),
-  toStartTime: z.iso
-    .datetime({ offset: true })
+  toStartTime: isoDateTime({ offset: true })
     .optional()
     .describe(
       "Optional exclusive upper bound on observation startTime, as an ISO 8601 timestamp with timezone. For a full calendar day, use midnight at the start of the next day, not 23:59:59.",
