@@ -48,7 +48,6 @@ export type SessionConversationSidebarTrace = {
 };
 
 const EMPTY_TRACES: SessionConversationSidebarTrace[] = [];
-const SIDEBAR_AUTO_FOLLOW_IDLE_MS = 750;
 const SIDEBAR_SCROLL_PADDING = 16;
 
 export function SessionConversationSidebar(
@@ -140,10 +139,10 @@ export function SessionConversationSidebar(
       document.fonts?.removeEventListener("loadingdone", measureToolGroupLabel);
     };
   }, [measureToolGroupLabel, props.state]);
-  const isSidebarPointerDownRef = useRef(false);
-  const autoFollowPausedUntilRef = useRef(0);
-  const autoFollowTimerRef = useRef<number | undefined>(undefined);
-  const resumeAutoFollowRef = useRef<(() => void) | null>(null);
+  const followedSelectionRef = useRef<{
+    traceId: string;
+    search: string;
+  } | null>(null);
   const [isListScrolled, setIsListScrolled] = useState(false);
   const handleListScroll = (event: UIEvent<HTMLDivElement>) =>
     setIsListScrolled(event.currentTarget.scrollTop > 0);
@@ -180,49 +179,41 @@ export function SessionConversationSidebar(
     .getVirtualItems()
     .find((item) => item.index === activeTraceIndex)?.size;
   const sidebarHeight = virtualizer.scrollRect?.height;
-  const setListElement = useCallback(
-    (element: HTMLDivElement | null) => {
-      listRef.current = element;
-      if (
-        !element ||
-        activeTraceIndex === -1 ||
-        isSidebarPointerDownRef.current ||
-        Date.now() < autoFollowPausedUntilRef.current
-      )
-        return;
-      const availableHeight =
-        (sidebarHeight ?? element.clientHeight) - SIDEBAR_SCROLL_PADDING * 2;
-      virtualizer.scrollToIndex(activeTraceIndex, {
-        align:
-          activeTraceSize !== undefined && activeTraceSize > availableHeight
-            ? "start"
-            : "auto",
-      });
-    },
-    [activeTraceIndex, activeTraceSize, sidebarHeight, virtualizer],
-  );
   useLayoutEffect(() => {
-    resumeAutoFollowRef.current = () => {
-      setListElement(listRef.current);
+    const element = listRef.current;
+    if (!activeTraceId) {
+      followedSelectionRef.current = null;
+      return;
+    }
+    if (
+      !element ||
+      activeTraceIndex === -1 ||
+      (followedSelectionRef.current?.traceId === activeTraceId &&
+        followedSelectionRef.current.search === sidebarSearch)
+    )
+      return;
+
+    // Measurements and rerenders must not pull the user back after manual scrolling.
+    followedSelectionRef.current = {
+      traceId: activeTraceId,
+      search: sidebarSearch,
     };
-    setListElement(listRef.current);
-  }, [setListElement, sidebarSearch]);
-  useLayoutEffect(
-    () => () => window.clearTimeout(autoFollowTimerRef.current),
-    [],
-  );
-  const pauseAutoFollow = () => {
-    autoFollowPausedUntilRef.current = Date.now() + SIDEBAR_AUTO_FOLLOW_IDLE_MS;
-    window.clearTimeout(autoFollowTimerRef.current);
-    autoFollowTimerRef.current = window.setTimeout(
-      () => resumeAutoFollowRef.current?.(),
-      SIDEBAR_AUTO_FOLLOW_IDLE_MS,
-    );
-  };
-  const handlePointerEnd = () => {
-    isSidebarPointerDownRef.current = false;
-    pauseAutoFollow();
-  };
+    const availableHeight =
+      (sidebarHeight ?? element.clientHeight) - SIDEBAR_SCROLL_PADDING * 2;
+    virtualizer.scrollToIndex(activeTraceIndex, {
+      align:
+        activeTraceSize !== undefined && activeTraceSize > availableHeight
+          ? "start"
+          : "auto",
+    });
+  }, [
+    activeTraceId,
+    activeTraceIndex,
+    activeTraceSize,
+    sidebarSearch,
+    sidebarHeight,
+    virtualizer,
+  ]);
 
   if (props.state === "loading") {
     return (
@@ -313,34 +304,11 @@ export function SessionConversationSidebar(
         ) : null}
       </div>
       <div
-        ref={setListElement}
+        ref={listRef}
         role="region"
         aria-label="Session turns"
         className="min-h-0 flex-1 overflow-y-auto [overflow-anchor:none]"
         onScroll={handleListScroll}
-        onWheel={pauseAutoFollow}
-        onTouchMove={pauseAutoFollow}
-        onKeyDown={(event) => {
-          if (
-            [
-              "ArrowUp",
-              "ArrowDown",
-              "PageUp",
-              "PageDown",
-              "Home",
-              "End",
-              " ",
-            ].includes(event.key)
-          ) {
-            pauseAutoFollow();
-          }
-        }}
-        onPointerDown={() => {
-          isSidebarPointerDownRef.current = true;
-        }}
-        onPointerUp={handlePointerEnd}
-        onPointerCancel={handlePointerEnd}
-        onPointerLeave={handlePointerEnd}
       >
         {traces.length === 0 ? (
           <div className="text-muted-foreground px-3 py-6 text-center text-xs">

@@ -3284,8 +3284,54 @@ export const DelayedTranscriptNavigation = meta.story({
   },
 });
 
-export const SidebarFollowResume = meta.story({
-  name: "(Test) Sidebar Follow Resumes After User Idle",
+export const SidebarManualScroll = meta.story({
+  name: "(Test) Sidebar Manual Scroll Does Not Snap Back",
+  args: { transcriptTraces: navigationTraces, viewportHeight: 480 },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const list = canvas.getByRole("region", { name: "Session turns" });
+    const feed = canvas.getByLabelText("Session conversation timeline");
+    const initialFeedScroll = feed.scrollTop;
+
+    for (const event of [
+      new WheelEvent("wheel", { deltaY: 100, bubbles: true }),
+      new Event("touchmove", { bubbles: true }),
+      new KeyboardEvent("keydown", { key: "PageDown", bubbles: true }),
+      new PointerEvent("pointerup", { bubbles: true }),
+    ]) {
+      list.dispatchEvent(event);
+      list.scrollTo({ top: 1500, behavior: "instant" });
+      await waitFor(() => expect(list.scrollTop).toBeGreaterThan(1000));
+      // Wait beyond the former idle timeout, including virtualized row measurements.
+      await new Promise((resolve) => window.setTimeout(resolve, 1000));
+      await expect(list.scrollTop).toBeGreaterThan(1000);
+      await expect(feed.scrollTop).toBe(initialFeedScroll);
+    }
+
+    const sidebar = within(canvas.getByRole("complementary"));
+    const visibleTurn = sidebar
+      .getAllByRole("button", {
+        name: /^\d+\.\d+ Navigation turn/,
+      })
+      .find((button) => {
+        const rect = button.getBoundingClientRect();
+        const listRect = list.getBoundingClientRect();
+        return rect.top >= listRect.top && rect.bottom <= listRect.bottom;
+      });
+    if (!visibleTurn)
+      throw new Error("No visible turn available for selection");
+    await userEvent.click(visibleTurn);
+    await waitFor(() =>
+      expect(visibleTurn).toHaveAttribute("aria-current", "true"),
+    );
+    await waitFor(() =>
+      expect(feed.scrollTop).toBeGreaterThan(initialFeedScroll),
+    );
+  },
+});
+
+export const SidebarFollowsSelection = meta.story({
+  name: "(Test) Sidebar Follows New Selection After Manual Scroll",
   args: { transcriptTraces: navigationTraces, viewportHeight: 480 },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
