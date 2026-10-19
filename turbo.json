@@ -144,6 +144,15 @@
         "$TURBO_ROOT$/.env.test"
       ]
     },
+    "web#test-storybook": {
+      "dependsOn": ["db:generate", "^build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/scripts/vitest/ci-reporter.ts",
+        "$TURBO_ROOT$/.env.test"
+      ],
+      "cache": true
+    },
     "@repo/eslint-plugin#build": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**"],

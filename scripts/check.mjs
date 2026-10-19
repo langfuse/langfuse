@@ -15,8 +15,9 @@ import { fileURLToPath } from "node:url";
 import { stripVTControlCharacters } from "node:util";
 
 /**
- * Local development checks, not a replacement for CI: Storybook/browser,
- * Playwright, Docker sandbox, and deployed-service e2e suites are excluded.
+ * Local development checks, not a replacement for CI: standalone Playwright,
+ * Docker sandbox, and deployed-service e2e suites are excluded.
+ * Storybook tests require installed Playwright Chromium browser binaries.
  * Integration suites need configured .env/.env.test and local infrastructure.
  * This command does not provision services or reset databases; selected tests
  * can still run their own setup hooks. See --help for modes and options.
@@ -70,6 +71,13 @@ const checkTasks = [
     runner: "vitest",
     suite: "client",
     suiteLabel: "Client",
+  },
+  {
+    name: "test-storybook",
+    label: "Tests",
+    runner: "vitest",
+    suite: "storybook",
+    suiteLabel: "Storybook",
   },
 ];
 
@@ -244,7 +252,11 @@ export function createPlan(
     if (!task) throw new Error(`Missing Turbo task graph for ${taskId}`);
     for (const dependency of task.dependencies) {
       // Related suites need build/generation prerequisites, not upstream suites.
-      if (dependency.endsWith("#test") || dependency.endsWith("#test-client"))
+      if (
+        checkTasks.some(
+          (task) => task.suite && dependency.endsWith(`#${task.name}`),
+        )
+      )
         continue;
       targets.add(dependency);
     }
@@ -447,7 +459,7 @@ function loadWorkspace(base) {
       "query",
       `query {
         packages { items { name path directDependencies { items { name } } allDependents { items { name } } } }
-        affectedTasks(base: ${JSON.stringify(base)}, head: "HEAD", tasks: ["typecheck", "lint", "test", "test-client"]) {
+        affectedTasks(base: ${JSON.stringify(base)}, head: "HEAD", tasks: ${JSON.stringify(checkTasks.map((task) => task.name))}) {
           items { fullName name command reason {
             __typename
             ... on TaskAllChanged { description }
@@ -485,10 +497,7 @@ function loadWorkspace(base) {
       "exec",
       "turbo",
       "run",
-      "typecheck",
-      "lint",
-      "test",
-      "test-client",
+      ...checkTasks.map((task) => task.name),
       "--dry=json",
     ]),
   );
@@ -520,10 +529,7 @@ function loadWorkspace(base) {
       taskGraph.inputs.add(task.reason.filePath);
       taskGraph.tasks.get(task.fullName)?.inputFiles.add(task.reason.filePath);
     }
-    if (
-      task.command &&
-      ["typecheck", "lint", "test", "test-client"].includes(task.name)
-    ) {
+    if (task.command && checkTasks.some((check) => check.name === task.name)) {
       taskGraph.affected.add(task.fullName);
     }
   }
