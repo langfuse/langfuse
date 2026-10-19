@@ -313,7 +313,7 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     assertPlainName(
       "Identifier",
       node.name,
-      "Rename it, or select a star with selectAll().",
+      "Rename it, or list the columns instead of a star.",
     );
     super.compileUnwrappedIdentifier(node);
   }
