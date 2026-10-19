@@ -846,3 +846,46 @@ describe("ARRAY JOIN and LIMIT BY nodes", () => {
     expect(() => useFinal(["events_core"])).toThrow(/immutable/);
   });
 });
+
+describe("names the compiler writes verbatim", () => {
+  const db = getClickhouseKysely();
+
+  it.each(["columns ", "tuple(s.comment), length", "default.f"])(
+    "rejects the function name %j",
+    (name) => {
+      expect(() =>
+        compileClickhouseQuery(
+          db
+            .selectFrom("scores as s")
+            .select((eb) => eb.fn<string>(name, [eb.val("x")]).as("x")),
+          projectId,
+        ),
+      ).toThrow(QueryCompileError);
+      expect(() =>
+        compileClickhouseQuery(
+          db
+            .selectFrom("scores as s")
+            .select((eb) => eb.fn.agg<string>(name, [eb.val("x")]).as("x")),
+          projectId,
+        ),
+      ).toThrow(QueryCompileError);
+    },
+  );
+
+  // ClickHouse parses only a string literal after `collate`, which Kysely
+  // does not emit.
+  it.each(["en", "'en', s.comment"])(
+    "rejects the collation %j",
+    (collation) => {
+      expect(() =>
+        compileClickhouseQuery(
+          db
+            .selectFrom("scores as s")
+            .select("s.id")
+            .orderBy("s.name", (ob) => ob.collate(collation)),
+          projectId,
+        ),
+      ).toThrow(QueryCompileError);
+    },
+  );
+});

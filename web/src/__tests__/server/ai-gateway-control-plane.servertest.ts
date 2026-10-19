@@ -717,7 +717,7 @@ describe("AI gateway control plane", () => {
     expect(remainingConnections.nextCursor).toBeNull();
   });
 
-  it("cursor-paginates gateway keys", async () => {
+  it("offset-paginates gateway keys with a total count", async () => {
     const { caller, org } = await prepare();
 
     for (const name of ["First", "Second", "Third"]) {
@@ -733,14 +733,21 @@ describe("AI gateway control plane", () => {
       limit: 2,
     });
     expect(firstKeys.data).toHaveLength(2);
-    expect(firstKeys.nextCursor).toBeTruthy();
+    expect(firstKeys.totalCount).toBe(3);
     const remainingKeys = await caller.aiGateway.listApiKeys({
       orgId: org.id,
+      page: 1,
       limit: 2,
-      cursor: firstKeys.nextCursor ?? undefined,
     });
     expect(remainingKeys.data).toHaveLength(1);
-    expect(remainingKeys.nextCursor).toBeNull();
+    expect(remainingKeys.totalCount).toBe(3);
+    expect(
+      new Set(
+        [...firstKeys.data, ...remainingKeys.data].map(
+          ({ apiKey }) => apiKey.note,
+        ),
+      ),
+    ).toEqual(new Set(["First", "Second", "Third"]));
   });
 
   it("rejects gateway page limits above 100", async () => {

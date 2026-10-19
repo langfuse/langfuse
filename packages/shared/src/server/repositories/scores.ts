@@ -420,7 +420,7 @@ export const getTraceScoresForDatasetRuns = async (
 
 const experimentItemEventsQuery = (experimentIds: string[]) =>
   getClickhouseKysely()
-    .selectFrom("events_core as e")
+    .selectFrom("events as e")
     .select(["e.project_id", "e.experiment_id", "e.trace_id"])
     .where("e.experiment_id", "in", experimentIds)
     .where("e.experiment_id", "!=", "");
