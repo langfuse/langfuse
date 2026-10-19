@@ -137,6 +137,17 @@ const config: StorybookConfig = {
   // pulled in transitively by the table stories). Pointing at the source makes
   // Storybook resolve named exports exactly like the app does.
   viteFinal: async (viteConfig) => {
+    // Linked workspace packages are not prebundled by default. Bundle the icon
+    // barrels so each browser worker does not request thousands of modules.
+    viteConfig.optimizeDeps = {
+      ...viteConfig.optimizeDeps,
+      include: [
+        ...(viteConfig.optimizeDeps?.include ?? []),
+        "@langfuse/icons",
+        "@langfuse/icons/si",
+        "@langfuse/icons/tb",
+      ],
+    };
     viteConfig.plugins = [
       flatStoryTitlesPlugin(STORY_TITLE_GROUPS),
       ...(viteConfig.plugins ?? []),
