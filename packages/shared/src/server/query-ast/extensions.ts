@@ -29,6 +29,7 @@ import {
   IdentifierNode,
   JoinNode,
   OperatorNode,
+  ParensNode,
   ReferenceNode,
   TableNode,
   ValueNode,
@@ -225,18 +226,19 @@ export function dateDiff(
 }
 
 /**
- * `dividend / divisor`. ClickHouse `/` returns Float64, so a 64-bit integer
- * dividend (typed `string`) gives a `number`.
+ * `dividend / divisor`. ClickHouse `/` returns Float64, or Decimal for a
+ * Decimal operand; both arrive as JSON numbers, so 64-bit integer operands
+ * give a `number`.
  */
 export function divide(
   dividend: Expression<number | string>,
-  divisor: Expression<number>,
+  divisor: Expression<number | string>,
 ): ChExpression<number> {
   return new ExpressionWrapper(
     BinaryOperationNode.create(
-      dividend.toOperationNode(),
+      parenthesizeOperation(dividend.toOperationNode()),
       OperatorNode.create("/"),
-      divisor.toOperationNode(),
+      parenthesizeOperation(divisor.toOperationNode()),
     ) as unknown as OperationNode,
   );
 }
@@ -322,6 +324,11 @@ function aggregate<T>(
       args.map(toNode),
     ) as unknown as OperationNode,
   );
+}
+
+/** Kysely nests binary operations bare, so `divide(a + b, c)` would read `a + b / c`. */
+function parenthesizeOperation(node: OperationNode): OperationNode {
+  return BinaryOperationNode.is(node) ? ParensNode.create(node) : node;
 }
 
 /**

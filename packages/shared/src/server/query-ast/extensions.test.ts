@@ -313,6 +313,20 @@ describe("64-bit results", () => {
       "dateDiff('millisecond', e.start_time, e.end_time) / 1000",
     );
   });
+
+  it("parenthesizes operation operands so division keeps its precedence", () => {
+    const shiftedCost = eb("e.total_cost", "+", literal(1));
+    const halfOfShiftedCost = divide(shiftedCost, literal(2));
+
+    expect(renderClickhouseExpression(halfOfShiftedCost)).toBe(
+      "(e.total_cost + 1) / 2",
+    );
+    expect(
+      renderClickhouseExpression(divide(latencyMs, halfOfShiftedCost)),
+    ).toBe(
+      "dateDiff('millisecond', e.start_time, e.end_time) / ((e.total_cost + 1) / 2)",
+    );
+  });
 });
 
 describe("literal", () => {
