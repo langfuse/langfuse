@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { compileClickhouseQuery } from "./compile";
 import { getClickhouseKysely } from "./dialect";
-import { UnscopedRelationError } from "./errors";
+import { QueryCompileError, UnscopedRelationError } from "./errors";
 import { tupleIn, useFinal } from "./extensions";
 
 const projectId = "proj-1";
@@ -396,23 +396,6 @@ describe("typed params from the column registry", () => {
     });
   });
 
-  // When the column's table can't be resolved, the bind type falls back to the
-  // JS value: a Date binds as DateTime64(3), even against events.
-  it.each([
-    [
-      "a JOIN where an unqualified column exists with different types",
-      () =>
-        getClickhouseKysely()
-          .selectFrom("events_core as e")
-          .innerJoin("observations as o", "o.trace_id", "e.trace_id")
-          .select("e.span_id")
-          .where("start_time", ">=", START),
-    ],
-  ])("falls back to value inference for %s", (_, build) => {
-    const { sql } = compile(build());
-    expect(sql).toMatch(/start_time >= \{p\d+:DateTime64\(3\)\}/);
-  });
-
   it("propagates the source column type through a JOIN to an aliased subquery", () => {
     const db = getClickhouseKysely();
     const sub = db
@@ -431,6 +414,10 @@ describe("typed params from the column registry", () => {
 
   describe("columns the compiler can't resolve to a relation", () => {
     const db = getClickhouseKysely();
+    // A table outside the registry: the compiler can't see its columns.
+    const unregistered = db.withTables<{
+      unregistered: { trace_id: string; start_time: Date };
+    }>();
 
     it("binds by value when no relation in scope has the column", () => {
       const { sql } = compile(
@@ -457,14 +444,136 @@ describe("typed params from the column registry", () => {
       expect(sql).toMatch(/is_deleted = \{p\d+:Int64\}/);
     });
 
-    it("uses the name-only type for a qualifier declared nowhere", () => {
+    // `t` outputs only span_id, so is_deleted is not typed by its name.
+    it("binds by value a column the CTE does not output", () => {
+      const { sql } = compile(
+        db
+          .with("t", (qb) => qb.selectFrom("events_core").select("span_id"))
+          .selectFrom("t")
+          .select("span_id")
+          .where(db.dynamic.ref("is_deleted"), "=", 0),
+      );
+      expect(sql).toMatch(/is_deleted = \{p\d+:Int64\}/);
+    });
+
+    // Nothing is bound, so the column's type is never needed.
+    it("compiles an unresolvable column compared to an inlined constant", () => {
       const { sql } = compile(
         db
           .selectFrom("events_core")
           .select("span_id")
-          .where(db.dynamic.ref("x.is_deleted"), "=", 0),
+          .where((eb) => eb(db.dynamic.ref("x.is_deleted"), "=", eb.lit(0))),
       );
-      expect(sql).toMatch(/x\.is_deleted = \{p\d+:UInt8\}/);
+      expect(sql).toContain("x.is_deleted = 0");
+    });
+
+    it.each([
+      [
+        // No FROM or JOIN in scope is named `x`.
+        "a qualifier declared nowhere",
+        () =>
+          db
+            .selectFrom("events_core")
+            .select("span_id")
+            .where(db.dynamic.ref("x.is_deleted"), "=", 0),
+        /no relation in scope is named "x"/,
+      ],
+      [
+        // `u` is declared, but its columns are unknown.
+        "a qualified column of a table outside the registry",
+        () =>
+          unregistered
+            .selectFrom("unregistered as u")
+            .select("u.trace_id")
+            .where("u.start_time", ">=", START),
+        /columns of "u" are unknown/,
+      ],
+      [
+        // start_time is DateTime64(3) on observations, DateTime64(6) on events.
+        "an unqualified column the joined relations type differently",
+        () =>
+          db
+            .selectFrom("events_core as e")
+            .innerJoin("observations as o", "o.trace_id", "e.trace_id")
+            .select("e.span_id")
+            .where("start_time", ">=", START),
+        /joined relations give it different types/,
+      ],
+      [
+        // span_id is only on events_core in the registry, but `u` may have it.
+        "an unqualified column next to a table outside the registry",
+        () =>
+          unregistered
+            .selectFrom("events_core as e")
+            .innerJoin("unregistered as u", "u.trace_id", "e.trace_id")
+            .select("e.trace_id")
+            .where("span_id", "=", "s"),
+        /may come from a relation whose columns are unknown/,
+      ],
+      [
+        // The CTE column carries the unknown type of `u.start_time`.
+        "a CTE column selected from a table outside the registry",
+        () =>
+          unregistered
+            .with("t", (qb) =>
+              qb.selectFrom("unregistered as u").select("u.start_time"),
+            )
+            .selectFrom("t")
+            .select("start_time")
+            .where("start_time", ">=", START),
+        /columns of "u" are unknown/,
+      ],
+      [
+        // `t.start_time` is unknown, so the join can't settle the type either.
+        "an unqualified CTE column of unknown type next to a registry relation",
+        () =>
+          unregistered
+            .with("t", (qb) =>
+              qb.selectFrom("unregistered as u").select("u.start_time"),
+            )
+            .selectFrom("t")
+            .innerJoin("observations as o", "o.start_time", "t.start_time")
+            .select("o.trace_id")
+            .where("start_time", ">=", START),
+        /columns of "u" are unknown/,
+      ],
+      [
+        // `*` over an unregistered table yields unknown columns.
+        "a CTE * over a table outside the registry",
+        () =>
+          unregistered
+            .with("t", (qb) => qb.selectFrom("unregistered").selectAll())
+            .selectFrom("t")
+            .select("trace_id")
+            .where("start_time", ">=", START),
+        /may come from a relation whose columns are unknown/,
+      ],
+      [
+        // Same, through a qualified `u.*`.
+        "a CTE qualified * over a table outside the registry",
+        () =>
+          unregistered
+            .with("t", (qb) =>
+              qb.selectFrom("unregistered as u").selectAll("u"),
+            )
+            .selectFrom("t as t")
+            .select("t.trace_id")
+            .where("t.start_time", ">=", START),
+        /columns of "t" are unknown/,
+      ],
+      [
+        // An IN list binds an array of the column's type.
+        "an IN list against a qualifier declared nowhere",
+        () =>
+          db
+            .selectFrom("events_core")
+            .select("span_id")
+            .where(db.dynamic.ref("x.trace_id"), "in", ["a", "b"]),
+        /no relation in scope is named "x"/,
+      ],
+    ])("rejects a value bound against %s", (_, build, message) => {
+      expect(() => compile(build())).toThrow(QueryCompileError);
+      expect(() => compile(build())).toThrow(message);
     });
   });
 
