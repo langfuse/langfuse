@@ -2,10 +2,9 @@ import type { NormalizedMessage } from "../../utils/normalized-io";
 import type { Thread, ThreadMessage } from "./types";
 import type { OrderedObservation } from "./ordering";
 import type { ToolCallRegistry } from "./tool-calls";
-import { messageKey } from "./comparison";
 import { contributesToContinuity } from "./continuity";
 import {
-  isEnrichmentPart,
+  prepareMessage,
   type MessageKeys,
   type PreparedMessage,
 } from "./messages";
@@ -69,18 +68,9 @@ export function append(
     for (const part of message.parts) {
       (calls.claims(part) ? results : parts).push(part);
     }
-    if (parts.length) {
-      let remaining = message;
-      if (results.length) {
-        const identityParts = parts.filter((part) => !isEnrichmentPart(part));
-        remaining = {
-          ...message,
-          parts,
-          identityKey: identityParts.length
-            ? messageKey({ ...message, parts: identityParts })
-            : undefined,
-        };
-      }
+    if (parts.length > 0) {
+      const remaining =
+        results.length > 0 ? prepareMessage({ ...message, parts }) : message;
       const retained = deduplicate(remaining);
       if (retained) {
         const emitted: ThreadMessage & MessageKeys = {

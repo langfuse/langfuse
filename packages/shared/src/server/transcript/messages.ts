@@ -18,12 +18,14 @@ export function prepareMessage(message: NormalizedMessage): PreparedMessage {
   );
   return {
     ...message,
-    identityKey: identityParts.length
-      ? messageKey({ ...message, parts: identityParts })
-      : undefined,
-    enrichmentKey: enrichmentParts.length
-      ? messageKey({ ...message, parts: enrichmentParts })
-      : undefined,
+    identityKey:
+      identityParts.length > 0
+        ? messageKey({ ...message, parts: identityParts })
+        : undefined,
+    enrichmentKey:
+      enrichmentParts.length > 0
+        ? messageKey({ ...message, parts: enrichmentParts })
+        : undefined,
   };
 }
 
