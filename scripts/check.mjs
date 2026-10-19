@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import {
   closeSync,
   existsSync,
@@ -514,7 +514,7 @@ function loadWorkspace(base) {
   return { packages, taskGraph };
 }
 
-function runCheck(check, outputDirectory, checkIndex) {
+async function runCheck(check, outputDirectory, checkIndex) {
   for (const [stepIndex, command] of (check.steps ?? [check.args]).entries()) {
     // Disk-backed capture avoids truncating verbose failures or exhausting a
     // pipe buffer while successful commands remain completely quiet.
@@ -525,9 +525,18 @@ function runCheck(check, outputDirectory, checkIndex) {
     const output = openSync(outputFile, "w", 0o600);
     let result;
     try {
-      result = spawnSync("pnpm", command, {
-        cwd: root,
-        stdio: ["ignore", output, output],
+      result = await new Promise((resolve) => {
+        const child = spawn("pnpm", command, {
+          cwd: root,
+          stdio: ["ignore", output, output],
+        });
+        let error;
+        child.on("error", (cause) => {
+          error = cause;
+        });
+        child.on("close", (status, signal) => {
+          resolve({ status, signal, error });
+        });
       });
     } finally {
       closeSync(output);
@@ -584,7 +593,7 @@ function collectDiagnostics(outputFile, isTurboBatch) {
   };
 }
 
-function main() {
+async function main() {
   const options = parseOptions(process.argv.slice(2));
   if (options.help) {
     console.log(
@@ -645,51 +654,76 @@ function main() {
   const failed = [];
   let completedChecks = 0;
   let turboFailed = false;
+  const batches = [];
+  for (const [checkIndex, check] of plan.entries()) {
+    const previous = batches.at(-1);
+    if (check.requiresTurbo && previous?.[0].check.requiresTurbo) {
+      previous.push({ check, checkIndex });
+    } else {
+      batches.push([{ check, checkIndex }]);
+    }
+  }
   try {
-    for (const [checkIndex, check] of plan.entries()) {
-      const { label, requiresTurbo, isTurboBatch } = check;
-      if (requiresTurbo && turboFailed) {
-        console.error(
-          `Skipped ${label.toLowerCase()}: package checks or preparation failed.`,
-        );
-        failed.push(label);
+    for (const batch of batches) {
+      if (batch[0].check.requiresTurbo && turboFailed) {
+        for (const { check } of batch) {
+          console.error(
+            `Skipped ${check.label.toLowerCase()}: package checks or preparation failed.`,
+          );
+          failed.push(check.label);
+        }
         continue;
       }
-      const checkStartedAt = performance.now();
-      console.log(`${label}…`);
-      const result = runCheck(check, outputDirectory, checkIndex);
-      if (result) {
-        const { outputFile } = result;
-        console.error(`  Failed (${elapsed(checkStartedAt)}).`);
-        if (result.error) console.error(result.error.message);
-        const diagnostics = collectDiagnostics(outputFile, isTurboBatch);
-        if (isTurboBatch) {
-          for (const task of diagnostics.tasks) {
-            console.error(`\n${task.taskId} failed (exit ${task.exitCode}):`);
-            if (task.diagnostics) {
-              console.error(task.diagnostics);
-            } else {
-              console.error("No diagnostic output was recorded for this task.");
+      // Wait for every child before cleaning up shared log storage, even when
+      // one check encounters an unexpected filesystem or execution error.
+      const results = await Promise.allSettled(
+        batch.map(async ({ check, checkIndex }) => {
+          const checkStartedAt = performance.now();
+          console.log(`${check.label}…`);
+          const result = await runCheck(check, outputDirectory, checkIndex);
+          return { check, result, duration: elapsed(checkStartedAt) };
+        }),
+      );
+      for (const outcome of results) {
+        if (outcome.status === "rejected") throw outcome.reason;
+        const { check, result, duration } = outcome.value;
+        const { label, isTurboBatch } = check;
+        const prefix = batch.length > 1 ? `  ${label}: ` : "  ";
+        if (result) {
+          const { outputFile } = result;
+          console.error(`${prefix}Failed (${duration}).`);
+          if (result.error) console.error(result.error.message);
+          const diagnostics = collectDiagnostics(outputFile, isTurboBatch);
+          if (isTurboBatch) {
+            for (const task of diagnostics.tasks) {
+              console.error(`\n${task.taskId} failed (exit ${task.exitCode}):`);
+              if (task.diagnostics) {
+                console.error(task.diagnostics);
+              } else {
+                console.error(
+                  "No diagnostic output was recorded for this task.",
+                );
+              }
             }
+            if (!diagnostics.complete) {
+              retainLogs = true;
+              console.error(
+                `Some task diagnostics were unavailable. Runner details: ${relative(root, outputFile)}`,
+              );
+            }
+          } else {
+            if (diagnostics.captured) console.error(diagnostics.captured);
           }
-          if (!diagnostics.complete) {
-            retainLogs = true;
-            console.error(
-              `Some task diagnostics were unavailable. Runner details: ${relative(root, outputFile)}`,
-            );
+          failed.push(label);
+          if (isTurboBatch) turboFailed = true;
+          if (result.signal) {
+            process.exitCode = 1;
+            return;
           }
-        } else {
-          if (diagnostics.captured) console.error(diagnostics.captured);
         }
-        failed.push(label);
-        if (isTurboBatch) turboFailed = true;
-        if (result.signal) {
-          process.exitCode = 1;
-          return;
-        }
+        completedChecks++;
+        if (!result) console.log(`${prefix}Passed (${duration}).`);
       }
-      completedChecks++;
-      if (!result) console.log(`  Passed (${elapsed(checkStartedAt)}).`);
     }
   } finally {
     if (!retainLogs) rmSync(outputDirectory, { recursive: true, force: true });
@@ -710,7 +744,7 @@ if (
   resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 ) {
   try {
-    main();
+    await main();
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;
