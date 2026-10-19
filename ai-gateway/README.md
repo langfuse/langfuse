@@ -402,8 +402,10 @@ buffers and validates the request and resolves the credential and model-aware ro
 through Web. A declared `Content-Length` is checked against the request limit before
 reading. The reservation grows with the body buffer's allocation as bytes arrive, so a
 client that declares a large body and stalls holds only the overhead and what it sent.
-The whole reservation stays held until the response ends; model catalog requests hold
-the overhead while they run. An exhausted budget returns 503 immediately without a
+The whole reservation stays held until the response ends. Model catalog requests
+reserve the overhead, grow it with Web's catalog buffer as it arrives, then to three
+times the catalog for parsing and the provider-shaped response, and hold it until the
+client has read that response. An exhausted budget returns 503 immediately without a
 waiting queue. There is no request-count limit; file descriptors are bounded by the
 container.
 

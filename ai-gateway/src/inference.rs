@@ -67,8 +67,13 @@ impl MemoryReservation {
     /// Grow the reservation to the overhead plus `body` bytes without waiting.
     ///
     /// # Errors
-    /// Returns [`ResolutionError::Busy`] when the shared budget cannot cover `body`.
-    pub(crate) fn try_reserve_body(&mut self, body: usize) -> Result<(), ResolutionError> {
+    /// Returns [`ResolutionError::Busy`] when the shared budget cannot cover `body`,
+    /// recording the rejection under `phase`.
+    pub(crate) fn try_reserve_body(
+        &mut self,
+        body: usize,
+        phase: &'static str,
+    ) -> Result<(), ResolutionError> {
         let Some(missing) = self
             .overhead
             .saturating_add(body)
@@ -85,7 +90,7 @@ impl MemoryReservation {
                     .ok()
             })
             .ok_or_else(|| {
-                crate::observability::rejected("request_body");
+                crate::observability::rejected(phase);
                 ResolutionError::Busy
             })?;
         crate::observability::memory_reserved(missing);
@@ -182,14 +187,19 @@ impl InferenceService {
         gateway_key: &str,
         api_format: ApiFormat,
         correlation: &RequestCorrelation,
-    ) -> Result<Vec<u8>, ResolutionError> {
-        let _reservation = self.try_reserve_memory("model_catalog")?;
+    ) -> Result<(Vec<u8>, MemoryReservation), ResolutionError> {
+        let mut reservation = self.try_reserve_memory("model_catalog")?;
         let _active = crate::observability::Active::new("model_catalog");
         let body = self
             .control_plane
-            .models(gateway_key, api_format, correlation.id())
+            .models(gateway_key, api_format, correlation.id(), &mut |capacity| {
+                reservation.try_reserve_body(capacity, "model_catalog")
+            })
             .await?;
-        crate::providers::model_list::provider_response(&body, api_format)
+        // Parsing holds the typed catalog and the provider-shaped output beside the body.
+        reservation.try_reserve_body(body.len().saturating_mul(3), "model_catalog")?;
+        let catalog = crate::providers::model_list::provider_response(&body, api_format)?;
+        Ok((catalog, reservation))
     }
 
     /// Authenticate, then start the execution. The API format comes from the public route,

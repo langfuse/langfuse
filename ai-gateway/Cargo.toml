@@ -11,6 +11,7 @@ base64 = "0.23"
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 flate2 = "1.1"
 hmac = "0.13"
+http-body = "1"
 http-body-util = "0.1"
 futures-util = "0.3"
 opentelemetry-http = "0.33"
@@ -33,7 +34,6 @@ secrecy = { version = "0.10", features = ["serde"] }
 thiserror = "2"
 
 [dev-dependencies]
-http-body = "1"
 opentelemetry-proto = { version = "0.33", default-features = false, features = ["gen-tonic-messages", "trace", "metrics"] }
 opentelemetry_sdk = { version = "0.33", default-features = false, features = ["testing"] }
 prost = "0.14"

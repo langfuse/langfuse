@@ -247,6 +247,61 @@ async fn stalled_body_uploads_hold_memory_until_the_client_goes_away() {
 }
 
 #[tokio::test]
+async fn model_catalog_memory_covers_the_catalog_until_its_body_is_read() {
+    let entry = r#"{"id":"Production key:gpt-4.1","provider":"OPENAI","canonicalSlug":"gpt-4.1","displayName":"GPT-4.1","createdAt":"1970-01-01T00:00:10.000Z"}"#;
+    let catalog = format!(r#"{{"data":[{}]}}"#, vec![entry; 2000].join(","));
+    let catalog_bytes = catalog.len();
+    let web = FakeServer::start(move |_| {
+        let catalog = catalog.clone();
+        async move {
+            Response::builder()
+                .header("content-type", "application/json")
+                .body(Body::from(catalog))
+                .unwrap()
+        }
+    })
+    .await;
+    let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
+    let overhead = 1024;
+    let gateway = Gateway::start(Some(
+        InferenceService::for_test(
+            web.control_plane(),
+            ProviderTransport::for_test(provider.url.clone(), ProviderLimits::default()),
+        )
+        .with_request_limits(RequestLimits {
+            max_request_bytes: MAX_REQUEST_BYTES,
+            memory_budget_bytes: 2 * overhead + 3 * catalog_bytes - 1,
+            request_overhead_bytes: overhead,
+        }),
+    ))
+    .await;
+    let catalog_request = || {
+        gateway.app.clone().oneshot(
+            Request::get("/openai/v1/models")
+                .header(header::AUTHORIZATION, "Bearer models")
+                .body(Body::empty())
+                .unwrap(),
+        )
+    };
+
+    let unread = catalog_request().await.unwrap();
+    assert_eq!(unread.status(), StatusCode::OK);
+    assert_eq!(
+        catalog_request().await.unwrap().status(),
+        StatusCode::SERVICE_UNAVAILABLE
+    );
+    let body = to_bytes(unread.into_body(), usize::MAX).await.unwrap();
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&body).unwrap()["data"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2000
+    );
+    assert_eq!(catalog_request().await.unwrap().status(), StatusCode::OK);
+}
+
+#[tokio::test]
 async fn slow_model_catalogs_hold_memory_until_cancelled() {
     let entered = Arc::new(tokio::sync::Notify::new());
     let started = entered.clone();
@@ -1832,8 +1887,8 @@ async fn a_stalled_upload_holds_only_the_bytes_it_sent() {
             .is_err()
     );
     let mut next = service.try_reserve_memory("request").ok().unwrap();
-    assert!(next.try_reserve_body(91).is_err());
-    assert!(next.try_reserve_body(90).is_ok());
+    assert!(next.try_reserve_body(91, "request_body").is_err());
+    assert!(next.try_reserve_body(90, "request_body").is_ok());
 }
 
 #[tokio::test]
@@ -1851,8 +1906,8 @@ async fn buffered_bytes_reserve_the_allocation_not_just_the_length() {
     .unwrap();
     assert_eq!(bytes.len(), 33);
     let mut next = service.try_reserve_memory("request").ok().unwrap();
-    assert!(next.try_reserve_body(37).is_err());
-    assert!(next.try_reserve_body(36).is_ok());
+    assert!(next.try_reserve_body(37, "request_body").is_err());
+    assert!(next.try_reserve_body(36, "request_body").is_ok());
 }
 
 #[tokio::test]
@@ -1865,11 +1920,11 @@ async fn the_body_reservation_sits_on_top_of_the_fixed_overhead() {
     });
     let mut reservation = service.try_reserve_memory("request").ok().unwrap();
     assert_eq!(service.available_memory(), 90);
-    assert!(reservation.try_reserve_body(60).is_ok());
+    assert!(reservation.try_reserve_body(60, "request_body").is_ok());
     assert_eq!(service.available_memory(), 30);
-    assert!(reservation.try_reserve_body(40).is_ok());
+    assert!(reservation.try_reserve_body(40, "request_body").is_ok());
     assert_eq!(service.available_memory(), 30);
-    assert!(reservation.try_reserve_body(91).is_err());
+    assert!(reservation.try_reserve_body(91, "request_body").is_err());
     drop(reservation);
     assert_eq!(service.available_memory(), 100);
 }
