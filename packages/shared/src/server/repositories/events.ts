@@ -11,6 +11,7 @@ import {
   type AliasedExpression,
   type Expression,
   type ExpressionBuilder,
+  type QueryCreator,
   type SqlBool,
 } from "kysely";
 import type {
@@ -32,6 +33,7 @@ import { recordDistribution } from "../instrumentation";
 import { logger } from "../logger";
 import { compileClickhouseQuery } from "../query-ast/compile";
 import { getClickhouseKysely } from "../query-ast/dialect";
+import type { ClickHouseDatabase } from "../query-ast/schema";
 import { promptGenerationEvents } from "./prompt-events";
 import {
   arrayMap,
@@ -1194,12 +1196,10 @@ export const getTraceByIdFromEventsTable = async ({
   const db = getClickhouseKysely();
   const truncated = renderingProps.truncated === true;
 
-  const tracesCte = (qb: ReturnType<typeof getClickhouseKysely>) => {
-    const from = truncated
-      ? qb.selectFrom("events_core as e")
-      : qb.selectFrom("events_full as e");
-    return from
-      .select(traceAggregationSelects)
+  const tracesCte = (qb: QueryCreator<ClickHouseDatabase>) =>
+    qb
+      .selectFrom(truncated ? "events_core as e" : "events_full as e")
+      .select((eb) => traceAggregationSelects(eb))
       .where("trace_id", "in", [traceId])
       .$if(fromTimestamp != null, (inner) =>
         inner.where(
@@ -1210,17 +1210,14 @@ export const getTraceByIdFromEventsTable = async ({
       )
       .groupBy(["trace_id", "project_id"])
       .orderBy("timestamp", "desc");
-  };
 
   const metadataSelect = excludeMetadata
     ? sql`map()`.as("metadata")
     : "t.metadata";
 
   const builder = db
-    .with("traces", (qb) =>
-      tracesCte(qb as ReturnType<typeof getClickhouseKysely>),
-    )
-    .selectFrom("traces as t")
+    .with("event_traces", tracesCte)
+    .selectFrom("event_traces as t")
     .select((eb) => [
       "t.id",
       "t.name",
