@@ -21,7 +21,7 @@ use crate::{
     config::ExecutionLimits,
     correlation::{RequestCorrelation, UpstreamTarget},
     observability::{ErrorOrigin, RequestObservation, Wait, provider_status_reason},
-    resolution::{ApiFormat, Provider, ProviderCredential, ResolvedRequestContext},
+    resolution::{ApiFormat, IngestionMode, Provider, ProviderCredential, ResolvedRequestContext},
     transport,
 };
 
@@ -225,7 +225,9 @@ impl ProviderTransport {
         let provider_model = context.connection().provider_model();
         let mut capture = if route.captures_generation() {
             let mut capture = ExecutionCapture::for_request(api_format, &context, headers, &body);
-            if let Some(telemetry) = &self.telemetry {
+            if let Some(telemetry) = &self.telemetry
+                && context.ingestion_mode() != IngestionMode::None
+            {
                 capture.deliver_to(telemetry.clone(), &context, headers, correlation);
             }
             capture

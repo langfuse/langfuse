@@ -721,7 +721,7 @@ async fn rejects_incompatible_or_incomplete_execution_contexts() {
             json!({"nested": {"key": "value"}}),
         ),
         ("/attribution/key_metadata", json!({"null": null})),
-        ("/ingestion_mode", json!("none")),
+        ("/ingestion_mode", json!("off")),
         ("/ingestion/access_token", json!("")),
         ("/ingestion/token_type", json!("Basic")),
         ("/ingestion/expires_at", json!(NOW)),
