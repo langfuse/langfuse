@@ -82,7 +82,7 @@ MediaTag/MediaTag MediaTag
 OrganizationDropdownMenu/OrganizationDropdownMenu OrganizationDropdownMenu
 ProjectDropdownMenu/ProjectDropdownMenu ProjectDropdownMenu
 ScoreBadge/ScoreBadge ScoreBadge
-score-tag ScoreTag
+ScoreTag ScoreTag, SCORE_LEVEL_LABELS
 layouts/mobile-page-actions-content MobilePageActionsContent
 nav/AppSidebar/AppSidebar AppSidebar
 onboarding/components/EvaluatorsOnboardingView/EvaluatorsOnboardingView EvaluatorsOnboardingView
