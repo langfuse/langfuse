@@ -2,12 +2,14 @@ import { partition } from "lodash";
 import type { NormalizedMessage } from "../../utils/normalized-io";
 import { messageKey } from "./comparison";
 
-export type PreparedMessage = NormalizedMessage & {
+export type MessageKeys = {
   /** Identifies parts used to establish continuity and detect replay. */
   identityKey?: string;
   /** Identifies additional parts preserved and deduplicated independently. */
   enrichmentKey?: string;
 };
+
+export type PreparedMessage = NormalizedMessage & MessageKeys;
 
 export function prepareMessage(message: NormalizedMessage): PreparedMessage {
   const [enrichmentParts, identityParts] = partition(

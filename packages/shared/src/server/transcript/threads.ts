@@ -4,7 +4,11 @@ import type { OrderedObservation } from "./ordering";
 import type { ToolCallRegistry } from "./tool-calls";
 import { messageKey } from "./comparison";
 import { contributesToContinuity } from "./continuity";
-import { isEnrichmentPart, type PreparedMessage } from "./messages";
+import {
+  isEnrichmentPart,
+  type MessageKeys,
+  type PreparedMessage,
+} from "./messages";
 import { createMessageDeduplicator } from "./replay";
 
 export type TranscriptObservation = OrderedObservation & { traceId: string };
@@ -16,7 +20,7 @@ type Contributor = Pick<
 
 export type ThreadState = {
   /** Display order; attached tool responses carry no comparison keys. */
-  messages: (ThreadMessage & PreparedMessage)[];
+  messages: (ThreadMessage & MessageKeys)[];
   /** Observations in the order they first contributed a message. */
   contributors: Contributor[];
   /** Enrichment added to replayed identity parts must not establish a turn boundary. */
@@ -79,7 +83,7 @@ export function append(
       }
       const retained = deduplicate(remaining);
       if (retained) {
-        const emitted: ThreadMessage & PreparedMessage = {
+        const emitted: ThreadMessage & MessageKeys = {
           ...message,
           parts: retained.parts,
           identityKey: retained.identityKey,
