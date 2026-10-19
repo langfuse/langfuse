@@ -1,3 +1,4 @@
+import { removeAllProjectMembers } from "@/src/features/memberships/server/membershipService";
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
@@ -327,11 +328,7 @@ export const projectsRouter = createTRPCRouter({
       });
 
       await ctx.prisma.$transaction(async (tx) => {
-        await tx.projectMembership.deleteMany({
-          where: {
-            projectId: input.projectId,
-          },
-        });
+        await removeAllProjectMembers(tx, input.projectId);
         await tx.project.update({
           where: {
             id: input.projectId,

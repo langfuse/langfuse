@@ -571,7 +571,6 @@ describe("Organization membership safeguards", () => {
   let ownerId: string;
   let memberId: string;
   let apiKeyId: string;
-  let adminKeyId: string;
   let ownerContext: AuthorizationContext;
   let adminContext: AuthorizationContext;
   let ownerAuth: string;
@@ -605,7 +604,6 @@ describe("Organization membership safeguards", () => {
       ),
     );
     apiKeyId = ownerKey!.id;
-    adminKeyId = adminKey!.id;
     ownerAuth = createBasicAuthHeader(ownerKey!.publicKey, ownerKey!.secretKey);
     adminAuth = createBasicAuthHeader(adminKey!.publicKey, adminKey!.secretKey);
     legacyAuth = ownerAuth;
@@ -716,7 +714,7 @@ describe("Organization membership safeguards", () => {
       method: "PUT",
       body: { userId: ownerId, role: Role.MEMBER },
     });
-    await handleUpdateMembership(req, res, orgId, adminKeyId, context);
+    await handleUpdateMembership(req, res, orgId, context);
     expect(res.statusCode).toBe(200);
     expect((await membership(ownerId))?.role).toBe(Role.MEMBER);
     expect(await logs()).toHaveLength(1);
@@ -730,7 +728,7 @@ describe("Organization membership safeguards", () => {
     });
     const before = await membership(memberId);
     await expect(
-      handleDeleteMembership(req, res, orgId, apiKeyId, context),
+      handleDeleteMembership(req, res, orgId, context),
     ).rejects.toMatchObject({ httpCode: 403 });
     expect(await membership(memberId)).toEqual(before);
     expect(await logs()).toEqual([]);
@@ -769,7 +767,7 @@ describe("Organization membership safeguards", () => {
     ).toBe(403);
   });
 
-  it("audits create, update, no-op PUT, and actual deletion with the verified key", async () => {
+  it("audits create, update, and actual deletion with the verified key, but not no-ops", async () => {
     await prisma.organizationMembership.deleteMany({
       where: { orgId, userId: memberId },
     });
@@ -783,7 +781,6 @@ describe("Organization membership safeguards", () => {
     const records = await logs();
     expect(records.map((record) => record.action)).toEqual([
       "create",
-      "update",
       "update",
       "delete",
     ]);
@@ -802,8 +799,11 @@ describe("Organization membership safeguards", () => {
     expect(records[1]).toMatchObject({ resourceId: created!.id });
     expect(JSON.parse(records[1]!.before!)).toEqual(serialized(created));
     expect(JSON.parse(records[1]!.after!)).toEqual(serialized(updated));
-    expect(records[3]).toMatchObject({ resourceId: created!.id, after: null });
-    expect(JSON.parse(records[3]!.before!)).toEqual(serialized(updated));
+    expect(records[2]).toMatchObject({ resourceId: created!.id, after: null });
+    expect(JSON.parse(records[2]!.before!)).toEqual({
+      ...serialized(updated),
+      ProjectMemberships: [],
+    });
   });
 
   it("does not audit invalid requests or missing users", async () => {
@@ -873,15 +873,15 @@ describe("Organization membership safeguards", () => {
       });
       const handler =
         method === "PUT" ? handleUpdateMembership : handleDeleteMembership;
-      await expect(
-        handler(req, res, orgId, apiKeyId, ownerContext),
-      ).rejects.toThrow("audit unavailable");
+      await expect(handler(req, res, orgId, ownerContext)).rejects.toThrow(
+        "audit unavailable",
+      );
       expect(await membership(memberId)).toEqual(before);
       expect(await logs()).toEqual([]);
     },
   );
 
-  it("retains the committed mutation and audit when SFDC fails", async () => {
+  it("commits the mutation and audit and succeeds when SFDC fails", async () => {
     vi.spyOn(sfdc, "getSfdcService").mockImplementation(() => {
       throw new Error("SFDC unavailable");
     });
@@ -889,9 +889,8 @@ describe("Organization membership safeguards", () => {
       method: "PUT",
       body: { userId: memberId, role: Role.ADMIN },
     });
-    await expect(
-      handleUpdateMembership(req, res, orgId, apiKeyId, ownerContext),
-    ).rejects.toThrow("SFDC unavailable");
+    await handleUpdateMembership(req, res, orgId, ownerContext);
+    expect(res.statusCode).toBe(200);
     expect((await membership(memberId))?.role).toBe(Role.ADMIN);
     expect(await logs()).toHaveLength(1);
   });
@@ -1127,14 +1126,7 @@ describe("Project membership safeguards", () => {
       method: "PUT",
       body: { userId, role: Role.OWNER },
     });
-    await handleUpdateProjectMembership(
-      req,
-      res,
-      projectId,
-      orgId,
-      projectAdminKeyId,
-      context,
-    );
+    await handleUpdateProjectMembership(req, res, projectId, orgId, context);
     expect(res.statusCode).toBe(200);
     expect((await membership())?.role).toBe(Role.OWNER);
     expect(await logs()).toHaveLength(1);
@@ -1157,7 +1149,7 @@ describe("Project membership safeguards", () => {
           ? handleDeleteProjectMembership
           : handleUpdateProjectMembership;
       await expect(
-        handler(req, res, projectId, orgId, projectAdminKeyId, adminContext),
+        handler(req, res, projectId, orgId, adminContext),
       ).rejects.toThrow("audit unavailable");
       expect(await membership()).toEqual(before);
       expect(await logs()).toEqual([]);

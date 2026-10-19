@@ -13,7 +13,11 @@ import {
   type TenantId,
 } from "@langfuse/shared/rbac";
 import { getRoleAssignmentsForPrincipal } from "@langfuse/shared/rbac/server";
-import { type Prisma, type RoleAssignment } from "@langfuse/shared/src/db";
+import {
+  type Prisma,
+  type RoleAssignment,
+  type SystemRole,
+} from "@langfuse/shared/src/db";
 import { type Policy, type Role } from "./types";
 
 /** getRolesForPrincipal loads a principal's roles with policies bound to each assignment. */
@@ -27,10 +31,22 @@ export async function getRolesForPrincipal(
 
 /** toRole binds a stored assignment's system role to its tenant and owner. */
 function toRole(assignment: RoleAssignment): Role {
-  const definition = systemRoleAccessRights[assignment.systemRole];
-  const roleId = SystemRoleId(assignment.systemRole);
-  const tenantId = OrganizationId(assignment.orgId);
-  const ownerId = toOwnerId(assignment);
+  return bindSystemRole(
+    assignment.systemRole,
+    assignment.orgId,
+    toOwnerId(assignment),
+  );
+}
+
+/** bindSystemRole binds a catalog role to its tenant and owner: an org owner also covers every project of the tenant, a project owner only itself. */
+export function bindSystemRole(
+  systemRole: SystemRole,
+  orgId: string,
+  ownerId: OwnerId,
+): Role {
+  const definition = systemRoleAccessRights[systemRole];
+  const roleId = SystemRoleId(systemRole);
+  const tenantId = OrganizationId(orgId);
   const resources = hasProjectKind(ownerId)
     ? [ownerId]
     : [ownerId, ProjectId("*")];

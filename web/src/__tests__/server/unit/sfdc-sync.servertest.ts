@@ -57,6 +57,11 @@ const { envMock, prismaMock, loggerMock, fetchMock } = vi.hoisted(() => {
         findMany: vi.fn(async (): Promise<unknown[]> => []),
         deleteMany: vi.fn(async () => ({ count: 0 })),
       },
+      projectMembership: {
+        findUnique: vi.fn(async (): Promise<unknown> => null),
+        findMany: vi.fn(async (): Promise<unknown[]> => []),
+        create: vi.fn(async (): Promise<unknown> => ({})),
+      },
       project: {
         findUnique: vi.fn(async (): Promise<unknown> => null),
         create: vi.fn(async (): Promise<unknown> => ({ id: "proj-new" })),
@@ -67,10 +72,11 @@ const { envMock, prismaMock, loggerMock, fetchMock } = vi.hoisted(() => {
       apiKey: {
         findUnique: vi.fn(async (): Promise<unknown> => null),
       },
-      // Starter-org provisioning serializes on SELECT ... FOR UPDATE.
+      // Starter-org provisioning serializes on SELECT ... FOR UPDATE, and the
+      // membership service on an advisory lock.
       $queryRaw: vi.fn(async (): Promise<unknown> => []),
-      // tRPC organizations.create wraps its writes in a callback transaction;
-      // invitation processing uses the array form — support both.
+      // tRPC organizations.create and the membership service wrap their
+      // writes in a callback transaction; support the array form too.
       $transaction: vi.fn(
         async (
           arg: ((tx: unknown) => Promise<unknown>) | Promise<unknown>[],
@@ -130,6 +136,7 @@ import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/create
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { handleUpdateMembership } from "@/src/ee/features/admin-api/server/memberships";
+import { changeOrgRole } from "@/src/features/memberships/server/membershipService";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { CloudConfigSchema, Role } from "@langfuse/shared";
 import { OrganizationId, SystemRoleId } from "@langfuse/shared/rbac";
@@ -876,28 +883,68 @@ function createMockRes() {
   return res as typeof res & NextApiResponse;
 }
 
-describe("call site: tRPC members.updateOrgMembership", () => {
+/** An org API key allowed to manage members of org-1. */
+const membershipAdminContext: AuthorizationContext = {
+  principal: {
+    kind: "apiKey",
+    apiKeyId: "key-1",
+    userId: null,
+    isInAppAgentKey: false,
+    publicKey: "pk-lf-test",
+    scope: "ORGANIZATION",
+    presentation: "privateKey",
+    organizations: [
+      {
+        orgId: "org-1",
+        organizationCreatedAt: ORG_CREATED_AT.toISOString(),
+        plan: "cloud:team",
+        rateLimitOverrides: [],
+        projectIds: [],
+        isIngestionSuspended: false,
+      },
+    ],
+    boundResource: { orgId: "org-1" },
+  },
+  policies: [
+    {
+      id: "membership-admin",
+      roleId: SystemRoleId("ADMIN"),
+      tenantId: OrganizationId("org-1"),
+      effect: "ALLOW",
+      actions: ["organizationMembers:CUD"],
+      resources: [OrganizationId("org-1")],
+    },
+  ],
+};
+
+describe("call site: membership service changeOrgRole", () => {
   const membership = {
     id: "om-1",
     orgId: "org-1",
     userId: "member-1",
     role: "ADMIN",
-    user: { email: "member@test.com" },
   };
 
-  it("syncs a downgrade to NONE as removeUser", async () => {
-    prismaMock.organizationMembership.findFirst.mockResolvedValueOnce(
+  beforeEach(() => {
+    prismaMock.organizationMembership.findUnique.mockResolvedValueOnce(
       membership,
     );
+    prismaMock.user.findUnique.mockResolvedValueOnce({
+      id: "member-1",
+      email: "member@test.com",
+    });
+  });
+
+  it("syncs a downgrade to NONE as removeUser", async () => {
     prismaMock.organizationMembership.update.mockResolvedValueOnce({
       ...membership,
       role: "NONE",
     });
     fetchMock.mockResolvedValueOnce(emptyOkResponse());
 
-    await createOwnerCaller("org-1").members.updateOrgMembership({
+    await changeOrgRole(membershipAdminContext, {
       orgId: "org-1",
-      orgMembershipId: "om-1",
+      userId: "member-1",
       role: Role.NONE,
     });
 
@@ -913,18 +960,15 @@ describe("call site: tRPC members.updateOrgMembership", () => {
   });
 
   it("syncs a change between real roles as setUserRole", async () => {
-    prismaMock.organizationMembership.findFirst.mockResolvedValueOnce(
-      membership,
-    );
     prismaMock.organizationMembership.update.mockResolvedValueOnce({
       ...membership,
       role: "MEMBER",
     });
     fetchMock.mockResolvedValueOnce(emptyOkResponse());
 
-    await createOwnerCaller("org-1").members.updateOrgMembership({
+    await changeOrgRole(membershipAdminContext, {
       orgId: "org-1",
-      orgMembershipId: "om-1",
+      userId: "member-1",
       role: Role.MEMBER,
     });
 
@@ -942,44 +986,27 @@ describe("call site: tRPC members.updateOrgMembership", () => {
 
 describe("call site: admin API handleUpdateMembership", () => {
   const member = { id: "member-1", email: "member@test.com", name: "Member" };
-  const context: AuthorizationContext = {
-    principal: {
-      kind: "apiKey",
-      apiKeyId: "key-1",
-      userId: null,
-      isInAppAgentKey: false,
-      publicKey: "pk-lf-test",
-      scope: "ORGANIZATION",
-      presentation: "privateKey",
-      organizations: [
-        {
-          orgId: "org-1",
-          organizationCreatedAt: ORG_CREATED_AT.toISOString(),
-          plan: "cloud:team",
-          rateLimitOverrides: [],
-          projectIds: [],
-          isIngestionSuspended: false,
-        },
-      ],
-      boundResource: { orgId: "org-1" },
-    },
-    policies: [
-      {
-        id: "membership-admin",
-        roleId: SystemRoleId("ADMIN"),
-        tenantId: OrganizationId("org-1"),
-        effect: "ALLOW",
-        actions: ["organizationMembers:CUD"],
-        resources: [OrganizationId("org-1")],
-      },
-    ],
+
+  const existing = {
+    id: "om-1",
+    orgId: "org-1",
+    userId: "member-1",
+    role: "ADMIN",
   };
 
+  beforeEach(() => {
+    // The handler and the membership service both look the user up.
+    prismaMock.user.findUnique
+      .mockResolvedValueOnce(member)
+      .mockResolvedValueOnce(member);
+    prismaMock.organizationMembership.findUnique.mockResolvedValueOnce(
+      existing,
+    );
+  });
+
   it("syncs a downgrade to NONE as removeUser", async () => {
-    prismaMock.user.findUnique.mockResolvedValueOnce(member);
-    prismaMock.organizationMembership.upsert.mockResolvedValueOnce({
-      orgId: "org-1",
-      userId: "member-1",
+    prismaMock.organizationMembership.update.mockResolvedValueOnce({
+      ...existing,
       role: "NONE",
     });
     fetchMock.mockResolvedValueOnce(emptyOkResponse());
@@ -988,7 +1015,7 @@ describe("call site: admin API handleUpdateMembership", () => {
       body: { userId: "member-1", role: "NONE" },
     } as NextApiRequest;
     const res = createMockRes();
-    await handleUpdateMembership(req, res, "org-1", "key-1", context);
+    await handleUpdateMembership(req, res, "org-1", membershipAdminContext);
 
     expect(res.statusCode).toBe(200);
     expect(fetchMock).toHaveBeenCalledOnce();
@@ -1003,10 +1030,8 @@ describe("call site: admin API handleUpdateMembership", () => {
   });
 
   it("syncs a real role as setUserRole", async () => {
-    prismaMock.user.findUnique.mockResolvedValueOnce(member);
-    prismaMock.organizationMembership.upsert.mockResolvedValueOnce({
-      orgId: "org-1",
-      userId: "member-1",
+    prismaMock.organizationMembership.update.mockResolvedValueOnce({
+      ...existing,
       role: "MEMBER",
     });
     fetchMock.mockResolvedValueOnce(emptyOkResponse());
@@ -1015,7 +1040,7 @@ describe("call site: admin API handleUpdateMembership", () => {
       body: { userId: "member-1", role: "MEMBER" },
     } as NextApiRequest;
     const res = createMockRes();
-    await handleUpdateMembership(req, res, "org-1", "key-1", context);
+    await handleUpdateMembership(req, res, "org-1", membershipAdminContext);
 
     expect(res.statusCode).toBe(200);
     expect(fetchMock).toHaveBeenCalledOnce();
@@ -1157,16 +1182,18 @@ describe("call site: createProjectMembershipsOnSignup", () => {
     prismaMock.membershipInvitation.findFirst.mockResolvedValueOnce({
       id: "inv-1",
     });
-    prismaMock.membershipInvitation.findMany.mockResolvedValueOnce([
-      {
-        id: "inv-1",
-        orgId: "org-9",
-        orgRole: "MEMBER",
-        projectId: "proj-9",
-        projectRole: "MEMBER",
-        email: "invitee@test.com",
-      },
-    ]);
+    const invitation = {
+      id: "inv-1",
+      orgId: "org-9",
+      orgRole: "MEMBER",
+      projectId: "proj-9",
+      projectRole: "MEMBER",
+      email: "invitee@test.com",
+    };
+    // Read once to find the orgs to lock, then again under the lock.
+    prismaMock.membershipInvitation.findMany
+      .mockResolvedValueOnce([invitation])
+      .mockResolvedValueOnce([invitation]);
 
     await createProjectMembershipsOnSignup(
       { id: "user-invited", email: "invitee@test.com", name: "Invitee" },

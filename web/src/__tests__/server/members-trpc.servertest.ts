@@ -13,14 +13,24 @@ type SessionUser = NonNullable<Session["user"]>;
 type SessionProject = SessionUser["organizations"][number]["projects"][number];
 import { v4 as uuidv4 } from "uuid";
 
+const cloudPlanNames: Partial<Record<Plan, string>> = {
+  "cloud:hobby": "Hobby",
+  "cloud:core": "Core",
+  "cloud:pro": "Pro",
+  "cloud:team": "Team",
+  "cloud:enterprise": "Enterprise",
+};
+
 async function createTestOrg(plan: Plan) {
   const orgId = uuidv4();
   const projectId = uuidv4();
 
+  // The membership service reads the seat limit from the org's own plan.
   const org = await prisma.organization.create({
     data: {
       id: orgId,
       name: `Test Org ${orgId.substring(0, 8)}`,
+      cloudConfig: { plan: cloudPlanNames[plan] },
     },
   });
 
@@ -157,7 +167,7 @@ describe("membersRouter.create - organization member limit enforcement", () => {
       expect(membership?.role).toBe(Role.MEMBER);
     });
 
-    it("should throw FORBIDDEN when exceeding member limit with existing members", async () => {
+    it("should reject with CONFLICT when exceeding member limit with existing members", async () => {
       const { org, caller } = await prepare("cloud:hobby");
 
       // Add one more member to reach the limit (owner + 1 = 2)
@@ -179,7 +189,10 @@ describe("membersRouter.create - organization member limit enforcement", () => {
           email: user2.email!,
           orgRole: Role.MEMBER,
         }),
-      ).rejects.toThrow(/exceeds the limit/i);
+      ).rejects.toMatchObject({
+        code: "CONFLICT",
+        message: expect.stringMatching(/reached its limit/i),
+      });
     });
 
     it("does not admit more members than the limit under concurrent requests", async () => {
@@ -213,7 +226,7 @@ describe("membersRouter.create - organization member limit enforcement", () => {
       expect(results.length - rejected.length).toBe(1);
       // every loser lost to the limit check, not to an incidental error
       for (const result of rejected) {
-        expect(String(result.reason)).toMatch(/exceeds the limit/i);
+        expect(String(result.reason)).toMatch(/reached its limit/i);
       }
     }, 25_000);
 
@@ -246,11 +259,11 @@ describe("membersRouter.create - organization member limit enforcement", () => {
       const rejected = results.filter((r) => r.status === "rejected");
       expect(results.length - rejected.length).toBe(1);
       for (const result of rejected) {
-        expect(String(result.reason)).toMatch(/exceeds the limit/i);
+        expect(String(result.reason)).toMatch(/reached its limit/i);
       }
     }, 25_000);
 
-    it("should throw FORBIDDEN when exceeding member limit with pending invitations", async () => {
+    it("should reject with CONFLICT when exceeding member limit with pending invitations", async () => {
       const { org, caller, ownerUser } = await prepare("cloud:hobby");
 
       // Create a pending invitation (owner + 1 invite = 2)
@@ -272,7 +285,10 @@ describe("membersRouter.create - organization member limit enforcement", () => {
           email: newEmail,
           orgRole: Role.MEMBER,
         }),
-      ).rejects.toThrow(/exceeds the limit/i);
+      ).rejects.toMatchObject({
+        code: "CONFLICT",
+        message: expect.stringMatching(/reached its limit/i),
+      });
     });
   });
 
@@ -1042,8 +1058,8 @@ describe("membersRouter.create - duplicate org membership", () => {
         role: Role.MEMBER,
       },
     });
-    const findFirstSpy = vi
-      .spyOn(prisma.organizationMembership, "findFirst")
+    const findUniqueSpy = vi
+      .spyOn(prisma.organizationMembership, "findUnique")
       .mockResolvedValueOnce(null);
 
     try {
@@ -1058,7 +1074,7 @@ describe("membersRouter.create - duplicate org membership", () => {
         message: "User is already a member of this organization",
       });
     } finally {
-      findFirstSpy.mockRestore();
+      findUniqueSpy.mockRestore();
     }
   });
 });

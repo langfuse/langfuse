@@ -61,6 +61,38 @@ const designSystemInternalPattern = {
     "Design-system internals may only be imported by other design-system components.",
 };
 
+// no-restricted-syntax selectors. Flat config replaces the rule's options per
+// block, so a block that configures it spreads every selector list it wants.
+const dynamicToastBypassSelectors = [
+  {
+    selector: "ImportExpression[source.value=/^sonner(?:\\/|$)/]",
+    message: toastImportPattern.message,
+  },
+  {
+    selector:
+      "CallExpression[callee.name='require'][arguments.0.value=/^sonner(?:\\/|$)/]",
+    message: toastImportPattern.message,
+  },
+  {
+    selector:
+      "TSImportEqualsDeclaration[moduleReference.expression.value=/^sonner(?:\\/|$)/]",
+    message: toastImportPattern.message,
+  },
+];
+
+// The membership service (src/features/memberships/server) owns every write to
+// organization memberships, project memberships and invitations: it authorizes
+// the change, enforces the seat limit and the last-owner rule under the
+// organization's lock, and audits it.
+const membershipWriteSelectors = [
+  {
+    selector:
+      "MemberExpression[object.property.name=/^(organizationMembership|projectMembership|membershipInvitation)$/][property.name=/^(create|createMany|update|updateMany|upsert|delete|deleteMany)$/]",
+    message:
+      "Write memberships and invitations through the membership service (@/src/features/memberships/server/membershipService), which authorizes, seat-limits, locks and audits every change.",
+  },
+];
+
 // eslint-plugin-tailwindcss types this as Config | ConfigArray, but the
 // recommended export is a single flat config object with rules at runtime.
 const tailwindcssRecommendedConfig =
@@ -631,26 +663,27 @@ export default [
     },
   },
   {
-    name: "langfuse/web/no-dynamic-toast-bypass",
+    name: "langfuse/web/membership-writes-via-service",
     files: ["src/**/*.{ts,tsx}"],
     rules: {
       "no-restricted-syntax": [
         "error",
-        {
-          selector: "ImportExpression[source.value=/^sonner(?:\\/|$)/]",
-          message: toastImportPattern.message,
-        },
-        {
-          selector:
-            "CallExpression[callee.name='require'][arguments.0.value=/^sonner(?:\\/|$)/]",
-          message: toastImportPattern.message,
-        },
-        {
-          selector:
-            "TSImportEqualsDeclaration[moduleReference.expression.value=/^sonner(?:\\/|$)/]",
-          message: toastImportPattern.message,
-        },
+        ...dynamicToastBypassSelectors,
+        ...membershipWriteSelectors,
       ],
+    },
+  },
+  {
+    name: "langfuse/web/no-dynamic-toast-bypass",
+    files: [
+      "src/features/memberships/server/**/*.{ts,tsx}",
+      "src/__tests__/**/*.{ts,tsx}",
+      "src/**/*.servertest.{ts,tsx}",
+      "src/**/*.clienttest.{ts,tsx}",
+      "src/**/*.test.{ts,tsx}",
+    ],
+    rules: {
+      "no-restricted-syntax": ["error", ...dynamicToastBypassSelectors],
     },
   },
 ];

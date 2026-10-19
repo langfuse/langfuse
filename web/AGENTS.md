@@ -134,6 +134,14 @@ Sentry instrumentation skill first and decide whether it should capture at all
   web owns policy resolution/evaluation (`getRolesForPrincipal`, `authorize`)
   and the access checks in `src/features/rbac/utils/checkProjectAccess.ts` and
   `src/features/rbac/utils/checkOrganizationAccess.ts`.
+- Every write to organization memberships, project memberships and
+  invitations goes through `src/features/memberships/server/membershipService.ts`
+  (lint rule `langfuse/web/membership-writes-via-service`). It authorizes the
+  change against an `AuthorizationContext` (tRPC resolves one with
+  `ContextResolver.resolveUser`; Langfuse's own flows use `systemContext`),
+  enforces the seat limit and the last-owner rule under the organization's
+  advisory lock, audits inside the transaction, and runs SFDC sync and emails
+  after commit.
 - Entitlements guidance lives in `src/features/entitlements/README.md`.
 - Prefer Shadcn/ui primitives from `src/components/ui`; if a missing component
   must be installed, ask the user before doing so.

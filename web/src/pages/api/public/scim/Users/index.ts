@@ -5,9 +5,9 @@ import { logger } from "@langfuse/shared/src/server";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { isBaseError, type Role } from "@langfuse/shared";
-import { auditLog } from "@/src/features/audit-logs/server";
-import { assertValidOwnershipChange } from "@/src/ee/features/admin-api/server/memberships";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
+import { authenticator } from "@/src/features/apiKey/server";
+import { addOrgMember } from "@/src/features/memberships/server/membershipService";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
 import { shadowAuth, writeScimError } from "@/src/features/public-api/server";
 export default async function handler(
@@ -198,13 +198,16 @@ export default async function handler(
         role = parsedRoles.data[0];
       }
 
-      await assertValidOwnershipChange({
-        tx: prisma,
-        context: authCheck.ctx,
-        orgId: authCheck.scope.orgId,
-        from: undefined,
-        to: role,
-      });
+      let ctx = authCheck.ctx;
+      if (!ctx) {
+        const authentication = await authenticator.authenticate({
+          headers: req.headers,
+        });
+        if (!authentication.success) {
+          return writeScimError(res, authentication.error);
+        }
+        ctx = authentication.context;
+      }
 
       // Check if user already exists. Normalize the email to lowercase to
       // stay consistent with the upsert below; otherwise a case-variant
@@ -242,25 +245,8 @@ export default async function handler(
         },
         update: {},
       });
-      const orgMembership = await prisma.organizationMembership.create({
-        data: {
-          userId: user.id,
-          orgId: authCheck.scope.orgId,
-          role,
-        },
-      });
-      await auditLog({
-        resourceType: "orgMembership",
-        resourceId: orgMembership.id,
-        action: "create",
-        after: orgMembership,
-        apiKeyId: authCheck.scope.apiKeyId,
-        orgId: authCheck.scope.orgId,
-      });
-      logger.info(
-        `[SCIM] Assigned user ${user.id} to org ${authCheck.scope.orgId} with role ${role}`,
-      );
-
+      // The lead must exist before the membership service links it to the
+      // org after commit.
       await getSfdcService()?.upsertUser({
         userId: user.id,
         email: user.email,
@@ -269,12 +255,14 @@ export default async function handler(
         // SCIM provisioning is org-admin-driven, never an organic signup.
         leadSource: "Langfuse Cloud Invite",
       });
-      await getSfdcService()?.setUserRole({
+      await addOrgMember(ctx, {
         orgId: authCheck.scope.orgId,
         userId: user.id,
-        email: user.email,
         role,
       });
+      logger.info(
+        `[SCIM] Assigned user ${user.id} to org ${authCheck.scope.orgId} with role ${role}`,
+      );
 
       // Return SCIM formatted user
       return res.status(201).json({

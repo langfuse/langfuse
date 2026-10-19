@@ -5,11 +5,12 @@ import {
 } from "@/src/server/api/trpc";
 import { TRPCError } from "@trpc/server";
 import { ForbiddenError, StringNoHTML } from "@langfuse/shared";
-import { Role, Prisma, type PrismaClient } from "@langfuse/shared/src/db";
+import { Role, type Prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import { canToggleV4 } from "@/src/features/events/server";
 import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
 import { env } from "@/src/env.mjs";
-import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
+import { ContextResolver } from "@/src/features/auth/policy/contextResolver";
+import { removeUserFromAllOrgs } from "@/src/features/memberships/server/membershipService";
 import {
   isAdminOnlyFeaturePreviewFlag,
   personalFeaturePreviewFlags,
@@ -193,56 +194,19 @@ export const userAccountRouter = createTRPCRouter({
   delete: authenticatedProcedure.mutation(async ({ ctx }) => {
     const userId = ctx.session.user.id;
 
-    // Wrap check and delete in a serializable transaction to prevent race conditions
-    // when organization owners are removed concurrently
-    const sfdcRemovals = await ctx.prisma.$transaction(
-      async (tx) => {
-        // Verify user can be deleted
-        const { canDelete } = await checkUserCanBeDeleted(userId, tx);
-
-        if (!canDelete) {
-          throw new TRPCError({
-            code: "PRECONDITION_FAILED",
-            message:
-              "Cannot delete account. You are the last owner of one or more organizations. Please add another owner or delete the organizations first.",
-          });
-        }
-
-        // Capture org memberships before the cascade delete wipes them; they
-        // are synced to SFDC only after the transaction commits. NONE roles
-        // hold no SFDC org-member bridge, so there is nothing to remove.
-        const user = await tx.user.findUnique({
-          where: { id: userId },
-          select: { email: true },
-        });
-        const memberships = await tx.organizationMembership.findMany({
-          where: { userId, role: { not: Role.NONE } },
-          select: { orgId: true },
-        });
-
-        // Delete the user (cascade will handle related records)
-        await tx.user.delete({
-          where: { id: userId },
-        });
-
-        return memberships.map(({ orgId }) => ({
-          orgId,
-          email: user?.email,
-        }));
-      },
-      {
-        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-      },
+    // Memberships are removed (audited, synced to SFDC) under the membership
+    // locks first, refusing while the user is the last owner of any org; the
+    // user row and everything else cascade afterwards.
+    await removeUserFromAllOrgs(
+      await new ContextResolver().resolveUser({
+        userId,
+        isPlatformAdmin: false,
+      }),
+      userId,
     );
-
-    // SFDC: remove every org-member bridge the cascade just deleted. After
-    // commit so a rolled-back delete never desyncs SFDC; removeUser never
-    // throws, so per-org failures cannot fail the mutation.
-    await Promise.all(
-      sfdcRemovals.map(({ orgId, email }) =>
-        getSfdcService()?.removeUser({ orgId, userId, email }),
-      ),
-    );
+    await ctx.prisma.user.delete({
+      where: { id: userId },
+    });
 
     return {
       success: true,

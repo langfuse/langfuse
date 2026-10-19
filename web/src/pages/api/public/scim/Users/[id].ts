@@ -1,13 +1,15 @@
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
-import { auditLog } from "@/src/features/audit-logs/server";
-import { Prisma, prisma, type User, type Role } from "@langfuse/shared/src/db";
+import { prisma, type User, type Role } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
-import { isBaseError, LangfuseConflictError } from "@langfuse/shared";
+import { isBaseError } from "@langfuse/shared";
 import { z } from "zod";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { assertValidOwnershipChange } from "@/src/ee/features/admin-api/server/memberships";
-import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
+import { authenticator } from "@/src/features/apiKey/server";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
+import {
+  applyOrgMembership,
+  removeOrgMember,
+} from "@/src/features/memberships/server/membershipService";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
 import { shadowAuth, writeScimError } from "@/src/features/public-api/server";
 
@@ -24,10 +26,10 @@ function parseScimRole(roles: unknown): Role | undefined {
   return parsed.success ? parsed.data[0] : undefined;
 }
 
-type ProvisionOutcome =
-  | { kind: "created"; role: Role }
-  | { kind: "updated"; role: Role }
-  | { kind: "unchanged"; role: Role };
+type ProvisionOutcome = {
+  kind: "created" | "updated" | "unchanged";
+  role: Role;
+};
 
 // Provision a user into an organization in response to a SCIM `active: true`.
 //
@@ -39,165 +41,30 @@ type ProvisionOutcome =
 //   a periodic IdP full-sync (which omits roles) from resetting a member's role
 //   back to NONE.
 //
-// Writes an audit log entry and fires the SFDC membership sync only when state
-// actually changes (create/update), never for a no-op — so a periodic IdP
-// full-sync that re-PUTs every member does not ping SFDC on every cycle.
+// The membership service audits and syncs to SFDC only when state actually
+// changes, never for a no-op, so a periodic IdP full-sync that re-PUTs every
+// member does not ping SFDC on every cycle.
 async function provisionMembership({
   userId,
   orgId,
-  apiKeyId,
-  email,
   role,
   ctx,
 }: {
   userId: string;
   orgId: string;
-  apiKeyId: string;
-  email: string | null;
   role?: Role;
-  ctx: AuthorizationContext | undefined;
+  ctx: AuthorizationContext;
 }): Promise<ProvisionOutcome> {
-  // Apply an explicit role to an existing membership. The membership is
-  // re-read INSIDE the Serializable transaction so the no-op check, the
-  // last-OWNER guard, and the update all act on the same snapshot — a read
-  // taken outside the transaction could race a concurrent promotion or
-  // deprovision past the guard (Postgres SSI only protects reads made within
-  // the transaction). Returns "missing" when the membership disappeared before
-  // the transaction started, so the caller can fall through to the create
-  // path.
-  const applyRoleToExisting = async (
-    targetRole: Role,
-  ): Promise<ProvisionOutcome | "missing"> => {
-    try {
-      const result = await prisma.$transaction(
-        async (tx) => {
-          const current = await tx.organizationMembership.findUnique({
-            where: { orgId_userId: { orgId, userId } },
-          });
-          if (!current) {
-            return { t: "missing" as const };
-          }
-          if (current.role === targetRole) {
-            return { t: "unchanged" as const, role: current.role };
-          }
-          await assertValidOwnershipChange({
-            tx,
-            context: ctx,
-            orgId,
-            from: current.role,
-            to: targetRole,
-          });
-          const updated = await tx.organizationMembership.update({
-            where: { orgId_userId: { orgId, userId } },
-            data: { role: targetRole },
-          });
-          return { t: "updated" as const, before: current, after: updated };
-        },
-        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
-      );
-
-      if (result.t === "missing") {
-        return "missing";
-      }
-      if (result.t === "unchanged") {
-        return { kind: "unchanged", role: result.role };
-      }
-
-      await auditLog({
-        resourceType: "orgMembership",
-        resourceId: result.after.id,
-        action: "update",
-        before: result.before,
-        after: result.after,
-        apiKeyId,
-        orgId,
-      });
-      await getSfdcService()?.setUserRole({
-        orgId,
-        userId,
-        email,
-        role: targetRole,
-      });
-      return { kind: "updated", role: targetRole };
-    } catch (error) {
-      // Serialization failure (P2034) from a concurrent membership change;
-      // surface as 409 so the SCIM client retries.
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === "P2034"
-      ) {
-        throw new LangfuseConflictError(
-          "Concurrent update conflict for this user. Please retry.",
-        );
-      }
-      throw error;
-    }
-  };
-
-  const existing = await prisma.organizationMembership.findUnique({
-    where: { orgId_userId: { orgId, userId } },
-  });
-  if (existing) {
-    // No explicit role requested → leave the membership untouched.
-    if (role === undefined) {
-      return { kind: "unchanged", role: existing.role };
-    }
-    const applied = await applyRoleToExisting(role);
-    if (applied !== "missing") {
-      return applied;
-    }
-    // Membership vanished between the read and the transaction (concurrent
-    // deprovision) — fall through to the create path below.
-  }
-
-  // Missing → create with the explicit role when provided, otherwise NONE.
-  const roleToCreate: Role = role ?? "NONE";
-  await assertValidOwnershipChange({
-    tx: prisma,
-    context: ctx,
+  const { outcome, after } = await applyOrgMembership(ctx, {
     orgId,
-    from: undefined,
-    to: roleToCreate,
+    userId,
+    role: role ?? "NONE",
+    keepExistingRole: role === undefined,
   });
-  try {
-    const created = await prisma.organizationMembership.create({
-      data: { userId, orgId, role: roleToCreate },
-    });
-    await auditLog({
-      resourceType: "orgMembership",
-      resourceId: created.id,
-      action: "create",
-      after: created,
-      apiKeyId,
-      orgId,
-    });
-    await getSfdcService()?.setUserRole({
-      orgId,
-      userId,
-      email,
-      role: roleToCreate,
-    });
-    return { kind: "created", role: roleToCreate };
-  } catch (error) {
-    // A concurrent provisioning request created the row first. Apply the
-    // requested role onto it (if any), keeping the periodic sync idempotent.
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2002"
-    ) {
-      if (role === undefined) {
-        return { kind: "unchanged", role: roleToCreate };
-      }
-      const applied = await applyRoleToExisting(role);
-      // "missing" here means the row vanished again right after the conflict;
-      // don't loop — report the request as applied with no changes, like the
-      // pre-existing fallback did. The next sync converges.
-      return applied === "missing"
-        ? { kind: "unchanged", role: roleToCreate }
-        : applied;
-    }
-    throw error;
-  }
+  return {
+    kind: outcome === "removed" ? "unchanged" : outcome,
+    role: after!.role,
+  };
 }
 
 // Single place for the SCIM provisioning log line so PUT and PATCH stay
@@ -227,75 +94,14 @@ function logScimProvision(
   }
 }
 
-// Mirrors the tRPC `deleteMembership` invariant. Wraps the owner-count check
-// and the membership delete in a single Serializable transaction so two
-// concurrent SCIM deprovision requests cannot both pass the guard and orphan
-// the org.
-// Audits and syncs the removal to SFDC only when a membership was
-// actually deleted, never for a no-op (already absent).
+// Removes the membership, refusing to remove the last owner. Idempotent: an
+// absent membership is a successful no-op.
 async function deprovisionOrReject(
   userId: string,
   orgId: string,
-  apiKeyId: string,
-  email: string | null,
-  ctx: AuthorizationContext | undefined,
+  ctx: AuthorizationContext,
 ): Promise<void> {
-  try {
-    const outcome = await prisma.$transaction(
-      async (tx) => {
-        const membership = await tx.organizationMembership.findUnique({
-          where: { orgId_userId: { orgId, userId } },
-          // Capture the project memberships that Postgres cascade-deletes with
-          // this row (ProjectMembership.organizationMembership is onDelete:
-          // Cascade) so the audit `before` preserves which projects the user
-          // could access. They are unrecoverable once the delete commits, and
-          // this keeps parity with the tRPC deleteMembership audit entry.
-          include: { ProjectMemberships: true },
-        });
-        // Already absent: nothing to delete. Idempotent success, no audit.
-        if (!membership) {
-          return { result: "noop" as const };
-        }
-        await assertValidOwnershipChange({
-          tx,
-          context: ctx,
-          orgId,
-          from: membership.role,
-        });
-        await tx.organizationMembership.delete({
-          where: { orgId_userId: { orgId, userId } },
-        });
-        return { result: "deleted" as const, membership };
-      },
-      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
-    );
-
-    // Only audit and sync when a membership was actually removed.
-    if (outcome.result === "deleted") {
-      await auditLog({
-        resourceType: "orgMembership",
-        resourceId: outcome.membership.id,
-        action: "delete",
-        before: outcome.membership,
-        apiKeyId,
-        orgId,
-      });
-      await getSfdcService()?.removeUser({ orgId, userId, email });
-    }
-  } catch (error) {
-    // Postgres maps a serialization failure to Prisma error code P2034 ("could
-    // not serialize access due to concurrent update"). Surface as 409 so the
-    // SCIM client retries; on retry the guard will see the updated owner count.
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2034"
-    ) {
-      throw new LangfuseConflictError(
-        "Concurrent deprovision conflict for this user. Please retry.",
-      );
-    }
-    throw error;
-  }
+  await removeOrgMember(ctx, { orgId, userId });
 }
 
 export default async function handler(
@@ -367,36 +173,25 @@ export default async function handler(
 
   // Route to the appropriate handler based on HTTP method
   try {
+    let ctx = authCheck.ctx;
+    if (!ctx && req.method !== "GET") {
+      const authentication = await authenticator.authenticate({
+        headers: req.headers,
+      });
+      if (!authentication.success) {
+        return writeScimError(res, authentication.error);
+      }
+      ctx = authentication.context;
+    }
     switch (req.method) {
       case "PATCH":
-        return await handlePatch(
-          req,
-          res,
-          user,
-          authCheck.scope.orgId,
-          authCheck.scope.apiKeyId,
-          authCheck.ctx,
-        );
+        return await handlePatch(req, res, user, authCheck.scope.orgId, ctx!);
       case "PUT":
-        return await handlePut(
-          req,
-          res,
-          user,
-          authCheck.scope.orgId,
-          authCheck.scope.apiKeyId,
-          authCheck.ctx,
-        );
+        return await handlePut(req, res, user, authCheck.scope.orgId, ctx!);
       case "GET":
         return handleGet(req, res, user, authCheck.scope.orgId);
       case "DELETE":
-        return await handleDelete(
-          req,
-          res,
-          user,
-          authCheck.scope.orgId,
-          authCheck.scope.apiKeyId,
-          authCheck.ctx,
-        );
+        return await handleDelete(req, res, user, authCheck.scope.orgId, ctx!);
       default:
         // This should never happen due to the check at the beginning
         return res.status(405).json({
@@ -486,8 +281,7 @@ async function handlePatch(
   res: NextApiResponse,
   user: User,
   orgId: string,
-  apiKeyId: string,
-  ctx: AuthorizationContext | undefined,
+  ctx: AuthorizationContext,
 ) {
   let body = req.body;
 
@@ -550,14 +344,12 @@ async function handlePatch(
         const outcome = await provisionMembership({
           userId: user.id,
           orgId,
-          apiKeyId,
-          email: user.email,
           ctx,
         });
         logScimProvision(outcome, user.id, orgId, "PATCH");
       } else {
-        // Deprovision atomically: check + delete in one Serializable txn.
-        await deprovisionOrReject(user.id, orgId, apiKeyId, user.email, ctx);
+        // Deprovision atomically: the last-owner check and delete share one lock.
+        await deprovisionOrReject(user.id, orgId, ctx);
         logger.info(
           `[SCIM] Deprovisioned user ${user.id} from org ${orgId} via PATCH`,
         );
@@ -585,8 +377,7 @@ async function handlePut(
   res: NextApiResponse,
   user: User,
   orgId: string,
-  apiKeyId: string,
-  ctx: AuthorizationContext | undefined,
+  ctx: AuthorizationContext,
 ) {
   let body = req.body;
 
@@ -642,15 +433,13 @@ async function handlePut(
       const outcome = await provisionMembership({
         userId: user.id,
         orgId,
-        apiKeyId,
-        email: user.email,
         role: parseScimRole(body.roles),
         ctx,
       });
       logScimProvision(outcome, user.id, orgId, "PUT");
     } else {
-      // Deprovision atomically: check + delete in one Serializable txn.
-      await deprovisionOrReject(user.id, orgId, apiKeyId, user.email, ctx);
+      // Deprovision atomically: the last-owner check and delete share one lock.
+      await deprovisionOrReject(user.id, orgId, ctx);
       logger.info(
         `[SCIM] Deprovisioned user ${user.id} from org ${orgId} via PUT`,
       );
@@ -681,14 +470,13 @@ async function handleDelete(
   res: NextApiResponse,
   user: User,
   orgId: string,
-  apiKeyId: string,
-  ctx: AuthorizationContext | undefined,
+  ctx: AuthorizationContext,
 ) {
   if (!(await requireOrgMembership(res, orgId, user.id))) {
     return;
   }
-  // Deprovision atomically: check + delete in one Serializable txn.
-  await deprovisionOrReject(user.id, orgId, apiKeyId, user.email, ctx);
+  // Deprovision atomically: the last-owner check and delete share one lock.
+  await deprovisionOrReject(user.id, orgId, ctx);
   logger.info(`[SCIM] Removed user ${user.id} from org ${orgId} via DELETE`);
 
   // Return empty response with 204 No Content.

@@ -82,7 +82,6 @@ export default async function handler(
           req,
           res,
           authCheck.scope.orgId,
-          authCheck.scope.apiKeyId,
           context,
         );
       case "DELETE":
@@ -90,7 +89,6 @@ export default async function handler(
           req,
           res,
           authCheck.scope.orgId,
-          authCheck.scope.apiKeyId,
           context,
         );
       default:

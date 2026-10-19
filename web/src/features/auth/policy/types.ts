@@ -23,9 +23,13 @@ export type PrincipalOrganization = {
   isIngestionSuspended: boolean;
 };
 
-/** Principal is an authorized admin, user, or api key, discriminated on kind. */
+/** SystemReason names the Langfuse-internal flow a system principal acts for. */
+export type SystemReason = "bootstrap" | "signupDefaults";
+
+/** Principal is an authorized admin, user, api key, or Langfuse itself, discriminated on kind. A system principal holds no policies and is honoured only by services that accept it explicitly. */
 export type Principal =
   | { kind: "admin"; userId: string | null }
+  | { kind: "system"; reason: SystemReason }
   | { kind: "user"; userId: string; organizations: PrincipalOrganization[] }
   | {
       kind: "apiKey";

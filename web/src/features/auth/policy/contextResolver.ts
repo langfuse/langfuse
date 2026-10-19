@@ -15,7 +15,10 @@ import {
 
 import { assignRole } from "@langfuse/shared/rbac/server";
 
-import { getRolesForPrincipal } from "@/src/features/rbac/getRolesForPrincipal";
+import {
+  bindSystemRole,
+  getRolesForPrincipal,
+} from "@/src/features/rbac/getRolesForPrincipal";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
 import {
   OrganizationRepository,
@@ -32,6 +35,7 @@ import {
   type Principal,
   type PrincipalOrganization,
   type Success,
+  type SystemReason,
 } from "./types";
 
 /** ContextResolver materializes an authenticated credential into its `AuthorizationContext`, loading and enriching the org it implies. */
@@ -59,6 +63,51 @@ export class ContextResolver {
         this.prisma,
       ),
     };
+  }
+
+  /** resolveUser materializes a signed-in user's org and project memberships (in orgId alone, when given) into their policies; a platform admin resolves to the admin principal acting as themselves. */
+  async resolveUser(params: {
+    userId: string;
+    isPlatformAdmin: boolean;
+    orgId?: string;
+  }): Promise<AuthorizationContext> {
+    if (params.isPlatformAdmin) return adminContext(params.userId);
+    const memberships = await this.prisma.organizationMembership.findMany({
+      where: {
+        userId: params.userId,
+        ...(params.orgId ? { orgId: params.orgId } : {}),
+      },
+      include: {
+        ProjectMemberships: true,
+        organization: {
+          include: {
+            projects: { where: { deletedAt: null }, select: { id: true } },
+          },
+        },
+      },
+    });
+    const principal: Principal = {
+      kind: "user",
+      userId: params.userId,
+      organizations: memberships.map((membership) =>
+        toPrincipalOrganization(membership.organization),
+      ),
+    };
+    const roles = memberships.flatMap((membership) => [
+      bindSystemRole(
+        membership.role,
+        membership.orgId,
+        OrganizationId(membership.orgId),
+      ),
+      ...membership.ProjectMemberships.map((projectMembership) =>
+        bindSystemRole(
+          projectMembership.role,
+          membership.orgId,
+          ProjectId(projectMembership.projectId),
+        ),
+      ),
+    ]);
+    return { principal, policies: roles.flatMap((role) => role.policies) };
   }
 
   /** getPrincipalOrganization loads and derives the key's `PrincipalOrganization`, collapsing a null miss to a 500 invariant break. */
@@ -204,9 +253,14 @@ function publicBearerPolicies(
   }));
 }
 
-/** adminContext grants the admin principal OWNER permissions across all tenants. */
-function adminContext(): AuthorizationContext {
-  const principal: Principal = { kind: "admin", userId: null };
+/** systemContext is Langfuse itself acting for an internal flow; it holds no policies, so only services that accept a system principal explicitly let it through. */
+export function systemContext(reason: SystemReason): AuthorizationContext {
+  return { principal: { kind: "system", reason }, policies: [] };
+}
+
+/** adminContext grants the admin principal OWNER permissions across all tenants; userId names the platform admin when one acts through a session. */
+function adminContext(userId: string | null = null): AuthorizationContext {
+  const principal: Principal = { kind: "admin", userId };
   const roleId = SystemRoleId("OWNER");
   const tenantId = OrganizationId("*");
   const policies: Policy[] = systemRoleAccessRights.OWNER.policies.map(

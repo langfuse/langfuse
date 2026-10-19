@@ -1926,8 +1926,12 @@ describe("SCIM ownership boundary", () => {
     ).toBe(0);
   });
 
-  it("rejects ownership changes without an authorization context", async () => {
+  it("authorizes ownership changes by the key's own roles when shadow auth carries no context", async () => {
     Object.assign(env, { API_AUTH_MIGRATION: "legacy" });
+    // An ADMIN key lacks organizationMembers:manageOwnership.
+    expect(await putUser(ownerId, ["MEMBER"])).toBe(403);
+    expect(await roleOf(ownerId)).toBe("OWNER");
+
     const legacyKey = await createApiKey(prisma, {
       owner: OrganizationId(orgId),
       role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
@@ -1946,8 +1950,9 @@ describe("SCIM ownership boundary", () => {
         roles: ["MEMBER"],
       },
     });
-    expect(status).toBe(403);
-    expect(await roleOf(ownerId)).toBe("OWNER");
+    // The legacy organization key keeps owner authority; another owner remains.
+    expect(status).toBe(200);
+    expect(await roleOf(ownerId)).toBe("MEMBER");
   });
 
   it("rejects an ADMIN key demoting an OWNER via PUT", async () => {
