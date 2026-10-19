@@ -1,7 +1,17 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import {
+  closeSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  openSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { stripVTControlCharacters } from "node:util";
 
 /**
  * Local development checks, not a replacement for CI: Storybook/browser,
@@ -44,6 +54,16 @@ function capture(command, args) {
   });
   if (result.error) throw result.error;
   if (result.status !== 0) {
+    if (command === "pnpm" && args.includes("turbo")) {
+      mkdirSync(resolve(root, ".turbo"), { recursive: true });
+      const logFile = resolve(root, ".turbo/check-planning.log");
+      writeFileSync(logFile, `${result.stdout ?? ""}${result.stderr ?? ""}`, {
+        mode: 0o600,
+      });
+      throw new Error(
+        `Unable to plan checks. Task-runner details: ${relative(root, logFile)}`,
+      );
+    }
     throw new Error(`${command} ${args.join(" ")} failed:\n${result.stderr}`);
   }
   return result.stdout;
@@ -222,7 +242,7 @@ export function createPlan(
       // pass package-specific paths without forwarding them to other tasks.
       prepare(`${pkg.name}#lint`);
       commands.push({
-        label: `lint (${pkg.name})`,
+        label: `Linting changed files in ${pkg.name}`,
         args: [
           "--filter",
           pkg.name,
@@ -288,7 +308,7 @@ export function createPlan(
         ];
       });
       commands.push({
-        label: `related tests (${pkg.name})`,
+        label: `Running related tests in ${pkg.name}`,
         steps,
         requiresTurbo: true,
       });
@@ -302,8 +322,21 @@ export function createPlan(
   if (targets.size) {
     // One graph lets Turbo deduplicate prerequisite work and schedule compatible
     // checks concurrently. File-specific commands wait for successful preparation.
+    const checks = [];
+    if ([...targets].some((target) => target.endsWith("#typecheck")))
+      checks.push("types");
+    if ([...targets].some((target) => target.endsWith("#lint")))
+      checks.push("lint");
+    if (
+      [...targets].some(
+        (target) => target.endsWith("#test") || target.endsWith("#test-client"),
+      )
+    )
+      checks.push("tests");
     commands.unshift({
-      label: "Turbo checks and prerequisites",
+      label: checks.length
+        ? `Checking ${checks.join(", ")} and preparing dependencies`
+        : "Preparing dependencies",
       args: [
         "exec",
         "turbo",
@@ -323,9 +356,9 @@ export function createPlan(
     options.all ||
     codeFiles.some((file) => /prettier|(^|\/)\.editorconfig$/.test(file))
   )
-    add("format", ["run", "format:check"]);
+    add("Checking formatting", ["run", "format:check"]);
   else if (formatted.length)
-    add("format", [
+    add("Checking formatting", [
       "exec",
       "prettier",
       "--check",
@@ -340,7 +373,7 @@ export function createPlan(
   ) {
     // Removing an import can orphan an unchanged export anywhere in the graph,
     // so Knip must analyze the repository rather than just changed files.
-    add("knip", ["exec", "knip"]);
+    add("Checking unused code", ["exec", "knip"]);
   }
   if (
     options.all ||
@@ -352,7 +385,7 @@ export function createPlan(
         file.startsWith("scripts/check."),
     )
   ) {
-    add("check command tests", ["run", "test:check-command"]);
+    add("Testing check command", ["run", "test:check-command"]);
   }
   if (
     options.all ||
@@ -360,7 +393,7 @@ export function createPlan(
       /^scripts\/vitest\/ci-reporter\.(ts|test\.mjs)$/.test(file),
     )
   ) {
-    add("Vitest reporter tests", [
+    add("Testing Vitest reporter", [
       "exec",
       "node",
       "--test",
@@ -481,43 +514,134 @@ function main() {
     console.log("No applicable checks.");
     return;
   }
-  const failed = [];
-  let turboFailed = false;
-  for (const { label, args, steps, requiresTurbo, isTurboBatch } of plan) {
-    if (requiresTurbo && turboFailed) {
-      console.error(
-        `\nSkipped ${label}: the shared Turbo check/preparation run failed.`,
+  for (const check of plan) {
+    if (check.isTurboBatch) {
+      // Keep runner options before any task-argument separator, including in
+      // dry-run output so printed commands match the actual invocation.
+      check.args.splice(
+        3,
+        0,
+        "--summarize",
+        "--output-logs=none",
+        "--ui=stream",
+        "--log-prefix=none",
       );
-      failed.push(label);
-      continue;
-    }
-    for (const command of steps ?? [args]) {
-      console.log(
-        `\n${label}: pnpm ${command.map((arg) => JSON.stringify(arg)).join(" ")}`,
-      );
-      if (options.dryRun) continue;
-      const result = spawnSync("pnpm", command, {
-        cwd: root,
-        stdio: "inherit",
-      });
-      if (result.error) console.error(result.error.message);
-      if (result.signal) {
-        process.exitCode = 1;
-        return;
-      }
-      if (result.status !== 0) {
-        failed.push(label);
-        if (isTurboBatch) turboFailed = true;
-        // Do not run a suite whose prerequisite generation/build failed.
-        break;
-      }
     }
   }
-  if (options.dryRun) return;
+  if (options.dryRun) {
+    for (const { label, args, steps } of plan) {
+      for (const command of steps ?? [args]) {
+        console.log(
+          `\n${label}: pnpm ${command.map((arg) => JSON.stringify(arg)).join(" ")}`,
+        );
+      }
+    }
+    return;
+  }
+  mkdirSync(resolve(root, ".turbo"), { recursive: true });
+  const outputDirectory = mkdtempSync(resolve(root, ".turbo/check-"));
+  let retainLogs = false;
+  let commandIndex = 0;
+  const failed = [];
+  let turboFailed = false;
+  try {
+    for (const { label, args, steps, requiresTurbo, isTurboBatch } of plan) {
+      if (requiresTurbo && turboFailed) {
+        console.error(
+          `Skipped ${label.toLowerCase()}: package checks or preparation failed.`,
+        );
+        failed.push(label);
+        continue;
+      }
+      console.log(`${label}…`);
+      for (const command of steps ?? [args]) {
+        // Disk-backed capture avoids truncating verbose failures or exhausting a
+        // pipe buffer while successful commands remain completely quiet.
+        const outputFile = resolve(outputDirectory, `${commandIndex++}.log`);
+        const output = openSync(outputFile, "w", 0o600);
+        let result;
+        try {
+          result = spawnSync("pnpm", command, {
+            cwd: root,
+            stdio: ["ignore", output, output],
+          });
+        } finally {
+          closeSync(output);
+        }
+        if (result.error || result.signal || result.status !== 0) {
+          console.error(`\nFailed: ${label}.`);
+          if (result.error) console.error(result.error.message);
+          if (isTurboBatch) {
+            // Read task logs from the summary rather than trying to strip runner
+            // banners/progress from mixed output, which can hide real diagnostics.
+            const captured = stripVTControlCharacters(
+              readFileSync(outputFile, "utf8"),
+            );
+            const summaryPath = captured
+              .match(/^\s*Summary:\s+(.+\.json)\s*$/m)?.[1]
+              ?.trim();
+            let failedTasks = [];
+            if (summaryPath) {
+              try {
+                const summary = JSON.parse(
+                  readFileSync(resolve(root, summaryPath), "utf8"),
+                );
+                failedTasks = summary.tasks.filter(
+                  (task) =>
+                    Number.isInteger(task.execution?.exitCode) &&
+                    task.execution.exitCode !== 0,
+                );
+              } catch {
+                // Runner startup/summary failures must remain failures without
+                // dumping orchestration output as if it were a task diagnostic.
+              }
+            }
+            let diagnosticsComplete = failedTasks.length > 0;
+            for (const task of failedTasks) {
+              console.error(
+                `\n${task.taskId} failed (exit ${task.execution.exitCode}):`,
+              );
+              try {
+                const diagnostics = readFileSync(
+                  resolve(root, task.logFile),
+                  "utf8",
+                ).trimEnd();
+                if (diagnostics) {
+                  console.error(diagnostics);
+                  continue;
+                }
+              } catch {
+                // Missing logs must not prevent other failed tasks being shown.
+              }
+              diagnosticsComplete = false;
+              console.error("No diagnostic output was recorded for this task.");
+            }
+            if (!diagnosticsComplete) {
+              retainLogs = true;
+              console.error(
+                `Some task diagnostics were unavailable. Runner details: ${relative(root, outputFile)}`,
+              );
+            }
+          } else {
+            const captured = readFileSync(outputFile, "utf8").trimEnd();
+            if (captured) console.error(captured);
+          }
+          failed.push(label);
+          if (isTurboBatch) turboFailed = true;
+          if (result.signal) {
+            process.exitCode = 1;
+            return;
+          }
+          // Do not run a suite whose prerequisite generation/build failed.
+          break;
+        }
+      }
+    }
+  } finally {
+    if (!retainLogs) rmSync(outputDirectory, { recursive: true, force: true });
+  }
   if (failed.length) {
-    console.error(
-      `\nFailed: ${failed.join(", ")}. Integration tests may require .env/.env.test and local PostgreSQL, ClickHouse, Redis, and S3 services; see docker-compose.dev.yml. No services were started automatically.`,
-    );
+    console.error(`\nChecks failed: ${failed.join("; ")}.`);
     process.exitCode = 1;
   } else console.log("\nAll selected checks passed.");
 }
