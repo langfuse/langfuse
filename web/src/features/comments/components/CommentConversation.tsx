@@ -5,7 +5,7 @@ import { api, type RouterOutputs } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Badge } from "@/src/components/ui/badge";
-import { Search, Trash, X } from "lucide-react";
+import { Search, Trash, X } from "@langfuse/icons";
 import { getRelativeTimestampFromNow } from "@/src/utils/dates";
 import { stripMarkdown } from "@/src/utils/markdown";
 import { ReactionBar } from "../ReactionBar";
@@ -123,7 +123,11 @@ export function CommentConversation({
       {comments.length > 0 && (
         <div className="flex shrink-0 flex-col gap-2 border-b px-4 py-3">
           <div className="relative">
-            <Search className="text-muted-foreground icon-base pointer-events-none absolute top-1/2 left-3 -translate-y-1/2" />
+            <Search
+              size="base"
+              color="muted"
+              __rawClassName="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2"
+            />
             <Input
               ref={searchInputRef}
               aria-label="Search comments"
@@ -141,7 +145,7 @@ export function CommentConversation({
                 className="absolute top-1/2 right-2 -translate-y-1/2"
                 onClick={() => setSearchQuery("")}
               >
-                <X className="icon-sm text-icon-foreground" />
+                <X size="sm" color="default" />
               </Button>
             )}
           </div>
@@ -208,7 +212,7 @@ export function CommentConversation({
                         });
                     }}
                   >
-                    <Trash className="icon-sm text-icon-foreground" />
+                    <Trash size="sm" color="default" />
                   </Button>
                 ) : null
               }

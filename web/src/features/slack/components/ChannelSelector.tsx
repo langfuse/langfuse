@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect } from "react";
-import { RefreshCw, Search, Hash, Lock, AlertTriangle } from "lucide-react";
+import { RefreshCw, Search, Hash, Lock, AlertTriangle } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import {
   Popover,
@@ -240,9 +240,9 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
   const renderChannelItem = (channel: SlackChannel) => (
     <div className="flex w-full items-center gap-2">
       {channel.isPrivate ? (
-        <Lock className="text-muted-foreground icon-base" />
+        <Lock size="base" color="muted" />
       ) : (
-        <Hash className="text-muted-foreground icon-base" />
+        <Hash size="base" color="muted" />
       )}
       <span className="flex-1 truncate" title={channel.name}>
         {channel.name}
@@ -280,7 +280,11 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
               ) : (
                 <span className="text-muted-foreground">{placeholder}</span>
               )}
-              <Search className="icon-base text-icon-foreground ml-2 shrink-0 opacity-50" />
+              <Search
+                size="base"
+                color="default"
+                __rawClassName="ml-2 opacity-50"
+              />
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-full p-0" align="start">
@@ -298,7 +302,7 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
                       onSelect={handleSelectByName}
                       className="cursor-pointer"
                     >
-                      <Hash className="text-muted-foreground icon-base" />
+                      <Hash size="base" color="muted" />
                       <span
                         className="flex-1 truncate"
                         title={`Use &quot; ${effectiveName} &quot;`}
@@ -348,7 +352,7 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
                       disabled
                       className="text-muted-foreground"
                     >
-                      <RefreshCw className="icon-base animate-spin" />
+                      <RefreshCw size="base" __rawClassName="animate-spin" />
                       <span
                         className="flex-1 truncate"
                         title="Loading Slack channels. This can take a while for large workspaces."
@@ -372,8 +376,9 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
             disabled={disabled || isRefreshing || isLoadingChannels}
           >
             <RefreshCw
-              className={cn(
-                "icon-base text-icon-foreground",
+              size="base"
+              color="default"
+              __rawClassName={cn(
                 (isRefreshing || isLoadingChannels) && "animate-spin",
               )}
             />

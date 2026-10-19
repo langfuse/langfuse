@@ -8,7 +8,7 @@ import {
 
 import { numberFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
-import { BracesIcon, MessageCircleMore, Copy, Check } from "lucide-react";
+import { BracesIcon, MessageCircleMore, Copy, Check } from "@langfuse/icons";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { api } from "@/src/utils/api";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
@@ -106,9 +106,9 @@ export const ScoresTableCell = ({
                     aria-label={copied ? "Copied" : "Copy to clipboard"}
                   >
                     {copied ? (
-                      <Check className="icon-sm text-icon-foreground" />
+                      <Check size="sm" color="default" />
                     ) : (
-                      <Copy className="icon-sm text-icon-foreground" />
+                      <Copy size="sm" color="default" />
                     )}
                   </Button>
                 </div>
@@ -125,7 +125,7 @@ export const ScoresTableCell = ({
                 className="inline-flex shrink-0 cursor-pointer items-center"
                 {...getTriggerProps()}
               >
-                <MessageCircleMore className="icon-sm" />
+                <MessageCircleMore size="sm" />
               </button>
             )}
           </HoverCard>
@@ -237,7 +237,7 @@ function AggregateScoreMetadataPeek({
           className="inline-flex shrink-0 cursor-pointer items-center"
           {...getTriggerProps()}
         >
-          <BracesIcon className="icon-sm" />
+          <BracesIcon size="sm" />
         </button>
       )}
     </ControlledHoverCard>

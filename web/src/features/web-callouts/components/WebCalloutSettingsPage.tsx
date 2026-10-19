@@ -1,6 +1,6 @@
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Plus, X } from "lucide-react";
+import { Plus, X } from "@langfuse/icons";
 import { useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
@@ -382,7 +382,7 @@ function WebCalloutEndpointDialog(props: {
                             size="icon"
                             onClick={() => remove(index)}
                           >
-                            <X className="icon-base text-icon-foreground" />
+                            <X size="base" color="default" />
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent>Remove header</TooltipContent>
@@ -402,7 +402,7 @@ function WebCalloutEndpointDialog(props: {
                   })
                 }
               >
-                <Plus className="icon-base text-icon-foreground mr-1" />
+                <Plus size="base" color="default" __rawClassName="mr-1" />
                 Add header
               </Button>
             </div>

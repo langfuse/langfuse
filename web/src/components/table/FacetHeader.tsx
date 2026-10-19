@@ -3,7 +3,7 @@ import {
   type ComponentPropsWithoutRef,
   type ReactNode,
 } from "react";
-import { X } from "lucide-react";
+import { X } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import {
   Tooltip,
@@ -101,7 +101,7 @@ export const FacetHeader = forwardRef<HTMLButtonElement, FacetHeaderProps>(
                 className="text-muted-foreground hover:text-foreground flex shrink-0 cursor-pointer items-center gap-0.5 rounded-sm px-1 py-0.5 text-[11px] leading-4 font-normal transition-colors hover:underline focus-visible:underline focus-visible:outline-none"
                 aria-label={`Clear ${label} filter`}
               >
-                <X className="icon-sm shrink-0" />
+                <X size="sm" />
                 Clear
               </div>
             </TooltipTrigger>

@@ -2,7 +2,7 @@ import {
   SplashScreen,
   type ValueProposition,
 } from "@/src/components/ui/splash-screen";
-import { ThumbsUp, Star, LineChart, Code } from "lucide-react";
+import { ThumbsUp, Star, LineChart, Code } from "@langfuse/icons";
 
 export function ScoresOnboarding() {
   const valuePropositions: ValueProposition[] = [

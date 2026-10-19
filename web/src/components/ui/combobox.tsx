@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { Check } from "lucide-react";
+import { Check } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
 import { cn } from "@/src/utils/tailwind";
@@ -211,8 +211,9 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
                       )}
                     >
                       <Check
-                        className={cn(
-                          "icon-base mr-2",
+                        size="base"
+                        __rawClassName={cn(
+                          "mr-2",
                           isEqual(value as T | undefined, option.value)
                             ? "opacity-100"
                             : "opacity-0",
@@ -267,8 +268,9 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
                     )}
                   >
                     <Check
-                      className={cn(
-                        "icon-base mr-2",
+                      size="base"
+                      __rawClassName={cn(
+                        "mr-2",
                         isEqual(value as T | undefined, option.value)
                           ? "opacity-100"
                           : "opacity-0",

@@ -2,7 +2,7 @@
 import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
-import { Trash } from "lucide-react";
+import { Trash } from "@langfuse/icons";
 import { useState } from "react";
 import {
   Popover,
@@ -33,7 +33,7 @@ export function DeletePrompt({ promptName }: { promptName: string }) {
     <Popover open={isOpen} onOpenChange={() => setIsOpen(!isOpen)}>
       <PopoverTrigger asChild>
         <Button variant="ghost" size="xs" disabled={!hasAccess}>
-          <Trash className="icon-sm text-icon-foreground" />
+          <Trash size="sm" color="default" />
         </Button>
       </PopoverTrigger>
       <PopoverContent>

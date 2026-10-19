@@ -1,5 +1,5 @@
 /* eslint-disable @repo/no-style-props */
-import { Check, Save } from "lucide-react";
+import { Check, Save } from "@langfuse/icons";
 import { useRouter } from "next/router";
 import { useState } from "react";
 
@@ -104,7 +104,7 @@ export const SaveToPromptButton: React.FC<SaveToPromptButtonProps> = ({
                   className,
                 )}
               >
-                <Save className="icon-base text-icon-foreground" />
+                <Save size="base" color="default" />
                 <span className="sr-only">Save as prompt</span>
               </Button>
             </PopoverTrigger>
@@ -119,7 +119,7 @@ export const SaveToPromptButton: React.FC<SaveToPromptButtonProps> = ({
               className,
             )}
           >
-            <Save className="icon-base text-icon-foreground" />
+            <Save size="base" color="default" />
             <span>Save as prompt</span>
           </Button>
         </PopoverTrigger>
@@ -156,8 +156,9 @@ export const SaveToPromptButton: React.FC<SaveToPromptButtonProps> = ({
                     }}
                   >
                     <Check
-                      className={cn(
-                        "icon-base mr-2",
+                      size="base"
+                      __rawClassName={cn(
+                        "mr-2",
                         selectedPromptId === chatPrompt.id
                           ? "opacity-100"
                           : "opacity-0",

@@ -1,5 +1,5 @@
 import { cn } from "@/src/utils/tailwind";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "@langfuse/icons";
 import Link from "next/link";
 import { type ReactNode } from "react";
 import {
@@ -107,7 +107,10 @@ export const PagedSettingsContainer = ({
                     <SelectItem key={pageKey(page)} value={pageKey(page)}>
                       {page.title}
                       {"href" in page && !page.internal && (
-                        <ArrowUpRight className="icon-base ml-1 inline" />
+                        <ArrowUpRight
+                          size="base"
+                          __rawClassName="ml-1 inline"
+                        />
                       )}
                     </SelectItem>
                   ))}
@@ -147,7 +150,7 @@ export const PagedSettingsContainer = ({
                   >
                     {page.title}
                     {!page.internal && (
-                      <ArrowUpRight className="icon-base inline" />
+                      <ArrowUpRight size="base" __rawClassName="inline" />
                     )}
                   </Link>
                 ) : (

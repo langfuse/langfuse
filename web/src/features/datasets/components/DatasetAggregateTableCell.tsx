@@ -7,7 +7,7 @@ import { useDatasetCompareFields } from "@/src/features/datasets/contexts/Datase
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
-import { ClockIcon, ListTree } from "lucide-react";
+import { ClockIcon, ListTree } from "@langfuse/icons";
 import { usdFormatter } from "@/src/utils/numbers";
 import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
 import {
@@ -238,7 +238,7 @@ const DatasetAggregateCellContent = ({
                 />
               ) : (
                 <Badge variant="tertiary" className="font-normal">
-                  <ClockIcon className="icon-sm mr-1 mb-0.5" />
+                  <ClockIcon size="sm" __rawClassName="mr-1 mb-0.5" />
                   <span className="capitalize">
                     {formatIntervalSeconds(latency)}
                   </span>
@@ -277,7 +277,7 @@ const DatasetAggregateCellContent = ({
                 title="View trace/observation"
                 onClick={handleOpenPeek}
               >
-                <ListTree className="icon-base text-icon-foreground" />
+                <ListTree size="base" color="default" />
               </Button>
             </div>
           )}

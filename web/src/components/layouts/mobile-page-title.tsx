@@ -15,7 +15,7 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { cn } from "@/src/utils/tailwind";
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal } from "@langfuse/icons";
 import { useRef, useState } from "react";
 
 /**
@@ -160,7 +160,7 @@ export const MobilePageTitle = ({
                 aria-label="More actions"
                 className="ml-auto shrink-0"
               >
-                <MoreHorizontal className="icon-base text-icon-foreground" />
+                <MoreHorizontal size="base" color="default" />
               </Button>
             </PopoverTrigger>
             <MobilePageActionsContent

@@ -1,4 +1,4 @@
-import { Plus, Trash } from "lucide-react";
+import { Plus, Trash } from "@langfuse/icons";
 
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
 import type { PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
@@ -92,7 +92,7 @@ export function GatewayApiKeysTable({
         {
           id: "create-key",
           label: "Create key",
-          icon: <Plus className="icon-base" aria-hidden="true" />,
+          icon: <Plus size="base" aria-hidden="true" />,
           onClick: createAction,
         },
       ]}

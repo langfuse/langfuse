@@ -1,6 +1,6 @@
 /* eslint-disable @repo/component-file-structure */
 import React, { useEffect, useImperativeHandle, useRef, useState } from "react";
-import { ExternalLink, Plus } from "lucide-react";
+import { ExternalLink, Plus } from "@langfuse/icons";
 import { ScoreDataTypeEnum, type ScoreConfigDataType } from "@langfuse/shared";
 import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -352,7 +352,8 @@ export function AnnotationFormContent({
                           {...getTriggerProps()}
                         >
                           <Plus
-                            className="icon-base text-icon-foreground"
+                            size="base"
+                            color="default"
                             aria-hidden="true"
                           />
                           Add score

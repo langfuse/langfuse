@@ -1,7 +1,7 @@
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tag, TagShell } from "@/src/components/design-system/Tag/Tag";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
-import { TagIcon } from "lucide-react";
+import { TagIcon } from "@langfuse/icons";
 
 type TagListProps = {
   selectedTags: string[];
@@ -51,7 +51,7 @@ function EditableTag({ tag, disabled }: { tag: string; disabled: boolean }) {
         disabled={disabled}
         className="focus-visible:ring-ring hover:bg-accent w-fit max-w-40 min-w-0 focus-visible:ring-2 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50"
       >
-        <TagIcon className="text-foreground-tertiary icon-sm shrink-0" />
+        <TagIcon size="sm" color="tertiary" />
         <span className="truncate py-0.5" title={tag}>
           {tag}
         </span>

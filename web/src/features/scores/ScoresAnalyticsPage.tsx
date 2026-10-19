@@ -16,7 +16,7 @@ import {
   toAbsoluteTimeRange,
   getOptimalInterval,
 } from "@/src/utils/date-range-utils";
-import { BarChart3 } from "lucide-react";
+import { BarChart3 } from "@langfuse/icons";
 import { api } from "@/src/utils/api";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
@@ -216,7 +216,7 @@ export default function ScoresAnalyticsPage() {
         <div className="max-h-full overflow-y-auto p-4 pt-6">
           {hasError ? (
             <div className="bg-destructive/10 flex flex-col items-center justify-center gap-4 rounded-lg border p-12">
-              <BarChart3 className="text-destructive h-12 w-12" />
+              <BarChart3 color="destructive" __rawClassName="h-12 w-12" />
               <div className="text-center">
                 <h3 className="text-lg font-bold">Error Loading Scores</h3>
                 <p className="text-muted-foreground mt-2 text-sm">
@@ -226,7 +226,7 @@ export default function ScoresAnalyticsPage() {
             </div>
           ) : hasNoScores ? (
             <div className="bg-muted/20 flex flex-col items-center justify-center gap-4 rounded-lg border p-12">
-              <BarChart3 className="text-muted-foreground h-12 w-12" />
+              <BarChart3 color="muted" __rawClassName="h-12 w-12" />
               <div className="text-center">
                 <h3 className="text-lg font-bold">No Scores Available</h3>
                 <p className="text-muted-foreground mt-2 text-sm">
@@ -237,7 +237,7 @@ export default function ScoresAnalyticsPage() {
             </div>
           ) : hasNoSelection ? (
             <div className="bg-muted/20 flex flex-col items-center justify-center gap-6 rounded-lg border p-12">
-              <BarChart3 className="text-muted-foreground h-16 w-16" />
+              <BarChart3 color="muted" __rawClassName="h-16 w-16" />
               <div className="max-w-2xl text-center">
                 <h3 className="text-2xl font-bold">Select a Score</h3>
                 <p className="text-muted-foreground mt-3 text-base">

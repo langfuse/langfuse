@@ -712,6 +712,7 @@ describe("Topics execution", () => {
       environment: "production",
       traceName: "Customer support",
       unitStartTime: "2026-01-01T00:00:00.000Z",
+      triggerType: "manual",
     });
     expect(state.numeric).not.toHaveBeenCalled();
     expect(state.saveExecution).not.toHaveBeenCalled();

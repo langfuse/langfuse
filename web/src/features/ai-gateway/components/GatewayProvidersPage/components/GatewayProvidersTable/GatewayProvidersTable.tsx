@@ -1,7 +1,7 @@
 /* eslint-disable no-nested-ternary */
 import { useMemo } from "react";
-import { ListTree, Pencil, RefreshCw, Route, Trash2 } from "lucide-react";
-import { SiAnthropic, SiOpenai } from "react-icons/si";
+import { ListTree, Pencil, RefreshCw, Route, Trash2 } from "@langfuse/icons";
+import { SiAnthropic, SiOpenai } from "@langfuse/icons/si";
 
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
 import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
@@ -141,11 +141,11 @@ function ModelCount({
 function ProviderName({ provider }: { provider: GatewayProvider }) {
   const icon =
     provider === "OPENAI" ? (
-      <SiOpenai className="icon-base" aria-hidden="true" />
+      <SiOpenai size="base" aria-hidden="true" />
     ) : provider === "ANTHROPIC" ? (
-      <SiAnthropic className="icon-base" aria-hidden="true" />
+      <SiAnthropic size="base" aria-hidden="true" />
     ) : (
-      <Route className="icon-base" aria-hidden="true" />
+      <Route size="base" aria-hidden="true" />
     );
 
   return (
