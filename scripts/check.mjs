@@ -37,7 +37,11 @@ export function parseOptions(args) {
 }
 
 function capture(command, args) {
-  const result = spawnSync(command, args, { cwd: root, encoding: "utf8" });
+  const result = spawnSync(command, args, {
+    cwd: root,
+    encoding: "utf8",
+    maxBuffer: 64 * 1024 * 1024,
+  });
   if (result.error) throw result.error;
   if (result.status !== 0) {
     throw new Error(`${command} ${args.join(" ")} failed:\n${result.stderr}`);
@@ -64,6 +68,7 @@ export function createPlan(
   packages,
   options,
   base,
+  taskGraph,
   exists = existsSync,
 ) {
   const commands = [];
@@ -75,13 +80,13 @@ export function createPlan(
 
   const owner = (file) =>
     packages.find((pkg) => file.startsWith(`${pkg.path}/`));
-  // Root mappings describe consumers outside the workspace dependency graph.
-  // They control selection, not cache validity: external resources consumed by
-  // tasks must also be declared as Turbo inputs, preserving $TURBO_DEFAULT$.
-  // Metadata skips below do not validate workflow/editor configuration syntax.
+  // Turbo inputs select checks, including consumers of files outside packages.
+  // Retain policy fallbacks for toolchain changes and unknown root resources;
+  // skipping metadata here does not validate workflow/editor configuration.
   let broad = options.all;
+  let jsToolchainChanged = false;
   const direct = new Set();
-  const fullPackages = new Set();
+  const fullRoots = new Set();
   const analysisFiles = [];
   for (const file of codeFiles) {
     const pkg = owner(file);
@@ -102,85 +107,94 @@ export function createPlan(
         file,
       )
     ) {
-      // The generated worker's consistency test formats its output using the
-      // root config, so a formatting change can invalidate the committed bundle.
-      for (const consumer of packages) {
-        if (consumer.path === "web") fullPackages.add(consumer.name);
-      }
+      // Consumer tasks declare formatting configuration in their Turbo inputs.
       continue;
     }
     analysisFiles.push(file);
     if (/^knip\.[^/]+$/.test(file)) continue;
-    if (/^scripts\/vitest\/ci-reporter\.(ts|test\.mjs)$/.test(file)) {
-      for (const consumer of packages) {
-        if (consumer.path === "web" || consumer.path === "worker")
-          fullPackages.add(consumer.name);
-      }
-      continue;
-    }
     if (
       /^(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|\.npmrc|\.nvmrc|tsconfig(?:\.[^/]+)?\.json|eslint\.config\.[cm]?js|vitest\.workspace\.[cm]?[jt]s)$/.test(
         file,
       ) ||
       file.startsWith("patches/")
     ) {
+      jsToolchainChanged = true;
       for (const consumer of packages) {
         // These packages expose Cargo tasks through pnpm, not JS/TS checks.
         if (
           consumer.path !== "ai-gateway" &&
           consumer.path !== "packages/native"
         )
-          fullPackages.add(consumer.name);
+          fullRoots.add(consumer.name);
       }
       continue;
     }
+    if (taskGraph.inputs.has(file)) continue;
     // New root files remain conservative until their consumers are mapped.
     broad = true;
   }
-  const affected = new Set(
-    broad ? packages.map((pkg) => pkg.name) : [...direct, ...fullPackages],
+  // Turbo supplies transitive dependents, including dev dependencies, rather
+  // than maintaining a second package graph from manifest dependency fields.
+  const fullPackages = new Set(
+    packages
+      .filter((pkg) => fullRoots.has(pkg.name))
+      .flatMap((pkg) => [pkg.name, ...pkg.dependents]),
   );
-  let previousSize;
-  let previousFullSize;
-  do {
-    previousSize = affected.size;
-    previousFullSize = fullPackages.size;
-    for (const pkg of packages) {
-      if (pkg.dependencies.some((dependency) => affected.has(dependency)))
-        affected.add(pkg.name);
-      if (pkg.dependencies.some((dependency) => fullPackages.has(dependency)))
-        fullPackages.add(pkg.name);
-    }
-  } while (
-    affected.size !== previousSize ||
-    fullPackages.size !== previousFullSize
-  );
+  const affected = new Set([
+    ...direct,
+    ...fullPackages,
+    ...[...taskGraph.affected].map((task) =>
+      task.slice(0, task.lastIndexOf("#")),
+    ),
+  ]);
 
   const add = (label, args) => commands.push({ label, args });
-  const turbo = (task, names, extra = []) => {
-    if (names.length)
-      add(task, [
-        "exec",
-        "turbo",
-        "run",
-        task,
-        ...names.map((name) => `--filter=${name}`),
-        "--continue=dependencies-successful",
-        ...extra,
-      ]);
+  const targets = new Set();
+  const schedule = (task, names) => {
+    for (const name of names) targets.add(`${name}#${task}`);
   };
-  const selected = packages.filter((pkg) => affected.has(pkg.name));
+  const isSelected = (pkg, task) => {
+    if (!pkg.scripts[task]) return false;
+    if (broad) return true;
+    if (
+      jsToolchainChanged &&
+      (pkg.path === "ai-gateway" || pkg.path === "packages/native") &&
+      !direct.has(pkg.name)
+    )
+      return false;
+    return (
+      fullPackages.has(pkg.name) ||
+      taskGraph.affected.has(`${pkg.name}#${task}`)
+    );
+  };
+  const prepare = (taskId) => {
+    const task = taskGraph.tasks.get(taskId);
+    if (!task) throw new Error(`Missing Turbo task graph for ${taskId}`);
+    for (const dependency of task.dependencies) {
+      // Related suites need build/generation prerequisites, not upstream suites.
+      if (dependency.endsWith("#test") || dependency.endsWith("#test-client"))
+        continue;
+      targets.add(dependency);
+    }
+  };
+  const selected = packages.filter((pkg) =>
+    ["typecheck", "lint", "test", "test-client"].some((task) =>
+      isSelected(pkg, task),
+    ),
+  );
   // File-only TypeScript checks miss downstream errors. Keep project-wide
   // incremental checks and let Turbo run prerequisite builds/code generation;
   // those prerequisites can compile native code even without Rust checks.
-  turbo(
+  schedule(
     "typecheck",
-    selected.filter((pkg) => pkg.scripts.typecheck).map((pkg) => pkg.name),
+    selected
+      .filter((pkg) => isSelected(pkg, "typecheck"))
+      .map((pkg) => pkg.name),
   );
 
   const fullLint = [];
   for (const pkg of selected) {
-    if (!pkg.scripts.lint) continue;
+    if (!isSelected(pkg, "lint")) continue;
     const ownFiles = codeFiles.filter((file) => owner(file)?.name === pkg.name);
     const sourceOnly =
       ownFiles.length > 0 &&
@@ -190,29 +204,45 @@ export function createPlan(
           /\.[cm]?[jt]sx?$/.test(file) &&
           exists(resolve(root, file)),
       );
+    const externalInputChanged = codeFiles.some(
+      (file) =>
+        !file.startsWith(`${pkg.path}/`) &&
+        taskGraph.tasks.get(`${pkg.name}#lint`).inputFiles.has(file),
+    );
     if (
       !broad &&
       direct.has(pkg.name) &&
       !fullPackages.has(pkg.name) &&
       !pkg.dependencies.some((dependency) => affected.has(dependency)) &&
+      !externalInputChanged &&
       sourceOnly &&
       pkg.scripts.lint.includes("eslint")
     ) {
-      // ESLint's flat-config CLI defaults to the package directory when no
-      // paths are supplied, so the same script supports full and file-only lint.
-      turbo(
-        "lint",
-        [pkg.name],
-        ["--", ...ownFiles.map((file) => `./${relative(pkg.path, file)}`)],
-      );
+      // ESLint caches individual files. Prepare via the shared Turbo run, then
+      // pass package-specific paths without forwarding them to other tasks.
+      prepare(`${pkg.name}#lint`);
+      commands.push({
+        label: `lint (${pkg.name})`,
+        args: [
+          "--filter",
+          pkg.name,
+          "run",
+          "lint",
+          ...ownFiles.map((file) => `./${relative(pkg.path, file)}`),
+        ],
+        requiresTurbo: true,
+      });
     } else fullLint.push(pkg.name);
   }
-  turbo("lint", fullLint);
+  schedule("lint", fullLint);
 
   const fullTests = [];
   const clientTests = [];
   for (const pkg of selected) {
-    if (!pkg.scripts.test) continue;
+    const tests = ["test", "test-client"].filter((task) =>
+      isSelected(pkg, task),
+    );
+    if (!tests.length) continue;
     const ownFiles = codeFiles.filter((file) => owner(file)?.name === pkg.name);
     const dependencyChanged = pkg.dependencies.some((dependency) =>
       affected.has(dependency),
@@ -225,6 +255,13 @@ export function createPlan(
           /\.[cm]?[jt]sx?$/.test(file) &&
           exists(resolve(root, file)),
       );
+    const externalInputChanged = codeFiles.some(
+      (file) =>
+        !file.startsWith(`${pkg.path}/`) &&
+        tests.some((task) =>
+          taskGraph.tasks.get(`${pkg.name}#${task}`).inputFiles.has(file),
+        ),
+    );
     // Import-based selection cannot discover computed imports or runtime file
     // reads. Use --all when changing resources whose consumers are unknown.
     const related =
@@ -232,45 +269,51 @@ export function createPlan(
       direct.has(pkg.name) &&
       !fullPackages.has(pkg.name) &&
       !dependencyChanged &&
+      !externalInputChanged &&
       sourceOnly &&
-      pkg.scripts.test.includes("vitest");
+      tests.every((task) => pkg.scripts[task].includes("vitest"));
     if (related) {
-      // Prepare through Turbo, but run the existing test scripts directly:
-      // selection depends on Git state and must not populate full-suite caches.
-      // Keeping preparation separate also prevents Vitest flags from reaching
-      // generation/build tasks or running unrelated upstream test suites.
-      const steps = [
-        ["exec", "turbo", "run", "db:generate", `--filter=${pkg.name}`],
-        ["exec", "turbo", "run", "build", `--filter=${pkg.name}^...`],
-        [
+      // Git-dependent selection must not populate full-suite caches. Only the
+      // existing package test scripts receive Vitest flags, never prerequisites.
+      const steps = tests.map((task) => {
+        prepare(`${pkg.name}#${task}`);
+        return [
           "--filter",
           pkg.name,
           "run",
-          "test",
+          task,
           "--changed",
           base,
           "--passWithNoTests",
-        ],
-      ];
-      if (pkg.scripts["test-client"]) {
-        steps.push([
-          "--filter",
-          pkg.name,
-          "run",
-          "test-client",
-          "--changed",
-          base,
-          "--passWithNoTests",
-        ]);
-      }
-      commands.push({ label: `related tests (${pkg.name})`, steps });
+        ];
+      });
+      commands.push({
+        label: `related tests (${pkg.name})`,
+        steps,
+        requiresTurbo: true,
+      });
     } else {
-      fullTests.push(pkg.name);
-      if (pkg.scripts["test-client"]) clientTests.push(pkg.name);
+      if (tests.includes("test")) fullTests.push(pkg.name);
+      if (tests.includes("test-client")) clientTests.push(pkg.name);
     }
   }
-  turbo("test", fullTests);
-  turbo("test-client", clientTests);
+  schedule("test", fullTests);
+  schedule("test-client", clientTests);
+  if (targets.size) {
+    // One graph lets Turbo deduplicate prerequisite work and schedule compatible
+    // checks concurrently. File-specific commands wait for successful preparation.
+    commands.unshift({
+      label: "Turbo checks and prerequisites",
+      args: [
+        "exec",
+        "turbo",
+        "run",
+        ...targets,
+        "--continue=dependencies-successful",
+      ],
+      isTurboBatch: true,
+    });
+  }
 
   const formatted = files.filter(
     (file) =>
@@ -347,32 +390,107 @@ function main() {
     `Checking ${options.all ? "all packages" : options.branch ? `branch against ${options.base}` : "local changes"} (${files.length} changed files)`,
   );
   const workspace = JSON.parse(
-    capture("pnpm", ["exec", "turbo", "ls", "--output=json"]),
+    capture("pnpm", [
+      "exec",
+      "turbo",
+      "query",
+      `query {
+        packages { items { name path directDependencies { items { name } } allDependents { items { name } } } }
+        affectedTasks(base: ${JSON.stringify(base)}, head: "HEAD", tasks: ["typecheck", "lint", "test", "test-client"]) {
+          items { fullName name command reason {
+            __typename
+            ... on TaskAllChanged { description }
+            ... on TaskFileChanged { filePath }
+          } }
+        }
+      }`,
+    ]),
   );
-  const packages = workspace.packages.items
+  if (workspace.errors?.length) {
+    throw new Error(
+      `Turbo package graph query failed: ${workspace.errors.map((error) => error.message).join("; ")}`,
+    );
+  }
+  const packages = workspace.data.packages.items
+    // Turbo includes its synthetic workspace root; it is not a check target.
+    .filter((pkg) => pkg.name !== "//")
     .map((pkg) => {
       const manifest = JSON.parse(
         readFileSync(resolve(root, pkg.path, "package.json"), "utf8"),
       );
       return {
-        ...pkg,
+        name: pkg.name,
+        path: pkg.path,
         scripts: manifest.scripts ?? {},
-        dependencies: Object.keys({
-          ...manifest.dependencies,
-          ...manifest.devDependencies,
-          ...manifest.peerDependencies,
-          ...manifest.optionalDependencies,
-        }),
+        dependencies: pkg.directDependencies.items
+          .filter((dependency) => dependency.name !== "//")
+          .map((dependency) => dependency.name),
+        dependents: pkg.allDependents.items.map((dependent) => dependent.name),
       };
     })
     .sort((a, b) => b.path.length - a.path.length);
-  const plan = createPlan(files, packages, options, base);
+  const dryRun = JSON.parse(
+    capture("pnpm", [
+      "exec",
+      "turbo",
+      "run",
+      "typecheck",
+      "lint",
+      "test",
+      "test-client",
+      "--dry=json",
+    ]),
+  );
+  const taskGraph = {
+    affected: new Set(),
+    tasks: new Map(),
+    inputs: new Set(),
+  };
+  for (const task of dryRun.tasks) {
+    const inputFiles = new Set(
+      Object.keys(task.inputs).map((file) =>
+        relative(root, resolve(root, task.directory, file)),
+      ),
+    );
+    taskGraph.tasks.set(task.taskId, { ...task, inputFiles });
+    for (const file of inputFiles) taskGraph.inputs.add(file);
+  }
+  for (const task of workspace.data.affectedTasks.items) {
+    // Turbo 2.11 includes runnable prerequisites in this collection, labelled
+    // with this synthetic reason. Select affected checks, not those prerequisites;
+    // execution still follows their normal Turbo dependency edges.
+    if (
+      task.reason.__typename === "TaskAllChanged" &&
+      task.reason.description === "required by an affected task"
+    )
+      continue;
+    if (task.reason.__typename === "TaskFileChanged") {
+      // Deleted files are absent from live dry-run inputs but still affect tasks.
+      taskGraph.inputs.add(task.reason.filePath);
+      taskGraph.tasks.get(task.fullName)?.inputFiles.add(task.reason.filePath);
+    }
+    if (
+      task.command &&
+      ["typecheck", "lint", "test", "test-client"].includes(task.name)
+    ) {
+      taskGraph.affected.add(task.fullName);
+    }
+  }
+  const plan = createPlan(files, packages, options, base, taskGraph);
   if (!plan.length) {
     console.log("No applicable checks.");
     return;
   }
   const failed = [];
-  for (const { label, args, steps } of plan) {
+  let turboFailed = false;
+  for (const { label, args, steps, requiresTurbo, isTurboBatch } of plan) {
+    if (requiresTurbo && turboFailed) {
+      console.error(
+        `\nSkipped ${label}: the shared Turbo check/preparation run failed.`,
+      );
+      failed.push(label);
+      continue;
+    }
     for (const command of steps ?? [args]) {
       console.log(
         `\n${label}: pnpm ${command.map((arg) => JSON.stringify(arg)).join(" ")}`,
@@ -389,6 +507,7 @@ function main() {
       }
       if (result.status !== 0) {
         failed.push(label);
+        if (isTurboBatch) turboFailed = true;
         // Do not run a suite whose prerequisite generation/build failed.
         break;
       }

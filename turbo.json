@@ -115,13 +115,15 @@
       "cache": true
     },
     "test": {
-      "dependsOn": ["^test", "db:generate"],
+      // Tests consume compiled workspace packages. The edge must be explicit
+      // now that typechecks, lint, and tests can share one concurrent run.
+      "dependsOn": ["^build", "^test", "db:generate"],
       "cache": true
     },
     // Vitest loads these files from outside each package. Selecting the task
     // without hashing them could still replay a result from before they changed.
     "web#test": {
-      "dependsOn": ["^test", "db:generate"],
+      "dependsOn": ["^build", "^test", "db:generate"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/scripts/vitest/ci-reporter.ts",
@@ -165,7 +167,7 @@
     },
     // Worker tests load the compiled addon, which no install step produces.
     "worker#test": {
-      "dependsOn": ["^test", "db:generate", "@langfuse/native#build"],
+      "dependsOn": ["^build", "^test", "db:generate", "@langfuse/native#build"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/scripts/vitest/ci-reporter.ts"
