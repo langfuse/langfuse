@@ -197,11 +197,5 @@ minimumReleaseAgeExclude:
   - undici@7.30.1
   # qs security fix; eligible after 2026-10-19 22:06 UTC.
   - qs@6.16.1
-  # AI SDK Decisions API (`experimental_decide`); eligible after 2026-10-12 01:47 UTC.
-  - ai@7.0.130
-  - "@ai-sdk/openai@4.0.86"
-  - "@ai-sdk/gateway@4.0.106"
-  - "@ai-sdk/provider@4.0.24"
-  - "@ai-sdk/provider-utils@5.0.56"
   # Handlebars security fixes; eligible after 2026-10-10 22:37 UTC.
   - handlebars@4.7.10

@@ -210,6 +210,10 @@ async function generateWithConnection<T>(
   ) => void,
 ): Promise<TopicTextResult> {
   const nativeOpenAI = isFirstPartyOpenAI(params.model);
+  const compatibleOpenAIChat =
+    params.model.adapter === LLMAdapter.OpenAI &&
+    !nativeOpenAI &&
+    params.model.connection.config?.useResponsesApi !== true;
   const result = await generateLLMText({
     model: { adapter: params.model.adapter, id: params.model.model },
     connection: params.model.connection,
@@ -219,7 +223,12 @@ async function generateWithConnection<T>(
     messages: topicMessages(params),
     output: Output.object({ schema: params.schema }),
     maxOutputTokens: params.maxOutputTokens,
-    reasoning: nativeOpenAI ? openAIReasoning(params.model.model) : "none",
+    // Compatible endpoints choose their own supported reasoning settings.
+    reasoning: nativeOpenAI
+      ? openAIReasoning(params.model.model)
+      : compatibleOpenAIChat
+        ? undefined
+        : "none",
     // Bedrock ignores portable reasoning for OpenAI models; their default effort
     // is not none.
     ...(isBedrockGPT(params.model)
