@@ -1,6 +1,5 @@
 import { useId } from "react";
 import { useForm } from "react-hook-form";
-import { filterOperators } from "@langfuse/shared";
 import { X } from "lucide-react";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
@@ -11,6 +10,9 @@ import { cn } from "@/src/utils/tailwind";
 import {
   completeExperimentFilter,
   EXPERIMENT_FILTER_KINDS,
+  experimentFilterOperators,
+  isExperimentMetadataColumn,
+  withExperimentFilterOperator,
   type ExperimentFilterDraft,
 } from "./experimentFilterEditing";
 import {
@@ -50,7 +52,10 @@ export function ExperimentFilterBlock({
     form.setValue("key", key, { shouldDirty: true });
   }
   function handleOperatorChange(operator: string) {
-    form.setValue("operator", operator, { shouldDirty: true });
+    const next = withExperimentFilterOperator(draft, operator);
+    form.setValue("type", next.type, { shouldDirty: true });
+    form.setValue("operator", next.operator, { shouldDirty: true });
+    form.setValue("value", next.value, { shouldDirty: true });
   }
   function handleValueChange(value: ExperimentFilterDraft["value"]) {
     form.setValue("value", value, { shouldDirty: true });
@@ -126,10 +131,7 @@ export function ExperimentFilterBlock({
       <SelectInput
         aria-label="Filter operator"
         value={draft.operator}
-        options={filterOperators[draft.type].map((value) => ({
-          value,
-          label: value,
-        }))}
+        options={state.operators}
         onValueChange={handleOperatorChange}
         placeholder="Select operator"
       />
@@ -172,11 +174,11 @@ function prepareBlockState(
     (entry) => entry.column === draft.column,
   );
   const target = targets.find((entry) => entry.id === draft.target);
-  const isScore = ["numberObject", "booleanObject", "categoryOptions"].includes(
-    draft.type,
-  );
-  const isMetadata = draft.type === "stringObject";
-  const availableNames = scoreNames(draft, options);
+  const isMetadata = isExperimentMetadataColumn(draft.column);
+  const isScore =
+    !isMetadata &&
+    ["numberObject", "booleanObject", "categoryOptions"].includes(draft.type);
+  const availableNames = isScore ? scoreNames(draft, options) : [];
   const allNames = new Set([
     ...(options?.scores_avg ?? []),
     ...Object.keys(options?.score_categories ?? {}),
@@ -203,10 +205,14 @@ function prepareBlockState(
     isScore,
     isMetadata,
     isPresence: isMetadata && ["is set", "is not set"].includes(draft.operator),
+    operators: experimentFilterOperators(draft).map((value) => ({
+      value,
+      label: value,
+    })),
     scoreNames: [
       ...new Set([...availableNames, ...(draft.key ? [draft.key] : [])]),
     ].map((value) => ({ value, label: value })),
-    levels: scoreLevels(draft, options),
+    levels: isScore ? scoreLevels(draft, options) : [],
     invalidType,
     emptyScoresMessage,
     isWaiting:
