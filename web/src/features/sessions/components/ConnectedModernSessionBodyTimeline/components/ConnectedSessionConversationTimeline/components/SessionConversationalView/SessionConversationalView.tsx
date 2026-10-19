@@ -46,7 +46,6 @@ export function SessionConversationalView(
 ) {
   const transcriptRef = useRef<HTMLDivElement>(null);
   const [workspaceRef, workspaceSize] = useElementSize<HTMLDivElement>();
-  // Match the @3xl/session-workspace breakpoint used by the mobile search UI.
   const showSidebar = (workspaceSize?.width ?? 0) >= 768;
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
     id: "session-conversation-sidebar",
@@ -246,82 +245,84 @@ export function SessionConversationalView(
   return (
     <div
       ref={workspaceRef}
-      className="bg-background relative grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] overflow-hidden @3xl/session-workspace:grid-rows-1"
+      className="bg-background relative flex min-h-0 flex-1 flex-col overflow-hidden"
     >
-      <div className="border-b px-2 py-2.5 @3xl/session-workspace:hidden">
-        <DialogController
-          renderDialog={({ closeDialog }) => (
-            <Dialog title="Search session" closeOnInteractionOutside>
-              <div className="shrink-0 border-b px-4 pt-0 pb-2">
-                <div className="relative min-w-0">
-                  <Search
-                    size="base"
-                    color="tertiary"
-                    __rawClassName="absolute top-1/2 left-2 -translate-y-1/2"
-                  />
-                  <Input
-                    disabled={props.state === "loading"}
-                    value={props.state === "loaded" ? props.search : ""}
-                    onChange={(event) => {
-                      if (props.state === "loaded")
-                        props.onSearchChange(event.target.value);
-                    }}
-                    aria-label="Search session"
-                    placeholder="Search session"
-                    className="h-7 rounded-sm bg-transparent pl-7 font-mono text-xs"
-                  />
+      {!showSidebar && (
+        <div className="shrink-0 border-b px-2 py-2.5">
+          <DialogController
+            renderDialog={({ closeDialog }) => (
+              <Dialog title="Search session" closeOnInteractionOutside>
+                <div className="shrink-0 border-b px-4 pt-0 pb-2">
+                  <div className="relative min-w-0">
+                    <Search
+                      size="base"
+                      color="tertiary"
+                      __rawClassName="absolute top-1/2 left-2 -translate-y-1/2"
+                    />
+                    <Input
+                      disabled={props.state === "loading"}
+                      value={props.state === "loaded" ? props.search : ""}
+                      onChange={(event) => {
+                        if (props.state === "loaded")
+                          props.onSearchChange(event.target.value);
+                      }}
+                      aria-label="Search session"
+                      placeholder="Search session"
+                      className="h-7 rounded-sm bg-transparent pl-7 font-mono text-xs"
+                    />
+                  </div>
                 </div>
-              </div>
-              <div className="min-h-0 flex-1 sm:h-[60dvh] sm:flex-none">
-                {sidebarProps.state === "loading" ? (
-                  <SessionConversationSidebar
-                    state="loading"
-                    searchVisibility="hidden"
-                  />
-                ) : (
-                  <SessionConversationSidebar
-                    {...sidebarProps}
-                    searchVisibility="hidden"
-                    onSelect={(...args) => {
-                      sidebarProps.onSelect(...args);
-                      closeDialog();
-                    }}
-                  />
-                )}
-              </div>
-            </Dialog>
-          )}
-        >
-          {({ openDialog }) => (
-            <DialogTrigger asChild>
-              <button
-                type="button"
-                disabled={props.state === "loading"}
-                onClick={() => openDialog()}
-                aria-label="Search session"
-                className="border-input text-muted-foreground flex h-7 w-full items-center gap-2 rounded-sm border px-2 text-left font-mono text-xs"
-              >
-                <Search size="base" />
-                <span
-                  className="truncate"
-                  title={
-                    props.state === "loaded" && props.search
-                      ? props.search
-                      : "Search session"
-                  }
+                <div className="min-h-0 flex-1 sm:h-[60dvh] sm:flex-none">
+                  {sidebarProps.state === "loading" ? (
+                    <SessionConversationSidebar
+                      state="loading"
+                      searchVisibility="hidden"
+                    />
+                  ) : (
+                    <SessionConversationSidebar
+                      {...sidebarProps}
+                      searchVisibility="hidden"
+                      onSelect={(...args) => {
+                        sidebarProps.onSelect(...args);
+                        closeDialog();
+                      }}
+                    />
+                  )}
+                </div>
+              </Dialog>
+            )}
+          >
+            {({ openDialog }) => (
+              <DialogTrigger asChild>
+                <button
+                  type="button"
+                  disabled={props.state === "loading"}
+                  onClick={() => openDialog()}
+                  aria-label="Search session"
+                  className="border-input text-muted-foreground flex h-7 w-full items-center gap-2 rounded-sm border px-2 text-left font-mono text-xs"
                 >
-                  {props.state === "loaded" && props.search
-                    ? props.search
-                    : "Search session"}
-                </span>
-              </button>
-            </DialogTrigger>
-          )}
-        </DialogController>
-      </div>
+                  <Search size="base" />
+                  <span
+                    className="truncate"
+                    title={
+                      props.state === "loaded" && props.search
+                        ? props.search
+                        : "Search session"
+                    }
+                  >
+                    {props.state === "loaded" && props.search
+                      ? props.search
+                      : "Search session"}
+                  </span>
+                </button>
+              </DialogTrigger>
+            )}
+          </DialogController>
+        </div>
+      )}
       <ResizablePanelGroup
         orientation="horizontal"
-        className="min-h-0 min-w-0"
+        className="min-h-0 min-w-0 flex-1"
         defaultLayout={showSidebar ? defaultLayout : undefined}
         onLayoutChanged={showSidebar ? onLayoutChanged : undefined}
       >
