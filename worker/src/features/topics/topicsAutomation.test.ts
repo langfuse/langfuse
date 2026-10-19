@@ -416,6 +416,14 @@ describe("automatic Topics assignment", () => {
   });
 
   it.each([
+    { status: "queued", state: "failed", capacityFailure: false, monitors: 1 },
+    {
+      status: "queued",
+      state: "completed",
+      capacityFailure: false,
+      monitors: 1,
+    },
+    { status: "queued", state: "missing", capacityFailure: false, monitors: 1 },
     { status: "failed", state: "failed", capacityFailure: false, monitors: 0 },
     { status: "running", state: "active", capacityFailure: false, monitors: 1 },
     { status: "running", state: "failed", capacityFailure: false, monitors: 0 },
@@ -427,7 +435,7 @@ describe("automatic Topics assignment", () => {
     },
     { status: "running", state: "failed", capacityFailure: true, monitors: 1 },
   ] as const)(
-    "only monitors active work or a racing capacity failure: %j",
+    "recovers queued work and monitors active work or a racing capacity failure: %j",
     async ({ status, state, capacityFailure, monitors }) => {
       vi.mocked(prisma.batchAction.findFirst).mockResolvedValue({
         id: "running",
@@ -461,7 +469,9 @@ describe("automatic Topics assignment", () => {
 
       expect(add).toHaveBeenCalledTimes(monitors);
       expect(createTopicExecution).not.toHaveBeenCalled();
-      expect(enqueueTopicExecution).not.toHaveBeenCalled();
+      expect(vi.mocked(enqueueTopicExecution).mock.calls).toEqual(
+        status === "queued" ? [[batch.projectId, running.id]] : [],
+      );
     },
   );
 

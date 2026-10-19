@@ -312,12 +312,14 @@ async function continueDiscovery(
   existing: TopicExecutionSummary | null,
 ): Promise<boolean> {
   if (!existing) return false;
-  if (existing.status === "queued" || existing.status === "running") {
+  if (existing.status === "queued") {
+    await deferDiscovery(batch, facet);
+    await enqueueTopicExecution(batch.projectId, existing.id);
+    return true;
+  }
+  if (existing.status === "running") {
     const state = await getTopicExecutionQueueState(existing);
-    if (
-      ["failed", "completed", "unknown"].includes(state) ||
-      (existing.status === "running" && state === "missing")
-    ) {
+    if (["failed", "completed", "unknown", "missing"].includes(state)) {
       // Queue failure can outlive persisted running status. Recheck progress in
       // case admission recorded a capacity failure while the queue was read.
       const current = await readTopicExecutionSummary(
@@ -329,8 +331,6 @@ async function continueDiscovery(
       return true;
     }
     await deferDiscovery(batch, facet);
-    if (existing.status === "queued")
-      await enqueueTopicExecution(batch.projectId, existing.id);
     return true;
   }
   const capacityFailure = discoveryCapacityFailure(existing, facet);
