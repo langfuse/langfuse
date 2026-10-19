@@ -1,6 +1,12 @@
 import { Sha256 } from "@aws-crypto/sha256-js";
 import { SignatureV4 } from "@smithy/signature-v4";
-import { NoObjectGeneratedError, Output, type LanguageModelUsage } from "ai";
+import {
+  NoObjectGeneratedError,
+  Output,
+  type LanguageModelUsage,
+  type StepResult,
+  type ToolSet,
+} from "ai";
 import { z } from "zod";
 import { decrypt } from "../../encryption";
 import { BedrockConfigSchema } from "../../interfaces/customLLMProviderConfigSchemas";
@@ -18,20 +24,11 @@ import type { TopicsModel } from "./model-config";
 
 const TIMEOUT_MS = 60_000;
 
-type TopicTextResponseMetadata = Record<string, string | number>;
-
 // Error identity and lifetime are preserved, including for frozen SDK errors.
 const responseMetadataByError = new WeakMap<
   object,
   TopicTextResponseMetadata
 >();
-
-/** Bounded response diagnostics for the existing Topics failure log; no content. */
-export function getTopicTextResponseMetadata(error: unknown) {
-  return error !== null && typeof error === "object"
-    ? responseMetadataByError.get(error)
-    : undefined;
-}
 
 const RAW_FINISH_REASONS = new Set([
   "stop",
@@ -94,6 +91,13 @@ export async function generateTopicText<T>(
   } finally {
     await writeTopicTrace(params, startTimeISO, result, failure);
   }
+}
+
+/** Bounded response diagnostics for the existing Topics failure log; no content. */
+export function getTopicTextResponseMetadata(error: unknown) {
+  return error !== null && typeof error === "object"
+    ? responseMetadataByError.get(error)
+    : undefined;
 }
 
 async function writeTopicTrace<T>(
@@ -235,26 +239,7 @@ async function generateWithConnection<T>(
       const text = finalStep.text;
       recordResponse(
         { output: text, usage: topicUsage(finalStep.usage) },
-        {
-          "langfuse.topics.response.finish_reason": finalStep.finishReason,
-          "langfuse.topics.response.raw_finish_reason": RAW_FINISH_REASONS.has(
-            finalStep.rawFinishReason ?? "",
-          )
-            ? finalStep.rawFinishReason!
-            : "other",
-          "langfuse.topics.response.text_characters": text.length,
-          "langfuse.topics.response.text_part_count": finalStep.content.filter(
-            (part) => part.type === "text",
-          ).length,
-          "langfuse.topics.response.reasoning_part_count":
-            finalStep.content.filter((part) => part.type === "reasoning")
-              .length,
-          "langfuse.topics.response.max_output_tokens": params.maxOutputTokens,
-          ...(finalStep.usage.outputTokens !== undefined && {
-            "langfuse.topics.response.output_tokens":
-              finalStep.usage.outputTokens,
-          }),
-        },
+        responseAttributes(finalStep, text.length, params.maxOutputTokens),
       );
     },
   });
@@ -262,6 +247,32 @@ async function generateWithConnection<T>(
   return {
     output: result.output,
     usage,
+  };
+}
+
+function responseAttributes(
+  step: StepResult<ToolSet>,
+  textCharacters: number,
+  maxOutputTokens: number,
+): TopicTextResponseMetadata {
+  return {
+    "langfuse.topics.response.finish_reason": step.finishReason,
+    "langfuse.topics.response.raw_finish_reason": RAW_FINISH_REASONS.has(
+      step.rawFinishReason ?? "",
+    )
+      ? step.rawFinishReason!
+      : "other",
+    "langfuse.topics.response.text_characters": textCharacters,
+    "langfuse.topics.response.text_part_count": step.content.filter(
+      (part) => part.type === "text",
+    ).length,
+    "langfuse.topics.response.reasoning_part_count": step.content.filter(
+      (part) => part.type === "reasoning",
+    ).length,
+    "langfuse.topics.response.max_output_tokens": maxOutputTokens,
+    ...(step.usage.outputTokens !== undefined && {
+      "langfuse.topics.response.output_tokens": step.usage.outputTokens,
+    }),
   };
 }
 
@@ -461,6 +472,8 @@ async function invokeWithCache(
 
 /** A system prompt segment; `cache` ends a reusable prefix with a cache breakpoint. */
 export type TopicPromptPart = { text: string; cache?: boolean };
+
+type TopicTextResponseMetadata = Record<string, string | number>;
 
 type TopicTextResult = {
   output: unknown;
