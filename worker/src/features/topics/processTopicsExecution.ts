@@ -67,7 +67,7 @@ import {
 } from "./numeric";
 import { matchTopicContinuity } from "./continuity";
 import { TopicMetrics } from "./metrics";
-import { type TopicModelUsage } from "./summaryResult";
+import { splitTopicModelUsage } from "./summaryResult";
 
 type ProcessExecution = TopicExecution & {
   input: Extract<TopicExecution["input"], { operation: "process" }>;
@@ -102,10 +102,13 @@ async function saveProgress(
   );
 }
 
+type TraceResults = Map<TraceFacet, TopicSummary | Error>;
+type TraceInput = Awaited<ReturnType<typeof loadTopicTranscript>>;
+
 /**
  * Summarizes a trace's pending facets with the trace-batch request: one call for
  * every facet that has no accepted or reusable summary. Results follow `facets`;
- * a failed facet gets its error and execution-level failures throw.
+ * a trace-level failure applies only to unresolved facets, execution-level failures throw.
  */
 async function summarizeTrace(
   metrics: TopicMetrics,
@@ -114,9 +117,51 @@ async function summarizeTrace(
   facets: TraceFacet[],
   traceId: string,
   staged: Map<TopicFacetVersion, TopicSummary[]>,
-  getTranscript: () => ReturnType<typeof loadTopicTranscript>,
+  getTranscript: () => Promise<TraceInput>,
 ): Promise<(TopicSummary | Error)[]> {
-  const results = new Map<TraceFacet, TopicSummary | Error>();
+  const results = acceptedSummaries(metrics, facets, traceId, staged);
+  const unresolved = () => facets.filter((facet) => !results.has(facet));
+  if (unresolved().length) {
+    try {
+      const input = await getTranscript();
+      if (isInternalEvalEnvironment(input.environment))
+        throw new Error("Topics does not process internal Langfuse traces.");
+      const base = (facet: TraceFacet) =>
+        baseSummary(execution, traceId, facet.version, input);
+      for (const [facet, summary] of await reuseSummaries(
+        metrics,
+        execution,
+        unresolved(),
+        base,
+      ))
+        results.set(facet, summary);
+      for (const [facet, result] of await summarizePending(
+        metrics,
+        models,
+        execution,
+        traceId,
+        unresolved(),
+        base,
+        input,
+      ))
+        results.set(facet, result);
+    } catch (error) {
+      if (isExecutionFailure(error) && !isTraceModelFailure(error)) throw error;
+      metrics.error("summary", error);
+      for (const facet of unresolved()) results.set(facet, error as Error);
+    }
+  }
+  return facets.map((facet) => results.get(facet)!);
+}
+
+/** Summaries an earlier attempt of this execution already staged. */
+function acceptedSummaries(
+  metrics: TopicMetrics,
+  facets: TraceFacet[],
+  traceId: string,
+  staged: Map<TopicFacetVersion, TopicSummary[]>,
+): TraceResults {
+  const results: TraceResults = new Map();
   for (const facet of facets) {
     const accepted = staged
       .get(facet.version)!
@@ -128,23 +173,25 @@ async function summarizeTrace(
     // An accepted payload may expire after the cache read; never renew its TTL.
     results.set(facet, accepted);
   }
-  const remaining = facets.filter((facet) => !results.has(facet));
-  if (!remaining.length) return facets.map((facet) => results.get(facet)!);
+  return results;
+}
 
-  const { unitStartTime, sessionId, environment, traceName, transcript } =
-    await getTranscript();
-  if (isInternalEvalEnvironment(environment))
-    throw new Error("Topics does not process internal Langfuse traces.");
-  const base = (facet: TopicFacetVersion): TopicSummary => ({
+function baseSummary(
+  execution: ProcessExecution,
+  traceId: string,
+  facet: TopicFacetVersion,
+  input: TraceInput,
+): TopicSummary {
+  return {
     projectId: execution.projectId,
     facetId: facet.facetId,
     facetVersion: facet.version,
     traceId,
-    sessionId,
+    sessionId: input.sessionId,
     triggerType: "manual_poc",
-    unitStartTime,
-    environment,
-    traceName,
+    unitStartTime: input.unitStartTime,
+    environment: input.environment,
+    traceName: input.traceName,
     state: "insufficient_input",
     summary: "",
     embedding: [],
@@ -158,33 +205,37 @@ async function summarizeTrace(
     costDetails: {},
     processedAt: new Date().toISOString(),
     metadata: { executionId: execution.id },
-  });
-  const pending: { facet: TraceFacet; summary: TopicSummary }[] = [];
-  for (const facet of remaining) {
-    const summary = base(facet.version);
-    const reusable = execution.input.reuseExistingSummaries
-      ? (
-          await listTopicSummaries(
-            execution.projectId,
-            {
-              facetId: facet.version.facetId,
-              facetVersion: facet.version.version,
-              traceIds: [traceId],
-            },
-            summaryTimeRange([summary]),
-          )
-        ).find(
-          (row) =>
-            row.summaryModel ===
-              execution.input.processingConfig.summaryModel &&
-            row.transcriptId === ASSEMBLED_TRANSCRIPT_ID &&
-            row.transcriptVersion === TOPICS_TRANSCRIPT_VERSION,
-        )
-      : undefined;
-    if (!reusable) {
-      pending.push({ facet, summary });
-      continue;
-    }
+  };
+}
+
+/** Stages compatible stored summaries when the execution opted into reuse. */
+async function reuseSummaries(
+  metrics: TopicMetrics,
+  execution: ProcessExecution,
+  facets: TraceFacet[],
+  base: (facet: TraceFacet) => TopicSummary,
+): Promise<TraceResults> {
+  const results: TraceResults = new Map();
+  if (!execution.input.reuseExistingSummaries) return results;
+  for (const facet of facets) {
+    const summary = base(facet);
+    const reusable = (
+      await listTopicSummaries(
+        execution.projectId,
+        {
+          facetId: summary.facetId,
+          facetVersion: summary.facetVersion,
+          traceIds: [summary.traceId!],
+        },
+        summaryTimeRange([summary]),
+      )
+    ).find(
+      (row) =>
+        row.summaryModel === execution.input.processingConfig.summaryModel &&
+        row.transcriptId === ASSEMBLED_TRANSCRIPT_ID &&
+        row.transcriptVersion === TOPICS_TRANSCRIPT_VERSION,
+    );
+    if (!reusable) continue;
     metrics.result("summary", "cached");
     const reuseEmbedding =
       reusable.state === "complete" &&
@@ -212,54 +263,71 @@ async function summarizeTrace(
       }),
     );
   }
+  return results;
+}
 
-  if (pending.length) {
-    const summarized = await summarizeTraceFacets({
-      models,
-      facets: pending.map(({ facet }) => facet),
-      transcript,
-      config: execution.input.processingConfig,
-      metadata: {
-        source_trace_id: traceId,
-        source_environment: environment,
-        execution_id: execution.id,
-      },
-      metrics,
-    });
-    let usage: TopicModelUsage | undefined = summarized?.usage;
-    for (const [index, { facet, summary }] of pending.entries()) {
-      const result = summarized?.results[index];
-      if (result && "error" in result) {
-        // An invalid facet output fails only this trace, not the execution.
-        results.set(facet, new Error(result.error.message));
-        continue;
-      }
-      const output = result?.output;
-      if (!output) metrics.result("summary", "insufficient_input");
-      else
-        metrics.result(
-          "summary",
-          output.status === "applicable" ? "generated" : output.status,
-        );
-      // The call's usage is recorded once, on the trace's first summary.
-      const rowUsage = usage ?? {};
-      usage = undefined;
-      results.set(
-        facet,
-        await stageSummary(metrics, execution, {
-          ...summary,
-          ...(output && {
-            state:
-              output.status === "applicable" ? "summarized" : output.status,
-            summary:
-              output.status === "applicable" ? output.summary.trim() : "",
-          }),
-          ...rowUsage,
-        }),
-      );
+/** Summarizes the remaining facets in one shared call and stages each result. */
+async function summarizePending(
+  metrics: TopicMetrics,
+  models: TopicsModels,
+  execution: ProcessExecution,
+  traceId: string,
+  facets: TraceFacet[],
+  base: (facet: TraceFacet) => TopicSummary,
+  input: TraceInput,
+): Promise<TraceResults> {
+  const results: TraceResults = new Map();
+  if (!facets.length) return results;
+  const summarized = await summarizeTraceFacets({
+    models,
+    facets,
+    transcript: input.transcript,
+    config: execution.input.processingConfig,
+    metadata: {
+      source_trace_id: traceId,
+      source_environment: input.environment,
+      execution_id: execution.id,
+    },
+    metrics,
+  });
+  const rows: { facet: TraceFacet; summary: TopicSummary }[] = [];
+  for (const [index, facet] of facets.entries()) {
+    const result = summarized?.results[index];
+    if (result && "error" in result) {
+      // An invalid facet output fails only this trace, not the execution.
+      results.set(facet, new Error(result.error.message));
+      continue;
     }
+    const output = result?.output;
+    metrics.result(
+      "summary",
+      !output
+        ? "insufficient_input"
+        : output.status === "applicable"
+          ? "generated"
+          : output.status,
+    );
+    rows.push({
+      facet,
+      summary: {
+        ...base(facet),
+        ...(output && {
+          state: output.status === "applicable" ? "summarized" : output.status,
+          summary: output.status === "applicable" ? output.summary.trim() : "",
+        }),
+      },
+    });
   }
-  return facets.map((facet) => results.get(facet)!);
+  // One call summarized every facet; each staged row carries an equal share of its usage.
+  const shares = summarized
+    ? splitTopicModelUsage(summarized.usage, rows.length)
+    : [];
+  for (const [index, { facet, summary }] of rows.entries())
+    results.set(
+      facet,
+      await stageSummary(metrics, execution, { ...summary, ...shares[index] }),
+    );
+  return results;
 }
 
 async function stageSummary(

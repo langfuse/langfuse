@@ -1063,6 +1063,25 @@ describe("Topics execution", () => {
     ).toMatchObject({ complete: 2, failed: 1 });
   });
 
+  it("keeps a reused facet when the shared summary call for its sibling fails", async () => {
+    await processSelection("source", 1);
+    const sibling = { ...facet, facetId: "sibling" };
+    const reprocess = execution("siblings", 1, "process", [facet, sibling]);
+    reprocess.input.reuseExistingSummaries = true;
+    state.executions.set("siblings", reprocess);
+    state.summarize.mockRejectedValueOnce(
+      new Error("The transcript is above this run's input limit."),
+    );
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: "siblings",
+    });
+    expect(state.executions.get("siblings")?.facets).toMatchObject([
+      { facetId: "facet", counts: { complete: 1, failed: 0 } },
+      { facetId: "sibling", counts: { failed: 1 } },
+    ]);
+  });
+
   it("restarts a failed update with fresh membership and naming while preserving the published map", async () => {
     await processSelection("source", 100);
     await updateSelection("published");
