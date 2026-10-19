@@ -8,12 +8,10 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
-import { type ObservationLevelType } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
-import { statusMessageVariants } from "@/src/components/design-system/StatusMessage/StatusMessage";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { cn } from "@/src/utils/tailwind";
 
@@ -88,11 +86,14 @@ const BODY_PADDING_CLASSES: Record<
   media: "py-3",
 };
 
-const TONE_LEVEL: Record<IOSectionTone, ObservationLevelType> = {
-  danger: "ERROR",
-  warning: "WARNING",
-  muted: "DEFAULT",
-  neutral: "DEFAULT",
+/** Toned text boxes (status messages); same colours as StatusMessage. */
+const TONE_TEXT_CLASSES: Record<IOSectionTone, string> = {
+  danger:
+    "border border-red-100 bg-red-50 text-red-900 dark:border-dark-red/20 dark:bg-light-red/35 dark:text-red-300",
+  warning:
+    "border border-yellow-100 bg-yellow-50 text-yellow-900 dark:border-dark-yellow/20 dark:bg-light-yellow/35 dark:text-yellow-300",
+  muted: "bg-surface-section text-foreground-secondary",
+  neutral: "bg-surface-section text-foreground-secondary",
 };
 
 /** Toned table boxes: the table's hairlines sit inside a level-coloured frame. */
@@ -119,7 +120,10 @@ function boxClasses(
   if (variant === "table") {
     return cn("overflow-hidden rounded-sm border", TONE_TABLE_CLASSES[tone]);
   }
-  return statusMessageVariants({ level: TONE_LEVEL[tone], size: "compact" });
+  return cn(
+    "rounded-md px-3 py-2 text-sm wrap-break-word whitespace-pre-wrap",
+    TONE_TEXT_CLASSES[tone],
+  );
 }
 
 const HEADER_CONTROL_CLASSES =

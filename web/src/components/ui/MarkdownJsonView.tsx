@@ -140,6 +140,8 @@ export function MarkdownJsonView({
   afterContent,
   isSystemPrompt,
   defaultCollapsed,
+  collapsed,
+  onCollapsedChange,
 }: {
   content?: unknown;
   title?: string;
@@ -158,6 +160,9 @@ export function MarkdownJsonView({
   isSystemPrompt?: boolean;
   /** Initial collapsed state of the section; system prompts use their own rule. */
   defaultCollapsed?: boolean;
+  /** Controlled collapsed state; long system prompts still follow their rule. */
+  collapsed?: boolean;
+  onCollapsedChange?: (collapsed: boolean) => void;
 }) {
   const characterLimit = useMarkdownRenderCharacterLimit();
   // Boxed so a renderable `null` content stays distinguishable from
@@ -182,6 +187,8 @@ export function MarkdownJsonView({
       afterContent={afterContent}
       isSystemPrompt={isSystemPrompt}
       defaultCollapsed={defaultCollapsed}
+      collapsed={collapsed}
+      onCollapsedChange={onCollapsedChange}
     />
   ) : (
     <PrettyJsonView
@@ -196,6 +203,8 @@ export function MarkdownJsonView({
       afterContent={afterContent}
       isSystemPrompt={isSystemPrompt}
       defaultCollapsed={defaultCollapsed}
+      collapsed={collapsed}
+      onCollapsedChange={onCollapsedChange}
     />
   );
 }

@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { Pencil, Trash, FileDiff } from "lucide-react";
 import {
   IOSection,
@@ -11,7 +10,7 @@ import { type ScoreDomain } from "@langfuse/shared";
 import { useCorrectionData } from "../hooks/useCorrectionData";
 import { useCorrectionMutations } from "../hooks/useCorrectionMutations";
 import { useCorrectionEditor } from "../hooks/useCorrectionEditor";
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { useHasProjectAccess } from "@/src/features/rbac";
@@ -43,12 +42,21 @@ interface CorrectedOutputFieldProps {
   onClosed?: () => void;
 }
 
-/** The Output header's pencil: opens the correction editor. */
-export function useCorrectOutputAction(onOpen: () => void): IOSectionAction {
+/** The Output header's pencil: opens the correction editor. Disabled without
+    `scores:save`, like the section's own edit and delete actions. */
+export function useCorrectOutputAction({
+  projectId,
+  onOpen,
+}: {
+  projectId: string;
+  onOpen: () => void;
+}): IOSectionAction {
   const capture = usePostHogClientCapture();
+  const hasAccess = useHasProjectAccess({ projectId, scope: "scores:save" });
   return {
     icon: Pencil,
     label: "Correct output",
+    disabled: !hasAccess,
     onClick: () => {
       capture("trace_detail:io_section_collapse_toggle", {
         section: "corrected_output",
@@ -89,9 +97,10 @@ export function CorrectedOutputField({
   const [internalExpanded, setIsExpanded] = useState(false);
   const isExpanded = trigger === "header" || internalExpanded;
   const editorRef = useRef<ReactCodeMirrorRef | null>(null);
-  const focusEditor = () => {
+  // Stable so CodeMirrorEditor's ref callback fires it once per mount.
+  const focusEditor = useCallback(() => {
     requestAnimationFrame(() => editorRef.current?.view?.focus());
-  };
+  }, []);
 
   // Merge cache + server data
   const { effectiveCorrection, correctionValue } = useCorrectionData(
@@ -124,7 +133,7 @@ export function CorrectedOutputField({
     onSave: handleSave,
     setSaveStatus,
     strictJsonMode,
-    initialEditing: startEditing,
+    initialEditing: startEditing && hasAccess,
   });
 
   // When not editing, use correctionValue (source of truth from cache/server)
@@ -205,9 +214,10 @@ export function CorrectedOutputField({
               section: "corrected_output",
               collapsed: false,
             });
-            // One click: open the section straight into the editor.
+            // One click: open the section straight into the editor (readers
+            // without scores:save get the disabled placeholder).
             setIsExpanded(true);
-            handleEdit();
+            if (hasAccess) handleEdit();
           }}
           className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs hover:underline"
         >
@@ -218,19 +228,13 @@ export function CorrectedOutputField({
     );
   }
 
-  const status: IOSectionStatus | undefined =
-    !isValidJson && isEditing && hasContent
-      ? {
-          kind: "error",
-          text: strictJsonMode
-            ? "Invalid JSON - fix to save"
-            : "Cannot save empty content",
-        }
-      : isValidJson && saveStatus === "saving"
-        ? { kind: "saving", text: "Saving" }
-        : isValidJson && saveStatus === "saved"
-          ? { kind: "saved", text: "Saved" }
-          : undefined;
+  const status = getStatus({
+    isEditing,
+    hasContent,
+    isValidJson,
+    saveStatus,
+    strictJsonMode,
+  });
 
   const actions: IOSectionAction[] = hasContent
     ? [
@@ -271,36 +275,19 @@ export function CorrectedOutputField({
     docsHref: "https://langfuse.com/docs/observability/features/corrections",
   };
 
-  const body =
-    !hasContent && !isEditing ? (
-      <button
-        type="button"
-        onClick={handleEdit}
-        disabled={!hasAccess}
-        className="text-muted-foreground hover:text-foreground w-full cursor-pointer text-left text-sm disabled:cursor-not-allowed"
-      >
-        Click to add corrected output
-      </button>
-    ) : isEditing ? (
-      <CodeMirrorEditor
-        value={displayValue}
-        onChange={handleEditorChange}
-        mode={strictJsonMode ? "json" : "text"}
-        minHeight={200}
-        placeholder="Enter corrected output..."
-        editorRef={editorRef}
-        onEditorMount={focusEditor}
-        appearance="flat"
-        className="focus-within:ring-ring focus-within:ring-2"
-      />
-    ) : (
-      <CodeMirrorEditor
-        value={displayValue}
-        mode={strictJsonMode ? "json" : "text"}
-        editable={false}
-        appearance="flat"
-      />
-    );
+  const body = (
+    <CorrectionBody
+      hasContent={hasContent}
+      isEditing={isEditing}
+      hasAccess={hasAccess}
+      displayValue={displayValue}
+      strictJsonMode={strictJsonMode}
+      editorRef={editorRef}
+      onEdit={handleEdit}
+      onChange={handleEditorChange}
+      onEditorMount={focusEditor}
+    />
+  );
 
   return (
     <>
@@ -341,5 +328,91 @@ export function CorrectedOutputField({
         </div>
       )}
     </>
+  );
+}
+
+function getStatus({
+  isEditing,
+  hasContent,
+  isValidJson,
+  saveStatus,
+  strictJsonMode,
+}: {
+  isEditing: boolean;
+  hasContent: boolean;
+  isValidJson: boolean;
+  saveStatus: "idle" | "saving" | "saved";
+  strictJsonMode: boolean;
+}): IOSectionStatus | undefined {
+  if (!isValidJson) {
+    if (!isEditing || !hasContent) return undefined;
+    return {
+      kind: "error",
+      text: strictJsonMode
+        ? "Invalid JSON - fix to save"
+        : "Cannot save empty content",
+    };
+  }
+  if (saveStatus === "saving") return { kind: "saving", text: "Saving" };
+  if (saveStatus === "saved") return { kind: "saved", text: "Saved" };
+  return undefined;
+}
+
+/** Placeholder, editor, or read-only view of the correction. */
+function CorrectionBody({
+  hasContent,
+  isEditing,
+  hasAccess,
+  displayValue,
+  strictJsonMode,
+  editorRef,
+  onEdit,
+  onChange,
+  onEditorMount,
+}: {
+  hasContent: boolean;
+  isEditing: boolean;
+  hasAccess: boolean;
+  displayValue: string;
+  strictJsonMode: boolean;
+  editorRef: React.RefObject<ReactCodeMirrorRef | null>;
+  onEdit: () => void;
+  onChange: (value: string) => void;
+  onEditorMount: () => void;
+}) {
+  if (!hasContent && !isEditing) {
+    return (
+      <button
+        type="button"
+        onClick={onEdit}
+        disabled={!hasAccess}
+        className="text-muted-foreground hover:text-foreground w-full cursor-pointer text-left text-sm disabled:cursor-not-allowed"
+      >
+        Click to add corrected output
+      </button>
+    );
+  }
+  if (isEditing) {
+    return (
+      <CodeMirrorEditor
+        value={displayValue}
+        onChange={onChange}
+        mode={strictJsonMode ? "json" : "text"}
+        minHeight={200}
+        placeholder="Enter corrected output..."
+        editorRef={editorRef}
+        onEditorMount={onEditorMount}
+        appearance="flat"
+        className="focus-within:ring-ring focus-within:ring-2"
+      />
+    );
+  }
+  return (
+    <CodeMirrorEditor
+      value={displayValue}
+      mode={strictJsonMode ? "json" : "text"}
+      editable={false}
+      appearance="flat"
+    />
   );
 }

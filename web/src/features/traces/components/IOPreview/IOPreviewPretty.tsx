@@ -292,9 +292,10 @@ export function IOPreviewPretty({
   // opens into its editor from there. Without an Output header (no output
   // message rendered) the field keeps its own inline trigger.
   const [correctionOpen, setCorrectionOpen] = useState(false);
-  const correctOutputAction = useCorrectOutputAction(() =>
-    setCorrectionOpen(true),
-  );
+  const correctOutputAction = useCorrectOutputAction({
+    projectId,
+    onOpen: () => setCorrectionOpen(true),
+  });
   const { effectiveCorrection } = useCorrectionData(
     outputCorrection,
     observationId,

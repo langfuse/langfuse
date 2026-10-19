@@ -142,9 +142,10 @@ export function IOPreviewJSONSimple({
   // The "Correct output" pencil lives in the Output header; the field below
   // opens into its editor from there.
   const [correctionOpen, setCorrectionOpen] = useState(false);
-  const correctOutputAction = useCorrectOutputAction(() =>
-    setCorrectionOpen(true),
-  );
+  const correctOutputAction = useCorrectOutputAction({
+    projectId,
+    onOpen: () => setCorrectionOpen(true),
+  });
   const { effectiveCorrection } = useCorrectionData(
     outputCorrection,
     observationId,

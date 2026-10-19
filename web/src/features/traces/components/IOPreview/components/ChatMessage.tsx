@@ -63,6 +63,11 @@ export function ChatMessage({
   actions: extraActions,
 }: ChatMessageProps) {
   const [showTableView, setShowTableView] = useState(false);
+  // The section's collapsed state lives here, so switching between the
+  // formatted and passthrough views keeps what the user set.
+  const [collapsed, setCollapsed] = useState(defaultCollapsed ?? false);
+  // Role-less messages still get a header (and with it their actions).
+  const sectionTitle = title || (isOutputMessage ? "Output" : "Input");
 
   const renderToolResponse = (response: ChatMlMessage) => (
     <ChatMessage
@@ -99,6 +104,22 @@ export function ChatMessage({
   ];
   const actions = allActions.length > 0 ? allActions : undefined;
 
+  // A collapsed message mounts only its header: the formatted and JSON views
+  // (and their parsing) wait until it is expanded.
+  if (collapsed) {
+    return (
+      <div className="transition-colors">
+        <IOSection
+          title={sectionTitle}
+          collapsed
+          onCollapsedChange={setCollapsed}
+        >
+          {null}
+        </IOSection>
+      </div>
+    );
+  }
+
   // Placeholder message
   if (isPlaceholderMessage(message)) {
     return (
@@ -108,7 +129,8 @@ export function ChatMessage({
             title="Placeholder"
             content={message.name || "Unnamed placeholder"}
             actions={actions}
-            defaultCollapsed={defaultCollapsed}
+            collapsed={collapsed}
+            onCollapsedChange={setCollapsed}
           />
         </div>
         <div style={{ display: shouldRenderMarkdown ? "none" : "block" }}>
@@ -117,7 +139,8 @@ export function ChatMessage({
             json={message.name || "Unnamed placeholder"}
             currentView={currentView}
             actions={actions}
-            defaultCollapsed={defaultCollapsed}
+            collapsed={collapsed}
+            onCollapsedChange={setCollapsed}
           />
         </div>
       </div>
@@ -129,11 +152,12 @@ export function ChatMessage({
     return (
       <div className="transition-colors">
         <PrettyJsonView
-          title={title || (isOutputMessage ? "Output" : "Input")}
+          title={sectionTitle}
           json={message.json}
           currentView={currentView}
           actions={actions}
-          defaultCollapsed={defaultCollapsed}
+          collapsed={collapsed}
+          onCollapsedChange={setCollapsed}
         />
       </div>
     );
@@ -144,11 +168,12 @@ export function ChatMessage({
     return (
       <div className="transition-colors">
         <PrettyJsonView
-          title={title}
+          title={sectionTitle}
           json={message.json}
           currentView="pretty"
           actions={actions}
-          defaultCollapsed={defaultCollapsed}
+          collapsed={collapsed}
+          onCollapsedChange={setCollapsed}
         />
       </div>
     );
@@ -163,7 +188,7 @@ export function ChatMessage({
   ) {
     return (
       <IOSection
-        title={title}
+        title={sectionTitle}
         onCopy={() => {
           // Shared stringify (not raw JSON.stringify) so \uXXXX escapes in
           // string fields are copied as real characters, like the rendered
@@ -172,7 +197,8 @@ export function ChatMessage({
           copyTextToClipboard(rawText);
         }}
         actions={actions}
-        defaultCollapsed={defaultCollapsed}
+        collapsed={collapsed}
+        onCollapsedChange={setCollapsed}
       >
         <ToolCallInvocationsView
           message={message}
@@ -223,28 +249,30 @@ export function ChatMessage({
         {/* Markdown view */}
         <div style={{ display: shouldRenderMarkdown ? "block" : "none" }}>
           <MarkdownJsonView
-            title={title}
+            title={sectionTitle}
             content={message.content || ""}
             audio={message.audio}
             actions={actions}
             beforeContent={thinkingBlocks}
             afterContent={toolCallsView}
             isSystemPrompt={isSystemPrompt}
-            defaultCollapsed={defaultCollapsed}
+            collapsed={collapsed}
+            onCollapsedChange={setCollapsed}
           />
         </div>
 
         {/* JSON view */}
         <div style={{ display: shouldRenderMarkdown ? "none" : "block" }}>
           <PrettyJsonView
-            title={title}
+            title={sectionTitle}
             json={message.content}
             currentView={currentView}
             actions={actions}
             beforeContent={thinkingBlocks}
             afterContent={toolCallsView}
             isSystemPrompt={isSystemPrompt}
-            defaultCollapsed={defaultCollapsed}
+            collapsed={collapsed}
+            onCollapsedChange={setCollapsed}
           />
         </div>
       </div>
@@ -256,11 +284,12 @@ export function ChatMessage({
     return (
       <div className="transition-colors">
         <PrettyJsonView
-          title={title || (isOutputMessage ? "Output" : "Input")}
+          title={sectionTitle}
           json={withoutUnsetFields(message)}
           currentView={currentView}
           actions={actions}
-          defaultCollapsed={defaultCollapsed}
+          collapsed={collapsed}
+          onCollapsedChange={setCollapsed}
         />
       </div>
     );

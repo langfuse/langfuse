@@ -521,6 +521,8 @@ export function MarkdownView({
   afterContent,
   isSystemPrompt,
   defaultCollapsed,
+  collapsed,
+  onCollapsedChange,
 }: {
   /** The UNPARSED content shape — see `canRenderContentAsMarkdown`. Media
       reference strings must still be strings when they reach the part guards. */
@@ -542,6 +544,9 @@ export function MarkdownView({
   isSystemPrompt?: boolean;
   /** Initial collapsed state of the section; system prompts use their own rule. */
   defaultCollapsed?: boolean;
+  /** Controlled collapsed state; long system prompts still follow their rule. */
+  collapsed?: boolean;
+  onCollapsedChange?: (collapsed: boolean) => void;
 }) {
   const { forcedTheme, resolvedTheme } = useTheme();
   const theme = forcedTheme ?? resolvedTheme;
@@ -654,6 +659,8 @@ export function MarkdownView({
       onCopy={handleOnCopy}
       actions={actions}
       defaultCollapsed={defaultCollapsed}
+      collapsed={collapsed}
+      onCollapsedChange={onCollapsedChange}
       {...(systemPrompt.shouldBeCollapsible && {
         collapsed: systemPrompt.isCollapsed,
         onCollapsedChange: systemPrompt.toggleCollapsed,

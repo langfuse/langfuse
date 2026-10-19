@@ -86,53 +86,18 @@ export function useCorrectionEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [strictJsonMode]);
 
+  // Enter edit mode. With no correction yet the editor is prefilled from
+  // the actual output; nothing is saved until the user types.
   const handleEdit = useCallback(() => {
     setIsEditing(true);
-    // Prepopulate with actual output if no existing correction
     if (!value && actualOutput) {
-      try {
-        // Store as JSON string (not stringified string)
-        const jsonValue =
-          typeof actualOutput === "string"
-            ? actualOutput
-            : JSON.stringify(actualOutput);
-        setValue(jsonValue);
-
-        // Validate the prefilled value
-        let valid = false;
-        if (strictJsonMode) {
-          try {
-            if (jsonValue.trim()) {
-              JSON.parse(jsonValue);
-              valid = true;
-            }
-          } catch {
-            valid = false;
-          }
-        } else {
-          valid = jsonValue.trim().length > 0;
-        }
-        setIsValidJson(valid);
-
-        // Auto-save prefilled value if valid
-        if (valid) {
-          setSaveStatus("saving");
-          onSave(jsonValue);
-        }
-      } catch {
-        const stringValue = String(actualOutput);
-        setValue(stringValue);
-        const valid = stringValue.trim().length > 0;
-        setIsValidJson(valid);
-        if (valid) {
-          setSaveStatus("saving");
-          onSave(stringValue);
-        }
-      }
+      const prefill = serializeActualOutput(actualOutput);
+      setValue(prefill);
+      setIsValidJson(isValidValue(prefill, strictJsonMode));
     }
     // Focus textarea after it renders
     setTimeout(() => textareaRef.current?.focus(), 0);
-  }, [value, actualOutput, strictJsonMode, onSave, setSaveStatus]);
+  }, [value, actualOutput, strictJsonMode]);
 
   const handleChange = useCallback(
     (newValue: string) => {

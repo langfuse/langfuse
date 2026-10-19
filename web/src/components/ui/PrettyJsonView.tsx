@@ -741,6 +741,9 @@ export function PrettyJsonView(props: {
   afterContent?: React.ReactNode;
   /** Initial collapsed state of the section; system prompts use their own rule. */
   defaultCollapsed?: boolean;
+  /** Controlled collapsed state; long system prompts still follow their rule. */
+  collapsed?: boolean;
+  onCollapsedChange?: (collapsed: boolean) => void;
   /** When set, rows show an actions menu with copy + add-to-filter shortcuts
       (metadata views only). */
   metadataActions?: MetadataFilterActions;
@@ -1437,6 +1440,8 @@ export function PrettyJsonView(props: {
         onCopy={handleOnCopy}
         actions={sectionActions.length > 0 ? sectionActions : undefined}
         defaultCollapsed={props.defaultCollapsed}
+        collapsed={props.collapsed}
+        onCollapsedChange={props.onCollapsedChange}
         variant={shouldUseTableView ? "table" : "text"}
         tone={props.tone}
         {...(systemPrompt.shouldBeCollapsible && {

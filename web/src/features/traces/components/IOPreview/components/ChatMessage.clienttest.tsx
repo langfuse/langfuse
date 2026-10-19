@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { Pencil } from "lucide-react";
 import { vi } from "vitest";
 
 const { copyTextToClipboard } = vi.hoisted(() => ({
@@ -176,6 +177,70 @@ describe("ChatMessage section caret", () => {
     expect(
       screen.getByRole("button", { name: "Collapse user" }),
     ).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("keeps the open state when switching to the passthrough JSON view", () => {
+    renderChatMessage(
+      {
+        role: "user",
+        content: "Where is my refund?",
+        json: { role: "user", content: "Where is my refund?", channel: "web" },
+      } as unknown as ChatMlMessage,
+      { defaultCollapsed: true },
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand user" }));
+    fireEvent.click(screen.getAllByTitle("Show passthrough JSON data")[0]);
+
+    expect(
+      screen.queryByRole("button", { name: "Expand user" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Collapse user" }),
+    ).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getAllByText("channel")[0]).toBeInTheDocument();
+  });
+
+  it("gives a role-less message a header and keeps its tool calls and thinking", () => {
+    render(
+      <ChatMessage
+        message={
+          {
+            content: "Checking that for you.",
+            thinking: [{ content: "Need the trace first." }],
+            tool_calls: [
+              { id: "call-1", name: "search_traces", arguments: "{}" },
+            ],
+          } as unknown as ChatMlMessage
+        }
+        title=""
+        shouldRenderMarkdown
+        currentView="pretty"
+        actions={[{ icon: Pencil, label: "Correct output", onClick: () => {} }]}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Collapse Input" }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText(/search_traces/)[0]).toBeInTheDocument();
+    expect(screen.getAllByText("Need the trace first.")[0]).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Correct output" }),
+    ).toBeInTheDocument();
+  });
+
+  it("mounts only the header while collapsed", () => {
+    renderChatMessage(
+      { role: "user", content: "Where is my refund?" } as ChatMlMessage,
+      { defaultCollapsed: true },
+    );
+
+    expect(screen.queryAllByText("Where is my refund?")).toHaveLength(0);
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand user" }));
+
+    expect(screen.getAllByText("Where is my refund?")[0]).toBeVisible();
   });
 
   it("starts collapsed when asked, keeping the header", () => {

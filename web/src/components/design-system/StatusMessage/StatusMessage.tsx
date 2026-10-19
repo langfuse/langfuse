@@ -1,7 +1,7 @@
 import { type ObservationLevelType } from "@langfuse/shared";
 import { cva, type VariantProps } from "class-variance-authority";
 
-export const statusMessageVariants = cva(
+const statusMessageVariants = cva(
   "ph-no-capture rounded-md px-3 py-2 wrap-break-word whitespace-pre-wrap",
   {
     variants: {
