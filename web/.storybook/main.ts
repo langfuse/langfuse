@@ -151,6 +151,31 @@ const config: StorybookConfig = {
     viteConfig.plugins = [
       flatStoryTitlesPlugin(STORY_TITLE_GROUPS),
       ...(viteConfig.plugins ?? []),
+      {
+        name: "exclude-generated-icons-from-docgen",
+        configResolved({ plugins }) {
+          const docgen = plugins.find(
+            (plugin) => plugin.name === "storybook:react-docgen-plugin",
+          );
+          if (!docgen?.transform) return;
+
+          const transform =
+            typeof docgen.transform === "function"
+              ? docgen.transform
+              : docgen.transform.handler;
+          docgen.transform = {
+            ...(typeof docgen.transform === "object" ? docgen.transform : {}),
+            handler(code, id, options) {
+              // Linked generated dependencies bypass docgen's node_modules
+              // exclusion; resolving their icon catalogs dominates build time.
+              if (id.replaceAll("\\", "/").includes("/packages/icons/dist/")) {
+                return null;
+              }
+              return transform.call(this, code, id, options);
+            },
+          };
+        },
+      },
     ];
 
     const sharedSrc = resolve(
