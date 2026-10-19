@@ -20,7 +20,6 @@
 import type { TupleParam } from "@clickhouse/client";
 import {
   AggregateFunctionNode,
-  AliasNode,
   BinaryOperationNode,
   ColumnNode,
   ExpressionWrapper,
@@ -47,11 +46,12 @@ import {
   ArrayJoinNode,
   FinalTableNode,
   LimitByNode,
-  unwrapFinalTable,
+  finalTable,
   type ArrayJoinVariant,
   type ClickHouseSelectQueryNode,
 } from "./nodes";
 import { QueryCompileError } from "./errors";
+import { describeRelation } from "./relations";
 import { DEDUP_SPECS, type ClickHouseDatabase } from "./schema";
 import { ClickHouseOperationNodeTransformer } from "./transformer";
 
@@ -725,22 +725,13 @@ export function limitBy(spec: LimitBySpec) {
   ): SelectQueryBuilder<DB, TB, O> => qb.withPlugin(new LimitByPlugin(spec));
 }
 
-function physicalTableName(node: OperationNode): string | undefined {
-  if (FinalTableNode.is(node)) return physicalTableName(unwrapFinalTable(node));
-  if (AliasNode.is(node)) return physicalTableName(node.node);
-  if (TableNode.is(node)) return node.table.identifier.name;
-  return undefined;
-}
-
 function wrapFinal(
   node: OperationNode,
   tables: ReadonlySet<string>,
 ): OperationNode {
   if (FinalTableNode.is(node)) return node;
-  const name = physicalTableName(node);
-  return name && tables.has(name)
-    ? (FinalTableNode.create(node) as unknown as OperationNode)
-    : node;
+  const name = describeRelation(node).table?.table.identifier.name;
+  return name && tables.has(name) ? finalTable(node) : node;
 }
 
 /**

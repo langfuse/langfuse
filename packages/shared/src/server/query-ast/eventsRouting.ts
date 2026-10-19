@@ -57,7 +57,8 @@ import {
 
 import { metadataFilterIsEventsCoreSafe } from "../queries/clickhouse-sql/events-core-truncation";
 import { QueryCompileError } from "./errors";
-import { ArrayIndexNode, FinalTableNode, unwrapFinalTable } from "./nodes";
+import { ArrayIndexNode, FinalTableNode } from "./nodes";
+import { describeRelation, selectRelations, type Relation } from "./relations";
 import { EVENTS_CORE_TRUNCATED_COLUMNS } from "./schema";
 import { ClickHouseOperationNodeTransformer } from "./transformer";
 
@@ -105,7 +106,7 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
   /** Logical relations that read a truncated column. */
   readonly fullRelations = new Set<OperationNode>();
   /** Relations of each enclosing select, innermost last. */
-  private readonly scopes: Relation[][] = [];
+  private readonly scopes: RoutingRelation[][] = [];
 
   protected override transformNodeImpl<T extends OperationNode>(
     node: T,
@@ -124,10 +125,7 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
     node: SelectQueryNode,
     queryId?: QueryId,
   ): SelectQueryNode {
-    const relations = [
-      ...(node.from?.froms ?? []),
-      ...(node.joins ?? []).map((join) => join.table),
-    ].map(describeRelation);
+    const relations = selectRelations(node).map(routingRelation);
     if (relations.some((relation) => relation.logical)) {
       this.readsLogicalEvents = true;
     }
@@ -227,7 +225,7 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
     if (relation?.logical) this.fullRelations.add(relation.node);
   }
 
-  private resolveQualified(qualifier: string): Relation | undefined {
+  private resolveQualified(qualifier: string): RoutingRelation | undefined {
     for (const relations of this.scopes.toReversed()) {
       const match = relations.find((relation) => relation.name === qualifier);
       if (match) return match;
@@ -240,7 +238,7 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
     return undefined;
   }
 
-  private resolveUnqualified(column: string): Relation | undefined {
+  private resolveUnqualified(column: string): RoutingRelation | undefined {
     if (this.readsLogicalInScope()) {
       throw new QueryCompileError(
         `Qualify "${column}": it is truncated in events_core, so the routing pass needs to know which relation reads it while the logical "${LOGICAL_EVENTS}" relation is in scope.`,
@@ -315,37 +313,39 @@ class EventsTableRouter extends ClickHouseOperationNodeTransformer {
     const table = TableNode.create(
       this.fullRelations.has(node) ? "events_full" : "events_core",
     );
-    if (isLogicalEventsTable(node)) {
-      return AliasNode.create(table, IdentifierNode.create(LOGICAL_EVENTS));
+    const { source, alias } = describeRelation(node);
+    if (!isLogicalEventsTable(source)) {
+      return this.transformNode(node, queryId);
     }
-    if (AliasNode.is(node) && isLogicalEventsTable(node.node)) {
-      return AliasNode.create(table, node.alias);
+    if (FinalTableNode.is(node)) {
+      throw new QueryCompileError(
+        `FINAL cannot wrap the logical "${LOGICAL_EVENTS}" relation: events_core and events_full are immutable at read time. Drop the FINAL.`,
+      );
     }
-    return this.transformNode(node, queryId);
+    return AliasNode.create(
+      table,
+      IdentifierNode.create(alias ?? LOGICAL_EVENTS),
+    );
   }
 }
 
-// FINAL wraps the aliased item: `scores as s FINAL`.
-function describeRelation(node: OperationNode): Relation {
-  const item = FinalTableNode.is(node) ? unwrapFinalTable(node) : node;
-  const table = AliasNode.is(item) ? item.node : item;
+/**
+ * Named by its alias, else by its table name unless schema-qualified:
+ * `events as e` → `e`, `events` → `events`, `default.events_core` → none.
+ */
+function routingRelation({
+  node,
+  source,
+  table,
+  alias,
+}: Relation): RoutingRelation {
   return {
     node,
-    name: relationName(item, table),
-    logical: isLogicalEventsTable(table),
+    name:
+      alias ??
+      (table && !table.table.schema ? table.table.identifier.name : undefined),
+    logical: isLogicalEventsTable(source),
   };
-}
-
-function relationName(
-  item: OperationNode,
-  table: OperationNode,
-): string | undefined {
-  if (AliasNode.is(item)) {
-    return IdentifierNode.is(item.alias) ? item.alias.name : undefined;
-  }
-  return TableNode.is(table) && table.table.schema === undefined
-    ? table.table.identifier.name
-    : undefined;
 }
 
 function isLogicalEventsTable(node: OperationNode): boolean {
@@ -407,7 +407,7 @@ function coreSafe(
 }
 
 /** A FROM/JOIN source of one select. */
-type Relation = {
+type RoutingRelation = {
   /** The FROM item or join table, as the router meets it. */
   node: OperationNode;
   /** Alias, or the table name of an unaliased table. */
