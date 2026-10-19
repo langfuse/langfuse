@@ -831,8 +831,6 @@ the binary directly so it receives signals. Set the container/orchestrator stop
 grace period longer than the gateway shutdown timeout. The smoke test uses an
 isolated container and an ephemeral host port, checks read-only/non-root startup,
 probes, rejection of unauthenticated inference and a clean SIGTERM exit, then removes it.
-It also checks that the binary carries the dependency list `cargo auditable`
-embeds, which image scanners read to match Rust crates against advisories.
 
 The image ships the license notices of every third-party crate compiled into the
 binary at `/usr/share/licenses/ai-gateway/THIRD_PARTY_LICENSES.txt`, rendered by
