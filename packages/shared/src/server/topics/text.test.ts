@@ -463,7 +463,11 @@ describe("generateTopicText", () => {
         maxOutputTokens: 256,
         trace,
       }),
-    ).rejects.toMatchObject({ name: "AI_NoOutputGeneratedError" });
+      // The finish reason explains the missing output without its text.
+    ).rejects.toMatchObject({
+      name: "AI_NoOutputGeneratedError",
+      finishReason: "length",
+    });
     expect(tracedGeneration()).toMatchObject({
       "langfuse.observation.level": "ERROR",
       "langfuse.observation.usage_details": JSON.stringify({

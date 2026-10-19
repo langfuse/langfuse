@@ -186,10 +186,15 @@ async function generateWithConnection<T>(
   const usage = topicUsage(result.usage);
   // The SDK's output getter can throw after a response with billable usage.
   recordResponse({ output: result.text, usage });
-  return {
-    output: result.output,
-    usage,
-  };
+  try {
+    return { output: result.output, usage };
+  } catch (error) {
+    // Why there is no output (e.g. length, content-filter), without its text.
+    throw Object.assign(error as object, {
+      finishReason: result.finishReason,
+      rawFinishReason: result.rawFinishReason,
+    });
+  }
 }
 
 /** Topics owns its OpenAI request options; saved evaluator options keep their routing. */
@@ -380,7 +385,12 @@ async function invokeWithCache(
           ? `The model refused: ${message.refusal}`
           : "The model returned no complete output.",
       ),
-      { name: "AI_NoOutputGeneratedError" },
+      {
+        name: "AI_NoOutputGeneratedError",
+        finishReason: message?.refusal
+          ? "refusal"
+          : json.choices?.[0]?.finish_reason,
+      },
     );
   // A model can append text after a valid object; the caller treats that as unusable output.
   return { ...result, output: JSON.parse(message.content) as unknown };

@@ -22,6 +22,9 @@ type TopicsProviderErrorReason =
 /** Telemetry only; the user-facing message stays generic. */
 export type TopicProviderErrorDetails = {
   httpStatus?: number;
+  // Why a model returned no usable output; never the output itself.
+  finishReason?: string;
+  rawFinishReason?: string;
   message?: string;
   type?: string;
   code?: string;
@@ -79,8 +82,20 @@ export function topicProviderError(
       reason = "invalid_output";
     current = record.cause;
   }
+  const subject = `The ${TOPICS_MODEL_SLOT_DETAILS[model.slot].label.toLowerCase()} model ${model.model} on LLM connection "${model.provider}"`;
+  const failed = `${subject} failed${status ? ` (HTTP ${status})` : ""}.`;
+  // The message names the actual failure; a generic credentials hint misleads for output or rate-limit errors.
+  const message = {
+    authentication: `${failed} Check the connection's credentials and billing.`,
+    invalid_input: `${failed} The provider rejected the request; check that the model ID supports it.`,
+    rate_limit: `${failed} The provider rate-limited the request. Try again later.`,
+    timeout: `${failed} The request timed out. Try again later.`,
+    invalid_output: `${subject} returned no usable output.`,
+    configuration: `${failed} Check the Topics model settings.`,
+    provider_error: `${failed} Check the model ID and provider availability.`,
+  }[reason];
   return new TopicsProviderUnavailable(
-    `The ${TOPICS_MODEL_SLOT_DETAILS[model.slot].label.toLowerCase()} model ${model.model} on LLM connection "${model.provider}" failed${status ? ` (HTTP ${status})` : ""}. Check the connection's credentials, the model ID, and provider availability.`,
+    message,
     reason,
     model.slot,
     providerErrorDetails(error, status),
@@ -95,18 +110,33 @@ function providerErrorDetails(
   error: unknown,
   status: number | undefined,
 ): TopicProviderErrorDetails {
-  const provider = getLLMErrorInfo(error)?.providerError;
-  const httpStatus = provider?.statusCode ?? status;
-  if (!httpStatus) return {};
-  if (!provider) return { httpStatus };
   const record = (value: unknown) =>
     value && typeof value === "object"
       ? (value as Record<string, unknown>)
       : undefined;
-  const data = record(record(provider.data)?.error) ?? record(provider.data);
   const text = (value: unknown) =>
     typeof value === "string" ? value.slice(0, 500) : undefined;
+  let finish: Record<string, unknown> | undefined;
+  for (let current = record(error), depth = 0; current && depth < 4; depth++) {
+    if (typeof current.finishReason === "string") finish = current;
+    current = record(current.cause);
+  }
+  // Finish reasons are provider enums; anything else could be model text.
+  const enumValue = (value: unknown) =>
+    typeof value === "string" && /^[\w-]{1,40}$/.test(value)
+      ? value
+      : undefined;
+  const reasons = {
+    finishReason: enumValue(finish?.finishReason),
+    rawFinishReason: enumValue(finish?.rawFinishReason),
+  };
+  const provider = getLLMErrorInfo(error)?.providerError;
+  const httpStatus = provider?.statusCode ?? status;
+  if (!httpStatus) return reasons;
+  if (!provider) return { ...reasons, httpStatus };
+  const data = record(record(provider.data)?.error) ?? record(provider.data);
   return {
+    ...reasons,
     httpStatus,
     message: text(provider.message),
     type: text(data?.type),
