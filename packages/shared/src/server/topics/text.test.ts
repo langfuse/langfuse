@@ -313,6 +313,43 @@ describe("generateTopicText", () => {
     });
   });
 
+  it("retries an InvokeModel 5xx and returns the next successful response", async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(
+        new Response("Service unavailable", { status: 503 }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          choices: [
+            {
+              finish_reason: "stop",
+              message: {
+                content: JSON.stringify({ summary: "Account access" }),
+              },
+            },
+          ],
+          usage: { prompt_tokens: 3, completion_tokens: 2, total_tokens: 5 },
+        }),
+      );
+    vi.stubGlobal("fetch", fetch);
+
+    // Waits through the first one-second backoff.
+    const result = generateTopicText({
+      model: bedrockModel("summary", "us.openai.gpt-6-luna"),
+      system: [{ text: "Summarize.", cache: true }],
+      input: "Hi",
+      schema: z.object({ summary: z.string() }),
+      maxOutputTokens: 256,
+      trace,
+    });
+
+    await expect(result).resolves.toMatchObject({
+      output: { summary: "Account access" },
+    });
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
   it("reports the InvokeModel HTTP status so throttling is classified", async () => {
     vi.stubGlobal(
       "fetch",

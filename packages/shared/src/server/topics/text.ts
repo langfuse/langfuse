@@ -1,3 +1,4 @@
+import { setTimeout as sleep } from "node:timers/promises";
 import { Sha256 } from "@aws-crypto/sha256-js";
 import { SignatureV4 } from "@smithy/signature-v4";
 import { NoObjectGeneratedError, Output, type LanguageModelUsage } from "ai";
@@ -297,6 +298,8 @@ async function bedrockRequestHeaders(
   return signed.headers;
 }
 
+const INVOKE_MODEL_ATTEMPTS = 3;
+
 async function invokeWithCache(
   params: TopicTextParams<unknown>,
   recordResponse: (result: TopicTextResult) => void,
@@ -329,13 +332,21 @@ async function invokeWithCache(
       json_schema: { name: "topics", schema, strict: true },
     },
   });
-  // A single attempt; the host is derived from the validated region.
-  const response = await fetch(url, {
-    method: "POST",
-    headers: await bedrockRequestHeaders(params.model, url, region, body),
-    body,
-    signal: AbortSignal.timeout(params.timeoutMs ?? TIMEOUT_MS),
-  });
+  // The host is derived from the validated region.
+  const signal = AbortSignal.timeout(params.timeoutMs ?? TIMEOUT_MS);
+  let response: Response;
+  for (let attempt = 1; ; attempt++) {
+    response = await fetch(url, {
+      method: "POST",
+      headers: await bedrockRequestHeaders(params.model, url, region, body),
+      body,
+      signal,
+    });
+    // Transient 5xx get two retries, like the AI SDK path; 429 stays with the caller's throttling.
+    if (response.status < 500 || attempt === INVOKE_MODEL_ATTEMPTS) break;
+    await response.body?.cancel();
+    await sleep(1000 * 2 ** (attempt - 1), undefined, { signal });
+  }
   // The status lets the Topics error classification tell throttling from auth or input errors.
   if (!response.ok)
     throw Object.assign(
