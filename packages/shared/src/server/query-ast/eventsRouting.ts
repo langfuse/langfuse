@@ -103,14 +103,7 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
       this.transformNode(lookup.index, queryId);
       return node;
     }
-    if (
-      CommonTableExpressionNode.is(node) &&
-      node.name.table.table.identifier.name === LOGICAL_EVENTS
-    ) {
-      throw new QueryCompileError(
-        `A CTE cannot be named "${LOGICAL_EVENTS}": the name is the logical events relation.`,
-      );
-    }
+    assertNotLogicalEventsCte(node);
     return super.transformNodeImpl(node, queryId);
   }
 
@@ -267,6 +260,17 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
     if (this.scopes.at(-1)?.some((relation) => relation.logical)) {
       throw starError(star);
     }
+  }
+}
+
+function assertNotLogicalEventsCte(node: OperationNode): void {
+  if (
+    CommonTableExpressionNode.is(node) &&
+    node.name.table.table.identifier.name === LOGICAL_EVENTS
+  ) {
+    throw new QueryCompileError(
+      `A CTE cannot be named "${LOGICAL_EVENTS}": the name is the logical events relation.`,
+    );
   }
 }
 

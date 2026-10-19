@@ -37,10 +37,6 @@ const EVENTS_CORE_SAFE_METADATA_OPERATORS = new Set<ClickhouseOperator>([
   "is not set",
 ]);
 
-// Count Unicode code points to mirror ClickHouse leftUTF8, which truncates by
-// code point rather than UTF-16 unit or byte.
-const codePointLength = (value: string): number => Array.from(value).length;
-
 /**
  * Truncation-safety classifier: can a single metadata filter be answered
  * correctly against the truncated events_core copy, or must it read events_full?
@@ -84,3 +80,9 @@ export const metadataFilterIsEventsCoreSafe = (
   }
   return true;
 };
+
+// Count Unicode code points to mirror ClickHouse leftUTF8, which truncates by
+// code point rather than UTF-16 unit or byte.
+function codePointLength(value: string): number {
+  return Array.from(value).length;
+}
