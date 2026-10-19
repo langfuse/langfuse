@@ -140,8 +140,9 @@ suffix to run there. Promote it to a required check once it has proven stable.
   `scopedToEvents((eb) => …)` from `../repositories/events-selects.ts`, then
   passed as `.select(traceAggregationSelects)` or called inside
   `.where((eb) => …)` with the query's own `eb`. That only type-checks in a
-  query that reads a full events row as `e` and nothing else: no join (the
-  selects read unqualified columns), no narrower `e`. Never pass a query's
+  query that reads a full events row as `e` and nothing else: no join, no
+  narrower `e`. Columns inside such a helper are written `e.…`, so an alias
+  of the same name in the calling query can't shadow them. Never pass a query's
   own builder to a helper typed `ExpressionBuilder<{ e: … }, "e">`; wrap the
   helper in `scopedToEvents` instead. That type is contravariant in `DB` and
   accepts joins, so it takes any query's builder and the check is lost. A

@@ -25,7 +25,7 @@ export function eventsSelectsScopeTypeAssertions(): void {
 
   db.selectFrom("events as e")
     .innerJoin("traces as t", "t.id", "e.trace_id")
-    // @ts-expect-error a join: unqualified columns could resolve to `t`
+    // @ts-expect-error a join
     .select(traceAggregationSelects);
 
   db.with("e", (qb) => qb.selectFrom("events_core").selectAll())

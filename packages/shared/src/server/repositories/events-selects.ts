@@ -506,9 +506,9 @@ function pickSelects<M extends Record<string, EventsSelection>>(
 /**
  * The expression builder of a query that reads only a full events row, as
  * `e`. Anything else resolves to `never`: no `e`, no FROM (`selectNoFrom`), a
- * join (the selects use unqualified columns, which ClickHouse would resolve to
- * the other table), or an `e` missing an events column (`observations as e`, a
- * narrower subquery). `ExpressionBuilder` alone would accept the narrower `e`,
+ * join (no caller joins; with one, an unqualified column added here later
+ * would silently read the other table), or an `e` missing an events column
+ * (`observations as e`, a narrower subquery). `ExpressionBuilder` alone would accept the narrower `e`,
  * because it is contravariant in `DB`.
  */
 type ReadsEvents<DB, TB extends keyof DB> = ExpressionBuilder<DB, TB> &
