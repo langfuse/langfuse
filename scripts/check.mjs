@@ -396,7 +396,7 @@ function planPackageChecks(
         "turbo",
         "run",
         "--summarize",
-        "--output-logs=none",
+        "--output-logs=errors-only",
         "--ui=stream",
         "--log-prefix=none",
         ...targets,
@@ -859,8 +859,7 @@ function collectDiagnostics(outputFile, isTurboBatch) {
           task.execution.exitCode !== 0,
       );
     } catch {
-      // Runner startup/summary failures must remain failures without
-      // dumping orchestration output as if it were a task diagnostic.
+      /** Missing summaries fall back to captured runner output. */
     }
   }
   const tasks = failedTasks.map((task) => {
@@ -877,6 +876,7 @@ function collectDiagnostics(outputFile, isTurboBatch) {
     };
   });
   return {
+    captured,
     tasks,
     complete: tasks.length > 0 && tasks.every((task) => task.diagnostics),
   };
@@ -1129,6 +1129,7 @@ function printFailure(result, isTurboBatch, indent) {
     );
   }
   if (!diagnostics.complete) {
+    if (diagnostics.captured) console.error(indent(diagnostics.captured));
     console.error(
       indent(
         `Some task diagnostics were unavailable. Runner details: ${relative(root, result.outputFile)}`,
