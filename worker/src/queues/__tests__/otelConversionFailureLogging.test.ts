@@ -84,4 +84,20 @@ describe("OtelIngestionProcessor conversion failure logging", () => {
       }),
     );
   });
+
+  it(
+    "rethrows batch-level failures such as Redis errors in getSeenTracesSet",
+    async () => {
+      const processor = createProcessor();
+      const redisError = new Error("Redis connection lost");
+      vi.spyOn(
+        processor as unknown as { getSeenTracesSet: () => Promise<Set<string>> },
+        "getSeenTracesSet",
+      ).mockRejectedValueOnce(redisError);
+
+      await expect(
+        processor.processToIngestionEvents(batchWithSpanWithoutTraceId),
+      ).rejects.toThrow("Redis connection lost");
+    },
+  );
 });
