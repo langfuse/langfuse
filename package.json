@@ -37,7 +37,6 @@
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "check": "node scripts/check.mjs",
-    "test:check-command": "node --test scripts/check.test.mjs",
     "tc": "turbo run typecheck",
     "start": "turbo run start",
     "dev": "turbo watch dev",

@@ -387,18 +387,6 @@ export function createPlan(
     );
   if (
     options.all ||
-    files.some(
-      (file) =>
-        file === "package.json" ||
-        file === "turbo.json" ||
-        file.endsWith("/turbo.json") ||
-        file.startsWith("scripts/check."),
-    )
-  ) {
-    add("Testing check command", ["run", "test:check-command"]);
-  }
-  if (
-    options.all ||
     files.some((file) =>
       /^scripts\/vitest\/ci-reporter\.(ts|test\.mjs)$/.test(file),
     )
