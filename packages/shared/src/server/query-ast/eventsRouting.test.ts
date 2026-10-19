@@ -595,9 +595,10 @@ describe("logical events routing agrees with filtersRequireEventsFull", () => {
     };
   };
 
-  const operators: MetadataOperator[] = [
-    "=",
-    "starts with",
+  // Only `=` and `starts with` route by value length; the others always read
+  // events_full, so one value each covers them.
+  const lengthSensitive: MetadataOperator[] = ["=", "starts with"];
+  const lengthInsensitive: MetadataOperator[] = [
     "contains",
     "ends with",
     "does not contain",
@@ -609,9 +610,16 @@ describe("logical events routing agrees with filtersRequireEventsFull", () => {
     { label: `${length} astral`, value: "😀".repeat(length) },
   ]);
 
-  const cases = operators.flatMap((operator) =>
-    values.map(({ label, value }) => ({ operator, label, value })),
-  );
+  const cases = [
+    ...lengthSensitive.flatMap((operator) =>
+      values.map(({ label, value }) => ({ operator, label, value })),
+    ),
+    ...lengthInsensitive.map((operator) => ({
+      operator,
+      label: "short",
+      value: "a",
+    })),
+  ];
 
   it.each(cases)("metadata $operator, $label", ({ operator, value }) => {
     const legacyNeedsFull = filtersRequireEventsFull(
