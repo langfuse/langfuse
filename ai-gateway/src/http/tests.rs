@@ -302,6 +302,58 @@ async fn model_catalog_memory_covers_the_catalog_until_its_body_is_read() {
 }
 
 #[tokio::test]
+async fn an_unread_model_catalog_releases_its_memory_at_the_transfer_deadline() {
+    let entry = r#"{"id":"Production key:gpt-4.1","provider":"OPENAI","canonicalSlug":"gpt-4.1","displayName":"GPT-4.1","createdAt":"1970-01-01T00:00:10.000Z"}"#;
+    let catalog = format!(r#"{{"data":[{}]}}"#, vec![entry; 2000].join(","));
+    let catalog_bytes = catalog.len();
+    let web = FakeServer::start(move |_| {
+        let catalog = catalog.clone();
+        async move {
+            Response::builder()
+                .header("content-type", "application/json")
+                .body(Body::from(catalog))
+                .unwrap()
+        }
+    })
+    .await;
+    let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
+    let overhead = 1024;
+    let gateway = Gateway::start(Some(
+        InferenceService::for_test(
+            web.control_plane(),
+            ProviderTransport::for_test(provider.url.clone(), ProviderLimits::default()),
+        )
+        .with_request_limits(RequestLimits {
+            max_request_bytes: MAX_REQUEST_BYTES,
+            memory_budget_bytes: 2 * overhead + 3 * catalog_bytes - 1,
+            request_overhead_bytes: overhead,
+        }),
+    ))
+    .await;
+    let catalog_request = || {
+        gateway.app.clone().oneshot(
+            Request::get("/openai/v1/models")
+                .header(header::AUTHORIZATION, "Bearer models")
+                .body(Body::empty())
+                .unwrap(),
+        )
+    };
+
+    let unread = catalog_request().await.unwrap();
+    assert_eq!(unread.status(), StatusCode::OK);
+    tokio::time::pause();
+    tokio::time::advance(
+        crate::inference::client_transfer_timeout(catalog_bytes) + Duration::from_secs(1),
+    )
+    .await;
+    tokio::task::yield_now().await;
+    tokio::time::resume();
+
+    assert_eq!(catalog_request().await.unwrap().status(), StatusCode::OK);
+    assert!(to_bytes(unread.into_body(), usize::MAX).await.is_err());
+}
+
+#[tokio::test]
 async fn slow_model_catalogs_hold_memory_until_cancelled() {
     let entered = Arc::new(tokio::sync::Notify::new());
     let started = entered.clone();

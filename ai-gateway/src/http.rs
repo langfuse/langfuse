@@ -189,52 +189,85 @@ async fn models(
         .fetch_model_catalog(gateway_key, api_format, correlation)
         .await
         .map_err(InferenceHttpError::Resolution)?;
-    let body = Body::new(ReservedBody {
-        bytes: catalog,
-        offset: 0,
-        _reservation: reservation,
-    });
-    Ok(([(header::CONTENT_TYPE, "application/json")], body).into_response())
+    Ok((
+        [(header::CONTENT_TYPE, "application/json")],
+        Body::new(ReservedBody::new(catalog, reservation)),
+    )
+        .into_response())
 }
 
-/// Hyper copies at most this much of a buffered body ahead of a slow client.
+/// At most one chunk of this size waits ahead of a slow client.
 const RESERVED_BODY_CHUNK_BYTES: usize = 64 * 1024;
 
-/// A buffered response body that keeps its memory reservation until the client
-/// has read it, or the response is dropped.
+/// A buffered response body that keeps its memory reservation until the client has
+/// read it, the response is dropped, or the client misses its transfer deadline.
+/// A task owns the bytes so the deadline holds even when hyper stops polling.
 struct ReservedBody {
-    bytes: Vec<u8>,
-    offset: usize,
-    _reservation: MemoryReservation,
+    chunks: tokio::sync::mpsc::Receiver<Bytes>,
+    remaining: u64,
+    task: tokio::task::JoinHandle<()>,
+}
+
+impl ReservedBody {
+    fn new(bytes: Vec<u8>, reservation: MemoryReservation) -> Self {
+        let remaining = bytes.len() as u64;
+        let deadline =
+            tokio::time::Instant::now() + crate::inference::client_transfer_timeout(bytes.len());
+        let (sender, chunks) = tokio::sync::mpsc::channel(1);
+        let task = tokio::spawn(async move {
+            let _reservation = reservation;
+            let send = async {
+                for chunk in bytes.chunks(RESERVED_BODY_CHUNK_BYTES) {
+                    if sender.send(Bytes::copy_from_slice(chunk)).await.is_err() {
+                        return;
+                    }
+                }
+            };
+            if tokio::time::timeout_at(deadline, send).await.is_err() {
+                tracing::debug!("model catalog response missed its transfer deadline");
+            }
+        });
+        Self {
+            chunks,
+            remaining,
+            task,
+        }
+    }
 }
 
 impl http_body::Body for ReservedBody {
     type Data = Bytes;
-    type Error = std::convert::Infallible;
+    type Error = std::io::Error;
 
     fn poll_frame(
         mut self: std::pin::Pin<&mut Self>,
-        _: &mut std::task::Context<'_>,
+        cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Result<http_body::Frame<Bytes>, Self::Error>>> {
-        let start = self.offset;
-        let end = self
-            .bytes
-            .len()
-            .min(start.saturating_add(RESERVED_BODY_CHUNK_BYTES));
-        if start == end {
-            return std::task::Poll::Ready(None);
+        match std::task::ready!(self.chunks.poll_recv(cx)) {
+            Some(chunk) => {
+                self.remaining -= chunk.len() as u64;
+                std::task::Poll::Ready(Some(Ok(http_body::Frame::data(chunk))))
+            }
+            // A short body aborts the response rather than ending it cleanly.
+            None if self.remaining > 0 => {
+                std::task::Poll::Ready(Some(Err(std::io::ErrorKind::TimedOut.into())))
+            }
+            None => std::task::Poll::Ready(None),
         }
-        self.offset = end;
-        let chunk = Bytes::copy_from_slice(&self.bytes[start..end]);
-        std::task::Poll::Ready(Some(Ok(http_body::Frame::data(chunk))))
     }
 
     fn is_end_stream(&self) -> bool {
-        self.offset == self.bytes.len()
+        self.remaining == 0
     }
 
     fn size_hint(&self) -> http_body::SizeHint {
-        http_body::SizeHint::with_exact((self.bytes.len() - self.offset) as u64)
+        http_body::SizeHint::with_exact(self.remaining)
+    }
+}
+
+impl Drop for ReservedBody {
+    fn drop(&mut self) {
+        self.task.abort();
     }
 }
 
