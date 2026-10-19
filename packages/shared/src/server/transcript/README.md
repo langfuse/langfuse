@@ -91,8 +91,8 @@ It must be a safe integer of at least 4, the serialized length of `null`.
 Omitting it preserves the complete transcript and existing assembly behavior.
 
 Limiting happens after normalization, matching and turn splitting. Text and
-unsigned textual reasoning without provider metadata can be shortened with an
-ellipsis; identifiers, tool arguments/results, media, signed reasoning and other structured fields
+unsigned textual enrichment without provider metadata can be shortened with an
+ellipsis; identifiers, tool arguments/results, media, signed enrichment and other structured fields
 stay intact. Messages that cannot fit even with shortened text are omitted.
 When too many messages remain, the beginning and end are retained, preserving
 their order and history/current-turn partition. Contributor references are
@@ -171,35 +171,34 @@ registration and replayed-result suppression happen inside message appending.
 
 ### 1. Select a thread
 
-Compare generation messages by role and non-reasoning parts. Continue a thread
-when all its non-system messages with non-reasoning content appear in the incoming
+Compare generation messages by role and identity parts. Continue a thread
+when all its non-system messages with identity parts appear in the incoming
 input, regardless of message order. At least one such message must match: system
-messages and reasoning alone cannot establish continuity. Supplemental tool
+messages and enrichment alone cannot establish continuity. Attached tool
 responses are not required. Otherwise create a new thread. Matching checks
 presence, not occurrence counts.
 When several threads match, the most recently created matching thread wins.
 
 Instrumentation should capture the full input and output of each model call,
-including reasoning. Thread matching tolerates missing or changed reasoning and
+including enrichment. Thread matching tolerates missing or changed enrichment and
 provider annotations; it still requires matching text, tool calls, and arguments.
 
 ### 2. Append messages
 
-A message is identified by stable JSON of **role + non-reasoning parts**. Object-property
-order is ignored; array order matters. `senderName`, `source`, `finishReason`
-and observation provenance are excluded. Parts exclude `providerMetadata` and
-tool calls' raw `toolType` from identity; both remain in the returned messages.
-All other non-reasoning part fields, including tool arguments with those names,
-are included.
+Messages compare **role + allowlisted part fields** (see `comparison.ts`).
+Provider annotations (`providerMetadata`, `providerExecuted`) and provenance are
+ignored. Tool arguments and JSON results are compared in full. Object-property
+order is ignored; array order matters.
+Prepared messages reuse `identityKey` and `enrichmentKey` during selection and replay.
 
 - **Inputs:** append only occurrences beyond the number already shown in the
   thread, so replayed history disappears but additional identical copies survive (eg user responds "Thank you" twice).
 - **Outputs:** always append, then count them so subsequent inputs do not repeat them.
-- **Reasoning:** compare all reasoning parts in a message as one ordered group,
-  counted by role and content within the thread. Preserve reasoning in new messages;
+- **Enrichment:** compare all enrichment parts in a message as one ordered group,
+  counted by role and content within the thread. Preserve enrichment in new messages;
   on replay, retain only additional occurrences of the whole group. A changed group
   is retained in full, without deduplicating its individual parts. Newly seen
-  reasoning in a repeated message is appended on
+  enrichment in a repeated message is appended on
   its own with the input observation's provenance; it does not duplicate the
   accompanying text or calls or rewrite an earlier output. The same history/current
   turn split applies to these messages.
@@ -228,7 +227,7 @@ are included.
   `[B, C, A, New]` adds only `New`. Existing display order stays `[A, B, C]`.
 - Additional identical input occurrences and always-visible outputs.
 - New system instructions within a continuing conversation.
-- Missing or changed reasoning in otherwise matching history.
+- Missing or changed enrichment in otherwise matching history.
 - Multiple threads when their histories distinguish them.
 
 ## Current limitations
@@ -239,7 +238,7 @@ are included.
 - **Identical conversations:** unrelated conversations with matching history can join.
 - **Whole-message matching:** equivalent content split into different messages
   or parts may not match. Reordering parts within a message also changes identity.
-  Splitting or regrouping reasoning can retain repeated reasoning content.
+  Splitting or regrouping enrichment can retain repeated enrichment content.
   Registered tool responses are the exception: replay is matched by call ID
   within the thread (and occurrence for reused IDs), even when grouped with other parts.
 - **Name matching is best-effort:** same-name parallel executions can start in a
@@ -273,7 +272,12 @@ transcript/
 ├── ordering.test.ts       ordering rules
 ├── transcript.ts          assembleTranscript
 ├── limit.ts               optional hard limit on serialized JSON
-├── threads.ts             thread selection and message deduplication
+├── comparison.ts          messageKey
+├── comparison.test.ts     focused equality regressions
+├── messages.ts            message preparation and part classification
+├── continuity.ts          contributesToContinuity
+├── replay.ts              createMessageDeduplicator
+├── threads.ts             thread selection and message appending
 ├── tool-calls.ts          tool matching and response association
 ├── types.ts               Transcript, Thread, Turn, ThreadMessage
 └── fixtures/
