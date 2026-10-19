@@ -168,6 +168,7 @@ export function createPlan(
     ),
   ]);
 
+  const packageChecks = [];
   const add = (label, args) => commands.push({ label, args });
   const targets = new Set();
   const schedule = (task, names) => {
@@ -241,7 +242,7 @@ export function createPlan(
       // ESLint caches individual files. Prepare via the shared Turbo run, then
       // pass package-specific paths without forwarding them to other tasks.
       prepare(`${pkg.name}#lint`);
-      commands.push({
+      packageChecks.push({
         label: `Linting ${ownFiles.length} changed file${ownFiles.length === 1 ? "" : "s"} in ${pkg.name}`,
         args: [
           "--filter",
@@ -314,7 +315,7 @@ export function createPlan(
         );
         label += ` (${suites.join(" + ")})`;
       }
-      commands.push({
+      packageChecks.push({
         label,
         steps,
         requiresTurbo: true,
@@ -349,7 +350,7 @@ export function createPlan(
         )
         .map((target) => target.slice(0, target.lastIndexOf("#"))),
     );
-    commands.unshift({
+    packageChecks.unshift({
       label: checks.length
         ? `Checking ${checks.join(", ")} in ${[...checkPackages].join(", ")} and preparing dependencies`
         : "Preparing dependencies",
@@ -386,16 +387,6 @@ export function createPlan(
     );
   if (
     options.all ||
-    analysisFiles.some((file) =>
-      /\.[cm]?[jt]sx?$|\.jsonc?$|\.ya?ml$|knip\./.test(file),
-    )
-  ) {
-    // Removing an import can orphan an unchanged export anywhere in the graph,
-    // so Knip must analyze the repository rather than just changed files.
-    add("Checking unused code (repository-wide)", ["exec", "knip"]);
-  }
-  if (
-    options.all ||
     files.some(
       (file) =>
         file === "package.json" ||
@@ -419,7 +410,17 @@ export function createPlan(
       "scripts/vitest/ci-reporter.test.mjs",
     ]);
   }
-  return commands;
+  if (
+    options.all ||
+    analysisFiles.some((file) =>
+      /\.[cm]?[jt]sx?$|\.jsonc?$|\.ya?ml$|knip\./.test(file),
+    )
+  ) {
+    // Removing an import can orphan an unchanged export anywhere in the graph,
+    // so Knip must analyze the repository rather than just changed files.
+    add("Checking unused code (repository-wide)", ["exec", "knip"]);
+  }
+  return [...commands, ...packageChecks];
 }
 
 function loadWorkspace(base) {
