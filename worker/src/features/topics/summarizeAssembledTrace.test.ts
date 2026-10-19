@@ -20,6 +20,7 @@ vi.mock("@langfuse/shared/topics/server", () => ({
   TOPICS_TRANSCRIPT_VERSION: "shared-transcript-v3",
 }));
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
   isInternalEvalEnvironment: (
     await importOriginal<typeof import("@langfuse/shared/src/server")>()
   ).isInternalEvalEnvironment,
@@ -34,6 +35,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ) => action({ setAttributes: vi.fn(), setAttribute: state.setAttribute }),
 }));
 vi.mock("./models", () => ({
+  TopicInputTooLarge: class extends Error {},
   summarizeTopicTraceFacets: (...args: unknown[]) => state.summarize(...args),
   embedTopicSummaries: (...args: unknown[]) => state.embed(...args),
 }));
@@ -381,6 +383,33 @@ describe("summarizeAssembledTrace", () => {
         "langfuse.topics.errors",
         1,
         { stage: "summary", reason: "invalid_output" },
+      ],
+    ]);
+    // Rejected output is a local rule's decision; accepted output is the model's.
+    expect(
+      vi
+        .mocked(recordIncrement)
+        .mock.calls.filter(([name]) => name === "langfuse.topics.results"),
+    ).toEqual([
+      [
+        "langfuse.topics.results",
+        1,
+        {
+          stage: "summary",
+          result: "invalid_output",
+          source: "rule",
+          facet: "intent",
+        },
+      ],
+      [
+        "langfuse.topics.results",
+        1,
+        {
+          stage: "summary",
+          result: "applicable",
+          source: "model",
+          facet: "issues",
+        },
       ],
     ]);
     expect(state.setAttribute).toHaveBeenCalledWith(

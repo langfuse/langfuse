@@ -10,7 +10,8 @@ const state = vi.hoisted(() => ({
   traceSink: vi.fn(),
 }));
 vi.mock("@langfuse/shared/src/env", () => ({ env: state.env }));
-vi.mock("@langfuse/shared/src/server", () => ({
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
   getLangfuseAITraceSinkParams: state.traceSink,
   LangfuseInternalTraceEnvironment: { Topics: "langfuse-topics" },
   logger: { warn: vi.fn() },
@@ -24,6 +25,12 @@ vi.mock("@langfuse/shared/topics/server", () => ({
   generateTopicEmbeddings: (...args: unknown[]) => state.embed(...args),
 }));
 
+// Token counters only; every call also records call and request-byte counters.
+const tokenCalls = () =>
+  state.increment.mock.calls.filter(([name]) =>
+    String(name).startsWith("langfuse.topics.token"),
+  );
+
 import {
   embedTopicSummaries,
   nameTopicGroup,
@@ -34,6 +41,7 @@ import {
   type TopicProcessingConfig,
 } from "@langfuse/shared/topics";
 import { LLMAdapter } from "@langfuse/shared";
+import { logger } from "@langfuse/shared/src/server";
 import type { TopicsModel, TopicsModels } from "@langfuse/shared/topics/server";
 
 function slot(slot: TopicsModel["slot"], model: string): TopicsModel {
@@ -272,6 +280,59 @@ describe("Topics naming boundary", () => {
     expect(state.call).not.toHaveBeenCalled();
   });
 
+  it("logs the provider's error fields for a rejected request, never its bodies", async () => {
+    // The AI SDK identifies an APICallError by these markers.
+    const rejection = Object.assign(
+      new Error(
+        "Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead.",
+      ),
+      {
+        [Symbol.for("vercel.ai.error")]: true,
+        [Symbol.for("vercel.ai.error.AI_APICallError")]: true,
+        name: "AI_APICallError",
+        statusCode: 400,
+        isRetryable: false,
+        requestBodyValues: { messages: "secret transcript" },
+        responseBody: '{"error":{"message":"secret echo"}}',
+        data: {
+          error: {
+            type: "invalid_request_error",
+            code: "unsupported_parameter",
+            param: "max_tokens",
+          },
+        },
+      },
+    );
+    state.call.mockRejectedValue(rejection);
+    await expect(
+      summarizeOne(
+        topicsModels(),
+        "Trace evidence.",
+        topicProcessingConfigSchema.parse({
+          summaryModel: "us.openai.gpt-5.6-luna",
+        }),
+      ),
+    ).rejects.toMatchObject({ reason: "invalid_input" });
+    const [message, fields] = vi.mocked(logger.warn).mock.calls.at(-1)!;
+    expect(message).toBe("Topics model request failed");
+    expect(fields).toMatchObject({
+      "http.status_code": 400,
+      "langfuse.topics.provider.message": rejection.message,
+      "langfuse.topics.provider.code": "unsupported_parameter",
+      "langfuse.topics.provider.param": "max_tokens",
+    });
+    expect(JSON.stringify(fields)).not.toMatch(/secret/);
+    expect(state.increment).toHaveBeenCalledWith(
+      "langfuse.topics.llm_calls",
+      1,
+      {
+        stage: "summary",
+        adapter: LLMAdapter.Bedrock,
+        status: "400",
+      },
+    );
+  });
+
   it("keeps fallback token counts out of provider-reported usage", async () => {
     state.call.mockResolvedValue({
       output: keyed({ summary: "A billing request.", status: "applicable" }),
@@ -286,7 +347,7 @@ describe("Topics naming boundary", () => {
       config,
     );
     expect(result.providedUsageDetails).toEqual({ summary_input: 100 });
-    expect(state.increment.mock.calls).toEqual([
+    expect(tokenCalls()).toEqual([
       ["langfuse.topics.tokens", 100, { stage: "summary", direction: "input" }],
       [
         "langfuse.topics.token_usage_missing",
@@ -534,7 +595,7 @@ describe("Topics naming boundary", () => {
       });
       await expect(nameTopicGroup(topicsModels(), evidence)).rejects.toThrow();
       // Provider work is billable even when local output validation rejects it.
-      expect(state.increment.mock.calls).toEqual([
+      expect(tokenCalls()).toEqual([
         [
           "langfuse.topics.tokens",
           100,
@@ -647,7 +708,7 @@ describe("Topics naming boundary", () => {
     ).rejects.toMatchObject({
       reason: "invalid_output",
     });
-    expect(state.increment.mock.calls).toEqual([
+    expect(tokenCalls()).toEqual([
       [
         "langfuse.topics.tokens",
         12,
@@ -668,7 +729,7 @@ describe("Topics naming boundary", () => {
         ["An invoice request."],
         256,
       );
-      expect(state.increment.mock.calls).toEqual([
+      expect(tokenCalls()).toEqual([
         [
           "langfuse.topics.token_usage_missing",
           1,

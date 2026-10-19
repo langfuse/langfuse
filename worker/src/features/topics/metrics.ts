@@ -14,11 +14,14 @@ type TopicStage =
   | "naming"
   | "assignment"
   | "storage";
-type TopicResult =
+export type TopicResult =
   | "generated"
   | "cached"
+  | "applicable"
   | "not_applicable"
   | "insufficient_input"
+  | "invalid_output"
+  | "input_too_large"
   | "topics_found"
   | "no_topics"
   | "insufficient_data"
@@ -52,6 +55,25 @@ export function recordTopicTokenUsage(
   }
 }
 
+const COUNTED_HTTP_STATUSES = new Set([
+  400, 401, 402, 403, 404, 408, 413, 422, 429,
+]);
+
+/** Counts every provider request with a bounded status tag. */
+export function recordTopicModelCall(
+  stage: "summary" | "embedding" | "naming",
+  adapter: string,
+  outcome: { httpStatus?: number; reason?: string },
+): void {
+  const { httpStatus, reason } = outcome;
+  let status = reason ?? "ok";
+  if (httpStatus)
+    status = COUNTED_HTTP_STATUSES.has(httpStatus)
+      ? String(httpStatus)
+      : `${Math.floor(httpStatus / 100)}xx`;
+  recordIncrement("langfuse.topics.llm_calls", 1, { stage, adapter, status });
+}
+
 /** One instance per execution attempt prevents nested catches counting an error twice. */
 export class TopicMetrics {
   private readonly reportedErrors = new WeakSet<object>();
@@ -62,9 +84,19 @@ export class TopicMetrics {
     recordIncrement("langfuse.topics.executions", 1, { outcome });
   }
 
-  result(stage: TopicStage, result: TopicResult, count = 1): void {
+  result(
+    stage: TopicStage,
+    result: TopicResult,
+    count = 1,
+    // Summary outcomes say whether the model or a local rule decided, and for which facet.
+    tags: { source?: "model" | "rule"; facet?: string } = {},
+  ): void {
     if (count > 0)
-      recordIncrement("langfuse.topics.results", count, { stage, result });
+      recordIncrement("langfuse.topics.results", count, {
+        stage,
+        result,
+        ...tags,
+      });
   }
 
   clusteringWorkload(vectors: number, dimensions: number): void {

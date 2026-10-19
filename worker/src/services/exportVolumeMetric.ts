@@ -2,17 +2,22 @@ import { recordIncrement } from "@langfuse/shared/src/server";
 
 export const EXPORT_VOLUME_METRIC = "langfuse.export.serialized_bytes";
 
-type ExportIntegration = "blob_storage" | "posthog" | "mixpanel" | "llmaj";
+type ExportIntegration =
+  | "blob_storage"
+  | "posthog"
+  | "mixpanel"
+  | "llmaj"
+  | "topics";
 
 type ExportVolume = {
   integration: ExportIntegration;
   // On-wire egress bytes shipped this run: gzipped for blob/posthog/mixpanel,
-  // uncompressed for llmaj (LLM requests aren't gzipped).
+  // uncompressed for llmaj and topics (LLM requests aren't gzipped).
   bytes: number;
   // Only tagged for blob_storage (per-project egress cost attribution); the
-  // API-based integrations (posthog/mixpanel/llmaj) omit it to keep custom
+  // API-based integrations (posthog/mixpanel/llmaj/topics) omit it to keep custom
   // metric cardinality down.
-  projectId: string;
+  projectId?: string;
   // Egress-cost classification; blob only (S3 / S3_COMPATIBLE / AZURE_*).
   destinationType?: string;
   // Blob-only dimensions: export format, table, and codepath.
@@ -37,7 +42,7 @@ export const recordExportVolume = ({
   path,
 }: ExportVolume): void => {
   const tags: Record<string, string> = { integration };
-  if (integration === "blob_storage") tags.projectId = projectId;
+  if (integration === "blob_storage" && projectId) tags.projectId = projectId;
   if (destinationType !== undefined) tags.destination_type = destinationType;
   if (source !== undefined) tags.source = source;
   if (table !== undefined) tags.table = table;

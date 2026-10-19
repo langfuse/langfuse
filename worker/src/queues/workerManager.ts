@@ -9,6 +9,7 @@ import {
   recordDistribution,
   recordIncrement,
   traceException,
+  getCurrentSpan,
 } from "@langfuse/shared/src/server";
 import {
   markQueueJobActivity,
@@ -91,8 +92,12 @@ export class WorkerManager {
         ...shardTag,
       });
 
+      const projectId = WorkerManager.extractProjectId(job);
+      // Baggage reaches only child spans; tag the BullMQ span itself too.
+      if (projectId)
+        getCurrentSpan()?.setAttribute("langfuse.project.id", projectId);
       const clickHouseCtx = contextWithLangfuseProps({
-        projectId: WorkerManager.extractProjectId(job),
+        projectId,
         clickhouse: {
           surface: "worker",
           route: baseMetric,

@@ -1840,7 +1840,10 @@ describe("trace batch queue", () => {
         metadataBytes: 0,
         ioMetadataBytes: hasRows ? 10 : 0,
       });
-      expect(processingSpan.setAttributes).not.toHaveBeenCalled();
+      // Only Topics batch totals; no experiment attributes without an experiment.
+      expect(vi.mocked(processingSpan.setAttributes).mock.calls).toEqual(
+        hasRows ? [[{ "langfuse.topics.traces.unchanged": 1 }]] : [],
+      );
       expect(recordDistribution).toHaveBeenCalledWith(
         "langfuse.trace_batch.input_bytes",
         hasRows ? 5 : 0,

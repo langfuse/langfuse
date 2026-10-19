@@ -168,6 +168,7 @@ async function summarizeTraceBatch(
       projectId: first.projectId,
       traceId,
       reason,
+      error: error instanceof Error ? error.message : String(error),
     });
     return { outcome: "failed", reason, rows };
   }
@@ -220,13 +221,20 @@ function recordTopicsOutcomes(outcomes: TraceOutcome[]): void {
     ]);
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
+  const perOutcome: Record<string, number> = {};
   for (const [key, count] of counts) {
     const [outcome, reason] = JSON.parse(key) as [string, string | null];
     recordIncrement("langfuse.topics.trace_outcomes", count, {
       outcome,
       ...(reason ? { reason } : {}),
     });
+    if (outcome === "disabled") continue;
+    const attribute = `langfuse.topics.traces.${outcome}`;
+    perOutcome[attribute] = (perOutcome[attribute] ?? 0) + count;
   }
+  // Batch totals of Topics work on the job span; each trace has its own child span.
+  if (Object.keys(perOutcome).length > 0)
+    getCurrentSpan()?.setAttributes(perOutcome);
 }
 
 const JOB_MAX_AGE_MS = 2 * 60 * 60_000;

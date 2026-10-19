@@ -39,6 +39,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const { isInternalEvalEnvironment } =
     await importOriginal<typeof import("@langfuse/shared/src/server")>();
   return {
+    ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
     isInternalEvalEnvironment,
     logger: { error: vi.fn() },
     recordIncrement: vi.fn(),
