@@ -243,7 +243,7 @@ export function createPlan(
       // pass package-specific paths without forwarding them to other tasks.
       prepare(`${pkg.name}#lint`);
       packageChecks.push({
-        label: `Linting ${ownFiles.length} changed file${ownFiles.length === 1 ? "" : "s"} in ${pkg.name}`,
+        label: `Lint · ${pkg.name} · ${ownFiles.length} file${ownFiles.length === 1 ? "" : "s"}`,
         args: [
           "--filter",
           pkg.name,
@@ -300,7 +300,7 @@ export function createPlan(
         prepare(`${pkg.name}#${task}`);
         const suite = task === "test-client" ? "client" : "server";
         packageChecks.push({
-          label: `Running related tests in ${pkg.name} (${suite})`,
+          label: `${suite === "client" ? "Client" : "Server"} tests · ${pkg.name}`,
           args: [
             "--filter",
             pkg.name,
@@ -346,8 +346,8 @@ export function createPlan(
     );
     packageChecks.unshift({
       label: checks.length
-        ? `Checking ${checks.join(", ")} in ${[...checkPackages].join(", ")} and preparing dependencies`
-        : "Preparing dependencies",
+        ? `${checks.map((check) => check[0].toUpperCase() + check.slice(1)).join(", ")} & dependencies · ${[...checkPackages].join(", ")}`
+        : "Dependencies",
       args: [
         "exec",
         "turbo",
@@ -367,10 +367,10 @@ export function createPlan(
     options.all ||
     codeFiles.some((file) => /prettier|(^|\/)\.editorconfig$/.test(file))
   )
-    add("Checking formatting (repository-wide)", ["run", "format:check"]);
+    add("Formatting · repository-wide", ["run", "format:check"]);
   else if (formatted.length)
     add(
-      `Checking formatting (${formatted.length} file${formatted.length === 1 ? "" : "s"})`,
+      `Formatting · ${formatted.length} file${formatted.length === 1 ? "" : "s"}`,
       [
         "exec",
         "prettier",
@@ -385,7 +385,7 @@ export function createPlan(
       /^scripts\/vitest\/ci-reporter\.(ts|test\.mjs)$/.test(file),
     )
   ) {
-    add("Testing Vitest reporter", [
+    add("Vitest reporter tests", [
       "exec",
       "node",
       "--test",
@@ -400,7 +400,7 @@ export function createPlan(
   ) {
     // Removing an import can orphan an unchanged export anywhere in the graph,
     // so Knip must analyze the repository rather than just changed files.
-    add("Checking unused code (repository-wide)", ["exec", "knip"]);
+    add("Unused code · repository-wide", ["exec", "knip"]);
   }
   return [...commands, ...packageChecks];
 }
@@ -628,10 +628,30 @@ async function main() {
     ? git(["merge-base", "HEAD", options.base]).trim()
     : git(["rev-parse", "HEAD"]).trim();
   const files = collectChanges(git, base);
-  console.log(
-    `Checking ${options.all ? "all packages" : options.branch ? `branch against ${options.base}` : "local changes"} (${files.length} changed file${files.length === 1 ? "" : "s"}):`,
+  const terminal = Boolean(
+    process.stdout.isTTY && process.stderr.isTTY && process.env.TERM !== "dumb",
   );
-  for (const file of files) console.log(`  ${file}`);
+  const color = terminal && !Object.hasOwn(process.env, "NO_COLOR");
+  const paint = (code, text) => (color ? `\x1b[${code}m${text}\x1b[0m` : text);
+  const indent = (text) =>
+    text
+      .split("\n")
+      .map((line) => `    ${line}`)
+      .join("\n");
+  console.log(
+    paint(
+      "1",
+      `${options.all ? "All packages" : options.branch ? `Branch checks · ${options.base}` : "Local checks"} · ${files.length} changed file${files.length === 1 ? "" : "s"}`,
+    ),
+  );
+  for (const file of files) {
+    const parts = file.split("/");
+    const display =
+      file.length > 100 && parts.length > 5
+        ? `${parts.slice(0, 4).join("/")}/…/${parts.at(-1)}`
+        : file;
+    console.log(`  ${display}`);
+  }
   if (!files.length) console.log("  No changed files.");
   console.log("");
   const { packages, taskGraph } = loadWorkspace(base);
@@ -668,8 +688,18 @@ async function main() {
   const outputDirectory = mkdtempSync(resolve(root, ".turbo/check-"));
   let retainLogs = false;
   const failed = [];
-  let completedChecks = 0;
+  let passedChecks = 0;
+  let emptyChecks = 0;
+  const skipped = [];
   let turboFailed = false;
+  const rowWidth = Math.min(
+    100,
+    Math.max(60, ...plan.map((check) => check.label.length + 4)),
+  );
+  const statusLine = (marker, label, duration, code) => {
+    const padding = " ".repeat(Math.max(2, rowWidth - label.length));
+    return `${paint(code, marker)} ${label}${padding}${paint("2", duration)}`;
+  };
   const batches = [];
   for (const [checkIndex, check] of plan.entries()) {
     const previous = batches.at(-1);
@@ -683,19 +713,30 @@ async function main() {
     for (const batch of batches) {
       if (batch[0].check.requiresTurbo && turboFailed) {
         for (const { check } of batch) {
+          console.error(statusLine("○", `${check.label} · skipped`, "—", "33"));
           console.error(
-            `Skipped ${check.label.toLowerCase()}: package checks or preparation failed.`,
+            indent("Package checks or dependency preparation failed."),
           );
-          failed.push(check.label);
+          skipped.push(check.label);
         }
         continue;
+      }
+      const progress = `Running${batch.length > 1 ? " in parallel" : ""}: ${batch.map(({ check }) => check.label).join(", ")}…`;
+      if (terminal) {
+        const width = Math.max(1, (process.stdout.columns ?? 80) - 1);
+        const display =
+          progress.length > width
+            ? `${progress.slice(0, width - 1)}…`
+            : progress;
+        process.stdout.write(paint("2", display));
+      } else if (batch.length > 1) {
+        console.log(`\n${progress}\n`);
       }
       // Wait for every child before cleaning up shared log storage, even when
       // one check encounters an unexpected filesystem or execution error.
       const results = await Promise.allSettled(
         batch.map(async ({ check, checkIndex }) => {
           const checkStartedAt = performance.now();
-          console.log(`${check.label}…`);
           const { failure, reports } = await runCheck(
             check,
             outputDirectory,
@@ -709,78 +750,119 @@ async function main() {
           };
         }),
       );
+      if (terminal) process.stdout.write("\r\x1b[2K");
       for (const outcome of results) {
         if (outcome.status === "rejected") throw outcome.reason;
         const { check, result, reports, duration } = outcome.value;
         const { label, isTurboBatch } = check;
-        const prefix = batch.length > 1 ? `  ${label}: ` : "  ";
+        const noTests =
+          reports.length > 0 &&
+          reports.every((report) => report.files?.length === 0);
+        let resultLabel = label;
+        if (noTests) {
+          resultLabel += " · no related tests";
+        } else if (
+          reports.length &&
+          reports.every((report) => report.files !== null)
+        ) {
+          const testFiles = reports.flatMap((report) => report.files);
+          const passed = testFiles.reduce((sum, file) => sum + file.passed, 0);
+          const failures = testFiles.reduce(
+            (sum, file) => sum + file.failed,
+            0,
+          );
+          const skippedTests = testFiles.reduce(
+            (sum, file) => sum + file.skipped,
+            0,
+          );
+          const counts = [`${passed} passed`];
+          if (failures) counts.push(`${failures} failed`);
+          if (skippedTests) counts.push(`${skippedTests} skipped`);
+          resultLabel += ` · ${counts.join(", ")} across ${testFiles.length} file${testFiles.length === 1 ? "" : "s"}`;
+        }
+        if (result) {
+          console.error(statusLine("✗", resultLabel, duration, "31"));
+        } else if (noTests) {
+          console.log(statusLine("○", resultLabel, duration, "33"));
+          emptyChecks++;
+        } else {
+          console.log(statusLine("✓", resultLabel, duration, "32"));
+          passedChecks++;
+        }
         for (const report of reports) {
           if (report.files === null) {
             retainLogs = true;
             console.error(
-              `  ${report.suite}: test report unavailable. Details: ${relative(root, report.outputFile)}`,
+              indent(
+                `${report.suite}: test report unavailable. Details: ${relative(root, report.outputFile)}`,
+              ),
             );
             continue;
-          }
-          if (!report.files.length) {
-            console.log(`  ${report.suite}: no related tests ran.`);
           }
           for (const file of report.files) {
             const counts = [`${file.passed} passed`];
             if (file.failed) counts.push(`${file.failed} failed`);
             if (file.skipped) counts.push(`${file.skipped} skipped`);
-            console.log(
-              `  ${report.suite}: ${file.path} — ${counts.join(", ")}`,
-            );
+            console.log(indent(`${file.path} — ${counts.join(", ")}`));
           }
         }
         if (result) {
           const { outputFile } = result;
-          console.error(`${prefix}Failed (${duration}).`);
-          if (result.error) console.error(result.error.message);
+          if (result.error) console.error(indent(result.error.message));
           const diagnostics = collectDiagnostics(outputFile, isTurboBatch);
           if (isTurboBatch) {
             for (const task of diagnostics.tasks) {
-              console.error(`\n${task.taskId} failed (exit ${task.exitCode}):`);
+              console.error(
+                indent(`\n${task.taskId} failed (exit ${task.exitCode}):`),
+              );
               if (task.diagnostics) {
-                console.error(task.diagnostics);
+                console.error(indent(task.diagnostics));
               } else {
                 console.error(
-                  "No diagnostic output was recorded for this task.",
+                  indent("No diagnostic output was recorded for this task."),
                 );
               }
             }
             if (!diagnostics.complete) {
               retainLogs = true;
               console.error(
-                `Some task diagnostics were unavailable. Runner details: ${relative(root, outputFile)}`,
+                indent(
+                  `Some task diagnostics were unavailable. Runner details: ${relative(root, outputFile)}`,
+                ),
               );
             }
           } else {
-            if (diagnostics.captured) console.error(diagnostics.captured);
+            if (diagnostics.captured)
+              console.error(indent(diagnostics.captured));
           }
           failed.push(label);
           if (isTurboBatch) turboFailed = true;
+          console.error("");
           if (result.signal) {
             process.exitCode = 1;
             return;
           }
         }
-        completedChecks++;
-        if (!result) console.log(`${prefix}Passed (${duration}).`);
       }
     }
   } finally {
+    if (terminal) process.stdout.write("\r\x1b[2K");
     if (!retainLogs) rmSync(outputDirectory, { recursive: true, force: true });
   }
-  if (failed.length) {
+  const summary = [];
+  if (failed.length) summary.push(`${failed.length} failed`);
+  if (passedChecks) summary.push(`${passedChecks} passed`);
+  if (emptyChecks) summary.push(`${emptyChecks} no related tests`);
+  if (skipped.length) summary.push(`${skipped.length} skipped`);
+  if (failed.length || skipped.length) {
     console.error(
-      `\nChecks failed after ${elapsed(commandStartedAt)}: ${failed.join("; ")}.`,
+      `\n${paint("31", "Failed")} · ${summary.join(", ")} · ${elapsed(commandStartedAt)}`,
     );
+    for (const label of failed) console.error(`  ${paint("31", "✗")} ${label}`);
     process.exitCode = 1;
   } else
     console.log(
-      `\nAll ${completedChecks} check${completedChecks === 1 ? "" : "s"} passed in ${elapsed(commandStartedAt)}.`,
+      `\n${paint("32", "Passed")} · ${summary.join(", ")} · ${elapsed(commandStartedAt)}`,
     );
 }
 
