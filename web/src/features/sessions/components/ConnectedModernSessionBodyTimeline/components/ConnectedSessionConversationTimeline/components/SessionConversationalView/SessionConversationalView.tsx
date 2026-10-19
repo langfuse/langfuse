@@ -1,6 +1,13 @@
 import { type ComponentProps, useLayoutEffect, useId, useRef } from "react";
 import { Search } from "@langfuse/icons";
 import { Input } from "@/src/components/ui/input";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+  useDefaultLayout,
+} from "@/src/components/ui/resizable";
+import { useElementSize } from "@/src/hooks/useElementSize";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { Trigger as DialogTrigger } from "@radix-ui/react-dialog";
@@ -38,6 +45,14 @@ export function SessionConversationalView(
   },
 ) {
   const transcriptRef = useRef<HTMLDivElement>(null);
+  const [workspaceRef, workspaceSize] = useElementSize<HTMLDivElement>();
+  // Match the @3xl/session-workspace breakpoint used by the mobile search UI.
+  const showSidebar = (workspaceSize?.width ?? 0) >= 768;
+  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
+    id: "session-conversation-sidebar",
+    panelIds: ["sidebar", "timeline"],
+    storage: "session",
+  });
   const highlightName = `session-transcript-${useId().replace(/[^a-z0-9_-]/gi, "")}`;
   const searchQuery = props.state === "loaded" ? props.search.trim() : "";
   useLayoutEffect(() => {
@@ -229,7 +244,10 @@ export function SessionConversationalView(
           activeTraceId: props.controller.activeItemId ?? undefined,
         };
   return (
-    <div className="bg-background relative grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-x-4 overflow-hidden @3xl/session-workspace:grid-cols-[clamp(200px,24cqw,296px)_minmax(0,1fr)] @3xl/session-workspace:grid-rows-1">
+    <div
+      ref={workspaceRef}
+      className="bg-background relative grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] overflow-hidden @3xl/session-workspace:grid-rows-1"
+    >
       <div className="border-b px-2 py-2.5 @3xl/session-workspace:hidden">
         <DialogController
           renderDialog={({ closeDialog }) => (
@@ -301,19 +319,42 @@ export function SessionConversationalView(
           )}
         </DialogController>
       </div>
-      <div className="hidden min-h-0 @3xl/session-workspace:block">
-        <SessionConversationSidebar {...sidebarProps} />
-      </div>
-      <div
-        ref={transcriptRef}
-        className="bg-card dark:bg-background relative min-h-0 min-w-0"
+      <ResizablePanelGroup
+        orientation="horizontal"
+        className="min-h-0 min-w-0"
+        defaultLayout={showSidebar ? defaultLayout : undefined}
+        onLayoutChanged={showSidebar ? onLayoutChanged : undefined}
       >
-        <style>{`::highlight(${highlightName}) { background-color: ${searchQuery ? "hsl(var(--find-match-background))" : "transparent"}; color: ${searchQuery ? "hsl(var(--foreground))" : "inherit"}; }`}</style>
-        <SessionConversationTimeline
-          traces={timelineItems}
-          controller={props.controller}
-        />
-      </div>
+        {showSidebar && (
+          <ResizablePanel
+            id="sidebar"
+            defaultSize="24%"
+            minSize="200px"
+            maxSize="50%"
+            className="h-full min-h-0"
+          >
+            <SessionConversationSidebar {...sidebarProps} />
+          </ResizablePanel>
+        )}
+        {showSidebar && (
+          <ResizableHandle
+            withHandle
+            aria-label="Resize conversation sidebar"
+          />
+        )}
+        <ResizablePanel id="timeline" minSize={showSidebar ? "300px" : "0%"}>
+          <div
+            ref={transcriptRef}
+            className="bg-card dark:bg-background relative h-full min-h-0 min-w-0"
+          >
+            <style>{`::highlight(${highlightName}) { background-color: ${searchQuery ? "hsl(var(--find-match-background))" : "transparent"}; color: ${searchQuery ? "hsl(var(--foreground))" : "inherit"}; }`}</style>
+            <SessionConversationTimeline
+              traces={timelineItems}
+              controller={props.controller}
+            />
+          </div>
+        </ResizablePanel>
+      </ResizablePanelGroup>
     </div>
   );
 }
