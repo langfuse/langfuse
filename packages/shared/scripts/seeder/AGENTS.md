@@ -52,6 +52,9 @@ progress output. Full usage and the need→command table live in the
   `event-mirror.ts` (v3 observation → v4 `events_full` row), `verify.ts`
 - `seed-postgres.ts`, `seed-clickhouse.ts`, `utils/` — the pre-existing
   `pnpm run dx` seed path (unchanged by the CLI)
+- `local-bedrock.ts` — opt-in IAM connection seeding, shared by
+  `seed-postgres.ts --local-bedrock` and `pnpm run db:seed:bedrock`.
+  Keep its local database, CI, and Kubernetes guards on both entry points.
 - `README.md` — design rationale, contract, and roadmap
 
 ## Rules for changes

@@ -18,6 +18,40 @@ summary as the last stdout line. This file is the design explainer; the command
 reference for agents lives in [AGENTS.md](./AGENTS.md) and the
 `seed-test-data` skill.
 
+## Local Bedrock IAM connection
+
+Opt in when running the normal Postgres seed:
+
+```bash
+pnpm --filter=shared run db:seed -- --local-bedrock
+```
+
+For an already seeded database, update only this connection:
+
+```bash
+pnpm run db:seed:bedrock
+```
+
+Both paths reject production, CI, Kubernetes, and non-loopback PostgreSQL
+URLs (including `DIRECT_URL` and URL host overrides). They create an encrypted
+default-credential sentinel in the seeded `llm-app` project, without calling
+AWS or storing AWS credentials. Repeated runs preserve the connection ID and
+additional custom models; a same-named connection with different credentials
+or region is rejected. Default seeding and previews do not opt in.
+
+The `Bedrock Playground EU (IAM)` connection uses `eu-west-1` with EU inference
+profiles for Claude Sonnet, Opus, and Haiku 5.5 and Cohere Embed v4
+(`eu.cohere.embed-v4:0`).
+
+Set `AWS_PROFILE=playground` in the local `.env`, sign in with
+`aws sso login --profile playground`, and restart web and worker. For local
+Cloud mode (`NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=DEV`), also add
+`7a88fb47-b4e2-43b8-a06c-a5ce950dc53a` to
+`LANGFUSE_BEDROCK_LLM_CONNECTION_RUNTIME_CREDENTIALS_ALLOWED_PROJECT_IDS` in
+both processes. Seeding does not change that allowlist. The connection uses
+the running process's AWS credentials; its name does not select an account.
+Use a local database, never a localhost tunnel to a shared or remote database.
+
 ## Why this exists
 
 Two consumers need local seed data and both were underserved:

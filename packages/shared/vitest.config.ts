@@ -3,8 +3,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     silent: "passed-only",
-    dir: "./src",
-    include: ["**/*.test.ts"],
+    include: ["src/**/*.test.ts", "scripts/seeder/**/*.test.ts"],
     pool: "forks",
     server: {
       deps: {

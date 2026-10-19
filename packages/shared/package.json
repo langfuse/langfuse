@@ -197,6 +197,7 @@
     "db:reset:test": "if [ -f ../../.env.test ]; then dotenv -e ../../.env.test -e ../../.env -- pnpm exec prisma migrate reset --force; fi",
     "db:deploy": "dotenv -e ../../.env npx -- prisma migrate deploy",
     "db:seed": "dotenv -e ../../.env -- npx prisma db seed",
+    "db:seed:bedrock": "dotenv -e ../../.env -- tsx scripts/seeder/seed-bedrock.ts",
     "db:generate": "dotenv -e ../../.env -- npx prisma generate --no-hints",
     "db:seed:examples": "dotenv -e ../../.env -- npx prisma db seed -- --environment examples",
     "db:seed:load": "dotenv -e ../../.env -- npx prisma db seed -- --environment load",
