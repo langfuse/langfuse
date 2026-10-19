@@ -370,54 +370,64 @@ describe("Topics naming boundary", () => {
     );
   });
 
-  it("reports unusable naming output without logging provider content", async () => {
-    const rejection = Object.assign(new Error("secret response text"), {
-      name: "AI_NoOutputGeneratedError",
-      responseBody: "secret response body",
-      text: "secret model output",
-    });
-    const response = {
-      "langfuse.topics.response.finish_reason": "other",
-      "langfuse.topics.response.raw_finish_reason": "refusal",
-      "langfuse.topics.response.text_characters": 0,
-      "langfuse.topics.response.output_tokens": 0,
-    };
-    state.responseMetadata.mockImplementation((error) =>
-      error === rejection ? response : undefined,
-    );
-    state.call.mockRejectedValue(rejection);
+  it.each([
+    ["other", "refusal", "invalid_output"],
+    ["content-filter", "content_filtered", "content_filter"],
+  ])(
+    "reports %s naming output without logging provider content",
+    async (finishReason, rawFinishReason, reason) => {
+      const rejection = Object.assign(new Error("secret response text"), {
+        name: "AI_NoOutputGeneratedError",
+        responseBody: "secret response body",
+        text: "secret model output",
+      });
+      const response = {
+        "langfuse.topics.response.finish_reason": finishReason,
+        "langfuse.topics.response.raw_finish_reason": rawFinishReason,
+        "langfuse.topics.response.text_characters": 0,
+        "langfuse.topics.response.output_tokens": 0,
+      };
+      state.responseMetadata.mockImplementation((error) =>
+        error === rejection ? response : undefined,
+      );
+      state.call.mockRejectedValue(rejection);
 
-    const failure = await nameTopicGroup(topicsModels(), evidence).catch(
-      (error: unknown) => error,
-    );
-    expect(failure).toMatchObject({
-      reason: "invalid_output",
-      message: expect.stringContaining("returned no usable structured output"),
-    });
-    expect((failure as Error).message).not.toMatch(/credentials|secret/);
-    expect(logger.warn).toHaveBeenCalledOnce();
-    const [message, fields] = vi.mocked(logger.warn).mock.calls[0];
-    expect(message).toBe("Topics model request failed");
-    expect(fields).toMatchObject({
-      ...response,
-      "langfuse.topics.error.reason": "invalid_output",
-      "langfuse.topics.error.type": "AI_NoOutputGeneratedError",
-    });
-    expect(state.spanAttributes).toHaveBeenCalledWith(fields);
-    expect(JSON.stringify(fields)).not.toMatch(/secret/);
-    expect(JSON.stringify(state.spanAttributes.mock.calls)).not.toMatch(
-      /secret/,
-    );
-    expect(state.increment).toHaveBeenCalledWith(
-      "langfuse.topics.llm_calls",
-      1,
-      {
-        stage: "naming",
-        adapter: LLMAdapter.Bedrock,
-        status: "invalid_output",
-      },
-    );
-  });
+      const failure = await nameTopicGroup(topicsModels(), evidence).catch(
+        (error: unknown) => error,
+      );
+      expect(failure).toMatchObject({
+        reason,
+        message: expect.stringMatching(
+          reason === "content_filter"
+            ? /filter/i
+            : /returned no usable structured output/,
+        ),
+      });
+      expect((failure as Error).message).not.toMatch(/credentials|secret/);
+      expect(logger.warn).toHaveBeenCalledOnce();
+      const [message, fields] = vi.mocked(logger.warn).mock.calls[0];
+      expect(message).toBe("Topics model request failed");
+      expect(fields).toMatchObject({
+        ...response,
+        "langfuse.topics.error.reason": reason,
+        "langfuse.topics.error.type": "AI_NoOutputGeneratedError",
+      });
+      expect(state.spanAttributes).toHaveBeenCalledWith(fields);
+      expect(JSON.stringify(fields)).not.toMatch(/secret/);
+      expect(JSON.stringify(state.spanAttributes.mock.calls)).not.toMatch(
+        /secret/,
+      );
+      expect(state.increment).toHaveBeenCalledWith(
+        "langfuse.topics.llm_calls",
+        1,
+        {
+          stage: "naming",
+          adapter: LLMAdapter.Bedrock,
+          status: reason,
+        },
+      );
+    },
+  );
 
   it.each([
     [{}, "ok"],

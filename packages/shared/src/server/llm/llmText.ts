@@ -385,6 +385,7 @@ export async function embedLLMText(options: {
   model: LLMModelRef;
   connection: LLMConnection;
   values: string[];
+  dimensions?: number;
   providerOptions?: ProviderOptions;
   maxRetries?: number;
   maxParallelCalls?: number;
@@ -412,6 +413,7 @@ export async function embedLLMText(options: {
   return embedMany({
     model: embeddingModel,
     values: options.values,
+    dimensions: options.dimensions,
     providerOptions: options.providerOptions,
     maxRetries: options.maxRetries,
     maxParallelCalls: options.maxParallelCalls,

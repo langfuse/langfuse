@@ -5,6 +5,7 @@ import {
 import { EvaluatorBlockReason } from "@prisma/client";
 import { getLLMErrorInfo, logger } from "@langfuse/shared/src/server";
 import {
+  getTopicTextResponseMetadata,
   pauseTopicsModels,
   type TopicsModel,
 } from "@langfuse/shared/topics/server";
@@ -16,6 +17,7 @@ type TopicsProviderErrorReason =
   | "rate_limit"
   | "timeout"
   | "invalid_output"
+  | "content_filter"
   | "invalid_input"
   | "provider_error";
 
@@ -76,6 +78,16 @@ export function topicProviderError(
     current = record.cause;
   }
   const modelDescription = `The ${TOPICS_MODEL_SLOT_DETAILS[model.slot].label.toLowerCase()} model ${model.model} on LLM connection "${model.provider}"`;
+  if (
+    getTopicTextResponseMetadata(error)?.[
+      "langfuse.topics.response.finish_reason"
+    ] === "content-filter"
+  )
+    return new TopicsProviderUnavailable(
+      `${modelDescription} declined the request because of its content filter. You can retry or choose another model.`,
+      "content_filter",
+      model.slot,
+    );
   return new TopicsProviderUnavailable(
     reason === "invalid_output"
       ? `${modelDescription} returned no usable structured output. Resume interrupted stages to retry, or choose another model.`
