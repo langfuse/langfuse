@@ -24,6 +24,7 @@ function compile(builder: Parameters<typeof compileClickhouseQuery>[0]) {
 describe("soft-delete filtering", () => {
   it("declares the flag on the events tables only", () => {
     expect(SOFT_DELETE_COLUMNS).toEqual({
+      events: "is_deleted",
       events_core: "is_deleted",
       events_full: "is_deleted",
     });
