@@ -1,4 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   closeSync,
   existsSync,
@@ -400,7 +401,17 @@ export function createPlan(
   ) {
     // Removing an import can orphan an unchanged export anywhere in the graph,
     // so Knip must analyze the repository rather than just changed files.
-    add("Unused code · repository-wide", ["exec", "knip"]);
+    commands.push({
+      label: "Unused code · repository-wide",
+      args: [
+        "exec",
+        "knip",
+        "--cache",
+        "--cache-location",
+        ".turbo/check-knip/cache",
+      ],
+      isKnip: true,
+    });
   }
   return [...commands, ...packageChecks];
 }
@@ -496,7 +507,52 @@ function loadWorkspace(base) {
   return { packages, taskGraph };
 }
 
+function prepareKnipCache() {
+  const files = [
+    ...new Set(
+      capture("git", [
+        "ls-files",
+        "--cached",
+        "--others",
+        "--exclude-standard",
+        "-z",
+      ])
+        .split("\0")
+        .filter((file) => file && existsSync(resolve(root, file))),
+    ),
+  ].sort();
+  // File topology matters even across commits/branch switches: adding a missing
+  // import target can resolve an error in an otherwise unchanged source file.
+  const hash = createHash("sha256").update(JSON.stringify(files));
+  for (const file of files) {
+    if (
+      /\.(jsonc?|ya?ml)$|(^|\/)([^/]*config[^/]*|knip[^/]*|\.[^/]*rc[^/]*|\.gitignore|\.storybook)(\/|$)/i.test(
+        file,
+      ) ||
+      file === "scripts/check.mjs"
+    ) {
+      hash.update(
+        JSON.stringify([file, readFileSync(resolve(root, file), "utf8")]),
+      );
+    }
+  }
+  const key = hash.digest("hex");
+  const directory = resolve(root, ".turbo/check-knip");
+  const keyFile = resolve(directory, "key");
+  let previousKey;
+  try {
+    previousKey = readFileSync(keyFile, "utf8");
+  } catch {
+    // Missing cache metadata must never allow an older cache to be reused.
+  }
+  if (previousKey === key) return;
+  rmSync(resolve(directory, "cache"), { recursive: true, force: true });
+  mkdirSync(directory, { recursive: true });
+  writeFileSync(keyFile, key, { mode: 0o600 });
+}
+
 async function runCheck(check, outputDirectory, checkIndex) {
+  if (check.isKnip) prepareKnipCache();
   const reports = [];
   for (const [stepIndex, command] of (check.steps ?? [check.args]).entries()) {
     const reportFile = check.testSuites
