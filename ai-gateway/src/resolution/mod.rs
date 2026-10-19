@@ -144,15 +144,18 @@ impl ControlPlaneClient {
             .await
     }
 
-    /// Fetch the caller-visible model catalog from trusted Web.
+    /// Fetch the caller-visible model catalog from trusted Web. `reserve` is called
+    /// with the buffer's new capacity before the buffer grows to it.
     ///
     /// # Errors
-    /// Returns the same sanitized errors as [`Self::resolve`].
+    /// Returns the same sanitized errors as [`Self::resolve`], or the error `reserve`
+    /// returns.
     pub async fn models(
         &self,
         gateway_key: &str,
         api_format: ApiFormat,
         request_id: &str,
+        reserve: &mut (dyn FnMut(usize) -> Result<(), ResolutionError> + Send),
     ) -> Result<Vec<u8>, ResolutionError> {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -168,7 +171,8 @@ impl ControlPlaneClient {
             timestamp.as_secs(),
             request_id,
         )?;
-        self.execute(request, self.config.models_limits).await
+        self.execute(request, self.config.models_limits, reserve)
+            .await
     }
 
     async fn resolve_at(
@@ -195,7 +199,9 @@ impl ControlPlaneClient {
             )?
             .header(CONTENT_TYPE, "application/json")
             .body(body);
-        let body = self.execute(request, self.config.resolve_limits).await?;
+        let body = self
+            .execute(request, self.config.resolve_limits, &mut |_| Ok(()))
+            .await?;
         contracts::decode(
             &body,
             api_format,
@@ -236,13 +242,14 @@ impl ControlPlaneClient {
         &self,
         request: RequestBuilder,
         limits: ControlPlaneLimits,
+        reserve: &mut (dyn FnMut(usize) -> Result<(), ResolutionError> + Send),
     ) -> Result<Vec<u8>, ResolutionError> {
         tokio::time::timeout(limits.timeout, async {
             let response = request
                 .send()
                 .await
                 .map_err(|_| ResolutionError::Transport)?;
-            read_response(response, limits.max_response_bytes).await
+            read_response(response, limits.max_response_bytes, reserve).await
         })
         .await
         .map_err(|_| ResolutionError::Timeout)?
@@ -252,6 +259,7 @@ impl ControlPlaneClient {
 async fn read_response(
     mut response: reqwest::Response,
     limit: usize,
+    reserve: &mut (dyn FnMut(usize) -> Result<(), ResolutionError> + Send),
 ) -> Result<Vec<u8>, ResolutionError> {
     match response.status().as_u16() {
         200 => {}
@@ -277,12 +285,13 @@ async fn read_response(
         429 | 500..=599 => return Err(ResolutionError::Unavailable),
         _ => return Err(ResolutionError::InvalidResponse),
     }
-    if response
+    let declared = response
         .content_length()
-        .is_some_and(|size| size > limit as u64)
-    {
+        .map(|size| usize::try_from(size).unwrap_or(usize::MAX));
+    if declared.is_some_and(|size| size > limit) {
         return Err(ResolutionError::ResponseTooLarge);
     }
+    let capacity_limit = declared.unwrap_or(limit);
     let mut bytes = Vec::new();
     while let Some(chunk) = response
         .chunk()
@@ -291,6 +300,15 @@ async fn read_response(
     {
         if chunk.len() > limit - bytes.len() {
             return Err(ResolutionError::ResponseTooLarge);
+        }
+        let total = bytes.len() + chunk.len();
+        if total > bytes.capacity() {
+            let capacity = bytes
+                .capacity()
+                .saturating_mul(2)
+                .clamp(total, capacity_limit.max(total));
+            reserve(capacity)?;
+            bytes.reserve_exact(capacity - bytes.len());
         }
         bytes.extend_from_slice(&chunk);
     }
@@ -318,7 +336,7 @@ pub enum ResolutionError {
     ModelNotAllowed,
     #[error("no eligible connection")]
     NoRoute,
-    /// The gateway's own resolution or catalog capacity is exhausted.
+    /// The gateway's memory budget cannot cover another request.
     #[error("gateway at capacity")]
     Busy,
     #[error("resolution unavailable")]

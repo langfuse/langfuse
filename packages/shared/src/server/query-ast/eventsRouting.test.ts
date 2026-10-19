@@ -1,7 +1,11 @@
 import {
+  AliasNode,
+  FromNode,
+  SelectQueryNode,
   sql,
   type Expression,
   type ExpressionBuilder,
+  type KyselyPlugin,
   type SqlBool,
 } from "kysely";
 import { describe, expect, it } from "vitest";
@@ -24,6 +28,7 @@ import {
   startsWith,
   useFinal,
 } from "./extensions";
+import { finalTable } from "./nodes";
 import type { ClickHouseDatabase } from "./schema";
 
 // Raw compiler output, so these run without a `clickhouse` binary.
@@ -227,6 +232,48 @@ describe("logical events routing", () => {
         db.selectFrom("events as e").select(sql.ref<string>(ref).as("x")),
       ),
     ).toThrow(QueryCompileError);
+  });
+
+  it("gives an unaliased schema-qualified table no qualifier name", () => {
+    // `default.events_core` is named by neither `events_core` nor
+    // `default.events_core` here, so the read is rejected, not resolved.
+    expect(() =>
+      compile(
+        db
+          .selectFrom("events as e")
+          .select("e.span_id")
+          .where(
+            "e.span_id",
+            "in",
+            db
+              .withSchema("default")
+              .selectFrom("events_core")
+              .select(sql.ref<string>("events_core.input").as("x")),
+          ),
+      ),
+    ).toThrow(/Qualify by the relation's alias/);
+  });
+
+  it("rejects FINAL around the logical relation", () => {
+    // useFinal() refuses `events` (dedup: none), so FINAL is wrapped by hand;
+    // routing would otherwise swap the table and drop the FINAL silently.
+    const wrapFinal: KyselyPlugin = {
+      transformQuery(args) {
+        const node = args.node;
+        if (!SelectQueryNode.is(node) || !node.from) return node;
+        const [from] = node.from.froms;
+        if (!AliasNode.is(from)) return node;
+        return { ...node, from: FromNode.create([finalTable(from)]) };
+      },
+      async transformResult(args) {
+        return args.result;
+      },
+    };
+    expect(() =>
+      compile(
+        db.withPlugin(wrapFinal).selectFrom("events as e").select("e.span_id"),
+      ),
+    ).toThrow(/FINAL cannot wrap the logical "events" relation/);
   });
 
   it("keeps a physical events qualifier when no logical relation is in scope", () => {

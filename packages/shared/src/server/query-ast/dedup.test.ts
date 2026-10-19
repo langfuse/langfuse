@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { compileClickhouseQuery } from "./compile";
 import { getClickhouseKysely } from "./dialect";
-import { limitBy } from "./extensions";
+import { limitBy, useFinal } from "./extensions";
 import { DEDUP_SPECS } from "./schema";
 
 const projectId = "proj-1";
@@ -95,6 +95,77 @@ describe("per-table dedup lowering", () => {
       );
     } finally {
       delete DEDUP_SPECS.traces;
+    }
+  });
+
+  it("qualifies the version sort and LIMIT BY key with the FROM alias", () => {
+    DEDUP_SPECS.traces = {
+      strategy: "limitBy",
+      key: ["id"],
+      version: "event_ts",
+    };
+    try {
+      const { sql } = compile(
+        getClickhouseKysely().selectFrom("traces as t").select("t.id"),
+      );
+      expect(sql).toBe(
+        "select t.id from traces as t where t.project_id = {p1:String} order by t.event_ts desc limit 1 by t.id",
+      );
+    } finally {
+      delete DEDUP_SPECS.traces;
+    }
+  });
+
+  it("rejects a declared final strategy, which has no emitter", () => {
+    DEDUP_SPECS.traces = { strategy: "final" };
+    try {
+      expect(() =>
+        compile(getClickhouseKysely().selectFrom("traces").select("id")),
+      ).toThrow(/Dedup strategy "final" is declared on traces/);
+    } finally {
+      delete DEDUP_SPECS.traces;
+    }
+  });
+
+  it("keeps the FROM alias when it wraps an aggregate", () => {
+    DEDUP_SPECS.scores = {
+      strategy: "limitBy",
+      key: ["id"],
+      version: "event_ts",
+    };
+    try {
+      const { sql } = compile(
+        getClickhouseKysely()
+          .selectFrom("scores as s")
+          .select((eb) => eb.fn.countAll().as("n")),
+      );
+      expect(sql).toBe(
+        "select count(*) as n from (select * from scores as s where s.project_id = {p1:String} order by s.event_ts desc limit 1 by s.id) as s",
+      );
+    } finally {
+      delete DEDUP_SPECS.scores;
+    }
+  });
+
+  it("rejects FINAL on a table that declares limitBy dedup", () => {
+    // FINAL and LIMIT 1 BY both pick the latest version, and the aggregate
+    // wrap would move the FROM item into a subquery, so the pair is refused.
+    DEDUP_SPECS.scores = {
+      strategy: "limitBy",
+      key: ["id"],
+      version: "event_ts",
+    };
+    try {
+      expect(() =>
+        compile(
+          getClickhouseKysely()
+            .selectFrom("scores as s")
+            .$call(useFinal(["scores"]))
+            .select((eb) => eb.fn.countAll().as("n")),
+        ),
+      ).toThrow(/FINAL cannot be combined with the limitBy dedup/);
+    } finally {
+      delete DEDUP_SPECS.scores;
     }
   });
 
