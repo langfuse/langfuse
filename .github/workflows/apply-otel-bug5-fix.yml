@@ -1,0 +1,109 @@
+name: Apply OTEL Bug 5 fix
+
+on:
+  push:
+    branches:
+      - fix/otel-write-errors
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply Bug 5 changes
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          backfill = Path("worker/src/features/eventPropagation/handleExperimentBackfill.ts")
+          text = backfill.read_text()
+
+          old = '''/**
+           * Write enriched spans to the events_full table via the ClickhouseWriter
+           * queue (buffered; flushed by the writer's interval).
+           */
+          function writeEnrichedSpans(spans: EnrichedSpan[]): void {
+            if (spans.length === 0) {
+              return;
+            }
+
+            const clickhouseWriter = ClickhouseWriter.getInstance();
+            for (const record of convertEnrichedSpansToEventRecords(spans)) {
+              clickhouseWriter.addToQueue(TableName.EventsFull, record);
+            }
+
+            logger.info(
+              `[EXPERIMENT BACKFILL] Wrote ${spans.length} enriched spans to events_full table`,
+            );
+          }'''
+
+          new = '''/**
+           * Write enriched spans to the events_full table via the ClickhouseWriter
+           * queue and flush the queue before advancing the backfill cursor.
+           */
+          async function writeEnrichedSpans(spans: EnrichedSpan[]): Promise<void> {
+            if (spans.length === 0) {
+              return;
+            }
+
+            const clickhouseWriter = ClickhouseWriter.getInstance();
+            for (const record of convertEnrichedSpansToEventRecords(spans)) {
+              clickhouseWriter.addToQueue(TableName.EventsFull, record);
+            }
+
+            await clickhouseWriter.flushAll(true);
+            if ((clickhouseWriter.queue[TableName.EventsFull]?.length ?? 0) > 0) {
+              throw new Error(
+                '[EXPERIMENT BACKFILL] Failed to flush enriched spans to events_full',
+              );
+            }
+
+            logger.info(
+              `[EXPERIMENT BACKFILL] Wrote ${spans.length} enriched spans to events_full table`,
+            );
+          }'''
+
+          if old not in text:
+              raise SystemExit("Expected writeEnrichedSpans block not found")
+          text = text.replace(old, new, 1)
+
+          old = "      writeEnrichedSpans(allEnrichedSpans);"
+          new = "      await writeEnrichedSpans(allEnrichedSpans);"
+          if old not in text:
+              raise SystemExit("Expected writeEnrichedSpans call not found")
+          text = text.replace(old, new, 1)
+          backfill.write_text(text)
+
+          writer = Path("worker/src/services/ClickhouseWriter/index.ts")
+          text = writer.read_text()
+          old = '''  public async flushAll(fullQueue = false) {
+    const tables = this.allowedTable'''
+          new = '''  public async flushAll(fullQueue = false) {
+    if (fullQueue) {
+      while (this.activeFlushes.size > 0) {
+        await Promise.all([...this.activeFlushes]);
+      }
+    }
+
+    const tables = this.allowedTable'''
+          if old not in text:
+              raise SystemExit("Expected flushAll block not found")
+          text = text.replace(old, new, 1)
+          writer.write_text(text)
+          PY
+
+      - name: Commit changes
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm .github/workflows/apply-otel-bug5-fix.yml
+          git add worker/src/features/eventPropagation/handleExperimentBackfill.ts worker/src/services/ClickhouseWriter/index.ts .github/workflows/apply-otel-bug5-fix.yml
+          git diff --cached --quiet && exit 0
+          git commit -m "fix(worker): flush experiment backfill writes before cursor advance"
+          git push
