@@ -1,20 +1,12 @@
 import { z } from "zod";
 import { createHash } from "node:crypto";
-import {
-  ForbiddenError,
-  InvalidRequestError,
-  LangfuseNotFoundError,
-} from "@langfuse/shared";
-import {
-  getTracingReadinessSettings,
-  type Transcript,
-} from "@langfuse/shared/src/server";
+import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
+import { getTracingReadinessSettings } from "@langfuse/shared/src/server";
 import {
   topicEmbeddingConfigSchema,
   topicExecutionInputSchema,
   topicIdSchema,
   topicFacetRefSchema,
-  topicTraceIdSchema,
   topicRuleConfigSchema,
   topicTimeRangeSchema,
   topicsAutomaticProcessingSchema,
@@ -29,6 +21,7 @@ import {
   readTopicExecutionForRequest,
   readTopicExecutionSummary,
   readTopicExecutionTraceErrors,
+  getTopicExecutionCosts,
   getTopicSummaryCounts,
   listTopicExecutions,
   listTopicFacets,
@@ -40,9 +33,7 @@ import {
   getTopicRule,
   saveTopicRule,
   getTopicRun,
-  listTopicSummaries,
   readTopicMapAssignments,
-  loadTopicTranscript,
   isTopicsEnabled,
   isTopicsProjectEnabled,
   getTopicsModels,
@@ -439,16 +430,32 @@ export const topicsRouter = createTRPCRouter({
         input.timeRange,
       );
     }),
-  executions: topicsProcedure.query(async ({ input }) =>
-    Promise.all(
+  executions: topicsProcedure.query(async ({ input }) => {
+    const executions = await Promise.all(
       (await listTopicExecutions(input.projectId)).map(recoverExecutionState),
-    ),
-  ),
-  execution: topicsProcedure
-    .input(executionInput)
-    .query(({ input }) =>
-      executionWithRecovery(input.projectId, input.executionId),
-    ),
+    );
+    const costs = await getTopicExecutionCosts(
+      input.projectId,
+      executions
+        .filter((execution) => execution.input.operation === "process")
+        .map((execution) => execution.id),
+    );
+    return executions.map((execution) => ({
+      ...execution,
+      estimatedCost: costs[execution.id] ?? null,
+    }));
+  }),
+  execution: topicsProcedure.input(executionInput).query(async ({ input }) => {
+    const execution = await executionWithRecovery(
+      input.projectId,
+      input.executionId,
+    );
+    const costs = await getTopicExecutionCosts(
+      input.projectId,
+      execution.input.operation === "process" ? [execution.id] : [],
+    );
+    return { ...execution, estimatedCost: costs[execution.id] ?? null };
+  }),
   traceErrors: topicsProcedure
     .input(executionInput)
     .query(async ({ input }) => {
@@ -564,53 +571,4 @@ export const topicsRouter = createTRPCRouter({
   map: topicsProcedure
     .input(mapInput)
     .query(({ input }) => publishedTopicMap(input)),
-  inspect: topicsProcedure
-    .input(
-      projectInput.extend({
-        facetId: topicIdSchema,
-        facetVersion: topicFacetRefSchema.shape.version,
-        traceId: topicTraceIdSchema,
-        unitStartTime: z.coerce.date(),
-      }),
-    )
-    .query(async ({ input, ctx }) => {
-      if (ctx.session.user.admin !== true)
-        throw new ForbiddenError(
-          "Transcript debugging is only available to Langfuse admins.",
-        );
-      const [summary] = await listTopicSummaries(
-        input.projectId,
-        {
-          facetId: input.facetId,
-          facetVersion: input.facetVersion,
-          traceIds: [input.traceId],
-        },
-        {
-          from: input.unitStartTime,
-          to: new Date(input.unitStartTime.getTime() + 1),
-        },
-      );
-      if (
-        !summary ||
-        summary.projectId !== input.projectId ||
-        summary.facetId !== input.facetId ||
-        summary.facetVersion !== input.facetVersion ||
-        summary.traceId !== input.traceId
-      )
-        throw new LangfuseNotFoundError("Trace summary not found.");
-      let transcript: Transcript | null = null;
-      try {
-        const current = await loadTopicTranscript({
-          projectId: input.projectId,
-          traceId: summary.traceId,
-        });
-        transcript = current.transcript;
-      } catch {
-        // Stored summaries remain inspectable after source retention or deletion.
-      }
-      return {
-        model: summary.summaryModel,
-        transcript,
-      };
-    }),
 });

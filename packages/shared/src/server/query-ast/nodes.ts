@@ -107,6 +107,11 @@ export type ClickHouseSelectQueryNode = SelectQueryNode & {
   readonly limitBy?: LimitByNode;
   /** Set by `includeDeleted()`: the soft-delete pass skips this select. */
   readonly includeDeleted?: true;
+  /**
+   * Set by `softDeleteAfterLimit()`: the soft-delete pass filters this
+   * select's output instead of its relation.
+   */
+  readonly softDeleteAfterLimit?: true;
 };
 
 export function isClickHouseSelectQueryNode(

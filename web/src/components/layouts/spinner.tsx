@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 
 export function Spinner(props: { message: string }) {

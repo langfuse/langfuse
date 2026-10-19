@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import React from "react";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import {

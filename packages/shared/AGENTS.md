@@ -129,7 +129,7 @@
     project's Topics config, Topics rule or facet evaluators calls
     `invalidateTopicsProcessingActive` after it commits;
     `invalidateProjectEvalConfigCaches` already does.
-  - `loadTopicTranscript`: shared in-memory source assembly for worker and inspector.
+  - `loadTopicTranscript`: in-memory source assembly for worker inference.
     Returns the shared `Transcript | null`, capped at 10,000 serialized characters.
     Historical reuse must match `TOPICS_TRANSCRIPT_VERSION`; accepted Redis results
     retain their original version. Token counting belongs to worker model calls.
@@ -186,7 +186,10 @@
 - `@langfuse/shared/in-app-agent` via `src/in-app-agent/index.ts`:
   client-safe durable in-app-agent contracts: AG-UI messages/events/context,
   run requests/status/errors, approval events, constants, message helpers,
-  and interrupt parsing. Never re-export server code here.
+  interrupt parsing, and the questionnaire tool contract (`questionnaire.ts`:
+  args, positional answers carried on `approvalDecision` requests, result, and
+  the shared resolver web and worker both validate with). Never re-export
+  server code here.
 - In-app-agent server contracts use explicit subpaths only:
   `persistence`, `runLifecycle`, `tunables`, `eventCompaction`, `mcpPolicy`,
   `toolResults`, `toolErrors`, `systemPrompt`, and `modelProvider`. These are

@@ -32,14 +32,8 @@ import {
 } from "./provider";
 
 const organizationInput = z.object({ orgId: z.string() });
-const connectionNameSchema = z
-  .string()
-  .trim()
-  .min(1)
-  .max(200)
-  .refine((name) => !name.includes(":"), {
-    message: "Connection names cannot contain a colon.",
-  });
+/** Naming rules live in `parseGatewayConnectionName` so the dialog can show them on the field. */
+const connectionNameSchema = z.string().max(1_000);
 const paginatedOrganizationInput = organizationInput.extend({
   cursor: z.string().optional(),
   limit: z.number().int().min(1).max(100).default(50),

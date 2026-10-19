@@ -67,8 +67,10 @@ import { useHasProjectAccess } from "@/src/features/rbac";
 import { useSession } from "next-auth/react";
 import { ObservationPreview } from "./ObservationPreview";
 import type { SectionSkillsProps } from "../IOPreview/components/SectionSkills";
-import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
-import { TraceMessagesView } from "../TraceMessagesView/TraceMessagesView";
+import {
+  useInternalFeaturesEnabled,
+  useIsFeatureEnabled,
+} from "@/src/features/feature-flags";
 import { DetailAttributesTab } from "../DetailAttributesTab";
 import { buildModelParameters } from "@/src/features/traces/fns/buildModelParameters";
 import { buildObservationAttributes } from "@/src/features/traces/fns/buildObservationAttributes";
@@ -97,6 +99,10 @@ export function ConnectedObservationDetailView({
   // V4 beta mode and observations for log tab
   const { isV4: isV4Enabled } = useReadPath();
   const internalFeaturesEnabled = useInternalFeaturesEnabled();
+  const skillManagementEnabled = useIsFeatureEnabled("skillManagement", {
+    projectId,
+    enableForAdmins: false,
+  });
   const {
     observations,
     roots,
@@ -336,7 +342,7 @@ export function ConnectedObservationDetailView({
   }, [observation.latency, observation.startTime, observation.endTime]);
 
   const previewSkills = getPreviewSkills({
-    internalFeaturesEnabled,
+    skillManagementEnabled: isV4Enabled && skillManagementEnabled,
     observationType: observation.type,
     skillsAvailable: observationWithIO?.skillsAvailable,
     skillsResourceLoaded: observationWithIO?.skillsResourceLoaded,
@@ -412,7 +418,7 @@ export function ConnectedObservationDetailView({
                         onCheckedChange={handleBetaToggle}
                       />
                       <span className="text-muted-foreground text-xs">
-                        Beta
+                        Optimized
                       </span>
                     </div>
                   )}
@@ -477,13 +483,6 @@ export function ConnectedObservationDetailView({
               }
             />
 
-            {selectedTab === "messages" && (
-              <Tabs.Content value="messages" layout="fill">
-                <div className="min-h-0 flex-1 overflow-auto px-4">
-                  <TraceMessagesView />
-                </div>
-              </Tabs.Content>
-            )}
             <Tabs.Content value="preview" layout="fill">
               <ObservationPreview
                 currentView={currentView}
@@ -613,12 +612,12 @@ export function ConnectedObservationDetailView({
 }
 
 function getPreviewSkills({
-  internalFeaturesEnabled,
+  skillManagementEnabled,
   observationType,
   skillsAvailable,
   skillsResourceLoaded,
 }: PreviewSkillsInput): SectionSkillsProps["skills"] | undefined {
-  if (!internalFeaturesEnabled) return undefined;
+  if (!skillManagementEnabled) return undefined;
   if (observationType === "GENERATION") {
     return { kind: "available", items: skillsAvailable ?? [] };
   }
@@ -629,7 +628,7 @@ function getPreviewSkills({
 }
 
 type PreviewSkillsInput = {
-  internalFeaturesEnabled: boolean;
+  skillManagementEnabled: boolean;
   observationType: ObservationReturnTypeWithMetadata["type"];
   skillsAvailable:
     | ObservationReturnTypeWithMetadata["skillsAvailable"]

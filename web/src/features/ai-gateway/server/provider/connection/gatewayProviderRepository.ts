@@ -82,6 +82,26 @@ export class GatewayProviderRepository {
     return connection ? toSafeConnection(connection) : null;
   }
 
+  async hasConnectionNamedIgnoringCase(params: {
+    organizationId: string;
+    name: string;
+    excludeId?: string;
+  }) {
+    /** Postgres runs insensitive `equals` as an unescaped `ILIKE`, so `_` matches any character. */
+    const candidates = await this.prisma.gatewayAiConnection.findMany({
+      where: {
+        organizationId: params.organizationId,
+        name: { equals: params.name, mode: "insensitive" },
+        ...(params.excludeId ? { id: { not: params.excludeId } } : {}),
+      },
+      select: { name: true },
+    });
+    const lowerName = params.name.toLowerCase();
+    return candidates.some(
+      (candidate) => candidate.name.toLowerCase() === lowerName,
+    );
+  }
+
   async createConnection(params: {
     organizationId: string;
     name: string;

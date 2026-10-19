@@ -16,10 +16,8 @@ import useSessionStorage from "@/src/components/useSessionStorage";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { History, PanelRightOpen } from "lucide-react";
 import { useState } from "react";
-import {
-  RouteParamsPendingFallback,
-  useReadyRouteParams,
-} from "@/src/hooks/useReadyRouteParams";
+import { RouteParamsPendingFallback } from "@/src/components/RouteParamsPendingFallback/RouteParamsPendingFallback";
+import { useReadyRouteParams } from "@/src/hooks/useReadyRouteParams";
 
 export default function DatasetItemPage() {
   const route = useReadyRouteParams(["projectId", "datasetId", "itemId"]);

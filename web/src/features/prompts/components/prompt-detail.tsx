@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 import Link from "next/link";
 import { useRouter } from "next/router";
 import {
@@ -27,7 +27,7 @@ import {
   PromptType,
 } from "@langfuse/shared";
 import { getPromptTabs, PROMPT_TABS } from "@/src/features/navigation";
-import { PromptHistoryNode } from "./prompt-history";
+import { PromptHistoryNode } from "./PromptHistoryNode";
 import { JumpToPlaygroundDropdownMenuController } from "@/src/features/playground";
 import { ChatMlArraySchema } from "@/src/components/schemas/ChatMlSchema";
 import { ObservationsTable as LegacyGenerations } from "@/src/features/tracing-tables";
@@ -55,7 +55,7 @@ import {
 import { CreateExperimentsForm } from "@/src/features/experiments";
 import { useMemo, useState } from "react";
 import { showSuccessToast } from "@/src/features/notifications";
-import { DuplicatePromptButton } from "@/src/features/prompts/components/duplicate-prompt";
+import { DuplicatePromptButton } from "@/src/features/prompts/components/DuplicatePromptButton";
 import Page from "@/src/components/layouts/page";
 import {
   DropdownMenu,
@@ -63,7 +63,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/src/components/ui/dropdown-menu";
-import { DeletePromptVersion } from "@/src/features/prompts/components/delete-prompt-version";
+import { DeletePromptVersion } from "@/src/features/prompts/components/DeletePromptVersion";
 import { TagPromptDetailsPopover } from "@/src/features/tag";
 import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
 import {

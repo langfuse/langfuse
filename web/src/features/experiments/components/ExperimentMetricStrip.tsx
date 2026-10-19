@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { ScoreTag } from "@/src/components/score-tag";
+import { ScoreTag } from "@/src/components/ScoreTag";
 import { WidgetContent } from "@/src/features/widgets";
 import { type QueryType } from "@langfuse/shared/query";
 import { type MetricOption } from "@/src/features/experiments/types/charts";

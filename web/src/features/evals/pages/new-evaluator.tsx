@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import Page from "@/src/components/layouts/page";
 import {
   BreadcrumbSeparator,

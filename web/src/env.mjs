@@ -412,8 +412,8 @@ export const env = createEnv({
 
     API_AUTH_MIGRATION: z
       .enum(["legacy", "shadow", "enforce"])
-      .default("legacy"),
-    API_KEY_PROJECT_ROLES_ENABLE: z.enum(["true", "false"]).default("false"),
+      .default("enforce"),
+    API_KEY_PROJECT_ROLES_ENABLE: z.enum(["true", "false"]).default("true"),
     API_KEY_ORG_ROLES_ENABLE: z.enum(["true", "false"]).default("false"),
 
     // Multimodal media upload to S3
@@ -686,6 +686,12 @@ export const env = createEnv({
       .int()
       .nonnegative()
       .default(0),
+
+    // Kill switch for staging audit events for the ClickHouse audit_logs table
+    // on Langfuse Cloud. The Postgres audit_logs row is written either way.
+    LANGFUSE_AUDIT_LOG_STAGING_ENABLED: z
+      .enum(["true", "false"])
+      .default("true"),
 
     // Background-migration env gates. Mirror worker/src/env.ts (names, defaults)
     // so the background-migrations status endpoint can tell dormant, env-gated
@@ -1265,6 +1271,8 @@ export const env = createEnv({
     LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT:
       process.env.LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT,
     LANGFUSE_TRUSTED_PROXY_COUNT: process.env.LANGFUSE_TRUSTED_PROXY_COUNT,
+    LANGFUSE_AUDIT_LOG_STAGING_ENABLED:
+      process.env.LANGFUSE_AUDIT_LOG_STAGING_ENABLED,
     LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL:
       process.env.LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL,
     LANGFUSE_BACKGROUND_MIGRATION_V4_DROP_PID_TID_SORTING_TABLES:

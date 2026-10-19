@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { OverflowCountBadge } from "@/src/components/OverflowCountBadge";
 
 import {
@@ -7,7 +8,7 @@ import {
 } from "@/src/components/ui/popover";
 import { type LastUserScore, type ScoreDomain } from "@langfuse/shared";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
-import { scoreLevelFromScore } from "@/src/components/score-tag";
+import { scoreLevelFromScore } from "@/src/components/ScoreTag";
 import { ScoreBadge } from "@/src/components/ScoreBadge/ScoreBadge";
 import { ScoreValue } from "@/src/components/ScoreValue";
 

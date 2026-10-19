@@ -1,5 +1,6 @@
 use super::{ResolutionError, valid_token};
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+use secrecy::{ExposeSecret, SecretString};
 use serde::{
     Deserialize, Deserializer, Serialize,
     de::{DeserializeOwned, IntoDeserializer},
@@ -22,6 +23,13 @@ impl ApiFormat {
             Self::OpenAiResponses => "openai.responses",
             Self::OpenAiChatCompletions => "openai.chat-completions",
             Self::AnthropicMessages => "anthropic.messages",
+        }
+    }
+
+    pub fn provider(self) -> Provider {
+        match self {
+            Self::OpenAiResponses | Self::OpenAiChatCompletions => Provider::OpenAi,
+            Self::AnthropicMessages => Provider::Anthropic,
         }
     }
 }
@@ -83,6 +91,8 @@ pub enum MetadataValue {
     Bool(bool),
 }
 
+/// A borrowed, exposed view of the stored provider secret, for building the
+/// upstream header. It deliberately implements neither `Debug` nor `Display`.
 #[derive(Clone, Copy)]
 pub enum ProviderCredential<'a> {
     /// `Authorization: Bearer <token>`
@@ -115,7 +125,7 @@ enum XApiKeyType {
 struct BearerAuth {
     #[serde(rename = "type", deserialize_with = "string_enum")]
     _token_type: BearerType,
-    token: String,
+    token: SecretString,
 }
 
 #[derive(Deserialize)]
@@ -125,7 +135,7 @@ struct XApiKeyAuth {
     _kind: XApiKeyType,
     #[serde(rename = "header", deserialize_with = "string_enum")]
     _header: XApiKeyType,
-    value: String,
+    value: SecretString,
 }
 
 #[derive(Deserialize)]
@@ -138,8 +148,8 @@ enum Auth {
 impl Auth {
     fn credential(&self) -> ProviderCredential<'_> {
         match self {
-            Self::Bearer(auth) => ProviderCredential::Bearer(&auth.token),
-            Self::XApiKey(auth) => ProviderCredential::XApiKey(&auth.value),
+            Self::Bearer(auth) => ProviderCredential::Bearer(auth.token.expose_secret()),
+            Self::XApiKey(auth) => ProviderCredential::XApiKey(auth.value.expose_secret()),
         }
     }
 }
@@ -185,21 +195,51 @@ impl ProviderConnection {
     }
 }
 
+/// A Langfuse organization ID, typed apart from [`ProjectId`] so the tenant pair
+/// cannot be swapped.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize)]
+#[serde(transparent)]
+pub struct OrganizationId(String);
+
+impl OrganizationId {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// A Langfuse project ID; telemetry batches and ingestion grants are per project.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize)]
+#[serde(transparent)]
+pub struct ProjectId(String);
+
+impl ProjectId {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+#[cfg(test)]
+impl From<&str> for ProjectId {
+    fn from(id: &str) -> Self {
+        Self(id.to_owned())
+    }
+}
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RequestAttribution {
-    organization_id: String,
-    project_id: String,
+    organization_id: OrganizationId,
+    project_id: ProjectId,
     key_id: String,
     key_metadata: BTreeMap<String, MetadataValue>,
     provider_connection_id: String,
 }
 
 impl RequestAttribution {
-    pub fn organization_id(&self) -> &str {
+    pub fn organization_id(&self) -> &OrganizationId {
         &self.organization_id
     }
-    pub fn project_id(&self) -> &str {
+    pub fn project_id(&self) -> &ProjectId {
         &self.project_id
     }
     pub fn key_id(&self) -> &str {
@@ -216,14 +256,14 @@ impl RequestAttribution {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct IngestionGrant {
-    access_token: String,
+    access_token: SecretString,
     #[serde(rename = "token_type", deserialize_with = "string_enum")]
     _token_type: BearerType,
     expires_at: u64,
 }
 
 impl IngestionGrant {
-    pub fn access_token(&self) -> &str {
+    pub fn access_token(&self) -> &SecretString {
         &self.access_token
     }
     pub fn expires_at(&self) -> u64 {
@@ -276,8 +316,8 @@ impl fmt::Debug for ResolvedRequestContext {
 
 #[derive(Deserialize)]
 struct IngestionClaims {
-    organization_id: String,
-    project_id: String,
+    organization_id: OrganizationId,
+    project_id: ProjectId,
 }
 
 fn ingestion_claims_match(token: &str, attribution: &RequestAttribution) -> bool {
@@ -316,15 +356,15 @@ pub(super) fn decode(
         || connection.base_url != provider.official_origin()
         || !provider.accepts(connection.credential())
         || !valid_token(connection.credential().secret())
-        || !valid_token(&response.ingestion.access_token)
-        || !ingestion_claims_match(&response.ingestion.access_token, attribution)
+        || !valid_token(response.ingestion.access_token.expose_secret())
+        || !ingestion_claims_match(response.ingestion.access_token.expose_secret(), attribution)
         || response.ingestion.expires_at <= now
         || [
-            &connection.id,
-            &attribution.organization_id,
-            &attribution.project_id,
-            &attribution.key_id,
-            &attribution.provider_connection_id,
+            connection.id.as_str(),
+            attribution.organization_id.as_str(),
+            attribution.project_id.as_str(),
+            attribution.key_id.as_str(),
+            attribution.provider_connection_id.as_str(),
         ]
         .iter()
         .any(|value| value.trim().is_empty())

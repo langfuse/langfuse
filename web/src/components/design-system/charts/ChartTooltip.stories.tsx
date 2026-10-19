@@ -1,3 +1,4 @@
+/* eslint-disable @repo/storybook-play-no-implementation-detail-assertions */
 import { type ComponentProps } from "react";
 import preview from "../../../../.storybook/preview";
 import { expect, spyOn, userEvent, within } from "storybook/test";

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { PopoverContent } from "@/src/components/ui/popover";
 import { type ComponentPropsWithoutRef, type ReactNode } from "react";
 

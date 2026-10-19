@@ -1,3 +1,4 @@
+/* eslint-disable @repo/storybook-play-no-implementation-detail-assertions */
 import React from "react";
 import { AlertTriangle, Info, X } from "lucide-react";
 import { expect, fn, userEvent, within } from "storybook/test";

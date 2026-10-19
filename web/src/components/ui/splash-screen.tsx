@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-margin-on-root-elements */
+/* eslint-disable @repo/no-margin-on-root-elements, @repo/component-file-structure */
 import React, { useState } from "react";
 import { cn } from "@/src/utils/tailwind";
 import Image from "next/image";

@@ -170,7 +170,10 @@ const serializedJson = z
 // `before`, `after` and `params` are already escaped by JSON.stringify.
 const toJsonbSafeStrings = (value: unknown): unknown => {
   if (typeof value === "string") {
-    return value.replaceAll("\u0000", "\uFFFD").toWellFormed();
+    // not a "\uFFFD" literal: utf8 bundlers inline it as a raw replacement char
+    return value
+      .replaceAll("\u0000", String.fromCharCode(0xfffd))
+      .toWellFormed();
   }
   if (Array.isArray(value)) return value.map(toJsonbSafeStrings);
   if (typeof value === "object" && value !== null) {

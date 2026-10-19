@@ -86,6 +86,124 @@ async function convertOtelSpanToIngestionEvent(
   ])) as unknown as TestIngestionEvent[];
 }
 
+describe("OTel user identity", () => {
+  const attributes = (values: Record<string, string>) =>
+    Object.entries(values).map(([key, stringValue]) => ({
+      key,
+      value: { stringValue },
+    }));
+
+  const batch = (
+    resource: Record<string, string>,
+    spans: Record<string, string>[],
+  ): ResourceSpan => ({
+    resource: { attributes: attributes(resource) },
+    scopeSpans: [
+      {
+        scope: { name: "test-scope", version: "1.0.0" },
+        spans: spans.map((span, index) => ({
+          traceId: Buffer.from("0123456789abcdef0123456789abcdef", "hex"),
+          spanId: Buffer.from(
+            index === 0 ? "0123456789abcdef" : "1111111111111111",
+            "hex",
+          ),
+          ...(index === 0
+            ? {}
+            : { parentSpanId: Buffer.from("0123456789abcdef", "hex") }),
+          name: index === 0 ? "invoke_agent" : "chat model",
+          kind: 1,
+          startTimeUnixNano: "1752384000000000000",
+          endTimeUnixNano: "1752384001000000000",
+          attributes: attributes(span),
+          status: {},
+        })),
+      },
+    ],
+  });
+
+  const cases: {
+    name: string;
+    span: Record<string, string>;
+    resource: Record<string, string>;
+    expected: string | undefined;
+  }[] = [
+    {
+      name: "span IDs take precedence over resource IDs and usernames",
+      span: { "user.id": "span-id", "user.name": "span-name" },
+      resource: { "langfuse.user.id": "resource-id" },
+      expected: "span-id",
+    },
+    {
+      name: "existing metadata IDs take precedence over resource IDs",
+      span: { "ai.telemetry.metadata.userId": "compat-id" },
+      resource: { "user.id": "resource-id" },
+      expected: "compat-id",
+    },
+    {
+      name: "resource IDs take precedence over span usernames",
+      span: { "user.name": "github-login" },
+      resource: { "user.id": "employee-id" },
+      expected: "employee-id",
+    },
+    {
+      name: "resource Langfuse IDs take precedence over resource OTel IDs",
+      span: { "user.name": "github-login" },
+      resource: { "langfuse.user.id": "employee-id", "user.id": "otel-id" },
+      expected: "employee-id",
+    },
+    {
+      name: "span usernames take precedence over resource usernames",
+      span: { "user.name": "github-login" },
+      resource: { "user.name": "resource-name" },
+      expected: "github-login",
+    },
+    {
+      name: "resource usernames are a final fallback",
+      span: { "user.name": "" },
+      resource: { "user.name": "resource-name" },
+      expected: "resource-name",
+    },
+    {
+      name: "OS accounts are not application users",
+      span: {},
+      resource: { "process.user.name": "root" },
+      expected: undefined,
+    },
+  ];
+
+  it.each(cases)("$name", async ({ span, resource, expected }) => {
+    const resourceSpan = batch(resource, [span]);
+    const observations = createTestOtelProcessor().processToEvent([
+      resourceSpan,
+    ]);
+    expect(observations).toHaveLength(1);
+    expect(observations[0].userId).toBe(expected);
+
+    const events = await convertOtelSpanToIngestionEvent(
+      resourceSpan,
+      new Set(),
+    );
+    expect(
+      events.find((event) => event.type === "trace-create")?.body.userId,
+    ).toBe(expected);
+  });
+
+  it("preserves explicit users on legacy child trace updates", async () => {
+    const events = await convertOtelSpanToIngestionEvent(
+      batch({ "user.id": "resource-default", "process.user.name": "node" }, [
+        { "user.id": "customer-id" },
+        { "user.name": "child-name", "langfuse.trace.name": "updated" },
+      ]),
+      new Set(),
+    );
+    expect(
+      events
+        .filter((event) => event.type === "trace-create")
+        .map((event) => event.body.userId),
+    ).toEqual(["customer-id", undefined]);
+  });
+});
+
 describe("OTel Resource Span Mapping", () => {
   describe("Langfuse OTEL SDK spans", () => {
     const publicKey = "pk-lf-1234567890";
@@ -1542,6 +1660,64 @@ describe("OTel Resource Span Mapping", () => {
         },
       ],
     });
+
+    it.each([
+      [
+        "AI SDK 6 ai.response.msToFirstChunk (milliseconds)",
+        "ai.response.msToFirstChunk",
+        { doubleValue: 250.4 },
+      ],
+      [
+        "AI SDK 7 gen_ai.client.operation.time_to_first_chunk (seconds)",
+        "gen_ai.client.operation.time_to_first_chunk",
+        { doubleValue: 0.2505 },
+      ],
+    ])(
+      "should derive completionStartTime from %s",
+      async (_name, otelAttributeKey, otelAttributeValue) => {
+        const resourceSpan = {
+          scopeSpans: [
+            {
+              scope: { name: "ai" },
+              spans: [
+                {
+                  ...defaultSpanProps,
+                  name: "ai.streamText.doStream",
+                  attributes: [
+                    {
+                      key: "ai.operationId",
+                      value: { stringValue: "ai.streamText.doStream" },
+                    },
+                    { key: "ai.model.id", value: { stringValue: "gpt-4o" } },
+                    { key: otelAttributeKey, value: otelAttributeValue },
+                  ],
+                },
+              ],
+            },
+          ],
+        } as unknown as ResourceSpan;
+
+        const ttftMs = (startTime?: string, completionStartTime?: string) =>
+          new Date(completionStartTime!).getTime() -
+          new Date(startTime!).getTime();
+
+        const ingestionEvents = await convertOtelSpanToIngestionEvent(
+          resourceSpan,
+          new Set(),
+        );
+        const generation = ingestionEvents.find(
+          (event) => event.type === "generation-create",
+        )?.body as { startTime?: string; completionStartTime?: string };
+        expect(
+          ttftMs(generation?.startTime, generation?.completionStartTime),
+        ).toBe(251);
+
+        const [event] = createTestOtelProcessor().processToEvent([
+          resourceSpan,
+        ]);
+        expect(ttftMs(event.startTimeISO, event.completionStartTime)).toBe(251);
+      },
+    );
 
     it("should interpret an empty buffer as an unset parentSpanId", async () => {
       // https://github.com/langchain4j/langchain4j/issues/2328#issuecomment-2686129552
