@@ -105,10 +105,9 @@ overrides:
   browserslist: 4.28.7
   postcss: 8.5.25
   esbuild: "0.28.1"
-  # @ai-sdk/provider-utils depends on undici ^6.28.0 and resolves to the
-  # vulnerable 6.28.0; 6.28.1 is the last release of the 6.x line.
-  "undici@6": 6.28.1
-  "undici@7": 7.29.1
+  # Keep both installed majors on their security-patched releases.
+  "undici@6": 6.29.1
+  "undici@7": 7.30.1
   zod: 4.3.6
   nanoid: 3.3.18
   katex: ^0.16.21
@@ -193,6 +192,9 @@ publicHoistPattern:
   - "*prisma*"
   - "@aws-sdk/client-s3"
 minimumReleaseAgeExclude:
+  # Undici security fixes; eligible after 2026-10-20 14:20 UTC.
+  - undici@6.29.1
+  - undici@7.30.1
   # qs security fix; eligible after 2026-10-19 22:06 UTC.
   - qs@6.16.1
   # AI SDK Decisions API (`experimental_decide`); eligible after 2026-10-12 01:47 UTC.
