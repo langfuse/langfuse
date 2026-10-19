@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, ExternalLink, MoreHorizontal } from "lucide-react";
+import { Copy, ExternalLink, MoreHorizontal } from "@langfuse/icons";
 
 import {
   DropdownMenu,
@@ -112,7 +112,7 @@ export function InAppAgentInternalSessionMenu({
           aria-label="Internal session actions"
           {...getTriggerProps()}
         >
-          <MoreHorizontal className="icon-base text-icon-foreground" />
+          <MoreHorizontal size="base" color="default" />
         </Button>
       )}
     </DropdownMenu>

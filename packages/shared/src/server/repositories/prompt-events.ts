@@ -4,7 +4,7 @@ import { getClickhouseKysely } from "../query-ast/dialect";
 import { limitBy, softDeleteAfterLimit } from "../query-ast/extensions";
 import type { ClickHouseDatabase } from "../query-ast/schema";
 
-type EventsAsE = ClickHouseDatabase & { e: ClickHouseDatabase["events_core"] };
+type EventsAsE = ClickHouseDatabase & { e: ClickHouseDatabase["events"] };
 
 /**
  * Latest version of each generation linked to one of `promptIds`, optionally
@@ -19,7 +19,7 @@ export const promptGenerationEvents = <
   timeWindow: { fromTimestamp?: Date; toTimestamp?: Date } = {},
 ) =>
   getClickhouseKysely()
-    .selectFrom("events_core as e")
+    .selectFrom("events as e")
     .$call(softDeleteAfterLimit())
     .select(columns)
     .where("e.type", "=", "GENERATION")

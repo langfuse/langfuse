@@ -13,7 +13,7 @@ import { SessionsTable } from "@/src/features/sessions";
 import { cn } from "@/src/utils/tailwind";
 import { Badge } from "@/src/components/ui/badge";
 import { ActionButton } from "@/src/components/ActionButton";
-import { LayoutDashboard } from "lucide-react";
+import { LayoutDashboard } from "@langfuse/icons";
 import Page from "@/src/components/layouts/page";
 import { useReadPath } from "@/src/features/events";
 import { ObservationsEventsTable } from "@/src/features/events/components";
@@ -98,9 +98,7 @@ function UserDetailView({
             <ActionButton
               href={`/project/${projectId}?filter=user%3Bstring%3B%3B%3D%3B${userId}`} // dashboard filter serialization
               variant="secondary"
-              icon={
-                <LayoutDashboard className="icon-base text-icon-foreground" />
-              }
+              icon={<LayoutDashboard size="base" color="default" />}
             >
               Dashboard
             </ActionButton>

@@ -9,7 +9,7 @@ import {
   type TransitionEvent as ReactTransitionEvent,
 } from "react";
 import { useStore } from "zustand";
-import { LocateFixed, Maximize2, Minus, Plus, X } from "lucide-react";
+import { LocateFixed, Maximize2, Minus, Plus, X } from "@langfuse/icons";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { useElementSize } from "@/src/hooks/useElementSize";

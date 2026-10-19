@@ -1,4 +1,4 @@
-import { LifeBuoy } from "lucide-react";
+import { LifeBuoy } from "@langfuse/icons";
 import { SidebarMenuButton, useSidebar } from "@/src/components/ui/sidebar";
 import { useSupportDrawer } from "@/src/features/support-chat";
 import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
@@ -24,7 +24,7 @@ export const SupportButton = () => {
         }, 1);
       }}
     >
-      <LifeBuoy className="icon-base" />
+      <LifeBuoy size="base" />
       Support
     </SidebarMenuButton>
   );

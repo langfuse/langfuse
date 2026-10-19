@@ -1,4 +1,4 @@
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "@langfuse/icons";
 import Link, { type LinkProps } from "next/link";
 
 import { Badge } from "@/src/components/design-system/Badge/Badge";

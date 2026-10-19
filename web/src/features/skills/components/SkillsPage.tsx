@@ -8,7 +8,7 @@ import {
   Plus,
   Terminal,
   Trash,
-} from "lucide-react";
+} from "@langfuse/icons";
 import {
   NumberParam,
   ObjectParam,
@@ -469,14 +469,14 @@ function NewSkillButton({
   if (!canCreate) {
     return (
       <Button disabled title="You do not have write access">
-        <Plus className="icon-base mr-1.5" /> New skill
+        <Plus size="base" __rawClassName="mr-1.5" /> New skill
       </Button>
     );
   }
   return (
     <Button asChild>
       <Link href={href} onClick={onOpen}>
-        <Plus className="icon-base mr-1.5" /> New skill
+        <Plus size="base" __rawClassName="mr-1.5" /> New skill
       </Link>
     </Button>
   );

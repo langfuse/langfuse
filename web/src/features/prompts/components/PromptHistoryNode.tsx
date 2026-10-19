@@ -10,7 +10,7 @@ import { toPromptLabelListItems } from "@/src/features/prompts/utils";
 import { CommandItem } from "@/src/components/ui/command";
 import { DialogController } from "@/src/components/ui/dialog";
 import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
-import { FileDiffIcon } from "lucide-react";
+import { FileDiffIcon } from "@langfuse/icons";
 
 const PromptHistoryTraceNode = (props: {
   index: number;

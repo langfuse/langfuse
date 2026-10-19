@@ -68,7 +68,13 @@ import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { showErrorToast } from "@/src/features/notifications";
 import { type FilterState } from "@langfuse/shared";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
-import { Plus, X, AlertCircle, Sparkles } from "lucide-react";
+import {
+  Plus,
+  X,
+  AlertCircle,
+  Sparkles,
+  type IconComponent,
+} from "@langfuse/icons";
 import { dashboardWidgetChartTypeIcons } from "@/src/features/widgets/chart-library/chartTypeIcons";
 import {
   Popover,
@@ -120,7 +126,7 @@ type ChartType = {
   group: "time-series" | "total-value";
   name: string;
   value: DashboardWidgetChartType;
-  icon: React.ElementType;
+  icon: IconComponent;
 };
 
 // chartTypes drives the chart-type SelectGroup rendering (group/name/value/
@@ -912,7 +918,11 @@ export function WidgetForm({
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button variant="outline" size="sm">
-                        <Sparkles className="icon-base text-icon-foreground mr-2" />
+                        <Sparkles
+                          size="base"
+                          color="default"
+                          __rawClassName="mr-2"
+                        />
                         Presets
                       </Button>
                     </PopoverTrigger>
@@ -925,7 +935,7 @@ export function WidgetForm({
                               variant="ghost"
                               onClick={() => applyPreset(preset)}
                             >
-                              <preset.icon className="icon-base mr-2" />
+                              <preset.icon size="base" __rawClassName="mr-2" />
                               {preset.label}
                             </Button>
                           </PopoverClose>
@@ -1439,7 +1449,7 @@ function PivotMetricsField({
                   onClick={() => removeSlot(index)}
                   className="text-muted-foreground hover:text-destructive h-6 w-6 p-0"
                 >
-                  <X className="icon-base" />
+                  <X size="base" />
                 </Button>
               )}
             </div>
@@ -1529,7 +1539,7 @@ function PivotMetricsField({
             onClick={addSlot}
             className="w-full"
           >
-            <Plus className="icon-base text-icon-foreground mr-1" />
+            <Plus size="base" color="default" __rawClassName="mr-1" />
             Add Metric {metrics.length + 1}
           </Button>
         )}
@@ -1889,8 +1899,8 @@ function ChartTypeSelect({
               .filter((item) => item.group === "time-series")
               .map((chart) => (
                 <SelectItem key={chart.value} value={chart.value}>
-                  <div className="flex items-center">
-                    {React.createElement(chart.icon, { className: "mr-2 w-4" })}
+                  <div className="flex items-center gap-2">
+                    <chart.icon size="base" />
                     <span>{chart.name}</span>
                   </div>
                 </SelectItem>
@@ -1908,8 +1918,8 @@ function ChartTypeSelect({
                     chart.value === "HISTOGRAM" && !measureSupportsHistogram
                   }
                 >
-                  <div className="flex items-center">
-                    {React.createElement(chart.icon, { className: "mr-2 w-4" })}
+                  <div className="flex items-center gap-2">
+                    <chart.icon size="base" />
                     <span>{chart.name}</span>
                   </div>
                 </SelectItem>

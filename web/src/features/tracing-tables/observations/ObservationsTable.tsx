@@ -85,7 +85,7 @@ import {
   BreakdownTooltip,
   calculateAggregatedUsage,
 } from "@/src/features/traces";
-import { InfoIcon } from "lucide-react";
+import { InfoIcon } from "@langfuse/icons";
 import { ProvidedModelNameCell } from "@/src/features/models";
 import { createTagTableColumn } from "@/src/components/design-system/table/columns/createTagTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
@@ -913,7 +913,7 @@ export default function ObservationsTable({
           >
             <div className="flex items-center gap-1">
               <span>{usdFormatter(value)}</span>
-              <InfoIcon className="icon-sm" />
+              <InfoIcon size="sm" />
             </div>
           </BreakdownTooltip>
         );

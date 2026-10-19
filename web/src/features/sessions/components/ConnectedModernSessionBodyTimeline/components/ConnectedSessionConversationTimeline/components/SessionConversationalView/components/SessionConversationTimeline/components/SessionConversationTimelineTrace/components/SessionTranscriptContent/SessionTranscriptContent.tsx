@@ -6,7 +6,7 @@ import { type TranscriptMessageGroup } from "@/src/features/sessions/components/
 import { getSessionTranscriptRows } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/getSessionTranscriptRows";
 import { getSessionTranscriptThreads } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/getSessionTranscriptThreads";
 import { SessionTimelineToolRow } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTranscriptContent/components/SessionTimelineToolRow/SessionTimelineToolRow";
-import { Wrench } from "lucide-react";
+import { Wrench } from "@langfuse/icons";
 import { getSessionToolOutputPreview } from "./components/SessionTimelineToolRow/getSessionToolOutputPreview";
 import { type NormalizedMessage } from "@langfuse/shared/src/utils/normalized-io";
 import { type SessionTraceTranscriptState } from "@/src/features/sessions/hooks/useSessionTraceTranscripts";
@@ -297,7 +297,7 @@ function SessionTranscriptToolGroup({
       labelTitle={title}
       showHoverDivider={false}
       labelActionName={`${isOpen ? "Hide" : "Show"} tools: ${title}`}
-      icon={<Wrench className="icon-base text-observation-tool shrink-0" />}
+      icon={<Wrench size="base" __rawClassName="text-observation-tool" />}
       isExpanded={isOpen}
       onExpandedChange={(isExpanded) =>
         setExpansion({

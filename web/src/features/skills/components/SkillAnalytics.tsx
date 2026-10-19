@@ -1,4 +1,4 @@
-import { RefreshCw } from "lucide-react";
+import { RefreshCw } from "@langfuse/icons";
 import {
   Table,
   type AsyncTableData,

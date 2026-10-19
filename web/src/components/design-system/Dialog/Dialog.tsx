@@ -2,7 +2,7 @@
 
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { cva, type VariantProps } from "class-variance-authority";
-import { X, type LucideIcon } from "lucide-react";
+import { X, type IconComponent } from "@langfuse/icons";
 import * as React from "react";
 
 import { Button } from "@/src/components/design-system/Button/Button";
@@ -32,7 +32,7 @@ const dialogContentVariants = cva(
 type DialogAction = {
   disabled?: boolean;
   form?: string;
-  icon?: LucideIcon;
+  icon?: IconComponent;
   label: string;
   loading?: boolean;
   onClick?: React.MouseEventHandler<HTMLButtonElement>;
@@ -133,7 +133,7 @@ function DialogRoot({
                 className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground hover:bg-accent z-20 -mt-2 -mr-2 inline-flex size-8 shrink-0 items-center justify-center rounded-md opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none"
                 tabIndex={-1}
               >
-                <X className="icon-base" />
+                <X size="base" />
                 <span className="sr-only">Close</span>
               </DialogPrimitive.Close>
             </div>

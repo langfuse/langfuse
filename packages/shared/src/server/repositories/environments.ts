@@ -41,7 +41,7 @@ export const getEnvironmentsForProject = async (
               ),
           )
       : db
-          .selectFrom("events_core")
+          .selectFrom("events")
           .select("environment")
           .distinct()
           .$if(fromTimestamp != null, (qb) =>

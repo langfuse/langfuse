@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown } from "@langfuse/icons";
 
 import { cn } from "@/src/utils/tailwind";
 
@@ -61,8 +61,10 @@ export function Stepper({
           onClick={toggle}
         >
           <ChevronDown
-            className={cn(
-              "text-foreground-tertiary icon-base shrink-0 translate-y-px transition-transform",
+            size="base"
+            color="tertiary"
+            __rawClassName={cn(
+              "translate-y-px transition-transform",
               !expanded && "-rotate-90",
             )}
           />

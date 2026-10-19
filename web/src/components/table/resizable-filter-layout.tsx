@@ -8,7 +8,7 @@ import {
   cloneElement,
   isValidElement,
 } from "react";
-import { X } from "lucide-react";
+import { X } from "@langfuse/icons";
 import { ResizableSplitLayout } from "@/src/components/ui/resizable-split-layout";
 import { Sheet, SheetContent, SheetTitle } from "@/src/components/ui/sheet";
 import { Button } from "@/src/components/ui/button";
@@ -207,7 +207,7 @@ function FilterPanels({
                         emitMobileClose("header");
                       }}
                     >
-                      <X className="icon-base text-icon-foreground" />
+                      <X size="base" color="default" />
                     </Button>
                   </div>
                   {mobileSearch && (

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { deepParseJsonIterative } from "@langfuse/shared";
-import { ChevronDown, TriangleAlert } from "lucide-react";
+import { ChevronDown, TriangleAlert } from "@langfuse/icons";
 
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { extractVariableMappingValue } from "@/src/features/evals/v2/fns/variableMapping/extractVariableMappingValue";
@@ -74,7 +74,7 @@ export function DecisionModelStatePreview({
                 tooLarge && "text-dark-yellow flex items-center gap-1",
               )}
             >
-              {tooLarge ? <TriangleAlert className="icon-base" /> : null}
+              {tooLarge ? <TriangleAlert size="base" /> : null}
               {Object.keys(statePreview).length} field
               {Object.keys(statePreview).length === 1 ? "" : "s"} ·{" "}
               {stateSize.toLocaleString()} chars
@@ -87,8 +87,10 @@ export function DecisionModelStatePreview({
           )}
         </span>
         <ChevronDown
-          className={cn(
-            "text-foreground-tertiary icon-base shrink-0 transition-transform",
+          size="base"
+          color="tertiary"
+          __rawClassName={cn(
+            "transition-transform",
             open ? "rotate-180" : "rotate-0",
           )}
         />

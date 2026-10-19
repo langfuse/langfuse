@@ -6,7 +6,7 @@ import { DialogTrigger } from "@/src/components/ui/dialog";
 import { CreateDatasetDialogController } from "@/src/features/datasets/components/CreateDatasetDialogController";
 import { api } from "@/src/utils/api";
 import { DatasetsOnboarding } from "@/src/components/onboarding/DatasetsOnboarding";
-import { LockIcon, PlusIcon } from "lucide-react";
+import { LockIcon, PlusIcon } from "@langfuse/icons";
 import { useQueryParam, StringParam } from "use-query-params";
 
 export default function DatasetsPage() {

@@ -1,6 +1,6 @@
 import { useId } from "react";
 import { DecisionModelQuestionType } from "@langfuse/shared";
-import { Trash2 } from "lucide-react";
+import { Trash2 } from "@langfuse/icons";
 
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
@@ -112,7 +112,8 @@ export function DecisionModelQuestionCard({
       header={
         <span className="grid min-w-0 grid-cols-[auto_auto_minmax(0,1fr)_auto] items-baseline gap-x-1">
           <copy.icon
-            className="icon-base shrink-0 self-center"
+            size="base"
+            __rawClassName="self-center"
             aria-label={copy.label}
           />
           <Badge
@@ -153,7 +154,7 @@ export function DecisionModelQuestionCard({
               onRemove ? "Remove question" : "At least one question is required"
             }
           >
-            <Trash2 className="text-icon-foreground icon-sm" />
+            <Trash2 size="sm" color="default" />
           </Button>
         </span>
       }

@@ -40,10 +40,12 @@ import {
   embedTopicSummaries,
   nameTopicGroup as namePreparedTopicGroup,
   prepareTopicNamingGroup,
-  summarizeTopicTrace,
   summarizeTopicTraceFacets,
 } from "./models";
-import { topicProcessingConfigSchema } from "@langfuse/shared/topics";
+import {
+  topicProcessingConfigSchema,
+  type TopicProcessingConfig,
+} from "@langfuse/shared/topics";
 import { LLMAdapter } from "@langfuse/shared";
 import type { TopicsModel, TopicsModels } from "@langfuse/shared/topics/server";
 
@@ -123,6 +125,22 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+// One built-in facet through the shared multi-facet request.
+const summarizeOne = (
+  models: TopicsModels,
+  text: string,
+  config: TopicProcessingConfig,
+) =>
+  summarizeTopicTraceFacets(
+    models,
+    [{ key: "intent", facet, builtIn: true }],
+    text,
+    config,
+  );
+const keyed = (output: Record<string, unknown>) => ({
+  intent: { notes: "Evidence.", ...output },
+});
+
 describe("Topics naming boundary", () => {
   it("keeps invalid cached Bedrock output per-trace and records paid usage", async () => {
     const { generateTopicText } = await vi.importActual<
@@ -138,7 +156,9 @@ describe("Topics naming boundary", () => {
             {
               finish_reason: "stop",
               message: {
-                content: JSON.stringify({ summary: 42, status: "applicable" }),
+                content: JSON.stringify(
+                  keyed({ summary: 42, status: "applicable" }),
+                ),
               },
             },
           ],
@@ -152,9 +172,8 @@ describe("Topics naming boundary", () => {
     );
 
     await expect(
-      summarizeTopicTrace(
+      summarizeOne(
         models,
-        facet,
         "Trace evidence.",
         topicProcessingConfigSchema.parse({
           summaryModel: models.summary.model,
@@ -171,6 +190,44 @@ describe("Topics naming boundary", () => {
     });
   });
 
+  it("classifies text after a valid cached Bedrock object as invalid output", async () => {
+    const { generateTopicText } = await vi.importActual<
+      typeof import("@langfuse/shared/topics/server")
+    >("@langfuse/shared/topics/server");
+    state.call.mockImplementation(generateTopicText);
+    state.env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          choices: [
+            {
+              finish_reason: "stop",
+              message: {
+                content: `${JSON.stringify(keyed({ summary: "A request.", status: "applicable" }))} assistant {"intent_1":`,
+              },
+            },
+          ],
+          usage: { prompt_tokens: 12, completion_tokens: 4, total_tokens: 16 },
+        }),
+      ),
+    );
+    const models = topicsModels();
+    models.summary.connection.secretKey = encrypt(
+      JSON.stringify({ accessKeyId: "AKIATOPICS", secretAccessKey: "test" }),
+    );
+
+    await expect(
+      summarizeOne(
+        models,
+        "Trace evidence.",
+        topicProcessingConfigSchema.parse({
+          summaryModel: models.summary.model,
+        }),
+      ),
+    ).rejects.toMatchObject({ reason: "invalid_output" });
+  });
+
   it.each([
     ["us.openai.gpt-5.6-luna", 0.00002, 0.000036],
     ["us.openai.gpt-6-luna", 0.000011, 0.0000165],
@@ -179,21 +236,19 @@ describe("Topics naming boundary", () => {
     "summarizes a trace and prices %s usage",
     async (model, inputCost, outputCost) => {
       state.call.mockResolvedValue({
-        output: { summary: "A billing request.", status: "applicable" },
+        output: keyed({ summary: "A billing request.", status: "applicable" }),
         usage: { inputTokens: 100, outputTokens: 30 },
       });
-      const result = await summarizeTopicTrace(
+      const result = await summarizeOne(
         topicsModels(model),
-        facet,
         "RAW_TRANSCRIPT_SENTINEL",
         topicProcessingConfigSchema.parse({
           summaryModel: model,
         }),
       );
-      expect(result.output).toEqual({
-        summary: "A billing request.",
-        status: "applicable",
-      });
+      expect(result.output).toEqual(
+        keyed({ summary: "A billing request.", status: "applicable" }),
+      );
       expect(result.providedUsageDetails).toEqual({
         summary_input: 100,
         summary_output: 30,
@@ -216,24 +271,22 @@ describe("Topics naming boundary", () => {
         aiFeatureOtelIngestion: false,
         metadata: {
           langfuse_project_id: "project",
-          facet_id: "facet",
-          facet_version: 1,
+          facets: [{ key: "intent", facet_id: "facet", facet_version: 1 }],
         },
       });
       expect(request.system).toEqual([
         { text: expect.stringContaining(facet.prompt), cache: true },
       ]);
       expect(request.input).toBe(
-        "<transcript>\nRAW_TRANSCRIPT_SENTINEL\n</transcript>\n\nWrite the summary now, in the facet's format.",
+        "<transcript>\nRAW_TRANSCRIPT_SENTINEL\n</transcript>\n\nWrite the summaries now, one per facet key, each in its facet's format.",
       );
     },
   );
 
   it("rejects a request frozen on another summary model before calling the provider", async () => {
     await expect(
-      summarizeTopicTrace(
+      summarizeOne(
         topicsModels("us.openai.gpt-6-luna"),
-        facet,
         "Trace evidence.",
         topicProcessingConfigSchema.parse({
           summaryModel: "us.openai.gpt-5.6-luna",
@@ -245,15 +298,14 @@ describe("Topics naming boundary", () => {
 
   it("keeps fallback token counts out of provider-reported usage", async () => {
     state.call.mockResolvedValue({
-      output: { summary: "A billing request.", status: "applicable" },
+      output: keyed({ summary: "A billing request.", status: "applicable" }),
       usage: { inputTokens: 100 },
     });
     const config = topicProcessingConfigSchema.parse({
       summaryModel: "us.openai.gpt-5.6-luna",
     });
-    const result = await summarizeTopicTrace(
+    const result = await summarizeOne(
       topicsModels(),
-      facet,
       "A request for an invoice.",
       config,
     );
@@ -274,9 +326,8 @@ describe("Topics naming boundary", () => {
   });
   it("rejects an oversized shared transcript before calling the provider", async () => {
     await expect(
-      summarizeTopicTrace(
+      summarizeOne(
         topicsModels(),
-        facet,
         "Trace evidence. ".repeat(1000),
         topicProcessingConfigSchema.parse({
           maxInputTokens: 256,
@@ -291,7 +342,7 @@ describe("Topics naming boundary", () => {
 
   it("prices cache reads and writes at their cache rates", async () => {
     state.call.mockResolvedValue({
-      output: { summary: "A billing request.", status: "applicable" },
+      output: keyed({ summary: "A billing request.", status: "applicable" }),
       usage: {
         inputTokens: 4000,
         outputTokens: 300,
@@ -300,9 +351,8 @@ describe("Topics naming boundary", () => {
         cacheWriteTokens: 100,
       },
     });
-    const result = await summarizeTopicTrace(
+    const result = await summarizeOne(
       topicsModels("us.openai.gpt-6-luna"),
-      facet,
       "RAW_TRANSCRIPT_SENTINEL",
       topicProcessingConfigSchema.parse({
         summaryModel: "us.openai.gpt-6-luna",
@@ -703,7 +753,10 @@ describe("Topics naming boundary", () => {
         state.project.mockResolvedValue(organization ? { organization } : null);
       state.call
         .mockResolvedValueOnce({
-          output: { summary: "A billing request.", status: "applicable" },
+          output: keyed({
+            summary: "A billing request.",
+            status: "applicable",
+          }),
           usage: {},
         })
         .mockResolvedValueOnce({
@@ -714,9 +767,8 @@ describe("Topics naming boundary", () => {
           },
           usage: {},
         });
-      await summarizeTopicTrace(
+      await summarizeOne(
         topicsModels(),
-        facet,
         "A billing request.",
         topicProcessingConfigSchema.parse({
           summaryModel: "us.openai.gpt-5.6-luna",
@@ -756,12 +808,11 @@ describe("Topics naming boundary", () => {
         state.env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS =
           reason === "empty allowlist" ? [] : ["ai-features", "project-other"];
       state.call.mockResolvedValue({
-        output: { summary: "A billing request.", status: "applicable" },
+        output: keyed({ summary: "A billing request.", status: "applicable" }),
         usage: {},
       });
-      await summarizeTopicTrace(
+      await summarizeOne(
         topicsModels(),
-        facet,
         "A billing request.",
         topicProcessingConfigSchema.parse({
           summaryModel: "us.openai.gpt-5.6-luna",

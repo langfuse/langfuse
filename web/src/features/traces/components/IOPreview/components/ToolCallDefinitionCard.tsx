@@ -1,5 +1,5 @@
 /* eslint-disable @repo/no-style-props */
-import { ChevronDown, ChevronRight, Wrench } from "lucide-react";
+import { ChevronDown, ChevronRight, Wrench } from "@langfuse/icons";
 import { cn } from "@/src/utils/tailwind";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
@@ -129,11 +129,8 @@ function ToolDefinitionRow({
         onClick={onToggle}
         aria-expanded={isExpanded}
       >
-        <Caret
-          className="icon-base text-icon-foreground shrink-0"
-          aria-hidden
-        />
-        <Wrench className="text-muted-foreground icon-base shrink-0" />
+        <Caret size="base" color="default" aria-hidden />
+        <Wrench size="base" color="muted" />
         <span
           className={cn(
             "ph-no-capture block truncate text-sm",
@@ -270,10 +267,7 @@ export function ToolCallDefinitionCard({
           aria-expanded={!isCollapsed}
           className="focus-visible:ring-ring flex items-center gap-1.5 rounded-sm text-base font-bold focus-visible:ring-2 focus-visible:outline-hidden"
         >
-          <Caret
-            aria-hidden="true"
-            className="icon-base text-icon-foreground shrink-0"
-          />
+          <Caret aria-hidden="true" size="base" color="default" />
           Tools
         </button>
         {hasSwitch && !isCollapsed && (
