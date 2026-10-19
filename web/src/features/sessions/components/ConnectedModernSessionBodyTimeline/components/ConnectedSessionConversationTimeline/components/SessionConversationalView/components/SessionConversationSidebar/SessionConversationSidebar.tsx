@@ -58,6 +58,7 @@ export function SessionConversationSidebar(
         traces: SessionConversationSidebarTrace[];
         activeTraceId: string | undefined;
         search: string;
+        searchQuery?: string;
         onSearchChange: (search: string) => void;
         expandedTraceIds: ReadonlySet<string>;
         onToggleTraceExpanded: (traceId: string) => void;
@@ -76,7 +77,8 @@ export function SessionConversationSidebar(
   const traces = props.state === "loaded" ? props.traces : EMPTY_TRACES;
   const activeTraceId =
     props.state === "loaded" ? props.activeTraceId : undefined;
-  const sidebarSearch = props.state === "loaded" ? props.search : "";
+  const appliedSearch =
+    props.state === "loaded" ? (props.searchQuery ?? props.search) : "";
   const listRef = useRef<HTMLDivElement>(null);
   const textContextRef = useRef<CanvasRenderingContext2D | null>(null);
   const [toolGroupMeasurement, setToolGroupMeasurement] = useState<{
@@ -141,7 +143,9 @@ export function SessionConversationSidebar(
   }, [measureToolGroupLabel, props.state]);
   const followedSelectionRef = useRef<{
     traceId: string;
+    index: number;
     search: string;
+    awaitingMeasurement: boolean;
   } | null>(null);
   const [isListScrolled, setIsListScrolled] = useState(false);
   const handleListScroll = (event: UIEvent<HTMLDivElement>) =>
@@ -181,25 +185,28 @@ export function SessionConversationSidebar(
   const sidebarHeight = virtualizer.scrollRect?.height;
   useLayoutEffect(() => {
     const element = listRef.current;
-    if (!activeTraceId) {
+    const height = sidebarHeight ?? element?.clientHeight ?? 0;
+    if (!activeTraceId || activeTraceIndex === -1 || height === 0) {
       followedSelectionRef.current = null;
       return;
     }
-    if (
-      !element ||
-      activeTraceIndex === -1 ||
-      (followedSelectionRef.current?.traceId === activeTraceId &&
-        followedSelectionRef.current.search === sidebarSearch)
-    )
-      return;
+    if (!element) return;
+    const previous = followedSelectionRef.current;
+    const isSameSelection =
+      previous?.traceId === activeTraceId &&
+      previous.index === activeTraceIndex &&
+      previous.search === appliedSearch;
+    if (isSameSelection && !previous.awaitingMeasurement) return;
+    if (isSameSelection && activeTraceSize === undefined) return;
 
     // Measurements and rerenders must not pull the user back after manual scrolling.
     followedSelectionRef.current = {
       traceId: activeTraceId,
-      search: sidebarSearch,
+      index: activeTraceIndex,
+      search: appliedSearch,
+      awaitingMeasurement: activeTraceSize === undefined,
     };
-    const availableHeight =
-      (sidebarHeight ?? element.clientHeight) - SIDEBAR_SCROLL_PADDING * 2;
+    const availableHeight = height - SIDEBAR_SCROLL_PADDING * 2;
     virtualizer.scrollToIndex(activeTraceIndex, {
       align:
         activeTraceSize !== undefined && activeTraceSize > availableHeight
@@ -210,10 +217,15 @@ export function SessionConversationSidebar(
     activeTraceId,
     activeTraceIndex,
     activeTraceSize,
-    sidebarSearch,
+    appliedSearch,
     sidebarHeight,
     virtualizer,
   ]);
+  const cancelPendingFollow = () => {
+    if (followedSelectionRef.current) {
+      followedSelectionRef.current.awaitingMeasurement = false;
+    }
+  };
 
   if (props.state === "loading") {
     return (
@@ -309,6 +321,24 @@ export function SessionConversationSidebar(
         aria-label="Session turns"
         className="min-h-0 flex-1 overflow-y-auto [overflow-anchor:none]"
         onScroll={handleListScroll}
+        onWheel={cancelPendingFollow}
+        onTouchMove={cancelPendingFollow}
+        onPointerDown={cancelPendingFollow}
+        onKeyDown={(event) => {
+          if (
+            [
+              "ArrowUp",
+              "ArrowDown",
+              "PageUp",
+              "PageDown",
+              "Home",
+              "End",
+              " ",
+            ].includes(event.key)
+          ) {
+            cancelPendingFollow();
+          }
+        }}
       >
         {traces.length === 0 ? (
           <div className="text-muted-foreground px-3 py-6 text-center text-xs">
