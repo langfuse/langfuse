@@ -1,6 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import React, { useMemo } from "react";
-import { Lock, AlertCircle, Sparkle } from "lucide-react";
+import { Lock, AlertCircle, Sparkle } from "@langfuse/icons";
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import Link from "next/link";
@@ -161,11 +161,11 @@ const ButtonContent = React.forwardRef<
   const content = (
     <>
       {!hasAccess ? (
-        <Lock className="icon-base mr-1" />
+        <Lock size="base" __rawClassName="mr-1" />
       ) : !hasEntitlement ? (
-        <AlertCircle className="icon-base mr-1" />
+        <AlertCircle size="base" __rawClassName="mr-1" />
       ) : hasReachedLimit ? (
-        <Sparkle className="icon-base mr-1" />
+        <Sparkle size="base" __rawClassName="mr-1" />
       ) : icon ? (
         <div className="mr-1">{icon}</div>
       ) : null}

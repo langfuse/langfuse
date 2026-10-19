@@ -1,6 +1,6 @@
 import { Slot } from "@radix-ui/react-slot";
 import { cva } from "class-variance-authority";
-import { type LucideIcon } from "lucide-react";
+import { type IconComponent } from "@langfuse/icons";
 import { type ComponentPropsWithoutRef } from "react";
 import { cn } from "@/src/utils/tailwind";
 
@@ -41,7 +41,7 @@ type InputControlProps = Omit<
   disabled?: boolean;
   trailingAction?: {
     label: string;
-    icon: LucideIcon;
+    icon: IconComponent;
     disabled?: boolean;
     pressed?: boolean;
     onClick: () => void;
@@ -94,11 +94,8 @@ export function InputControl({
       >
         <TrailingActionIcon
           aria-hidden="true"
-          className={
-            error
-              ? "text-destructive icon-base"
-              : "text-muted-foreground icon-base"
-          }
+          size="base"
+          color={error ? "destructive" : "muted"}
         />
       </button>
     </div>

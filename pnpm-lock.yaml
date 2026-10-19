@@ -234,6 +234,40 @@ importers:
         specifier: ^4.1.11
         version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@24.3.0)(@vitest/browser-playwright@4.1.11)(@vitest/coverage-v8@4.1.11)(jsdom@26.1.0(supports-color@8.1.1))(msw@2.6.5(@types/node@24.3.0)(@typescript/typescript6@6.0.2))(vite@7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0))
 
+  packages/icons:
+    dependencies:
+      lucide-react:
+        specifier: ^0.552.0
+        version: 0.552.0(react@19.2.4)
+      react-icons:
+        specifier: 5.5.0
+        version: 5.5.0(react@19.2.4)
+    devDependencies:
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../config-typescript
+      '@types/node':
+        specifier: 24.3.0
+        version: 24.3.0
+      '@types/react':
+        specifier: 19.2.14
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: 19.2.3
+        version: 19.2.3(@types/react@19.2.14)
+      prettier:
+        specifier: ^3.8.3
+        version: 3.8.3
+      react:
+        specifier: 19.2.4
+        version: 19.2.4
+      react-dom:
+        specifier: 19.2.4
+        version: 19.2.4(react@19.2.4)
+      tsx:
+        specifier: ^4.20.5
+        version: 4.20.5
+
   packages/in-app-agent-sandbox-runtime:
     dependencies:
       zod:
@@ -574,6 +608,9 @@ importers:
       '@hookform/resolvers':
         specifier: ^5.2.2
         version: 5.2.2(react-hook-form@7.72.0(react@19.2.4))
+      '@langfuse/icons':
+        specifier: workspace:*
+        version: link:../packages/icons
       '@langfuse/shared':
         specifier: workspace:*
         version: link:../packages/shared
@@ -808,9 +845,6 @@ importers:
       lodash:
         specifier: ^4.18.1
         version: 4.18.1
-      lucide-react:
-        specifier: ^0.552.0
-        version: 0.552.0(react@19.2.4)
       nanoid:
         specifier: 3.3.18
         version: 3.3.18
@@ -871,9 +905,6 @@ importers:
       react-hook-form:
         specifier: ^7.72.0
         version: 7.72.0(react@19.2.4)
-      react-icons:
-        specifier: 5.5.0
-        version: 5.5.0(react@19.2.4)
       react-markdown:
         specifier: ^10.1.0
         version: 10.1.0(@types/react@19.2.14)(react@19.2.4)(supports-color@8.1.1)

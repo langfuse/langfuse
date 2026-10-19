@@ -1,16 +1,11 @@
-import {
-  createQueryId,
-  FromNode,
-  SelectQueryNode,
-  type OperationNode,
-} from "kysely";
+import { createQueryId, FromNode, SelectQueryNode } from "kysely";
 import { describe, expect, it } from "vitest";
 
 import { compileClickhouseQuery } from "./compile";
 import { getClickhouseKysely } from "./dialect";
 import { QueryCompileError } from "./errors";
 import { includeDeleted, limitBy, softDeleteAfterLimit } from "./extensions";
-import { FinalTableNode } from "./nodes";
+import { finalTable } from "./nodes";
 import { SOFT_DELETE_COLUMNS } from "./schema";
 import { SoftDeleteFilterPlugin } from "./softDelete";
 
@@ -191,16 +186,17 @@ describe("soft-delete filtering", () => {
 
   it("filters a soft-delete table wrapped in FINAL", () => {
     // No soft-delete table allows FINAL yet, so the node is built by hand.
-    // FinalTableNode is outside Kysely's node union, hence the cast.
     const node = getClickhouseKysely()
       .selectFrom("events_core as e")
       .select("e.span_id")
       .toOperationNode();
     if (!SelectQueryNode.is(node) || !node.from)
       throw new Error("not a select");
-    const final = FinalTableNode.create(node.from.froms[0]) as unknown;
     const filtered = new SoftDeleteFilterPlugin().transformQuery({
-      node: { ...node, from: FromNode.create([final as OperationNode]) },
+      node: {
+        ...node,
+        from: FromNode.create([finalTable(node.from.froms[0])]),
+      },
       queryId: createQueryId(),
     });
     expect(SelectQueryNode.is(filtered) && filtered.where).toBeTruthy();

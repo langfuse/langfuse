@@ -1,5 +1,5 @@
 import { useState, type InputHTMLAttributes, type Ref } from "react";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff } from "@langfuse/icons";
 import { InputControl } from "../internal/InputControl/InputControl";
 
 type PasswordInputProps = Pick<

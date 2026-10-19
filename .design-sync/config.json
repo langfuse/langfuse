@@ -127,7 +127,8 @@
       "skip": [
         "design-components-dialog--autofocus",
         "design-components-dialog--destructive-autofocus",
-        "design-components-dialog--destructive-only-autofocus"
+        "design-components-dialog--destructive-only-autofocus",
+        "design-components-dialog--scrollable-body-keeps-controls-above-footer"
       ]
     },
     "Avatar": {
@@ -311,7 +312,8 @@
     "mobile-page-actions-content": "MobilePageActionsContent",
     "MarkdownViewer": "MarkdownView",
     "ai-assisted-input": "AIAssistedInput",
-    "drawer": "Drawer"
+    "drawer": "Drawer",
+    "SortableList": null
   },
   "readmeHeader": ".design-sync/conventions.md",
   "storyImports": {

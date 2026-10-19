@@ -47,9 +47,9 @@ it("fits every member through the native child and builds usable serving prototy
   })) as TopicSummary[];
   const labels = [...result.labels];
   labels[0] = -1;
-  const prototypes = buildTopicPrototypes(summaries, labels);
+  const prototypes = await buildTopicPrototypes(summaries, labels);
   const persisted = JSON.parse(JSON.stringify(prototypes)) as typeof prototypes;
-  const evidence = buildNamingEvidence(summaries, prototypes);
+  const evidence = await buildNamingEvidence(summaries, prototypes);
   expect(evidence).toHaveLength(2);
   for (const group of evidence) {
     expect(group.count).toBeGreaterThan(450);

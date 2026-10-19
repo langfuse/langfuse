@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from "react";
 import { useRouter } from "next/router";
-import { LayoutDashboard } from "lucide-react";
+import { LayoutDashboard } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import { showErrorToast } from "@/src/features/notifications";
@@ -69,7 +69,7 @@ export const AddToDashboardButton = React.memo(function AddToDashboardButton({
         onClick={() => setOpen(true)}
         disabled={createWidget.isPending}
       >
-        <LayoutDashboard className="icon-base text-icon-foreground" />
+        <LayoutDashboard size="base" color="default" />
         Add to dashboard
       </Button>
       <SelectDashboardDialog

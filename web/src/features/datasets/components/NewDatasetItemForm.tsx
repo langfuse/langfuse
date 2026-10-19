@@ -14,7 +14,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { api } from "@/src/utils/api";
-import { Plus } from "lucide-react";
+import { Plus } from "@langfuse/icons";
 import {
   useState,
   useMemo,

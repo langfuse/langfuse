@@ -5,7 +5,7 @@ import {
   render,
   screen,
 } from "@testing-library/react";
-import { Home, Settings } from "lucide-react";
+import { Home, Settings } from "@langfuse/icons";
 
 import { APP_SHELL_CHROME_ROW_TEST_ID } from "@/src/components/layouts/app-shell-chrome";
 import { MobilePageTitle } from "@/src/components/layouts/mobile-page-title";

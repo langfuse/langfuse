@@ -2,7 +2,7 @@
 import { Badge } from "@/src/components/ui/badge";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { api } from "@/src/utils/api";
-import { ListFilter } from "lucide-react";
+import { ListFilter } from "@langfuse/icons";
 import React, { useMemo } from "react";
 import { type FilterCondition, type FilterState } from "@langfuse/shared";
 
@@ -108,7 +108,7 @@ export function FilteredRunPills({
                 tabIndex={0}
                 {...getTriggerProps()}
               >
-                <ListFilter className="icon-sm mr-1" />
+                <ListFilter size="sm" __rawClassName="mr-1" />
                 <div className="font-normal">
                   {formatFilterForPill(item.filter)}
                 </div>

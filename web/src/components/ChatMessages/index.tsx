@@ -1,5 +1,5 @@
 /* eslint-disable @repo/component-file-structure */
-import { ChevronDownIcon, PlusCircleIcon } from "lucide-react";
+import { ChevronDownIcon, PlusCircleIcon } from "@langfuse/icons";
 import { useCallback, useEffect, useRef } from "react";
 
 import { Button } from "@/src/components/ui/button";
@@ -292,7 +292,7 @@ const AddMessageButton: React.FC<AddMessageButtonProps> = ({
           className="flex-1 rounded-r-none border-r-0"
           onClick={addRegularMessage}
         >
-          <PlusCircleIcon className="icon-base text-icon-foreground mr-2" />
+          <PlusCircleIcon size="base" color="default" __rawClassName="mr-2" />
           <p>Message</p>
         </Button>
         <DropdownMenu>
@@ -302,7 +302,7 @@ const AddMessageButton: React.FC<AddMessageButtonProps> = ({
               variant="outline"
               className="rounded-l-none border-l px-2"
             >
-              <ChevronDownIcon className="icon-base text-icon-foreground" />
+              <ChevronDownIcon size="base" color="default" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent
@@ -358,7 +358,11 @@ const AddMessageButton: React.FC<AddMessageButtonProps> = ({
               className="flex-1"
               onClick={addPlaceholderMessage}
             >
-              <PlusCircleIcon className="icon-base text-icon-foreground mr-2" />
+              <PlusCircleIcon
+                size="base"
+                color="default"
+                __rawClassName="mr-2"
+              />
               <p>Placeholder</p>
             </Button>
           </TooltipTrigger>

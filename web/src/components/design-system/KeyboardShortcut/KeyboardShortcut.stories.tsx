@@ -1,5 +1,5 @@
 /* eslint-disable @repo/storybook-play-no-implementation-detail-assertions */
-import { Keyboard, Play } from "lucide-react";
+import { Keyboard, Play } from "@langfuse/icons";
 import { expect, within } from "storybook/test";
 
 import { Button } from "@/src/components/ui/button";
@@ -68,12 +68,12 @@ export const BesideTextAndIcons = meta.story({
       </span>
       <div className="flex items-center gap-2">
         <Button variant="outline" size="lg" className="gap-1.5 px-4">
-          <Keyboard className="icon-base text-icon-foreground" />
+          <Keyboard size="base" color="default" />
           Shortcuts
           <KeyboardShortcut keys={["?"]} />
         </Button>
         <Button size="lg" className="gap-1.5">
-          <Play className="icon-base" />
+          <Play size="base" />
           <span>Run All</span>
           <KeyboardShortcut variant="inverse" keys={["Mod", "Enter"]} />
         </Button>

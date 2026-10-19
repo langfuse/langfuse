@@ -8,13 +8,13 @@ import {
   ShieldCheck,
   Star,
   User,
-  type LucideIcon,
-} from "lucide-react";
+  type IconComponent,
+} from "@langfuse/icons";
 
 import { type SystemRole } from "@langfuse/shared/src/db";
 
 /** roleIcons maps every system role to a lucide icon for role pickers and permission popups. */
-export const roleIcons: Record<SystemRole, LucideIcon> = {
+export const roleIcons: Record<SystemRole, IconComponent> = {
   OWNER: ShieldCheck,
   ADMIN: ShieldCheck,
   MEMBER: User,

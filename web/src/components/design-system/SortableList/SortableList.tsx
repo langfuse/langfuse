@@ -17,7 +17,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical } from "lucide-react";
+import { GripVertical } from "@langfuse/icons";
 
 import { cn } from "@/src/utils/tailwind";
 
@@ -78,7 +78,7 @@ function SortableRow({
         {...attributes}
         {...listeners}
       >
-        <GripVertical className="icon-base" />
+        <GripVertical size="base" />
       </button>
       <div className="min-w-0">{children}</div>
     </li>

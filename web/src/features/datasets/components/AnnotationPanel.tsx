@@ -12,7 +12,7 @@ import {
   AnnotationForm,
   decomposeAggregateScoreKey,
 } from "@/src/features/scores";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight } from "@langfuse/icons";
 import { useCallback } from "react";
 
 export const AnnotationPanel = ({ projectId }: { projectId: string }) => {
@@ -103,7 +103,7 @@ function ActiveAnnotationPanel({
                   aria-label="Close annotation panel"
                   onClick={clearActiveCell}
                 >
-                  <ChevronRight className="icon-base text-icon-foreground" />
+                  <ChevronRight size="base" color="default" />
                 </Button>
               }
             />

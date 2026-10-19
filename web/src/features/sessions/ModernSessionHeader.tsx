@@ -8,7 +8,7 @@ import {
 } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
 /* eslint-disable no-nested-ternary */
 import { type ScoreDomain } from "@langfuse/shared";
-import { Plus, Search, X } from "lucide-react";
+import { Plus, Search, X } from "@langfuse/icons";
 import { type ReactNode, type SyntheticEvent, useState } from "react";
 
 import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
@@ -164,7 +164,7 @@ const MetadataJsonPathRemoveButton = ({
       className="hover:bg-muted focus-visible:ring-ring inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:ring-1 focus-visible:outline-none"
       onClick={() => onRemove(path)}
     >
-      <X className="icon-sm" />
+      <X size="sm" />
     </button>
   </span>
 );
@@ -467,7 +467,7 @@ export function ModernSessionHeader({
                     aria-label="Edit Metadata"
                     data-session-header-pill="true"
                   >
-                    <Plus className="icon-base" />
+                    <Plus size="base" />
                   </Button>
                 </PopoverTrigger>
               )}
@@ -520,7 +520,11 @@ export function ModernSessionHeader({
                 aria-label="All session details"
               >
                 <div className="relative border-b p-2">
-                  <Search className="text-muted-foreground icon-base absolute top-1/2 left-4 -translate-y-1/2" />
+                  <Search
+                    size="base"
+                    color="muted"
+                    __rawClassName="absolute top-1/2 left-4 -translate-y-1/2"
+                  />
                   <Input
                     value={search}
                     onChange={(event) => {

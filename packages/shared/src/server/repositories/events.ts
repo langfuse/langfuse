@@ -739,7 +739,7 @@ export const getObservationsWithPromptNameFromEvents = async (
   }: { fromTimestamp?: Date; toTimestamp?: Date } = {},
 ) => {
   const builder = getClickhouseKysely()
-    .selectFrom("events_core")
+    .selectFrom("events")
     .select((eb) => [uniq(eb.ref("span_id")).as("count"), "prompt_name"])
     .where("prompt_name", "in", promptNames)
     .where("prompt_name", "!=", "")
@@ -1391,8 +1391,8 @@ function compileHasAnyFromEventsTable(opts: {
   const db = getClickhouseKysely();
 
   const query = db
-    .selectFrom("events_core")
-    .select(sql<number>`1`.as("one"))
+    .selectFrom("events")
+    .select(literal(1).as("one"))
     .$if(opts.kind === "user", (qb) =>
       qb.where("user_id", "is not", null).where("user_id", "!=", ""),
     )
@@ -2859,7 +2859,7 @@ export const getObservationsBatchIOFromEventsTable = async <
     .$if(opts.sessionId !== undefined, (qb) =>
       qb.where("e.trace_id", "in", (eb) =>
         eb
-          .selectFrom("events_core")
+          .selectFrom("events")
           .select("trace_id")
           .where("trace_id", "in", traceIds)
           .groupBy("trace_id")
@@ -2967,7 +2967,7 @@ function compileObservationIOFieldRead<A extends string>(
   select: (field: AliasableExpression<string>) => AliasedExpression<unknown, A>,
 ) {
   const query = getClickhouseKysely()
-    .selectFrom("events_full as e")
+    .selectFrom("events as e")
     .$call(softDeleteAfterLimit())
     .select((eb) =>
       select(
@@ -3087,7 +3087,7 @@ export const getObservationFullIOForSessionFromEventsTable = async (opts: {
   const db = getClickhouseKysely();
   // A soft-deleted latest version reads as not found.
   const builder = db
-    .selectFrom("events_full as e")
+    .selectFrom("events as e")
     .$call(softDeleteAfterLimit())
     .select((eb) => [
       "e.span_id as id",
@@ -3157,7 +3157,7 @@ export const getObservationsTraceIdsFromEventsTable = async (opts: {
   const db = getClickhouseKysely();
 
   const builder = db
-    .selectFrom("events_core as e")
+    .selectFrom("events as e")
     .select(["e.trace_id as trace_id", "e.span_id as span_id"])
     .where("e.span_id", "in", observationIds);
 
@@ -3646,7 +3646,7 @@ export const getTraceMetadataByIdsFromEvents = async (props: {
   const db = getClickhouseKysely();
 
   const builder = db
-    .selectFrom("events_core as e")
+    .selectFrom("events as e")
     .select([
       "e.trace_id as id",
       eventsTraceName.as("name"),
@@ -3930,7 +3930,7 @@ export const getSessionMetricsFromEvents = async <
 
   const { projectId, sessionIds, fields, queryFromTimestamp } = props;
   const builder = getClickhouseKysely()
-    .selectFrom("events_core as e")
+    .selectFrom("events as e")
     .select(fields.map((field) => SESSION_AGGREGATION_SELECTS[field]))
     .where("session_id", "in", sessionIds)
     .$if(queryFromTimestamp != null, (qb) =>
@@ -3986,7 +3986,7 @@ export async function getLatestSdkVersionInfoFromEvents(params: {
 
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const builder = getClickhouseKysely()
-    .selectFrom("events_core as e")
+    .selectFrom("events as e")
     .select((eb) => [
       "e.ingestion_sdk_name as ingestion_sdk_name",
       "e.ingestion_sdk_version as ingestion_sdk_version",

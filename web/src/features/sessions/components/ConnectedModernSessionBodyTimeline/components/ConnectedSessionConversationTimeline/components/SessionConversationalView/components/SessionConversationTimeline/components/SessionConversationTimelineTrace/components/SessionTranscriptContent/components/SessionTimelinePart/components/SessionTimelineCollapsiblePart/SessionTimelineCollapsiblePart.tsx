@@ -1,6 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import React, { useState } from "react";
-import { Check, ChevronDown, X } from "lucide-react";
+import { Check, ChevronDown, X, type IconComponent } from "@langfuse/icons";
 
 import { cn } from "@/src/utils/tailwind";
 
@@ -14,7 +14,7 @@ export function SessionTimelineCollapsiblePart({
   children,
 }: {
   label: string;
-  icon?: React.ComponentType<{ className?: string }>;
+  icon?: IconComponent;
   status?: "success" | "error";
   variant: "plain" | "card";
   alignment: "start" | "center" | "row";
@@ -44,21 +44,20 @@ export function SessionTimelineCollapsiblePart({
           aria-expanded={isExpanded}
           onClick={() => setIsExpanded((current) => !current)}
         >
-          {Icon ? <Icon className="icon-sm shrink-0" /> : null}
+          {Icon ? <Icon size="sm" /> : null}
           <span className="truncate" title={label}>
             {label}
           </span>
           {status === "success" ? (
-            <Check className="icon-sm shrink-0" aria-label="Succeeded" />
+            <Check size="sm" aria-label="Succeeded" />
           ) : status === "error" ? (
-            <X
-              className="text-destructive icon-sm shrink-0"
-              aria-label="Failed"
-            />
+            <X size="sm" color="destructive" aria-label="Failed" />
           ) : null}
           <ChevronDown
-            className={cn(
-              "text-foreground-tertiary icon-sm shrink-0 translate-y-px transition-transform",
+            size="sm"
+            color="tertiary"
+            __rawClassName={cn(
+              "translate-y-px transition-transform",
               !isExpanded && "-rotate-90",
             )}
             aria-hidden="true"

@@ -20,7 +20,6 @@
 import type { TupleParam } from "@clickhouse/client";
 import {
   AggregateFunctionNode,
-  AliasNode,
   BinaryOperationNode,
   ColumnNode,
   ExpressionWrapper,
@@ -49,11 +48,12 @@ import {
   ArrayJoinNode,
   FinalTableNode,
   LimitByNode,
-  unwrapFinalTable,
+  finalTable,
   type ArrayJoinVariant,
   type ClickHouseSelectQueryNode,
 } from "./nodes";
 import { QueryCompileError } from "./errors";
+import { describeRelation } from "./relations";
 import { DEDUP_SPECS, type ClickHouseDatabase } from "./schema";
 import { ClickHouseOperationNodeTransformer } from "./transformer";
 
@@ -163,7 +163,7 @@ export function mapValues<V>(
 }
 
 /** ClickHouse `uniq(value)`, an approximate distinct count. */
-export function uniq(value: Expression<unknown>): ChExpression<string> {
+export function uniq(value: Expression<unknown>): ChExpression<number> {
   return aggregate("uniq", [value]);
 }
 
@@ -171,7 +171,7 @@ export function uniq(value: Expression<unknown>): ChExpression<string> {
 export function count(): ExpressionWrapper<
   ClickHouseDatabase,
   keyof ClickHouseDatabase,
-  string
+  number
 > {
   return new ExpressionWrapper(
     AggregateFunctionNode.create("count", []) as unknown as OperationNode,
@@ -181,7 +181,7 @@ export function count(): ExpressionWrapper<
 /** ClickHouse `medianExact(expression)`. */
 export function medianExact(
   expression: Expression<unknown>,
-): ExpressionWrapper<ClickHouseDatabase, keyof ClickHouseDatabase, string> {
+): ExpressionWrapper<ClickHouseDatabase, keyof ClickHouseDatabase, number> {
   return new ExpressionWrapper(
     AggregateFunctionNode.create("medianExact", [
       expression.toOperationNode(),
@@ -383,7 +383,7 @@ export function startsWith(
 /** ClickHouse `length(array)`. */
 export function arrayLength(
   array: Expression<unknown[]>,
-): ChExpression<string> {
+): ChExpression<number> {
   return functionCall("length", [array]);
 }
 
@@ -409,7 +409,7 @@ export function anyValue<T>(value: Expression<T>): ChExpression<T> {
 }
 
 /** ClickHouse `countIf(condition)`. */
-export function countIf(condition: Expression<SqlBool>): ChExpression<string> {
+export function countIf(condition: Expression<SqlBool>): ChExpression<number> {
   return aggregate("countIf", [condition]);
 }
 
@@ -417,7 +417,7 @@ export function countIf(condition: Expression<SqlBool>): ChExpression<string> {
 export function uniqIf(
   value: Expression<unknown>,
   condition: Expression<SqlBool>,
-): ChExpression<string> {
+): ChExpression<number> {
   return aggregate("uniqIf", [value, condition]);
 }
 
@@ -725,22 +725,13 @@ export function limitBy<DB, TB extends keyof DB>(spec: LimitBySpec<DB, TB>) {
     );
 }
 
-function physicalTableName(node: OperationNode): string | undefined {
-  if (FinalTableNode.is(node)) return physicalTableName(unwrapFinalTable(node));
-  if (AliasNode.is(node)) return physicalTableName(node.node);
-  if (TableNode.is(node)) return node.table.identifier.name;
-  return undefined;
-}
-
 function wrapFinal(
   node: OperationNode,
   tables: ReadonlySet<string>,
 ): OperationNode {
   if (FinalTableNode.is(node)) return node;
-  const name = physicalTableName(node);
-  return name && tables.has(name)
-    ? (FinalTableNode.create(node) as unknown as OperationNode)
-    : node;
+  const name = describeRelation(node).table?.table.identifier.name;
+  return name && tables.has(name) ? finalTable(node) : node;
 }
 
 /**

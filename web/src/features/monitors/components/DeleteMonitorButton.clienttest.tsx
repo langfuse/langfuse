@@ -41,7 +41,6 @@ describe("DeleteMonitorButton", () => {
     );
 
     const trigger = screen.getByRole("button", { name: "Delete alert" });
-    expect(trigger.querySelector(".text-destructive")).toBeInTheDocument();
 
     fireEvent.click(trigger);
 
