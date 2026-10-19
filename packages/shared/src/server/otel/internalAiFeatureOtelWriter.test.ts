@@ -6,6 +6,7 @@ import {
   AI_FEATURE_OTEL_SDK_NAME,
   LangfuseOtelSpanAttributes,
 } from "./attributes";
+import type { ResourceSpan } from "./OtelIngestionProcessor";
 import { publishAiFeatureTraceViaOtelIngestion } from "./internalAiFeatureOtelWriter";
 
 const publishToOtelIngestionQueue = vi.fn().mockResolvedValue(undefined);
@@ -95,38 +96,28 @@ const processedEvents = [
   },
 ];
 
-const getPublishedResourceSpans = () => {
+const getPublishedResourceSpans = (): ResourceSpan[] => {
   expect(publishToOtelIngestionQueue).toHaveBeenCalledTimes(1);
   return publishToOtelIngestionQueue.mock.calls[0][0];
 };
 
-const spanAttributeMap = (span: {
-  attributes?: Array<{ key: string; value: { stringValue?: string } }>;
-}) =>
-  Object.fromEntries(
-    (span.attributes ?? []).map((attribute) => [
-      attribute.key,
-      attribute.value.stringValue,
-    ]),
-  );
-
-const createProcessor = async (sdkName = AI_FEATURE_OTEL_SDK_NAME) => {
+const createProcessor = async () => {
   const { OtelIngestionProcessor } = await vi.importActual<
     typeof import("./OtelIngestionProcessor")
   >("./OtelIngestionProcessor");
   return new OtelIngestionProcessor({
     projectId: "project-1",
     publicKey: "",
-    sdkName,
+    sdkName: AI_FEATURE_OTEL_SDK_NAME,
     sdkVersion: "unknown",
     ingestionVersion: "4",
     isLangfuseInternal: false,
   });
 };
 
-const processPublishedSpans = async (sdkName = AI_FEATURE_OTEL_SDK_NAME) => {
+const processPublishedSpans = async () => {
   const resourceSpans = getPublishedResourceSpans();
-  return (await createProcessor(sdkName)).processToEvent(resourceSpans);
+  return (await createProcessor()).processToEvent(resourceSpans);
 };
 
 const processPublishedIngestionEvents = async () => {
@@ -229,55 +220,94 @@ describe("publishAiFeatureTraceViaOtelIngestion", () => {
     });
   });
 
-  it("keeps langfuse.trace.name on the wrapping root only", async () => {
+  it("preserves trace names when each published span is processed independently", async () => {
     await publishFixture();
 
-    const spans = getPublishedResourceSpans().flatMap((resourceSpan: any) =>
-      resourceSpan.scopeSpans.flatMap((scopeSpan: any) => scopeSpan.spans),
-    );
-    const root = spans.find((span: any) => !span.parentSpanId);
-    const children = spans.filter((span: any) => span.parentSpanId);
+    const resourceSpans = getPublishedResourceSpans();
+    const batchedEvents = await processPublishedSpans();
 
-    expect(spanAttributeMap(root)[LangfuseOtelSpanAttributes.TRACE_NAME]).toBe(
-      "agent-turn",
-    );
-    expect(children).toHaveLength(3);
-    for (const child of children) {
-      expect(
-        spanAttributeMap(child)[LangfuseOtelSpanAttributes.TRACE_NAME],
-      ).toBe(undefined);
+    for (const resourceSpan of resourceSpans) {
+      for (const scopeSpan of resourceSpan.scopeSpans ?? []) {
+        for (const span of scopeSpan.spans ?? []) {
+          const processor = await createProcessor();
+          const events = await processor.processToEvent([
+            {
+              ...resourceSpan,
+              scopeSpans: [{ ...scopeSpan, spans: [span] }],
+            },
+          ]);
+
+          expect(events).toHaveLength(1);
+          expect(events[0]?.traceName).toBe("agent-turn");
+          expect(events[0]).toEqual(
+            batchedEvents.find((event) => event.spanId === events[0]?.spanId),
+          );
+        }
+      }
     }
   });
 
-  it("does not copy the batch-root traceName onto children for other SDK names", async () => {
+  it("does not infer a missing child trace name from other spans in the batch", async () => {
     await publishFixture();
 
-    const events = await processPublishedSpans("langfuse-internal-otel-writer");
-    const wrappingRoot = events.find((event) => event.spanId === TRACE_ID);
-    const generation = events.find(
-      (event) => event.spanId === `${RUN_ID}-llm-0`,
-    );
+    const resourceSpan = getPublishedResourceSpans()[0]!;
+    const scopeSpan = resourceSpan.scopeSpans![0]!;
+    const generation = scopeSpan.spans!.find(
+      (span) => span.name === "invoke-model",
+    )!;
+    const unnamedGeneration = {
+      ...generation,
+      attributes: generation.attributes?.filter(
+        (attribute) => attribute.key !== LangfuseOtelSpanAttributes.TRACE_NAME,
+      ),
+    };
+    const processor = await createProcessor();
+    const [independentEvent] = await processor.processToEvent([
+      {
+        ...resourceSpan,
+        scopeSpans: [{ ...scopeSpan, spans: [unnamedGeneration] }],
+      },
+    ]);
+    const batchedEvents = await processor.processToEvent([
+      {
+        ...resourceSpan,
+        scopeSpans: [
+          {
+            ...scopeSpan,
+            spans: scopeSpan.spans!.map((span) =>
+              span === generation ? unnamedGeneration : span,
+            ),
+          },
+        ],
+      },
+    ]);
 
-    expect(wrappingRoot?.traceName).toBe("agent-turn");
-    expect(generation?.name).toBe("invoke-model");
-    expect(generation?.traceName).toBeNull();
+    expect(independentEvent?.traceName).toBeNull();
+    expect(
+      batchedEvents.find((event) => event.name === "invoke-model"),
+    ).toEqual(independentEvent);
   });
 
-  it("does not emit named trace-create rewrites from child spans", async () => {
+  it("preserves the canonical name and root content in legacy trace updates", async () => {
     await publishFixture();
 
     const events = await processPublishedIngestionEvents();
-    const namedTraceCreates = events.filter(
-      (event) =>
-        event.type === "trace-create" &&
-        Boolean((event.body as { name?: string }).name),
+    const traceCreates = events.filter(
+      (event) => event.type === "trace-create",
     );
 
-    expect(namedTraceCreates).toHaveLength(1);
-    expect(namedTraceCreates[0]?.body).toMatchObject({
-      id: TRACE_ID,
-      name: "agent-turn",
+    expect(traceCreates).toHaveLength(4);
+    for (const trace of traceCreates) {
+      expect(trace.body).toMatchObject({ id: TRACE_ID, name: "agent-turn" });
+    }
+    expect(traceCreates[0]?.body).toMatchObject({
+      input: "hello",
+      output: "hi",
     });
+    for (const childTrace of traceCreates.slice(1)) {
+      expect(childTrace.body.input).toBeUndefined();
+      expect(childTrace.body.output).toBeUndefined();
+    }
   });
 
   it("links the generation prompt as an integer version in legacy ingestion events", async () => {
