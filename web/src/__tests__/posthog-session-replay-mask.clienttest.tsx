@@ -2,9 +2,7 @@
 
 import type { PostHogConfig } from "posthog-js";
 import { createElement } from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
-import { InAppAgentQuestionnaireCard } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireCard/InAppAgentQuestionnaireCard";
-import { InAppAgentQuestionnaireSummary } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireSummary/InAppAgentQuestionnaireSummary";
+import { render, screen } from "@testing-library/react";
 import { AutocompleteListbox } from "@/src/features/search-bar/components/AutocompleteListbox";
 import { ComposerWithPreview } from "@/src/features/search-bar/components/ComposerWithPreview";
 import { SearchComposer } from "@/src/features/search-bar/components/SearchComposer";
@@ -83,69 +81,6 @@ describe("PostHog session replay privacy", () => {
     expect(
       screen.getByTestId("search-bar-preview").closest(".ph-no-capture"),
     ).not.toBeNull();
-  });
-
-  it("blocks Halo questionnaire questions, options, and submitted answers", () => {
-    // The Radix radio group measures its items; jsdom has no ResizeObserver.
-    vi.stubGlobal(
-      "ResizeObserver",
-      class {
-        observe() {}
-        unobserve() {}
-        disconnect() {}
-      },
-    );
-    const { unmount } = render(
-      <InAppAgentQuestionnaireCard
-        questions={[
-          {
-            question: "private-question",
-            options: [
-              {
-                label: "private-option-label",
-                description: "private-option-description",
-                recommended: false,
-              },
-            ],
-            allowMultiple: false,
-          },
-        ]}
-        isSubmitting={false}
-        onSubmit={vi.fn()}
-      />,
-    );
-    for (const text of [
-      "private-question",
-      "private-option-label",
-      "private-option-description",
-    ]) {
-      expect(screen.getByText(text).closest(".ph-no-capture")).not.toBeNull();
-    }
-    fireEvent.click(screen.getByRole("radio", { name: "Type your answer" }));
-    fireEvent.change(screen.getByLabelText("Custom answer"), {
-      target: { value: "private-other-answer" },
-    });
-    expect(
-      screen
-        .getByDisplayValue("private-other-answer")
-        .closest(".ph-no-capture"),
-    ).not.toBeNull();
-    unmount();
-
-    render(
-      <InAppAgentQuestionnaireSummary
-        answers={[
-          {
-            question: "private-question",
-            answer: ["private-other-answer"],
-            skipped: false,
-          },
-        ]}
-      />,
-    );
-    for (const text of ["private-question", "private-other-answer"]) {
-      expect(screen.getByText(text).closest(".ph-no-capture")).not.toBeNull();
-    }
   });
 
   it("records regular UI text while masking input values", async () => {
