@@ -353,7 +353,11 @@ export const CATALOG: CatalogEntry[] = [
       db()
         .selectFrom("events_core as e")
         .select((eb) => [
-          metadataValue("e", "model").as("model"),
+          metadataValue(
+            eb.ref("e.metadata_names"),
+            eb.ref("e.metadata_values"),
+            "model",
+          ).as("model"),
           eb.fn.countAll().as("n"),
         ])
         .groupBy("model"),

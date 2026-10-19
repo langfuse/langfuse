@@ -1,4 +1,4 @@
-import { expressionBuilder, sql } from "kysely";
+import { expressionBuilder, sql, type ExpressionBuilder } from "kysely";
 import { describe, expect, expectTypeOf, it } from "vitest";
 
 import { compileClickhouseQuery, renderClickhouseExpression } from "./compile";
@@ -30,6 +30,12 @@ import { TenancyInjectionPlugin } from "./tenancy";
 import { defineView, fromView } from "./views";
 
 const projectId = "proj-1";
+
+const eventsMetadata = (
+  eb: ExpressionBuilder<{ e: ClickHouseDatabase["events_core"] }, "e">,
+  key: string,
+) =>
+  metadataValue(eb.ref("e.metadata_names"), eb.ref("e.metadata_values"), key);
 
 describe("schema-typed selection (condition 7)", () => {
   it("accepts sum() over a numeric column and emits SQL", () => {
@@ -65,8 +71,8 @@ describe("metadata subscript access (condition 7b)", () => {
   it("lowers metadata[key] to ArrayIndexNode + mapFromArrays FunctionNode, not RawNode", () => {
     const qb = getClickhouseKysely()
       .selectFrom("events_core as e")
-      .select((_eb) => [metadataValue("e", "a").as("a")])
-      .where((eb) => eb(metadataValue("e", "a"), "=", "x"));
+      .select((eb) => [eventsMetadata(eb, "a").as("a")])
+      .where((eb) => eb(eventsMetadata(eb, "a"), "=", "x"));
 
     const node = qb
       .withPlugin(new TenancyInjectionPlugin(projectId))
@@ -87,8 +93,8 @@ describe("metadata subscript access (condition 7b)", () => {
   it("emits subscript + bound key param in SELECT and WHERE", () => {
     const qb = getClickhouseKysely()
       .selectFrom("events_core as e")
-      .select((_eb) => [metadataValue("e", "a").as("a")])
-      .where((eb) => eb(metadataValue("e", "a"), "=", "x"));
+      .select((eb) => [eventsMetadata(eb, "a").as("a")])
+      .where((eb) => eb(eventsMetadata(eb, "a"), "=", "x"));
 
     const { sql: compiled, params } = compileClickhouseQuery(qb, projectId);
     const lower = compiled.toLowerCase();
@@ -106,7 +112,7 @@ describe("metadata subscript access (condition 7b)", () => {
       .selectFrom("events_core as e")
       .select("environment")
       .groupBy("environment")
-      .having((eb) => eb(metadataValue("e", "a"), "=", "x"));
+      .having((eb) => eb(eventsMetadata(eb, "a"), "=", "x"));
 
     const { sql: compiled, params } = compileClickhouseQuery(qb, projectId);
     expect(compiled.toLowerCase()).toContain("having");
@@ -245,9 +251,11 @@ describe("renderClickhouseExpression", () => {
     expect(renderClickhouseExpression(metadata)).toBe(
       "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))",
     );
-    expect(renderClickhouseExpression(traceSessionId())).toBe(
-      "argMaxIf(session_id, event_ts, session_id != '')",
-    );
+    expect(
+      renderClickhouseExpression(
+        traceSessionId(eb.ref("session_id"), eb.ref("event_ts")),
+      ),
+    ).toBe("argMaxIf(session_id, event_ts, session_id != '')");
   });
 
   it("rejects a subquery", () => {

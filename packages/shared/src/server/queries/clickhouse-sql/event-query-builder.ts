@@ -40,7 +40,9 @@ const eventsMetadataMap = metadataMap(
 
 const EVENTS_METADATA_MAP_SQL = renderClickhouseExpression(eventsMetadataMap);
 
-const TRACE_SESSION_ID_SQL = renderClickhouseExpression(traceSessionId());
+const TRACE_SESSION_ID_SQL = renderClickhouseExpression(
+  traceSessionId(eventsRef.ref("session_id"), eventsRef.ref("event_ts")),
+);
 
 /**
  * Extract the output column alias from a field expression (unquoted).

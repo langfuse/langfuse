@@ -632,34 +632,28 @@ export function argMaxIf<T>(
 }
 
 /**
- * A trace's session id from its events: the latest non-empty `session_id`,
- * `argMaxIf(session_id, event_ts, session_id != '')`. Reads unqualified
- * columns, for a trace-level aggregate over one events table.
+ * A trace's session id from its events: the latest non-empty session id,
+ * `argMaxIf(sessionId, eventTs, sessionId != '')`.
  */
-export function traceSessionId(): ChExpression<string> {
-  const eb = expressionBuilder<ClickHouseDatabase, "events_core">();
-  const sessionId = eb.ref("session_id");
-  return argMaxIf(sessionId, eb.ref("event_ts"), nonEmpty(sessionId));
+export function traceSessionId(
+  sessionId: Expression<string>,
+  eventTs: Expression<unknown>,
+): ChExpression<string> {
+  return argMaxIf(sessionId, eventTs, nonEmpty(sessionId));
 }
 
 /**
- * Lower `metadata[key]` to a subscript of {@link metadataMap}, so the last
- * entry of a duplicated key wins. Keys follow {@link mapValue}: a string is
- * bound, a `literal(...)` is inlined.
+ * Lower `metadata[key]` to a subscript of {@link metadataMap} over the events
+ * `metadata_names` / `metadata_values` columns, so the last entry of a
+ * duplicated key wins. Keys follow {@link mapValue}: a string is bound, a
+ * `literal(...)` is inlined.
  */
 export function metadataValue(
-  tableAlias: string,
+  names: Expression<string[]>,
+  values: Expression<string[]>,
   key: string | Expression<string>,
 ): ChExpression<string> {
-  const column = (name: string) =>
-    new ExpressionWrapper<ClickHouseDatabase, "events_core", string[]>(
-      qualifiedColumn(tableAlias, name),
-    );
-  return subscript<string>(
-    metadataMap(column("metadata_names"), column("metadata_values")),
-    key,
-    true,
-  );
+  return subscript<string>(metadataMap(names, values), key, true);
 }
 
 // Extract the element type `T` from an array-typed `Expression<T[]>`. `arrayJoin`

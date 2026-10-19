@@ -111,22 +111,22 @@ const traceNameSelect = (eb: EventsExpressionBuilder) =>
   eventsTraceNameOrEmpty(eb).as("trace_name");
 
 /** The latest non-empty value of `column` across a trace's events. */
-const latestNonEmpty = (eb: EventsExpressionBuilder, column: StringColumn) =>
-  argMaxIf(eb.ref(column), eb.ref("event_ts"), eb(column, "<>", literal("")));
+const latestNonEmpty = (
+  eb: EventsExpressionBuilder,
+  column: `e.${StringColumn}`,
+) =>
+  argMaxIf(eb.ref(column), eb.ref("e.event_ts"), eb(column, "<>", literal("")));
 
 /** `column` of the trace's root observation. */
-const ofRootSpan = <C extends EventsColumn>(
-  eb: EventsExpressionBuilder,
-  column: C,
-) =>
+const ofRootSpan = (eb: EventsExpressionBuilder, column: `e.${EventsColumn}`) =>
   argMaxIf(
     eb.ref(column),
-    eb.ref("event_ts"),
-    eb("parent_span_id", "=", literal("")),
+    eb.ref("e.event_ts"),
+    eb("e.parent_span_id", "=", literal("")),
   );
 
 const countLevel = (eb: EventsExpressionBuilder, level: string) =>
-  countIf(eb("level", "=", literal(level)));
+  countIf(eb("e.level", "=", literal(level)));
 
 /**
  * One row per trace, aggregated from its events. Grouped by
@@ -135,8 +135,8 @@ const countLevel = (eb: EventsExpressionBuilder, level: string) =>
 export const traceAggregationSelects = scopedToEvents(
   (eb) =>
     [
-      eb.ref("trace_id").as("id"),
-      "project_id",
+      eb.ref("e.trace_id").as("id"),
+      "e.project_id as project_id",
       eb.fn
         .coalesce(
           nullIf(
@@ -160,54 +160,57 @@ export const traceAggregationSelects = scopedToEvents(
           ),
         )
         .as("name"),
-      eb.fn.min("start_time").as("timestamp"),
-      latestNonEmpty(eb, "environment").as("environment"),
-      latestNonEmpty(eb, "version").as("version"),
-      traceSessionId().as("session_id"),
-      latestNonEmpty(eb, "user_id").as("user_id"),
-      ofRootSpan(eb, "input").as("input"),
-      ofRootSpan(eb, "output").as("output"),
+      eb.fn.min("e.start_time").as("timestamp"),
+      latestNonEmpty(eb, "e.environment").as("environment"),
+      latestNonEmpty(eb, "e.version").as("version"),
+      traceSessionId(eb.ref("e.session_id"), eb.ref("e.event_ts")).as(
+        "session_id",
+      ),
+      latestNonEmpty(eb, "e.user_id").as("user_id"),
+      ofRootSpan(eb, "e.input").as("input"),
+      ofRootSpan(eb, "e.output").as("output"),
       argMaxIf(
         eventsMetadataMap(eb),
-        eb.ref("event_ts"),
-        eb("parent_span_id", "=", literal("")),
+        eb.ref("e.event_ts"),
+        eb("e.parent_span_id", "=", literal("")),
       ).as("metadata"),
-      eb.fn.min("created_at").as("created_at"),
-      eb.fn.max("updated_at").as("updated_at"),
-      eb.fn.sum("total_cost").as("total_cost"),
+      eb.fn.min("e.created_at").as("created_at"),
+      eb.fn.max("e.updated_at").as("updated_at"),
+      eb.fn.sum("e.total_cost").as("total_cost"),
       ifElse(
-        eb(eb.fn.max("end_time"), "is", null),
+        eb(eb.fn.max("e.end_time"), "is", null),
         literal(null),
         dateDiff(
           "millisecond",
-          eb.fn.min("start_time"),
-          greatest(eb.fn.max("start_time"), eb.fn.max("end_time")),
+          eb.fn.min("e.start_time"),
+          greatest(eb.fn.max("e.start_time"), eb.fn.max("e.end_time")),
         ),
       ).as("latency_milliseconds"),
-      groupUniqArrayIf(eb.ref("span_id"), eb("span_id", "<>", literal(""))).as(
-        "observation_ids",
-      ),
+      groupUniqArrayIf(
+        eb.ref("e.span_id"),
+        eb("e.span_id", "<>", literal("")),
+      ).as("observation_ids"),
       arrayLength(
         groupUniqArrayIf(
-          eb.ref("span_id"),
+          eb.ref("e.span_id"),
           eb.and([
-            eb("span_id", "<>", literal("")),
-            eb("span_id", "<>", concat(literal("t-"), eb.ref("trace_id"))),
+            eb("e.span_id", "<>", literal("")),
+            eb("e.span_id", "<>", concat(literal("t-"), eb.ref("e.trace_id"))),
           ]),
         ),
       ).as("observation_count"),
-      ofRootSpan(eb, "bookmarked").as("bookmarked"),
-      eb.fn.max("public").as("public"),
-      latestNonEmpty(eb, "experiment_item_id").as("experiment_item_id"),
-      sumMap(eb.ref("usage_details")).as("usage_details"),
-      sumMap(eb.ref("cost_details")).as("cost_details"),
+      ofRootSpan(eb, "e.bookmarked").as("bookmarked"),
+      eb.fn.max("e.public").as("public"),
+      latestNonEmpty(eb, "e.experiment_item_id").as("experiment_item_id"),
+      sumMap(eb.ref("e.usage_details")).as("usage_details"),
+      sumMap(eb.ref("e.cost_details")).as("cost_details"),
       multiIf(
         ["ERROR", "WARNING", "DEFAULT"].map(
           (level) =>
             [
               arrayExists(
                 (x) => eb(x, "=", literal(level)),
-                groupArray(eb.ref("level")),
+                groupArray(eb.ref("e.level")),
               ),
               literal(level),
             ] as const,
@@ -218,13 +221,15 @@ export const traceAggregationSelects = scopedToEvents(
       countLevel(eb, "ERROR").as("error_count"),
       countLevel(eb, "DEFAULT").as("default_count"),
       countLevel(eb, "DEBUG").as("debug_count"),
-      argMaxIf(eb.ref("tags"), eb.ref("event_ts"), notEmpty(eb.ref("tags"))).as(
-        "tags",
-      ),
-      latestNonEmpty(eb, "release").as("release"),
-      latestNonEmpty(eb, "evaluator_id").as("evaluator_id"),
-      latestNonEmpty(eb, "evaluation_rule_id").as("evaluation_rule_id"),
-      anyValue(eb.ref("experiment_id")).as("experiment_id"),
+      argMaxIf(
+        eb.ref("e.tags"),
+        eb.ref("e.event_ts"),
+        notEmpty(eb.ref("e.tags")),
+      ).as("tags"),
+      latestNonEmpty(eb, "e.release").as("release"),
+      latestNonEmpty(eb, "e.evaluator_id").as("evaluator_id"),
+      latestNonEmpty(eb, "e.evaluation_rule_id").as("evaluation_rule_id"),
+      anyValue(eb.ref("e.experiment_id")).as("experiment_id"),
     ] satisfies EventsSelection[],
 );
 
@@ -239,63 +244,66 @@ export const sessionAggregationSelects = pickSelects(
 /** Session-level aggregates, keyed by field. */
 function sessionAggregationSelectMap(eb: EventsExpressionBuilder) {
   return {
-    session_id: "session_id",
-    max_timestamp: eb.fn.max("start_time").as("max_timestamp"),
-    min_timestamp: eb.fn.min("start_time").as("min_timestamp"),
-    trace_ids: groupUniqArray(eb.ref("trace_id")).as("trace_ids"),
+    session_id: "e.session_id as session_id",
+    max_timestamp: eb.fn.max("e.start_time").as("max_timestamp"),
+    min_timestamp: eb.fn.min("e.start_time").as("min_timestamp"),
+    trace_ids: groupUniqArray(eb.ref("e.trace_id")).as("trace_ids"),
     user_ids: groupUniqArrayIf(
-      eb.ref("user_id"),
-      eb.and([eb("user_id", "is not", null), eb("user_id", "!=", literal(""))]),
+      eb.ref("e.user_id"),
+      eb.and([
+        eb("e.user_id", "is not", null),
+        eb("e.user_id", "!=", literal("")),
+      ]),
     ).as("user_ids"),
-    trace_count: uniq(eb.ref("trace_id")).as("trace_count"),
+    trace_count: uniq(eb.ref("e.trace_id")).as("trace_count"),
     trace_tags: groupUniqArrayArrayIf(
-      eb.ref("tags"),
-      notEmpty(eb.ref("tags")),
+      eb.ref("e.tags"),
+      notEmpty(eb.ref("e.tags")),
     ).as("trace_tags"),
-    environment: latestNonEmpty(eb, "environment").as("environment"),
+    environment: latestNonEmpty(eb, "e.environment").as("environment"),
     total_observations: uniqIf(
-      eb.ref("span_id"),
-      eb("parent_span_id", "!=", literal("")),
+      eb.ref("e.span_id"),
+      eb("e.parent_span_id", "!=", literal("")),
     ).as("total_observations"),
     duration: dateDiff(
       "second",
-      eb.fn.min("start_time"),
+      eb.fn.min("e.start_time"),
       eb.fn.max(
         ifElse(
-          isNull(eb.ref("end_time")),
-          eb.ref("start_time"),
-          eb.ref("end_time"),
+          isNull(eb.ref("e.end_time")),
+          eb.ref("e.start_time"),
+          eb.ref("e.end_time"),
         ),
       ),
     ).as("duration"),
-    session_usage_details: sumMap(eb.ref("usage_details")).as(
+    session_usage_details: sumMap(eb.ref("e.usage_details")).as(
       "session_usage_details",
     ),
-    session_cost_details: sumMap(eb.ref("cost_details")).as(
+    session_cost_details: sumMap(eb.ref("e.cost_details")).as(
       "session_cost_details",
     ),
     session_input_cost: sumMapValuesWhereKeyContains(
-      sumMap(eb.ref("cost_details")),
+      sumMap(eb.ref("e.cost_details")),
       "input",
     ).as("session_input_cost"),
     session_output_cost: sumMapValuesWhereKeyContains(
-      sumMap(eb.ref("cost_details")),
+      sumMap(eb.ref("e.cost_details")),
       "output",
     ).as("session_output_cost"),
     session_total_cost: mapValue(
-      sumMap(eb.ref("cost_details")),
+      sumMap(eb.ref("e.cost_details")),
       literal("total"),
     ).as("session_total_cost"),
     session_input_usage: sumMapValuesWhereKeyContains(
-      sumMap(eb.ref("usage_details")),
+      sumMap(eb.ref("e.usage_details")),
       "input",
     ).as("session_input_usage"),
     session_output_usage: sumMapValuesWhereKeyContains(
-      sumMap(eb.ref("usage_details")),
+      sumMap(eb.ref("e.usage_details")),
       "output",
     ).as("session_output_usage"),
     session_total_usage: mapValue(
-      sumMap(eb.ref("usage_details")),
+      sumMap(eb.ref("e.usage_details")),
       literal("total"),
     ).as("session_total_usage"),
   } satisfies Record<SessionEventsField, EventsSelection>;

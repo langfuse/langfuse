@@ -10,7 +10,6 @@ import {
   type AliasableExpression,
   type AliasedExpression,
   type Expression,
-  type ExpressionBuilder,
   type SqlBool,
 } from "kysely";
 import type {
@@ -187,9 +186,6 @@ import type {
   SkillsAvailable,
   SkillsResourceLoaded,
 } from "../../features/skills/trace";
-
-/** The `input`/`output` pair an I/O select reads from one relation. */
-type IoColumns = { input: string; output: string };
 
 export type EventBatchIOStringOutput = {
   id: string;
@@ -1115,7 +1111,12 @@ async function getObservationByIdFromEventsTableInternal({
     .$call(softDeleteAfterLimit())
     .select(observationByIdSelects)
     .$if(fetchWithInputOutput, (qb) =>
-      qb.select((eb) => observationIoSelects(eb, renderingProps.truncated)),
+      qb.select((eb) =>
+        observationIoSelects(renderingProps.truncated, {
+          input: eb.ref("input"),
+          output: eb.ref("output"),
+        }),
+      ),
     )
     .where("span_id", "=", id)
     .$if(startTime != null, (qb) =>
@@ -1152,14 +1153,16 @@ async function getObservationByIdFromEventsTableInternal({
 
 /** `input`/`output`, capped to the server-side char limit on a truncated read. */
 function observationIoSelects(
-  eb: ExpressionBuilder<{ e: IoColumns }, "e">,
   truncated: boolean | undefined,
-) {
-  if (!truncated) return ["input", "output"] as const;
+  io: { input: Expression<string>; output: Expression<string> },
+): ReadonlyArray<
+  "input" | "output" | AliasedExpression<string, "input" | "output">
+> {
+  if (!truncated) return ["input", "output"];
   const charLimit = env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT;
   return [
-    leftUTF8(eb.ref("input"), charLimit).as("input"),
-    leftUTF8(eb.ref("output"), charLimit).as("output"),
+    leftUTF8(io.input, charLimit).as("input"),
+    leftUTF8(io.output, charLimit).as("output"),
   ];
 }
 
@@ -1238,7 +1241,10 @@ export const getTraceByIdFromEventsTable = async ({
       "t.updated_at",
       metadataSelect,
       literal(0).as("is_deleted"),
-      ...traceIoSelects(eb, excludeInputOutput, truncated),
+      ...traceIoSelects(excludeInputOutput, truncated, {
+        input: eb.ref("t.input"),
+        output: eb.ref("t.output"),
+      }),
     ])
     .$if(timestamp != null, (qb) =>
       qb.where((eb) =>
@@ -1284,20 +1290,22 @@ function observationsToTraceLowerBound(anchor: Date): Date {
 
 /** `input`/`output` of the trace CTE `t`: empty, capped on a truncated read, or full. */
 function traceIoSelects(
-  eb: ExpressionBuilder<{ t: IoColumns }, "t">,
   excludeInputOutput: boolean,
   truncated: boolean,
-) {
+  io: { input: Expression<string>; output: Expression<string> },
+): ReadonlyArray<
+  "t.input" | "t.output" | AliasedExpression<unknown, "input" | "output">
+> {
   if (excludeInputOutput)
     return [literal("").as("input"), literal("").as("output")];
   if (truncated) {
     const charLimit = env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT;
     return [
-      leftUTF8(eb.ref("t.input"), charLimit).as("input"),
-      leftUTF8(eb.ref("t.output"), charLimit).as("output"),
+      leftUTF8(io.input, charLimit).as("input"),
+      leftUTF8(io.output, charLimit).as("output"),
     ];
   }
-  return ["t.input", "t.output"] as const;
+  return ["t.input", "t.output"];
 }
 
 /**
@@ -2863,7 +2871,13 @@ export const getObservationsBatchIOFromEventsTable = async <
           .select("trace_id")
           .where("trace_id", "in", traceIds)
           .groupBy("trace_id")
-          .having(traceSessionId(), "=", opts.sessionId!),
+          .having((eb) =>
+            eb(
+              traceSessionId(eb.ref("session_id"), eb.ref("event_ts")),
+              "=",
+              opts.sessionId!,
+            ),
+          ),
       ),
     )
     .where("e.start_time", ">=", minTimestamp)
@@ -3535,12 +3549,16 @@ export const getEventsForAnalyticsIntegrations = async function* (
       ),
       mapValue(eb.ref("e.usage_details"), literal("total")).as("total_tokens"),
       // Analytics integration session IDs from metadata (constructed from array columns)
-      metadataValue("e", literal("$posthog_session_id")).as(
-        "posthog_session_id",
-      ),
-      metadataValue("e", literal("$mixpanel_session_id")).as(
-        "mixpanel_session_id",
-      ),
+      metadataValue(
+        eb.ref("e.metadata_names"),
+        eb.ref("e.metadata_values"),
+        literal("$posthog_session_id"),
+      ).as("posthog_session_id"),
+      metadataValue(
+        eb.ref("e.metadata_names"),
+        eb.ref("e.metadata_values"),
+        literal("$mixpanel_session_id"),
+      ).as("mixpanel_session_id"),
     ])
     .where("e.start_time", ">=", minTimestamp)
     .where("e.start_time", "<", maxTimestamp)

@@ -200,7 +200,17 @@ db.selectFrom("scores as s")
 const filterKey: string = input.metadataKey; // caller-supplied, so bound
 db.selectFrom("events as e")
   .select("e.span_id")
-  .where((eb) => eb(metadataValue("e", filterKey), "=", "x"));
+  .where((eb) =>
+    eb(
+      metadataValue(
+        eb.ref("e.metadata_names"),
+        eb.ref("e.metadata_values"),
+        filterKey,
+      ),
+      "=",
+      "x",
+    ),
+  );
 // select e.span_id from events_core as e where … and mapfromarrays(arrayreverse(e.metadata_names), arrayreverse(e.metadata_values))[{p:String}] = {p:String}
 ```
 
