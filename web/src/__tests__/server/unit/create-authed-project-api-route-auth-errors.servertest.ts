@@ -47,6 +47,9 @@ const {
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined as string | undefined,
     LANGFUSE_API_ORGANIZATION_CUTOFF_ENABLED: "false" as "true" | "false",
     LANGFUSE_API_ORGANIZATION_CUTOFF_DATE: "2026-09-16T00:00:00.000Z",
+    LANGFUSE_LEGACY_INGESTION_SCORE_ONLY_ORG_CREATED_CUTOFF: undefined as
+      | string
+      | undefined,
   },
 }));
 
@@ -76,6 +79,7 @@ vi.mock("@langfuse/shared/src/db", async () => {
 });
 
 vi.mock("@langfuse/shared/src/server", () => ({
+  eventTypes: { SCORE_CREATE: "score-create" },
   redis: null,
   instrumentAsync: vi.fn(async (_ctx, callback) =>
     callback({ setAttribute: vi.fn() }),
@@ -168,6 +172,7 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     });
     mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
     mockEnv.LANGFUSE_API_ORGANIZATION_CUTOFF_ENABLED = "false";
+    mockEnv.LANGFUSE_LEGACY_INGESTION_SCORE_ONLY_ORG_CREATED_CUTOFF = undefined;
   });
 
   async function callRoute(options?: {
@@ -629,5 +634,71 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     expect(res.statusCode).toBe(204);
     expect(res._isEndCalled()).toBe(true);
     expect(res._getData()).toBe("");
+  });
+
+  describe("legacy tracing writes for new organizations", () => {
+    const cutoff = "2026-10-01T00:00:00.000Z";
+
+    async function callLegacyWrite(organizationCreatedAt?: string) {
+      const fn = vi.fn(async () => ({ ok: true as const }));
+      const handler = createAuthedProjectAPIRoute({
+        name: "Create Trace (Legacy)",
+        action: "traces:create",
+        responseSchema: z.object({ ok: z.literal(true) }),
+        rejectLegacyTracingWritesForNewOrgs: true,
+        fn,
+      });
+      mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce({
+        ...validAuth,
+        scope: {
+          ...validAuth.scope,
+          organizationCreatedAt,
+        },
+      });
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "POST",
+        url: "/api/public/traces",
+        headers: { authorization: "Basic test" },
+      });
+      await handler(req, res);
+      return { res, fn };
+    }
+
+    it("rejects a legacy trace write for an organization created on the cutoff", async () => {
+      mockEnv.LANGFUSE_LEGACY_INGESTION_SCORE_ONLY_ORG_CREATED_CUTOFF = cutoff;
+
+      const { res, fn } = await callLegacyWrite(cutoff);
+
+      expect(res.statusCode).toBe(400);
+      expect(res._getJSONData()).toMatchObject({
+        message: "Event type not accepted",
+        error: expect.stringContaining(cutoff),
+      });
+      expect(fn).not.toHaveBeenCalled();
+      expect(mockFindOrganization).not.toHaveBeenCalled();
+      expect(mockRecordIncrement).toHaveBeenCalledWith(
+        "langfuse.public_api.legacy_ingestion_non_score_rejected",
+        1,
+        expect.any(Object),
+      );
+    });
+
+    it("allows a legacy trace write for an organization created before the cutoff", async () => {
+      mockEnv.LANGFUSE_LEGACY_INGESTION_SCORE_ONLY_ORG_CREATED_CUTOFF = cutoff;
+
+      const { res, fn } = await callLegacyWrite("2026-09-30T23:59:59.999Z");
+
+      expect(res.statusCode).toBe(200);
+      expect(res._getJSONData()).toEqual({ ok: true });
+      expect(fn).toHaveBeenCalledOnce();
+    });
+
+    it("allows a legacy trace write when the cutoff is unset", async () => {
+      const { res, fn } = await callLegacyWrite(cutoff);
+
+      expect(res.statusCode).toBe(200);
+      expect(fn).toHaveBeenCalledOnce();
+      expect(mockRecordIncrement).not.toHaveBeenCalled();
+    });
   });
 });

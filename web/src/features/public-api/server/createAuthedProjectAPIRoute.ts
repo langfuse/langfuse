@@ -36,6 +36,11 @@ import {
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
 import { sendAuthErrorJson } from "@/src/features/public-api/server/deprecations";
 import { applyLegacyApiOrganizationCutoff } from "@/src/features/public-api/server/legacyApiOrganizationCutoff";
+import {
+  isLegacyIngestionScoreOnlyOrg,
+  legacyTracingWriteRejectionBody,
+  noteLegacyIngestionScoreOnlyRejections,
+} from "@/src/features/public-api/server/legacyIngestionScoreOnlyCutoff";
 import { type RouteAccessLevel } from "@/src/features/public-api/server/verifyProjectApiKeyAuth";
 import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
 import { type ProjectAction } from "@langfuse/shared/rbac";
@@ -125,6 +130,14 @@ export type AuthedProjectAPIRouteConfig<
    * events_only mode and would silently return stale or empty data.
    */
   rejectInEventsOnlyMode?: boolean;
+  /**
+   * When true, organizations created at or after
+   * LANGFUSE_LEGACY_INGESTION_SCORE_ONLY_ORG_CREATED_CUTOFF receive the same
+   * 400 "Event type not accepted" rejection the batch ingestion endpoint puts
+   * on each non-score event. This route is a single write, so that 400 is the
+   * HTTP status. An unset cutoff leaves the route unchanged.
+   */
+  rejectLegacyTracingWritesForNewOrgs?: boolean;
   /** Marks the route as deprecated; withMiddlewares stamps it onto every JSON response and sets deprecation headers. */
   deprecation?: ApiDeprecationInfo;
   fn: (params: {
@@ -270,6 +283,22 @@ export const createAuthedProjectAPIRoute = <
     });
     if (cutoffRejection) {
       res.status(410).json(cutoffRejection.body);
+      return;
+    }
+
+    if (
+      routeConfig.rejectLegacyTracingWritesForNewOrgs &&
+      isLegacyIngestionScoreOnlyOrg(auth.scope.organizationCreatedAt)
+    ) {
+      noteLegacyIngestionScoreOnlyRejections({
+        rejectedCount: 1,
+        organizationCreatedAt: auth.scope.organizationCreatedAt,
+        orgId: auth.scope.orgId,
+        projectId: auth.scope.projectId,
+        routeName: routeConfig.name,
+        headers: req.headers,
+      });
+      res.status(400).json(legacyTracingWriteRejectionBody());
       return;
     }
 

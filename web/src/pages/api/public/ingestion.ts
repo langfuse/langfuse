@@ -47,6 +47,10 @@ import {
   unauthorizedError,
   type AuthorizationContext,
 } from "@/src/features/auth/policy/types";
+import {
+  filterBatchForLegacyIngestionScoreOnlyOrg,
+  noteLegacyIngestionScoreOnlyRejections,
+} from "@/src/features/public-api/server/legacyIngestionScoreOnlyCutoff";
 
 export const config = {
   api: {
@@ -189,6 +193,23 @@ export default async function handler(
           parsedSchema.data.batch,
           isEventsOnlyMode,
         );
+        // Per-organization score-only gate. Runs after the deployment-wide
+        // events_only filter so that mode keeps its own error text. Score
+        // events stay in the batch and are still returned as 201s inside the 207.
+        const scoreOnly = filterBatchForLegacyIngestionScoreOnlyOrg(
+          batchForProcessing,
+          scope.organizationCreatedAt,
+        );
+        if (scoreOnly.rejectedErrors.length > 0) {
+          noteLegacyIngestionScoreOnlyRejections({
+            rejectedCount: scoreOnly.rejectedErrors.length,
+            organizationCreatedAt: scope.organizationCreatedAt,
+            orgId: scope.orgId,
+            projectId,
+            routeName: "POST /api/public/ingestion",
+            headers: req.headers,
+          });
+        }
 
         const attribution = createIngestionAttribution({
           headers: req.headers,
@@ -206,7 +227,7 @@ export default async function handler(
         }
 
         const authorized = authorizeIngestionBatch(
-          batchForProcessing,
+          scoreOnly.batchForProcessing,
           authCtx,
           scope.accessLevel,
           projectId,
@@ -220,6 +241,7 @@ export default async function handler(
         result.errors = [
           ...result.errors,
           ...rejectedErrors,
+          ...scoreOnly.rejectedErrors,
           ...authorized.rejectedErrors,
         ];
 
