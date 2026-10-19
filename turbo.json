@@ -122,7 +122,7 @@
     },
     "@langfuse/icons#build": {
       "dependsOn": [],
-      "outputs": ["src/index.ts", "src/si.ts", "src/tb.ts"]
+      "outputs": ["dist/**"]
     },
     "@langfuse/icons#typecheck": {
       "dependsOn": ["build"]

@@ -6,5 +6,5 @@
     "types": ["node", "react"],
     "noEmit": true
   },
-  "include": ["src", "tests"]
+  "include": ["src/create-icon.tsx", "tests"]
 }

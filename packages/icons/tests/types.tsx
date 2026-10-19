@@ -1,7 +1,7 @@
 import { createRef, type ComponentProps } from "react";
-import { Search, type IconComponent } from "../src/index";
-import { SiGithub } from "../src/si";
-import { TbBrandAzure } from "../src/tb";
+import { Search, type IconComponent } from "@langfuse/icons";
+import { SiGithub } from "@langfuse/icons/si";
+import { TbBrandAzure } from "@langfuse/icons/tb";
 
 const icon: IconComponent = Search;
 const props: ComponentProps<typeof Search> = {

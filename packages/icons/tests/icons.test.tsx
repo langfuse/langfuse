@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Search, SearchIcon } from "../src/index";
-import { SiGithub } from "../src/si";
-import { TbBrandAzure } from "../src/tb";
+import { Search, SearchIcon } from "@langfuse/icons";
+import { SiGithub } from "@langfuse/icons/si";
+import { TbBrandAzure } from "@langfuse/icons/tb";
 
 test("semantic sizes apply across icon libraries", () => {
   for (const Icon of [Search, SiGithub, TbBrandAzure]) {
@@ -22,6 +22,7 @@ test("semantic sizes apply across icon libraries", () => {
 });
 
 test("aliases render the same icon", () => {
+  assert.equal(Search, SearchIcon);
   assert.equal(
     renderToStaticMarkup(<Search />),
     renderToStaticMarkup(<SearchIcon />),
