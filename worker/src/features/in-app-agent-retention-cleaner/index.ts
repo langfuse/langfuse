@@ -14,8 +14,6 @@ const BATCH_LIMIT = 100;
 const INTERVAL_MS = 600_000;
 
 export class InAppAgentRetentionCleaner extends PeriodicExclusiveRunner {
-  private cursor: { id: string; projectId: string } | null = null;
-
   protected get defaultIntervalMs(): number {
     return INTERVAL_MS;
   }
@@ -47,11 +45,6 @@ export class InAppAgentRetentionCleaner extends PeriodicExclusiveRunner {
         WHERE p.retention_days > 0
           AND p.deleted_at IS NULL
           AND c.updated_at < (NOW() AT TIME ZONE 'UTC') - p.retention_days * INTERVAL '1 day'
-          ${
-            this.cursor
-              ? Prisma.sql`AND (c.id, c.project_id) > (${this.cursor.id}, ${this.cursor.projectId})`
-              : Prisma.empty
-          }
           AND NOT EXISTS (
             SELECT 1 FROM in_app_agent_runs r
             WHERE r.project_id = c.project_id AND r.conversation_id = c.id
@@ -61,79 +54,61 @@ export class InAppAgentRetentionCleaner extends PeriodicExclusiveRunner {
         LIMIT ${BATCH_LIMIT}
       `;
 
-      if (conversations.length === 0) {
-        this.cursor = null;
-        // Include blocked conversations so a healthy sweep cannot hide stalled retention.
-        const [backlog] = await prisma.$queryRaw<
-          Array<{ overdueSeconds: number }>
-        >`
-          SELECT GREATEST(COALESCE(MAX(EXTRACT(EPOCH FROM (
-            (NOW() AT TIME ZONE 'UTC') - c.updated_at - p.retention_days * INTERVAL '1 day'
-          ))), 0), 0)::double precision AS "overdueSeconds"
-          FROM in_app_agent_conversations c
-          JOIN projects p ON p.id = c.project_id
-          WHERE p.retention_days > 0
-            AND p.deleted_at IS NULL
-            AND c.updated_at < (NOW() AT TIME ZONE 'UTC') - p.retention_days * INTERVAL '1 day'
-        `;
-        recordGauge(
-          "langfuse.in_app_agent_retention_cleaner.max_conversation_retention_lag_seconds",
-          backlog!.overdueSeconds,
-          { unit: "seconds" },
-        );
-        return this.defaultIntervalMs;
-      }
+      if (conversations.length > 0) {
+        const keyRuns = await prisma.inAppAgentRun.findMany({
+          where: {
+            OR: conversations.map(({ id, projectId }) => ({
+              projectId,
+              conversationId: id,
+            })),
+            finishedAt: { not: null },
+            mcpApiKeyId: { not: null },
+          },
+          select: {
+            id: true,
+            projectId: true,
+            mcpApiKeyId: true,
+          },
+          take: BATCH_LIMIT,
+        });
 
-      const keyRuns = await prisma.inAppAgentRun.findMany({
-        where: {
-          OR: conversations.map(({ id, projectId }) => ({
-            projectId,
-            conversationId: id,
-          })),
-          finishedAt: { not: null },
-          mcpApiKeyId: { not: null },
-        },
-        select: { id: true, projectId: true, mcpApiKeyId: true },
-        take: BATCH_LIMIT,
-      });
-
-      let cleanedRuns = 0;
-      for (const run of keyRuns) {
-        if (!run.mcpApiKeyId) continue;
-        await this.extendLockOnProgress();
-        try {
-          await cleanupRunMcpApiKey({
-            prisma,
-            projectId: run.projectId,
-            runId: run.id,
-            apiKeyId: run.mcpApiKeyId,
-            deleteApiKey: async (id) => {
-              await deleteInAppAgentMcpApiKeyFromDb({
-                prisma,
-                id,
-                projectId: run.projectId,
-                redis,
-              });
-            },
-          });
-          cleanedRuns++;
-        } catch (error) {
-          this.markRunFailed(error);
-          logger.error(
-            `${this.instanceName}: Failed to clean run credentials`,
-            {
-              error,
-              id: run.id,
+        let cleanedRuns = 0;
+        for (const run of keyRuns) {
+          if (!run.mcpApiKeyId) continue;
+          await this.extendLockOnProgress();
+          try {
+            await cleanupRunMcpApiKey({
+              prisma,
               projectId: run.projectId,
-            },
-          );
+              runId: run.id,
+              apiKeyId: run.mcpApiKeyId,
+              deleteApiKey: async (id) => {
+                await deleteInAppAgentMcpApiKeyFromDb({
+                  prisma,
+                  id,
+                  projectId: run.projectId,
+                  redis,
+                });
+              },
+            });
+            cleanedRuns++;
+          } catch (error) {
+            this.markRunFailed(error);
+            logger.error(
+              `${this.instanceName}: Failed to clean run credentials`,
+              {
+                error,
+                id: run.id,
+                projectId: run.projectId,
+              },
+            );
+          }
         }
-      }
 
-      await this.extendLockOnProgress(true);
-      // Re-evaluate the live policy and run guards at deletion time, after
-      // potentially slow credential cleanup. Runs and events cascade.
-      const deleted = await prisma.$executeRaw`
+        await this.extendLockOnProgress(true);
+        // Re-evaluate the live policy and run guards at deletion time, after
+        // potentially slow credential cleanup. Runs and events cascade.
+        const deleted = await prisma.$executeRaw`
         DELETE FROM in_app_agent_conversations c
         USING projects p, (VALUES ${Prisma.join(
           conversations.map(
@@ -151,17 +126,38 @@ export class InAppAgentRetentionCleaner extends PeriodicExclusiveRunner {
           )
       `;
 
-      recordIncrement(
-        "langfuse.in_app_agent_retention_cleaner.conversations_deleted",
-        deleted,
+        recordIncrement(
+          "langfuse.in_app_agent_retention_cleaner.conversations_deleted",
+          deleted,
+        );
+        logger.info(`${this.instanceName}: Deleted expired conversations`, {
+          deleted,
+          cleanedRuns,
+        });
+        if (cleanedRuns > 0 || deleted > 0) {
+          return 0;
+        }
+      }
+
+      // Include blocked conversations, and report even when failures prevent progress.
+      const [backlog] = await prisma.$queryRaw<
+        Array<{ overdueSeconds: number }>
+      >`
+        SELECT GREATEST(COALESCE(MAX(EXTRACT(EPOCH FROM (
+          (NOW() AT TIME ZONE 'UTC') - c.updated_at - p.retention_days * INTERVAL '1 day'
+        ))), 0), 0)::double precision AS "overdueSeconds"
+        FROM in_app_agent_conversations c
+        JOIN projects p ON p.id = c.project_id
+        WHERE p.retention_days > 0
+          AND p.deleted_at IS NULL
+          AND c.updated_at < (NOW() AT TIME ZONE 'UTC') - p.retention_days * INTERVAL '1 day'
+      `;
+      recordGauge(
+        "langfuse.in_app_agent_retention_cleaner.max_conversation_retention_lag_seconds",
+        backlog!.overdueSeconds,
+        { unit: "seconds" },
       );
-      logger.info(`${this.instanceName}: Deleted expired conversations`, {
-        deleted,
-        cleanedRuns,
-      });
-      // Advance even when credentials remain, then retry them on the next sweep.
-      this.cursor = conversations[conversations.length - 1]!;
-      return 0;
+      return this.defaultIntervalMs;
     });
 
     return nextDelay ?? this.defaultIntervalMs;

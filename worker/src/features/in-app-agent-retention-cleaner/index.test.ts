@@ -60,7 +60,12 @@ describe("InAppAgentRetentionCleaner", () => {
       { id: "conversation", projectId: "project" },
     ]);
     mocks.findRuns.mockResolvedValue([
-      { id: "run", projectId: "project", mcpApiKeyId: "key" },
+      {
+        id: "run",
+        projectId: "project",
+        conversationId: "conversation",
+        mcpApiKeyId: "key",
+      },
     ]);
     mocks.execute.mockResolvedValue(1);
     mocks.updateRuns.mockResolvedValue({ count: 1 });
@@ -98,9 +103,26 @@ describe("InAppAgentRetentionCleaner", () => {
   it("keeps key pointers and conversations retryable when revocation fails", async () => {
     mocks.deleteKey.mockRejectedValue(new Error("Redis unavailable"));
     mocks.execute.mockResolvedValue(0);
-    expect(await new InAppAgentRetentionCleaner().processBatch()).toBe(0);
+    mocks.query
+      .mockResolvedValueOnce([{ id: "conversation", projectId: "project" }])
+      .mockResolvedValueOnce([{ overdueSeconds: 864_000 }]);
+    const cleaner = new InAppAgentRetentionCleaner();
+    expect(await cleaner.processBatch()).toBe(600_000);
+    expect(mocks.gauge).toHaveBeenCalledWith(
+      "langfuse.in_app_agent_retention_cleaner.max_conversation_retention_lag_seconds",
+      864_000,
+      { unit: "seconds" },
+    );
     expect(mocks.updateRuns).not.toHaveBeenCalled();
     expect(mocks.execute).toHaveBeenCalledOnce();
+
+    mocks.query.mockResolvedValueOnce([
+      { id: "conversation", projectId: "project" },
+    ]);
+    mocks.deleteKey.mockResolvedValue(undefined);
+    mocks.execute.mockResolvedValue(1);
+    expect(await cleaner.processBatch()).toBe(0);
+    expect(mocks.updateRuns).toHaveBeenCalledOnce();
   });
 
   it("continues revocation and deletion for another project after a key fails", async () => {
@@ -111,11 +133,13 @@ describe("InAppAgentRetentionCleaner", () => {
     mocks.findRuns.mockResolvedValue([
       {
         id: "failed-run",
+        conversationId: "failed-conversation",
         projectId: "failed-project",
         mcpApiKeyId: "failed-key",
       },
       {
         id: "healthy-run",
+        conversationId: "healthy-conversation",
         projectId: "healthy-project",
         mcpApiKeyId: "healthy-key",
       },
@@ -134,49 +158,6 @@ describe("InAppAgentRetentionCleaner", () => {
       data: { mcpApiKeyId: null },
     });
     expect(mocks.execute).toHaveBeenCalledOnce();
-  });
-
-  it("advances past a failed full batch and retries it after the sweep ends", async () => {
-    const blockedConversations = Array.from({ length: 100 }, (_, index) => ({
-      id: `conversation-${String(index).padStart(3, "0")}`,
-      projectId: "blocked-project",
-    }));
-    mocks.query.mockImplementation(
-      (strings: TemplateStringsArray, cursor: { values: string[] }) => {
-        if (strings.join("").includes('AS "overdueSeconds"')) {
-          return [{ overdueSeconds: 864_000 }];
-        }
-        if (cursor.values.length === 0) return blockedConversations;
-        if (cursor.values[0] === "conversation-099") {
-          return [{ id: "healthy-conversation", projectId: "healthy-project" }];
-        }
-        return [];
-      },
-    );
-    const failedRuns = [
-      {
-        id: "failed-run",
-        projectId: "blocked-project",
-        mcpApiKeyId: "failed-key",
-      },
-    ];
-    mocks.findRuns
-      .mockResolvedValue(failedRuns)
-      .mockResolvedValueOnce(failedRuns)
-      .mockResolvedValueOnce([]);
-    mocks.deleteKey.mockRejectedValue(new Error("Revocation failed"));
-    mocks.execute.mockResolvedValueOnce(0).mockResolvedValue(1);
-    const cleaner = new InAppAgentRetentionCleaner();
-
-    expect(await cleaner.processBatch()).toBe(0);
-    expect(await cleaner.processBatch()).toBe(0);
-    expect(await cleaner.processBatch()).toBe(600_000);
-    await cleaner.processBatch();
-
-    expect(mocks.query).toHaveBeenCalledTimes(5);
-    expect(mocks.execute).toHaveBeenCalledTimes(3);
-    expect(mocks.deleteKey).toHaveBeenCalledTimes(2);
-    expect(mocks.updateRuns).not.toHaveBeenCalled();
   });
 
   it.each([0, 864_000])(

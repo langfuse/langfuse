@@ -259,8 +259,7 @@ describe("DataRetentionProcessingJob", () => {
         `),
       );
       const cleaner = new InAppAgentRetentionCleaner();
-      // The real discovery query advances past the conversation with 101 keys.
-      // Its last key can only be cleaned after the cursor resets for a new sweep.
+      // A conversation with 101 keys remains eligible until its last key is cleaned.
       expect(await cleaner.processBatch()).toBe(0);
       expect(
         await prisma.inAppAgentRun.count({
@@ -271,14 +270,14 @@ describe("DataRetentionProcessingJob", () => {
           },
         }),
       ).toBe(1);
+      expect(await cleaner.processBatch()).toBe(0);
       expect(await cleaner.processBatch()).toBe(600_000);
-      const [backlog] = await candidateQuery.mock.results[2]!.value;
+      const [backlog] = await candidateQuery.mock.results[3]!.value;
       // Thirty-day-old conversations with seven-day retention are 23 days overdue.
       expect(backlog.overdueSeconds).toBeGreaterThanOrEqual(23 * 24 * 60 * 60);
       expect(backlog.overdueSeconds).toBeLessThan(
         (Date.now() - expiredAt.getTime()) / 1000 - 7 * 24 * 60 * 60 + 1,
       );
-      expect(await cleaner.processBatch()).toBe(0);
       const discovered = (
         await Promise.all(candidateQuery.mock.results.map(({ value }) => value))
       )
