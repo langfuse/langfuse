@@ -7,9 +7,10 @@ import { Role } from "@langfuse/shared";
 import { z } from "zod";
 import { randomUUID } from "crypto";
 import {
-  createAndAddApiKeysToDb,
+  createApiKey,
   createBasicAuthHeader,
 } from "@langfuse/shared/src/server";
+import { OrganizationId, ProjectId, SystemRoleId } from "@langfuse/shared/rbac";
 
 // Schema for the user project access response
 const UserProjectAccessResponseSchema = z.object({
@@ -125,11 +126,11 @@ describe("Public User Project Access API", () => {
       data: { orgId: otherOrg.id, userId: outsideUser.id, role: Role.OWNER },
     });
 
-    const apiKey = await createAndAddApiKeysToDb({
-      prisma,
-      entityId: testOrgId,
-      scope: "ORGANIZATION",
-      note: "Test API Key for organization membership user projects API",
+    const apiKey = await createApiKey(prisma, {
+      owner: OrganizationId(testOrgId),
+      role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+      createdBy: "system",
+      name: "Test API Key for organization membership user projects API",
       predefinedKeys: {
         publicKey: `pk-lf-org-${randomUUID().substring(0, 8)}`,
         secretKey: `sk-lf-org-${randomUUID().substring(0, 8)}`,
@@ -269,11 +270,11 @@ describe("Public User Project Access API", () => {
     });
 
     it("should return 403 when using a project-scoped API key", async () => {
-      const projectApiKey = await createAndAddApiKeysToDb({
-        prisma,
-        entityId: projectAId,
-        scope: "PROJECT",
-        note: "Test Project API Key",
+      const projectApiKey = await createApiKey(prisma, {
+        owner: ProjectId(projectAId),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+        createdBy: "system",
+        name: "Test Project API Key",
       });
 
       const result = await makeAPICall<{ error: string }>(
