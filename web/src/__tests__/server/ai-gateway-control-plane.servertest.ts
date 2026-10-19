@@ -862,20 +862,6 @@ describe("AI gateway control plane", () => {
       expect(result.ingestion_mode).toBe("none");
 
       Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU" });
-      const cloudResult = await authenticateRequest({
-        fastHashedSecretKey: createShaHash(gatewayKey.secretKey, env.SALT),
-        apiFormat: "openai.responses",
-        model: "gpt-4o",
-      });
-      expect(cloudResult.ingestion_mode).toBe("usage");
-      const cloudClaims = JSON.parse(
-        Buffer.from(
-          cloudResult.ingestion!.access_token.split(".")[1],
-          "base64url",
-        ).toString("utf8"),
-      ) as Record<string, unknown>;
-      expect(cloudClaims.ingestion_mode).toBe("usage");
-
       await expect(
         caller.aiGateway.updateConfig({
           orgId: org.id,

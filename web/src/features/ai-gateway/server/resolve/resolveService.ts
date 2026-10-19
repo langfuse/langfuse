@@ -9,7 +9,6 @@ import {
 } from "@/src/server/utils/jwt";
 
 import type { GatewayApiKeyAuthContext } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
-import { effectiveGatewayIngestionMode } from "@/src/features/ai-gateway/server/config/ingestionModeAvailability";
 import { GATEWAY_INGESTION_TOKEN_TTL_SECONDS } from "@/src/features/ai-gateway/server/auth/ingestionTokenVerifier";
 import { GatewayControlPlaneError as GatewayResolveError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 import {
@@ -88,9 +87,6 @@ export class GatewayResolveService {
           404,
         );
       }
-      const ingestionMode = effectiveGatewayIngestionMode(
-        context.ingestionMode,
-      );
       const provider = getGatewayProviderDefinition(
         context.connection.provider,
       );
@@ -122,9 +118,9 @@ export class GatewayResolveService {
           provider_connection_id: context.connection.id,
         },
         ingestion_mode:
-          ingestionMode.toLowerCase() as GatewayResolveResponse["ingestion_mode"],
+          context.ingestionMode.toLowerCase() as GatewayResolveResponse["ingestion_mode"],
         ingestion: this.createIngestionResponse({
-          mode: ingestionMode,
+          mode: context.ingestionMode,
           organizationId: context.organizationId,
           projectId: context.ingestionProjectId,
         }),

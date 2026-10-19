@@ -7,7 +7,6 @@ import { auditLog } from "@/src/features/audit-logs/server";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { GatewayConfigRepository } from "./gatewayConfigRepository";
-import { isGatewayIngestionModeAvailable } from "./ingestionModeAvailability";
 
 export class GatewayConfigService {
   private readonly repository: GatewayConfigRepository;
@@ -26,12 +25,6 @@ export class GatewayConfigService {
     ingestionMode: GatewayIngestionMode;
     session: OrgAuthedContext["session"];
   }) {
-    if (!isGatewayIngestionModeAvailable(params.ingestionMode)) {
-      throw new InvalidRequestError(
-        "Ingestion mode NONE is only available on self-hosted deployments",
-      );
-    }
-
     const before = await this.getConfig(params.organizationId);
 
     if (params.defaultIngestionProjectId) {
