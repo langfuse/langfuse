@@ -9,7 +9,7 @@ import {
   Save,
   Search,
   X,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { type FilterState } from "@langfuse/shared";
 
 import { renderFilterIcon } from "@/src/components/ItemBadge";
@@ -177,7 +177,7 @@ function ObservationListRows({
                   className="text-muted-foreground hover:text-muted-foreground -my-1 -mr-0.5 h-8 w-8 shrink-0 hover:bg-transparent"
                   aria-label={`Actions for ${observation.name}`}
                 >
-                  <MoreHorizontal className="icon-base text-icon-foreground" />
+                  <MoreHorizontal size="base" color="default" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" sideOffset={0}>
@@ -283,8 +283,9 @@ const TurnCard = React.memo(
             className="text-muted-foreground -my-2 -mr-2.5 -ml-2 flex h-8 w-8 shrink-0 items-center justify-center"
           >
             <ChevronDown
-              className={cn(
-                "icon-sm transition-transform duration-150",
+              size="sm"
+              __rawClassName={cn(
+                "transition-transform duration-150",
                 isCollapsed ? "-rotate-90" : "rotate-0",
               )}
             />
@@ -504,7 +505,11 @@ export function ModernSessionSidebar(
       <div className="shrink-0 border-b">
         <div className="flex items-center gap-1 px-2 py-2.5">
           <div className="relative min-w-0 flex-1">
-            <Search className="text-foreground-tertiary icon-base absolute top-1/2 left-2 -translate-y-1/2" />
+            <Search
+              size="base"
+              color="tertiary"
+              __rawClassName="absolute top-1/2 left-2 -translate-y-1/2"
+            />
             <Input
               value={search}
               onChange={(event) => handleSearchChange(event.target.value)}
@@ -523,7 +528,7 @@ export function ModernSessionSidebar(
                 className="relative h-7 w-7 shrink-0 rounded-sm"
                 aria-label="Filter observations"
               >
-                <ListFilter className="icon-base text-icon-foreground" />
+                <ListFilter size="base" color="default" />
               </Button>
             </DropdownMenuTrigger>
             <ModernSessionViewDropdownMenu controls={filterControls} />
@@ -576,7 +581,7 @@ export function ModernSessionSidebar(
                         aria-label="Save filters as view"
                         onClick={filterControls.onOpenFilterDialog}
                       >
-                        <Save className="icon-sm text-icon-foreground" />
+                        <Save size="sm" color="default" />
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>Save as view</TooltipContent>
@@ -592,7 +597,7 @@ export function ModernSessionSidebar(
                       aria-label="Edit filters"
                       onClick={filterControls.onOpenFilterDialog}
                     >
-                      <Pencil className="icon-sm text-icon-foreground" />
+                      <Pencil size="sm" color="default" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>Edit filters</TooltipContent>
@@ -607,7 +612,7 @@ export function ModernSessionSidebar(
                       aria-label="Clear filters"
                       onClick={filterControls.onClearFilters}
                     >
-                      <X className="icon-sm text-icon-foreground" />
+                      <X size="sm" color="default" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>Clear filters</TooltipContent>

@@ -1,6 +1,6 @@
 import { useId, useState } from "react";
 import { type FilterState } from "@langfuse/shared";
-import { Filter, PanelLeftClose } from "lucide-react";
+import { Filter, PanelLeftClose } from "@langfuse/icons";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";

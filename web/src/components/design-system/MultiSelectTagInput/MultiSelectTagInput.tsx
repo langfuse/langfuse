@@ -3,7 +3,7 @@
 import * as React from "react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { Command as CommandPrimitive } from "cmdk";
-import { X } from "lucide-react";
+import { X } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { Tag, TagShell } from "@/src/components/design-system/Tag/Tag";
 
@@ -262,7 +262,9 @@ export function MultiSelectTagInput<V extends string>({
                   <TagShell>+{hiddenOptionCount}</TagShell>
                 </span>
               )}
-              {value.length === 0 && <DropdownIndicator />}
+              {value.length === 0 && (
+                <DropdownIndicator color={error ? "destructive" : "tertiary"} />
+              )}
               {value.length > 0 && (
                 <button
                   type="button"
@@ -280,7 +282,7 @@ export function MultiSelectTagInput<V extends string>({
                     changeValue([]);
                   }}
                 >
-                  <X className="icon-base" />
+                  <X size="base" />
                 </button>
               )}
             </div>

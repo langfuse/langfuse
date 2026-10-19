@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { SplashScreen } from "@/src/components/ui/splash-screen";
-import { Braces, Code, ListTree, Upload } from "lucide-react";
+import { Braces, Code, ListTree, Upload } from "@langfuse/icons";
 import Link from "next/link";
 import {
   Dialog,
@@ -99,7 +99,7 @@ export const DatasetItemsOnboarding = ({
         >
           <DialogTrigger asChild disabled={!hasProjectAccess}>
             <DatasetItemEntryPointRow
-              icon={<Upload className="icon-lg" />}
+              icon={<Upload size="lg" />}
               title="Upload CSV"
               description="Import dataset items from a CSV file"
               onClick={() => {
@@ -120,7 +120,7 @@ export const DatasetItemsOnboarding = ({
         >
           <DialogTrigger asChild disabled={!hasProjectAccess}>
             <DatasetItemEntryPointRow
-              icon={<Braces className="icon-lg" />}
+              icon={<Braces size="lg" />}
               title="Add Manually"
               description="Manually input a single item"
               onClick={() => {
@@ -152,7 +152,7 @@ export const DatasetItemsOnboarding = ({
           target="_blank"
         >
           <DatasetItemEntryPointRow
-            icon={<Code className="icon-lg" />}
+            icon={<Code size="lg" />}
             title="Add via Code"
             description="Use our Python/TS/JS SDKs or custom API"
           />
@@ -160,7 +160,7 @@ export const DatasetItemsOnboarding = ({
 
         <Link href={`/project/${projectId}/observations`}>
           <DatasetItemEntryPointRow
-            icon={<ListTree className="icon-lg" />}
+            icon={<ListTree size="lg" />}
             title="Select Observations"
             description="Select observations in the observations table and use a batch action to add them to your dataset"
             onClick={() => {

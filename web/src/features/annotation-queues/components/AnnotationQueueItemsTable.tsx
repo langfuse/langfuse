@@ -14,7 +14,7 @@ import {
   customRowHeightMenu,
   useRowHeightLocalStorage,
 } from "@/src/components/table/data-table-row-height-switch";
-import { ListTree, Trash } from "lucide-react";
+import { ListTree, Trash } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { type RouterOutput } from "@/src/utils/types";
 import { type RowSelectionState } from "@tanstack/react-table";

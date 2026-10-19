@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { Search } from "lucide-react";
+import { Search } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { cva, type VariantProps } from "class-variance-authority";
 
@@ -65,7 +65,7 @@ export const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
         onClick={() => onSubmit(value)}
         className="text-foreground-tertiary hover:bg-accent hover:text-accent-foreground flex aspect-square shrink-0 items-center justify-center disabled:cursor-not-allowed disabled:opacity-50"
       >
-        <Search className="icon-base" />
+        <Search size="base" />
       </button>
       <input
         ref={ref}

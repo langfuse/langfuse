@@ -3,7 +3,7 @@ import {
   type TopicsModelSlotName,
 } from "@langfuse/shared/topics";
 import { EvaluatorBlockReason } from "@prisma/client";
-import { logger } from "@langfuse/shared/src/server";
+import { getLLMErrorInfo, logger } from "@langfuse/shared/src/server";
 import {
   pauseTopicsModels,
   type TopicsModel,
@@ -19,11 +19,21 @@ type TopicsProviderErrorReason =
   | "invalid_input"
   | "provider_error";
 
+/** Telemetry only; the user-facing message stays generic. */
+export type TopicProviderErrorDetails = {
+  httpStatus?: number;
+  message?: string;
+  type?: string;
+  code?: string;
+  param?: string;
+};
+
 export class TopicsProviderUnavailable extends Error {
   constructor(
     message: string,
     readonly reason: TopicsProviderErrorReason = "provider_error",
     readonly slot?: TopicsModelSlotName,
+    readonly details: TopicProviderErrorDetails = {},
   ) {
     super(message);
   }
@@ -73,7 +83,36 @@ export function topicProviderError(
     `The ${TOPICS_MODEL_SLOT_DETAILS[model.slot].label.toLowerCase()} model ${model.model} on LLM connection "${model.provider}" failed${status ? ` (HTTP ${status})` : ""}. Check the connection's credentials, the model ID, and provider availability.`,
     reason,
     model.slot,
+    providerErrorDetails(error, status),
   );
+}
+
+/**
+ * Like evals, keeps only the AI SDK's parsed provider error fields; plain errors
+ * (e.g. the direct Bedrock call) carry the response body, so they keep the status only.
+ */
+function providerErrorDetails(
+  error: unknown,
+  status: number | undefined,
+): TopicProviderErrorDetails {
+  const provider = getLLMErrorInfo(error)?.providerError;
+  const httpStatus = provider?.statusCode ?? status;
+  if (!httpStatus) return {};
+  if (!provider) return { httpStatus };
+  const record = (value: unknown) =>
+    value && typeof value === "object"
+      ? (value as Record<string, unknown>)
+      : undefined;
+  const data = record(record(provider.data)?.error) ?? record(provider.data);
+  const text = (value: unknown) =>
+    typeof value === "string" ? value.slice(0, 500) : undefined;
+  return {
+    httpStatus,
+    message: text(provider.message),
+    type: text(data?.type),
+    code: text(data?.code),
+    param: text(data?.param),
+  };
 }
 
 /** The provider rejected the connection's credentials or billing. */

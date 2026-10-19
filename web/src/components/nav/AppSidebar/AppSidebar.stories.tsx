@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { Activity, BookOpen, Home, Settings } from "lucide-react";
+import { Activity, BookOpen, Home, Settings } from "@langfuse/icons";
 import { expect, fn } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";

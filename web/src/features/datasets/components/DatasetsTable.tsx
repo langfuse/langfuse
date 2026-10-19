@@ -55,7 +55,7 @@ import {
   type TableAction,
 } from "@/src/features/table";
 import { showSuccessToast } from "@/src/features/notifications";
-import { Pen, Trash } from "lucide-react";
+import { Pen, Trash } from "@langfuse/icons";
 
 type DatasetTableRow = {
   id: string;
@@ -478,7 +478,7 @@ export function DatasetsTable(props: { projectId: string }) {
             >
               {({ disabled, openDialog }) => (
                 <IconOnlyButton
-                  icon={<Pen className="icon-base" />}
+                  icon={<Pen size="base" />}
                   label="Edit"
                   aria-label="edit"
                   disabledReason={disabled?.reason}
@@ -499,7 +499,7 @@ export function DatasetsTable(props: { projectId: string }) {
             >
               {({ disabled, openDialog }) => (
                 <IconOnlyButton
-                  icon={<Trash className="icon-base" />}
+                  icon={<Trash size="base" />}
                   label="Delete"
                   aria-label="delete"
                   disabledReason={disabled?.reason}

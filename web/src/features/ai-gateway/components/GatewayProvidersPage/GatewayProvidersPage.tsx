@@ -1,4 +1,4 @@
-import { Plus } from "lucide-react";
+import { Plus } from "@langfuse/icons";
 import { useRouter } from "next/router";
 
 import Header from "@/src/components/layouts/header";
@@ -165,7 +165,7 @@ export function GatewayProvidersPage({
           <ProviderDialogController organizationId={organizationId}>
             {({ openAddDialog }) => (
               <Button onClick={openAddDialog}>
-                <Plus className="icon-base mr-1.5" />
+                <Plus size="base" __rawClassName="mr-1.5" />
                 Add credential
               </Button>
             )}

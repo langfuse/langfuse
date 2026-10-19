@@ -1,4 +1,5 @@
 {
+  "ignoreWorkspaces": ["packages/icons"],
   "ignore": [
     ".agents/skills/**",
     "scripts/**",

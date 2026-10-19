@@ -1,4 +1,4 @@
-import { Pause, Play } from "lucide-react";
+import { Pause, Play } from "@langfuse/icons";
 import { useStore } from "zustand";
 
 import { OverviewSelectionBar } from "@/src/components/table/OverviewSelectionBar/OverviewSelectionBar";
@@ -47,7 +47,7 @@ export function GatewayConnectionModelsSelectionBar({
         disabled={isSaving}
         onClick={enableSelected}
       >
-        <Play className="icon-base text-icon-foreground mr-2" />
+        <Play size="base" color="default" __rawClassName="mr-2" />
         Enable
       </Button>
       <Button
@@ -57,7 +57,7 @@ export function GatewayConnectionModelsSelectionBar({
         disabled={isSaving}
         onClick={disableSelected}
       >
-        <Pause className="icon-base text-icon-foreground mr-2" />
+        <Pause size="base" color="default" __rawClassName="mr-2" />
         Disable
       </Button>
     </OverviewSelectionBar>

@@ -96,6 +96,12 @@
     retain original creation dates on reuse.
     `getLatestFacetSummaries` returns display fields; processing reads use
     `listTopicSummaries` or `getTopicClusteringSummaries` for complete summaries.
+    `getTopicClusteringSummaries` requires `{ maxRows, maxBytes }`;
+    preflight and streamed limits reject the whole cohort rather than sample it.
+    `getTopicClusteringSummaryStats` returns only counts and byte estimates for
+    automatic window selection, with the same eligibility as the full read.
+    `readTopicRunTraceIds(..., maxRows)` requires a continuity population limit.
+    These limits cover admitted data, not total process or native-fit memory.
   - `execution-store.ts`: one BatchAction per request, compact counters and run references.
     Writes accept progress only; immutable settings stay in the stored request.
     Trace inputs and paid outputs belong outside the execution store.
