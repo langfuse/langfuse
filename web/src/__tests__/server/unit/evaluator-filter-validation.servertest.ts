@@ -129,7 +129,7 @@ describe("validateEvaluatorFiltersForTarget", () => {
     });
   });
 
-  it("rejects numeric equality on metadata", () => {
+  it("accepts numeric equality on metadata", () => {
     const result = validateEvaluatorFiltersForTarget({
       targetObject: EvalTargetObject.EVENT,
       filter: [
@@ -143,10 +143,6 @@ describe("validateEvaluatorFiltersForTarget", () => {
       ] satisfies FilterState,
     });
 
-    expect(result.isValid).toBe(false);
-    expect(result.issues[0]).toMatchObject({
-      code: "incompatible_filter_type",
-      column: "metadata",
-    });
+    expect(result).toMatchObject({ isValid: true, issues: [] });
   });
 });

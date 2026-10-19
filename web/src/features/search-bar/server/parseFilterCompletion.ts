@@ -50,7 +50,8 @@ function isRegistryContractCompatible(
     (c) => c.id.toLowerCase() === col || c.name.toLowerCase() === col,
   );
   if (!def) return true;
-  // Mirrors isNumericEqualityOnStringObject: metadata equality is a string match.
+  // The bar has no numeric-equality syntax for metadata (`metadata.key:20` is a
+  // string match), so generated filters must not use numeric `=` there either.
   if (
     def.type === "stringObject" &&
     f.type === "numberObject" &&

@@ -240,8 +240,7 @@ function lowerSingle(
       const namespace = metadataNamespaceOf(filter.column, registry);
       if (namespace !== null) {
         const key = `${namespace}.${quoteIfNeeded(filter.key)}`;
-        const op = filter.operator === "=" ? "=" : filter.operator;
-        return filterNode(key, op, [String(filter.value)]);
+        return filterNode(key, filter.operator, [String(filter.value)]);
       }
       const path = scorePathOf(filter.column, filter.key, registry);
       if (path === null) return null;
@@ -288,6 +287,26 @@ export type FilterStateToQueryOptions = {
   searchType?: TracingSearchType[] | null;
 };
 
+// `metadata.key:=20` reads back as a string match, so numeric equality on
+// metadata (accepted from the API and saved filters) renders as the
+// equivalent `>=20` and `<=20` pair.
+function expandMetadataNumericEquality(
+  filter: FilterState[number],
+  registry: FieldRegistry,
+): FilterState {
+  if (
+    filter.type !== "numberObject" ||
+    filter.operator !== "=" ||
+    metadataNamespaceOf(filter.column, registry) === null
+  ) {
+    return [filter];
+  }
+  return [
+    { ...filter, operator: ">=" },
+    { ...filter, operator: "<=" },
+  ];
+}
+
 function sameSearchTypes(
   a: readonly TracingSearchType[],
   b: readonly TracingSearchType[],
@@ -305,7 +324,9 @@ export function filterStateToQueryText(
   const nodes: ASTNode[] = [];
   const skipped: string[] = [];
   const skippedFilters: FilterState = [];
-  for (const filter of filters) {
+  for (const filter of filters.flatMap((f) =>
+    expandMetadataNumericEquality(f, registry),
+  )) {
     const node = lowerSingle(filter, registry);
     if (node === null) {
       skipped.push(`${filter.column} (${filter.type} ${filter.operator})`);

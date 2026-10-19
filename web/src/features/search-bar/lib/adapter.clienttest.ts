@@ -1146,6 +1146,22 @@ describe("filterStateToQueryText", () => {
     expect(filterStateToQueryText([cmp]).skippedFilters).toHaveLength(0);
   });
 
+  it("serializes numeric metadata equality as a >= and <= pair that stays numeric", () => {
+    const eq: FilterState[number] = {
+      type: "numberObject",
+      column: "metadata",
+      key: "timeout",
+      operator: "=",
+      value: 20,
+    };
+    const { text } = filterStateToQueryText([eq]);
+    expect(text).toBe("metadata.timeout:>=20 metadata.timeout:<=20");
+    expect(lower(text).filters).toEqual([
+      { ...eq, operator: ">=" },
+      { ...eq, operator: "<=" },
+    ]);
+  });
+
   it("serializes a textSearch contains as the bare form, not *value*", () => {
     // `input:refund` lowers to a string `contains` filter; serializing it back
     // must stay bare (`input:refund`), the documented contains-default — the

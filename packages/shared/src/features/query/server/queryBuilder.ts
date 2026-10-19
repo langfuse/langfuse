@@ -28,8 +28,6 @@ import { NULL_IF_EMPTY_RE } from "./nullIfEmptyFilter";
 import {
   getCompatibleFilterTypes,
   isFilterColumnType,
-  isNumericEqualityOnStringObject,
-  NUMERIC_EQUALITY_ON_STRING_OBJECT_ERROR,
   type CompatibleFilterType,
   type FilterColumnType,
 } from "../../../server/queries/clickhouse-sql/filterTypeCompatibility";
@@ -425,12 +423,6 @@ export class QueryBuilder {
         ) {
           throw new InvalidRequestError(
             `Invalid filter for field 'metadata': numberObject type requires a numeric value, not '${typeof metadataValue}'.`,
-          );
-        }
-
-        if (isNumericEqualityOnStringObject("stringObject", filter)) {
-          throw new InvalidRequestError(
-            `Invalid filter for field 'metadata': ${NUMERIC_EQUALITY_ON_STRING_OBJECT_ERROR}`,
           );
         }
       }

@@ -280,16 +280,15 @@ describe("queryBuilder filter type validation", () => {
     expect(v2.query).toContain("toFloat64OrNull");
   });
 
-  it("rejects numberObject equality on metadata", async () => {
-    await expect(
-      buildQueryWithFilter({
-        column: "metadata",
-        type: "numberObject",
-        operator: "=",
-        key: "timeout",
-        value: 20,
-      }),
-    ).rejects.toThrow("numberObject metadata filters support only");
+  it("compares numberObject equality on metadata numerically", async () => {
+    const { query } = await buildQueryWithFilter({
+      column: "metadata",
+      type: "numberObject",
+      operator: "=",
+      key: "timeout",
+      value: 20,
+    });
+    expect(query).toMatch(/toFloat64OrNull\([^)]*\]\) = \{/);
   });
 
   it("rejects a string filter on metadata", async () => {

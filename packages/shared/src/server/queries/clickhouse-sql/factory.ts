@@ -8,11 +8,7 @@ import {
   type ColumnDefinition,
   type UiColumnMappings,
 } from "../../../tableDefinitions";
-import {
-  COMPATIBLE_FILTER_TYPES,
-  isNumericEqualityOnStringObject,
-  NUMERIC_EQUALITY_ON_STRING_OBJECT_ERROR,
-} from "./filterTypeCompatibility";
+import { COMPATIBLE_FILTER_TYPES } from "./filterTypeCompatibility";
 import {
   StringFilter,
   DateTimeFilter,
@@ -103,11 +99,6 @@ export const createFilterFromFilterState = (
         if (compatible && !compatible.includes(frontEndFilter.type)) {
           throw new InvalidRequestError(
             `Invalid filter type '${frontEndFilter.type}' for column '${frontEndFilter.column}'. Expected filter type '${colDef.type}'.`,
-          );
-        }
-        if (isNumericEqualityOnStringObject(colDef.type, frontEndFilter)) {
-          throw new InvalidRequestError(
-            NUMERIC_EQUALITY_ON_STRING_OBJECT_ERROR,
           );
         }
       }

@@ -388,6 +388,8 @@ analysis is deferred (until CH26), so `metadata.` completions are fed
   (`metadata.scope:*value*`).
 - **Types are display-only.** Equality and string ops still lower to
   `stringObject`; comparisons (`metadata.timeout:>20`) lower to `numberObject`.
+  A stored numeric `=` on metadata (API, saved filters) serializes as
+  `metadata.timeout:>=20 metadata.timeout:<=20`, since `:20` is a string match.
   A key observed with more than one type — or only ever `null` — drops its
   hint instead of showing a wrong one (`mixed` is absorbing).
 - **Bounded on every axis**: 30 sampled rows per fetch, key length ≤ 100
