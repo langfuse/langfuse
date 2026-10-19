@@ -19,10 +19,11 @@ assembleTranscript(
 ): Transcript | null;
 
 type TranscriptOptions = {
+  maxCharacters?: number;
   onTimings?: (timings: { normalizationMs: number; matchingMs: number }) => void;
 };
 
-type Transcript = { threads: Thread[] };
+type Transcript = { threads: Thread[]; truncated?: true };
 
 type Thread = {
   conversationHistory: NormalizedMessage[]; // replayed from earlier turns, no provenance
@@ -80,6 +81,29 @@ context field or richer observation references on the assembled result could
 remove that second input. Such an extension should keep conversation assembly
 and trace-level facts distinct, so root I/O and operation metadata do not become
 duplicate conversation messages.
+
+## Character limit
+
+`assembleTranscript(observations, { maxCharacters: 10_000 })` guarantees
+`JSON.stringify(result).length <= 10_000`. The limit counts UTF-16 code units,
+including JSON escaping, provenance, provider metadata and the truncation marker.
+It must be a safe integer of at least 4, the serialized length of `null`.
+Omitting it preserves the complete transcript and existing assembly behavior.
+
+Limiting happens after normalization, matching and turn splitting. Text and
+unsigned textual reasoning without provider metadata can be shortened with an
+ellipsis; identifiers, tool arguments/results, media, signed reasoning and other structured fields
+stay intact. Messages that cannot fit even with shortened text are omitted.
+When too many messages remain, the beginning and end are retained, preserving
+their order and history/current-turn partition. Contributor references are
+pruned to the retained current-turn messages. The original current turn
+nesting level is preserved.
+
+Changed results include `truncated: true`. If no message fits, the result is
+`null`. Truncated transcripts are partial evidence, not a replayable conversation:
+a tool call and its result can be separated by omitted messages. This bounds
+serialized output, not input size or normalization work. Timing callbacks exclude
+the limiting pass.
 
 ## Ordering
 
