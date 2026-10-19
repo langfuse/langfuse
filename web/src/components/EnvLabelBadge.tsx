@@ -20,9 +20,8 @@ type EnvLabelBadgeProps = {
 
 /**
  * The cloud environment chip in the page header, for Langfuse staff only.
- * Clicking it hides it, which is how clean product screenshots get taken — so
- * it renders through `BadgeShell asChild` as a real `<button>` (focusable,
- * Enter/Space) rather than a `<span>` with a click handler on it.
+ * Clicking it hides it, which is how clean product screenshots get taken — the
+ * `onDismiss` prop makes `BadgeShell` render as a focusable `<button>`.
  */
 export const EnvLabelBadge = ({ region, onDismiss }: EnvLabelBadgeProps) => {
   const { label, color } = useMemo(() => {
@@ -53,10 +52,14 @@ export const EnvLabelBadge = ({ region, onDismiss }: EnvLabelBadgeProps) => {
   }, [region]);
 
   return (
-    <BadgeShell asChild color={color} font="mono" size="sm" dismissible>
-      <button type="button" onClick={onDismiss} title={DISMISS_HINT}>
-        {label}
-      </button>
+    <BadgeShell
+      color={color}
+      font="mono"
+      size="sm"
+      onDismiss={onDismiss}
+      title={DISMISS_HINT}
+    >
+      {label}
     </BadgeShell>
   );
 };

@@ -2,7 +2,7 @@
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import { type IconComponent } from "@langfuse/icons";
-import { type ComponentPropsWithoutRef } from "react";
+import { type ComponentPropsWithoutRef, type ElementType } from "react";
 
 import { cn } from "@/src/utils/tailwind";
 
@@ -86,6 +86,8 @@ type BadgeShellProps = Omit<
 > &
   VariantProps<typeof badgeVariants> & {
     asChild?: boolean;
+    /** When set, the shell renders as a `<button type="button">` and calls this on click. */
+    onDismiss?: () => void;
   };
 
 /**
@@ -102,12 +104,19 @@ export function BadgeShell({
   font,
   shouldWrap,
   dismissible,
+  onDismiss,
   ...props
 }: BadgeShellProps) {
-  const Component = asChild ? Slot : "span";
+  const Component = ((): ElementType => {
+    if (asChild) return Slot;
+    if (onDismiss != null) return "button";
+    return "span";
+  })();
 
   return (
     <Component
+      {...props}
+      {...(onDismiss != null && { type: "button", onClick: onDismiss })}
       className={cn(
         "group/badge",
         badgeVariants({
@@ -116,10 +125,9 @@ export function BadgeShell({
           interactive,
           font,
           shouldWrap,
-          dismissible,
+          dismissible: dismissible ?? onDismiss != null,
         }),
       )}
-      {...props}
     />
   );
 }
