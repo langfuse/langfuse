@@ -30,11 +30,12 @@ const OPENAI_PROMPT_CACHE_BREAKPOINT = { mode: "explicit" as const };
  * Stamp only the matching provider field. Bedrock Converse ignores Anthropic
  * `cacheControl`; Anthropic Messages ignores Bedrock `cachePoint`.
  *
- * Three checkpoints, each for a different prefix:
+ * Up to four checkpoints, each for a different prefix:
  *
- * 1. Last static leading system — tools + compiled system. Run context is
- *    a separate leading system block starting with `<current_time`, excluded
- *    from this checkpoint so static instructions remain reusable across turns.
+ * 1. Last leading system — tools + instructions + stable user context. Also
+ *    checkpoint immediately before user context so shared instructions can
+ *    be reused when identity or language differs between users. Dynamic
+ *    request context is returned by a tool, not inserted in this prefix.
  * 2. Last conversation message — grows as this turn adds tool results so
  *    the next in-loop step can read it. Run context stays frozen across these
  *    requests. A legacy trailing `<current_time>` suffix is excluded.
@@ -83,12 +84,16 @@ export function applyPromptCachePoints(
   }
 
   let lastLeadingSystemIndex = -1;
+  let sharedSystemIndex = -1;
   for (let i = 0; i < prompt.length; i++) {
     if (
       getMessageRole(prompt[i]) !== "system" ||
-      isCurrentTimeMessage(prompt[i])
+      messageStartsWith(prompt[i], "<current_time")
     ) {
       break;
+    }
+    if (messageStartsWith(prompt[i], "<user_context>")) {
+      sharedSystemIndex = i - 1;
     }
     lastLeadingSystemIndex = i;
   }
@@ -104,6 +109,9 @@ export function applyPromptCachePoints(
 
   if (lastConversationIndex >= 0) {
     addCheckpoint(lastConversationIndex);
+  }
+  if (sharedSystemIndex >= 0) {
+    addCheckpoint(sharedSystemIndex);
   }
   if (lastLeadingSystemIndex >= 0) {
     addCheckpoint(lastLeadingSystemIndex);
@@ -191,19 +199,19 @@ function getLastConversationIndex(prompt: unknown[]) {
   }
 
   return getMessageRole(prompt[lastIndex]) === "user" &&
-    isCurrentTimeMessage(prompt[lastIndex])
+    messageStartsWith(prompt[lastIndex], "<current_time")
     ? lastIndex - 1
     : lastIndex;
 }
 
-function isCurrentTimeMessage(message: unknown) {
+function messageStartsWith(message: unknown, prefix: string) {
   if (!isRecord(message)) {
     return false;
   }
 
   const content = message.content;
   if (typeof content === "string") {
-    return content.startsWith("<current_time");
+    return content.trimStart().startsWith(prefix);
   }
 
   if (!Array.isArray(content)) {
@@ -215,7 +223,7 @@ function isCurrentTimeMessage(message: unknown) {
       isRecord(part) && part.type === "text" && typeof part.text === "string",
   );
   return isRecord(text) && typeof text.text === "string"
-    ? text.text.startsWith("<current_time")
+    ? text.text.trimStart().startsWith(prefix)
     : false;
 }
 

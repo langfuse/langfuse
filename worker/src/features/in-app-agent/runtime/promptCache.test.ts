@@ -52,38 +52,58 @@ const currentTimeMessage = {
 };
 
 describe("applyPromptCachePoints", () => {
-  it("keeps a static checkpoint before changing system context and caches tool continuations", () => {
+  it("keeps shared instructions cached across user changes and tool continuations", () => {
     for (const provider of [
       "bedrock",
       "anthropic",
       "openai-compatible",
       "openai-responses",
     ] as const) {
-      const makePrompt = (time: string) => [
+      const makePrompt = (name: string) => [
         ...twoMessagePrompt.slice(0, 1),
         {
           role: "system",
-          content: `<current_time tz="UTC">${time}</current_time>`,
+          content: `\n<user_context>{"user_name":"${name}"}</user_context>`,
         },
         ...twoMessagePrompt.slice(1),
       ];
       const first = applyPromptCachePoints(
-        makePrompt("09:00"),
+        makePrompt("Demo User"),
         provider,
       ) as unknown[];
       const nextTurn = applyPromptCachePoints(
-        makePrompt("09:02"),
+        makePrompt("Another User"),
         provider,
       ) as unknown[];
       expect(first[0]).toHaveProperty("providerOptions");
       expect(nextTurn[0]).toEqual(first[0]);
-      expect(first[1]).not.toHaveProperty("providerOptions");
+      expect(first[1]).toHaveProperty("providerOptions");
+      expect(nextTurn[1]).not.toEqual(first[1]);
       const toolMessages = toolTurnPrompt.slice(2, 4);
       const continuation = applyPromptCachePoints(
-        [...makePrompt("09:00"), ...toolMessages],
+        [...makePrompt("Demo User"), ...toolMessages],
         provider,
       ) as unknown[];
       expect(continuation.slice(0, 2)).toEqual(first.slice(0, 2));
+      const followUp = applyPromptCachePoints(
+        [...makePrompt("Demo User").slice(0, 2), ...toolTurnPrompt.slice(1)],
+        provider,
+      );
+      const carriers = (
+        followUp as Array<{
+          providerOptions?: unknown;
+          content?: string | Array<{ providerOptions?: unknown }>;
+        }>
+      ).flatMap((message, index) =>
+        message.providerOptions ||
+        (Array.isArray(message.content) &&
+          message.content.some((part) => part.providerOptions))
+          ? [index]
+          : [],
+      );
+      expect(carriers).toEqual(
+        provider === "openai-responses" ? [0, 1, 2, 6] : [0, 1, 4, 6],
+      );
       if (provider === "openai-responses") {
         expect(continuation[2]).toHaveProperty("content.0.providerOptions");
       } else {
