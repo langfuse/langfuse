@@ -4,10 +4,8 @@ import { DatasetRunItemsByItemTable } from "@/src/features/datasets/components/D
 import { DATASET_ITEM_TABS } from "@/src/features/navigation";
 import { DatasetItemDetailPage } from "@/src/features/datasets/components/DatasetItemDetailPage";
 import { useExperimentAccess } from "@/src/features/experiments";
-import {
-  RouteParamsPendingFallback,
-  useReadyRouteParams,
-} from "@/src/hooks/useReadyRouteParams";
+import { RouteParamsPendingFallback } from "@/src/components/RouteParamsPendingFallback/RouteParamsPendingFallback";
+import { useReadyRouteParams } from "@/src/hooks/useReadyRouteParams";
 
 export default function DatasetItemRunsPage() {
   const route = useReadyRouteParams(["projectId", "datasetId", "itemId"]);

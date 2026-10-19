@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 

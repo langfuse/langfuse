@@ -7,6 +7,7 @@ import {
   paginationMetaResponseZod,
   publicApiPaginationZod,
   ScoreConfigCategory,
+  SCORE_CONFIG_NAME_MAX_LENGTH,
   ScoreConfigNameSchema,
   validateCategories,
   validateNumericRangeFields,
@@ -34,7 +35,7 @@ const CategoriesWithCustomError = jsonSchema.superRefine((categories, ctx) => {
 const ScoreConfigBase = z.object({
   id: z.string(),
   projectId: z.string(),
-  name: z.string(),
+  name: z.string().max(SCORE_CONFIG_NAME_MAX_LENGTH),
   description: z.string().nullish(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),

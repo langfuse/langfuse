@@ -7,6 +7,8 @@ import * as opentelemetry from "@opentelemetry/api";
 import * as dd from "dd-trace";
 import { env } from "../../env";
 import { logger } from "../logger";
+import { getProjectSize } from "../projectSize";
+import { CLICKHOUSE_ROUTE_CONTEXT_KEY } from "../clickhouse/queryTags";
 
 export type TCarrier = {
   traceparent?: string;
@@ -30,12 +32,7 @@ export async function instrumentAsync<T>(
   callback: AsyncCallbackFn<T>,
 ): Promise<T> {
   const activeContext = ctx.startNewTrace
-    ? // Sever the parent trace but carry baggage onto the new root.
-      opentelemetry.propagation.setBaggage(
-        opentelemetry.ROOT_CONTEXT,
-        opentelemetry.propagation.getBaggage(opentelemetry.context.active()) ??
-          opentelemetry.propagation.createBaggage(),
-      )
+    ? newTraceRootContext()
     : ctx.traceContext
       ? opentelemetry.propagation.extract(
           opentelemetry.context.active(),
@@ -72,6 +69,23 @@ export async function instrumentAsync<T>(
   );
 }
 
+/**
+ * Severs the parent trace but carries baggage and the ClickHouse route onto the
+ * new root, so queries in the new trace keep their attribution.
+ */
+const newTraceRootContext = () => {
+  const active = opentelemetry.context.active();
+  const root = opentelemetry.propagation.setBaggage(
+    opentelemetry.ROOT_CONTEXT,
+    opentelemetry.propagation.getBaggage(active) ??
+      opentelemetry.propagation.createBaggage(),
+  );
+  const route = active.getValue(CLICKHOUSE_ROUTE_CONTEXT_KEY);
+  return route === undefined
+    ? root
+    : root.setValue(CLICKHOUSE_ROUTE_CONTEXT_KEY, route);
+};
+
 type SyncCallbackFn<T> = (span: opentelemetry.Span) => T;
 
 /** instrumentSync runs a callback inside a fresh OTel span. */
@@ -80,12 +94,7 @@ export function instrumentSync<T>(
   callback: SyncCallbackFn<T>,
 ): T {
   const activeContext = ctx.startNewTrace
-    ? // Sever the parent trace but carry baggage onto the new root.
-      opentelemetry.propagation.setBaggage(
-        opentelemetry.ROOT_CONTEXT,
-        opentelemetry.propagation.getBaggage(opentelemetry.context.active()) ??
-          opentelemetry.propagation.createBaggage(),
-      )
+    ? newTraceRootContext()
     : ctx.traceContext
       ? opentelemetry.propagation.extract(
           opentelemetry.context.active(),
@@ -198,11 +207,19 @@ export const addUserToSpan = (
   },
   span?: opentelemetry.Span,
 ) => {
-  const activeSpan = span ?? getCurrentSpan();
+  const currentSpan = getCurrentSpan();
+  const activeSpan = span ?? currentSpan;
 
   if (!activeSpan) {
     return;
   }
+
+  const setSpanAttribute = (key: string, value: string) => {
+    activeSpan.setAttribute(key, value);
+    if (currentSpan && currentSpan !== activeSpan) {
+      currentSpan.setAttribute(key, value);
+    }
+  };
 
   const ctx = opentelemetry.context.active();
   let baggage =
@@ -213,40 +230,40 @@ export const addUserToSpan = (
     baggage = baggage.setEntry("user.id", {
       value: attributes.userId,
     });
-    activeSpan.setAttribute("user.id", attributes.userId);
+    setSpanAttribute("user.id", attributes.userId);
   }
   if (attributes.projectId) {
     baggage = baggage.setEntry("langfuse.project.id", {
       value: attributes.projectId,
     });
-    activeSpan.setAttribute("langfuse.project.id", attributes.projectId);
+    setSpanAttribute("langfuse.project.id", attributes.projectId);
+    const projectSize = getProjectSize(attributes.projectId);
+    baggage = baggage.setEntry("langfuse.project.size", { value: projectSize });
+    setSpanAttribute("langfuse.project.size", projectSize);
   }
   if (attributes.orgId) {
     baggage = baggage.setEntry("langfuse.org.id", {
       value: attributes.orgId,
     });
-    activeSpan.setAttribute("langfuse.org.id", attributes.orgId);
+    setSpanAttribute("langfuse.org.id", attributes.orgId);
   }
   if (attributes.plan) {
     baggage = baggage.setEntry("langfuse.org.plan", {
       value: attributes.plan,
     });
-    activeSpan.setAttribute("langfuse.org.plan", attributes.plan);
+    setSpanAttribute("langfuse.org.plan", attributes.plan);
   }
   if (attributes.apiKeyId) {
     baggage = baggage.setEntry("langfuse.api_key.id", {
       value: attributes.apiKeyId,
     });
-    activeSpan.setAttribute("langfuse.api_key.id", attributes.apiKeyId);
+    setSpanAttribute("langfuse.api_key.id", attributes.apiKeyId);
   }
   if (attributes.publicKey) {
     baggage = baggage.setEntry("langfuse.api_key.public_key", {
       value: attributes.publicKey,
     });
-    activeSpan.setAttribute(
-      "langfuse.api_key.public_key",
-      attributes.publicKey,
-    );
+    setSpanAttribute("langfuse.api_key.public_key", attributes.publicKey);
   }
 
   return opentelemetry.propagation.setBaggage(ctx, baggage);

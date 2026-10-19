@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { Button } from "@/src/components/ui/button";
 import { Label } from "@/src/components/ui/label";
 import {
@@ -345,7 +346,7 @@ const Base = (props: {
                     loading={props.isLoading}
                     onClick={handleOnClick}
                   >
-                    Share
+                    Make Public
                   </Button>
                 </div>
               </>

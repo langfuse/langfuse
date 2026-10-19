@@ -1,7 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
+type CapturedCall = { query: string; params: Record<string, unknown> };
+
 const mockQueryClickhouseStream = vi.hoisted(() =>
-  vi.fn(() => (async function* () {})()),
+  vi.fn((_call: CapturedCall) => (async function* () {})()),
 );
 
 vi.mock("./clickhouse", () => ({
@@ -24,20 +26,37 @@ import { getTracesForBlobStorageExport } from "./traces";
 import { getObservationsForBlobStorageExport } from "./observations";
 import { getScoresForBlobStorageExport } from "./scores";
 import { getEventsForBlobStorageExport } from "./events";
+import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 
 const PROJECT = "proj-1";
 const MIN = new Date("2026-01-01T00:00:00.000Z");
 const MAX = new Date("2026-01-01T01:00:00.000Z");
 
-const capturedQuery = (): string => {
+const capturedCall = (): CapturedCall => {
   expect(mockQueryClickhouseStream).toHaveBeenCalledTimes(1);
-  const call = mockQueryClickhouseStream.mock.calls[0] as unknown as [
-    { query: string },
-  ];
-  return call[0].query;
+  return mockQueryClickhouseStream.mock.calls[0][0];
 };
 
-const builders = [
+const capturedQuery = (): string => capturedCall().query;
+
+/** The value bound right after `predicate` (e.g. `e.start_time >= `). */
+const boundValue = (predicate: string): unknown => {
+  const { query, params } = capturedCall();
+  const name = query.split(predicate + "{")[1]?.split(":")[0];
+  return name === undefined ? undefined : params[name];
+};
+
+const namedParamBounds = {
+  lower: ">= {minTimestamp",
+  upper: "< {maxTimestamp",
+  inclusiveUpper: "<= {maxTimestamp",
+};
+
+const builders: Array<{
+  name: string;
+  run: () => Promise<void>;
+  bounds?: typeof namedParamBounds;
+}> = [
   {
     name: "getTracesForBlobStorageExport",
     run: async () => {
@@ -62,6 +81,12 @@ const builders = [
     run: async () => {
       getEventsForBlobStorageExport(PROJECT, MIN, MAX);
     },
+    // Query-AST binds are named positionally.
+    bounds: {
+      lower: "e.start_time >= {",
+      upper: "e.start_time < {",
+      inclusiveUpper: "e.start_time <= {",
+    },
   },
 ];
 
@@ -72,15 +97,26 @@ describe("blob-storage export window is half-open", () => {
 
   it.each(builders)(
     "$name uses an exclusive upper bound and inclusive lower bound",
-    async ({ run }) => {
+    async ({ run, bounds = namedParamBounds }) => {
       await run();
       const query = capturedQuery();
 
-      expect(query).toContain(">= {minTimestamp");
-      expect(query).toContain("< {maxTimestamp");
-      expect(query).not.toContain("<= {maxTimestamp");
+      expect(query).toContain(bounds.lower);
+      expect(query).toContain(bounds.upper);
+      expect(query).not.toContain(bounds.inclusiveUpper);
     },
   );
+
+  it("getEventsForBlobStorageExport binds min to the lower and max to the upper bound", async () => {
+    getEventsForBlobStorageExport(PROJECT, MIN, MAX);
+
+    expect(boundValue("e.start_time >= ")).toBe(
+      convertDateToClickhouseDateTime(MIN),
+    );
+    expect(boundValue("e.start_time < ")).toBe(
+      convertDateToClickhouseDateTime(MAX),
+    );
+  });
 
   it("boundary row belongs to the next window only (traces)", async () => {
     // Window 1 [MIN, MAX) excludes a row at exactly MAX...

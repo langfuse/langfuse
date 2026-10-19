@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 /**
  * App Layout
  *

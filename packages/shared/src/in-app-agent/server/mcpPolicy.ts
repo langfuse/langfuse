@@ -214,7 +214,7 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
   },
   getExternalMediaStorage: {
     approval: "auto",
-    availability: { scope: "project:read" },
+    availability: { scope: "integrations:CRUD" },
   },
   configureExternalMediaStorage: {
     approval: "approval",
@@ -590,11 +590,20 @@ export function withInAppAgentToolApproval<TTool extends InAppAgentTool>(
   return Object.fromEntries(
     Object.entries(tools).map(([toolName, tool]) => [
       toolName,
-      isInAppAgentAutoApprovedToolName(toolName, policy)
+      isInAppAgentAutoApprovedToolName(toolName, policy) ||
+      hasConditionalApproval(tool)
         ? tool
         : { ...tool, requireApproval: true },
     ]),
   ) as Record<string, TTool | (TTool & { requireApproval: true })>;
+}
+
+// A function-valued requireApproval decides per call; Mastra runs it before
+// pausing, so overwriting it would drop the tool's own decision.
+function hasConditionalApproval(tool: InAppAgentTool) {
+  return (
+    "requireApproval" in tool && typeof tool.requireApproval === "function"
+  );
 }
 
 function isInAppAgentAutoApprovedToolName(

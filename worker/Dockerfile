@@ -30,7 +30,7 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS build-base
 # Pin turbo to avoid nondeterministic prune output from future patch releases.
 # pnpm is installed pinned via npm instead of corepack: the corepack shim would
 # fetch pnpm from an unpinned CDN on first use.
-RUN npm install -g turbo@2.11.6 pnpm@12.8.2
+RUN npm install -g turbo@2.11.7 pnpm@12.8.2
 # Pass --build-arg NODE_USE_ENV_PROXY=1 when building behind a proxy.
 ARG NODE_USE_ENV_PROXY
 
@@ -114,9 +114,8 @@ ARG TARGETARCH
 # @langfuse/native is a Rust addon (napi-rs) compiled by `turbo run build` for
 # the glibc (`*-unknown-linux-gnu`) target, linked against UBI9's glibc so it
 # loads in the runtime image. gcc provides the linker; tar and gzip unpack the
-# pinned toolchain; patch (with the base image's curl-minimal) prepares the
-# small clickhouse source overlay used by the native encoder.
-RUN dnf -y install --setopt=install_weak_deps=0 gcc tar gzip patch && \
+# pinned toolchain.
+RUN dnf -y install --setopt=install_weak_deps=0 gcc tar gzip && \
     dnf clean all
 
 # Pinned standalone Rust installer, the exact channel from
@@ -135,6 +134,23 @@ RUN set -eux; \
     /tmp/rust-1.98.0-${triple}/install.sh --prefix=/usr/local \
     --components=rustc,cargo,rust-std-${triple}; \
     rm -rf /tmp/rust.tar.gz /tmp/rust-1.98.0-${triple}
+
+# cargo-about renders the third-party license notices for the native addon's
+# Rust dependencies. Pinned, checksum-verified static release binary (sha256
+# from the release's `.tar.gz.sha256` assets); keep the version in sync with
+# ai-gateway/Dockerfile.
+RUN set -eux; \
+    case "${TARGETARCH:-amd64}" in \
+    amd64) about_arch=x86_64; about_sha256=9099a59e820c38a68b9d65f300662a567d56562f9a10f6aa4c7e86c17c2566af ;; \
+    arm64) about_arch=aarch64; about_sha256=af5169282fb6f84e13471493f405437e43ac517744c9ae12fbe2cdf0a6f0e5a8 ;; \
+    *) echo "unsupported TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    about_dir="cargo-about-0.9.2-${about_arch}-unknown-linux-musl"; \
+    curl -fsSL -o /tmp/cargo-about.tar.gz "https://github.com/EmbarkStudios/cargo-about/releases/download/0.9.2/${about_dir}.tar.gz"; \
+    echo "${about_sha256}  /tmp/cargo-about.tar.gz" | sha256sum -c -; \
+    tar -xzf /tmp/cargo-about.tar.gz -C /tmp; \
+    install -m 0755 "/tmp/${about_dir}/cargo-about" /usr/local/bin/cargo-about; \
+    rm -rf /tmp/cargo-about.tar.gz "/tmp/${about_dir}"
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} toolchain AS builder
 
@@ -165,6 +181,16 @@ ARG NEXT_PUBLIC_POSTHOG_HOST
 COPY --from=pruner /app/out/full/ .
 
 RUN turbo run build --filter=worker...
+
+# Runs after the build so `cargo fetch` adds the sources the build skipped (dev
+# and other-target dependencies) that cargo metadata still reads; `generate`
+# then reads licenses only from local crate sources and fails on any dependency
+# whose license packages/native/about.toml does not accept.
+RUN cd packages/native && \
+    mkdir -p /usr/share/licenses/langfuse-native && \
+    cargo fetch --locked && \
+    cargo about generate --frozen --fail about.hbs \
+    -o /usr/share/licenses/langfuse-native/THIRD_PARTY_LICENSES.txt
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} builder AS prod-deps
 
@@ -200,6 +226,7 @@ ENV DOCKER_BUILD 0
 
 # Copy only production worker payload instead of full builder workspace (just /prod/worker not entire /app)
 COPY --from=prod-deps --chown=expressjs:expressjs /prod/worker ./worker
+COPY --from=builder /usr/share/licenses/langfuse-native /usr/share/licenses/langfuse-native
 RUN chmod +x ./worker/entrypoint.sh
 # Numeric USER (uid of expressjs) so runAsNonRoot checks and Iron Bank
 # hardening validation can verify the user without resolving names.

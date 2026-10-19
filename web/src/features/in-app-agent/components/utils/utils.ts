@@ -401,7 +401,7 @@ function parseEmbeddedRateLimitError(message: string) {
 function getErrorMessage(error: unknown) {
   const parsedError = InAppAgentTransportErrorSchema.safeParse(error);
   if (!parsedError.success) {
-    return "Assistant request failed. Please try again.";
+    return "Halo request failed. Please try again.";
   }
 
   const legacyPayload = InAppAgentLegacyErrorPayloadSchema.safeParse(
@@ -411,9 +411,7 @@ function getErrorMessage(error: unknown) {
     return legacyPayload.data.error;
   }
 
-  return (
-    parsedError.data.message ?? "Assistant request failed. Please try again."
-  );
+  return parsedError.data.message ?? "Halo request failed. Please try again.";
 }
 
 export function getDrawerMessages({

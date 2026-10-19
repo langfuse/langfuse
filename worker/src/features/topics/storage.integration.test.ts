@@ -15,6 +15,7 @@ import {
   getLatestFacetSummaries,
   getTopicClusteringSummaries,
   getTopicSummaryCounts,
+  getTopicExecutionCosts,
   createTopicFacet,
   createTopicFacetVersion,
   ensureDefaultTopicFacets,
@@ -23,6 +24,7 @@ import {
   getTopicRule,
   listTopicRules,
   saveTopicRule,
+  saveTopicRuleAndModels,
   createTopicExecution,
   readTopicExecutionSummary,
   writeTopicExecution,
@@ -37,6 +39,10 @@ describe("Topics eval-backed configuration", () => {
   const orgId = randomUUID();
   const projectId = randomUUID();
   const otherProjectId = randomUUID();
+  const ruleProjectId = randomUUID();
+  const rollbackProjectId = randomUUID();
+  const auditProjectId = randomUUID();
+  const userIds = [randomUUID(), randomUUID()];
 
   beforeAll(async () => {
     await prisma.organization.create({
@@ -47,14 +53,21 @@ describe("Topics eval-backed configuration", () => {
           create: [
             { id: projectId, name: "Topics" },
             { id: otherProjectId, name: "Other project" },
+            { id: ruleProjectId, name: "Topics rule" },
+            { id: rollbackProjectId, name: "Topics rollback" },
+            { id: auditProjectId, name: "Topics audit" },
           ],
         },
       },
+    });
+    await prisma.user.createMany({
+      data: userIds.map((id) => ({ id, email: `${id}@example.com` })),
     });
   });
 
   afterAll(async () => {
     await prisma.organization.deleteMany({ where: { id: orgId } });
+    await prisma.user.deleteMany({ where: { id: { in: userIds } } });
   });
 
   it("initializes built-in FACET evaluators once under concurrent requests", async () => {
@@ -88,6 +101,114 @@ describe("Topics eval-backed configuration", () => {
         prompt: "Replace the built-in instructions.",
       }),
     ).rejects.toThrow(/built-in/i);
+  });
+
+  it("keeps one Topics rule per project when first saves race", async () => {
+    const facets = await ensureDefaultTopicFacets(ruleProjectId);
+    const facetIds = facets.slice(0, 2).map((facet) => facet.id);
+    const saved = await Promise.allSettled(
+      [0.25, 0.5, 0.75].map((sampling) =>
+        saveTopicRule({
+          projectId: ruleProjectId,
+          filter: [],
+          facetIds,
+          sampling,
+        }),
+      ),
+    );
+
+    // One save creates the rule; the others see it and are rejected.
+    expect(
+      saved.filter((result) => result.status === "fulfilled"),
+    ).toHaveLength(1);
+    for (const result of saved.filter((r) => r.status === "rejected"))
+      expect(String(result.reason)).toMatch(/already has a Topics rule/);
+    const rules = await listTopicRules(ruleProjectId);
+    expect(rules).toHaveLength(1);
+    expect(rules[0].facetIds.sort()).toEqual([...facetIds].sort());
+  });
+
+  it("leaves no rule behind when the model settings cannot be written", async () => {
+    const facets = await ensureDefaultTopicFacets(rollbackProjectId);
+    await expect(
+      saveTopicRuleAndModels(
+        {
+          projectId: rollbackProjectId,
+          filter: [],
+          facetIds: [facets[0].id],
+        },
+        {
+          // No such connection: the foreign key rejects the model write.
+          summaryLlmApiKeyId: "missing-connection",
+          summaryModel: "gpt-6-luna",
+          embeddingLlmApiKeyId: null,
+          embeddingModel: null,
+          embeddingDimensions: 1024,
+          clusteringLlmApiKeyId: null,
+          clusteringModel: null,
+        },
+        120_000,
+      ),
+    ).rejects.toThrow();
+
+    expect(await listTopicRules(rollbackProjectId)).toEqual([]);
+    expect(
+      await prisma.topicConfig.findUnique({
+        where: { projectId: rollbackProjectId },
+      }),
+    ).toBeNull();
+  });
+
+  it("records who created and last updated the Topics configuration", async () => {
+    const facets = await ensureDefaultTopicFacets(auditProjectId);
+    const models = {
+      summaryLlmApiKeyId: null,
+      summaryModel: null,
+      embeddingLlmApiKeyId: null,
+      embeddingModel: null,
+      embeddingDimensions: 1024,
+      clusteringLlmApiKeyId: null,
+      clusteringModel: null,
+    };
+    const rule = await saveTopicRuleAndModels(
+      {
+        projectId: auditProjectId,
+        filter: [],
+        facetIds: [facets[0].id],
+        userId: userIds[0],
+      },
+      models,
+      120_000,
+    );
+    await saveTopicRuleAndModels(
+      {
+        id: rule.id,
+        projectId: auditProjectId,
+        filter: [],
+        facetIds: [facets[0].id],
+        userId: userIds[1],
+      },
+      models,
+      180_000,
+    );
+
+    expect(
+      await prisma.topicConfig.findUnique({
+        where: { projectId: auditProjectId },
+      }),
+    ).toMatchObject({ createdBy: userIds[0], updatedBy: userIds[1] });
+    expect(
+      await prisma.tracingReadinessSettings.findUnique({
+        where: { projectId: auditProjectId },
+      }),
+    ).toMatchObject({
+      traceIdleMs: 180_000,
+      createdBy: userIds[0],
+      updatedBy: userIds[1],
+    });
+    expect(
+      await prisma.evaluationRule.findUnique({ where: { id: rule.id } }),
+    ).toMatchObject({ createdByUserId: userIds[0] });
   });
 
   it("keeps versions and rule assignments scoped to this project's FACET evaluators", async () => {
@@ -150,12 +271,22 @@ describe("Topics eval-backed configuration", () => {
       facetIds: [facet.id, facet.id],
     });
     expect(rule.facetIds).toEqual([facet.id]);
+    const second = { projectId, filter: [], facetIds: [facet.id] };
+    await expect(saveTopicRule(second)).rejects.toThrow(
+      /already has a Topics rule/,
+    );
+    expect(
+      await saveTopicRule({
+        ...second,
+        id: rule.id,
+        name: "Second selection",
+      }),
+    ).toMatchObject({ id: rule.id, name: "Second selection" });
     expect(
       await prisma.evaluationRule.findUnique({ where: { id: rule.id } }),
     ).toMatchObject({
       targetObject: "trace",
       delay: 0,
-      idleTime: null,
       timeScope: ["NEW"],
       status: "ACTIVE",
     });
@@ -255,6 +386,31 @@ describe("Topics definition persistence", () => {
   const projectId = randomUUID();
   const otherProjectId = randomUUID();
 
+  const summary: TopicSummary = {
+    projectId,
+    facetId: "facet",
+    facetVersion: 1,
+    traceId: randomUUID(),
+    sessionId: null,
+    triggerType: "manual_poc",
+    environment: "default",
+    traceName: "trace",
+    unitStartTime: "2026-08-31T23:59:59.999Z",
+    state: "complete",
+    summary: "old",
+    embedding: [1, ...Array<number>(255).fill(0)],
+    transcriptId: "poc",
+    transcriptVersion: "poc",
+    summaryModel: "test",
+    embeddingModel: "eu.cohere.embed-v4:0",
+    providedUsageDetails: {},
+    usageDetails: {},
+    providedCostDetails: {},
+    costDetails: {},
+    processedAt: "2026-09-01T00:00:00.000Z",
+    metadata: {},
+  };
+
   afterAll(async () => {
     for (const table of [
       "topics",
@@ -269,30 +425,6 @@ describe("Topics definition persistence", () => {
   });
 
   it("partitions by source time while preserving replacement and published map identities", async () => {
-    const summary: TopicSummary = {
-      projectId,
-      facetId: "facet",
-      facetVersion: 1,
-      traceId: randomUUID(),
-      sessionId: null,
-      triggerType: "manual_poc",
-      environment: "default",
-      traceName: "trace",
-      unitStartTime: "2026-08-31T23:59:59.999Z",
-      state: "complete",
-      summary: "old",
-      embedding: [1, ...Array<number>(255).fill(0)],
-      transcriptId: "poc",
-      transcriptVersion: "poc",
-      summaryModel: "test",
-      embeddingModel: "eu.cohere.embed-v4:0",
-      providedUsageDetails: {},
-      usageDetails: {},
-      providedCostDetails: {},
-      costDetails: {},
-      processedAt: "2026-09-01T00:00:00.000Z",
-      metadata: {},
-    };
     const latest = {
       ...summary,
       summary: "latest",
@@ -410,10 +542,28 @@ describe("Topics definition persistence", () => {
       },
       { ...latest, facetId: "other-facet", facetVersion: 2 },
     ]);
+    const displaySummary = {
+      projectId: summary.projectId,
+      facetId: summary.facetId,
+      facetVersion: summary.facetVersion,
+      traceId: summary.traceId,
+      sessionId: summary.sessionId,
+      state: summary.state,
+      summary: summary.summary,
+      unitStartTime: summary.unitStartTime,
+      processedAt: summary.processedAt,
+    };
     for (const version of [1, undefined])
       expect(
         await getLatestFacetSummaries(projectId, "facet", version, oldRange),
-      ).toEqual([latest]);
+      ).toEqual([
+        {
+          ...displaySummary,
+          summary: latest.summary,
+          sessionId: latest.sessionId,
+          processedAt: latest.processedAt,
+        },
+      ]);
 
     const moved: TopicSummary = {
       ...summary,
@@ -450,13 +600,119 @@ describe("Topics definition persistence", () => {
     await writeTopicSummaries([newerVersion]);
     expect(
       await getLatestFacetSummaries(projectId, "facet", undefined, oldRange),
-    ).toEqual([newerVersion]);
+    ).toEqual([
+      {
+        ...displaySummary,
+        facetVersion: newerVersion.facetVersion,
+        processedAt: newerVersion.processedAt,
+      },
+    ]);
     expect(
       await getLatestFacetSummaries(projectId, "facet", undefined, newRange),
     ).toEqual([]);
     expect(
       await getLatestFacetSummaries(projectId, "facet", 1, newRange),
-    ).toEqual([moved]);
+    ).toEqual([
+      {
+        ...displaySummary,
+        unitStartTime: moved.unitStartTime,
+        processedAt: moved.processedAt,
+        state: moved.state,
+        summary: moved.summary,
+      },
+    ]);
+
+    const internalFacet = "internal-environments";
+    const internalTraces = [
+      "langfuse-topics",
+      "llm-as-a-judge",
+      "langfuse",
+    ].map((environment) => ({ traceId: randomUUID(), environment }));
+    await writeTopicSummaries([
+      ...internalTraces.flatMap(({ traceId, environment }) => {
+        return [
+          { ...summary, facetId: internalFacet, traceId },
+          {
+            ...latest,
+            facetId: internalFacet,
+            traceId,
+            environment,
+          },
+        ];
+      }),
+      { ...summary, facetId: internalFacet, traceId: "allowed-trace" },
+    ]);
+    const [eligible, counts, listed, latestDisplayed] = await Promise.all([
+      getTopicClusteringSummaries(
+        projectId,
+        internalFacet,
+        1,
+        embedding,
+        oldRange,
+      ),
+      getTopicSummaryCounts(
+        projectId,
+        [{ facetId: internalFacet, version: 1 }],
+        embedding,
+        oldRange,
+      ),
+      listTopicSummaries(
+        projectId,
+        {
+          facetId: internalFacet,
+          facetVersion: 1,
+          traceIds: ["allowed-trace"].concat(
+            internalTraces.map(({ traceId }) => traceId),
+          ),
+        },
+        oldRange,
+      ),
+      getLatestFacetSummaries(projectId, internalFacet, undefined, oldRange),
+    ]);
+    expect(eligible.map(({ traceId }) => traceId)).toEqual(["allowed-trace"]);
+    expect(listed.map(({ traceId }) => traceId)).toEqual(["allowed-trace"]);
+    expect(latestDisplayed.map(({ traceId }) => traceId)).toEqual([
+      "allowed-trace",
+    ]);
+    expect(counts).toEqual([
+      { facetId: internalFacet, facetVersion: 1, count: 1 },
+    ]);
+  });
+
+  it("sums priced summary and embedding costs scoped to the project and executions", async () => {
+    const priced: TopicSummary = {
+      ...summary,
+      facetId: randomUUID(),
+      costDetails: { summary_input: 0.1, summary_output: 0.2, total: 0.3 },
+      metadata: { executionId: "priced" },
+    };
+    await writeTopicSummaries([
+      priced,
+      { ...priced, projectId: otherProjectId },
+      { ...priced, traceId: "other-run", metadata: { executionId: "other" } },
+      {
+        ...priced,
+        facetId: randomUUID(),
+        costDetails: { embedding_input: 0.05, total: 0.05 },
+      },
+      {
+        ...priced,
+        traceId: "unpriced",
+        costDetails: {},
+        metadata: { executionId: "unpriced" },
+      },
+      {
+        ...priced,
+        traceId: "zero",
+        costDetails: { total: 0 },
+        metadata: { executionId: "zero" },
+      },
+    ]);
+    const requested = ["priced", "unpriced", "zero"];
+    expect(await getTopicExecutionCosts(projectId, requested)).toEqual({
+      priced: 0.35,
+      zero: 0,
+    });
   });
 
   it("round-trips Float64 geometry and normalized source references through ClickHouse", async () => {

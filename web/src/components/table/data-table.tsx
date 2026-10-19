@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 /* eslint-disable @repo/no-style-props */
 "use client";
 import { type OrderByState } from "@langfuse/shared";
@@ -99,6 +99,8 @@ interface DataTableProps<TData, TValue> {
     options?: number[];
     hideTotalCount?: boolean;
     canJumpPages?: boolean;
+    /** Result summary shown to the left of the pagination controls. */
+    resultCountLabel?: string;
     /**
      * Approximate row/entity count matching the active filters. Rendered near
      * the pagination controls, but ONLY when the result set spans more than one
@@ -238,6 +240,8 @@ const getCellPaddingClassName = (padding: DataTableCellPadding) => {
   switch (padding) {
     case "comfortable":
       return "p-1";
+    case "relaxed":
+      return "px-1 py-2";
     case "none":
       return "p-0 first:pl-0";
     case "compact":
@@ -775,6 +779,7 @@ export function DataTable<TData extends object, TValue>({
             paginationOptions={pagination.options}
             hideTotalCount={pagination.hideTotalCount}
             canJumpPages={pagination.canJumpPages}
+            resultCountLabel={pagination.resultCountLabel}
             approxTotalCount={pagination.approxTotalCount}
             isApproxTotalCountLoading={pagination.isApproxTotalCountLoading}
             approxTotalCountIsPartialScope={

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TOPICS_BACKFILL_TRACE_LIMIT } from "../backfill-limit";
 import { InvalidRequestError } from "@langfuse/shared";
 import {
   topicExecutionInputSchema,
@@ -12,6 +13,10 @@ import { selectTopicTraceRows } from "@langfuse/shared/topics/server";
 export const topicTraceSelectionSchema =
   topicTraceSelectionCriteriaSchema.safeExtend({
     projectId: topicIdSchema,
+    limit: topicTraceSelectionCriteriaSchema.shape.limit.refine(
+      (limit) => limit === null || limit <= TOPICS_BACKFILL_TRACE_LIMIT,
+      `Select at most ${TOPICS_BACKFILL_TRACE_LIMIT.toLocaleString("en-US")} traces.`,
+    ),
   });
 
 export const topicTriggerInputSchema = z
@@ -21,6 +26,15 @@ export const topicTriggerInputSchema = z
       selection: topicTraceSelectionSnapshotSchema,
     }),
   ])
+  .refine(
+    (input) =>
+      input.operation !== "process" ||
+      ("selection" in input
+        ? input.selection.limit === null ||
+          input.selection.limit <= TOPICS_BACKFILL_TRACE_LIMIT
+        : input.traceIds.length <= TOPICS_BACKFILL_TRACE_LIMIT),
+    `Select at most ${TOPICS_BACKFILL_TRACE_LIMIT.toLocaleString("en-US")} traces.`,
+  )
   .refine(
     (input) =>
       input.operation !== "update" ||
@@ -33,11 +47,15 @@ export async function previewTopicTraces(
   input: z.infer<typeof topicTraceSelectionSchema>,
   prisma: PrismaClient,
 ) {
-  const rows = await selectTopicTraceRows(input, prisma, "preview");
+  const selection = {
+    ...input,
+    limit: input.limit ?? TOPICS_BACKFILL_TRACE_LIMIT,
+  };
+  const rows = await selectTopicTraceRows(selection, prisma, "preview");
   const matchedTraceCount = Number(rows[0]?.matchedTraceCount ?? 0);
   return {
     matchedTraceCount,
-    selectedTraceCount: Math.min(matchedTraceCount, input.limit ?? Infinity),
+    selectedTraceCount: Math.min(matchedTraceCount, selection.limit),
     traces: rows.map((row) => ({
       id: row.id,
       timestamp: new Date(Number(row.timestampMs)),
@@ -54,7 +72,11 @@ export async function resolveTopicTraceSelection(
   if (!("selection" in input)) return input;
   const { selection, ...execution } = input;
   const rows = await selectTopicTraceRows(
-    { ...selection, projectId: input.projectId },
+    {
+      ...selection,
+      limit: selection.limit ?? TOPICS_BACKFILL_TRACE_LIMIT,
+      projectId: input.projectId,
+    },
     prisma,
     "ids",
   );

@@ -8,13 +8,14 @@ import { ConfirmationDialogController } from "@/src/components/design-system/Con
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { Button } from "@/src/components/ui/button";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { Card } from "@/src/components/ui/card";
 import { IntegrationSettingsSkeleton } from "@/src/features/analytics-integrations";
 import { ExternalMediaStorageForm } from "@/src/features/external-media-storage/components/ExternalMediaStorageForm/ExternalMediaStorageForm";
 import { TestMediaObjectDialog } from "@/src/features/external-media-storage/components/TestMediaObjectDialog/TestMediaObjectDialog";
 import { testSignedMediaUrlCors } from "@/src/features/external-media-storage/fns/testSignedMediaUrlCors";
 import { type ExternalMediaStorageFormValues } from "@/src/features/external-media-storage/types";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useExternalMediaStorage } from "@/src/features/external-media-storage/useExternalMediaStorage";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { api } from "@/src/utils/api";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
@@ -35,22 +36,14 @@ const defaultValues: ExternalMediaStorageFormValues = {
 export default function ExternalMediaStoragePage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-  const hasAccess = useHasProjectAccess({
-    projectId,
-    scope: "integrations:CRUD",
-  });
-  const featureAvailability =
-    api.externalMediaStorage.isFeatureEnabled.useQuery(
-      { projectId },
-      { enabled: Boolean(projectId) },
-    );
-  const isFeatureEnabled = featureAvailability.data === true;
-  const canLoadConfig = Boolean(projectId && hasAccess && isFeatureEnabled);
+  const {
+    hasAccess,
+    featureAvailability,
+    isFeatureEnabled,
+    query: configuration,
+    status,
+  } = useExternalMediaStorage(projectId);
   const utils = api.useUtils();
-  const configuration = api.externalMediaStorage.get.useQuery(
-    { projectId },
-    { enabled: canLoadConfig },
-  );
   const updateMutation = api.externalMediaStorage.update.useMutation({
     onSuccess: async () => {
       await utils.externalMediaStorage.get.invalidate({ projectId });
@@ -173,6 +166,7 @@ export default function ExternalMediaStoragePage() {
         breadcrumb: [
           { name: "Settings", href: `/project/${projectId}/settings` },
         ],
+        actionButtonsLeft: status && <StatusBadge type={status} />,
         actionButtonsRight: (
           <Button asChild variant="secondary">
             <Link

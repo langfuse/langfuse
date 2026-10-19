@@ -31,6 +31,10 @@
       "import": "./dist/src/server/index.js",
       "require": "./dist/src/server/index.js"
     },
+    "./src/server/query-ast/schema": {
+      "import": "./dist/src/server/query-ast/schema.js",
+      "require": "./dist/src/server/query-ast/schema.js"
+    },
     "./src/server/transcript/ordering": {
       "import": "./dist/src/server/transcript/ordering.js",
       "require": "./dist/src/server/transcript/ordering.js"
@@ -182,7 +186,6 @@
   },
   "scripts": {
     "build": "tsc",
-    "build:check": "tsc",
     "typecheck": "dotenv -e ../../.env -- tsc --noEmit --incremental --tsBuildInfoFile .tsbuildinfo",
     "dev": "tsc --watch",
     "lint": "eslint . --cache --cache-location dist/.eslintcache --max-warnings 0 --concurrency 2",
@@ -214,7 +217,7 @@
   "dependencies": {
     "@ag-ui/client": "^0.0.52",
     "@ag-ui/core": "^0.0.52",
-    "@ai-sdk/amazon-bedrock": "^5.0.97",
+    "@ai-sdk/amazon-bedrock": "^5.0.99",
     "@ai-sdk/anthropic": "^4.0.5",
     "@ai-sdk/azure": "^4.0.5",
     "@ai-sdk/google": "^4.0.6",
@@ -264,12 +267,12 @@
     "lossless-json": "^4.1.1",
     "lru-cache": "^11.2.7",
     "next-auth": "^4.24.14",
-    "nodemailer": "^10.0.9",
+    "nodemailer": "^10.0.13",
     "oci-common": "^2.140.0",
     "oci-objectstorage": "^2.140.0",
     "safe-regex2": "^5.0.0",
     "slackify-markdown": "^5.0.0",
-    "undici": "^7.29.1",
+    "undici": "^7.30.1",
     "uuid": "^14.0.2",
     "winston": "^3.15.0",
     "zod": "^4.3.6"

@@ -14,11 +14,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useTopicTraceSelector } from "./TopicTraceSelector";
 
 const mocks = vi.hoisted(() => ({ fetch: vi.fn() }));
-vi.mock("@/src/components/table/peek/hooks/usePeekNavigation", () => ({
-  usePeekNavigation: () => ({
-    openPeek: vi.fn(),
-  }),
-}));
 vi.mock("@/src/utils/api", () => ({
   api: {
     topics: {
@@ -42,7 +37,7 @@ vi.mock("@/src/features/events/hooks/useEventsFilterOptions", () => ({
 vi.mock("@/src/features/search-bar", () => ({
   TableSearchBar: () => <div>Query editor</div>,
   toObservedOptions: () => ({}),
-  fieldRegistryFromColumns: () => ({ fields: [] }),
+  fieldRegistryFromColumns: () => ({ fields: [], columns: [] }),
 }));
 vi.mock(
   "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/ObservationFilterBuilder/ObservationFilterBuilder",
@@ -54,7 +49,6 @@ vi.mock(
 function TraceSelector() {
   const { selection, controls } = useTopicTraceSelector({
     projectId: "project",
-    onOpenTrace: vi.fn(),
     enabled: true,
     filterOptionsEnabled: true,
   });
@@ -109,6 +103,30 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("Topics trace selection", () => {
+  it("opens preview traces in a new tab without changing the selected batch", async () => {
+    const open = vi.spyOn(window, "open").mockImplementation(() => null);
+    mocks.fetch.mockResolvedValue(result("trace-0", "trace-1"));
+    setup();
+    fireEvent.click(screen.getByRole("button", { name: "Preview traces" }));
+    await screen.findByRole("link", { name: "trace-0" });
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Select trace trace-1" }),
+    );
+    const batch = selected();
+    const link = screen.getByRole("link", { name: "trace-0" });
+    fireEvent.click(link);
+    expect(open).toHaveBeenCalledWith(
+      "/project/project/traces/trace-0",
+      "_blank",
+      "noopener,noreferrer",
+    );
+    fireEvent.click(link.closest("tr")!);
+    expect(open).toHaveBeenCalledTimes(2);
+    expect(selected()).toEqual(batch);
+    expect(screen.getByRole("link", { name: "trace-0" })).toBeVisible();
+    open.mockRestore();
+  });
+
   it("freezes only the latest preview and invalidates it immediately when criteria change", async () => {
     const pending: Array<(value: ReturnType<typeof result>) => void> = [];
     mocks.fetch.mockImplementation(
@@ -119,7 +137,6 @@ describe("Topics trace selection", () => {
     expect(selected()).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Preview traces" }));
     await waitFor(() => expect(pending).toHaveLength(1));
-    fireEvent.click(screen.getByRole("checkbox", { name: "Sample traces" }));
     fireEvent.change(screen.getByLabelText("Maximum traces"), {
       target: { value: "50" },
     });
@@ -194,7 +211,7 @@ describe("Topics trace selection", () => {
       mocks.fetch.mock.calls[1][0].seed,
     );
     expect(mocks.fetch.mock.calls[0][0]).toMatchObject({
-      limit: null,
+      limit: 1000,
       sampling: "random",
     });
   });

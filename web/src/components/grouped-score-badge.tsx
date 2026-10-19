@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { OverflowCountBadge } from "@/src/components/OverflowCountBadge";
 
 import {
@@ -7,7 +8,7 @@ import {
 } from "@/src/components/ui/popover";
 import { type LastUserScore, type ScoreDomain } from "@langfuse/shared";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
-import { scoreLevelFromScore } from "@/src/components/score-tag";
+import { scoreLevelFromScore } from "@/src/components/ScoreTag";
 import { ScoreBadge } from "@/src/components/ScoreBadge/ScoreBadge";
 import { ScoreValue } from "@/src/components/ScoreValue";
 
@@ -81,9 +82,12 @@ const ScoreTable = <T extends ChipScore>({ scores }: { scores: T[] }) => {
 export const GroupedScoreBadges = <T extends ChipScore>({
   scores,
   maxVisible = MAX_VISIBLE_SCORE_GROUPS,
+  color,
 }: {
   scores: T[];
   maxVisible?: number;
+  /** `filledOnMuted` on a muted or accent surface such as a selected row. */
+  color?: "filled" | "filledOnMuted";
 }) => {
   const groupedScores = groupScoresByName(scores);
 
@@ -102,6 +106,7 @@ export const GroupedScoreBadges = <T extends ChipScore>({
     <Popover>
       <PopoverTrigger asChild>
         <OverflowCountBadge
+          color={color}
           count={hiddenScores.length}
           aria-label={`Show all ${Object.keys(groupedScores).length} scores`}
           // Chips render inside clickable rows; opening must not select the row.
@@ -126,6 +131,7 @@ export const GroupedScoreBadges = <T extends ChipScore>({
           name={name}
           scores={scores}
           showLevels={showLevels}
+          color={color}
         />
       ))}
       {Boolean(hiddenScores.length) && overflow}

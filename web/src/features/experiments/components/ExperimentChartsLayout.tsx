@@ -37,7 +37,7 @@ type Props = {
 };
 
 export function ExperimentChartsLayout(props: Props) {
-  if (!props.fromTimestamp || !props.toTimestamp) return <>{props.children}</>;
+  if (!props.fromTimestamp || !props.toTimestamp) return props.children;
   return (
     <ChartsLayout
       key={props.projectId}

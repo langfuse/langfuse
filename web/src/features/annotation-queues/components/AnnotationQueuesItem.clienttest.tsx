@@ -14,14 +14,23 @@ function render(ui: ReactNode) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return renderWithTestingLibrary(ui, {
+  const rendered = renderWithTestingLibrary(ui, {
     wrapper: ({ children }) => (
       <QueryClientProvider client={client}>{children}</QueryClientProvider>
     ),
   });
+  return { ...rendered, queryClient: client };
 }
 
-const { router, fetchNext, complete, refreshItems, items } = vi.hoisted(() => ({
+const {
+  router,
+  fetchNext,
+  complete,
+  refreshItems,
+  refreshQueue,
+  queueFields,
+  items,
+} = vi.hoisted(() => ({
   router: {
     isReady: true,
     pathname: "/project/[projectId]/annotation-queues/[queueId]/items/[itemId]",
@@ -32,6 +41,8 @@ const { router, fetchNext, complete, refreshItems, items } = vi.hoisted(() => ({
   fetchNext: vi.fn(),
   complete: vi.fn(),
   refreshItems: vi.fn(),
+  refreshQueue: vi.fn(),
+  queueFields: { configs: [] as { id: string; name: string }[] },
   items: new Map<string, Record<string, unknown>>(),
 }));
 
@@ -58,49 +69,68 @@ vi.mock("@/src/features/scores", () => ({
   isOpenDialogPresent: () => false,
   isTypingTarget: () => false,
 }));
-vi.mock("@/src/utils/api", () => ({
-  api: {
-    useUtils: () => ({
-      annotationQueueItems: {
-        invalidate: refreshItems,
+vi.mock("@/src/utils/api", async () => {
+  const { useQuery } = await import("@tanstack/react-query");
+  return {
+    api: {
+      useUtils: () => ({
+        annotationQueueItems: {
+          invalidate: refreshItems,
+          byId: {
+            fetch: ({ itemId }: { itemId: string }) =>
+              Promise.resolve(items.get(itemId) ?? null),
+            setData: (
+              { itemId }: { itemId: string },
+              item: Record<string, unknown>,
+            ) => items.set(itemId, item),
+          },
+        },
+      }),
+      annotationQueues: {
         byId: {
-          fetch: ({ itemId }: { itemId: string }) =>
-            Promise.resolve(items.get(itemId) ?? null),
-          setData: (
-            { itemId }: { itemId: string },
-            item: Record<string, unknown>,
-          ) => items.set(itemId, item),
+          useQuery: (
+            input: { projectId: string; queueId: string },
+            options: {
+              enabled?: boolean;
+              refetchOnMount?: boolean | "always";
+              refetchOnWindowFocus?: boolean;
+              refetchOnReconnect?: boolean;
+            },
+          ) =>
+            useQuery({
+              queryKey: ["annotation-queues", input.projectId, input.queueId],
+              queryFn: () => refreshQueue(input),
+              initialData: {
+                name: "Review queue",
+                scoreConfigs: [...queueFields.configs],
+              },
+              ...options,
+            }),
+        },
+        fetchAndLockNext: {
+          useMutation: () => ({ mutateAsync: fetchNext, isPending: false }),
         },
       },
-    }),
-    annotationQueues: {
-      byId: { useQuery: () => ({ data: { name: "Review queue" } }) },
-      fetchAndLockNext: {
-        useMutation: () => ({ mutateAsync: fetchNext, isPending: false }),
+      annotationQueueItems: {
+        byId: {
+          useQuery: ({ itemId }: { itemId: string }) => ({
+            data: items.get(itemId),
+            isPending: false,
+          }),
+        },
+        unseenPendingItemCountByQueueId: {
+          useQuery: ({ seenItemIds }: { seenItemIds: string[] }) => ({
+            data: Math.max(2 - seenItemIds.length, 0),
+            isPending: false,
+          }),
+        },
+        complete: {
+          useMutation: () => ({ mutateAsync: complete, isPending: false }),
+        },
       },
     },
-    annotationQueueItems: {
-      byId: {
-        useQuery: ({ itemId }: { itemId: string }) => ({
-          data: items.get(itemId),
-          isPending: false,
-        }),
-      },
-      unseenPendingItemCountByQueueId: {
-        useQuery: ({ seenItemIds }: { seenItemIds: string[] }) => ({
-          data: Math.max(2 - seenItemIds.length, 0),
-          isPending: false,
-        }),
-      },
-      complete: {
-        useMutation: () => ({ mutateAsync: complete, isPending: false }),
-      },
-    },
-  },
-}));
-vi.mock("./shared/hooks/useAnnotationQueueData", () => ({
-  useAnnotationQueueData: () => ({ configs: [] }),
-}));
+  };
+});
 vi.mock("./shared/hooks/useAnnotationObjectData", () => ({
   useAnnotationObjectData: (item: { objectId: string } | null) => ({
     data: item ? { id: item.objectId } : undefined,
@@ -111,9 +141,18 @@ vi.mock("@/src/features/traces", () => ({
   Trace: () => <p>Trace loaded</p>,
 }));
 vi.mock("./shared/AnnotationDrawerSection", () => ({
-  AnnotationDrawerSection: ({ item }: { item: { objectId: string } }) => (
+  AnnotationDrawerSection: ({
+    item,
+    configs,
+  }: {
+    item: { objectId: string };
+    configs: { name: string }[];
+  }) => (
     <>
       <p>{item.objectId}</p>
+      <output aria-label="Queue fields">
+        {configs.map((config) => config.name).join(", ")}
+      </output>
       <input aria-label="Comment draft" />
     </>
   ),
@@ -142,6 +181,14 @@ beforeEach(() => {
   fetchNext.mockReset();
   complete.mockReset();
   refreshItems.mockReset();
+  refreshQueue.mockReset();
+  queueFields.configs = [];
+  refreshQueue.mockImplementation(() =>
+    Promise.resolve({
+      name: "Review queue",
+      scoreConfigs: [...queueFields.configs],
+    }),
+  );
   items.clear();
   for (const queueId of ["first", "second"]) {
     items.set(`${queueId}-item`, {
@@ -181,6 +228,54 @@ beforeEach(() => {
   complete.mockResolvedValue(undefined);
   refreshItems.mockResolvedValue(undefined);
 });
+
+it.each(["success", "failure"])(
+  "waits for cached queue mount refresh %s before editing and preserves drafts on later invalidation",
+  async (result) => {
+    queueFields.configs = [{ id: "cached", name: "Cached field" }];
+    let resolveRefresh!: (value: unknown) => void;
+    let rejectRefresh!: (error: Error) => void;
+    refreshQueue.mockImplementationOnce(
+      () =>
+        new Promise((resolve, reject) => {
+          resolveRefresh = resolve;
+          rejectRefresh = reject;
+        }),
+    );
+    const { queryClient } = render(
+      <AnnotationQueuesItem projectId="project" annotationQueueId="first" />,
+    );
+    await waitFor(() => expect(refreshQueue).toHaveBeenCalledTimes(1));
+    expect(
+      screen.queryByRole("textbox", { name: "Comment draft" }),
+    ).not.toBeInTheDocument();
+    await act(async () => {
+      if (result === "failure")
+        rejectRefresh(new Error("Queue refresh unavailable"));
+      else
+        resolveRefresh({
+          name: "Review queue",
+          scoreConfigs: [{ id: "refreshed", name: "Refreshed field" }],
+        });
+    });
+    const input = await screen.findByRole("textbox", { name: "Comment draft" });
+    expect(screen.getByLabelText("Queue fields")).toHaveTextContent(
+      result === "failure" ? "Cached field" : "Refreshed field",
+    );
+    fireEvent.change(input, { target: { value: "Unsent review" } });
+    refreshQueue.mockResolvedValueOnce({
+      name: "Review queue",
+      scoreConfigs: [{ id: "later", name: "Later field" }],
+    });
+    await act(async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["annotation-queues", "project", "first"],
+      });
+    });
+    expect(screen.getByRole("textbox", { name: "Comment draft" })).toBe(input);
+    expect(input).toHaveValue("Unsent review");
+  },
+);
 
 it.each(["refresh", "advance", "navigation"])(
   "retains completion and retries a failed %s without completing twice",

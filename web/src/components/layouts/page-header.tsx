@@ -1,13 +1,13 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
 import { EnvLabelBadge } from "@/src/components/EnvLabelBadge";
 import { useEnvLabel } from "@/src/hooks/useEnvLabel";
 import { type LangfuseItemType } from "@/src/components/ItemBadge";
 import { EntityTitle } from "@/src/components/EntityTitle";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
-import { InAppAiAgentButton } from "@/src/components/nav/in-app-ai-agent-button";
-import { TopbarBrand } from "@/src/components/nav/topbar-brand";
-import { useHasAppSidebar } from "@/src/components/nav/sidebar-presence";
+import { InAppAiAgentButton } from "@/src/components/nav/InAppAiAgentButton";
+import { TopbarBrand } from "@/src/components/nav/TopbarBrand";
+import { useHasAppSidebar } from "@/src/components/nav/SidebarPresenceProvider";
 import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent";
 import { SidebarTrigger } from "@/src/components/ui/sidebar";
 import {
@@ -52,7 +52,8 @@ export type PageHeaderProps = {
   tabsProps?: PageTabsProps;
   className?: string;
   /** Bottom border and bottom padding; pages whose own strip follows the
-   * header directly turn both off so title and strip read as one block. */
+   * header directly turn both off so title and strip read as one block.
+   * Page tabs draw their own divider, so the border is skipped when they render. */
   divider?: boolean;
   showSidebarTrigger?: boolean;
   leadingControl?: ReactNode;
@@ -90,7 +91,7 @@ const PageHeader = ({
     <div
       className={cn([
         "top-banner-offset bg-background sticky z-30 w-full",
-        divider && "border-b",
+        divider && !tabsProps && "border-b",
         className,
       ])}
       id="page-header"

@@ -1,22 +1,29 @@
 import {
+  AggregateFunctionNode,
+  AliasNode,
   BinaryOperationNode,
   ColumnNode,
   CreateTableNode,
   CreateViewNode,
   DefaultQueryCompiler,
   FunctionNode,
+  IdentifierNode,
   InsertQueryNode,
   ParensNode,
   ReferenceNode,
+  SelectAllNode,
+  SelectQueryNode,
   SetOperationNode,
+  TableNode,
   ValueNode,
+  type CommonTableExpressionNode,
   type OperationNode,
   type PrimitiveValueListNode,
   type RootOperationNode,
-  type SelectQueryNode,
   type ValueListNode,
 } from "kysely";
 import type { QueryId } from "kysely";
+import { TupleParam } from "@clickhouse/client";
 
 import {
   ArrayJoinNode,
@@ -25,8 +32,10 @@ import {
   type ClickHouseSelectQueryNode,
   type LimitByNode,
 } from "./nodes";
-import { COLUMN_BIND_TYPES } from "./schema";
+import { QueryCompileError } from "./errors";
+import { COLUMN_BIND_TYPES, TABLE_BIND_TYPES } from "./schema";
 import { assertTenancyStamped } from "./tenancy";
+import { cteName } from "./transformer";
 
 const ARRAY_JOIN_SQL: Record<ArrayJoinNode["variant"], string> = {
   default: "array join",
@@ -44,16 +53,38 @@ const DATE_WRAPPER_FNS = new Set([
   "toStartOfYear",
 ]);
 
+// Interning key for a bound value: equal keys share one placeholder within a
+// compile. E.g. `TupleParam(["a", 1])` → `t:["a",1]` and `TupleParam(["b", 2])`
+// → `t:["b",2]` bind as two placeholders. Object values need an explicit
+// branch, because `String(value)` renders every plain object as
+// `[object Object]`.
 function canonicalParamValue(value: unknown): string {
   if (value instanceof Date) return `d:${value.toISOString()}`;
+  if (value instanceof TupleParam) {
+    return `t:${JSON.stringify(value.values)}`;
+  }
   if (Array.isArray(value)) {
     return `a:${JSON.stringify(value)}`;
   }
   return `${typeof value}:${String(value)}`;
 }
 
+// A Date binds as the `YYYY-MM-DD hh:mm:ss.sss` UTC wall-clock string that
+// ingestion writes (`toClickhouseDateTime`). ClickHouse parses both in the
+// server timezone, so binds line up with stored rows on any server timezone.
+// The string form also covers instants before 1970.
+function serializeParamValue(value: unknown): unknown {
+  if (value instanceof Date) {
+    return value.toISOString().replace("T", " ").replace("Z", "");
+  }
+  return value;
+}
+
 function inferClickHouseType(value: unknown): string {
   if (value instanceof Date) return "DateTime64(3)";
+  if (value instanceof TupleParam) {
+    return `Tuple(${value.values.map(inferClickHouseType).join(", ")})`;
+  }
   if (Array.isArray(value)) {
     const inner = value.length === 0 ? "String" : inferClickHouseType(value[0]);
     return `Array(${inner})`;
@@ -66,6 +97,84 @@ function inferClickHouseType(value: unknown): string {
   if (typeof value === "bigint") return "Int64";
   return "String";
 }
+
+/**
+ * Column bind types of the relation `table` resolves to: the innermost CTE of
+ * that name, else the registry table, else undefined. A schema-qualified table
+ * (`default.traces`) is never a CTE.
+ */
+function relationBindTypes(
+  table: TableNode,
+  scopes: readonly SelectScope[],
+): ColumnBindTypes | undefined {
+  const name = table.table.identifier.name;
+  if (!table.table.schema) {
+    for (const scope of [...scopes].reverse()) {
+      const cte = scope.cte(name);
+      if (cte) return cte;
+    }
+  }
+  return TABLE_BIND_TYPES[name];
+}
+
+/**
+ * Aggregates whose result has the type of their first argument. Others change
+ * it (`count`/`uniq` → UInt64, `sum` widens, `avg`/`median` → Float64), so
+ * their output falls back like any computed column.
+ */
+const TYPE_PRESERVING_AGGREGATES = new Set([
+  "min",
+  "max",
+  "any",
+  "anyLast",
+  "argMin",
+  "argMax",
+]);
+
+/** The operand whose type `node` keeps: the first argument of a type-preserving aggregate, else `node`. */
+function typePreservedOperand(node: OperationNode): OperationNode {
+  if (AggregateFunctionNode.is(node) && !node.over) {
+    return TYPE_PRESERVING_AGGREGATES.has(node.func) && node.aggregated[0]
+      ? node.aggregated[0]
+      : node;
+  }
+  if (FunctionNode.is(node)) {
+    return TYPE_PRESERVING_AGGREGATES.has(node.func) && node.arguments[0]
+      ? node.arguments[0]
+      : node;
+  }
+  return node;
+}
+
+/**
+ * Column name and qualifier of a column operand. Kysely parses `"start_time"`
+ * to a bare ColumnNode and `"e.start_time"` to a ReferenceNode carrying the
+ * table, so only the latter has a qualifier.
+ */
+function columnReference(
+  node: OperationNode,
+): { column: string; qualifier: string | undefined } | undefined {
+  if (ColumnNode.is(node)) {
+    return { column: node.column.name, qualifier: undefined };
+  }
+  if (ReferenceNode.is(node) && ColumnNode.is(node.column)) {
+    return {
+      column: node.column.column.name,
+      qualifier: node.table?.table.identifier.name,
+    };
+  }
+  return undefined;
+}
+
+/** Bind type per column name of one relation. */
+type ColumnBindTypes = Readonly<Record<string, string>>;
+
+type SelectScope = {
+  /** Bind types of the output columns of the CTE `name` this SELECT's WITH declares, or undefined if it declares none. */
+  cte: (name: string) => ColumnBindTypes | undefined;
+  /** FROM/JOIN names and aliases → the relation's column bind types, or undefined when unknown. */
+  relations: Map<string, ColumnBindTypes | undefined>;
+};
 
 /**
  * ClickHouse SQL compiler. Identifier quoting is omitted so `clickhouse format`
@@ -93,6 +202,11 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
    * column is in scope.
    */
   private pendingBindType: string | undefined;
+  /**
+   * The SELECTs enclosing the node being compiled, innermost last. A column
+   * operand looks up its table here to pick its registry bind type.
+   */
+  private selectScopes: SelectScope[] = [];
 
   constructor() {
     super();
@@ -128,8 +242,24 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
   compileQuery(node: RootOperationNode, queryId: QueryId) {
     this.namedParameters = {};
     this.intern = new Map();
+    this.selectScopes = [];
     assertTenancyStamped(node);
     return super.compileQuery(node, queryId);
+  }
+
+  /**
+   * SQL text of one standalone expression, on a fresh compiler. The caller
+   * checks the tree is relation-free. A bind throws: the text is spliced into
+   * a query whose parameters this compiler does not own.
+   */
+  compileExpression(node: OperationNode): string {
+    this.visitNode(node);
+    if (Object.keys(this.namedParameters).length > 0) {
+      throw new QueryCompileError(
+        "A standalone expression cannot bind parameters; inline the value or build the whole query on the AST.",
+      );
+    }
+    return this.getSql();
   }
 
   // Emit identifiers unquoted. `clickhouse format` normalizes to unquoted
@@ -155,8 +285,8 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
    */
   protected override visitBinaryOperation(node: BinaryOperationNode): void {
     const columnType =
-      bindTypeOfColumnOperand(node.leftOperand) ??
-      bindTypeOfColumnOperand(node.rightOperand);
+      this.bindTypeOfColumnOperand(node.leftOperand) ??
+      this.bindTypeOfColumnOperand(node.rightOperand);
     const previous = this.pendingBindType;
     if (columnType) this.pendingBindType = columnType;
     super.visitBinaryOperation(node);
@@ -205,11 +335,214 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     // clear the pending bind type across the (forked) body and restore it after.
     const previousBindType = this.pendingBindType;
     this.pendingBindType = undefined;
+    this.selectScopes.push(this.selectScopeOf(node, this.selectScopes));
     try {
       this.visitSelectQueryBody(node);
     } finally {
+      this.selectScopes.pop();
       this.pendingBindType = previousBindType;
     }
+  }
+
+  /**
+   * What one SELECT makes visible to the columns compiled inside it: the CTEs
+   * its WITH declares, and each FROM/JOIN name or alias mapped to the column
+   * bind types of the relation it reads.
+   */
+  private selectScopeOf(
+    node: SelectQueryNode,
+    enclosing: readonly SelectScope[],
+  ): SelectScope {
+    const scope: SelectScope = {
+      cte: this.cteLookup(node, enclosing),
+      relations: new Map(),
+    };
+    const scopes = [...enclosing, scope];
+    const relations = [
+      ...(node.from?.froms ?? []),
+      ...(node.joins ?? []).map((join) => join.table),
+    ];
+    for (const wrapped of relations) {
+      // FINAL wraps the whole relation, alias included: `scores AS s FINAL`.
+      const maybeFinal: { kind: string } = wrapped;
+      const relation = FinalTableNode.is(maybeFinal)
+        ? maybeFinal.table
+        : wrapped;
+      const aliased = AliasNode.is(relation) ? relation : undefined;
+      const inner = aliased ? aliased.node : relation;
+      const columns = TableNode.is(inner)
+        ? relationBindTypes(inner, scopes)
+        : this.outputBindTypes(inner, scopes);
+      // A table, aliased or not, is reachable by its name:
+      // `FROM traces` and `FROM traces AS t` both register `traces`.
+      if (TableNode.is(inner)) {
+        scope.relations.set(inner.table.identifier.name, columns);
+      }
+      // An aliased relation is also reachable by its alias: `FROM traces AS t`
+      // registers `t`, and `FROM (SELECT …) AS sub`, which has no name of
+      // its own, registers only `sub`.
+      if (aliased && IdentifierNode.is(aliased.alias)) {
+        scope.relations.set(aliased.alias.name, columns);
+      }
+    }
+    return scope;
+  }
+
+  /**
+   * Lookup of the CTEs `node`'s WITH declares. A body is typed on its first
+   * read, against `enclosing` plus {@link withoutCte}, so it can read an
+   * earlier or a later sibling as ClickHouse does.
+   *
+   * Typing a body recurses into the siblings it reads, and each body is typed
+   * without its own name, so the recursion only follows sibling reads. Those
+   * never form a cycle: the transformer passes reject
+   * `WITH a AS (… FROM b), b AS (… FROM a)` before the compiler runs.
+   */
+  private cteLookup(
+    node: SelectQueryNode,
+    enclosing: readonly SelectScope[],
+  ): SelectScope["cte"] {
+    const bodies = new Map(
+      (node.with?.expressions ?? []).map((cte) => [cteName(cte), cte]),
+    );
+    // `enclosing` may be the compiler's live scope stack; a body typed on a
+    // later read must not see the scopes pushed since this SELECT's own.
+    const outer = [...enclosing];
+    const typed = new Map<string, ColumnBindTypes>();
+    const lookup = (name: string): ColumnBindTypes | undefined => {
+      const cte = bodies.get(name);
+      if (!cte) return undefined;
+      const known = typed.get(name);
+      if (known) return known;
+      const bodyScope = withoutCte({ cte: lookup, relations: new Map() }, name);
+      // A body that is not a select (raw SQL) has no columns the compiler
+      // can type, so it gets the name-only types, like an opaque relation.
+      const columns =
+        this.outputBindTypes(cte.expression, [...outer, bodyScope]) ??
+        COLUMN_BIND_TYPES;
+      typed.set(name, columns);
+      return columns;
+    };
+    return lookup;
+  }
+
+  /**
+   * The declaring SELECT's scope declares this CTE, so a body reading its own
+   * name would otherwise bind against the CTE instead of the table.
+   */
+  protected override visitCommonTableExpression(
+    node: CommonTableExpressionNode,
+  ): void {
+    const declaring = this.selectScopes.pop();
+    if (!declaring) {
+      super.visitCommonTableExpression(node);
+      return;
+    }
+    this.selectScopes.push(withoutCte(declaring, cteName(node)));
+    try {
+      super.visitCommonTableExpression(node);
+    } finally {
+      this.selectScopes.pop();
+      this.selectScopes.push(declaring);
+    }
+  }
+
+  /**
+   * Bind types of the columns a CTE body or FROM subquery outputs. A selected
+   * column keeps the type it has in its source relation, under its alias if it
+   * has one, also through a type-preserving aggregate such as `max(col)`.
+   * Other computed columns bind by value.
+   */
+  private outputBindTypes(
+    node: OperationNode,
+    enclosing: readonly SelectScope[],
+  ): ColumnBindTypes | undefined {
+    if (!SelectQueryNode.is(node)) return undefined;
+    const scopes = [...enclosing, this.selectScopeOf(node, enclosing)];
+    // Columns the body doesn't name (an unaliased raw selection) keep the
+    // name-only fallback; a named computed column binds by value.
+    const columns: Record<string, string> = { ...COLUMN_BIND_TYPES };
+    for (const { selection } of node.selections ?? []) {
+      if (SelectAllNode.is(selection)) {
+        for (const relation of scopes.at(-1)!.relations.values()) {
+          Object.assign(columns, relation);
+        }
+        continue;
+      }
+      if (ReferenceNode.is(selection) && SelectAllNode.is(selection.column)) {
+        const qualifier = selection.table?.table.identifier.name;
+        Object.assign(
+          columns,
+          qualifier ? scopes.at(-1)!.relations.get(qualifier) : undefined,
+        );
+        continue;
+      }
+      const aliased = AliasNode.is(selection) ? selection : undefined;
+      const ref = columnReference(
+        typePreservedOperand(aliased ? aliased.node : selection),
+      );
+      const name =
+        aliased && IdentifierNode.is(aliased.alias)
+          ? aliased.alias.name
+          : ref?.column;
+      const bindType =
+        ref && this.columnBindType(ref.column, ref.qualifier, scopes);
+      if (!name) continue;
+      if (bindType) columns[name] = bindType;
+      else delete columns[name];
+    }
+    return columns;
+  }
+
+  /**
+   * Bind type of `column` in `scopes` (innermost last). A qualified column
+   * (`e.start_time`) uses the innermost SELECT that declares the qualifier. An
+   * unqualified one uses the innermost SELECT's relations when they agree on
+   * the type, and binds by value when none of them has it. Otherwise fall back
+   * to the type the column has in every table, if it has only one.
+   */
+  private columnBindType(
+    column: string,
+    qualifier: string | undefined,
+    scopes: readonly SelectScope[] = this.selectScopes,
+  ): string | undefined {
+    if (qualifier) {
+      for (const scope of [...scopes].reverse()) {
+        if (!scope.relations.has(qualifier)) continue;
+        const columns = scope.relations.get(qualifier);
+        return columns ? columns[column] : COLUMN_BIND_TYPES[column];
+      }
+      return COLUMN_BIND_TYPES[column];
+    }
+    const relations = [...new Set(scopes.at(-1)?.relations.values() ?? [])];
+    const candidates = new Set(
+      relations
+        .map((columns) => columns?.[column])
+        .filter((bindType): bindType is string => bindType !== undefined),
+    );
+    if (candidates.size === 1) return [...candidates][0];
+    // No relation has the column: guess by name only if one is opaque.
+    if (candidates.size === 0 && relations.every((columns) => columns)) {
+      return undefined;
+    }
+    return COLUMN_BIND_TYPES[column];
+  }
+
+  /** Bind type of a comparison operand that is a column, or undefined. */
+  private bindTypeOfColumnOperand(node: OperationNode): string | undefined {
+    const ref = columnReference(node);
+    if (ref) return this.columnBindType(ref.column, ref.qualifier);
+    // Single-argument date wrappers (`toDate(timestamp)`) keep the inner
+    // column's bind type. Extra arguments such as a timezone are not column
+    // values.
+    if (
+      FunctionNode.is(node) &&
+      DATE_WRAPPER_FNS.has(node.func) &&
+      node.arguments.length === 1
+    ) {
+      return this.bindTypeOfColumnOperand(node.arguments[0]);
+    }
+    return undefined;
   }
 
   /**
@@ -386,25 +719,20 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     this.addParameter(value);
     const name = `p${this.intern.size + 1}`;
     this.intern.set(key, name);
-    this.namedParameters[name] = value;
+    this.namedParameters[name] = serializeParamValue(value);
     return `{${name}:${inferred}}`;
   }
 }
 
-function bindTypeOfColumnOperand(node: OperationNode): string | undefined {
-  if (ColumnNode.is(node)) return COLUMN_BIND_TYPES[node.column.name];
-  if (ReferenceNode.is(node) && ColumnNode.is(node.column)) {
-    return COLUMN_BIND_TYPES[node.column.column.name];
-  }
-  // Single-argument date wrappers (`toDate(timestamp)`) keep the inner
-  // column's bind type so the compared value is still DateTime64(3). Extra
-  // arguments such as a timezone are not column values.
-  if (
-    FunctionNode.is(node) &&
-    DATE_WRAPPER_FNS.has(node.func) &&
-    node.arguments.length === 1
-  ) {
-    return bindTypeOfColumnOperand(node.arguments[0]);
-  }
-  return undefined;
+/**
+ * The scope a body of CTE `name` sees in place of its declaring SELECT: every
+ * sibling CTE but itself, as ClickHouse resolves `WITH traces AS (SELECT …
+ * FROM traces)` to the table, or to an enclosing CTE of that name. The
+ * declaring SELECT's FROM relations are not visible to the body.
+ */
+function withoutCte(scope: SelectScope, name: string): SelectScope {
+  return {
+    cte: (other) => (other === name ? undefined : scope.cte(other)),
+    relations: new Map(),
+  };
 }

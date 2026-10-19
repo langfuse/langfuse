@@ -7,6 +7,8 @@ import { TopicsFilters } from "./TopicsFilters";
 const filterArgs = {
   facets: [
     { facetId: "intent", name: "Intent" },
+    { facetId: "sentiment", name: "Sentiment" },
+    { facetId: "outcome", name: "Outcome" },
     { facetId: "issues", name: "Issues" },
   ],
   selectedFacetId: undefined,

@@ -14,9 +14,17 @@ import type {
 } from "../../topics";
 import { topicSourceSchema, topicTimeRangeSchema } from "../../topics";
 import { prisma } from "../../db";
+import { logger } from "../logger";
+import { traceException } from "../instrumentation";
+import { redis } from "../redis/redis";
 import { chunk } from "lodash";
 import { Readable } from "node:stream";
 import { finished } from "node:stream/promises";
+import {
+  INTERNAL_EVAL_ENVIRONMENT_PREFIX,
+  isInternalEvalEnvironment,
+  PUBLIC_LLM_JUDGE_ENVIRONMENT,
+} from "../llm/isInternalEvalEnvironment";
 
 const sourceKeySql =
   "project_id, facet_id, facet_version, trace_id, if(trace_id = '', session_id, '')";
@@ -298,21 +306,32 @@ const numberMap = (values: Record<string, number>) =>
   Object.fromEntries(
     Object.entries(values).map(([key, value]) => [key, Number(value)]),
   );
-function summaryResult(row: SummaryRow): TopicSummary {
-  const { metadataJson, unitStartTimeMs, processedAtMs, ...rest } = row;
+function summarySourceAndTimestamps(
+  row: Pick<
+    SummaryRow,
+    "traceId" | "sessionId" | "unitStartTimeMs" | "processedAtMs"
+  >,
+) {
   return {
-    ...rest,
     ...topicSourceSchema.parse({
       traceId: row.traceId || null,
       sessionId: row.sessionId || null,
     }),
+    unitStartTime: new Date(Number(row.unitStartTimeMs)).toISOString(),
+    processedAt: new Date(Number(row.processedAtMs)).toISOString(),
+  };
+}
+
+function summaryResult(row: SummaryRow): TopicSummary {
+  const { metadataJson, unitStartTimeMs, processedAtMs, ...rest } = row;
+  return {
+    ...rest,
+    ...summarySourceAndTimestamps(row),
     providedUsageDetails: numberMap(row.providedUsageDetails),
     usageDetails: numberMap(row.usageDetails),
     providedCostDetails: numberMap(row.providedCostDetails),
     costDetails: numberMap(row.costDetails),
     metadata: JSON.parse(metadataJson),
-    unitStartTime: new Date(Number(unitStartTimeMs)).toISOString(),
-    processedAt: new Date(Number(processedAtMs)).toISOString(),
   };
 }
 
@@ -352,19 +371,38 @@ export async function listTopicSummaries(
     );
   }
   rows.sort((a, b) => Number(b.processedAtMs) - Number(a.processedAtMs));
-  return rows.map(summaryResult);
+  return rows
+    .filter((row) => !isInternalEvalEnvironment(row.environment))
+    .map(summaryResult);
 }
-/** Without a version filter, use each source's newest processed facet version. */
+/** Display fields only. Without a version filter, use each source's newest processed facet version. */
 export async function getLatestFacetSummaries(
   projectId: string,
   facetId: string,
   facetVersion: number | undefined,
   timeRange: TopicTimeRange,
-): Promise<TopicSummary[]> {
+) {
   const scopeSql = `facet_id = {facetId:String}
     ${facetVersion ? "AND facet_version = {facetVersion:UInt32}" : ""}`;
-  const rows = await queryClickhouse<SummaryRow>({
-    query: `SELECT ${summaryColumns} FROM topic_facet_summaries
+  const rows = await queryClickhouse<
+    Pick<
+      TopicSummary,
+      | "projectId"
+      | "facetId"
+      | "facetVersion"
+      | "traceId"
+      | "sessionId"
+      | "state"
+      | "summary"
+      | "environment"
+    > & { unitStartTimeMs: string; processedAtMs: string }
+  >({
+    query: `SELECT project_id AS projectId, facet_id AS facetId,
+      facet_version AS facetVersion, trace_id AS traceId, session_id AS sessionId,
+      processing_state AS state, summary, environment,
+      toUnixTimestamp64Milli(unit_start_time) AS unitStartTimeMs,
+      toUnixTimestamp64Milli(processed_at) AS processedAtMs
+      FROM topic_facet_summaries
       WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${scopeSql}
         AND ${latestSummaryFilterSql(scopeSql, facetVersion ? sourceKeySql : summarySourceKeySql)}
       ORDER BY ${facetVersion ? "" : "facet_version DESC, "}processed_at DESC
@@ -377,7 +415,16 @@ export async function getLatestFacetSummaries(
     },
     tags: { route: "topics-latest-summaries", projectId },
   });
-  return rows.map(summaryResult);
+  return rows
+    .filter((row) => !isInternalEvalEnvironment(row.environment))
+    .map((row) => ({
+      projectId: row.projectId,
+      facetId: row.facetId,
+      facetVersion: row.facetVersion,
+      state: row.state,
+      summary: row.summary,
+      ...summarySourceAndTimestamps(row),
+    }));
 }
 
 export async function getTopicClusteringSummaries(
@@ -398,6 +445,8 @@ export async function getTopicClusteringSummaries(
       LIMIT 1 BY ${sourceKeySql}
     ) WHERE processing_state = 'complete' AND embedding_model = {embeddingModel:String}
       AND length(embedding) = {embeddingDimensions:UInt32}
+      AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
+      AND environment != {publicLlmJudgeEnvironment:String}
     ORDER BY trace_id`,
     params: {
       projectId,
@@ -405,10 +454,101 @@ export async function getTopicClusteringSummaries(
       facetVersion,
       ...embeddingConfig,
       ...timeRangeParams(timeRange),
+      internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
+      publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
     },
     tags: { route: "topics-clustering-summaries", projectId },
   });
   return rows.map(summaryResult);
+}
+
+export async function hasTopicEmbeddings(projectId: string): Promise<boolean> {
+  const rows = await queryClickhouse<{ found: number }>({
+    query: `SELECT 1 AS found FROM topic_facet_summaries
+      WHERE project_id = {projectId:String} AND processing_state = 'complete'
+      LIMIT 1`,
+    params: { projectId },
+    tags: { route: "topics-has-embeddings", projectId },
+  });
+  return rows.length > 0;
+}
+
+/** Project onboarding readiness, cached for 30 minutes when ready and 30 seconds when empty. */
+export async function hasStoredTopicSummaries(
+  projectId: string,
+): Promise<boolean> {
+  const cacheKey = `langfuse:topics:has-summaries:${projectId}`;
+  try {
+    const cached = await redis?.get(cacheKey);
+    if (cached === "1") return true;
+    if (cached === "0") return false;
+  } catch (error) {
+    traceException(error);
+    logger.warn("Failed to read cached Topics summary readiness", {
+      projectId,
+      error,
+    });
+  }
+  const rows = await queryClickhouse<{ found: number }>({
+    query: `SELECT 1 AS found FROM topic_facet_summaries
+      WHERE project_id = {projectId:String}
+        AND trace_id != '' AND processing_state = 'complete'
+        AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
+        AND environment != {publicLlmJudgeEnvironment:String}
+      LIMIT 1`,
+    params: {
+      projectId,
+      internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
+      publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
+    },
+    tags: { route: "topics-has-summaries", projectId },
+    clickhouseSettings: { max_threads: 1 },
+  });
+  const hasSummaries = rows.length > 0;
+  try {
+    await redis?.set(
+      cacheKey,
+      hasSummaries ? "1" : "0",
+      "EX",
+      hasSummaries ? 1800 : 30,
+    );
+  } catch (error) {
+    traceException(error);
+    logger.warn("Failed to cache Topics summary readiness", {
+      projectId,
+      error,
+    });
+  }
+  return hasSummaries;
+}
+
+/** Approximate costs; retry inserts can overcount until background merges deduplicate them. */
+export async function getTopicExecutionCosts(
+  projectId: string,
+  executionIds: string[],
+): Promise<Record<string, number>> {
+  if (executionIds.length === 0) return {};
+  const rows = await queryClickhouse<{ executionId: string; cost: string }>({
+    query: `SELECT JSONExtractString(metadata, 'executionId') AS executionId,
+        sum(calculated_total_cost) AS cost
+      FROM topic_facet_summaries
+      WHERE project_id = {projectId:String}
+        AND executionId IN {executionIds:Array(String)}
+        AND notEmpty(cost_details)
+      GROUP BY executionId`,
+    params: { projectId, executionIds },
+    tags: { route: "topics-execution-costs", projectId },
+  }).catch((error: unknown) => {
+    traceException(error);
+    logger.warn("Failed to estimate Topics execution costs", {
+      projectId,
+      error,
+    });
+    return [];
+  });
+  return Object.fromEntries(
+    rows.map((row) => [row.executionId, Number(row.cost)]),
+  );
 }
 
 /** Count current compatible summaries without loading summary text or vectors. */
@@ -427,7 +567,7 @@ export async function getTopicSummaryCounts(
     count: string;
   }>({
     query: `SELECT facet_id AS facetId, facet_version AS facetVersion, count() AS count FROM (
-      SELECT facet_id, facet_version, processing_state, embedding_model, length(embedding) AS dimensions
+      SELECT facet_id, facet_version, processing_state, embedding_model, length(embedding) AS dimensions, environment
       FROM topic_facet_summaries
       WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${scopeSql}
         AND ${latestSummaryFilterSql(scopeSql)}
@@ -435,6 +575,8 @@ export async function getTopicSummaryCounts(
       LIMIT 1 BY ${sourceKeySql}
     ) WHERE processing_state = 'complete' AND embedding_model = {embeddingModel:String}
       AND dimensions = {embeddingDimensions:UInt32}
+      AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
+      AND environment != {publicLlmJudgeEnvironment:String}
     GROUP BY facet_id, facet_version`,
     params: {
       projectId,
@@ -442,6 +584,8 @@ export async function getTopicSummaryCounts(
       facetIds: facets.map(({ facetId }) => facetId),
       facetVersions: facets.map(({ version }) => version),
       ...embeddingConfig,
+      internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
+      publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
     },
     tags: { route: "topics-summary-counts", projectId },
   });
@@ -456,18 +600,21 @@ export async function getTopicSummaryCounts(
   }));
 }
 
+/** writeTopicSummaries rejects the whole insert if any row fails this check. */
+export function isValidTopicSummary(row: TopicSummary): boolean {
+  return (
+    topicSourceSchema.safeParse(row).success &&
+    typeof row.environment === "string" &&
+    row.embedding.every(Number.isFinite) &&
+    !(row.state === "complete" && row.embedding.length === 0) &&
+    row.state !== "summarized"
+  );
+}
+
 export async function writeTopicSummaries(rows: TopicSummary[]): Promise<void> {
   if (!rows.length) return;
-  for (const row of rows) {
-    if (
-      !topicSourceSchema.safeParse(row).success ||
-      typeof row.environment !== "string" ||
-      !row.embedding.every(Number.isFinite) ||
-      (row.state === "complete" && !row.embedding.length) ||
-      row.state === "summarized"
-    )
-      throw new Error("Invalid Topics summary result.");
-  }
+  if (!rows.every(isValidTopicSummary))
+    throw new Error("Invalid Topics summary result.");
   await insertTopicRows("topic_facet_summaries", rows, (row) => ({
     project_id: row.projectId,
     facet_id: row.facetId,

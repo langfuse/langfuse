@@ -11,7 +11,7 @@ import { APP_SHELL_CHROME_ROW_TEST_ID } from "@/src/components/layouts/app-shell
 import { MobilePageTitle } from "@/src/components/layouts/mobile-page-title";
 import PageHeader from "@/src/components/layouts/page-header";
 import { AppSidebar } from "@/src/components/nav/AppSidebar/AppSidebar";
-import { SidebarPresenceProvider } from "@/src/components/nav/sidebar-presence";
+import { SidebarPresenceProvider } from "@/src/components/nav/SidebarPresenceProvider";
 import { SidebarProvider } from "@/src/components/ui/sidebar";
 
 vi.mock("next/router", () => ({
@@ -51,7 +51,7 @@ vi.mock("@/src/features/projects/hooks", () => ({
   }),
 }));
 
-vi.mock("@/src/components/nav/in-app-ai-agent-button", () => ({
+vi.mock("@/src/components/nav/InAppAiAgentButton", () => ({
   InAppAiAgentButton: () => null,
 }));
 
@@ -59,7 +59,7 @@ vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
   useIsInAppAgentLauncherVisible: () => true,
 }));
 
-vi.mock("@/src/components/nav/topbar-brand", () => ({
+vi.mock("@/src/components/nav/TopbarBrand", () => ({
   TopbarBrand: () => null,
 }));
 
@@ -76,7 +76,7 @@ const sidebarArgs = {
   userMenuItems: [
     {
       type: "link" as const,
-      name: "Account Settings",
+      name: "Settings",
       href: "/account/settings",
     },
   ],

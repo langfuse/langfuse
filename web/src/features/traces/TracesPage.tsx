@@ -41,6 +41,7 @@ export default function TracesPage() {
       <Page
         headerProps={{
           title: "Tracing",
+          divider: false,
           help: {
             description:
               "A trace represents a single function/api invocation. Traces contain observations. See [docs](https://langfuse.com/docs/observability/data-model) to learn more.",
@@ -58,6 +59,7 @@ export default function TracesPage() {
     <Page
       headerProps={{
         title: "Tracing",
+        divider: false,
         titleBadges: <V4MigrationDelayBadge page="traces" />,
         help: {
           description: (
@@ -87,14 +89,11 @@ export default function TracesPage() {
               },
       }}
     >
-      {!isResolved ? (
-        <>
-          {/* Wait for the beta flag before mounting either table. Otherwise the
-              legacy table can briefly mount, restore a v3 saved view, and
-              promote its viewId into the URL before the correct mode
-              resolves. */}
-        </>
-      ) : isV4 ? (
+      {/* Wait for the beta flag before mounting either table. Otherwise the
+          legacy table can briefly mount, restore a v3 saved view, and
+          promote its viewId into the URL before the correct mode
+          resolves. */}
+      {!isResolved ? null : isV4 ? (
         <ObservationsEventsTable
           projectId={projectId}
           showControlsInPageHeader

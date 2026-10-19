@@ -54,6 +54,14 @@ export type PreviewState = {
 // Previews may include separate light/dark illustrations.
 const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
   {
+    flag: "skillManagement",
+    description:
+      "Create, version, and distribute reusable agent skills from one place.",
+    details:
+      "Import skills, manage their versions and labels, install them with the CLI, and inspect the skills available or loaded in your traces.",
+    feedbackUrl: "https://github.com/orgs/langfuse/discussions",
+  },
+  {
     flag: "langfuseTopics",
     description:
       "Discover common topics across traces, with summaries and an interactive topic map.",
@@ -62,16 +70,16 @@ const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
     feedbackUrl: "https://github.com/orgs/langfuse/discussions",
   },
   {
-    flag: "modernSession",
+    flag: "sessionViewV2",
     description:
       "Navigate every trace in a session from one continuous conversation feed, with tools and structured data available on demand.",
     details:
-      "Compact Session View replaces separate trace cards with a compact minimap and a virtualized feed. Jump between traces, keep the active trace in view, or temporarily show inline tool calls and system prompts.",
-    feedbackUrl: "https://github.com/orgs/langfuse/discussions",
+      "Redesigned Session View replaces separate trace cards with a compact minimap and a virtualized feed. Jump between traces, keep the active trace in view, or temporarily show inline tool calls and system prompts.",
+    feedbackUrl: "https://github.com/orgs/langfuse/discussions/18687",
     illustration: {
       light: modernSessionLightIllustration,
       dark: modernSessionDarkIllustration,
-      alt: "Compact Session View showing a trace minimap beside a continuous session conversation feed.",
+      alt: "Redesigned Session View with a continuous session conversation feed.",
     },
   },
 ];
@@ -193,30 +201,31 @@ export function FeaturePreviewModal({
                   </div>
                 </div>
 
-                {selected.flag === "modernSession" && state.sessionTimeline ? (
+                {selected.flag === "sessionViewV2" &&
+                state.sessionViewV2Timeline ? (
                   <div className="border-border mt-5 flex items-start justify-between gap-6 border-t pt-5">
                     <div>
                       <h3 className="text-foreground text-sm font-bold">
-                        {featurePreviewLabels.sessionTimeline}
+                        {featurePreviewLabels.sessionViewV2Timeline}
                       </h3>
                       <p className="text-muted-foreground mt-1 max-w-2xl text-sm">
                         Use the redesigned timeline to navigate session events
                         in chronological order.
                       </p>
-                      {state.sessionTimeline.warningReason ? (
+                      {state.sessionViewV2Timeline.warningReason ? (
                         <p className="mt-2 text-xs text-yellow-800 dark:text-yellow-200">
-                          {state.sessionTimeline.warningReason}
+                          {state.sessionViewV2Timeline.warningReason}
                         </p>
                       ) : null}
                     </div>
                     <Switch
-                      checked={state.sessionTimeline.enabled}
+                      checked={state.sessionViewV2Timeline.enabled}
                       disabled={
-                        state.sessionTimeline.disabled === true ||
-                        state.sessionTimeline.isToggling === true
+                        state.sessionViewV2Timeline.disabled === true ||
+                        state.sessionViewV2Timeline.isToggling === true
                       }
-                      onCheckedChange={state.sessionTimeline.onToggle}
-                      aria-label={`Toggle ${featurePreviewLabels.sessionTimeline}`}
+                      onCheckedChange={state.sessionViewV2Timeline.onToggle}
+                      aria-label={`Toggle ${featurePreviewLabels.sessionViewV2Timeline}`}
                     />
                   </div>
                 ) : null}
