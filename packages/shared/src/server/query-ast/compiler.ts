@@ -34,6 +34,7 @@ import {
   type LimitByNode,
 } from "./nodes";
 import { QueryCompileError } from "./errors";
+import { selectRelations } from "./relations";
 import { COLUMN_BIND_TYPES, TABLE_BIND_TYPES } from "./schema";
 import { assertTenancyStamped } from "./tenancy";
 import { cteName } from "./transformer";
@@ -386,31 +387,20 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
       relations: new Map(),
     };
     const scopes = [...enclosing, scope];
-    const relations = [
-      ...(node.from?.froms ?? []),
-      ...(node.joins ?? []).map((join) => join.table),
-    ];
-    for (const wrapped of relations) {
-      // FINAL wraps the whole relation, alias included: `scores AS s FINAL`.
-      const maybeFinal: { kind: string } = wrapped;
-      const relation = FinalTableNode.is(maybeFinal)
-        ? maybeFinal.table
-        : wrapped;
-      const aliased = AliasNode.is(relation) ? relation : undefined;
-      const inner = aliased ? aliased.node : relation;
-      const columns = TableNode.is(inner)
-        ? relationBindTypes(inner, scopes)
-        : this.outputBindTypes(inner, scopes);
+    for (const { source, table, alias } of selectRelations(node)) {
+      const columns = table
+        ? relationBindTypes(table, scopes)
+        : this.outputBindTypes(source, scopes);
       // A table, aliased or not, is reachable by its name:
       // `FROM traces` and `FROM traces AS t` both register `traces`.
-      if (TableNode.is(inner)) {
-        scope.relations.set(inner.table.identifier.name, columns);
+      if (table) {
+        scope.relations.set(table.table.identifier.name, columns);
       }
       // An aliased relation is also reachable by its alias: `FROM traces AS t`
       // registers `t`, and `FROM (SELECT …) AS sub`, which has no name of
       // its own, registers only `sub`.
-      if (aliased && IdentifierNode.is(aliased.alias)) {
-        scope.relations.set(aliased.alias.name, columns);
+      if (alias) {
+        scope.relations.set(alias, columns);
       }
     }
     return scope;

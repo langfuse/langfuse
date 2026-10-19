@@ -98,6 +98,24 @@ describe("per-table dedup lowering", () => {
     }
   });
 
+  it("qualifies the version sort and LIMIT BY key with the FROM alias", () => {
+    DEDUP_SPECS.traces = {
+      strategy: "limitBy",
+      key: ["id"],
+      version: "event_ts",
+    };
+    try {
+      const { sql } = compile(
+        getClickhouseKysely().selectFrom("traces as t").select("t.id"),
+      );
+      expect(sql).toBe(
+        "select t.id from traces as t where t.project_id = {p1:String} order by t.event_ts desc limit 1 by t.id",
+      );
+    } finally {
+      delete DEDUP_SPECS.traces;
+    }
+  });
+
   it("does not rewrite undeclared tables", () => {
     const { sql } = compile(
       getClickhouseKysely().selectFrom("traces").select("id"),

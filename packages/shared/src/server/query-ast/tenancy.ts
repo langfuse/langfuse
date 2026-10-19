@@ -1,9 +1,7 @@
 import {
-  AliasNode,
   AndNode,
   BinaryOperationNode,
   ColumnNode,
-  IdentifierNode,
   JoinNode,
   OperatorNode,
   OrNode,
@@ -22,11 +20,8 @@ import {
 } from "kysely";
 
 import { QueryCompileError, UnscopedRelationError } from "./errors";
-import {
-  FinalTableNode,
-  unwrapFinalTable,
-  type ClickHouseSelectQueryNode,
-} from "./nodes";
+import { type ClickHouseSelectQueryNode } from "./nodes";
+import { describeRelation } from "./relations";
 import { TENANTED_TABLES } from "./schema";
 import { CteScopedTransformer } from "./transformer";
 
@@ -41,7 +36,7 @@ const TENANCY_STAMPED = new WeakSet<object>();
 
 type Relation =
   | { kind: "table"; tableName: string; alias?: string; node: TableNode }
-  | { kind: "subquery"; node: SelectQueryNode }
+  | { kind: "subquery" }
   | { kind: "raw" }
   | { kind: "other" };
 
@@ -90,10 +85,10 @@ function injectSelect(
   projectId: string,
   isCte: (table: TableNode) => boolean,
 ): ClickHouseSelectQueryNode {
-  const fromRelations = (node.from?.froms ?? []).map(describeRelation);
+  const fromRelations = (node.from?.froms ?? []).map(classifyRelation);
   const joinRelations = (node.joins ?? []).map((join) => ({
     join,
-    relation: describeRelation(join.table),
+    relation: classifyRelation(join.table),
   }));
 
   for (const relation of fromRelations) {
@@ -171,37 +166,18 @@ function assertRelationAllowed(relation: Relation): void {
   }
 }
 
-function describeRelation(node: OperationNode): Relation {
-  if (FinalTableNode.is(node)) {
-    return describeRelation(unwrapFinalTable(node));
+function classifyRelation(node: OperationNode): Relation {
+  const { source, table, alias } = describeRelation(node);
+  if (table) {
+    return { kind: "table", tableName: tableNameOf(table), alias, node: table };
   }
-  if (RawNode.is(node)) {
-    return { kind: "raw" };
-  }
-  if (AliasNode.is(node)) {
-    const inner = describeRelation(node.node);
-    if (inner.kind === "table") {
-      const alias = identifierName(node.alias);
-      return { ...inner, alias };
-    }
-    return inner;
-  }
-  if (TableNode.is(node)) {
-    return { kind: "table", tableName: tableNameOf(node), node };
-  }
-  if (SelectQueryNode.is(node)) {
-    return { kind: "subquery", node };
-  }
+  if (RawNode.is(source)) return { kind: "raw" };
+  if (SelectQueryNode.is(source)) return { kind: "subquery" };
   return { kind: "other" };
 }
 
 function tableNameOf(node: TableNode): string {
   return node.table.identifier.name;
-}
-
-function identifierName(node: OperationNode): string | undefined {
-  if (IdentifierNode.is(node)) return node.name;
-  return undefined;
 }
 
 function projectIdColumn(

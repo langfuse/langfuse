@@ -264,6 +264,12 @@ and it is where tenancy is enforced:
    (table functions such as `remote()`, `clusterAllReplicas()`, `merge()`).
    Kysely's own keyword fragments (`asc`/`desc`) are not relations.
 
+Every pass and the compiler read a FROM/JOIN item through `describeRelation`
+(`relations.ts`): it peels one FINAL and then one alias, so `scores as s final`
+is the table `scores` under alias `s`. Any other nesting (an alias around
+FINAL, FINAL around FINAL) is neither a table nor a subquery, and step 6
+rejects it. A new relation shape is handled there, once.
+
 So query bodies here never filter `project_id` by hand — it is redundant, and
 forgetting it is impossible.
 

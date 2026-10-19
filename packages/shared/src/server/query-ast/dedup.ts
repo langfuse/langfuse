@@ -41,19 +41,14 @@ import {
 } from "kysely";
 
 import { QueryCompileError } from "./errors";
-import {
-  FinalTableNode,
-  LimitByNode,
-  unwrapFinalTable,
-  type ClickHouseSelectQueryNode,
-} from "./nodes";
+import { LimitByNode, type ClickHouseSelectQueryNode } from "./nodes";
+import { describeRelation } from "./relations";
 import { DEDUP_SPECS, type DedupSpec } from "./schema";
 import { stampCompiledTree } from "./tenancy";
 import { CteScopedTransformer } from "./transformer";
 
 type PhysicalFrom = {
   tableName: string;
-  table: TableNode;
   alias?: string;
   fromItem: OperationNode;
 };
@@ -118,30 +113,13 @@ function singlePhysicalFrom(
   if (node.joins?.length) return undefined;
   const froms = node.from?.froms ?? [];
   if (froms.length !== 1) return undefined;
-  const described = describeFrom(froms[0]);
-  if (!described) return undefined;
-  if (isCte(described.table)) return undefined;
-  return described;
-}
-
-function describeFrom(node: OperationNode): PhysicalFrom | undefined {
-  if (FinalTableNode.is(node)) {
-    return describeFrom(unwrapFinalTable(node));
-  }
-  if (AliasNode.is(node)) {
-    const inner = describeFrom(node.node);
-    if (!inner) return undefined;
-    const alias = IdentifierNode.is(node.alias) ? node.alias.name : undefined;
-    return { ...inner, alias, fromItem: node };
-  }
-  if (TableNode.is(node)) {
-    return {
-      tableName: node.table.identifier.name,
-      table: node,
-      fromItem: node,
-    };
-  }
-  return undefined;
+  const { table, alias, withoutFinal } = describeRelation(froms[0]);
+  if (!table || isCte(table)) return undefined;
+  return {
+    tableName: table.table.identifier.name,
+    alias,
+    fromItem: withoutFinal,
+  };
 }
 
 type QueryShape = "row" | "aggregate" | "skip";

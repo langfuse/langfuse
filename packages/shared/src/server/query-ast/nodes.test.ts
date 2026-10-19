@@ -1,4 +1,12 @@
-import { createQueryId, sql, type KyselyPlugin } from "kysely";
+import {
+  AliasNode,
+  FromNode,
+  SelectQueryNode,
+  createQueryId,
+  sql,
+  type KyselyPlugin,
+  type OperationNode,
+} from "kysely";
 import { describe, expect, it } from "vitest";
 
 import { compileClickhouseQuery } from "./compile";
@@ -97,6 +105,9 @@ describe("tenancy injection", () => {
     expect(() => compileClickhouseQuery(qb, projectId)).toThrow(
       UnscopedRelationError,
     );
+    expect(() => compileClickhouseQuery(qb, projectId)).toThrow(
+      /Raw SQL table sources are rejected/,
+    );
   });
 
   it("rejects aliased raw SQL that would introduce an unscoped relation", () => {
@@ -147,6 +158,49 @@ describe("tenancy injection", () => {
       );
     },
   );
+
+  // FINAL wraps the aliased item (`scores as s final`); the relation describer
+  // peels one FINAL and then one alias, so any other nesting is no table
+  // reference and cannot be scoped. No builder emits these; they are built by
+  // hand, and FinalTableNode is outside Kysely's node union, hence the casts.
+  it.each([
+    [
+      "an alias around FINAL",
+      (alias: AliasNode) =>
+        AliasNode.create(
+          FinalTableNode.create(alias.node) as unknown as OperationNode,
+          alias.alias,
+        ),
+    ],
+    [
+      "FINAL around FINAL",
+      (alias: AliasNode) =>
+        FinalTableNode.create(
+          FinalTableNode.create(alias) as unknown as OperationNode,
+        ) as unknown as OperationNode,
+    ],
+  ])("rejects %s as a FROM source", (_shape, wrap) => {
+    const rewrap: KyselyPlugin = {
+      transformQuery(args) {
+        const node = args.node;
+        if (!SelectQueryNode.is(node) || !node.from) return node;
+        const [from] = node.from.froms;
+        if (!AliasNode.is(from)) return node;
+        return { ...node, from: FromNode.create([wrap(from)]) };
+      },
+      async transformResult(args) {
+        return args.result;
+      },
+    };
+    const qb = getClickhouseKysely()
+      .withPlugin(rewrap)
+      .selectFrom("scores as s")
+      .select("s.id");
+
+    expect(() => compileClickhouseQuery(qb, projectId)).toThrow(
+      UnscopedRelationError,
+    );
+  });
 
   it("rejects raw SQL fragments in SELECT and WHERE, not only FROM/JOIN", () => {
     const selectRaw = getClickhouseKysely()
