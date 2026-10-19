@@ -38,6 +38,10 @@ type TopicErrorReason =
   | "numerical"
   | "unknown";
 
+const COUNTED_HTTP_STATUSES = new Set([
+  400, 401, 402, 403, 404, 408, 413, 422, 429,
+]);
+
 /** Provider usage is counted per call, before local validation or persistence. */
 export function recordTopicTokenUsage(
   stage: "summary" | "embedding" | "naming",
@@ -54,10 +58,6 @@ export function recordTopicTokenUsage(
     else recordIncrement("langfuse.topics.token_usage_missing", 1, tags);
   }
 }
-
-const COUNTED_HTTP_STATUSES = new Set([
-  400, 401, 402, 403, 404, 408, 413, 422, 429,
-]);
 
 /** Counts every provider request with a bounded status tag. */
 export function recordTopicModelCall(

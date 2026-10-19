@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { recordIncrement } from "@langfuse/shared/src/server";
 
 export const EXPORT_VOLUME_METRIC = "langfuse.export.serialized_bytes";
@@ -49,3 +50,32 @@ export const recordExportVolume = ({
   if (path !== undefined) tags.path = path;
   recordIncrement(EXPORT_VOLUME_METRIC, bytes, tags);
 };
+
+/**
+ * Egress bytes of an LLM request as LLM-as-a-judge and Topics count them: the
+ * provider-bound messages plus the JSON Schema of the requested output, uncompressed.
+ */
+export const llmRequestEgressBytes = (
+  messages: unknown,
+  schema?: unknown,
+): number =>
+  Buffer.byteLength(
+    JSON.stringify(messages, (_key, value) =>
+      value instanceof Uint8Array
+        ? Buffer.from(value).toString("base64")
+        : value,
+    ),
+    "utf8",
+  ) +
+  (schema === undefined
+    ? 0
+    : Buffer.byteLength(serializeSchemaForEgress(schema), "utf8"));
+
+// Measure the schema as the JSON Schema LangChain ships, not Zod's _def.
+function serializeSchemaForEgress(schema: unknown): string {
+  try {
+    return JSON.stringify(z.toJSONSchema(schema as z.ZodType));
+  } catch {
+    return JSON.stringify(schema);
+  }
+}

@@ -41,6 +41,7 @@ vi.mock("./models", () => ({
 }));
 
 import { summarizeAssembledTrace } from "./summarizeAssembledTrace";
+import { TopicsProviderUnavailable } from "./provider-error";
 
 const transcript: Transcript = {
   threads: [
@@ -507,6 +508,41 @@ describe("summarizeAssembledTrace", () => {
       "langfuse.topics.trace_outcome",
       "failed",
     );
+  });
+
+  it("counts an unusable response as a rule rejection of every facet", async () => {
+    state.summarize.mockRejectedValue(
+      new TopicsProviderUnavailable("unparseable", "invalid_output"),
+    );
+    await expect(
+      summarize({
+        projectId: "project-a",
+        traceId: "trace-1",
+        traceTimestamp: "2026-09-22T12:00:00.000Z",
+        jobEnqueuedAt: new Date("2026-09-22T12:01:00.000Z"),
+        environment: "default",
+        traceName: "agent-turn",
+        transcript,
+        models,
+        facets: state.facets(),
+      }),
+    ).rejects.toMatchObject({ reason: "invalid_output" });
+    expect(
+      vi
+        .mocked(recordIncrement)
+        .mock.calls.filter(([name]) => name === "langfuse.topics.results"),
+    ).toEqual([
+      [
+        "langfuse.topics.results",
+        1,
+        {
+          stage: "summary",
+          result: "invalid_output",
+          source: "rule",
+          facet: "intent",
+        },
+      ],
+    ]);
   });
 
   it("propagates a provider failure for the trace outcome", async () => {

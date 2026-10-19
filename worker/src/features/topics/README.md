@@ -520,13 +520,15 @@ name, or `custom`): the model decides `applicable`, `not_applicable` or
 `insufficient_input`; local rules decide `insufficient_input` (no transcript
 content), `invalid_output` and `input_too_large`.
 
-Every provider request counts once in
-`.llm_calls{stage,adapter,status}` (`ok`, a 4xx status, `5xx`, or the failure
-reason when there is no HTTP status). Retries inside the AI SDK are not counted
-separately. Like LLM-as-a-judge, each successful request adds its uncompressed
-prompt and schema bytes to the shared egress metric
-`langfuse.export.serialized_bytes{integration:topics}`; responses (mostly
-embedding vectors) and failed or retried requests are not included.
+Every model call counts once in `.llm_calls{stage,adapter,status}` (`ok`, a
+4xx status, `5xx`, or the failure reason when there is no HTTP status). One
+embedding call can fan out into several provider requests (single-text Bedrock
+models, the retry without dimensions), and AI SDK retries are not counted
+separately. Each successful call adds its egress to the shared
+`langfuse.export.serialized_bytes{integration:topics}`, measured exactly like
+LLM-as-a-judge (`llmRequestEgressBytes`: serialized provider messages plus the
+output JSON Schema, uncompressed); responses (mostly embedding vectors) and
+failed or retried requests are not included.
 
 ### Datadog spans and logs
 
@@ -546,9 +548,10 @@ Spans carry tenant and request detail that metrics must not:
   message, type, code and param.
 
 A failed provider request logs one `Topics model request failed` warning with the
-same fields. Like evals, only the provider's error message is kept, cut to 500
-characters; request and response bodies can contain trace content and are never
-logged. A failed facet logs `Topics facet failed`: a warning for provider or
+same fields. Like evals, only the AI SDK's parsed provider error (message cut to 500
+characters, type, code, param) is kept; request and response bodies can contain
+trace content and are never logged, so errors without that structure, such as
+the direct Bedrock call, log the HTTP status only. A failed facet logs `Topics facet failed`: a warning for provider or
 configuration errors, an error otherwise.
 
 `langfuse.topics.tokens{stage:summary|embedding|naming,direction:input|output}`

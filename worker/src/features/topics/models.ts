@@ -11,6 +11,7 @@ import {
 import {
   generateTopicEmbeddings,
   generateTopicText,
+  topicMessages,
   type TopicPromptPart,
   type TopicsModel,
   type TopicsModels,
@@ -21,7 +22,10 @@ import {
   type TopicProcessingConfig,
 } from "@langfuse/shared/topics";
 import { recordTopicModelCall, recordTopicTokenUsage } from "./metrics";
-import { recordExportVolume } from "../../services/exportVolumeMetric";
+import {
+  llmRequestEgressBytes,
+  recordExportVolume,
+} from "../../services/exportVolumeMetric";
 import type { TopicModelUsage } from "./summaryResult";
 import {
   TopicsProviderUnavailable,
@@ -171,11 +175,7 @@ async function structuredCall<T>(
     stage,
     model,
     projectId,
-    Buffer.byteLength(
-      system.map((part) => part.text).join("") +
-        input +
-        JSON.stringify(z.toJSONSchema(schema)),
-    ),
+    llmRequestEgressBytes(topicMessages({ system, input }), schema),
     {
       trace_id: metadata?.source_trace_id,
       execution_id: metadata?.execution_id,
@@ -478,7 +478,7 @@ export async function embedTopicSummaries(
     "embedding",
     model,
     projectId,
-    Buffer.byteLength(summaries.join("")),
+    llmRequestEgressBytes(summaries),
     {},
     () => generateTopicEmbeddings({ model, summaries, dimensions }),
   );

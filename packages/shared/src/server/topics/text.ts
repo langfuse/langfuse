@@ -127,7 +127,11 @@ function topicTraceError(failure: unknown) {
   };
 }
 
-function topicMessages(params: { system: TopicPromptPart[]; input: string }) {
+/** The provider-bound messages of a Topics request; also used to measure its egress. */
+export function topicMessages(params: {
+  system: TopicPromptPart[];
+  input: string;
+}) {
   return [
     {
       role: "system" as const,

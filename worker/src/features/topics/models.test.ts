@@ -20,7 +20,10 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
 vi.mock("@langfuse/shared/src/db", () => ({
   prisma: { project: { findFirst: state.project } },
 }));
-vi.mock("@langfuse/shared/topics/server", () => ({
+vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
+  topicMessages: (
+    await importOriginal<typeof import("@langfuse/shared/topics/server")>()
+  ).topicMessages,
   generateTopicText: (...args: unknown[]) => state.call(...args),
   generateTopicEmbeddings: (...args: unknown[]) => state.embed(...args),
 }));
@@ -331,6 +334,28 @@ describe("Topics naming boundary", () => {
         status: "400",
       },
     );
+  });
+
+  it("logs only the status for an error whose message carries the response body", async () => {
+    // The direct Bedrock call throws a plain error with the response text.
+    state.call.mockRejectedValue(
+      Object.assign(
+        new Error('Bedrock InvokeModel failed with 400: {"secret": "echo"}'),
+        { status: 400 },
+      ),
+    );
+    await expect(
+      summarizeOne(
+        topicsModels(),
+        "Trace evidence.",
+        topicProcessingConfigSchema.parse({
+          summaryModel: "us.openai.gpt-5.6-luna",
+        }),
+      ),
+    ).rejects.toMatchObject({ reason: "invalid_input" });
+    const [, fields] = vi.mocked(logger.warn).mock.calls.at(-1)!;
+    expect(fields).toMatchObject({ "http.status_code": 400 });
+    expect(JSON.stringify(fields)).not.toMatch(/secret/);
   });
 
   it("keeps fallback token counts out of provider-reported usage", async () => {

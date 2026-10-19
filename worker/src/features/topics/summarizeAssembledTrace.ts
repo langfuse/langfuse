@@ -45,6 +45,10 @@ const NO_USAGE: TopicModelUsage = {
   costDetails: {},
 };
 
+const BUILT_IN_FACETS = new Set(
+  DEFAULT_TOPIC_FACETS.map((facet) => facet.name),
+);
+
 // Rows from this transcript producer are interchangeable between trace-batch and manual processing.
 export const ASSEMBLED_TRANSCRIPT_ID = "trace-batch";
 
@@ -296,6 +300,14 @@ export async function summarizeTraceFacets(params: {
     .catch((error: unknown) => {
       if (error instanceof TopicInputTooLarge)
         for (const facet of facets) outcome(facet, "input_too_large", "rule");
+      // An unusable response fails every facet before the per-facet checks run.
+      else if (
+        (error instanceof TopicsProviderUnavailable
+          ? error.reason === "invalid_output"
+          : error instanceof Error && error.name === "ZodError") &&
+        ![...errors.values()].includes(error as never)
+      )
+        for (const facet of facets) outcome(facet, "invalid_output", "rule");
       // Valid facets can still be persisted after summary validation fails.
       if (!generated || ![...errors.values()].includes(error as never))
         throw error;
@@ -325,10 +337,6 @@ export async function summarizeTraceFacets(params: {
     },
   };
 }
-
-const BUILT_IN_FACETS = new Set(
-  DEFAULT_TOPIC_FACETS.map((facet) => facet.name),
-);
 
 /** Built-in facet names are a fixed set; custom names would be unbounded metric tags. */
 function facetTag(facet: TraceFacet): string {

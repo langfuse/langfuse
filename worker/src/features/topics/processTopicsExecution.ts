@@ -1164,31 +1164,6 @@ async function processTraces(
   }
 }
 
-/** Provider and configuration failures are the customer's to fix; anything else is ours. */
-function failFacet(
-  metrics: TopicMetrics,
-  execution: TopicExecution,
-  facet: TopicFacetVersion,
-  progress: TopicFacetProgress,
-  error: unknown,
-) {
-  metrics.error("execution", error);
-  progress.outcome = "failed";
-  progress.error = errorMessage(error);
-  const log =
-    error instanceof TopicsProviderUnavailable ? logger.warn : logger.error;
-  log("Topics facet failed", {
-    "langfuse.topics.execution_id": execution.id,
-    "langfuse.topics.operation": execution.input.operation,
-    "langfuse.topics.facet_id": facet.facetId,
-    "langfuse.topics.facet_version": facet.version,
-    error: progress.error,
-  });
-  if (isExecutionFailure(error)) throw error;
-  // Handled, but still a failed facet for the user; the enclosing span reports it.
-  traceException(error);
-}
-
 function recordTraceFailure(
   state: TopicProcessBatchState,
   progress: TopicFacetProgress,
@@ -1308,6 +1283,31 @@ async function updateTopics(
       },
     );
   }
+}
+
+/** Provider and configuration failures are the customer's to fix; anything else is ours. */
+function failFacet(
+  metrics: TopicMetrics,
+  execution: TopicExecution,
+  facet: TopicFacetVersion,
+  progress: TopicFacetProgress,
+  error: unknown,
+) {
+  metrics.error("execution", error);
+  progress.outcome = "failed";
+  progress.error = errorMessage(error);
+  const log =
+    error instanceof TopicsProviderUnavailable ? logger.warn : logger.error;
+  log("Topics facet failed", {
+    "langfuse.topics.execution_id": execution.id,
+    "langfuse.topics.operation": execution.input.operation,
+    "langfuse.topics.facet_id": facet.facetId,
+    "langfuse.topics.facet_version": facet.version,
+    error: progress.error,
+  });
+  if (isExecutionFailure(error)) throw error;
+  // Handled, but still a failed facet for the user; the enclosing span reports it.
+  traceException(error);
 }
 
 /** Queue batches own trace retry state; Postgres owns compact update progress. */
