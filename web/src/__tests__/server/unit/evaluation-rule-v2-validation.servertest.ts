@@ -1,9 +1,45 @@
-import { EvalTargetObject } from "@langfuse/shared";
+import {
+  EvalTargetObject,
+  validateEvaluatorFiltersForTarget,
+} from "@langfuse/shared";
 import { describe, expect, it } from "vitest";
 import {
   CreateRuleSchema,
   RuleSelectionSchema,
 } from "@/src/features/evals/v2/server/rules/ruleTypes";
+import {
+  CreateEvaluationRuleBody,
+  UpdateEvaluationRuleBody,
+} from "@/src/features/public-api/types/evaluation/evaluationRules";
+
+describe.each([
+  [
+    "create",
+    CreateEvaluationRuleBody,
+    { name: "Rule", enabled: false, evaluatorAssignments: [] },
+  ],
+  ["update", UpdateEvaluationRuleBody, {}],
+])("public evaluation rule %s validation", (_boundary, schema, body) => {
+  it.each(["status", "level"])(
+    "accepts %s filters before canonical validation",
+    (column) => {
+      const filter = [
+        { type: "stringOptions", column, operator: "any of", value: ["ERROR"] },
+      ];
+      const parsed = schema.parse({ ...body, filter });
+
+      expect(parsed.filter).toEqual(filter);
+      const result = validateEvaluatorFiltersForTarget({
+        targetObject: EvalTargetObject.EVENT,
+        filter: parsed.filter,
+      });
+      expect(result.isValid).toBe(true);
+      expect(result.validatedFilters).toEqual([
+        { ...filter[0], column: "level" },
+      ]);
+    },
+  );
+});
 
 describe("evaluation rule v2 input validation", () => {
   it("accepts rule names longer than 200 characters", () => {

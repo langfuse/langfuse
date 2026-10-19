@@ -159,33 +159,40 @@ function incompleteFieldTokenDiagnostics(
   }
 }
 
-function labeledOptionValueDiagnostics(
+function fieldValueDiagnostics(
   node: ASTNode,
   textLength: number,
   out: Diagnostic[],
   registry: FieldRegistry,
 ): void {
   if (node.kind === "not") {
-    labeledOptionValueDiagnostics(node.child, textLength, out, registry);
+    fieldValueDiagnostics(node.child, textLength, out, registry);
     return;
   }
   if (node.kind === "and" || node.kind === "or") {
     for (const child of node.children) {
-      labeledOptionValueDiagnostics(child, textLength, out, registry);
+      fieldValueDiagnostics(child, textLength, out, registry);
     }
     return;
   }
   if (node.kind !== "filter") return;
 
   const ref = registry.resolveField(node.key);
-  if (
-    ref?.type !== "field" ||
-    ref.field.filterValueByDisplayValue === undefined
-  )
-    return;
+  if (ref?.type !== "field") return;
+
+  const displayValues = ref.field.filterValueByDisplayValue;
+  const exactValues =
+    node.op === "=" || node.op === "exact"
+      ? ref.field.allowedExactValues
+      : undefined;
+  if (displayValues === undefined && exactValues === undefined) return;
 
   for (const value of node.values) {
-    if (ref.field.filterValueByDisplayValue.has(value)) continue;
+    if (
+      (displayValues === undefined || displayValues.has(value)) &&
+      (exactValues === undefined || exactValues.includes(value))
+    )
+      continue;
     const span = nodeSpan(node, textLength);
     out.push({
       from: span.from,
@@ -209,7 +216,7 @@ export function semanticDiagnostics(
   // filter, not free text — checked over the WHOLE tree (not per top-level
   // node) so the adjacency scoping can see each text node's siblings.
   incompleteFieldTokenDiagnostics(ast, out, registry);
-  labeledOptionValueDiagnostics(ast, textLength, out, registry);
+  fieldValueDiagnostics(ast, textLength, out, registry);
 
   // Lower each top-level node independently so error spans point at the
   // offending node instead of the whole query. The lowering must see the same

@@ -19,6 +19,7 @@
 
 import {
   eventsTableCols,
+  ObservationLevelDomain,
   type ColumnDefinition,
   type FilterState,
   type SingleValueOption,
@@ -62,6 +63,8 @@ export type FieldDef = {
   suggestObservedValues?: boolean;
   /** Preserve exact selections in the owning categorical facet's filter shape. */
   exactMatchUsesOptions?: boolean;
+  /** Allowed query values for equality; text-match operators stay unrestricted. */
+  allowedExactValues?: readonly string[];
   /** Canonical FilterState column emitted for this display-oriented field. */
   filterColumn?: string;
   /** Display/query value → canonical FilterState value for labeled options. */
@@ -233,6 +236,10 @@ export function fieldRegistryFromColumns(
         kind,
         syncMode: fieldOverlay?.syncMode ?? syncMode,
         exactMatchUsesOptions: column.type === "stringOptions",
+        allowedExactValues:
+          column.id === "level"
+            ? ObservationLevelDomain.options
+            : fieldOverlay?.allowedExactValues,
         label: fieldOverlay?.label ?? column.name,
         description: fieldOverlay?.description ?? column.name,
         nullable: column.nullable,
@@ -360,7 +367,7 @@ export const FIELDS: FieldDef[] = [
   { id: "ingestionSource", aliases: ["ingestionsource", "ingestion_source", "source"], kind: "text", syncMode: "exactOption", label: "Ingestion source", description: "Ingestion source (API or OTel path)" },
   { id: "userId", aliases: ["userid", "user_id", "user"], kind: "text", syncMode: "exactOption", label: "User ID", description: "Trace user id", nullable: true },
   { id: "sessionId", aliases: ["sessionid", "session_id", "session"], kind: "text", syncMode: "exactOption", label: "Session ID", description: "Trace session id", nullable: true },
-  { id: "status", filterColumn: "level", aliases: ["level"], kind: "text", syncMode: "exactOption", label: "Status", description: "Observation status" },
+  { id: "status", filterColumn: "level", aliases: ["level"], kind: "text", syncMode: "exactOption", allowedExactValues: ObservationLevelDomain.options, label: "Status", description: "Observation status" },
   { id: "statusMessage", aliases: ["statusmessage", "status_message"], kind: "text", syncMode: "textSearch", label: "Status message", description: "Status message", nullable: true },
   { id: "modelId", aliases: ["modelid", "model_id"], kind: "text", syncMode: "exactOption", label: "Model ID", description: "Internal model id", nullable: true },
   { id: "providedModelName", aliases: ["providedmodelname", "provided_model_name", "model"], kind: "text", syncMode: "exactOption", label: "Model name", description: "Provided model name", nullable: true },

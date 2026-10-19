@@ -17,8 +17,15 @@ import {
   toObservedOptions,
   type ObservedOptions,
 } from "@/src/features/search-bar/lib/observed-options";
-import { createFieldRegistry, EVENTS_FIELD_REGISTRY } from "./fields";
+import {
+  createFieldRegistry,
+  EVENTS_FIELD_REGISTRY,
+  withFieldOptions,
+} from "./fields";
+import { planCommit } from "./commit";
 import { validateQuery } from "./validate";
+import { createTopicTraceRegistry } from "@/src/features/topics/topic-trace-filters";
+import { EVALUATOR_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
 
 const OBSERVED: ObservedOptions = {
   level: [
@@ -101,6 +108,29 @@ describe("planInputCompletions", () => {
     const titles = p?.sections.map((s) => s.title);
     expect(titles).toContain(SECTION_FIELDS);
     expect(titles).toContain(SECTION_RECENT);
+  });
+
+  it("omits obsolete status-message recents while preserving severity searches", () => {
+    const p = plan("", 0, {
+      recents: [
+        "status:timeout",
+        "-status:timeout",
+        "status:ERROR",
+        "level:WARNING",
+        "status:*ERR*",
+        "statusMessage:timeout",
+      ],
+    });
+    expect(
+      flattenOptions(p)
+        .filter((option) => option.kind === "recent")
+        .map((option) => option.query),
+    ).toEqual([
+      "status:ERROR",
+      "level:WARNING",
+      "status:*ERR*",
+      "statusMessage:timeout",
+    ]);
   });
 
   it("always includes injected query presets at a blank top-level term", () => {
@@ -298,6 +328,81 @@ describe("planInputCompletions", () => {
         .filter((option) => option.kind === "value")
         .map((option) => option.label),
     ).toEqual(["ERROR", "WARNING"]);
+  });
+
+  it("loads topic labels and matches them without requesting topic IDs", () => {
+    const registry = createTopicTraceRegistry([
+      { id: "topic-id", name: "Billing questions" },
+    ]);
+    const complete = (input: string) =>
+      planInputCompletions(
+        {
+          input,
+          caret: input.length,
+          observed: {
+            topic: [{ value: "Billing questions" }],
+            assignment: [],
+          },
+          recents: [],
+          currentQueryText: input,
+        },
+        registry,
+      );
+
+    const p = complete("topic:");
+    expect(p?.loading).toBe(false);
+    expect(p?.requestColumns).toBeUndefined();
+    expect(
+      flattenOptions(p)
+        .filter((option) => option.kind === "value")
+        .map((option) => option.label),
+    ).toEqual(["Billing questions"]);
+    expect(flattenOptions(complete("Billing"))).toContainEqual(
+      expect.objectContaining({
+        kind: "pattern",
+        insert: 'topic:"Billing questions"',
+      }),
+    );
+  });
+
+  it("suggests dataset display names that commit to the stored dataset ID", () => {
+    const registry = withFieldOptions(EVALUATOR_FIELD_REGISTRY, "datasetName", [
+      { value: "dataset-id", displayValue: "Billing Dataset" },
+    ]);
+    const input = "datasetName:";
+    const rawOptionSets: ObservedOptions[] = [
+      {},
+      { experimentDatasetId: [{ value: "dataset-id" }] },
+    ];
+    for (const rawOptions of rawOptionSets) {
+      const p = planInputCompletions(
+        {
+          input,
+          caret: input.length,
+          observed: {
+            ...rawOptions,
+            datasetName: [{ value: "Billing Dataset" }],
+          },
+          recents: [],
+          currentQueryText: input,
+        },
+        registry,
+      );
+      expect(p?.loading).toBe(false);
+      expect(p?.requestColumns).toBeUndefined();
+      const values = flattenOptions(p).filter(
+        (option) => option.kind === "value",
+      );
+      expect(values.map((option) => option.label)).toEqual(["Billing Dataset"]);
+      const picked = values[0];
+      if (!p || !picked) return;
+      expect(
+        planCommit(applyPick(picked, input, p).next, undefined, registry),
+      ).toMatchObject({
+        status: "committed",
+        filters: [{ column: "experimentDatasetId", value: ["dataset-id"] }],
+      });
+    }
   });
 
   it("keeps the observed-value picker for name:/id: while searching as contains", () => {

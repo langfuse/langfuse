@@ -298,6 +298,12 @@ function hoistFieldOption(
 // of a few showcase fields, inserted as complete filters.
 const SUGGESTION_FIELDS = ["status", "type", "environment", "name"];
 
+function observedColumnFor(field: FieldDef): string {
+  return field.id === "status" && field.filterColumn === "level"
+    ? "level"
+    : field.id;
+}
+
 function querySuggestionOptions(
   observed: ObservedOptions | undefined,
   registry: FieldRegistry,
@@ -307,7 +313,7 @@ function querySuggestionOptions(
   for (const fieldId of SUGGESTION_FIELDS) {
     const ref = registry.resolveField(fieldId);
     if (ref?.type !== "field") continue;
-    const top = observed[ref.field.filterColumn ?? ref.field.id]?.[0];
+    const top = observed[observedColumnFor(ref.field)]?.[0];
     if (top === undefined) continue;
     const insert = `${fieldId}:${serializeValue(top.value)}`;
     out.push({
@@ -371,7 +377,7 @@ function matchingFilterOptions(
         field.suggestObservedValues === true),
   );
   for (const f of valueMatchFields) {
-    for (const o of observedValues(observed, f.filterColumn ?? f.id)) {
+    for (const o of observedValues(observed, observedColumnFor(f))) {
       const v = o.value.toLowerCase();
       const rank = (() => {
         if (v === q) {
@@ -1045,13 +1051,13 @@ function valueStageSections(input: ValueStageInput): {
       // fields flagged `suggestObservedValues` (id/name — they search as
       // substring but still suggest existing values).
       // Lazy mode: an option-backed field (exactOption/arrayOption) whose values
-      // have not loaded yet shows a loading row and requests its storage column.
+      // have not loaded yet shows a loading row and requests its option column.
       // textSearch fields (id/name) are not
       // lazily loaded — `name` is eager and `id` has no server option list — so
       // they fall through to the picker, which is empty when nothing is observed.
       const isOptionColumn =
         f.syncMode === "exactOption" || f.syncMode === "arrayOption";
-      const column = f.filterColumn ?? f.id;
+      const column = observedColumnFor(f);
       if (isOptionColumn && columnPending(column)) {
         return { sections: [], loading: true, requestColumns: [column] };
       }

@@ -1,7 +1,9 @@
 // @vitest-environment node
 
 import { describe, expect, it } from "vitest";
+import { eventsTableCols, ObservationLevelDomain } from "@langfuse/shared";
 
+import { EVENTS_FIELD_REGISTRY, fieldRegistryFromColumns } from "./fields";
 import { parse, serialize } from "./langQ";
 import { semanticDiagnostics, validateQuery } from "./validate";
 
@@ -11,6 +13,81 @@ function warnings(query: string): string[] {
     .filter((d) => d.severity === "warning")
     .map((d) => d.message);
 }
+
+describe("validateQuery — exact observation status values", () => {
+  const registries = [
+    ["events", EVENTS_FIELD_REGISTRY],
+    [
+      "column-derived",
+      fieldRegistryFromColumns(
+        eventsTableCols.filter((column) => column.id === "level"),
+        { id: "observations" },
+      ),
+    ],
+  ] as const;
+
+  it.each(registries)(
+    "rejects invalid exact values through the %s registry",
+    (_name, registry) => {
+      for (const query of [
+        "status:timeout",
+        "level:timeout",
+        "status:=timeout",
+        "-status:timeout",
+        "NOT level:timeout",
+        "status:(ERROR OR timeout)",
+        "-level:(WARNING OR timeout)",
+        "status:error",
+      ]) {
+        const result = validateQuery(query, undefined, registry);
+        expect(result.valid, query).toBe(false);
+        expect(result.diagnostics, query).toEqual([
+          expect.objectContaining({
+            severity: "error",
+            message: expect.stringContaining("is not a valid status"),
+          }),
+        ]);
+      }
+    },
+  );
+
+  it.each(registries)(
+    "accepts canonical exact values through the %s registry",
+    (_name, registry) => {
+      for (const status of ObservationLevelDomain.options) {
+        for (const field of ["status", "level"]) {
+          for (const query of [
+            `${field}:${status}`,
+            `${field}:=${status}`,
+            `-${field}:${status}`,
+            `${field}:(ERROR OR ${status})`,
+            `-${field}:(WARNING OR ${status})`,
+          ]) {
+            expect(validateQuery(query, undefined, registry).valid, query).toBe(
+              true,
+            );
+          }
+        }
+      }
+    },
+  );
+
+  it.each(registries)(
+    "preserves text matching through the %s registry",
+    (_name, registry) => {
+      for (const query of [
+        "status:*ERR*",
+        "level:ERR*",
+        "status:*ING",
+        "-status:*timeout*",
+      ]) {
+        expect(validateQuery(query, undefined, registry).valid, query).toBe(
+          true,
+        );
+      }
+    },
+  );
+});
 
 describe("semanticDiagnostics — has: polarity", () => {
   it("positive has: on a non-nullable field matches everything", () => {
