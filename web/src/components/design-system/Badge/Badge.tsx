@@ -84,7 +84,7 @@ type BadgeShellProps = Omit<
   ComponentPropsWithoutRef<"span">,
   "className" | "style"
 > &
-  VariantProps<typeof badgeVariants> & {
+  Omit<VariantProps<typeof badgeVariants>, "dismissible"> & {
     asChild?: boolean;
     /** When set, the shell renders as a `<button type="button">` and calls this on click. */
     onDismiss?: () => void;
@@ -103,7 +103,6 @@ export function BadgeShell({
   interactive,
   font,
   shouldWrap,
-  dismissible,
   onDismiss,
   ...props
 }: BadgeShellProps) {
@@ -125,7 +124,7 @@ export function BadgeShell({
           interactive,
           font,
           shouldWrap,
-          dismissible: dismissible ?? onDismiss != null,
+          dismissible: onDismiss != null,
         }),
       )}
     />
