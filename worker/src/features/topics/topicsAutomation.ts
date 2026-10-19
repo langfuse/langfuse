@@ -37,7 +37,10 @@ import type {
 } from "@langfuse/shared/topics";
 import { topicAssignmentRows } from "./assignments";
 import { TopicMetrics } from "./metrics";
-import { topicClusterSettings } from "./numeric";
+import {
+  isTopicClusteringResourceFailure,
+  topicClusterSettings,
+} from "./numeric";
 import { env } from "../../env";
 
 type AutomationBatch = TQueueJobTypes[QueueName.TopicsAutomation]["payload"];
@@ -230,12 +233,16 @@ async function startDiscovery(batch: AutomationBatch, facet: TopicFacetRef) {
   existing = await latestDiscovery(batch, facet);
   if (await continueDiscovery(batch, facet, existing)) return;
   if (await hasMapOrFit(projectId, facet)) return;
+  const failure = existing && discoveryCapacityFailure(existing, facet);
   const timeRange = await selectDiscoveryWindow(
     projectId,
     facet,
     embeddingConfig,
     existing?.input.operation === "update"
       ? existing.input.timeRange
+      : undefined,
+    failure && failure.error !== TOPIC_CLUSTERING_CAPACITY_ERROR
+      ? failure.counts.requested
       : undefined,
   ).catch(async (error: unknown) => {
     await redis?.del(gateKey);
@@ -347,7 +354,7 @@ async function continueDiscovery(
       },
       data: {
         status: "failed",
-        error: TOPIC_CLUSTERING_CAPACITY_ERROR,
+        error: capacityFailure.error,
         finishedAt: new Date(),
       },
     });
@@ -364,7 +371,8 @@ function discoveryCapacityFailure(
           progress.facetId === facet.facetId &&
           progress.facetVersion === facet.version &&
           progress.outcome === "failed" &&
-          progress.error === TOPIC_CLUSTERING_CAPACITY_ERROR,
+          (progress.error === TOPIC_CLUSTERING_CAPACITY_ERROR ||
+            isTopicClusteringResourceFailure(progress.error)),
       )
     : undefined;
 }
@@ -396,8 +404,10 @@ async function selectDiscoveryWindow(
   facet: TopicFacetRef,
   embeddingConfig: TopicEmbeddingConfig,
   failedWindow?: TopicTimeRange,
+  failedFitCount?: number,
 ): Promise<TopicTimeRange | null> {
-  const to = new Date();
+  const retryFit = failedFitCount !== undefined && failedWindow !== undefined;
+  const to = retryFit ? failedWindow.to : new Date();
   let earliest = to.getTime() - DISCOVERY_WINDOW_MS;
   let latest = to.getTime();
   const minimumCount = topicClusterSettings(false).minimumCount;
@@ -423,6 +433,17 @@ async function selectDiscoveryWindow(
         ),
       )
     : DISCOVERY_WINDOW_MS;
+  if (retryFit) {
+    // Reduce actual fit work, even if the latest half contains the same burst.
+    limits.maxRows = Math.min(limits.maxRows, Math.floor(failedFitCount / 2));
+    if (
+      !Number.isFinite(limits.maxRows) ||
+      limits.maxRows < minimumCount ||
+      firstDuration >= failedWindow.to.getTime() - failedWindow.from.getTime()
+    )
+      return null;
+    earliest = to.getTime() - firstDuration;
+  }
   // A seven-day range has fewer than 2^30 millisecond boundaries.
   for (let check = 0; check < 32 && earliest < latest; check++) {
     const from =
@@ -439,7 +460,7 @@ async function selectDiscoveryWindow(
       limits,
     );
     if (count < minimumCount) {
-      if (from === to.getTime() - DISCOVERY_WINDOW_MS) return null;
+      if (from === earliest) return null;
       latest = from;
     } else if (count > limits.maxRows || bytes > limits.maxBytes) {
       earliest = from + 1;

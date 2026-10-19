@@ -2,7 +2,11 @@ import { spawn } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 import { afterEach, expect, it, vi } from "vitest";
-import { runTopicClustering, topicClusterSettings } from "./numeric";
+import {
+  isTopicClusteringResourceFailure,
+  runTopicClustering,
+  topicClusterSettings,
+} from "./numeric";
 
 vi.mock("node:child_process", () => ({ spawn: vi.fn() }));
 
@@ -18,7 +22,7 @@ function numericalChild(output: (count: number) => string) {
     stdin: new PassThrough(),
     stdout: new PassThrough(),
     stderr: new PassThrough(),
-    kill: vi.fn((): boolean => child.emit("close", null)),
+    kill: vi.fn((): boolean => child.emit("close", null, "SIGKILL")),
   });
   child.stdin.on("data", (data: Buffer) => {
     const request = JSON.parse(data.toString()) as { embeddings: number[][] };
@@ -33,12 +37,17 @@ function numericalChild(output: (count: number) => string) {
 
 it("reports oversized child output explicitly instead of accepting a partial cohort", async () => {
   const child = numericalChild((count) => " ".repeat(4097 + count * 256));
-  await expect(
-    runTopicClustering(
-      Array.from({ length: 100 }, () => [1, 0]),
-      topicClusterSettings(false),
-    ),
-  ).rejects.toThrow("oversized output");
+  const failure = await runTopicClustering(
+    Array.from({ length: 100 }, () => [1, 0]),
+    topicClusterSettings(false),
+  ).catch((error: Error) => error);
+  expect(failure).toMatchObject({
+    message: expect.stringContaining("oversized output"),
+  });
+  expect(failure).toBeInstanceOf(Error);
+  expect(isTopicClusteringResourceFailure((failure as Error).message)).toBe(
+    false,
+  );
   expect(child.kill).toHaveBeenCalledWith("SIGKILL");
 });
 
@@ -55,11 +64,31 @@ it("kills a stalled fit and reports the deadline even if close fires immediately
   });
   const rejection = pending.catch((error: unknown) => error);
   await vi.advanceTimersByTimeAsync(120_000);
-  expect(await rejection).toEqual(
+  const failure = (await rejection) as Error;
+  expect(failure).toEqual(
     new Error("Topics numerical fit exceeded 120 seconds"),
   );
+  expect(isTopicClusteringResourceFailure(failure.message)).toBe(true);
   expect(child.kill).toHaveBeenCalledWith("SIGKILL");
 });
+
+it.each(["SIGKILL", "SIGSEGV", null])(
+  "classifies only an unexpected SIGKILL as a resource failure: %s",
+  async (signal) => {
+    const child = numericalChild(() => "");
+    child.stdin.removeAllListeners("data");
+    const pending = runTopicClustering([[1, 0]], topicClusterSettings(false));
+    child.stderr.write("native diagnostic");
+    child.emit("close", signal ? null : 1, signal);
+    const failure = await pending.catch((error: unknown) => error);
+    expect(failure).toMatchObject({
+      message: expect.stringContaining("native diagnostic"),
+    });
+    expect(isTopicClusteringResourceFailure((failure as Error).message)).toBe(
+      signal === "SIGKILL",
+    );
+  },
+);
 
 it("rejects truncated populations", async () => {
   numericalChild(() =>
