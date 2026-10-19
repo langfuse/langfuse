@@ -1110,13 +1110,19 @@ async function getObservationByIdFromEventsTableInternal({
   )
     .$call(softDeleteAfterLimit())
     .select(OBSERVATION_BY_ID_SELECTS)
-    .$if(fetchWithInputOutput, (qb) =>
-      qb.select((eb) =>
-        observationIoSelects(
-          { input: eb.ref("input"), output: eb.ref("output") },
-          renderingProps.truncated,
+    .$if(fetchWithInputOutput && !renderingProps.truncated, (qb) =>
+      qb.select(["input", "output"]),
+    )
+    // A truncated read caps `input`/`output` to the server-side char limit.
+    .$if(fetchWithInputOutput && !!renderingProps.truncated, (qb) =>
+      qb.select((eb) => [
+        leftUTF8(eb.ref("input"), env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT).as(
+          "input",
         ),
-      ),
+        leftUTF8(eb.ref("output"), env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT).as(
+          "output",
+        ),
+      ]),
     )
     .where("span_id", "=", id)
     .$if(startTime != null, (qb) =>
@@ -1149,21 +1155,6 @@ async function getObservationByIdFromEventsTableInternal({
     tags: { projectId },
     preferredClickhouseService,
   });
-}
-
-/** `input`/`output`, capped to the server-side char limit on a truncated read. */
-function observationIoSelects(
-  io: { input: Expression<string>; output: Expression<string> },
-  truncated: boolean | undefined,
-): ReadonlyArray<
-  "input" | "output" | AliasedExpression<string, "input" | "output">
-> {
-  if (!truncated) return ["input", "output"];
-  const charLimit = env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT;
-  return [
-    leftUTF8(io.input, charLimit).as("input"),
-    leftUTF8(io.output, charLimit).as("output"),
-  ];
 }
 
 /**
@@ -1224,7 +1215,7 @@ export const getTraceByIdFromEventsTable = async ({
       tracesCte(qb as ReturnType<typeof getClickhouseKysely>),
     )
     .selectFrom("traces as t")
-    .select((eb) => [
+    .select([
       "t.id",
       "t.name",
       "t.user_id",
@@ -1241,12 +1232,24 @@ export const getTraceByIdFromEventsTable = async ({
       "t.updated_at",
       metadataSelect,
       literal(0).as("is_deleted"),
-      ...traceIoSelects(
-        { input: eb.ref("t.input"), output: eb.ref("t.output") },
-        excludeInputOutput,
-        truncated,
-      ),
     ])
+    .$if(excludeInputOutput, (qb) =>
+      qb.select([literal("").as("input"), literal("").as("output")]),
+    )
+    .$if(!excludeInputOutput && !truncated, (qb) =>
+      qb.select(["t.input", "t.output"]),
+    )
+    // A truncated read caps `input`/`output` to the server-side char limit.
+    .$if(!excludeInputOutput && truncated, (qb) =>
+      qb.select((eb) => [
+        leftUTF8(eb.ref("t.input"), env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT).as(
+          "input",
+        ),
+        leftUTF8(eb.ref("t.output"), env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT).as(
+          "output",
+        ),
+      ]),
+    )
     .$if(timestamp != null, (qb) =>
       qb.where((eb) =>
         eb(toDate(eb.ref("t.timestamp")), "=", toDate(timestamp!)),
@@ -1287,25 +1290,6 @@ function observationsToTraceLowerBound(anchor: Date): Date {
     anchor.getTime() -
       OBSERVATIONS_TO_TRACE_INTERVAL_DAYS * 24 * 60 * 60 * 1000,
   );
-}
-
-function traceIoSelects(
-  io: { input: Expression<string>; output: Expression<string> },
-  excludeInputOutput: boolean,
-  truncated: boolean,
-): ReadonlyArray<
-  "t.input" | "t.output" | AliasedExpression<unknown, "input" | "output">
-> {
-  if (excludeInputOutput)
-    return [literal("").as("input"), literal("").as("output")];
-  if (truncated) {
-    const charLimit = env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT;
-    return [
-      leftUTF8(io.input, charLimit).as("input"),
-      leftUTF8(io.output, charLimit).as("output"),
-    ];
-  }
-  return ["t.input", "t.output"];
 }
 
 /**
