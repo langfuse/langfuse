@@ -471,8 +471,9 @@ export const eventsMetricsSecondsSelects = scopedToEvents(
  * must satisfy {@link ReadsEvents}. Every export of this module goes through
  * it, and so must any helper that composes them: called with the query's own
  * builder, using one outside a query that reads only events as `e` is a type
- * error. Never type a helper parameter as `ExpressionBuilder<{ e: … }, "e">`;
- * that accepts any query's builder and the check is lost.
+ * error. Never pass a query's own builder to a helper typed
+ * `ExpressionBuilder<{ e: … }, "e">`: that accepts any query's builder and the
+ * check is lost. Wrap the helper in `scopedToEvents` instead.
  */
 export function scopedToEvents<A extends unknown[], R>(
   build: (eb: EventsExpressionBuilder, ...args: A) => R,

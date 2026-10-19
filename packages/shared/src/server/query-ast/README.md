@@ -141,15 +141,13 @@ suffix to run there. Promote it to a required check once it has proven stable.
   passed as `.select(traceAggregationSelects)` or called inside
   `.where((eb) => …)` with the query's own `eb`. That only type-checks in a
   query that reads a full events row as `e` and nothing else: no join (the
-  selects read unqualified columns), no narrower `e`. Never type a helper
-  parameter as `ExpressionBuilder<{ e: … }, "e">`: it is contravariant in
-  `DB` and accepts joins, so it takes any query's builder and the check is
-  lost. A module-level constant built from a detached `expressionBuilder()`
-  loses it too: helper results don't carry their table scope in their type,
-  and Kysely's `select()` / `where()` accept any expression. A module-level constant built
-  from a detached `expressionBuilder()` loses that check: helper results
-  don't carry their table scope in their type, and Kysely's `select()` /
-  `where()` accept any expression.
+  selects read unqualified columns), no narrower `e`. Never pass a query's
+  own builder to a helper typed `ExpressionBuilder<{ e: … }, "e">`; wrap the
+  helper in `scopedToEvents` instead. That type is contravariant in `DB` and
+  accepts joins, so it takes any query's builder and the check is lost. A
+  module-level constant built from a detached `expressionBuilder()` loses it
+  too: helper results don't carry their table scope in their type, and
+  Kysely's `select()` / `where()` accept any expression.
 - **ClickHouse-only clauses use `$call(helper())`** — not fluent builder
   methods, so they compose inside CTEs, subqueries, and views. See the recipes
   below.

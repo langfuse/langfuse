@@ -77,7 +77,10 @@ export function eventsSelectsScopeTypeAssertions(): void {
   // Intentionally valid at the TS layer: a helper result does not carry the
   // scope of the builder it was made from, and Kysely's `select()` accepts any
   // aliased expression. Build shared expressions from the query's builder.
-  const detached = expressionBuilder<EventsDb, "e">();
+  const detached = expressionBuilder<
+    { e: ClickHouseDatabase["events_core"] },
+    "e"
+  >();
   db.selectFrom("traces as t").select(
     ifNull(detached.ref("e.trace_name"), literal("")).as("name"),
   );
@@ -88,9 +91,10 @@ export function eventsSelectsScopeTypeAssertions(): void {
   db.selectFrom("events_core as e")
     .innerJoin("traces as t", "t.id", "e.trace_id")
     .select((eb) => {
-      const events: ExpressionBuilder<EventsDb, "e"> = eb;
+      const events: ExpressionBuilder<
+        { e: ClickHouseDatabase["events_core"] },
+        "e"
+      > = eb;
       return [eventsTraceName(events).as("name")];
     });
 }
-
-type EventsDb = { e: ClickHouseDatabase["events_core"] };
