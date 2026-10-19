@@ -13,6 +13,7 @@ import {
   concat,
   countIf,
   dateDiff,
+  divide,
   greatest,
   groupArray,
   groupUniqArray,
@@ -339,9 +340,8 @@ const secondsSinceStart = (end: "e.end_time" | "e.completion_start_time") =>
   ifElse(
     isNull(eb.ref(end)),
     literal(null),
-    eb(
+    divide(
       dateDiff("millisecond", eb.ref("e.start_time"), eb.ref(end)),
-      "/",
       literal(1000),
     ),
   );

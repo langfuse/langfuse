@@ -1,5 +1,5 @@
 import { expressionBuilder, sql } from "kysely";
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 
 import { compileClickhouseQuery, renderClickhouseExpression } from "./compile";
 import { getClickhouseKysely } from "./dialect";
@@ -11,11 +11,16 @@ import {
 import {
   arrayExists,
   arrayMap,
+  avgIf,
+  byteLength,
+  dateDiff,
+  divide,
   leftUTF8,
   literal,
   mapValue,
   metadataMap,
   metadataValue,
+  sumMapValuesWhereKeyContains,
   traceSessionId,
 } from "./extensions";
 import { ArrayIndexNode } from "./nodes";
@@ -262,6 +267,50 @@ describe("renderClickhouseExpression", () => {
   it("rejects a bound value", () => {
     expect(() => renderClickhouseExpression(mapValue(metadata, "key"))).toThrow(
       /cannot bind parameters/,
+    );
+  });
+});
+
+describe("64-bit results", () => {
+  const eb = expressionBuilder<{ e: ClickHouseDatabase["events_core"] }, "e">();
+  const latencyMs = dateDiff(
+    "millisecond",
+    eb.ref("e.start_time"),
+    eb.ref("e.end_time"),
+  );
+
+  it("types Int64 and UInt64 results as string, the JSON client's quoted form", () => {
+    expectTypeOf(latencyMs.expressionType).toEqualTypeOf<string | undefined>();
+    expectTypeOf(byteLength(eb.ref("e.input")).expressionType).toEqualTypeOf<
+      string | undefined
+    >();
+    expectTypeOf(
+      mapValue(eb.ref("e.usage_details"), literal("total")).expressionType,
+    ).toEqualTypeOf<string | undefined>();
+    expectTypeOf(
+      sumMapValuesWhereKeyContains(eb.ref("e.usage_details"), "input")
+        .expressionType,
+    ).toEqualTypeOf<string | undefined>();
+  });
+
+  it("keeps Decimal map values as number", () => {
+    expectTypeOf(
+      mapValue(eb.ref("e.cost_details"), literal("total")).expressionType,
+    ).toEqualTypeOf<number | undefined>();
+    expectTypeOf(
+      sumMapValuesWhereKeyContains(eb.ref("e.cost_details"), "input")
+        .expressionType,
+    ).toEqualTypeOf<number | undefined>();
+  });
+
+  it("averages and divides a 64-bit integer into a number", () => {
+    const seconds = divide(latencyMs, literal(1000));
+    const average = avgIf(latencyMs, eb("e.end_time", "is not", null));
+
+    expectTypeOf(seconds.expressionType).toEqualTypeOf<number | undefined>();
+    expectTypeOf(average.expressionType).toEqualTypeOf<number | undefined>();
+    expect(renderClickhouseExpression(seconds)).toBe(
+      "dateDiff('millisecond', e.start_time, e.end_time) / 1000",
     );
   });
 });

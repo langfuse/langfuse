@@ -50,7 +50,9 @@ export type ChColumnType =
  * `DateTime64` as a `YYYY-MM-DD hh:mm:ss.ffffff` string, and `UInt64` as a
  * string on servers that quote 64-bit integers. Rows inferred from a builder
  * (`InferResult`) therefore do not describe raw query results; read those
- * through a read schema and converter.
+ * through a read schema and converter. `Map(String, UInt64)` values are typed
+ * `string` anyway, because `mapValue` and `sumMapValuesWhereKeyContains` pass
+ * the value type through to a 64-bit result.
  */
 type TsTypeOfColumn<T extends ChColumnType> = T extends "String"
   ? string
@@ -70,11 +72,9 @@ type TsTypeOfColumn<T extends ChColumnType> = T extends "String"
                 ? Date | null
                 : T extends "Array(String)"
                   ? string[]
-                  : T extends
-                        | "Map(String, UInt64)"
-                        | "Map(String, Decimal(18,12))"
+                  : T extends "Map(String, Decimal(18,12))"
                     ? Record<string, number>
-                    : T extends "Map(String, String)"
+                    : T extends "Map(String, UInt64)" | "Map(String, String)"
                       ? Record<string, string>
                       : never;
 

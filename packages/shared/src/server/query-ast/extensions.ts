@@ -200,16 +200,19 @@ export function medianExact(
 
 type DateDiffUnit = "millisecond" | "second" | "minute" | "hour" | "day";
 
-/** ClickHouse `dateDiff(unit, start, end)`. */
+/**
+ * ClickHouse `dateDiff(unit, start, end)`. The result is an Int64, which the
+ * JSON client returns as a string on servers that quote 64-bit integers.
+ */
 export function dateDiff(
   unit: DateDiffUnit,
   start: Expression<unknown>,
   end: Expression<unknown>,
-): ChExpression<number> {
+): ChExpression<string> {
   return new ExpressionWrapper<
     ClickHouseDatabase,
     keyof ClickHouseDatabase,
-    number
+    string
   >(
     // ClickHouse requires the unit to be a constant, so it is inlined rather
     // than bound. `DateDiffUnit` keeps it to known keywords.
@@ -218,6 +221,23 @@ export function dateDiff(
       start.toOperationNode(),
       end.toOperationNode(),
     ]) as unknown as OperationNode,
+  );
+}
+
+/**
+ * `dividend / divisor`. ClickHouse `/` returns Float64, so a 64-bit integer
+ * dividend (typed `string`) gives a `number`.
+ */
+export function divide(
+  dividend: Expression<number | string>,
+  divisor: Expression<number>,
+): ChExpression<number> {
+  return new ExpressionWrapper(
+    BinaryOperationNode.create(
+      dividend.toOperationNode(),
+      OperatorNode.create("/"),
+      divisor.toOperationNode(),
+    ) as unknown as OperationNode,
   );
 }
 
@@ -251,10 +271,10 @@ function subscript<V>(
  * `arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, needle) > 0, map)))`.
  * The lambda is built as a `->` binary operation; Kysely has no lambda node.
  */
-export function sumMapValuesWhereKeyContains(
-  map: Expression<Record<string, unknown>>,
+export function sumMapValuesWhereKeyContains<V>(
+  map: Expression<Record<string, V>>,
   needle: string,
-): ChExpression<number> {
+): ChExpression<V> {
   const keyMatches = BinaryOperationNode.create(
     FunctionNode.create("positionCaseInsensitive", [
       qualifiedColumn("x", "1"),
@@ -268,11 +288,7 @@ export function sumMapValuesWhereKeyContains(
     OperatorNode.create("->"),
     keyMatches,
   );
-  return new ExpressionWrapper<
-    ClickHouseDatabase,
-    keyof ClickHouseDatabase,
-    number
-  >(
+  return new ExpressionWrapper<ClickHouseDatabase, keyof ClickHouseDatabase, V>(
     FunctionNode.create("arraySum", [
       FunctionNode.create("mapValues", [
         FunctionNode.create("mapFilter", [lambda, map.toOperationNode()]),
@@ -430,9 +446,12 @@ export function uniqIf(
   return aggregate("uniqIf", [value, condition]);
 }
 
-/** ClickHouse `avgIf(value, condition)`. */
+/**
+ * ClickHouse `avgIf(value, condition)`. `value` may be a 64-bit integer, typed
+ * `string` like {@link dateDiff}.
+ */
 export function avgIf(
-  value: Expression<number>,
+  value: Expression<number | string>,
   condition: Expression<SqlBool>,
 ): ChExpression<number> {
   return aggregate("avgIf", [value, condition]);
@@ -494,7 +513,7 @@ export function leftUTF8(
 /** ClickHouse `length(expression)`: byte length of a String. */
 export function byteLength(
   expression: Expression<string>,
-): ChExpression<number> {
+): ChExpression<string> {
   return functionCall("length", [expression]);
 }
 
