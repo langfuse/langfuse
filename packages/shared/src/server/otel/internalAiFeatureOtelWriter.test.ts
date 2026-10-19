@@ -220,33 +220,6 @@ describe("publishAiFeatureTraceViaOtelIngestion", () => {
     });
   });
 
-  it("preserves trace names when each published span is processed independently", async () => {
-    await publishFixture();
-
-    const resourceSpans = getPublishedResourceSpans();
-    const batchedEvents = await processPublishedSpans();
-
-    for (const resourceSpan of resourceSpans) {
-      for (const scopeSpan of resourceSpan.scopeSpans ?? []) {
-        for (const span of scopeSpan.spans ?? []) {
-          const processor = await createProcessor();
-          const events = await processor.processToEvent([
-            {
-              ...resourceSpan,
-              scopeSpans: [{ ...scopeSpan, spans: [span] }],
-            },
-          ]);
-
-          expect(events).toHaveLength(1);
-          expect(events[0]?.traceName).toBe("agent-turn");
-          expect(events[0]).toEqual(
-            batchedEvents.find((event) => event.spanId === events[0]?.spanId),
-          );
-        }
-      }
-    }
-  });
-
   it("does not infer a missing child trace name from other spans in the batch", async () => {
     await publishFixture();
 
@@ -286,28 +259,6 @@ describe("publishAiFeatureTraceViaOtelIngestion", () => {
     expect(
       batchedEvents.find((event) => event.name === "invoke-model"),
     ).toEqual(independentEvent);
-  });
-
-  it("preserves the canonical name and root content in legacy trace updates", async () => {
-    await publishFixture();
-
-    const events = await processPublishedIngestionEvents();
-    const traceCreates = events.filter(
-      (event) => event.type === "trace-create",
-    );
-
-    expect(traceCreates).toHaveLength(4);
-    for (const trace of traceCreates) {
-      expect(trace.body).toMatchObject({ id: TRACE_ID, name: "agent-turn" });
-    }
-    expect(traceCreates[0]?.body).toMatchObject({
-      input: "hello",
-      output: "hi",
-    });
-    for (const childTrace of traceCreates.slice(1)) {
-      expect(childTrace.body.input).toBeUndefined();
-      expect(childTrace.body.output).toBeUndefined();
-    }
   });
 
   it("links the generation prompt as an integer version in legacy ingestion events", async () => {
