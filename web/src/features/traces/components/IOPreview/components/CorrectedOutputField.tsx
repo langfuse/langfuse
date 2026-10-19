@@ -1,5 +1,5 @@
 /* eslint-disable no-nested-ternary */
-import { Pencil, Trash, FileDiff, Check, Info } from "lucide-react";
+import { Pencil, Trash, FileDiff, Check, Info } from "@langfuse/icons";
 import { cn } from "@/src/utils/tailwind";
 import { Button } from "@/src/components/ui/button";
 import { type ScoreDomain } from "@langfuse/shared";
@@ -172,7 +172,7 @@ export function CorrectedOutputField({
           }}
           className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs hover:underline"
         >
-          <Pencil className="icon-sm shrink-0" aria-hidden />
+          <Pencil size="sm" aria-hidden />
           Correct output
         </button>
       </div>
@@ -225,7 +225,7 @@ export function CorrectedOutputField({
                     className="text-muted-foreground hover:text-foreground"
                     {...getTriggerProps()}
                   >
-                    <Info className="icon-base" />
+                    <Info size="base" />
                   </button>
                 )}
               </HoverCard>
@@ -249,7 +249,7 @@ export function CorrectedOutputField({
                 )}
                 {isValidJson && saveStatus === "saved" && (
                   <div className="mr-2 flex items-center gap-1">
-                    <Check className="icon-sm" />
+                    <Check size="sm" />
                     <span className="text-muted-foreground text-xs">Saved</span>
                   </div>
                 )}
@@ -262,7 +262,7 @@ export function CorrectedOutputField({
                       className="hover:bg-border"
                       title="View diff between original and corrected output"
                     >
-                      <FileDiff className="icon-sm text-icon-foreground" />
+                      <FileDiff size="sm" color="default" />
                     </Button>
                     {!isEditing && (
                       <Button
@@ -273,7 +273,7 @@ export function CorrectedOutputField({
                         className="hover:bg-border"
                         title="Edit corrected output"
                       >
-                        <Pencil className="icon-sm text-icon-foreground" />
+                        <Pencil size="sm" color="default" />
                       </Button>
                     )}
                     <Button
@@ -284,7 +284,7 @@ export function CorrectedOutputField({
                       className="hover:bg-border"
                       title="Delete corrected output"
                     >
-                      <Trash className="icon-sm text-icon-foreground" />
+                      <Trash size="sm" color="default" />
                     </Button>
                   </>
                 )}

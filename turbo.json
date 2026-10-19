@@ -159,6 +159,16 @@
       "cache": true,
       "outputLogs": "errors-only"
     },
+    "@langfuse/icons#build": {
+      "dependsOn": [],
+      "outputs": ["dist/**"]
+    },
+    "@langfuse/icons#typecheck": {
+      "dependsOn": ["build"]
+    },
+    "@langfuse/icons#test": {
+      "dependsOn": ["build"]
+    },
     "@repo/in-app-agent-sandbox-runtime#build:docker-image": {
       "dependsOn": ["build"],
       "inputs": ["Dockerfile", "package.json", "tsconfig.json"],

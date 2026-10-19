@@ -2,7 +2,7 @@ import { Button } from "@/src/components/ui/button";
 import { Dialog, DialogTrigger } from "@/src/components/ui/dialog";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { useState } from "react";
-import { PlusIcon } from "lucide-react";
+import { PlusIcon } from "@langfuse/icons";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useLangfuseBaseUrl } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
 import {
@@ -82,7 +82,11 @@ export function CreateApiKeyButton(props: {
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button variant="secondary">
-          <PlusIcon className="icon-base mr-1.5 -ml-0.5" aria-hidden="true" />
+          <PlusIcon
+            size="base"
+            __rawClassName="mr-1.5 -ml-0.5"
+            aria-hidden="true"
+          />
           Create new API keys
         </Button>
       </DialogTrigger>

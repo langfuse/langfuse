@@ -1,7 +1,7 @@
 /* eslint-disable no-nested-ternary */
 import { useEffect, useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { X, Trash, Plus } from "lucide-react";
+import { X, Trash, Plus } from "@langfuse/icons";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import {
   type TableAction,
@@ -31,9 +31,9 @@ type TableActionMenuProps = {
 
 const getDefaultIcon = (type: TableAction["type"]) => {
   if (type === "create") {
-    return <Plus className="icon-base sm:mr-2" />;
+    return <Plus size="base" __rawClassName="sm:mr-2" />;
   }
-  return <Trash className="icon-base sm:mr-2" />;
+  return <Trash size="base" __rawClassName="sm:mr-2" />;
 };
 
 export function TableActionMenu({
@@ -102,7 +102,7 @@ export function TableActionMenu({
             className="h-8 w-8"
             onClick={onClearSelection}
           >
-            <X className="icon-base text-icon-foreground" />
+            <X size="base" color="default" />
           </Button>
           <div className="bg-border h-5 w-px" />
           <div className="flex items-center gap-2">

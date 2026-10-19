@@ -513,9 +513,9 @@ WHERE (e.project_id = {param1:String})
     AND ((e.trace_id, e.span_id) IN ({param5:Array(Tuple(String, String))}))
     AND (e.trace_id IN (
         SELECT trace_id
-        FROM events_core
-        WHERE (project_id = {param1:String})
-            AND (events_core.is_deleted = {param2:UInt8})
+        FROM events_core AS events
+        WHERE (events.project_id = {param1:String})
+            AND (events.is_deleted = {param2:UInt8})
             AND (trace_id IN ({param4:Array(String)}))
         GROUP BY trace_id
         HAVING argMaxIf(session_id, event_ts, session_id != '') = {param6:String}
@@ -2932,9 +2932,9 @@ exports[`golden: events point-reads & existence family > hasAnySessionFromEvents
     },
     "route": "unknown",
     "sql": "SELECT 1 AS one
-FROM events_core
-WHERE (project_id = {param1:String})
-    AND (events_core.is_deleted = {param2:UInt8})
+FROM events_core AS events
+WHERE (events.project_id = {param1:String})
+    AND (events.is_deleted = {param2:UInt8})
     AND (session_id IS NOT NULL)
     AND (session_id != {param3:String})
 LIMIT {param4:Int64}",
@@ -2953,9 +2953,9 @@ exports[`golden: events point-reads & existence family > hasAnyTraceFromEventsTa
     },
     "route": "unknown",
     "sql": "SELECT 1 AS one
-FROM events_core
-WHERE (project_id = {param1:String})
-    AND (events_core.is_deleted = {param2:UInt8})
+FROM events_core AS events
+WHERE (events.project_id = {param1:String})
+    AND (events.is_deleted = {param2:UInt8})
 LIMIT {param3:Int64}",
   },
 ]
@@ -2973,9 +2973,9 @@ exports[`golden: events point-reads & existence family > hasAnyUserFromEventsTab
     },
     "route": "unknown",
     "sql": "SELECT 1 AS one
-FROM events_core
-WHERE (project_id = {param1:String})
-    AND (events_core.is_deleted = {param2:UInt8})
+FROM events_core AS events
+WHERE (events.project_id = {param1:String})
+    AND (events.is_deleted = {param2:UInt8})
     AND (user_id IS NOT NULL)
     AND (user_id != {param3:String})
 LIMIT {param4:Int64}",
@@ -3416,9 +3416,9 @@ exports[`golden: events simple aggregates family > getObservationsWithPromptName
     "sql": "SELECT
     uniq(span_id) AS count,
     prompt_name
-FROM events_core
-WHERE (project_id = {param1:String})
-    AND (events_core.is_deleted = {param2:UInt8})
+FROM events_core AS events
+WHERE (events.project_id = {param1:String})
+    AND (events.is_deleted = {param2:UInt8})
     AND (prompt_name IN ({param3:Array(String)}))
     AND (prompt_name != {param4:String})
 GROUP BY prompt_name",
@@ -3444,9 +3444,9 @@ exports[`golden: events simple aggregates family > getObservationsWithPromptName
     "sql": "SELECT
     uniq(span_id) AS count,
     prompt_name
-FROM events_core
-WHERE (project_id = {param1:String})
-    AND (events_core.is_deleted = {param2:UInt8})
+FROM events_core AS events
+WHERE (events.project_id = {param1:String})
+    AND (events.is_deleted = {param2:UInt8})
     AND (prompt_name IN ({param3:Array(String)}))
     AND (prompt_name != {param4:String})
     AND (start_time >= {param5:DateTime64(6)})
@@ -3474,9 +3474,9 @@ exports[`golden: events simple aggregates family > getObservationsWithPromptName
     "sql": "SELECT
     uniq(span_id) AS count,
     prompt_name
-FROM events_core
-WHERE (project_id = {param1:String})
-    AND (events_core.is_deleted = {param2:UInt8})
+FROM events_core AS events
+WHERE (events.project_id = {param1:String})
+    AND (events.is_deleted = {param2:UInt8})
     AND (prompt_name IN ({param3:Array(String)}))
     AND (prompt_name != {param4:String})
     AND (start_time >= {param5:DateTime64(6)})
@@ -3504,9 +3504,9 @@ exports[`golden: events simple aggregates family > getObservationsWithPromptName
     "sql": "SELECT
     uniq(span_id) AS count,
     prompt_name
-FROM events_core
-WHERE (project_id = {param1:String})
-    AND (events_core.is_deleted = {param2:UInt8})
+FROM events_core AS events
+WHERE (events.project_id = {param1:String})
+    AND (events.is_deleted = {param2:UInt8})
     AND (prompt_name IN ({param3:Array(String)}))
     AND (prompt_name != {param4:String})
     AND (start_time <= {param5:DateTime64(6)})
@@ -3532,9 +3532,9 @@ exports[`golden: events simple aggregates family > getObservationsWithPromptName
     "sql": "SELECT
     uniq(span_id) AS count,
     prompt_name
-FROM events_core
-WHERE (project_id = {param1:String})
-    AND (events_core.is_deleted = {param2:UInt8})
+FROM events_core AS events
+WHERE (events.project_id = {param1:String})
+    AND (events.is_deleted = {param2:UInt8})
     AND (prompt_name IN ({param3:Array(String)}))
     AND (prompt_name != {param4:String})
 GROUP BY prompt_name",

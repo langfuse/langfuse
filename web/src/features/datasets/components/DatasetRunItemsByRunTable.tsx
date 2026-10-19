@@ -18,7 +18,7 @@ import {
   isCompactRowHeight,
   useRowHeightLocalStorage,
 } from "@/src/components/table/data-table-row-height-switch";
-import { ListTree } from "lucide-react";
+import { ListTree } from "@langfuse/icons";
 import { scoreFilters, useScoreColumns } from "@/src/features/scores";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {

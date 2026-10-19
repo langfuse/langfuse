@@ -28,7 +28,7 @@ import {
   useRowHeightLocalStorage,
 } from "@/src/components/table/data-table-row-height-switch";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
-import { Columns3, Trash } from "lucide-react";
+import { Columns3, Trash } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import {
   DropdownMenu,
@@ -143,12 +143,12 @@ const DatasetRunTableMultiSelectAction = ({
               }}
             >
               <DropdownMenuItem>
-                <Columns3 className="icon-base text-icon-foreground mr-2" />
+                <Columns3 size="base" color="default" __rawClassName="mr-2" />
                 <span>Compare</span>
               </DropdownMenuItem>
             </Link>
             <DropdownMenuItem key="delete" onClick={openDialog}>
-              <Trash className="icon-base text-icon-foreground mr-2" />
+              <Trash size="base" color="default" __rawClassName="mr-2" />
               <span>Delete</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -511,7 +511,7 @@ function DatasetRunsTableInternal(
               disabled={!hasDeleteAccess}
               onSelect={() => props.openDeleteDatasetRunDialog(id)}
             >
-              <Trash className="icon-base text-icon-foreground mr-2" />
+              <Trash size="base" color="default" __rawClassName="mr-2" />
               Delete
             </DropdownMenuItem>
           </>

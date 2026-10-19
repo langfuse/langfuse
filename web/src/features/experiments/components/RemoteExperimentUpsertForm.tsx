@@ -6,7 +6,7 @@ import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Lock, LockOpen, Plus, X } from "lucide-react";
+import { Lock, LockOpen, Plus, X } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -463,9 +463,12 @@ export const RemoteExperimentUpsertForm = ({
                               }
                             >
                               {isSecret ? (
-                                <Lock className="icon-base text-orange-500" />
+                                <Lock
+                                  size="base"
+                                  __rawClassName="text-orange-500"
+                                />
                               ) : (
-                                <LockOpen className="icon-base text-muted-foreground" />
+                                <LockOpen size="base" color="muted" />
                               )}
                             </Button>
                             <Button
@@ -474,7 +477,7 @@ export const RemoteExperimentUpsertForm = ({
                               size="icon"
                               onClick={() => removeHeader(index)}
                             >
-                              <X className="icon-base text-icon-foreground" />
+                              <X size="base" color="default" />
                             </Button>
                           </div>
                         );
@@ -493,7 +496,11 @@ export const RemoteExperimentUpsertForm = ({
                         }
                         className="mt-2"
                       >
-                        <Plus className="icon-base text-icon-foreground mr-1" />
+                        <Plus
+                          size="base"
+                          color="default"
+                          __rawClassName="mr-1"
+                        />
                         Add Custom Header
                       </Button>
                     </div>

@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-import { Archive, PlusIcon } from "lucide-react";
+import { Archive, PlusIcon } from "@langfuse/icons";
 import {
   type Prisma,
   type ScoreConfigCategoryDomain,
@@ -178,7 +178,7 @@ export function ScoreConfigsTable({
         id: "add-score-config",
         label: "Add new score config",
         variant: "secondary",
-        icon: <PlusIcon className="icon-base" aria-hidden="true" />,
+        icon: <PlusIcon size="base" aria-hidden="true" />,
         disabled: createAction.disabled !== undefined,
         loading: createAction.loading,
         title: createAction.disabled?.reason,

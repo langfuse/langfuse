@@ -9,7 +9,7 @@ import {
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
-import { FileCode } from "lucide-react";
+import { FileCode } from "@langfuse/icons";
 
 const PROMPT_REFERENCE_MARKDOWN_PREFIX = "/__langfuse_prompt_reference__?";
 const PromptReferenceContext = createContext<string | undefined>(undefined);
@@ -186,7 +186,7 @@ export const PromptReferenceButton = ({
       }
       title={`Open prompt: ${promptRefTitle}`}
     >
-      <FileCode className="icon-base text-muted-foreground shrink-0" />
+      <FileCode size="base" color="muted" />
       <span className="truncate font-bold" title={promptRefTitle}>
         {promptRef.name}
         {promptRef.type === "version" ? (

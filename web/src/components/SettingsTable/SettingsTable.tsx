@@ -19,7 +19,7 @@ import { type RowHeight } from "@/src/components/table/data-table-row-height-swi
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { Rows3 } from "lucide-react";
+import { Rows3 } from "@langfuse/icons";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { cn } from "@/src/utils/tailwind";
 import {
@@ -211,7 +211,7 @@ export function SettingsTable<TData extends object>({
                     title="Row height"
                     aria-label="Row height"
                   >
-                    <Rows3 className="icon-base text-icon-foreground" />
+                    <Rows3 size="base" color="default" />
                   </Button>
                 )}
               </DropdownMenu>

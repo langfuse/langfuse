@@ -1,6 +1,6 @@
 /* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger, @repo/component-file-structure */
 import * as React from "react";
-import { Check, Plus } from "lucide-react";
+import { Check, Plus } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { useMemo, useState } from "react";
 
@@ -216,8 +216,9 @@ export function SingleSelect({
                     }}
                   >
                     <Check
-                      className={cn(
-                        "icon-base mr-2",
+                      size="base"
+                      __rawClassName={cn(
+                        "mr-2",
                         isSelected ? "visible" : "invisible",
                       )}
                     />
@@ -273,7 +274,7 @@ export function SingleSelect({
                   value={search.trim()}
                   onSelect={() => commit(search.trim())}
                 >
-                  <Plus className="icon-base mr-2 shrink-0 opacity-50" />
+                  <Plus size="base" __rawClassName="mr-2 opacity-50" />
                   <div className="overflow-x-hidden text-ellipsis whitespace-nowrap">
                     Use &ldquo;{search.trim()}&rdquo;
                   </div>
