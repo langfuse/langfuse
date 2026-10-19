@@ -26,6 +26,7 @@ import { processTopicsAutomation } from "./topicsAutomation";
 vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/topics/server")>()),
   enqueueTopicExecution: vi.fn(),
+  getTopicExecutionQueueState: vi.fn(async () => "missing"),
   TopicsAutomationQueue: { getInstance: () => ({ add: vi.fn() }) },
   getEnabledTopicsModels: vi.fn(
     async (projectIds: string[]) =>
