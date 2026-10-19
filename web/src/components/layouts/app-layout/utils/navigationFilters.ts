@@ -16,6 +16,15 @@ type Organization =
   | null
   | undefined;
 
+function canRecoverV4(ctx: NavigationFilterContext): boolean {
+  return (
+    ctx.isLangfuseCloud &&
+    ctx.session?.environment?.v4WriteMode === "dual" &&
+    ctx.session?.user?.canToggleV4 === false &&
+    ctx.session?.user?.v4BetaEnabled === false
+  );
+}
+
 /**
  * Individual filter functions - each handles one concern
  * Exported for testing and composition
@@ -95,7 +104,9 @@ const filters = {
     }
 
     if (route.featureFlag === "v4BetaToggleVisible") {
-      return ctx.session?.user?.canToggleV4 === true ? route : null;
+      return ctx.session?.user?.canToggleV4 === true || canRecoverV4(ctx)
+        ? route
+        : null;
     }
 
     const hasFlag =
@@ -190,6 +201,7 @@ const filters = {
       isLangfuseCloud: ctx.isLangfuseCloud,
       hasActiveCloudIncident: ctx.hasActiveCloudIncident,
       canToggleV4: ctx.session?.user?.canToggleV4 === true,
+      canRecoverV4: canRecoverV4(ctx),
       forceV3Experience: ctx.forceV3Experience,
       v4WriteMode: ctx.session?.environment?.v4WriteMode,
       v4UpgradeUiAvailable: ctx.session?.user?.v4UpgradeUiAvailable === true,
