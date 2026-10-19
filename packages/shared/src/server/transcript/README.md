@@ -101,7 +101,9 @@ duplicate conversation messages.
 ## Character limit
 
 `assembleTranscript(observations, { maxCharacters: 10_000 })` guarantees
-`JSON.stringify(result).length <= 10_000`. The limit counts UTF-16 code units,
+`JSON.stringify(result).length <= 10_000` for the conversation. `levelEvents`
+are attached afterwards and not counted against the limit; how they should be
+capped is open. The limit counts UTF-16 code units,
 including JSON escaping, provenance, provider metadata and the truncation marker.
 It must be a safe integer of at least 4, the serialized length of `null`.
 Omitting it preserves the complete transcript and existing assembly behavior.
@@ -115,13 +117,8 @@ their order and history/current-turn partition. Contributor references are
 pruned to the retained current-turn messages. The original current turn
 nesting level is preserved.
 
-Level events are sized first and use at most half of the limit, keeping the
-earliest events; the conversation is limited to the remaining characters. Each
-event is serialized once for sizing, so this adds no extra pass over the
-conversation.
-
 Changed results include `truncated: true`. If no message fits, the result is
-`null`. Truncated transcripts are partial evidence, not a replayable conversation:
+`null`, or only the `levelEvents` with empty `threads` when there are any. Truncated transcripts are partial evidence, not a replayable conversation:
 a tool call and its result can be separated by omitted messages. This bounds
 serialized output, not input size or normalization work. Timing callbacks exclude
 the limiting pass.

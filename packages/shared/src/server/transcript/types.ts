@@ -70,7 +70,7 @@ export type Transcript = {
   threads: Thread[];
   /** ERROR observations, and WARNING observations with a status message, in order.
    * Omitted when there are none. Independent of threads: a failed call can emit no messages.
-   * Under a character limit they use at most half of it, keeping the earliest. */
+   * Not counted against `maxCharacters`, which limits only the conversation. */
   levelEvents?: TranscriptLevelEvent[];
   /** The character limit shortened text or omitted messages. */
   truncated?: true;

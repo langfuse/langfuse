@@ -93,51 +93,6 @@ describe("transcript fixtures", () => {
     );
   });
 
-  it("reserves up to half of the character limit for the earliest level events", () => {
-    const failed = (id: string) => ({
-      ...convertObservation(
-        createObservation({
-          id,
-          trace_id: traceId,
-          type: "TOOL",
-          level: "ERROR",
-          status_message: `Request ${id} timed out`,
-          start_time: `2026-01-01T12:00:0${id}.000Z`,
-          input: null,
-          output: null,
-        }),
-      ),
-      nestingLevel: 1,
-    });
-    const observations = [
-      generation("1", ["A".repeat(20_000)], ["B"]),
-      failed("2"),
-      failed("3"),
-    ];
-
-    const capped = assembleTranscript(observations, { maxCharacters: 1_000 });
-    expect(JSON.stringify(capped).length).toBeLessThanOrEqual(1_000);
-    expect(capped).toMatchObject({
-      truncated: true,
-      levelEvents: [{ observationId: "2" }, { observationId: "3" }],
-    });
-    expect(capped?.threads).toHaveLength(1);
-
-    const eventSize = JSON.stringify(
-      assembleTranscript([failed("2")])!.levelEvents![0],
-    ).length;
-    const onlyFirst = assembleTranscript(observations, {
-      maxCharacters: 2 * eventSize + 1,
-    });
-    expect(JSON.stringify(onlyFirst).length).toBeLessThanOrEqual(
-      2 * eventSize + 1,
-    );
-    expect(onlyFirst).toMatchObject({
-      truncated: true,
-      levelEvents: [{ observationId: "2" }],
-    });
-  });
-
   it("preserves an unfinished generation's null end time", () => {
     const observation = generation("1", ["A"], ["B"]);
     observation.endTime = null;

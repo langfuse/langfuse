@@ -19,9 +19,6 @@ import { createToolCallRegistry } from "./tool-calls";
 import { prepareMessage } from "./messages";
 
 const LEVEL_STATUS_MAX_CHARACTERS = 1_000;
-/** The `levelEvents` key and brackets plus a possible `truncated` flag. */
-const LEVEL_EVENTS_OVERHEAD_CHARACTERS = ',"levelEvents":[],"truncated":true'
-  .length;
 
 /** Check if an observation is relevant for the transcript. */
 const isRelevantObservation = (
@@ -95,10 +92,11 @@ export function assembleTranscript(
     normalizationMs,
     matchingMs: performance.now() - startedAt - normalizationMs,
   });
-  const levelEvents = collectLevelEvents(orderedObservations);
-  if (maxCharacters === undefined)
-    return withLevelEvents(conversation, levelEvents);
-  return limitWithLevelEvents(conversation, levelEvents, maxCharacters);
+  const limited =
+    conversation && maxCharacters !== undefined
+      ? limitTranscript(conversation, maxCharacters)
+      : conversation;
+  return withLevelEvents(limited, collectLevelEvents(orderedObservations));
 }
 
 /** Check if an observation's level and status message belong in `levelEvents`. */
@@ -109,30 +107,6 @@ export function hasReportableLevel(
     observation.level === "ERROR" ||
     (observation.level === "WARNING" && Boolean(observation.statusMessage))
   );
-}
-
-/** Reserve up to half of the limit for the earliest level events and limit the conversation to the rest. */
-function limitWithLevelEvents(
-  conversation: Transcript | null,
-  levelEvents: TranscriptLevelEvent[],
-  maxCharacters: number,
-): Transcript | null {
-  const kept = earliestFitting(levelEvents, Math.floor(maxCharacters / 2));
-  if (kept.events.length === 0)
-    return conversation && limitTranscript(conversation, maxCharacters);
-  const limited =
-    conversation &&
-    limitTranscript(
-      conversation,
-      maxCharacters - LEVEL_EVENTS_OVERHEAD_CHARACTERS - kept.characters,
-    );
-  const transcript = {
-    ...(limited ?? { threads: [] }),
-    levelEvents: kept.events,
-  };
-  return kept.events.length < levelEvents.length
-    ? { ...transcript, truncated: true }
-    : transcript;
 }
 
 function collectLevelEvents(
@@ -165,21 +139,4 @@ function withLevelEvents(
 ): Transcript | null {
   if (levelEvents.length === 0) return transcript;
   return { ...(transcript ?? { threads: [] }), levelEvents };
-}
-
-/** Serialized size of the earliest events, joined by commas, that fit the budget. */
-function earliestFitting(
-  levelEvents: TranscriptLevelEvent[],
-  budget: number,
-): { events: TranscriptLevelEvent[]; characters: number } {
-  let characters = 0;
-  let count = 0;
-  for (const event of levelEvents) {
-    const next =
-      characters + (count > 0 ? 1 : 0) + JSON.stringify(event).length;
-    if (next > budget) break;
-    characters = next;
-    count++;
-  }
-  return { events: levelEvents.slice(0, count), characters };
 }
