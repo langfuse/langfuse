@@ -14,7 +14,7 @@ describe("organization feature preview defaults", () => {
     const { actor, caller, org } = await prepare();
     await prisma.user.update({
       where: { id: actor.id },
-      data: { featureFlags: ["modernSession"] },
+      data: { featureFlags: ["sessionViewV2"] },
     });
     const member = await createUser();
     await prisma.organizationMembership.create({
@@ -23,7 +23,7 @@ describe("organization feature preview defaults", () => {
 
     await caller.organizations.setFeatureFlagOrgDefault({
       orgId: org.id,
-      flag: "modernSession",
+      flag: "sessionViewV2",
       enabled: true,
     });
 
@@ -42,8 +42,8 @@ describe("organization feature preview defaults", () => {
       }),
     ]);
 
-    expect(updatedOrg.featureFlagOrgDefaults).toEqual(["modernSession"]);
-    expect(updatedActor.featureFlags).toEqual(["modernSession"]);
+    expect(updatedOrg.featureFlagOrgDefaults).toEqual(["sessionViewV2"]);
+    expect(updatedActor.featureFlags).toEqual(["sessionViewV2"]);
     expect(updatedMember.featureFlags).toEqual([]);
     const auditEntry = await prisma.auditLog.findFirstOrThrow({
       where: {
@@ -58,7 +58,7 @@ describe("organization feature preview defaults", () => {
       featureFlagOrgDefaults: [],
     });
     expect(JSON.parse(auditEntry.after!)).toEqual({
-      featureFlagOrgDefaults: ["modernSession"],
+      featureFlagOrgDefaults: ["sessionViewV2"],
     });
   });
 
@@ -66,12 +66,12 @@ describe("organization feature preview defaults", () => {
     const { actor, caller, org } = await prepare();
     await prisma.user.update({
       where: { id: actor.id },
-      data: { featureFlags: ["modernSession", "sessionTimeline"] },
+      data: { featureFlags: ["sessionViewV2", "sessionViewV2Timeline"] },
     });
 
     await caller.organizations.setFeatureFlagOrgDefault({
       orgId: org.id,
-      flag: "sessionTimeline",
+      flag: "sessionViewV2Timeline",
       enabled: true,
     });
 
@@ -81,7 +81,7 @@ describe("organization feature preview defaults", () => {
         select: { featureFlagOrgDefaults: true },
       }),
     ).resolves.toEqual({
-      featureFlagOrgDefaults: ["sessionTimeline", "modernSession"],
+      featureFlagOrgDefaults: ["sessionViewV2Timeline", "sessionViewV2"],
     });
   });
 
@@ -89,12 +89,12 @@ describe("organization feature preview defaults", () => {
     const admin = await prepare("cloud:core", Role.ADMIN);
     await prisma.user.update({
       where: { id: admin.actor.id },
-      data: { featureFlags: ["modernSession"] },
+      data: { featureFlags: ["sessionViewV2"] },
     });
     await expect(
       admin.caller.organizations.setFeatureFlagOrgDefault({
         orgId: admin.org.id,
-        flag: "modernSession",
+        flag: "sessionViewV2",
         enabled: true,
       }),
     ).resolves.toMatchObject({ enabled: true });
@@ -103,7 +103,7 @@ describe("organization feature preview defaults", () => {
     await expect(
       member.caller.organizations.setFeatureFlagOrgDefault({
         orgId: member.org.id,
-        flag: "modernSession",
+        flag: "sessionViewV2",
         enabled: true,
       }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
@@ -127,7 +127,7 @@ describe("organization feature preview defaults", () => {
     await expect(
       caller.organizations.setFeatureFlagOrgDefault({
         orgId: org.id,
-        flag: "modernSession",
+        flag: "sessionViewV2",
         enabled: true,
       }),
     ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
@@ -143,9 +143,19 @@ describe("organization feature preview defaults", () => {
         enabled: true,
       }),
     ).resolves.toMatchObject({
-      defaults: ["externalMediaStorage"],
+      defaults: [
+        "externalMediaStorage",
+        "sessionViewV2",
+        "sessionViewV2Timeline",
+      ],
       enabled: true,
     });
+    await expect(
+      prisma.organization.findUniqueOrThrow({
+        where: { id: org.id },
+        select: { featureFlagOrgDefaults: true },
+      }),
+    ).resolves.toEqual({ featureFlagOrgDefaults: ["externalMediaStorage"] });
   });
 
   it("rejects internal flags at the input boundary", async () => {
@@ -165,7 +175,7 @@ describe("organization feature preview defaults", () => {
     await Promise.all([
       prisma.user.update({
         where: { id: actor.id },
-        data: { featureFlags: ["modernSession"] },
+        data: { featureFlags: ["sessionViewV2"] },
       }),
       prisma.organization.update({
         where: { id: org.id },
@@ -176,7 +186,7 @@ describe("organization feature preview defaults", () => {
     for (const enabled of [true, true]) {
       await caller.organizations.setFeatureFlagOrgDefault({
         orgId: org.id,
-        flag: "modernSession",
+        flag: "sessionViewV2",
         enabled,
       });
     }
@@ -186,13 +196,13 @@ describe("organization feature preview defaults", () => {
         select: { featureFlagOrgDefaults: true },
       }),
     ).resolves.toEqual({
-      featureFlagOrgDefaults: ["futurePreview", "modernSession"],
+      featureFlagOrgDefaults: ["futurePreview", "sessionViewV2"],
     });
 
     for (const enabled of [false, false]) {
       await caller.organizations.setFeatureFlagOrgDefault({
         orgId: org.id,
-        flag: "modernSession",
+        flag: "sessionViewV2",
         enabled,
       });
     }
@@ -202,7 +212,29 @@ describe("organization feature preview defaults", () => {
         select: { featureFlagOrgDefaults: true },
       }),
     ).resolves.toEqual({
-      featureFlagOrgDefaults: ["futurePreview"],
+      featureFlagOrgDefaults: [
+        "futurePreview",
+        getFeaturePreviewOptOutFlag("sessionViewV2"),
+        getFeaturePreviewOptOutFlag("sessionViewV2Timeline"),
+      ],
+    });
+    await expect(
+      caller.organizations.getFeatureFlagOrgDefaults({ orgId: org.id }),
+    ).resolves.toMatchObject({ defaults: [] });
+
+    await prisma.user.update({
+      where: { id: actor.id },
+      data: { featureFlags: ["sessionViewV2", "sessionViewV2Timeline"] },
+    });
+    await caller.organizations.setFeatureFlagOrgDefault({
+      orgId: org.id,
+      flag: "sessionViewV2Timeline",
+      enabled: true,
+    });
+    await expect(
+      caller.organizations.getFeatureFlagOrgDefaults({ orgId: org.id }),
+    ).resolves.toMatchObject({
+      defaults: ["sessionViewV2", "sessionViewV2Timeline"],
     });
   });
 
@@ -211,13 +243,13 @@ describe("organization feature preview defaults", () => {
     await prisma.organization.update({
       where: { id: org.id },
       data: {
-        featureFlagOrgDefaults: ["modernSession", "futurePreview"],
+        featureFlagOrgDefaults: ["sessionViewV2", "futurePreview"],
       },
     });
     const member = await createUser({
       featureFlags: [
         "templateFlag",
-        getFeaturePreviewOptOutFlag("modernSession"),
+        getFeaturePreviewOptOutFlag("sessionViewV2"),
       ],
     });
 
@@ -236,7 +268,7 @@ describe("organization feature preview defaults", () => {
     ]);
     expect(updated.featureFlags).toEqual([
       "templateFlag",
-      getFeaturePreviewOptOutFlag("modernSession"),
+      getFeaturePreviewOptOutFlag("sessionViewV2"),
     ]);
     expect(
       members.memberships.find((membership) => membership.userId === member.id)
@@ -248,8 +280,9 @@ describe("organization feature preview defaults", () => {
       // here. Asserting that two REGISTERED defaults resolve differently needs
       // a second preview; add that half back with the next one.
       externalMediaStorage: false,
-      modernSession: false,
-      sessionTimeline: false,
+      skillManagement: false,
+      sessionViewV2: false,
+      sessionViewV2Timeline: false,
     });
   });
 
@@ -263,7 +296,7 @@ describe("organization feature preview defaults", () => {
       await expect(
         caller.organizations.setFeatureFlagOrgDefault({
           orgId: org.id,
-          flag: "modernSession",
+          flag: "sessionViewV2",
           enabled: true,
         }),
       ).rejects.toMatchObject({ code: "FORBIDDEN" });
@@ -292,7 +325,7 @@ describe("organization member feature preview overrides", () => {
     await caller.members.setUserFeaturePreviewEnabled({
       orgId: org.id,
       userId: target.id,
-      flag: "sessionTimeline",
+      flag: "sessionViewV2Timeline",
       enabled: true,
     });
 
@@ -302,13 +335,13 @@ describe("organization member feature preview overrides", () => {
         select: { featureFlags: true },
       }),
     ).resolves.toEqual({
-      featureFlags: ["sessionTimeline", "modernSession"],
+      featureFlags: ["sessionViewV2Timeline", "sessionViewV2"],
     });
   });
 
   it("persists an administrator's disable as a global user opt-out", async () => {
     const { caller, org } = await prepare();
-    const target = await createUser({ featureFlags: ["modernSession"] });
+    const target = await createUser({ featureFlags: ["sessionViewV2"] });
     await prisma.organizationMembership.create({
       data: { orgId: org.id, userId: target.id, role: Role.MEMBER },
     });
@@ -316,7 +349,7 @@ describe("organization member feature preview overrides", () => {
     await caller.members.setUserFeaturePreviewEnabled({
       orgId: org.id,
       userId: target.id,
-      flag: "modernSession",
+      flag: "sessionViewV2",
       enabled: false,
     });
 
@@ -327,8 +360,8 @@ describe("organization member feature preview overrides", () => {
       }),
     ).resolves.toEqual({
       featureFlags: [
-        getFeaturePreviewOptOutFlag("modernSession"),
-        getFeaturePreviewOptOutFlag("sessionTimeline"),
+        getFeaturePreviewOptOutFlag("sessionViewV2"),
+        getFeaturePreviewOptOutFlag("sessionViewV2Timeline"),
       ],
     });
   });
@@ -337,7 +370,7 @@ describe("organization member feature preview overrides", () => {
     const { caller, org } = await prepare();
     await prisma.organization.update({
       where: { id: org.id },
-      data: { featureFlagOrgDefaults: ["modernSession"] },
+      data: { featureFlagOrgDefaults: ["sessionViewV2"] },
     });
     const target = await createUser();
     const membership = await prisma.organizationMembership.create({
@@ -347,7 +380,7 @@ describe("organization member feature preview overrides", () => {
     await caller.members.setUserFeaturePreviewEnabled({
       orgId: org.id,
       userId: target.id,
-      flag: "modernSession",
+      flag: "sessionViewV2",
       enabled: false,
     });
 
@@ -361,12 +394,12 @@ describe("organization member feature preview overrides", () => {
       orderBy: { createdAt: "desc" },
     });
     expect(JSON.parse(auditEntry.before!)).toEqual({
-      flag: "modernSession",
+      flag: "sessionViewV2",
       override: "inherit",
       scope: "global",
     });
     expect(JSON.parse(auditEntry.after!)).toEqual({
-      flag: "modernSession",
+      flag: "sessionViewV2",
       override: "disabled",
       scope: "global",
     });
@@ -386,7 +419,7 @@ describe("organization member feature preview overrides", () => {
     await caller.members.setUserFeaturePreviewEnabled({
       orgId: org.id,
       userId: target.id,
-      flag: "modernSession",
+      flag: "sessionViewV2",
       enabled: true,
     });
 
@@ -400,12 +433,12 @@ describe("organization member feature preview overrides", () => {
       orderBy: { createdAt: "desc" },
     });
     expect(JSON.parse(auditEntry.before!)).toEqual({
-      flag: "modernSession",
+      flag: "sessionViewV2",
       override: "inherit",
       scope: "global",
     });
     expect(JSON.parse(auditEntry.after!)).toEqual({
-      flag: "modernSession",
+      flag: "sessionViewV2",
       override: "enabled",
       scope: "global",
     });
@@ -436,7 +469,7 @@ describe("organization member feature preview overrides", () => {
       caller.members.setUserFeaturePreviewEnabled({
         orgId: org.id,
         userId: target.id,
-        flag: "modernSession",
+        flag: "sessionViewV2",
         enabled: true,
       }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
@@ -448,12 +481,12 @@ describe("organization member feature preview overrides", () => {
       caller.members.setUserFeaturePreviewEnabled({
         orgId: org.id,
         userId: target.id,
-        flag: "modernSession",
+        flag: "sessionViewV2",
         enabled: true,
       }),
     ).resolves.toMatchObject({
       userId: target.id,
-      flag: "modernSession",
+      flag: "sessionViewV2",
       enabled: true,
     });
   });
@@ -477,7 +510,7 @@ describe("organization member feature preview overrides", () => {
         caller.members.setUserFeaturePreviewEnabled({
           orgId: org.id,
           userId: target.id,
-          flag: "modernSession",
+          flag: "sessionViewV2",
           enabled: true,
         }),
       ).resolves.toMatchObject({ enabled: true });
@@ -490,7 +523,7 @@ describe("organization member feature preview overrides", () => {
   it("does not expose raw or foreign-organization feature flag data", async () => {
     const { caller, org } = await prepare();
     const target = await createUser({
-      featureFlags: ["templateFlag", "modernSession"],
+      featureFlags: ["templateFlag", "sessionViewV2"],
     });
     await prisma.organizationMembership.create({
       data: { orgId: org.id, userId: target.id, role: Role.MEMBER },
@@ -509,8 +542,9 @@ describe("organization member feature preview overrides", () => {
     // hidden, which is what this guards.
     expect(row?.featurePreviews).toEqual({
       externalMediaStorage: false,
-      modernSession: true,
-      sessionTimeline: false,
+      skillManagement: false,
+      sessionViewV2: true,
+      sessionViewV2Timeline: false,
     });
     expect(row?.user).not.toHaveProperty("featureFlags");
     expect(row).not.toHaveProperty("organizationIds");
@@ -524,7 +558,7 @@ describe("organization member feature preview overrides", () => {
       caller.members.setUserFeaturePreviewEnabled({
         orgId: org.id,
         userId: target.id,
-        flag: "modernSession",
+        flag: "sessionViewV2",
         enabled: true,
       }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });

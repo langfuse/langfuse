@@ -11,6 +11,7 @@ import { Badge } from "../Badge/Badge";
 import { stopScrollPropagation } from "@/src/hooks/stopScrollPropagation";
 import { InputControl } from "../internal/InputControl/InputControl";
 import { InputDropdown } from "../internal/InputDropdown/InputDropdown";
+import { cn } from "@/src/utils/tailwind";
 
 type SelectInputNode<V extends string> = React.ComponentProps<
   typeof SelectDropdown<V>
@@ -31,6 +32,7 @@ type SelectInputProps<V extends string> = Pick<
   placeholder: string;
   search?: { placeholder: string };
   error?: boolean;
+  muted?: boolean;
 };
 
 function isSelectGroup<V extends string>(
@@ -48,6 +50,7 @@ function SelectInputInner<V extends string>(
     emptyMessage = "No options available.",
     search,
     error,
+    muted,
     ...triggerProps
   }: SelectInputProps<V>,
   ref: React.ForwardedRef<HTMLButtonElement>,
@@ -77,7 +80,10 @@ function SelectInputInner<V extends string>(
             {...triggerProps}
           >
             <span
-              className="min-w-0 flex-1 truncate text-left"
+              className={cn(
+                "min-w-0 flex-1 truncate text-left",
+                muted && "text-muted-foreground",
+              )}
               title={selectedOption?.label}
             >
               {selectedOption?.label ?? placeholder}
@@ -179,7 +185,10 @@ function SelectInputInner<V extends string>(
         <InputControl contentLayout="spread" error={error}>
           <button {...getTriggerProps()}>
             <span
-              className="min-w-0 flex-1 truncate text-left"
+              className={cn(
+                "min-w-0 flex-1 truncate text-left",
+                muted && "text-muted-foreground",
+              )}
               title={selectedLabel}
             >
               {selectedLabel ?? placeholder}

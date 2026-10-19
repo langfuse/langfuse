@@ -1,4 +1,6 @@
 import { SessionTimelinePart } from "./components/SessionTimelinePart/SessionTimelinePart";
+import { Codeblock } from "@/src/components/design-system/Codeblock/Codeblock";
+import { assertUnreachable } from "@langfuse/shared";
 import { useState, type ComponentProps, type ReactNode } from "react";
 import { type TranscriptMessageGroup } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/groupTranscriptMessages";
 import { getSessionTranscriptRows } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/getSessionTranscriptRows";
@@ -23,21 +25,31 @@ export function SessionTranscriptContent({
   onOpenObservation,
   scrollTarget,
   threadIndex: selectedThreadIndex,
+  variant,
+  includeNestedThreads = false,
 }: {
+  includeNestedThreads?: boolean;
+  variant?: ComponentProps<typeof SessionTimelineContentMessage>["variant"];
   threadIndex?: number;
   result: Extract<SessionTraceTranscriptState, { state: "loaded" }>;
-  onOpenObservation: (observationId: string) => void;
+  onOpenObservation?: (observationId: string) => void;
   scrollTarget: {
     observationId: string;
     rowId?: string;
     requestId: number;
   } | null;
 }) {
-  const rows = getSessionTranscriptRows(result.transcript).filter(
+  const rows = getSessionTranscriptRows(
+    result.transcript,
+    includeNestedThreads,
+  ).filter(
     ({ threadIndex }) =>
       selectedThreadIndex === undefined || threadIndex === selectedThreadIndex,
   );
-  const { visibleThreads } = getSessionTranscriptThreads(result.transcript);
+  const { visibleThreads } = getSessionTranscriptThreads(
+    result.transcript,
+    includeNestedThreads,
+  );
   return (
     <div className="ph-no-capture space-y-4">
       {rows.length === 0 && (
@@ -57,6 +69,7 @@ export function SessionTranscriptContent({
               </h3>
             )}
             <SessionTranscriptThread
+              variant={variant}
               rows={rows.filter((row) => row.threadIndex === threadIndex)}
               onOpenObservation={onOpenObservation}
               scrollTarget={scrollTarget}
@@ -78,11 +91,13 @@ type DisplayMessage = NormalizedMessage & {
 
 function SessionTranscriptThread({
   rows,
+  variant,
   onOpenObservation,
   scrollTarget,
 }: {
   rows: ReturnType<typeof getSessionTranscriptRows>;
-  onOpenObservation: (observationId: string) => void;
+  variant?: ComponentProps<typeof SessionTimelineContentMessage>["variant"];
+  onOpenObservation?: (observationId: string) => void;
   scrollTarget: {
     observationId: string;
     rowId?: string;
@@ -129,6 +144,7 @@ function SessionTranscriptThread({
     >
       {group.type === "tools" ? (
         <SessionTranscriptToolGroup
+          variant={variant}
           summary={group.summary}
           title={group.title}
           rows={group.rows}
@@ -137,6 +153,7 @@ function SessionTranscriptThread({
         />
       ) : (
         <SessionTranscriptRow
+          variant={variant}
           item={group.row}
           onOpenObservation={onOpenObservation}
           scrollTarget={scrollTarget}
@@ -148,6 +165,7 @@ function SessionTranscriptThread({
 
 function SessionTranscriptRow({
   item,
+  variant,
   onOpenObservation,
   scrollTarget,
 }: {
@@ -167,7 +185,7 @@ function SessionTranscriptRow({
   const metadata = (isTool || isSystem) &&
     (timing || row.message.observationId) && (
       <div className="text-muted-foreground flex items-center gap-3 font-mono text-xs opacity-0 group-hover/collapsible-row:opacity-100 group-has-[:focus-visible]/collapsible-row:opacity-100 group-data-[expanded=true]/collapsible-row:opacity-100">
-        {row.message.observationId && (
+        {row.message.observationId && onOpenObservation && (
           <button
             type="button"
             className="hover:text-foreground hover:underline"
@@ -205,6 +223,7 @@ function SessionTranscriptRow({
         <SessionTranscriptTool row={row} trailingContent={metadata} />
       ) : (
         <SessionTranscriptMessage
+          variant={variant}
           expandRequestId={scrollRequestId}
           message={row.message}
           trailingContent={isSystem ? metadata : null}
@@ -356,9 +375,33 @@ function SessionTranscriptTool({
       outputContent={
         row.result?.output.type === "content" &&
         row.result.output.value.length > 0
-          ? row.result.output.value.map((part, index) => (
-              <SessionTimelinePart key={index} part={part} />
-            ))
+          ? row.result.output.value.map((part, index) => {
+              if (part.type === "file") {
+                return (
+                  <SessionTimelinePart
+                    key={index}
+                    part={part}
+                    mediaVariant="tool-output"
+                  />
+                );
+              }
+              const value = (() => {
+                if (part.type === "text") return part.text;
+                if (part.type === "reasoning") return part.content;
+                if (part.type === "data" || part.type === "custom")
+                  return part.value;
+                return assertUnreachable(part);
+              })();
+              return (
+                <div key={index} className="flex max-h-96 min-w-0 flex-col">
+                  <Codeblock
+                    label="Tool output"
+                    value={value}
+                    allowFormatting
+                  />
+                </div>
+              );
+            })
           : undefined
       }
       {...status}
@@ -371,13 +414,15 @@ function SessionTranscriptTool({
 
 function SessionTranscriptMessage({
   message,
+  variant,
   trailingContent,
   onOpenObservation,
   expandRequestId,
 }: {
   message: DisplayMessage;
+  variant?: ComponentProps<typeof SessionTimelineContentMessage>["variant"];
   trailingContent: ReactNode;
-  onOpenObservation: (observationId: string) => void;
+  onOpenObservation?: (observationId: string) => void;
   expandRequestId?: number;
 }) {
   if (message.role === "system") {
@@ -391,13 +436,14 @@ function SessionTranscriptMessage({
   }
   return (
     <SessionTimelineContentMessage
+      variant={variant}
       expandRequestId={expandRequestId}
       role={message.role}
       parts={message.parts}
       senderName={message.senderName}
       timestamp={message.timing?.startTime ?? null}
       onOpenObservation={
-        message.observationId
+        message.observationId && onOpenObservation
           ? () => onOpenObservation(message.observationId!)
           : undefined
       }

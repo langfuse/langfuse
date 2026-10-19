@@ -193,31 +193,28 @@ export const UserChart = ({
         tabs={data.map((item) => {
           return {
             tabTitle: item.tabTitle,
-            content: (
-              <>
-                {item.data.length > 0 ? (
-                  <div className="flex min-h-0 grow flex-col">
-                    <TotalMetric
-                      metric={item.totalMetric}
-                      description={item.metricDescription}
-                    />
-                    <BarListChartArea
-                      data={item.data}
-                      maxBars={MAX_BARS}
-                      metricLabel={item.chartMetricLabel}
-                      unit={item.chartUnit}
-                    />
-                  </div>
-                ) : (
-                  <NoDataOrLoading
-                    isLoading={isLoading || user.isPending}
-                    description="Consumption per user is tracked by passing their ids on traces."
-                    href="https://langfuse.com/docs/observability/features/users"
-                    className="h-auto grow"
+            content:
+              item.data.length > 0 ? (
+                <div className="flex min-h-0 grow flex-col">
+                  <TotalMetric
+                    metric={item.totalMetric}
+                    description={item.metricDescription}
                   />
-                )}
-              </>
-            ),
+                  <BarListChartArea
+                    data={item.data}
+                    maxBars={MAX_BARS}
+                    metricLabel={item.chartMetricLabel}
+                    unit={item.chartUnit}
+                  />
+                </div>
+              ) : (
+                <NoDataOrLoading
+                  isLoading={isLoading || user.isPending}
+                  description="Consumption per user is tracked by passing their ids on traces."
+                  href="https://langfuse.com/docs/observability/features/users"
+                  className="h-auto grow"
+                />
+              ),
           };
         })}
       />

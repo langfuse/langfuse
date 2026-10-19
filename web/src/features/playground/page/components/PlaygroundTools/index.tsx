@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import React, { useCallback, useEffect } from "react";
 
 import { usePlaygroundContext } from "@/src/features/playground/page/context";

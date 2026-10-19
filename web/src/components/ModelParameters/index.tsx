@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 /* eslint-disable @repo/no-null-render */
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/src/components/ui/button";

@@ -48,6 +48,60 @@ function plan(
   });
 }
 
+describe("experiment target completions", () => {
+  const registry = createFieldRegistry({
+    ...EVENTS_FIELD_REGISTRY,
+    targeting: {
+      defaultTarget: "all",
+      supports: () => true,
+      targets: [
+        {
+          id: "all",
+          label: "All experiments",
+          displayLabel: "All experiments",
+          keyword: true,
+        },
+        {
+          id: "baseline",
+          label: "baseline",
+          displayLabel: "Baseline",
+          keyword: true,
+        },
+        { id: "run-a", label: "Run A" },
+      ],
+    },
+  });
+  const targetedPlan = (input: string, caret = input.length) =>
+    planInputCompletions(
+      {
+        input,
+        caret,
+        observed: OBSERVED,
+        recents: [],
+        currentQueryText: input,
+      },
+      registry,
+    );
+
+  it("changes scope on one condition and preserves another condition", () => {
+    const input = "baseline.level:ERROR scores.accuracy:>0.8";
+    const p = targetedPlan(input, 18)!;
+    const option = flattenOptions(p).find(
+      (option) => option.id === "target:run-a",
+    )!;
+    if (option.kind !== "pattern")
+      throw new Error("Expected experiment option");
+    expect(applyPick(option, input, p).next).toBe(
+      '"Run A".level:ERROR scores.accuracy:>0.8',
+    );
+    const all = flattenOptions(p).find((option) => option.id === "target:all")!;
+    if (all.kind !== "pattern") throw new Error("Expected experiment option");
+    expect(applyPick(all, input, p).next).toBe(
+      '"All experiments".level:ERROR scores.accuracy:>0.8',
+    );
+  });
+});
+
 describe("planInputCompletions", () => {
   it("offers only declared scope rewrites and keeps compatibility in: out of suggestions", () => {
     const registry = createFieldRegistry({

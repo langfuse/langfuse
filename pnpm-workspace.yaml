@@ -115,10 +115,10 @@ overrides:
   tar-fs: ^2.1.2
   rollup@^4.0.0: ^4.22.4
   "@types/node-fetch": ^2.6.13
-  "@types/react-dom": 19.3.0
+  "@types/react-dom": 19.2.3
   fast-xml-builder: 1.1.7
   glob: ^10.5.0
-  qs: 6.16.0
+  qs: 6.16.1
   path-to-regexp@0.1.12: 0.1.13
   # ReDoS only affects the 8.x line (CVE-2026-4926/-4923, >=8.0.0 <8.4.0).
   path-to-regexp@8.3.0: 8.4.0
@@ -149,10 +149,9 @@ overrides:
   # pnpm keeps the already-resolved 4.1.10 copy, which pulls in a vulnerable
   # @vitest/mocker 4.1.10 (CVE-2026-84373). Pin it to the fixed patch.
   "@storybook/addon-vitest>@vitest/browser": 4.1.11
-  # CVE-2026-93981: XSS in hono, fixed in 4.13.7. Its dependents declare ^4
-  # and ^4.8.3, which the vulnerable 4.13.5 already satisfies, so only an
-  # override moves it to the patched release.
-  hono: 4.13.7
+  # Hono's dependents allow these security fixes: XSS in 4.13.7 and
+  # double decoding in 4.13.11 (GHSA-5r4p-p66f-jhc7).
+  hono: 4.13.11
   # A batch of SSRF, prototype-pollution, ReDoS and proxy-confusion fixes
   # (CVE-2026-101898 through -101909) all land in 1.20.0. @slack/web-api and
   # @vueuse/integrations declare ^1 ranges the vulnerable 1.18.0 already
@@ -172,7 +171,7 @@ overrides:
   # nodemailer imports (we pass a custom sendVerificationRequest); without this
   # pnpm auto-installs a second, unused nodemailer@7 instance for web.
   # Remove once next-auth allows nodemailer ^10.
-  "next-auth>nodemailer": "^10.0.9"
+  "next-auth>nodemailer": "^10.0.13"
 patchedDependencies:
   # focusFirst crashes on null item refs (items unmounting while entry focus
   # runs), e.g. opening a row-actions dropdown while a table re-renders.
@@ -194,6 +193,8 @@ publicHoistPattern:
   - "*prisma*"
   - "@aws-sdk/client-s3"
 minimumReleaseAgeExclude:
+  # qs security fix; eligible after 2026-10-19 22:06 UTC.
+  - qs@6.16.1
   # AI SDK Decisions API (`experimental_decide`); eligible after 2026-10-12 01:47 UTC.
   - ai@7.0.130
   - "@ai-sdk/openai@4.0.86"

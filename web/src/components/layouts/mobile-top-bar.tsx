@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { type ReactNode } from "react";
 import { useSession } from "next-auth/react";
 import { Menu } from "lucide-react";

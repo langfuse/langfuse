@@ -42,7 +42,7 @@ service:
         type: SkillVersion
 
     get:
-      docs: Resolve a skill's metadata and file manifest by version or label. Defaults to the production label. Use each file's sha256Hash with getFileContents, individually or in batches across manifests.
+      docs: Resolve a skill's metadata and file manifest by version or label. Defaults to the production label. Set includeContent to return file contents inline, or use each file's sha256Hash with getFileContents.
       method: GET
       path: /skills/{skillName}
       path-parameters:
@@ -52,6 +52,9 @@ service:
         query-parameters:
           version: optional<integer>
           label: optional<string>
+          includeContent:
+            type: optional<boolean>
+            docs: Include UTF-8 text content in each file. Defaults to false.
       response: SkillVersion
 
     update:
@@ -155,6 +158,9 @@ types:
       sha256Hash: string
       contentType: string
       contentLength: long
+      content:
+        type: optional<string>
+        docs: UTF-8 text content, included when fetching a skill with includeContent enabled.
 
   SkillFileContentsResponse:
     properties:

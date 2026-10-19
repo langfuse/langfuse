@@ -9,6 +9,9 @@ import { MediaEnabledFields } from "@/src/features/media/validation";
 vi.mock("@/src/components/ui/PrettyJsonView", () => ({
   PrettyJsonView: vi.fn(() => null),
 }));
+vi.mock("@/src/features/feature-flags", () => ({
+  useInternalFeaturesEnabled: () => false,
+}));
 vi.mock("./ObservationDetailView/AttributeRowActions", () => ({
   AttributeRowActions: () => null,
 }));

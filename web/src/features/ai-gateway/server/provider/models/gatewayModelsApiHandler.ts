@@ -23,7 +23,7 @@ export async function gatewayModelsApiHandler({
   try {
     const context = await new GatewayApiKeyAuthenticator(
       prisma,
-    ).authenticateRequest({ fastHashedSecretKey, apiFormat });
+    ).authenticateModelsRequest({ fastHashedSecretKey, apiFormat });
     const result = await new GatewayModelsService(prisma).list({
       context,
       apiFormat,

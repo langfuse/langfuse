@@ -10,12 +10,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   __test,
   getCodeEvalTerminalErrorOutcome,
+  getLlmEvalTerminalErrorAttribution,
   getLlmEvalTerminalErrorOutcome,
   recordEvalScorePersistenceOutcome,
   recordEvalTerminalOutcome,
   recordEvalTimeToFirstAttempt,
 } from "./evalExecutionMetrics";
-
+import { EvalFailureError, EvalFailureReason } from "./evalFailureErrors";
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
   recordDistribution: vi.fn(),
@@ -138,6 +139,45 @@ describe("evaluation execution metrics", () => {
       expect(getLlmEvalTerminalErrorOutcome(classification)).toBe(expected);
     },
   );
+
+  it("attributes classified LLM platform errors by error kind", () => {
+    const error = new Error("unexpected AI SDK failure");
+
+    expect(
+      getLlmEvalTerminalErrorAttribution({
+        error,
+        classification: {
+          kind: "ai-sdk",
+          message: error.message,
+          isRetryable: false,
+          error,
+          blockReason: null,
+        },
+        isUnrecoverable: false,
+      }),
+    ).toEqual({ outcome: "platform_error", reason: "llm_ai_sdk" });
+  });
+
+  it("prefers an explicit failure reason over LLM classification", () => {
+    const error = new EvalFailureError(
+      "Failed to download observation: DNS lookup failed",
+      EvalFailureReason.ObservationDownload,
+    );
+
+    expect(
+      getLlmEvalTerminalErrorAttribution({
+        error,
+        classification: {
+          kind: "evaluator-policy",
+          message: error.message,
+          isRetryable: false,
+          error,
+          blockReason: null,
+        },
+        isUnrecoverable: false,
+      }),
+    ).toEqual({ outcome: "platform_error", reason: "observation_download" });
+  });
 
   it.each([
     {

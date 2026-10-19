@@ -37,7 +37,6 @@ import {
   type OperationNode,
   type PluginTransformQueryArgs,
   type PluginTransformResultArgs,
-  type QueryId,
   type RootOperationNode,
 } from "kysely";
 
@@ -50,10 +49,11 @@ import {
 } from "./nodes";
 import { DEDUP_SPECS, type DedupSpec } from "./schema";
 import { stampCompiledTree } from "./tenancy";
-import { ClickHouseOperationNodeTransformer } from "./transformer";
+import { CteScopedTransformer } from "./transformer";
 
 type PhysicalFrom = {
   tableName: string;
+  table: TableNode;
   alias?: string;
   fromItem: OperationNode;
 };
@@ -75,32 +75,19 @@ export class DedupLoweringPlugin implements KyselyPlugin {
   }
 }
 
-class DedupLoweringTransformer extends ClickHouseOperationNodeTransformer {
-  protected override transformSelectQuery(
-    node: SelectQueryNode,
-    queryId?: QueryId,
-  ): SelectQueryNode {
-    const withChildren = super.transformSelectQuery(
-      node,
-      queryId,
-    ) as ClickHouseSelectQueryNode;
-    return lowerSelect(withChildren, collectCteNames(withChildren));
+class DedupLoweringTransformer extends CteScopedTransformer {
+  protected rewriteSelect(
+    node: ClickHouseSelectQueryNode,
+  ): ClickHouseSelectQueryNode {
+    return lowerSelect(node, (table) => this.isCte(table));
   }
-}
-
-function collectCteNames(node: SelectQueryNode): Set<string> {
-  const names = new Set<string>();
-  for (const expr of node.with?.expressions ?? []) {
-    names.add(expr.name.table.table.identifier.name);
-  }
-  return names;
 }
 
 function lowerSelect(
   node: ClickHouseSelectQueryNode,
-  cteNames: Set<string>,
+  isCte: (table: TableNode) => boolean,
 ): ClickHouseSelectQueryNode {
-  const from = singlePhysicalFrom(node, cteNames);
+  const from = singlePhysicalFrom(node, isCte);
   if (!from) return node;
 
   const spec = DEDUP_SPECS[from.tableName];
@@ -126,14 +113,14 @@ function lowerSelect(
 
 function singlePhysicalFrom(
   node: SelectQueryNode,
-  cteNames: Set<string>,
+  isCte: (table: TableNode) => boolean,
 ): PhysicalFrom | undefined {
   if (node.joins?.length) return undefined;
   const froms = node.from?.froms ?? [];
   if (froms.length !== 1) return undefined;
   const described = describeFrom(froms[0]);
   if (!described) return undefined;
-  if (cteNames.has(described.tableName)) return undefined;
+  if (isCte(described.table)) return undefined;
   return described;
 }
 
@@ -150,6 +137,7 @@ function describeFrom(node: OperationNode): PhysicalFrom | undefined {
   if (TableNode.is(node)) {
     return {
       tableName: node.table.identifier.name,
+      table: node,
       fromItem: node,
     };
   }

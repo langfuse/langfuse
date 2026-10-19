@@ -336,7 +336,7 @@ describe("in-app agent run lifecycle races", () => {
           runId: "run-1",
         },
       }),
-    ).rejects.toThrow("Assistant is already responding in this conversation");
+    ).rejects.toThrow("Halo is already responding in this conversation");
     expect(metricMocks.recordRunTerminalOutcome).not.toHaveBeenCalled();
   });
 });

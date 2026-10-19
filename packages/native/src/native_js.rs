@@ -1,11 +1,33 @@
 //! Direct reads of finalized JavaScript rows into Rust-owned schema fields.
 //! JS handles stay on the calling thread; only owned fields reach the async encoder.
 
-use crate::native_codec::{parse_datetime_text, parse_decimal, DateTime64Micros, Decimal64};
-use crate::native_schema::DefaultPolicy;
+use crate::native_codec::{
+    parse_datetime_text, parse_decimal, DateTime64Micros, Decimal64, SkillReference,
+    SkillResourceLoaded,
+};
+use crate::native_schema::{DefaultPolicy, PreparedEventRow};
 use napi::bindgen_prelude::{Array, JsObjectValue, Object, Unknown};
 use napi::{JsNumber, JsValue};
 use std::collections::BTreeMap;
+
+impl PreparedEventRow {
+    /// Convert one finalized JavaScript row directly into owned Rust fields.
+    /// Only declared columns are read; JS handles stay on the calling thread.
+    pub(crate) fn from_js(value: Unknown<'_>) -> Result<Self, String> {
+        let object: Object<'_> = match value.get_type().map_err(|error| error.to_string())? {
+            napi::ValueType::Object => {
+                unsafe { value.cast() }.map_err(|error| error.to_string())?
+            }
+            value_type => {
+                return Err(format!(
+                    "prepared event must be an object, got {value_type:?}"
+                ));
+            }
+        };
+        let metadata = MetadataValues::from_js(&object)?;
+        Self::from_js_fields(object, metadata)
+    }
+}
 
 /// Convert one schema field by reading its property directly from the JS object.
 ///
@@ -213,7 +235,7 @@ macro_rules! unsigned_js_value {
         )+
     };
 }
-unsigned_js_value!(u8, u16, u64);
+unsigned_js_value!(u8, u16, u32, u64);
 
 impl FromJsValue for DateTime64Micros {
     fn from_js(value: Unknown<'_>) -> Result<Self, String> {
@@ -250,6 +272,54 @@ impl FromJsValue for Decimal64 {
 
     fn missing(_policy: DefaultPolicy, _metadata: &MetadataValues) -> Result<Self, String> {
         Err("decimal is required".to_owned())
+    }
+}
+
+fn skill_object(value: Unknown<'_>) -> Result<Object<'_>, String> {
+    if value.get_type().map_err(|error| error.to_string())? != napi::ValueType::Object {
+        return Err("expected a skill object".to_owned());
+    }
+    let object: Object<'_> = unsafe { value.cast() }.map_err(|error| error.to_string())?;
+    if object.is_array().map_err(|error| error.to_string())? {
+        return Err("expected a skill object, got an array".to_owned());
+    }
+    Ok(object)
+}
+
+impl FromJsValue for SkillReference {
+    fn from_js(value: Unknown<'_>) -> Result<Self, String> {
+        let object = skill_object(value)?;
+        Ok(Self {
+            langfuse_skill_id: Option::<String>::from_js(get_js_property(
+                &object,
+                "langfuseSkillId",
+            )?)?,
+            skill_version: Option::<u32>::from_js(get_js_property(&object, "skillVersion")?)?,
+            skill_name: String::from_js(get_js_property(&object, "skillName")?)?,
+        })
+    }
+
+    fn missing(_policy: DefaultPolicy, _metadata: &MetadataValues) -> Result<Self, String> {
+        Err("skill object is required".to_owned())
+    }
+}
+
+impl FromJsValue for SkillResourceLoaded {
+    fn from_js(value: Unknown<'_>) -> Result<Self, String> {
+        let object = skill_object(value)?;
+        Ok(Self {
+            langfuse_skill_id: Option::<String>::from_js(get_js_property(
+                &object,
+                "langfuseSkillId",
+            )?)?,
+            skill_version: Option::<u32>::from_js(get_js_property(&object, "skillVersion")?)?,
+            skill_name: String::from_js(get_js_property(&object, "skillName")?)?,
+            file_path: String::from_js(get_js_property(&object, "filePath")?)?,
+        })
+    }
+
+    fn missing(_policy: DefaultPolicy, _metadata: &MetadataValues) -> Result<Self, String> {
+        Err("skill resource object is required".to_owned())
     }
 }
 

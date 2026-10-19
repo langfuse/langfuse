@@ -1,6 +1,11 @@
+/* eslint-disable @repo/component-file-structure */
 /** Cost and token metrics for the trace, observation and session headers; breakdowns open on hover. */
 
+import { TriangleAlert } from "lucide-react";
+
 import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
+import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import {
   BreakdownTooltip,
   type CostSource,
@@ -15,17 +20,22 @@ export const formatMetricCost = (cost: number) => usdFormatter(cost, 2, 3);
 export const formatMetricTokens = (tokens: number) =>
   `${compactNumberFormatter(tokens, 0).toLowerCase()} tokens`;
 
-export function CostBadge({
-  totalCost,
-  costDetails,
-  priceSource,
-  costSource,
-}: {
-  totalCost: number;
-  costDetails: Record<string, number>;
-  priceSource?: PriceSource;
-  costSource?: CostSource;
-}) {
+type CostBadgeProps =
+  | {
+      variant?: "cost";
+      totalCost: number;
+      costDetails: Record<string, number>;
+      priceSource?: PriceSource;
+      costSource?: CostSource;
+    }
+  /** A generation with tokens but no cost. */
+  | { variant: "missing"; projectId: string };
+
+export function CostBadge(props: CostBadgeProps) {
+  if (props.variant === "missing") {
+    return <MissingCostBadge projectId={props.projectId} />;
+  }
+  const { totalCost, costDetails, priceSource, costSource } = props;
   if (!hasBreakdown(costDetails)) {
     return (
       <Badge
@@ -50,6 +60,37 @@ export function CostBadge({
         text={formatMetricCost(totalCost)}
       />
     </BreakdownTooltip>
+  );
+}
+
+function MissingCostBadge({ projectId }: { projectId: string }) {
+  return (
+    <CustomTooltip
+      content={
+        <div className="flex flex-col gap-1">
+          <p className="text-xs">
+            No model price matched this generation. Add a model price, or send
+            the cost from your SDK.
+          </p>
+          <TextLink
+            path={`/project/${encodeURIComponent(projectId)}/settings/models`}
+            value="Model settings"
+          />
+        </div>
+      }
+    >
+      {({ getTriggerProps }) => (
+        <span {...getTriggerProps()} className="inline-flex" tabIndex={0}>
+          <Badge
+            font="mono"
+            color="ghost"
+            interactive
+            leadingIcon={TriangleAlert}
+            text="no cost"
+          />
+        </span>
+      )}
+    </CustomTooltip>
   );
 }
 

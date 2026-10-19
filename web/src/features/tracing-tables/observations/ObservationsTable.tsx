@@ -57,7 +57,7 @@ import {
 } from "@/src/features/column-visibility";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { getObservationLevelStatus } from "@/src/components/level-colors";
+import { ObservationLevelTag } from "@/src/components/level-colors";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import {
   formatObservationCost,
@@ -87,13 +87,13 @@ import {
 } from "@/src/features/traces";
 import { InfoIcon } from "lucide-react";
 import { ProvidedModelNameCell } from "@/src/features/models";
-import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
+import { createTagTableColumn } from "@/src/components/design-system/table/columns/createTagTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { createDurationTableColumn } from "@/src/components/design-system/table/columns/createDurationTableColumn";
 import { createItemBadgeTableColumn } from "@/src/components/design-system/table/columns/createItemBadgeTableColumn";
-import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
+import { createTableColumn } from "@/src/components/design-system/table/columns/utils/createTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
 import { createTokenUsageTableColumn } from "@/src/components/design-system/table/columns/createTokenUsageTableColumn";
@@ -858,7 +858,7 @@ export default function ObservationsTable({
       },
       enableHiding: true,
     },
-    createStatusTableColumn<ObservationsTableRow, ObservationLevelType>({
+    createTableColumn<ObservationsTableRow, ObservationLevelType>({
       accessorKey: "level",
       header: "Status",
       size: 100,
@@ -869,9 +869,9 @@ export default function ObservationsTable({
       },
       enableHiding: true,
       enableSorting,
-      isLive: false,
-      getStatus: (level) =>
-        level ? getObservationLevelStatus(level) : undefined,
+      loadingCell: <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />,
+      renderCell: (level) =>
+        level ? <ObservationLevelTag level={level} /> : <EmptyValue />,
     }),
     createTextTableColumn<ObservationsTableRow>({
       accessorKey: "statusMessage",
@@ -1022,7 +1022,7 @@ export default function ObservationsTable({
           : undefined;
       },
     }),
-    createBadgeTableColumn<ObservationsTableRow>({
+    createTagTableColumn<ObservationsTableRow>({
       accessorKey: "environment",
       header: "Environment",
       size: 150,

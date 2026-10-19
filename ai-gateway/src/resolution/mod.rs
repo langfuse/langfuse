@@ -3,29 +3,32 @@ mod contracts;
 pub(crate) mod signing;
 
 pub use contracts::{
-    ApiFormat, IngestionGrant, IngestionMode, MetadataValue, Provider, ProviderConnection,
-    ProviderCredential, RequestAttribution, ResolvedRequestContext,
+    ApiFormat, IngestionGrant, IngestionMode, MetadataValue, OrganizationId, ProjectId, Provider,
+    ProviderConnection, ProviderCredential, RequestAttribution, ResolvedRequestContext,
 };
 use reqwest::{
-    Client, Url,
+    Client, Method, Url,
     header::{AUTHORIZATION, CONTENT_TYPE, HeaderValue},
 };
-use reqwest_middleware::ClientWithMiddleware;
+use reqwest_middleware::{ClientWithMiddleware, RequestBuilder};
+use secrecy::{ExposeSecret, SecretString};
 use std::{
-    fmt,
     net::IpAddr,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 const RESOLVE_PATH: &str = "/api/internal/ai-gateway/v1/resolve";
+const MODELS_PATH: &str = "/api/internal/ai-gateway/v1/models";
 const REQUEST_ID_HEADER: &str = "langfuse-gateway-request-id";
+const ERROR_CODE_HEADER: &str = "langfuse-gateway-error-code";
 // Web sits behind load balancers that drop idle connections after 60s by default
 // (AWS ALB). Evicting pooled connections first keeps the resolver from sending on a
 // socket the balancer is closing, which would fail without a retry.
 const POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(50);
 const TCP_KEEPALIVE: Duration = Duration::from_secs(30);
 
-struct ResolutionLimits {
+#[derive(Clone, Copy)]
+struct ControlPlaneLimits {
     timeout: Duration,
     max_response_bytes: usize,
 }
@@ -33,8 +36,9 @@ struct ResolutionLimits {
 /// Operator-supplied Web base URL and the existing gateway/Web service key.
 pub struct ControlPlaneConfig {
     web_url: Url,
-    service_key: String,
-    limits: ResolutionLimits,
+    service_key: SecretString,
+    resolve_limits: ControlPlaneLimits,
+    models_limits: ControlPlaneLimits,
 }
 
 impl ControlPlaneConfig {
@@ -65,10 +69,15 @@ impl ControlPlaneConfig {
         }
         Ok(Self {
             web_url: url,
-            service_key: service_key.to_owned(),
-            limits: ResolutionLimits {
+            service_key: service_key.into(),
+            resolve_limits: ControlPlaneLimits {
                 timeout: Duration::from_secs(5),
                 max_response_bytes: 256 * 1024,
+            },
+            // Model catalogs are unpaginated and can require cold provider discovery.
+            models_limits: ControlPlaneLimits {
+                timeout: Duration::from_secs(30),
+                max_response_bytes: 10 * 1024 * 1024,
             },
         })
     }
@@ -79,7 +88,7 @@ impl ControlPlaneConfig {
         url
     }
 
-    pub(crate) fn service_key(&self) -> &str {
+    pub(crate) fn service_key(&self) -> &SecretString {
         &self.service_key
     }
 }
@@ -125,32 +134,68 @@ impl ControlPlaneClient {
         &self,
         gateway_key: &str,
         api_format: ApiFormat,
+        model: &str,
         request_id: &str,
     ) -> Result<ResolvedRequestContext, ResolutionError> {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|_| ResolutionError::Unavailable)?;
-        self.resolve_at(gateway_key, api_format, timestamp, request_id)
+        self.resolve_at(gateway_key, api_format, model, timestamp, request_id)
             .await
+    }
+
+    /// Fetch the caller-visible model catalog from trusted Web.
+    ///
+    /// # Errors
+    /// Returns the same sanitized errors as [`Self::resolve`].
+    pub async fn models(
+        &self,
+        gateway_key: &str,
+        api_format: ApiFormat,
+        request_id: &str,
+    ) -> Result<Vec<u8>, ResolutionError> {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|_| ResolutionError::Unavailable)?;
+        let mut endpoint = self.config.endpoint(MODELS_PATH);
+        endpoint
+            .query_pairs_mut()
+            .append_pair("api_format", api_format.as_str());
+        let request = self.authenticated_request(
+            Method::GET,
+            endpoint,
+            gateway_key,
+            timestamp.as_secs(),
+            request_id,
+        )?;
+        self.execute(request, self.config.models_limits).await
     }
 
     async fn resolve_at(
         &self,
         gateway_key: &str,
         api_format: ApiFormat,
+        model: &str,
         timestamp: Duration,
         request_id: &str,
     ) -> Result<ResolvedRequestContext, ResolutionError> {
-        if gateway_key.len() > 8192 || !valid_token(gateway_key) {
-            return Err(ResolutionError::InvalidCredential);
-        }
         let started = Instant::now();
-        let body = tokio::time::timeout(
-            self.config.limits.timeout,
-            self.fetch(gateway_key, api_format, timestamp.as_secs(), request_id),
-        )
-        .await
-        .map_err(|_| ResolutionError::Timeout)??;
+        let body = serde_json::to_vec(&serde_json::json!({
+            "apiFormat": api_format,
+            "model": model,
+        }))
+        .map_err(|_| ResolutionError::Configuration)?;
+        let request = self
+            .authenticated_request(
+                Method::POST,
+                self.config.endpoint(RESOLVE_PATH),
+                gateway_key,
+                timestamp.as_secs(),
+                request_id,
+            )?
+            .header(CONTENT_TYPE, "application/json")
+            .body(body);
+        let body = self.execute(request, self.config.resolve_limits).await?;
         contracts::decode(
             &body,
             api_format,
@@ -158,64 +203,98 @@ impl ControlPlaneClient {
         )
     }
 
-    async fn fetch(
+    fn authenticated_request(
         &self,
+        method: Method,
+        endpoint: Url,
         gateway_key: &str,
-        api_format: ApiFormat,
         timestamp: u64,
         request_id: &str,
-    ) -> Result<Vec<u8>, ResolutionError> {
+    ) -> Result<RequestBuilder, ResolutionError> {
+        if gateway_key.len() > 8192 || !valid_token(gateway_key) {
+            return Err(ResolutionError::InvalidCredential);
+        }
         let mut credential = HeaderValue::from_str(&format!("Bearer {gateway_key}"))
             .map_err(|_| ResolutionError::InvalidCredential)?;
         credential.set_sensitive(true);
         let mut signature = HeaderValue::from_str(&signing::authorization(
-            &self.config.service_key,
+            self.config.service_key.expose_secret(),
             gateway_key,
             timestamp,
         ))
         .map_err(|_| ResolutionError::Configuration)?;
         signature.set_sensitive(true);
-        let body = serde_json::to_vec(&serde_json::json!({ "apiFormat": api_format }))
-            .map_err(|_| ResolutionError::Configuration)?;
-        let mut response = self
+        Ok(self
             .client
-            .post(self.config.endpoint(RESOLVE_PATH))
+            .request(method, endpoint)
             .header(AUTHORIZATION, credential)
             .header("langfuse-gateway-authorization", signature)
-            .header(REQUEST_ID_HEADER, request_id)
-            .header(CONTENT_TYPE, "application/json")
-            .body(body)
-            .send()
-            .await
-            .map_err(|_| ResolutionError::Transport)?;
-        match response.status().as_u16() {
-            200 => {}
-            401 => return Err(ResolutionError::Authentication),
-            403 => return Err(ResolutionError::Forbidden),
-            404 => return Err(ResolutionError::NoRoute),
-            429 | 500..=599 => return Err(ResolutionError::Unavailable),
-            _ => return Err(ResolutionError::InvalidResponse),
-        }
-        let limit = self.config.limits.max_response_bytes;
-        if response
-            .content_length()
-            .is_some_and(|size| size > limit as u64)
+            .header(REQUEST_ID_HEADER, request_id))
+    }
+
+    async fn execute(
+        &self,
+        request: RequestBuilder,
+        limits: ControlPlaneLimits,
+    ) -> Result<Vec<u8>, ResolutionError> {
+        tokio::time::timeout(limits.timeout, async {
+            let response = request
+                .send()
+                .await
+                .map_err(|_| ResolutionError::Transport)?;
+            read_response(response, limits.max_response_bytes).await
+        })
+        .await
+        .map_err(|_| ResolutionError::Timeout)?
+    }
+}
+
+async fn read_response(
+    mut response: reqwest::Response,
+    limit: usize,
+) -> Result<Vec<u8>, ResolutionError> {
+    match response.status().as_u16() {
+        200 => {}
+        400 => return Err(ResolutionError::InvalidRequest),
+        // Web rejected the gateway's own signature: a service-key mismatch, not the caller.
+        401 if response
+            .headers()
+            .get(ERROR_CODE_HEADER)
+            .is_some_and(|value| value == "invalid_gateway_authorization") =>
         {
+            return Err(ResolutionError::Configuration);
+        }
+        401 => return Err(ResolutionError::Authentication),
+        403 if response
+            .headers()
+            .get(ERROR_CODE_HEADER)
+            .is_some_and(|value| value == "model_not_allowed") =>
+        {
+            return Err(ResolutionError::ModelNotAllowed);
+        }
+        403 => return Err(ResolutionError::Forbidden),
+        404 => return Err(ResolutionError::NoRoute),
+        429 | 500..=599 => return Err(ResolutionError::Unavailable),
+        _ => return Err(ResolutionError::InvalidResponse),
+    }
+    if response
+        .content_length()
+        .is_some_and(|size| size > limit as u64)
+    {
+        return Err(ResolutionError::ResponseTooLarge);
+    }
+    let mut bytes = Vec::new();
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|_| ResolutionError::Transport)?
+    {
+        if chunk.len() > limit - bytes.len() {
             return Err(ResolutionError::ResponseTooLarge);
         }
-        let mut bytes = Vec::new();
-        while let Some(chunk) = response
-            .chunk()
-            .await
-            .map_err(|_| ResolutionError::Transport)?
-        {
-            if chunk.len() > limit - bytes.len() {
-                return Err(ResolutionError::ResponseTooLarge);
-            }
-            bytes.extend_from_slice(&chunk);
-        }
-        Ok(bytes)
+        bytes.extend_from_slice(&chunk);
     }
+    Ok(bytes)
 }
 
 fn valid_token(value: &str) -> bool {
@@ -223,38 +302,36 @@ fn valid_token(value: &str) -> bool {
 }
 
 /// Sanitized failure categories. Upstream bodies and transport errors are never retained.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum ResolutionError {
+    #[error("invalid resolver configuration")]
     Configuration,
+    #[error("invalid gateway credential")]
     InvalidCredential,
+    #[error("invalid gateway request")]
+    InvalidRequest,
+    #[error("gateway authentication failed")]
     Authentication,
+    #[error("gateway access forbidden")]
     Forbidden,
+    #[error("model is not allowed")]
+    ModelNotAllowed,
+    #[error("no eligible connection")]
     NoRoute,
+    /// The gateway's own resolution or catalog capacity is exhausted.
+    #[error("gateway at capacity")]
+    Busy,
+    #[error("resolution unavailable")]
     Unavailable,
+    #[error("resolution deadline exceeded")]
     Timeout,
+    #[error("resolution transport failed")]
     Transport,
+    #[error("invalid resolution response")]
     InvalidResponse,
+    #[error("resolution response too large")]
     ResponseTooLarge,
 }
-
-impl fmt::Display for ResolutionError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::Configuration => "invalid resolver configuration",
-            Self::InvalidCredential => "invalid gateway credential",
-            Self::Authentication => "gateway authentication failed",
-            Self::Forbidden => "gateway access forbidden",
-            Self::NoRoute => "no eligible connection",
-            Self::Unavailable => "resolution unavailable",
-            Self::Timeout => "resolution deadline exceeded",
-            Self::Transport => "resolution transport failed",
-            Self::InvalidResponse => "invalid resolution response",
-            Self::ResponseTooLarge => "resolution response too large",
-        })
-    }
-}
-
-impl std::error::Error for ResolutionError {}
 
 #[cfg(test)]
 mod tests;

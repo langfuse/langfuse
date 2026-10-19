@@ -29,14 +29,15 @@ export const CachedResolveContext = z.object({
   keyMetadata: GatewayMetadataSchema,
   ingestionProjectId: z.string().nullable(),
   ingestionMode: z.enum(["USAGE", "FULL"]).nullable(),
-  connection: z
-    .object({
+  connections: z.array(
+    z.object({
       id: z.string(),
       name: z.string(),
       provider: z.enum(["OPENAI", "ANTHROPIC"]),
       encryptedCredential: z.string(),
-    })
-    .nullable(),
+      allowedModels: z.array(z.string()).nullable(),
+    }),
+  ),
 });
 export type CachedResolveContext = z.infer<typeof CachedResolveContext>;
 
@@ -90,6 +91,11 @@ export class GatewayResolveCache {
         );
         recordIncrement("langfuse.gateway.resolve.cache_miss", 1);
         return null;
+      }
+
+      if (parsed.data === GATEWAY_RESOLVE_KEY_NON_EXISTENT) {
+        recordIncrement("langfuse.gateway.resolve.cache_hit", 1);
+        return parsed.data;
       }
 
       recordIncrement("langfuse.gateway.resolve.cache_hit", 1);
@@ -150,7 +156,7 @@ export class GatewayResolveCache {
   /**
    * Drops every cached resolve context for an organization. Call this after any
    * change that alters what /resolve would answer: connections, credentials,
-   * routing priority, connection status, or the gateway config.
+   * connection status, model access, or the gateway config.
    */
   async invalidateOrganization(organizationId: string) {
     if (!this.enabled) return;

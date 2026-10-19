@@ -1,27 +1,29 @@
-import type {
-  GatewayConnectionStatus,
-  GatewayProvider,
-  PrismaClient,
+import {
+  Prisma,
+  type GatewayConnectionStatus,
+  type GatewayProvider,
+  type PrismaClient,
 } from "@langfuse/shared/src/db";
-import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
+import {
+  InvalidRequestError,
+  LangfuseConflictError,
+  LangfuseNotFoundError,
+} from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
 import { LLMAdapter, testModelCall } from "@langfuse/shared/src/server";
 import { getDisplaySecretKey } from "@langfuse/shared/src/server/auth/apiKeys";
 
 import { auditLog } from "@/src/features/audit-logs/server";
+import { GATEWAY_CONNECTION_NAME_ERRORS } from "@/src/features/ai-gateway/constants/gatewayConnection";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import {
   type GatewayProviderName,
   getGatewayProviderDefinition,
 } from "@/src/features/ai-gateway/server/provider/registry";
 import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
+import { parseGatewayConnectionName } from "./parseGatewayConnectionName";
 import { GatewayProviderRepository } from "./gatewayProviderRepository";
 import { GatewayModelCatalogService } from "../models/gatewayModelCatalogService";
-
-type CredentialValidator = (params: {
-  provider: GatewayProviderName;
-  credential: string;
-}) => Promise<void>;
 
 export class GatewayProviderService {
   private readonly repository: GatewayProviderRepository;
@@ -39,6 +41,12 @@ export class GatewayProviderService {
 
   list(params: { organizationId: string; cursor?: string; limit: number }) {
     return this.repository.listConnections(params);
+  }
+
+  async get(params: { organizationId: string; id: string }) {
+    const connection = await this.repository.getSafeConnection(params);
+    if (!connection) throw new LangfuseNotFoundError("Gateway connection");
+    return connection;
   }
 
   async listAll(organizationId: string, status?: GatewayConnectionStatus) {
@@ -68,19 +76,29 @@ export class GatewayProviderService {
     credential: string;
     session: OrgAuthedContext["session"];
   }) {
+    const name = parseGatewayConnectionName(params.name);
+    await this.assertNameAvailable({
+      organizationId: params.organizationId,
+      name,
+    });
     await this.testCredential({
       provider: params.provider,
       credential: params.credential,
     });
-    const connection = await this.repository.createConnection({
-      organizationId: params.organizationId,
-      name: params.name,
-      provider: params.provider,
-      encryptedCredential: encrypt(params.credential),
-      displaySecret: getDisplaySecretKey(params.credential),
-      createdById: params.session.user.id,
-      status: "ENABLED",
-    });
+    let connection;
+    try {
+      connection = await this.repository.createConnection({
+        organizationId: params.organizationId,
+        name,
+        provider: params.provider,
+        encryptedCredential: encrypt(params.credential),
+        displaySecret: getDisplaySecretKey(params.credential),
+        createdById: params.session.user.id,
+        status: "ENABLED",
+      });
+    } catch (error) {
+      rethrowConnectionMutationError(error);
+    }
     await invalidateGatewayResolveCacheForOrganization(params.organizationId);
     await auditLog(
       {
@@ -108,6 +126,18 @@ export class GatewayProviderService {
       id: params.id,
     });
     if (!existing) throw new LangfuseNotFoundError("Gateway connection");
+    /** Unchanged names skip validation so pre-existing names stay editable. */
+    const name =
+      params.name === undefined || params.name.trim() === existing.name
+        ? undefined
+        : parseGatewayConnectionName(params.name);
+    if (name !== undefined) {
+      await this.assertNameAvailable({
+        organizationId: params.organizationId,
+        name,
+        excludeId: existing.id,
+      });
+    }
     if (
       existing.status === "ERROR" &&
       params.status === "ENABLED" &&
@@ -124,18 +154,23 @@ export class GatewayProviderService {
       });
     }
 
-    const updated = await this.repository.updateConnection({
-      organizationId: params.organizationId,
-      id: params.id,
-      name: params.name,
-      status: params.credential ? "ENABLED" : params.status,
-      encryptedCredential: params.credential
-        ? encrypt(params.credential)
-        : undefined,
-      displaySecret: params.credential
-        ? getDisplaySecretKey(params.credential)
-        : undefined,
-    });
+    let updated;
+    try {
+      updated = await this.repository.updateConnection({
+        organizationId: params.organizationId,
+        id: params.id,
+        name,
+        status: params.credential ? "ENABLED" : params.status,
+        encryptedCredential: params.credential
+          ? encrypt(params.credential)
+          : undefined,
+        displaySecret: params.credential
+          ? getDisplaySecretKey(params.credential)
+          : undefined,
+      });
+    } catch (error) {
+      rethrowConnectionMutationError(error);
+    }
     await this.modelCatalogService.clearModelCache(
       params.organizationId,
       params.id,
@@ -184,42 +219,66 @@ export class GatewayProviderService {
     return deleted;
   }
 
-  async reorder(params: {
+  /** Names differing only by case read as the same slug prefix, so they count as taken. */
+  private async assertNameAvailable(params: {
     organizationId: string;
-    connectionIds: string[];
+    name: string;
+    excludeId?: string;
+  }) {
+    if (await this.repository.hasConnectionNamedIgnoringCase(params)) {
+      throw new InvalidRequestError(GATEWAY_CONNECTION_NAME_ERRORS.duplicate);
+    }
+  }
+
+  async updateAllowedModels(params: {
+    organizationId: string;
+    id: string;
+    allowedModels: string[] | null;
+    expectedUpdatedAt: Date;
     session: OrgAuthedContext["session"];
   }) {
-    const existing = await this.listAll(params.organizationId);
-    const existingIds = new Set(existing.map((connection) => connection.id));
-    const requestedIds = new Set(params.connectionIds);
-    if (
-      requestedIds.size !== params.connectionIds.length ||
-      requestedIds.size !== existingIds.size ||
-      params.connectionIds.some((id) => !existingIds.has(id))
-    ) {
-      throw new InvalidRequestError(
-        "Reorder must contain every organization gateway connection exactly once",
+    const existing = await this.get({
+      organizationId: params.organizationId,
+      id: params.id,
+    });
+    const updated = await this.repository.updateAllowedModels({
+      organizationId: params.organizationId,
+      id: params.id,
+      expectedUpdatedAt: params.expectedUpdatedAt,
+      allowedModels:
+        params.allowedModels === null
+          ? null
+          : [...new Set(params.allowedModels)],
+    });
+    if (!updated) {
+      throw new LangfuseConflictError(
+        "Model access changed while this page was open. Reload and try again.",
       );
     }
-    await this.repository.reorderConnections({
-      organizationId: params.organizationId,
-      connectionIds: params.connectionIds,
-    });
-    const reordered = await this.listAll(params.organizationId);
     await invalidateGatewayResolveCacheForOrganization(params.organizationId);
     await auditLog(
       {
         session: params.session,
         resourceType: "gatewayAiConnection",
-        resourceId: params.organizationId,
-        action: "reorder",
+        resourceId: params.id,
+        action: "update",
         before: existing,
-        after: reordered,
+        after: updated,
       },
       this.prisma,
     );
-    return reordered;
+    return updated;
   }
+}
+
+function rethrowConnectionMutationError(error: unknown): never {
+  if (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2002"
+  ) {
+    throw new InvalidRequestError(GATEWAY_CONNECTION_NAME_ERRORS.duplicate);
+  }
+  throw error;
 }
 
 async function validateGatewayCredential(params: {
@@ -257,3 +316,8 @@ async function validateGatewayCredential(params: {
     throw new InvalidRequestError("Provider credential validation failed");
   }
 }
+
+type CredentialValidator = (params: {
+  provider: GatewayProviderName;
+  credential: string;
+}) => Promise<void>;

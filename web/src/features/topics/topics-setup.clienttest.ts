@@ -16,7 +16,6 @@ const draft: ConfigureTopicsSaveDraft = {
   embeddingDimensions: "1024",
   clustering: null,
   idleSeconds: "120",
-  sampling: 0.25,
   filters: [
     { column: "name", type: "string", operator: "=", value: "billing" },
   ],
@@ -39,17 +38,30 @@ const draft: ConfigureTopicsSaveDraft = {
 };
 
 describe("topicsSetupPayload", () => {
-  it("keeps the filter, sampling, and built-in enabled state", () => {
+  it("keeps the filter and built-in enabled state", () => {
     expect(topicsSetupPayload(draft, slots)).toMatchObject({
-      enabled: true,
       embeddingDimensions: 1024,
-      sampling: 0.25,
       traceIdleMs: 120_000,
       filter: draft.filters,
       facets: DEFAULT_TOPIC_FACETS.map((facet, index) => ({
         name: facet.name,
         enabled: index !== 1,
       })),
+    });
+  });
+
+  it("saves without models", () => {
+    expect(
+      topicsSetupPayload(draft, {
+        ...slots,
+        summary: null,
+        embedding: null,
+        clustering: null,
+      }),
+    ).toMatchObject({
+      summary: null,
+      embedding: null,
+      clustering: null,
     });
   });
 

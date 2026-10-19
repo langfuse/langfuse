@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { useRef, useState } from "react";
 import { useStore } from "zustand";
 import { parseJsonPrioritised, type BatchActionQuery } from "@langfuse/shared";

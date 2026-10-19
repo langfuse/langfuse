@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { cva } from "class-variance-authority";
 
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";

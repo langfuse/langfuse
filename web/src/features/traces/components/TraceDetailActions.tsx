@@ -1,4 +1,10 @@
-import { Download, Loader2, MoreVertical, TrashIcon } from "lucide-react";
+import {
+  Download,
+  FileText,
+  Loader2,
+  MoreVertical,
+  TrashIcon,
+} from "lucide-react";
 
 import { HeaderActionButton } from "@/src/components/HeaderActionButton";
 import {
@@ -10,8 +16,10 @@ import {
   type DropdownMenuItemDefinition,
 } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { useShareMenuItems } from "@/src/components/useShareMenuItems";
+import { InternalFeatureBadge } from "@/src/features/feature-flags";
 import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import { DeleteTraceDialogController } from "@/src/features/traces/components/DeleteTraceDialogController";
+import { TraceTranscriptDialogController } from "@/src/features/traces/components/TraceTranscriptDialogController";
 import { staleProps } from "@/src/features/traces/fns/staleProps";
 import { useDownloadTraceAsJson } from "@/src/features/traces/hooks/useDownloadTraceAsJson";
 import { type useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailData";
@@ -40,7 +48,7 @@ type TraceDetailActionsProps = {
  * Trace-level header actions shared by the peek and the standalone trace page.
  *
  * `layout="toolbar"` (default) renders the icon row: Download JSON plus a kebab
- * holding Share, Copy trace ID, Copy trace name and Delete. `layout="menu"`
+ * holding Make Public, Copy trace ID, Copy trace name and Delete. `layout="menu"`
  * renders the same actions as full-width labeled rows for the mobile header
  * menu.
  *
@@ -62,13 +70,22 @@ export function TraceDetailActions({
     remountOnStale: true,
   });
   return (
-    <LoadedTraceDetailActions
+    <TraceTranscriptDialogController
       key={key}
-      trace={trace}
-      layout={layout}
-      stale={stale}
-      {...props}
-    />
+      projectId={trace.projectId}
+      traceId={trace.id}
+      timestamp={trace.timestamp}
+    >
+      {({ openDialog }) => (
+        <LoadedTraceDetailActions
+          trace={trace}
+          layout={layout}
+          stale={stale}
+          onShowTranscript={openDialog}
+          {...props}
+        />
+      )}
+    </TraceTranscriptDialogController>
   );
 }
 
@@ -112,10 +129,12 @@ function LoadedTraceDetailActions({
   onAfterDelete,
   layout,
   stale,
+  onShowTranscript,
 }: Omit<TraceDetailActionsProps, "trace" | "layout" | "isPlaceholderData"> & {
   trace: TraceDetailData;
   layout: TraceDetailActionsLayout;
   stale: Omit<ReturnType<typeof staleProps>, "key">;
+  onShowTranscript?: () => void;
 }) {
   const shareItems = useShareMenuItems({
     kind: "trace",
@@ -158,6 +177,18 @@ function LoadedTraceDetailActions({
             const items: DropdownMenuItemDefinition[] = [
               ...shareItems,
               ...copyItems,
+              ...(onShowTranscript
+                ? [
+                    {
+                      type: "item" as const,
+                      id: "show-trace-transcript",
+                      title: "Show trace transcript",
+                      icon: FileText,
+                      badge: <InternalFeatureBadge />,
+                      onClick: onShowTranscript,
+                    },
+                  ]
+                : []),
               { id: "delete-separator", type: "separator" },
               {
                 type: "item",

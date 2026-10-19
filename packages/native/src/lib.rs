@@ -7,6 +7,7 @@
 
 /// Rust-only encoder for prepared v4 `events_full` rows.
 pub mod native_codec;
+mod native_columns;
 mod native_js;
 mod native_memory;
 pub(crate) mod native_schema;
@@ -19,7 +20,10 @@ mod topics;
 
 pub use topics::{cluster_topic_embeddings, TopicClusteringResult, TopicClusteringSettings};
 
-pub use otel_input::{extract_otel_media, validate_otel_json, EarlyOtelBatch, ValidatedOtelJson};
+pub use otel_input::{
+    extract_otel_media, has_otel_media_candidate, validate_otel_json, EarlyOtelBatch,
+    ValidatedOtelJson,
+};
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -118,13 +122,10 @@ impl Task for EncodeClickhouseEventsTask {
             .map(|block| {
                 let row_count = u32::try_from(block.row_count)
                     .map_err(|_| Error::from_reason("Native block row count exceeds UInt32"))?;
-                // The encoder returns a fresh, uniquely owned allocation. Vec takes it over,
-                // then napi wraps the same memory in a JS Buffer whose GC finalizer frees it.
-                // This handoff does not copy the payload. If the runtime forbids external
-                // buffers, napi-rs copies it into Node-owned memory instead. Shared or sliced
-                // Bytes would not have the same no-copy guarantee when converted to Vec.
+                // napi wraps the owned Vec in a JS Buffer whose GC finalizer frees it.
+                // If the runtime forbids external buffers, napi-rs copies it instead.
                 Ok(NativeEventBlock {
-                    bytes: Buffer::from(Vec::from(block.bytes)),
+                    bytes: Buffer::from(block.bytes),
                     row_count,
                 })
             })

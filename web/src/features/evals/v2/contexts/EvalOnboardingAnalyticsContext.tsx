@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { createContext, useContext, type ReactNode } from "react";
 import type { createEvalOnboardingAnalytics } from "@/src/features/evals/v2/fns/createEvalOnboardingAnalytics";
 

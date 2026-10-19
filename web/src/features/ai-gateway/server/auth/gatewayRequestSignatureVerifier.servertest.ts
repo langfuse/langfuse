@@ -108,7 +108,7 @@ describe("withGatewayResolveSignatureVerification", () => {
     async (secret) => {
       vi.useFakeTimers();
       vi.setSystemTime(now);
-      const body = '{ "apiFormat": "openai.responses" }\n';
+      const body = '{ "apiFormat": "openai.responses", "model": "gpt-5" }\n';
       const req = request({
         authorization: "  Bearer   sk-gateway  ",
         gatewayAuthorization: gatewayAuthorization({ secret }),
@@ -124,7 +124,31 @@ describe("withGatewayResolveSignatureVerification", () => {
         res,
         fastHashedSecretKey: createShaHash("sk-gateway", "test-salt"),
         apiFormat: "openai.responses",
+        model: "gpt-5",
       });
+    },
+  );
+
+  it.each(["production: ", "production:\t"])(
+    "rejects a whitespace-only provider model in %j",
+    async (model) => {
+      const handler = vi.fn();
+      const res = response();
+
+      await withGatewayResolveSignatureVerification(handler)(
+        request({
+          authorization: "Bearer sk-gateway",
+          body: JSON.stringify({
+            apiFormat: "openai.responses",
+            model,
+          }),
+        }),
+        res,
+      );
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ error: "Invalid request" });
+      expect(handler).not.toHaveBeenCalled();
     },
   );
 
@@ -179,19 +203,23 @@ describe("withGatewayResolveSignatureVerification", () => {
           secret: "current-service-secret",
           key: "sk-other-gateway",
         }),
-        body: '{"apiFormat":"openai.responses"}',
+        body: '{"apiFormat":"openai.responses","model":"gpt-5"}',
       }),
       res,
     );
 
     expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.setHeader).toHaveBeenCalledWith(
+      "langfuse-gateway-error-code",
+      "invalid_gateway_authorization",
+    );
     expect(handler).not.toHaveBeenCalled();
   });
 
   it("rejects stale signatures and headers containing a key id", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(now);
-    const body = '{"apiFormat":"openai.responses"}';
+    const body = '{"apiFormat":"openai.responses","model":"gpt-5"}';
     const staleHeader = gatewayAuthorization({
       secret: "current-service-secret",
       timestamp: Math.floor(now.getTime() / 1000) - 301,

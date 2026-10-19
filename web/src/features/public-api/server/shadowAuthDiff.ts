@@ -5,7 +5,7 @@ import {
   type ApiAccessLevel,
 } from "@langfuse/shared/src/server";
 
-/** parityStat counts one authorization decision. */
+/** parityStat counts non-matching authorization decisions. */
 const parityStat = "langfuse.authz.parity";
 
 /** defaultTelemetry writes to dogstatsd and the active span; tests inject a capturing fake. */
@@ -14,7 +14,7 @@ const defaultTelemetry: Telemetry = {
   span: () => getCurrentSpan(),
 };
 
-/** shadowAuthDiff records parity and logs every mismatch independently of trace sampling. */
+/** shadowAuthDiff records non-matching parity and logs every mismatch independently of trace sampling. */
 export function shadowAuthDiff(
   newDecision: NewDecision,
   legacyDecision: LegacyDecision,
@@ -25,6 +25,8 @@ export function shadowAuthDiff(
   const n = newVerdict(newDecision);
   const l = legacyVerdict(legacyDecision);
   const result = classify(l.verdict, n.verdict);
+  if (result === "match") return result;
+
   const tags = {
     action,
     access_level: l.accessLevel,
@@ -32,19 +34,16 @@ export function shadowAuthDiff(
     legacy_code: l.code,
     new_code: n.code,
   };
-  logMismatch(result, tags, metadata);
-  telemetry.increment(parityStat, { ...tags, resource: metadata.resource });
-  annotateSpan(telemetry.span(), tags);
+  emitAuthDiff(tags, metadata, telemetry);
   return result;
 }
 
-/** logMismatch emits only safe identity and route fields for disagreements. */
-function logMismatch(
-  result: ParityResult,
+/** emitAuthDiff writes the mismatch to logs, metrics, and the active span. */
+function emitAuthDiff(
   tags: Record<string, string | number>,
   metadata: AuthDiffMetadata,
+  telemetry: Telemetry,
 ): void {
-  if (result !== "new_allows" && result !== "new_denies") return;
   logger.info("Public API authorization mismatch", {
     event: "authz_parity",
     ...tags,
@@ -52,13 +51,8 @@ function logMismatch(
     public_key: metadata.publicKey,
     resource: metadata.resource,
   });
-}
-
-/** annotateSpan adds decision tags under the parity namespace. */
-function annotateSpan(
-  span: ReturnType<Telemetry["span"]>,
-  tags: Record<string, string | number>,
-): void {
+  telemetry.increment(parityStat, { ...tags, resource: metadata.resource });
+  const span = telemetry.span();
   if (!span) return;
   for (const [key, value] of Object.entries(tags)) {
     span.setAttribute(`${parityStat}.${key}`, value);
@@ -78,8 +72,6 @@ function legacyVerdict(decision: LegacyDecision): {
   code: number;
   accessLevel: string;
 } {
-  if ("absent" in decision)
-    return { verdict: "absent", code: 0, accessLevel: "unknown" };
   return decision.success
     ? { verdict: "allow", code: 200, accessLevel: decision.scope.accessLevel }
     : {
@@ -89,15 +81,14 @@ function legacyVerdict(decision: LegacyDecision): {
       };
 }
 
-/** classify names the disagreement: legacy without a gate is `net_new`, agreement is `match`, else which path is stricter. */
+/** classify names agreement as `match`, otherwise which path is stricter. */
 function classify(legacyVerdict: Verdict, newVerdict: Verdict): ParityResult {
-  if (legacyVerdict === "absent") return "net_new";
   if (legacyVerdict === newVerdict) return "match";
   return newVerdict === "deny" ? "new_denies" : "new_allows";
 }
 
-/** Verdict is one path's decision at one enforcement point; legacy is `absent` only where it runs no gate. */
-type Verdict = "allow" | "deny" | "absent";
+/** Verdict is one path's decision at one enforcement point. */
+type Verdict = "allow" | "deny";
 
 /** AuthDiffMetadata carries safe key identity and the resolved HTTP route resource. */
 type AuthDiffMetadata = {
@@ -106,14 +97,13 @@ type AuthDiffMetadata = {
   resource: string;
 };
 
-/** ParityResult is the signal: agreement, which path is stricter, or net-new enforcement legacy never gated. */
-export type ParityResult = "match" | "new_denies" | "new_allows" | "net_new";
+/** ParityResult is the signal: agreement or which path is stricter. */
+export type ParityResult = "match" | "new_denies" | "new_allows";
 
-/** LegacyDecision is the legacy path's outcome: it allowed with a resolved scope, denied with a typed error, or ran no gate. */
+/** LegacyDecision is the legacy path's outcome: it allowed with a resolved scope or denied with a typed error. */
 export type LegacyDecision =
   | { success: true; scope: { accessLevel: ApiAccessLevel } }
-  | { success: false; error: { httpCode: number } }
-  | { absent: true };
+  | { success: false; error: { httpCode: number } };
 
 /** Telemetry is the emit surface, injectable so tests capture without a collector. */
 export type Telemetry = {

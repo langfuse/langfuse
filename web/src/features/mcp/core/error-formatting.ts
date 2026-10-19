@@ -62,10 +62,7 @@ export function formatErrorForUser(error: unknown): McpError {
   }
 
   if (error instanceof ForbiddenError) {
-    return new McpError(
-      ErrorCode.InvalidRequest,
-      "Access forbidden. You do not have permission to access this resource.",
-    );
+    return new McpError(ErrorCode.InvalidRequest, error.message);
   }
 
   if (error instanceof LangfuseNotFoundError) {
@@ -84,7 +81,7 @@ export function formatErrorForUser(error: unknown): McpError {
     return new McpError(
       ErrorCode.InvalidRequest,
       error.errorType === "TIMEOUT"
-        ? "The ClickHouse query timed out. Narrow the query and try again."
+        ? "The ClickHouse query timed out. Narrow the query by shortening the date range or adding more specific filters before trying again."
         : ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
     );
   }

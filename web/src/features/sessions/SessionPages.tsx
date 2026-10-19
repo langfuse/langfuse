@@ -1,5 +1,5 @@
 import { headerActionClassName } from "@/src/features/traces/components/headerActionClassName";
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 /* eslint-disable @repo/no-style-props, @repo/no-null-render */
 import { cn } from "@/src/utils/tailwind";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
@@ -15,7 +15,7 @@ import {
   DetailPageNav,
   useDetailPageLists,
 } from "@/src/features/navigate-detail-pages";
-import { api } from "@/src/utils/api";
+import { api, shouldRetryResourceQuery } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import { getNumberFromMap } from "@/src/utils/map-utils";
 import Link from "next/link";
@@ -117,6 +117,7 @@ import { SessionVirtualizedRow } from "@/src/features/sessions/SessionVirtualize
 import { createSessionDetailStore } from "@/src/features/sessions/sessionDetailStore";
 import { ModernSession } from "@/src/features/sessions/ModernSession";
 import { ConnectedModernSessionBodyTimeline } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/ConnectedModernSessionBodyTimeline";
+import { SessionRedesignBanner } from "@/src/features/sessions/SessionRedesignBanner";
 import { HeaderActionMenuRow } from "@/src/components/HeaderActionMenuRow";
 import { ModernSessionHeaderActionsController } from "@/src/features/sessions/ModernSessionHeaderActionsController";
 import { ConnectedSessionAddToDropdownMenuController } from "@/src/features/sessions/ConnectedSessionAddToDropdownMenuController";
@@ -449,14 +450,7 @@ export const SessionPage: React.FC<{
     },
     {
       enabled: Boolean(projectId) && Boolean(sessionId),
-      retry(failureCount, error) {
-        if (
-          error.data?.code === "UNAUTHORIZED" ||
-          error.data?.code === "NOT_FOUND"
-        )
-          return false;
-        return failureCount < 3;
-      },
+      retry: shouldRetryResourceQuery,
     },
   );
   const webCalloutAction = useWebCalloutAction(
@@ -783,7 +777,9 @@ export const SessionPage: React.FC<{
                   projectId={projectId}
                   sessionId={sessionId}
                   isPublic={session.data?.public ?? false}
-                  label="Share"
+                  label={
+                    (session.data?.public ?? false) ? "Unshare" : "Make Public"
+                  }
                 />
                 <CopySessionIdButton sessionId={sessionId} layout="menu" />
                 <CommentDrawerController
@@ -1003,14 +999,17 @@ export const SessionEventsPage: React.FC<{
   sessionId: string;
   projectId: string;
 }> = ({ sessionId, projectId }) => {
-  const isModernSessionEnabled = useIsFeatureEnabled("modernSession", {
+  const isModernSessionEnabled = useIsFeatureEnabled("sessionViewV2", {
     enableForAdmins: false,
     projectId,
   });
-  const isSessionTimelineEnabled = useIsFeatureEnabled("sessionTimeline", {
-    enableForAdmins: false,
-    projectId,
-  });
+  const isSessionTimelineEnabled = useIsFeatureEnabled(
+    "sessionViewV2Timeline",
+    {
+      enableForAdmins: false,
+      projectId,
+    },
+  );
   const session = api.sessions.byIdWithScoresFromEvents.useQuery(
     {
       sessionId,
@@ -1018,14 +1017,7 @@ export const SessionEventsPage: React.FC<{
     },
     {
       enabled: !!projectId && !!sessionId,
-      retry(failureCount, error) {
-        if (
-          error.data?.code === "UNAUTHORIZED" ||
-          error.data?.code === "NOT_FOUND"
-        )
-          return false;
-        return failureCount < 3;
-      },
+      retry: shouldRetryResourceQuery,
     },
   );
 
@@ -1033,14 +1025,7 @@ export const SessionEventsPage: React.FC<{
     { projectId, sessionId },
     {
       enabled: !!projectId && !!sessionId,
-      retry(failureCount, error) {
-        if (
-          error.data?.code === "UNAUTHORIZED" ||
-          error.data?.code === "NOT_FOUND"
-        )
-          return false;
-        return failureCount < 3;
-      },
+      retry: shouldRetryResourceQuery,
     },
   );
 
@@ -1159,14 +1144,23 @@ const LoadedSessionEventsPage: React.FC<{
   const { setDetailPageList, detailPagelists } = useDetailPageLists();
   const userSession = useSession();
   const capture = usePostHogClientCapture();
-  const isModernSessionEnabled = useIsFeatureEnabled("modernSession", {
+  const isModernSessionEnabled = useIsFeatureEnabled("sessionViewV2", {
     enableForAdmins: false,
     projectId,
   });
-  const isSessionTimelineEnabled = useIsFeatureEnabled("sessionTimeline", {
-    enableForAdmins: false,
-    projectId,
-  });
+  const isSessionTimelineEnabled = useIsFeatureEnabled(
+    "sessionViewV2Timeline",
+    {
+      enableForAdmins: false,
+      projectId,
+    },
+  );
+  const [isRedesignBannerDismissed, setIsRedesignBannerDismissed] =
+    useLocalStorage("sessionRedesignBannerDismissed", false);
+  const showRedesignBanner =
+    isModernSessionEnabled &&
+    isSessionTimelineEnabled &&
+    !isRedesignBannerDismissed;
   const isMobile = useIsMobile();
   const openAnnotateRef = useRef<(payload: SessionAnnotatePayload) => void>(
     () => {},
@@ -2067,6 +2061,11 @@ const LoadedSessionEventsPage: React.FC<{
                   : "flex h-full flex-col overflow-auto"
               }
             >
+              {showRedesignBanner ? (
+                <SessionRedesignBanner
+                  onDismiss={() => setIsRedesignBannerDismissed(true)}
+                />
+              ) : null}
               {!isModernSessionEnabled && hasSessionControls ? (
                 <SessionControlsBar
                   isMobile={isMobile && !isModernSessionEnabled}
@@ -2195,6 +2194,7 @@ const LoadedSessionEventsPage: React.FC<{
                 </div>
               ) : (
                 <ModernSession
+                  headerDividerTone={showRedesignBanner ? "orange" : "default"}
                   isTimelineEnabled={isSessionTimelineEnabled}
                   session={session}
                   tracesState={

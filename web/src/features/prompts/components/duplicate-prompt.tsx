@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger */
+/* eslint-disable @repo/no-abstracted-overlay-trigger, @repo/component-file-structure */
 import { useRouter } from "next/router";
 import { Button } from "@/src/components/ui/button";
 import { api, reportNonTrpcError } from "@/src/utils/api";
@@ -205,7 +205,7 @@ export const DuplicatePromptButton: React.FC<{
           icon={<Copy className="icon-base" aria-hidden="true" />}
           hasAccess={hasAccess}
           trackingEventName="prompt_detail:duplicate_button_click"
-          variant="outline"
+          variant="ghost"
           title="Duplicate prompt"
           usageLimit={
             typeof promptLimit === "number"

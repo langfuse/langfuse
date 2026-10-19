@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import { type LucideIcon } from "lucide-react";
@@ -10,6 +11,8 @@ const badgeVariants = cva(
   {
     variants: {
       size: {
+        /** Matches the 24px entity tile next to page titles. */
+        lg: "h-6 gap-1.5 px-2",
         default: "h-5.5 gap-1.5 pr-1.5 pl-2",
         md: "h-5 gap-1 px-1.5",
         sm: "h-4.5 gap-1 px-1.5",
@@ -25,6 +28,9 @@ const badgeVariants = cva(
         green: "border-transparent bg-light-green text-dark-green",
         ghost: "border-0 bg-transparent px-0 text-foreground-secondary",
         filled: "border-transparent bg-muted text-foreground-secondary",
+        /** `filled` for a chip on a muted or accent surface, e.g. a selected or hovered row, where `bg-muted` vanishes. */
+        filledOnMuted:
+          "border-transparent bg-background text-foreground-secondary",
         violetTint:
           "border-category-violet/40 bg-category-violet/10 text-foreground-secondary",
         skyTint:
@@ -45,6 +51,7 @@ const badgeVariants = cva(
           "border-category-lime/40 bg-category-lime/10 text-foreground-secondary",
         fuchsiaTint:
           "border-category-fuchsia/40 bg-category-fuchsia/10 text-foreground-secondary",
+        inverted: "border-transparent bg-primary text-primary-foreground",
       },
       interactive: {
         true: "underline-dotted",
@@ -109,6 +116,7 @@ type BadgeProps = Omit<BadgeShellProps, "asChild" | "children"> & {
   text: string;
   /** Key shown muted before the value, e.g. `latency` before `0.71s`. */
   label?: string;
+  leadingIcon?: LucideIcon;
   trailingIcon?: LucideIcon;
   /** Link badges tint the arrow and underline the text on hover. */
   trailingIconTone?: "default" | "link";
@@ -121,12 +129,19 @@ export function Badge({
   title,
   interactive,
   shouldWrap,
+  leadingIcon: LeadingIcon,
   trailingIcon: TrailingIcon,
   trailingIconTone = "default",
   ...props
 }: BadgeProps) {
   return (
     <BadgeShell color={color} shouldWrap={shouldWrap} {...props}>
+      {LeadingIcon && (
+        <LeadingIcon
+          aria-hidden
+          className="icon-sm text-foreground-tertiary shrink-0"
+        />
+      )}
       {label && <span className="shrink-0 py-0.5">{label}:</span>}
       <span
         className={cn(

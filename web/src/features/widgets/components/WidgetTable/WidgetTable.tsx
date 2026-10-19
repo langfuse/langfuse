@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { useCallback, useMemo } from "react";
 import { Copy, CopyPlus, FileJson, Trash } from "lucide-react";
 import startCase from "lodash/startCase";
@@ -87,6 +88,7 @@ export function DashboardWidgetTable({
   | "onRowClick"
   | "orderBy"
   | "setOrderBy"
+  | "topBorder"
 > & {
   projectId: string | undefined;
   hasCUDAccess: boolean;

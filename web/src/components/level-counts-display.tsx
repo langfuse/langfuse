@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import React from "react";
 import { Separator } from "@/src/components/ui/separator";
 import { numberFormatter } from "@/src/utils/numbers";

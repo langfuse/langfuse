@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { Button } from "@/src/components/ui/button";
 import {
   DialogBody,

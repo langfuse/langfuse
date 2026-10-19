@@ -60,6 +60,7 @@ const BUCKET_FAULT_CODES = new Set<string>([
 const SSRF_BLOCKED_OUTBOUND_URL_CODES = new Set<string>([
   "blocked-hostname",
   "blocked-ip",
+  "host-not-allowed",
 ]);
 
 const INVALID_URL_OUTBOUND_URL_CODES = new Set<string>([

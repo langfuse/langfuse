@@ -9,7 +9,7 @@ import {
 
 function V4MigrationNavItemHarness() {
   const project = useV4MigrationNavItemProject();
-  return <>{project && <V4MigrationNavItem project={project} />}</>;
+  return project && <V4MigrationNavItem project={project} />;
 }
 import { V4MigrationProjectChip } from "./V4MigrationProjectChip";
 import { type ProjectMigrationStatus } from "./migrationData";

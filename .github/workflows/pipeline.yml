@@ -168,6 +168,7 @@ jobs:
         with:
           filters: |
             ai_gateway:
+              - 'ai-gateway/**'
               - 'packages/shared/prisma/migrations/**/*gateway*/**'
               - 'web/src/__e2e__/**/*.gatewaye2e.{ts,tsx}'
               - 'web/src/features/ai-gateway/**'
@@ -198,10 +199,27 @@ jobs:
         run: cargo fmt --all -- --check
       - name: Lint Rust targets
         run: cargo clippy --locked --all-targets -- -D warnings
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        with:
+          tool: cargo-machete@0.9.2,cargo-deny@0.20.2
+      - name: Check for unused Rust dependencies
+        run: cargo machete
+      # Licenses also run in licencecheck.yml next to the pnpm license check,
+      # but only all-ci-passed gates merges, so they are enforced here too.
+      # Advisories come from Dependabot alerts, so a new advisory never blocks
+      # merges.
+      - name: Check Rust dependency bans, licenses, and sources
+        run: cargo deny --locked check bans licenses sources
       - name: Run Rust tests
-        run: cargo test --locked
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/retry-on-merge-queue.sh" cargo test --locked
+      # Persistent layer cache, so the toolchain and compiled-dependency layers
+      # are reused until the Dockerfile, Cargo.toml or Cargo.lock change.
+      - name: Setup Blacksmith Builder
+        uses: useblacksmith/setup-docker-builder@1e75355f81cbb3f93cba1eb5dd5e5b05110ca8f9 # v2.0.1
+        with:
+          cache-key: langfuse/test-ai-gateway
       - name: Build runtime image
-        run: docker build --pull --target runtime -t langfuse-ai-gateway:test .
+        run: docker buildx build --load --pull --target runtime -t langfuse-ai-gateway:test .
       - name: Smoke test runtime image
         run: bash scripts/smoke-image.sh langfuse-ai-gateway:test
 
@@ -268,6 +286,10 @@ jobs:
         run: node --test scripts/agents/sync-agent-shims.test.mjs
       - name: cursor PR label tests
         run: node --test scripts/github/label-cursor-prs.test.mjs
+      - name: merge-queue retry helper tests
+        run: bash scripts/ci/retry-on-merge-queue.test.sh
+      - name: vitest CI reporter tests
+        run: node --test scripts/vitest/ci-reporter.test.mjs
       - name: Load default env
         run: |
           cp .env.dev.example .env
@@ -278,6 +300,14 @@ jobs:
       # above, so they run outside that invocation (ai-gateway in its own job).
       - name: lint native addon (rustfmt, clippy)
         run: pnpm --filter @langfuse/native run lint
+      - name: Install Rust dependency checkers
+        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        with:
+          tool: cargo-machete@0.9.2,cargo-deny@0.20.2
+      - name: check native addon for unused Rust dependencies
+        run: pnpm --filter @langfuse/native run rust:unused-deps
+      - name: check native addon Rust dependency bans, licenses, and sources
+        run: pnpm --filter @langfuse/native run rust:deny bans licenses sources
       - name: typecheck
         run: pnpm run typecheck --filter=!ai-gateway
 
@@ -413,7 +443,7 @@ jobs:
         run: |
           pnpm install
       - name: run eslint-plugin tests
-        run: pnpm --filter @repo/eslint-plugin run test
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/retry-on-merge-queue.sh" pnpm --filter @repo/eslint-plugin run test
 
   tests-in-app-agent-sandbox-runtime:
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -459,9 +489,9 @@ jobs:
       - name: typecheck sandbox runtime
         run: pnpm --filter @repo/in-app-agent-sandbox-runtime run typecheck
       - name: run sandbox runtime unit tests
-        run: pnpm --filter @repo/in-app-agent-sandbox-runtime run test
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/retry-on-merge-queue.sh" pnpm --filter @repo/in-app-agent-sandbox-runtime run test
       - name: run sandbox runtime docker e2e tests
-        run: pnpm --filter @repo/in-app-agent-sandbox-runtime run test:e2e
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/retry-on-merge-queue.sh" pnpm --filter @repo/in-app-agent-sandbox-runtime run test:e2e
 
   tests-storybook:
     runs-on: blacksmith-8vcpu-ubuntu-2404
@@ -575,7 +605,7 @@ jobs:
         # The clickhouse binary isn't installed yet, so the SQL-equivalence
         # tests skip here (they run for real in the dedicated step below); every
         # other shared test hard-fails as usual.
-        run: pnpm --filter @langfuse/shared run test
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/retry-on-merge-queue.sh" pnpm --filter @langfuse/shared run test
       - name: Install ClickHouse binary for SQL-equivalence tests
         # `clickhouse format` (from clickhouse-common-static) normalizes SQL for
         # the equivalence snapshots. Its output is version-specific, so pin the
@@ -762,6 +792,7 @@ jobs:
       VITEST_MAX_WORKERS: "12"
       NODE_ENV: test
     strategy:
+      fail-fast: false
       matrix:
         node-version: [24]
         postgres-version: [15]
@@ -881,7 +912,10 @@ jobs:
         run: |
           pnpm --filter=shared ch:dev-tables
       - name: Start Langfuse
-        run: (pnpm run start&)
+        # Backgrounded, so this step reports success as soon as it has forked
+        # and says nothing about whether the server came up. Keep the output so
+        # the readiness gate below can show why it did not.
+        run: (pnpm run start > /tmp/langfuse-start.log 2>&1 &)
         env:
           LANGFUSE_INIT_ORG_ID: "seed-org-id"
           LANGFUSE_INIT_ORG_NAME: "Seed Org"
@@ -893,6 +927,20 @@ jobs:
           LANGFUSE_INIT_USER_EMAIL: "demo@langfuse.com"
           LANGFUSE_INIT_USER_NAME: "Demo User"
           LANGFUSE_INIT_USER_PASSWORD: "password"
+      - name: Check worker health
+        # `pnpm run start` brings the worker up alongside the server. The
+        # ingestion tests post to the API and then poll ClickHouse for the row
+        # the worker writes, giving it only a few seconds to be consuming.
+        run: |
+          timeout 180 bash -c 'until curl -fsS http://localhost:3030/api/health > /dev/null; do sleep 2; done' \
+            || { echo "Worker was not healthy within 180s"; cat /tmp/langfuse-start.log; exit 1; }
+      - name: Check server health
+        # The tests address a hardcoded localhost:3000 and run on 12 workers, so
+        # without this gate the ones scheduled during the server's cold start
+        # all fail on ECONNREFUSED while the rest pass once it finishes booting.
+        run: |
+          timeout 180 bash -c 'until curl -fsS http://localhost:3000/api/public/health > /dev/null; do sleep 2; done' \
+            || { echo "Langfuse was not healthy within 180s"; cat /tmp/langfuse-start.log; exit 1; }
       - name: run tests
         working-directory: web
         # The server tests are I/O-bound (Postgres/ClickHouse/HTTP roundtrips),
@@ -904,6 +952,12 @@ jobs:
         env:
           NODE_COMPILE_CACHE: /tmp/node-compile-cache
         run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project server --project server-isolated --project server-shared-source --project server-unit --project server-shared-source-unit --maxWorkers="${VITEST_MAX_WORKERS:-8}"
+      - name: Langfuse server log
+        # The server writes to a file rather than the job log, so surface it
+        # when something failed — a test that fails for a server-side reason is
+        # otherwise reported without the stack trace that explains it.
+        if: failure()
+        run: cat /tmp/langfuse-start.log || true
 
   tests-web-client:
     timeout-minutes: 10
@@ -961,6 +1015,7 @@ jobs:
       VITEST_MAX_WORKERS: ${{ matrix.deploy-mode == '-redis-cluster' && '8' || '4' }}
       NODE_ENV: test
     strategy:
+      fail-fast: false
       matrix:
         node-version: [24]
         postgres-version: [15]
@@ -1384,7 +1439,7 @@ jobs:
           cat /tmp/playwright-install.log
           exit "$(cat /tmp/playwright-install.exit)"
       - name: Run e2e tests
-        run: pnpm --filter=web run test:e2e
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/retry-on-merge-queue.sh" pnpm --filter=web run test:e2e
       # Playwright writes a screenshot, an error context and a trace for every
       # failure, and the reporter prints the command to open them — but they
       # die with the runner, so a flake here is reported with no way to see
@@ -1490,15 +1545,31 @@ jobs:
           pnpm --filter=shared run ch:up
           pnpm --filter=shared run db:seed:examples
       - name: Run server
-        run: (pnpm run start&)
+        # Backgrounded, so this step reports success the moment it has forked
+        # and says nothing about whether anything came up. Keep the output so
+        # the readiness gates below can show why it did not.
+        run: (pnpm run start > /tmp/langfuse-start.log 2>&1 &)
       - name: Check worker health
+        # 60s rather than the previous 10s. Measured across recent runs this
+        # gate clears in 0-4s, so 60s is headroom for a slow boot without
+        # sitting on a run that is never going to come up. `-S` keeps curl's
+        # error line while `-s` drops the progress meter, so "connection
+        # refused" stays distinguishable from "bound but returning 503".
         run: |
-          timeout 10 bash -c 'until curl -f http://localhost:3030/api/health; do sleep 2; done'
+          timeout 60 bash -c 'until curl -fsS http://localhost:3030/api/health > /dev/null; do sleep 2; done' \
+            || { echo "Worker was not healthy within 60s"; cat /tmp/langfuse-start.log; exit 1; }
       - name: Check server health
         run: |
-          timeout 10 bash -c 'until curl -f http://localhost:3000/api/public/health; do sleep 2; done'
+          timeout 60 bash -c 'until curl -fsS http://localhost:3000/api/public/health > /dev/null; do sleep 2; done' \
+            || { echo "Langfuse was not healthy within 60s"; cat /tmp/langfuse-start.log; exit 1; }
       - name: Run e2e tests
         run: pnpm --filter=web run test:e2e:server
+      - name: Langfuse server log
+        # The server writes to a file rather than the job log, so surface it
+        # when something failed — a startup crash is otherwise indistinguishable
+        # from a slow boot, and both just look like a flake.
+        if: failure()
+        run: cat /tmp/langfuse-start.log || true
 
   test-ai-gateway-e2e:
     timeout-minutes: 25
@@ -1649,7 +1720,6 @@ jobs:
         if: failure() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v3' || startsWith(github.ref, 'refs/tags/'))
         uses: ./.github/actions/notify-slack-failure
         with:
-          title: "❌ CI Failed"
           message: "❌ CI failed on ${{ github.ref_name }}"
           webhook-url: ${{ secrets.SLACK_CI_FAILURE_WORKFLOW_WEBHOOK_URL }}
       - name: Output job results
@@ -1657,6 +1727,120 @@ jobs:
           echo "Job results: ${STEPS_SET_SUCCESS_OUTPUT_OUTPUTS_SUCCESS}"
         env:
           STEPS_SET_SUCCESS_OUTPUT_OUTPUTS_SUCCESS: ${{ steps.set-success-output.outputs.success }}
+
+  # A merge-queue run that only went green because a step was retried still hides
+  # a real flake, and the retry means nobody is forced to look at it. Collect the
+  # markers scripts/ci/retry-on-merge-queue.sh leaves in the job logs and report
+  # them, so the flake gets fixed instead of silently re-rolled on every merge.
+  #
+  # Runs after the all-ci-passed gate and is not itself a required check, so it
+  # never delays a merge.
+  notify-flaky-merge-queue:
+    needs: all-ci-passed
+    if: ${{ github.event_name == 'merge_group' && needs.all-ci-passed.outputs.success == 'true' }}
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Collect flaky jobs
+        id: flaky
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          # grep returns 1 on "no match", which is the normal case here.
+          set +e
+          set +o pipefail
+
+          # Keep in sync with FLAKY_MARKER in scripts/ci/retry-on-merge-queue.sh.
+          # Split so this job's own log — the runner echoes `run:` bodies into
+          # it — can never match the marker and report this job as flaky.
+          MARKER="LANGFUSE_CI_FLAKY""_RETRY_SUCCEEDED"
+          FLAKY=""
+          # A failed lookup must not read as "nothing was retried" — that would
+          # silently drop the very report this job exists to produce. Track it
+          # and fail the job at the end, after reporting whatever was found.
+          INCOMPLETE=0
+
+          JOBS_JSON="$(gh api "repos/$REPOSITORY/actions/runs/$RUN_ID/jobs?per_page=100" --paginate)"
+          if [ "$?" -ne 0 ] || [ -z "$JOBS_JSON" ]; then
+            echo "::error title=Flaky-CI check failed::Could not list this run's jobs; a flaky retry may have gone unreported."
+            echo "flaky=false" >>"$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+          # Only succeeded jobs can have been rescued by a retry; a job that
+          # failed anyway is already reported through the normal failure path.
+          JOBS_TSV="$(jq -r '.jobs[] | select(.conclusion == "success") | "\(.id)\t\(.name)"' <<<"$JOBS_JSON")"
+          if [ "$?" -ne 0 ]; then
+            echo "::error title=Flaky-CI check failed::Could not parse this run's job list; a flaky retry may have gone unreported."
+            echo "flaky=false" >>"$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+          while IFS=$'\t' read -r JOB_ID JOB_NAME; do
+            [ -n "$JOB_ID" ] || continue
+            JOB_LOG="$(gh api "repos/$REPOSITORY/actions/jobs/$JOB_ID/logs" 2>/dev/null)"
+            if [ "$?" -ne 0 ]; then
+              echo "::error title=Flaky-CI check incomplete::Could not download the log for '$JOB_NAME'; if it was retried, that went unreported."
+              INCOMPLETE=1
+              continue
+            fi
+            if grep -qF "$MARKER" <<<"$JOB_LOG"; then
+              if [ -n "$FLAKY" ]; then
+                FLAKY="$(printf '%s\n• %s' "$FLAKY" "$JOB_NAME")"
+              else
+                FLAKY="• $JOB_NAME"
+              fi
+            fi
+          done <<<"$JOBS_TSV"
+
+          if [ -z "$FLAKY" ]; then
+            echo "No retried steps in this run."
+            echo "flaky=false" >>"$GITHUB_OUTPUT"
+            exit "$INCOMPLETE"
+          fi
+
+          echo "Flaky jobs in this run:"
+          printf '%s\n' "$FLAKY"
+          echo "flaky=true" >>"$GITHUB_OUTPUT"
+
+          DELIM="FLAKY_EOF_${RANDOM}${RANDOM}"
+          {
+            echo "jobs<<$DELIM"
+            printf '%s\n' "$FLAKY"
+            echo "$DELIM"
+          } >>"$GITHUB_OUTPUT"
+
+          {
+            echo "### ⚠️ Flaky CI in the merge queue"
+            echo
+            echo "These jobs failed once and passed on retry:"
+            echo
+            printf '%s\n' "$FLAKY"
+          } >>"$GITHUB_STEP_SUMMARY"
+
+          exit "$INCOMPLETE"
+      # always(): an incomplete collection fails the step above on purpose, but
+      # the flakes it did find still need to reach Slack.
+      - name: Notify Slack
+        if: ${{ always() && steps.flaky.outputs.flaky == 'true' }}
+        uses: slackapi/slack-github-action@45a88b9581bfab2566dc881e2cd66d334e621e2c # v3.0.3
+        with:
+          webhook: ${{ secrets.SLACK_CI_FAILURE_WORKFLOW_WEBHOOK_URL }}
+          webhook-type: webhook-trigger
+          payload: |
+            title: "⚠️ Flaky CI in merge queue"
+            message: "⚠️ CI passed only after a retry on ${{ github.ref_name }}"
+            ref: "${{ github.ref_name }}"
+            actor: "${{ github.actor }}"
+            event: "${{ github.event_name }}"
+            commit: "${{ github.sha }}"
+            workflow_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            failure_reason: ${{ toJSON(steps.flaky.outputs.jobs) }}
 
   build-docker-image-release:
     needs: all-ci-passed
@@ -1997,6 +2181,5 @@ jobs:
         if: failure()
         uses: ./.github/actions/notify-slack-failure
         with:
-          title: "❌ Docker Release Failed"
           message: "❌ Docker release failed on ${{ github.ref_name }}"
           webhook-url: ${{ secrets.SLACK_CI_FAILURE_WORKFLOW_WEBHOOK_URL }}
