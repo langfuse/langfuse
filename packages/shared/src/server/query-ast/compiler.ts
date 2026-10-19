@@ -158,6 +158,22 @@ function typePreservedOperand(node: OperationNode): OperationNode {
 }
 
 /**
+ * Qualifier of a `*` (undefined) or `t.*` selection, or undefined when the
+ * selection is no star. `selectAll` parses to a SelectAllNode; `sql.ref("t.*")`
+ * and `dynamic.ref("t.*")` to a reference to a column named `*`.
+ */
+function starSelection(
+  selection: OperationNode,
+): { qualifier: string | undefined } | undefined {
+  if (SelectAllNode.is(selection)) return { qualifier: undefined };
+  if (ReferenceNode.is(selection) && SelectAllNode.is(selection.column)) {
+    return { qualifier: selection.table?.table.identifier.name };
+  }
+  const ref = columnReference(selection);
+  return ref?.column === "*" ? { qualifier: ref.qualifier } : undefined;
+}
+
+/**
  * Column name and qualifier of a column operand. Kysely parses `"start_time"`
  * to a bare ColumnNode and `"e.start_time"` to a ReferenceNode carrying the
  * table, so only the latter has a qualifier. `sql.ref(…)` wraps either in a
@@ -531,18 +547,11 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     const scopes = [...enclosing, scope];
     const columns: Record<string, BindType | null> = {};
     for (const { selection } of node.selections ?? []) {
-      // `*`: every column of every relation in this select's FROM/JOIN.
-      if (SelectAllNode.is(selection)) {
-        for (const relation of scope.relations.values()) {
-          if (relation instanceof OpaqueRelation) return relation;
-          Object.assign(columns, relation);
-        }
-        continue;
-      }
+      const star = starSelection(selection);
       // `t.*`: every column of `t`.
-      if (ReferenceNode.is(selection) && SelectAllNode.is(selection.column)) {
-        const qualifier = selection.table?.table.identifier.name;
-        const relation = qualifier ? scope.relations.get(qualifier) : undefined;
+      if (star?.qualifier) {
+        const { qualifier } = star;
+        const relation = scope.relations.get(qualifier);
         if (relation === undefined) {
           return new OpaqueRelation(
             `It selects ${qualifier}.* but no relation in that select is named "${qualifier}".`,
@@ -550,6 +559,14 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
         }
         if (relation instanceof OpaqueRelation) return relation;
         Object.assign(columns, relation);
+        continue;
+      }
+      // `*`: every column of every relation in this select's FROM/JOIN.
+      if (star) {
+        for (const relation of scope.relations.values()) {
+          if (relation instanceof OpaqueRelation) return relation;
+          Object.assign(columns, relation);
+        }
         continue;
       }
       const aliased = AliasNode.is(selection) ? selection : undefined;

@@ -586,6 +586,19 @@ describe("typed params from the column registry", () => {
         /"unregistered" is not a registered table/,
       ],
       [
+        // A reference to a column named `*` expands `u` like `selectAll("u")`.
+        "a CTE dynamic.ref star over a table outside the registry",
+        () =>
+          unregistered
+            .with("t", (qb) =>
+              qb.selectFrom("unregistered as u").select(db.dynamic.ref("u.*")),
+            )
+            .selectFrom("t as t")
+            .select(db.dynamic.ref("t.trace_id"))
+            .where(db.dynamic.ref("t.start_time"), ">=", START),
+        /"unregistered" is not a registered table/,
+      ],
+      [
         // `t` outputs value computed (UInt64); scores types it Float64.
         "an unqualified column one relation outputs computed and another types",
         () =>
@@ -770,6 +783,20 @@ describe("typed params from the column registry", () => {
     expect(sql).toMatch(
       /\(s\.trace_id, s\.value\) in \(\(\{p\d+:String\}, \{p\d+:Float64\}\)\)/,
     );
+  });
+
+  it("keeps the column types of a CTE that selects a referenced star", () => {
+    const db = getClickhouseKysely();
+    const { sql } = compile(
+      db
+        .with("t", (qb) =>
+          qb.selectFrom("events_core as e").select(db.dynamic.ref("e.*")),
+        )
+        .selectFrom("t as t")
+        .select(db.dynamic.ref("t.span_id"))
+        .where(db.dynamic.ref("t.start_time"), ">=", START),
+    );
+    expect(sql).toMatch(/t\.start_time >= \{p\d+:DateTime64\(6\)\}/);
   });
 
   it("binds a sql.ref column with its registry type", () => {
