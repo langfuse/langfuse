@@ -1,6 +1,12 @@
 import { Sha256 } from "@aws-crypto/sha256-js";
 import { SignatureV4 } from "@smithy/signature-v4";
-import { NoObjectGeneratedError, Output, type LanguageModelUsage } from "ai";
+import {
+  NoObjectGeneratedError,
+  Output,
+  type LanguageModelUsage,
+  type StepResult,
+  type ToolSet,
+} from "ai";
 import { z } from "zod";
 import { decrypt } from "../../encryption";
 import { BedrockConfigSchema } from "../../interfaces/customLLMProviderConfigSchemas";
@@ -18,6 +24,35 @@ import type { TopicsModel } from "./model-config";
 
 const TIMEOUT_MS = 60_000;
 
+// Error identity and lifetime are preserved, including for frozen SDK errors.
+const responseMetadataByError = new WeakMap<
+  object,
+  TopicTextResponseMetadata
+>();
+
+const RAW_FINISH_REASONS = new Set([
+  "stop",
+  "length",
+  "content_filter",
+  "tool_calls",
+  "function_call",
+  "end_turn",
+  "max_tokens",
+  "stop_sequence",
+  "tool_use",
+  "refusal",
+  "guardrail_intervened",
+  "content_filtered",
+  "model_context_window_exceeded",
+  "malformed_model_output",
+  "pause_turn",
+  "STOP",
+  "MAX_TOKENS",
+  "SAFETY",
+  "RECITATION",
+  "OTHER",
+]);
+
 /**
  * Structured Topics text through the project's LLM connection. GPT-5.6+ models
  * on Bedrock reuse a shared prompt prefix only with explicit cache breakpoints,
@@ -29,9 +64,14 @@ export async function generateTopicText<T>(
 ): Promise<TopicTextResult> {
   const startTimeISO = new Date().toISOString();
   let result: TopicTextResult | undefined;
+  let responseMetadata: TopicTextResponseMetadata | undefined;
   let failure: unknown;
-  const recordResponse = (response: TopicTextResult) => {
+  const recordResponse = (
+    response: TopicTextResult,
+    metadata?: TopicTextResponseMetadata,
+  ) => {
     result = response;
+    responseMetadata = metadata;
   };
   try {
     result =
@@ -41,6 +81,9 @@ export async function generateTopicText<T>(
     return result;
   } catch (error) {
     failure = error;
+    if (responseMetadata && error !== null && typeof error === "object") {
+      responseMetadataByError.set(error, responseMetadata);
+    }
     if (NoObjectGeneratedError.isInstance(error)) {
       result = { output: error.text, usage: topicUsage(error.usage) };
     }
@@ -48,6 +91,13 @@ export async function generateTopicText<T>(
   } finally {
     await writeTopicTrace(params, startTimeISO, result, failure);
   }
+}
+
+/** Bounded response diagnostics for the existing Topics failure log; no content. */
+export function getTopicTextResponseMetadata(error: unknown) {
+  return error !== null && typeof error === "object"
+    ? responseMetadataByError.get(error)
+    : undefined;
 }
 
 async function writeTopicTrace<T>(
@@ -86,9 +136,8 @@ async function writeTopicTrace<T>(
         },
       ],
     });
-  } catch (error) {
+  } catch {
     logger.error("Failed to publish Topics model trace", {
-      error,
       traceId: trace.traceId,
     });
   }
@@ -155,7 +204,10 @@ function topicUsage(
 
 async function generateWithConnection<T>(
   params: TopicTextParams<T>,
-  recordResponse: (result: TopicTextResult) => void,
+  recordResponse: (
+    result: TopicTextResult,
+    metadata: TopicTextResponseMetadata,
+  ) => void,
 ): Promise<TopicTextResult> {
   const nativeOpenAI = isFirstPartyOpenAI(params.model);
   const result = await generateLLMText({
@@ -182,13 +234,45 @@ async function generateWithConnection<T>(
     // The AI SDK retries 429 and 5xx responses with exponential backoff.
     maxRetries: 2,
     timeout: params.timeoutMs ?? TIMEOUT_MS,
+    // onEnd runs before structured-output parsing and the output getter can throw.
+    onEnd: ({ finalStep }) => {
+      const text = finalStep.text;
+      recordResponse(
+        { output: text, usage: topicUsage(finalStep.usage) },
+        responseAttributes(finalStep, text.length, params.maxOutputTokens),
+      );
+    },
   });
   const usage = topicUsage(result.usage);
-  // The SDK's output getter can throw after a response with billable usage.
-  recordResponse({ output: result.text, usage });
   return {
     output: result.output,
     usage,
+  };
+}
+
+function responseAttributes(
+  step: StepResult<ToolSet>,
+  textCharacters: number,
+  maxOutputTokens: number,
+): TopicTextResponseMetadata {
+  return {
+    "langfuse.topics.response.finish_reason": step.finishReason,
+    "langfuse.topics.response.raw_finish_reason": RAW_FINISH_REASONS.has(
+      step.rawFinishReason ?? "",
+    )
+      ? step.rawFinishReason!
+      : "other",
+    "langfuse.topics.response.text_characters": textCharacters,
+    "langfuse.topics.response.text_part_count": step.content.filter(
+      (part) => part.type === "text",
+    ).length,
+    "langfuse.topics.response.reasoning_part_count": step.content.filter(
+      (part) => part.type === "reasoning",
+    ).length,
+    "langfuse.topics.response.max_output_tokens": maxOutputTokens,
+    ...(step.usage.outputTokens !== undefined && {
+      "langfuse.topics.response.output_tokens": step.usage.outputTokens,
+    }),
   };
 }
 
@@ -388,6 +472,8 @@ async function invokeWithCache(
 
 /** A system prompt segment; `cache` ends a reusable prefix with a cache breakpoint. */
 export type TopicPromptPart = { text: string; cache?: boolean };
+
+type TopicTextResponseMetadata = Record<string, string | number>;
 
 type TopicTextResult = {
   output: unknown;
