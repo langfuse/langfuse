@@ -214,6 +214,7 @@ async function generateWithConnection<T>(
     params.model.adapter === LLMAdapter.OpenAI &&
     !nativeOpenAI &&
     params.model.connection.config?.useResponsesApi !== true;
+  const defaultReasoning = compatibleOpenAIChat ? undefined : "none";
   const result = await generateLLMText({
     model: { adapter: params.model.adapter, id: params.model.model },
     connection: params.model.connection,
@@ -226,9 +227,7 @@ async function generateWithConnection<T>(
     // Compatible endpoints choose their own supported reasoning settings.
     reasoning: nativeOpenAI
       ? openAIReasoning(params.model.model)
-      : compatibleOpenAIChat
-        ? undefined
-        : "none",
+      : defaultReasoning,
     // Bedrock ignores portable reasoning for OpenAI models; their default effort
     // is not none.
     ...(isBedrockGPT(params.model)
