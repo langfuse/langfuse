@@ -10,18 +10,19 @@ import {
 } from "./errors";
 import {
   arrayExists,
+  arrayLength,
   arrayMap,
-  avgIf,
-  byteLength,
-  dateDiff,
-  divide,
+  count,
+  countIf,
   leftUTF8,
   literal,
   mapValue,
+  medianExact,
   metadataMap,
   metadataValue,
-  sumMapValuesWhereKeyContains,
   traceSessionId,
+  uniq,
+  uniqIf,
 } from "./extensions";
 import { ArrayIndexNode } from "./nodes";
 import type { ClickHouseDatabase } from "./schema";
@@ -273,59 +274,26 @@ describe("renderClickhouseExpression", () => {
 
 describe("64-bit results", () => {
   const eb = expressionBuilder<{ e: ClickHouseDatabase["events_core"] }, "e">();
-  const latencyMs = dateDiff(
-    "millisecond",
-    eb.ref("e.start_time"),
-    eb.ref("e.end_time"),
-  );
+  const isError = eb("e.level", "=", literal("ERROR"));
 
-  it("types Int64 and UInt64 results as string, the JSON client's quoted form", () => {
-    expectTypeOf(latencyMs.expressionType).toEqualTypeOf<string | undefined>();
-    expectTypeOf(byteLength(eb.ref("e.input")).expressionType).toEqualTypeOf<
-      string | undefined
+  // ClickHouse 25.8+ (Langfuse v4 needs 25.12) sends (U)Int64 as JSON numbers.
+  it("types count and length results as number", () => {
+    expectTypeOf(count().expressionType).toEqualTypeOf<number | undefined>();
+    expectTypeOf(countIf(isError).expressionType).toEqualTypeOf<
+      number | undefined
+    >();
+    expectTypeOf(uniq(eb.ref("e.trace_id")).expressionType).toEqualTypeOf<
+      number | undefined
     >();
     expectTypeOf(
-      mapValue(eb.ref("e.usage_details"), literal("total")).expressionType,
-    ).toEqualTypeOf<string | undefined>();
-    expectTypeOf(
-      sumMapValuesWhereKeyContains(eb.ref("e.usage_details"), "input")
-        .expressionType,
-    ).toEqualTypeOf<string | undefined>();
-  });
-
-  it("keeps Decimal map values as number", () => {
-    expectTypeOf(
-      mapValue(eb.ref("e.cost_details"), literal("total")).expressionType,
+      uniqIf(eb.ref("e.trace_id"), isError).expressionType,
     ).toEqualTypeOf<number | undefined>();
+    expectTypeOf(arrayLength(eb.ref("e.tags")).expressionType).toEqualTypeOf<
+      number | undefined
+    >();
     expectTypeOf(
-      sumMapValuesWhereKeyContains(eb.ref("e.cost_details"), "input")
-        .expressionType,
+      medianExact(eb.ref("e.total_cost")).expressionType,
     ).toEqualTypeOf<number | undefined>();
-  });
-
-  it("averages and divides a 64-bit integer into a number", () => {
-    const seconds = divide(latencyMs, literal(1000));
-    const average = avgIf(latencyMs, eb("e.end_time", "is not", null));
-
-    expectTypeOf(seconds.expressionType).toEqualTypeOf<number | undefined>();
-    expectTypeOf(average.expressionType).toEqualTypeOf<number | undefined>();
-    expect(renderClickhouseExpression(seconds)).toBe(
-      "dateDiff('millisecond', e.start_time, e.end_time) / 1000",
-    );
-  });
-
-  it("parenthesizes operation operands so division keeps its precedence", () => {
-    const shiftedCost = eb("e.total_cost", "+", literal(1));
-    const halfOfShiftedCost = divide(shiftedCost, literal(2));
-
-    expect(renderClickhouseExpression(halfOfShiftedCost)).toBe(
-      "(e.total_cost + 1) / 2",
-    );
-    expect(
-      renderClickhouseExpression(divide(latencyMs, halfOfShiftedCost)),
-    ).toBe(
-      "dateDiff('millisecond', e.start_time, e.end_time) / ((e.total_cost + 1) / 2)",
-    );
   });
 });
 

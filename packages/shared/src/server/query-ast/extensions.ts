@@ -29,7 +29,6 @@ import {
   IdentifierNode,
   JoinNode,
   OperatorNode,
-  ParensNode,
   ReferenceNode,
   TableNode,
   ValueNode,
@@ -173,7 +172,7 @@ export function mapValues<V = string>(column: string): Expression<V[]> {
 }
 
 /** ClickHouse `uniq(value)`, an approximate distinct count. */
-export function uniq(value: Expression<unknown>): ChExpression<string> {
+export function uniq(value: Expression<unknown>): ChExpression<number> {
   return aggregate("uniq", [value]);
 }
 
@@ -181,7 +180,7 @@ export function uniq(value: Expression<unknown>): ChExpression<string> {
 export function count(): ExpressionWrapper<
   ClickHouseDatabase,
   keyof ClickHouseDatabase,
-  string
+  number
 > {
   return new ExpressionWrapper(
     AggregateFunctionNode.create("count", []) as unknown as OperationNode,
@@ -191,7 +190,7 @@ export function count(): ExpressionWrapper<
 /** ClickHouse `medianExact(expression)`. */
 export function medianExact(
   expression: Expression<unknown>,
-): ExpressionWrapper<ClickHouseDatabase, keyof ClickHouseDatabase, string> {
+): ExpressionWrapper<ClickHouseDatabase, keyof ClickHouseDatabase, number> {
   return new ExpressionWrapper(
     AggregateFunctionNode.create("medianExact", [
       expression.toOperationNode(),
@@ -201,19 +200,16 @@ export function medianExact(
 
 type DateDiffUnit = "millisecond" | "second" | "minute" | "hour" | "day";
 
-/**
- * ClickHouse `dateDiff(unit, start, end)`. The result is an Int64, which the
- * JSON client returns as a string on servers that quote 64-bit integers.
- */
+/** ClickHouse `dateDiff(unit, start, end)`. */
 export function dateDiff(
   unit: DateDiffUnit,
   start: Expression<unknown>,
   end: Expression<unknown>,
-): ChExpression<string> {
+): ChExpression<number> {
   return new ExpressionWrapper<
     ClickHouseDatabase,
     keyof ClickHouseDatabase,
-    string
+    number
   >(
     // ClickHouse requires the unit to be a constant, so it is inlined rather
     // than bound. `DateDiffUnit` keeps it to known keywords.
@@ -222,24 +218,6 @@ export function dateDiff(
       start.toOperationNode(),
       end.toOperationNode(),
     ]) as unknown as OperationNode,
-  );
-}
-
-/**
- * `dividend / divisor`. ClickHouse `/` returns Float64, or Decimal for a
- * Decimal operand; both arrive as JSON numbers, so 64-bit integer operands
- * give a `number`.
- */
-export function divide(
-  dividend: Expression<number | string>,
-  divisor: Expression<number | string>,
-): ChExpression<number> {
-  return new ExpressionWrapper(
-    BinaryOperationNode.create(
-      parenthesizeOperation(dividend.toOperationNode()),
-      OperatorNode.create("/"),
-      parenthesizeOperation(divisor.toOperationNode()),
-    ) as unknown as OperationNode,
   );
 }
 
@@ -273,10 +251,10 @@ function subscript<V>(
  * `arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, needle) > 0, map)))`.
  * The lambda is built as a `->` binary operation; Kysely has no lambda node.
  */
-export function sumMapValuesWhereKeyContains<V>(
-  map: Expression<Record<string, V>>,
+export function sumMapValuesWhereKeyContains(
+  map: Expression<Record<string, unknown>>,
   needle: string,
-): ChExpression<V> {
+): ChExpression<number> {
   const keyMatches = BinaryOperationNode.create(
     FunctionNode.create("positionCaseInsensitive", [
       qualifiedColumn("x", "1"),
@@ -290,7 +268,11 @@ export function sumMapValuesWhereKeyContains<V>(
     OperatorNode.create("->"),
     keyMatches,
   );
-  return new ExpressionWrapper<ClickHouseDatabase, keyof ClickHouseDatabase, V>(
+  return new ExpressionWrapper<
+    ClickHouseDatabase,
+    keyof ClickHouseDatabase,
+    number
+  >(
     FunctionNode.create("arraySum", [
       FunctionNode.create("mapValues", [
         FunctionNode.create("mapFilter", [lambda, map.toOperationNode()]),
@@ -324,11 +306,6 @@ function aggregate<T>(
       args.map(toNode),
     ) as unknown as OperationNode,
   );
-}
-
-/** Kysely nests binary operations bare, so `divide(a + b, c)` would read `a + b / c`. */
-function parenthesizeOperation(node: OperationNode): OperationNode {
-  return BinaryOperationNode.is(node) ? ParensNode.create(node) : node;
 }
 
 /**
@@ -415,7 +392,7 @@ export function startsWith(
 /** ClickHouse `length(array)`. */
 export function arrayLength(
   array: Expression<unknown[]>,
-): ChExpression<string> {
+): ChExpression<number> {
   return functionCall("length", [array]);
 }
 
@@ -441,7 +418,7 @@ export function anyValue<T>(value: Expression<T>): ChExpression<T> {
 }
 
 /** ClickHouse `countIf(condition)`. */
-export function countIf(condition: Expression<SqlBool>): ChExpression<string> {
+export function countIf(condition: Expression<SqlBool>): ChExpression<number> {
   return aggregate("countIf", [condition]);
 }
 
@@ -449,16 +426,13 @@ export function countIf(condition: Expression<SqlBool>): ChExpression<string> {
 export function uniqIf(
   value: Expression<unknown>,
   condition: Expression<SqlBool>,
-): ChExpression<string> {
+): ChExpression<number> {
   return aggregate("uniqIf", [value, condition]);
 }
 
-/**
- * ClickHouse `avgIf(value, condition)`. `value` may be a 64-bit integer, typed
- * `string` like {@link dateDiff}.
- */
+/** ClickHouse `avgIf(value, condition)`. */
 export function avgIf(
-  value: Expression<number | string>,
+  value: Expression<number>,
   condition: Expression<SqlBool>,
 ): ChExpression<number> {
   return aggregate("avgIf", [value, condition]);
@@ -520,7 +494,7 @@ export function leftUTF8(
 /** ClickHouse `length(expression)`: byte length of a String. */
 export function byteLength(
   expression: Expression<string>,
-): ChExpression<string> {
+): ChExpression<number> {
   return functionCall("length", [expression]);
 }
 
