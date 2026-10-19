@@ -1,6 +1,6 @@
 /* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger, @repo/component-file-structure */
 import * as React from "react";
-import { Check, Loader2 } from "lucide-react";
+import { Check, Loader2 } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
 import { cn } from "@/src/utils/tailwind";
@@ -219,7 +219,8 @@ export function MultiSelect({
                 className="text-muted-foreground flex items-center gap-2 px-3 py-2 text-sm"
               >
                 <Loader2
-                  className="icon-base animate-spin"
+                  size="base"
+                  __rawClassName="animate-spin"
                   aria-hidden="true"
                 />
                 Loading…
@@ -245,7 +246,7 @@ export function MultiSelect({
                           : "opacity-50 [&_svg]:invisible",
                       )}
                     >
-                      <Check className="icon-base" />
+                      <Check size="base" />
                     </div>
                     <div className="font-bold">
                       {allSelectedState ? "Deselect All" : "Select All"}
@@ -286,7 +287,7 @@ export function MultiSelect({
                           : "opacity-50 [&_svg]:invisible",
                       )}
                     >
-                      <Check className="icon-base" />
+                      <Check size="base" />
                     </div>
                     <div
                       className={cn(
@@ -355,7 +356,7 @@ export function MultiSelect({
                         : "opacity-50 [&_svg]:invisible",
                     )}
                   >
-                    <Check className="icon-base" />
+                    <Check size="base" />
                   </div>
                   <Input
                     type="text"

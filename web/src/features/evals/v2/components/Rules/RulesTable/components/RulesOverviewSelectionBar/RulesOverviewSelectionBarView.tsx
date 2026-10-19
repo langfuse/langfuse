@@ -1,4 +1,4 @@
-import { Pause, Play, Trash2 } from "lucide-react";
+import { Pause, Play, Trash2 } from "@langfuse/icons";
 import { OverviewSelectionBar } from "@/src/components/table/OverviewSelectionBar/OverviewSelectionBar";
 import { Button } from "@/src/components/ui/button";
 import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
@@ -38,7 +38,7 @@ export function RulesOverviewSelectionBarView({
           disabled={!hasWriteAccess || statusChangePending}
           onClick={onEnable}
         >
-          <Play className="icon-base text-icon-foreground mr-2" /> Enable
+          <Play size="base" color="default" __rawClassName="mr-2" /> Enable
         </Button>
         <Button
           type="button"
@@ -47,7 +47,7 @@ export function RulesOverviewSelectionBarView({
           disabled={!hasWriteAccess || statusChangePending}
           onClick={onDisable}
         >
-          <Pause className="icon-base text-icon-foreground mr-2" /> Disable
+          <Pause size="base" color="default" __rawClassName="mr-2" /> Disable
         </Button>
         <Button
           type="button"
@@ -56,7 +56,7 @@ export function RulesOverviewSelectionBarView({
           disabled={!hasWriteAccess}
           onClick={onDelete}
         >
-          <Trash2 className="icon-base text-icon-foreground mr-2" /> Delete
+          <Trash2 size="base" color="default" __rawClassName="mr-2" /> Delete
         </Button>
       </OverviewSelectionBar>
       <ConfirmDialog

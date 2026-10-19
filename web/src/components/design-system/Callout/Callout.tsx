@@ -1,7 +1,7 @@
 "use client";
 
 import { cva } from "class-variance-authority";
-import { type LucideIcon, X } from "lucide-react";
+import { type IconComponent, X } from "@langfuse/icons";
 import Link from "next/link";
 
 const calloutVariants = cva("relative w-full rounded-lg border p-3", {
@@ -42,7 +42,7 @@ export type CalloutAction =
   | {
       type: "button";
       label: string;
-      icon?: LucideIcon;
+      icon?: IconComponent;
       onClick: () => void;
     }
   | {
@@ -86,7 +86,7 @@ export function Callout({
                       onClick={action.onClick}
                       type="button"
                     >
-                      {Icon ? <Icon className="icon-base" aria-hidden /> : null}
+                      {Icon ? <Icon size="base" aria-hidden /> : null}
                       {action.label}
                     </button>
                   );
@@ -131,7 +131,7 @@ export function Callout({
           onClick={onDismiss}
           type="button"
         >
-          <X className="icon-base" aria-hidden />
+          <X size="base" aria-hidden />
         </button>
       </div>
     </div>

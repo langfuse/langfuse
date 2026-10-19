@@ -1,5 +1,5 @@
 import { type KeyboardEvent, type SyntheticEvent, useState } from "react";
-import { SendHorizontal, Sparkles } from "lucide-react";
+import { SendHorizontal, Sparkles } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
 import { Textarea } from "@/src/components/ui/textarea";
@@ -70,7 +70,7 @@ export function InAppAgentWidgetComposer({
       className="bg-muted/30 flex flex-col gap-2 rounded-lg border p-3"
     >
       <div className="flex items-center gap-2 font-bold">
-        <Sparkles className="icon-base" />
+        <Sparkles size="base" />
         Add with Langfuse Halo
       </div>
       <p className="text-muted-foreground text-xs">
@@ -100,7 +100,7 @@ export function InAppAgentWidgetComposer({
           aria-label="Add with Langfuse Halo"
           disabled={!request.trim()}
         >
-          <SendHorizontal className="icon-base text-icon-foreground" />
+          <SendHorizontal size="base" color="default" />
         </Button>
       </div>
     </form>

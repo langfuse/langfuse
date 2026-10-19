@@ -1,6 +1,6 @@
 /* eslint-disable boundaries/dependencies */
 import { type CellContext, type RowData } from "@tanstack/react-table";
-import { type LucideIcon } from "lucide-react";
+import { type IconComponent } from "@langfuse/icons";
 
 import { Badge, type BadgeProps } from "@/src/components/ui/badge";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -40,7 +40,7 @@ type GetBadge<
 ) => {
   value: string;
   variant: TVariant;
-  icon?: LucideIcon;
+  icon?: IconComponent;
 };
 
 type BadgeTableColumnOptions<TData extends RowData> =
@@ -91,7 +91,7 @@ export function createBadgeTableColumn<TData extends RowData>({
           className="max-w-fit gap-1 truncate rounded-sm px-1 font-normal"
           title={badge.value}
         >
-          {Icon && <Icon className="icon-sm shrink-0" aria-hidden />}
+          {Icon && <Icon size="sm" aria-hidden />}
           <span className="truncate" title={badge.value}>
             {badge.value}
           </span>

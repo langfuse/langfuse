@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { ChevronRight, Plus, X } from "lucide-react";
+import { ChevronRight, Plus, X } from "@langfuse/icons";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
@@ -156,7 +156,11 @@ export function CreateGatewayApiKeyDialogController({
                         type="button"
                         className="group flex items-center gap-2 text-left text-sm"
                       >
-                        <ChevronRight className="text-foreground-tertiary icon-base translate-y-px transition-transform group-data-[state=open]:rotate-90" />
+                        <ChevronRight
+                          size="base"
+                          color="tertiary"
+                          __rawClassName="translate-y-px transition-transform group-data-[state=open]:rotate-90"
+                        />
                         <span>Metadata</span>
                         <span className="text-muted-foreground font-normal">
                           (optional)
@@ -214,7 +218,7 @@ export function CreateGatewayApiKeyDialogController({
                               )
                             }
                           >
-                            <X className="icon-sm text-icon-foreground" />
+                            <X size="sm" color="default" />
                           </Button>
                         </div>
                       ))}
@@ -230,7 +234,7 @@ export function CreateGatewayApiKeyDialogController({
                         setNextMetadataId((current) => current + 1);
                       }}
                     >
-                      <Plus className="icon-base" />
+                      <Plus size="base" />
                       Add metadata
                     </button>
                   </CollapsibleContent>

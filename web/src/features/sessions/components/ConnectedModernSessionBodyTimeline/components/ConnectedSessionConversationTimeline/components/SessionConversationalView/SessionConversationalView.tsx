@@ -1,5 +1,5 @@
 import { type ComponentProps, useLayoutEffect, useId, useRef } from "react";
-import { Search } from "lucide-react";
+import { Search } from "@langfuse/icons";
 import { Input } from "@/src/components/ui/input";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
@@ -236,7 +236,11 @@ export function SessionConversationalView(
             <Dialog title="Search session" closeOnInteractionOutside>
               <div className="shrink-0 border-b px-4 pt-0 pb-2">
                 <div className="relative min-w-0">
-                  <Search className="icon-base text-foreground-tertiary absolute top-1/2 left-2 -translate-y-1/2" />
+                  <Search
+                    size="base"
+                    color="tertiary"
+                    __rawClassName="absolute top-1/2 left-2 -translate-y-1/2"
+                  />
                   <Input
                     disabled={props.state === "loading"}
                     value={props.state === "loaded" ? props.search : ""}
@@ -279,7 +283,7 @@ export function SessionConversationalView(
                 aria-label="Search session"
                 className="border-input text-muted-foreground flex h-7 w-full items-center gap-2 rounded-sm border px-2 text-left font-mono text-xs"
               >
-                <Search className="icon-base shrink-0" />
+                <Search size="base" />
                 <span
                   className="truncate"
                   title={

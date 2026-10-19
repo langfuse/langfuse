@@ -6,7 +6,7 @@ import {
   Plus,
   Slack,
   Webhook as WebhookIcon,
-} from "lucide-react";
+} from "@langfuse/icons";
 
 import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
@@ -247,7 +247,7 @@ const RowCheckbox = ({ checked }: { checked: boolean }) => (
       checked && "bg-primary text-primary-foreground",
     )}
   >
-    {checked && <Check className="icon-base" />}
+    {checked && <Check size="base" />}
   </span>
 );
 
@@ -314,7 +314,7 @@ const AddAutomationDropdown = ({
             className={fullWidth ? "w-full" : undefined}
             {...getTriggerProps()}
           >
-            <Plus className="icon-base text-icon-foreground mr-2" />
+            <Plus size="base" color="default" __rawClassName="mr-2" />
             Automation
           </Button>
         )}
@@ -400,12 +400,12 @@ const ActionIcon = ({
 }) => {
   switch (type) {
     case "WEBHOOK":
-      return <WebhookIcon className={className} />;
+      return <WebhookIcon __rawClassName={className} />;
     case "SLACK":
       // eslint-disable-next-line @typescript-eslint/no-deprecated -- see import note.
-      return <Slack className={className} />;
+      return <Slack __rawClassName={className} />;
     case "GITHUB_DISPATCH":
       // eslint-disable-next-line @typescript-eslint/no-deprecated -- see import note.
-      return <Github className={className} />;
+      return <Github __rawClassName={className} />;
   }
 };

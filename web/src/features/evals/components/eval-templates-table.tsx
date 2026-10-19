@@ -7,7 +7,7 @@ import { useColumnVisibility } from "@/src/features/column-visibility";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { createColumnHelper } from "@tanstack/react-table";
-import { Copy, MoreVertical, Pen, Trash } from "lucide-react";
+import { Copy, MoreVertical, Pen, Trash } from "@langfuse/icons";
 import { useQueryParam, StringParam, withDefault } from "use-query-params";
 import { useEffect, useMemo, useState } from "react";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
@@ -54,7 +54,7 @@ import {
   CODE_EVAL_ESCAPE_CONFIRM_MESSAGE,
   shouldShowEvalTemplate,
 } from "@/src/features/evals/utils/code-eval-template-utils";
-import { SiPython, SiTypescript } from "react-icons/si";
+import { SiPython, SiTypescript } from "@langfuse/icons/si";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
@@ -106,7 +106,7 @@ const TemplateTypeBadge = ({
 
     return (
       <Badge className="w-fit gap-1.5" variant="outline-solid">
-        {Icon ? <Icon className="icon-sm" aria-hidden="true" /> : null}
+        {Icon ? <Icon size="sm" aria-hidden="true" /> : null}
         {label}
       </Badge>
     );
@@ -165,7 +165,7 @@ const EvalTemplateRowActionsMenu = ({
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon-xs" aria-label="actions">
             <span className="sr-only relative">Open menu</span>
-            <MoreVertical className="icon-sm text-icon-foreground" />
+            <MoreVertical size="sm" color="default" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
@@ -179,7 +179,7 @@ const EvalTemplateRowActionsMenu = ({
                 onClone();
               }}
             >
-              <Copy className="icon-base text-icon-foreground mr-2" />
+              <Copy size="base" color="default" __rawClassName="mr-2" />
               Clone
             </DropdownMenuItem>
           ) : null}
@@ -193,7 +193,7 @@ const EvalTemplateRowActionsMenu = ({
                   onEdit();
                 }}
               >
-                <Pen className="icon-base text-icon-foreground mr-2" />
+                <Pen size="base" color="default" __rawClassName="mr-2" />
                 Edit
               </DropdownMenuItem>
               <DropdownMenuItem
@@ -207,7 +207,7 @@ const EvalTemplateRowActionsMenu = ({
                   setIsDeleteDialogOpen(true);
                 }}
               >
-                <Trash className="icon-base text-icon-foreground mr-2" />
+                <Trash size="base" color="default" __rawClassName="mr-2" />
                 Delete
               </DropdownMenuItem>
             </>

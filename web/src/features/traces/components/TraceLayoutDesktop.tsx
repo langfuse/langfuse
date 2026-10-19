@@ -18,7 +18,7 @@ import {
   useContext,
   type ReactNode,
 } from "react";
-import { PanelRightOpen } from "lucide-react";
+import { PanelRightOpen } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
@@ -680,7 +680,7 @@ TraceLayoutDesktop.DetailPanel = function Detail({
             onClick={expandDetailPanel}
             className="h-7 w-7 shrink-0"
           >
-            <PanelRightOpen className="icon-base text-icon-foreground" />
+            <PanelRightOpen size="base" color="default" />
           </Button>
         </div>
       )}

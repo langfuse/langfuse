@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useFormState, useWatch, type UseFormReturn } from "react-hook-form";
 import { useStore } from "zustand";
-import { Check } from "lucide-react";
+import { Check } from "@langfuse/icons";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import type { AnnotationFormActions } from "@/src/features/scores/actions/annotationFormActions";
 import type { AnnotateFormSchemaType } from "@/src/features/scores/types";
@@ -53,7 +53,7 @@ export function AnnotationSaveStatus({
               {itemStatus === "saving" && active ? (
                 <Spinner size="xxs" />
               ) : null}
-              {itemStatus === "saved" ? <Check className="icon-sm" /> : null}
+              {itemStatus === "saved" ? <Check size="sm" /> : null}
             </span>
             <span className="text-muted-foreground">
               {

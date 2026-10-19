@@ -1,0 +1,35 @@
+{
+  "name": "@langfuse/icons",
+  "version": "0.0.0",
+  "private": true,
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./si": "./src/si.ts",
+    "./tb": "./src/tb.ts"
+  },
+  "scripts": {
+    "postinstall": "node -e \"const fs = require('node:fs'); if (fs.existsSync('scripts/generate.cjs')) require('node:child_process').execSync('pnpm run generate', { stdio: 'inherit' });\"",
+    "build": "pnpm run generate",
+    "generate": "node scripts/generate.cjs && prettier --ignore-path ../../.prettierignore --write src/index.ts src/si.ts src/tb.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/icons.test.tsx"
+  },
+  "dependencies": {
+    "lucide-react": "^0.552.0",
+    "react-icons": "5.5.0"
+  },
+  "peerDependencies": {
+    "react": "^19.2.4"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@types/node": "24.3.0",
+    "prettier": "^3.8.3",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "tsx": "^4.20.5"
+  }
+}

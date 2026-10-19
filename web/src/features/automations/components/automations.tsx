@@ -8,7 +8,7 @@ import {
 } from "@/src/features/automations/components/automationForm";
 import { WebhookSecretRender } from "@/src/features/automations/components/WebhookSecretRender";
 import { Button } from "@/src/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus } from "@langfuse/icons";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import Page from "@/src/components/layouts/page";
 import { api, getPathnameWithoutBasePath } from "@/src/utils/api";
@@ -397,7 +397,7 @@ export default function AutomationsPage() {
         ],
         actionButtonsRight: (
           <Button onClick={handleCreateAutomation}>
-            <Plus className="icon-base text-icon-foreground mr-2" />
+            <Plus size="base" color="default" __rawClassName="mr-2" />
             Create Automation
           </Button>
         ),

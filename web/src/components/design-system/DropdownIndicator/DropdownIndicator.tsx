@@ -5,7 +5,7 @@ import {
   ChevronRight,
   ChevronsUpDown,
   ChevronUp,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { type Ref } from "react";
 
 const icons = {
@@ -16,21 +16,13 @@ const icons = {
   "up-down": ChevronsUpDown,
 };
 
-const indicatorVariants = cva(
-  "text-foreground-tertiary shrink-0 transition-transform",
-  {
-    variants: {
-      size: {
-        base: "icon-base",
-        sm: "icon-sm",
-      },
-      nudge: {
-        true: "translate-y-px",
-      },
+const indicatorVariants = cva("transition-transform", {
+  variants: {
+    nudge: {
+      true: "translate-y-px",
     },
-    defaultVariants: { size: "base" },
   },
-);
+});
 
 type DropdownIndicatorProps = {
   direction?: keyof typeof icons;
@@ -50,7 +42,9 @@ export function DropdownIndicator({
   return (
     <Icon
       aria-hidden
-      className={indicatorVariants({ size, nudge })}
+      size={size}
+      color="tertiary"
+      __rawClassName={indicatorVariants({ nudge })}
       ref={ref}
     />
   );

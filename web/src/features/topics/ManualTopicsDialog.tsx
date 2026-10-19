@@ -1,5 +1,5 @@
 import { type ReactNode } from "react";
-import { Info } from "lucide-react";
+import { Info } from "@langfuse/icons";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { cn } from "@/src/utils/tailwind";

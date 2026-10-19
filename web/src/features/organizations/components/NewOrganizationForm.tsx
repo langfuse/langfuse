@@ -13,7 +13,7 @@ import {
 import { Input } from "@/src/components/ui/input";
 import { organizationFormSchema } from "@/src/features/organizations/utils/organizationNameSchema";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink } from "@langfuse/icons";
 
 export const NewOrganizationForm = ({
   isLangfuseCloud,
@@ -93,7 +93,7 @@ export const NewOrganizationForm = ({
                       className="text-primary inline-flex items-center gap-1 hover:underline"
                     >
                       Learn more
-                      <ExternalLink className="icon-sm" />
+                      <ExternalLink size="sm" />
                     </a>
                   )}
                 </p>

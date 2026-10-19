@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink } from "@langfuse/icons";
 
 import { MediaFileCard } from "@/src/components/MediaFileCard/MediaFileCard";
 import { Button } from "@/src/components/ui/button";
@@ -89,7 +89,7 @@ export function MediaFileView({
             title={`Open ${fileName} in new tab`}
             className="shrink-0"
           >
-            <ExternalLink className="icon-base text-icon-foreground" />
+            <ExternalLink size="base" color="default" />
           </Button>
         </div>
       ) : (

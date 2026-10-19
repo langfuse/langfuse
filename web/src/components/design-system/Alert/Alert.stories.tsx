@@ -1,6 +1,6 @@
 /* eslint-disable @repo/storybook-play-no-implementation-detail-assertions */
 import React from "react";
-import { AlertTriangle, Info, X } from "lucide-react";
+import { AlertTriangle, Info, X } from "@langfuse/icons";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
@@ -35,7 +35,7 @@ const dismissibleChildren = (
       aria-label="Dismiss alert"
       onClick={dismiss}
     >
-      <X className="icon-base" aria-hidden="true" />
+      <X size="base" aria-hidden="true" />
     </button>
     <Alert.Title>Review required</Alert.Title>
     <Alert.Description>Check this warning before continuing.</Alert.Description>
