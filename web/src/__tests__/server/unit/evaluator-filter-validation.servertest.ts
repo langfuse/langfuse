@@ -128,4 +128,21 @@ describe("validateEvaluatorFiltersForTarget", () => {
       expectedColumnType: "stringOptions",
     });
   });
+
+  it("accepts numeric equality on metadata", () => {
+    const result = validateEvaluatorFiltersForTarget({
+      targetObject: EvalTargetObject.EVENT,
+      filter: [
+        {
+          type: "numberObject",
+          column: "metadata",
+          key: "timeout",
+          operator: "=",
+          value: 20,
+        },
+      ] satisfies FilterState,
+    });
+
+    expect(result).toMatchObject({ isValid: true, issues: [] });
+  });
 });

@@ -41,6 +41,19 @@ function negate(node: FilterNode): ASTNode {
   return { kind: "not", child: node };
 }
 
+function metadataNamespaceOf(
+  column: string,
+  registry: FieldRegistry,
+): string | null {
+  const id = registry.columnIdOf(column);
+  return (
+    Object.entries(registry.metadataNamespaces ?? {}).find(
+      ([, namespaceColumn]) =>
+        namespaceColumn === column || namespaceColumn === id,
+    )?.[0] ?? (id === "metadata" && registry.metadata ? "metadata" : null)
+  );
+}
+
 function scorePathOf(
   column: string,
   key: string,
@@ -202,11 +215,7 @@ function lowerSingle(
       return filterNode(id, "=", [String(value)]);
     }
     case "stringObject": {
-      const id = registry.columnIdOf(filter.column);
-      const namespace =
-        Object.entries(registry.metadataNamespaces ?? {}).find(
-          ([, column]) => column === filter.column || column === id,
-        )?.[0] ?? (id === "metadata" && registry.metadata ? "metadata" : null);
+      const namespace = metadataNamespaceOf(filter.column, registry);
       if (namespace === null) return null;
       // A key with grammar chars (`:`, space, …) is quoted so it re-lexes as one
       // token (`metadata."my key"`); resolveField unquotes it on the way back.
@@ -228,6 +237,11 @@ function lowerSingle(
       return filterNode(key, op, [filter.value]);
     }
     case "numberObject": {
+      const namespace = metadataNamespaceOf(filter.column, registry);
+      if (namespace !== null) {
+        const key = `${namespace}.${quoteIfNeeded(filter.key)}`;
+        return filterNode(key, filter.operator, [String(filter.value)]);
+      }
       const path = scorePathOf(filter.column, filter.key, registry);
       if (path === null) return null;
       const op = filter.operator === "=" ? "=" : filter.operator;
@@ -273,6 +287,26 @@ export type FilterStateToQueryOptions = {
   searchType?: TracingSearchType[] | null;
 };
 
+// `metadata.key:=20` reads back as a string match, so numeric equality on
+// metadata (accepted from the API and saved filters) renders as the
+// equivalent `>=20` and `<=20` pair.
+function expandMetadataNumericEquality(
+  filter: FilterState[number],
+  registry: FieldRegistry,
+): FilterState {
+  if (
+    filter.type !== "numberObject" ||
+    filter.operator !== "=" ||
+    metadataNamespaceOf(filter.column, registry) === null
+  ) {
+    return [filter];
+  }
+  return [
+    { ...filter, operator: ">=" },
+    { ...filter, operator: "<=" },
+  ];
+}
+
 function sameSearchTypes(
   a: readonly TracingSearchType[],
   b: readonly TracingSearchType[],
@@ -290,7 +324,9 @@ export function filterStateToQueryText(
   const nodes: ASTNode[] = [];
   const skipped: string[] = [];
   const skippedFilters: FilterState = [];
-  for (const filter of filters) {
+  for (const filter of filters.flatMap((f) =>
+    expandMetadataNumericEquality(f, registry),
+  )) {
     const node = lowerSingle(filter, registry);
     if (node === null) {
       skipped.push(`${filter.column} (${filter.type} ${filter.operator})`);
@@ -446,7 +482,7 @@ function normalizeFilterValues(
   ) {
     op = "=";
   }
-  const values = normalizeValuesFor(ref, f.values, scoreTypes);
+  const values = normalizeValuesFor(ref, op, f.values, scoreTypes);
   return { ...f, op, values };
 }
 
@@ -469,6 +505,7 @@ function exactEqualsBareForm(ref: FieldRef): boolean {
 
 function normalizeValuesFor(
   ref: FieldRef,
+  op: FilterNode["op"],
   values: string[],
   scoreTypes?: ScoreTypeContext,
 ): string[] {
@@ -489,6 +526,14 @@ function normalizeValuesFor(
     // never folded.
     if (resolveScoreType(scoreTypes, ref.level, ref.key) === "categorical")
       return values;
+    return values.map(normalizeNumberString);
+  }
+  if (
+    ref.type === "metadata" &&
+    (op === ">" || op === "<" || op === ">=" || op === "<=")
+  ) {
+    // Comparisons lower via Number(); canonicalize so `metadata.x:>2.0`
+    // matches the re-derived `:>2` and is not silently rewritten.
     return values.map(normalizeNumberString);
   }
   return values; // metadata text / pseudo — verbatim

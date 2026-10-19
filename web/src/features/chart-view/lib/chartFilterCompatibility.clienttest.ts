@@ -64,9 +64,21 @@ describe("chartConditionExclusionReason", () => {
     ).toBeNull();
   });
 
-  it("excludes a metadata condition that is not the keyed stringObject shape", () => {
-    // The query builder accepts metadata only as a keyed stringObject;
-    // forwarding another shape errors the whole chart, not just one filter.
+  it("forwards a numeric metadata comparison but not numeric equality", () => {
+    const numeric = (operator: ">" | "=") =>
+      chartConditionExclusionReason({
+        column: "metadata",
+        type: "numberObject",
+        key: "timeout",
+        operator,
+        value: 20,
+      });
+    expect(numeric(">")).toBeNull();
+    expect(numeric("=")).not.toBeNull();
+  });
+
+  it("excludes a metadata condition the query builder does not accept", () => {
+    // Forwarding another shape errors the whole chart, not just one filter.
     expect(
       chartConditionExclusionReason({
         column: "metadata",

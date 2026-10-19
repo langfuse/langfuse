@@ -72,8 +72,30 @@ export type BooleanKeyValueFilterEntry = {
 export type StringKeyValueFilterEntry = {
   target?: string;
   key: string;
-  operator: "=" | "contains" | "does not contain" | "is set" | "is not set";
+  operator:
+    | "="
+    | "contains"
+    | "does not contain"
+    | "is set"
+    | "is not set"
+    | StringComparisonOperator;
   value: string;
+};
+
+type StringComparisonOperator = ">" | "<" | ">=" | "<=";
+
+// Comparisons parse the stored string as a number and persist as numberObject.
+export const isStringComparisonOperator = (
+  operator: string,
+): operator is StringComparisonOperator =>
+  operator === ">" ||
+  operator === "<" ||
+  operator === ">=" ||
+  operator === "<=";
+
+export const parseComparisonValue = (value: string): number | null => {
+  const parsed = value.trim() === "" ? NaN : Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
 };
 
 // `is set` / `is not set` filter on key presence, so a row is complete without a
@@ -626,7 +648,12 @@ export function removeColumnFiltersOfType(
   column: string,
   type: KeyedFilterKind,
 ): FilterState {
-  return current.filter((f) => !(f.column === column && f.type === type));
+  // The string facet also owns its numeric comparison rows.
+  const types =
+    type === "stringObject" ? ["stringObject", "numberObject"] : [type];
+  return current.filter(
+    (f) => !(f.column === column && types.includes(f.type)),
+  );
 }
 
 /**
@@ -692,22 +719,51 @@ export function applyKeyedFilterEntries(
     case "stringObject":
       return [
         ...without,
-        ...update.entries
-          .filter(
-            (entry) =>
-              entry.key &&
-              (isStringPresenceOperator(entry.operator) ||
-                entry.value.trim() !== ""),
-          )
-          .map((entry) => ({
-            column,
-            type: "stringObject" as const,
-            operator: entry.operator,
-            key: entry.key,
-            ...(entry.target ? { target: entry.target } : {}),
+        ...update.entries.flatMap((entry): FilterState => {
+          if (!entry.key) return [];
+          const { key, operator } = entry;
+          const target = entry.target ? { target: entry.target } : {};
+          if (isStringComparisonOperator(operator)) {
+            const value = parseComparisonValue(entry.value);
+            return value === null
+              ? []
+              : [
+                  {
+                    column,
+                    type: "numberObject",
+                    operator,
+                    key,
+                    value,
+                    ...target,
+                  },
+                ];
+          }
+          if (isStringPresenceOperator(operator)) {
             // Presence operators carry no value.
-            value: isStringPresenceOperator(entry.operator) ? "" : entry.value,
-          })),
+            return [
+              {
+                column,
+                type: "stringObject",
+                operator,
+                key,
+                value: "",
+                ...target,
+              },
+            ];
+          }
+          return entry.value.trim() === ""
+            ? []
+            : [
+                {
+                  column,
+                  type: "stringObject",
+                  operator,
+                  key,
+                  value: entry.value,
+                  ...target,
+                },
+              ];
+        }),
       ];
   }
 }

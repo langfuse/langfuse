@@ -41,6 +41,7 @@ export const USERS_FIELD_REGISTRY: FieldRegistry = createFieldRegistry({
   fields: usersFields(usersEventsFilterConfig),
   columns: usersColumns(usersEventsFilterConfig),
   metadata: true,
+  metadataComparisons: true,
   // The users queries group `events_core` alone with no score join, so the
   // sidebar offers no score facet and the `scores.` namespace stays closed at
   // both levels. Leaving it open would let the bar write a filter that 500s.

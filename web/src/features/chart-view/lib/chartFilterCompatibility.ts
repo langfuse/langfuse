@@ -128,9 +128,10 @@ export function chartFilterExclusionReason(column: string): string | null {
  * shape the aggregate query rejects or answers differently from the table:
  *
  * - a presence check on any column ({@link CHART_PRESENCE_FILTER_REASON});
- * - `metadata` in anything but its keyed `stringObject` form — that is the only
- *   metadata shape the query builder accepts, and forwarding another one would
- *   error the whole chart rather than one filter.
+ * - `metadata` in anything but its keyed `stringObject` form or a keyed
+ *   `numberObject` comparison — the only metadata shapes the query builder
+ *   accepts; forwarding another one would error the whole chart rather than one
+ *   filter.
  */
 export function chartConditionExclusionReason(
   filter: FilterCondition,
@@ -138,10 +139,25 @@ export function chartConditionExclusionReason(
   const columnReason = chartFilterExclusionReason(filter.column);
   if (columnReason) return columnReason;
   if (filter.type === "null") return CHART_PRESENCE_FILTER_REASON;
-  if (filter.column === "metadata" && filter.type !== "stringObject")
+  if (filter.column === "metadata" && !isForwardableMetadataFilter(filter))
     return CHART_UNSUPPORTED_FIELD_REASON;
   return null;
 }
+
+function isForwardableMetadataFilter(filter: FilterCondition): boolean {
+  if (filter.type === "stringObject") return true;
+  return (
+    filter.type === "numberObject" &&
+    METADATA_COMPARISON_OPERATORS.has(filter.operator)
+  );
+}
+
+const METADATA_COMPARISON_OPERATORS: ReadonlySet<string> = new Set([
+  ">",
+  "<",
+  ">=",
+  "<=",
+]);
 
 /**
  * The reason a sidebar FACET is not applied to the chart, or `null` if it is.

@@ -49,6 +49,7 @@ import {
   clearCategoricalColumn,
   deriveOperatorChange,
   hasMultipleFilterTargets,
+  isStringComparisonOperator,
   removeColumnFiltersOfType,
   removeTextFilterEntry,
   type BooleanKeyValueFilterEntry,
@@ -1681,32 +1682,39 @@ export function useSidebarFilterPresentation(
 
         // Handle stringKeyValue filters
         if (facet.type === "stringKeyValue") {
-          // Extract all stringObject filters for this column from filterState
-          const stringFilters = filterState.filter(
-            (f) => f.column === facet.column && f.type === "stringObject",
-          ) as Array<{
-            target?: string;
-            column: string;
-            type: "stringObject";
-            operator:
-              | "="
-              | "contains"
-              | "does not contain"
-              | "is set"
-              | "is not set";
-            key: string;
-            value: string;
-          }>;
-
-          // Convert to StringKeyValueFilterEntry array
-          const activeFilters: StringKeyValueFilterEntry[] = stringFilters.map(
-            (f) => ({
-              key: f.key,
-              ...(f.target ? { target: f.target } : {}),
-              operator: f.operator,
-              value: f.value,
-            }),
-          );
+          // String rows plus the numeric comparisons the facet also edits.
+          const activeFilters: StringKeyValueFilterEntry[] =
+            filterState.flatMap((f): StringKeyValueFilterEntry[] => {
+              if (f.column !== facet.column) return [];
+              const target = f.target ? { target: f.target } : {};
+              if (f.type === "stringObject") {
+                return [
+                  {
+                    key: f.key,
+                    ...target,
+                    // Search-bar `starts with` / `ends with` rows pass through
+                    // unchanged; the operator select has no option for them.
+                    operator:
+                      f.operator as StringKeyValueFilterEntry["operator"],
+                    value: f.value,
+                  },
+                ];
+              }
+              if (
+                f.type === "numberObject" &&
+                isStringComparisonOperator(f.operator)
+              ) {
+                return [
+                  {
+                    key: f.key,
+                    ...target,
+                    operator: f.operator,
+                    value: String(f.value),
+                  },
+                ];
+              }
+              return [];
+            });
 
           const isActive = activeFilters.length > 0;
           const disableState = getFacetDisabledState(facet);

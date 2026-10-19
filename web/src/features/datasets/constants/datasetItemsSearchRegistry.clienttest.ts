@@ -8,6 +8,10 @@ import {
   planInputCompletions,
   runSearchBarInvariants,
 } from "@/src/features/search-bar";
+import {
+  SECTION_COMPARE_OPS,
+  SECTION_VALUES,
+} from "@/src/features/search-bar/lib/completions";
 
 const registry = DATASET_ITEMS_FIELD_REGISTRY;
 const metadataFilter: FilterState = [
@@ -21,6 +25,32 @@ const metadataFilter: FilterState = [
 ];
 
 describe("dataset item search contract", () => {
+  it("rejects numeric metadata comparisons", () => {
+    const result = planCommit("metadata.count:>20", undefined, registry);
+    expect(result.status).toBe("invalid");
+    if (result.status !== "invalid") throw new Error(result.status);
+    expect(result.diagnostics.map((d) => d.message).join(" ")).toContain(
+      "metadata on this view supports text matches only",
+    );
+  });
+
+  it("does not suggest numeric comparisons after a metadata key", () => {
+    const input = "metadata.region:";
+    const plan = planInputCompletions(
+      {
+        input,
+        caret: input.length,
+        observed: { "metadata.region": [{ value: "eu" }] },
+        recents: [],
+        currentQueryText: input,
+      },
+      registry,
+    );
+    const titles = plan?.sections.map((section) => section.title) ?? [];
+    expect(titles).toContain(SECTION_VALUES);
+    expect(titles).not.toContain(SECTION_COMPARE_OPS);
+  });
+
   it("keeps bare phrases in the ID lane and resets to it when clearing", () => {
     expect(planCommit("item 123", undefined, registry)).toMatchObject({
       status: "committed",

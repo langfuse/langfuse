@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { type FilterState } from "@langfuse/shared";
-import { editExperimentFilter } from "./experimentFilterEditing";
+import {
+  completeExperimentFilter,
+  editExperimentFilter,
+  experimentFilterOperators,
+  experimentFilterToDraft,
+  isExperimentMetadataColumn,
+  withExperimentFilterOperator,
+} from "./experimentFilterEditing";
 
 describe("experiment sidebar condition editing", () => {
   const filters: FilterState = [
@@ -51,5 +58,48 @@ describe("experiment sidebar condition editing", () => {
     ]);
     const duplicate = [filters[0], filters[0]];
     expect(editExperimentFilter(duplicate, 1, null)).toEqual([filters[0]]);
+  });
+});
+
+describe("experiment metadata comparisons", () => {
+  const comparison = experimentFilterToDraft({
+    column: "itemMetadata",
+    type: "numberObject",
+    key: "difficulty",
+    operator: ">",
+    value: 2,
+    target: "all",
+  });
+
+  it("keeps a numeric metadata condition a metadata block, not a score block", () => {
+    expect(isExperimentMetadataColumn(comparison.column)).toBe(true);
+    expect(isExperimentMetadataColumn("scores_avg")).toBe(false);
+    expect(experimentFilterOperators(comparison)).toEqual(
+      expect.arrayContaining(["=", "is set", ">", "<=", "contains"]),
+    );
+  });
+
+  it("switches the stored type with the operator and clears the value", () => {
+    const asString = {
+      ...comparison,
+      ...withExperimentFilterOperator(comparison, "="),
+    };
+    expect(asString).toMatchObject({
+      type: "stringObject",
+      operator: "=",
+      value: "",
+    });
+    const back = {
+      ...asString,
+      ...withExperimentFilterOperator({ ...asString, value: "eu" }, ">="),
+      value: "3",
+    };
+    expect(completeExperimentFilter(back)).toMatchObject({
+      column: "itemMetadata",
+      type: "numberObject",
+      key: "difficulty",
+      operator: ">=",
+      value: 3,
+    });
   });
 });

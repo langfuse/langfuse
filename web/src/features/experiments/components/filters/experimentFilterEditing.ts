@@ -1,4 +1,8 @@
-import { singleFilter, type FilterState } from "@langfuse/shared";
+import {
+  filterOperators,
+  singleFilter,
+  type FilterState,
+} from "@langfuse/shared";
 
 export const EXPERIMENT_FILTER_KINDS = [
   { column: "level", type: "stringOptions", label: "Status" },
@@ -53,6 +57,38 @@ export function experimentFilterToDraft(
       ? filter.value
       : String(filter.value ?? ""),
   };
+}
+
+const METADATA_COMPARISON_OPERATORS = [">", "<", ">=", "<="] as const;
+
+/** Metadata blocks are keyed by column: numeric comparisons store as numberObject. */
+export function isExperimentMetadataColumn(column: string): boolean {
+  return EXPERIMENT_FILTER_KINDS.some(
+    (kind) => kind.column === column && kind.type === "stringObject",
+  );
+}
+
+export function experimentFilterOperators(
+  draft: ExperimentFilterDraft,
+): readonly string[] {
+  if (isExperimentMetadataColumn(draft.column))
+    return [...filterOperators.stringObject, ...METADATA_COMPARISON_OPERATORS];
+  return filterOperators[draft.type];
+}
+
+/** Switching a metadata block between string and numeric operators changes its type and clears the value. */
+export function withExperimentFilterOperator(
+  draft: ExperimentFilterDraft,
+  operator: string,
+): Pick<ExperimentFilterDraft, "type" | "operator" | "value"> {
+  if (!isExperimentMetadataColumn(draft.column))
+    return { type: draft.type, operator, value: draft.value };
+  const type = (METADATA_COMPARISON_OPERATORS as readonly string[]).includes(
+    operator,
+  )
+    ? "numberObject"
+    : "stringObject";
+  return { type, operator, value: type === draft.type ? draft.value : "" };
 }
 
 /** Incomplete editor values never become an applied condition. */

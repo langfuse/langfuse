@@ -84,6 +84,13 @@ describe("parseGeneratedFilters", () => {
       },
       {
         type: "numberObject",
+        column: "metadata",
+        key: "timeout",
+        operator: ">",
+        value: 20,
+      },
+      {
+        type: "numberObject",
         column: "scores_avg",
         key: "accuracy",
         operator: ">",
@@ -105,7 +112,7 @@ describe("parseGeneratedFilters", () => {
       },
     ]);
     const { filters, droppedCount } = parseGeneratedFilters(completion);
-    expect(filters).toHaveLength(4);
+    expect(filters).toHaveLength(5);
     expect(droppedCount).toBe(0);
   });
 
@@ -125,6 +132,21 @@ describe("parseGeneratedFilters", () => {
     const { filters, droppedCount } = parseGeneratedFilters(completion);
     expect(filters).toHaveLength(1);
     expect(filters[0]?.column).toBe("level");
+    expect(droppedCount).toBe(1);
+  });
+
+  it("drops numeric equality on metadata (equality is a string match)", () => {
+    const completion = JSON.stringify([
+      {
+        type: "numberObject",
+        column: "metadata",
+        key: "timeout",
+        operator: "=",
+        value: 20,
+      },
+    ]);
+    const { filters, droppedCount } = parseGeneratedFilters(completion);
+    expect(filters).toHaveLength(0);
     expect(droppedCount).toBe(1);
   });
 
