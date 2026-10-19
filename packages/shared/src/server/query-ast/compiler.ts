@@ -121,67 +121,6 @@ function relationBindTypes(
 }
 
 /**
- * Bind type of `qualifier.column`, from the innermost select that declares
- * `qualifier`. Unknown when no select declares it or its relation is opaque.
- */
-function qualifiedBindType(
-  column: string,
-  qualifier: string,
-  scopes: readonly SelectScope[],
-): BindType | undefined {
-  for (const scope of [...scopes].reverse()) {
-    const relation = scope.relations.get(qualifier);
-    if (relation === undefined) continue;
-    if (relation === "opaque") {
-      return {
-        reason: `Cannot type the value compared to ${qualifier}.${column}: the columns of "${qualifier}" are unknown to the compiler. Read the column from a table in the registry (TABLE_REGISTRY in schema.ts), or add its table there.`,
-      };
-    }
-    return relation[column];
-  }
-  return {
-    reason: `Cannot type the value compared to ${qualifier}.${column}: no relation in scope is named "${qualifier}". Qualify the column with an alias this query declares.`,
-  };
-}
-
-/**
- * Bind type of an unqualified `column` in `scope`: the type its relations
- * agree on, or undefined when none has it. Unknown when an opaque relation
- * could provide it, or when relations type it differently (ClickHouse then
- * reads the leftmost one).
- */
-function unqualifiedBindType(
-  column: string,
-  scope: SelectScope | undefined,
-): BindType | undefined {
-  const relations = [...new Set(scope?.relations.values() ?? [])];
-  const known = relations.filter(
-    (columns): columns is ColumnBindTypes => columns !== "opaque",
-  );
-  if (known.length < relations.length) {
-    return {
-      reason: `Cannot type the value compared to ${column}: it may come from a relation whose columns are unknown to the compiler. Qualify the column with the alias of a registry relation.`,
-    };
-  }
-  const candidates = [
-    ...new Set(
-      known.flatMap((columns) =>
-        columns[column] === undefined ? [] : [columns[column]],
-      ),
-    ),
-  ];
-  // A CTE column read from an opaque relation keeps its unknown type.
-  const unknown = candidates.find((bindType) => typeof bindType !== "string");
-  if (unknown) return unknown;
-  if (candidates.length > 1) {
-    return {
-      reason: `Cannot type the value compared to ${column}: the joined relations give it different types (${candidates.join(", ")}). Qualify the column with its relation's alias.`,
-    };
-  }
-  return candidates[0];
-}
-
-/**
  * Aggregates whose result has the type of their first argument. Others change
  * it (`count`/`uniq` → UInt64, `sum` widens, `avg`/`median` → Float64), so
  * their output falls back like any computed column.
@@ -230,30 +169,16 @@ function columnReference(
   return undefined;
 }
 
-/**
- * A compared column whose type the compiler can't determine. Binding a value
- * against it throws `reason`; a comparison that binds nothing still compiles.
- */
-type UnknownBindType = { reason: string };
-
-/** ClickHouse bind type of a column, or why the compiler can't name one. */
-type BindType = string | UnknownBindType;
-
-/** Bind type per column name of one relation. */
-type ColumnBindTypes = Readonly<Record<string, BindType>>;
-
-/**
- * A relation's column bind types, or `"opaque"` when the compiler can't see
- * its columns: a table outside the registry, or a CTE or subquery that
- * expands one with `*`.
- */
-type RelationBindTypes = ColumnBindTypes | "opaque";
-
 type SelectScope = {
   /** Bind types of the output columns of the CTE `name` this SELECT's WITH declares, or undefined if it declares none. */
   cte: (name: string) => RelationBindTypes | undefined;
   /** FROM/JOIN names and aliases → the relation's column bind types. */
   relations: Map<string, RelationBindTypes>;
+  /**
+   * This SELECT's output aliases → the expression each names. ClickHouse
+   * resolves an unqualified name to an alias before a relation's column.
+   */
+  aliases: Map<string, OperationNode>;
 };
 
 /**
@@ -451,8 +376,8 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
 
   /**
    * What one SELECT makes visible to the columns compiled inside it: the CTEs
-   * its WITH declares, and each FROM/JOIN name or alias mapped to the column
-   * bind types of the relation it reads.
+   * its WITH declares, each FROM/JOIN name or alias mapped to the column bind
+   * types of the relation it reads, and its output aliases.
    */
   private selectScopeOf(
     node: SelectQueryNode,
@@ -461,7 +386,13 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     const scope: SelectScope = {
       cte: this.cteLookup(node, enclosing),
       relations: new Map(),
+      aliases: new Map(),
     };
+    for (const { selection } of node.selections ?? []) {
+      if (AliasNode.is(selection) && IdentifierNode.is(selection.alias)) {
+        scope.aliases.set(selection.alias.name, selection.node);
+      }
+    }
     const scopes = [...enclosing, scope];
     const relations = [
       ...(node.from?.froms ?? []),
@@ -519,7 +450,7 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
       if (!cte) return undefined;
       const known = typed.get(name);
       if (known) return known;
-      const bodyScope = withoutCte({ cte: lookup, relations: new Map() }, name);
+      const bodyScope = withoutCte({ cte: lookup }, name);
       const columns = this.outputBindTypes(cte.expression, [
         ...outer,
         bodyScope,
@@ -602,16 +533,25 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
 
   /**
    * Bind type of `column` in `scopes` (innermost last), or undefined to bind
-   * by value.
+   * by value. An unqualified name that is an output alias of the innermost
+   * select takes the type of the column it names, through a type-preserving
+   * aggregate; a computed alias binds by value. The aliased expression reads
+   * the relations, not the aliases: `max(start_time) AS start_time`.
    */
   private columnBindType(
     column: string,
     qualifier: string | undefined,
     scopes: readonly SelectScope[] = this.selectScopes,
   ): BindType | undefined {
-    return qualifier
-      ? qualifiedBindType(column, qualifier, scopes)
-      : unqualifiedBindType(column, scopes.at(-1));
+    if (qualifier) return qualifiedBindType(column, qualifier, scopes);
+    const scope = scopes.at(-1);
+    const aliased = scope?.aliases.get(column);
+    if (!aliased) return unqualifiedBindType(column, scope);
+    const ref = columnReference(typePreservedOperand(aliased));
+    if (!ref) return undefined;
+    return ref.qualifier
+      ? qualifiedBindType(ref.column, ref.qualifier, scopes)
+      : unqualifiedBindType(ref.column, scope);
   }
 
   /** Bind type of a comparison operand that is a column, or undefined. */
@@ -817,10 +757,14 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
  * FROM traces)` to the table, or to an enclosing CTE of that name. The
  * declaring SELECT's FROM relations are not visible to the body.
  */
-function withoutCte(scope: SelectScope, name: string): SelectScope {
+function withoutCte(
+  scope: Pick<SelectScope, "cte">,
+  name: string,
+): SelectScope {
   return {
     cte: (other) => (other === name ? undefined : scope.cte(other)),
     relations: new Map(),
+    aliases: new Map(),
   };
 }
 
@@ -831,3 +775,83 @@ function assertPlainName(kind: string, name: string): void {
     );
   }
 }
+
+/**
+ * Bind type of `qualifier.column`, from the innermost select that declares
+ * `qualifier`. Unknown when no select declares it or its relation is opaque.
+ */
+function qualifiedBindType(
+  column: string,
+  qualifier: string,
+  scopes: readonly SelectScope[],
+): BindType | undefined {
+  for (const scope of [...scopes].reverse()) {
+    const relation = scope.relations.get(qualifier);
+    if (relation === undefined) continue;
+    if (relation === "opaque") {
+      return {
+        reason: `Cannot type the value compared to ${qualifier}.${column}: the columns of "${qualifier}" are unknown to the compiler. Read the column from a table in the registry (TABLE_REGISTRY in schema.ts), or add its table there.`,
+      };
+    }
+    return relation[column];
+  }
+  return {
+    reason: `Cannot type the value compared to ${qualifier}.${column}: no relation in scope is named "${qualifier}". Qualify the column with an alias this query declares.`,
+  };
+}
+
+/**
+ * Bind type of an unqualified `column` in `scope`: the type its relations
+ * agree on, or undefined when none has it. Unknown when an opaque relation
+ * could provide it, or when relations type it differently (ClickHouse then
+ * reads the leftmost one).
+ */
+function unqualifiedBindType(
+  column: string,
+  scope: SelectScope | undefined,
+): BindType | undefined {
+  const relations = [...new Set(scope?.relations.values() ?? [])];
+  const known = relations.filter(
+    (columns): columns is ColumnBindTypes => columns !== "opaque",
+  );
+  if (known.length < relations.length) {
+    return {
+      reason: `Cannot type the value compared to ${column}: it may come from a relation whose columns are unknown to the compiler. Qualify the column with the alias of a registry relation.`,
+    };
+  }
+  const candidates = [
+    ...new Set(
+      known.flatMap((columns) =>
+        columns[column] === undefined ? [] : [columns[column]],
+      ),
+    ),
+  ];
+  // A CTE column read from an opaque relation keeps its unknown type.
+  const unknown = candidates.find((bindType) => typeof bindType !== "string");
+  if (unknown) return unknown;
+  if (candidates.length > 1) {
+    return {
+      reason: `Cannot type the value compared to ${column}: the joined relations give it different types (${candidates.join(", ")}). Qualify the column with its relation's alias.`,
+    };
+  }
+  return candidates[0];
+}
+
+/**
+ * A compared column whose type the compiler can't determine. Binding a value
+ * against it throws `reason`; a comparison that binds nothing still compiles.
+ */
+type UnknownBindType = { reason: string };
+
+/** ClickHouse bind type of a column, or why the compiler can't name one. */
+type BindType = string | UnknownBindType;
+
+/** Bind type per column name of one relation. */
+type ColumnBindTypes = Readonly<Record<string, BindType>>;
+
+/**
+ * A relation's column bind types, or `"opaque"` when the compiler can't see
+ * its columns: a table outside the registry, or a CTE or subquery that
+ * expands one with `*`.
+ */
+type RelationBindTypes = ColumnBindTypes | "opaque";

@@ -412,6 +412,30 @@ describe("typed params from the column registry", () => {
     expect(sql).toMatch(/sub\.start_time >= \{p\d+:DateTime64\(6\)\}/);
   });
 
+  // ClickHouse resolves `start_time` to the alias, not to either joined column.
+  it("binds a select alias with the type of the column it names", () => {
+    const { sql } = compile(
+      getClickhouseKysely()
+        .selectFrom("events_core as e")
+        .innerJoin("observations as o", "o.trace_id", "e.trace_id")
+        .select((eb) => eb.fn.max("e.start_time").as("start_time"))
+        .groupBy("e.trace_id")
+        .having("start_time", ">", START),
+    );
+    expect(sql).toMatch(/start_time > \{p\d+:DateTime64\(6\)\}/);
+  });
+
+  it("binds a computed select alias by value, not as the column it shadows", () => {
+    const { sql } = compile(
+      getClickhouseKysely()
+        .selectFrom("scores")
+        .select((eb) => eb.fn.countAll().as("value"))
+        .groupBy("trace_id")
+        .having("value", ">", 1),
+    );
+    expect(sql).toMatch(/value > \{p\d+:Int64\}/);
+  });
+
   describe("columns the compiler can't resolve to a relation", () => {
     const db = getClickhouseKysely();
     // A table outside the registry: the compiler can't see its columns.
