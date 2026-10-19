@@ -506,6 +506,11 @@ export const langchainStandardMultimodalBlocksFixture = {
             mime_type: "audio/wav",
           },
           { type: "video", file_id: "file-def456" },
+          {
+            type: "image",
+            base64:
+              "@@@langfuseMedia:type=image/png|id=stored-image|source=base64@@@",
+          },
         ],
       },
     ],
@@ -543,6 +548,12 @@ export const langchainStandardMultimodalBlocksFixture = {
             type: "file",
             mediaType: "video/*",
             content: { kind: "reference", id: "file-def456" },
+          },
+          {
+            type: "file",
+            mediaType: "image/png",
+            content: { kind: "reference", id: "stored-image" },
+            providerMetadata: { source: "base64" },
           },
         ],
       },

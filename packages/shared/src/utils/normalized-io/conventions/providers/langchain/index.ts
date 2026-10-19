@@ -5,7 +5,11 @@ import {
   optionalString,
   parseArray,
 } from "../../../core/utils/json";
-import { filePartFromUrl } from "../../../core/normalize/message-parts/media";
+import {
+  filePartFromMediaReference,
+  filePartFromUrl,
+  parseMediaReference,
+} from "../../../core/normalize/message-parts/media";
 import {
   providerExecutedToolCall,
   toolCallPart,
@@ -100,8 +104,18 @@ function langchainMediaBlock(fallbackMediaType?: string): PartHandler {
     const mediaType = optionalString(value.mime_type);
     const url = optionalString(value.url);
     if (url) {
+      // Generic file payloads share the AI SDK shape and its URL/base64 rules.
+      if (
+        value.type === "file" &&
+        (!mediaType ||
+          (!/^(https?:|data:)/.test(url) && !parseMediaReference(url)))
+      )
+        return unmatched;
       return claimed(filePartFromUrl(url, { mediaType, fallbackMediaType }));
     }
+
+    const reference = parseMediaReference(value.base64);
+    if (reference) return claimed(filePartFromMediaReference(reference));
 
     const content = langchainBase64OrFileIdContent(value);
     if (!content) return unmatched;
@@ -136,7 +150,7 @@ const normalizeLangchainServerToolResult: PartHandler = (value) =>
   );
 
 // LangChain invalid_tool_calls entries: { name, args, id, error }.
-function langchainInvalidToolCall(
+function normalizeLangchainInvalidToolCall(
   record: Record<string, unknown>,
 ): ToolCallPart | null {
   const part = toolCallPart({
@@ -189,7 +203,7 @@ function langchainCollectSiblingParts(
 
   for (const invalidCall of parseArray(value.invalid_tool_calls) ?? []) {
     const record = asRecord(invalidCall);
-    const part = record ? langchainInvalidToolCall(record) : null;
+    const part = record ? normalizeLangchainInvalidToolCall(record) : null;
     if (part) parts.push(part);
   }
 

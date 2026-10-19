@@ -14,6 +14,32 @@ import {
 } from "./fixtures";
 
 describe("LangChain normalized I/O", () => {
+  it("preserves the generic file URL fallback inside LangChain messages", () => {
+    const normalized = normalizeSpanIO({
+      input: undefined,
+      output: {
+        generations: [
+          {
+            message: {
+              content: [
+                {
+                  type: "file",
+                  url: "ZmlsZQ==",
+                  mime_type: "application/pdf",
+                },
+              ],
+            },
+          },
+        ],
+      },
+      metadata: undefined,
+    });
+
+    expect(normalized.messages[0].parts).toEqual([
+      { type: "file", content: { kind: "base64", data: "ZmlsZQ==" } },
+    ]);
+  });
+
   it.each([
     ...capturedTraceFixtures,
     langchainSerializedGenerationResultFixture,
