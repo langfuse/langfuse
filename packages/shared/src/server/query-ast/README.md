@@ -121,13 +121,16 @@ suffix to run there. Promote it to a required check once it has proven stable.
   `{ strategy: "final" }`; callers opt in with `$call(useFinal(["scores"]))`.
 - **Value binds take their ClickHouse type from the compared column** in the
   table registry (`scores.value > 1` emits `{p:Float64}`, not inferred
-  `{p:Int64}`). Same-value binds still intern to one placeholder. A value
-  compared to a column the compiler can't type throws `QueryCompileError`:
-  a qualifier no relation declares, a table outside the registry (or a CTE
-  that reads one), and an unqualified column that the joined relations type
-  differently or that a relation outside the registry may provide. Qualify the
+  `{p:Int64}`). A `sql.ref` column is typed the same way, and a column tuple
+  (`refTuple`, `tupleIn`) per position. Same-value binds still intern to one
+  placeholder. A value compared to a column the compiler can't type throws
+  `QueryCompileError`: a qualifier no relation declares, a table outside the
+  registry (or a CTE that reads one), and an unqualified column that the
+  joined relations type differently (a computed CTE column counts as its own
+  type) or that a relation outside the registry may provide. Qualify the
   column with the alias of a registry relation, or add the table to the
-  registry. A column no relation has (a SELECT alias) still binds by value.
+  registry. A SELECT alias takes the type of the column it names; a computed
+  alias, or a column no relation has, binds by value.
 - **Bind dates as JS `Date`**, never as pre-formatted strings. The compiler
   sends a `Date` as the UTC wall-clock string ingestion writes
   (`toClickhouseDateTime`), so binds match stored rows whatever the server

@@ -586,6 +586,82 @@ describe("typed params from the column registry", () => {
         /"unregistered" is not a registered table/,
       ],
       [
+        // `t` outputs value computed (UInt64); scores types it Float64.
+        "an unqualified column one relation outputs computed and another types",
+        () =>
+          db
+            .with("t", (qb) =>
+              qb
+                .selectFrom("scores")
+                .select((eb) => [eb.fn.countAll().as("value"), "trace_id"])
+                .groupBy("trace_id"),
+            )
+            .selectFrom("t")
+            .innerJoin("scores as s", "s.trace_id", "t.trace_id")
+            .select("s.id")
+            .where("value", ">", 1),
+        /different types \(.*a computed value.*\)/,
+      ],
+      [
+        // `sql.ref` names a column like a plain reference does.
+        "a sql.ref column whose qualifier is declared nowhere",
+        () =>
+          db
+            .selectFrom("events_core")
+            .select("span_id")
+            .where(sql_.ref("x.is_deleted"), "=", 0),
+        /no relation in scope is named "x"/,
+      ],
+      [
+        "an unqualified sql.ref column the joined relations type differently",
+        () =>
+          db
+            .selectFrom("events_core as e")
+            .innerJoin("observations as o", "o.trace_id", "e.trace_id")
+            .select("e.span_id")
+            .where(sql_.ref("start_time"), ">=", START),
+        /joined relations give it different types/,
+      ],
+      [
+        // Kysely only accepts a declared qualifier, so the test widens it.
+        "a CTE qualified * whose qualifier no relation declares",
+        () =>
+          db
+            .with("t", (qb) =>
+              qb.selectFrom("events_core as e").selectAll("x" as string as "e"),
+            )
+            .selectFrom("t as t")
+            .select("t.span_id")
+            .where("t.start_time", ">=", START),
+        /It selects x\.\* but no relation in that select is named "x"/,
+      ],
+      [
+        "a TupleParam whose tuple has a column declared nowhere",
+        () =>
+          db
+            .selectFrom("events_core as e")
+            .select("e.span_id")
+            .where((eb) =>
+              tupleIn(eb.refTuple(db.dynamic.ref("x.a"), "e.span_id"), [
+                new TupleParam(["a", "s"]),
+              ]),
+            ),
+        /no relation in scope is named "x"/,
+      ],
+      [
+        "a tuple of values against a tuple with a column declared nowhere",
+        () =>
+          db
+            .selectFrom("events_core as e")
+            .select("e.span_id")
+            .where((eb) =>
+              eb(eb.refTuple(db.dynamic.ref("x.a"), "e.span_id"), "in", [
+                eb.tuple("a", "s"),
+              ]),
+            ),
+        /no relation in scope is named "x"/,
+      ],
+      [
         // An IN list binds an array of the column's type.
         "an IN list against a qualifier declared nowhere",
         () =>
@@ -664,6 +740,46 @@ describe("typed params from the column registry", () => {
     expect(Object.values(params)).toContainEqual([
       new TupleParam(["t1", "s1"]),
     ]);
+  });
+
+  it("binds a TupleParam list with the type of each tuple column", () => {
+    const { sql } = compile(
+      getClickhouseKysely()
+        .selectFrom("scores as s")
+        .select("s.id")
+        .where((eb) =>
+          tupleIn(eb.refTuple("s.trace_id", "s.value"), [
+            new TupleParam(["t1", 1]),
+          ]),
+        ),
+    );
+    expect(sql).toMatch(
+      /\(s\.trace_id, s\.value\) in \{p\d+:Array\(Tuple\(String, Float64\)\)\}/,
+    );
+  });
+
+  it("binds each value of a tuple with the type of the column at its position", () => {
+    const { sql } = compile(
+      getClickhouseKysely()
+        .selectFrom("scores as s")
+        .select("s.id")
+        .where((eb) =>
+          eb(eb.refTuple("s.trace_id", "s.value"), "in", [eb.tuple("t1", 1)]),
+        ),
+    );
+    expect(sql).toMatch(
+      /\(s\.trace_id, s\.value\) in \(\(\{p\d+:String\}, \{p\d+:Float64\}\)\)/,
+    );
+  });
+
+  it("binds a sql.ref column with its registry type", () => {
+    const { sql } = compile(
+      getClickhouseKysely()
+        .selectFrom("scores")
+        .select("id")
+        .where(sql_.ref("value"), ">", 1),
+    );
+    expect(sql).toMatch(/value > \{p\d+:Float64\}/);
   });
 
   it("binds distinct bare TupleParams as separate Tuple(...) placeholders", () => {

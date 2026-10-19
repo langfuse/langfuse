@@ -10,11 +10,13 @@ import {
   IdentifierNode,
   InsertQueryNode,
   ParensNode,
+  RawNode,
   ReferenceNode,
   SelectAllNode,
   SelectQueryNode,
   SetOperationNode,
   TableNode,
+  TupleNode,
   ValueNode,
   type CollateNode,
   type CommonTableExpressionNode,
@@ -157,11 +159,19 @@ function typePreservedOperand(node: OperationNode): OperationNode {
 /**
  * Column name and qualifier of a column operand. Kysely parses `"start_time"`
  * to a bare ColumnNode and `"e.start_time"` to a ReferenceNode carrying the
- * table, so only the latter has a qualifier.
+ * table, so only the latter has a qualifier. `sql.ref(…)` wraps either in a
+ * RawNode with no SQL of its own.
  */
 function columnReference(
   node: OperationNode,
 ): { column: string; qualifier: string | undefined } | undefined {
+  if (
+    RawNode.is(node) &&
+    node.parameters.length === 1 &&
+    node.sqlFragments.every((fragment) => fragment === "")
+  ) {
+    return columnReference(node.parameters[0]);
+  }
   if (ColumnNode.is(node)) {
     return { column: node.column.name, qualifier: undefined };
   }
@@ -211,7 +221,7 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
    * visiting a binary operation. Falls back to JS-value inference when no
    * column is in scope.
    */
-  private pendingBindType: BindType | undefined;
+  private pendingBindType: OperandBindType | undefined;
   /**
    * The SELECTs enclosing the node being compiled, innermost last. A column
    * operand looks up its table here to pick its registry bind type.
@@ -357,7 +367,31 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     super.visitValueList(node);
   }
 
-  private arrayBindType(values: unknown[]): BindType {
+  /**
+   * A tuple of values compared to a tuple of columns,
+   * `(e.trace_id, e.span_id) in ((?, ?))`, binds each value with the type of
+   * the column at its position.
+   */
+  protected override visitTuple(node: TupleNode): void {
+    const pending = this.pendingBindType;
+    if (
+      !isTupleBindType(pending) ||
+      pending.tuple.length !== node.values.length
+    ) {
+      super.visitTuple(node);
+      return;
+    }
+    this.append("(");
+    node.values.forEach((value, index) => {
+      if (index > 0) this.append(", ");
+      this.pendingBindType = pending.tuple[index];
+      this.visitNode(value);
+    });
+    this.pendingBindType = pending;
+    this.append(")");
+  }
+
+  private arrayBindType(values: unknown[]): OperandBindType {
     if (typeof this.pendingBindType === "string") {
       return `Array(${this.pendingBindType})`;
     }
@@ -505,7 +539,7 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     }
     const scope = this.selectScopeOf(node, enclosing);
     const scopes = [...enclosing, scope];
-    const columns: Record<string, BindType> = {};
+    const columns: Record<string, BindType | null> = {};
     for (const { selection } of node.selections ?? []) {
       // `*`: every column of every relation in this select's FROM/JOIN.
       if (SelectAllNode.is(selection)) {
@@ -539,8 +573,7 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
       const bindType =
         ref && this.columnBindType(ref.column, ref.qualifier, scopes);
       if (!name) continue;
-      if (bindType) columns[name] = bindType;
-      else delete columns[name];
+      columns[name] = bindType ?? null;
     }
     return columns;
   }
@@ -569,9 +602,20 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
   }
 
   /** Bind type of a comparison operand that is a column, or undefined. */
-  private bindTypeOfColumnOperand(node: OperationNode): BindType | undefined {
+  private bindTypeOfColumnOperand(
+    node: OperationNode,
+  ): OperandBindType | undefined {
     const ref = columnReference(node);
     if (ref) return this.columnBindType(ref.column, ref.qualifier);
+    // `refTuple("e.trace_id", "e.span_id")`: one bind type per position.
+    if (TupleNode.is(node)) {
+      const tuple = node.values.map((value) =>
+        this.bindTypeOfColumnOperand(value),
+      );
+      return tuple.some((bindType) => bindType !== undefined)
+        ? { tuple }
+        : undefined;
+    }
     // Single-argument date wrappers (`toDate(timestamp)`) keep the inner
     // column's bind type. Extra arguments such as a timezone are not column
     // values.
@@ -743,15 +787,14 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     this.append(" final");
   }
 
-  private bindValue(value: unknown, type?: BindType): string {
-    if (typeof type === "object") throw new QueryCompileError(type.reason);
+  private bindValue(value: unknown, type?: OperandBindType): string {
     // `type` is the caller-known ClickHouse type; when omitted we infer the
     // widest canonical type from the JS value (Int64 / Float64 / String /
     // DateTime64(3)). Inference only types the bind *placeholder* — ClickHouse
     // still coerces it to the compared column's type — so the widening cases we
     // emit are safe. Pass `type` explicitly where exact width or precision
     // matters (e.g. a Decimal column, where inferred Float64 could round).
-    const inferred = type ?? inferClickHouseType(value);
+    const inferred = resolveBindType(value, type);
     const key = `${inferred}:${canonicalParamValue(value)}`;
     const existing = this.intern.get(key);
     if (existing) {
@@ -807,7 +850,7 @@ function qualifiedBindType(
         reason: `Cannot type the value compared to ${qualifier}.${column}: ${relation.reason}`,
       };
     }
-    return relation[column];
+    return relation[column] ?? undefined;
   }
   return {
     reason: `Cannot type the value compared to ${qualifier}.${column}: no relation in scope is named "${qualifier}". Qualify the column with an alias this query declares.`,
@@ -816,8 +859,9 @@ function qualifiedBindType(
 
 /**
  * Bind type of an unqualified `column` in `scope`: the type its relations
- * agree on, or undefined when none has it. Unknown when an opaque relation
- * could provide it, or when relations type it differently (ClickHouse then
+ * agree on, or undefined when none has it or they all output it computed.
+ * Unknown when an opaque relation could provide it, or when relations type
+ * it differently, computed counting as a type of its own (ClickHouse then
  * reads the leftmost one).
  */
 function unqualifiedBindType(
@@ -845,14 +889,56 @@ function unqualifiedBindType(
     ),
   ];
   // A CTE column read from an opaque relation keeps its unknown type.
-  const unknown = candidates.find((bindType) => typeof bindType !== "string");
+  const unknown = candidates.find(
+    (bindType): bindType is UnknownBindType =>
+      bindType !== null && typeof bindType !== "string",
+  );
   if (unknown) return unknown;
   if (candidates.length > 1) {
+    const types = candidates.map((bindType) => bindType ?? "a computed value");
     return {
-      reason: `Cannot type the value compared to ${column}: the joined relations give it different types (${candidates.join(", ")}). Qualify the column with its relation's alias.`,
+      reason: `Cannot type the value compared to ${column}: the joined relations give it different types (${types.join(", ")}). Qualify the column with its relation's alias.`,
     };
   }
-  return candidates[0];
+  return candidates[0] ?? undefined;
+}
+
+/**
+ * The ClickHouse type `value` binds as against an operand of bind type
+ * `type`: inferred from the value where `type` names none, per element for
+ * a tuple. Throws where an unknown type would decide it.
+ */
+function resolveBindType(
+  value: unknown,
+  type: OperandBindType | undefined,
+): string {
+  if (type === undefined) return inferClickHouseType(value);
+  if (typeof type === "string") return type;
+  if (!isTupleBindType(type)) throw new QueryCompileError(type.reason);
+  // `(a, b) in {p:Array(Tuple(…))}`: the list takes the tuple's type.
+  if (Array.isArray(value)) return `Array(${resolveBindType(value[0], type)})`;
+  if (
+    value instanceof TupleParam &&
+    value.values.length === type.tuple.length
+  ) {
+    const elements = value.values.map((element, index) =>
+      resolveBindType(element, type.tuple[index]),
+    );
+    return `Tuple(${elements.join(", ")})`;
+  }
+  // Any other value binds by inference, unless an element type is unknown.
+  for (const element of type.tuple) {
+    if (element !== undefined && typeof element !== "string") {
+      resolveBindType(undefined, element);
+    }
+  }
+  return inferClickHouseType(value);
+}
+
+function isTupleBindType(
+  type: OperandBindType | undefined,
+): type is TupleBindType {
+  return typeof type === "object" && "tuple" in type;
 }
 
 /**
@@ -873,8 +959,20 @@ type UnknownBindType = { reason: string };
 /** ClickHouse bind type of a column, or why the compiler can't name one. */
 type BindType = string | UnknownBindType;
 
-/** Bind type per column name of one relation. */
-type ColumnBindTypes = Readonly<Record<string, BindType>>;
+/**
+ * Bind types of a column tuple, by position; undefined where the element is
+ * not a typed column and its value binds by inference.
+ */
+type TupleBindType = { tuple: readonly (OperandBindType | undefined)[] };
+
+/** Bind type of a compared operand: one column, or a tuple of them. */
+type OperandBindType = BindType | TupleBindType;
+
+/**
+ * Bind type per column name of one relation; `null` for a computed output
+ * column, which binds by value.
+ */
+type ColumnBindTypes = Readonly<Record<string, BindType | null>>;
 
 /**
  * A relation's column bind types, or an {@link OpaqueRelation} when the
