@@ -52,6 +52,46 @@ const currentTimeMessage = {
 };
 
 describe("applyPromptCachePoints", () => {
+  it("keeps a static checkpoint before changing system context and caches tool continuations", () => {
+    for (const provider of [
+      "bedrock",
+      "anthropic",
+      "openai-compatible",
+      "openai-responses",
+    ] as const) {
+      const makePrompt = (time: string) => [
+        ...twoMessagePrompt.slice(0, 1),
+        {
+          role: "system",
+          content: `<current_time tz="UTC">${time}</current_time>`,
+        },
+        ...twoMessagePrompt.slice(1),
+      ];
+      const first = applyPromptCachePoints(
+        makePrompt("09:00"),
+        provider,
+      ) as unknown[];
+      const nextTurn = applyPromptCachePoints(
+        makePrompt("09:02"),
+        provider,
+      ) as unknown[];
+      expect(first[0]).toHaveProperty("providerOptions");
+      expect(nextTurn[0]).toEqual(first[0]);
+      expect(first[1]).not.toHaveProperty("providerOptions");
+      const toolMessages = toolTurnPrompt.slice(2, 4);
+      const continuation = applyPromptCachePoints(
+        [...makePrompt("09:00"), ...toolMessages],
+        provider,
+      ) as unknown[];
+      expect(continuation.slice(0, 2)).toEqual(first.slice(0, 2));
+      if (provider === "openai-responses") {
+        expect(continuation[2]).toHaveProperty("content.0.providerOptions");
+      } else {
+        expect(continuation[4]).toHaveProperty("providerOptions");
+      }
+    }
+  });
+
   it("caches the stable system prefix and the growing conversation prefix", () => {
     // Checkpoints are tools → system → messages. Tagging the last leading
     // system message writes tools+system; tagging the last message writes

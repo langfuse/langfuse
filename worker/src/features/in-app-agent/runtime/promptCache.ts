@@ -32,13 +32,12 @@ const OPENAI_PROMPT_CACHE_BREAKPOINT = { mode: "explicit" as const };
  *
  * Three checkpoints, each for a different prefix:
  *
- * 1. Last leading system — tools + compiled system. Must stay byte-stable
- *    across turns (user, screen, and clock live on a trailing suffix that
- *    is not persisted).
+ * 1. Last static leading system — tools + compiled system. Run context is
+ *    a separate leading system block starting with `<current_time`, excluded
+ *    from this checkpoint so static instructions remain reusable across turns.
  * 2. Last conversation message — grows as this turn adds tool results so
- *    the next in-loop step can read it. A trailing `<current_time>` suffix
- *    is excluded: that clock changes every request and must not steal this
- *    checkpoint or the previous-turn walk.
+ *    the next in-loop step can read it. Run context stays frozen across these
+ *    requests. A legacy trailing `<current_time>` suffix is excluded.
  * 3. Previous-turn prefix — only when the last conversation message is a
  *    new user turn. The previous write sat on a tool result or prior user,
  *    not the closing assistant (that was model output). Skip trailing
@@ -85,7 +84,10 @@ export function applyPromptCachePoints(
 
   let lastLeadingSystemIndex = -1;
   for (let i = 0; i < prompt.length; i++) {
-    if (getMessageRole(prompt[i]) !== "system") {
+    if (
+      getMessageRole(prompt[i]) !== "system" ||
+      isCurrentTimeMessage(prompt[i])
+    ) {
       break;
     }
     lastLeadingSystemIndex = i;
@@ -188,13 +190,14 @@ function getLastConversationIndex(prompt: unknown[]) {
     return -1;
   }
 
-  return isTrailingCurrentTimeMessage(prompt[lastIndex])
+  return getMessageRole(prompt[lastIndex]) === "user" &&
+    isCurrentTimeMessage(prompt[lastIndex])
     ? lastIndex - 1
     : lastIndex;
 }
 
-function isTrailingCurrentTimeMessage(message: unknown) {
-  if (getMessageRole(message) !== "user" || !isRecord(message)) {
+function isCurrentTimeMessage(message: unknown) {
+  if (!isRecord(message)) {
     return false;
   }
 
@@ -230,6 +233,9 @@ function findPreviousTurnCacheIndex(
   }
 
   for (let i = lastConversationIndex - 1; i > lastLeadingSystemIndex; i--) {
+    if (getMessageRole(prompt[i]) === "system") {
+      break;
+    }
     if (getMessageRole(prompt[i]) !== "assistant") {
       return i;
     }
