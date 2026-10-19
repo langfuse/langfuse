@@ -49,3 +49,47 @@ export function mergeTopicModelUsage(
     costDetails: mergeDetails(summary.costDetails, embedding.costDetails),
   };
 }
+
+// Token counts are stored as integers and costs with 12 decimals.
+const COST_UNITS = 1e12;
+
+function splitDetails(
+  details: Record<string, number>,
+  count: number,
+  units: number,
+): Record<string, number>[] {
+  const shares = Array.from(
+    { length: count },
+    () => ({}) as Record<string, number>,
+  );
+  for (const [key, value] of Object.entries(details)) {
+    const total = Math.round(value * units);
+    const base = Math.floor(total / count);
+    // The remainder goes to the first rows, so the shares add up to the total.
+    shares.forEach((share, index) => {
+      share[key] = (base + (index < total - base * count ? 1 : 0)) / units;
+    });
+  }
+  return shares;
+}
+
+/** Splits one call's usage evenly across the rows it produced. */
+export function splitTopicModelUsage(
+  usage: TopicModelUsage,
+  count: number,
+): TopicModelUsage[] {
+  const providedUsage = splitDetails(usage.providedUsageDetails, count, 1);
+  const usageDetails = splitDetails(usage.usageDetails, count, 1);
+  const providedCost = splitDetails(
+    usage.providedCostDetails,
+    count,
+    COST_UNITS,
+  );
+  const costDetails = splitDetails(usage.costDetails, count, COST_UNITS);
+  return Array.from({ length: count }, (_, index) => ({
+    providedUsageDetails: providedUsage[index],
+    usageDetails: usageDetails[index],
+    providedCostDetails: providedCost[index],
+    costDetails: costDetails[index],
+  }));
+}

@@ -21,6 +21,7 @@ import { embedTopicSummaries, summarizeTopicTraceFacets } from "./models";
 import { TopicsProviderUnavailable } from "./provider-error";
 import {
   mergeTopicModelUsage,
+  splitTopicModelUsage,
   topicSummaryOutputError,
   type TopicModelUsage,
 } from "./summaryResult";
@@ -190,30 +191,29 @@ async function summarizeEnabledTrace(
         if (failure === undefined) failure = error;
       }
     }
-    // One call summarizes and one embeds every facet of the trace; record their usage once.
+    // One call summarizes and one embeds every facet of the trace; each row carries an equal share.
     const traceUsage = embedded ? mergeTopicModelUsage(usage, embedded) : usage;
-    rows = [];
+    const generated: TopicSummary[] = [];
     let embeddingIndex = 0;
     for (const { base, output } of accepted) {
-      const rowUsage = rows.length > 0 ? NO_USAGE : traceUsage;
       if (output.status !== "applicable")
-        rows.push({
+        generated.push({
           ...base,
           state:
             output.status === "not_applicable"
               ? "not_applicable"
               : "insufficient_input",
-          ...rowUsage,
         });
       else if (embedded)
-        rows.push({
+        generated.push({
           ...base,
           state: "complete",
           summary: output.summary.trim(),
           embedding: embedded.embeddings[embeddingIndex++],
-          ...rowUsage,
         });
     }
+    const shares = splitTopicModelUsage(traceUsage, generated.length);
+    rows = generated.map((row, index) => ({ ...row, ...shares[index] }));
   }
   return { outcome: "summarized", rows, failure };
 }
