@@ -105,15 +105,9 @@ impl Drop for MemoryReservation {
     }
 }
 
-/// Client transfers slower than 10 MiB per 30 seconds on average miss their deadline.
-const MIN_CLIENT_TRANSFER_BYTES_PER_SECOND: usize = 10 * 1024 * 1024 / 30;
-const MIN_CLIENT_TRANSFER_TIMEOUT: Duration = Duration::from_secs(30);
-
-/// A deadline that gives `bytes` the same minimum client transfer rate at any size.
-pub(crate) fn client_transfer_timeout(bytes: usize) -> Duration {
-    let seconds = bytes.div_ceil(MIN_CLIENT_TRANSFER_BYTES_PER_SECOND);
-    Duration::from_secs(u64::try_from(seconds).unwrap_or(u64::MAX)).max(MIN_CLIENT_TRANSFER_TIMEOUT)
-}
+/// Uploads slower than 10 MiB per 30 seconds on average miss the read deadline.
+const MIN_REQUEST_UPLOAD_BYTES_PER_SECOND: usize = 10 * 1024 * 1024 / 30;
+const MIN_REQUEST_READ_TIMEOUT: Duration = Duration::from_secs(30);
 
 impl InferenceService {
     /// Initialize pooled clients for resolution and provider requests.
@@ -180,7 +174,12 @@ impl InferenceService {
     /// The body read deadline scales with the size limit so a maximal body has the same
     /// minimum upload rate as a small one.
     pub(crate) fn request_read_timeout(&self) -> Duration {
-        client_transfer_timeout(self.request_limits.max_request_bytes)
+        let seconds = self
+            .request_limits
+            .max_request_bytes
+            .div_ceil(MIN_REQUEST_UPLOAD_BYTES_PER_SECOND);
+        Duration::from_secs(u64::try_from(seconds).unwrap_or(u64::MAX))
+            .max(MIN_REQUEST_READ_TIMEOUT)
     }
 
     pub(crate) async fn fetch_model_catalog(
