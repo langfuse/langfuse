@@ -1,11 +1,10 @@
-# FIPS 140-3 base: UBI 9 builder and ubi9-micro runtime
-# The gateway performs no TLS today (plain HTTP; the dependency graph contains
-# no openssl or rustls crates), so FIPS readiness here means the whole image
-# lifecycle stays on the RHEL platform: the binary is compiled and linked
-# against UBI9 glibc, and the runtime carries the CMVP-validated OpenSSL FIPS
-# provider, so outbound TLS added later links the system libcrypto.so.3 and
-# inherits the validated module, the same pattern the RPM Node uses in
-# web/worker. The crypto policy stays at the default until the gateway does TLS.
+# UBI 9 builder and ubi9-micro runtime, the same platform as web/worker.
+# The gateway is not FIPS 140-3 validated. It serves plain HTTP, but its
+# outbound HTTPS (provider APIs, OTLP export) uses rustls with the aws-lc-rs
+# backend, statically linked in its non-FIPS build. The binary links no system
+# libcrypto, so the OpenSSL FIPS provider in the runtime image does not cover
+# it. Validated TLS would need aws-lc-rs's `fips` feature or an OpenSSL-backed
+# client.
 # The defaults are Red Hat's public UBI9 images, so the build needs no
 # credentials. Iron Bank serves the same content from an authenticated registry
 # with DoD provenance and scan attestations. Release builds opt in by overriding
@@ -112,11 +111,10 @@ RUN cargo about generate --frozen --fail about.hbs -o THIRD_PARTY_LICENSES.txt
 FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE} AS rpm-installer
 
 # glibc and libgcc are the binary's dynamic dependencies (libgcc_s for panics).
-# openssl-libs ships the FIPS provider module (/usr/lib64/ossl-modules/fips.so),
-# unlinked by today's binary but required the moment an OpenSSL-dependent
-# binary lands, so the validated module is already present. crypto-policies
-# provides the system policy OpenSSL reads; ca-certificates is the trust store
-# for future outbound TLS. wget serves the ECS container health command
+# openssl-libs ships the OpenSSL FIPS provider module and crypto-policies the
+# system policy it reads; the gateway binary links neither today, they are
+# there for an OpenSSL-backed client. ca-certificates is the trust store rustls
+# reads for outbound TLS. wget serves the ECS container health command
 # (`sh -c 'wget -qO /dev/null http://localhost:8080/health'`, exercised by
 # scripts/smoke-image.sh); ubi9-micro already provides the shell.
 RUN dnf -y --installroot /mnt/rootfs --releasever 9 --setopt=install_weak_deps=0 \
