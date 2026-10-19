@@ -86,6 +86,147 @@ async function convertOtelSpanToIngestionEvent(
   ])) as unknown as TestIngestionEvent[];
 }
 
+describe("OTel user identity", () => {
+  const attributes = (values: Record<string, string>) =>
+    Object.entries(values).map(([key, stringValue]) => ({
+      key,
+      value: { stringValue },
+    }));
+
+  const batch = (
+    resource: Record<string, string>,
+    spans: Record<string, string>[],
+  ): ResourceSpan => ({
+    resource: { attributes: attributes(resource) },
+    scopeSpans: [
+      {
+        scope: { name: "test-scope", version: "1.0.0" },
+        spans: spans.map((span, index) => ({
+          traceId: Buffer.from("0123456789abcdef0123456789abcdef", "hex"),
+          spanId: Buffer.from(
+            index === 0 ? "0123456789abcdef" : "1111111111111111",
+            "hex",
+          ),
+          ...(index === 0
+            ? {}
+            : { parentSpanId: Buffer.from("0123456789abcdef", "hex") }),
+          name: index === 0 ? "invoke_agent" : "chat model",
+          kind: 1,
+          startTimeUnixNano: "1752384000000000000",
+          endTimeUnixNano: "1752384001000000000",
+          attributes: attributes(span),
+          status: {},
+        })),
+      },
+    ],
+  });
+
+  const cases: {
+    name: string;
+    span: Record<string, string>;
+    resource: Record<string, string>;
+    expected: string | undefined;
+  }[] = [
+    {
+      name: "span IDs take precedence over resource IDs and usernames",
+      span: { "user.id": "span-id", "user.name": "span-name" },
+      resource: { "langfuse.user.id": "resource-id" },
+      expected: "span-id",
+    },
+    {
+      name: "existing metadata IDs take precedence over resource IDs",
+      span: { "ai.telemetry.metadata.userId": "compat-id" },
+      resource: { "user.id": "resource-id" },
+      expected: "compat-id",
+    },
+    {
+      name: "resource IDs take precedence over span usernames",
+      span: { "user.name": "github-login" },
+      resource: { "user.id": "employee-id" },
+      expected: "employee-id",
+    },
+    {
+      name: "resource Langfuse IDs take precedence over resource OTel IDs",
+      span: { "user.name": "github-login" },
+      resource: { "langfuse.user.id": "employee-id", "user.id": "otel-id" },
+      expected: "employee-id",
+    },
+    {
+      name: "span usernames take precedence over resource usernames",
+      span: { "user.name": "github-login" },
+      resource: { "user.name": "resource-name" },
+      expected: "github-login",
+    },
+    {
+      name: "resource usernames are a final fallback",
+      span: { "user.name": "" },
+      resource: { "user.name": "resource-name" },
+      expected: "resource-name",
+    },
+    {
+      name: "OS accounts are not application users",
+      span: {},
+      resource: { "process.user.name": "root" },
+      expected: undefined,
+    },
+  ];
+
+  it.each(cases)("$name", async ({ span, resource, expected }) => {
+    const resourceSpan = batch(resource, [span]);
+    const observations = createTestOtelProcessor().processToEvent([
+      resourceSpan,
+    ]);
+    expect(observations).toHaveLength(1);
+    expect(observations[0].userId).toBe(expected);
+
+    const events = await convertOtelSpanToIngestionEvent(
+      resourceSpan,
+      new Set(),
+    );
+    expect(
+      events.find((event) => event.type === "trace-create")?.body.userId,
+    ).toBe(expected);
+  });
+
+  it("uses a resource ID consistently on agent and child observations", () => {
+    const observations = createTestOtelProcessor().processToEvent([
+      batch({ "langfuse.user.id": "employee-id" }, [
+        { "user.name": "github-login" },
+        {},
+      ]),
+    ]);
+    expect(observations.map((event) => event.userId)).toEqual([
+      "employee-id",
+      "employee-id",
+    ]);
+  });
+
+  it("preserves explicit users on legacy child trace updates", async () => {
+    const events = await convertOtelSpanToIngestionEvent(
+      batch({ "user.id": "resource-default", "process.user.name": "node" }, [
+        { "user.id": "customer-id" },
+        { "user.name": "child-name", "langfuse.trace.name": "updated" },
+      ]),
+      new Set(),
+    );
+    expect(
+      events
+        .filter((event) => event.type === "trace-create")
+        .map((event) => event.body.userId),
+    ).toEqual(["customer-id", undefined]);
+  });
+
+  it("does not update a legacy trace from a child's username alone", async () => {
+    const events = await convertOtelSpanToIngestionEvent(
+      batch({}, [{ "user.id": "customer-id" }, { "user.name": "child-name" }]),
+      new Set(),
+    );
+    const traces = events.filter((event) => event.type === "trace-create");
+    expect(traces).toHaveLength(1);
+    expect(traces[0].body.userId).toBe("customer-id");
+  });
+});
+
 describe("OTel Resource Span Mapping", () => {
   describe("Langfuse OTEL SDK spans", () => {
     const publicKey = "pk-lf-1234567890";
