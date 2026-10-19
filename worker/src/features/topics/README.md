@@ -459,6 +459,9 @@ Provider usage and calculated model costs use the events-style
 `provided_usage_details`, `usage_details`, `provided_cost_details` and `cost_details`
 maps. Summary and embedding keys are prefixed by stage; effective maps include
 combined totals.
+Manual processing summaries carry their execution ID in metadata. Run estimates
+sum retained summary and embedding costs with available pricing. They exclude
+topic naming and failed provider calls, and can change after reprocessing or deletion.
 Priced model IDs: global Bedrock text rates per million input/output tokens are $0.20/$1.20 for
 [Luna](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-luna.html)
 and $2/$12 for
