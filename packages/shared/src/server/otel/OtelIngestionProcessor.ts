@@ -682,11 +682,17 @@ export class OtelIngestionProcessor {
                   traceName:
                     spanAttributes?.[LangfuseOtelSpanAttributes.TRACE_NAME] ??
                     null,
-                  userId: this.extractUserId(
-                    spanAttributes,
-                    decodeMetadataValues,
-                    resourceAttributes,
-                  ),
+                  /** Child observations accept only explicit span user IDs. */
+                  userId: parentSpanId
+                    ? this.extractExplicitUserId(
+                        spanAttributes,
+                        decodeMetadataValues,
+                      )
+                    : this.extractUserId(
+                        spanAttributes,
+                        decodeMetadataValues,
+                        resourceAttributes,
+                      ),
                   sessionId: this.extractSessionId(
                     spanAttributes,
                     decodeMetadataValues,
@@ -1221,7 +1227,7 @@ export class OtelIngestionProcessor {
           (attributes?.[LangfuseOtelSpanAttributes.RELEASE] as string) ??
           resourceAttributes?.[LangfuseOtelSpanAttributes.RELEASE] ??
           null,
-        // Child updates must not replace an explicit trace user with a fallback.
+        /** Legacy child updates accept only explicit span user IDs. */
         userId: this.extractExplicitUserId(attributes, decodeMetadataValues),
         /** CMA session inference belongs to root traces and individual observations. */
         sessionId: this.extractSessionId(
@@ -2768,7 +2774,7 @@ export class OtelIngestionProcessor {
     decodeMetadataValues: boolean,
     resourceAttributes: Record<string, unknown>,
   ): string | undefined {
-    // Explicit identifiers in either scope take precedence over usernames.
+    /** Explicit identifiers take precedence over usernames across attribute scopes. */
     return (
       this.extractExplicitUserId(attributes, decodeMetadataValues) ??
       this.extractStringAttribute(

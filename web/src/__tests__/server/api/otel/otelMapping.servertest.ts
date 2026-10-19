@@ -188,7 +188,7 @@ describe("OTel user identity", () => {
     ).toBe(expected);
   });
 
-  it("uses a resource ID consistently on agent and child observations", () => {
+  it("uses resource fallback only on root observations", () => {
     const observations = createTestOtelProcessor().processToEvent([
       batch({ "langfuse.user.id": "employee-id" }, [
         { "user.name": "github-login" },
@@ -197,9 +197,47 @@ describe("OTel user identity", () => {
     ]);
     expect(observations.map((event) => event.userId)).toEqual([
       "employee-id",
-      "employee-id",
+      undefined,
     ]);
   });
+
+  it("preserves explicit child IDs over resource defaults and usernames", () => {
+    const observations = createTestOtelProcessor().processToEvent([
+      batch({ "user.id": "resource-default" }, [
+        { "user.id": "customer-id" },
+        { "user.id": "explicit-child", "user.name": "child-name" },
+      ]),
+    ]);
+    expect(observations.map((event) => event.userId)).toEqual([
+      "customer-id",
+      "explicit-child",
+    ]);
+  });
+
+  it.each<{
+    resource: Record<string, string>;
+    child: Record<string, string>;
+  }>([
+    { resource: {}, child: { "user.name": "child-name" } },
+    { resource: { "user.id": "resource-default" }, child: {} },
+  ])(
+    "does not emit a child fallback that can replace an explicit root user across batches: %j",
+    ({ resource, child }) => {
+      const resourceSpan = batch(resource, [
+        { "user.id": "customer-id" },
+        child,
+      ]);
+      const scope = resourceSpan.scopeSpans![0];
+      const [rootSpan, childSpan] = scope.spans!;
+      const processSpan = (span: typeof rootSpan) =>
+        createTestOtelProcessor().processToEvent([
+          { ...resourceSpan, scopeSpans: [{ ...scope, spans: [span] }] },
+        ])[0];
+
+      expect(processSpan(rootSpan).userId).toBe("customer-id");
+      expect(processSpan(childSpan).userId).toBeUndefined();
+    },
+  );
 
   it("preserves explicit users on legacy child trace updates", async () => {
     const events = await convertOtelSpanToIngestionEvent(
