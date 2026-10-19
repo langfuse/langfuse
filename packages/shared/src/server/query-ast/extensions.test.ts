@@ -131,7 +131,8 @@ describe("metadata subscript access (condition 7b)", () => {
       "e"
     >();
     it.each([
-      // `values` reads truncated `input`, which events_core cuts short.
+      // Any expression, not only `input`: the pass doesn't walk the
+      // arguments, so a column inside `values` would escape routing.
       [
         "an expression as values",
         () =>
