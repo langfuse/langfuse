@@ -141,8 +141,9 @@ suffix to run there. Promote it to a required check once it has proven stable.
   `.select(traceAggregationSelects)` or called inside
   `.where((eb) => …)` (see `../repositories/events-selects.ts`). Then a query
   without `e` in scope fails to type-check. `ExpressionBuilder` is
-  contravariant in `DB`, so it also accepts an `e` with fewer columns; the
-  module's `ReadsEvents` type rejects that too. A module-level constant built
+  contravariant in `DB`, so it also accepts an `e` with fewer columns, and it
+  accepts joins, where unqualified columns may resolve to the other table.
+  The module's `ReadsEvents` type rejects both. A module-level constant built
   from a detached `expressionBuilder()` loses that check: helper results
   don't carry their table scope in their type, and Kysely's `select()` /
   `where()` accept any expression.

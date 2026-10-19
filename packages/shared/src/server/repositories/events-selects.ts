@@ -37,7 +37,7 @@ import {
 import type { ClickHouseDatabase } from "../query-ast/schema";
 import type { FieldSetFieldKey } from "./events-field-sets";
 
-/** One row of the session aggregation (`sessionAggregationSelectMap`). */
+/** One row of the session aggregation (`sessionAggregationSelects`). */
 export type SessionEventsMetricsRow = {
   session_id: string;
   max_timestamp: string;
@@ -70,30 +70,6 @@ type StringColumn = {
 type EventsSelection = SelectExpression<EventsDb, "e">;
 
 type EventsExpressionBuilder = ExpressionBuilder<EventsDb, "e">;
-
-/**
- * The expression builder of a query that has a full events row in scope as
- * `e` (`events_core`, `events_full` or `events`, joins allowed). Anything else
- * resolves to `never`: no `e`, or an `e` missing an events column
- * (`observations as e`, a narrower subquery). `ExpressionBuilder` alone would
- * accept the narrower `e`, because it is contravariant in `DB`.
- */
-type ReadsEvents<DB, TB extends keyof DB> = ExpressionBuilder<DB, TB> &
-  ([DB] extends [EventsDb] ? ("e" extends TB ? unknown : never) : never);
-
-/**
- * Makes `build` callable with the calling query's expression builder, which
- * must satisfy {@link ReadsEvents}. Every export of this module goes through
- * it, so using one where `e` is not a full events row is a type error: helper
- * results don't carry their table scope in their own type.
- */
-function scoped<A extends unknown[], R>(
-  build: (eb: EventsExpressionBuilder, ...args: A) => R,
-) {
-  return <DB, TB extends keyof DB>(eb: ReadsEvents<DB, TB>, ...args: A): R =>
-    // Sound: `ReadsEvents` proves `e` is in scope with every events column.
-    build(eb as unknown as EventsExpressionBuilder, ...args);
-}
 
 const eventsMetadataMap = (eb: EventsExpressionBuilder) =>
   metadataMap(eb.ref("e.metadata_names"), eb.ref("e.metadata_values"));
@@ -252,9 +228,17 @@ export const traceAggregationSelects = scoped(
     ] satisfies EventsSelection[],
 );
 
-/** Session-level aggregates over events, keyed by field. Grouped by `session_id`. */
-const sessionAggregationSelectMap = (eb: EventsExpressionBuilder) =>
-  ({
+/**
+ * Session-level aggregates over events for `fields`, in that order. Grouped by
+ * `session_id`.
+ */
+export const sessionAggregationSelects = pickSelects(
+  sessionAggregationSelectMap,
+);
+
+/** Session-level aggregates, keyed by field. */
+function sessionAggregationSelectMap(eb: EventsExpressionBuilder) {
+  return {
     session_id: "session_id",
     max_timestamp: eb.fn.max("start_time").as("max_timestamp"),
     min_timestamp: eb.fn.min("start_time").as("min_timestamp"),
@@ -314,16 +298,8 @@ const sessionAggregationSelectMap = (eb: EventsExpressionBuilder) =>
       sumMap(eb.ref("usage_details")),
       literal("total"),
     ).as("session_total_usage"),
-  }) satisfies Record<SessionEventsField, EventsSelection>;
-
-/** {@link sessionAggregationSelectMap} entries of `fields`, in that order. */
-export const sessionAggregationSelects = (
-  fields: ReadonlyArray<SessionEventsField>,
-) =>
-  scoped((eb) => {
-    const selects = sessionAggregationSelectMap(eb);
-    return fields.map((field) => selects[field]);
-  });
+  } satisfies Record<SessionEventsField, EventsSelection>;
+}
 
 /** One observation's fields, without input/output. */
 export const observationByIdSelects = scoped(
@@ -418,12 +394,19 @@ type RowFieldSet =
   | "export";
 
 /**
+ * Row-level event fields for `keys`, in that order. Pass keys in
+ * `eventsFieldSetKeys` order: clustered reads align result blocks by column
+ * position.
+ */
+export const eventsRowFieldSelects = pickSelects(rowFieldSelectMap);
+
+/**
  * Row-level event fields, keyed like the legacy builder's field sets. Select
  * them in `eventsFieldSetKeys` order: clustered reads align result blocks by
  * column position.
  */
-const rowFieldSelectMap = (eb: EventsExpressionBuilder) =>
-  ({
+function rowFieldSelectMap(eb: EventsExpressionBuilder) {
+  return {
     id: "e.span_id as id",
     traceId: "e.trace_id as trace_id",
     projectId: "e.project_id as project_id",
@@ -469,16 +452,8 @@ const rowFieldSelectMap = (eb: EventsExpressionBuilder) =>
     timeToFirstToken: millisecondsSinceStart(eb, "e.completion_start_time").as(
       "time_to_first_token",
     ),
-  }) satisfies Record<FieldSetFieldKey<RowFieldSet>, EventsSelection>;
-
-/** {@link rowFieldSelectMap} entries of `keys`, in that order. */
-export const eventsRowFieldSelects = (
-  keys: ReadonlyArray<FieldSetFieldKey<RowFieldSet>>,
-) =>
-  scoped((eb) => {
-    const selects = rowFieldSelectMap(eb);
-    return keys.map((key) => selects[key]);
-  });
+  } satisfies Record<FieldSetFieldKey<RowFieldSet>, EventsSelection>;
+}
 
 /** The `metrics` field set with latencies in seconds instead of milliseconds. */
 export const eventsMetricsSecondsSelects = scoped(
@@ -490,3 +465,39 @@ export const eventsMetricsSecondsSelects = scoped(
       ),
     ] satisfies EventsSelection[],
 );
+
+/**
+ * The expression builder of a query that reads only a full events row, as
+ * `e`. Anything else resolves to `never`: no `e`, a join (the selects use
+ * unqualified columns, which ClickHouse would resolve to the other table), or
+ * an `e` missing an events column (`observations as e`, a narrower subquery).
+ * `ExpressionBuilder` alone would accept the narrower `e`, because it is
+ * contravariant in `DB`.
+ */
+type ReadsEvents<DB, TB extends keyof DB> = ExpressionBuilder<DB, TB> &
+  ([DB] extends [EventsDb] ? ([TB] extends ["e"] ? unknown : never) : never);
+
+/**
+ * Makes `build` callable with the calling query's expression builder, which
+ * must satisfy {@link ReadsEvents}. Every export of this module goes through
+ * it, so using one outside a query that reads only events as `e` is a type
+ * error: helper results don't carry their table scope in their own type.
+ */
+function scoped<A extends unknown[], R>(
+  build: (eb: EventsExpressionBuilder, ...args: A) => R,
+) {
+  return <DB, TB extends keyof DB>(eb: ReadsEvents<DB, TB>, ...args: A): R =>
+    // Sound: `ReadsEvents` proves the query reads only a full events row as `e`.
+    build(eb as unknown as EventsExpressionBuilder, ...args);
+}
+
+/** For a keyed select map: the selects of the given keys, in their order. */
+function pickSelects<M extends Record<string, EventsSelection>>(
+  map: (eb: EventsExpressionBuilder) => M,
+) {
+  return (keys: ReadonlyArray<keyof M>) =>
+    scoped((eb) => {
+      const selects = map(eb);
+      return keys.map((key) => selects[key]);
+    });
+}

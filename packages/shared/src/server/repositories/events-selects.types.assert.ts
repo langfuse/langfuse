@@ -11,8 +11,8 @@ import {
 
 /**
  * Compile-time assertions that the shared events expressions keep their table
- * scope: they type-check only in a query with a full events row in scope as
- * `e`. Never called at runtime; `tsc` is the test, and every
+ * scope: they type-check only in a query that reads a full events row as `e`
+ * and nothing else. Never called at runtime; `tsc` is the test, and every
  * `@ts-expect-error` must stay a real error. `events.test.ts` anchors it.
  */
 export function eventsSelectsScopeTypeAssertions(): void {
@@ -20,8 +20,16 @@ export function eventsSelectsScopeTypeAssertions(): void {
 
   db.selectFrom("events_core as e").select(traceAggregationSelects);
   db.selectFrom("events_full as e").select(traceAggregationSelects);
+  db.selectFrom("events as e").select(traceAggregationSelects);
+
   db.selectFrom("events as e")
     .innerJoin("traces as t", "t.id", "e.trace_id")
+    // @ts-expect-error a join: unqualified columns could resolve to `t`
+    .select(traceAggregationSelects);
+
+  db.with("e", (qb) => qb.selectFrom("events_core").selectAll())
+    .selectFrom("traces as t")
+    // @ts-expect-error a CTE named `e` is not read in FROM
     .select(traceAggregationSelects);
 
   db.selectFrom("traces as t")
