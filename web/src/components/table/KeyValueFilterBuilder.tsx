@@ -294,27 +294,13 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
     localFilters.splice(draft.index, 0, draft.filter);
   }
 
-  const isComplete = (filter: KeyedFilterEntry) =>
-    !!filter.key &&
-    // Presence rows (`is set` / `is not set`) need no value to be applied.
-    (isStringPresenceOperator(filter.operator)
-      ? true
-      : isStringComparisonOperator(filter.operator) &&
-          typeof filter.value === "string"
-        ? parseComparisonValue(filter.value) !== null
-        : Array.isArray(filter.value)
-          ? filter.value.length > 0
-          : typeof filter.value === "string"
-            ? filter.value.trim() !== ""
-            : true);
-
   const updateFilters = (filters: KeyedFilterEntry[]) => {
     setDraftFilters(
       filters.flatMap((filter, index) =>
-        isComplete(filter) ? [] : [{ index, filter }],
+        isCompleteEntry(filter) ? [] : [{ index, filter }],
       ),
     );
-    const completeFilters = filters.filter(isComplete);
+    const completeFilters = filters.filter(isCompleteEntry);
     if (props.mode === "categorical") {
       props.onChange(completeFilters as KeyValueFilterEntry[]);
     } else if (props.mode === "numeric") {
@@ -536,42 +522,26 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                   value={filter.operator}
                   options={STRING_OPERATOR_OPTIONS}
                   placeholder="Operator"
-                  onValueChange={(value) => {
-                    const operator = value as StringOperator;
-                    handleFilterChange(index, {
-                      operator,
-                      // Presence operators carry no value, and comparisons
-                      // need a number; clear what the new operator can't use.
-                      ...(isStringPresenceOperator(operator) ||
-                      (isStringComparisonOperator(operator) &&
-                        parseComparisonValue(filter.value as string) === null)
-                        ? { value: "" }
-                        : {}),
-                    });
-                  }}
+                  onValueChange={(value) =>
+                    handleFilterChange(
+                      index,
+                      stringOperatorPatch(
+                        value as StringOperator,
+                        filter.value as string,
+                      ),
+                    )
+                  }
                 />
 
-                {/* String value input, hidden for value-less presence operators */}
-                {isStringPresenceOperator(
-                  filter.operator,
-                ) ? null : isStringComparisonOperator(filter.operator) ? (
-                  <Input
-                    type="number"
-                    placeholder="Value"
-                    value={filter.value as string}
-                    onChange={(e) =>
-                      handleFilterChange(index, { value: e.target.value })
-                    }
-                    disabled={!filter.key}
-                  />
-                ) : (
-                  <SuggestingInput
+                {/* Value-less presence operators show no value input. */}
+                {!isStringPresenceOperator(filter.operator) && (
+                  <StringValueInput
+                    operator={filter.operator as StringOperator}
                     value={filter.value as string}
                     onChange={(value) => handleFilterChange(index, { value })}
                     suggestions={
                       filter.key ? (valueOptions?.[filter.key] ?? []) : []
                     }
-                    placeholder="Value"
                     disabled={!filter.key}
                   />
                 )}
@@ -593,4 +563,71 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
       </Button>
     </div>
   );
+}
+
+/** Comparisons take a number, the other value operators observed-value suggestions. */
+function StringValueInput({
+  operator,
+  value,
+  onChange,
+  suggestions,
+  disabled,
+}: {
+  operator: StringOperator;
+  value: string;
+  onChange: (value: string) => void;
+  suggestions: string[];
+  disabled: boolean;
+}) {
+  function handleNumberChange(event: React.ChangeEvent<HTMLInputElement>) {
+    onChange(event.target.value);
+  }
+
+  if (isStringComparisonOperator(operator))
+    return (
+      <Input
+        type="number"
+        placeholder="Value"
+        value={value}
+        onChange={handleNumberChange}
+        disabled={disabled}
+      />
+    );
+  return (
+    <SuggestingInput
+      value={value}
+      onChange={onChange}
+      suggestions={suggestions}
+      placeholder="Value"
+      disabled={disabled}
+    />
+  );
+}
+
+/** Clears the value when the new operator can't use it: presence takes none, comparisons need a number. */
+function stringOperatorPatch(
+  operator: StringOperator,
+  value: string,
+): { operator: StringOperator; value?: string } {
+  if (isStringPresenceOperator(operator)) return { operator, value: "" };
+  if (
+    isStringComparisonOperator(operator) &&
+    parseComparisonValue(value) === null
+  )
+    return { operator, value: "" };
+  return { operator };
+}
+
+function isCompleteEntry(filter: KeyedFilterEntry): boolean {
+  if (!filter.key) return false;
+  // Presence rows (`is set` / `is not set`) need no value to be applied.
+  if (isStringPresenceOperator(filter.operator)) return true;
+  if (
+    isStringComparisonOperator(filter.operator) &&
+    typeof filter.value === "string"
+  )
+    return parseComparisonValue(filter.value) !== null;
+  if (Array.isArray(filter.value)) return filter.value.length > 0;
+  if (typeof filter.value === "string") return filter.value.trim() !== "";
+  return true;
 }

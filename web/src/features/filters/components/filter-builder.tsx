@@ -92,20 +92,6 @@ type AiFilterConfig = {
   generateFilters: (prompt: string) => Promise<WipFilterState | null>;
 };
 
-/** ClickHouse string-stored metadata only. Postgres JSON columns (prompts.config, datasetItems.metadata) use a hard CAST that errors on non-numeric values. */
-function allowsNumericMetadataComparisons(
-  column: ColumnDefinition | undefined,
-): boolean {
-  if (column?.type !== "stringObject") return false;
-  if (column.id === "config") return false;
-  if (column.internal.includes("di.")) return false;
-  return (
-    column.id === "metadata" ||
-    column.id === "eventMetadata" ||
-    column.id === "itemMetadata"
-  );
-}
-
 // Has WipFilterState, passes all valid filters to parent onChange
 export function PopoverFilterBuilder({
   columns,
@@ -924,86 +910,31 @@ function FilterBuilderForm({
     const keyPending =
       compact && keyControl !== null && !("key" in filter && filter.key);
 
+    function handleOperatorChange(operator: string) {
+      // protect against invalid empty operator values
+      if (operator === "") return;
+      handleFilterChange(withFilterOperator(filter, column, operator), i);
+    }
+    const operatorOptions =
+      filter.type === undefined
+        ? []
+        : filterOperatorOptions(filter.type, column);
+
     const operatorSelect = (
       <Select
         disabled={!filter.column || disabled || keyPending}
-        onValueChange={(value) => {
-          // protect against invalid empty operator values
-          if (value === "") return;
-          const numericMetadataOperator =
-            allowsNumericMetadataComparisons(column) &&
-            (filterOperators.number as readonly string[]).includes(value) &&
-            value !== "=";
-          if (numericMetadataOperator) {
-            const numericValue =
-              typeof filter.value === "number"
-                ? filter.value
-                : Number(filter.value);
-            handleFilterChange(
-              {
-                ...filter,
-                type: "numberObject",
-                operator: value as (typeof filterOperators.number)[number],
-                value: Number.isFinite(numericValue) ? numericValue : undefined,
-              } as WipFilterCondition,
-              i,
-            );
-            return;
-          }
-          if (
-            allowsNumericMetadataComparisons(column) &&
-            filter.type === "numberObject"
-          ) {
-            handleFilterChange(
-              {
-                ...filter,
-                type: "stringObject",
-                operator:
-                  value as (typeof filterOperators.stringObject)[number],
-                value:
-                  filter.value === undefined || filter.value === null
-                    ? undefined
-                    : String(filter.value),
-              } as WipFilterCondition,
-              i,
-            );
-            return;
-          }
-          handleFilterChange(
-            {
-              ...filter,
-              operator: value as any,
-              // Value-less operators keep an empty string for schema compatibility.
-              value:
-                filter.type === "null" ||
-                value === "is not empty" ||
-                value === "is set" ||
-                value === "is not set"
-                  ? ""
-                  : (filter.value as any),
-            },
-            i,
-          );
-        }}
+        onValueChange={handleOperatorChange}
         value={keyPending ? "" : (filter.operator ?? "")}
       >
         <SelectTrigger className={cn("min-w-[60px]", compact && "w-auto")}>
           <SelectValue placeholder="" />
         </SelectTrigger>
         <SelectContent className="ph-no-capture">
-          {filter.type !== undefined
-            ? (allowsNumericMetadataComparisons(column)
-                ? [
-                    ...filterOperators.stringObject,
-                    ...filterOperators.number.filter((op) => op !== "="),
-                  ]
-                : filterOperators[filter.type]
-              ).map((option) => (
-                <SelectItem key={option} value={option}>
-                  {option}
-                </SelectItem>
-              ))
-            : null}
+          {operatorOptions.map((option) => (
+            <SelectItem key={option} value={option}>
+              {option}
+            </SelectItem>
+          ))}
         </SelectContent>
       </Select>
     );
@@ -1347,5 +1278,80 @@ function FilterBuilderForm({
         </>
       )}
     </>
+  );
+}
+
+function filterOperatorOptions(
+  type: NonNullable<WipFilterCondition["type"]>,
+  column: ColumnDefinition | undefined,
+): readonly string[] {
+  if (!allowsNumericMetadataComparisons(column)) return filterOperators[type];
+  return [
+    ...filterOperators.stringObject,
+    ...filterOperators.number.filter((op) => op !== "="),
+  ];
+}
+
+/**
+ * The condition after picking `operator`. On metadata columns a numeric
+ * comparison stores as numberObject and any other operator as stringObject,
+ * carrying the value across when it still fits.
+ */
+function withFilterOperator(
+  filter: WipFilterCondition,
+  column: ColumnDefinition | undefined,
+  operator: string,
+): WipFilterCondition {
+  const numericMetadata = allowsNumericMetadataComparisons(column);
+  if (numericMetadata && isNumericComparison(operator)) {
+    const numericValue =
+      typeof filter.value === "number" ? filter.value : Number(filter.value);
+    return {
+      ...filter,
+      type: "numberObject",
+      operator: operator as (typeof filterOperators.number)[number],
+      value: Number.isFinite(numericValue) ? numericValue : undefined,
+    } as WipFilterCondition;
+  }
+  if (numericMetadata && filter.type === "numberObject") {
+    const hasValue = filter.value !== undefined && filter.value !== null;
+    return {
+      ...filter,
+      type: "stringObject",
+      operator: operator as (typeof filterOperators.stringObject)[number],
+      value: hasValue ? String(filter.value) : undefined,
+    } as WipFilterCondition;
+  }
+  // Value-less operators keep an empty string for schema compatibility.
+  const valueless =
+    filter.type === "null" ||
+    operator === "is not empty" ||
+    operator === "is set" ||
+    operator === "is not set";
+  return {
+    ...filter,
+    operator: operator as any,
+    value: valueless ? "" : (filter.value as any),
+  };
+}
+
+function isNumericComparison(operator: string): boolean {
+  return (
+    operator !== "=" &&
+    (filterOperators.number as readonly string[]).includes(operator)
+  );
+}
+
+/** ClickHouse string-stored metadata only. Postgres JSON columns (prompts.config, datasetItems.metadata) use a hard CAST that errors on non-numeric values. */
+function allowsNumericMetadataComparisons(
+  column: ColumnDefinition | undefined,
+): boolean {
+  if (column?.type !== "stringObject") return false;
+  if (column.id === "config") return false;
+  if (column.internal.includes("di.")) return false;
+  return (
+    column.id === "metadata" ||
+    column.id === "eventMetadata" ||
+    column.id === "itemMetadata"
   );
 }
