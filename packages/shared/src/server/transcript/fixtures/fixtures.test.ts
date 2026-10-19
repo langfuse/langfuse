@@ -91,6 +91,19 @@ describe("transcript fixtures", () => {
     expect(assembleTranscript([observations[0]])).not.toHaveProperty(
       "failures",
     );
+
+    const unlimited = assembleTranscript(observations)!;
+    const conversation = { threads: unlimited.threads };
+    expect(
+      assembleTranscript(observations, {
+        maxCharacters: JSON.stringify(unlimited).length,
+      }),
+    ).toEqual(unlimited);
+    expect(
+      assembleTranscript(observations, {
+        maxCharacters: JSON.stringify(conversation).length,
+      }),
+    ).toEqual(conversation);
   });
 
   it("preserves an unfinished generation's null end time", () => {

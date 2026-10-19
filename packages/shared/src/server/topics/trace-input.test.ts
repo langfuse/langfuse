@@ -23,6 +23,8 @@ const row = {
   end_time: "2026-09-15 10:00:01.250" as string | null,
   type: "GENERATION",
   name: "chat",
+  level: "DEFAULT",
+  status_message: "",
   input: JSON.stringify([
     { role: "user", content: "Please cancel my subscription." },
   ]),
@@ -116,6 +118,25 @@ describe("Topics transcript input", () => {
       }
     },
   );
+
+  it("loads level and status message for failed observations", async () => {
+    const result = await loadRows({
+      level: "ERROR",
+      status_message: "Request timed out",
+    });
+    const select = vi
+      .mocked(queryClickhouseStream)
+      .mock.calls[0][0].query.split("FROM")[0];
+    expect(select).toContain("e.level");
+    expect(select).toContain("e.status_message");
+    expect(result.transcript?.failures).toEqual([
+      expect.objectContaining({
+        observationId: "span",
+        level: "ERROR",
+        statusMessage: "Request timed out",
+      }),
+    ]);
+  });
 
   it("rejects foreign, missing, duplicate and oversized source snapshots", async () => {
     for (const scope of [{ project_id: "other" }, { trace_id: "other" }])
