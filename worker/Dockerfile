@@ -113,9 +113,9 @@ ARG TARGETARCH
 
 # @langfuse/native is a Rust addon (napi-rs) compiled by `turbo run build` for
 # the glibc (`*-unknown-linux-gnu`) target, linked against UBI9's glibc so it
-# loads in the runtime image. gcc provides the linker; tar, gzip and xz unpack
-# the pinned toolchain and tools.
-RUN dnf -y install --setopt=install_weak_deps=0 gcc tar gzip xz && \
+# loads in the runtime image. gcc provides the linker; tar and gzip unpack the
+# pinned toolchain.
+RUN dnf -y install --setopt=install_weak_deps=0 gcc tar gzip && \
     dnf clean all
 
 # Pinned standalone Rust installer, the exact channel from
@@ -136,41 +136,16 @@ RUN set -eux; \
     rm -rf /tmp/rust.tar.gz /tmp/rust-1.98.0-${triple}
 
 # cargo-about renders the third-party license notices for the native addon's
-# Rust dependencies. Pinned, checksum-verified static release binary (sha256
-# from the release's `.tar.gz.sha256` assets); keep the version in sync with
-# ai-gateway/Dockerfile.
-RUN set -eux; \
-    case "${TARGETARCH:-amd64}" in \
-    amd64) about_arch=x86_64; about_sha256=9099a59e820c38a68b9d65f300662a567d56562f9a10f6aa4c7e86c17c2566af ;; \
-    arm64) about_arch=aarch64; about_sha256=af5169282fb6f84e13471493f405437e43ac517744c9ae12fbe2cdf0a6f0e5a8 ;; \
-    *) echo "unsupported TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
-    esac; \
-    about_dir="cargo-about-0.9.2-${about_arch}-unknown-linux-musl"; \
-    curl -fsSL -o /tmp/cargo-about.tar.gz "https://github.com/EmbarkStudios/cargo-about/releases/download/0.9.2/${about_dir}.tar.gz"; \
-    echo "${about_sha256}  /tmp/cargo-about.tar.gz" | sha256sum -c -; \
-    tar -xzf /tmp/cargo-about.tar.gz -C /tmp; \
-    install -m 0755 "/tmp/${about_dir}/cargo-about" /usr/local/bin/cargo-about; \
-    rm -rf /tmp/cargo-about.tar.gz "/tmp/${about_dir}"
-
-# cargo-auditable embeds the addon's resolved dependency list in the .node
-# binary so image scanners (Trivy, Grype, Docker Scout) can match its Rust
-# crates against advisories. Pinned, checksum-verified static release binary;
-# keep the version in sync with ai-gateway/Dockerfile. `napi build` spawns
-# $CARGO instead of cargo when it is set, so the build step points it at a
-# wrapper that runs `cargo auditable`.
-RUN set -eux; \
-    case "${TARGETARCH:-amd64}" in \
-    amd64) auditable_arch=x86_64; auditable_sha256=7676443367c5e33d9fb22acef63cccb5e9202de12dae1b0579995eb3e2bc7a18 ;; \
-    arm64) auditable_arch=aarch64; auditable_sha256=c324af56990601354bbf40080f582ba46f8ec8b807a1388e25bb7e429d285c18 ;; \
-    *) echo "unsupported TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
-    esac; \
-    auditable_dir="cargo-auditable-${auditable_arch}-unknown-linux-musl"; \
-    curl -fsSL -o /tmp/cargo-auditable.tar.xz "https://github.com/rust-secure-code/cargo-auditable/releases/download/v0.7.7/${auditable_dir}.tar.xz"; \
-    echo "${auditable_sha256}  /tmp/cargo-auditable.tar.xz" | sha256sum -c -; \
-    tar -xJf /tmp/cargo-auditable.tar.xz -C /tmp; \
-    install -m 0755 "/tmp/${auditable_dir}/cargo-auditable" /usr/local/bin/cargo-auditable; \
-    rm -rf /tmp/cargo-auditable.tar.xz "/tmp/${auditable_dir}"; \
-    printf '#!/bin/sh\nexec /usr/local/bin/cargo auditable "$@"\n' > /usr/local/bin/cargo-auditable-shim; \
+# Rust dependencies. cargo-auditable embeds the addon's resolved dependency
+# list in the .node binary so image scanners (Trivy, Grype, Docker Scout) can
+# match its Rust crates against advisories. Both build from crates.io at pinned
+# versions with their own lockfiles; keep the versions in sync with
+# ai-gateway/Dockerfile. `napi build` spawns $CARGO instead of cargo when it is
+# set, so the build step points it at a wrapper that runs `cargo auditable`.
+RUN cargo install --locked --root /usr/local --features cli cargo-about@0.9.2 && \
+    cargo install --locked --root /usr/local cargo-auditable@0.7.7 && \
+    rm -rf "${CARGO_HOME:-$HOME/.cargo}/registry" && \
+    printf '#!/bin/sh\nexec /usr/local/bin/cargo auditable "$@"\n' > /usr/local/bin/cargo-auditable-shim && \
     chmod 0755 /usr/local/bin/cargo-auditable-shim
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} toolchain AS builder

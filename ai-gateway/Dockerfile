@@ -19,8 +19,8 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE} AS toolchain
 
 ARG TARGETARCH
 
-# gcc provides the linker; tar, gzip and xz unpack the pinned toolchain and
-# tools (curl is already present as curl-minimal in the base). Red Hat's UBI9 rust-toolset
+# gcc provides the linker; tar and gzip unpack the pinned toolchain (curl is
+# already present as curl-minimal in the base). Red Hat's UBI9 rust-toolset
 # (1.84.1) cannot compile this crate's edition 2024 (needs rustc >= 1.85), and
 # the official rust:1.98.0-bookworm image links against Debian's glibc 2.36,
 # so binaries built there refuse to run on UBI9 (glibc 2.34). Building on UBI9
@@ -29,7 +29,7 @@ ARG TARGETARCH
 # notices reaches the runtime image, whose packages are installed fresh by the
 # rpm-installer stage. Linking against the base image's glibc also keeps it at
 # or below the runtime's version.
-RUN dnf -y install --setopt=install_weak_deps=0 gcc tar gzip xz && \
+RUN dnf -y install --setopt=install_weak_deps=0 gcc tar gzip && \
     dnf clean all
 
 # Pinned standalone Rust 1.98.0 installer, the exact channel from
@@ -52,38 +52,14 @@ RUN set -eux; \
     rm -rf /tmp/rust.tar.gz /tmp/rust-1.98.0-${triple}
 
 # cargo-about renders the third-party license notices shipped in the runtime
-# image. Pinned, checksum-verified static release binary (sha256 from the
-# release's `.tar.gz.sha256` assets), so the builder does not compile it.
-RUN set -eux; \
-    case "${TARGETARCH:-amd64}" in \
-    amd64) about_arch=x86_64; about_sha256=9099a59e820c38a68b9d65f300662a567d56562f9a10f6aa4c7e86c17c2566af ;; \
-    arm64) about_arch=aarch64; about_sha256=af5169282fb6f84e13471493f405437e43ac517744c9ae12fbe2cdf0a6f0e5a8 ;; \
-    *) echo "unsupported TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
-    esac; \
-    about_dir="cargo-about-0.9.2-${about_arch}-unknown-linux-musl"; \
-    curl -fsSL -o /tmp/cargo-about.tar.gz "https://github.com/EmbarkStudios/cargo-about/releases/download/0.9.2/${about_dir}.tar.gz"; \
-    echo "${about_sha256}  /tmp/cargo-about.tar.gz" | sha256sum -c -; \
-    tar -xzf /tmp/cargo-about.tar.gz -C /tmp; \
-    install -m 0755 "/tmp/${about_dir}/cargo-about" /usr/local/bin/cargo-about; \
-    rm -rf /tmp/cargo-about.tar.gz "/tmp/${about_dir}"
-
-# cargo-auditable embeds the resolved dependency list in the binary so image
-# scanners (Trivy, Grype, Docker Scout) can match Rust crates against
-# advisories; a stripped binary otherwise shows them nothing. Pinned,
-# checksum-verified static release binary; keep the version in sync with
-# worker/Dockerfile.
-RUN set -eux; \
-    case "${TARGETARCH:-amd64}" in \
-    amd64) auditable_arch=x86_64; auditable_sha256=7676443367c5e33d9fb22acef63cccb5e9202de12dae1b0579995eb3e2bc7a18 ;; \
-    arm64) auditable_arch=aarch64; auditable_sha256=c324af56990601354bbf40080f582ba46f8ec8b807a1388e25bb7e429d285c18 ;; \
-    *) echo "unsupported TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
-    esac; \
-    auditable_dir="cargo-auditable-${auditable_arch}-unknown-linux-musl"; \
-    curl -fsSL -o /tmp/cargo-auditable.tar.xz "https://github.com/rust-secure-code/cargo-auditable/releases/download/v0.7.7/${auditable_dir}.tar.xz"; \
-    echo "${auditable_sha256}  /tmp/cargo-auditable.tar.xz" | sha256sum -c -; \
-    tar -xJf /tmp/cargo-auditable.tar.xz -C /tmp; \
-    install -m 0755 "/tmp/${auditable_dir}/cargo-auditable" /usr/local/bin/cargo-auditable; \
-    rm -rf /tmp/cargo-auditable.tar.xz "/tmp/${auditable_dir}"
+# image. cargo-auditable embeds the resolved dependency list in the binary so
+# image scanners (Trivy, Grype, Docker Scout) can match its Rust crates against
+# advisories; a stripped binary otherwise shows them nothing. Both build from
+# crates.io at pinned versions with their own lockfiles; keep the versions in
+# sync with worker/Dockerfile.
+RUN cargo install --locked --root /usr/local --features cli cargo-about@0.9.2 && \
+    cargo install --locked --root /usr/local cargo-auditable@0.7.7 && \
+    rm -rf "${CARGO_HOME:-$HOME/.cargo}/registry"
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} toolchain AS deps
 
