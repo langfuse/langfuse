@@ -172,7 +172,7 @@ export function mapValues<V = string>(column: string): Expression<V[]> {
 }
 
 /** ClickHouse `uniq(value)`, an approximate distinct count. */
-export function uniq(value: Expression<unknown>): ChExpression<string> {
+export function uniq(value: Expression<unknown>): ChExpression<number> {
   return aggregate("uniq", [value]);
 }
 
@@ -180,7 +180,7 @@ export function uniq(value: Expression<unknown>): ChExpression<string> {
 export function count(): ExpressionWrapper<
   ClickHouseDatabase,
   keyof ClickHouseDatabase,
-  string
+  number
 > {
   return new ExpressionWrapper(
     AggregateFunctionNode.create("count", []) as unknown as OperationNode,
@@ -190,7 +190,7 @@ export function count(): ExpressionWrapper<
 /** ClickHouse `medianExact(expression)`. */
 export function medianExact(
   expression: Expression<unknown>,
-): ExpressionWrapper<ClickHouseDatabase, keyof ClickHouseDatabase, string> {
+): ExpressionWrapper<ClickHouseDatabase, keyof ClickHouseDatabase, number> {
   return new ExpressionWrapper(
     AggregateFunctionNode.create("medianExact", [
       expression.toOperationNode(),
@@ -392,7 +392,7 @@ export function startsWith(
 /** ClickHouse `length(array)`. */
 export function arrayLength(
   array: Expression<unknown[]>,
-): ChExpression<string> {
+): ChExpression<number> {
   return functionCall("length", [array]);
 }
 
@@ -418,7 +418,7 @@ export function anyValue<T>(value: Expression<T>): ChExpression<T> {
 }
 
 /** ClickHouse `countIf(condition)`. */
-export function countIf(condition: Expression<SqlBool>): ChExpression<string> {
+export function countIf(condition: Expression<SqlBool>): ChExpression<number> {
   return aggregate("countIf", [condition]);
 }
 
@@ -426,7 +426,7 @@ export function countIf(condition: Expression<SqlBool>): ChExpression<string> {
 export function uniqIf(
   value: Expression<unknown>,
   condition: Expression<SqlBool>,
-): ChExpression<string> {
+): ChExpression<number> {
   return aggregate("uniqIf", [value, condition]);
 }
 

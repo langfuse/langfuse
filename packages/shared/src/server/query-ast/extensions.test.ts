@@ -1,5 +1,5 @@
 import { expressionBuilder, sql } from "kysely";
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 
 import { compileClickhouseQuery, renderClickhouseExpression } from "./compile";
 import { getClickhouseKysely } from "./dialect";
@@ -10,13 +10,19 @@ import {
 } from "./errors";
 import {
   arrayExists,
+  arrayLength,
   arrayMap,
+  count,
+  countIf,
   leftUTF8,
   literal,
   mapValue,
+  medianExact,
   metadataMap,
   metadataValue,
   traceSessionId,
+  uniq,
+  uniqIf,
 } from "./extensions";
 import { ArrayIndexNode } from "./nodes";
 import type { ClickHouseDatabase } from "./schema";
@@ -263,6 +269,31 @@ describe("renderClickhouseExpression", () => {
     expect(() => renderClickhouseExpression(mapValue(metadata, "key"))).toThrow(
       /cannot bind parameters/,
     );
+  });
+});
+
+describe("64-bit results", () => {
+  const eb = expressionBuilder<{ e: ClickHouseDatabase["events_core"] }, "e">();
+  const isError = eb("e.level", "=", literal("ERROR"));
+
+  // ClickHouse 25.8+ (Langfuse v4 needs 25.12) sends (U)Int64 as JSON numbers.
+  it("types count and length results as number", () => {
+    expectTypeOf(count().expressionType).toEqualTypeOf<number | undefined>();
+    expectTypeOf(countIf(isError).expressionType).toEqualTypeOf<
+      number | undefined
+    >();
+    expectTypeOf(uniq(eb.ref("e.trace_id")).expressionType).toEqualTypeOf<
+      number | undefined
+    >();
+    expectTypeOf(
+      uniqIf(eb.ref("e.trace_id"), isError).expressionType,
+    ).toEqualTypeOf<number | undefined>();
+    expectTypeOf(arrayLength(eb.ref("e.tags")).expressionType).toEqualTypeOf<
+      number | undefined
+    >();
+    expectTypeOf(
+      medianExact(eb.ref("e.total_cost")).expressionType,
+    ).toEqualTypeOf<number | undefined>();
   });
 });
 
