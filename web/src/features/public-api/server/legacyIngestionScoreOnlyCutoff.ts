@@ -44,6 +44,39 @@ export function isLegacyIngestionScoreOnlyOrg(
   return createdAtMs >= cutoffMs;
 }
 
+/**
+ * rejectNonScoreCreateEvents keeps score-create events and returns a 400
+ * rejection for every other batch entry. Callers supply the error text.
+ * The deployment-wide events_only gate and the per-organization cutoff both
+ * use this allow-list.
+ */
+export function rejectNonScoreCreateEvents(
+  batch: unknown[],
+  errorForType: (type: string | null) => string,
+): {
+  batchForProcessing: unknown[];
+  rejectedErrors: LegacyIngestionEventRejection[];
+} {
+  const batchForProcessing: unknown[] = [];
+  const rejectedErrors: LegacyIngestionEventRejection[] = [];
+
+  for (const event of batch) {
+    const type = ingestionEventTypeOf(event);
+    if (type === eventTypes.SCORE_CREATE) {
+      batchForProcessing.push(event);
+      continue;
+    }
+    rejectedErrors.push({
+      id: ingestionEventIdOf(event),
+      status: 400,
+      message: LEGACY_INGESTION_SCORE_ONLY_REJECTION_MESSAGE,
+      error: errorForType(type),
+    });
+  }
+
+  return { batchForProcessing, rejectedErrors };
+}
+
 /** filterBatchForLegacyIngestionScoreOnlyOrg keeps score-create events and rejects every other batch entry for cutoff organizations. */
 export function filterBatchForLegacyIngestionScoreOnlyOrg(
   batch: unknown[],
@@ -56,24 +89,7 @@ export function filterBatchForLegacyIngestionScoreOnlyOrg(
     return { batchForProcessing: batch, rejectedErrors: [] };
   }
 
-  const batchForProcessing: unknown[] = [];
-  const rejectedErrors: LegacyIngestionEventRejection[] = [];
-
-  for (const event of batch) {
-    const type = eventTypeOf(event);
-    if (type === eventTypes.SCORE_CREATE) {
-      batchForProcessing.push(event);
-      continue;
-    }
-    rejectedErrors.push({
-      id: eventIdOf(event),
-      status: 400,
-      message: LEGACY_INGESTION_SCORE_ONLY_REJECTION_MESSAGE,
-      error: legacyIngestionNonScoreError(type),
-    });
-  }
-
-  return { batchForProcessing, rejectedErrors };
+  return rejectNonScoreCreateEvents(batch, legacyIngestionNonScoreError);
 }
 
 /** legacyTracingWriteRejectionBody is the single-event form of the batch rejection. These routes are one write, so the per-event 400 is the HTTP status. */
@@ -131,13 +147,15 @@ function legacyIngestionNonScoreError(type: string | null): string {
   return `Event type "${type ?? "unknown"}" is not accepted by the legacy ingestion API for organizations created at or after ${cutoff}. Only score-create events are accepted for those organizations. Send traces and observations to ${LEGACY_INGESTION_OTLP_TRACES}. Send scores as score-create events to POST /api/public/ingestion or to ${LEGACY_INGESTION_SCORES}. Docs: ${LEGACY_INGESTION_SCORE_ONLY_DOCS}`;
 }
 
-function eventTypeOf(event: unknown): string | null {
+/** ingestionEventTypeOf reads an event's `type`, or null when the event is malformed. */
+export function ingestionEventTypeOf(event: unknown): string | null {
   if (typeof event !== "object" || event === null) return null;
   const type = (event as { type?: unknown }).type;
   return typeof type === "string" ? type : null;
 }
 
-function eventIdOf(event: unknown): string {
+/** ingestionEventIdOf reads an event's `id`, defaulting to `unknown` for a malformed event. */
+export function ingestionEventIdOf(event: unknown): string {
   if (typeof event !== "object" || event === null) return "unknown";
   const id = (event as { id?: unknown }).id;
   return typeof id === "string" ? id : "unknown";
