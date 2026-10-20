@@ -1,4 +1,4 @@
-import { ArrowRight } from "lucide-react";
+import { ArrowRight } from "@langfuse/icons";
 
 import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
 import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
@@ -38,7 +38,7 @@ export function DefaultModelChangeConfirmationDialog({
             >
               {currentModel.provider} / {currentModel.model}
             </span>
-            <ArrowRight className="text-muted-foreground h-4 w-4 shrink-0" />
+            <ArrowRight size="base" color="muted" />
           </>
         ) : null}
         <span

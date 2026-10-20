@@ -1,6 +1,8 @@
 /* eslint-disable no-nested-ternary */
 import { pipeline, Transform } from "stream";
 import {
+  BATCH_EXPORT_ABANDONED_AFTER_MS,
+  BATCH_EXPORT_HEARTBEAT_INTERVAL_MS,
   BatchExportFileFormat,
   BatchExportQuerySchema,
   BatchExportStatus,
@@ -8,7 +10,7 @@ import {
   exportOptions,
   LangfuseNotFoundError,
 } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
+import { type BatchExport, prisma } from "@langfuse/shared/src/db";
 import {
   StorageServiceFactory,
   sendBatchExportSuccessEmail,
@@ -25,6 +27,7 @@ import { getDatabaseReadStreamPaginated } from "../database-read-stream/getDatab
 import { getObservationStream } from "../database-read-stream/observation-stream";
 import { getTraceStream } from "../database-read-stream/trace-stream";
 import { getEventsStream } from "../database-read-stream/event-stream";
+import { findInCauseChain } from "./findInCauseChain";
 
 // Map table names to comment object types for preprocessing
 const tableToCommentType: Record<string, CommentObjectType | undefined> = {
@@ -35,6 +38,24 @@ const tableToCommentType: Record<string, CommentObjectType | undefined> = {
 };
 
 const BATCH_EXPORT_CLICKHOUSE_SERVICE: PreferredClickhouseService = "ReadOnly";
+
+/**
+ * Checks whether `target` produced `error`, telling a read/transform failure
+ * (rethrown by the uploader as its cause) apart from a storage failure that
+ * merely aborts the stream as a side effect.
+ */
+const isCausedBy = (error: unknown, target: unknown): boolean =>
+  findInCauseChain(error, (link) => link === target) !== undefined;
+
+/** Thrown when the user already runs an export in the project, to defer the job. */
+export class BatchExportUserBusyError extends Error {
+  constructor(batchExportId: string) {
+    super(
+      `User already runs a batch export in this project; deferring ${batchExportId}`,
+    );
+    this.name = "BatchExportUserBusyError";
+  }
+}
 
 export const handleBatchExportJob = async (
   batchExportJob: BatchExportJobType,
@@ -116,17 +137,36 @@ export const handleBatchExportJob = async (
     );
   }
 
-  // Set job status to processing
-  await prisma.batchExport.update({
-    where: {
-      id: batchExportId,
+  if (
+    !(await claimExportSlot({
       projectId,
-    },
-    data: {
-      status: BatchExportStatus.PROCESSING,
-    },
-  });
+      userId: jobDetails.userId,
+      batchExportId,
+    }))
+  ) {
+    throw new BatchExportUserBusyError(batchExportId);
+  }
 
+  const stopHeartbeat = startExportHeartbeat({ projectId, batchExportId });
+  try {
+    await runExport({ projectId, batchExportId, jobDetails, span });
+  } finally {
+    stopHeartbeat();
+  }
+};
+
+/** Streams the export to blob storage, marks it COMPLETED and emails the user. */
+const runExport = async ({
+  projectId,
+  batchExportId,
+  jobDetails,
+  span,
+}: {
+  projectId: string;
+  batchExportId: string;
+  jobDetails: BatchExport;
+  span: ReturnType<typeof getCurrentSpan>;
+}) => {
   // Parse query from job
   const parsedQuery = BatchExportQuerySchema.safeParse(jobDetails.query);
   if (!parsedQuery.success) {
@@ -224,12 +264,19 @@ export const handleBatchExportJob = async (
     },
   });
 
+  // The read/transform pipeline is piped into the buffered uploader below. A
+  // mid-stream failure here (e.g. a ClickHouse query timeout) surfaces inside
+  // the uploader's try/catch and gets rewrapped as a storage error, so we
+  // capture the real cause here to re-attribute it after the upload rejects.
+  let readStreamError: unknown = null;
+
   const fileStream = pipeline(
     dbReadStream,
     loggingTransform,
     streamTransformations[jobDetails.format as BatchExportFileFormat](),
     (err) => {
       if (err) {
+        readStreamError = err;
         logger.error(
           "[BATCH EXPORT] Getting data from DB and transform failed: ",
           err,
@@ -269,13 +316,34 @@ export const handleBatchExportJob = async (
 
   const storageService = StorageServiceFactory.getInstance(storageParams);
 
-  await storageService.uploadFileBuffered({
-    fileName,
-    fileType:
-      exportOptions[jobDetails.format as BatchExportFileFormat].fileType,
-    data: fileStream,
-    partSizeBytes: env.BATCH_EXPORT_S3_PART_SIZE_MIB * 1024 * 1024,
-  });
+  try {
+    await storageService.uploadFileBuffered({
+      fileName,
+      fileType:
+        exportOptions[jobDetails.format as BatchExportFileFormat].fileType,
+      data: fileStream,
+      partSizeBytes: env.BATCH_EXPORT_S3_PART_SIZE_MIB * 1024 * 1024,
+    });
+  } catch (uploadError) {
+    // A read/transform stream failure (ClickHouse/Postgres read or a transform)
+    // is piped into the uploader, which rethrows it as the cause of its own
+    // error. Surface the real origin only when the upload error's cause chain
+    // traces back to that stream error — otherwise a genuine storage failure,
+    // which aborts the stream as a side effect and trips readStreamError with an
+    // unrelated premature-close, would be mislabeled. Thrown as a plain Error so
+    // the customer-facing `log` stays generic and does not leak internals.
+    if (readStreamError && isCausedBy(uploadError, readStreamError)) {
+      const causeMessage =
+        readStreamError instanceof Error
+          ? readStreamError.message
+          : String(readStreamError);
+      throw new Error(
+        `[BATCH EXPORT] Reading export data failed: ${causeMessage}`,
+        { cause: readStreamError },
+      );
+    }
+    throw uploadError;
+  }
 
   // asAttachment must be explicit: S3 defaults it to true, but GCS and Azure
   // don't — and the web tier's downloadUrl fallback returns this stored URL
@@ -332,3 +400,70 @@ export const handleBatchExportJob = async (
     );
   }
 };
+
+/** Refreshes a running export's updatedAt until stopped, so it keeps holding its slot. */
+const startExportHeartbeat = (params: {
+  projectId: string;
+  batchExportId: string;
+}) => {
+  const timer = setInterval(() => {
+    touchRunningExport(params).catch((error) =>
+      logger.warn(
+        `[BATCH EXPORT] Heartbeat failed for ${params.batchExportId}`,
+        error,
+      ),
+    );
+  }, BATCH_EXPORT_HEARTBEAT_INTERVAL_MS);
+  timer.unref();
+  return () => clearInterval(timer);
+};
+
+/** Bumps updatedAt of the export if it is still PROCESSING. */
+export const touchRunningExport = ({
+  projectId,
+  batchExportId,
+}: {
+  projectId: string;
+  batchExportId: string;
+}) =>
+  prisma.batchExport.updateMany({
+    where: {
+      id: batchExportId,
+      projectId,
+      status: BatchExportStatus.PROCESSING,
+    },
+    data: { updatedAt: new Date() },
+  });
+
+/** Claims the user's per-project export slot, serialized across workers by an advisory lock. */
+export const claimExportSlot = async ({
+  projectId,
+  userId,
+  batchExportId,
+}: {
+  projectId: string;
+  userId: string;
+  batchExportId: string;
+}): Promise<boolean> =>
+  prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`batch-export:${projectId}:${userId}`}, 0))`;
+
+    const running = await tx.batchExport.count({
+      where: {
+        projectId,
+        userId,
+        id: { not: batchExportId },
+        status: BatchExportStatus.PROCESSING,
+        updatedAt: {
+          gte: new Date(Date.now() - BATCH_EXPORT_ABANDONED_AFTER_MS),
+        },
+      },
+    });
+    if (running > 0) return false;
+
+    await tx.batchExport.update({
+      where: { id: batchExportId, projectId },
+      data: { status: BatchExportStatus.PROCESSING },
+    });
+    return true;
+  });

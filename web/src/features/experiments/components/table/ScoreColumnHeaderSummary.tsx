@@ -1,18 +1,6 @@
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { DiffLabel } from "@/src/features/datasets";
-import {
-  getScoreDataTypeExplanation,
-  splitScoreDataTypeIcon,
-} from "@/src/features/scores";
+import { splitScoreDataTypeIcon } from "@/src/features/scores";
 import {
   type ScoreColumnDataType,
   type ScoreColumnSummary,
@@ -28,24 +16,9 @@ const DIFF_LABEL_TITLES: Record<ScoreColumnDataType, string> = {
   CATEGORICAL: "modal value",
 };
 
-/** The type, quietly: the marker the column already had, now explained. */
-const ScoreDataTypeMarker = ({
-  icon,
-  dataType,
-}: {
-  icon: string;
-  dataType: ScoreColumnDataType;
-}) => (
-  <Tooltip>
-    <TooltipTrigger asChild>
-      <span className="text-muted-foreground shrink-0 cursor-default">
-        {icon}
-      </span>
-    </TooltipTrigger>
-    <TooltipContent className="max-w-[280px]">
-      {getScoreDataTypeExplanation(dataType)}
-    </TooltipContent>
-  </Tooltip>
+/** Score data-type marker shown beside the column name. */
+const ScoreDataTypeMarker = ({ icon }: { icon: string }) => (
+  <span className="text-muted-foreground shrink-0 cursor-default">{icon}</span>
 );
 
 const SummaryRow = ({
@@ -111,11 +84,63 @@ export const ScoreColumnHeaderSummary = ({
     // The filter menu sits outside the hover-card trigger so its own popover is
     // not fighting the hover card for the pointer.
     <div className="flex min-w-0 flex-1 items-start gap-1">
-      <HoverCard>
-        <HoverCardTrigger asChild>
-          <div className="flex min-w-0 flex-1 cursor-default flex-col gap-0.5 py-0.5">
+      <HoverCard
+        placement="bottom-start"
+        content={
+          <div className="flex w-64 flex-col gap-1 p-3 font-normal">
+            <span className="text-xs font-bold break-all">{label}</span>
+            <SummaryRow
+              label={`${hasBaseline ? "Baseline experiment" : "This experiment"} (${DIFF_LABEL_TITLES[dataType]})`}
+              value={
+                baseline ? formatScoreColumnAggregate(baseline) : "no values"
+              }
+            />
+            <SummaryRow label="Items scored" value={baseline?.count ?? 0} />
+            {movement && (
+              <>
+                <SummaryRow
+                  label={comparisonName ? `vs ${comparisonName}` : "Comparison"}
+                  value={
+                    comparison
+                      ? formatScoreColumnAggregate(comparison)
+                      : "no values"
+                  }
+                />
+                {delta !== null && (
+                  <SummaryRow
+                    label="Change"
+                    value={`${delta > 0 ? "+" : ""}${formatScoreValue(delta)}`}
+                  />
+                )}
+                {dataType === "CATEGORICAL" ? (
+                  <SummaryRow label="Changed value" value={movement.changed} />
+                ) : (
+                  <>
+                    <SummaryRow label="Improved" value={movement.improved} />
+                    <SummaryRow label="Regressed" value={movement.regressed} />
+                  </>
+                )}
+                <SummaryRow label="Unchanged" value={movement.unchanged} />
+                <SummaryRow label="Not scored" value={movement.notComparable} />
+                <span className="text-muted-foreground text-[10px]">
+                  Not scored: only one of the two experiments has a score for
+                  the item — or, for a categorical score, the item has no single
+                  value to compare — so it counts as neither an improvement nor
+                  a regression.
+                </span>
+              </>
+            )}
+          </div>
+        }
+      >
+        {({ getTriggerProps }) => (
+          <div
+            className="flex min-w-0 flex-1 cursor-default flex-col gap-0.5 py-0.5"
+            tabIndex={0}
+            {...getTriggerProps()}
+          >
             <span className="flex min-w-0 items-baseline gap-1">
-              {icon && <ScoreDataTypeMarker icon={icon} dataType={dataType} />}
+              {icon && <ScoreDataTypeMarker icon={icon} />}
               <span className="truncate" title={label}>
                 {nameLabel}
               </span>
@@ -168,6 +193,7 @@ export const ScoreColumnHeaderSummary = ({
               <span className="text-muted-foreground flex min-w-0 items-center gap-x-1 overflow-hidden text-[10px] leading-tight font-normal tabular-nums">
                 {deltaToShow !== null && (
                   <DiffLabel
+                    variant="ghost"
                     diff={{
                       type: "NUMERIC",
                       absoluteDifference: Math.abs(deltaToShow),
@@ -202,59 +228,7 @@ export const ScoreColumnHeaderSummary = ({
               </span>
             )}
           </div>
-        </HoverCardTrigger>
-        <HoverCardContent
-          align="start"
-          className="flex w-64 flex-col gap-1 p-3 font-normal"
-        >
-          <span className="text-xs font-bold break-all">{label}</span>
-          <span className="text-muted-foreground text-[10px]">
-            {getScoreDataTypeExplanation(dataType)}
-          </span>
-          <SummaryRow
-            label={`${
-              hasBaseline ? "Baseline experiment" : "This experiment"
-            } (${DIFF_LABEL_TITLES[dataType]})`}
-            value={
-              baseline ? formatScoreColumnAggregate(baseline) : "no values"
-            }
-          />
-          <SummaryRow label="Items scored" value={baseline?.count ?? 0} />
-          {movement && (
-            <>
-              <SummaryRow
-                label={comparisonName ? `vs ${comparisonName}` : "Comparison"}
-                value={
-                  comparison
-                    ? formatScoreColumnAggregate(comparison)
-                    : "no values"
-                }
-              />
-              {delta !== null && (
-                <SummaryRow
-                  label="Change"
-                  value={`${delta > 0 ? "+" : ""}${formatScoreValue(delta)}`}
-                />
-              )}
-              {dataType === "CATEGORICAL" ? (
-                <SummaryRow label="Changed value" value={movement.changed} />
-              ) : (
-                <>
-                  <SummaryRow label="Improved" value={movement.improved} />
-                  <SummaryRow label="Regressed" value={movement.regressed} />
-                </>
-              )}
-              <SummaryRow label="Unchanged" value={movement.unchanged} />
-              <SummaryRow label="Not scored" value={movement.notComparable} />
-              <span className="text-muted-foreground text-[10px]">
-                Not scored: only one of the two experiments has a score for the
-                item — or, for a categorical score, the item has no single value
-                to compare — so it counts as neither an improvement nor a
-                regression.
-              </span>
-            </>
-          )}
-        </HoverCardContent>
+        )}
       </HoverCard>
       {filterMenu}
     </div>

@@ -72,6 +72,10 @@ import { env } from "../../env";
 import { prisma } from "@langfuse/shared/src/db";
 import { createW3CTraceId } from "../utils";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
+import {
+  EvalFailureReason,
+  UnrecoverableEvalFailureError,
+} from "./evalFailureErrors";
 import { ObservationNotFoundError } from "../../errors/ObservationNotFoundError";
 import {
   completeEvalExecution,
@@ -1062,8 +1066,9 @@ export async function runLLMAsJudgeEvaluation({
         logger.warn(
           `Eval job ${jobExecutionId} will fail. ${modelConfig.error}`,
         );
-        throw new UnrecoverableError(
+        throw new UnrecoverableEvalFailureError(
           `Invalid model configuration for job ${jobExecutionId}: ${modelConfig.error}`,
+          EvalFailureReason.InvalidModelConfig,
         );
       }
 
@@ -1196,8 +1201,9 @@ export async function runLLMAsJudgeEvaluation({
 
       if (!parsedLLMOutput.success) {
         span.setAttribute("eval.execution.outcome", "invalid_model_output");
-        throw new UnrecoverableError(
+        throw new UnrecoverableEvalFailureError(
           `Invalid LLM response format from model ${modelConfig.config.model}. Error: ${parsedLLMOutput.error}`,
+          EvalFailureReason.InvalidModelOutput,
         );
       }
 
@@ -1310,6 +1316,7 @@ export async function executeLLMAsJudgeEvaluation(
     traceId: params.job.jobInputTraceId,
     observationId: params.job.jobInputObservationId,
     environment: params.environment,
+    executionType: EvalTemplateType.LLM_AS_JUDGE,
     deps,
     result,
   });

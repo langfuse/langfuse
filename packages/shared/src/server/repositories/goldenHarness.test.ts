@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeParams } from "./goldenHarness";
+import { normalizeParams, splitConditions } from "./goldenHarness";
 
 // Pure logic — no `clickhouse` binary required, so this always runs.
 describe("normalizeParams", () => {
@@ -30,5 +30,109 @@ describe("normalizeParams", () => {
       unused: "z",
     });
     expect(params).toEqual({ param1: "y" });
+  });
+});
+
+describe("splitConditions", () => {
+  it("puts each top-level AND condition on its own line", () => {
+    expect(
+      splitConditions(
+        [
+          "SELECT x AND y",
+          "FROM t",
+          "    WHERE (a = 1) AND (if(b AND c, 1, 0) = 1) AND (s = 'p AND q')",
+          "HAVING n > 1",
+        ].join("\n"),
+      ),
+    ).toBe(
+      [
+        "SELECT x AND y",
+        "FROM t",
+        "    WHERE (a = 1)",
+        "        AND (if(b AND c, 1, 0) = 1)",
+        "        AND (s = 'p AND q')",
+        "HAVING n > 1",
+      ].join("\n"),
+    );
+  });
+
+  it("ignores brackets in quotes and splits nothing inside an array", () => {
+    expect(
+      splitConditions(
+        [
+          "PREWHERE (s = 'p\\' (') AND (`x)` = 1) AND (z = 2)",
+          'HAVING ("a(" = 1) AND [c AND d] = e',
+        ].join("\n"),
+      ),
+    ).toBe(
+      [
+        "PREWHERE (s = 'p\\' (')",
+        "    AND (`x)` = 1)",
+        "    AND (z = 2)",
+        'HAVING ("a(" = 1)',
+        "    AND [c AND d] = e",
+      ].join("\n"),
+    );
+  });
+
+  it("indents a multi-line subquery under its AND and splits after it", () => {
+    expect(
+      splitConditions(
+        [
+          "WHERE (a = 1) AND (x IN (",
+          "    SELECT x",
+          "    FROM t",
+          "    WHERE (b = 2) AND (c = 3)",
+          ")) AND (d = 4) AND (y IN (",
+          "    SELECT y",
+          "))",
+          "ORDER BY a ASC",
+        ].join("\n"),
+      ),
+    ).toBe(
+      [
+        "WHERE (a = 1)",
+        "    AND (x IN (",
+        "        SELECT x",
+        "        FROM t",
+        "        WHERE (b = 2)",
+        "            AND (c = 3)",
+        "    ))",
+        "    AND (d = 4)",
+        "    AND (y IN (",
+        "        SELECT y",
+        "    ))",
+        "ORDER BY a ASC",
+      ].join("\n"),
+    );
+  });
+
+  it("indents a later subquery when the first one opens on the WHERE line", () => {
+    expect(
+      splitConditions(
+        [
+          "WHERE (x IN (",
+          "    SELECT x",
+          ")) AND (y IN (",
+          "    SELECT y",
+          "))",
+        ].join("\n"),
+      ),
+    ).toBe(
+      [
+        "WHERE (x IN (",
+        "    SELECT x",
+        "))",
+        "    AND (y IN (",
+        "        SELECT y",
+        "    ))",
+      ].join("\n"),
+    );
+  });
+
+  it("keeps an OR-rooted clause on one line", () => {
+    expect(splitConditions("WHERE (a AND b) OR c")).toBe(
+      "WHERE (a AND b) OR c",
+    );
   });
 });

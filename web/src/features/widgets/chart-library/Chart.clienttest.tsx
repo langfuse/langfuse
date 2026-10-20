@@ -51,11 +51,7 @@ describe("Chart dispatcher — empty-state guard (LFE-14333)", () => {
       <Chart chartType="LINE_TIME_SERIES" data={data} rowLimit={100} />,
     );
     expect(screen.queryByText("No data")).not.toBeInTheDocument();
-    // The real chart primitive mounted instead of the empty-state box —
-    // `ChartContainer` stamps a `data-chart` id on its wrapper unconditionally,
-    // independent of the (jsdom-only) 0x0 layout warning recharts logs when it
-    // can't measure a real box to size its <svg> surface.
-    expect(container.querySelector("[data-chart]")).toBeInTheDocument();
+    expect(container.querySelector("svg")).toBeInTheDocument();
   });
 
   it("does NOT show NoDataOrLoading while isLoading, even with no data yet", () => {
@@ -113,6 +109,12 @@ it("renders a compact bar chart whose values cross zero", () => {
     />,
   );
 
-  expect(container.querySelectorAll(".recharts-bar-rectangle")).toHaveLength(2);
+  expect(container.querySelectorAll('[role="graphics-symbol"]')).toHaveLength(
+    2,
+  );
+  expect(container.querySelector("[data-zero-baseline]")).toHaveAttribute(
+    "stroke-width",
+    "1.5",
+  );
   expect(screen.getByText("0")).toBeInTheDocument();
 });

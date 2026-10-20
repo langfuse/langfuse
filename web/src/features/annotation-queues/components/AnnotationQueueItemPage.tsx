@@ -6,7 +6,7 @@ import {
   AnnotationQueueStatus,
   AnnotationQueueObjectType,
 } from "@langfuse/shared";
-import { ArrowLeft, ArrowRight, Keyboard, SearchXIcon } from "lucide-react";
+import { ArrowLeft, ArrowRight, Keyboard, SearchXIcon } from "@langfuse/icons";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -18,11 +18,7 @@ import {
 } from "../state/annotationQueueRun";
 import { Button } from "@/src/components/ui/button";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import {
   Dialog,
   DialogBody,
@@ -42,7 +38,7 @@ import { useAnnotationQueueData } from "./shared/hooks/useAnnotationQueueData";
 import { useAnnotationObjectData } from "./shared/hooks/useAnnotationObjectData";
 import { TraceAnnotationProcessor } from "./processors/TraceAnnotationProcessor";
 import { SessionAnnotationProcessor } from "./processors/SessionAnnotationProcessor";
-import { ObjectNotFoundCard } from "@/src/features/annotation-queues/components/object-not-found-card";
+import { ObjectNotFoundCard } from "@/src/features/annotation-queues/components/ObjectNotFoundCard";
 import { useSession } from "next-auth/react";
 import { SplashScreen } from "@/src/components/ui/splash-screen";
 
@@ -153,6 +149,7 @@ function AnnotationQueueRunLoader({
     refetchOnMount: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
+    meta: { toastOperation: "annotation_queue.load" },
   });
   if (bootstrap.isPending) return <Skeleton className="h-full w-full" />;
   if (bootstrap.isError) {
@@ -205,7 +202,10 @@ function AnnotationQueueRunContent({
     { projectId, itemId: itemId as string },
     { enabled: !!itemId, refetchOnMount: false },
   );
-  const { configs } = useAnnotationQueueData({ annotationQueueId, projectId });
+  const { configs, isLoading: queueConfigsLoading } = useAnnotationQueueData({
+    annotationQueueId,
+    projectId,
+  });
   const unseenPendingItemCount =
     api.annotationQueueItems.unseenPendingItemCountByQueueId.useQuery(
       { queueId: annotationQueueId, projectId, seenItemIds },
@@ -263,7 +263,8 @@ function AnnotationQueueRunContent({
       // not complete or skip an item the annotator hasn't actually seen yet
       // (e.g. a quick → between ⌘/Ctrl+Enter and onSuccess advancing would skip
       // the next item, which only flashed as a Skeleton).
-      if (objectData.isLoading || isTransitioning) return;
+      if (queueConfigsLoading || objectData.isLoading || isTransitioning)
+        return;
 
       // Complete + next — the Cmd/Ctrl+Enter submit chord. Handled first and
       // *before* the typing guard so it works even while the annotator is in the
@@ -361,6 +362,7 @@ function AnnotationQueueRunContent({
     isTransitioning,
     objectData.isError,
     objectData.isLoading,
+    queueConfigsLoading,
     handleComplete,
     handleNavigateNext,
     handleNavigateBack,
@@ -371,6 +373,7 @@ function AnnotationQueueRunContent({
     (seenItemData.isPending && itemId) ||
     (isTransitioning && !itemId) ||
     unseenPendingItemCount.isPending ||
+    queueConfigsLoading ||
     objectData.isLoading
   ) {
     return <Skeleton className="h-full w-full" />;
@@ -399,7 +402,7 @@ function AnnotationQueueRunContent({
     if (!relevantItem) {
       return (
         <Card className="flex h-full w-full flex-col items-center justify-center overflow-hidden border-none">
-          <SearchXIcon className="text-muted-foreground mb-2 h-8 w-8" />
+          <SearchXIcon size="xl" color="muted" __rawClassName="mb-2" />
           <span className="text-muted-foreground max-w-96 text-sm text-wrap">
             Item has been <strong>deleted from annotation queue</strong>.
             Previously added scores and underlying reference trace are
@@ -461,9 +464,10 @@ function AnnotationQueueRunContent({
             <span className="bg-muted grid h-9 min-w-16 items-center rounded-md p-1 text-center text-sm">
               {progressIndex + 1} / {totalItems}
             </span>
-            <Tooltip>
-              <TooltipTrigger asChild>
+            <Tooltip label="Previous item" shortcut={{ keys: ["ArrowLeft"] }}>
+              {({ getTriggerProps }) => (
                 <Button
+                  {...getTriggerProps()}
                   onClick={handleNavigateBack}
                   variant="outline"
                   disabled={
@@ -471,24 +475,15 @@ function AnnotationQueueRunContent({
                   }
                   size="lg"
                   className={cn(
-                    "gap-1.5 px-4 transition-colors duration-150",
+                    "px-4 transition-colors duration-150",
                     shortcutPulse === "back" &&
                       "border-primary/60 bg-accent/60 ring-primary/20 ring-2",
                   )}
                   aria-label="Previous item"
                 >
-                  <ArrowLeft className="h-4 w-4" />
-                  <span className="hidden md:inline-flex">
-                    <KeyboardShortcut keys={["ArrowLeft"]} />
-                  </span>
+                  <ArrowLeft size="base" color="default" />
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <span>Previous item</span>
-                <span className="ml-2 hidden md:inline-flex">
-                  <KeyboardShortcut keys={["ArrowLeft"]} />
-                </span>
-              </TooltipContent>
+              )}
             </Tooltip>
             {/* Shortcut legend so annotators can discover keyboard-first flow */}
             <span className="text-muted-foreground hidden items-center gap-1.5 pl-1 text-[11px] lg:flex">
@@ -510,16 +505,20 @@ function AnnotationQueueRunContent({
         )}
         <div className="flex w-full min-w-[265px] items-center justify-end gap-2">
           {!isSingleItem && (
-            <Tooltip>
-              <TooltipTrigger asChild>
+            <Tooltip
+              label="Skip to next item"
+              shortcut={{ keys: ["ArrowRight"] }}
+            >
+              {({ getTriggerProps }) => (
                 <Button
+                  {...getTriggerProps()}
                   onClick={handleNavigateNext}
                   disabled={
                     !isNextItemAvailable || !hasAccess || isTransitioning
                   }
                   size="lg"
                   className={cn(
-                    "gap-1.5 px-4 transition-colors duration-150",
+                    "px-4 transition-colors duration-150",
                     !relevantItem ? "w-full" : "",
                     shortcutPulse === "next" &&
                       "border-primary/60 bg-accent/60 ring-primary/20 ring-2",
@@ -527,25 +526,24 @@ function AnnotationQueueRunContent({
                   variant="outline"
                   aria-label="Skip to next item"
                 >
-                  <ArrowRight className="h-4 w-4" />
-                  <span className="hidden md:inline-flex">
-                    <KeyboardShortcut keys={["ArrowRight"]} />
-                  </span>
+                  <ArrowRight size="base" color="default" />
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <span>Skip to next item</span>
-                <span className="ml-2 hidden md:inline-flex">
-                  <KeyboardShortcut keys={["ArrowRight"]} />
-                </span>
-              </TooltipContent>
+              )}
             </Tooltip>
           )}
           {!!relevantItem &&
             (isPending ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
+              <Tooltip
+                label={
+                  isSingleItem
+                    ? "Mark completed"
+                    : "Mark completed + go to next item"
+                }
+                shortcut={isSingleItem ? undefined : { keys: ["Mod", "Enter"] }}
+              >
+                {({ getTriggerProps }) => (
                   <Button
+                    {...getTriggerProps()}
                     onClick={handleComplete}
                     size="lg"
                     className={cn(
@@ -566,19 +564,7 @@ function AnnotationQueueRunContent({
                       </span>
                     )}
                   </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <span>
-                    {isSingleItem
-                      ? "Mark completed"
-                      : "Mark completed + go to next item"}
-                  </span>
-                  {!isSingleItem && (
-                    <span className="ml-2 hidden md:inline-flex">
-                      <KeyboardShortcut keys={["Mod", "Enter"]} />
-                    </span>
-                  )}
-                </TooltipContent>
+                )}
               </Tooltip>
             ) : (
               <div className="border-dark-green bg-light-green inline-flex h-9 w-full items-center justify-center rounded-md border px-8 text-sm font-bold">
@@ -591,7 +577,7 @@ function AnnotationQueueRunContent({
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
-              <Keyboard className="h-4 w-4" />
+              <Keyboard size="base" />
               Keyboard shortcuts
             </DialogTitle>
           </DialogHeader>

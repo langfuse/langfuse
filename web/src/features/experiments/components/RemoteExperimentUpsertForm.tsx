@@ -6,7 +6,8 @@ import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ChevronDown, Lock, LockOpen, Plus, X } from "lucide-react";
+import { Lock, LockOpen, Plus, X } from "@langfuse/icons";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { Button } from "@/src/components/ui/button";
 import {
   DialogBody,
@@ -27,9 +28,10 @@ import {
 import { Input } from "@/src/components/ui/input";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
-import { CodeView } from "@/src/components/ui/CodeJsonViewer";
+import { CodeSection } from "@/src/components/design-system/CodeSection/CodeSection";
 import { type Prisma, WebhookProtectedHeaders } from "@langfuse/shared";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { getFormattedPayload } from "@/src/features/experiments/utils/format";
@@ -116,6 +118,7 @@ export const RemoteExperimentUpsertForm = ({
     api.datasets.upsertRemoteExperiment.useMutation({
       onSuccess: (data) => {
         showSuccessToast({
+          operation: "remote_experiment.configure",
           title: "Setup successfully",
           description: "Your changes have been saved.",
         });
@@ -133,6 +136,7 @@ export const RemoteExperimentUpsertForm = ({
         showErrorToast(
           error.message || "Failed to setup",
           "Please check your URL and config and try again.",
+          classifyTrpcToastError(error, "remote_experiment.update"),
         );
       },
     });
@@ -141,6 +145,7 @@ export const RemoteExperimentUpsertForm = ({
     api.datasets.deleteRemoteExperiment.useMutation({
       onSuccess: () => {
         showSuccessToast({
+          operation: "remote_experiment.delete",
           title: "Deleted successfully",
           description:
             "The remote dataset run trigger has been removed from this dataset.",
@@ -155,6 +160,7 @@ export const RemoteExperimentUpsertForm = ({
         showErrorToast(
           error.message || "Failed to delete remote dataset run trigger",
           "Please try again.",
+          classifyTrpcToastError(error, "remote_experiment.delete"),
         );
       },
     });
@@ -233,7 +239,7 @@ export const RemoteExperimentUpsertForm = ({
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
-          <CodeView content={oneTimeSecret} defaultCollapsed={false} />
+          <CodeSection variant="outline" content={oneTimeSecret} />
         </DialogBody>
         <DialogFooter>
           <Button
@@ -355,10 +361,11 @@ export const RemoteExperimentUpsertForm = ({
                     {field.value &&
                       existingRemoteExperiment?.displaySecretKey && (
                         <div className="pt-2">
-                          <CodeView
-                            className="bg-muted/50"
+                          <CodeSection
+                            variant="outline"
+                            isCollapsible
+                            defaultCollapsed
                             content={existingRemoteExperiment.displaySecretKey}
-                            defaultCollapsed={true}
                           />
                           <div className="text-muted-foreground mt-1 text-xs">
                             Secret is encrypted and can only be viewed when
@@ -381,7 +388,7 @@ export const RemoteExperimentUpsertForm = ({
               <AccordionPrimitive.Item value="advanced">
                 <AccordionPrimitive.Header className="flex">
                   <AccordionPrimitive.Trigger className="flex flex-1 items-center justify-start gap-2 py-2 text-sm font-bold transition-all hover:underline [&>svg]:order-first [&>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0">
-                    <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
+                    <DropdownIndicator nudge />
                     Advanced Options
                   </AccordionPrimitive.Trigger>
                 </AccordionPrimitive.Header>
@@ -456,9 +463,12 @@ export const RemoteExperimentUpsertForm = ({
                               }
                             >
                               {isSecret ? (
-                                <Lock className="h-4 w-4 text-orange-500" />
+                                <Lock
+                                  size="base"
+                                  __rawClassName="text-orange-500"
+                                />
                               ) : (
-                                <LockOpen className="text-muted-foreground h-4 w-4" />
+                                <LockOpen size="base" color="muted" />
                               )}
                             </Button>
                             <Button
@@ -467,7 +477,7 @@ export const RemoteExperimentUpsertForm = ({
                               size="icon"
                               onClick={() => removeHeader(index)}
                             >
-                              <X className="h-4 w-4" />
+                              <X size="base" color="default" />
                             </Button>
                           </div>
                         );
@@ -486,7 +496,11 @@ export const RemoteExperimentUpsertForm = ({
                         }
                         className="mt-2"
                       >
-                        <Plus className="mr-1 h-4 w-4" />
+                        <Plus
+                          size="base"
+                          color="default"
+                          __rawClassName="mr-1"
+                        />
                         Add Custom Header
                       </Button>
                     </div>

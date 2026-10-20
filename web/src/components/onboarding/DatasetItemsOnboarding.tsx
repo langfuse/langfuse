@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { SplashScreen } from "@/src/components/ui/splash-screen";
-import { Braces, Code, ListTree, Upload } from "lucide-react";
+import { Braces, Code, ListTree, Upload } from "@langfuse/icons";
 import Link from "next/link";
 import {
   Dialog,
@@ -78,6 +78,7 @@ export const DatasetItemsOnboarding = ({
   const capture = usePostHogClientCapture();
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [isNewItemDialogOpen, setIsNewItemDialogOpen] = useState(false);
+  const submissionPending = useRef(false);
 
   const hasProjectAccess = useHasProjectAccess({
     projectId,
@@ -98,7 +99,7 @@ export const DatasetItemsOnboarding = ({
         >
           <DialogTrigger asChild disabled={!hasProjectAccess}>
             <DatasetItemEntryPointRow
-              icon={<Upload className="h-5 w-5" />}
+              icon={<Upload size="lg" />}
               title="Upload CSV"
               description="Import dataset items from a CSV file"
               onClick={() => {
@@ -113,11 +114,13 @@ export const DatasetItemsOnboarding = ({
 
         <Dialog
           open={hasProjectAccess && isNewItemDialogOpen}
-          onOpenChange={setIsNewItemDialogOpen}
+          onOpenChange={(open) => {
+            if (!submissionPending.current) setIsNewItemDialogOpen(open);
+          }}
         >
           <DialogTrigger asChild disabled={!hasProjectAccess}>
             <DatasetItemEntryPointRow
-              icon={<Braces className="h-5 w-5" />}
+              icon={<Braces size="lg" />}
               title="Add Manually"
               description="Manually input a single item"
               onClick={() => {
@@ -135,6 +138,9 @@ export const DatasetItemsOnboarding = ({
             <NewDatasetItemForm
               projectId={projectId}
               datasetId={datasetId}
+              onPendingChange={(pending) => {
+                submissionPending.current = pending;
+              }}
               onFormSuccess={() => setIsNewItemDialogOpen(false)}
               className="h-full overflow-y-auto"
             />
@@ -146,7 +152,7 @@ export const DatasetItemsOnboarding = ({
           target="_blank"
         >
           <DatasetItemEntryPointRow
-            icon={<Code className="h-5 w-5" />}
+            icon={<Code size="lg" />}
             title="Add via Code"
             description="Use our Python/TS/JS SDKs or custom API"
           />
@@ -154,7 +160,7 @@ export const DatasetItemsOnboarding = ({
 
         <Link href={`/project/${projectId}/observations`}>
           <DatasetItemEntryPointRow
-            icon={<ListTree className="h-5 w-5" />}
+            icon={<ListTree size="lg" />}
             title="Select Observations"
             description="Select observations in the observations table and use a batch action to add them to your dataset"
             onClick={() => {

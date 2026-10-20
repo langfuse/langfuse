@@ -1,17 +1,21 @@
 /* eslint-disable no-nested-ternary */
 import {
   availableFlags,
+  defaultOnFeaturePreviewFlags,
+  featurePreviewFlags,
   filterFeaturePreviewFlags,
   isRestrictedFlag,
   isInternalFlag,
   isFeaturePreviewFlag,
+  isOrganizationOnlyFeaturePreviewFlag,
   isFeaturePreviewAvailable,
+  isAdminOnlyFeaturePreviewFlag,
   type FeaturePreviewAvailabilityContext,
-  type FeaturePreviewFlag,
+  type UserFeatureFlag,
 } from "./available-flags";
 import { type Flags } from "./types";
 
-export const getFeaturePreviewOptOutFlag = (flag: FeaturePreviewFlag) =>
+export const getFeaturePreviewOptOutFlag = (flag: UserFeatureFlag) =>
   `feature-preview:${flag}:disabled`;
 
 /**
@@ -52,18 +56,36 @@ export const parseFlags = (
       return;
     }
 
-    // Internal flags are decided per session by `hasInternalAccess`, never
-    // by stored flags.
+    // Stored preference does not grant internal access.
     if (isInternalFlag(flag)) {
-      parsedFlags[flag] = false;
+      parsedFlags[flag] = !dbFlags.includes(getFeaturePreviewOptOutFlag(flag));
       return;
     }
 
     if (
       isFeaturePreviewFlag(flag) &&
+      isOrganizationOnlyFeaturePreviewFlag(flag)
+    ) {
+      parsedFlags[flag] = false;
+      return;
+    }
+
+    if (
+      (isFeaturePreviewFlag(flag) || isAdminOnlyFeaturePreviewFlag(flag)) &&
       dbFlags.includes(getFeaturePreviewOptOutFlag(flag))
     ) {
       parsedFlags[flag] = false;
+      return;
+    }
+
+    if (
+      defaultOnFeaturePreviewFlags.some(
+        (defaultFlag) => defaultFlag === flag,
+      ) &&
+      isFeaturePreviewFlag(flag) &&
+      isFeaturePreviewAvailable(flag, context)
+    ) {
+      parsedFlags[flag] = true;
       return;
     }
 
@@ -79,8 +101,8 @@ export const parseFlags = (
     parsedFlags[flag] = dbFlags.includes(flag);
   });
 
-  if (!parsedFlags.modernSession) {
-    parsedFlags.sessionTimeline = false;
+  if (!parsedFlags.sessionViewV2) {
+    parsedFlags.sessionViewV2Timeline = false;
   }
 
   return parsedFlags;
@@ -97,7 +119,19 @@ export const parseFlagsWithOrganizationDefaults = (
   const featurePreviewDefaults =
     filterFeaturePreviewFlags(organizationDefaults);
 
-  return parseFlags(dbFlags.concat(featurePreviewDefaults), context);
+  const organizationOptOuts = defaultOnFeaturePreviewFlags
+    .map(getFeaturePreviewOptOutFlag)
+    .filter((flag) => organizationDefaults.includes(flag));
+  const flags = parseFlags(
+    dbFlags.concat(featurePreviewDefaults, organizationOptOuts),
+    context,
+  );
+  for (const flag of featurePreviewFlags) {
+    if (isOrganizationOnlyFeaturePreviewFlag(flag)) {
+      flags[flag] = featurePreviewDefaults.includes(flag);
+    }
+  }
+  return flags;
 };
 
 type ContextualFeatureFlagUser = {

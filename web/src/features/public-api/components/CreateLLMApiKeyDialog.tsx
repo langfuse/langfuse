@@ -1,5 +1,5 @@
 /* eslint-disable @repo/no-abstracted-overlay-trigger, @repo/no-null-render */
-import { PlusIcon } from "lucide-react";
+import { PlusIcon } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
@@ -36,7 +36,7 @@ export function CreateLLMApiKeyDialog({
   });
   const uiCustomization = useUiCustomization();
 
-  if (!hasAccess) return null;
+  if (!projectId || !hasAccess) return null;
 
   return (
     <Dialog
@@ -48,7 +48,11 @@ export function CreateLLMApiKeyDialog({
       {!hideTrigger && (
         <DialogTrigger asChild>
           <Button variant="secondary">
-            <PlusIcon className="mr-1.5 -ml-0.5 h-5 w-5" aria-hidden="true" />
+            <PlusIcon
+              size="base"
+              __rawClassName="mr-1.5 -ml-0.5"
+              aria-hidden="true"
+            />
             Add LLM Connection
           </Button>
         </DialogTrigger>
@@ -59,7 +63,7 @@ export function CreateLLMApiKeyDialog({
         </DialogHeader>
         {open && (
           <CreateLLMApiKeyForm
-            projectId={projectId}
+            owner={{ scope: "project", projectId }}
             onSuccess={() => setOpen(false)}
             customization={uiCustomization}
           />

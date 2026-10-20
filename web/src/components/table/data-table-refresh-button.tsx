@@ -1,4 +1,5 @@
-import { RefreshCw, ChevronDown } from "lucide-react";
+/* eslint-disable @repo/component-file-structure */
+import { RefreshCw, ChevronDown } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import {
   DropdownMenu,
@@ -56,7 +57,11 @@ export function DataTableRefreshButton({
         )}
         title="Refresh"
       >
-        <RefreshCw className={cn("h-4 w-4", isSpinning && "animate-spin")} />
+        <RefreshCw
+          size="base"
+          color="default"
+          __rawClassName={cn(isSpinning && "animate-spin")}
+        />
       </Button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -68,7 +73,7 @@ export function DataTableRefreshButton({
               compact && isActive && "border-primary text-primary",
             )}
           >
-            <ChevronDown className="h-4 w-4" />
+            <ChevronDown size="base" color="default" />
             {compact ? (
               // Drop the "Off" label; surface the interval only when set.
               isActive && (

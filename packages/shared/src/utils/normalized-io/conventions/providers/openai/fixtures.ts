@@ -55,8 +55,138 @@ export const documentedResponsesFixtures: NormalizedIOFixture[] = [
   },
 ];
 
+const structuredReviewOutput = {
+  hypotheses: [
+    {
+      hypothesis: "Normal account activity with misleading userId.",
+      confidence: 0.99,
+      evidence: "Some evidence.",
+    },
+  ],
+  facts: [
+    {
+      fact: "Fact 1.",
+      evidence: "search_fact_by_key, get_records_by_ids identity and human.",
+    },
+    {
+      fact: "Fact 2",
+      evidence:
+        "answer_access_event_question acting-identity two-window lookup and trigger.",
+    },
+  ],
+  dead_ends: [
+    { hypothesis: "A.", evidence: "Evidence A." },
+    { hypothesis: "B", evidence: "Evidence B" },
+  ],
+  next_step: {
+    hypothesis:
+      "No outstanding discriminator-changing test; record the benign account-compromise verdict.",
+    evidence: "All five required checks attempted or not applicable",
+    verdict: "Benign; the account-compromise match requirement is not met.",
+    severity: "Not applicable",
+    confidence: 0.99,
+  },
+};
+
 // Anonymized customer payload; prose, names, IDs, and preview content replaced.
 export const customerFixtures: NormalizedIOFixture[] = [
+  {
+    name: "anonymized customer Responses structured output text with tool call",
+    spanIO: {
+      input: undefined,
+      metadata: undefined,
+      output: {
+        output: [
+          {
+            id: "rs_sample_review",
+            summary: [],
+            type: "reasoning",
+            content: [],
+            encrypted_content: "gAAAAAB",
+          },
+          {
+            id: "msg_sample_review",
+            content: [
+              {
+                annotations: [],
+                text: structuredReviewOutput,
+                type: "output_text",
+                logprobs: [],
+              },
+            ],
+            role: "assistant",
+            status: "completed",
+            type: "message",
+            phase: "commentary",
+          },
+          {
+            arguments: {
+              label: "Benign",
+              scenario: "account_compromise",
+              summary: "## Summary",
+            },
+            call_id: "call_sample_review",
+            name: "conclude_benign_review",
+            type: "function_call",
+            id: "fc_sample_review",
+            caller: null,
+            namespace: null,
+            status: "completed",
+          },
+        ],
+      },
+    },
+    expected: {
+      messages: [
+        {
+          source: "output",
+          role: "assistant",
+          id: "rs_sample_review",
+          parts: [
+            {
+              type: "reasoning",
+              content: { kind: "encrypted", data: "gAAAAAB" },
+            },
+          ],
+        },
+        {
+          source: "output",
+          role: "assistant",
+          id: "msg_sample_review",
+          parts: [
+            {
+              type: "data",
+              value: structuredReviewOutput,
+              providerMetadata: { annotations: [], logprobs: [] },
+            },
+          ],
+        },
+        {
+          source: "output",
+          role: "assistant",
+          parts: [
+            {
+              type: "tool-call",
+              toolCallId: "call_sample_review",
+              toolName: "conclude_benign_review",
+              input: {
+                label: "Benign",
+                scenario: "account_compromise",
+                summary: "## Summary",
+              },
+              toolType: "function_call",
+              providerMetadata: {
+                caller: null,
+                namespace: null,
+                status: "completed",
+              },
+            },
+          ],
+        },
+      ],
+      toolDefinitions: [],
+    },
+  },
   {
     name: "anonymized customer Responses tool history",
     spanIO: {
@@ -1508,44 +1638,47 @@ export const customerFixtures: NormalizedIOFixture[] = [
               type: "tool-result",
               toolCallId: "sample_id_1",
               output: {
-                parts: {
-                  org: {
-                    country: "Sample country",
-                    is_multi_entity: true,
-                    name: "Sample name",
-                    plan_label: "Sample plan_label",
-                    plan_tier_internal: "Sample plan_tier_internal",
-                    size_bucket: "Sample size_bucket",
+                type: "json",
+                value: {
+                  parts: {
+                    org: {
+                      country: "Sample country",
+                      is_multi_entity: true,
+                      name: "Sample name",
+                      plan_label: "Sample plan_label",
+                      plan_tier_internal: "Sample plan_tier_internal",
+                      size_bucket: "Sample size_bucket",
+                    },
+                    products: {
+                      enabled_entitlements_at_session_start_internal: [
+                        "Sample enabled_entitlements_at_session_start_internal",
+                        "Sample enabled_entitlements_at_session_start_internal",
+                        "Sample enabled_entitlements_at_session_start_internal",
+                        "Sample enabled_entitlements_at_session_start_internal",
+                        "Sample enabled_entitlements_at_session_start_internal",
+                        "Sample enabled_entitlements_at_session_start_internal",
+                        "Sample enabled_entitlements_at_session_start_internal",
+                        "Sample enabled_entitlements_at_session_start_internal",
+                        "Sample enabled_entitlements_at_session_start_internal",
+                      ],
+                    },
+                    session: {
+                      session_started_at: "Sample session_started_at",
+                    },
+                    setup: {
+                      erp_provider_internal: "Sample erp_provider_internal",
+                      erp_provider_label: "Sample erp_provider_label",
+                    },
+                    user: {
+                      department: "Sample department",
+                      first_name: "Sample first_name",
+                      is_manager: true,
+                      role_internal: "Sample role_internal",
+                      role_label: "Sample role_label",
+                    },
                   },
-                  products: {
-                    enabled_entitlements_at_session_start_internal: [
-                      "Sample enabled_entitlements_at_session_start_internal",
-                      "Sample enabled_entitlements_at_session_start_internal",
-                      "Sample enabled_entitlements_at_session_start_internal",
-                      "Sample enabled_entitlements_at_session_start_internal",
-                      "Sample enabled_entitlements_at_session_start_internal",
-                      "Sample enabled_entitlements_at_session_start_internal",
-                      "Sample enabled_entitlements_at_session_start_internal",
-                      "Sample enabled_entitlements_at_session_start_internal",
-                      "Sample enabled_entitlements_at_session_start_internal",
-                    ],
-                  },
-                  session: {
-                    session_started_at: "Sample session_started_at",
-                  },
-                  setup: {
-                    erp_provider_internal: "Sample erp_provider_internal",
-                    erp_provider_label: "Sample erp_provider_label",
-                  },
-                  user: {
-                    department: "Sample department",
-                    first_name: "Sample first_name",
-                    is_manager: true,
-                    role_internal: "Sample role_internal",
-                    role_label: "Sample role_label",
-                  },
+                  unavailable: [],
                 },
-                unavailable: [],
               },
             },
           ],
@@ -1571,13 +1704,16 @@ export const customerFixtures: NormalizedIOFixture[] = [
               type: "tool-result",
               toolCallId: "sample_id_2",
               output: {
-                instructions: "Sample instructions",
-                skills: [
-                  {
-                    name: "Sample name",
-                    description: "Sample description",
-                  },
-                ],
+                type: "json",
+                value: {
+                  instructions: "Sample instructions",
+                  skills: [
+                    {
+                      name: "Sample name",
+                      description: "Sample description",
+                    },
+                  ],
+                },
               },
             },
           ],
@@ -1604,7 +1740,7 @@ export const customerFixtures: NormalizedIOFixture[] = [
             {
               type: "tool-result",
               toolCallId: "sample_id_3",
-              output: "Sample tool result",
+              output: { type: "text", value: "Sample tool result" },
             },
           ],
         },
@@ -1672,34 +1808,37 @@ export const customerFixtures: NormalizedIOFixture[] = [
               type: "tool-result",
               toolCallId: "sample_id_6",
               output: {
-                output_path: "Sample output_path",
-                output_bytes: 41556,
-                output_summary: {
-                  format: "json",
-                  shape: {
-                    snippets: [
-                      {
-                        snippet: "Sample snippet",
-                        title: "Sample title",
-                        url: "Sample url",
-                        links: [
-                          {
-                            label: "Sample label",
-                            url: "Sample url",
-                          },
-                          "Sample links",
-                        ],
-                        similarity_score: "Sample similarity_score",
-                      },
-                      "Sample snippets",
-                    ],
-                    query: "Sample query",
+                type: "json",
+                value: {
+                  output_path: "Sample output_path",
+                  output_bytes: 41556,
+                  output_summary: {
+                    format: "json",
+                    shape: {
+                      snippets: [
+                        {
+                          snippet: "Sample snippet",
+                          title: "Sample title",
+                          url: "Sample url",
+                          links: [
+                            {
+                              label: "Sample label",
+                              url: "Sample url",
+                            },
+                            "Sample links",
+                          ],
+                          similarity_score: "Sample similarity_score",
+                        },
+                        "Sample snippets",
+                      ],
+                      query: "Sample query",
+                    },
+                    summary_truncated: true,
                   },
-                  summary_truncated: true,
+                  output_head: "Sample output_head",
+                  truncated: true,
+                  hint: "Sample hint",
                 },
-                output_head: "Sample output_head",
-                truncated: true,
-                hint: "Sample hint",
               },
             },
           ],
@@ -3189,7 +3328,10 @@ export const openAiChatCompletionToolSequenceFixture = {
           {
             type: "tool-result",
             toolCallId,
-            output: { condition: "sunny", temperature: 24 },
+            output: {
+              type: "json",
+              value: { condition: "sunny", temperature: 24 },
+            },
           },
         ],
         source: "input",
@@ -3201,7 +3343,7 @@ export const openAiChatCompletionToolSequenceFixture = {
             type: "tool-result",
             toolCallId: null,
             toolName: "run_python",
-            output: 42,
+            output: { type: "json", value: 42 },
           },
         ],
         source: "input",
@@ -3386,7 +3528,10 @@ export const openAiResponsesReasoningWithParallelCallsFixture = {
           {
             type: "tool-result",
             toolCallId: callId1,
-            output: "[Reduced refund policy doc excerpt]",
+            output: {
+              type: "text",
+              value: "[Reduced refund policy doc excerpt]",
+            },
           },
         ],
         source: "input",
@@ -3397,7 +3542,10 @@ export const openAiResponsesReasoningWithParallelCallsFixture = {
           {
             type: "tool-result",
             toolCallId: callId2,
-            output: "[Reduced annual plan terms excerpt]",
+            output: {
+              type: "text",
+              value: "[Reduced annual plan terms excerpt]",
+            },
           },
         ],
         source: "input",
@@ -3484,7 +3632,7 @@ export const openAiResponsesFunctionCallFixture = {
           {
             type: "tool-result",
             toolCallId: responsesToolCallId,
-            output: "The weather in Basel is cloudy.",
+            output: { type: "text", value: "The weather in Basel is cloudy." },
           },
         ],
         source: "input",
@@ -3906,7 +4054,7 @@ export const openAiResponsesBuiltInToolsAndMediaFixture = {
           {
             type: "tool-result",
             toolCallId: "call_custom_100",
-            output: "ok",
+            output: { type: "text", value: "ok" },
           },
         ],
         source: "output",
@@ -4239,7 +4387,7 @@ export const capturedTraceFixtures: NormalizedIOFixture[] = [
             {
               type: "tool-result",
               toolCallId: "call_Kud0j0DxWSmLzv9W5m6qVqXn",
-              output: "The weather in Tokyo is sunny.",
+              output: { type: "text", value: "The weather in Tokyo is sunny." },
             },
           ],
           source: "input",

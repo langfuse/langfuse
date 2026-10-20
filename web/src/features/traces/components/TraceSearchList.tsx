@@ -11,25 +11,21 @@ import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useSearch } from "@/src/features/traces/contexts/SearchContext";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHandlePrefetchObservation";
-import { useDesktopLayoutContextOptional } from "./TraceLayoutDesktop";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 import { matchesSearchQuery } from "@/src/features/traces/fns/matchesSearchQuery";
 import { VirtualizedList } from "./VirtualizedList";
 import { TraceSearchListItem } from "./TraceSearchListItem";
 import { Button } from "@/src/components/ui/button";
-import { XIcon } from "lucide-react";
+import { XIcon } from "@langfuse/icons";
 
 export function TraceSearchList() {
   const { searchItems } = useTraceData();
   const { searchQuery, setSearchInputValue } = useSearch();
-  const { selectedNodeId, setSelectedNodeId } = useSelection();
+  const { selectedNodeId, selectNode } = useSelection();
   const { handleHover } = useHandlePrefetchObservation();
   const capture = usePostHogClientCapture();
   const analyticsDimensions = useTraceAnalyticsDimensions();
-  // Optional (null on mobile): reopen the detail panel on select, including
-  // re-selecting the already-selected result.
-  const layout = useDesktopLayoutContextOptional();
   const handleSelectItem = (id: string | null) => {
     if (id) {
       capture("trace_detail:node_selected", {
@@ -37,8 +33,7 @@ export function TraceSearchList() {
         ...analyticsDimensions,
       });
     }
-    setSelectedNodeId(id);
-    layout?.expandDetailPanel();
+    selectNode(id);
   };
 
   // Co-located filtering - only this component re-renders on search query change.
@@ -64,7 +59,7 @@ export function TraceSearchList() {
             size="sm"
             onClick={() => setSearchInputValue("")}
           >
-            <XIcon className="mr-2 h-4 w-4" />
+            <XIcon size="base" color="default" __rawClassName="mr-2" />
             Clear search
           </Button>
         </div>

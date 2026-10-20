@@ -1,4 +1,4 @@
-import { SiPython, SiTypescript } from "react-icons/si";
+import { SiPython, SiTypescript } from "@langfuse/icons/si";
 import {
   EvalTemplateSourceCodeLanguageEnum,
   type EvalTemplateSourceCodeLanguage,
@@ -24,19 +24,19 @@ export function EvaluatorCodeLanguageSelector({
         onValueChange(language as EvalTemplateSourceCodeLanguage)
       }
     >
-      <Tabs.List variant="outline">
+      <Tabs.List variant="inset" size="md">
         <Tabs.Trigger
           value={EvalTemplateSourceCodeLanguageEnum.PYTHON}
           disabled={disabled}
         >
-          <SiPython className="h-3.5 w-3.5 shrink-0" />
+          <SiPython size="base" />
           {sourceCodeLanguageLabel(EvalTemplateSourceCodeLanguageEnum.PYTHON)}
         </Tabs.Trigger>
         <Tabs.Trigger
           value={EvalTemplateSourceCodeLanguageEnum.TYPESCRIPT}
           disabled={disabled}
         >
-          <SiTypescript className="h-3.5 w-3.5 shrink-0" />
+          <SiTypescript size="base" />
           {sourceCodeLanguageLabel(
             EvalTemplateSourceCodeLanguageEnum.TYPESCRIPT,
           )}

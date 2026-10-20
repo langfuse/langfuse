@@ -3,7 +3,10 @@ import { useRef, useState, type ReactNode } from "react";
 import { type CommentObjectType } from "@langfuse/shared";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
-import { useTraceReviewPanelOptional } from "@/src/features/traces/contexts/TraceReviewPanelContext";
+import {
+  useTraceReviewPanelOptional,
+  useReviewPanelOpen,
+} from "@/src/features/traces/contexts/TraceReviewPanelContext";
 import {
   createCommentOverlayStore,
   type CommentTarget,
@@ -55,6 +58,7 @@ export function CommentDrawerController({
   onCommentChange,
 }: CommentDrawerControllerProps) {
   const router = useRouter();
+  const onOpen = useReviewPanelOpen();
   const reviewPanel = useTraceReviewPanelOptional();
   const [store] = useState(createCommentOverlayStore);
   const triggerRef = useRef<HTMLElement | null>(null);
@@ -89,6 +93,14 @@ export function CommentDrawerController({
               confirmDiscard: () =>
                 window.confirm("Discard your unsent comment?"),
             });
+            const current = reviewPanel.getState();
+            if (
+              current.active === "comments" &&
+              current.comments?.target.objectId === target.objectId &&
+              current.comments.target.objectType === target.objectType
+            ) {
+              onOpen?.("comments", target);
+            }
             return;
           }
           store.getState().actions.open({

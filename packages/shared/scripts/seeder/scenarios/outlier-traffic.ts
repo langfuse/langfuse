@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import {
   createTrace,
   createObservation,
@@ -189,15 +188,36 @@ const run = async (
       const latencyOutlier = g % 71 === 3;
       const tokenOutlier = g % 113 === 7;
 
-      const usageScale = costOutlier || megaCost ? 30 : tokenOutlier ? 25 : 1;
-      const rateMultiplier = megaCost
-        ? 12 * 4
-        : costOutlier
-          ? 4
-          : tokenOutlier
-            ? 0.05
-            : 1;
-      const durationScale = latencyOutlier ? 35 : isIncident ? 8 : 1;
+      const usageScale = (() => {
+        if (costOutlier || megaCost) {
+          return 30;
+        }
+        if (tokenOutlier) {
+          return 25;
+        }
+        return 1;
+      })();
+      const rateMultiplier = (() => {
+        if (megaCost) {
+          return 12 * 4;
+        }
+        if (costOutlier) {
+          return 4;
+        }
+        if (tokenOutlier) {
+          return 0.05;
+        }
+        return 1;
+      })();
+      const durationScale = (() => {
+        if (latencyOutlier) {
+          return 35;
+        }
+        if (isIncident) {
+          return 8;
+        }
+        return 1;
+      })();
 
       const usageInput =
         (200 + jitter(ctx.seed, g * 17 + 3, 5000)) * usageScale;

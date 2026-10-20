@@ -14,6 +14,7 @@ import { GatewayControlPlaneError as GatewayResolveError } from "@/src/features/
 import {
   type GatewayApiFormat,
   type GatewayProviderId,
+  type GatewayResolveResponse,
   getGatewayProviderDefinition,
 } from "@/src/features/ai-gateway/server/provider";
 
@@ -66,27 +67,30 @@ export class GatewayResolveService {
   async resolve(params: {
     context: GatewayApiKeyAuthContext;
     apiFormat: GatewayApiFormat;
-  }) {
+  }): Promise<GatewayResolveResponse> {
     return instrumentAsync({ name: "gateway-resolve" }, async (span) => {
       span.setAttribute(
         "langfuse.organization.id",
         params.context.organizationId,
       );
       const { context } = params;
+      const { ingestionMode, ingestionProjectId } = context;
+      // NONE mode delivers nothing to Langfuse, so it needs neither an
+      // ingestion project nor ingestion signing keys.
+      const deliversToLangfuse = ingestionMode !== "NONE";
 
-      if (!context.ingestionProjectId || !context.ingestionMode) {
+      if (!ingestionMode || (deliversToLangfuse && !ingestionProjectId)) {
         throw new GatewayResolveError(
           "Gateway ingestion project is unavailable",
           403,
         );
       }
-      if (!context.connection) {
+      if (!context.connection || !context.providerModel) {
         throw new GatewayResolveError(
           "No enabled gateway connection supports this API format",
           404,
         );
       }
-
       const provider = getGatewayProviderDefinition(
         context.connection.provider,
       );
@@ -95,8 +99,10 @@ export class GatewayResolveService {
         version: 1 as const,
         connection: {
           id: context.connection.id,
+          name: context.connection.name,
           provider:
             context.connection.provider.toLowerCase() as GatewayProviderId,
+          provider_model: context.providerModel,
           api_format: params.apiFormat,
           base_url: provider.baseUrl,
           auth:
@@ -110,17 +116,21 @@ export class GatewayResolveService {
         },
         attribution: {
           organization_id: context.organizationId,
-          project_id: context.ingestionProjectId,
+          project_id: ingestionProjectId,
           key_id: context.apiKeyId,
           key_metadata: context.keyMetadata,
           provider_connection_id: context.connection.id,
         },
-        ingestion_mode: context.ingestionMode.toLowerCase() as "usage" | "full",
-        ingestion: this.createIngestionResponse({
-          mode: context.ingestionMode,
-          organizationId: context.organizationId,
-          projectId: context.ingestionProjectId,
-        }),
+        ingestion_mode:
+          ingestionMode.toLowerCase() as GatewayResolveResponse["ingestion_mode"],
+        ingestion:
+          deliversToLangfuse && ingestionProjectId
+            ? this.createIngestionResponse({
+                mode: ingestionMode,
+                organizationId: context.organizationId,
+                projectId: ingestionProjectId,
+              })
+            : null,
       };
     });
   }
@@ -144,7 +154,8 @@ export class GatewayResolveService {
           version: 1,
           organization_id: params.organizationId,
           project_id: params.projectId,
-          ingestion_mode: params.mode.toLowerCase() as "usage" | "full",
+          ingestion_mode:
+            params.mode.toLowerCase() as GatewayResolveResponse["ingestion_mode"],
           scope: "gateway-ingest",
         },
       }),

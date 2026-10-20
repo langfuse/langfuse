@@ -1,6 +1,9 @@
 /* eslint-disable no-nested-ternary */
 import { useMemo } from "react";
-import { DatasetItemField } from "./DatasetItemField";
+import {
+  DatasetItemField,
+  type DatasetItemRenderMode,
+} from "./DatasetItemField";
 import {
   DatasetItemFormMediaAttachments,
   DatasetItemSavedMediaAttachments,
@@ -27,6 +30,7 @@ type DatasetItemFieldsProps = {
   values?: DatasetItemFormValues;
   dataset: DatasetSchema | null;
   editable: boolean;
+  renderMode?: DatasetItemRenderMode;
   projectId: string;
   // Present in view mode; selects the saved (table-backed) attachment section.
   datasetItemId?: string;
@@ -60,6 +64,7 @@ export const DatasetItemFields = ({
   values,
   dataset,
   editable,
+  renderMode,
   projectId,
   datasetItemId,
   datasetItemValidFrom,
@@ -135,6 +140,7 @@ export const DatasetItemFields = ({
             schema={dataset?.inputSchema}
             schemaType="input"
             editable={false}
+            renderMode={renderMode}
             errors={inputErrors}
             hasSchemas={validation.hasSchemas}
           />
@@ -175,6 +181,7 @@ export const DatasetItemFields = ({
             schema={dataset?.expectedOutputSchema}
             schemaType="expectedOutput"
             editable={false}
+            renderMode={renderMode}
             errors={expectedOutputErrors}
             hasSchemas={validation.hasSchemas}
           />
@@ -209,6 +216,7 @@ export const DatasetItemFields = ({
           label="Metadata"
           value={metadataValue}
           editable={false}
+          renderMode={renderMode}
         />
       )}
 

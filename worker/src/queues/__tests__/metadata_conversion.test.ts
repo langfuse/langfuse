@@ -23,4 +23,28 @@ describe("metadataArraysToRecord", () => {
     const result = metadataArraysToRecord(["key"], ["value"]);
     expect(result).toEqual({ key: "value" });
   });
+
+  it("should keep keys that collide with Object.prototype members", () => {
+    const result = metadataArraysToRecord(
+      ["toString", "constructor", "valueOf", "hasOwnProperty"],
+      ["a", "b", "c", "d"],
+    );
+    expect(result).toEqual({
+      toString: "a",
+      constructor: "b",
+      valueOf: "c",
+      hasOwnProperty: "d",
+    });
+  });
+
+  it("should keep a __proto__ key as an own property", () => {
+    const result = metadataArraysToRecord(
+      ["__proto__", "env"],
+      ['{"polluted":true}', "prod"],
+    );
+
+    expect(Object.keys(result ?? {})).toEqual(["__proto__", "env"]);
+    expect(Object.getPrototypeOf(result)).toBe(Object.prototype);
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+  });
 });

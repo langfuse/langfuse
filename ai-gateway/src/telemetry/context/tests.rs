@@ -160,6 +160,69 @@ fn malformed_fields_and_duplicate_custom_headers_keep_valid_baggage() {
 }
 
 #[test]
+fn environment_follows_langfuse_naming_rules_and_keeps_valid_baggage() {
+    let environment = |header: Option<&str>, baggage: Option<&str>| {
+        let mut headers = HeaderMap::new();
+        if let Some(header) = header {
+            headers.insert("langfuse-environment", header.parse().unwrap());
+        }
+        if let Some(baggage) = baggage {
+            headers.insert(
+                "baggage",
+                format!("langfuse_environment={baggage}").parse().unwrap(),
+            );
+        }
+        GenerationContext::from_headers(&headers)
+            .attributes
+            .get("langfuse.environment")
+            .cloned()
+    };
+    assert_eq!(
+        environment(Some("production"), None),
+        Some(json!("production"))
+    );
+    assert_eq!(
+        environment(Some("staging_eu-1"), Some("baggage")),
+        Some(json!("staging_eu-1"))
+    );
+    assert_eq!(
+        environment(None, Some("from-baggage")),
+        Some(json!("from-baggage"))
+    );
+    assert_eq!(
+        environment(Some(&"a".repeat(40)), None),
+        Some(json!("a".repeat(40)))
+    );
+    for invalid in [
+        "Production",
+        "prod env",
+        "prod%2Fenv",
+        "prod.eu",
+        "langfuse",
+        "langfuse-prod",
+        "langfuseprod",
+        &"a".repeat(41),
+        "%20",
+    ] {
+        assert_eq!(environment(Some(invalid), None), None, "{invalid}");
+        assert_eq!(environment(None, Some(invalid)), None, "{invalid}");
+        assert_eq!(
+            environment(Some(invalid), Some("fallback")),
+            Some(json!("fallback")),
+            "{invalid}"
+        );
+    }
+    let mut headers = HeaderMap::new();
+    headers.append("langfuse-environment", "first".parse().unwrap());
+    headers.append("langfuse-environment", "second".parse().unwrap());
+    assert!(
+        !GenerationContext::from_headers(&headers)
+            .attributes
+            .contains_key("langfuse.environment")
+    );
+}
+
+#[test]
 fn coding_agent_headers_group_sessions_and_turns() {
     let cases = [
         (

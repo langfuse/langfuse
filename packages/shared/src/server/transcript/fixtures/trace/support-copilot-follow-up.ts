@@ -99,7 +99,7 @@ const replayedHistory: NormalizedMessage[] = [
       {
         type: "tool-result",
         toolCallId: findChargesToolCallId,
-        output: charges,
+        output: { type: "json", value: charges },
       },
     ],
   },
@@ -123,7 +123,7 @@ const replayedHistory: NormalizedMessage[] = [
       {
         type: "tool-result",
         toolCallId: createRefundToolCallId,
-        output: refund,
+        output: { type: "json", value: refund },
       },
     ],
   },
@@ -154,11 +154,16 @@ export const supportCopilotFollowUpFixture = {
       {
         conversationHistory: replayedHistory,
         currentTurn: {
+          nestingLevel: 2,
           messages: followUpCopy(
             firstThread.currentTurn.messages.filter(
               (message) => message.role !== "system",
             ),
-          ),
+          ).map((message) => ({
+            ...message,
+            startTime: new Date(message.startTime),
+            endTime: message.endTime ? new Date(message.endTime) : null,
+          })),
           observations: followUpCopy(firstThread.currentTurn.observations),
         },
       },

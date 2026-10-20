@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -7,7 +7,7 @@ import { useColumnVisibility } from "@/src/features/column-visibility";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { createColumnHelper } from "@tanstack/react-table";
-import { Copy, MoreVertical, Pen, Trash } from "lucide-react";
+import { Copy, MoreVertical, Pen, Trash } from "@langfuse/icons";
 import { useQueryParam, StringParam, withDefault } from "use-query-params";
 import { useEffect, useMemo, useState } from "react";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
@@ -54,7 +54,7 @@ import {
   CODE_EVAL_ESCAPE_CONFIRM_MESSAGE,
   shouldShowEvalTemplate,
 } from "@/src/features/evals/utils/code-eval-template-utils";
-import { SiPython, SiTypescript } from "react-icons/si";
+import { SiPython, SiTypescript } from "@langfuse/icons/si";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
@@ -75,12 +75,15 @@ const getMaintainerLabel = (maintainer: string) =>
 
 const getCodeEvalLanguageLabel = (
   sourceCodeLanguage?: EvalTemplate["sourceCodeLanguage"],
-) =>
-  sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON
-    ? "Python"
-    : sourceCodeLanguage === EvalTemplateSourceCodeLanguage.TYPESCRIPT
-      ? "TypeScript"
-      : "Code";
+) => {
+  if (sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON) {
+    return "Python";
+  }
+  if (sourceCodeLanguage === EvalTemplateSourceCodeLanguage.TYPESCRIPT) {
+    return "TypeScript";
+  }
+  return "Code";
+};
 
 const TemplateTypeBadge = ({
   type,
@@ -91,16 +94,19 @@ const TemplateTypeBadge = ({
 }) => {
   if (type === EvalTemplateType.CODE) {
     const label = getCodeEvalLanguageLabel(sourceCodeLanguage);
-    const Icon =
-      sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON
-        ? SiPython
-        : sourceCodeLanguage === EvalTemplateSourceCodeLanguage.TYPESCRIPT
-          ? SiTypescript
-          : null;
+    const Icon = (() => {
+      if (sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON) {
+        return SiPython;
+      }
+      if (sourceCodeLanguage === EvalTemplateSourceCodeLanguage.TYPESCRIPT) {
+        return SiTypescript;
+      }
+      return null;
+    })();
 
     return (
       <Badge className="w-fit gap-1.5" variant="outline-solid">
-        {Icon ? <Icon className="h-3 w-3" aria-hidden="true" /> : null}
+        {Icon ? <Icon size="sm" aria-hidden="true" /> : null}
         {label}
       </Badge>
     );
@@ -159,7 +165,7 @@ const EvalTemplateRowActionsMenu = ({
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon-xs" aria-label="actions">
             <span className="sr-only relative">Open menu</span>
-            <MoreVertical className="h-4 w-4" />
+            <MoreVertical size="sm" color="default" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
@@ -173,7 +179,7 @@ const EvalTemplateRowActionsMenu = ({
                 onClone();
               }}
             >
-              <Copy className="mr-2 h-4 w-4" />
+              <Copy size="base" color="default" __rawClassName="mr-2" />
               Clone
             </DropdownMenuItem>
           ) : null}
@@ -187,7 +193,7 @@ const EvalTemplateRowActionsMenu = ({
                   onEdit();
                 }}
               >
-                <Pen className="mr-2 h-4 w-4" />
+                <Pen size="base" color="default" __rawClassName="mr-2" />
                 Edit
               </DropdownMenuItem>
               <DropdownMenuItem
@@ -201,7 +207,7 @@ const EvalTemplateRowActionsMenu = ({
                   setIsDeleteDialogOpen(true);
                 }}
               >
-                <Trash className="mr-2 h-4 w-4" />
+                <Trash size="base" color="default" __rawClassName="mr-2" />
                 Delete
               </DropdownMenuItem>
             </>
@@ -605,6 +611,7 @@ export default function EvalsTemplateTable({
               setEditTemplateId(null);
               utils.evals.templateNames.invalidate();
               showSuccessToast({
+                operation: "evaluator.update",
                 title: "Evaluator updated successfully",
                 description: "You can now use this evaluator.",
               });
@@ -658,6 +665,7 @@ export default function EvalsTemplateTable({
               setCloneTemplateId(null);
               utils.evals.templateNames.invalidate();
               showSuccessToast({
+                operation: "evaluator.clone",
                 title: "Evaluator cloned successfully",
                 description:
                   "This evaluator is now available and maintained on project level. ",

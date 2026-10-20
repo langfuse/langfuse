@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { cn } from "@/src/utils/tailwind";
 
 export function ActionButtonCountBadge({
@@ -14,7 +15,7 @@ export function ActionButtonCountBadge({
         "flex h-3.5 w-fit items-center justify-center rounded-sm px-1 text-xs",
         variant === "muted"
           ? "bg-muted text-muted-foreground"
-          : "bg-primary/50 text-primary-foreground shadow-xs",
+          : "bg-primary/65 text-primary-foreground shadow-xs",
       )}
     >
       {count > 99 ? "99+" : count}

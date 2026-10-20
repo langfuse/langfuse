@@ -88,26 +88,34 @@ const getCommaArrayParam = (table: TableName) => ({
           type === "positionInTrace"
             ? normalizeLegacySessionPositionInTraceKey(key)
             : key;
-        const parsedValue =
-          decodedValue === undefined || type === undefined
-            ? undefined
-            : type === "datetime"
-              ? new Date(decodedValue)
-              : type === "number" || type === "numberObject"
-                ? Number(decodedValue)
-                : type === "positionInTrace"
-                  ? decodedValue === ""
-                    ? undefined
-                    : Number(decodedValue)
-                  : type === "stringOptions" ||
-                      type === "arrayOptions" ||
-                      type === "categoryOptions"
-                    ? splitOnUnescapedPipe(decodedValue).map(
-                        unescapePipeInValue,
-                      )
-                    : type === "boolean" || type === "booleanObject"
-                      ? decodedValue === "true"
-                      : decodedValue;
+        const parsedValue = (() => {
+          if (decodedValue === undefined || type === undefined) {
+            return undefined;
+          }
+          if (type === "datetime") {
+            return new Date(decodedValue);
+          }
+          if (type === "number" || type === "numberObject") {
+            return Number(decodedValue);
+          }
+          if (type === "positionInTrace") {
+            if (decodedValue === "") {
+              return undefined;
+            }
+            return Number(decodedValue);
+          }
+          if (
+            type === "stringOptions" ||
+            type === "arrayOptions" ||
+            type === "categoryOptions"
+          ) {
+            return splitOnUnescapedPipe(decodedValue).map(unescapePipeInValue);
+          }
+          if (type === "boolean" || type === "booleanObject") {
+            return decodedValue === "true";
+          }
+          return decodedValue;
+        })();
 
         if (DEBUG_QUERY_STATE) console.log("parsedValue", parsedValue);
         const parsed = singleFilter.safeParse({

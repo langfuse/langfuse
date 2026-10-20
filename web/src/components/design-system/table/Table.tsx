@@ -9,11 +9,12 @@ import {
   getCoreRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { ArrowDown, ArrowUp, ArrowUpDown, MoreVertical } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, MoreVertical } from "@langfuse/icons";
 import { type ComponentProps, useMemo } from "react";
 
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { cn } from "@/src/utils/tailwind";
@@ -35,6 +36,7 @@ export interface TableProps<TData> {
   tableName: string;
   columns: ColumnDef<TData>[];
   actions?: (row: TData) => ComponentProps<typeof DropdownMenu>["items"];
+  actionsDisabledReason?: string;
   data: AsyncTableData<TData[]>;
   orderBy?: OrderByState;
   setOrderBy?: (state: OrderByState) => void;
@@ -45,12 +47,16 @@ export interface TableProps<TData> {
   onColumnVisibilityChange?: OnChangeFn<VisibilityState>;
   columnOrder?: ColumnOrderState;
   onColumnOrderChange?: OnChangeFn<ColumnOrderState>;
+  rowHeight?: "s" | "m" | "l";
+  /** `false` for a table that sits directly under a divider, such as page tabs. */
+  topBorder?: boolean;
 }
 
 export function Table<TData extends object>({
   tableName,
   columns,
   actions,
+  actionsDisabledReason,
   data,
   orderBy,
   setOrderBy,
@@ -61,6 +67,8 @@ export function Table<TData extends object>({
   onColumnVisibilityChange,
   columnOrder,
   onColumnOrderChange,
+  rowHeight,
+  topBorder = true,
 }: TableProps<TData>) {
   const tableColumns = useMemo<ColumnDef<TData>[]>(() => {
     if (!actions) return columns;
@@ -74,35 +82,60 @@ export function Table<TData extends object>({
         enableResizing: false,
         headerClassName: "text-right",
         cellClassName: "text-right",
-        cell: ({ row }) => (
-          <div
-            className="ml-auto flex size-6 items-center justify-end"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <DropdownMenu items={actions(row.original)} placement="bottom-end">
-              {({ getTriggerProps }) => (
-                <IconButton
-                  icon={MoreVertical}
-                  label="Open actions menu"
-                  size="sm"
-                  variant="subtle"
-                  {...getTriggerProps()}
-                />
+        cell: ({ row }) => {
+          const items = actions(row.original);
+
+          return (
+            <div
+              className="ml-auto flex size-6 items-center justify-end"
+              onClick={(event) => event.stopPropagation()}
+            >
+              {items.length === 0 && actionsDisabledReason ? (
+                <Tooltip label={actionsDisabledReason}>
+                  {({ getTriggerProps }) => (
+                    <span
+                      {...getTriggerProps()}
+                      className="inline-flex cursor-not-allowed [&>button]:pointer-events-none"
+                    >
+                      <IconButton
+                        icon={MoreVertical}
+                        label="Open actions menu"
+                        size="sm"
+                        variant="subtle"
+                        disabled
+                      />
+                    </span>
+                  )}
+                </Tooltip>
+              ) : (
+                <DropdownMenu items={items} placement="bottom-end">
+                  {({ getTriggerProps }) => (
+                    <IconButton
+                      icon={MoreVertical}
+                      label="Open actions menu"
+                      size="sm"
+                      variant="subtle"
+                      {...getTriggerProps()}
+                      disabled={items.length === 0}
+                    />
+                  )}
+                </DropdownMenu>
               )}
-            </DropdownMenu>
-          </div>
-        ),
+            </div>
+          );
+        },
         loadingCell: (
           <div className="ml-auto flex h-4 w-6 items-center justify-center">
             <MoreVertical
-              className="text-muted-foreground/30 size-4 animate-pulse"
+              size="base"
+              __rawClassName="text-muted-foreground/30 animate-pulse"
               aria-hidden="true"
             />
           </div>
         ),
       },
     ];
-  }, [actions, columns]);
+  }, [actions, actionsDisabledReason, columns]);
   const table = useReactTable({
     data: data.status === "success" ? data.data : [],
     columns: tableColumns,
@@ -117,7 +150,12 @@ export function Table<TData extends object>({
 
   return (
     <div className="flex w-full max-w-full flex-1 flex-col overflow-auto">
-      <div className="relative min-h-full w-full overflow-auto border-t [scrollbar-gutter:stable]">
+      <div
+        className={cn(
+          "relative min-h-full w-full overflow-auto [scrollbar-gutter:stable]",
+          topBorder && "border-t",
+        )}
+      >
         <table
           aria-label={tableName}
           className="w-full table-fixed border-separate border-spacing-0 space-y-4 overflow-auto text-sm"
@@ -149,7 +187,7 @@ export function Table<TData extends object>({
                       key={header.id}
                       aria-sort={ariaSort}
                       className={cn(
-                        "group bg-background text-muted-foreground relative h-10 border-b p-1 text-left align-middle font-bold first:pl-2",
+                        "group bg-surface text-muted-foreground relative h-10 border-b p-2 text-left align-middle font-bold",
                         column.headerClassName,
                         column.hideBelowMd && "hidden md:table-cell",
                       )}
@@ -195,19 +233,22 @@ export function Table<TData extends object>({
                             </span>
                             {!isSorted && (
                               <ArrowUpDown
-                                className="ml-1.5 size-3 shrink-0 opacity-40 transition-opacity group-hover/sort:opacity-70"
+                                size="sm"
+                                __rawClassName="ml-1.5 opacity-40 transition-opacity group-hover/sort:opacity-70"
                                 aria-hidden="true"
                               />
                             )}
                             {isSorted && orderBy.order === "ASC" && (
                               <ArrowUp
-                                className="ml-1.5 size-3 shrink-0"
+                                size="sm"
+                                __rawClassName="ml-1.5"
                                 aria-hidden="true"
                               />
                             )}
                             {isSorted && orderBy.order === "DESC" && (
                               <ArrowDown
-                                className="ml-1.5 size-3 shrink-0"
+                                size="sm"
+                                __rawClassName="ml-1.5"
                                 aria-hidden="true"
                               />
                             )}
@@ -253,7 +294,11 @@ export function Table<TData extends object>({
               Array.from({ length: loadingRowCount }).map((_, rowIndex) => (
                 <tr
                   key={`loading-row-${rowIndex}`}
-                  className="h-12"
+                  className={cn(
+                    "h-12",
+                    rowHeight === "m" && "h-24",
+                    rowHeight === "l" && "h-64",
+                  )}
                   aria-hidden="true"
                 >
                   {visibleColumns.map((column, columnIndex) => {
@@ -262,8 +307,12 @@ export function Table<TData extends object>({
                       <td
                         key={column.id}
                         className={cn(
-                          "h-full overflow-hidden border-b p-2 align-middle text-xs whitespace-nowrap first:pl-2",
+                          "h-full overflow-hidden border-b align-middle text-xs whitespace-nowrap",
+                          column.columnDef.cellPadding === "none"
+                            ? "p-0"
+                            : "p-2",
                           column.columnDef.cellClassName,
+                          column.columnDef.sensitive && "ph-no-capture",
                           column.columnDef.hideBelowMd &&
                             "hidden md:table-cell",
                         )}
@@ -303,7 +352,9 @@ export function Table<TData extends object>({
                 <tr
                   key={row.id}
                   className={cn(
-                    "hover:bg-accent h-12 transition-colors",
+                    "group/row hover:bg-accent h-12 transition-colors",
+                    rowHeight === "m" && "h-24",
+                    rowHeight === "l" && "h-64",
                     onRowClick ? "cursor-pointer" : "cursor-default",
                   )}
                   tabIndex={onRowClick ? 0 : undefined}
@@ -323,12 +374,21 @@ export function Table<TData extends object>({
                       <td
                         key={cell.id}
                         className={cn(
-                          "h-full overflow-hidden border-b p-2 align-middle text-xs whitespace-nowrap first:pl-2",
+                          "h-full overflow-hidden border-b align-middle text-xs whitespace-nowrap",
+                          column.cellPadding === "none" ? "p-0" : "p-2",
                           column.cellClassName,
+                          column.sensitive && "ph-no-capture",
                           column.hideBelowMd && "hidden md:table-cell",
                         )}
                       >
-                        <div className="flex min-w-0 items-center overflow-hidden">
+                        <div
+                          className={cn(
+                            "flex min-w-0 items-center overflow-hidden",
+                            rowHeight === "s" && "h-8",
+                            rowHeight === "m" && "h-20",
+                            rowHeight === "l" && "h-60",
+                          )}
+                        >
                           {flexRender(column.cell, cell.getContext())}
                         </div>
                       </td>

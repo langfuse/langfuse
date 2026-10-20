@@ -1,3 +1,5 @@
+import { ExperimentInputCell } from "./ExperimentInputCell";
+import { ExperimentGridSummaryValues } from "./ExperimentGridSummary";
 import { DataTable } from "@/src/components/table/data-table";
 import { shouldIgnoreRowClickTarget } from "@/src/components/table/shouldIgnoreRowClickTarget";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -11,7 +13,7 @@ import {
   type ExperimentItemsTableRow,
   getExperimentColorStyles,
 } from "./types";
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { type RowHeight } from "@/src/components/table/data-table-row-height-switch";
 import {
   type OnChangeFn,
@@ -23,8 +25,11 @@ import { useExperimentNames } from "@/src/features/experiments/hooks/useExperime
 import { cn } from "@/src/utils/tailwind";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 
+import { useHasProjectAccess } from "@/src/features/rbac";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+
 // Grid view row heights (matching DatasetCompareRunsTable)
-const GRID_VIEW_ROW_HEIGHTS = {
+export const GRID_VIEW_ROW_HEIGHTS = {
   s: "h-48", // 192px
   m: "h-64", // 256px
   l: "h-96", // 384px
@@ -48,6 +53,12 @@ type ExperimentGridViewProps = {
    */
   ioLoading: boolean;
   rowHeight: RowHeight;
+  /** Free height in pixels. Null while a preset is active. */
+  customRowHeightPx?: number | null;
+  /** Dragging a row edge sets one height for every run column. */
+  onCustomRowHeightChange?: (heightPx: number) => void;
+  /** Selects a preset when a drag lands on that preset's height. */
+  onSelectRowHeight?: (rowHeight: RowHeight) => void;
   /** Whether any item in view has an expected output worth a column. */
   showExpectedOutput: boolean;
   observationScoreOrder: string[];
@@ -83,6 +94,9 @@ export const ExperimentGridView = ({
   isLoading,
   ioLoading,
   rowHeight,
+  customRowHeightPx,
+  onCustomRowHeightChange,
+  onSelectRowHeight,
   showExpectedOutput,
   observationScoreOrder,
   traceScoreOrder,
@@ -96,6 +110,9 @@ export const ExperimentGridView = ({
   setRowSelection,
   highlightAllRows,
 }: ExperimentGridViewProps) => {
+  const canAnnotate = useHasProjectAccess({ projectId, scope: "scores:save" });
+  const capture = usePostHogClientCapture();
+  const [summaryExpanded, setSummaryExpanded] = useState(true);
   // Keep the explicit baseline separate from the comparison list. A baseline
   // is optional, so c-only URLs render every selected experiment here.
   const allExperimentIds = useMemo(
@@ -107,6 +124,16 @@ export const ExperimentGridView = ({
   );
 
   const { experimentNames } = useExperimentNames({ projectId });
+
+  const selectedExperiments = useMemo(
+    () =>
+      allExperimentIds
+        .map((id) =>
+          experimentNames.find((experiment) => experiment.experimentId === id),
+        )
+        .filter((experiment) => experiment?.datasetId != null),
+    [allExperimentIds, experimentNames],
+  );
 
   // Build dynamic columns for each experiment
   const experimentColumns = useMemo(() => {
@@ -125,23 +152,40 @@ export const ExperimentGridView = ({
         // and were causing the shared table header to fall back to 150px while
         // the body used the configured column size.
         id: `experiment_${index}`,
+        headerBlock: true,
+        headerLabel: expName,
+        headerClassName: "align-top",
         header: () => (
-          <div className="flex items-center gap-2">
-            <span
-              className={cn("truncate font-bold", colorStyles?.textClass)}
-              title={expName}
-            >
-              {expName}
-            </span>
-            {useExperimentColors && (
-              <Badge
-                variant="outline"
-                size="sm"
-                className={cn("shrink-0 font-bold", colorStyles?.badgeClass)}
+          <div>
+            <div className="flex h-9 items-center gap-2">
+              <span
+                className={cn("truncate font-bold", colorStyles?.textClass)}
+                title={expName}
               >
-                {isBaseline ? "Baseline" : "Comp"}
-              </Badge>
-            )}
+                {expName}
+              </span>
+              {useExperimentColors && (
+                <Badge
+                  variant="outline"
+                  className={cn("shrink-0 font-bold", colorStyles?.badgeClass)}
+                >
+                  {isBaseline ? "Baseline" : "Comp"}
+                </Badge>
+              )}
+            </div>
+            <ExperimentGridSummaryValues
+              expanded={summaryExpanded}
+              showScoreNames={index === 0}
+              onToggle={() => setSummaryExpanded((expanded) => !expanded)}
+              rows={rows}
+              experimentId={expId}
+              baselineExperimentId={baselineExperimentId}
+              observationScoreOrder={observationScoreOrder}
+              traceScoreOrder={traceScoreOrder}
+              columnVisibility={columnVisibility}
+              showScoreLevelLabels={showScoreLevelLabels}
+              isLoading={isLoading}
+            />
           </div>
         ),
         size: 400,
@@ -198,6 +242,27 @@ export const ExperimentGridView = ({
               }
               columnVisibility={columnVisibility}
               markerClassName={colorStyles?.markerClass}
+              onAnnotate={
+                canAnnotate &&
+                peekView?.openPeek &&
+                expData.traceId &&
+                expData.observationId
+                  ? () => {
+                      capture("annotation:entry_click", {
+                        type: "trace",
+                        source: "DatasetCompare",
+                        isV4: true,
+                        targetType: "observation",
+                        entryPoint: "annotate_button",
+                      });
+                      peekView.openPeek?.(
+                        row.original.itemId,
+                        { ...row.original, clickedExperimentId: expId },
+                        { queryParams: { annotation: "open" } },
+                      );
+                    }
+                  : undefined
+              }
               onExperimentClick={
                 peekView?.openPeek
                   ? (event) => {
@@ -216,6 +281,9 @@ export const ExperimentGridView = ({
       } as LangfuseColumnDef<ExperimentItemsTableRow>;
     });
   }, [
+    rows,
+    isLoading,
+    summaryExpanded,
     allExperimentIds,
     experimentNames,
     baselineExperimentId,
@@ -229,20 +297,40 @@ export const ExperimentGridView = ({
     showDiff,
     singleLine,
     peekView,
+    canAnnotate,
+    capture,
   ]);
 
   // Build all columns: Select, Input, Expected Output, then experiment columns
   const columns: LangfuseColumnDef<ExperimentItemsTableRow>[] = useMemo(
     () => [
       // Include select column if provided
-      ...(selectActionColumn ? [selectActionColumn] : []),
-      createIOTableColumn<ExperimentItemsTableRow>({
+      ...(selectActionColumn
+        ? [{ ...selectActionColumn, headerClassName: "align-top pt-3" }]
+        : []),
+      {
         accessorKey: "input",
         header: "Input",
+        headerClassName: "align-top pt-3",
+        cellPadding: "none",
         size: 200,
-        getCell: (value) => (ioLoading ? { type: "loading" } : (value ?? null)),
-        singleLine,
-      }),
+        cell: ({ row }) => (
+          <ExperimentInputCell
+            projectId={projectId}
+            datasetId={
+              selectedExperiments.find((experiment) =>
+                row.original.experiments.some(
+                  (item) => item.experimentId === experiment?.experimentId,
+                ),
+              )?.datasetId ?? null
+            }
+            itemId={row.original.itemId}
+            input={row.original.input}
+            isLoading={ioLoading}
+            singleLine={singleLine}
+          />
+        ),
+      },
       // Gated: an empty expected output used to render as two literal quote
       // characters, and a whole column of them is worse than no column.
       ...(showExpectedOutput
@@ -250,9 +338,12 @@ export const ExperimentGridView = ({
             createIOTableColumn<ExperimentItemsTableRow>({
               accessorKey: "expectedOutput",
               header: "Expected Output",
+              headerClassName: "align-top pt-3",
               size: 200,
               getCell: (value) =>
                 ioLoading ? { type: "loading" } : value || undefined,
+              // Display chooses text or JSON. Row height does not.
+              followRowHeight: false,
               singleLine,
               variant: "output",
             }),
@@ -262,6 +353,8 @@ export const ExperimentGridView = ({
     ],
     [
       experimentColumns,
+      projectId,
+      selectedExperiments,
       ioLoading,
       selectActionColumn,
       showExpectedOutput,
@@ -282,6 +375,9 @@ export const ExperimentGridView = ({
       pagination={pagination}
       rowHeight={rowHeight}
       customRowHeights={GRID_VIEW_ROW_HEIGHTS}
+      customRowHeightPx={customRowHeightPx}
+      onCustomRowHeightChange={onCustomRowHeightChange}
+      onSelectRowHeight={onSelectRowHeight}
       topAlignCells
       peekView={peekView}
       columnVisibility={columnVisibility}

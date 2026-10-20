@@ -10,6 +10,10 @@ use ai_gateway::{
 use tokio::net::TcpListener;
 
 #[tokio::main]
+#[expect(
+    clippy::print_stderr,
+    reason = "the tracing subscriber may not exist or may already be shut down"
+)]
 async fn main() -> ExitCode {
     match run().await {
         Ok(()) => ExitCode::SUCCESS,
@@ -21,17 +25,12 @@ async fn main() -> ExitCode {
 }
 
 async fn run() -> Result<(), Box<dyn Error>> {
-    let config = GatewayConfig::from_env()?;
+    let mut config = GatewayConfig::from_env()?;
     let observability = observability::init(&config)?;
     let inference = config
         .control_plane
-        .map(|control_plane| {
-            InferenceService::new(
-                control_plane,
-                config.max_active_requests,
-                config.max_concurrent_resolutions,
-            )
-        })
+        .take()
+        .map(|control_plane| InferenceService::new(control_plane, &config))
         .transpose()?;
     let inference_enabled = inference.is_some();
     let telemetry = inference.as_ref().and_then(InferenceService::telemetry);
@@ -46,7 +45,7 @@ async fn run() -> Result<(), Box<dyn Error>> {
     )));
     let shutdown = shutdown_signal()?;
     let listener = bind_listener(config.listen_address, config.auto_increment_listen_port).await?;
-    tracing::info!(address = %listener.local_addr()?, inference_enabled, max_active_requests = config.max_active_requests, max_concurrent_resolutions = config.max_concurrent_resolutions, shutdown_timeout_seconds = config.shutdown_timeout.as_secs(), "gateway listening");
+    tracing::info!(address = %listener.local_addr()?, inference_enabled, max_request_bytes = config.request_limits.max_request_bytes, memory_budget_bytes = config.request_limits.memory_budget_bytes, request_memory_overhead_bytes = config.request_limits.request_overhead_bytes, max_execution_seconds = config.execution_limits.max_execution_time.as_secs(), stall_timeout_seconds = config.execution_limits.stall_timeout.as_secs(), shutdown_timeout_seconds = config.shutdown_timeout.as_secs(), "gateway listening");
     let result = server::serve(
         listener,
         app,
@@ -109,7 +108,7 @@ async fn bind_listener(
 }
 
 #[cfg(unix)]
-fn shutdown_signal() -> std::io::Result<impl Future<Output = ()> + Send> {
+fn shutdown_signal() -> io::Result<impl Future<Output = ()> + Send> {
     use tokio::signal::unix::{SignalKind, signal};
     let mut terminate = signal(SignalKind::terminate())?;
     let mut interrupt = signal(SignalKind::interrupt())?;

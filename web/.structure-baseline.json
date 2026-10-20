@@ -1850,7 +1850,6 @@
       "src/components/ui/splash-screen.tsx",
       "src/components/ui/StatusBadge/StatusBadge.tsx",
       "src/components/ui/table.tsx",
-      "src/components/ui/tabs-bar.tsx",
       "src/components/ui/textarea.tsx",
       "src/components/ui/time-icon.tsx",
       "src/components/ui/time-period-select.tsx",

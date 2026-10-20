@@ -7,6 +7,7 @@ import {
   type IOTableCellVariant,
 } from "@/src/components/design-system/table/components/IOTableCell/IOTableCell";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
+import { useBoundRowHeightIO } from "@/src/components/table/data-table-row-height-switch";
 import { type DataTableCellBackground } from "@/src/components/table/types";
 import {
   createTableColumn,
@@ -21,9 +22,71 @@ const ioCellBackgrounds = {
   output: "green",
 } satisfies Record<IOTableCellVariant, DataTableCellBackground | undefined>;
 
+function IOColumnCell({
+  compact = false,
+  data,
+  enableExpandOnHover = false,
+  followRowHeight = true,
+  isLoading = false,
+  renderMediaReference,
+  singleLine = false,
+}: {
+  compact?: boolean;
+  data?: unknown;
+  enableExpandOnHover?: boolean;
+  followRowHeight?: boolean;
+  isLoading?: boolean;
+  renderMediaReference?: IOTableCellMediaRenderer;
+  singleLine?: boolean;
+}) {
+  // The column paints input/output color on the table cell. The inner preview
+  // stays uncolored so the two backgrounds do not stack.
+  const bound = useBoundRowHeightIO(
+    followRowHeight,
+    singleLine,
+    enableExpandOnHover,
+  );
+  const cellProps = {
+    enableExpandOnHover: bound.enableExpandOnHover,
+    singleLine: bound.singleLine,
+    size: compact ? ("compact" as const) : ("default" as const),
+  };
+
+  if (renderMediaReference) {
+    return isLoading ? (
+      <IOTableCell
+        {...cellProps}
+        isLoading
+        renderMediaReference={renderMediaReference}
+      />
+    ) : (
+      <IOTableCell
+        {...cellProps}
+        data={data}
+        renderMediaReference={renderMediaReference}
+      />
+    );
+  }
+
+  return isLoading ? (
+    <ConnectedIOTableCell
+      {...cellProps}
+      followRowHeight={followRowHeight}
+      isLoading
+    />
+  ) : (
+    <ConnectedIOTableCell
+      {...cellProps}
+      data={data}
+      followRowHeight={followRowHeight}
+    />
+  );
+}
+
 export function createIOTableColumn<TData extends RowData, TValue = unknown>({
   compact = false,
   enableExpandOnHover = false,
+  followRowHeight = true,
   getCell,
   renderMediaReference,
   singleLine = false,
@@ -33,32 +96,36 @@ export function createIOTableColumn<TData extends RowData, TValue = unknown>({
   cellBackground?: never;
   compact?: boolean;
   enableExpandOnHover?: boolean;
+  /**
+   * Defaults to true: a data table's row height chooses text vs the JSON
+   * preview, including while a drag is in progress. Pass false to keep
+   * `singleLine` in charge inside a data table. Outside a data table,
+   * `singleLine` is used either way. `enableExpandOnHover` applies only
+   * while the row is compact.
+   */
+  followRowHeight?: boolean;
   getCell?: (
     value: TValue | null | undefined,
     context: CellContext<TData, TValue | null | undefined>,
   ) => IOTableColumnCell<TValue>;
   renderMediaReference?: IOTableCellMediaRenderer;
+  /** Fallback when the cell is outside a data table, or when `followRowHeight` is false. */
   singleLine?: boolean;
   variant?: IOTableCellVariant;
 }) {
   const cellProps = {
+    compact,
     enableExpandOnHover,
+    followRowHeight,
+    renderMediaReference,
     singleLine,
-    size: compact ? ("compact" as const) : ("default" as const),
   };
 
-  const loadingCell = renderMediaReference ? (
-    <IOTableCell
-      {...cellProps}
-      isLoading
-      renderMediaReference={renderMediaReference}
-    />
-  ) : (
-    <ConnectedIOTableCell {...cellProps} isLoading />
-  );
+  const loadingCell = <IOColumnCell {...cellProps} isLoading />;
 
   return createTableColumn<TData, TValue>({
     ...options,
+    cellPadding: "none",
     cellBackground: ioCellBackgrounds[variant],
     loadingCell,
     renderCell: (value, context) => {
@@ -83,15 +150,7 @@ export function createIOTableColumn<TData extends RowData, TValue = unknown>({
       // An empty `cell` is passed through rather than short-circuited to a
       // blank: the cell owns what "empty" looks like, so every table that uses
       // it shows the same placeholder.
-      return renderMediaReference ? (
-        <IOTableCell
-          {...cellProps}
-          data={cell}
-          renderMediaReference={renderMediaReference}
-        />
-      ) : (
-        <ConnectedIOTableCell {...cellProps} data={cell} />
-      );
+      return <IOColumnCell {...cellProps} data={cell} />;
     },
   });
 }

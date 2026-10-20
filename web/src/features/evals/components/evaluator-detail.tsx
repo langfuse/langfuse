@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import * as React from "react";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
@@ -14,7 +15,7 @@ import {
 } from "@langfuse/shared";
 import { useLazyEvaluatorExecutionCounts } from "@/src/features/evals/hooks/useLazyEvaluatorExecutionCounts";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle } from "@langfuse/icons";
 
 export const EvaluatorDetail = () => {
   const router = useRouter();

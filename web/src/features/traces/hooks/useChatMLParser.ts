@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { useMemo } from "react";
 import type { z } from "zod";
 import { type Prisma, deepParseJson } from "@langfuse/shared";
@@ -34,7 +33,6 @@ export interface ToolCallBookkeeping {
   toolCallCounts: Map<string, number>;
   toolCallsByName: Map<string, ToolCallInvocation[]>;
   messageToToolCallNumbers: Map<number, number[]>;
-  toolNameToDefinitionNumber: Map<string, number>;
 }
 
 // Result from ChatML parsing hook
@@ -46,7 +44,6 @@ export interface ChatMLParserResult {
   toolCallCounts: Map<string, number>;
   toolCallsByName: Map<string, ToolCallInvocation[]>;
   messageToToolCallNumbers: Map<number, number[]>;
-  toolNameToDefinitionNumber: Map<string, number>;
   inputMessageCount: number;
 }
 
@@ -57,11 +54,13 @@ export interface ChatMLParserResult {
 function parseToolCallsFromMessage(
   message: ReturnType<typeof combineInputOutputMessages>[0],
 ) {
-  return message.tool_calls && Array.isArray(message.tool_calls)
-    ? message.tool_calls
-    : message.json?.tool_calls && Array.isArray(message.json?.tool_calls)
-      ? message.json.tool_calls
-      : [];
+  if (message.tool_calls && Array.isArray(message.tool_calls)) {
+    return message.tool_calls;
+  }
+  if (message.json?.tool_calls && Array.isArray(message.json?.tool_calls)) {
+    return message.json.tool_calls;
+  }
+  return [];
 }
 
 function getToolCallStringField(
@@ -168,17 +167,11 @@ export function computeToolCallBookkeeping(
     return callCountB - callCountA;
   });
 
-  const toolNameToDefinitionNumber = new Map<string, number>();
-  sortedTools.forEach((tool, index) => {
-    toolNameToDefinitionNumber.set(tool.name, index + 1);
-  });
-
   return {
     allTools: sortedTools,
     toolCallCounts,
     toolCallsByName,
     messageToToolCallNumbers,
-    toolNameToDefinitionNumber,
   };
 }
 
@@ -197,7 +190,6 @@ function emptyChatMLParserResult(): ChatMLParserResult {
     toolCallCounts: new Map(),
     toolCallsByName: new Map(),
     messageToToolCallNumbers: new Map(),
-    toolNameToDefinitionNumber: new Map(),
     inputMessageCount: 0,
   };
 }
@@ -263,21 +255,33 @@ export function useChatMLParser(
 ): ChatMLParserResult {
   // Use pre-parsed data if available (from Web Worker), otherwise parse synchronously
   // This eliminates ~100ms of duplicate parsing when data comes from useParsedObservation
-  const parsedInput = preParsedResult
-    ? undefined
-    : preParsedInput !== undefined
-      ? preParsedInput
-      : deepParseJson(input, { maxSize: 300_000, maxDepth: 25 });
-  const parsedOutput = preParsedResult
-    ? undefined
-    : preParsedOutput !== undefined
-      ? preParsedOutput
-      : deepParseJson(output, { maxSize: 300_000, maxDepth: 25 });
-  const parsedMetadata = preParsedResult
-    ? undefined
-    : preParsedMetadata !== undefined
-      ? preParsedMetadata
-      : deepParseJson(metadata, { maxSize: 100_000, maxDepth: 25 });
+  const parsedInput = (() => {
+    if (preParsedResult) {
+      return undefined;
+    }
+    if (preParsedInput !== undefined) {
+      return preParsedInput;
+    }
+    return deepParseJson(input, { maxSize: 300_000, maxDepth: 25 });
+  })();
+  const parsedOutput = (() => {
+    if (preParsedResult) {
+      return undefined;
+    }
+    if (preParsedOutput !== undefined) {
+      return preParsedOutput;
+    }
+    return deepParseJson(output, { maxSize: 300_000, maxDepth: 25 });
+  })();
+  const parsedMetadata = (() => {
+    if (preParsedResult) {
+      return undefined;
+    }
+    if (preParsedMetadata !== undefined) {
+      return preParsedMetadata;
+    }
+    return deepParseJson(metadata, { maxSize: 100_000, maxDepth: 25 });
+  })();
 
   return useMemo(
     () =>

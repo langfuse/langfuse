@@ -1,4 +1,4 @@
-import { CheckCircle2, Circle, TrashIcon } from "lucide-react";
+import { CheckCircle2, Circle, TrashIcon } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { CodeMirrorEditor } from "@/src/components/editor";
 import { useState, useCallback } from "react";
@@ -64,7 +64,7 @@ export const MessagePlaceholderComponent: React.FC<{
     <div className="p-1">
       <div className="mb-1 flex flex-row items-center">
         <span className="flex flex-1 flex-row space-x-2 text-xs">
-          <UsedIcon size={16} color={iconColor} />
+          <UsedIcon size="base" __rawStyle={{ color: iconColor }} />
           <p
             className={`min-w-[90px] truncate font-mono ${hasConflict ? "text-red-500" : ""}`}
             title={name}
@@ -80,7 +80,7 @@ export const MessagePlaceholderComponent: React.FC<{
           onClick={() => deleteMessagePlaceholder(name)}
           className="p-0"
         >
-          {!isUsed && <TrashIcon size={16} />}
+          {!isUsed && <TrashIcon size="base" color="default" />}
         </Button>
       </div>
 

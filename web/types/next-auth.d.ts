@@ -50,6 +50,7 @@ declare module "next-auth" {
               deletedAt: PrismaProject["deletedAt"];
               retentionDays: PrismaProject["retentionDays"];
               hasTraces: PrismaProject["hasTraces"];
+              topicsEnabled?: boolean; // deployment allowlist, resolved server-side; absent = off
               metadata: Record<string, unknown>;
               role: Role; // include only projects where user has a role
               createdAt: string; // iso datetime string — JWT does not support Date objects
@@ -78,6 +79,9 @@ declare module "next-auth" {
       // Optional so existing session mocks need not set it; the real session
       // callback always populates it.
       v4WriteMode?: "legacy" | "dual" | "events_only";
+      // Role selection requires API_AUTH_MIGRATION=enforce and the scope's rollout flag.
+      apiKeyProjectRoleSelectionEnabled?: boolean;
+      apiKeyOrgRoleSelectionEnabled?: boolean;
     };
   }
 

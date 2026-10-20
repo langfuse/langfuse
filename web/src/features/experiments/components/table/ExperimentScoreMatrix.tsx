@@ -79,6 +79,7 @@ const MatrixCell = ({
       <span className="font-bold">{formatScoreColumnAggregate(baseline)}</span>
       {hasBaselineColumn && delta !== null && delta !== 0 && (
         <DiffLabel
+          variant="ghost"
           diff={{
             type: "NUMERIC",
             absoluteDifference: Math.abs(delta),

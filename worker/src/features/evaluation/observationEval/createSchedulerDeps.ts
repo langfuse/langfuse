@@ -106,6 +106,13 @@ export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDe
         return;
       }
 
+      if (
+        params.evalTemplateType !== EvalTemplateType.LLM_AS_JUDGE &&
+        params.evalTemplateType !== EvalTemplateType.DECISION_MODEL
+      ) {
+        throw new Error("Evaluator type cannot use observation eval queues");
+      }
+
       const queue = LLMAsJudgeExecutionQueue.getInstance({ shardingKey });
       if (!queue) {
         throw new Error("LLMAsJudgeExecutionQueue is not initialized");

@@ -1,4 +1,5 @@
 import {
+  DecisionModelQuestionsSchema,
   observationVariableMappingList,
   PersistedEvalOutputDefinitionSchema,
 } from "@langfuse/shared";
@@ -16,7 +17,7 @@ describe("managed evaluator templates catalog", () => {
       ({ key }) => key,
     );
 
-    expect(MANAGED_TEMPLATES_CATALOG.templates).toHaveLength(20);
+    expect(MANAGED_TEMPLATES_CATALOG.templates).toHaveLength(24);
     expect(new Set(templateKeys).size).toBe(templateKeys.length);
 
     for (const template of MANAGED_TEMPLATES_CATALOG.templates) {
@@ -42,6 +43,40 @@ describe("managed evaluator templates catalog", () => {
             ? template.evaluator.variables.map(({ name }) => name)
             : [],
         );
+      }
+
+      if (draft.definition.type === "DECISION_MODEL") {
+        expect(
+          DecisionModelQuestionsSchema.safeParse(draft.definition.questions)
+            .success,
+        ).toBe(true);
+        expect(
+          observationVariableMappingList.safeParse(
+            draft.definition.variableMapping,
+          ).success,
+        ).toBe(true);
+        expect(draft.definition.vars).toEqual(
+          template.evaluator.type === "DECISION_MODEL"
+            ? template.evaluator.state.map(({ key }) => key)
+            : [],
+        );
+      }
+
+      // Decision-model and code chips use the score names the evaluator writes.
+      // Judge chips are short display keys, so they are not checked.
+      expect(template.previewScores.length).toBeGreaterThan(0);
+      if (template.evaluator.type === "DECISION_MODEL") {
+        const scoreNames = template.evaluator.questions.map(
+          ({ scoreName }) => scoreName,
+        );
+        for (const { name } of template.previewScores) {
+          expect(scoreNames).toContain(name);
+        }
+      }
+      if (template.evaluator.type === "CODE") {
+        for (const { name } of template.previewScores) {
+          expect(template.evaluator.source).toContain(`name: "${name}"`);
+        }
       }
     }
   });

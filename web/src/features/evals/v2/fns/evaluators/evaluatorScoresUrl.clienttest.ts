@@ -6,39 +6,48 @@ import {
 } from "@langfuse/shared";
 import { describe, expect, it } from "vitest";
 import {
+  rangeFromString,
+  TABLE_AGGREGATION_OPTIONS,
+} from "@/src/utils/date-range-utils";
+import {
   evaluatorExecutionsUrl,
   evaluatorScoresUrl,
 } from "./evaluatorScoresUrl";
 
 describe("evaluatorScoresUrl", () => {
-  it("filters code evaluator scores by evaluator ID", () => {
-    const url = new URL(
-      evaluatorScoresUrl(
-        "project-1",
-        "evaluator-id",
-        "Code evaluator",
-        EvalTemplateTypeEnum.CODE,
-      ),
-      "https://langfuse.local",
-    );
+  it.each([EvalTemplateTypeEnum.CODE, EvalTemplateTypeEnum.DECISION_MODEL])(
+    "filters %s evaluator scores by evaluator ID",
+    (evaluatorType) => {
+      const url = new URL(
+        evaluatorScoresUrl(
+          "project-1",
+          "evaluator-id",
+          "Evaluator",
+          evaluatorType,
+        ),
+        "https://langfuse.local",
+      );
 
-    expect(url.pathname).toBe("/project/project-1/scores");
-    expect(url.searchParams.get("showAllEnvironments")).toBe("true");
-    expect(decodeFiltersGeneric(url.searchParams.get("filter") ?? "")).toEqual([
-      {
-        column: "evaluatorId",
-        type: "stringOptions",
-        operator: "any of",
-        value: ["evaluator-id"],
-      },
-      {
-        column: "source",
-        type: "stringOptions",
-        operator: "any of",
-        value: ["EVAL"],
-      },
-    ]);
-  });
+      expect(url.pathname).toBe("/project/project-1/scores");
+      expect(url.searchParams.get("showAllEnvironments")).toBe("true");
+      expect(
+        decodeFiltersGeneric(url.searchParams.get("filter") ?? ""),
+      ).toEqual([
+        {
+          column: "evaluatorId",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["evaluator-id"],
+        },
+        {
+          column: "source",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["EVAL"],
+        },
+      ]);
+    },
+  );
 
   it("filters judge scores by evaluator name", () => {
     const url = new URL(
@@ -70,13 +79,18 @@ describe("evaluatorScoresUrl", () => {
 
 const getFilters = (evaluatorType: EvalTemplateType) => {
   const url = new URL(
-    evaluatorExecutionsUrl("project/id", "Quality", evaluatorType),
+    evaluatorExecutionsUrl("project/id", "evaluator-id", evaluatorType),
     "https://langfuse.local",
   );
 
   return {
     pathname: url.pathname,
     filters: decodeFiltersGeneric(url.searchParams.get("filter") ?? ""),
+    range: rangeFromString(
+      url.searchParams.get("dateRange") ?? "",
+      TABLE_AGGREGATION_OPTIONS,
+      "last1Day",
+    ),
   };
 };
 
@@ -92,12 +106,13 @@ describe("evaluatorExecutionsUrl", () => {
     (type, environment) => {
       expect(getFilters(type)).toEqual({
         pathname: "/project/project%2Fid/traces",
+        range: { range: "last7Days" },
         filters: [
           {
-            column: "traceName",
+            column: "evaluatorId",
             type: "stringOptions",
             operator: "any of",
-            value: ["Execute evaluator: Quality"],
+            value: ["evaluator-id"],
           },
           {
             column: "environment",

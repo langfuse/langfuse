@@ -1,20 +1,13 @@
+/* eslint-disable @repo/component-file-structure */
 import React, { useEffect, useImperativeHandle, useRef, useState } from "react";
-import Link from "next/link";
-import { Plus, Settings2 } from "lucide-react";
+import { ExternalLink, Plus } from "@langfuse/icons";
+import { ScoreDataTypeEnum, type ScoreConfigDataType } from "@langfuse/shared";
 import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import Header from "@/src/components/layouts/header";
-import { PopoverController } from "@/src/components/ui/popover";
-import {
-  InputCommand,
-  InputCommandEmpty,
-  InputCommandGroup,
-  InputCommandInput,
-  InputCommandItem,
-  InputCommandList,
-} from "@/src/components/ui/input-command";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
@@ -27,6 +20,7 @@ import { getAnnotationTargetType } from "@/src/features/scores/lib/annotationAna
 import {
   annotationFieldKey,
   getScoreConfigSelection,
+  preferredAnnotationTargets,
 } from "@/src/features/scores/lib/annotationConfigSelection";
 import { useMergedAnnotationScores } from "@/src/features/scores/lib/useMergedAnnotationScores";
 import { prepareAnnotationFormData } from "@/src/features/scores/lib/prepareAnnotationFormData";
@@ -37,6 +31,7 @@ import { useAnnotationKeyboard } from "@/src/features/scores/hooks/useAnnotation
 import { createAnnotationFormActions } from "@/src/features/scores/actions/annotationFormActions";
 import { AnnotationScoreRow } from "@/src/features/scores/components/AnnotationScoreRow";
 import { AnnotationSaveStatus } from "@/src/features/scores/components/AnnotationSaveStatus";
+import { CreateScoreConfigDialogController } from "@/src/features/score-configs/components/UpsertScoreConfigDialogController";
 import type {
   AnnotateFormSchemaType,
   AnnotationScoreSchemaType,
@@ -46,6 +41,13 @@ import type {
   AnnotationRefreshHandle,
 } from "@/src/features/scores/types";
 
+const scoreDataTypeLabels = {
+  [ScoreDataTypeEnum.NUMERIC]: "Numeric",
+  [ScoreDataTypeEnum.CATEGORICAL]: "Categorical",
+  [ScoreDataTypeEnum.BOOLEAN]: "Boolean",
+  [ScoreDataTypeEnum.TEXT]: "Text",
+} satisfies Record<ScoreConfigDataType, string>;
+
 function AnnotateHeader({
   saveStatus,
   actionButtons,
@@ -53,25 +55,28 @@ function AnnotateHeader({
 }: {
   saveStatus: React.ReactNode;
   actionButtons: React.ReactNode;
-  description: string;
+  description?: string;
 }) {
   return (
-    <Header
-      title="Annotate"
-      help={{
-        description,
-        href: "https://langfuse.com/docs/evaluation/evaluation-methods/annotation",
-        className: "leading-relaxed",
-      }}
-      actionButtons={[
-        <React.Fragment key="annotation-save-status">
-          {saveStatus}
-        </React.Fragment>,
-        <React.Fragment key="annotation-actions">
-          {actionButtons}
-        </React.Fragment>,
-      ]}
-    />
+    <div className="relative">
+      <Header
+        title="Annotate"
+        titleClassName="text-foreground text-[16px] leading-6"
+        help={
+          description
+            ? {
+                description,
+                href: "https://langfuse.com/docs/evaluation/evaluation-methods/annotation",
+                className: "leading-relaxed",
+              }
+            : undefined
+        }
+        actionButtons={actionButtons}
+      />
+      <div className="pointer-events-none absolute top-full right-1 flex h-4 items-center overflow-hidden">
+        {saveStatus}
+      </div>
+    </div>
   );
 }
 
@@ -91,7 +96,7 @@ const getEmptySelectedConfigIdsStorageKey = (scoreTarget: ScoreTarget) => {
 };
 
 export function AnnotationFormContent({
-  targets,
+  targets: suppliedTargets,
   actionButtons,
   isActive = true,
   refreshRef,
@@ -102,19 +107,46 @@ export function AnnotationFormContent({
   refreshRef?: React.Ref<AnnotationRefreshHandle>;
 }) {
   const capture = usePostHogClientCapture();
-  const primaryTarget = targets[0]!;
-  const { scoreMetadata, analyticsData } = primaryTarget;
-  const allowManualSelection = targets.some(
+  const [initialTargets] = useState(() => suppliedTargets);
+  const allowManualSelection = suppliedTargets.some(
     (target) => target.configControl.allowManualSelection,
   );
-  const initialFormData = targets
-    .flatMap((target) =>
-      target.initialFormData.map((field) => ({
-        ...field,
-        targetKey: target.key,
-      })),
-    )
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const targets = allowManualSelection
+    ? suppliedTargets
+    : initialTargets.map((initialTarget) => {
+        const liveTarget = suppliedTargets.find(
+          (target) => target.key === initialTarget.key,
+        );
+        const liveConfigs = new Map(
+          liveTarget?.configControl.configs.map((config) => [
+            config.id,
+            config,
+          ]),
+        );
+        return {
+          ...initialTarget,
+          configControl: {
+            ...initialTarget.configControl,
+            // Keep this item's fields and order, but accept definition updates
+            // such as a category added while annotating. Removed queue fields
+            // retain their definition until the item is reopened.
+            configs: initialTarget.configControl.configs.map(
+              (config) => liveConfigs.get(config.id) ?? config,
+            ),
+          },
+        };
+      });
+  const primaryTarget = targets[0]!;
+  const { scoreMetadata, analyticsData } = primaryTarget;
+  const initialFormData = targets.flatMap((target) =>
+    target.initialFormData.map((field) => ({
+      ...field,
+      targetKey: target.key,
+    })),
+  );
+  if (allowManualSelection) {
+    initialFormData.sort((a, b) => a.name.localeCompare(b.name));
+  }
   const form = useForm<AnnotateFormSchemaType>({
     resolver: zodResolver(AnnotateFormSchema),
     defaultValues: { scoreData: initialFormData },
@@ -165,6 +197,7 @@ export function AnnotationFormContent({
           transformToAnnotationScores(scores, target.configControl.configs),
           target.configControl.configs,
           selected,
+          target.configControl.allowManualSelection ? "name" : "selected",
         ).map((field) => ({ ...field, targetKey: target.key }));
       });
       actions.reconcileServerFields(refreshed);
@@ -218,53 +251,122 @@ export function AnnotationFormContent({
     (field) =>
       isTextDataType(field.dataType) || isNumericDataType(field.dataType),
   );
-
   return (
     <div
       ref={formRootRef}
       data-annotation-form
       tabIndex={-1}
-      className="ph-no-capture mx-auto w-full space-y-4 overflow-y-auto p-1 md:max-h-full"
+      className="ph-no-capture mx-auto w-full space-y-2 overflow-y-auto p-1 md:max-h-full"
     >
-      <div className="sticky top-0 z-10 flex flex-col gap-4 rounded-sm bg-[hsl(var(--annotation-surface,var(--background)))] pb-2">
+      <div className="sticky top-0 z-10 flex flex-col rounded-sm bg-[hsl(var(--annotation-surface,var(--background)))] pb-2">
         <AnnotateHeader
           saveStatus={<AnnotationSaveStatus form={form} actions={actions} />}
           actionButtons={
             <>
-              {allowManualSelection ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="bg-accent gap-1.5 text-xs"
-                  asChild
+              {allowManualSelection && isActive ? (
+                <CreateScoreConfigDialogController
+                  projectId={scoreMetadata.projectId}
+                  onAfterCreate={(config) => {
+                    const target = preferredAnnotationTargets(targets).find(
+                      (target) => target.configControl.allowManualSelection,
+                    );
+                    if (!target) return;
+
+                    const controlledFields = form.getValues("scoreData");
+                    const nextIndex = controlledFields.findIndex(
+                      (field) => field.name.localeCompare(config.name) > 0,
+                    );
+                    insert(
+                      nextIndex < 0 ? controlledFields.length : nextIndex,
+                      {
+                        targetKey: target.key,
+                        id: null,
+                        configId: config.id,
+                        name: config.name,
+                        dataType: config.dataType,
+                        value: null,
+                        stringValue: null,
+                        comment: null,
+                      },
+                    );
+                    target.configControl.setSelectedConfigIds([
+                      ...target.configControl.selectedConfigIds,
+                      config.id,
+                    ]);
+                  }}
                 >
-                  <Link
-                    href={`/project/${scoreMetadata.projectId}/settings/scores`}
-                    target="_blank"
-                    onClick={() => {
-                      capture(
-                        "score_configs:manage_configs_item_click",
-                        analyticsData,
-                      );
-                    }}
-                    onAuxClick={(event) => {
-                      if (event.button === 1) {
-                        capture(
-                          "score_configs:manage_configs_item_click",
-                          analyticsData,
-                        );
-                      }
-                    }}
-                  >
-                    <Settings2 className="size-3" aria-hidden="true" />
-                    Manage score configs
-                  </Link>
-                </Button>
+                  {(createControl) => (
+                    <DropdownMenu
+                      maxHeight="18rem"
+                      search={{ placeholder: "Search scores..." }}
+                      items={[
+                        ...addableOptions.map((option) => ({
+                          type: "item" as const,
+                          id: option.value,
+                          title: `${option.config.name} (${scoreDataTypeLabels[option.config.dataType]})`,
+                          onClick: () => {
+                            const controlledFields =
+                              form.getValues("scoreData");
+                            getScoreConfigSelection({
+                              targets,
+                              controlledFields,
+                              insert,
+                              remove,
+                            }).addScore(option.value);
+                          },
+                        })),
+                        { type: "separator", id: "score-config-actions" },
+                        {
+                          type: "item",
+                          id: "create-score-config",
+                          title: "Add score config",
+                          icon: Plus,
+                          disabled: createControl.disabled,
+                          searchBehavior: "show-when-no-results",
+                          onClick: createControl.openDialog,
+                        },
+                        {
+                          type: "item",
+                          id: "view-score-config-settings",
+                          title: "Score settings",
+                          icon: ExternalLink,
+                          searchBehavior: "hide",
+                          href: `/project/${scoreMetadata.projectId}/settings/scores`,
+                          linkTarget: "_blank",
+                          onAfterNavigate: () => {
+                            capture(
+                              "score_configs:manage_configs_item_click",
+                              analyticsData,
+                            );
+                          },
+                        },
+                      ]}
+                    >
+                      {({ getTriggerProps }) => (
+                        <Button
+                          data-add-score
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="gap-1.5 text-xs"
+                          {...getTriggerProps()}
+                        >
+                          <Plus
+                            size="base"
+                            color="default"
+                            aria-hidden="true"
+                          />
+                          Add score
+                        </Button>
+                      )}
+                    </DropdownMenu>
+                  )}
+                </CreateScoreConfigDialogController>
               ) : null}
               {actionButtons}
             </>
           }
-          description={description}
+          description={rowCount > 0 ? description : undefined}
         />
       </div>
       {/* No real submit: scores save per-field. Prevent the browser's implicit
@@ -274,7 +376,12 @@ export function AnnotationFormContent({
         className="flex flex-col gap-4"
         onSubmit={(e) => e.preventDefault()}
       >
-        <div className="grid grid-flow-row gap-2.5">
+        {rowCount === 0 ? (
+          <p className="text-muted-foreground max-w-sm text-sm leading-relaxed">
+            {description}
+          </p>
+        ) : null}
+        <div className="grid grid-flow-row gap-4">
           {fields.map((field, index) => {
             const target = targetFor(field);
             const config = configFor(field);
@@ -326,66 +433,6 @@ export function AnnotationFormContent({
             ) : null;
           })}
         </div>
-        {allowManualSelection && isActive ? (
-          <div>
-            <PopoverController
-              align="start"
-              contentClassName="w-64 p-0"
-              disabled={addableOptions.length === 0}
-              modal={false}
-              renderContent={({ closePopover }) => (
-                <InputCommand>
-                  <InputCommandInput
-                    placeholder="Search scores..."
-                    variant="bottom"
-                  />
-                  <InputCommandList className="max-h-72">
-                    <InputCommandEmpty>No scores found.</InputCommandEmpty>
-                    <InputCommandGroup>
-                      {addableOptions.map((option) => (
-                        <InputCommandItem
-                          key={option.value}
-                          value={option.value}
-                          keywords={[option.label]}
-                          className="cursor-pointer"
-                          onSelect={() => {
-                            closePopover();
-                            const controlledFields =
-                              form.getValues("scoreData");
-                            getScoreConfigSelection({
-                              targets,
-                              controlledFields,
-                              insert,
-                              remove,
-                            }).addScore(option.value);
-                          }}
-                        >
-                          {option.label}
-                        </InputCommandItem>
-                      ))}
-                    </InputCommandGroup>
-                  </InputCommandList>
-                </InputCommand>
-              )}
-            >
-              {({ Trigger, disabled }) => (
-                <Trigger asChild>
-                  <Button
-                    data-add-score
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5 text-xs"
-                    disabled={disabled}
-                  >
-                    <Plus className="size-3.5" aria-hidden="true" />
-                    Add score
-                  </Button>
-                </Trigger>
-              )}
-            </PopoverController>
-          </div>
-        ) : null}
         {rowCount > 0 && (
           // This legend only exists to advertise keyboard shortcuts, so hide
           // the whole strip on touch viewports rather than just the kbd
@@ -459,6 +506,7 @@ export function usePreparedAnnotationFormTarget<Target extends ScoreTarget>({
     annotationScores,
     availableConfigs,
     selectedConfigIds,
+    configSelection.mode === "fixed" ? "selected" : "name",
   );
 
   return {

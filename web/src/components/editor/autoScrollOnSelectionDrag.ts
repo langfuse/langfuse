@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 import { type EditorView, ViewPlugin } from "@uiw/react-codemirror";
 import { type Extension } from "@codemirror/state";
 
@@ -157,7 +156,7 @@ class AutoScrollOnSelectionDrag {
       // off-window); stop once the primary button is released. Only the primary
       // bit matters — a secondary/middle button held or released mid-drag must
       // not end the gesture.
-      if ((e.buttons & 1) === 0) {
+      if (e.buttons % 2 === 0) {
         stop();
         return;
       }

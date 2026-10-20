@@ -1,6 +1,9 @@
 import { z } from "zod";
 import type { AgUiContext, AgUiMessage } from "@langfuse/shared/in-app-agent";
-import { InAppAgentToolApprovalRequestSchema } from "@langfuse/shared/in-app-agent";
+import {
+  InAppAgentToolApprovalRequestSchema,
+  InAppAgentToolInputsSchema,
+} from "@langfuse/shared/in-app-agent";
 
 type AgUiTool = {
   name: string;
@@ -19,6 +22,7 @@ export const ResumeForwardedPropsSchema = z.object({
       approvalRequestedAt: z.iso.datetime({ offset: true }).optional(),
       approvalDecidedAt: z.iso.datetime({ offset: true }).optional(),
       approvalRequest: InAppAgentToolApprovalRequestSchema,
+      toolInputs: InAppAgentToolInputsSchema.optional(),
     }),
   }),
 });

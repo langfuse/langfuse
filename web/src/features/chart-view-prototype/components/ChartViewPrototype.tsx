@@ -1,6 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import React, { useCallback, useMemo, useState } from "react";
-import { SlidersHorizontal } from "lucide-react";
+import { SlidersHorizontal } from "@langfuse/icons";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { Button } from "@/src/components/ui/button";
 import { Separator } from "@/src/components/ui/separator";
@@ -78,7 +78,7 @@ export function ChartViewPrototype({
       <div className="flex shrink-0 items-center justify-between gap-2 border-b px-3 py-2">
         <div className="text-muted-foreground flex items-center gap-2 text-xs">
           <Button variant="outline" size="sm" disabled className="h-7 gap-1.5">
-            <SlidersHorizontal className="h-3.5 w-3.5" />
+            <SlidersHorizontal size="base" color="default" />
             Filters
           </Button>
           <span>{events.length.toLocaleString()} events · last 24h</span>

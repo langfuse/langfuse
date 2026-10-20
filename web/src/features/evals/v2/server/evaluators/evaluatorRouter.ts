@@ -1,5 +1,5 @@
 import { auditLog } from "@/src/features/audit-logs/server";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
+import { hasProjectAccess, throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -20,7 +20,6 @@ import {
   SuggestEvaluatorTextSchema,
   UpdateEvaluatorSchema,
 } from "./evaluatorTypes";
-import { assertDecisionModelEvaluatorAllowed } from "./decisionModelAccess";
 import { EvaluatorService } from "./evaluatorService";
 import { ruleRouter } from "../rules/ruleRouter";
 import { getActivationCostEstimates } from "./activationCostService";
@@ -146,7 +145,7 @@ export const evaluatorRouter = createTRPCRouter({
       });
     }),
 
-  recentExecutions: protectedProjectProcedure
+  executionSummaries: protectedProjectProcedure
     .input(EvaluatorIdsSchema)
     .query(({ input, ctx }) => {
       throwIfNoProjectAccess({
@@ -154,7 +153,7 @@ export const evaluatorRouter = createTRPCRouter({
         projectId: ctx.session.projectId,
         scope: "evalJobExecution:read",
       });
-      return serviceForContext(ctx).listRecent({
+      return serviceForContext(ctx).getExecutionSummaries({
         ...input,
         projectId: ctx.session.projectId,
       });
@@ -180,12 +179,23 @@ export const evaluatorRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: ctx.session.projectId,
+        scope: "evalJobExecution:read",
+      });
+      const canRunMissingCostTest = hasProjectAccess({
+        session: ctx.session,
+        projectId: ctx.session.projectId,
         scope: "evaluationRule:CUD",
       });
+      const { shouldRunMissingTest, ...estimateInput } = input;
+      let missingCostMode: "probe" | "wait" | "skip" = "skip";
+      if (canRunMissingCostTest) {
+        missingCostMode = shouldRunMissingTest ? "probe" : "wait";
+      }
       return getActivationCostEstimates({
-        ...input,
+        ...estimateInput,
         projectId: ctx.session.projectId,
         orgId: ctx.session.orgId,
+        missingCostMode,
         shouldReadFromObservationsTable:
           ctx.session.user.v4BetaEnabled !== true,
       });
@@ -198,11 +208,6 @@ export const evaluatorRouter = createTRPCRouter({
         session: ctx.session,
         projectId: ctx.session.projectId,
         scope: "evaluator:CUD",
-      });
-      assertDecisionModelEvaluatorAllowed({
-        session: ctx.session,
-        projectId: ctx.session.projectId,
-        definition: input.definition,
       });
       const service = serviceForContext(ctx);
       return service.create(
@@ -218,11 +223,6 @@ export const evaluatorRouter = createTRPCRouter({
         session: ctx.session,
         projectId: ctx.session.projectId,
         scope: "evaluator:CUD",
-      });
-      assertDecisionModelEvaluatorAllowed({
-        session: ctx.session,
-        projectId: ctx.session.projectId,
-        definition: input.definition,
       });
       const service = serviceForContext(ctx);
       return service.update(
@@ -281,11 +281,6 @@ export const evaluatorRouter = createTRPCRouter({
         session: ctx.session,
         projectId: ctx.session.projectId,
         scope: "evaluator:CUD",
-      });
-      assertDecisionModelEvaluatorAllowed({
-        session: ctx.session,
-        projectId: ctx.session.projectId,
-        definition: input.definition,
       });
       return serviceForContext(ctx).testEvaluator({
         orgId: ctx.session.orgId,

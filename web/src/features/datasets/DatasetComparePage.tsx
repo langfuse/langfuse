@@ -1,7 +1,7 @@
 import { Button } from "@/src/components/ui/button";
 import { DatasetCompareRunsTable } from "@/src/features/datasets/components/DatasetCompareRunsTable";
 import { MultiSelectKeyValues } from "@/src/features/scores";
-import { FlaskConical, List } from "lucide-react";
+import { FlaskConical, List } from "@langfuse/icons";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import {
@@ -110,7 +110,7 @@ function DatasetCompareLegacy() {
                   disabled={!hasExperimentWriteAccess}
                   onClick={() => capture("dataset_run:new_form_open")}
                 >
-                  <FlaskConical className="h-4 w-4" />
+                  <FlaskConical size="base" color="default" />
                   <span className="ml-2 hidden md:block">New experiment</span>
                 </Button>
               </DialogTrigger>
@@ -135,7 +135,9 @@ function DatasetCompareLegacy() {
               className="w-fit"
               variant="outline"
               hideClearButton
-              iconLeft={<List className="mr-2 h-4 w-4" />}
+              iconLeft={
+                <List size="base" color="default" __rawClassName="mr-2" />
+              }
               options={runs.map((run) => ({
                 key: run.key,
                 value: run.value,

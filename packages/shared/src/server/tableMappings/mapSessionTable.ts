@@ -1,4 +1,5 @@
 import { UiColumnMappings } from "../../tableDefinitions";
+import { tokenCountFilterClickhouseType } from "./tokenCountFilterType";
 
 export const sessionCols: UiColumnMappings = [
   // we do not access the traces scores in ClickHouse. We default back to the trace timestamps.
@@ -64,35 +65,35 @@ export const sessionCols: UiColumnMappings = [
     uiTableId: "inputTokens",
     clickhouseTableName: "traces",
     clickhouseSelect: "session_input_usage",
-    clickhouseTypeOverwrite: "Decimal64(3)",
+    clickhouseTypeOverwrite: tokenCountFilterClickhouseType,
   },
   {
     uiTableName: "Output Tokens",
     uiTableId: "outputTokens",
     clickhouseTableName: "traces",
     clickhouseSelect: "session_output_usage",
-    clickhouseTypeOverwrite: "Decimal64(3)",
+    clickhouseTypeOverwrite: tokenCountFilterClickhouseType,
   },
   {
     uiTableName: "Total Tokens",
     uiTableId: "totalTokens",
     clickhouseTableName: "traces",
     clickhouseSelect: "session_total_usage",
-    clickhouseTypeOverwrite: "Decimal64(3)",
+    clickhouseTypeOverwrite: tokenCountFilterClickhouseType,
   },
   {
     uiTableName: "Usage",
     uiTableId: "totalTokens",
     clickhouseTableName: "traces",
     clickhouseSelect: "session_total_usage",
-    clickhouseTypeOverwrite: "Decimal64(3)",
+    clickhouseTypeOverwrite: tokenCountFilterClickhouseType,
   },
   {
     uiTableName: "Session Total Usage",
     uiTableId: "usage",
     clickhouseTableName: "traces",
     clickhouseSelect: "session_total_usage",
-    clickhouseTypeOverwrite: "Decimal64(3)",
+    clickhouseTypeOverwrite: tokenCountFilterClickhouseType,
   },
   {
     uiTableName: "Session Duration (s)",
@@ -158,13 +159,36 @@ export const sessionCols: UiColumnMappings = [
   },
 ];
 
-export const sessionEventsCols: UiColumnMappings = sessionCols.concat({
-  uiTableName: "Metadata",
-  uiTableId: "metadata",
-  clickhouseTableName: "events_proto",
-  clickhouseSelect: "metadata",
-  queryPrefix: "s",
-});
+export const sessionEventsCols: UiColumnMappings = sessionCols.concat(
+  {
+    uiTableName: "Available Tool Names",
+    uiTableId: "toolNames",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "tool_names",
+    queryPrefix: "s",
+  },
+  {
+    uiTableName: "Called Tool Names",
+    uiTableId: "calledToolNames",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "called_tool_names",
+    queryPrefix: "s",
+  },
+  {
+    uiTableName: "Tool Calls",
+    uiTableId: "toolCalls",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "tool_calls_count",
+    queryPrefix: "s",
+  },
+  {
+    uiTableName: "Metadata",
+    uiTableId: "metadata",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "metadata",
+    queryPrefix: "s",
+  },
+);
 
 export const sessionEventsOrderByCols: UiColumnMappings =
   sessionEventsCols.filter((column) => column.uiTableId !== "metadata");

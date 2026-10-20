@@ -700,5 +700,13 @@ if (!nativeBinding) {
 }
 
 module.exports = nativeBinding
+module.exports.EarlyOtelBatch = nativeBinding.EarlyOtelBatch
+module.exports.PreparedEvent = nativeBinding.PreparedEvent
+module.exports.ValidatedOtelJson = nativeBinding.ValidatedOtelJson
+module.exports.clusterTopicEmbeddings = nativeBinding.clusterTopicEmbeddings
+module.exports.encodeClickhouseEvents = nativeBinding.encodeClickhouseEvents
+module.exports.extractOtelMedia = nativeBinding.extractOtelMedia
+module.exports.hasOtelMediaCandidate = nativeBinding.hasOtelMediaCandidate
 module.exports.hello = nativeBinding.hello
 module.exports.initTelemetry = nativeBinding.initTelemetry
+module.exports.validateOtelJson = nativeBinding.validateOtelJson

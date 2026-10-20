@@ -1,15 +1,18 @@
 //! Bounded byte relay. One task owns upstream reads; the body owns its lifetime.
 use std::{
-    fmt,
     pin::Pin,
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, AtomicUsize, Ordering},
     },
     task::{Context, Poll},
+    time::Duration,
 };
 
-use crate::capture::{ExecutionCapture, RelayOutcome};
+use crate::{
+    capture::{ExecutionCapture, RelayOutcome},
+    resolution::ApiFormat,
+};
 use axum::{
     body::{Body, Bytes},
     http::{HeaderMap, header},
@@ -22,75 +25,124 @@ use tokio::{
 };
 
 /// Sanitized failures; upstream URLs, bodies and credentials are never retained.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum ProviderError {
+    #[error("invalid provider configuration")]
     Configuration,
-    Busy,
+    #[error("provider deadline exceeded")]
     Timeout,
+    #[error("provider transport failed")]
     Transport,
 }
 
-impl fmt::Display for ProviderError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::Configuration => "invalid provider configuration",
-            Self::Busy => "gateway execution capacity exhausted",
-            Self::Timeout => "provider deadline exceeded",
-            Self::Transport => "provider transport failed",
-        })
-    }
-}
-impl std::error::Error for ProviderError {}
-
 // An allowlist prevents gateway credentials, tenant routing overrides and cookies
 // from crossing the boundary. Headers nominated by `Connection` are never end-to-end.
-fn selected_headers(source: &HeaderMap, allowed: &[&'static str]) -> HeaderMap {
-    let mut selected = HeaderMap::new();
-    for &name in allowed {
-        let hop_by_hop = source.get_all(header::CONNECTION).iter().any(|value| {
+// Prefixes admit a provider's own evolving header family without naming each member.
+fn selected_headers(source: &HeaderMap, allowed: &[&str], prefixes: &[&str]) -> HeaderMap {
+    let hop_by_hop = |name: &str| {
+        source.get_all(header::CONNECTION).iter().any(|value| {
             value.to_str().map_or(true, |value| {
                 value
                     .split(',')
                     .any(|token| token.trim().eq_ignore_ascii_case(name))
             })
-        });
-        if !hop_by_hop {
-            for value in source.get_all(name) {
-                selected.append(header::HeaderName::from_static(name), value.clone());
-            }
+        })
+    };
+    let mut selected = HeaderMap::new();
+    for (name, value) in source {
+        let admitted = allowed.contains(&name.as_str())
+            || prefixes
+                .iter()
+                .any(|prefix| name.as_str().starts_with(prefix));
+        if admitted && !hop_by_hop(name.as_str()) {
+            selected.append(name.clone(), value.clone());
         }
     }
     selected
 }
 
-pub(crate) fn request_headers(source: &HeaderMap) -> HeaderMap {
-    selected_headers(source, &["content-type", "content-encoding", "accept"])
+const COMMON_REQUEST_HEADERS: &[&str] = &["content-type", "content-encoding", "accept"];
+
+const COMMON_RESPONSE_HEADERS: &[&str] = &[
+    "content-type",
+    "content-encoding",
+    "cache-control",
+    "retry-after",
+];
+
+pub(crate) fn request_headers(source: &HeaderMap, api_format: ApiFormat) -> HeaderMap {
+    match api_format {
+        ApiFormat::OpenAiResponses | ApiFormat::OpenAiChatCompletions => {
+            selected_headers(source, COMMON_REQUEST_HEADERS, &[])
+        }
+        ApiFormat::AnthropicMessages => {
+            selected_headers(source, COMMON_REQUEST_HEADERS, &["anthropic-"])
+        }
+    }
 }
 
-pub(crate) fn response_headers(source: &HeaderMap) -> HeaderMap {
-    selected_headers(
-        source,
-        &[
-            "content-type",
-            "content-encoding",
-            "cache-control",
-            "retry-after",
-            "x-request-id",
-            "openai-processing-ms",
-            "openai-version",
-            "x-ratelimit-limit-requests",
-            "x-ratelimit-limit-tokens",
-            "x-ratelimit-remaining-requests",
-            "x-ratelimit-remaining-tokens",
-            "x-ratelimit-reset-requests",
-            "x-ratelimit-reset-tokens",
-        ],
-    )
+pub(crate) fn response_headers(source: &HeaderMap, api_format: ApiFormat) -> HeaderMap {
+    match api_format {
+        ApiFormat::OpenAiResponses | ApiFormat::OpenAiChatCompletions => selected_headers(
+            source,
+            &[
+                COMMON_RESPONSE_HEADERS,
+                &[
+                    "x-request-id",
+                    "openai-processing-ms",
+                    "openai-version",
+                    "x-ratelimit-limit-requests",
+                    "x-ratelimit-limit-tokens",
+                    "x-ratelimit-remaining-requests",
+                    "x-ratelimit-remaining-tokens",
+                    "x-ratelimit-reset-requests",
+                    "x-ratelimit-reset-tokens",
+                ],
+            ]
+            .concat(),
+            &[],
+        ),
+        ApiFormat::AnthropicMessages => selected_headers(
+            source,
+            &[
+                COMMON_RESPONSE_HEADERS,
+                &["request-id", "x-should-retry", "anthropic-organization-id"],
+            ]
+            .concat(),
+            &["anthropic-ratelimit-"],
+        ),
+    }
+}
+
+/// The provider's own request ID, bounded like other captured provider facts.
+pub(crate) fn provider_request_id(headers: &HeaderMap, api_format: ApiFormat) -> Option<&str> {
+    let name = match api_format {
+        ApiFormat::OpenAiResponses | ApiFormat::OpenAiChatCompletions => "x-request-id",
+        ApiFormat::AnthropicMessages => "request-id",
+    };
+    headers
+        .get(name)?
+        .to_str()
+        .ok()
+        .filter(|value| value.len() <= 512)
+}
+
+pub(crate) fn identity_encoding(headers: &HeaderMap) -> bool {
+    headers
+        .get_all(header::CONTENT_ENCODING)
+        .iter()
+        .all(|value| {
+            value
+                .to_str()
+                .is_ok_and(|value| value.eq_ignore_ascii_case("identity"))
+        })
 }
 
 pub(crate) fn relay<T: Send + 'static>(
     upstream: reqwest::Response,
+    provider: &'static str,
     deadline: Instant,
+    stall_timeout: Duration,
     owner: T,
     capture: ExecutionCapture,
 ) -> Body {
@@ -104,15 +156,39 @@ pub(crate) fn relay<T: Send + 'static>(
                 }
             })
         }),
+        Some(provider),
         deadline,
+        stall_timeout,
         owner,
         Some(capture),
     )
 }
 
+/// Relay an already buffered body under the same deadlines, without provider telemetry.
+pub(crate) fn relay_buffered<T: Send + 'static>(
+    body: Vec<u8>,
+    deadline: Instant,
+    stall_timeout: Duration,
+    owner: T,
+) -> Body {
+    relay_stream(
+        futures_util::stream::once(async move { Ok(Bytes::from(body)) }),
+        None,
+        deadline,
+        stall_timeout,
+        owner,
+        None,
+    )
+}
+
+/// Relay until EOF, the overall `deadline`, or `stall_timeout` without progress
+/// in either direction: no upstream chunk, or a downstream that stopped reading.
+/// Without a `provider`, the relay records no stream span or body size metric.
 fn relay_stream<S, T>(
     upstream: S,
+    provider: Option<&'static str>,
     deadline: Instant,
+    stall_timeout: Duration,
     owner: T,
     capture: Option<ExecutionCapture>,
 ) -> Body
@@ -123,16 +199,20 @@ where
     let (sender, receiver) = mpsc::channel(1);
     // Covers the response body after provider headers until the relay is
     // finalized, which the header-scoped client span cannot see.
-    let span = tracing::info_span!(
-        "provider.stream",
-        otel.kind = "internal",
-        otel.status_code = tracing::field::Empty,
-        http.response.body.size = tracing::field::Empty,
-        gateway.chunks = tracing::field::Empty,
-        gateway.outcome = tracing::field::Empty,
-    );
+    let span = provider.map_or_else(tracing::Span::none, |_| {
+        tracing::info_span!(
+            "provider.stream",
+            otel.kind = "internal",
+            otel.status_code = tracing::field::Empty,
+            error.type = tracing::field::Empty,
+            http.response.body.size = tracing::field::Empty,
+            gateway.chunks = tracing::field::Empty,
+            gateway.outcome = tracing::field::Empty,
+        )
+    });
     let resources = Arc::new(StreamResources {
         relay: Mutex::new(Some(Relay {
+            provider,
             owner,
             capture,
             span,
@@ -146,7 +226,10 @@ where
     let task = tokio::spawn(async move {
         let pump = async {
             tokio::pin!(upstream);
-            while let Some(chunk) = upstream.next().await {
+            while let Some(chunk) = tokio::time::timeout(stall_timeout, upstream.next())
+                .await
+                .map_err(|_| ProviderError::Timeout)?
+            {
                 let chunk = chunk?;
                 pump_resources
                     .bytes
@@ -155,7 +238,13 @@ where
                 pump_resources.observe(|capture| capture.push_bytes(&chunk));
                 // One queued chunk plus one pending send; no per-chunk tasks.
                 for bytes in chunk.chunks(64 * 1024) {
-                    if sender.send(Bytes::copy_from_slice(bytes)).await.is_err() {
+                    let sent = tokio::time::timeout(
+                        stall_timeout,
+                        sender.send(Bytes::copy_from_slice(bytes)),
+                    )
+                    .await
+                    .map_err(|_| ProviderError::Timeout)?;
+                    if sent.is_err() {
                         return Ok(());
                     }
                 }
@@ -176,10 +265,13 @@ where
         }
         drop(sender);
         // Upstream EOF alone does not release admission: the downstream may still
-        // have queued bytes. The deadline also covers an unpolled downstream body.
-        if tokio::time::timeout_at(deadline, pump_resources.released.notified())
-            .await
-            .is_err()
+        // have queued bytes. The stall timeout also covers an unpolled downstream body.
+        if tokio::time::timeout_at(
+            deadline.min(Instant::now() + stall_timeout),
+            pump_resources.released.notified(),
+        )
+        .await
+        .is_err()
         {
             pump_resources.release(RelayOutcome::Timeout);
         }
@@ -195,6 +287,7 @@ where
 /// Everything the winning finalizer releases at once: admission and trusted
 /// context, the capture, and the stream span, which ends when it is dropped here.
 struct Relay<T> {
+    provider: Option<&'static str>,
     owner: T,
     capture: Option<ExecutionCapture>,
     span: tracing::Span,
@@ -210,28 +303,35 @@ struct StreamResources<T> {
 
 impl<T> StreamResources<T> {
     fn release(&self, outcome: RelayOutcome) {
-        let relay = {
-            let mut relay = self.relay.lock().expect("relay owner lock poisoned");
+        let (relay, outcome) = {
+            // A poisoned lock means capture code panicked mid-update: the body
+            // is truncated and the capture is partial, so the relay failed.
+            let (mut relay, outcome) = match self.relay.lock() {
+                Ok(relay) => (relay, outcome),
+                Err(poisoned) => (poisoned.into_inner(), RelayOutcome::TransportError),
+            };
             let taken = relay.take();
             // Only the winning finalizer publishes the body failure. In
             // particular, a deadline racing downstream EOF cannot change it later.
-            if taken.is_some()
-                && matches!(
-                    outcome,
-                    RelayOutcome::Timeout | RelayOutcome::TransportError
-                )
-            {
+            if taken.is_some() && outcome.is_failure() {
                 self.failed.store(true, Ordering::Release);
             }
-            taken
+            (taken, outcome)
         };
         if let Some(Relay {
+            provider,
             owner,
             capture,
             span,
         }) = relay
         {
             self.record_outcome(&span, outcome);
+            if let Some(provider) = provider {
+                crate::observability::response_body_size(
+                    provider,
+                    u64::try_from(self.bytes.load(Ordering::Relaxed)).unwrap_or(u64::MAX),
+                );
+            }
             drop(span);
             drop(owner);
             if let Some(mut capture) = capture {
@@ -249,22 +349,18 @@ impl<T> StreamResources<T> {
         );
         span.record("gateway.chunks", count(self.chunks.load(Ordering::Relaxed)));
         span.record("gateway.outcome", outcome.as_str());
-        if matches!(
-            outcome,
-            RelayOutcome::Timeout | RelayOutcome::TransportError
-        ) {
+        if outcome.is_failure() {
             span.record("otel.status_code", "ERROR");
+            span.record("error.type", outcome.as_str());
         }
     }
 
     fn observe(&self, update: impl FnOnce(&mut ExecutionCapture)) {
-        if let Some(capture) = self
-            .relay
-            .lock()
-            .expect("relay owner lock poisoned")
-            .as_mut()
-            .and_then(|relay| relay.capture.as_mut())
-        {
+        // `release` fails a poisoned relay; never update its partial capture.
+        let Ok(mut relay) = self.relay.lock() else {
+            return;
+        };
+        if let Some(capture) = relay.as_mut().and_then(|relay| relay.capture.as_mut()) {
             update(capture);
         }
     }
@@ -328,6 +424,7 @@ mod tests {
         for first in [RelayOutcome::Eof, RelayOutcome::Timeout] {
             let resources = StreamResources {
                 relay: Mutex::new(Some(Relay {
+                    provider: Some("test"),
                     owner: (),
                     capture: None,
                     span: tracing::Span::none(),
@@ -347,6 +444,38 @@ mod tests {
             );
             assert!(resources.relay.lock().unwrap().is_none());
         }
+    }
+
+    #[test]
+    fn a_panic_while_updating_the_capture_fails_the_relay() {
+        let resources = StreamResources {
+            relay: Mutex::new(Some(Relay {
+                provider: Some("test"),
+                owner: (),
+                capture: None,
+                span: tracing::Span::none(),
+            })),
+            failed: AtomicBool::new(false),
+            released: Notify::new(),
+            bytes: AtomicUsize::new(0),
+            chunks: AtomicUsize::new(0),
+        };
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _relay = resources.relay.lock();
+            panic!("capture update panicked");
+        }));
+        assert!(resources.relay.is_poisoned());
+
+        resources.release(RelayOutcome::Eof);
+
+        assert!(resources.failed.load(Ordering::Acquire));
+        assert!(
+            resources
+                .relay
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .is_none()
+        );
     }
 
     #[tokio::test]
@@ -369,7 +498,9 @@ mod tests {
                 Ok(Bytes::from_static(b"partial")),
                 Err(ProviderError::Transport),
             ]),
+            Some("test"),
             Instant::now() + Duration::from_secs(1),
+            Duration::from_secs(10),
             Owner(released.clone()),
             None,
         );
@@ -409,7 +540,9 @@ mod tests {
         let released = Arc::new(Notify::new());
         let body = relay_stream(
             upstream,
+            Some("test"),
             Instant::now() + Duration::from_secs(10),
+            Duration::from_secs(10),
             Owner(released.clone()),
             None,
         );
@@ -427,7 +560,9 @@ mod tests {
         let bytes = Bytes::from_static(b"event: response.output_text.delta\ndata: hello\n\n");
         let body = relay_stream(
             stream::iter([Ok(bytes.clone()), Err(ProviderError::Transport)]),
+            Some("test"),
             Instant::now() + Duration::from_secs(1),
+            Duration::from_secs(10),
             Owner(released.clone()),
             None,
         );
@@ -446,7 +581,9 @@ mod tests {
         let released = Arc::new(Notify::new());
         let body = relay_stream(
             stream::once(async { Ok(Bytes::from_static(b"final bytes")) }),
+            Some("test"),
             Instant::now() + Duration::from_millis(30),
+            Duration::from_secs(10),
             Owner(released.clone()),
             None,
         );
@@ -454,5 +591,46 @@ mod tests {
             .await
             .unwrap();
         assert!(to_bytes(body, 1024).await.is_err());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_silent_upstream_stalls_out_long_before_the_deadline() {
+        let released = Arc::new(Notify::new());
+        let started = Instant::now();
+        let body = relay_stream(
+            stream::once(async { Ok(Bytes::from_static(b"first")) }).chain(stream::pending()),
+            Some("test"),
+            started + Duration::from_secs(3600),
+            Duration::from_secs(120),
+            Owner(released.clone()),
+            None,
+        );
+        let mut downstream = body.into_data_stream();
+        assert_eq!(downstream.next().await.unwrap().unwrap(), "first");
+        released.notified().await;
+        assert_eq!(started.elapsed(), Duration::from_secs(120));
+        assert!(downstream.next().await.unwrap().is_err());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_downstream_that_stops_reading_stalls_out() {
+        let released = Arc::new(Notify::new());
+        let started = Instant::now();
+        // Steady upstream progress must not keep a non-reading client's slot alive.
+        let upstream =
+            stream::repeat_with(|| Ok(Bytes::from_static(b"chunk"))).then(|chunk| async {
+                tokio::time::sleep(Duration::from_secs(1)).await;
+                chunk
+            });
+        let _body = relay_stream(
+            upstream,
+            Some("test"),
+            started + Duration::from_secs(3600),
+            Duration::from_secs(120),
+            Owner(released.clone()),
+            None,
+        );
+        released.notified().await;
+        assert!(started.elapsed() < Duration::from_secs(125));
     }
 }

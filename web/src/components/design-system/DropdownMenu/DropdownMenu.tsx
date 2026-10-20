@@ -24,12 +24,14 @@ import {
   type Placement,
 } from "@floating-ui/react";
 import { cva } from "class-variance-authority";
-import { ChevronRight, type LucideIcon } from "lucide-react";
+import { type IconComponent } from "@langfuse/icons";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import Link from "next/link";
 import * as React from "react";
 
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { useScrollGradients } from "@/src/hooks/useScrollGradients";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 
 const menuVariants = cva(
@@ -96,18 +98,41 @@ type MenuAction =
   | { href: string; onClick?: never }
   | { href?: never; onClick: () => void };
 
+type DropdownMenuItemAction =
+  | {
+      href: string;
+      linkTarget?: "_blank";
+      onClick?: never;
+      onAfterNavigate?: () => void;
+    }
+  | {
+      href?: never;
+      linkTarget?: never;
+      onClick: () => void;
+      onAfterNavigate?: never;
+    };
+
+type SearchBehavior =
+  | "default"
+  | "hide"
+  | "always-show"
+  | "show-when-no-results";
+
 type DropdownMenuItem = {
   disabled?: { reason: string };
   id: string;
   title: string;
-  icon?: LucideIcon;
+  tooltip?: string;
+  badge?: React.ReactNode;
+  icon?: IconComponent;
+  searchBehavior?: SearchBehavior;
   type: "item";
   variant?: "default" | "destructive";
   secondaryAction?: MenuAction & {
     ariaLabel: string;
-    icon: LucideIcon;
+    icon: IconComponent;
   };
-} & MenuAction;
+} & DropdownMenuItemAction;
 
 type DropdownMenuCheckboxItem = {
   checked: boolean;
@@ -115,7 +140,8 @@ type DropdownMenuCheckboxItem = {
   disabled?: { reason: string };
   id: string;
   title: string;
-  icon?: LucideIcon;
+  icon?: IconComponent;
+  searchBehavior?: SearchBehavior;
   onCheckedChange: (checked: boolean) => void;
   type: "checkbox";
 };
@@ -124,8 +150,9 @@ type DropdownMenuSubmenu = {
   disabled?: { reason: string };
   id: string;
   title: string;
-  icon?: LucideIcon;
+  icon?: IconComponent;
   items: DropdownMenuItemDefinition[];
+  searchBehavior?: SearchBehavior;
   search?: { placeholder: string };
   type: "submenu";
 };
@@ -150,6 +177,9 @@ type DropdownMenuProps = {
   placement?: Placement;
   search?: { placeholder: string };
   title?: string;
+  /** Marks an internal-only menu with the Internal badge in the header. */
+  internal?: boolean;
+  description?: string;
 };
 
 function DropdownMenu(props: DropdownMenuProps) {
@@ -170,13 +200,16 @@ function DropdownMenu(props: DropdownMenuProps) {
 function DropdownMenuNode({
   ariaLabel,
   children,
+  description,
   disabled = false,
+  internal = false,
   items,
   maxHeight = "15rem",
   placement = "bottom-start",
   search,
   title,
 }: DropdownMenuProps) {
+  const hasHeader = Boolean(title) || internal;
   const [isOpen, setIsOpen] = React.useState(false);
   const [activeIndex, setActiveIndex] = React.useState<number | null>(null);
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -237,10 +270,21 @@ function DropdownMenuNode({
   const visibleItems = React.useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLocaleLowerCase();
     if (!search || !normalizedQuery) return items;
+    const hasDefaultMatch = items.some((item) => {
+      if (item.type === "separator" || item.type === "loading") return false;
+      if (item.searchBehavior && item.searchBehavior !== "default")
+        return false;
+      return item.title.toLocaleLowerCase().includes(normalizedQuery);
+    });
 
     return items.filter((item) => {
       if (item.type === "separator") return false;
       if (item.type === "loading") return true;
+      if (item.searchBehavior === "hide") return false;
+      if (item.searchBehavior === "always-show") return true;
+      if (item.searchBehavior === "show-when-no-results") {
+        return !hasDefaultMatch;
+      }
       return item.title.toLocaleLowerCase().includes(normalizedQuery);
     });
   }, [items, search, searchQuery]);
@@ -284,7 +328,7 @@ function DropdownMenuNode({
                 refs.setFloating(element);
                 register(element);
               }}
-              className={menuVariants()}
+              className={menuVariants({ className: description && "w-80" })}
               style={{ ...floatingStyles, maxHeight }}
               {...getFloatingProps({ onScroll: recompute })}
               {...(ariaLabel || title
@@ -294,9 +338,21 @@ function DropdownMenuNode({
                   }
                 : {})}
             >
-              {title ? (
+              {hasHeader ? (
                 <div className="border-border bg-popover sticky top-0 z-1 border-b px-3 py-2.5 text-sm font-bold">
-                  {title}
+                  {internal ? (
+                    <div className="flex items-center gap-2">
+                      {title}
+                      <Badge text="Internal" color="yellow" size="sm" />
+                    </div>
+                  ) : (
+                    title
+                  )}
+                  {description && (
+                    <p className="text-muted-foreground mt-1 text-xs font-normal">
+                      {description}
+                    </p>
+                  )}
                 </div>
               ) : null}
               {search ? (
@@ -338,7 +394,7 @@ function DropdownMenuNode({
               ) : null}
               <div
                 className={menuBodyVariants({
-                  hasTitle: Boolean(title || search),
+                  hasTitle: hasHeader || Boolean(search),
                   showBottomGradient: bottom,
                   showTopGradient: top,
                 })}
@@ -408,17 +464,17 @@ function DropdownMenuNode({
                             <span className={primaryActionVariants()}>
                               {ItemIcon ? (
                                 <ItemIcon
-                                  className="mr-1.5 size-4"
+                                  color="default"
+                                  __rawClassName="mr-1.5"
                                   aria-hidden="true"
                                 />
                               ) : null}
                               <span className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap">
                                 {item.title}
                               </span>
-                              <ChevronRight
-                                className="ml-2 size-4"
-                                aria-hidden="true"
-                              />
+                              <span className="ml-2 flex">
+                                <DropdownIndicator direction="right" />
+                              </span>
                             </span>
                           </button>
                         )}
@@ -467,7 +523,8 @@ function DropdownMenuNode({
                         <span className={primaryActionVariants()}>
                           {ItemIcon ? (
                             <ItemIcon
-                              className="mr-1.5 size-4"
+                              color="default"
+                              __rawClassName="mr-1.5"
                               aria-hidden="true"
                             />
                           ) : null}
@@ -523,7 +580,15 @@ function DropdownMenuNode({
                           }}
                           {...interactionProps}
                         >
-                          <SecondaryIcon size={12} aria-hidden="true" />
+                          <SecondaryIcon
+                            size="sm"
+                            color={
+                              item.variant === "destructive"
+                                ? "inherit"
+                                : "default"
+                            }
+                            aria-hidden="true"
+                          />
                         </Link>
                       );
                     } else {
@@ -542,7 +607,15 @@ function DropdownMenuNode({
                           }}
                           {...interactionProps}
                         >
-                          <SecondaryIcon size={12} aria-hidden="true" />
+                          <SecondaryIcon
+                            size="sm"
+                            color={
+                              item.variant === "destructive"
+                                ? "inherit"
+                                : "default"
+                            }
+                            aria-hidden="true"
+                          />
                         </button>
                       );
                     }
@@ -554,7 +627,7 @@ function DropdownMenuNode({
                       role="menuitem"
                       tabIndex={activeIndex === index ? 0 : -1}
                       aria-disabled={item.disabled ? "true" : undefined}
-                      title={item.disabled?.reason}
+                      title={item.disabled?.reason ?? item.tooltip}
                       ref={(element) => {
                         listRef.current[index] = element;
                       }}
@@ -586,6 +659,12 @@ function DropdownMenuNode({
                         <Link
                           data-primary-action=""
                           href={item.href}
+                          target={item.linkTarget}
+                          rel={
+                            item.linkTarget === "_blank"
+                              ? "noopener"
+                              : undefined
+                          }
                           aria-disabled={item.disabled ? "true" : undefined}
                           tabIndex={item.disabled ? -1 : undefined}
                           className={primaryActionVariants()}
@@ -595,11 +674,20 @@ function DropdownMenuNode({
                               return;
                             }
                             tree?.events.emit("click");
+                            item.onAfterNavigate?.();
+                          }}
+                          onAuxClick={(event) => {
+                            if (event.button === 1) item.onAfterNavigate?.();
                           }}
                         >
                           {ItemIcon ? (
                             <ItemIcon
-                              className="mr-1.5 size-4"
+                              color={
+                                item.variant === "destructive"
+                                  ? "inherit"
+                                  : "default"
+                              }
+                              __rawClassName="mr-1.5"
                               aria-hidden="true"
                             />
                           ) : null}
@@ -609,6 +697,9 @@ function DropdownMenuNode({
                           >
                             {item.title}
                           </span>
+                          {item.badge ? (
+                            <span className="ml-2 shrink-0">{item.badge}</span>
+                          ) : null}
                         </Link>
                       ) : (
                         <button
@@ -623,7 +714,12 @@ function DropdownMenuNode({
                         >
                           {ItemIcon ? (
                             <ItemIcon
-                              className="mr-1.5 size-4"
+                              color={
+                                item.variant === "destructive"
+                                  ? "inherit"
+                                  : "default"
+                              }
+                              __rawClassName="mr-1.5"
                               aria-hidden="true"
                             />
                           ) : null}
@@ -633,6 +729,9 @@ function DropdownMenuNode({
                           >
                             {item.title}
                           </span>
+                          {item.badge ? (
+                            <span className="ml-2 shrink-0">{item.badge}</span>
+                          ) : null}
                         </button>
                       )}
                       {renderedSecondaryAction}

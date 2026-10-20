@@ -8,6 +8,7 @@ import {
   type LegendSummaryMode,
   type LegendInteraction,
   type MissingBucketValue,
+  type ChartProps,
 } from "@/src/features/widgets/chart-library/chart-props";
 import { formatMetric } from "@/src/features/widgets/chart-library/utils";
 import { isChartDataEmpty } from "@/src/features/widgets/chart-library/isChartDataEmpty";
@@ -22,11 +23,10 @@ import { PieChart } from "@/src/features/widgets/chart-library/PieChart";
 import HistogramChart from "@/src/features/widgets/chart-library/HistogramChart";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { Button } from "@/src/components/ui/button";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle } from "@langfuse/icons";
 import { BigNumber } from "@/src/features/widgets/chart-library/BigNumber";
 import { PivotTable } from "@/src/features/widgets/chart-library/PivotTable";
 import { type OrderByState } from "@langfuse/shared";
-import { type ChartConfig } from "@/src/components/ui/chart";
 
 const DEFAULT_METRIC_THEME = {
   light: "hsl(var(--chart-1))",
@@ -60,6 +60,7 @@ const ChartComponent = ({
   legendInteraction,
   maxVisibleSeries,
   syncId,
+  sync,
   overrideWarning = false,
   metricFormatter: metricFormatterOverride,
   thresholds,
@@ -83,9 +84,8 @@ const ChartComponent = ({
     defaultSort?: OrderByState;
     show_value_labels?: boolean;
     show_data_point_dots?: boolean;
-    subtle_fill?: boolean;
   };
-  config?: ChartConfig;
+  config?: ChartProps["config"];
   sortState?: OrderByState | null;
   onSortChange?: (sortState: OrderByState | null) => void;
   isLoading?: boolean;
@@ -94,6 +94,7 @@ const ChartComponent = ({
   legendInteraction?: LegendInteraction;
   maxVisibleSeries?: number;
   syncId?: string;
+  sync?: ChartProps["sync"];
   overrideWarning?: boolean;
   metricFormatter?: MetricFormatterFunction;
   thresholds?: ChartThreshold[];
@@ -102,8 +103,7 @@ const ChartComponent = ({
   /**
    * Hide x-axis tick labels on a categorical (entity-name) axis; the full name
    * stays in the hover tooltip. Off by default. Consumed by the time-series
-   * charts and forwarded to `prepareTimeAxis`. Used by the experiments /
-   * dataset-compare charts.
+   * charts and forwarded to `prepareTimeAxis`. Used by dataset-compare charts.
    */
   hideXAxisLabels?: boolean;
   /**
@@ -154,7 +154,7 @@ const ChartComponent = ({
           },
         ];
       }),
-    ) as ChartConfig;
+    ) as NonNullable<ChartProps["config"]>;
   }, [config]);
 
   const renderChart = () => {
@@ -188,6 +188,7 @@ const ChartComponent = ({
             legendInteraction={legendInteraction}
             maxVisibleSeries={maxVisibleSeries}
             syncId={syncId}
+            sync={sync}
             showDataPointDots={chartConfig?.show_data_point_dots ?? false}
             thresholds={thresholds}
             missingValue={missingValue}
@@ -205,7 +206,7 @@ const ChartComponent = ({
             legendInteraction={legendInteraction}
             maxVisibleSeries={maxVisibleSeries}
             syncId={syncId}
-            subtleFill={chartConfig?.subtle_fill}
+            sync={sync}
             missingValue={missingValue}
             hideXAxisLabels={hideXAxisLabels}
           />
@@ -221,7 +222,7 @@ const ChartComponent = ({
             legendInteraction={legendInteraction}
             maxVisibleSeries={maxVisibleSeries}
             syncId={syncId}
-            subtleFill={chartConfig?.subtle_fill}
+            sync={sync}
             hideXAxisLabels={hideXAxisLabels}
           />
         );
@@ -231,7 +232,6 @@ const ChartComponent = ({
             data={renderedData.slice(0, rowLimit)}
             config={resolvedConfig}
             metricFormatter={metricFormatter}
-            subtleFill={chartConfig?.subtle_fill}
           />
         );
       case "VERTICAL_BAR":
@@ -240,9 +240,9 @@ const ChartComponent = ({
             data={renderedData.slice(0, rowLimit)}
             config={resolvedConfig}
             metricFormatter={metricFormatter}
-            subtleFill={chartConfig?.subtle_fill}
             hideXAxisLabels={hideXAxisLabels}
             colorBarsByCategory={colorBarsByCategory}
+            legendPosition={legendPosition}
             zeroBaseline={zeroBaseline}
           />
         );
@@ -251,7 +251,6 @@ const ChartComponent = ({
           <PieChart
             data={renderedData.slice(0, rowLimit)}
             metricFormatter={metricFormatter}
-            subtleFill={chartConfig?.subtle_fill}
           />
         );
       case "HISTOGRAM":
@@ -260,7 +259,6 @@ const ChartComponent = ({
             data={renderedData}
             config={resolvedConfig}
             metricFormatter={metricFormatter}
-            subtleFill={chartConfig?.subtle_fill}
           />
         );
       case "NUMBER": {
@@ -303,7 +301,7 @@ const ChartComponent = ({
 
   const renderWarning = () => (
     <div className="flex flex-col items-center justify-center p-6 text-center">
-      <AlertCircle className="mb-4 h-12 w-12" />
+      <AlertCircle __rawClassName="mb-4 h-12 w-12" />
       <h3 className="mb-2 text-lg font-bold">Large Dataset Warning</h3>
       <p className="text-muted-foreground mb-6 text-sm">
         This chart has more than 2,000 unique data points. Rendering it may be

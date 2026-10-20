@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import PageHeader, {
   type PageHeaderProps,
 } from "@/src/components/layouts/page-header";
@@ -8,7 +9,7 @@ import { useIsMobile } from "@/src/hooks/use-mobile";
 import { cn } from "@/src/utils/tailwind";
 
 type PageContainerProps = {
-  children: React.ReactNode;
+  children?: React.ReactNode;
   headerProps: Omit<PageHeaderProps, "container">;
   scrollable?: boolean;
   withPadding?: boolean;
@@ -45,7 +46,11 @@ const Page = ({
               leadingControl={headerProps.leadingControl}
             />
           ) : (
-            <PageHeader {...headerProps} container={false} className="top-0" />
+            <PageHeader
+              {...headerProps}
+              container={false}
+              className={cn("top-0", headerProps.className)}
+            />
           )}
         </header>
         {isMobile && <MobilePageTitle headerProps={headerProps} />}

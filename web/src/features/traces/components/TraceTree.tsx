@@ -1,3 +1,20 @@
+import { useState } from "react";
+import { VirtualizedTree } from "./VirtualizedTree";
+import {
+  VirtualizedTreeNodeWrapper,
+  type TreeNodeMetadata,
+} from "./VirtualizedTreeNodeWrapper";
+import { SpanContent } from "./SpanContent";
+import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
+import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHandlePrefetchObservation";
+import { useSelectTraceNode } from "@/src/features/traces/hooks/useSelectTraceNode";
+import { type TreeNode } from "../types/treeNode";
+import {
+  metricEmphasisFor,
+  type MetricEmphasisContext,
+} from "@/src/features/traces/fns/metricEmphasis";
+
 /**
  * TraceTree - Composition of VirtualizedTree + TreeNodeWrapper + SpanContent.
  *
@@ -9,38 +26,78 @@
  * This composition pattern allows each component to have a single responsibility.
  */
 
-import { memo } from "react";
-import { VirtualizedTree } from "./VirtualizedTree";
-import {
-  VirtualizedTreeNodeWrapper,
-  type TreeNodeMetadata,
-} from "./VirtualizedTreeNodeWrapper";
-import { SpanContent } from "./SpanContent";
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
-import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
-import { useIsObservationActive } from "@/src/features/traces/contexts/PlayheadContext";
-import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHandlePrefetchObservation";
-import { useSelectTraceNode } from "@/src/features/traces/hooks/useSelectTraceNode";
-import { type TreeNode } from "../types/treeNode";
-import { cn } from "@/src/utils/tailwind";
-import type Decimal from "decimal.js";
+export function TraceTree({ isLoading = false }: { isLoading?: boolean }) {
+  if (isLoading) return <TraceTreeLoading />;
+  return <LoadedTraceTree />;
+}
 
-/**
- * Feature-scoped row container: subscribes to the row's OWN playback-active
- * flag so the playhead glow lights tree rows up exactly like timeline rows —
- * and a boundary crossing re-renders only the rows whose flag flipped. Lives
- * here (not in the shared VirtualizedTree) so the shared component stays
- * context-free.
- */
-const TraceTreeRow = memo(function TraceTreeRow({
+/** A small tree's rows, so the placeholder has the shape of a trace. */
+const LOADING_ROWS = [
+  { depth: 0, hasChildren: true, isLastSibling: true, treeLines: [] },
+  { depth: 1, hasChildren: false, isLastSibling: false, treeLines: [] },
+  { depth: 1, hasChildren: true, isLastSibling: false, treeLines: [] },
+  { depth: 2, hasChildren: false, isLastSibling: false, treeLines: [true] },
+  { depth: 2, hasChildren: false, isLastSibling: true, treeLines: [true] },
+  { depth: 1, hasChildren: true, isLastSibling: true, treeLines: [] },
+  { depth: 2, hasChildren: false, isLastSibling: false, treeLines: [false] },
+  { depth: 2, hasChildren: false, isLastSibling: true, treeLines: [false] },
+];
+
+function TraceTreeLoading() {
+  return (
+    <div className="h-full overflow-y-auto">
+      {LOADING_ROWS.map(({ hasChildren, ...metadata }, index) => (
+        <VirtualizedTreeNodeWrapper
+          key={index}
+          isLoading
+          metadata={metadata}
+          hasChildren={hasChildren}
+        >
+          <SpanContent isLoading />
+        </VirtualizedTreeNodeWrapper>
+      ))}
+    </div>
+  );
+}
+
+function LoadedTraceTree() {
+  const { roots, comments, metricEmphasis } = useTraceData();
+  const { selectedNodeId, collapsedNodes, toggleCollapsed } = useSelection();
+  const { handleHover } = useHandlePrefetchObservation();
+  const handleSelectNode = useSelectTraceNode("tree");
+
+  return (
+    <VirtualizedTree
+      roots={roots}
+      collapsedNodes={collapsedNodes}
+      selectedNodeId={selectedNodeId}
+      onToggleCollapse={toggleCollapsed}
+      onSelectNode={handleSelectNode}
+      renderNode={({ node, ...row }) => {
+        const typedNode = node as TreeNode;
+        return (
+          <TraceTreeRow
+            {...row}
+            node={typedNode}
+            emphasis={metricEmphasisFor(typedNode, metricEmphasis)}
+            commentCount={comments.get(typedNode.id)}
+            onHover={() => handleHover(typedNode)}
+          />
+        );
+      }}
+    />
+  );
+}
+
+/** One row; tracks hover so the content's chips flip with the row surface. */
+function TraceTreeRow({
   node,
   treeMetadata,
   isSelected,
   isCollapsed,
   onToggleCollapse,
   onSelect,
-  rootTotalCost,
-  rootTotalDuration,
+  emphasis,
   commentCount,
   onHover,
 }: {
@@ -50,93 +107,31 @@ const TraceTreeRow = memo(function TraceTreeRow({
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   onSelect: () => void;
-  rootTotalCost?: Decimal;
-  rootTotalDuration?: number;
-  commentCount?: number;
-  onHover: (node: TreeNode) => void;
+  emphasis: MetricEmphasisContext | undefined;
+  commentCount: number | undefined;
+  onHover: () => void;
 }) {
-  const isActive = useIsObservationActive(node.id);
+  const [isHovered, setIsHovered] = useState(false);
 
   return (
-    <div
-      className={cn(
-        "transition-colors duration-150",
-        isActive && "bg-primary-accent/15",
-      )}
+    <VirtualizedTreeNodeWrapper
+      metadata={treeMetadata}
+      nodeType={node.type}
+      hasChildren={node.children.length > 0}
+      isCollapsed={isCollapsed}
+      onToggleCollapse={onToggleCollapse}
+      isSelected={isSelected}
+      onSelect={onSelect}
+      onHoverChange={setIsHovered}
     >
-      <VirtualizedTreeNodeWrapper
-        metadata={treeMetadata}
-        nodeType={node.type}
-        hasChildren={node.children.length > 0}
-        isCollapsed={isCollapsed}
-        onToggleCollapse={onToggleCollapse}
-        isSelected={isSelected}
+      <SpanContent
+        node={node}
+        emphasis={emphasis}
+        commentCount={commentCount}
         onSelect={onSelect}
-      >
-        <SpanContent
-          node={node}
-          parentTotalCost={rootTotalCost}
-          parentTotalDuration={rootTotalDuration}
-          commentCount={commentCount}
-          onSelect={onSelect}
-          onHover={() => onHover(node)}
-        />
-      </VirtualizedTreeNodeWrapper>
-    </div>
-  );
-});
-
-export function TraceTree() {
-  const { roots, comments } = useTraceData();
-  const { selectedNodeId, collapsedNodes, toggleCollapsed } = useSelection();
-  const { handleHover } = useHandlePrefetchObservation();
-  const handleSelectNode = useSelectTraceNode("tree");
-
-  // TODO: Extract aggregation logic to shared utility - duplicated in tree-building.ts and TraceTimeline/index.tsx
-  // Calculate aggregated totals across all roots for heatmap color scaling
-  const rootTotalCost = roots.reduce(
-    (acc, r) => {
-      if (!r.totalCost) return acc;
-      return acc ? acc.plus(r.totalCost) : r.totalCost;
-    },
-    undefined as (typeof roots)[0]["totalCost"],
-  );
-
-  const rootTotalDuration =
-    roots.length > 0
-      ? Math.max(
-          ...roots.map((r) => (r.latency != null ? r.latency * 1000 : 0)),
-        )
-      : undefined;
-
-  return (
-    <VirtualizedTree
-      roots={roots}
-      collapsedNodes={collapsedNodes}
-      selectedNodeId={selectedNodeId}
-      onToggleCollapse={toggleCollapsed}
-      onSelectNode={handleSelectNode}
-      renderNode={({
-        node,
-        treeMetadata,
-        isSelected,
-        isCollapsed,
-        onToggleCollapse,
-        onSelect,
-      }) => (
-        <TraceTreeRow
-          node={node as TreeNode}
-          treeMetadata={treeMetadata}
-          isSelected={isSelected}
-          isCollapsed={isCollapsed}
-          onToggleCollapse={onToggleCollapse}
-          onSelect={onSelect}
-          rootTotalCost={rootTotalCost}
-          rootTotalDuration={rootTotalDuration}
-          commentCount={comments.get(node.id)}
-          onHover={handleHover}
-        />
-      )}
-    />
+        onHover={onHover}
+        surface={isSelected || isHovered ? "muted" : "default"}
+      />
+    </VirtualizedTreeNodeWrapper>
   );
 }

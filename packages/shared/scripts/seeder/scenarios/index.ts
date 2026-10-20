@@ -4,7 +4,9 @@ import { annotationQueueScenario } from "./annotation-queue";
 import { customModelsScenario } from "./custom-models";
 import { deepChainScenario } from "./deep-chain";
 import { evaluatorGalleryScenario } from "./evaluator-gallery";
+import { experimentFiltersScenario } from "./experiment-filters";
 import { experimentIoScenario } from "./experiment-io";
+import { incidentSessionScenario } from "./incident-session";
 import { longSessionScenario } from "./long-session";
 import { manyTracesScenario } from "./many-traces";
 import { outlierTrafficScenario } from "./outlier-traffic";
@@ -14,6 +16,7 @@ import { sessionVarietyScenario } from "./session-variety";
 import { supportAgentScenario } from "./support-agent";
 import { timelineAnnotatedScenario } from "./timeline-annotated";
 import { timelineShapesScenario } from "./timeline-shapes";
+import { topicsScenario } from "./topics";
 import { traceTreeScenario } from "./trace-tree";
 import { ScenarioDefinition } from "./types";
 
@@ -27,6 +30,7 @@ export const scenarios: Record<string, ScenarioDefinition> = {
   "deep-chain": deepChainScenario,
   "evaluator-gallery": evaluatorGalleryScenario,
   "experiment-io": experimentIoScenario,
+  "experiment-filters": experimentFiltersScenario,
   "long-session": longSessionScenario,
   "many-traces": manyTracesScenario,
   "outlier-traffic": outlierTrafficScenario,
@@ -36,8 +40,10 @@ export const scenarios: Record<string, ScenarioDefinition> = {
   "annotation-queue": annotationQueueScenario,
   "custom-models": customModelsScenario,
   "support-agent": supportAgentScenario,
+  "incident-session": incidentSessionScenario,
   "timeline-annotated": timelineAnnotatedScenario,
   "timeline-shapes": timelineShapesScenario,
+  topics: topicsScenario,
 };
 
 export * from "./types";

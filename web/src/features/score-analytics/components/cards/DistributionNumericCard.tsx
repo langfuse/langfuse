@@ -191,11 +191,15 @@ export function DistributionNumericCard() {
       ? `${score1.source} · ${score1.name}`
       : score1.name;
 
-  const score2FullLabel = score2
-    ? score2.name === score1.name
-      ? `${score2.source} · ${score2.name}`
-      : score2.name
-    : "Score 2";
+  const score2FullLabel = (() => {
+    if (score2) {
+      if (score2.name === score1.name) {
+        return `${score2.source} · ${score2.name}`;
+      }
+      return score2.name;
+    }
+    return "Score 2";
+  })();
 
   return (
     <Card>
@@ -220,19 +224,11 @@ export function DistributionNumericCard() {
               value={activeTab}
               onValueChange={(v) => setActiveTab(v as DistributionTab)}
             >
-              <Tabs.List size="md">
-                <Tabs.Trigger
-                  value="score1"
-                  size="sm"
-                  label={score1FullLabel}
-                />
-                <Tabs.Trigger
-                  value="score2"
-                  size="sm"
-                  label={score2FullLabel}
-                />
-                <Tabs.Trigger value="all" size="sm" label="all" />
-                <Tabs.Trigger value="matched" size="sm" label="matched" />
+              <Tabs.List variant="inset" size="md">
+                <Tabs.Trigger value="score1" label={score1FullLabel} />
+                <Tabs.Trigger value="score2" label={score2FullLabel} />
+                <Tabs.Trigger value="all" label="all" />
+                <Tabs.Trigger value="matched" label="matched" />
               </Tabs.List>
             </Tabs>
           )}

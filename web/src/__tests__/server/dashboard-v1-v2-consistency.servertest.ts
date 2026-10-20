@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { v4 } from "uuid";
 import { executeQuery } from "@langfuse/shared/query/server";
@@ -550,7 +549,15 @@ describe("dashboard v1 vs v2 consistency", () => {
 
   /** Assert v2 count is within a relative tolerance of v1 count. */
   function expectWithinFactor(v1Val: number, v2Val: number, maxFactor: number) {
-    const ratio = v1Val > 0 ? v2Val / v1Val : v2Val === 0 ? 1 : Infinity;
+    const ratio = (() => {
+      if (v1Val > 0) {
+        return v2Val / v1Val;
+      }
+      if (v2Val === 0) {
+        return 1;
+      }
+      return Infinity;
+    })();
     expect(ratio).toBeGreaterThan(1 / maxFactor);
     expect(ratio).toBeLessThan(maxFactor);
   }

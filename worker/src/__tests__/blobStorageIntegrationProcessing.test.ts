@@ -15,11 +15,8 @@ const originalCloudRegion = vi.hoisted(() => {
   return cloudRegion;
 });
 
-// Override recordIncrement + recordHistogram + recordDistribution so the
-// attempt counter, per-stage timing, and freshness-lag metrics are assertable.
+// Override recordIncrement so the attempt counter is assertable.
 const mockRecordIncrement = vi.hoisted(() => vi.fn());
-const mockRecordHistogram = vi.hoisted(() => vi.fn());
-const mockRecordDistribution = vi.hoisted(() => vi.fn());
 // Stubbable endpoint preflight — the customer-fault tests reject it to drive an
 // in-try failure without infra. Defaults to the real impl for other tests.
 const mockValidateBlobStorageEndpoint = vi.hoisted(() => vi.fn());
@@ -41,8 +38,6 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   return {
     ...actual,
     recordIncrement: mockRecordIncrement,
-    recordHistogram: mockRecordHistogram,
-    recordDistribution: mockRecordDistribution,
     validateBlobStorageEndpoint: mockValidateBlobStorageEndpoint,
     dispatchProjectNotification: mockDispatchProjectNotification,
   };
@@ -66,7 +61,6 @@ import {
   StorageServiceFactory,
   BlobStorageIntegrationProcessingQueue,
 } from "@langfuse/shared/src/server";
-import { EXPORT_FRESHNESS_LAG_METRIC } from "../services/exportFreshnessLagMetric";
 import { prisma } from "@langfuse/shared/src/db";
 import { Job, UnrecoverableError } from "bullmq";
 import {
@@ -825,89 +819,6 @@ describe("BlobStorageIntegrationProcessingJob", () => {
     // Then
     const files = await storageService.listFiles(s3Prefix);
     expect(files.filter((f) => f.file.includes(projectId))).toHaveLength(0);
-  });
-
-  // LFE-10441: per-stage timing histograms must also be emitted when an export
-  // fails (originally gated on upload success), tagged outcome="failure" so the
-  // happy-path percentiles stay clean.
-  it("emits per-stage timing histograms tagged outcome=failure when the upload fails", async () => {
-    const { projectId } = await createOrgProjectAndApiKey();
-    s3Prefix = projectId;
-
-    await prisma.blobStorageIntegration.create({
-      data: {
-        projectId,
-        type: BlobStorageIntegrationType.S3,
-        bucketName,
-        prefix: s3Prefix,
-        accessKeyId: minioAccessKeyId,
-        secretAccessKey: encrypt(minioAccessKeySecret),
-        region: region ? region : "auto",
-        // endpoint null -> skip the persisted-endpoint preflight; the storage
-        // service is mocked anyway, so no real connection is made.
-        endpoint: null,
-        forcePathStyle:
-          env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
-        enabled: true,
-        exportFrequency: "daily",
-        // Non-enriched source: sidesteps the enriched-export guard regardless of
-        // V4 preview state, so this runs outside maybeDescribe on every CI leg.
-        exportSource: "TRACES_OBSERVATIONS",
-        // A past lastSyncAt yields a non-empty export window without requiring
-        // the ClickHouse min-timestamp probe.
-        lastSyncAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-      },
-    });
-
-    // Force every upload to reject so the export takes the failure path.
-    const getInstanceSpy = vi
-      .spyOn(StorageServiceFactory, "getInstance")
-      .mockReturnValue({
-        uploadFileBuffered: vi
-          .fn()
-          .mockRejectedValue(new Error("simulated upload failure")),
-      } as unknown as StorageService);
-
-    mockRecordIncrement.mockClear();
-    mockRecordHistogram.mockClear();
-
-    try {
-      await expect(
-        handleBlobStorageIntegrationProjectJob({
-          data: { payload: { projectId } },
-        } as Job),
-      ).rejects.toThrow(/simulated upload failure/i);
-    } finally {
-      getInstanceSpy.mockRestore();
-    }
-
-    // Failure attempt counter fired.
-    expect(mockRecordIncrement).toHaveBeenCalledWith(
-      "langfuse.blobstorage.table_export.count",
-      1,
-      expect.objectContaining({ outcome: "failure" }),
-    );
-
-    // All four stage timers emitted with outcome=failure...
-    for (const metric of [
-      "langfuse.blob_export.ch_read_ms",
-      "langfuse.blob_export.enrich_ms",
-      "langfuse.blob_export.gzip_cpu_ms",
-      "langfuse.blob_export.upload_wait_ms",
-    ]) {
-      expect(mockRecordHistogram).toHaveBeenCalledWith(
-        metric,
-        expect.any(Number),
-        expect.objectContaining({ outcome: "failure" }),
-      );
-    }
-
-    // ...and never with outcome=success, since no upload succeeded.
-    expect(mockRecordHistogram).not.toHaveBeenCalledWith(
-      "langfuse.blob_export.ch_read_ms",
-      expect.any(Number),
-      expect.objectContaining({ outcome: "success" }),
-    );
   });
 
   maybeDescribe("events table export tests", () => {
@@ -1989,9 +1900,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         updatedIntegration.nextSyncAt.getTime() - now.getTime(),
       );
       expect(timeDiff).toBeLessThan(5000); // Within 5 seconds
+      expect(updatedIntegration.backfill).toBe(true);
     });
 
-    it("records freshness success when catch-up enqueue fails after the watermark advances", async () => {
+    it("keeps the advanced watermark when catch-up enqueue fails", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       s3Prefix = projectId;
       const now = new Date();
@@ -2027,7 +1939,6 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       const getInstanceSpy = vi
         .spyOn(BlobStorageIntegrationProcessingQueue, "getInstance")
         .mockReturnValue({ add } as never);
-      mockRecordDistribution.mockClear();
 
       try {
         await expect(
@@ -2044,20 +1955,6 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           twoDaysAgo.getTime() + 60 * 60 * 1000,
         );
         expect(add).toHaveBeenCalled();
-        expect(mockRecordDistribution).toHaveBeenCalledWith(
-          EXPORT_FRESHNESS_LAG_METRIC,
-          expect.any(Number),
-          expect.objectContaining({
-            integration: "blob_storage",
-            window: "1h",
-            status: "success",
-          }),
-        );
-        expect(mockRecordDistribution).not.toHaveBeenCalledWith(
-          EXPORT_FRESHNESS_LAG_METRIC,
-          expect.anything(),
-          expect.objectContaining({ status: "failure" }),
-        );
       } finally {
         getInstanceSpy.mockRestore();
       }
@@ -2210,6 +2107,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       expect(updatedIntegration.nextSyncAt.getTime()).toBeGreaterThan(
         now.getTime(),
       );
+      expect(updatedIntegration.backfill).toBe(false);
     });
   });
 

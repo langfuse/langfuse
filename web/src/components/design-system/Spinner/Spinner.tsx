@@ -1,5 +1,5 @@
 import { cva } from "class-variance-authority";
-import { Loader2 } from "lucide-react";
+import { Loader2 } from "@langfuse/icons";
 
 const classes = cva("animate-spin", {
   variants: {
@@ -40,5 +40,5 @@ export function Spinner({
   size: Size;
   display?: Display;
 }) {
-  return <Loader2 className={classes({ variant, size, display })} />;
+  return <Loader2 __rawClassName={classes({ variant, size, display })} />;
 }

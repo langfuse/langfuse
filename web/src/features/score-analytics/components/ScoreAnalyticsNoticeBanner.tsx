@@ -1,4 +1,4 @@
-import { Clock, Info } from "lucide-react";
+import { Clock, Info } from "@langfuse/icons";
 import { assertUnreachable } from "@/src/utils/types";
 import type { ScoreAnalyticsContextValue } from "./ScoreAnalyticsProvider";
 import { SamplingDetailsHoverCard } from "./SamplingDetailsHoverCard";
@@ -25,7 +25,7 @@ export function ScoreAnalyticsNoticeBanner(
     return (
       <div className="bg-muted mb-4 rounded-md px-4 py-3">
         <div className="flex items-start gap-3">
-          <Clock className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" />
+          <Clock size="base" color="muted" __rawClassName="mt-0.5" />
           <div className="flex-1 space-y-1">
             <div className="text-sm font-bold">
               {showLargeDataset
@@ -55,7 +55,7 @@ export function ScoreAnalyticsNoticeBanner(
     return (
       <div className="bg-muted mb-4 rounded-md px-4 py-3">
         <div className="flex items-start gap-3">
-          <Info className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" />
+          <Info size="base" color="muted" __rawClassName="mt-0.5" />
           <div className="flex-1 space-y-1">
             <div className="flex items-center gap-2 text-sm font-bold">
               Sampled Data

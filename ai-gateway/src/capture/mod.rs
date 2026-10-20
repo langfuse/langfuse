@@ -1,6 +1,8 @@
-//! Best-effort capture around the existing relay lifecycle.
+mod anthropic_messages;
 mod facts;
+mod openai_chat_completions;
 mod openai_responses;
+mod response;
 mod sse;
 
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -10,50 +12,80 @@ use serde_json::{Map, Value, json};
 use tokio::time::Instant;
 
 use crate::{
-    resolution::{IngestionMode, MetadataValue, ResolvedRequestContext},
+    correlation::RequestCorrelation,
+    resolution::{ApiFormat, IngestionMode, MetadataValue, ProjectId, ResolvedRequestContext},
     telemetry,
 };
+use anthropic_messages::AnthropicMessagesCapture;
 pub(crate) use facts::ProviderFacts;
-pub(crate) use facts::{InferenceFacts, RelayOutcome};
+pub(crate) use facts::{InferenceFacts, InputOmission, InputOmissionReason, RelayOutcome};
+use openai_chat_completions::OpenAiChatCompletionsCapture;
 use openai_responses::OpenAiResponsesCapture;
 
-const MAX_CAPTURE_BYTES: usize = 1024 * 1024;
+pub(crate) const MAX_INPUT_CAPTURE_BYTES: usize = 5 * 1024 * 1024;
+pub(crate) const MAX_OUTPUT_CAPTURE_BYTES: usize = 1024 * 1024;
 const MAX_ITEMS: usize = 256;
 const MAX_FACT_STRING: usize = 512;
 
-/// Add another adapter here when another API is supported; the relay stays shared.
 enum ProtocolCapture {
     OpenAiResponses(OpenAiResponsesCapture),
+    OpenAiChatCompletions(OpenAiChatCompletionsCapture),
+    AnthropicMessages(AnthropicMessagesCapture),
 }
 
 impl ProtocolCapture {
+    fn new(api_format: ApiFormat, headers: &HeaderMap, body: &[u8], mode: IngestionMode) -> Self {
+        match api_format {
+            ApiFormat::OpenAiResponses => {
+                Self::OpenAiResponses(OpenAiResponsesCapture::new(headers, body, mode))
+            }
+            ApiFormat::OpenAiChatCompletions => {
+                Self::OpenAiChatCompletions(OpenAiChatCompletionsCapture::new(headers, body, mode))
+            }
+            ApiFormat::AnthropicMessages => {
+                Self::AnthropicMessages(AnthropicMessagesCapture::new(headers, body, mode))
+            }
+        }
+    }
+
     fn record_response(&mut self, headers: &HeaderMap) {
         match self {
             Self::OpenAiResponses(capture) => capture.record_response(headers),
+            Self::OpenAiChatCompletions(capture) => capture.record_response(headers),
+            Self::AnthropicMessages(capture) => capture.record_response(headers),
         }
     }
 
     fn push_bytes(&mut self, bytes: &[u8]) -> bool {
         match self {
             Self::OpenAiResponses(capture) => capture.push_bytes(bytes),
+            Self::OpenAiChatCompletions(capture) => capture.push_bytes(bytes),
+            Self::AnthropicMessages(capture) => capture.push_bytes(bytes),
         }
     }
 
     fn end_body(&mut self) {
         match self {
             Self::OpenAiResponses(capture) => capture.end_body(),
+            Self::OpenAiChatCompletions(capture) => capture.end_body(),
+            Self::AnthropicMessages(capture) => capture.end_body(),
         }
     }
 
     fn into_facts(self) -> (&'static str, ProviderFacts) {
         match self {
             Self::OpenAiResponses(capture) => ("openai.responses", capture.into_facts()),
+            Self::OpenAiChatCompletions(capture) => {
+                ("openai.chat-completions", capture.into_facts())
+            }
+            Self::AnthropicMessages(capture) => ("anthropic.messages", capture.into_facts()),
         }
     }
 
     fn client_metadata(&self) -> Option<&Map<String, Value>> {
         match self {
             Self::OpenAiResponses(capture) => capture.client_metadata(),
+            Self::OpenAiChatCompletions(_) | Self::AnthropicMessages(_) => None,
         }
     }
 }
@@ -69,11 +101,12 @@ pub(crate) struct ExecutionCapture {
     completion_start_ms: Option<u128>,
     http_status: Option<u16>,
     metadata: Value,
+    provider_model: Option<String>,
     delivery: Option<(telemetry::Telemetry, telemetry::DeliveryContext)>,
 }
 
 impl ExecutionCapture {
-    pub fn unobserved() -> Self {
+    pub(crate) fn unobserved() -> Self {
         Self {
             span: tracing::Span::current(),
             protocol: None,
@@ -86,11 +119,13 @@ impl ExecutionCapture {
             completion_start_ms: None,
             http_status: None,
             metadata: json!({}),
+            provider_model: None,
             delivery: None,
         }
     }
 
-    pub fn for_openai_responses(
+    pub(crate) fn for_request(
+        api_format: ApiFormat,
         context: &ResolvedRequestContext,
         headers: &HeaderMap,
         body: &[u8],
@@ -115,7 +150,6 @@ impl ExecutionCapture {
                 (key.clone(), value)
             })
             .collect();
-        let full = context.ingestion_mode() == IngestionMode::Full;
         let span = tracing::Span::current();
         // Parsing the whole request is CPU-bound and scales with the body.
         let protocol = tracing::info_span!(
@@ -123,51 +157,64 @@ impl ExecutionCapture {
             otel.kind = "internal",
             http.request.body.size = i64::try_from(body.len()).unwrap_or(i64::MAX)
         )
-        .in_scope(|| OpenAiResponsesCapture::new(headers, body, context.ingestion_mode()));
+        .in_scope(|| ProtocolCapture::new(api_format, headers, body, context.ingestion_mode()));
         Self {
             span,
-            protocol: Some(ProtocolCapture::OpenAiResponses(protocol)),
+            protocol: Some(protocol),
             started,
             start_time_unix_ms,
             first_byte_ms: None,
             completion_start_ms: None,
             http_status: None,
             metadata: json!({
-                "organization_id": attribution.organization_id(),
-                "project_id": attribution.project_id(),
+                "organization_id": attribution.organization_id().as_str(),
+                "project_id": attribution.project_id().map(ProjectId::as_str),
                 "key_id": attribution.key_id(),
                 "provider_connection_id": attribution.provider_connection_id(),
                 "key_metadata": key_metadata,
-                "ingestion_mode": if full { "full" } else { "usage" },
+                "ingestion_mode": context.ingestion_mode().as_str(),
             }),
+            provider_model: None,
             delivery: None,
         }
     }
 
-    pub fn deliver_to(
+    pub(crate) fn deliver_to(
         &mut self,
         telemetry: telemetry::Telemetry,
         context: &ResolvedRequestContext,
         headers: &HeaderMap,
+        correlation: &mut RequestCorrelation,
     ) {
         let client_metadata = self
             .protocol
             .as_ref()
             .and_then(ProtocolCapture::client_metadata);
-        self.delivery = Some((
-            telemetry,
-            telemetry::DeliveryContext::from_resolved(context, headers, client_metadata),
-        ));
+        let Some(delivery) =
+            telemetry::DeliveryContext::from_resolved(context, headers, client_metadata)
+        else {
+            return;
+        };
+        correlation.record_generation(delivery.generation_ids());
+        self.metadata["request_id"] = json!(correlation.id());
+        if let Some(client_id) = correlation.client_id() {
+            self.metadata["client_request_id"] = json!(client_id);
+        }
+        self.delivery = Some((telemetry, delivery));
     }
 
-    pub fn record_response(&mut self, status: u16, headers: &HeaderMap) {
+    pub(crate) fn set_provider_model(&mut self, model: &str) {
+        self.provider_model = bounded_string(model);
+    }
+
+    pub(crate) fn record_response(&mut self, status: u16, headers: &HeaderMap) {
         if let Some(protocol) = &mut self.protocol {
             self.http_status = Some(status);
             protocol.record_response(headers);
         }
     }
 
-    pub fn push_bytes(&mut self, bytes: &[u8]) {
+    pub(crate) fn push_bytes(&mut self, bytes: &[u8]) {
         if let Some(protocol) = &mut self.protocol {
             if !bytes.is_empty() {
                 self.first_byte_ms
@@ -180,19 +227,26 @@ impl ExecutionCapture {
         }
     }
 
-    pub fn end_body(&mut self) {
+    pub(crate) fn end_body(&mut self) {
         if let Some(protocol) = &mut self.protocol {
             protocol.end_body();
         }
     }
 
-    pub fn finish(&mut self, outcome: RelayOutcome) {
+    pub(crate) fn finish(&mut self, outcome: RelayOutcome) {
         let span = self.span.clone();
         let _entered = span.enter();
+        crate::observability::execution_failed(outcome);
         let Some(protocol) = self.protocol.take() else {
             return;
         };
-        let (api_format, inference) = protocol.into_facts();
+        let (api_format, mut inference) = protocol.into_facts();
+        if let Some(provider_model) = self.provider_model.take() {
+            if inference.model == inference.requested_model {
+                inference.model = Some(provider_model.clone());
+            }
+            inference.requested_model = Some(provider_model);
+        }
         let facts = InferenceFacts {
             api_format,
             start_time_unix_ms: self.start_time_unix_ms,
@@ -216,6 +270,22 @@ impl Drop for ExecutionCapture {
     fn drop(&mut self) {
         self.finish(RelayOutcome::Cancelled);
     }
+}
+
+fn parse_request(headers: &HeaderMap, body: &[u8]) -> Result<Map<String, Value>, InputOmission> {
+    let reason = if !identity_encoding(headers) {
+        InputOmissionReason::ContentEncoding
+    } else if body.len() > MAX_INPUT_CAPTURE_BYTES {
+        InputOmissionReason::SizeLimit
+    } else if let Ok(Value::Object(request)) = serde_json::from_slice(body) {
+        return Ok(request);
+    } else {
+        InputOmissionReason::InvalidJson
+    };
+    Err(InputOmission {
+        reason,
+        body_bytes: body.len(),
+    })
 }
 
 fn bounded_string(value: &str) -> Option<String> {

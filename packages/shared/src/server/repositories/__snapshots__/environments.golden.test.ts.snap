@@ -6,29 +6,27 @@ exports[`golden: environments.getEnvironmentsForProject > writeMode=events_only 
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param2": 2026-01-01T00:00:00.000Z,
+      "param2": "2026-01-01 00:00:00.000",
     },
     "route": "environments.getEnvironmentsForProject",
     "sql": "SELECT DISTINCT environment
-FROM events_core
-WHERE (project_id = {param1:String}) AND (start_time >= {param2:DateTime64(3)})",
+FROM events_core AS events
+WHERE (events.project_id = {param1:String})
+    AND (events.is_deleted = 0)
+    AND (start_time >= {param2:DateTime64(6)})",
   },
   {
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param2": [
-        "NUMERIC",
-        "BOOLEAN",
-        "CATEGORICAL",
-        "TEXT",
-      ],
-      "param3": 2026-01-01T00:00:00.000Z,
+      "param2": "2026-01-01 00:00:00.000",
     },
     "route": "environments.getEnvironmentsForProject",
     "sql": "SELECT DISTINCT environment
 FROM scores
-WHERE (project_id = {param1:String}) AND (data_type IN ({param2:Array(String)})) AND (timestamp >= {param3:DateTime64(3)})",
+WHERE (project_id = {param1:String})
+    AND (data_type IN ('NUMERIC', 'BOOLEAN', 'CATEGORICAL', 'TEXT'))
+    AND (timestamp >= {param2:DateTime64(3)})",
   },
 ]
 `;
@@ -42,24 +40,20 @@ exports[`golden: environments.getEnvironmentsForProject > writeMode=events_only 
     },
     "route": "environments.getEnvironmentsForProject",
     "sql": "SELECT DISTINCT environment
-FROM events_core
-WHERE project_id = {param1:String}",
+FROM events_core AS events
+WHERE (events.project_id = {param1:String})
+    AND (events.is_deleted = 0)",
   },
   {
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param2": [
-        "NUMERIC",
-        "BOOLEAN",
-        "CATEGORICAL",
-        "TEXT",
-      ],
     },
     "route": "environments.getEnvironmentsForProject",
     "sql": "SELECT DISTINCT environment
 FROM scores
-WHERE (project_id = {param1:String}) AND (data_type IN ({param2:Array(String)}))",
+WHERE (project_id = {param1:String})
+    AND (data_type IN ('NUMERIC', 'BOOLEAN', 'CATEGORICAL', 'TEXT'))",
   },
 ]
 `;
@@ -70,33 +64,31 @@ exports[`golden: environments.getEnvironmentsForProject > writeMode=legacy fromT
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param2": 2026-01-01T00:00:00.000Z,
+      "param2": "2026-01-01 00:00:00.000",
     },
     "route": "environments.getEnvironmentsForProject",
     "sql": "SELECT DISTINCT environment
 FROM traces
-WHERE (project_id = {param1:String}) AND (timestamp >= {param2:DateTime64(3)})
+WHERE (project_id = {param1:String})
+    AND (timestamp >= {param2:DateTime64(3)})
 UNION ALL
 SELECT DISTINCT environment
 FROM observations
-WHERE (project_id = {param1:String}) AND (start_time >= {param2:DateTime64(3)})",
+WHERE (project_id = {param1:String})
+    AND (start_time >= {param2:DateTime64(3)})",
   },
   {
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param2": [
-        "NUMERIC",
-        "BOOLEAN",
-        "CATEGORICAL",
-        "TEXT",
-      ],
-      "param3": 2026-01-01T00:00:00.000Z,
+      "param2": "2026-01-01 00:00:00.000",
     },
     "route": "environments.getEnvironmentsForProject",
     "sql": "SELECT DISTINCT environment
 FROM scores
-WHERE (project_id = {param1:String}) AND (data_type IN ({param2:Array(String)})) AND (timestamp >= {param3:DateTime64(3)})",
+WHERE (project_id = {param1:String})
+    AND (data_type IN ('NUMERIC', 'BOOLEAN', 'CATEGORICAL', 'TEXT'))
+    AND (timestamp >= {param2:DateTime64(3)})",
   },
 ]
 `;
@@ -121,17 +113,12 @@ WHERE project_id = {param1:String}",
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param2": [
-        "NUMERIC",
-        "BOOLEAN",
-        "CATEGORICAL",
-        "TEXT",
-      ],
     },
     "route": "environments.getEnvironmentsForProject",
     "sql": "SELECT DISTINCT environment
 FROM scores
-WHERE (project_id = {param1:String}) AND (data_type IN ({param2:Array(String)}))",
+WHERE (project_id = {param1:String})
+    AND (data_type IN ('NUMERIC', 'BOOLEAN', 'CATEGORICAL', 'TEXT'))",
   },
 ]
 `;

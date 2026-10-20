@@ -37,6 +37,7 @@ export function CreateRuleDialogContent({
   targetObject,
   evaluatorSearch,
   successNotification,
+  onCreated,
   onEvaluatorSearchChange,
 }: {
   projectId: string;
@@ -49,6 +50,7 @@ export function CreateRuleDialogContent({
   targetObject?: Extract<EvalTargetObject, "event" | "experiment">;
   evaluatorSearch: string;
   successNotification: "toast" | "none";
+  onCreated?: () => void;
   onEvaluatorSearchChange: (search: string) => void;
 }) {
   const capture = usePostHogClientCapture();
@@ -79,7 +81,7 @@ export function CreateRuleDialogContent({
   );
   const hasRequestedName = useRef(false);
   const suggestName = api.evalsV2.rules.suggestName.useMutation({
-    onError: trpcErrorToast,
+    onError: (error) => trpcErrorToast(error, "evaluator_rule_name.generate"),
   });
 
   const requestNameSuggestion = async () => {
@@ -96,7 +98,7 @@ export function CreateRuleDialogContent({
     return name;
   };
   const createRule = api.evalsV2.rules.create.useMutation({
-    onError: trpcErrorToast,
+    onError: (error) => trpcErrorToast(error, "evaluator_rule.create"),
   });
 
   const create = async () => {
@@ -119,8 +121,10 @@ export function CreateRuleDialogContent({
       samplingPercent: Math.round(draft.sampling * 100),
       isEnabled: true,
     });
+    onCreated?.();
     if (successNotification === "toast") {
       showSuccessToast({
+        operation: "evaluation_rule.create",
         title: "Rule created",
         description: `${rule.name} is active.`,
       });

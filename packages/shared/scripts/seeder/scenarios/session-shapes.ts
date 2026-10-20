@@ -543,21 +543,25 @@ const buildMediaTrace = (
     image_url: { url: fixtures.image.referenceString },
   };
 
-  const userContent =
-    variant === "bare-refs"
-      ? [fixtures.image.referenceString, fixtures.pdf.referenceString]
-      : variant === "collapsed-prompt"
-        ? prompt.user
-        : variant === "inline-image"
-          ? [{ type: "text", text: prompt.user }, imagePart]
-          : [
-              { type: "text", text: prompt.user },
-              imagePart,
-              {
-                type: "input_audio",
-                input_audio: { data: fixtures.audio.referenceString },
-              },
-            ];
+  const userContent = (() => {
+    if (variant === "bare-refs") {
+      return [fixtures.image.referenceString, fixtures.pdf.referenceString];
+    }
+    if (variant === "collapsed-prompt") {
+      return prompt.user;
+    }
+    if (variant === "inline-image") {
+      return [{ type: "text", text: prompt.user }, imagePart];
+    }
+    return [
+      { type: "text", text: prompt.user },
+      imagePart,
+      {
+        type: "input_audio",
+        input_audio: { data: fixtures.audio.referenceString },
+      },
+    ];
+  })();
 
   // collapsed-prompt hangs the attachment off the long SYSTEM message, which is
   // the message the UI collapses by default.

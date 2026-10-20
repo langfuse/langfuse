@@ -9,7 +9,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { api } from "@/src/utils/api";
 import { useDatasetVersion } from "../hooks/useDatasetVersion";
-import { Clock, MoreVertical, Copy, ExternalLink } from "lucide-react";
+import { Clock, MoreVertical, Copy, ExternalLink } from "@langfuse/icons";
 import {
   format,
   isToday,
@@ -78,6 +78,7 @@ export function DatasetVersionHistoryPanel({
     const isoTimestamp = version.toISOString();
     navigator.clipboard.writeText(isoTimestamp);
     showSuccessToast({
+      operation: "dataset_version_timestamp.copy",
       title: "Copied!",
       description: `Version timestamp: ${isoTimestamp}`,
     });
@@ -104,7 +105,7 @@ export function DatasetVersionHistoryPanel({
     return (
       <div className="flex h-full items-center justify-center p-4">
         <div className="text-muted-foreground text-center text-sm">
-          <Clock className="mx-auto mb-2 h-8 w-8" />
+          <Clock size="xl" __rawClassName="mx-auto mb-2" />
           <p>No versions found</p>
         </div>
       </div>
@@ -184,7 +185,7 @@ export function DatasetVersionHistoryPanel({
               className="h-8 w-8 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
               onClick={(e) => e.stopPropagation()}
             >
-              <MoreVertical className="h-4 w-4" />
+              <MoreVertical size="base" color="default" />
               <span className="sr-only">Version actions</span>
             </Button>
           </DropdownMenuTrigger>
@@ -195,7 +196,7 @@ export function DatasetVersionHistoryPanel({
                 copyVersionTimestamp(version);
               }}
             >
-              <Copy className="mr-2 h-4 w-4" />
+              <Copy size="base" color="default" __rawClassName="mr-2" />
               Copy version timestamp (UTC)
             </DropdownMenuItem>
             <DropdownMenuItem
@@ -204,7 +205,7 @@ export function DatasetVersionHistoryPanel({
                 openDocumentation();
               }}
             >
-              <ExternalLink className="mr-2 h-4 w-4" />
+              <ExternalLink size="base" color="default" __rawClassName="mr-2" />
               How to use in experiments
             </DropdownMenuItem>
           </DropdownMenuContent>

@@ -114,6 +114,7 @@ export const posthogIntegrationRouter = createTRPCRouter({
           select: {
             exportSource: true,
             createdAt: true,
+            enabled: true,
             encryptedPosthogApiKey: true,
           },
         });
@@ -164,6 +165,12 @@ export const posthogIntegrationRouter = createTRPCRouter({
             // undefined → Prisma omits the column → preserves the persisted
             // value on partial updates.
             exportSource: config.exportSource,
+            // A re-enabled integration resumes from its old lastSyncAt; the
+            // worker clears the flag once it reaches the live tail. CREATE gets
+            // it from the column default.
+            ...(config.enabled && !existingIntegration?.enabled
+              ? { backfill: true }
+              : {}),
             // lastError is deliberately left intact so the last fault stays
             // visible until a successful run clears it.
           },
