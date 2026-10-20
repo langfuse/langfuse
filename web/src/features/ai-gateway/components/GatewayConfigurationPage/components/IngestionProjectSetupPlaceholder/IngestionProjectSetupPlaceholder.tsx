@@ -1,19 +1,19 @@
-import { FolderInput } from "@langfuse/icons";
+import { FolderInput, Plus } from "@langfuse/icons";
 
 import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { EmptyState } from "@/src/components/design-system/EmptyState/EmptyState";
 import {
-  CreateIngestionProjectDialog,
-  type CreateIngestionProjectDialogProps,
-} from "@/src/features/ai-gateway/components/GatewayConfigurationPage/components/CreateIngestionProjectDialog/CreateIngestionProjectDialog";
+  CreateIngestionProjectDialogController,
+  type CreateIngestionProjectDialogControllerProps,
+} from "@/src/features/ai-gateway/components/GatewayConfigurationPage/components/CreateIngestionProjectDialogController/CreateIngestionProjectDialogController";
 import {
   GATEWAY_CONFIGURATION_DESCRIPTION,
   GATEWAY_CONFIGURATION_TITLE,
 } from "@/src/features/ai-gateway/constants/gatewayConfig";
 
 export type IngestionProjectSetupPlaceholderProps = Pick<
-  CreateIngestionProjectDialogProps,
+  CreateIngestionProjectDialogControllerProps,
   "ingestionMode" | "isSaving" | "onCreate"
 > & {
   onUseExistingProject: () => void;
@@ -38,13 +38,19 @@ export function IngestionProjectSetupPlaceholder({
         title="Set up an ingestion project first"
         description="Gateway traffic needs a project to be recorded in. Credentials, models and API keys become available once it is set."
       >
-        <CreateIngestionProjectDialog
+        <CreateIngestionProjectDialogController
           ingestionMode={ingestionMode}
           isSaving={isSaving}
           onCreate={onCreate}
-          triggerLabel="Create ingestion project"
-          showIcon
-        />
+        >
+          {({ openDialog }) => (
+            <Button
+              text="Create ingestion project"
+              icon={Plus}
+              onClick={openDialog}
+            />
+          )}
+        </CreateIngestionProjectDialogController>
         <Button
           text="Use existing project"
           variant="secondary"

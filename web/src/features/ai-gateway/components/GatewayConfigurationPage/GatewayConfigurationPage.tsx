@@ -117,7 +117,7 @@ export function GatewayConfigurationPage({
   const showSetupPlaceholder =
     isLangfuseCloud &&
     !isChoosingExistingProject &&
-    !hasActiveProject(projects, config?.defaultIngestionProjectId ?? null);
+    !hasActiveIngestionProject(config?.defaultIngestionProject, organizationId);
   if (showSetupPlaceholder) {
     return (
       <IngestionProjectSetupPlaceholder
@@ -169,8 +169,9 @@ function ConfigurationSkeleton() {
   );
 }
 
-function hasActiveProject(projects: Project[], projectId: string | null) {
-  return projects.some(
-    (project) => project.id === projectId && !project.deletedAt,
-  );
+function hasActiveIngestionProject(
+  project: { orgId: string; deletedAt: Date | null } | null | undefined,
+  organizationId: string,
+) {
+  return !!project && !project.deletedAt && project.orgId === organizationId;
 }

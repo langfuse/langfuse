@@ -4,6 +4,7 @@ import {
   Copy,
   EyeOff,
   Gauge,
+  Plus,
   ScanText,
   type IconComponent,
 } from "@langfuse/icons";
@@ -19,7 +20,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { CreateIngestionProjectDialog } from "@/src/features/ai-gateway/components/GatewayConfigurationPage/components/CreateIngestionProjectDialog/CreateIngestionProjectDialog";
+import { Button as DesignSystemButton } from "@/src/components/design-system/Button/Button";
+import { CreateIngestionProjectDialogController } from "@/src/features/ai-gateway/components/GatewayConfigurationPage/components/CreateIngestionProjectDialogController/CreateIngestionProjectDialogController";
 import {
   GATEWAY_CONFIGURATION_DESCRIPTION,
   GATEWAY_CONFIGURATION_TITLE,
@@ -34,11 +36,6 @@ type Project = {
   name: string;
   deletedAt?: Date | string | null;
 };
-
-const MISSING_PROJECT_HINT =
-  "Select an ingestion project to capture gateway traffic.";
-const MISSING_PROJECT_HINT_WITH_NONE =
-  "Select an ingestion project, or choose None to route without capturing.";
 
 const ingestionModes: Array<{
   value: IngestionMode;
@@ -119,6 +116,10 @@ export function GatewayConfigurationView({
     hasActiveIngestionProject: projectId !== null,
   });
 
+  function handleUseExistingProject() {
+    setShowExistingProjects(true);
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -159,29 +160,40 @@ export function GatewayConfigurationView({
                 ))}
               </SelectContent>
             </Select>
-            <CreateIngestionProjectDialog
+            <CreateIngestionProjectDialogController
               ingestionMode={ingestionMode}
               isSaving={isSaving}
               onCreate={onCreateProject}
-              triggerLabel="or create a new project"
-            />
+            >
+              {({ openDialog }) => (
+                <DesignSystemButton
+                  text="or create a new project"
+                  variant="text"
+                  onClick={openDialog}
+                />
+              )}
+            </CreateIngestionProjectDialogController>
           </div>
         ) : (
           <div className="flex flex-row items-center gap-2">
-            <CreateIngestionProjectDialog
+            <CreateIngestionProjectDialogController
               ingestionMode={ingestionMode}
               isSaving={isSaving}
               onCreate={onCreateProject}
-              triggerLabel="Create ingestion project"
-              showIcon
-            />
-            <button
-              type="button"
-              className="text-primary text-sm hover:underline"
-              onClick={() => setShowExistingProjects(true)}
             >
-              or use an existing project
-            </button>
+              {({ openDialog }) => (
+                <DesignSystemButton
+                  text="Create ingestion project"
+                  icon={Plus}
+                  onClick={openDialog}
+                />
+              )}
+            </CreateIngestionProjectDialogController>
+            <DesignSystemButton
+              text="or use an existing project"
+              variant="text"
+              onClick={handleUseExistingProject}
+            />
           </div>
         )}
         <p className="text-muted-foreground mt-2 text-xs">
@@ -244,9 +256,7 @@ export function GatewayConfigurationView({
       <div className="flex items-center justify-end gap-3">
         {isConfigured ? null : (
           <p className="text-muted-foreground text-xs">
-            {availableIngestionModes.includes("NONE")
-              ? MISSING_PROJECT_HINT_WITH_NONE
-              : MISSING_PROJECT_HINT}
+            Select an ingestion project to capture gateway traffic.
           </p>
         )}
         <Button
