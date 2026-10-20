@@ -142,7 +142,6 @@ export interface ChartProps {
   };
   showValueLabels?: boolean;
   showDataPointDots?: boolean;
-  subtleFill?: boolean;
   thresholds?: ChartThreshold[];
   /** See {@link MissingBucketValue}. Defaults to `"gap"`. */
   missingValue?: MissingBucketValue;

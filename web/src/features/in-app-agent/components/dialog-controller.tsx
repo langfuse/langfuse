@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 "use client";
 
 import { type ReactNode, useCallback, useState } from "react";

@@ -39,6 +39,7 @@ export const Default = meta.story({
       ],
     },
     pagination: {
+      mode: "offset",
       totalCount: 2,
       state: { pageIndex: 0, pageSize: 10 },
       onChange: fn(),
@@ -50,6 +51,7 @@ export const Loading = meta.story({
   args: {
     data: { status: "loading" },
     pagination: {
+      mode: "offset",
       totalCount: 0,
       state: { pageIndex: 0, pageSize: 10 },
       onChange: fn(),

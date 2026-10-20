@@ -2,6 +2,7 @@
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import {
   buildWidgetOrderBy,
   getResultUnit,
@@ -28,7 +29,7 @@ import {
   FileJsonIcon,
   DownloadIcon,
   TableIcon,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { useRouter } from "next/router";
 import {
   buildTableFilterHref,
@@ -292,12 +293,15 @@ export function DashboardWidget({
     isV4Enabled: isV4,
     version: metricsVersion,
   });
-  const loadingStateLayout =
-    placement.y_size <= 2
-      ? "tight"
-      : placement.x_size <= 4
-        ? "compact"
-        : "default";
+  const loadingStateLayout = (() => {
+    if (placement.y_size <= 2) {
+      return "tight";
+    }
+    if (placement.x_size <= 4) {
+      return "compact";
+    }
+    return "default";
+  })();
   const loadingProgress = getChartLoadingProgress({
     isPending: queryResult.isPending,
     progress: queryResult.progress,
@@ -520,7 +524,11 @@ export function DashboardWidget({
       });
     },
     onError: (e) => {
-      showErrorToast("Failed to clone widget", e.message);
+      showErrorToast(
+        "Failed to clone widget",
+        e.message,
+        classifyTrpcToastError(e, "widget.clone"),
+      );
     },
   });
   const handleCopy = () => {
@@ -588,11 +596,16 @@ export function DashboardWidget({
         dashboard_id: dashboardId,
       });
       showSuccessToast({
+        operation: "widget.copy",
         title: "Widget copied",
         description: "Paste it on any dashboard with Cmd/Ctrl+V.",
       });
     } catch {
-      showErrorToast("Copy failed", "Could not write to the clipboard.");
+      showErrorToast("Copy failed", "Could not write to the clipboard.", {
+        operation: "widget.copy",
+        errorOrigin: "frontend",
+        errorCategory: "permission",
+      });
     }
   };
 
@@ -638,8 +651,8 @@ export function DashboardWidget({
           {!readOnly && (hasCUDAccess || isLockedEditable) && (
             <>
               <GripVerticalIcon
-                size={16}
-                className="drag-handle text-muted-foreground hover:text-foreground hidden cursor-grab active:cursor-grabbing lg:group-hover:block"
+                size="base"
+                __rawClassName="drag-handle text-muted-foreground hover:text-foreground hidden cursor-grab active:cursor-grabbing lg:group-hover:block"
               />
               {isLockedEditable ? (
                 <button
@@ -647,7 +660,7 @@ export function DashboardWidget({
                   className="text-muted-foreground hover:text-foreground hidden group-hover:block"
                   aria-label="Edit widget"
                 >
-                  <PencilIcon size={16} />
+                  <PencilIcon size="base" />
                 </button>
               ) : widget.data.owner === "PROJECT" ? (
                 <button
@@ -655,7 +668,7 @@ export function DashboardWidget({
                   className="text-muted-foreground hover:text-foreground hidden group-hover:block"
                   aria-label="Edit widget"
                 >
-                  <PencilIcon size={16} />
+                  <PencilIcon size="base" />
                 </button>
               ) : widget.data.owner === "LANGFUSE" ? (
                 <button
@@ -669,7 +682,7 @@ export function DashboardWidget({
                   className="text-muted-foreground hover:text-foreground hidden group-hover:block"
                   aria-label="Edit widget"
                 >
-                  <PencilIcon size={16} />
+                  <PencilIcon size="base" />
                 </button>
               ) : null}
             </>
@@ -757,7 +770,7 @@ export function DashboardWidget({
                 aria-label="Widget actions"
                 {...getTriggerProps()}
               >
-                <MoreVerticalIcon size={16} />
+                <MoreVerticalIcon size="base" />
               </button>
             )}
           </DropdownMenu>
@@ -773,7 +786,6 @@ export function DashboardWidget({
         {!queryValidation.valid ? (
           <div className="relative min-h-0 flex-1">
             <ChartLoadingState
-              isLoading={true}
               showSpinner={false}
               showHintImmediately={true}
               hintText={queryValidation.reason}
@@ -815,16 +827,17 @@ export function DashboardWidget({
                 )}
               />
             </div>
-            <ChartLoadingState
-              isLoading={chartLoadingState.isLoading}
-              showSpinner={chartLoadingState.showSpinner}
-              showHintImmediately={chartLoadingState.showHintImmediately}
-              hintText={chartLoadingState.hintText}
-              onRetry={queryResult.isError ? handleRetry : undefined}
-              progress={loadingProgress}
-              layout={loadingStateLayout}
-              className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
-            />
+            {chartLoadingState.isLoading && (
+              <ChartLoadingState
+                showSpinner={chartLoadingState.showSpinner}
+                showHintImmediately={chartLoadingState.showHintImmediately}
+                hintText={chartLoadingState.hintText}
+                onRetry={queryResult.isError ? handleRetry : undefined}
+                progress={loadingProgress}
+                layout={loadingStateLayout}
+                className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
+              />
+            )}
           </div>
         )}
       </div>

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 /**
  * Regression tests for the Mixpanel analytics export throttling fix (issue #12786).
@@ -52,7 +52,7 @@ const h = vi.hoisted(() => {
     mixpanelRegion: "api",
     encryptedMixpanelProjectToken: "enc",
     lastSyncAt: new Date("2024-01-01"),
-    project: { name: "Test Project" },
+    project: { name: "Test Project", createdAt: new Date("2023-06-15") },
   });
 
   // Mutable row returned by the prisma findFirst mock so individual tests can
@@ -128,7 +128,6 @@ vi.mock("@langfuse/shared/src/server", () => ({
   QueueName: { MixpanelIntegrationProcessingQueue: "mixpanel" },
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
   recordIncrement: vi.fn(),
-  recordDistribution: vi.fn(),
   getCurrentSpan: vi.fn(() => undefined),
   getTracesForAnalyticsIntegrations: vi.fn(() => h.fakeStream("traces")),
   getGenerationsForAnalyticsIntegrations: vi.fn(() =>
@@ -144,12 +143,10 @@ import {
   MIXPANEL_INTEGRATION_CUSTOMER_FAULT_METRIC,
 } from "../features/mixpanel/handleMixpanelIntegrationProjectJob";
 import {
+  getEventsForAnalyticsIntegrations,
   getScoresForAnalyticsIntegrations,
   recordIncrement,
-  recordDistribution,
 } from "@langfuse/shared/src/server";
-import { decrypt } from "@langfuse/shared/encryption";
-import { EXPORT_FRESHNESS_LAG_METRIC } from "../services/exportFreshnessLagMetric";
 import { env } from "../env";
 
 // Mirrors the real queue's defaultJobOptions (mixpanelIntegrationProcessingQueue.ts).
@@ -366,26 +363,86 @@ describe("handleMixpanelIntegrationProjectJob customer-fault observability", () 
 
     expect(recordIncrement).not.toHaveBeenCalled();
   });
+});
 
-  it("emits freshness failure when decrypt throws before export work starts", async () => {
-    vi.mocked(decrypt).mockImplementationOnce(() => {
-      throw new Error("bad token");
-    });
-    vi.mocked(recordDistribution).mockClear();
+describe("handleMixpanelIntegrationProjectJob sync window", () => {
+  const now = new Date("2026-10-06T12:00:00Z");
 
-    await expect(
-      handleMixpanelIntegrationProjectJob(makeJob()),
-    ).rejects.toThrow(/bad token/);
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(now);
+    h.mixpanelIntegrationUpdate.mockClear();
+    vi.mocked(getEventsForAnalyticsIntegrations).mockClear();
+    h.db.integration = h.defaultIntegration();
+    (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+  });
 
-    expect(recordDistribution).toHaveBeenCalledWith(
-      EXPORT_FRESHNESS_LAG_METRIC,
-      expect.any(Number),
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("caps a lagging sync at the next UTC day boundary", async () => {
+    h.db.integration = {
+      ...h.defaultIntegration(),
+      lastSyncAt: new Date("2026-10-01T15:30:00Z"),
+    };
+
+    await handleMixpanelIntegrationProjectJob(makeJob());
+
+    const dayBoundary = new Date("2026-10-02T00:00:00Z");
+    expect(vi.mocked(getEventsForAnalyticsIntegrations)).toHaveBeenCalledWith(
+      "project-1",
+      "Test Project",
+      new Date("2026-10-01T15:30:00Z"),
+      dayBoundary,
+    );
+    expect(h.mixpanelIntegrationUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
-        integration: "mixpanel",
-        window: "1h",
-        status: "failure",
+        data: { lastSyncAt: dayBoundary },
       }),
     );
+  });
+
+  it("advances a caught-up sync to 30 minutes ago", async () => {
+    h.db.integration = {
+      ...h.defaultIntegration(),
+      lastSyncAt: new Date("2026-10-06T10:00:00Z"),
+    };
+
+    await handleMixpanelIntegrationProjectJob(makeJob());
+
+    expect(h.mixpanelIntegrationUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          lastSyncAt: new Date("2026-10-06T11:30:00Z"),
+          backfill: false,
+        },
+      }),
+    );
+  });
+
+  it("starts the first sync at the project's creation date", async () => {
+    h.db.integration = { ...h.defaultIntegration(), lastSyncAt: null };
+
+    await handleMixpanelIntegrationProjectJob(makeJob());
+
+    expect(vi.mocked(getEventsForAnalyticsIntegrations)).toHaveBeenCalledWith(
+      "project-1",
+      "Test Project",
+      new Date("2023-06-15T00:00:00Z"),
+      new Date("2023-06-16T00:00:00Z"),
+    );
+  });
+
+  it("skips the run without exporting when the window is empty", async () => {
+    h.db.integration = {
+      ...h.defaultIntegration(),
+      lastSyncAt: new Date("2026-10-06T11:45:00Z"),
+    };
+
+    await handleMixpanelIntegrationProjectJob(makeJob());
+
+    expect(vi.mocked(getEventsForAnalyticsIntegrations)).not.toHaveBeenCalled();
     expect(h.mixpanelIntegrationUpdate).not.toHaveBeenCalled();
   });
 });

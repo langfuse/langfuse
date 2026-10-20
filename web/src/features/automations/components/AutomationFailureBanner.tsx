@@ -1,4 +1,4 @@
-import { AlertTriangle, X } from "lucide-react";
+import { AlertTriangle, X } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 
@@ -32,7 +32,7 @@ export const AutomationFailureBanner = ({
               onClick={onDismiss}
               className="ml-4 h-6 w-6 p-0"
             >
-              <X className="h-4 w-4" />
+              <X size="base" color="default" />
             </Button>
           </div>
         </Alert.Description>

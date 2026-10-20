@@ -7,7 +7,7 @@ import {
   MarkdownJsonViewHeader,
 } from "@/src/components/ui/MarkdownJsonView";
 import { ToolCallInvocationsView } from "@/src/features/traces/components/ToolCallInvocationsView";
-import { ListChevronsDownUp, ListChevronsUpDown } from "lucide-react";
+import { ListChevronsDownUp, ListChevronsUpDown } from "@langfuse/icons";
 import { stringify } from "@langfuse/shared";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import {
@@ -37,6 +37,8 @@ export interface ChatMessageProps {
   toolCallNumbers?: number[];
   isOutputMessage?: boolean;
   contentMode?: IOPreviewContentMode;
+  /** Section title; the caller decides (role, name, or Input / Output). */
+  title: string;
 }
 
 /**
@@ -55,10 +57,20 @@ export function ChatMessage({
   toolCallNumbers,
   isOutputMessage,
   contentMode = "all",
+  title,
 }: ChatMessageProps) {
   const [showTableView, setShowTableView] = useState(false);
 
-  const title = getMessageTitle(message);
+  const renderToolResponse = (response: ChatMlMessage) => (
+    <ChatMessage
+      message={response}
+      title={getMessageTitle(response)}
+      shouldRenderMarkdown={shouldRenderMarkdown}
+      currentView={currentView}
+      contentMode={contentMode}
+    />
+  );
+
   const toolCalls = parseToolCallsFromMessage(message);
   const hasContent = hasRenderableContent(message);
   // Collapse from the raw role: the title is the message `name` when present,
@@ -79,9 +91,9 @@ export function ChatMessage({
         className="hover:bg-border -mr-2"
       >
         {showTableView ? (
-          <ListChevronsDownUp className="text-primary h-3 w-3" />
+          <ListChevronsDownUp size="sm" __rawClassName="text-primary" />
         ) : (
-          <ListChevronsUpDown className="h-3 w-3" />
+          <ListChevronsUpDown size="sm" color="default" />
         )}
       </Button>
     ) : undefined;
@@ -142,9 +154,10 @@ export function ChatMessage({
     toolCalls.length > 0
   ) {
     return (
-      <div className="transition-colors">
+      <div className="group/iosection transition-colors">
         <MarkdownJsonViewHeader
           title={title}
+          hoverRevealControls
           handleOnCopy={() => {
             // Shared stringify (not raw JSON.stringify) so \uXXXX escapes in
             // string fields are copied as real characters, like the rendered
@@ -157,6 +170,7 @@ export function ChatMessage({
         <ToolCallInvocationsView
           message={message}
           toolCallNumbers={toolCallNumbers}
+          renderResponse={renderToolResponse}
         />
       </div>
     );
@@ -203,6 +217,7 @@ export function ChatMessage({
               <ToolCallInvocationsView
                 message={message}
                 toolCallNumbers={toolCallNumbers}
+                renderResponse={renderToolResponse}
               />
             </div>
           )}
@@ -223,6 +238,7 @@ export function ChatMessage({
               <ToolCallInvocationsView
                 message={message}
                 toolCallNumbers={toolCallNumbers}
+                renderResponse={renderToolResponse}
               />
             </div>
           )}

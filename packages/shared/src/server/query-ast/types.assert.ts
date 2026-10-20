@@ -1,7 +1,7 @@
 import { type InferResult } from "kysely";
 
 import { getClickhouseKysely } from "./dialect";
-import { arrayJoin, limitBy, mapKeys, mapValues } from "./extensions";
+import { arrayJoin, limitBy, mapKeys, mapValues, useFinal } from "./extensions";
 import { defineView, fromView } from "./views";
 
 /**
@@ -51,7 +51,7 @@ export function schemaTypeAssertions(): void {
 /**
  * Compile-time assertions that the `$call` extension helpers infer correctly:
  * `arrayJoin` widens the output row type with each declared alias, and `limitBy`
- * preserves it. `tsc` is the test.
+ * / `useFinal` preserve it. `tsc` is the test.
  */
 export function extensionTypeAssertions(): void {
   const db = getClickhouseKysely();
@@ -60,10 +60,10 @@ export function extensionTypeAssertions(): void {
     .selectFrom("observations")
     .select("environment")
     .$call(
-      arrayJoin({
-        cost_key: mapKeys("cost_details"),
-        cost: mapValues("cost_details"),
-      }),
+      arrayJoin((eb) => ({
+        cost_key: mapKeys(eb.ref("cost_details")),
+        cost: mapValues(eb.ref("cost_details")),
+      })),
     );
   type Widened = InferResult<typeof _widened>[number];
   // Each arrayJoin alias is added to the output row, so it is referenceable
@@ -80,9 +80,33 @@ export function extensionTypeAssertions(): void {
   const _limited = db
     .selectFrom("events_core")
     .select("span_id")
-    .$call(limitBy({ count: 1, columns: ["span_id"] }));
+    .$call(limitBy({ count: 1, columns: (eb) => [eb.ref("span_id")] }));
   type Limited = InferResult<typeof _limited>[number];
   type _Span = Limited["span_id"];
   // @ts-expect-error limitBy adds no columns
   type _NoExtra = Limited["cost_key"];
+
+  // Helper columns are references checked against the query's tables.
+  db.selectFrom("events_core as e")
+    .select("e.span_id")
+    // @ts-expect-error eb.ref resolves against this select's tables
+    .$call(limitBy({ count: 1, columns: (eb) => [eb.ref("e.span_idx")] }));
+  db.selectFrom("observations")
+    .select("environment")
+    // @ts-expect-error eb.ref resolves against this select's tables
+    .$call(arrayJoin((eb) => ({ k: mapKeys(eb.ref("cost_detailz")) })));
+  db.selectFrom("observations").select((eb) =>
+    // @ts-expect-error mapKeys takes a Map column, not a String column
+    mapKeys(eb.ref("environment")).as("k"),
+  );
+
+  // useFinal preserves the row type: it declares no new columns.
+  const _final = db
+    .selectFrom("scores as s")
+    .select("s.id")
+    .$call(useFinal(["scores"]));
+  type FinalRow = InferResult<typeof _final>[number];
+  type _Id = FinalRow["id"];
+  // @ts-expect-error useFinal adds no columns
+  type _NoFinalExtra = FinalRow["cost_key"];
 }

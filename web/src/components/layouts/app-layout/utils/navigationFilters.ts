@@ -3,16 +3,29 @@
  * Each filter is a pure function that can be tested in isolation
  */
 
-import type { Route } from "@/src/components/layouts/routes";
+import { RouteGroup, type Route } from "@/src/components/layouts/routes";
 import type { NavigationFilterContext } from "./navigationFilters.types";
 import { hasProjectAccess, hasOrganizationAccess } from "@/src/features/rbac";
 import type { Session } from "next-auth";
+import { isAdminOnlyFeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
+import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
 
 /** Organization type from user session (can be null when not in project/org context) */
 type Organization =
   | NonNullable<Session["user"]>["organizations"][number]
   | null
   | undefined;
+
+function canRecoverV4(ctx: NavigationFilterContext): boolean {
+  return (
+    ctx.isLangfuseCloud &&
+    Boolean(ctx.routerProjectId) &&
+    ctx.forceV3Experience !== true &&
+    ctx.session?.environment?.v4WriteMode === "dual" &&
+    ctx.session?.user?.canToggleV4 === false &&
+    ctx.session?.user?.v4BetaEnabled === false
+  );
+}
 
 /**
  * Individual filter functions - each handles one concern
@@ -71,18 +84,40 @@ const filters = {
   featureFlags: (route: Route, ctx: NavigationFilterContext): Route | null => {
     if (route.featureFlag === undefined) return route;
 
+    if (
+      route.featureFlag === "skillManagement" &&
+      ctx.session?.user?.v4BetaEnabled !== true
+    ) {
+      return null;
+    }
+
+    if (isAdminOnlyFeaturePreviewFlag(route.featureFlag)) {
+      return ctx.session?.user?.featureFlags?.[route.featureFlag] === true
+        ? route
+        : null;
+    }
+
+    if (route.featureFlag === "internalFeatures") {
+      return ctx.internalFeaturesEnabled ? route : null;
+    }
+
     if (route.featureFlag === "experimentsV4Enabled") {
       return ctx.session?.user?.v4BetaEnabled === true ? route : null;
     }
 
     if (route.featureFlag === "v4BetaToggleVisible") {
-      return ctx.session?.user?.canToggleV4 === true ? route : null;
+      return ctx.session?.user?.canToggleV4 === true || canRecoverV4(ctx)
+        ? route
+        : null;
     }
 
     const hasFlag =
       ctx.enableExperimentalFeatures ||
-      ctx.cloudAdmin ||
-      ctx.session?.user?.featureFlags?.[route.featureFlag] === true;
+      (ctx.cloudAdmin && route.featureFlag !== "skillManagement") ||
+      getContextualFeatureFlags(ctx.session?.user, {
+        projectId: ctx.routerProjectId,
+        organizationId: ctx.routerOrganizationId,
+      })?.[route.featureFlag] === true;
 
     return hasFlag ? route : null;
   },
@@ -168,6 +203,7 @@ const filters = {
       isLangfuseCloud: ctx.isLangfuseCloud,
       hasActiveCloudIncident: ctx.hasActiveCloudIncident,
       canToggleV4: ctx.session?.user?.canToggleV4 === true,
+      canRecoverV4: canRecoverV4(ctx),
       forceV3Experience: ctx.forceV3Experience,
       v4WriteMode: ctx.session?.environment?.v4WriteMode,
       v4UpgradeUiAvailable: ctx.session?.user?.v4UpgradeUiAvailable === true,
@@ -238,5 +274,10 @@ export function applyNavigationFilters(
 ): Route[] {
   return routes
     .map((route) => applyFiltersToRoute(route, ctx, organization))
-    .filter((route): route is Route => route !== null);
+    .filter((route): route is Route => route !== null)
+    .map((route) =>
+      ctx.internalFeaturesEnabled && route.group === RouteGroup.PromptManagement
+        ? { ...route, group: RouteGroup.ContextManagement }
+        : route,
+    );
 }

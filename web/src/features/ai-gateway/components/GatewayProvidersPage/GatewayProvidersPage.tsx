@@ -1,15 +1,18 @@
-import { useState } from "react";
-import { Pencil, Plus } from "lucide-react";
+import { Plus } from "@langfuse/icons";
+import { useRouter } from "next/router";
 
 import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { DeleteProviderDialog } from "@/src/features/ai-gateway/components/GatewayProvidersPage/components/DeleteProviderDialog";
+import { GatewayConnectionModelsPage } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/GatewayConnectionModelsPage";
 import { ProviderDialogController } from "@/src/features/ai-gateway/components/GatewayProvidersPage/components/ProviderDialogController/ProviderDialogController";
-import { GatewayProvidersView } from "@/src/features/ai-gateway/components/GatewayProvidersPage/components/GatewayProvidersView/GatewayProvidersView";
-import { RetryProviderButton } from "@/src/features/ai-gateway/components/GatewayProvidersPage/components/RetryProviderButton";
+import { GatewayProvidersTable } from "@/src/features/ai-gateway/components/GatewayProvidersPage/components/GatewayProvidersTable/GatewayProvidersTable";
 import { buildGatewayModelsUrl } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayModelsUrl";
+import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
+import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatewayAllowedModelsSet";
+import type { GatewayConnection } from "@/src/features/ai-gateway/types/gatewayProvider";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 
 export function GatewayProvidersPage({
@@ -17,19 +20,83 @@ export function GatewayProvidersPage({
 }: {
   organizationId: string;
 }) {
+  const router = useRouter();
+  const connectionId =
+    typeof router.query.connectionId === "string"
+      ? router.query.connectionId
+      : undefined;
   const connectionsQuery = api.aiGateway.listConnections.useInfiniteQuery(
-    { orgId: organizationId, limit: 50 },
-    { getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined },
+    { orgId: organizationId, limit: 100 },
+    {
+      enabled: !connectionId,
+      getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    },
   );
   const modelsQuery = api.aiGateway.refreshModels.useQuery(
     { orgId: organizationId },
-    { enabled: connectionsQuery.isSuccess },
+    { enabled: !connectionId && connectionsQuery.isSuccess },
   );
-  const [retriedModelCounts, setRetriedModelCounts] = useState<
-    Record<string, number>
-  >({});
   const utils = api.useUtils();
-  const reorder = api.aiGateway.reorderConnections.useMutation();
+  const retry = api.aiGateway.retryConnection.useMutation();
+  const remove = api.aiGateway.deleteConnection.useMutation();
+
+  const retryConnection = async (connection: GatewayConnection) => {
+    try {
+      await retry.mutateAsync({
+        orgId: organizationId,
+        id: connection.id,
+      });
+      await Promise.all([
+        utils.aiGateway.listConnections.invalidate({
+          orgId: organizationId,
+        }),
+        utils.aiGateway.refreshModels.invalidate({
+          orgId: organizationId,
+        }),
+      ]);
+    } catch (error) {
+      reportNonTrpcError(error, "ai-gateway-providers");
+    }
+  };
+
+  const deleteConnection = async (connection: GatewayConnection) => {
+    try {
+      await remove.mutateAsync({
+        orgId: organizationId,
+        id: connection.id,
+      });
+      await Promise.all([
+        utils.aiGateway.listConnections.invalidate({
+          orgId: organizationId,
+        }),
+        utils.aiGateway.refreshModels.invalidate({
+          orgId: organizationId,
+        }),
+      ]);
+      if (connection.id === connectionId) {
+        await router.push(
+          `/organization/${encodeURIComponent(organizationId)}/settings/ai-gateway-providers`,
+        );
+      }
+    } catch (error) {
+      reportNonTrpcError(error, "ai-gateway-providers");
+      throw error;
+    }
+  };
+
+  const selectConnection = (connection: GatewayConnection) =>
+    router.push(buildGatewayModelsUrl(organizationId, connection.id));
+
+  if (connectionId) {
+    return (
+      <GatewayConnectionModelsPage
+        organizationId={organizationId}
+        connectionId={connectionId}
+        isDeleting={remove.isPending}
+        onDelete={deleteConnection}
+      />
+    );
+  }
 
   if (connectionsQuery.isPending) {
     return <ProvidersSkeleton />;
@@ -56,102 +123,102 @@ export function GatewayProvidersPage({
     );
   }
 
-  const connections =
+  const allConnections =
     connectionsQuery.data?.pages.flatMap((page) => page.data) ?? [];
-  const modelCounts: Record<string, number | "loading"> = modelsQuery.isPending
+  const connectionsById = new Map(
+    allConnections.map((connection) => [connection.id, connection]),
+  );
+  const modelCounts: Record<
+    string,
+    { enabled: number; total: number } | "loading"
+  > = modelsQuery.isPending
     ? Object.fromEntries(
-        connections
+        allConnections
           .filter((connection) => connection.status === "ENABLED")
           .map((connection) => [connection.id, "loading"]),
       )
     : Object.fromEntries(
         (modelsQuery.data ?? [])
           .filter((result) => result.success)
-          .map((result) => [result.connectionId, result.models.length]),
+          .flatMap((result) => {
+            const connection = connectionsById.get(result.connectionId);
+            if (!connection) return [];
+            const allowedModels = toGatewayAllowedModelsSet(
+              connection.allowedModels,
+            );
+            const enabled = result.models.filter((model) =>
+              isGatewayModelAllowed(allowedModels, model),
+            ).length;
+            return [
+              [
+                result.connectionId,
+                { enabled, total: result.models.length },
+              ] as const,
+            ];
+          }),
       );
-  Object.assign(modelCounts, retriedModelCounts);
-
   return (
-    <GatewayProvidersView
-      connections={connections}
-      modelCounts={modelCounts}
-      getModelsUrl={(connection) =>
-        buildGatewayModelsUrl(organizationId, connection.id)
-      }
-      hasMore={Boolean(connectionsQuery.hasNextPage)}
-      isLoadingMore={connectionsQuery.isFetchingNextPage}
-      onLoadMore={() => connectionsQuery.fetchNextPage()}
-      canReorder={!connectionsQuery.hasNextPage && !reorder.isPending}
-      onReorder={async (sourceId, targetId) => {
-        const sourceIndex = connections.findIndex(
-          (connection) => connection.id === sourceId,
-        );
-        const targetIndex = connections.findIndex(
-          (connection) => connection.id === targetId,
-        );
-        if (sourceIndex < 0 || targetIndex < 0) return false;
-        const connectionIds = connections.map((connection) => connection.id);
-        const [movedId] = connectionIds.splice(sourceIndex, 1);
-        if (!movedId) return false;
-        connectionIds.splice(targetIndex, 0, movedId);
-        try {
-          await reorder.mutateAsync({ orgId: organizationId, connectionIds });
-          await utils.aiGateway.listConnections.invalidate({
-            orgId: organizationId,
-          });
-          return true;
-        } catch (error) {
-          reportNonTrpcError(error, "ai-gateway-providers");
-          return false;
+    <div className="flex h-full min-h-0 flex-col gap-4">
+      <Header
+        title="Provider credentials"
+        actionButtons={
+          <ProviderDialogController organizationId={organizationId}>
+            {({ openAddDialog }) => (
+              <Button onClick={openAddDialog}>
+                <Plus size="base" __rawClassName="mr-1.5" />
+                Add credential
+              </Button>
+            )}
+          </ProviderDialogController>
         }
-      }}
-      createAction={
-        <ProviderDialogController organizationId={organizationId}>
-          {({ openDialog }) => (
-            <Button onClick={openDialog}>
-              <Plus className="mr-1.5 size-4" />
-              Add credential
-            </Button>
-          )}
-        </ProviderDialogController>
-      }
-      renderCredentialActions={(connection) => {
-        return (
-          <>
-            <RetryProviderButton
-              organizationId={organizationId}
-              connectionId={connection.id}
-              onModelsLoaded={(count) =>
-                setRetriedModelCounts((current) => ({
-                  ...current,
-                  [connection.id]: count,
-                }))
-              }
-            />
-            <ProviderDialogController
-              key={`${connection.id}:${connection.updatedAt.toISOString()}`}
-              organizationId={organizationId}
-              connection={connection}
-            >
-              {({ openDialog }) => (
-                <Button
-                  size="icon-xs"
-                  variant="ghost"
-                  aria-label="Edit credential"
-                  onClick={openDialog}
-                >
-                  <Pencil className="size-4" />
-                </Button>
-              )}
-            </ProviderDialogController>
-            <DeleteProviderDialog
-              organizationId={organizationId}
-              connection={connection}
-            />
-          </>
-        );
-      }}
-    />
+      />
+      <p className="text-muted-foreground text-sm">
+        Model names are prefixed with their connection name. Credentials are
+        validated against the provider when they are saved.
+      </p>
+      <ConfirmationDialogController<GatewayConnection>
+        title="Delete provider credential"
+        text={(connection) =>
+          `Delete “${connection.name}”? Requests will immediately stop using it.`
+        }
+        confirmLabel="Delete credential"
+        variant="destructive"
+        loading={remove.isPending}
+        onConfirm={deleteConnection}
+      >
+        {({ openDialog: openDeleteDialog }) => (
+          <ProviderDialogController organizationId={organizationId}>
+            {({ openEditDialog }) => (
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                <GatewayProvidersTable
+                  connections={allConnections}
+                  modelCounts={modelCounts}
+                  onSelect={selectConnection}
+                  onRetry={retryConnection}
+                  retryDisabled={
+                    retry.isPending
+                      ? { reason: "Validation in progress" }
+                      : undefined
+                  }
+                  onEdit={openEditDialog}
+                  onDelete={openDeleteDialog}
+                />
+              </div>
+            )}
+          </ProviderDialogController>
+        )}
+      </ConfirmationDialogController>
+      {connectionsQuery.hasNextPage ? (
+        <Button
+          className="w-fit self-center"
+          variant="secondary"
+          loading={connectionsQuery.isFetchingNextPage}
+          onClick={() => connectionsQuery.fetchNextPage()}
+        >
+          Load more
+        </Button>
+      ) : null}
+    </div>
   );
 }
 

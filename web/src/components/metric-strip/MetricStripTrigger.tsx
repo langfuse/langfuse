@@ -1,6 +1,6 @@
 import { forwardRef, useRef } from "react";
 import type * as React from "react";
-import { ChevronDown } from "lucide-react";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { cn } from "@/src/utils/tailwind";
 
 /**
@@ -13,7 +13,7 @@ export type MetricStripTriggerVariant = "metric" | "aggregation";
 
 /** Shared so a strip whose menu is a different primitive still matches. */
 export const METRIC_STRIP_TRIGGER_CLASS =
-  "flex items-center gap-0.5 text-[13px] leading-none";
+  "flex items-center gap-0.5 text-sm leading-none";
 
 export const metricStripTriggerClasses: Record<
   MetricStripTriggerVariant,
@@ -43,7 +43,7 @@ export const MetricStripTrigger = forwardRef<
     )}
   >
     {label}
-    <ChevronDown className="h-2.5 w-2.5" />
+    <DropdownIndicator size="sm" nudge />
   </button>
 ));
 MetricStripTrigger.displayName = "MetricStripTrigger";

@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 use tokio::sync::Notify;
 
 use super::{
-    otlp::{ExportError, Payload},
+    otlp::{self, ExportError, Payload},
     *,
 };
 use crate::{
@@ -39,6 +39,7 @@ async fn grant() -> DeliveryContext {
         &HeaderMap::new(),
         None,
     )
+    .unwrap()
 }
 
 fn uploader(url: &str) -> Uploader {
@@ -164,7 +165,7 @@ async fn concurrent_projects_keep_their_original_grants_and_attribution() {
     for project in ["project-a", "project-b"] {
         let mut grant = grant().await;
         grant.grant.project_id = project.into();
-        grant.grant.access_token = format!("token-{project}");
+        grant.grant.access_token = format!("token-{project}").into();
         telemetry.record(grant, facts(project));
     }
     telemetry
@@ -224,7 +225,7 @@ async fn upload_response_failures_are_classified_per_attempt() {
     }
     // Streaming without Content-Length must obey the response bound too.
     let web = FakeServer::start(|_| async move {
-        let chunks = futures_util::stream::iter([Ok::<_, std::io::Error>(vec![b' '; 65 * 1024])]);
+        let chunks = futures_util::stream::iter([Ok::<_, io::Error>(vec![b' '; 65 * 1024])]);
         response(200, Body::from_stream(chunks))
     })
     .await;
@@ -292,7 +293,7 @@ async fn expired_grants_and_oversized_payloads_never_reach_the_network() {
         uploader.export(&expired.grant, &empty_payload()).await,
         Err(ExportError::Expired)
     );
-    let oversized = json!({"oversized": "x".repeat(8 * 1024 * 1024)});
+    let oversized = json!({"oversized": "x".repeat(otlp::MAX_PAYLOAD_BYTES)});
     assert_eq!(
         Payload::encode(&[oversized]).err(),
         Some(ExportError::Payload)
@@ -304,8 +305,8 @@ fn record_bytes(context: &DeliveryContext, facts: InferenceFacts) -> usize {
     serde_json::to_vec(&mapping::span(facts, &context.generation))
         .unwrap()
         .len()
-        + context.grant.access_token.len()
-        + context.grant.project_id.len()
+        + context.grant.access_token.expose_secret().len()
+        + context.grant.project_id.as_str().len()
 }
 
 fn exported_spans(payload: &Value) -> usize {
@@ -418,7 +419,7 @@ async fn interleaved_projects_never_share_an_upload_or_a_grant() {
         for project in ["project-a", "project-b"] {
             let mut context = grant().await;
             context.grant.project_id = project.into();
-            context.grant.access_token = format!("{project}-token-{round}");
+            context.grant.access_token = format!("{project}-token-{round}").into();
             context.grant.expires_at += round * 10;
             telemetry.record(context, facts(project));
         }
@@ -642,7 +643,8 @@ async fn retained_byte_budget_is_released_after_successful_drain() {
         &resolved_request_context("provider-secret").await,
         &HeaderMap::new(),
         None,
-    );
+    )
+    .unwrap();
     telemetry.record(second, facts("project-1"));
     assert_eq!(telemetry.0.stats.dropped.load(Ordering::Relaxed), 1);
     release.notify_one();
@@ -652,6 +654,127 @@ async fn retained_byte_budget_is_released_after_successful_drain() {
     assert_eq!(telemetry.0.retained.available_permits(), budget);
     assert_eq!(telemetry.0.stats.accepted.load(Ordering::Relaxed), 1);
     assert_eq!(web.calls(), 1);
+}
+
+#[tokio::test]
+async fn full_input_at_capture_limit_is_uploaded() {
+    let web = FakeServer::start(|_| async { response(200, "{}") }).await;
+    let telemetry = Telemetry::with_uploader(
+        uploader(&web.url),
+        1,
+        DEFAULT_RETAINED_BYTES,
+        BatchPolicy::default(),
+        fast_retry(),
+    );
+    let mut large = facts("project-1");
+    large.metadata["ingestion_mode"] = json!("full");
+    let quotes = (crate::capture::MAX_INPUT_CAPTURE_BYTES - 16) / 2;
+    let input = json!({"input": "\"".repeat(quotes)});
+    assert!(input.to_string().len() <= crate::capture::MAX_INPUT_CAPTURE_BYTES);
+    large.inference.input = Some(input);
+    large.inference.output = Some(json!([
+        "x".repeat(crate::capture::MAX_OUTPUT_CAPTURE_BYTES - 16)
+    ]));
+    telemetry.record(grant().await, large);
+    telemetry
+        .shutdown(Instant::now() + Duration::from_secs(5))
+        .await;
+    assert_eq!(telemetry.0.stats.dropped.load(Ordering::Relaxed), 0);
+    assert_eq!(telemetry.0.stats.accepted.load(Ordering::Relaxed), 1);
+    assert_eq!(web.calls(), 1);
+}
+
+#[tokio::test]
+async fn input_that_does_not_fit_is_omitted_instead_of_dropping_the_generation() {
+    let input_size = crate::capture::MAX_INPUT_CAPTURE_BYTES - 16;
+    // The configured buffer minimum is smaller than a record carrying this input.
+    for (buffer, held, reason) in [
+        (4 * 1024 * 1024, 0, "record_limit"),
+        (
+            DEFAULT_RETAINED_BYTES,
+            DEFAULT_RETAINED_BYTES - 1024 * 1024,
+            "telemetry_buffer",
+        ),
+    ] {
+        let received = Arc::new(Mutex::new(Vec::new()));
+        let sink = received.clone();
+        let web = FakeServer::start(move |request| {
+            let sink = sink.clone();
+            async move {
+                let bytes = to_bytes(request.into_body(), usize::MAX).await.unwrap();
+                let payload = upload_json(&bytes);
+                let attributes: Map<String, Value> =
+                    payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0]["attributes"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|attribute| {
+                            (
+                                attribute["key"].as_str().unwrap().to_owned(),
+                                attribute["value"]["stringValue"].clone(),
+                            )
+                        })
+                        .collect();
+                sink.lock().unwrap().push(attributes);
+                response(200, "{}")
+            }
+        })
+        .await;
+        let telemetry = Telemetry::with_uploader(
+            uploader(&web.url),
+            1,
+            buffer,
+            BatchPolicy::default(),
+            fast_retry(),
+        );
+        let held = (held > 0).then(|| {
+            telemetry
+                .0
+                .retained
+                .clone()
+                .try_acquire_many_owned(u32::try_from(held).unwrap())
+                .unwrap()
+        });
+        let mut large = facts("project-1");
+        large.metadata["ingestion_mode"] = json!("full");
+        large.inference.input = Some(json!("x".repeat(input_size)));
+        large.inference.output = Some(json!(["output-canary"]));
+        telemetry.record(grant().await, large);
+        drop(held);
+        telemetry
+            .shutdown(Instant::now() + Duration::from_secs(5))
+            .await;
+        assert_eq!(
+            telemetry.0.stats.dropped.load(Ordering::Relaxed),
+            0,
+            "{reason}"
+        );
+        assert_eq!(
+            telemetry.0.stats.accepted.load(Ordering::Relaxed),
+            1,
+            "{reason}"
+        );
+        let received = received.lock().unwrap();
+        let attributes = &received[0];
+        assert!(!attributes.contains_key("langfuse.observation.input"));
+        assert!(
+            attributes["langfuse.observation.output"]
+                .as_str()
+                .unwrap()
+                .contains("output-canary")
+        );
+        let metadata: Value = serde_json::from_str(
+            attributes["langfuse.observation.metadata"]
+                .as_str()
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(metadata["langfuse.gateway.request.input_omitted"], reason);
+        assert_eq!(
+            metadata["langfuse.gateway.request.input_bytes"],
+            input_size + 2
+        );
+    }
 }
 
 #[tokio::test]

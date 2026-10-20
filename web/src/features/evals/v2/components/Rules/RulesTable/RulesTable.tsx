@@ -1,7 +1,13 @@
 /* eslint-disable no-nested-ternary */
 import { useMemo, useRef, useState } from "react";
 import { formatDistanceToNowStrict } from "date-fns";
-import { Copy, ExternalLink, MoreVertical, Pencil, Trash2 } from "lucide-react";
+import {
+  Copy,
+  ExternalLink,
+  MoreVertical,
+  Pencil,
+  Trash2,
+} from "@langfuse/icons";
 import { useRouter } from "next/router";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { DataTable } from "@/src/components/table/data-table";
@@ -9,10 +15,13 @@ import {
   DataTableControls,
   DataTableControlsProvider,
 } from "@/src/components/table/data-table-controls";
-import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
+import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { TablePeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/peek-evaluator-config-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import {
+  customRowHeightMenu,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
 import { createTableSelectionStore } from "@/src/components/table/table-selection-store";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
@@ -34,9 +43,7 @@ import {
   useColumnOrder,
   useColumnVisibility,
 } from "@/src/features/column-visibility";
-import { EvaluatorExecutionHistory } from "@/src/features/evals/v2/components/Rules/EvaluatorExecutionHistory/EvaluatorExecutionHistory";
 import type { RuleTableRow } from "@/src/features/evals/v2/types/rules";
-import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   Tooltip,
   TooltipContent,
@@ -127,7 +134,7 @@ export function RulesTable({
     column: "createdAt",
     order: "DESC",
   });
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
+  const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
     "evaluationRulesV2",
     "s",
   );
@@ -218,12 +225,8 @@ export function RulesTable({
     { projectId, ruleIds },
     { enabled: ruleIds.length > 0, meta: { silentHttpCodes: [503] } },
   );
-  const recentExecutions = api.evalsV2.rules.recentExecutions.useQuery(
-    { projectId, ruleIds },
-    { enabled: ruleIds.length > 0, meta: { silentHttpCodes: [503] } },
-  );
   const deleteMany = api.evalsV2.rules.deleteMany.useMutation({
-    onError: trpcErrorToast,
+    onError: (error) => trpcErrorToast(error, "evaluator_rule.delete"),
     onSuccess: async (result) => {
       capture("evaluation_rules:delete", {
         ruleCount: result.ruleIds.length,
@@ -251,7 +254,7 @@ export function RulesTable({
         accessorKey: "name",
         id: "name",
         header: "Name",
-        size: 260,
+        size: 220,
         isFixedPosition: true,
         enableSorting: true,
         cell: ({ row }) => {
@@ -304,8 +307,8 @@ export function RulesTable({
       createNumberTableColumn<RuleTableRow>({
         accessorFn: (row) => costs.data?.[row.id],
         id: "totalCost",
-        header: "Total cost (7d)",
-        size: 140,
+        header: "Cost (7d)",
+        size: 110,
         enableHiding: true,
         formatter: (value) => usdFormatter(value, 2, 4),
         getValue: (value) => {
@@ -315,33 +318,6 @@ export function RulesTable({
           return value;
         },
       }),
-      {
-        accessorKey: "executionTraces",
-        id: "executionTraces",
-        header: "Last 5 runs",
-        size: 140,
-        enableHiding: true,
-        cell: ({ row }) => {
-          if (recentExecutions.isPending) {
-            return <Skeleton className="h-4 w-16" />;
-          }
-          return (
-            <button
-              type="button"
-              className="focus-visible:ring-ring rounded-sm focus-visible:ring-2 focus-visible:outline-none"
-              aria-label={`View runs for ${row.original.name}`}
-              onClick={(event) => {
-                event.stopPropagation();
-                router.push(ruleExecutionsUrl(projectId, row.original.id));
-              }}
-            >
-              <EvaluatorExecutionHistory
-                traces={recentExecutions.data?.[row.original.id] ?? []}
-              />
-            </button>
-          );
-        },
-      },
       {
         accessorKey: "assignments",
         id: "assignments",
@@ -425,7 +401,7 @@ export function RulesTable({
                   router.push(ruleExecutionsUrl(projectId, row.original.id));
                 }}
               >
-                View traces <ExternalLink className="ml-1 h-3.5 w-3.5" />
+                View traces <ExternalLink size="base" __rawClassName="ml-1" />
               </Button>
               <DropdownMenu
                 placement="bottom-end"
@@ -472,7 +448,7 @@ export function RulesTable({
                     aria-label={`Actions for ${row.original.name}`}
                     {...getTriggerProps()}
                   >
-                    <MoreVertical className="h-4 w-4" />
+                    <MoreVertical size="sm" color="default" />
                   </Button>
                 )}
               </DropdownMenu>
@@ -486,8 +462,6 @@ export function RulesTable({
       costs.data,
       costs.isPending,
       projectId,
-      recentExecutions.data,
-      recentExecutions.isPending,
       router,
       capture,
       selectActionColumn,
@@ -566,43 +540,53 @@ export function RulesTable({
       tableName={evaluationRuleTableFilterConfig.tableName}
     >
       <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden">
-        <TableSearchBar
-          key={`${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
-          projectId={projectId}
-          tableName={filterConfig.tableName}
-          registry={evaluationRulesListFieldRegistry(filterConfig)}
-          filterState={queryFilter.searchBarFilterState}
-          setFilterState={queryFilter.setFilterState}
-          observed={toObservedOptions(
-            filterOptions,
-            filterOptionsQuery.isPending,
-          )}
-          search={{ query: searchQuery ?? null, setQuery: handleSearchChange }}
-          isV4={false}
-        />
-        <RulesTableToolbar
-          columns={columns}
-          currentQuery={searchQuery ?? ""}
-          pageRowIds={rules.data?.rules.map(({ id }) => id) ?? []}
-          pageSize={pagination.limit}
-          pageIndex={pagination.page - 1}
-          totalCount={rules.data?.totalItems ?? null}
-          selectionStore={selectionStore}
-          columnVisibility={columnVisibility}
-          setColumnVisibility={handleColumnVisibilityChange}
-          columnOrder={columnOrder}
-          setColumnOrder={handleColumnOrderChange}
-          rowHeight={rowHeight}
-          setRowHeight={setRowHeight}
-          filterState={filterState}
-          orderByState={orderBy}
-          viewConfig={{
-            tableName: TableViewPresetTableName.EvaluationRules,
-            projectId,
-            controllers: viewControllers,
-          }}
-        />
-        <ResizableFilterLayout>
+        <SearchableTableFilterLayout
+          search={
+            <TableSearchBar
+              size="large"
+              key={`${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
+              projectId={projectId}
+              tableName={filterConfig.tableName}
+              registry={evaluationRulesListFieldRegistry(filterConfig)}
+              filterState={queryFilter.searchBarFilterState}
+              setFilterState={queryFilter.setFilterState}
+              observed={toObservedOptions(
+                filterOptions,
+                filterOptionsQuery.isPending,
+              )}
+              search={{
+                query: searchQuery ?? null,
+                setQuery: handleSearchChange,
+              }}
+              isV4={false}
+            />
+          }
+          toolbar={
+            <RulesTableToolbar
+              columns={columns}
+              currentQuery={searchQuery ?? ""}
+              pageRowIds={rules.data?.rules.map(({ id }) => id) ?? []}
+              pageSize={pagination.limit}
+              pageIndex={pagination.page - 1}
+              totalCount={rules.data?.totalItems ?? null}
+              selectionStore={selectionStore}
+              columnVisibility={columnVisibility}
+              setColumnVisibility={handleColumnVisibilityChange}
+              columnOrder={columnOrder}
+              setColumnOrder={handleColumnOrderChange}
+              rowHeight={rowHeight}
+              setRowHeight={setRowHeight}
+              customRowHeight={customRowHeightMenu(rowHeights)}
+              filterState={filterState}
+              orderByState={orderBy}
+              viewConfig={{
+                tableName: TableViewPresetTableName.EvaluationRules,
+                projectId,
+                controllers: viewControllers,
+              }}
+            />
+          }
+        >
           <DataTableControls
             key={`${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
             queryFilter={queryFilter}
@@ -632,6 +616,9 @@ export function RulesTable({
               columnOrder={columnOrder}
               onColumnOrderChange={handleColumnOrderChange}
               rowHeight={rowHeight}
+              customRowHeightPx={rowHeights.activeHeightPx}
+              onCustomRowHeightChange={rowHeights.setCustomPx}
+              onSelectRowHeight={setRowHeight}
               orderBy={orderBy}
               setOrderBy={handleOrderByChange}
               pagination={{
@@ -679,7 +666,7 @@ export function RulesTable({
               }}
             />
           </div>
-        </ResizableFilterLayout>
+        </SearchableTableFilterLayout>
         <TablePeekViewEvaluatorConfigDetail
           {...legacyPeekConfig}
           projectId={projectId}

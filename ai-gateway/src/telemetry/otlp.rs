@@ -10,6 +10,7 @@ use axum::{
 use flate2::{Compression, write::GzEncoder};
 use reqwest::{Client, Url};
 use reqwest_middleware::ClientWithMiddleware;
+use secrecy::{ExposeSecret, SecretString};
 use serde::Serialize;
 use serde_json::{Value, json};
 
@@ -17,14 +18,14 @@ use super::Grant;
 use crate::resolution::{ControlPlaneConfig, ResolutionError, signing};
 
 const INGESTION_PATH: &str = "/api/public/otel/v1/traces";
-const MAX_PAYLOAD_BYTES: usize = 8 * 1024 * 1024;
+pub(super) const MAX_PAYLOAD_BYTES: usize = 20 * 1024 * 1024;
 const MAX_RESPONSE_BYTES: usize = 64 * 1024;
 const UPLOAD_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub(super) struct Uploader {
     client: ClientWithMiddleware,
     endpoint: Url,
-    service_key: String,
+    service_key: SecretString,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -41,7 +42,7 @@ pub(super) enum ExportError {
 }
 
 impl ExportError {
-    pub fn reason(&self) -> &'static str {
+    pub(super) fn reason(&self) -> &'static str {
         match self {
             Self::Expired => "expired_grant",
             Self::Payload => "payload",
@@ -52,7 +53,7 @@ impl ExportError {
         }
     }
 
-    pub fn is_transient(&self) -> bool {
+    pub(super) fn is_transient(&self) -> bool {
         match self {
             Self::Transport => true,
             Self::Rejected { status, .. } => matches!(status, 408 | 429 | 500 | 502 | 503 | 504),
@@ -60,7 +61,7 @@ impl ExportError {
         }
     }
 
-    pub fn retry_after(&self) -> Option<Duration> {
+    pub(super) fn retry_after(&self) -> Option<Duration> {
         match self {
             Self::Rejected { retry_after, .. } => *retry_after,
             _ => None,
@@ -69,7 +70,7 @@ impl ExportError {
 }
 
 impl Uploader {
-    pub fn new(config: &ControlPlaneConfig) -> Result<Self, ResolutionError> {
+    pub(super) fn new(config: &ControlPlaneConfig) -> Result<Self, ResolutionError> {
         let client = Client::builder()
             .redirect(reqwest::redirect::Policy::none())
             .retry(reqwest::retry::never())
@@ -86,11 +87,11 @@ impl Uploader {
         Ok(Self {
             client: crate::observability::instrument_client(client, "ingestion"),
             endpoint: config.endpoint(INGESTION_PATH),
-            service_key: config.service_key().to_owned(),
+            service_key: config.service_key().clone(),
         })
     }
 
-    pub async fn export(&self, grant: &Grant, payload: &Payload) -> Result<(), ExportError> {
+    pub(super) async fn export(&self, grant: &Grant, payload: &Payload) -> Result<(), ExportError> {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|_| ExportError::Expired)?;
@@ -98,12 +99,13 @@ impl Uploader {
             .checked_sub(now)
             .filter(|duration| !duration.is_zero())
             .ok_or(ExportError::Expired)?;
-        let mut authorization = HeaderValue::from_str(&format!("Bearer {}", grant.access_token))
-            .map_err(|_| ExportError::Payload)?;
+        let mut authorization =
+            HeaderValue::from_str(&format!("Bearer {}", grant.access_token.expose_secret()))
+                .map_err(|_| ExportError::Payload)?;
         authorization.set_sensitive(true);
         let mut signature = HeaderValue::from_str(&signing::authorization(
-            &self.service_key,
-            &grant.access_token,
+            self.service_key.expose_secret(),
+            grant.access_token.expose_secret(),
             now.as_secs(),
         ))
         .map_err(|_| ExportError::Payload)?;
@@ -176,7 +178,7 @@ impl Uploader {
 pub(super) struct Payload(Bytes);
 
 impl Payload {
-    pub fn encode(spans: &[impl Serialize]) -> Result<Self, ExportError> {
+    pub(super) fn encode(spans: &[impl Serialize]) -> Result<Self, ExportError> {
         let payload = json!({"resourceSpans": [{
             "resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "langfuse-ai-gateway"}}]},
             "scopeSpans": [{"scope": {"name": "langfuse-ai-gateway", "version": env!("CARGO_PKG_VERSION")}, "spans": spans}]

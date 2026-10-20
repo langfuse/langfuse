@@ -135,7 +135,7 @@ types:
         type: optional<list<OtelAttribute>>
         docs: Span attributes including Langfuse-specific attributes (langfuse.observation.*)
       status:
-        type: optional<map<string, unknown>>
+        type: optional<unknown>
         docs: Span status object
 
   OtelAttribute:

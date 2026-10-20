@@ -64,7 +64,7 @@ export function EditRuleDialogContent({
     }),
   );
   const update = api.evalsV2.rules.update.useMutation({
-    onError: trpcErrorToast,
+    onError: (error) => trpcErrorToast(error, "evaluator_rule.update"),
   });
 
   const save = async () => {
@@ -111,6 +111,7 @@ export function EditRuleDialogContent({
       });
     }
     showSuccessToast({
+      operation: "evaluation_rule.update",
       title: "Rule saved",
       description: "Your changes have been saved.",
     });

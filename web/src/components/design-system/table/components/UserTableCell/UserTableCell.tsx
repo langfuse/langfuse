@@ -53,8 +53,13 @@ export function UserTableCell({
   }
 
   return (
-    <div className="flex min-w-0 items-center space-x-2" title={email ?? label}>
-      <Avatar size={avatarSize} src={image ?? undefined} displayName={label} />
+    <div className="flex min-w-0 items-center space-x-2">
+      <Avatar
+        size={avatarSize}
+        src={image ?? undefined}
+        displayName={label}
+        email={email ?? undefined}
+      />
       <span className="truncate" title={email ?? label}>
         {label}
       </span>

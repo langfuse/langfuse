@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect } from "react";
-import { RefreshCw, Search, Hash, Lock, AlertTriangle } from "lucide-react";
+import { RefreshCw, Search, Hash, Lock, AlertTriangle } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import {
   Popover,
@@ -19,6 +19,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { env } from "@/src/env.mjs";
 import { type SlackChannel } from "@langfuse/shared/src/server";
+import { cn } from "@/src/utils/tailwind";
 
 export type { SlackChannel };
 
@@ -239,9 +240,9 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
   const renderChannelItem = (channel: SlackChannel) => (
     <div className="flex w-full items-center gap-2">
       {channel.isPrivate ? (
-        <Lock className="text-muted-foreground h-4 w-4" />
+        <Lock size="base" color="muted" />
       ) : (
-        <Hash className="text-muted-foreground h-4 w-4" />
+        <Hash size="base" color="muted" />
       )}
       <span className="flex-1 truncate" title={channel.name}>
         {channel.name}
@@ -279,7 +280,11 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
               ) : (
                 <span className="text-muted-foreground">{placeholder}</span>
               )}
-              <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              <Search
+                size="base"
+                color="default"
+                __rawClassName="ml-2 opacity-50"
+              />
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-full p-0" align="start">
@@ -297,7 +302,7 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
                       onSelect={handleSelectByName}
                       className="cursor-pointer"
                     >
-                      <Hash className="text-muted-foreground h-4 w-4" />
+                      <Hash size="base" color="muted" />
                       <span
                         className="flex-1 truncate"
                         title={`Use &quot; ${effectiveName} &quot;`}
@@ -347,7 +352,7 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
                       disabled
                       className="text-muted-foreground"
                     >
-                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      <RefreshCw size="base" __rawClassName="animate-spin" />
                       <span
                         className="flex-1 truncate"
                         title="Loading Slack channels. This can take a while for large workspaces."
@@ -371,7 +376,11 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
             disabled={disabled || isRefreshing || isLoadingChannels}
           >
             <RefreshCw
-              className={`h-4 w-4 ${isRefreshing || isLoadingChannels ? "animate-spin" : ""}`}
+              size="base"
+              color="default"
+              __rawClassName={cn(
+                (isRefreshing || isLoadingChannels) && "animate-spin",
+              )}
             />
           </Button>
         )}

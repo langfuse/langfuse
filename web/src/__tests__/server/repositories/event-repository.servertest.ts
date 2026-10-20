@@ -7,6 +7,8 @@ import {
   getObservationsCountFromEventsTable,
   getObservationsCountsFromEventsTable,
   getObservationByIdFromEventsTable,
+  getObservationFullIOForSessionFromEventsTable,
+  getAgentGraphDataFromEventsTable,
   getObservationsFromEventsTableForPublicApi,
   getObservationsCountFromEventsTableForPublicApi,
   updateEvents,
@@ -18,12 +20,13 @@ import {
   getEventsExactFilterOptionsForColumns,
   getEventsFilterOptionValuesPage,
   getLatestEvaluatorRunCost,
-  getRecentEvaluatorExecutionTraces,
-  getRecentRuleExecutionTraces,
+  getEvaluatorExecutionSummaries,
   getTotalCostByEvaluatorIds,
   getTotalCostByRule,
   createScoresCh,
   createTraceScore,
+  getUsersFromEventsTable,
+  getUsersCountFromEventsTable,
   type EventFilterOptionColumn,
 } from "@langfuse/shared/src/server";
 import {
@@ -36,6 +39,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
 import {
+  LangfuseNotFoundError,
   type EventsTableFilterState,
   type FilterCondition,
   type TimeFilter,
@@ -424,7 +428,7 @@ describe("Clickhouse Events Repository Test", () => {
       ).resolves.toBeNull();
     });
 
-    it("returns recent evaluator traces without test runs", async () => {
+    it("counts evaluator execution health without tagged or legacy test runs", async () => {
       const traceId = randomUUID();
       const testTraceId = randomUUID();
       const failedTestSpanId = randomUUID();
@@ -468,14 +472,108 @@ describe("Clickhouse Events Repository Test", () => {
       ]);
 
       await expect(
-        getRecentEvaluatorExecutionTraces(projectId, [evaluatorId]),
-      ).resolves.toEqual([
-        expect.objectContaining({
-          id: traceId,
-          evaluatorId,
+        getEvaluatorExecutionSummaries(projectId, [evaluatorId]),
+      ).resolves.toEqual([{ evaluatorId, total: 1, failed: 1 }]);
+    });
+  });
+
+  maybe("evaluator execution health", () => {
+    it("counts all seven-day execution traces once and excludes tests, old traces, and other projects", async () => {
+      const evaluatorId = randomUUID();
+      const otherEvaluatorId = randomUUID();
+      const traceIds = Array.from({ length: 8 }, () => randomUUID());
+      await createEventsCh([
+        ...traceIds.flatMap((traceId, index) => [
+          createEvent({
+            project_id: projectId,
+            trace_id: traceId,
+            evaluator_id: evaluatorId,
+            level: "DEFAULT",
+          }),
+          createEvent({
+            project_id: projectId,
+            trace_id: traceId,
+            evaluator_id: evaluatorId,
+            level: index < 4 ? "ERROR" : "DEFAULT",
+          }),
+        ]),
+        createEvent({
+          project_id: projectId,
+          evaluator_id: evaluatorId,
+          level: "ERROR",
+          start_time: (Date.now() - 8 * 24 * 60 * 60 * 1000) * 1000,
+        }),
+        createEvent({
+          project_id: randomUUID(),
+          evaluator_id: evaluatorId,
+          level: "ERROR",
+        }),
+        createEvent({
+          project_id: projectId,
+          evaluator_id: evaluatorId,
+          trace_name: "Test evaluator: Example",
+          level: "ERROR",
+        }),
+        createEvent({
+          project_id: projectId,
+          evaluator_id: otherEvaluatorId,
           level: "ERROR",
         }),
       ]);
+      await expect(
+        getEvaluatorExecutionSummaries(projectId, [evaluatorId]),
+      ).resolves.toEqual([{ evaluatorId, total: 8, failed: 4 }]);
+      await expect(
+        getEvaluatorExecutionSummaries(projectId, []),
+      ).resolves.toEqual([]);
+      await expect(
+        getEvaluatorExecutionSummaries(projectId, [randomUUID()]),
+      ).resolves.toEqual([]);
+    });
+
+    it("only counts each evaluator's most recent execution traces so recovered evaluators turn healthy", async () => {
+      const evaluatorId = randomUUID();
+      const busyEvaluatorId = randomUUID();
+      const hourInMicros = 60 * 60 * 1000 * 1000;
+      const now = Date.now() * 1000;
+      await createEventsCh([
+        ...Array.from({ length: 80 }, () =>
+          createEvent({
+            project_id: projectId,
+            evaluator_id: busyEvaluatorId,
+            level: "ERROR",
+            start_time: now - 30 * 60 * 1000 * 1000,
+          }),
+        ),
+        ...Array.from({ length: 60 }, () =>
+          createEvent({
+            project_id: projectId,
+            evaluator_id: evaluatorId,
+            level: "ERROR",
+            start_time: now - 48 * hourInMicros,
+          }),
+        ),
+        ...Array.from({ length: 50 }, () =>
+          createEvent({
+            project_id: projectId,
+            evaluator_id: evaluatorId,
+            level: "DEFAULT",
+            start_time: now - hourInMicros,
+          }),
+        ),
+      ]);
+
+      const summaries = await getEvaluatorExecutionSummaries(projectId, [
+        evaluatorId,
+        busyEvaluatorId,
+      ]);
+      expect(summaries).toHaveLength(2);
+      expect(summaries).toEqual(
+        expect.arrayContaining([
+          { evaluatorId, total: 50, failed: 0 },
+          { evaluatorId: busyEvaluatorId, total: 50, failed: 50 },
+        ]),
+      );
     });
   });
 
@@ -515,45 +613,6 @@ describe("Clickhouse Events Repository Test", () => {
         expect.arrayContaining([
           { ruleId, totalCost: 4 },
           { ruleId: legacyRuleId, totalCost: 30 },
-        ]),
-      );
-    });
-
-    it("returns the last five traces, falling back to job_configuration_id", async () => {
-      const ruleId = randomUUID();
-      const legacyRuleId = randomUUID();
-      const traceIds = Array.from({ length: 6 }, () => randomUUID());
-      const legacyTraceId = randomUUID();
-      const now = Date.now() * 1000;
-
-      await createEventsCh([
-        ...traceIds.map((traceId, index) =>
-          createEvent({
-            project_id: projectId,
-            trace_id: traceId,
-            start_time: now - index * 1_000_000,
-            metadata_names: ["evaluation_rule_id", "job_configuration_id"],
-            metadata_values: [ruleId, randomUUID()],
-          }),
-        ),
-        createEvent({
-          project_id: projectId,
-          trace_id: legacyTraceId,
-          metadata_names: ["job_configuration_id"],
-          metadata_values: [legacyRuleId],
-        }),
-      ]);
-
-      const traces = await getRecentRuleExecutionTraces(projectId, [
-        ruleId,
-        legacyRuleId,
-      ]);
-
-      expect(traces.filter((trace) => trace.ruleId === ruleId)).toHaveLength(5);
-      expect(traces.map(({ id }) => id)).not.toContain(traceIds[5]);
-      expect(traces).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ id: legacyTraceId, ruleId: legacyRuleId }),
         ]),
       );
     });
@@ -1165,6 +1224,78 @@ describe("Clickhouse Events Repository Test", () => {
           startTimeLowerBound: new Date(observationStart + 3 * DAY_MS),
         }),
       ).rejects.toThrow();
+    });
+  });
+
+  maybe("latest-version reads of a soft-deleted observation", () => {
+    it("read it as missing even though an older live version exists", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+      const sessionId = randomUUID();
+      const start = Date.now() - 60_000;
+      const version = {
+        id: observationId,
+        span_id: observationId,
+        project_id: projectId,
+        trace_id: traceId,
+        session_id: sessionId,
+        start_time: start,
+      };
+
+      await createEventsCh([
+        createEvent({ ...version, event_ts: start }),
+        createEvent({ ...version, event_ts: start + 1000, is_deleted: 1 }),
+      ]);
+
+      await expect(
+        getObservationByIdFromEventsTable({ id: observationId, projectId }),
+      ).rejects.toThrow(LangfuseNotFoundError);
+      await expect(
+        getObservationFullIOForSessionFromEventsTable({
+          projectId,
+          sessionId,
+          traceId,
+          observationId,
+          startTime: new Date(start),
+        }),
+      ).resolves.toBeNull();
+    });
+  });
+
+  maybe("getAgentGraphDataFromEventsTable", () => {
+    it("bounds start_time by Date binds at millisecond precision", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+      const start = new Date(
+        Math.floor(Date.now() / 1000) * 1000 - 60_000 + 123,
+      );
+
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "AGENT",
+          start_time: start.getTime(),
+        }),
+      ]);
+
+      const atStart = await getAgentGraphDataFromEventsTable({
+        projectId,
+        traceId,
+        minStartTime: start,
+        maxStartTime: start,
+      });
+      expect(atStart).toEqual([expect.objectContaining({ id: observationId })]);
+
+      const afterStart = await getAgentGraphDataFromEventsTable({
+        projectId,
+        traceId,
+        minStartTime: new Date(start.getTime() + 1),
+        maxStartTime: new Date(start.getTime() + 60_000),
+      });
+      expect(afterStart).toEqual([]);
     });
   });
 
@@ -5790,5 +5921,55 @@ describe("Clickhouse Events Repository Test", () => {
       expect(traceScoreCategoryLabels).toContain(traceCategoryName);
       expect(traceScoreCategoryLabels).not.toContain(observationCategoryName);
     });
+  });
+});
+
+describe("users search on the events table", () => {
+  it("matches LIKE wildcard characters in the search query literally", async () => {
+    const projectId = randomUUID();
+    const userIds = [
+      "gpt_4-user",
+      "gpt-4-user",
+      "save 100% user",
+      "save 1000 user",
+      "C:\\home",
+    ];
+    await createEventsCh(
+      userIds.map((userId) =>
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          trace_id: randomUUID(),
+          project_id: projectId,
+          user_id: userId,
+        }),
+      ),
+    );
+
+    const search = async (searchQuery: string) => {
+      const users = await getUsersFromEventsTable(
+        projectId,
+        [],
+        searchQuery,
+        50,
+        0,
+      );
+      const [count] = await getUsersCountFromEventsTable(
+        projectId,
+        [],
+        searchQuery,
+      );
+      return {
+        users: users.map((u) => u.user),
+        count: Number(count.totalCount),
+      };
+    };
+
+    expect(await search("gpt_4")).toEqual({ users: ["gpt_4-user"], count: 1 });
+    expect(await search("100%")).toEqual({
+      users: ["save 100% user"],
+      count: 1,
+    });
+    expect(await search("C:\\")).toEqual({ users: ["C:\\home"], count: 1 });
   });
 });

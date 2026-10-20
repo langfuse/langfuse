@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { createContext, useMemo } from "react";
 import type { SectionContext } from "../types";
 import type { TreeState } from "../utils/treeStructure";

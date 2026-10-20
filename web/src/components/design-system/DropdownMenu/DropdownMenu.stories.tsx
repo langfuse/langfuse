@@ -1,4 +1,4 @@
-import { Settings } from "lucide-react";
+import { Settings } from "@langfuse/icons";
 import { type ComponentProps } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
@@ -38,6 +38,14 @@ const meta = preview.meta({
 });
 
 export const Default = meta.story({});
+
+export const Internal = meta.story({
+  args: {
+    title: undefined,
+    ariaLabel: "Session actions",
+    internal: true,
+  },
+});
 
 export const ManyItems = meta.story({
   args: {
@@ -388,7 +396,7 @@ export const TestCheckboxAndSubmenu = meta.story({
     const checkbox = body.getByRole("menuitemcheckbox", {
       name: "Include output",
     });
-    await expect(checkbox).toHaveFocus();
+    await waitFor(() => expect(checkbox).toHaveFocus());
     await userEvent.keyboard("{Enter}");
     await expect(onCheckboxChange).toHaveBeenCalledWith(true);
     await userEvent.keyboard("{ArrowDown}");

@@ -53,19 +53,17 @@ function ConfirmationDialogController<TValue = undefined>({
   const confirmationInputId = React.useId();
   const requiresConfirmationInput = Boolean(confirmationText);
 
-  let resolvedTitle = "";
-  if (typeof title === "string") {
-    resolvedTitle = title;
-  } else if (selectedValue !== undefined) {
-    resolvedTitle = (title as (value: TValue) => string)(selectedValue);
-  }
+  const resolvedTitle = React.useMemo(() => {
+    if (typeof title === "string") return title;
+    if (selectedValue === undefined) return "";
+    return (title as (value: TValue) => string)(selectedValue);
+  }, [title, selectedValue]);
 
-  let resolvedText = "";
-  if (typeof text === "string") {
-    resolvedText = text;
-  } else if (selectedValue !== undefined) {
-    resolvedText = (text as (value: TValue) => string)(selectedValue);
-  }
+  const resolvedText = React.useMemo(() => {
+    if (typeof text === "string") return text;
+    if (selectedValue === undefined) return "";
+    return (text as (value: TValue) => string)(selectedValue);
+  }, [text, selectedValue]);
 
   return (
     <DialogController

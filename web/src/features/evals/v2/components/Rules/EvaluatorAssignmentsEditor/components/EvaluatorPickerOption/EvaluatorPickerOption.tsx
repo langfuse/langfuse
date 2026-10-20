@@ -22,7 +22,9 @@ export function EvaluatorPickerOption({
         <span className="min-w-0 truncate" title={evaluator.name}>
           {evaluator.name}
         </span>
-        <EvaluatorTypeBadge type={evaluator.type} />
+        <div className="shrink-0">
+          <EvaluatorTypeBadge type={evaluator.type} />
+        </div>
       </div>
       <div className="text-muted-foreground flex max-w-[45%] min-w-0 shrink-0 items-center justify-end gap-1 text-xs">
         <span className="min-w-0 truncate" title={`Created by ${creator}`}>

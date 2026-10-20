@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import {
   createContext,
   useContext,
@@ -19,13 +20,20 @@ export interface PeekTableState {
 export interface PeekTableStateContextValue {
   tableState: PeekTableState;
   setTableState: Dispatch<SetStateAction<PeekTableState>>;
+  getPanelWidthPx?: () => number;
 }
 
 const PeekTableStateContext = createContext<
   PeekTableStateContextValue | undefined
 >(undefined);
 
-export function PeekTableStateProvider({ children }: { children: ReactNode }) {
+export function PeekTableStateProvider({
+  children,
+  getPanelWidthPx,
+}: {
+  children: ReactNode;
+  getPanelWidthPx?: () => number;
+}) {
   const [tableState, setTableState] = useState<PeekTableState>({
     filters: [],
     sorting: undefined,
@@ -33,7 +41,10 @@ export function PeekTableStateProvider({ children }: { children: ReactNode }) {
     search: { query: null, type: ["id"] },
   });
 
-  const value = useMemo(() => ({ tableState, setTableState }), [tableState]);
+  const value = useMemo(
+    () => ({ tableState, setTableState, getPanelWidthPx }),
+    [tableState, getPanelWidthPx],
+  );
 
   return (
     <PeekTableStateContext.Provider value={value}>

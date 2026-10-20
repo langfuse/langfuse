@@ -9,6 +9,11 @@ import {
 } from "vitest";
 import { Job } from "bullmq";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
+import {
+  EvalFailureError,
+  EvalFailureReason,
+  UnrecoverableEvalFailureError,
+} from "../../features/evaluation/evalFailureErrors";
 
 const QueueName = {
   LLMAsJudgeExecution: "llm-as-a-judge-execution-queue",
@@ -116,6 +121,7 @@ import { processObservationEval } from "../../features/evaluation/observationEva
 import {
   LLMAsJudgeExecutionQueue,
   classifyEvaluatorLlmError,
+  logger,
   recordDistribution,
   recordIncrement,
   traceException,
@@ -393,6 +399,49 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
   });
 
   describe("LLM completion errors (non-retryable)", () => {
+    it("retries media-not-found validation errors until the final attempt", async () => {
+      const mediaNotFoundError = new Error(
+        "Media asset image-1 was not found in this project",
+      );
+      (processObservationEval as Mock).mockRejectedValue(mediaNotFoundError);
+      vi.mocked(classifyEvaluatorLlmError).mockReturnValue({
+        kind: "validation",
+        message: mediaNotFoundError.message,
+        statusCode: 400,
+        isRetryable: false,
+        error: mediaNotFoundError,
+        validationError: {
+          code: "media-not-found",
+        },
+        blockReason: null,
+      } as ReturnType<typeof classifyEvaluatorLlmError>);
+
+      const job = createMockJob();
+
+      await expect(llmAsJudgeExecutionQueueProcessor(job)).rejects.toThrow(
+        mediaNotFoundError,
+      );
+      expect(prisma.jobExecution.update).not.toHaveBeenCalled();
+
+      vi.mocked(traceException).mockClear();
+      await expect(
+        llmAsJudgeExecutionQueueProcessor(
+          createMockJob({ attemptsMade: 9, opts: { attempts: 10 } }),
+        ),
+      ).resolves.toBeUndefined();
+      expect(prisma.jobExecution.update).toHaveBeenCalledWith({
+        where: {
+          id: jobExecutionId,
+          projectId,
+        },
+        data: expect.objectContaining({
+          status: JobExecutionStatus.ERROR,
+          error: mediaNotFoundError.message,
+        }),
+      });
+      expect(traceException).not.toHaveBeenCalled();
+    });
+
     it("should set ERROR status for non-retryable LLM errors", async () => {
       const llmError = new Error("Invalid API key");
       (processObservationEval as Mock).mockRejectedValue(llmError);
@@ -477,6 +526,45 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
 
       expect(traceException).not.toHaveBeenCalled();
     });
+
+    it.each([
+      {
+        error: new UnrecoverableEvalFailureError(
+          "invalid model configuration",
+          EvalFailureReason.InvalidModelConfig,
+        ),
+        tags: { outcome: "customer_error" },
+      },
+      {
+        error: new UnrecoverableEvalFailureError(
+          "invalid JSON",
+          EvalFailureReason.InvalidObservationData,
+        ),
+        tags: { outcome: "platform_error", reason: "invalid_observation_data" },
+      },
+      {
+        error: new UnrecoverableError("Evaluator identity missing"),
+        tags: { outcome: "platform_error", reason: "unrecoverable" },
+      },
+    ])(
+      "records and warns terminal failures as $tags.outcome",
+      async ({ error, tags }) => {
+        (processObservationEval as Mock).mockRejectedValue(error);
+        vi.mocked(isUnrecoverableError).mockReturnValue(true);
+
+        await llmAsJudgeExecutionQueueProcessor(createMockJob());
+
+        expect(recordIncrement).toHaveBeenCalledWith(
+          "langfuse.evaluation.execution.terminal",
+          1,
+          { evaluator_type: "llm_as_judge", ...tags },
+        );
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.any(String),
+          expect.objectContaining({ projectId, errorName: error.name }),
+        );
+      },
+    );
   });
 
   describe("unexpected errors (retryable by BullMQ)", () => {
@@ -525,34 +613,49 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
       );
     });
 
-    it("should persist ERROR on the final BullMQ attempt", async () => {
-      const unexpectedError = new Error("Database connection failed");
-      (processObservationEval as Mock).mockRejectedValue(unexpectedError);
-
-      await expect(
-        llmAsJudgeExecutionQueueProcessor(
-          createMockJob({ attemptsMade: 9, opts: { attempts: 10 } }),
+    it.each([
+      { error: new Error("Database connection failed"), reason: "unexpected" },
+      {
+        error: new EvalFailureError(
+          "Failed to write score",
+          EvalFailureReason.ScorePersistence,
         ),
-      ).rejects.toThrow(unexpectedError);
+        reason: "score_persistence",
+      },
+    ])(
+      "should persist ERROR on the final BullMQ attempt with reason $reason",
+      async ({ error, reason }) => {
+        (processObservationEval as Mock).mockRejectedValue(error);
 
-      expect(prisma.jobExecution.update).toHaveBeenCalledWith({
-        where: {
-          id: jobExecutionId,
-          projectId,
-        },
-        data: {
-          status: JobExecutionStatus.ERROR,
-          endTime: expect.any(Date),
-          error: "An internal error occurred",
-          executionTraceId: "test-trace-id",
-        },
-      });
-      expect(recordIncrement).toHaveBeenCalledWith(
-        "langfuse.evaluation.execution.terminal",
-        1,
-        { evaluator_type: "llm_as_judge", outcome: "platform_error" },
-      );
-    });
+        await expect(
+          llmAsJudgeExecutionQueueProcessor(
+            createMockJob({ attemptsMade: 9, opts: { attempts: 10 } }),
+          ),
+        ).rejects.toThrow(error);
+
+        expect(prisma.jobExecution.update).toHaveBeenCalledWith({
+          where: {
+            id: jobExecutionId,
+            projectId,
+          },
+          data: {
+            status: JobExecutionStatus.ERROR,
+            endTime: expect.any(Date),
+            error: "An internal error occurred",
+            executionTraceId: "test-trace-id",
+          },
+        });
+        expect(recordIncrement).toHaveBeenCalledWith(
+          "langfuse.evaluation.execution.terminal",
+          1,
+          {
+            evaluator_type: "llm_as_judge",
+            outcome: "platform_error",
+            reason,
+          },
+        );
+      },
+    );
   });
 
   describe("execution trace ID", () => {

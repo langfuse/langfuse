@@ -15,16 +15,18 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { type MediaReturnType } from "@/src/features/media";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
+import { SystemPromptCollapseButton } from "@/src/components/ui/SystemPromptCollapseButton";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { Button } from "@/src/components/ui/button";
 import { useClickWithoutSelection } from "@/src/hooks/useClickWithoutSelection";
+import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
 import {
   ChevronDown,
   ChevronRight,
   UnfoldVertical,
   FoldVertical,
-} from "lucide-react";
+} from "@langfuse/icons";
 import {
   useReactTable,
   getCoreRowModel,
@@ -92,23 +94,24 @@ const PRETTY_JSON_VIEW_TONE_CLASSES: Record<
 > = {
   danger: {
     container:
-      "border-dark-red/30 bg-light-red/50 dark:border-dark-red/20 dark:bg-light-red/35",
+      "border-red-100 bg-red-50 text-red-900 dark:border-dark-red/20 dark:bg-light-red/35 dark:text-red-300",
     row: "hover:bg-light-red/50 dark:hover:bg-light-red/35",
     cell: "border-dark-red/20 dark:border-dark-red/15",
   },
   warning: {
-    container: "border-dark-yellow/40 bg-light-yellow/80",
-    row: "hover:bg-light-yellow/80",
-    cell: "border-dark-yellow/20",
+    container:
+      "border-yellow-100 bg-yellow-50 text-yellow-900 dark:border-dark-yellow/20 dark:bg-light-yellow/35 dark:text-yellow-300",
+    row: "hover:bg-light-yellow/50 dark:hover:bg-light-yellow/35",
+    cell: "border-dark-yellow/20 dark:border-dark-yellow/15",
   },
   muted: {
-    container: "border-muted-foreground/15 bg-muted/30 text-muted-foreground",
-    row: "hover:bg-muted/30",
-    cell: "border-muted-foreground/15",
+    container: "border-transparent bg-surface-output text-foreground-secondary",
+    row: "hover:bg-muted",
+    cell: "border-border",
   },
   neutral: {
-    container: "bg-card",
-    row: "hover:bg-card",
+    container: "border-transparent bg-surface-output text-foreground-secondary",
+    row: "hover:bg-muted",
     cell: "border-border",
   },
 };
@@ -168,7 +171,7 @@ function getContainerClasses(
   const toned = ASSISTANT_TITLES.includes(title || "");
   return cn(
     baseClasses,
-    toned ? "bg-accent-light-green dark:border-accent-dark-green/30" : "",
+    toned ? "bg-surface-output dark:border-border" : "",
     borderless
       ? "rounded-md overflow-clip"
       : scrollable
@@ -483,7 +486,7 @@ function JsonPrettyTable({
         : null;
 
     return (
-      <div className="flex w-max max-w-[40cqw] min-w-40 items-start text-xs/5 wrap-break-word">
+      <div className="flex w-max max-w-[40cqw] min-w-40 items-start gap-1 text-xs/5 wrap-break-word">
         <div
           className="flex h-[1lh] shrink-0 items-center justify-end"
           style={{ width: `${indentationWidth}px` }}
@@ -504,9 +507,9 @@ function JsonPrettyTable({
               className="text-muted-foreground hover:text-foreground h-4 w-4 p-0 hover:bg-transparent"
             >
               {row.getIsExpanded() ? (
-                <ChevronDown className="h-3 w-3" />
+                <ChevronDown size="base" color="default" />
               ) : (
-                <ChevronRight className="h-3 w-3" />
+                <ChevronRight size="base" color="default" />
               )}
             </Button>
           ) : null}
@@ -740,7 +743,6 @@ export function PrettyJsonView(props: {
   stickyTopLevelKey?: boolean;
   showObservationTypeBadge?: boolean;
   tone?: PrettyJsonViewTone;
-  inset?: boolean;
   /** Content to render between header and main content (e.g., thinking blocks) */
   afterHeader?: React.ReactNode;
   /** When set, rows show an actions menu with copy + add-to-filter shortcuts
@@ -1156,6 +1158,8 @@ export function PrettyJsonView(props: {
     [onExternalExpansionChange, actualExpansionState],
   );
 
+  const handleCollapseHeader = () => toggleSystemPromptCollapsed("header");
+
   const handleOnCopy = (event?: React.MouseEvent<HTMLButtonElement>) => {
     if (event) {
       event.preventDefault();
@@ -1191,6 +1195,16 @@ export function PrettyJsonView(props: {
       : [];
   const shouldRenderStandaloneMedia =
     isMarkdownMode && standaloneMediaReferenceStrings.length > 0;
+
+  /** Collapse state for a nested MarkdownView that owns no header of its own. */
+  const {
+    shouldBeCollapsible: shouldCollapseSystemPrompt,
+    isCollapsed: isSystemPromptCollapsed,
+    toggleCollapsed: toggleSystemPromptCollapsed,
+  } = useCollapsibleSystemPrompt({
+    isSystemPrompt: Boolean(props.isSystemPrompt),
+    content: markdownContent ?? "",
+  });
   const remainingMarkdownMedia = filterAlreadyRenderedMedia(
     props.media,
     getRenderedInlineMediaIds({
@@ -1206,7 +1220,7 @@ export function PrettyJsonView(props: {
 
   const getBackgroundColorClass = () =>
     ASSISTANT_TITLES.includes(props.title || "")
-      ? "bg-accent-light-green rounded-md overflow-clip"
+      ? "bg-surface-output rounded-md overflow-clip px-3 pt-1"
       : "";
 
   const body = (
@@ -1388,9 +1402,9 @@ export function PrettyJsonView(props: {
           title={allRowsExpanded ? "Collapse all rows" : "Expand all rows"}
         >
           {allRowsExpanded ? (
-            <FoldVertical className="h-3 w-3" />
+            <FoldVertical size="base" color="default" />
           ) : (
-            <UnfoldVertical className="h-3 w-3" />
+            <UnfoldVertical size="base" color="default" />
           )}
         </Button>
       )}
@@ -1403,9 +1417,9 @@ export function PrettyJsonView(props: {
           title={jsonIsCollapsed ? "Expand all" : "Collapse all"}
         >
           {jsonIsCollapsed ? (
-            <UnfoldVertical className="h-3 w-3" />
+            <UnfoldVertical size="base" color="default" />
           ) : (
-            <FoldVertical className="h-3 w-3" />
+            <FoldVertical size="base" color="default" />
           )}
         </Button>
       )}
@@ -1417,7 +1431,6 @@ export function PrettyJsonView(props: {
       className={cn(
         "flex max-h-full min-h-0 flex-col",
         "group/iosection",
-        props.inset && "[&_.io-message-content]:px-2",
         props.className,
         props.scrollable ? "overflow-hidden" : "",
       )}
@@ -1427,10 +1440,17 @@ export function PrettyJsonView(props: {
           title={props.title}
           titleIcon={props.titleIcon}
           handleOnCopy={handleOnCopy}
-          inset={props.inset}
           hoverRevealControls
           controlButtons={
             <>
+              {/* Expanded only, and only when the nested MarkdownView that owns
+                  the inline control is the thing being rendered. */}
+              {shouldCollapseSystemPrompt &&
+              !isSystemPromptCollapsed &&
+              isMarkdownMode &&
+              !shouldRenderStandaloneMedia ? (
+                <SystemPromptCollapseButton onCollapse={handleCollapseHeader} />
+              ) : null}
               {expandCollapseButton}
               {props.controlButtons}
             </>

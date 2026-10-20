@@ -28,7 +28,7 @@ import {
 import { decrypt } from "@langfuse/shared/encryption";
 import { PostHog } from "posthog-node";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
-import { recordExportFreshnessLag } from "../../services/exportFreshnessLagMetric";
+import { isExportCaughtUp } from "../../services/exportStalenessMetric";
 import { assertExportSourceWritable } from "../exportWriteModeGuard";
 import { classifyCustomerFault } from "../integrations/customerFaultClassification";
 import { isRecordNotFoundError } from "../integrations/prismaErrors";
@@ -330,14 +330,6 @@ export const handlePostHogIntegrationProjectJob = async (
       logger.info(
         `[POSTHOG] Skipping PostHog integration for project ${projectId}: empty sync window (min: ${minTimestamp.toISOString()}, max: ${maxTimestamp.toISOString()})`,
       );
-      recordExportFreshnessLag({
-        integration: "posthog",
-        window: "1h",
-        status: "success",
-        runStartTime,
-        maxExportedTimestamp: postHogIntegration.lastSyncAt,
-        catchup: false,
-      });
       return;
     }
 
@@ -428,6 +420,12 @@ export const handlePostHogIntegrationProjectJob = async (
         lastSyncAt: executionConfig.maxTimestamp,
         lastError: null,
         lastErrorAt: null,
+        ...(isExportCaughtUp({
+          lastSyncAt: executionConfig.maxTimestamp,
+          runStartTime,
+        })
+          ? { backfill: false }
+          : {}),
       },
     });
     // Record gzipped on-wire export volume once the run has succeeded.
@@ -435,17 +433,6 @@ export const handlePostHogIntegrationProjectJob = async (
       integration: "posthog",
       bytes: executionConfig.volume.bytes,
       projectId,
-    });
-    recordExportFreshnessLag({
-      integration: "posthog",
-      window: "1h",
-      status: "success",
-      runStartTime,
-      maxExportedTimestamp: executionConfig.maxTimestamp,
-      // maxTimestamp is capped at the next UTC day boundary, so a window that
-      // ends before present-day means the integration is still working
-      // through a backlog.
-      catchup: maxTimestamp < uncappedMaxTimestamp,
     });
     logger.info(
       `[POSTHOG] PostHog integration processing complete for project ${projectId}`,
@@ -465,14 +452,6 @@ export const handlePostHogIntegrationProjectJob = async (
     const message = (
       error instanceof Error ? error.message : String(error)
     ).slice(0, 1000);
-
-    recordExportFreshnessLag({
-      integration: "posthog",
-      window: "1h",
-      status: "failure",
-      runStartTime,
-      maxExportedTimestamp: postHogIntegration.lastSyncAt,
-    });
 
     if (reason === undefined) {
       // Defensive fallback: every code today either classifies above and

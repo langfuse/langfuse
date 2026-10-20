@@ -8,6 +8,7 @@ import { moveItem } from "@/src/features/evals/v2/fns/moveItem";
 import type { DecisionModelQuestionDraft } from "@/src/features/evals/v2/types/decisionModel";
 import {
   DecisionModelQuestionList,
+  OPENAI_QUESTION_EXAMPLES,
   QUESTION_EXAMPLES,
 } from "./DecisionModelQuestionList";
 
@@ -61,7 +62,10 @@ function InteractiveQuestionList(args: StoryArgs) {
         args.onAdd();
       }}
       onAddExample={(type) => {
-        const question = { id: nextId(), ...QUESTION_EXAMPLES[type] };
+        const question = {
+          id: nextId(),
+          ...(args.examples ?? QUESTION_EXAMPLES)[type],
+        };
         setQuestions((current) => [...current, question]);
         setExpandedId(question.id);
         args.onAddExample(type);
@@ -97,6 +101,19 @@ export const Empty = meta.story({
     questions: [],
     expandedId: null,
     stateKeys: STATE_KEYS,
+    examples: QUESTION_EXAMPLES,
+  },
+  render: (args) => <InteractiveQuestionList {...args} />,
+});
+
+export const EmptyOpenAI = meta.story({
+  args: {
+    ...callbacks,
+    questions: [],
+    expandedId: null,
+    stateKeys: ["input"],
+    plainInstructions: true,
+    examples: OPENAI_QUESTION_EXAMPLES,
   },
   render: (args) => <InteractiveQuestionList {...args} />,
 });

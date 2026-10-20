@@ -6,7 +6,7 @@ import {
 } from "@/src/components/ui/card";
 import { cn } from "@/src/utils/tailwind";
 import { useDraggable } from "@dnd-kit/core";
-import { GripVertical } from "lucide-react";
+import { GripVertical } from "@langfuse/icons";
 import type { CsvColumnPreview } from "@/src/features/datasets/lib/csv/types";
 
 function DraggableColumn({ column }: { column: CsvColumnPreview }) {
@@ -28,7 +28,10 @@ function DraggableColumn({ column }: { column: CsvColumnPreview }) {
         isDragging && "opacity-30",
       )}
     >
-      <GripVertical className="text-muted-foreground/70 group-hover:text-primary h-4 w-4 shrink-0" />
+      <GripVertical
+        size="base"
+        __rawClassName="text-muted-foreground/70 group-hover:text-primary"
+      />
       <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
         <span className="truncate text-sm" title={column.name}>
           {column.name}

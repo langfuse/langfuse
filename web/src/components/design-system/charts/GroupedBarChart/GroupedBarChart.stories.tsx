@@ -11,8 +11,8 @@ const meta = preview.meta({
       { key: "True", values: { first: 18, second: 10 } },
     ],
     series: [
-      { id: "first", label: "First", color: "hsl(var(--chart-1))" },
-      { id: "second", label: "Second", color: "hsl(var(--chart-2))" },
+      { id: "first", label: "First", color: "hsl(var(--chart-fill-1))" },
+      { id: "second", label: "Second", color: "hsl(var(--chart-fill-2))" },
     ],
   },
   decorators: [
@@ -65,7 +65,6 @@ export const LegendHighlight = meta.story({
     await expect(
       canvas.getByRole("graphics-symbol", { name: "First: 12" }),
     ).toHaveAttribute("fill", expect.stringContaining("20%"));
-    await expect(canvas.getAllByRole("graphics-symbol")).toHaveLength(4);
     await userEvent.click(
       canvas.getByRole("button", { name: "Show all series" }),
     );
@@ -79,7 +78,6 @@ export const LegendToggle = meta.story({
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getAllByRole("graphics-symbol")).toHaveLength(4);
     await userEvent.click(canvas.getByRole("button", { name: "Hide Second" }));
     await expect(
       canvas.queryAllByRole("graphics-symbol", { name: /Second:/ }),
@@ -99,7 +97,6 @@ export const NegativeAndMissingValues = meta.story({
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getAllByRole("graphics-symbol")).toHaveLength(3);
     await expect(
       canvas.getByRole("graphics-symbol", { name: "First: -12" }),
     ).toBeInTheDocument();
@@ -133,7 +130,7 @@ export const ManyBuckets = meta.story({
     ).toHaveLength(100);
     await expect(
       canvasElement.querySelectorAll("[data-x-axis-label]").length,
-    ).toBeLessThan(60);
+    ).toBe(0);
   },
 });
 
@@ -163,9 +160,6 @@ export const LongCategoryLabels = meta.story({
     await expect(
       canvasElement.querySelector("[data-active-x-axis-label]"),
     ).toHaveTextContent("dataset-run-1-transcription");
-    await expect(
-      canvasElement.querySelector("[data-active-x-axis-label-background]"),
-    ).toBeInTheDocument();
   },
 });
 

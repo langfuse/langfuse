@@ -1,5 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import { JsonNested, Prisma } from "@langfuse/shared";
+import { AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME } from "@langfuse/shared/src/server";
 import { mergeWith, merge } from "lodash";
 
 // Theoretically this returns Record<string, unknown>, but it would be hard to align the typing accordingly.
@@ -58,6 +59,18 @@ export const convertRecordValuesToString = (
       key,
       typeof value === "string" ? value : JSON.stringify(value),
     ]),
+  );
+};
+
+// OTel-ingested observation events carry the instrumentation scope as
+// `metadata.scope` ({ name, version, attributes }).
+export const hasAiGatewayScope = (metadata: unknown): boolean => {
+  if (!metadata || typeof metadata !== "object") return false;
+  const scope = (metadata as { scope?: unknown }).scope;
+  return (
+    typeof scope === "object" &&
+    scope !== null &&
+    (scope as { name?: unknown }).name === AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME
   );
 };
 

@@ -1,4 +1,5 @@
-import { type TraceDomain, type ScoreDomain } from "@langfuse/shared";
+import { type ScoreDomain } from "@langfuse/shared";
+import { type buildTraceUiData } from "@/src/features/traces/fns/treeBuilding";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import {
@@ -13,7 +14,6 @@ import {
 import { useSelectedObservation } from "@/src/features/traces/hooks/useSelectedObservation";
 import { SearchProvider } from "@/src/features/traces/contexts/SearchContext";
 import { JsonExpansionProvider } from "@/src/features/traces/contexts/JsonExpansionContext";
-import { PlayheadProvider } from "@/src/features/traces/contexts/PlayheadContext";
 import {
   TraceGraphDataProvider,
   useTraceGraphData,
@@ -31,21 +31,24 @@ import { useTraceComments } from "@/src/features/traces/hooks/useTraceComments";
 import { TraceGraphView } from "@/src/features/traces/components/TraceGraphView/TraceGraphView";
 
 import { useMemo, type ReactNode } from "react";
-import { useStore } from "zustand";
 import { useRouter } from "next/router";
 import { getCommentDrawerInitialStateFromUrl } from "@/src/features/comments/CommentDrawerController";
-import {
-  TraceReviewPanelProvider,
-  useTraceReviewPanel,
-} from "@/src/features/traces/contexts/TraceReviewPanelContext";
+import { TraceReviewPanelProvider } from "@/src/features/traces/contexts/TraceReviewPanelContext";
 import { TraceReviewPanel } from "./TraceReviewPanel";
+import { useHasProjectAccess } from "@/src/features/rbac";
+import { staleProps } from "@/src/features/traces/fns/staleProps";
+import { cn } from "@/src/utils/tailwind";
+import { SkeletonGroup } from "@/src/components/ui/skeleton";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
+import { useReadPath } from "@/src/features/events";
+import { StringParam, useQueryParam } from "use-query-params";
+import { TraceMessagesView } from "./TraceMessagesView/TraceMessagesView";
 
 export type TraceProps = {
+  isLoading?: false;
   observations: Array<ObservationReturnTypeWithMetadata>;
-  trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
-    input: string | null;
-    output: string | null;
-  };
+  trace: Parameters<typeof buildTraceUiData>[0];
   scores: WithStringifiedMetadata<ScoreDomain>[];
   corrections: ScoreDomain[];
   projectId: string;
@@ -53,6 +56,8 @@ export type TraceProps = {
   layout?: "default" | "observation-focused";
   /** Observation cap this trace was loaded under, when it hit it. */
   truncatedAtObservations?: number;
+  /** This is the previous trace, kept on screen while the next one loads. */
+  isPlaceholderData?: boolean;
 };
 
 const DESKTOP_LAYOUTS = {
@@ -85,22 +90,42 @@ type DesktopLayout = (typeof DESKTOP_LAYOUTS)[keyof typeof DESKTOP_LAYOUTS];
  * resolved before the tree is built: past the observation cap the selected row is
  * missing from the loaded list and has to be fetched and merged in.
  */
-export function Trace({ context, layout = "default", ...props }: TraceProps) {
-  const traceContext = context ?? "fullscreen";
+export function Trace(props: TraceProps | TraceLoadingProps) {
+  const traceContext = props.context ?? "fullscreen";
   const desktopLayoutKey =
-    traceContext === "peek" && layout === "observation-focused"
+    traceContext === "peek" && props.layout === "observation-focused"
       ? "peek-observation-focused"
       : traceContext;
   const desktopLayout = DESKTOP_LAYOUTS[desktopLayoutKey];
+  const isMobile = useIsMobile();
+  const trace = props.isLoading === true ? null : props.trace;
+  const observations = props.isLoading === true ? null : props.observations;
+  const defaultObservationId = useMemo(
+    () => resolveDefaultObservationId(trace, observations),
+    [trace, observations],
+  );
 
   return (
     <ViewPreferencesProvider traceContext={traceContext}>
-      <SelectionProvider>
-        <TraceWithSelection {...props} desktopLayout={desktopLayout} />
+      <SelectionProvider
+        defaultObservationId={defaultObservationId}
+        isMobile={isMobile}
+        expandDetailOnMount={desktopLayout.expandDetailOnMount}
+      >
+        {props.isLoading === true ? (
+          <TraceLoading desktopLayout={desktopLayout} />
+        ) : (
+          <TraceWithSelection {...props} desktopLayout={desktopLayout} />
+        )}
       </SelectionProvider>
     </ViewPreferencesProvider>
   );
 }
+
+/** Layout only, before the trace arrives; each panel draws its own placeholder. */
+type TraceLoadingProps = Pick<TraceProps, "context" | "layout"> & {
+  isLoading: true;
+};
 
 function TraceWithSelection({
   trace,
@@ -109,6 +134,7 @@ function TraceWithSelection({
   corrections,
   projectId,
   truncatedAtObservations,
+  isPlaceholderData = false,
   desktopLayout,
 }: Omit<TraceProps, "context"> & {
   desktopLayout: DesktopLayout;
@@ -137,6 +163,7 @@ function TraceWithSelection({
     traceId: trace.id,
     projectId,
     observations: loadedObservations,
+    enabled: !isPlaceholderData,
   });
   const detachedObservation =
     selected.kind === "observation" && selected.isOutsideLoadedList
@@ -172,6 +199,7 @@ function TraceWithSelection({
       detachedObservationId={detachedObservation?.id ?? null}
       detachedObservationIsMisplaced={detachedIsMisplaced}
       truncatedAtObservations={truncatedAtObservations}
+      isPlaceholderData={isPlaceholderData}
     >
       <TraceGraphDataProvider
         projectId={trace.projectId}
@@ -180,9 +208,7 @@ function TraceWithSelection({
       >
         <SearchProvider>
           <JsonExpansionProvider>
-            <PlayheadProvider>
-              <TraceContent desktopLayout={desktopLayout} />
-            </PlayheadProvider>
+            <TraceContent desktopLayout={desktopLayout} />
           </JsonExpansionProvider>
         </SearchProvider>
       </TraceGraphDataProvider>
@@ -205,6 +231,14 @@ function TraceWithSelection({
 function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
   const isMobile = useIsMobile();
   const { isGraphViewAvailable } = useTraceGraphData();
+  const { isPlaceholderData } = useTraceData();
+  const [traceView, setTraceView] = useQueryParam("traceView", StringParam);
+  const internalFeaturesEnabled = useInternalFeaturesEnabled();
+  const { isV4 } = useReadPath();
+  const showMessagesTab = isV4 && internalFeaturesEnabled;
+  const activeView =
+    showMessagesTab && traceView === "messages" ? "messages" : "trace";
+  const stale = staleProps(isPlaceholderData);
 
   const panels = isMobile ? (
     <MobileTraceContent shouldShowGraph={isGraphViewAvailable} />
@@ -213,10 +247,63 @@ function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
   );
 
   return (
-    <div className="flex h-full w-full min-w-0 flex-col overflow-hidden">
+    <div
+      inert={stale.inert}
+      className={cn(traceContentClassName, stale.className)}
+    >
       <TraceHeader />
-      <div className="min-h-0 flex-1">{panels}</div>
+      {showMessagesTab ? (
+        <Tabs
+          value={activeView}
+          onValueChange={(value) => {
+            if (value === "messages") setTraceView("messages", "pushIn");
+            if (value === "trace") setTraceView(undefined, "pushIn");
+          }}
+          layout="fill"
+        >
+          <Tabs.List variant="underline">
+            <Tabs.Trigger value="trace" label="Trace" />
+            <Tabs.Trigger value="messages" label="Messages" internal />
+          </Tabs.List>
+          <Tabs.Content value="trace" layout="fill">
+            {panels}
+          </Tabs.Content>
+          <Tabs.Content value="messages" layout="fill">
+            <div className="min-h-0 flex-1 p-4">
+              <TraceMessagesView />
+            </div>
+          </Tabs.Content>
+        </Tabs>
+      ) : (
+        <div className="min-h-0 flex-1">{panels}</div>
+      )}
     </div>
+  );
+}
+
+const traceContentClassName =
+  "flex h-full w-full min-w-0 flex-col overflow-hidden";
+
+function TraceLoading({ desktopLayout }: { desktopLayout: DesktopLayout }) {
+  const isMobile = useIsMobile();
+  return (
+    <SkeletonGroup className={traceContentClassName}>
+      <TraceHeader isLoading />
+      <div className="min-h-0 flex-1">
+        {isMobile ? (
+          <TraceLayoutMobile
+            isLoading
+            showGraph={false}
+            tree={<TraceTree isLoading />}
+            timeline={<TraceTree isLoading />}
+            graph={null}
+            info={<TracePanelDetail isLoading />}
+          />
+        ) : (
+          <DesktopTraceWorkspace desktopLayout={desktopLayout} isLoading />
+        )}
+      </div>
+    </SkeletonGroup>
   );
 }
 
@@ -243,6 +330,30 @@ function DesktopTraceContent({
       key={`${trace.projectId}:${trace.id}`}
       projectId={trace.projectId}
       initialComments={getCommentDrawerInitialStateFromUrl(router.query)}
+      onOpen={(panel, target) => {
+        const {
+          annotation,
+          comments,
+          commentObjectId,
+          commentObjectType,
+          ...query
+        } = router.query;
+        router.replace(
+          {
+            pathname: router.pathname,
+            query: {
+              ...query,
+              [panel]: "open",
+              ...(target && {
+                commentObjectId: target.objectId,
+                commentObjectType: target.objectType,
+              }),
+            },
+          },
+          undefined,
+          { shallow: true },
+        );
+      }}
     >
       <DesktopTraceReviewWorkspace
         desktopLayout={desktopLayout}
@@ -259,8 +370,10 @@ function DesktopTraceReviewWorkspace({
   desktopLayout: DesktopLayout;
   projectId: string;
 }) {
-  const store = useTraceReviewPanel();
-  const reviewOpen = useStore(store, (state) => state.active !== null);
+  const { query } = useRouter();
+  const canAnnotate = useHasProjectAccess({ projectId, scope: "scores:save" });
+  const reviewOpen =
+    (query.annotation === "open" && canAnnotate) || query.comments === "open";
   return (
     <DesktopTraceWorkspace
       desktopLayout={desktopLayout}
@@ -274,10 +387,12 @@ function DesktopTraceWorkspace({
   desktopLayout,
   reviewOpen = false,
   reviewPanel,
+  isLoading = false,
 }: {
   desktopLayout: DesktopLayout;
   reviewOpen?: boolean;
   reviewPanel?: ReactNode;
+  isLoading?: boolean;
 }) {
   return (
     <div className="h-full" data-trace-review-open={reviewOpen || undefined}>
@@ -288,13 +403,13 @@ function DesktopTraceWorkspace({
         reviewPanel={reviewPanel}
       >
         <TraceLayoutDesktop.NavigationPanel>
-          <TracePanelNavigationLayoutDesktop>
-            <TracePanelNavigation />
+          <TracePanelNavigationLayoutDesktop isLoading={isLoading}>
+            {isLoading ? <TraceTree isLoading /> : <TracePanelNavigation />}
           </TracePanelNavigationLayoutDesktop>
         </TraceLayoutDesktop.NavigationPanel>
         <TraceLayoutDesktop.ResizeHandle />
         <TraceLayoutDesktop.DetailPanel>
-          <TracePanelDetail />
+          <TracePanelDetail isLoading={isLoading} />
         </TraceLayoutDesktop.DetailPanel>
       </TraceLayoutDesktop>
     </div>
@@ -323,4 +438,22 @@ function MobileTraceContent({ shouldShowGraph }: { shouldShowGraph: boolean }) {
       info={<TracePanelDetail />}
     />
   );
+}
+
+function resolveDefaultObservationId(
+  trace: TraceProps["trace"] | null,
+  observations: TraceProps["observations"] | null,
+) {
+  /** V4 defaults to observation details; v3 keeps the trace-level view. */
+  if (!trace?.rootObservationType || !observations) return null;
+  if (trace.rootObservationId) return trace.rootObservationId;
+
+  let firstRoot: ObservationReturnTypeWithMetadata | undefined;
+  for (const observation of observations) {
+    if (observation.parentObservationId) continue;
+    if (!firstRoot || observation.startTime < firstRoot.startTime) {
+      firstRoot = observation;
+    }
+  }
+  return firstRoot?.id ?? null;
 }

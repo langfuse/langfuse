@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { randomUUID } from "crypto";
 import { parseArgs } from "node:util";
 import {
@@ -259,12 +258,15 @@ async function fireQuery({
 
   const abortController = new AbortController();
 
-  const retrySetting =
-    attemptNumber > 1
-      ? (retrySettings.retry2 ?? {})
-      : attemptNumber > 0
-        ? (retrySettings.retry1 ?? {})
-        : (retrySettings.retry0 ?? {});
+  const retrySetting = (() => {
+    if (attemptNumber > 1) {
+      return retrySettings.retry2 ?? {};
+    }
+    if (attemptNumber > 0) {
+      return retrySettings.retry1 ?? {};
+    }
+    return retrySettings.retry0 ?? {};
+  })();
 
   if (attemptNumber > 0) {
     logger.info(

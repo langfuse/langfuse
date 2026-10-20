@@ -1,10 +1,9 @@
-/* eslint-disable no-nested-ternary */
 import { useRouter } from "next/router";
 import { ActionButton } from "@/src/components/ActionButton";
 import Page from "@/src/components/layouts/page";
 import { PromptTable } from "@/src/features/prompts/components/prompts-table";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { Download, UploadIcon, PlusIcon } from "lucide-react";
+import { Download, UploadIcon, PlusIcon } from "@langfuse/icons";
 import { api } from "@/src/utils/api";
 import { PromptsOnboarding } from "@/src/components/onboarding/PromptsOnboarding";
 import { useEntitlementLimit } from "@/src/features/entitlements";
@@ -17,7 +16,8 @@ import { ImportPromptsButtonDialogController } from "@/src/features/prompts/comp
 import { Button } from "@/src/components/ui/button";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { toast } from "sonner";
+import { showToast } from "@/src/features/notifications";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 export default function PromptsPage() {
   const router = useRouter();
@@ -35,12 +35,15 @@ export default function PromptsPage() {
   const isMetricsPage =
     segmentsArray.length > 0 &&
     segmentsArray[segmentsArray.length - 1] === "metrics";
-  const promptNameFromRoute =
-    segmentsArray.length > 0
-      ? isMetricsPage
-        ? segmentsArray.slice(0, -1).join("/")
-        : segmentsArray.join("/")
-      : "";
+  const promptNameFromRoute = (() => {
+    if (segmentsArray.length > 0) {
+      if (isMetricsPage) {
+        return segmentsArray.slice(0, -1).join("/");
+      }
+      return segmentsArray.join("/");
+    }
+    return "";
+  })();
 
   const hasCUDAccess = useHasProjectAccess({
     projectId,
@@ -71,8 +74,12 @@ export default function PromptsPage() {
       a.click();
       URL.revokeObjectURL(url);
       capture("prompts:bulk_export", { mode });
-    } catch {
-      toast.error("Failed to export prompts. Please try again.");
+    } catch (error) {
+      showToast({
+        type: "ERROR",
+        title: "Failed to export prompts. Please try again.",
+        analytics: classifyTrpcToastError(error, "prompt.export"),
+      });
     } finally {
       setIsExporting(false);
     }
@@ -150,7 +157,11 @@ export default function PromptsPage() {
                     disabled={isExporting}
                     {...getTriggerProps()}
                   >
-                    <UploadIcon className="mr-1 h-4 w-4" />
+                    <UploadIcon
+                      size="base"
+                      color="default"
+                      __rawClassName="mr-1"
+                    />
                     {isExporting ? "Exporting…" : "Export"}
                   </Button>
                 )}
@@ -165,14 +176,18 @@ export default function PromptsPage() {
                     title={disabled?.reason}
                     onClick={openDialog}
                   >
-                    <Download className="mr-1 h-4 w-4" />
+                    <Download
+                      size="base"
+                      color="default"
+                      __rawClassName="mr-1"
+                    />
                     Import
                   </Button>
                 )}
               </ImportPromptsButtonDialogController>
             )}
             <ActionButton
-              icon={<PlusIcon className="h-4 w-4" aria-hidden="true" />}
+              icon={<PlusIcon size="base" color="default" aria-hidden="true" />}
               hasAccess={hasCUDAccess}
               href={`/project/${projectId}/prompts/new${folderQueryParam ? `?folder=${encodeURIComponent(folderQueryParam)}` : ""}`}
               trackingEventName="prompts:new_form_open"

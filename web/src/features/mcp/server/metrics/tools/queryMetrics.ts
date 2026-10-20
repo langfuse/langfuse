@@ -1,5 +1,4 @@
-/* eslint-disable no-nested-ternary */
-import { InvalidRequestError } from "@langfuse/shared";
+import { isoDateTime, InvalidRequestError } from "@langfuse/shared";
 import { executeQuery } from "@langfuse/shared/query/server";
 import {
   dimension,
@@ -15,6 +14,7 @@ import {
 import { defineTool } from "../../../core/define-tool";
 import { McpAdvancedFilterBaseSchema } from "../../../core/filter-schema";
 import { runMcpTool } from "../../../core/run-mcp-tool";
+import { MCP_CLICKHOUSE_SETTINGS } from "../../../core/clickhouse-settings";
 import { clampToDataAccessDays } from "@/src/features/entitlements/server";
 import { z } from "zod";
 
@@ -90,11 +90,15 @@ const normalizeMetricOrderByFields = (
       const matchingMetrics = isDimensionField
         ? []
         : input.metrics.filter((metric) => metric.measure === orderBy.field);
-      const normalizedField = isDimensionField
-        ? orderBy.field
-        : matchingMetrics.length === 1
-          ? `${matchingMetrics[0].aggregation}_${matchingMetrics[0].measure}`
-          : (reversedMetricAliases.get(orderBy.field) ?? orderBy.field);
+      const normalizedField = (() => {
+        if (isDimensionField) {
+          return orderBy.field;
+        }
+        if (matchingMetrics.length === 1) {
+          return `${matchingMetrics[0].aggregation}_${matchingMetrics[0].measure}`;
+        }
+        return reversedMetricAliases.get(orderBy.field) ?? orderBy.field;
+      })();
 
       if (!allowedOrderByFields.has(normalizedField)) {
         throw new InvalidRequestError(
@@ -120,8 +124,12 @@ const MetricsQueryObjectV2BaseSchema = z.object({
       granularity: publicGranularities,
     })
     .optional(),
-  fromTimestamp: z.iso.datetime({ offset: true }),
-  toTimestamp: z.iso.datetime({ offset: true }),
+  fromTimestamp: isoDateTime({ offset: true }).describe(
+    "Required start of the analytics time range, as an ISO 8601 timestamp with timezone (Z or an explicit offset). Must be before toTimestamp.",
+  ),
+  toTimestamp: isoDateTime({ offset: true }).describe(
+    "Required end of the analytics time range, as an ISO 8601 timestamp with timezone. Must be after fromTimestamp. timeDimension.granularity controls aggregation buckets; it does not replace these explicit time bounds.",
+  ),
   orderBy: z
     .array(
       z.object({
@@ -187,6 +195,7 @@ export const [queryMetricsTool, handleQueryMetrics] = defineTool({
           queryParams,
           "v2",
           true,
+          { clickhouseSettings: MCP_CLICKHOUSE_SETTINGS },
         );
 
         return { data: result };

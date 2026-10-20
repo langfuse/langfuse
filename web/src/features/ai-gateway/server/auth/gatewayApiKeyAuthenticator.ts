@@ -1,5 +1,8 @@
 import type { GatewayProvider, PrismaClient } from "@langfuse/shared/src/db";
+import { ApiKeyId, OrganizationId } from "@langfuse/shared/rbac";
 
+import { authorize } from "@/src/features/rbac/authorize";
+import { getRolesForPrincipal } from "@/src/features/rbac/getRolesForPrincipal";
 import { isGatewayEnabledForOrganization } from "@/src/features/ai-gateway/server/availability";
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 import {
@@ -9,6 +12,9 @@ import {
   gatewayProviders,
   providerSupportsApiFormat,
 } from "@/src/features/ai-gateway/server/provider/registry";
+import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
+import { parseGatewayAllowedModels } from "@/src/features/ai-gateway/fns/parseGatewayAllowedModels";
+import { GatewayModelRoutingService } from "@/src/features/ai-gateway/server/routing/gatewayModelRoutingService";
 import {
   type CachedResolveContext,
   GATEWAY_RESOLVE_KEY_NON_EXISTENT,
@@ -16,7 +22,13 @@ import {
 } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { GatewayResolveRepository } from "@/src/features/ai-gateway/server/resolve/gatewayResolveRepository";
 
-export type GatewayApiKeyAuthContext = CachedResolveContext;
+export type GatewayApiKeyAuthContext = Omit<
+  CachedResolveContext,
+  "connections"
+> & {
+  connection: CachedResolveContext["connections"][number] | null;
+  providerModel: string | null;
+};
 
 type GatewayApiKeyAuthenticatorConfig = {
   resolveCache?: GatewayResolveCache;
@@ -25,9 +37,10 @@ type GatewayApiKeyAuthenticatorConfig = {
 export class GatewayApiKeyAuthenticator {
   private readonly repository: GatewayResolveRepository;
   private readonly cache: GatewayResolveCache;
+  private readonly modelRoutingService = new GatewayModelRoutingService();
 
   constructor(
-    prisma: PrismaClient,
+    private readonly prisma: PrismaClient,
     config: GatewayApiKeyAuthenticatorConfig = {},
   ) {
     this.repository = new GatewayResolveRepository(prisma);
@@ -37,13 +50,63 @@ export class GatewayApiKeyAuthenticator {
   async authenticateRequest(params: {
     fastHashedSecretKey: string;
     apiFormat: GatewayApiFormat;
+    model: string;
   }): Promise<GatewayApiKeyAuthContext> {
-    const cached = await this.cache.get(params);
+    const context = await this.authenticateKey(params);
+    const route = this.modelRoutingService.resolve(
+      params.model,
+      context.connections,
+    );
+    if (!route) {
+      throw new GatewayControlPlaneError("Invalid gateway model", 400);
+    }
+    if (
+      route.connection &&
+      !isGatewayModelAllowed(
+        route.connection.allowedModels,
+        route.providerModel,
+      )
+    ) {
+      throw new GatewayControlPlaneError(
+        "Model is not allowed for this provider connection",
+        403,
+        "model_not_allowed",
+      );
+    }
+
+    return {
+      ...context,
+      providerModel: route.providerModel,
+      connection: route.connection,
+    };
+  }
+
+  async authenticateModelsRequest(params: {
+    fastHashedSecretKey: string;
+    apiFormat: GatewayApiFormat;
+  }): Promise<GatewayApiKeyAuthContext> {
+    const context = await this.authenticateKey(params);
+    return {
+      ...context,
+      providerModel: null,
+      connection: null,
+    };
+  }
+
+  private async authenticateKey(params: {
+    fastHashedSecretKey: string;
+    apiFormat: GatewayApiFormat;
+  }): Promise<CachedResolveContext> {
+    const cacheParams = {
+      fastHashedSecretKey: params.fastHashedSecretKey,
+      apiFormat: params.apiFormat,
+    };
+    const cached = await this.cache.get(cacheParams);
     if (cached === GATEWAY_RESOLVE_KEY_NON_EXISTENT) {
       throw new GatewayControlPlaneError("Invalid gateway key", 401);
     }
 
-    const context = cached ?? (await this.loadAndCacheContext(params));
+    const context = cached ?? (await this.loadAndCacheContext(cacheParams));
 
     // Re-check on cache hits so removing an organization from the allowlist
     // takes effect without waiting for the cache TTL.
@@ -59,17 +122,18 @@ export class GatewayApiKeyAuthenticator {
   private async loadAndCacheContext(params: {
     fastHashedSecretKey: string;
     apiFormat: GatewayApiFormat;
-  }): Promise<GatewayApiKeyAuthContext> {
+  }): Promise<CachedResolveContext> {
     const row = await this.repository.resolveContext({
       fastHashedSecretKey: params.fastHashedSecretKey,
       providers: supportedProviders(params.apiFormat),
     });
 
-    const organizationId = row?.apiKey.orgId;
-    const organization = row?.apiKey.organization;
+    const organizationId = row?.orgId;
+    const organization = row?.organization;
     if (!row || !organizationId || !organization) {
       await this.cache.set({
-        ...params,
+        fastHashedSecretKey: params.fastHashedSecretKey,
+        apiFormat: params.apiFormat,
         context: GATEWAY_RESOLVE_KEY_NON_EXISTENT,
       });
       throw new GatewayControlPlaneError("Invalid gateway key", 401);
@@ -81,27 +145,66 @@ export class GatewayApiKeyAuthenticator {
       Boolean(project) &&
       !project?.deletedAt &&
       project?.orgId === organizationId;
-    const connection = organization.gatewayAiConnections[0];
-
-    const context: GatewayApiKeyAuthContext = {
+    const context: CachedResolveContext = {
       organizationId,
-      apiKeyId: row.apiKeyId,
-      keyMetadata: toKeyMetadata(row.metadata),
+      apiKeyId: row.id,
+      keyMetadata: toKeyMetadata(row.gatewayAssociation?.metadata),
       ingestionProjectId: projectIsUsable
         ? (gatewayConfig?.defaultIngestionProjectId ?? null)
         : null,
       ingestionMode: gatewayConfig?.ingestionMode ?? null,
-      connection: connection
-        ? {
-            id: connection.id,
-            provider: connection.provider,
-            encryptedCredential: connection.encryptedCredential,
-          }
-        : null,
+      connections: organization.gatewayAiConnections.map((connection) => ({
+        ...connection,
+        allowedModels: parseGatewayAllowedModels(connection.allowedModels),
+      })),
     };
 
-    await this.cache.set({ ...params, context });
+    // Any organization key may call the gateway when its roles grant
+    // gateway:invoke, so this check must not depend on API_AUTH_MIGRATION.
+    await assertCanInvokeGateway(this.prisma, row.id, organizationId);
+
+    await this.cache.set({
+      fastHashedSecretKey: params.fastHashedSecretKey,
+      apiFormat: params.apiFormat,
+      context,
+      expiresAt: row.expiresAt,
+    });
     return context;
+  }
+}
+
+/** assertCanInvokeGateway denies the key when its stored roles do not grant gateway:invoke on the organization. */
+async function assertCanInvokeGateway(
+  prisma: PrismaClient,
+  apiKeyId: string,
+  organizationId: string,
+) {
+  const roles = await getRolesForPrincipal(prisma, ApiKeyId(apiKeyId));
+  const tenant = OrganizationId(organizationId);
+  const allowed = authorize(
+    {
+      principal: {
+        kind: "apiKey",
+        apiKeyId,
+        userId: null,
+        isInAppAgentKey: false,
+        publicKey: "",
+        scope: "ORGANIZATION",
+        presentation: "privateKey",
+        organizations: [],
+        boundResource: { orgId: organizationId },
+      },
+      policies: roles.flatMap((role) => role.policies),
+    },
+    tenant,
+    "gateway:invoke",
+    tenant,
+  ).success;
+  if (!allowed) {
+    throw new GatewayControlPlaneError(
+      "API key is not allowed to invoke the gateway",
+      403,
+    );
   }
 }
 

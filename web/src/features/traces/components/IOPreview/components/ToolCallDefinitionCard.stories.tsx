@@ -1,3 +1,5 @@
+import { expect, userEvent, within } from "storybook/test";
+
 import preview from "../../../../../../.storybook/preview";
 import {
   ToolCallDefinitionCard,
@@ -49,7 +51,6 @@ export const Default = meta.story({
     tools: baseTools,
     toolCallCounts: new Map([["search_docs", 0]]),
     toolCallsByName: new Map(),
-    toolNameToDefinitionNumber: new Map([["search_docs", 1]]),
   },
 });
 
@@ -58,7 +59,6 @@ export const Called = meta.story({
     tools: baseTools,
     toolCallCounts: new Map([["search_docs", 1]]),
     toolCallsByName: baseToolCalls,
-    toolNameToDefinitionNumber: new Map([["search_docs", 1]]),
   },
 });
 
@@ -120,11 +120,6 @@ export const MultipleTools = meta.story({
         ],
       ],
     ]),
-    toolNameToDefinitionNumber: new Map([
-      ["search_docs", 1],
-      ["create_ticket", 2],
-      ["notify_team", 3],
-    ]),
   },
 });
 
@@ -171,15 +166,107 @@ export const WithLongToolNames = meta.story({
         ],
       ],
     ]),
-    toolNameToDefinitionNumber: new Map([
-      [
-        "search_enterprise_customer_documentation_for_multistep_api_rate_limit_troubleshooting_and_backoff_recommendations",
-        1,
-      ],
-      [
-        "create_cross_functional_incident_escalation_ticket_with_customer_context_and_internal_follow_up_requirements",
-        2,
-      ],
-    ]),
+  },
+});
+
+const manyToolNames = [
+  "langfuse_getPrompt",
+  "langfuse_getPromptUnresolved",
+  "langfuse_listPrompts",
+  "langfuse_listObservations",
+  "langfuse_getObservation",
+  "langfuse_getObservationFieldSchema",
+  "langfuse_getObservationFilterSchema",
+  "langfuse_getObservationFilterValues",
+  "langfuse_listAnnotationQueues",
+  "langfuse_getAnnotationQueue",
+  "langfuse_listAnnotationQueueItems",
+  "langfuse_createScoreConfigForProject",
+  "langfuse_searchLangfuseDocs",
+  "langfuse_proposeRedirect",
+  "langfuse_listDatasets",
+  "langfuse_getDataset",
+  "langfuse_listSessions",
+  "langfuse_getSession",
+];
+const calledNames = new Set(manyToolNames.slice(12));
+
+const TOOLS_COLLAPSED_KEY = "toolsSectionCollapsed";
+
+/** Opens the section so stories with many tools show their rows. */
+const startExpanded = () => {
+  sessionStorage.setItem(TOOLS_COLLAPSED_KEY, "false");
+  return () => sessionStorage.removeItem(TOOLS_COLLAPSED_KEY);
+};
+
+/** Both sides have tools, so the header shows the Called / Not called switch. */
+export const ManyTools = meta.story({
+  beforeEach: startExpanded,
+  args: {
+    tools: manyToolNames.map((name) => ({ name })),
+    toolCallCounts: new Map(
+      manyToolNames.map((name) => [name, calledNames.has(name) ? 1 : 0]),
+    ),
+    toolCallsByName: new Map(),
+  },
+});
+
+/** Nothing called: no switch, one muted list. */
+export const NoneCalled = meta.story({
+  beforeEach: startExpanded,
+  args: {
+    tools: manyToolNames.map((name) => ({ name })),
+    toolCallCounts: new Map(manyToolNames.map((name) => [name, 0])),
+    toolCallsByName: new Map(),
+  },
+});
+
+/** Everything called: no switch, one list. */
+export const AllCalled = meta.story({
+  beforeEach: startExpanded,
+  args: {
+    tools: manyToolNames.map((name) => ({ name })),
+    toolCallCounts: new Map(manyToolNames.map((name) => [name, 1])),
+    toolCallsByName: new Map(),
+  },
+});
+
+export const NotCalledTab = meta.story({
+  name: "(Test) Not Called Tab",
+  beforeEach: startExpanded,
+  args: ManyTools.input.args,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("tab", { name: /^Called\s*6$/ }),
+    ).toHaveAttribute("aria-selected", "true");
+    await userEvent.click(
+      canvas.getByRole("tab", { name: /^Not called\s*12$/ }),
+    );
+    const firstRow = canvas.getByRole("button", {
+      name: /langfuse_getPrompt$/,
+    });
+    await expect(within(firstRow).getByText("1.")).toBeVisible();
+    await expect(canvas.queryByText("langfuse_getSession")).toBeNull();
+  },
+});
+
+/** More than five tools: the section starts collapsed to its header. */
+export const CollapsedByDefault = meta.story({
+  name: "(Test) Collapsed By Default",
+  beforeEach: () => sessionStorage.removeItem(TOOLS_COLLAPSED_KEY),
+  args: ManyTools.input.args,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const header = canvas.getByRole("button", { name: "Tools" });
+    await expect(header).toHaveAttribute("aria-expanded", "false");
+    await expect(canvas.queryByRole("tab")).toBeNull();
+
+    await userEvent.click(header);
+    await expect(header).toHaveAttribute("aria-expanded", "true");
+    await expect(
+      canvas.getByRole("tab", { name: /^Called\s*6$/ }),
+    ).toBeVisible();
+    sessionStorage.removeItem(TOOLS_COLLAPSED_KEY);
   },
 });

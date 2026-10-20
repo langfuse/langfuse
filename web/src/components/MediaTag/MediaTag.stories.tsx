@@ -39,6 +39,7 @@ export const Default = meta.story({
 // Peek popover forced open with a resolved image.
 export const PreviewImage = meta.story({
   args: {
+    contentType: "image/jpeg",
     open: true,
     status: "ready",
     url: sampleImage,
@@ -154,6 +155,23 @@ export const InlineWithText = meta.story({
       </span>
       {'"}]}'}
     </pre>
+  ),
+});
+
+export const FormattedView = meta.story({
+  render: () => (
+    <div className="grid w-full font-mono text-xs/5">
+      <MediaTag contentType="image/png" />
+    </div>
+  ),
+});
+
+export const CompactJsonRow = meta.story({
+  render: () => (
+    <span className="flex items-start font-mono text-[0.7rem] leading-[14px]">
+      <span>media: </span>
+      <MediaTag contentType="image/png" size="sm" />
+    </span>
   ),
 });
 

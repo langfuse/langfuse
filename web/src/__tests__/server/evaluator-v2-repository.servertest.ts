@@ -259,6 +259,29 @@ describe("evaluator v2 repository", () => {
       });
     });
 
+    it("matches LIKE wildcards literally in evaluator search", async () => {
+      await Promise.all([
+        createEvaluator({ name: "gpt_4-evaluator" }),
+        createEvaluator({ name: "gpt-4-evaluator" }),
+        createEvaluator({ name: "save 100% now" }),
+        createEvaluator({ name: "save 1000 now" }),
+      ]);
+
+      const searchNames = async (search: string) => {
+        const res = await evaluatorRepository.listEvaluators({
+          prisma,
+          projectId,
+          page: 1,
+          limit: 50,
+          search,
+        });
+        return res.evaluators.map((e) => e.name);
+      };
+
+      expect(await searchNames("gpt_4")).toEqual(["gpt_4-evaluator"]);
+      expect(await searchNames("100%")).toEqual(["save 100% now"]);
+    });
+
     it("preserves default update order and supports explicit creation order", async () => {
       const [recentlyUpdated, newerButUnchanged] = await Promise.all([
         createEvaluator(),

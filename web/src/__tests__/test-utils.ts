@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import {
   CodeEvalExecutionQueue,
   EvalExecutionQueue,
@@ -42,52 +41,59 @@ const getQueues = () => {
     .filter(
       (queueName) => !listOfQueuesToIgnore.includes(queueName as QueueName),
     )
-    .map((queueName) =>
-      queueName.startsWith(QueueName.IngestionQueue)
-        ? IngestionQueue.getInstance({ shardName: queueName })
-        : queueName.startsWith(QueueName.IngestionSecondaryQueue)
-          ? SecondaryIngestionQueue.getInstance({ shardName: queueName })
-          : queueName.startsWith(QueueName.EvaluationExecution)
-            ? EvalExecutionQueue.getInstance({ shardName: queueName })
-            : queueName.startsWith(QueueName.EvaluationExecutionSecondaryQueue)
-              ? SecondaryEvalExecutionQueue.getInstance({
-                  shardName: queueName,
-                })
-              : queueName.startsWith(QueueName.LLMAsJudgeExecution)
-                ? LLMAsJudgeExecutionQueue.getInstance({
-                    shardName: queueName,
-                  })
-                : queueName.startsWith(QueueName.CodeEvalExecution)
-                  ? CodeEvalExecutionQueue.getInstance({
-                      shardName: queueName,
-                    })
-                  : queueName.startsWith(QueueName.TraceUpsert)
-                    ? TraceUpsertQueue.getInstance({ shardName: queueName })
-                    : queueName.startsWith(
-                          QueueName.OtelIngestionSecondaryQueue,
-                        )
-                      ? SecondaryOtelIngestionQueue.getInstance({
-                          shardName: queueName,
-                        })
-                      : queueName.startsWith(QueueName.OtelIngestionQueue)
-                        ? OtelIngestionQueue.getInstance({
-                            shardName: queueName,
-                          })
-                        : getQueue(
-                            queueName as Exclude<
-                              QueueName,
-                              | QueueName.IngestionQueue
-                              | QueueName.IngestionSecondaryQueue
-                              | QueueName.EvaluationExecution
-                              | QueueName.EvaluationExecutionSecondaryQueue
-                              | QueueName.LLMAsJudgeExecution
-                              | QueueName.CodeEvalExecution
-                              | QueueName.TraceUpsert
-                              | QueueName.OtelIngestionQueue
-                              | QueueName.OtelIngestionSecondaryQueue
-                            >,
-                          ),
-    );
+    .map((queueName) => {
+      if (queueName.startsWith(QueueName.IngestionQueue)) {
+        return IngestionQueue.getInstance({ shardName: queueName });
+      }
+      if (queueName.startsWith(QueueName.IngestionSecondaryQueue)) {
+        return SecondaryIngestionQueue.getInstance({ shardName: queueName });
+      }
+      if (queueName.startsWith(QueueName.EvaluationExecution)) {
+        return EvalExecutionQueue.getInstance({ shardName: queueName });
+      }
+      if (queueName.startsWith(QueueName.EvaluationExecutionSecondaryQueue)) {
+        return SecondaryEvalExecutionQueue.getInstance({
+          shardName: queueName,
+        });
+      }
+      if (queueName.startsWith(QueueName.LLMAsJudgeExecution)) {
+        return LLMAsJudgeExecutionQueue.getInstance({
+          shardName: queueName,
+        });
+      }
+      if (queueName.startsWith(QueueName.CodeEvalExecution)) {
+        return CodeEvalExecutionQueue.getInstance({
+          shardName: queueName,
+        });
+      }
+      if (queueName.startsWith(QueueName.TraceUpsert)) {
+        return TraceUpsertQueue.getInstance({ shardName: queueName });
+      }
+      if (queueName.startsWith(QueueName.OtelIngestionSecondaryQueue)) {
+        return SecondaryOtelIngestionQueue.getInstance({
+          shardName: queueName,
+        });
+      }
+      if (queueName.startsWith(QueueName.OtelIngestionQueue)) {
+        return OtelIngestionQueue.getInstance({
+          shardName: queueName,
+        });
+      }
+      return getQueue(
+        queueName as Exclude<
+          QueueName,
+          | QueueName.IngestionQueue
+          | QueueName.IngestionSecondaryQueue
+          | QueueName.EvaluationExecution
+          | QueueName.EvaluationExecutionSecondaryQueue
+          | QueueName.LLMAsJudgeExecution
+          | QueueName.CodeEvalExecution
+          | QueueName.TraceUpsert
+          | QueueName.OtelIngestionQueue
+          | QueueName.OtelIngestionSecondaryQueue
+        >,
+      );
+    });
 };
 
 export const disconnectQueues = async (disconnectTimeoutMs = 2_000) => {
@@ -136,7 +142,8 @@ export async function makeAPICall<T = IngestionAPIResponse>(
   auth?: string,
   customHeaders?: Record<string, string>,
 ): Promise<{ body: T; status: number }> {
-  const finalUrl = `http://localhost:3000${url.startsWith("/") ? url : `/${url}`}`;
+  const baseUrl = process.env.TEST_BASE_URL ?? "http://localhost:3000";
+  const finalUrl = `${baseUrl}${url.startsWith("/") ? url : `/${url}`}`;
   const authorization =
     auth || createBasicAuthHeader("pk-lf-1234567890", "sk-lf-1234567890");
   const options = {

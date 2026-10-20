@@ -11,7 +11,16 @@
 // The draft sync never writes back to applied state. A commit acknowledgment
 // keeps separately updated host lanes from projecting a half-applied query.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  type Key,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import isEqual from "lodash/isEqual";
 
 import type { FilterState, TracingSearchType } from "@langfuse/shared";
@@ -62,6 +71,31 @@ type PendingCommit = {
   text: string;
 };
 
+type SearchBarDraftCacheSnapshot = {
+  committedText: string;
+  draft: string;
+};
+
+type SearchBarDraftCache = {
+  current: SearchBarDraftCacheSnapshot | null;
+  searchIdentity: Key | null;
+};
+
+export const SearchBarDraftCacheContext =
+  createContext<SearchBarDraftCache | null>(null);
+
+/**
+ * Keeps an unsubmitted draft alive while a responsive sheet unmounts its
+ * search input. A new React key represents a new search scope (for example a
+ * different table view), so it intentionally starts with an empty cache.
+ */
+export function useSearchBarDraftCache(searchIdentity: Key | null) {
+  return useMemo<SearchBarDraftCache>(
+    () => ({ current: null, searchIdentity }),
+    [searchIdentity],
+  );
+}
+
 function sameAppliedState(a: AppliedSearchState, b: AppliedSearchState) {
   return (
     isEqual(a.filters, b.filters) &&
@@ -96,12 +130,6 @@ function isPartialCommitEcho(
  */
 function restingDraft(text: string): string {
   return text.length === 0 ? text : `${text} `;
-}
-
-/** Column + key identity, so keyed filters (metadata.<k>, scores.<k>) on the
- *  same column don't collide while plain columns dedupe by column alone. */
-function filterIdentity(f: FilterState[number]): string {
-  return `${f.column}\u0000${"key" in f ? f.key : ""}`;
 }
 
 export function useEventsSearchBar({
@@ -147,6 +175,7 @@ export function useEventsSearchBar({
   }) => void;
 } {
   const capture = usePostHogClientCapture();
+  const draftCache = useContext(SearchBarDraftCacheContext);
 
   // Latest observed options, read inside commit and by the store's draft
   // validation so both route `scores.<name>` by the same observed score type.
@@ -213,8 +242,26 @@ export function useEventsSearchBar({
   // commit's own echo settles immediately without clobbering the caret.
   useEffect(() => {
     if (!enabled) return;
+    const cachedDraft = draftCache?.current;
     store.getState().actions.resetTo(committedText);
-  }, [enabled, committedText, store]);
+    // Only restore a draft that belongs to the same applied search state.
+    // External query/filter changes must continue to reset the input.
+    if (cachedDraft?.committedText === committedText) {
+      store.getState().actions.setDraft(cachedDraft.draft);
+    }
+  }, [draftCache, enabled, committedText, store]);
+
+  useEffect(() => {
+    if (!enabled || !draftCache) return;
+    const persistDraft = () => {
+      draftCache.current = {
+        committedText,
+        draft: store.getState().draft,
+      };
+    };
+    persistDraft();
+    return store.subscribe(persistDraft);
+  }, [committedText, draftCache, enabled, store]);
 
   // Re-validate when observed options or the registry load: a draft typed
   // before score types or dynamic allowed values were known has stale
@@ -233,17 +280,12 @@ export function useEventsSearchBar({
   const searchTypeRef = useRef(searchType);
   searchTypeRef.current = searchType;
 
-  // Re-attach the filters the grammar can't represent so neither a grammar
-  // commit nor an AI apply ever drops them (no-silent-drop contract) — but drop
-  // any skipped filter whose (column, key) the new set just produced, so an
-  // explicit edit replaces it instead of duplicating the column in URL state.
-  const mergeWithSkipped = useCallback((filters: FilterState): FilterState => {
-    const producedKeys = new Set(filters.map((f) => filterIdentity(f)));
-    const preserved = skippedFiltersRef.current.filter(
-      (f) => !producedKeys.has(filterIdentity(f)),
-    );
-    return preserved.length > 0 ? [...filters, ...preserved] : filters;
-  }, []);
+  /** Preserve hidden filters unless the same target, column, and key is edited. */
+  const mergeWithSkipped = useCallback(
+    (filters: FilterState): FilterState =>
+      mergeSkippedFilters(filters, skippedFiltersRef.current),
+    [],
+  );
 
   const beginCommit = useCallback(
     (next: AppliedSearchState) => {
@@ -424,4 +466,23 @@ export function useEventsSearchBar({
   );
 
   return { store, commit, applyFilters, resetDraft };
+}
+
+function mergeSkippedFilters(
+  filters: FilterState,
+  skippedFilters: FilterState,
+): FilterState {
+  const producedKeys = new Set(filters.map((f) => filterIdentity(f)));
+  const preserved = skippedFilters.filter(
+    (f) => !producedKeys.has(filterIdentity(f)),
+  );
+  return preserved.length > 0 ? [...filters, ...preserved] : filters;
+}
+
+function filterIdentity(filter: FilterState[number]): string {
+  return JSON.stringify([
+    filter.target ?? null,
+    filter.column,
+    "key" in filter ? filter.key : null,
+  ]);
 }

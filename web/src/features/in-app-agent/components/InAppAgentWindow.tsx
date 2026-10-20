@@ -13,7 +13,6 @@ import {
 import {
   ArrowRight,
   ArrowDown,
-  BotMessageSquare,
   ChevronRight,
   History,
   Info,
@@ -26,7 +25,7 @@ import {
   Square,
   Trash2,
   X,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import textShimmerStyles from "@/src/components/ui/text-shimmer.module.css";
 import {
@@ -50,11 +49,13 @@ import {
   type InAppAgentMessageContent,
   type InAppAgentMessageRole,
 } from "./InAppAgentMessage";
-import type {
-  InAppAgentMessageFeedbackValue,
-  InAppAgentMessageSource,
-} from "../schema";
-import { IN_APP_AGENT_GENERIC_ERROR_MESSAGE } from "@langfuse/shared/in-app-agent";
+import type { InAppAgentMessageFeedbackValue } from "../schema";
+import {
+  IN_APP_AGENT_GENERIC_ERROR_MESSAGE,
+  IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
+  type InAppAgentQuestionnaireAnswers,
+  type InAppAgentQuestionnaireQuestion,
+} from "@langfuse/shared/in-app-agent";
 import type { InAppAgentScreenContextDescription } from "@/src/features/in-app-agent/context";
 import type { InAppAgentActivityByConversationId } from "@/src/features/in-app-agent/lib/inAppAgentActivity";
 import type { SettledActivityOutcome } from "@/src/features/in-app-agent/lib/backgroundExecutionSession";
@@ -63,12 +64,19 @@ import { InAppAgentBackgroundHint } from "@/src/features/in-app-agent/components
 import { InAppAgentNotice } from "@/src/features/in-app-agent/components/InAppAgentNotice";
 import { useInAppAgentBackgroundHint } from "@/src/features/in-app-agent/lib/useInAppAgentBackgroundHint";
 import { InAppAgentToolCallCard } from "@/src/features/in-app-agent/components/InAppAgentToolCallCard";
+import { InAppAgentQuestionnaireCard } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireCard/InAppAgentQuestionnaireCard";
+import { parseQuestionnaireQuestions } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireCard/fns/parseQuestionnaireQuestions";
+import { InAppAgentQuestionnaireSummary } from "@/src/features/in-app-agent/components/InAppAgentQuestionnaireSummary/InAppAgentQuestionnaireSummary";
+import {
+  buildConversationDisplayItems,
+  type ConversationDisplayItem,
+} from "@/src/features/in-app-agent/fns/buildConversationDisplayItems";
 import {
   getInAppAgentActivityProgressLabel,
   type InAppAgentError,
+  type InAppAgentToolCallContent,
   isInAppAgentRateLimited,
 } from "@/src/features/in-app-agent/components/utils/utils";
-import { deduplicateBy } from "@/src/utils/arrays";
 import styles from "./InAppAgentWindow.module.css";
 import { assertUnreachable } from "@/src/utils/types";
 import {
@@ -83,6 +91,7 @@ import {
 } from "@/src/features/in-app-agent/quickActions";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { HaloIcon } from "@/src/features/in-app-agent/components/HaloIcon";
 
 const AUTO_SCROLL_THRESHOLD_PX = 50;
 const SCROLL_DIRECTION_TOLERANCE_PX = 1;
@@ -133,7 +142,7 @@ function InAppAgentQuickActionPicker({
   return (
     <>
       <p className="text-foreground mt-3 text-sm font-bold">
-        Welcome to the Langfuse Assistant
+        Hi I&apos;m Halo, your Langfuse assistant
       </p>
       <p className="text-muted-foreground mt-1 max-w-xs text-center text-xs leading-relaxed">
         What do you want to do?
@@ -147,24 +156,18 @@ function InAppAgentQuickActionPicker({
             }
           }}
         >
-          <Tabs.List
-            aria-label="Quick action category"
-            variant="underline"
-            size="auto"
-            layout="full"
-          >
-            {IN_APP_AGENT_QUICK_ACTION_CONTEXTS.map((context) => (
-              <span key={context} className="min-w-0 flex-1">
+          <div className="max-w-full min-w-0 overflow-x-auto">
+            <Tabs.List aria-label="Quick action category" variant="underline">
+              {IN_APP_AGENT_QUICK_ACTION_CONTEXTS.map((context) => (
                 <Tabs.Trigger
+                  key={context}
                   value={context}
                   disabled={isDisabled}
-                  variant="underline"
-                  size="lg"
                   label={IN_APP_AGENT_QUICK_ACTION_CONTEXT_LABELS[context]}
                 />
-              </span>
-            ))}
-          </Tabs.List>
+              ))}
+            </Tabs.List>
+          </div>
         </Tabs>
       </div>
       <div className="mt-3 grid w-full max-w-sm grid-cols-1 gap-2">
@@ -183,7 +186,7 @@ function InAppAgentQuickActionPicker({
               }}
             >
               <span className="bg-muted text-primary-accent flex size-7 shrink-0 items-center justify-center rounded-md">
-                <ActionIcon aria-hidden="true" className="size-3.5" />
+                <ActionIcon size="base" color="default" aria-hidden="true" />
               </span>
               <span className="min-w-0 flex-1">
                 <span className="text-foreground block text-xs leading-snug font-bold">
@@ -198,7 +201,9 @@ function InAppAgentQuickActionPicker({
               </span>
               <ArrowRight
                 aria-hidden="true"
-                className="text-muted-foreground size-3.5 shrink-0 transition-transform group-hover:translate-x-0.5"
+                size="base"
+                color="muted"
+                __rawClassName="transition-transform group-hover:translate-x-0.5"
               />
             </Button>
           );
@@ -272,242 +277,6 @@ export type InAppAgentWindowMessage = {
   role: InAppAgentMessageRole;
   content: InAppAgentMessageContent;
 };
-
-type ConversationDisplayItem =
-  | {
-      type: "user";
-      message: InAppAgentWindowMessage;
-      hasPreviousMessage: boolean;
-    }
-  | {
-      type: "activity";
-      /** Identifies the turn, not its contents: the drawer must survive both
-       * the first activity arriving and the run settling without remounting,
-       * or an expanded drawer collapses under the user. */
-      key: string;
-      messages: InAppAgentWindowMessage[];
-      startTimestamp?: number;
-      endTimestamp?: number;
-      followsUser: boolean;
-      isInProgress: boolean;
-    }
-  | {
-      type: "assistant";
-      message: InAppAgentWindowMessage;
-      followsUser: boolean;
-      isFinalAnswer: boolean;
-    };
-
-type InAppAgentTextMessage = InAppAgentWindowMessage & {
-  content: Extract<InAppAgentMessageContent, { type: "text" }>;
-};
-
-type InAppAgentRedirectActionContent = Extract<
-  InAppAgentMessageContent,
-  { type: "redirectAction" }
->;
-
-/**
- * Fold a turn's answer blocks into the single bubble the user reads. Each field
- * takes the last block that defined it, except `sources`, which arrive already
- * unioned across the whole turn so a citation earned mid-turn is not lost.
- */
-function joinAnswerMessages(
-  messages: InAppAgentWindowMessage[],
-  turnSources: InAppAgentMessageSource[],
-  turnRedirectAction: InAppAgentRedirectActionContent | undefined,
-): InAppAgentWindowMessage | null {
-  const textMessages = messages.filter(
-    (message): message is InAppAgentTextMessage =>
-      message.content.type === "text",
-  );
-  const lastText = textMessages.at(-1);
-
-  // A turn can end on a bare redirect with no text to attach it to.
-  if (!lastText) {
-    return messages.at(-1) ?? null;
-  }
-
-  const lastDefined = <T,>(
-    pick: (message: InAppAgentTextMessage) => T | undefined,
-  ): T | undefined =>
-    textMessages.reduce<T | undefined>(
-      (found, message) => pick(message) ?? found,
-      undefined,
-    );
-  const runId = lastDefined((message) => message.runId);
-  const feedbackMessageId = lastDefined((message) => message.feedbackMessageId);
-  const feedback = lastDefined((message) => message.content.feedback);
-
-  return {
-    ...lastText,
-    ...(runId ? { runId } : {}),
-    ...(feedbackMessageId ? { feedbackMessageId } : {}),
-    content: {
-      type: "text",
-      text: textMessages.map((message) => message.content.text).join("\n\n"),
-      ...(textMessages.some((message) => message.content.isStreaming)
-        ? { isStreaming: true }
-        : {}),
-      ...(turnSources.length > 0 ? { sources: turnSources } : {}),
-      ...(feedback ? { feedback } : {}),
-      ...(turnRedirectAction ? { redirectAction: turnRedirectAction } : {}),
-    },
-  };
-}
-
-function buildConversationDisplayItems(
-  messages: InAppAgentWindowMessage[],
-  isRunUnsettled: boolean,
-): ConversationDisplayItem[] {
-  const items: ConversationDisplayItem[] = [];
-  // A tool call awaiting approval is hoisted into its own card above the
-  // composer, and the drawer speaks for a turn that has produced nothing yet,
-  // so neither belongs in the transcript.
-  const visibleMessages = messages.flatMap((message) => {
-    if (message.content.type === "loading") {
-      return [];
-    }
-
-    if (message.content.type !== "toolGroup") {
-      return [message];
-    }
-
-    const visibleTools = message.content.tools.filter((tool) => !tool.approval);
-    if (visibleTools.length === 0) {
-      return [];
-    }
-
-    return [
-      {
-        ...message,
-        content: { ...message.content, tools: visibleTools },
-      } satisfies InAppAgentWindowMessage,
-    ];
-  });
-
-  for (let index = 0; index < visibleMessages.length; ) {
-    const message = visibleMessages[index];
-    if (!message) {
-      break;
-    }
-
-    if (message.role === "user") {
-      items.push({
-        type: "user",
-        message,
-        hasPreviousMessage: index > 0,
-      });
-      index++;
-      continue;
-    }
-
-    const turnStartIndex = index;
-    while (
-      index < visibleMessages.length &&
-      visibleMessages[index]?.role === "assistant"
-    ) {
-      index++;
-    }
-
-    const turnMessages = visibleMessages.slice(turnStartIndex, index);
-    const isInProgress = isRunUnsettled && index === visibleMessages.length;
-    const lastReasoningIndex = turnMessages.findLastIndex(
-      (turnMessage) => turnMessage.content.type === "reasoning",
-    );
-    // Trailing text is the answer; text before the turn's last thought is still
-    // work. A proposed redirect is always actionable, so it never stays behind
-    // in the drawer. Declared once, with the activity bucket as its exact
-    // complement, so no message can fall out of both.
-    const isAnswerPart = (
-      turnMessage: InAppAgentWindowMessage,
-      turnIndex: number,
-    ) =>
-      !isInProgress &&
-      (turnMessage.content.type === "redirectAction" ||
-        (turnMessage.content.type === "text" &&
-          turnIndex > lastReasoningIndex));
-    const answerMessages = turnMessages.filter(isAnswerPart);
-    const activityMessages = turnMessages.filter(
-      (turnMessage, turnIndex) => !isAnswerPart(turnMessage, turnIndex),
-    );
-    const turnSources = deduplicateBy(
-      turnMessages.flatMap((turnMessage) =>
-        turnMessage.content.type === "text"
-          ? (turnMessage.content.sources ?? [])
-          : [],
-      ),
-      (source) => source.url,
-    );
-    // A proposed redirect belongs to the turn, not to whichever block carried
-    // it: the tool result is merged into a preceding text message when there is
-    // one and emitted standalone when there is not, and either can land in the
-    // drawer.
-    const turnRedirectAction = turnMessages.reduce<
-      InAppAgentRedirectActionContent | undefined
-    >(
-      (found, turnMessage) =>
-        (turnMessage.content.type === "redirectAction"
-          ? turnMessage.content
-          : turnMessage.content.type === "text"
-            ? turnMessage.content.redirectAction
-            : undefined) ?? found,
-      undefined,
-    );
-    const joinedAnswer = joinAnswerMessages(
-      answerMessages,
-      turnSources,
-      turnRedirectAction,
-    );
-    const precedingMessage = visibleMessages[turnStartIndex - 1];
-    const followsUser = precedingMessage?.role === "user";
-
-    if (activityMessages.length > 0) {
-      items.push({
-        type: "activity",
-        key: getActivityKey(
-          followsUser ? precedingMessage?.id : turnMessages[0]?.id,
-        ),
-        messages: activityMessages,
-        startTimestamp: turnMessages.find(
-          (turnMessage) => turnMessage.timestamp !== undefined,
-        )?.timestamp,
-        endTimestamp:
-          joinedAnswer?.timestamp ?? activityMessages.at(-1)?.timestamp,
-        followsUser,
-        isInProgress,
-      });
-    }
-
-    if (joinedAnswer) {
-      items.push({
-        type: "assistant",
-        message: joinedAnswer,
-        followsUser: activityMessages.length === 0 && followsUser,
-        isFinalAnswer: !isInProgress,
-      });
-    }
-  }
-
-  const lastItem = items.at(-1);
-  if (isRunUnsettled && lastItem?.type === "user") {
-    // Same key the turn will claim once its first message lands, so the caret
-    // the user may already have opened is not torn down underneath them.
-    items.push({
-      type: "activity",
-      key: getActivityKey(lastItem.message.id),
-      messages: [],
-      followsUser: true,
-      isInProgress: true,
-    });
-  }
-
-  return items;
-}
-
-function getActivityKey(turnAnchorMessageId: string | undefined) {
-  return `activity-${turnAnchorMessageId ?? "start"}`;
-}
 
 function formatWorkedDuration(totalSeconds: number) {
   const hours = Math.floor(totalSeconds / 3600);
@@ -646,7 +415,12 @@ function AssistantActivityGroup({
         </span>
         <ChevronRight
           aria-hidden="true"
-          className={cn("size-3.5 transition-transform", isOpen && "rotate-90")}
+          size="base"
+          color="tertiary"
+          __rawClassName={cn(
+            "translate-y-px transition-transform",
+            isOpen && "rotate-90",
+          )}
         />
       </button>
       {isOpen && hasDetails ? (
@@ -820,7 +594,7 @@ function ConversationScroller({
             );
           }}
         >
-          <ArrowDown className="size-3.5" />
+          <ArrowDown size="base" color="default" />
           Latest
         </Button>
       ) : null}
@@ -887,6 +661,10 @@ export type InAppAgentWindowProps = {
   onApproveToolCall: (approvalId: string) => Promise<void>;
   onAlwaysAllowToolCall?: (approvalId: string) => Promise<void>;
   onRejectToolCall: (approvalId: string) => Promise<void>;
+  onAnswerQuestionnaire: (
+    approvalId: string,
+    answers: InAppAgentQuestionnaireAnswers,
+  ) => Promise<void>;
   onOpenConversationHistory: () => void;
   onSelectConversation: (conversationId: string) => void;
   onSubmit: (
@@ -907,6 +685,8 @@ export type InAppAgentWindowProps = {
   /** Titles the window. Null until the server has named the conversation,
    * which is when the product name shows instead. */
   selectedConversationTitle: string | null;
+  /** Rendered right after the title. */
+  titleActions?: ReactNode;
 } & InAppAgentWindowCloseButtonProps;
 
 function InAppAgentRateLimitError({
@@ -937,14 +717,14 @@ function InAppAgentRateLimitError({
 
   return (
     <InAppAgentNotice
-      icon={<Info aria-hidden="true" className="size-3 shrink-0" />}
+      icon={<Info aria-hidden="true" size="sm" />}
       isExpanded={isExpanded}
       role="alert"
       tone="neutral"
     >
       <span className="space-y-0.5">
         <span className="block font-bold">
-          You&apos;ve reached the assistant request limit
+          You&apos;ve reached the Halo request limit
         </span>
         <span className="block">
           Try again in about {formatApproximateDuration(secondsRemaining)}.
@@ -957,7 +737,7 @@ function InAppAgentRateLimitError({
 function InAppAgentIssueNotice({ isExpanded }: { isExpanded: boolean }) {
   return (
     <InAppAgentNotice
-      icon={<Info aria-hidden="true" className="size-3 shrink-0" />}
+      icon={<Info aria-hidden="true" size="sm" />}
       isExpanded={isExpanded}
       role="alert"
       tone="danger"
@@ -989,6 +769,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     onApproveToolCall,
     onAlwaysAllowToolCall,
     onRejectToolCall,
+    onAnswerQuestionnaire,
     onOpenConversationHistory,
     onSelectConversation,
     onSubmit,
@@ -999,6 +780,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     screenContextDescription,
     selectedConversationId,
     selectedConversationTitle,
+    titleActions,
   } = props;
   const screenContextNotice = formatScreenContextNotice(
     screenContextDescription,
@@ -1132,7 +914,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
 
   return (
     <section
-      aria-label="Assistant"
+      aria-label="Halo"
       className={cn(
         "bg-background flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-xl border shadow/5",
         // Full-bleed on mobile: the drawer owns the edge, so drop the window chrome.
@@ -1174,13 +956,18 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               {conversationTitle}
             </p>
           ) : (
-            <p
-              className="shrink-0 truncate text-sm font-bold"
-              title="Assistant"
-            >
-              Assistant
+            <p className="shrink-0 truncate text-sm font-bold" title="Halo">
+              Halo
             </p>
           )}
+          {titleActions ? (
+            <div
+              className="flex shrink-0 items-center"
+              data-movable-resizable-panel-ignore-drag="true"
+            >
+              {titleActions}
+            </div>
+          ) : null}
         </div>
         <div
           className="flex shrink-0 items-center gap-0.5"
@@ -1196,7 +983,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 onClick={onNewConversation}
                 aria-label="Start new conversation"
               >
-                <Plus className="size-3" />
+                <Plus size="base" color="default" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>Start new conversation</TooltipContent>
@@ -1223,7 +1010,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     // nested badge aria-label is ignored once the parent has one.
                     aria-label={`Conversation history${historyAttentionSuffix}`}
                   >
-                    <History className="size-3" />
+                    <History size="base" color="default" />
                     {/* Launcher badge, scaled to the 24px trigger. Visual only —
                         accessible name is on the button. */}
                     {historyAttentionCount > 0 && (
@@ -1296,7 +1083,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                           onDeleteConversation(conversation);
                         }}
                       >
-                        <Trash2 className="size-3" />
+                        <Trash2 size="sm" color="default" />
                       </Button>
                     </DropdownMenuItem>
                   );
@@ -1330,9 +1117,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   }}
                 >
                   {isExpanded ? (
-                    <Minimize2 className="size-3" />
+                    <Minimize2 size="base" color="default" />
                   ) : (
-                    <Maximize2 className="size-3" />
+                    <Maximize2 size="base" color="default" />
                   )}
                 </Button>
               </TooltipTrigger>
@@ -1351,20 +1138,18 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   className="size-6"
                   // Full-screen has nothing to minimize into, and with no
                   // drag-to-dismiss this is the only way out.
-                  aria-label={
-                    isHandheld ? "Close assistant" : "Minimize assistant"
-                  }
+                  aria-label={isHandheld ? "Close Halo" : "Minimize Halo"}
                   onClick={props.onClose}
                 >
                   {isHandheld ? (
-                    <X className="size-3" />
+                    <X size="base" color="default" />
                   ) : (
-                    <Minus className="size-3" />
+                    <Minus size="base" color="default" />
                   )}
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                {isHandheld ? "Close assistant" : "Minimize assistant"}
+                {isHandheld ? "Close Halo" : "Minimize Halo"}
               </TooltipContent>
             </Tooltip>
           ) : null}
@@ -1390,7 +1175,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             isSelectedConversationHydrating ? null : messages.length === 0 ? (
               <div className="flex h-full w-full flex-1 flex-col items-center justify-center px-2">
                 <div>
-                  <BotMessageSquare className="text-muted-foreground mx-auto h-7 w-7" />
+                  <HaloIcon variant="emptyState" />
                 </div>
                 <InAppAgentQuickActionPicker
                   key={`${selectedConversationId ?? "new"}:${quickActionResetKey}`}
@@ -1454,6 +1239,14 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   );
                 }
 
+                if (item.type === "questionnaire") {
+                  return (
+                    <li key={item.key} className="w-full">
+                      <InAppAgentQuestionnaireSummary answers={item.answers} />
+                    </li>
+                  );
+                }
+
                 const message = item.message;
                 const feedbackRunId =
                   message.content.type === "text" && item.isFinalAnswer
@@ -1491,12 +1284,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
           </div>
         </ConversationScroller>
         {pendingToolCalls.length > 0 ? (
-          <div
-            className={cn(
-              "shrink-0 pt-1.5",
-              isExpanded ? "px-1.5 pb-2" : "px-3 pb-2",
-            )}
-          >
+          <div className="shrink-0 px-1.5 pt-1.5 pb-2">
             <div
               className={cn(
                 "flex flex-col gap-2",
@@ -1504,13 +1292,14 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               )}
             >
               {pendingToolCalls.map((tool, index) => (
-                <InAppAgentToolCallCard
+                <PendingToolCallCard
                   key={`${tool.approval?.id ?? tool.name}-${index}`}
                   tool={tool}
                   isCompact={!isExpanded}
                   isDisabled={isRateLimited}
                   onApproveToolCall={onApproveToolCall}
                   onAlwaysAllowToolCall={onAlwaysAllowToolCall}
+                  onAnswerQuestionnaire={onAnswerQuestionnaire}
                   onRejectToolCall={onRejectToolCall}
                 />
               ))}
@@ -1521,9 +1310,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
           <InAppAgentNotice
             icon={
               backgroundNotice.tone === "warning" ? (
-                <TriangleAlert aria-hidden="true" className="size-3 shrink-0" />
+                <TriangleAlert aria-hidden="true" size="sm" />
               ) : (
-                <Info aria-hidden="true" className="size-3 shrink-0" />
+                <Info aria-hidden="true" size="sm" />
               )
             }
             isExpanded={isExpanded}
@@ -1578,7 +1367,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               rounded corners. */}
           <form
             className={cn(
-              "border-border bg-card focus-within:border-border-contrast relative flex w-full cursor-text flex-col overflow-hidden rounded-xl border shadow-sm transition-colors",
+              "border-border bg-card focus-within:border-border-contrast relative flex w-full cursor-text flex-col overflow-hidden rounded-md border shadow-sm transition-colors",
               isExpanded && "mx-auto max-w-3xl",
             )}
             onClick={() => {
@@ -1609,18 +1398,18 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 }
               }}
               disabled={isComposerDisabled}
-              aria-label="Message the assistant"
+              aria-label="Message Halo"
               placeholder={
                 hasSettledAssistantReply
                   ? "Reply..."
                   : "Let me know what I can do for you..."
               }
               rows={1}
-              className="placeholder:text-foreground-tertiary max-h-40 min-h-9 w-full resize-none overflow-y-auto border-none bg-transparent px-3 pt-2 pb-2 text-sm leading-5 shadow-none ring-0 outline-none disabled:cursor-not-allowed disabled:opacity-60"
+              className="placeholder:text-muted-foreground max-h-40 min-h-9 w-full resize-none overflow-y-auto border-none bg-transparent px-3 pt-2 pb-2 text-sm leading-5 shadow-none ring-0 outline-none disabled:cursor-not-allowed disabled:opacity-60"
             />
             <div className="bg-muted flex min-h-9 w-full items-center justify-between gap-2 px-2 py-1.5">
               <p className="text-muted-foreground flex min-w-0 items-center gap-1 text-xs">
-                <Info aria-hidden="true" className="size-3 shrink-0" />
+                <Info aria-hidden="true" size="sm" />
                 <span className="truncate" title={screenContextNotice}>
                   {screenContextNotice}
                 </span>
@@ -1637,7 +1426,11 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     executionStop?.onStop();
                   }}
                 >
-                  <Square className="text-muted-foreground size-3 fill-current" />
+                  <Square
+                    size="base"
+                    color="muted"
+                    __rawClassName="fill-current"
+                  />
                 </Button>
               ) : (
                 <Button
@@ -1647,7 +1440,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   aria-label="Send message"
                   disabled={isSubmitDisabled || !input.trim()}
                 >
-                  <SendHorizontal className="size-3" />
+                  <SendHorizontal size="base" />
                 </Button>
               )}
             </div>
@@ -1655,5 +1448,92 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
         </div>
       </div>
     </section>
+  );
+}
+
+type PendingToolCallCardProps = {
+  tool: InAppAgentToolCallContent;
+  isCompact: boolean;
+  isDisabled: boolean;
+} & Pick<
+  InAppAgentWindowProps,
+  | "onApproveToolCall"
+  | "onAlwaysAllowToolCall"
+  | "onAnswerQuestionnaire"
+  | "onRejectToolCall"
+>;
+
+function PendingToolCallCard({
+  tool,
+  isCompact,
+  isDisabled,
+  onApproveToolCall,
+  onAlwaysAllowToolCall,
+  onAnswerQuestionnaire,
+  onRejectToolCall,
+}: PendingToolCallCardProps) {
+  const isQuestionnaire = tool.name === IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME;
+  const questions = useMemo(
+    () => (isQuestionnaire ? parseQuestionnaireQuestions(tool.args) : null),
+    [isQuestionnaire, tool.args],
+  );
+
+  if (tool.approval && questions) {
+    return (
+      <PendingQuestionnaireCard
+        approval={tool.approval}
+        questions={questions}
+        isDisabled={isDisabled}
+        onAnswerQuestionnaire={onAnswerQuestionnaire}
+      />
+    );
+  }
+
+  // A questionnaire with malformed questions cannot be answered, only declined.
+  if (isQuestionnaire) {
+    return (
+      <InAppAgentToolCallCard
+        tool={tool}
+        isCompact={isCompact}
+        isDisabled={isDisabled}
+        onRejectToolCall={onRejectToolCall}
+      />
+    );
+  }
+
+  return (
+    <InAppAgentToolCallCard
+      tool={tool}
+      isCompact={isCompact}
+      isDisabled={isDisabled}
+      onApproveToolCall={onApproveToolCall}
+      onAlwaysAllowToolCall={onAlwaysAllowToolCall}
+      onRejectToolCall={onRejectToolCall}
+    />
+  );
+}
+
+type PendingQuestionnaireCardProps = {
+  approval: NonNullable<InAppAgentToolCallContent["approval"]>;
+  questions: readonly InAppAgentQuestionnaireQuestion[];
+  isDisabled: boolean;
+} & Pick<InAppAgentWindowProps, "onAnswerQuestionnaire">;
+
+function PendingQuestionnaireCard({
+  approval,
+  questions,
+  isDisabled,
+  onAnswerQuestionnaire,
+}: PendingQuestionnaireCardProps) {
+  const handleSubmit = (answers: InAppAgentQuestionnaireAnswers) =>
+    onAnswerQuestionnaire(approval.id, answers);
+
+  return (
+    <InAppAgentQuestionnaireCard
+      questions={questions}
+      isSubmitting={approval.status === "submitting"}
+      isDisabled={isDisabled}
+      onSubmit={handleSubmit}
+    />
   );
 }

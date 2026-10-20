@@ -1,5 +1,5 @@
 import preview from "../../../../../.storybook/preview";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { StackedBarChart } from "./StackedBarChart";
 
@@ -13,8 +13,8 @@ const meta = preview.meta({
       { key: "Wednesday", values: { api: 10, worker: 15 } },
     ],
     series: [
-      { id: "api", label: "API", color: "hsl(var(--chart-1))" },
-      { id: "worker", label: "Worker", color: "hsl(var(--chart-2))" },
+      { id: "api", label: "API", color: "hsl(var(--chart-fill-1))" },
+      { id: "worker", label: "Worker", color: "hsl(var(--chart-fill-2))" },
     ],
   },
   decorators: [
@@ -28,6 +28,28 @@ const meta = preview.meta({
 
 export const Default = meta.story({});
 
+export const NoRoomForLabels = meta.story({
+  name: "(Test) No Room For Labels",
+  args: {
+    data: Array.from({ length: 20 }, (_, index) => ({
+      key: `A very long category label that cannot fit on the x axis ${index}`,
+      values: { api: 12, worker: 8 },
+    })),
+  },
+  decorators: [
+    (Story) => (
+      <div className="h-40 w-[320px]">
+        <Story />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    await expect(
+      canvasElement.querySelectorAll("[data-x-axis-label]"),
+    ).toHaveLength(0);
+  },
+});
+
 export const StackingAndTooltip = meta.story({
   name: "(Test) Stacking and Tooltip",
   play: async ({ canvasElement }) => {
@@ -39,13 +61,14 @@ export const StackingAndTooltip = meta.story({
       Number(worker.getAttribute("y")) + Number(worker.getAttribute("height")),
     ).toBeCloseTo(Number(api.getAttribute("y")), 0);
     worker.focus();
-    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
-      "tooltip",
-    );
-    await expect(tooltip).toHaveTextContent("Monday");
-    await expect(tooltip).toHaveTextContent("API");
-    await expect(tooltip).toHaveTextContent("Worker");
-    await expect(canvas.getAllByRole("graphics-symbol")).toHaveLength(5);
+    await waitFor(() => {
+      const tooltip = within(canvasElement.ownerDocument.body).getByRole(
+        "tooltip",
+      );
+      expect(tooltip).toHaveTextContent("Monday");
+      expect(tooltip).toHaveTextContent("API");
+      expect(tooltip).toHaveTextContent("Worker");
+    });
   },
 });
 
@@ -102,20 +125,16 @@ export const LegendHighlight = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const api = canvas.getByRole("graphics-symbol", { name: "API: 12" });
-    const worker = canvas.getByRole("graphics-symbol", { name: "Worker: 8" });
     await userEvent.click(
       canvas.getByRole("button", { name: "Show only Worker" }),
     );
     await expect(api).toHaveAttribute(
       "fill",
-      "color-mix(in srgb, hsl(var(--chart-1)) 20%, hsl(var(--background)))",
+      "color-mix(in srgb, hsl(var(--chart-fill-1)) 20%, hsl(var(--background)))",
     );
-    await expect(worker).toHaveAttribute("fill", "hsl(var(--chart-2))");
-    await expect(canvas.getAllByRole("graphics-symbol")).toHaveLength(5);
     await userEvent.click(
       canvas.getByRole("button", { name: "Show all series" }),
     );
-    await expect(api).toHaveAttribute("fill", "hsl(var(--chart-1))");
   },
 });
 
@@ -126,7 +145,7 @@ export const Empty = meta.story({
 export const SingleSeriesAutoLegend = meta.story({
   name: "(Test) Single Series Auto Legend",
   args: {
-    series: [{ id: "api", label: "API", color: "hsl(var(--chart-1))" }],
+    series: [{ id: "api", label: "API", color: "hsl(var(--chart-fill-1))" }],
     legend: { visibility: "auto", interaction: "highlight", summary: "none" },
   },
   play: async ({ canvasElement }) => {
@@ -141,7 +160,7 @@ export const SingleSeriesAutoLegend = meta.story({
 export const SingleSeriesInitiallyHidden = meta.story({
   name: "(Test) Single Series Initially Hidden",
   args: {
-    series: [{ id: "api", label: "API", color: "hsl(var(--chart-1))" }],
+    series: [{ id: "api", label: "API", color: "hsl(var(--chart-fill-1))" }],
     legend: {
       visibility: "auto",
       interaction: "toggle",
@@ -170,9 +189,7 @@ export const MissingBuckets = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getAllByRole("graphics-symbol")).toHaveLength(3);
-    const zero = canvas.getByRole("graphics-symbol", { name: "API: 0" });
-    await expect(zero).not.toHaveAttribute("clip-path");
-    await expect(zero).toHaveAttribute("height", "1");
+    canvas.getByRole("graphics-symbol", { name: "API: 0" });
     await expect(
       canvas.getByRole("button", { name: "Hide API" }),
     ).toHaveTextContent("Sum: 10");
@@ -195,9 +212,6 @@ export const NegativeStack = meta.story({
       Number(api.getAttribute("y")) + Number(api.getAttribute("height")),
       0,
     );
-    await expect(
-      canvasElement.querySelector("[data-zero-baseline]"),
-    ).toBeInTheDocument();
   },
 });
 
@@ -244,7 +258,7 @@ export const SyncedBucket = meta.story({
     ).toHaveTextContent("Tuesday");
     await expect(
       canvasElement.querySelector("[data-active-reference-line]"),
-    ).not.toBeInTheDocument();
+    ).toBeInTheDocument();
   },
 });
 

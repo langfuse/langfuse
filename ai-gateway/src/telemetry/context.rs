@@ -64,17 +64,18 @@ const CODEX_FLAT_FIELDS: [(&str, &str); 8] = [
     ("x-codex-window-id", "window_id"),
     ("x-codex-parent-thread-id", "parent_thread_id"),
 ];
-const HEADERS: [&str; 8] = [
+const HEADERS: [&str; 9] = [
     "traceparent",
     "tracestate",
     "baggage",
     "langfuse-user-id",
     "langfuse-session-id",
     "langfuse-trace-name",
+    "langfuse-environment",
     "langfuse-tags",
     "langfuse-metadata",
 ];
-const SCALARS: [(&str, &str, &str); 3] = [
+const SCALARS: [(&str, &str, &str); 4] = [
     ("langfuse-user-id", "langfuse_user_id", "user.id"),
     ("langfuse-session-id", "langfuse_session_id", "session.id"),
     (
@@ -82,7 +83,15 @@ const SCALARS: [(&str, &str, &str); 3] = [
         "langfuse_trace_name",
         "langfuse.trace.name",
     ),
+    (
+        "langfuse-environment",
+        "langfuse_environment",
+        ENVIRONMENT_ATTRIBUTE,
+    ),
 ];
+const ENVIRONMENT_ATTRIBUTE: &str = "langfuse.environment";
+/// Matches the SDKs' environment rule; ingestion stores `default` when none is set.
+const MAX_ENVIRONMENT_BYTES: usize = 40;
 const AGENT_HEADERS: [&str; 13] = [
     "user-agent",
     "x-claude-code-session-id",
@@ -111,13 +120,16 @@ pub(super) struct GenerationContext {
 
 impl GenerationContext {
     #[cfg(test)]
-    pub fn from_headers(headers: &HeaderMap) -> Self {
+    pub(super) fn from_headers(headers: &HeaderMap) -> Self {
         Self::from_request(headers, None)
     }
 
     /// `client_metadata` is the request body's agent metadata object, already
     /// removed from the captured input by [`take_agent_client_metadata`].
-    pub fn from_request(headers: &HeaderMap, client_metadata: Option<&Map<String, Value>>) -> Self {
+    pub(super) fn from_request(
+        headers: &HeaderMap,
+        client_metadata: Option<&Map<String, Value>>,
+    ) -> Self {
         let ids = RandomIdGenerator::default();
         let mut result = Self {
             trace_id: ids.new_trace_id().to_string(),
@@ -136,8 +148,8 @@ impl GenerationContext {
             return result;
         }
         let mut trace_headers = HeaderMap::new();
-        if let Some(value) = single_header(headers, "traceparent") {
-            trace_headers.insert("traceparent", value.parse().expect("existing header value"));
+        if let Some(Ok(value)) = single_header(headers, "traceparent").map(str::parse) {
+            trace_headers.insert("traceparent", value);
         }
         // W3C tracestate is a list and may span multiple HTTP header fields.
         let trace_state = headers
@@ -146,10 +158,9 @@ impl GenerationContext {
             .filter_map(|value| value.to_str().ok())
             .collect::<Vec<_>>()
             .join(",");
-        trace_headers.insert(
-            "tracestate",
-            trace_state.parse().expect("existing header values"),
-        );
+        if let Ok(value) = trace_state.parse() {
+            trace_headers.insert("tracestate", value);
+        }
         let context = TraceContextPropagator::new()
             .extract_with_context(&Context::new(), &HeaderExtractor(&trace_headers));
         let parent = context.span();
@@ -161,7 +172,10 @@ impl GenerationContext {
         }
         result.apply_baggage(headers);
         for (header, _, attribute) in SCALARS {
-            if let Some(value) = single_header(headers, header).and_then(|v| decode(v, false)) {
+            if let Some(value) = single_header(headers, header)
+                .and_then(|v| decode(v, false))
+                .filter(|v| valid_scalar(attribute, v))
+            {
                 result.attributes.insert(attribute.into(), value.into());
             }
         }
@@ -197,7 +211,9 @@ impl GenerationContext {
                 continue;
             };
             if let Some((_, _, attribute)) = SCALARS.iter().find(|(_, name, _)| *name == key) {
-                self.attributes.insert((*attribute).into(), value.into());
+                if valid_scalar(attribute, &value) {
+                    self.attributes.insert((*attribute).into(), value.into());
+                }
             } else if key == "langfuse_tags" {
                 if let Some(tags) = parse_tags(&value) {
                     self.apply_tags(tags);
@@ -511,6 +527,21 @@ fn valid(value: &str) -> bool {
     !value.trim().is_empty()
         && value.len() <= MAX_FIELD_BYTES
         && !value.chars().any(char::is_control)
+}
+
+fn valid_scalar(attribute: &str, value: &str) -> bool {
+    attribute != ENVIRONMENT_ATTRIBUTE || valid_environment(value)
+}
+
+/// Lowercase alphanumerics, `-` and `_`, at most 40 bytes; the `langfuse`
+/// prefix is reserved for Langfuse-internal traces.
+fn valid_environment(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= MAX_ENVIRONMENT_BYTES
+        && !value.starts_with("langfuse")
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || b"-_".contains(&byte))
 }
 
 fn decode(value: &str, plus_as_space: bool) -> Option<String> {

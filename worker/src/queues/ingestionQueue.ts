@@ -1,4 +1,4 @@
-import { Job, Processor } from "bullmq";
+import { Job, Processor, UnrecoverableError } from "bullmq";
 import {
   clickhouseClient,
   getClickhouseEntityType,
@@ -18,7 +18,6 @@ import {
   redis,
   SecondaryIngestionQueue,
   TQueueJobTypes,
-  traceException,
   type IngestionAttribution,
   UNKNOWN_INGESTION_SDK_VALUE,
   toClickhouseDateTime,
@@ -30,6 +29,16 @@ import { IngestionService } from "../services/IngestionService";
 import { ClickhouseWriter, TableName } from "../services/ClickhouseWriter";
 import { chunk } from "lodash";
 import { randomUUID } from "crypto";
+import {
+  exceedsNonSlowDownAttemptBudget,
+  logRetryableJobFailure,
+} from "./jobFailureLog";
+
+/**
+ * Attempts for secondary-queue failures other than S3 SlowDown. The queue's
+ * larger default budget only exists to outlast throttling.
+ */
+const SECONDARY_QUEUE_NON_SLOWDOWN_ATTEMPTS = 5;
 
 export const ingestionQueueProcessorBuilder = (
   enableRedirectToSecondaryQueue: boolean,
@@ -351,11 +360,23 @@ export const ingestionQueueProcessorBuilder = (
         });
       }
 
-      logger.error(
-        `Failed job ingestion processing for ${job.data.payload.authCheck.scope.projectId}`,
-        e,
-      );
-      traceException(e);
+      logRetryableJobFailure({
+        message: `Failed job ingestion processing for ${job.data.payload.authCheck.scope.projectId}`,
+        error: e,
+        job,
+      });
+      if (
+        !enableRedirectToSecondaryQueue &&
+        exceedsNonSlowDownAttemptBudget(
+          job,
+          e,
+          SECONDARY_QUEUE_NON_SLOWDOWN_ATTEMPTS,
+        )
+      ) {
+        throw new UnrecoverableError(
+          e instanceof Error ? e.message : String(e),
+        );
+      }
       throw e;
     }
   };

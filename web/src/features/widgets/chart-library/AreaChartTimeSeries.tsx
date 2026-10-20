@@ -17,6 +17,7 @@ import {
 import { prepareVisibleSeries } from "@/src/features/widgets/chart-library/prepareVisibleSeries";
 import {
   seriesColor,
+  seriesFillColor,
   SeriesOverflowNote,
 } from "@/src/features/widgets/chart-library/TimeSeriesLegend";
 import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
@@ -40,7 +41,7 @@ export function AreaChartTimeSeries({
   missingValue = "gap",
   connectNulls = false,
   hideXAxisLabels = false,
-}: Omit<ChartProps, "subtleFill">) {
+}: ChartProps) {
   const allDimensions = useMemo(() => getUniqueDimensions(data), [data]);
   const groupedData = useMemo(
     () =>
@@ -97,22 +98,24 @@ export function AreaChartTimeSeries({
       getPlainTextFromReactNode(config?.[dimension]?.label ?? dimension) ??
       dimension,
     color: seriesColor(index),
+    fillColor: seriesFillColor(index),
   }));
-  let chartLegend: LineChartLegend = { visibility: "hidden" };
-  if (legendPosition !== "none" && legendInteraction === "toggle") {
-    chartLegend = {
-      visibility: legendPosition === "auto" ? "auto" : "visible",
-      interaction: "toggle",
-      summary: legendSummary,
-      maxVisibleSeries,
-    };
-  } else if (legendPosition !== "none") {
-    chartLegend = {
+  const chartLegend = useMemo<LineChartLegend>(() => {
+    if (legendPosition === "none") return { visibility: "hidden" };
+    if (legendInteraction === "toggle") {
+      return {
+        visibility: legendPosition === "auto" ? "auto" : "visible",
+        interaction: "toggle",
+        summary: legendSummary,
+        maxVisibleSeries,
+      };
+    }
+    return {
       visibility: legendPosition === "auto" ? "auto" : "visible",
       interaction: "highlight",
       summary: legendSummary,
     };
-  }
+  }, [legendPosition, legendInteraction, legendSummary, maxVisibleSeries]);
   const chart =
     timeAxis.mode === "category" || hasNonTimestampBucket ? (
       <DesignSystemAreaChart
@@ -152,8 +155,6 @@ export function AreaChartTimeSeries({
         legend={chartLegend}
         xAxis={{
           type: "time",
-          tickFormatter: (value) => timeAxis.formatTick(value.getTime()),
-          tooltipFormatter: (value) => timeAxis.formatTooltip(value.getTime()),
         }}
       />
     );

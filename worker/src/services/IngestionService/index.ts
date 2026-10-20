@@ -6,11 +6,14 @@ import {
   InvalidRequestError,
   LangfuseNotFoundError,
   Model,
+  MAX_SKILLS_PER_OBSERVATION,
   ObservationLevel,
   PrismaClient,
   Prompt,
   safeJsonParse,
   type JsonNested,
+  type SkillsAvailable,
+  type SkillsResourceLoaded,
 } from "@langfuse/shared";
 import {
   ClickhouseClientType,
@@ -31,6 +34,7 @@ import {
   ObservationRecordInsertType,
   observationRecordReadSchema,
   PromptService,
+  SkillCacheService,
   QueueJobs,
   recordIncrement,
   ScoreEventType,
@@ -60,6 +64,7 @@ import {
   sanitizeSdkMetricTagValue,
   type IngestionAttribution,
   type PricingTierMatchAttributes,
+  AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME,
 } from "@langfuse/shared/src/server";
 
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
@@ -68,6 +73,7 @@ import {
   convertJsonSchemaToRecord,
   convertPostgresJsonToMetadataRecord,
   convertRecordValuesToString,
+  hasAiGatewayScope,
   overwriteObject,
 } from "./utils";
 import { randomUUID } from "crypto";
@@ -159,6 +165,17 @@ function withSerializedEventByteLength(
   };
 }
 
+// Models priced before TTL-split cache writes existed (e.g. custom models)
+// only carry an aggregate cache-write price; TTL-split usage falls back to it.
+const TTL_CACHE_CREATION_USAGE_TYPES = new Set([
+  "input_cache_creation_5m",
+  "input_cache_creation_1h",
+]);
+const AGGREGATE_CACHE_CREATION_USAGE_TYPES = [
+  "cache_creation_input_tokens",
+  "input_cache_creation",
+];
+
 const immutableEntityKeys: {
   [TableName.Traces]: (keyof TraceRecordInsertType)[];
   [TableName.Scores]: (keyof ScoreRecordInsertType)[];
@@ -212,6 +229,7 @@ const immutableEntityKeys: {
 
 export class IngestionService {
   private promptService: PromptService;
+  private skillCacheService: SkillCacheService;
 
   constructor(
     private redis: Redis | Cluster,
@@ -220,6 +238,7 @@ export class IngestionService {
     private clickhouseClient: ClickhouseClientType,
   ) {
     this.promptService = new PromptService(prisma, redis);
+    this.skillCacheService = new SkillCacheService(prisma, redis);
   }
 
   public async mergeAndWrite(params: MergeAndWriteParams): Promise<void> {
@@ -322,8 +341,8 @@ export class IngestionService {
       Object.keys(eventData.providedUsageDetails ?? {}).length > 0 ||
       Object.keys(eventData.providedCostDetails ?? {}).length > 0;
 
-    // Perform lookups for prompt and model/usage enrichment
-    const [prompt, generationUsage] = await Promise.all([
+    // Enrich prompt, usage and skill references concurrently.
+    const [prompt, generationUsage, skillReferences] = await Promise.all([
       // Lookup prompt by name and version
       eventData.promptName && eventData.promptVersion
         ? this.promptService.getPrompt({
@@ -344,6 +363,8 @@ export class IngestionService {
               modelParameters,
               metadata,
             },
+            isAiGatewayGeneration:
+              eventData.scopeName === AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME,
             observationRecord: {
               id: eventData.spanId,
               project_id: eventData.projectId,
@@ -351,11 +372,18 @@ export class IngestionService {
               provided_model_name: eventData.modelName,
               provided_usage_details: eventData.providedUsageDetails ?? {},
               provided_cost_details: eventData.providedCostDetails ?? {},
+              level: eventData.level,
               input,
               output,
             },
           })
         : null,
+      this.resolveSkillReferences({
+        projectId: eventData.projectId,
+        type: eventData.type ?? "SPAN",
+        available: eventData.skillsAvailable,
+        loaded: eventData.skillsResourceLoaded,
+      }),
     ]);
 
     const now = toClickhouseDateTime();
@@ -408,6 +436,8 @@ export class IngestionService {
       prompt_id: prompt?.id || "",
       prompt_name: eventData.promptName,
       prompt_version: parseUInt16(eventData.promptVersion),
+      skills_available: skillReferences.skills_available,
+      skills_resource_loaded: skillReferences.skills_resource_loaded,
 
       // Model
       model_id: generationUsage?.internal_model_id || "",
@@ -1075,6 +1105,9 @@ export class IngestionService {
     const generationUsage = await this.getGenerationUsage({
       projectId,
       pricingMatchAttributeValues,
+      isAiGatewayGeneration: timeSortedEvents.some((event) =>
+        hasAiGatewayScope(event.body?.metadata),
+      ),
       observationRecord: mergedObservationRecord,
     });
     const finalObservationRecord = {
@@ -1216,6 +1249,77 @@ export class IngestionService {
     return parsedObservationRecord;
   }
 
+  private async resolveSkillReferences({
+    projectId,
+    type,
+    available = [],
+    loaded = [],
+  }: {
+    projectId: string;
+    type: EventRecordInsertType["type"];
+    available?: SkillsAvailable;
+    loaded?: SkillsResourceLoaded;
+  }): Promise<{
+    skills_available: SkillsAvailable;
+    skills_resource_loaded: SkillsResourceLoaded;
+  }> {
+    // Bound internal callers too, before building the lookup or its cache key.
+    if (
+      available.length > MAX_SKILLS_PER_OBSERVATION ||
+      loaded.length > MAX_SKILLS_PER_OBSERVATION
+    ) {
+      logger.warn("Skill references truncated: item limit exceeded", {
+        projectId,
+        availableCount: available.length,
+        loadedCount: loaded.length,
+        limit: MAX_SKILLS_PER_OBSERVATION,
+      });
+    }
+    available = available.slice(0, MAX_SKILLS_PER_OBSERVATION);
+    loaded = loaded.slice(0, MAX_SKILLS_PER_OBSERVATION);
+    const versions = available.flatMap(({ skillName, skillVersion }) =>
+      skillVersion == null ? [] : [{ name: skillName, version: skillVersion }],
+    );
+    const skills = await this.skillCacheService.getReferences({
+      projectId,
+      versions,
+    });
+
+    const availableSkills = available.map(({ skillName, skillVersion }) => {
+      const skill = skills.find(
+        (skill) => skill.name === skillName && skill.version === skillVersion,
+      );
+      return {
+        skillName,
+        skillVersion: skill?.version ?? skillVersion,
+        langfuseSkillId: skill?.id,
+      };
+    });
+
+    const loadedResources = loaded.map(
+      ({ skillName, filePath, skillVersion }) => {
+        const candidates = availableSkills.filter(
+          (skill) => skill.skillName === skillName,
+        );
+        if (candidates.length !== 1)
+          return { skillName, filePath, skillVersion };
+
+        const skill = candidates[0];
+        return {
+          skillName,
+          filePath,
+          langfuseSkillId: skill?.langfuseSkillId,
+          skillVersion: skill.skillVersion ?? skillVersion,
+        };
+      },
+    );
+
+    return {
+      skills_available: type === "GENERATION" ? availableSkills : [],
+      skills_resource_loaded: loadedResources,
+    };
+  }
+
   private mergeRecords<T extends InsertRecord>(
     records: T[],
     immutableEntityKeys: string[],
@@ -1310,6 +1414,7 @@ export class IngestionService {
   private async getGenerationUsage(params: {
     projectId: string;
     pricingMatchAttributeValues?: PricingTierMatchAttributeValues;
+    isAiGatewayGeneration?: boolean;
     observationRecord: Pick<
       ObservationRecordInsertType,
       | "project_id"
@@ -1333,8 +1438,12 @@ export class IngestionService {
       | "usage_pricing_tier_name"
     >
   > {
-    const { projectId, observationRecord, pricingMatchAttributeValues } =
-      params;
+    const {
+      projectId,
+      observationRecord,
+      pricingMatchAttributeValues,
+      isAiGatewayGeneration = false,
+    } = params;
     const { model: internalModel, pricingTiers } =
       observationRecord.provided_model_name
         ? await findModel({
@@ -1346,6 +1455,7 @@ export class IngestionService {
     const final_usage_details = await this.getUsageUnits(
       observationRecord,
       internalModel,
+      isAiGatewayGeneration,
     );
 
     // Match pricing tier based on usage_details. Skip when usage is empty
@@ -1439,6 +1549,7 @@ export class IngestionService {
       | "id"
     >,
     model: Model | null | undefined,
+    isAiGatewayGeneration: boolean,
   ): Promise<
     Pick<
       ObservationRecordInsertType,
@@ -1457,12 +1568,17 @@ export class IngestionService {
       observationRecord.provided_cost_details ?? {},
     ).some((value) => value != null);
 
+    // The AI gateway forwards provider-reported usage whenever the provider
+    // returns it. Without it (failed or cancelled upstream calls), the true
+    // usage is unknown: the request body holds tool schemas and encrypted
+    // reasoning, so tokenizing it fabricates usage and cost.
     if (
       // Manual tokenisation when no user provided usage or cost and generation has not status ERROR
       model &&
       Object.keys(providedUsageDetails).length === 0 &&
       !hasProvidedCostDetails &&
-      observationRecord.level !== ObservationLevel.ERROR
+      observationRecord.level !== ObservationLevel.ERROR &&
+      !isAiGatewayGeneration
     ) {
       try {
         let newInputCount: number | undefined;
@@ -1706,7 +1822,13 @@ export class IngestionService {
     const finalCostEntries: [string, number][] = [];
 
     for (const [key, units] of Object.entries(usageUnits)) {
-      const price = modelPrices?.find((price) => price.usageType === key);
+      const price =
+        modelPrices?.find((price) => price.usageType === key) ??
+        (TTL_CACHE_CREATION_USAGE_TYPES.has(key)
+          ? AGGREGATE_CACHE_CREATION_USAGE_TYPES.map((usageType) =>
+              modelPrices?.find((price) => price.usageType === usageType),
+            ).find(Boolean)
+          : undefined);
 
       if (units != null && price) {
         finalCostEntries.push([key, price.price.mul(units).toNumber()]);

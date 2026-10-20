@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Group, Panel, Separator, useGroupRef } from "react-resizable-panels";
 import { useStore } from "zustand";
-import { TraceReviewPanel } from "@/src/features/traces/components/TraceReviewPanel";
+import { SessionReviewPanel } from "@/src/features/traces/components/TraceReviewPanel";
 import { useTraceReviewPanel } from "@/src/features/traces/contexts/TraceReviewPanelContext";
 import { SessionReviewLeadingProvider } from "@/src/features/sessions/sessionReviewLeading";
 import { useElementSize } from "@/src/hooks/useElementSize";
@@ -93,7 +93,7 @@ export function SessionReviewWorkspace({
       >
         <div
           ref={leadingRef}
-          className="bg-header sticky top-0 z-30 w-full shrink-0 empty:hidden"
+          className="bg-background sticky top-0 z-30 w-full shrink-0 empty:hidden"
         />
         <Group
           groupRef={groupRef}
@@ -116,8 +116,10 @@ export function SessionReviewWorkspace({
             disabled={!open}
             aria-label="Resize review panel"
             className={cn(
-              "bg-border",
-              vertical ? "h-px" : "w-px",
+              "border-border relative self-stretch",
+              vertical
+                ? "h-px min-h-px w-full border-t"
+                : "h-full w-px min-w-px border-l",
               !open && "hidden",
             )}
           />
@@ -128,7 +130,7 @@ export function SessionReviewWorkspace({
             maxSize={open ? "75%" : "0%"}
           >
             <div ref={reviewRef} className="h-full min-h-0" hidden={!open}>
-              <TraceReviewPanel projectId={projectId} />
+              <SessionReviewPanel projectId={projectId} />
             </div>
           </Panel>
         </Group>

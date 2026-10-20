@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-/* eslint-disable no-nested-ternary */
 // structure:move — move files/folders and rewrite every importer, the way an
 // IDE does: TypeScript's own LanguageService.getEditsForFileRename over
 // web/tsconfig.json, so `@/src/...` aliases, extension-less specifiers, index
@@ -360,12 +359,15 @@ const scriptFileNames = new Set(parsed.fileNames.map(norm));
 let projectVersion = 0;
 
 /** @type {(p: string) => string | undefined} */
-const currentText = (p) =>
-  overlay.has(p)
-    ? overlay.get(p)
-    : removed.has(p)
-      ? undefined
-      : ts.sys.readFile(p);
+const currentText = (p) => {
+  if (overlay.has(p)) {
+    return overlay.get(p);
+  }
+  if (removed.has(p)) {
+    return undefined;
+  }
+  return ts.sys.readFile(p);
+};
 /** @type {(p: string, text: string) => void} */
 const setText = (p, text) => {
   overlay.set(p, text);

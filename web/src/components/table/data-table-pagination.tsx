@@ -1,10 +1,10 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 import {
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { type Table } from "@tanstack/react-table";
 
 import { Button } from "@/src/components/ui/button";
@@ -27,12 +27,16 @@ import {
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { useEffect, useState } from "react";
 
+/** Tracing lists accept a limit of 100. Other tables keep the 50 default. */
+export const TRACING_PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50, 100];
+
 interface DataTablePaginationProps<TData> {
   table: Table<TData>;
   isLoading: boolean;
   paginationOptions?: number[];
   hideTotalCount?: boolean;
   canJumpPages?: boolean; // if we need a cursor (last_item_id), we can't jump pages
+  resultCountLabel?: string;
   // Approx count for the "Total" footer; undefined = no footer (opt-in).
   approxTotalCount?: number | null;
   isApproxTotalCountLoading?: boolean;
@@ -48,6 +52,7 @@ export function DataTablePagination<TData>({
   paginationOptions = [10, 20, 30, 40, 50],
   hideTotalCount = false,
   canJumpPages = true,
+  resultCountLabel,
   approxTotalCount,
   isApproxTotalCountLoading = false,
   approxTotalCountIsPartialScope = false,
@@ -119,8 +124,16 @@ export function DataTablePagination<TData>({
     "text-muted-foreground hidden text-sm font-normal whitespace-nowrap @min-[640px]/pagination:inline-flex @min-[640px]/pagination:items-center";
 
   return (
-    <div className="@container/pagination flex w-full min-w-0 items-center justify-end">
-      <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-4 gap-y-2 @min-[520px]/pagination:gap-x-6 @min-[720px]/pagination:gap-x-8">
+    <div className="@container/pagination flex w-full min-w-0 items-center justify-end gap-4">
+      {resultCountLabel && (
+        <span
+          className="text-muted-foreground shrink-0 pl-2 text-xs font-normal"
+          role="status"
+        >
+          {resultCountLabel}
+        </span>
+      )}
+      <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-x-4 gap-y-2 @min-[520px]/pagination:gap-x-6 @min-[720px]/pagination:gap-x-8">
         {showExactTotal ? (
           // Result fits on the loaded page(s) — the total is exact, no estimate.
           <span className={totalCountClassName}>
@@ -229,24 +242,21 @@ export function DataTablePagination<TData>({
             ) : (
               `Page ${currentPage}`
             )}
-            {!hideTotalCount && (
-              <>
-                {pageCount !== -1 ? (
-                  <span>of {pageCount}</span>
-                ) : (
-                  <span>
-                    of{" "}
-                    {isLoading ? (
-                      <span className="ml-1 inline-flex align-middle">
-                        <Spinner size="xxs" variant="muted" display="inline" />
-                      </span>
-                    ) : (
-                      1
-                    )}
-                  </span>
-                )}
-              </>
-            )}
+            {!hideTotalCount &&
+              (pageCount !== -1 ? (
+                <span>of {pageCount}</span>
+              ) : (
+                <span>
+                  of{" "}
+                  {isLoading ? (
+                    <span className="ml-1 inline-flex align-middle">
+                      <Spinner size="xxs" variant="muted" display="inline" />
+                    </span>
+                  ) : (
+                    1
+                  )}
+                </span>
+              ))}
           </div>
 
           <div className="flex items-center gap-2">
@@ -263,7 +273,7 @@ export function DataTablePagination<TData>({
                 disabled={!table.getCanPreviousPage()}
               >
                 <span className="sr-only">Go to first page</span>
-                <ChevronsLeft className="h-4 w-4" />
+                <ChevronsLeft size="base" color="default" />
               </Button>
             )}
             <Button
@@ -278,7 +288,7 @@ export function DataTablePagination<TData>({
               disabled={!table.getCanPreviousPage()}
             >
               <span className="sr-only">Go to previous page</span>
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft size="base" color="default" />
             </Button>
             <Button
               variant="outline"
@@ -292,7 +302,7 @@ export function DataTablePagination<TData>({
               disabled={!table.getCanNextPage() || pageCount === -1}
             >
               <span className="sr-only">Go to next page</span>
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight size="base" color="default" />
             </Button>
             {canJumpPages && (
               <Button
@@ -307,7 +317,7 @@ export function DataTablePagination<TData>({
                 disabled={!table.getCanNextPage() || pageCount === -1}
               >
                 <span className="sr-only">Go to last page</span>
-                <ChevronsRight className="h-4 w-4" />
+                <ChevronsRight size="base" color="default" />
               </Button>
             )}
           </div>

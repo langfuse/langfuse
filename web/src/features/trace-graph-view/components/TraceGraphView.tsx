@@ -5,7 +5,6 @@ import React, {
   useCallback,
   useRef,
 } from "react";
-import { StringParam, useQueryParam } from "use-query-params";
 import { ObservationType } from "@langfuse/shared";
 
 import { ElkGraphRenderer } from "./ElkGraphRenderer";
@@ -32,11 +31,10 @@ import {
 
 type TraceGraphViewProps = {
   agentGraphData: AgentGraphDataResponse[];
-  /**
-   * Observation ids "playing" at the timeline playhead (from PlayheadContext).
-   * Mapped to their node names here so the graph glows in sync with the timeline.
-   */
-  activeObservationIds?: ReadonlySet<string>;
+  selectedObservationId: string | null;
+  /** Selection the host resolves to when the explicit observation is cleared. */
+  defaultObservationId: string | null;
+  onSelectedObservationChange: (id: string | null) => void;
   /** How the graph is built (aggregated vs expanded) — see GraphViewMode. */
   viewMode?: GraphViewMode;
   /** When provided, the mode switch is rendered over the canvas. */
@@ -63,25 +61,25 @@ type TraceGraphViewProps = {
 
 export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
   agentGraphData,
-  activeObservationIds,
+  selectedObservationId: currentObservationId,
+  defaultObservationId,
+  onSelectedObservationChange: setCurrentObservationId,
   viewMode = "aggregated",
   onViewModeChange,
   onObservationSelect,
   search,
 }) => {
   const [selectedNodeName, setSelectedNodeName] = useState<string | null>(null);
-  const [currentObservationId, setCurrentObservationId] = useQueryParam(
-    "observation",
-    StringParam,
-  );
   const [currentObservationIndices, setCurrentObservationIndices] = useState<{
     [nodeName: string]: number;
   }>({});
   const [previousSelectedNode, setPreviousSelectedNode] = useState<
     string | null
   >(null);
-  // The observation id the last in-canvas click WROTE to the URL (undefined =
-  // no pending click write). Value-compared — a plain boolean flag gets stuck
+  // The resolved observation id expected after the last in-canvas click
+  // (undefined = no pending click write). Clearing the URL can resolve to the
+  // host's implicit root, which is still a click echo, not an external selection.
+  // Value-compared — a plain boolean flag gets stuck
   // when a click writes the same id the URL already has (the effect never
   // re-fires to clear it) and then swallows the NEXT genuine tree/timeline
   // selection, desyncing the graph highlight.
@@ -140,25 +138,6 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
     [agentGraphData],
   );
 
-  // observation id → its node id, so the playhead's active-observation set can
-  // be projected onto graph nodes. Aggregated: id → node NAME from the full
-  // data (nodeToObservationsMap only holds the top-most of a same-name chain).
-  // Expanded: node ids ARE observation ids — the projection is identity over
-  // the unfiltered data (ids that aren't graph nodes simply never match).
-  const observationToNodeName = useMemo(() => {
-    const map = new Map<string, string>();
-    if (isExpanded) {
-      for (const o of agentGraphData) {
-        if (o.id) map.set(o.id, o.id);
-      }
-    } else {
-      for (const o of normalizedData) {
-        if (o.id && o.node) map.set(o.id, o.node);
-      }
-    }
-    return map;
-  }, [normalizedData, agentGraphData, isExpanded]);
-
   /**
    * Everything the "which node is this observation?" walk needs, in the active
    * view mode. Built once and shared by the selection fallback below and the
@@ -178,16 +157,6 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
     }),
     [isExpanded, agentGraphById, graphNodeIds, normalizedData],
   );
-
-  const activeNodeNames = useMemo(() => {
-    if (!activeObservationIds || activeObservationIds.size === 0) return null;
-    const names = new Set<string>();
-    for (const id of activeObservationIds) {
-      const name = observationToNodeName.get(id);
-      if (name) names.add(name);
-    }
-    return names;
-  }, [activeObservationIds, observationToNodeName]);
 
   // A node stands for every call of its step, so it keeps its colour when ANY
   // observation behind it matched — including the ones no node registers, which
@@ -294,7 +263,7 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
           // For system nodes, don't set observation ID (they're synthetic)
           setPreviousSelectedNode(nodeName);
           setSelectedNodeName(nodeName);
-          clickWroteObservationIdRef.current = null;
+          clickWroteObservationIdRef.current = defaultObservationId;
           setCurrentObservationId(null);
           return;
         }
@@ -318,7 +287,7 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
           setCurrentObservationId(observations[targetIndex]);
           onObservationSelect?.();
         } else {
-          clickWroteObservationIdRef.current = null;
+          clickWroteObservationIdRef.current = defaultObservationId;
           setCurrentObservationId(null);
         }
         setPreviousSelectedNode(nodeName);
@@ -332,6 +301,7 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
       nodeToObservationsMap,
       currentObservationIndices,
       previousSelectedNode,
+      defaultObservationId,
       setCurrentObservationId,
       onObservationSelect,
     ],
@@ -351,7 +321,6 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
           onCanvasNodeNameChange={onCanvasNodeNameChange}
           nodeToObservationsMap={nodeToObservationsMap}
           currentObservationIndices={currentObservationIndices}
-          activeNodeNames={activeNodeNames}
           matchedNodeNames={matchedNodeNames}
           // Expanded runs are long chains — left→right reads like a
           // timeline and fits the wide graph panel far better than top-down.

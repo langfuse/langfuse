@@ -198,14 +198,18 @@ export function HeatmapCard() {
   const title =
     dataType === "NUMERIC" ? "Score Comparison Heatmap" : "Confusion Matrix";
 
-  const description =
-    mode === "single"
-      ? dataType === "NUMERIC"
-        ? "Distribution of matched score pairs showing correlation patterns"
-        : "Agreement matrix between categorical scores"
-      : dataType === "NUMERIC"
-        ? `${totalMatchedPairs.toLocaleString()} matched pairs showing correlation patterns`
-        : `${totalMatchedPairs.toLocaleString()} matched pairs showing agreement`;
+  const description = (() => {
+    if (mode === "single") {
+      if (dataType === "NUMERIC") {
+        return "Distribution of matched score pairs showing correlation patterns";
+      }
+      return "Agreement matrix between categorical scores";
+    }
+    if (dataType === "NUMERIC") {
+      return `${totalMatchedPairs.toLocaleString()} matched pairs showing correlation patterns`;
+    }
+    return `${totalMatchedPairs.toLocaleString()} matched pairs showing agreement`;
+  })();
 
   // Single score mode - show placeholder
   if (mode === "single") {
@@ -237,12 +241,15 @@ export function HeatmapCard() {
   // Calculate dynamic cell height based on available space
   // Magic number 230px represents approximate available height for grid
   // (card height minus header, labels, legend, gaps)
-  const numRows =
-    dataType === "NUMERIC"
-      ? 10
-      : heatmap && "rows" in heatmap
-        ? heatmap.rows
-        : 10;
+  const numRows = (() => {
+    if (dataType === "NUMERIC") {
+      return 10;
+    }
+    if (heatmap && "rows" in heatmap) {
+      return heatmap.rows;
+    }
+    return 10;
+  })();
   const calculatedCellHeight = Math.floor(200 / numRows);
 
   return (

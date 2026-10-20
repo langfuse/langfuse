@@ -20,7 +20,7 @@ export function ConnectedSupportFormSection({
   onSuccess: () => void;
 }) {
   const { organization, project } = useQueryProjectOrOrganization();
-  const { initialTopic } = useSupportDrawer();
+  const { initialTopic, initialMessage } = useSupportDrawer();
   const showV4MigrationTopic = useV4UpgradeUiEnabled(project?.id);
   // The support drawer is mounted globally and reachable from pages without an
   // org/project in the URL (home, setup, onboarding, account settings), where
@@ -106,6 +106,11 @@ export function ConnectedSupportFormSection({
       showErrorToast(
         "Support request was not sent",
         "Please contact support@langfuse.com",
+        {
+          operation: "support_request.submit",
+          errorOrigin: "backend",
+          errorCategory: "internal",
+        },
       );
       return "kept";
     }
@@ -125,12 +130,22 @@ export function ConnectedSupportFormSection({
       <SupportForm
         canSelectHighSeverity={canSelectHighSeverity}
         initialTopic={initialTopic ?? ""}
+        initialMessage={initialMessage}
         showV4MigrationTopic={showV4MigrationTopic}
         onCancel={onCancel}
         onSuccess={onSuccess}
         onSubmit={handleSubmit}
         onFileError={(message) =>
-          showErrorToast("File Upload Error", message, "WARNING")
+          showErrorToast(
+            "File Upload Error",
+            message,
+            {
+              operation: "support_attachment.upload",
+              errorOrigin: "frontend",
+              errorCategory: "user_input",
+            },
+            "WARNING",
+          )
         }
       />
     </div>

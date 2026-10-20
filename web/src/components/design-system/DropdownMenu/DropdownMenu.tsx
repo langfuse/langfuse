@@ -24,12 +24,14 @@ import {
   type Placement,
 } from "@floating-ui/react";
 import { cva } from "class-variance-authority";
-import { ChevronRight, type LucideIcon } from "lucide-react";
+import { type IconComponent } from "@langfuse/icons";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import Link from "next/link";
 import * as React from "react";
 
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { useScrollGradients } from "@/src/hooks/useScrollGradients";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 
 const menuVariants = cva(
@@ -121,13 +123,14 @@ type DropdownMenuItem = {
   id: string;
   title: string;
   tooltip?: string;
-  icon?: LucideIcon;
+  badge?: React.ReactNode;
+  icon?: IconComponent;
   searchBehavior?: SearchBehavior;
   type: "item";
   variant?: "default" | "destructive";
   secondaryAction?: MenuAction & {
     ariaLabel: string;
-    icon: LucideIcon;
+    icon: IconComponent;
   };
 } & DropdownMenuItemAction;
 
@@ -137,7 +140,7 @@ type DropdownMenuCheckboxItem = {
   disabled?: { reason: string };
   id: string;
   title: string;
-  icon?: LucideIcon;
+  icon?: IconComponent;
   searchBehavior?: SearchBehavior;
   onCheckedChange: (checked: boolean) => void;
   type: "checkbox";
@@ -147,7 +150,7 @@ type DropdownMenuSubmenu = {
   disabled?: { reason: string };
   id: string;
   title: string;
-  icon?: LucideIcon;
+  icon?: IconComponent;
   items: DropdownMenuItemDefinition[];
   searchBehavior?: SearchBehavior;
   search?: { placeholder: string };
@@ -174,6 +177,8 @@ type DropdownMenuProps = {
   placement?: Placement;
   search?: { placeholder: string };
   title?: string;
+  /** Marks an internal-only menu with the Internal badge in the header. */
+  internal?: boolean;
   description?: string;
 };
 
@@ -197,12 +202,14 @@ function DropdownMenuNode({
   children,
   description,
   disabled = false,
+  internal = false,
   items,
   maxHeight = "15rem",
   placement = "bottom-start",
   search,
   title,
 }: DropdownMenuProps) {
+  const hasHeader = Boolean(title) || internal;
   const [isOpen, setIsOpen] = React.useState(false);
   const [activeIndex, setActiveIndex] = React.useState<number | null>(null);
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -331,9 +338,16 @@ function DropdownMenuNode({
                   }
                 : {})}
             >
-              {title ? (
+              {hasHeader ? (
                 <div className="border-border bg-popover sticky top-0 z-1 border-b px-3 py-2.5 text-sm font-bold">
-                  {title}
+                  {internal ? (
+                    <div className="flex items-center gap-2">
+                      {title}
+                      <Badge text="Internal" color="yellow" size="sm" />
+                    </div>
+                  ) : (
+                    title
+                  )}
                   {description && (
                     <p className="text-muted-foreground mt-1 text-xs font-normal">
                       {description}
@@ -380,7 +394,7 @@ function DropdownMenuNode({
               ) : null}
               <div
                 className={menuBodyVariants({
-                  hasTitle: Boolean(title || search),
+                  hasTitle: hasHeader || Boolean(search),
                   showBottomGradient: bottom,
                   showTopGradient: top,
                 })}
@@ -450,17 +464,17 @@ function DropdownMenuNode({
                             <span className={primaryActionVariants()}>
                               {ItemIcon ? (
                                 <ItemIcon
-                                  className="mr-1.5 size-4"
+                                  color="default"
+                                  __rawClassName="mr-1.5"
                                   aria-hidden="true"
                                 />
                               ) : null}
                               <span className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap">
                                 {item.title}
                               </span>
-                              <ChevronRight
-                                className="ml-2 size-4"
-                                aria-hidden="true"
-                              />
+                              <span className="ml-2 flex">
+                                <DropdownIndicator direction="right" />
+                              </span>
                             </span>
                           </button>
                         )}
@@ -509,7 +523,8 @@ function DropdownMenuNode({
                         <span className={primaryActionVariants()}>
                           {ItemIcon ? (
                             <ItemIcon
-                              className="mr-1.5 size-4"
+                              color="default"
+                              __rawClassName="mr-1.5"
                               aria-hidden="true"
                             />
                           ) : null}
@@ -565,7 +580,15 @@ function DropdownMenuNode({
                           }}
                           {...interactionProps}
                         >
-                          <SecondaryIcon size={12} aria-hidden="true" />
+                          <SecondaryIcon
+                            size="sm"
+                            color={
+                              item.variant === "destructive"
+                                ? "inherit"
+                                : "default"
+                            }
+                            aria-hidden="true"
+                          />
                         </Link>
                       );
                     } else {
@@ -584,7 +607,15 @@ function DropdownMenuNode({
                           }}
                           {...interactionProps}
                         >
-                          <SecondaryIcon size={12} aria-hidden="true" />
+                          <SecondaryIcon
+                            size="sm"
+                            color={
+                              item.variant === "destructive"
+                                ? "inherit"
+                                : "default"
+                            }
+                            aria-hidden="true"
+                          />
                         </button>
                       );
                     }
@@ -651,7 +682,12 @@ function DropdownMenuNode({
                         >
                           {ItemIcon ? (
                             <ItemIcon
-                              className="mr-1.5 size-4"
+                              color={
+                                item.variant === "destructive"
+                                  ? "inherit"
+                                  : "default"
+                              }
+                              __rawClassName="mr-1.5"
                               aria-hidden="true"
                             />
                           ) : null}
@@ -661,6 +697,9 @@ function DropdownMenuNode({
                           >
                             {item.title}
                           </span>
+                          {item.badge ? (
+                            <span className="ml-2 shrink-0">{item.badge}</span>
+                          ) : null}
                         </Link>
                       ) : (
                         <button
@@ -675,7 +714,12 @@ function DropdownMenuNode({
                         >
                           {ItemIcon ? (
                             <ItemIcon
-                              className="mr-1.5 size-4"
+                              color={
+                                item.variant === "destructive"
+                                  ? "inherit"
+                                  : "default"
+                              }
+                              __rawClassName="mr-1.5"
                               aria-hidden="true"
                             />
                           ) : null}
@@ -685,6 +729,9 @@ function DropdownMenuNode({
                           >
                             {item.title}
                           </span>
+                          {item.badge ? (
+                            <span className="ml-2 shrink-0">{item.badge}</span>
+                          ) : null}
                         </button>
                       )}
                       {renderedSecondaryAction}

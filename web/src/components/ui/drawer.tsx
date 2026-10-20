@@ -1,5 +1,4 @@
-/* eslint-disable no-nested-ternary */
-/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements */
+/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements, @repo/component-file-structure */
 "use client";
 
 import * as React from "react";
@@ -90,16 +89,21 @@ const Drawer = ({
   const isMediumScreen = useMediaQuery({
     query: `(min-width: ${TAILWIND_MD_MEDIA_QUERY}px)`,
   });
-  const direction =
-    forceDirection === "responsive"
-      ? isMediumScreen
-        ? "right"
-        : "bottom"
-      : forceDirection === "responsive-left"
-        ? isMediumScreen
-          ? "left"
-          : "bottom"
-        : forceDirection;
+  const direction = (() => {
+    if (forceDirection === "responsive") {
+      if (isMediumScreen) {
+        return "right";
+      }
+      return "bottom";
+    }
+    if (forceDirection === "responsive-left") {
+      if (isMediumScreen) {
+        return "left";
+      }
+      return "bottom";
+    }
+    return forceDirection;
+  })();
 
   return (
     <DrawerContext.Provider value={{ blockTextSelection, direction }}>

@@ -117,6 +117,8 @@ jobs:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      IRONBANK_USER: ${{ secrets.IRONBANK_USER }}
+      IRONBANK_PASS: ${{ secrets.IRONBANK_PASS }}
     strategy:
       matrix:
         service: ${{ fromJson(needs.affected-services.outputs.services) }}
@@ -139,6 +141,5 @@ jobs:
       - name: Notify Slack
         uses: ./.github/actions/notify-slack-failure
         with:
-          title: "❌ Deploy Failed"
           message: "❌ Deploy failed on ${{ github.ref_name }}"
           webhook-url: ${{ secrets.SLACK_CI_FAILURE_WORKFLOW_WEBHOOK_URL }}
