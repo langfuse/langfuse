@@ -28,8 +28,6 @@ export function useCanViewTopics(projectId: string) {
 }
 
 /** Project gate: Topics is enabled for the project (deployment allowlist, resolved on the server). */
-export function isTopicsEnabledForProject(
-  project: TopicsProject | null | undefined,
-) {
+function isTopicsEnabledForProject(project: TopicsProject | null | undefined) {
   return project?.topicsEnabled === true;
 }
