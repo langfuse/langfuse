@@ -108,7 +108,14 @@ export const aiGatewayRouter = createTRPCRouter({
     .input(
       organizationInput.extend({
         defaultIngestionProjectId: z.string().nullable(),
-        ingestionMode: z.enum(GatewayIngestionMode),
+        ingestionMode: z
+          .enum(GatewayIngestionMode)
+          .refine(
+            (mode) =>
+              mode !== GatewayIngestionMode.NONE ||
+              !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+            "Ingestion mode NONE is only available on self-hosted deployments",
+          ),
       }),
     )
     .mutation(async ({ input, ctx }) => {

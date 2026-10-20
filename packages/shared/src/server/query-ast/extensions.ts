@@ -272,6 +272,13 @@ export function sumMapValuesWhereKeyContains(
   );
 }
 
+/**
+ * A helper's result. Its table scope is every table: Kysely doesn't check an
+ * expression's scope where it is used (`ExpressionWrapper<DB, "e", T>` is
+ * assignable to `ExpressionWrapper<DB, "t", T>`), so a narrower type would
+ * catch nothing. Scope is checked where references are written, so shared
+ * expressions take the calling query's `eb` (README, "Using it").
+ */
 type ChExpression<T> = ExpressionWrapper<
   ClickHouseDatabase,
   keyof ClickHouseDatabase,
@@ -625,34 +632,60 @@ export function argMaxIf<T>(
 }
 
 /**
- * A trace's session id from its events: the latest non-empty `session_id`,
- * `argMaxIf(session_id, event_ts, session_id != '')`. Reads unqualified
- * columns, for a trace-level aggregate over one events table.
+ * The latest non-empty `value` by `by` across the group:
+ * `argMaxIf(value, by, value != '')`.
  */
-export function traceSessionId(): ChExpression<string> {
-  const eb = expressionBuilder<ClickHouseDatabase, "events_core">();
-  const sessionId = eb.ref("session_id");
-  return argMaxIf(sessionId, eb.ref("event_ts"), nonEmpty(sessionId));
+export function latestNonEmpty(
+  value: Expression<string>,
+  by: Expression<unknown>,
+): ChExpression<string> {
+  return argMaxIf(value, by, nonEmpty(value));
 }
 
 /**
- * Lower `metadata[key]` to a subscript of {@link metadataMap}, so the last
- * entry of a duplicated key wins. Keys follow {@link mapValue}: a string is
- * bound, a `literal(...)` is inlined.
+ * Lower `metadata[key]` to a subscript of {@link metadataMap} over the events
+ * `metadata_names` / `metadata_values` columns, so the last entry of a
+ * duplicated key wins. Keys follow {@link mapValue}: a string is bound, a
+ * `literal(...)` is inlined. `names` / `values` must be one relation's
+ * `metadata_names` / `metadata_values` refs; anything else throws.
  */
 export function metadataValue(
-  tableAlias: string,
+  names: Expression<string[]>,
+  values: Expression<string[]>,
   key: string | Expression<string>,
 ): ChExpression<string> {
-  const column = (name: string) =>
-    new ExpressionWrapper<ClickHouseDatabase, "events_core", string[]>(
-      qualifiedColumn(tableAlias, name),
+  assertMetadataColumns(names, values);
+  return subscript<string>(metadataMap(names, values), key, true);
+}
+
+/**
+ * Throws unless `names` / `values` are `q.metadata_names` / `q.metadata_values`
+ * of one qualifier `q`. The routing pass trusts the lookup's marker and does
+ * not walk these arguments, so they may read nothing else.
+ */
+function assertMetadataColumns(
+  names: Expression<string[]>,
+  values: Expression<string[]>,
+): void {
+  const namesOf = qualifierOf(names.toOperationNode(), "metadata_names");
+  const valuesOf = qualifierOf(values.toOperationNode(), "metadata_values");
+  if (namesOf === undefined || namesOf !== valuesOf) {
+    throw new QueryCompileError(
+      'metadataValue reads the metadata columns of one relation: pass eb.ref("e.metadata_names") and eb.ref("e.metadata_values").',
     );
-  return subscript<string>(
-    metadataMap(column("metadata_names"), column("metadata_values")),
-    key,
-    true,
-  );
+  }
+}
+
+/** `e` for the reference `e.<column>`; undefined for anything else. */
+function qualifierOf(node: OperationNode, column: string): string | undefined {
+  if (
+    !ReferenceNode.is(node) ||
+    !ColumnNode.is(node.column) ||
+    node.column.column.name !== column
+  ) {
+    return undefined;
+  }
+  return node.table?.table.identifier.name;
 }
 
 // Extract the element type `T` from an array-typed `Expression<T[]>`. `arrayJoin`

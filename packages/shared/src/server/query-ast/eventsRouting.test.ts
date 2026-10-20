@@ -52,6 +52,9 @@ type EventsEb = ExpressionBuilder<
   "e"
 >;
 
+const eventsMetadata = (eb: EventsEb, key: string) =>
+  metadataValue(eb.ref("e.metadata_names"), eb.ref("e.metadata_values"), key);
+
 describe("logical events routing", () => {
   it("routes a read of untruncated columns to events_core", () => {
     expect(
@@ -84,7 +87,7 @@ describe("logical events routing", () => {
         compile(
           db
             .selectFrom("events as e")
-            .select(() => [metadataValue("e", "k").as("v")]),
+            .select((eb) => [eventsMetadata(eb, "k").as("v")]),
         ),
       ),
     ).toEqual(["events_full"]);
@@ -532,10 +535,10 @@ describe("logical events routing of metadata predicates", () => {
     );
 
   it("keeps a short `=` and `startsWith` on events_core", () => {
-    expect(route((eb) => eb(metadataValue("e", "k"), "=", "x"))).toEqual([
+    expect(route((eb) => eb(eventsMetadata(eb, "k"), "=", "x"))).toEqual([
       "events_core",
     ]);
-    expect(route(() => startsWith(metadataValue("e", "k"), "x"))).toEqual([
+    expect(route((eb) => startsWith(eventsMetadata(eb, "k"), "x"))).toEqual([
       "events_core",
     ]);
   });
@@ -547,7 +550,7 @@ describe("logical events routing of metadata predicates", () => {
           db
             .selectFrom("events as e")
             .select("e.span_id")
-            .where((eb) => eb(metadataValue("e", "k"), "=", "x"))
+            .where((eb) => eb(eventsMetadata(eb, "k"), "=", "x"))
             .$call(
               limitBy({ count: 1, columns: (eb) => [eb.ref("e.span_id")] }),
             ),
@@ -558,22 +561,22 @@ describe("logical events routing of metadata predicates", () => {
 
   it("keeps a negated short `=` on events_core", () => {
     expect(
-      route((eb) => eb.not(eb(metadataValue("e", "k"), "=", "x"))),
+      route((eb) => eb.not(eb(eventsMetadata(eb, "k"), "=", "x"))),
     ).toEqual(["events_core"]);
   });
 
   it("routes other comparison shapes on a metadata value to events_full", () => {
     // Operator outside the allow-list.
-    expect(route((eb) => eb(metadataValue("e", "k"), "!=", "x"))).toEqual([
+    expect(route((eb) => eb(eventsMetadata(eb, "k"), "!=", "x"))).toEqual([
       "events_full",
     ]);
     // Value on the left.
     expect(
-      route((eb) => eb(eb.val("x"), "=", metadataValue("e", "k"))),
+      route((eb) => eb(eb.val("x"), "=", eventsMetadata(eb, "k"))),
     ).toEqual(["events_full"]);
     // Compared to a column, not a bound value.
     expect(
-      route((eb) => eb(metadataValue("e", "k"), "=", eb.ref("e.name"))),
+      route((eb) => eb(eventsMetadata(eb, "k"), "=", eb.ref("e.name"))),
     ).toEqual(["events_full"]);
   });
 
@@ -614,8 +617,8 @@ describe("logical events routing agrees with filtersRequireEventsFull", () => {
     | "does not contain";
 
   const astPredicate = (operator: MetadataOperator, value: string) => {
-    const metadata = metadataValue("e", "k");
     return (eb: EventsEb): Expression<SqlBool> => {
+      const metadata = eventsMetadata(eb, "k");
       switch (operator) {
         case "=":
           return eb(metadata, "=", value);
