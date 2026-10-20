@@ -91,7 +91,9 @@ function countTopicRequestTokens(
 }
 
 /** The input exceeds the run's token limit; no model call was made. */
-export class TopicInputTooLarge extends Error {}
+export class TopicInputTooLarge extends Error {
+  readonly name = "TopicInputTooLarge";
+}
 
 /** One span, call counter and failure log per provider request. */
 async function topicModelCall<T>(

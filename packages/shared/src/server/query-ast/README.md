@@ -147,10 +147,10 @@ suffix to run there. Promote it to a required check once it has proven stable.
 db.selectFrom("observations")
   .select("environment")
   .$call(
-    arrayJoin({
-      cost_key: mapKeys("cost_details"),
-      cost: mapValues("cost_details"),
-    }),
+    arrayJoin((eb) => ({
+      cost_key: mapKeys(eb.ref("cost_details")),
+      cost: mapValues(eb.ref("cost_details")),
+    })),
   );
 // … array join mapKeys(cost_details) as cost_key, mapValues(cost_details) as cost
 ```
@@ -162,7 +162,12 @@ db.selectFrom("events")
   .$call(softDeleteAfterLimit())
   .select(["span_id", "project_id"])
   .orderBy("event_ts", "desc")
-  .$call(limitBy({ count: 1, columns: ["span_id", "project_id"] }));
+  .$call(
+    limitBy({
+      count: 1,
+      columns: (eb) => [eb.ref("span_id"), eb.ref("project_id")],
+    }),
+  );
 // … order by event_ts desc limit 1 by span_id, project_id, wrapped by the
 // soft-delete pass so a deleted latest version is dropped
 ```

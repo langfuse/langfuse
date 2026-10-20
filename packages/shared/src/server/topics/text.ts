@@ -224,11 +224,6 @@ async function generateWithConnection<T>(
   ) => void,
 ): Promise<TopicTextResult> {
   const nativeOpenAI = isFirstPartyOpenAI(params.model);
-  const compatibleOpenAIChat =
-    params.model.adapter === LLMAdapter.OpenAI &&
-    !nativeOpenAI &&
-    params.model.connection.config?.useResponsesApi !== true;
-  const defaultReasoning = compatibleOpenAIChat ? undefined : "none";
   const result = await generateLLMText({
     model: { adapter: params.model.adapter, id: params.model.model },
     connection: params.model.connection,
@@ -238,10 +233,7 @@ async function generateWithConnection<T>(
     messages: topicMessages(params),
     output: Output.object({ schema: params.schema }),
     maxOutputTokens: params.maxOutputTokens,
-    // Compatible endpoints choose their own supported reasoning settings.
-    reasoning: nativeOpenAI
-      ? openAIReasoning(params.model.model)
-      : defaultReasoning,
+    reasoning: topicReasoning(params.model),
     // Bedrock ignores portable reasoning for OpenAI models; their default effort
     // is not none.
     ...(isBedrockGPT(params.model)
@@ -328,6 +320,17 @@ function hasOpenAIRefusal(body: unknown): boolean {
         ),
     )
   );
+}
+
+function topicReasoning(model: TopicsModel): "none" | "minimal" | undefined {
+  if (isFirstPartyOpenAI(model)) return openAIReasoning(model.model);
+  /** Compatible endpoints choose their own supported reasoning settings. */
+  if (
+    model.adapter === LLMAdapter.OpenAI &&
+    model.connection.config?.useResponsesApi !== true
+  )
+    return undefined;
+  return "none";
 }
 
 /** Topics owns its OpenAI request options; saved evaluator options keep their routing. */
