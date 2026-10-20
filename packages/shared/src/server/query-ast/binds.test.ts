@@ -457,9 +457,7 @@ describe("typed params from the column registry", () => {
       getClickhouseKysely()
         .selectFrom("events_core as e")
         .select("e.span_id")
-        .$call(
-          arrayJoin({ start_time: sql_.ref<string[]>("e.metadata_names") }),
-        )
+        .$call(arrayJoin((eb) => ({ start_time: eb.ref("e.metadata_names") })))
         .where(sql_.ref("start_time"), "=", "x"),
     );
     expect(sql).toMatch(/start_time = \{p\d+:String\}/);
