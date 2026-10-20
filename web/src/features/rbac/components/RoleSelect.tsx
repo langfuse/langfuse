@@ -28,12 +28,13 @@ const triggerVariants = cva("", {
   },
 });
 
-/** RoleSelect offers permission previews for each role. */
+/** RoleSelect offers permission previews for each role; the owner role is only selectable with `canManageOwnership`. */
 export function RoleSelect({
   roles,
   value,
   onValueChange,
   isProjectRole = false,
+  canManageOwnership,
   disabled = false,
   triggerId,
   size,
@@ -42,6 +43,7 @@ export function RoleSelect({
   value: Role;
   onValueChange: (role: Role) => void;
   isProjectRole?: boolean;
+  canManageOwnership: boolean;
   disabled?: boolean;
   triggerId?: string;
 } & VariantProps<typeof triggerVariants>) {
@@ -90,6 +92,11 @@ export function RoleSelect({
               key={role}
               role={role}
               isProjectRole={isProjectRole}
+              disabledReason={
+                role === "OWNER" && !canManageOwnership
+                  ? "Requires owner access"
+                  : undefined
+              }
               onViewPermissions={openPermissions}
             />
           ))}

@@ -55,6 +55,8 @@ type MembersSettingsTableProps = Pick<
   currentUserId?: string;
   hasOrgCudAccess: boolean;
   hasProjectCudAccess: boolean;
+  canManageOrgOwnership: boolean;
+  canManageProjectOwnership: boolean;
   projectRolesEntitlement: boolean;
   showFeaturePreviews: boolean;
   updatingOrgRoleMembershipIds: ReadonlySet<string>;
@@ -80,6 +82,8 @@ export function MembersSettingsTable({
   currentUserId,
   hasOrgCudAccess,
   hasProjectCudAccess,
+  canManageOrgOwnership,
+  canManageProjectOwnership,
   projectRolesEntitlement,
   showFeaturePreviews,
   updatingOrgRoleMembershipIds,
@@ -123,6 +127,7 @@ export function MembersSettingsTable({
           const select = (
             <RoleSelect
               roles={allRoles}
+              canManageOwnership={canManageOrgOwnership}
               value={row.original.orgRole}
               size="compact"
               disabled={
@@ -183,6 +188,7 @@ export function MembersSettingsTable({
                 return (
                   <RoleSelect
                     roles={allRoles}
+                    canManageOwnership={canManageProjectOwnership}
                     value={row.original.projectRole ?? "NONE"}
                     isProjectRole
                     size="compact"
@@ -246,6 +252,8 @@ export function MembersSettingsTable({
       }),
     ],
     [
+      canManageOrgOwnership,
+      canManageProjectOwnership,
       hasOrgCudAccess,
       hasProjectCudAccess,
       onUpdateOrgRole,

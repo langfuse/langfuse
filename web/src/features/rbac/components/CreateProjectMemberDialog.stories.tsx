@@ -10,6 +10,8 @@ const defaultArgs = {
   project: undefined,
   hasOnlySingleProjectAccess: false,
   hasProjectRoleEntitlement: false,
+  canManageOrgOwnership: true,
+  canManageProjectOwnership: true,
   isPending: false,
   createProjectMember: fn().mockResolvedValue(undefined),
   onSuccess: fn(),
@@ -50,6 +52,25 @@ export const SingleProjectAccess = meta.story({
     project: { id: "project-1", name: "Support assistant" },
     hasOnlySingleProjectAccess: true,
     hasProjectRoleEntitlement: true,
+  },
+});
+
+export const WithoutOwnershipAccess = meta.story({
+  args: {
+    ...defaultArgs,
+    project: { id: "project-1", name: "Support assistant" },
+    hasProjectRoleEntitlement: true,
+    canManageOrgOwnership: false,
+    canManageProjectOwnership: false,
+  },
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(body.getAllByRole("combobox")[0]!);
+
+    await expect(
+      body.getByRole("option", { name: /Owner.*Requires owner access/ }),
+    ).toHaveAttribute("aria-disabled", "true");
   },
 });
 

@@ -59,6 +59,16 @@ export function ConnectedMembersSettingsTable({
     scope: "projectMembers:CUD",
   });
 
+  const canManageOrgOwnership = useHasOrganizationAccess({
+    organizationId: orgId,
+    scope: "organizationMembers:manageOwnership",
+  });
+
+  const canManageProjectOwnership = useHasProjectAccess({
+    projectId: project?.id,
+    scope: "projectMembers:manageOwnership",
+  });
+
   const projectRolesEntitlement = useHasEntitlement("rbac-project-roles");
   const [updatingOrgRoleMembershipIds, setUpdatingOrgRoleMembershipIds] =
     useState<Set<string>>(() => new Set());
@@ -217,6 +227,8 @@ export function ConnectedMembersSettingsTable({
           currentUserId={session.data?.user?.id}
           hasOrgCudAccess={hasOrgCudAccess}
           hasProjectCudAccess={hasProjectCudAccess}
+          canManageOrgOwnership={canManageOrgOwnership}
+          canManageProjectOwnership={canManageProjectOwnership}
           projectRolesEntitlement={projectRolesEntitlement}
           showFeaturePreviews={
             !project && hasOrgCudAccess && orgId !== env.NEXT_PUBLIC_DEMO_ORG_ID

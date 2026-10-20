@@ -11,12 +11,15 @@ export const RoleSelectItem = ({
   role,
   transformName = (name) => name,
   isProjectRole,
+  disabledReason,
   onViewPermissions,
 }: {
   role: SystemRole;
   /** transformName rewrites the role name before it is shown. */
   transformName?: (name: string) => string;
   isProjectRole?: boolean;
+  /** disabledReason makes the option unselectable and explains why. */
+  disabledReason?: string;
   onViewPermissions: (role: SystemRole) => void;
 }) => {
   const def = systemRoleAccessRights[role];
@@ -27,6 +30,7 @@ export const RoleSelectItem = ({
   return (
     <SelectItem
       value={role}
+      disabled={disabledReason !== undefined}
       className="group pl-2 [&>span:not([data-checkmark])]:flex-1 [&>span[data-checkmark]]:hidden"
     >
       <div className="flex w-full items-start gap-2 text-left">
@@ -39,6 +43,11 @@ export const RoleSelectItem = ({
           <span className="text-muted-foreground text-xs">
             {def.description}
           </span>
+          {disabledReason !== undefined && (
+            <span className="text-muted-foreground text-xs italic">
+              {disabledReason}
+            </span>
+          )}
         </div>
         <Tooltip label="View permissions" hoverableContent={false} delay={0}>
           {({ getTriggerProps }) => (
