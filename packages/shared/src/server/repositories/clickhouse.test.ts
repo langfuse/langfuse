@@ -78,7 +78,11 @@ describe("queryClickhouseWithProgress", () => {
     ]);
   });
 
-  it("keeps progress counters cumulative when retrying after progress", async () => {
+  it.each([
+    ["10", "13"],
+    ["0", "0"],
+    [undefined, undefined],
+  ])("preserves progress totals on retry: %s", async (total, retriedTotal) => {
     mocks.query
       .mockResolvedValueOnce(
         response(
@@ -88,7 +92,7 @@ describe("queryClickhouseWithProgress", () => {
                 read_rows: "3",
                 read_bytes: "30",
                 elapsed_ns: "10",
-                total_rows_to_read: "10",
+                total_rows_to_read: total,
               },
             },
           ],
@@ -105,7 +109,7 @@ describe("queryClickhouseWithProgress", () => {
               read_rows: "8",
               read_bytes: "80",
               elapsed_ns: "20",
-              total_rows_to_read: "10",
+              total_rows_to_read: total,
             },
           },
           { row: { id: "row-1" } },
@@ -124,13 +128,13 @@ describe("queryClickhouseWithProgress", () => {
         read_rows: "3",
         read_bytes: "30",
         elapsed_ns: "10",
-        total_rows_to_read: "10",
+        total_rows_to_read: total,
       },
       {
         read_rows: "11",
         read_bytes: "110",
         elapsed_ns: "30",
-        total_rows_to_read: "13",
+        total_rows_to_read: retriedTotal,
       },
     ]);
   });

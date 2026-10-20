@@ -986,7 +986,7 @@ function createClickHouseProgressAccumulator(
           read_rows: String(cumulative.readRows),
           read_bytes: String(cumulative.readBytes),
           elapsed_ns: String(cumulative.elapsedNs),
-          ...(row.progress.total_rows_to_read !== undefined
+          ...(Number(row.progress.total_rows_to_read) > 0
             ? {
                 total_rows_to_read: String(
                   completed.readRows +
