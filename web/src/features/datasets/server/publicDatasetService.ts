@@ -44,6 +44,7 @@ import {
   createDatasetItemFilterState,
   createUnknownSdkIngestionAttribution,
   deleteDatasetItem,
+  escapeSqlLikePattern,
   eventTypes,
   getDatasetItemById,
   getDatasetItems,
@@ -330,7 +331,9 @@ export const listDatasetsForApi = async ({
 }: ListDatasetsInput) => {
   const where: Prisma.DatasetWhereInput = {
     projectId,
-    ...(name ? { name: { contains: name, mode: "insensitive" } } : {}),
+    ...(name
+      ? { name: { contains: escapeSqlLikePattern(name), mode: "insensitive" } }
+      : {}),
   };
 
   const [datasets, totalItems] = await Promise.all([
