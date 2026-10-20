@@ -237,26 +237,6 @@ describe("logical events routing", () => {
     ).toThrow(QueryCompileError);
   });
 
-  it("gives an unaliased schema-qualified table no qualifier name", () => {
-    // `default.events_core` is named by neither `events_core` nor
-    // `default.events_core` here, so the read is rejected, not resolved.
-    expect(() =>
-      compile(
-        db
-          .selectFrom("events as e")
-          .select("e.span_id")
-          .where(
-            "e.span_id",
-            "in",
-            db
-              .withSchema("default")
-              .selectFrom("events_core")
-              .select(sql.ref<string>("events_core.input").as("x")),
-          ),
-      ),
-    ).toThrow(/Qualify by the relation's alias/);
-  });
-
   it("rejects FINAL around the logical relation", () => {
     // useFinal() refuses `events` (dedup: none), so FINAL is wrapped by hand;
     // routing would otherwise swap the table and drop the FINAL silently.
@@ -495,35 +475,6 @@ describe("logical events routing", () => {
       ),
     ).toEqual(["events_core"]);
   });
-
-  it("rejects a CTE named events", () => {
-    expect(() =>
-      compile(
-        db
-          .with("events", (qb) =>
-            qb.selectFrom("events_core").select("span_id"),
-          )
-          .selectFrom("events")
-          .select("span_id"),
-      ),
-    ).toThrow(QueryCompileError);
-  });
-
-  it.each(["events_core", "events_full"] as const)(
-    "rejects a CTE named %s alongside a logical relation",
-    (name) => {
-      // The routed relation would read the CTE instead of the table.
-      const withCte = db.with(name, (qb) =>
-        qb.selectFrom("scores as s").select("s.id"),
-      );
-      expect(() =>
-        compile(withCte.selectFrom("events as e").select("e.span_id")),
-      ).toThrow(QueryCompileError);
-      expect(() =>
-        compile(withCte.selectFrom(name).select("id")),
-      ).not.toThrow();
-    },
-  );
 });
 
 describe("logical events routing of metadata predicates", () => {

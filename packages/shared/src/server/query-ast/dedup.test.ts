@@ -71,38 +71,6 @@ describe("per-table dedup lowering", () => {
     expect(sql.toLowerCase().split("limit 1 by").length - 1).toBe(1);
   });
 
-  it("lowers a physical read but not a nested read of an outer CTE of that name", () => {
-    DEDUP_SPECS.traces = {
-      strategy: "limitBy",
-      key: ["id"],
-      version: "event_ts",
-    };
-    try {
-      const db = getClickhouseKysely();
-      const { sql } = compile(
-        db
-          .with("traces", (qb) =>
-            qb.selectFrom("scores").select("trace_id as id"),
-          )
-          .selectFrom("scores as s")
-          .select("s.id")
-          .where("s.trace_id", "in", (eb) =>
-            eb.selectFrom("traces").select("id"),
-          )
-          .where(
-            "s.trace_id",
-            "in",
-            db.withSchema("default").selectFrom("traces").select("id"),
-          ),
-      );
-      expect(sql).toBe(
-        "with traces as (select trace_id as id from scores where project_id = {p1:String}) select s.id from scores as s where s.project_id = {p1:String} and s.trace_id in (select id from traces) and s.trace_id in (select id from default.traces where project_id = {p1:String} order by event_ts desc limit 1 by id)",
-      );
-    } finally {
-      delete DEDUP_SPECS.traces;
-    }
-  });
-
   it("qualifies the version sort and LIMIT BY key with the FROM alias", () => {
     DEDUP_SPECS.traces = {
       strategy: "limitBy",
@@ -171,6 +139,31 @@ describe("per-table dedup lowering", () => {
       ).toThrow(/FINAL cannot be combined with the limitBy dedup/);
     } finally {
       delete DEDUP_SPECS.scores;
+    }
+  });
+
+  it("does not count an aggregate inside a scalar subquery as the outer select's", () => {
+    // `count(*)` belongs to the subquery, so the outer read keeps row dedup.
+    DEDUP_SPECS.traces = {
+      strategy: "limitBy",
+      key: ["id"],
+      version: "event_ts",
+    };
+    try {
+      const { sql } = compile(
+        getClickhouseKysely()
+          .selectFrom("traces as t")
+          .select((eb) => [
+            "t.id",
+            eb
+              .selectFrom("scores as s")
+              .select((inner) => inner.fn.countAll().as("n"))
+              .as("n"),
+          ]),
+      );
+      expect(sql).toMatch(/order by t\.event_ts desc limit 1 by t\.id$/);
+    } finally {
+      delete DEDUP_SPECS.traces;
     }
   });
 

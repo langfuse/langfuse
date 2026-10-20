@@ -33,7 +33,6 @@ import {
   AliasNode,
   BinaryOperationNode,
   ColumnNode,
-  CommonTableExpressionNode,
   FromNode,
   FunctionNode,
   IdentifierNode,
@@ -76,7 +75,6 @@ export class EventsTableRoutingPlugin implements KyselyPlugin {
     const analysis = new EventsReadAnalysis();
     analysis.transformNode(tree);
     if (!analysis.readsLogicalEvents) return args.node;
-    rejectPhysicalEventsCte(analysis);
     return new EventsTableRouter(analysis.fullRelations).transformNode(
       tree,
     ) as RootOperationNode;
@@ -87,22 +85,12 @@ export class EventsTableRoutingPlugin implements KyselyPlugin {
   }
 }
 
-function rejectPhysicalEventsCte(analysis: EventsReadAnalysis): void {
-  if (analysis.physicalEventsCte) {
-    throw new QueryCompileError(
-      `A CTE named "${analysis.physicalEventsCte}" would capture the routed logical "${LOGICAL_EVENTS}" relation; rename the CTE.`,
-    );
-  }
-}
-
 /**
  * Read-only walk that resolves column references to relations; the
  * transformer is used for its traversal only.
  */
 class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
   readsLogicalEvents = false;
-  /** Name of a CTE that shadows `events_core` / `events_full`. */
-  physicalEventsCte: string | undefined;
   /** Logical relations that read a truncated column. */
   readonly fullRelations = new Set<OperationNode>();
   /** Relations of each enclosing select, innermost last. */
@@ -117,7 +105,6 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
       this.transformNode(lookup.index, queryId);
       return node;
     }
-    if (CommonTableExpressionNode.is(node)) this.checkCteName(node);
     return super.transformNodeImpl(node, queryId);
   }
 
@@ -247,16 +234,6 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
     return undefined;
   }
 
-  private checkCteName(node: CommonTableExpressionNode): void {
-    const name = node.name.table.table.identifier.name;
-    if (name === LOGICAL_EVENTS) {
-      throw new QueryCompileError(
-        `A CTE cannot be named "${LOGICAL_EVENTS}": the name is the logical events relation.`,
-      );
-    }
-    if (PHYSICAL_EVENTS.has(name)) this.physicalEventsCte = name;
-  }
-
   /** `columns(…)` expands like `*`. */
   private rejectColumnsMatcher(func: string): void {
     if (func.toLowerCase() === "columns") this.rejectStar(`${func}(…)`);
@@ -330,8 +307,8 @@ class EventsTableRouter extends ClickHouseOperationNodeTransformer {
 }
 
 /**
- * Named by its alias, else by its table name unless schema-qualified:
- * `events as e` → `e`, `events` → `events`, `default.events_core` → none.
+ * Named by its alias, else by its table name: `events as e` → `e`,
+ * `events` → `events`. Schema-qualified names never get here (`ctes.ts`).
  */
 function routingRelation({
   node,
@@ -341,19 +318,13 @@ function routingRelation({
 }: Relation): RoutingRelation {
   return {
     node,
-    name:
-      alias ??
-      (table && !table.table.schema ? table.table.identifier.name : undefined),
+    name: alias ?? table?.table.identifier.name,
     logical: isLogicalEventsTable(source),
   };
 }
 
 function isLogicalEventsTable(node: OperationNode): boolean {
-  return (
-    TableNode.is(node) &&
-    node.table.schema === undefined &&
-    node.table.identifier.name === LOGICAL_EVENTS
-  );
+  return TableNode.is(node) && node.table.identifier.name === LOGICAL_EVENTS;
 }
 
 /** `count(*)` with any `distinct`, `filter`, `over`, … clause. */
