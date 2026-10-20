@@ -40,6 +40,8 @@ export const DYNAMIC_API_ROUTE_TEMPLATES = [
   "/api/public/skills/[skillName]/versions/[skillVersion]",
   "/api/public/unstable/skills/[skillName]",
   "/api/public/unstable/skills/[skillName]/versions/[skillVersion]",
+  "/api/public/unstable/topics/[topicId]",
+  "/api/public/unstable/topics/facets/[facetId]",
   "/api/public/v2/datasets/[datasetName]",
   "/api/public/v2/evaluation-rules/[evaluationRuleId]",
   "/api/public/v2/evaluators/[evaluatorId]",
@@ -54,6 +56,14 @@ export const DYNAMIC_API_ROUTE_TEMPLATES = [
 const TEMPLATE_SEGMENTS = DYNAMIC_API_ROUTE_TEMPLATES.map((template) =>
   template.split("/"),
 );
+
+/**
+ * Static routes that a template also matches. Next.js serves the static page
+ * first, so these paths are reported as themselves.
+ */
+const STATIC_ROUTES_OVERLAPPING_TEMPLATES = new Set([
+  "/api/public/unstable/topics/facets",
+]);
 
 export const clickHouseRouteForRequest = (req: NextApiRequest) => {
   const { method, pathname } = requestPathForRequest(req);
@@ -78,14 +88,15 @@ export const requestPathForRequest = (req: NextApiRequest) => {
 /**
  * Only dynamic positions are replaced, so a value that equals a fixed segment
  * (`/api/public/traces/api`) keeps the endpoint intact. No two templates match
- * the same path and none overlaps a static route, so the first match is the
- * page Next.js routed to.
+ * the same path and static routes they overlap are checked first, so the
+ * result is the page Next.js routed to.
  */
 const templatePath = (pathname: string) => {
   const normalized =
     pathname.length > 1 && pathname.endsWith("/")
       ? pathname.slice(0, -1)
       : pathname;
+  if (STATIC_ROUTES_OVERLAPPING_TEMPLATES.has(normalized)) return normalized;
   const segments = normalized.split("/");
   const match = TEMPLATE_SEGMENTS.find(
     (template) =>
