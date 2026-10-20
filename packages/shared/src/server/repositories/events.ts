@@ -10,6 +10,7 @@ import {
   type AliasableExpression,
   type AliasedExpression,
   type Expression,
+  type ExpressionBuilder,
   type SqlBool,
 } from "kysely";
 import type {
@@ -186,6 +187,9 @@ import type {
   SkillsAvailable,
   SkillsResourceLoaded,
 } from "../../features/skills/trace";
+
+/** The `input`/`output` pair an I/O select reads from one relation. */
+type IoColumns = { input: string; output: string };
 
 export type EventBatchIOStringOutput = {
   id: string;
@@ -1111,7 +1115,7 @@ async function getObservationByIdFromEventsTableInternal({
     .$call(softDeleteAfterLimit())
     .select(OBSERVATION_BY_ID_SELECTS)
     .$if(fetchWithInputOutput, (qb) =>
-      qb.select(observationIoSelects(renderingProps.truncated)),
+      qb.select((eb) => observationIoSelects(eb, renderingProps.truncated)),
     )
     .where("span_id", "=", id)
     .$if(startTime != null, (qb) =>
@@ -1148,15 +1152,14 @@ async function getObservationByIdFromEventsTableInternal({
 
 /** `input`/`output`, capped to the server-side char limit on a truncated read. */
 function observationIoSelects(
+  eb: ExpressionBuilder<{ e: IoColumns }, "e">,
   truncated: boolean | undefined,
-): ReadonlyArray<
-  "input" | "output" | AliasedExpression<string, "input" | "output">
-> {
-  if (!truncated) return ["input", "output"];
+) {
+  if (!truncated) return ["input", "output"] as const;
   const charLimit = env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT;
   return [
-    leftUTF8("input", charLimit).as("input"),
-    leftUTF8("output", charLimit).as("output"),
+    leftUTF8(eb.ref("input"), charLimit).as("input"),
+    leftUTF8(eb.ref("output"), charLimit).as("output"),
   ];
 }
 
@@ -1218,7 +1221,7 @@ export const getTraceByIdFromEventsTable = async ({
       tracesCte(qb as ReturnType<typeof getClickhouseKysely>),
     )
     .selectFrom("traces as t")
-    .select([
+    .select((eb) => [
       "t.id",
       "t.name",
       "t.user_id",
@@ -1235,7 +1238,7 @@ export const getTraceByIdFromEventsTable = async ({
       "t.updated_at",
       metadataSelect,
       literal(0).as("is_deleted"),
-      ...traceIoSelects(excludeInputOutput, truncated),
+      ...traceIoSelects(eb, excludeInputOutput, truncated),
     ])
     .$if(timestamp != null, (qb) =>
       qb.where((eb) =>
@@ -1279,22 +1282,22 @@ function observationsToTraceLowerBound(anchor: Date): Date {
   );
 }
 
+/** `input`/`output` of the trace CTE `t`: empty, capped on a truncated read, or full. */
 function traceIoSelects(
+  eb: ExpressionBuilder<{ t: IoColumns }, "t">,
   excludeInputOutput: boolean,
   truncated: boolean,
-): ReadonlyArray<
-  "t.input" | "t.output" | AliasedExpression<unknown, "input" | "output">
-> {
+) {
   if (excludeInputOutput)
     return [literal("").as("input"), literal("").as("output")];
   if (truncated) {
     const charLimit = env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT;
     return [
-      leftUTF8("t.input", charLimit).as("input"),
-      leftUTF8("t.output", charLimit).as("output"),
+      leftUTF8(eb.ref("t.input"), charLimit).as("input"),
+      leftUTF8(eb.ref("t.output"), charLimit).as("output"),
     ];
   }
-  return ["t.input", "t.output"];
+  return ["t.input", "t.output"] as const;
 }
 
 /**
@@ -3428,7 +3431,12 @@ const buildEventsForBlobStorageExportQuery = (
     .$if(metricsInSeconds, (qb) => qb.select(EVENTS_METRICS_SECONDS_SELECTS))
     .where("e.start_time", ">=", minTimestamp)
     .where("e.start_time", "<", maxTimestamp)
-    .$call(limitBy({ count: 1, columns: ["e.span_id", "e.project_id"] }));
+    .$call(
+      limitBy({
+        count: 1,
+        columns: (eb) => [eb.ref("e.span_id"), eb.ref("e.project_id")],
+      }),
+    );
 
   const { sql: query, params } = compileClickhouseQuery(builder, projectId);
 
@@ -3542,7 +3550,12 @@ export const getEventsForAnalyticsIntegrations = async function* (
     ])
     .where("e.start_time", ">=", minTimestamp)
     .where("e.start_time", "<", maxTimestamp)
-    .$call(limitBy({ count: 1, columns: ["e.span_id", "e.project_id"] }));
+    .$call(
+      limitBy({
+        count: 1,
+        columns: (eb) => [eb.ref("e.span_id"), eb.ref("e.project_id")],
+      }),
+    );
 
   const { sql: query, params } = compileClickhouseQuery(builder, projectId);
 
@@ -3642,7 +3655,7 @@ export const getTraceMetadataByIdsFromEvents = async (props: {
     ])
     .where(eventsTraceName, "is not", null)
     .where("e.trace_id", "in", props.traceIds)
-    .$call(limitBy({ count: 1, columns: ["e.trace_id"] }));
+    .$call(limitBy({ count: 1, columns: (eb) => [eb.ref("e.trace_id")] }));
 
   const { sql: query, params } = compileClickhouseQuery(
     builder,

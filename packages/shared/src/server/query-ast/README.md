@@ -147,10 +147,10 @@ suffix to run there. Promote it to a required check once it has proven stable.
 db.selectFrom("observations")
   .select("environment")
   .$call(
-    arrayJoin({
-      cost_key: mapKeys("cost_details"),
-      cost: mapValues("cost_details"),
-    }),
+    arrayJoin((eb) => ({
+      cost_key: mapKeys(eb.ref("cost_details")),
+      cost: mapValues(eb.ref("cost_details")),
+    })),
   );
 // … array join mapKeys(cost_details) as cost_key, mapValues(cost_details) as cost
 ```
@@ -162,7 +162,12 @@ db.selectFrom("events")
   .$call(softDeleteAfterLimit())
   .select(["span_id", "project_id"])
   .orderBy("event_ts", "desc")
-  .$call(limitBy({ count: 1, columns: ["span_id", "project_id"] }));
+  .$call(
+    limitBy({
+      count: 1,
+      columns: (eb) => [eb.ref("span_id"), eb.ref("project_id")],
+    }),
+  );
 // … order by event_ts desc limit 1 by span_id, project_id, wrapped by the
 // soft-delete pass so a deleted latest version is dropped
 ```
@@ -201,13 +206,13 @@ need a fork. Instead each ClickHouse-only construct rides as an extra field or a
 special-cased node, and the compiler/transformer are overridden to emit and
 preserve it:
 
-| Clause             | How it lands                                                                                                                                                                                               | Fork? |
-| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
-| ARRAY JOIN         | Plugin attaches `ArrayJoinNode` as an extra field on `SelectQueryNode`. `ClickHouseOperationNodeTransformer` preserves it. `ClickHouseQueryCompiler.visitSelectQuery` emits it after JOINs / before WHERE. | no    |
-| LIMIT BY           | Plugin attaches `LimitByNode` the same way. Compiler emits it after ORDER BY / before LIMIT.                                                                                                               | no    |
-| FINAL              | Plugin wraps a FROM/JOIN table expression in `FinalTableNode`. Compiler emits `final` after that expression (`scores as s final`). `$call(useFinal(["scores"]))`. Tables declared `dedup: none` throw.     | no    |
-| metadata subscript | Helper builds an `ArrayIndexNode` over the `metadataMap` `FunctionNode`, indexed by a string key expression (a bound value or a `literal(...)`). Transformer + compiler special-case the node. No plugin.  | no    |
-| Virtual view       | Plugin rewrites `selectFrom(viewName)` into a WITH CTE. Outer types only expose the view's selected columns.                                                                                               | no    |
+| Clause             | How it lands                                                                                                                                                                                                                                                                | Fork? |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| ARRAY JOIN         | Plugin attaches `ArrayJoinNode` as an extra field on `SelectQueryNode`. `ClickHouseOperationNodeTransformer` preserves it. `ClickHouseQueryCompiler.visitSelectQuery` emits it after JOINs / before WHERE.                                                                  | no    |
+| LIMIT BY           | Plugin attaches `LimitByNode` the same way. Compiler emits it after ORDER BY / before LIMIT.                                                                                                                                                                                | no    |
+| FINAL              | Plugin wraps a FROM/JOIN table expression in `FinalTableNode`. Compiler emits `final` after that expression (`scores as s final`). `$call(useFinal(["scores"]))`. Tables declared `dedup: none` throw; so does FINAL on a `limitBy` table at compile (drop the `useFinal`). | no    |
+| metadata subscript | Helper builds an `ArrayIndexNode` over the `metadataMap` `FunctionNode`, indexed by a string key expression (a bound value or a `literal(...)`). Transformer + compiler special-case the node. No plugin.                                                                   | no    |
+| Virtual view       | Plugin rewrites `selectFrom(viewName)` into a WITH CTE. Outer types only expose the view's selected columns.                                                                                                                                                                | no    |
 
 These are real node objects whose children are traced Kysely
 `FunctionNode`/`ColumnNode`/`ValueNode`/`IdentifierNode` values — not `RawNode`
@@ -253,7 +258,9 @@ and it is where tenancy is enforced:
    FINAL. `limitBy` is
    the existing legacy `ORDER BY <version> DESC LIMIT 1 BY <key>`.
    `final` remains fail-closed on the auto-lowering pass; callers opt in
-   with `$call(useFinal(["scores"]))`. The pass restamps the rewritten root.
+   with `$call(useFinal(["scores"]))`. FINAL on a table that declares
+   `limitBy` throws: the registry already picks the latest version, so drop
+   the `useFinal`. The pass restamps the rewritten root.
 5. `ClickHouseQueryCompiler` refuses to emit SQL unless that identity stamp is
    present, so `qb.compile()` without the plugin also fails. Value binds take
    their ClickHouse type from the compared column's registry entry when one is
@@ -263,6 +270,12 @@ and it is where tenancy is enforced:
    does any FROM/JOIN source that is neither a table reference nor a subquery
    (table functions such as `remote()`, `clusterAllReplicas()`, `merge()`).
    Kysely's own keyword fragments (`asc`/`desc`) are not relations.
+
+Every pass and the compiler read a FROM/JOIN item through `describeRelation`
+(`relations.ts`): it peels one FINAL and then one alias, so `scores as s final`
+is the table `scores` under alias `s`. Any other nesting (an alias around
+FINAL, FINAL around FINAL) is neither a table nor a subquery, and step 6
+rejects it. A new relation shape is handled there, once.
 
 So query bodies here never filter `project_id` by hand — it is redundant, and
 forgetting it is impossible.

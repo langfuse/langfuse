@@ -1,8 +1,10 @@
+import { type ExpressionBuilder } from "kysely";
 import { describe, expect, it } from "vitest";
 
 import { compileClickhouseQuery } from "./compile";
 import { getClickhouseKysely } from "./dialect";
 import { arrayJoin, limitBy, mapKeys, mapValues, useFinal } from "./extensions";
+import { type ClickHouseDatabase } from "./schema";
 import { defineView, fromView } from "./views";
 
 // Raw compiler output (no `clickhouse format` binary needed), so these run
@@ -10,12 +12,19 @@ import { defineView, fromView } from "./views";
 const projectId = "p";
 
 const costArrayJoin = () =>
-  arrayJoin({
-    cost_key: mapKeys("cost_details"),
-    cost: mapValues("cost_details"),
-  });
+  arrayJoin((eb: ExpressionBuilder<ClickHouseDatabase, "observations">) => ({
+    cost_key: mapKeys(eb.ref("cost_details")),
+    cost: mapValues(eb.ref("cost_details")),
+  }));
 
-const dedup = () => limitBy({ count: 1, columns: ["span_id", "project_id"] });
+const dedup = () =>
+  limitBy({
+    count: 1,
+    columns: (eb: ExpressionBuilder<ClickHouseDatabase, "events_core">) => [
+      eb.ref("span_id"),
+      eb.ref("project_id"),
+    ],
+  });
 
 describe("ARRAY JOIN composition across nesting positions", () => {
   it("emits ARRAY JOIN at the top level (baseline)", () => {
