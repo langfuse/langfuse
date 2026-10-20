@@ -6,8 +6,8 @@
  *    comparisons).
  *  - `COLUMN_DATA_TYPES` — the coarse runtime type map the aggregate type-check
  *    pass consults (`typecheck.ts`).
- *  - `TABLE_BIND_TYPES` / `COLUMN_BIND_TYPES` — the ClickHouse bind types the
- *    compiler uses when a value is compared to a known column (`compiler.ts`).
+ *  - `TABLE_BIND_TYPES` — the ClickHouse bind types the compiler uses when a
+ *    value is compared to a known column (`compiler.ts`).
  *  - `TENANTED_TABLES` — the relations the tenancy pass must scope
  *    (`tenancy.ts`).
  *  - `DEDUP_SPECS` — the per-table read idiom the lowering pass applies
@@ -418,23 +418,3 @@ export const TABLE_BIND_TYPES: Record<
     ),
   ]),
 );
-
-/**
- * Bind type by bare column name, for operands whose relation is opaque to the
- * compiler (e.g. a qualifier no relation in scope declares). Only names with the same bind type in
- * every table are kept, since `start_time` is `DateTime64(6)` on events but
- * `DateTime64(3)` on observations.
- */
-export const COLUMN_BIND_TYPES: Record<string, string> = (() => {
-  const byName = new Map<string, Set<string>>();
-  for (const columns of Object.values(TABLE_BIND_TYPES)) {
-    for (const [name, bindType] of Object.entries(columns)) {
-      byName.set(name, (byName.get(name) ?? new Set()).add(bindType));
-    }
-  }
-  return Object.fromEntries(
-    [...byName]
-      .filter(([, types]) => types.size === 1)
-      .map(([name, types]) => [name, [...types][0]]),
-  );
-})();
