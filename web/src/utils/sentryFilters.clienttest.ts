@@ -1124,6 +1124,103 @@ describe("isDenylistedNoiseEvent", () => {
     });
   });
 
+  describe("L. drops Safari injected querySelector scrape-and-click (document-attributed)", () => {
+    // Real shapes: Safari 27 on /evals/new (LANGFUSE-647 / LANGFUSE-648) and
+    // Safari 26.6 on settings (LANGFUSE-62W). Injected page-world JS scrapes
+    // buttons/links with querySelector / querySelectorAll + find, then reads
+    // .click or .parentElement on a missing node. WebKit's TypeError includes
+    // the expression. Stack is document-attributed global code — no /_next/
+    // chunk — so denyUrls cannot match. Langfuse never writes these
+    // scrape-and-click patterns.
+    const safariInjectedQuerySelectorEvent = (
+      value: string,
+      mechanismType = "auto.browser.global_handlers.onerror",
+      frames?: { filename: string; function?: string }[],
+    ): ErrorEvent =>
+      ({
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value,
+              mechanism: { type: mechanismType, handled: false },
+              ...(frames
+                ? {
+                    stacktrace: {
+                      frames: frames.map((frame) => ({
+                        filename: frame.filename,
+                        function: frame.function ?? "?",
+                      })),
+                    },
+                  }
+                : {}),
+            },
+          ],
+        },
+      }) as ErrorEvent;
+
+    const mappingClickValue =
+      "null is not an object (evaluating 'b.parentElement.querySelector('button[title=\"Change the mapping\"]').click')";
+    const findParentValue =
+      "undefined is not an object (evaluating 'Array.from(document.querySelectorAll('button')).find(b=>b.innerText==='transcript\\nfrom\\nOutput').parentElement')";
+    const findClickValue =
+      'undefined is not an object (evaluating \'Array.from(document.querySelectorAll("a")).find(e=>e.innerText.trim()==="API Keys").click\')';
+
+    it("drops the observed WebKit querySelector button[title] click TypeError", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          safariInjectedQuerySelectorEvent(mappingClickValue),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the observed WebKit querySelectorAll.find.parentElement TypeError", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          safariInjectedQuerySelectorEvent(
+            findParentValue,
+            "auto.browser.browserapierrors.setTimeout",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the observed WebKit querySelectorAll.find.click TypeError", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          safariInjectedQuerySelectorEvent(findClickValue),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the null WebKit variant and a trailing period", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          safariInjectedQuerySelectorEvent(
+            'null is not an object (evaluating \'Array.from(document.querySelectorAll("a")).find(e=>e.innerText.trim()==="API Keys").click\').',
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same wording with click() and document-attributed frames", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          safariInjectedQuerySelectorEvent(
+            "null is not an object (evaluating 'b.parentElement.querySelector('button[title=\"Change the mapping\"]').click()')",
+            "auto.browser.global_handlers.onerror",
+            [
+              {
+                filename: "app:///project/example/evals/new",
+                function: "global code",
+              },
+            ],
+          ),
+        ),
+      ).toBe(true);
+    });
+  });
+
   // The heart of the safety contract: prove that real / similar-looking errors
   // are NOT dropped. If any of these regress to `true`, a real bug would be
   // hidden from Sentry.
@@ -1780,6 +1877,99 @@ describe("isDenylistedNoiseEvent", () => {
                     function: "onClick",
                   },
                 ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a longer app message that merely quotes querySelector button[title] click", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value:
+                "Failed to open mapping: null is not an object (evaluating 'b.parentElement.querySelector('button[title=\"Change the mapping\"]').click')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps an app-captured querySelector scrape TypeError (not a Sentry browser wrap)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "null is not an object (evaluating 'b.parentElement.querySelector('button[title=\"Change the mapping\"]').click')",
+            "TypeError",
+          ),
+        ),
+      ).toBe(false);
+      const consoleCaptured = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value:
+                "undefined is not an object (evaluating 'Array.from(document.querySelectorAll('button')).find(b=>b.innerText==='transcript').parentElement')",
+              mechanism: {
+                type: "auto.core.capture_console",
+                handled: true,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(consoleCaptured)).toBe(false);
+    });
+
+    it("keeps the Safari querySelector scrape TypeError when a first-party chunk is on the stack", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value:
+                "null is not an object (evaluating 'b.parentElement.querySelector('button[title=\"Change the mapping\"]').click')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  {
+                    filename:
+                      "https://us.cloud.langfuse.com/_next/static/chunks/pages/project/[projectId]/evals/new-abc.js",
+                    function: "onClick",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a generic querySelector('button').click TypeError without a title selector", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value:
+                "null is not an object (evaluating 'document.querySelector('button').click')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
               },
             },
           ],

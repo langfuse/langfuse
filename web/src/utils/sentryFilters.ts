@@ -405,6 +405,50 @@ function isSafariAddMoreClickMessage(value: string): boolean {
 }
 
 /**
+ * Safari / WebKit wording when injected page-world JS scrapes the DOM
+ * with `querySelector` / `querySelectorAll` + `find` and then reads
+ * `.click` or `.parentElement` on a missing node. WebKit uniquely
+ * includes the expression in the TypeError. Langfuse never writes
+ * these scrape-and-click patterns. Observed as global-handler or
+ * `setTimeout`-wrap TypeErrors with document-attributed frames —
+ * `denyUrls` cannot match.
+ *
+ * Covers:
+ *  - `Array.from(document.querySelectorAll(...)).find(...).click`
+ *  - `Array.from(document.querySelectorAll(...)).find(...).parentElement`
+ *  - `….querySelector('button[title="…"]').click`
+ *
+ * Whole-message only. An app error that quotes the phrase is longer
+ * and is KEPT. Do not use {@link coreMessage} — it strips the
+ * evaluating clause.
+ */
+const SAFARI_WEBKIT_EVALUATING_RE =
+  /^(?:undefined|null) is not an object \(evaluating '([\s\S]+)'\)$/;
+
+const SAFARI_QUERY_SELECTOR_ALL_FIND_RE =
+  /^Array\.from\(document\.querySelectorAll\(.+\)\)\.find\(.+\)\.(?:click(?:\(\))?|parentElement)$/;
+
+const SAFARI_QUERY_SELECTOR_BUTTON_TITLE_CLICK_RE =
+  /^.+\.querySelector\((['"])button\[title=.+\]\1\)\.click(?:\(\))?$/;
+
+/**
+ * Match {@link SAFARI_WEBKIT_EVALUATING_RE} without {@link coreMessage}.
+ * `coreMessage` strips a trailing `(…)` parenthetical — that clause *is*
+ * WebKit's signature here.
+ */
+function isSafariInjectedQuerySelectorClickMessage(value: string): boolean {
+  const prefixMatch = SAFARI_WEBKIT_EVALUATING_RE.exec(
+    value.trim().replace(/\.$/, "").trim(),
+  );
+  if (!prefixMatch) return false;
+  const expr = prefixMatch[1];
+  return (
+    SAFARI_QUERY_SELECTOR_ALL_FIND_RE.test(expr) ||
+    SAFARI_QUERY_SELECTOR_BUTTON_TITLE_CLICK_RE.test(expr)
+  );
+}
+
+/**
  * True when any stack frame is a first-party Next.js chunk. Used as a
  * negative guard so a future first-party throw that happens to share
  * WebKit's wording still reaches Sentry.
@@ -676,7 +720,12 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
     // exact TypeError for an injected `addMore` that is undefined. Stack is
     // document-attributed global code, not a chunk.
     //
-    // All three are anchored to a Sentry browser-API / global-handler
+    // Safari injected `querySelector` / `querySelectorAll.find` scrape-and-
+    // click is the same class: page-world automation looking for a button
+    // or link by title / innerText. Stack is document-attributed global
+    // code or a Sentry `setTimeout` wrap, not a chunk.
+    //
+    // All four are anchored to a Sentry browser-API / global-handler
     // mechanism so an app-captured exception that merely quotes the
     // phrase is KEPT.
     const mechanismType = exception?.mechanism?.type;
@@ -695,6 +744,13 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
       if (
         exceptionType === "TypeError" &&
         isSafariAddMoreClickMessage(exceptionValue) &&
+        !hasFirstPartyChunkFrame(event)
+      ) {
+        return true;
+      }
+      if (
+        exceptionType === "TypeError" &&
+        isSafariInjectedQuerySelectorClickMessage(exceptionValue) &&
         !hasFirstPartyChunkFrame(event)
       ) {
         return true;
