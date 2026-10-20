@@ -280,7 +280,7 @@ describe("soft-delete filtering", () => {
           .$call(includeDeleted())
           .select("span_id")
           .orderBy("event_ts", "desc")
-          .$call(limitBy({ count: 1, columns: ["span_id"] })),
+          .$call(limitBy({ count: 1, columns: (eb) => [eb.ref("span_id")] })),
       ),
     ).not.toContain("is_deleted");
   });
@@ -338,7 +338,9 @@ describe("soft-delete filtering", () => {
               .$call(softDeleteAfterLimit())
               .select(["e.span_id as span_id", "e.trace_id as trace_id"])
               .orderBy("e.event_ts", "desc")
-              .$call(limitBy({ count: 1, columns: ["e.span_id"] })),
+              .$call(
+                limitBy({ count: 1, columns: (eb) => [eb.ref("e.span_id")] }),
+              ),
           )
           .selectFrom("latest_events as e")
           .select("e.trace_id"),

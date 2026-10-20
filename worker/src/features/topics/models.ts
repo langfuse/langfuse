@@ -12,6 +12,7 @@ import {
 import {
   generateTopicEmbeddings,
   generateTopicText,
+  getTopicTextResponseMetadata,
   topicMessages,
   type TopicPromptPart,
   type TopicsModel,
@@ -90,7 +91,9 @@ function countTopicRequestTokens(
 }
 
 /** The input exceeds the run's token limit; no model call was made. */
-export class TopicInputTooLarge extends Error {}
+export class TopicInputTooLarge extends Error {
+  readonly name = "TopicInputTooLarge";
+}
 
 /** One span, call counter and failure log per provider request. */
 async function topicModelCall<T>(
@@ -125,7 +128,7 @@ async function topicModelCall<T>(
         return result;
       } catch (error) {
         const failure = topicProviderError(error, model);
-        const { httpStatus, message, type, code, param } = failure.details;
+        const { httpStatus } = failure.details;
         recordTopicModelCall(stage, model.adapter, {
           httpStatus,
           reason: failure.reason,
@@ -136,10 +139,7 @@ async function topicModelCall<T>(
           "langfuse.topics.error.type":
             error instanceof Error ? error.name : "unknown",
           ...(httpStatus && { "http.status_code": httpStatus }),
-          ...(message && { "langfuse.topics.provider.message": message }),
-          ...(type && { "langfuse.topics.provider.type": type }),
-          ...(code && { "langfuse.topics.provider.code": code }),
-          ...(param && { "langfuse.topics.provider.param": param }),
+          ...getTopicTextResponseMetadata(error),
         };
         span.setAttributes(failed);
         logger.warn("Topics model request failed", failed);

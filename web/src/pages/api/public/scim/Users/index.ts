@@ -1,7 +1,7 @@
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
-
+import { env } from "@/src/env.mjs";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { isBaseError, type Role } from "@langfuse/shared";
@@ -239,6 +239,10 @@ export default async function handler(
         create: {
           email: normalizedEmail,
           name: name?.formatted || displayName,
+          v4BetaEnabled:
+            env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only" ||
+            (env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "dual" &&
+              Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION)),
         },
         update: {},
       });

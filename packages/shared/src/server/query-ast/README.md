@@ -146,6 +146,21 @@ suffix to run there. Promote it to a required check once it has proven stable.
   `UInt64` is `number` so binds type-check, but query results arrive as raw
   JSON (dates as strings). Type rows with a read schema and convert them; do
   not type results with the builder's `InferResult`.
+- **Build shared expressions from the calling query's expression builder.**
+  A reusable events expression or select list is wrapped in
+  `scopedToEvents((eb) => …)` from `../repositories/events-selects.ts`, then
+  passed as `.select(traceAggregationSelects)` or called inside
+  `.where((eb) => …)` with the query's own `eb`. That only type-checks in a
+  query that reads a full events row as `e` and nothing else: no join, no
+  narrower `e`. Columns inside such a helper are written `e.…`, so an alias
+  of the same name in the calling query can't shadow them. A helper typed
+  `ExpressionBuilder<{ e: … }, "e">` checks the alias and the columns its type
+  names, but not joins or the rest of the row: fine for a fixed small column
+  set (`observationIoSelects` over `{ e: IoColumns }`), not a substitute for
+  `scopedToEvents`. A module-level constant built from a detached
+  `expressionBuilder()` loses the check entirely: helper results don't carry
+  their table scope in their type, and Kysely's `select()` / `where()` accept
+  any expression.
 - **ClickHouse-only clauses use `$call(helper())`** — not fluent builder
   methods, so they compose inside CTEs, subqueries, and views. See the recipes
   below.
@@ -158,10 +173,10 @@ suffix to run there. Promote it to a required check once it has proven stable.
 db.selectFrom("observations")
   .select("environment")
   .$call(
-    arrayJoin({
-      cost_key: mapKeys("cost_details"),
-      cost: mapValues("cost_details"),
-    }),
+    arrayJoin((eb) => ({
+      cost_key: mapKeys(eb.ref("cost_details")),
+      cost: mapValues(eb.ref("cost_details")),
+    })),
   );
 // … array join mapKeys(cost_details) as cost_key, mapValues(cost_details) as cost
 ```
@@ -173,7 +188,12 @@ db.selectFrom("events")
   .$call(softDeleteAfterLimit())
   .select(["span_id", "project_id"])
   .orderBy("event_ts", "desc")
-  .$call(limitBy({ count: 1, columns: ["span_id", "project_id"] }));
+  .$call(
+    limitBy({
+      count: 1,
+      columns: (eb) => [eb.ref("span_id"), eb.ref("project_id")],
+    }),
+  );
 // … order by event_ts desc limit 1 by span_id, project_id, wrapped by the
 // soft-delete pass so a deleted latest version is dropped
 ```
@@ -187,13 +207,13 @@ db.selectFrom("scores as s")
 // … from scores as s final
 ```
 
-**Filter on a metadata value** (`metadataValue` — lowers `metadata[key]` to a subscript of `metadataMap`, so the last duplicate key wins; like `mapValue`, a string key is bound and a `literal(...)` key is inlined):
+**Filter on a metadata value** (`metadataValue` — lowers `metadata[key]` to a subscript of `metadataMap`, so the last duplicate key wins; like `mapValue`, a string key is bound and a `literal(...)` key is inlined; `names` / `values` must be one relation's `metadata_names` / `metadata_values` refs, anything else throws. Events reads use `eventsMetadataValue(eb, key)` from `../repositories/events-selects.ts`):
 
 ```ts
 const filterKey: string = input.metadataKey; // caller-supplied, so bound
 db.selectFrom("events as e")
   .select("e.span_id")
-  .where((eb) => eb(metadataValue("e", filterKey), "=", "x"));
+  .where((eb) => eb(eventsMetadataValue(eb, filterKey), "=", "x"));
 // select e.span_id from events_core as e where … and mapfromarrays(arrayreverse(e.metadata_names), arrayreverse(e.metadata_values))[{p:String}] = {p:String}
 ```
 
@@ -336,9 +356,9 @@ documented-protected API.
 ### Types are asserted at compile time
 
 `types.assert.ts` holds `tsc`-only assertions (schema typing, view opacity,
-arrayJoin widening, limitBy / useFinal preservation). It is never run; `schema.test.ts`
-anchors it so it stays in the build graph. `@ts-expect-error` lines there must
-stay live.
+arrayJoin widening, limitBy / useFinal preservation). It is never run: `tsc`
+checks it through the package's `include`, and knip treats `*types.assert.ts`
+as an entry. `@ts-expect-error` lines there must stay live.
 
 ### Verifying changes
 

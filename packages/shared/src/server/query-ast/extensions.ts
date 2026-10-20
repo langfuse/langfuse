@@ -23,6 +23,7 @@ import {
   BinaryOperationNode,
   ColumnNode,
   ExpressionWrapper,
+  expressionBuilder,
   FromNode,
   FunctionNode,
   IdentifierNode,
@@ -32,6 +33,7 @@ import {
   TableNode,
   ValueNode,
   type Expression,
+  type ExpressionBuilder,
   type KyselyPlugin,
   type OperationNode,
   type PluginTransformQueryArgs,
@@ -103,14 +105,19 @@ class ArrayJoinPlugin implements KyselyPlugin {
   }
 }
 
-type LimitBySpec = {
+type LimitBySpec<DB, TB extends keyof DB> = {
   count: number;
-  columns: ReadonlyArray<string>;
+  columns: (
+    eb: ExpressionBuilder<DB, TB>,
+  ) => ReadonlyArray<Expression<unknown>>;
 };
 
 /** Plugin that attaches a {@link LimitByNode} onto the select node. */
 class LimitByPlugin implements KyselyPlugin {
-  constructor(private readonly spec: LimitBySpec) {}
+  constructor(
+    private readonly count: number,
+    private readonly columns: ReadonlyArray<Expression<unknown>>,
+  ) {}
 
   transformQuery(args: PluginTransformQueryArgs): RootOperationNode {
     if (args.node.kind !== "SelectQueryNode") return args.node;
@@ -121,8 +128,8 @@ class LimitByPlugin implements KyselyPlugin {
     return {
       ...node,
       limitBy: LimitByNode.create(
-        ValueNode.createImmediate(this.spec.count),
-        this.spec.columns.map(columnRef),
+        ValueNode.createImmediate(this.count),
+        this.columns.map(toNode),
       ),
     } as RootOperationNode;
   }
@@ -141,34 +148,18 @@ function qualifiedColumn(table: string, column: string): OperationNode {
   );
 }
 
-// For callers whose column arrives as a single, possibly dotted string — e.g.
-// the `limitBy` column list. Kysely only parses `"table.column"` at the
-// expression-builder layer (`eb.ref`) and does not export its string-reference
-// parser, and these plugins build raw OperationNodes with no ExpressionBuilder
-// in scope, so we split the dotted name here rather than route through a string.
-function columnRef(name: string): OperationNode {
-  const parts = name.split(".");
-  return parts.length === 2
-    ? qualifiedColumn(parts[0], parts[1])
-    : ColumnNode.create(name);
+/** ClickHouse `mapKeys(map)`. */
+export function mapKeys(
+  map: Expression<Record<string, unknown>>,
+): ChExpression<string[]> {
+  return functionCall("mapKeys", [map]);
 }
 
-function arrayFunction<T>(fn: string, column: string): Expression<T[]> {
-  return new ExpressionWrapper<
-    ClickHouseDatabase,
-    keyof ClickHouseDatabase,
-    T[]
-  >(FunctionNode.create(fn, [columnRef(column)]) as unknown as OperationNode);
-}
-
-/** `mapKeys(map)` as a typed array expression (element type defaults to string). */
-export function mapKeys<K = string>(column: string): Expression<K[]> {
-  return arrayFunction<K>("mapKeys", column);
-}
-
-/** `mapValues(map)` as a typed array expression (element type defaults to string). */
-export function mapValues<V = string>(column: string): Expression<V[]> {
-  return arrayFunction<V>("mapValues", column);
+/** ClickHouse `mapValues(map)`. */
+export function mapValues<V>(
+  map: Expression<Record<string, V>>,
+): ChExpression<V[]> {
+  return functionCall("mapValues", [map]);
 }
 
 /** ClickHouse `uniq(value)`, an approximate distinct count. */
@@ -281,6 +272,13 @@ export function sumMapValuesWhereKeyContains(
   );
 }
 
+/**
+ * A helper's result. Its table scope is every table: Kysely doesn't check an
+ * expression's scope where it is used (`ExpressionWrapper<DB, "e", T>` is
+ * assignable to `ExpressionWrapper<DB, "t", T>`), so a narrower type would
+ * catch nothing. Scope is checked where references are written, so shared
+ * expressions take the calling query's `eb` (README, "Using it").
+ */
 type ChExpression<T> = ExpressionWrapper<
   ClickHouseDatabase,
   keyof ClickHouseDatabase,
@@ -472,12 +470,11 @@ export function sumMap<V>(
 }
 
 /**
- * ClickHouse `leftUTF8(expression, length)`; `expression` is a column name or
- * a string expression. The length is inlined as an integer literal; it must be
- * a positive integer.
+ * ClickHouse `leftUTF8(expression, length)`. The length is inlined as an
+ * integer literal; it must be a positive integer.
  */
 export function leftUTF8(
-  expression: string | Expression<string>,
+  expression: Expression<string>,
   length: number,
 ): ChExpression<string> {
   if (!Number.isInteger(length) || length < 1) {
@@ -486,7 +483,7 @@ export function leftUTF8(
     );
   }
   return functionCall("leftUTF8", [
-    typeof expression === "string" ? columnRef(expression) : expression,
+    expression,
     ValueNode.createImmediate(length),
   ]);
 }
@@ -635,41 +632,60 @@ export function argMaxIf<T>(
 }
 
 /**
- * A trace's session id from its events: the latest non-empty `session_id`,
- * `argMaxIf(session_id, event_ts, session_id != '')`. Reads unqualified
- * columns, for a trace-level aggregate over one events table.
+ * The latest non-empty `value` by `by` across the group:
+ * `argMaxIf(value, by, value != '')`.
  */
-export function traceSessionId(): ChExpression<string> {
-  const sessionId = new ExpressionWrapper<
-    ClickHouseDatabase,
-    keyof ClickHouseDatabase,
-    string
-  >(columnRef("session_id"));
-  return argMaxIf(
-    sessionId,
-    new ExpressionWrapper(columnRef("event_ts")),
-    nonEmpty(sessionId),
-  );
+export function latestNonEmpty(
+  value: Expression<string>,
+  by: Expression<unknown>,
+): ChExpression<string> {
+  return argMaxIf(value, by, nonEmpty(value));
 }
 
 /**
- * Lower `metadata[key]` to a subscript of {@link metadataMap}, so the last
- * entry of a duplicated key wins. Keys follow {@link mapValue}: a string is
- * bound, a `literal(...)` is inlined.
+ * Lower `metadata[key]` to a subscript of {@link metadataMap} over the events
+ * `metadata_names` / `metadata_values` columns, so the last entry of a
+ * duplicated key wins. Keys follow {@link mapValue}: a string is bound, a
+ * `literal(...)` is inlined. `names` / `values` must be one relation's
+ * `metadata_names` / `metadata_values` refs; anything else throws.
  */
 export function metadataValue(
-  tableAlias: string,
+  names: Expression<string[]>,
+  values: Expression<string[]>,
   key: string | Expression<string>,
 ): ChExpression<string> {
-  const column = (name: string) =>
-    new ExpressionWrapper<ClickHouseDatabase, "events_core", string[]>(
-      qualifiedColumn(tableAlias, name),
+  assertMetadataColumns(names, values);
+  return subscript<string>(metadataMap(names, values), key, true);
+}
+
+/**
+ * Throws unless `names` / `values` are `q.metadata_names` / `q.metadata_values`
+ * of one qualifier `q`. The routing pass trusts the lookup's marker and does
+ * not walk these arguments, so they may read nothing else.
+ */
+function assertMetadataColumns(
+  names: Expression<string[]>,
+  values: Expression<string[]>,
+): void {
+  const namesOf = qualifierOf(names.toOperationNode(), "metadata_names");
+  const valuesOf = qualifierOf(values.toOperationNode(), "metadata_values");
+  if (namesOf === undefined || namesOf !== valuesOf) {
+    throw new QueryCompileError(
+      'metadataValue reads the metadata columns of one relation: pass eb.ref("e.metadata_names") and eb.ref("e.metadata_values").',
     );
-  return subscript<string>(
-    metadataMap(column("metadata_names"), column("metadata_values")),
-    key,
-    true,
-  );
+  }
+}
+
+/** `e` for the reference `e.<column>`; undefined for anything else. */
+function qualifierOf(node: OperationNode, column: string): string | undefined {
+  if (
+    !ReferenceNode.is(node) ||
+    !ColumnNode.is(node.column) ||
+    node.column.column.name !== column
+  ) {
+    return undefined;
+  }
+  return node.table?.table.identifier.name;
 }
 
 // Extract the element type `T` from an array-typed `Expression<T[]>`. `arrayJoin`
@@ -685,44 +701,61 @@ type ElementOf<E> =
     : never;
 
 /**
- * ARRAY JOIN clause as a `$call` step: `qb.$call(arrayJoin({ alias: expr }))`.
- * Each entry's alias is added to the builder's output row type, so consumers of
- * the result (e.g. an outer query selecting from a CTE body) can reference the
- * produced columns and typos on the alias name are compile errors. The element
- * value type is opaque (Kysely's Expression hides its type arg), so aliases
- * surface as `unknown`. The alias must still be projected in a `select` to
- * appear in the emitted SQL. Distinct from the `arrayJoin()` SELECT function.
+ * ARRAY JOIN clause as a `$call` step:
+ * `qb.$call(arrayJoin((eb) => ({ alias: mapKeys(eb.ref("e.col")) })))`.
+ * `items` receives the builder's expression builder, so its column references
+ * are checked against the query's tables. Each entry's alias is added to the
+ * builder's output row type, so consumers of the result (e.g. an outer query
+ * selecting from a CTE body) can reference the produced columns and typos on
+ * the alias name are compile errors. The element value type is opaque
+ * (Kysely's Expression hides its type arg), so aliases surface as `unknown`.
+ * The alias must still be projected in a `select` to appear in the emitted
+ * SQL. Distinct from the `arrayJoin()` SELECT function.
  */
 export function arrayJoin<
+  DB,
+  TB extends keyof DB,
   Items extends { [K in keyof Items]: Expression<ReadonlyArray<unknown>> },
->(items: Items, variant: ArrayJoinVariant = "default") {
-  const list: ArrayJoinItem[] = Object.entries(items).map(
-    ([as, expression]) => ({
-      expression: expression as OperationNodeSource,
-      as,
-    }),
-  );
-  return <DB, TB extends keyof DB, O>(
+>(
+  items: (eb: ExpressionBuilder<DB, TB>) => Items,
+  variant: ArrayJoinVariant = "default",
+) {
+  return <O>(
     qb: SelectQueryBuilder<DB, TB, O>,
   ): SelectQueryBuilder<
     DB,
     TB,
     O & { [K in keyof Items]: ElementOf<Items[K]> }
-  > =>
-    qb.withPlugin(
+  > => {
+    const produced: Record<string, Expression<unknown>> = items(
+      expressionBuilder(qb),
+    );
+    const list: ArrayJoinItem[] = Object.entries(produced).map(
+      ([as, expression]) => ({ expression, as }),
+    );
+    return qb.withPlugin(
       new ArrayJoinPlugin(list, variant),
     ) as unknown as SelectQueryBuilder<
       DB,
       TB,
       O & { [K in keyof Items]: ElementOf<Items[K]> }
     >;
+  };
 }
 
-/** LIMIT BY clause as a `$call` step: `qb.$call(limitBy({ count, columns }))`. */
-export function limitBy(spec: LimitBySpec) {
-  return <DB, TB extends keyof DB, O>(
+/**
+ * LIMIT BY clause as a `$call` step:
+ * `qb.$call(limitBy({ count: 1, columns: (eb) => [eb.ref("e.span_id")] }))`.
+ * `columns` receives the builder's expression builder, so its references are
+ * checked against the query's tables.
+ */
+export function limitBy<DB, TB extends keyof DB>(spec: LimitBySpec<DB, TB>) {
+  return <O>(
     qb: SelectQueryBuilder<DB, TB, O>,
-  ): SelectQueryBuilder<DB, TB, O> => qb.withPlugin(new LimitByPlugin(spec));
+  ): SelectQueryBuilder<DB, TB, O> =>
+    qb.withPlugin(
+      new LimitByPlugin(spec.count, spec.columns(expressionBuilder(qb))),
+    );
 }
 
 function wrapFinal(

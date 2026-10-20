@@ -552,6 +552,9 @@ entry from each waiting, paused, delayed and active state without loading job
 payloads. Retries can re-enter behind newer jobs, so this is head age, not the
 oldest creation time anywhere in the backlog.
 
+`.errors` reasons include `input_too_large` (transcript above the summary input
+limit) and `trace_too_large` (trace above the transcript load limits).
+
 Summary `.results` carry `source:model|rule` and `facet` (the built-in facet's
 name, or `custom`): the model decides `applicable`, `not_applicable` or
 `insufficient_input`; local rules decide `insufficient_input` (no transcript
@@ -582,14 +585,14 @@ Spans carry tenant and request detail that metrics must not:
   group) and `topics.assignment` (also used when manual processing assigns).
   A failed facet marks its enclosing span as an error, although the run handles it.
 - `topics.llm.summary|embedding|naming`: one per provider request, with model,
-  adapter and prompt bytes; on failure, the HTTP status and the provider's error
-  message, type, code and param.
+  adapter and prompt bytes; on failure, the HTTP status and, when the provider
+  answered, bounded response metadata (`langfuse.topics.response.*`: finish
+  reason, raw finish reason from a fixed list, text length, text and reasoning part counts,
+  output tokens and the output-token cap; never the response text).
 
 A failed provider request logs one `Topics model request failed` warning with the
-same fields. Like evals, only the AI SDK's parsed provider error (message cut to 500
-characters, type, code, param) is kept; request and response bodies can contain
-trace content and are never logged, so errors without that structure, such as
-the direct Bedrock call, log the HTTP status only. A failed facet logs `Topics facet failed`: a warning for provider or
+same fields. Provider error strings, codes and parameters can echo request or
+response content, so only the HTTP status is kept. A failed facet logs `Topics facet failed`: a warning for provider or
 configuration errors, an error otherwise.
 
 `langfuse.topics.tokens{stage:summary|embedding|naming,direction:input|output}`

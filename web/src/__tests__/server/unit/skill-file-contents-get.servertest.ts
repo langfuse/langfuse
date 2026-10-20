@@ -35,7 +35,8 @@ vi.mock("@/src/features/public-api/server", async () => {
   return { createAuthedProjectAPIRoute, withMiddlewares };
 });
 
-import handler from "@/src/pages/api/public/unstable/skills/files/content";
+import handler from "@/src/pages/api/public/skills/files/content";
+import unstableHandler from "@/src/pages/api/public/unstable/skills/files/content";
 
 const hashes = [
   Buffer.alloc(32, 251).toString("base64"),
@@ -45,7 +46,7 @@ const hashes = [
 async function request(sha256Hashes?: string, method: "GET" | "POST" = "GET") {
   const params = new URLSearchParams();
   if (sha256Hashes !== undefined) params.set("sha256Hashes", sha256Hashes);
-  const url = `/api/public/unstable/skills/files/content?${params}`;
+  const url = `/api/public/skills/files/content?${params}`;
   const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
     method,
     url,
@@ -57,7 +58,11 @@ async function request(sha256Hashes?: string, method: "GET" | "POST" = "GET") {
   return res;
 }
 
-describe("GET /api/public/unstable/skills/files/content", () => {
+describe("GET /api/public/skills/files/content", () => {
+  it("keeps the unstable route compatible with existing clients", () => {
+    expect(unstableHandler).toBe(handler);
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     shadowAuth.mockResolvedValue({
