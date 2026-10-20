@@ -305,7 +305,7 @@ not capture every trace admitted by experimental batching.
 The shared `server/traceBatch` module uses the event-upload bucket and credentials:
 
 ```text
-<prefix>transcripts/trace/<hash>/<projectId>/<safeTraceId>/<revision>.json
+<prefix>trace-batch/trace/<hash>/<projectId>/<safeTraceId>/<revision>.json
 ```
 
 `hash` is the first three hex characters of SHA-256 over
@@ -332,7 +332,7 @@ Topics. The span records outcome and JSON length without transcript content;
 there are no additional outcome counters.
 
 Deploy with writes disabled. Before enabling, configure and verify an enabled
-bucket lifecycle rule for the full `<prefix>transcripts/trace/` path, matching
+bucket lifecycle rule for the full `<prefix>trace-batch/trace/` path, matching
 span-eval retention, including noncurrent versions where applicable. A rule for
 `evals/` alone does not cover this path. Enable on a small worker rollout and
 check storage spans, size-skip logs, S3 failures and Topics latency. Roll back by

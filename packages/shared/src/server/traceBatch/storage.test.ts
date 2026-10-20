@@ -158,7 +158,7 @@ beforeEach(() => {
 describe("trace batch input storage", () => {
   it("uses a stable hash before the project and escapes identifiers", () => {
     expect(getTraceBatchInputsKey(reference)).toBe(
-      "test/transcripts/trace/ecb/project/trace/revision.json",
+      "test/trace-batch/trace/ecb/project/trace/revision.json",
     );
     const unsafe = {
       projectId: "project/a",

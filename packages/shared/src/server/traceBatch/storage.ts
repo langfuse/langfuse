@@ -65,7 +65,7 @@ function getTraceBatchInputsKey({
     0,
     3,
   );
-  return `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}transcripts/trace/${hash}/${safeBlobKeySegment(projectId)}/${safeBlobKeySegment(traceId)}/${safeBlobFilenameStem(revision, ".json")}.json`;
+  return `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}trace-batch/trace/${hash}/${safeBlobKeySegment(projectId)}/${safeBlobKeySegment(traceId)}/${safeBlobFilenameStem(revision, ".json")}.json`;
 }
 
 export const __test = { getTraceBatchInputsKey };
