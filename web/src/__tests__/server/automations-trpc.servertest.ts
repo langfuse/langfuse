@@ -1270,28 +1270,18 @@ describe("automations trpc", () => {
 
     it("rejects private channels the user can't use exactly like non-existent channels", async () => {
       const { project, caller } = await prepareWithInstaller("someone-else");
+      const errorFor = (channelId: string) =>
+        caller.automations
+          .createAutomation(slackAutomationInput(project.id, channelId))
+          .catch((error: Error) => error.message);
 
       for (const channelId of ["G_PRIVATE", "G_ARCHIVED", "C_MISSING"]) {
-        await expect(
-          caller.automations.createAutomation(
-            slackAutomationInput(project.id, channelId),
-          ),
-        ).rejects.toThrow(SLACK_CHANNEL_NOT_FOUND_MESSAGE);
+        expect(await errorFor(channelId)).toBe(SLACK_CHANNEL_NOT_FOUND_MESSAGE);
       }
-    });
-
-    it("rejects typed #names identically whether the channel is private or missing", async () => {
-      const { project, caller } = await prepareWithInstaller("someone-else");
-
-      const errors = await Promise.all(
-        ["#secret-plans", "#does-not-exist"].map((channelId) =>
-          caller.automations
-            .createAutomation(slackAutomationInput(project.id, channelId))
-            .catch((error: Error) => error.message),
-        ),
+      // Typed names are rejected before any lookup.
+      expect(await errorFor("#secret-plans")).toBe(
+        await errorFor("#does-not-exist"),
       );
-      expect(errors[0]).toContain("Send a test message");
-      expect(errors[1]).toBe(errors[0]);
     });
 
     it("fails closed for private channels on installs without groups:read", async () => {

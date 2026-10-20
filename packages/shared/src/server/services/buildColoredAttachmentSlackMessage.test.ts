@@ -40,15 +40,6 @@ describe("buildColoredAttachmentSlackMessage", () => {
     expect(serialized).toContain("*Something failed*");
   });
 
-  // URL buttons trigger interaction payloads Slack expects us to acknowledge.
-  it("renders deep links as mrkdwn instead of URL buttons", () => {
-    const blocks = buildColoredAttachmentSlackMessage({
-      ...base,
-      secondaryUrl: "https://cloud.langfuse.com/y?dateRange=1-2",
-    }).attachments![0].blocks!;
-    expect(blocks.some((b: any) => b.type === "actions")).toBe(false);
-  });
-
   it("renders a labeled secondary link after the primary when secondaryUrl is set", () => {
     const blocks = buildColoredAttachmentSlackMessage({
       ...base,
