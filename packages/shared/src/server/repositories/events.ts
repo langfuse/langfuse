@@ -3902,6 +3902,7 @@ export const getEvaluatorExecutionSummaries = async (
     .whereRaw("e.evaluator_id IN ({evaluatorIds: Array(String)})", {
       evaluatorIds,
     })
+    .whereRaw("e.is_deleted = 0")
     .havingRaw(`countIf(${evaluatorTestEventCondition}) = 0`);
 
   // Aggregate the per-trace outcomes, rather than counting individual observations.

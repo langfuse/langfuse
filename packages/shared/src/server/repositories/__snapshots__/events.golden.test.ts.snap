@@ -1568,6 +1568,7 @@ FROM
         WHERE (e.project_id = {param2:String})
             AND (e.start_time > (now() - toIntervalDay(7)))
             AND (e.evaluator_id IN ({param3:Array(String)}))
+            AND (e.is_deleted = 0)
         GROUP BY
             e.trace_id,
             e.evaluator_id

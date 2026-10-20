@@ -31,11 +31,9 @@ import {
   type CompatibleFilterType,
   type FilterColumnType,
 } from "../../../server/queries/clickhouse-sql/filterTypeCompatibility";
+import { EVENTS_TABLE_NAMES } from "../../../server/clickhouse/schema";
 
-const EVENTS_TABLES: ReadonlySet<string> = new Set([
-  "events_core",
-  "events_full",
-]);
+const EVENTS_TABLES: ReadonlySet<string> = new Set(EVENTS_TABLE_NAMES);
 
 type AppliedDimensionType = {
   table: string;

@@ -1017,14 +1017,14 @@ const createScoreTableRelations = (
       // A semantic-root join can match both rows in dual-write data and
       // multiply scores for little fallback value.
       joinConditionSql:
-        "ON scores.trace_id = events_traces.trace_id AND scores.project_id = events_traces.project_id AND events_traces.parent_span_id = ''",
+        "ON scores.trace_id = events_traces.trace_id AND scores.project_id = events_traces.project_id AND events_traces.parent_span_id = '' AND events_traces.is_deleted = 0",
       timeDimension: "start_time",
       useFinal: false,
     },
     events_observations: {
       name: "events_core",
       joinConditionSql:
-        "ON scores.project_id = events_observations.project_id AND scores.trace_id = events_observations.trace_id AND scores.observation_id = events_observations.span_id",
+        "ON scores.project_id = events_observations.project_id AND scores.trace_id = events_observations.trace_id AND scores.observation_id = events_observations.span_id AND events_observations.is_deleted = 0",
       timeDimension: "start_time",
       useFinal: false,
     },
