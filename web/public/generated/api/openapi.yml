@@ -7494,6 +7494,347 @@ paths:
               schema:
                 $ref: '#/components/schemas/unstablePublicApiError'
       security: *ref_0
+  /api/public/unstable/topics/facets:
+    get:
+      description: |-
+        Unstable: Topics is in closed beta. The shape may change without notice.
+
+        List the project's Topics facets. Only active facets (attached to the
+        project's Topics rule) are returned unless `filter` contains an
+        `active` condition.
+
+        `filter` is a JSON array of filter conditions combined with AND.
+        String matching is case-insensitive. Columns: `id` (stringOptions),
+        `name` (string, stringOptions), `description` (string), `isBuiltIn`
+        (boolean), `active` (boolean).
+      operationId: unstable_topics_listFacets
+      tags:
+        - UnstableTopics
+      parameters:
+        - name: filter
+          in: query
+          description: >-
+            JSON array of filter conditions, for example
+            `[{"type":"string","column":"name","operator":"contains","value":"issue"}]`.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: page
+          in: query
+          description: 1-based page number. Defaults to `1`.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: limit
+          in: query
+          description: Maximum number of items per page. Defaults to `50`, at most `100`.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableTopicFacetList'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
+  /api/public/unstable/topics/facets/{facetId}:
+    get:
+      description: |-
+        Unstable: Topics is in closed beta. The shape may change without notice.
+
+        Get one Topics facet by id, including inactive facets.
+      operationId: unstable_topics_getFacet
+      tags:
+        - UnstableTopics
+      parameters:
+        - name: facetId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableTopicFacet'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
+  /api/public/unstable/topics:
+    get:
+      description: |-
+        Unstable: Topics is in closed beta. The shape may change without notice.
+
+        List the topics of each active facet's current published map, with
+        the number of traces currently assigned to each topic in the window.
+        Retired topics are not listed. `facets` holds per-facet trace counts
+        by topic status.
+
+        The window applies to the trace start time. It defaults to the last
+        7 days and can span at most 93 days.
+
+        `filter` is a JSON array of filter conditions combined with AND.
+        String matching is case-insensitive. Columns: `facetId`
+        (stringOptions), `facetName` (string, stringOptions), `id`
+        (stringOptions), `name` (string, stringOptions). Facet conditions also
+        restrict `facets`.
+      operationId: unstable_topics_list
+      tags:
+        - UnstableTopics
+      parameters:
+        - name: fromTimestamp
+          in: query
+          description: >-
+            Start of the window (trace start time, inclusive). Defaults to 7
+            days before `toTimestamp`.
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
+        - name: toTimestamp
+          in: query
+          description: End of the window (trace start time, exclusive). Defaults to now.
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
+        - name: filter
+          in: query
+          description: >-
+            JSON array of filter conditions, for example
+            `[{"type":"stringOptions","column":"facetName","operator":"any
+            of","value":["Issues"]}]`.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: orderBy
+          in: query
+          description: Defaults to `traceCount.desc`.
+          required: false
+          schema:
+            $ref: '#/components/schemas/unstableTopicsOrderBy'
+            nullable: true
+        - name: page
+          in: query
+          description: 1-based page number. Defaults to `1`.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: limit
+          in: query
+          description: Maximum number of items per page. Defaults to `50`, at most `100`.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableTopicList'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
+  /api/public/unstable/topics/{topicId}:
+    get:
+      description: |-
+        Unstable: Topics is in closed beta. The shape may change without notice.
+
+        Get one topic by its stable id. Topics on the current map are always
+        found. A retired topic is found while traces in the window are still
+        assigned to it, with `inCurrentMap: false`.
+      operationId: unstable_topics_get
+      tags:
+        - UnstableTopics
+      parameters:
+        - name: topicId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: fromTimestamp
+          in: query
+          description: >-
+            Start of the window used for `traceCount`. Defaults to 7 days before
+            `toTimestamp`.
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
+        - name: toTimestamp
+          in: query
+          description: End of the window used for `traceCount`. Defaults to now.
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableTopicWithStatus'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
 components:
   schemas:
     AnnotationQueueStatus:
@@ -14678,6 +15019,7 @@ components:
         - invalid_request
         - invalid_query
         - invalid_body
+        - invalid_filter_value
         - resource_not_found
         - conflict
         - rate_limited
@@ -14761,6 +15103,208 @@ components:
       required:
         - message
         - code
+    unstableTopicsOrderBy:
+      title: unstableTopicsOrderBy
+      type: string
+      enum:
+        - traceCount.desc
+        - traceCount.asc
+        - name.asc
+        - name.desc
+    unstableTopicFacetPublishedRun:
+      title: unstableTopicFacetPublishedRun
+      type: object
+      properties:
+        id:
+          type: string
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        topicCount:
+          type: integer
+      required:
+        - id
+        - topicCount
+    unstableTopicFacet:
+      title: unstableTopicFacet
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        isBuiltIn:
+          type: boolean
+        active:
+          type: boolean
+          description: Whether the facet is attached to the project's Topics rule.
+        version:
+          type: integer
+          description: Latest facet version.
+        prompt:
+          type: string
+          description: Prompt of the latest facet version.
+        publishedRun:
+          $ref: '#/components/schemas/unstableTopicFacetPublishedRun'
+          nullable: true
+          description: >-
+            The run that produced the facet's current map. Null before the first
+            map.
+      required:
+        - id
+        - name
+        - description
+        - isBuiltIn
+        - active
+        - version
+        - prompt
+    unstableTopicFacetList:
+      title: unstableTopicFacetList
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableTopicFacet'
+        meta:
+          $ref: '#/components/schemas/utilsMetaResponse'
+      required:
+        - data
+        - meta
+    unstableTopicFacetRef:
+      title: unstableTopicFacetRef
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        version:
+          type: integer
+      required:
+        - id
+        - name
+        - version
+    unstableTopicWindow:
+      title: unstableTopicWindow
+      type: object
+      properties:
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+      required:
+        - from
+        - to
+    unstableTopic:
+      title: unstableTopic
+      type: object
+      properties:
+        id:
+          type: string
+          description: Stable topic id, kept across map updates.
+        versionId:
+          type: string
+          description: Id of this topic version.
+        name:
+          type: string
+        description:
+          type: string
+        facet:
+          $ref: '#/components/schemas/unstableTopicFacetRef'
+        runId:
+          type: string
+          description: The run that produced this topic version.
+        traceCount:
+          type: integer
+          description: >-
+            Traces in the window whose current result for the facet is this
+            topic.
+      required:
+        - id
+        - versionId
+        - name
+        - description
+        - facet
+        - runId
+        - traceCount
+    unstableTopicWithStatus:
+      title: unstableTopicWithStatus
+      type: object
+      properties:
+        inCurrentMap:
+          type: boolean
+          description: >-
+            False for retired topics that still have assigned traces in the
+            window.
+        window:
+          $ref: '#/components/schemas/unstableTopicWindow'
+      required:
+        - inCurrentMap
+        - window
+      allOf:
+        - $ref: '#/components/schemas/unstableTopic'
+    unstableTopicStatusCounts:
+      title: unstableTopicStatusCounts
+      type: object
+      description: Traces in the window by their current result for one facet.
+      properties:
+        assigned:
+          type: integer
+        outlier:
+          type: integer
+        awaitingMap:
+          type: integer
+        notApplicable:
+          type: integer
+        insufficientInput:
+          type: integer
+      required:
+        - assigned
+        - outlier
+        - awaitingMap
+        - notApplicable
+        - insufficientInput
+    unstableTopicFacetCounts:
+      title: unstableTopicFacetCounts
+      type: object
+      properties:
+        facet:
+          $ref: '#/components/schemas/unstableTopicFacetRef'
+        publishedRunId:
+          type: string
+          nullable: true
+        counts:
+          $ref: '#/components/schemas/unstableTopicStatusCounts'
+      required:
+        - facet
+        - counts
+    unstableTopicList:
+      title: unstableTopicList
+      type: object
+      properties:
+        window:
+          $ref: '#/components/schemas/unstableTopicWindow'
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableTopic'
+        facets:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableTopicFacetCounts'
+        meta:
+          $ref: '#/components/schemas/utilsMetaResponse'
+      required:
+        - window
+        - data
+        - facets
+        - meta
     utilsMetaResponse:
       title: utilsMetaResponse
       type: object

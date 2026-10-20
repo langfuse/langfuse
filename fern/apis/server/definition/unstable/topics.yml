@@ -1,0 +1,231 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  errors: ./errors.yml
+  pagination: ../utils/pagination.yml
+
+service:
+  auth: true
+  base-path: /api/public/unstable
+  endpoints:
+    listFacets:
+      docs: |
+        Unstable: Topics is in closed beta. The shape may change without notice.
+
+        List the project's Topics facets. Only active facets (attached to the
+        project's Topics rule) are returned unless `filter` contains an
+        `active` condition.
+
+        `filter` is a JSON array of filter conditions combined with AND.
+        String matching is case-insensitive. Columns: `id` (stringOptions),
+        `name` (string, stringOptions), `description` (string), `isBuiltIn`
+        (boolean), `active` (boolean).
+      method: GET
+      path: /topics/facets
+      request:
+        name: ListTopicFacetsRequest
+        query-parameters:
+          filter:
+            type: optional<string>
+            docs: JSON array of filter conditions, for example `[{"type":"string","column":"name","operator":"contains","value":"issue"}]`.
+          page:
+            type: optional<integer>
+            docs: 1-based page number. Defaults to `1`.
+          limit:
+            type: optional<integer>
+            docs: Maximum number of items per page. Defaults to `50`, at most `100`.
+      response: TopicFacetList
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.NotFoundError
+        - errors.MethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+    getFacet:
+      docs: |
+        Unstable: Topics is in closed beta. The shape may change without notice.
+
+        Get one Topics facet by id, including inactive facets.
+      method: GET
+      path: /topics/facets/{facetId}
+      path-parameters:
+        facetId: string
+      response: TopicFacet
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.NotFoundError
+        - errors.MethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+    list:
+      docs: |
+        Unstable: Topics is in closed beta. The shape may change without notice.
+
+        List the topics of each active facet's current published map, with
+        the number of traces currently assigned to each topic in the window.
+        Retired topics are not listed. `facets` holds per-facet trace counts
+        by topic status.
+
+        The window applies to the trace start time. It defaults to the last
+        7 days and can span at most 93 days.
+
+        `filter` is a JSON array of filter conditions combined with AND.
+        String matching is case-insensitive. Columns: `facetId`
+        (stringOptions), `facetName` (string, stringOptions), `id`
+        (stringOptions), `name` (string, stringOptions). Facet conditions also
+        restrict `facets`.
+      method: GET
+      path: /topics
+      request:
+        name: ListTopicsRequest
+        query-parameters:
+          fromTimestamp:
+            type: optional<datetime>
+            docs: Start of the window (trace start time, inclusive). Defaults to 7 days before `toTimestamp`.
+          toTimestamp:
+            type: optional<datetime>
+            docs: End of the window (trace start time, exclusive). Defaults to now.
+          filter:
+            type: optional<string>
+            docs: JSON array of filter conditions, for example `[{"type":"stringOptions","column":"facetName","operator":"any of","value":["Issues"]}]`.
+          orderBy:
+            type: optional<TopicsOrderBy>
+            docs: Defaults to `traceCount.desc`.
+          page:
+            type: optional<integer>
+            docs: 1-based page number. Defaults to `1`.
+          limit:
+            type: optional<integer>
+            docs: Maximum number of items per page. Defaults to `50`, at most `100`.
+      response: TopicList
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.NotFoundError
+        - errors.MethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+    get:
+      docs: |
+        Unstable: Topics is in closed beta. The shape may change without notice.
+
+        Get one topic by its stable id. Topics on the current map are always
+        found. A retired topic is found while traces in the window are still
+        assigned to it, with `inCurrentMap: false`.
+      method: GET
+      path: /topics/{topicId}
+      path-parameters:
+        topicId: string
+      request:
+        name: GetTopicRequest
+        query-parameters:
+          fromTimestamp:
+            type: optional<datetime>
+            docs: Start of the window used for `traceCount`. Defaults to 7 days before `toTimestamp`.
+          toTimestamp:
+            type: optional<datetime>
+            docs: End of the window used for `traceCount`. Defaults to now.
+      response: TopicWithStatus
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.NotFoundError
+        - errors.MethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+
+types:
+  TopicsOrderBy:
+    enum:
+      - value: traceCount.desc
+        name: TraceCountDesc
+      - value: traceCount.asc
+        name: TraceCountAsc
+      - value: name.asc
+        name: NameAsc
+      - value: name.desc
+        name: NameDesc
+  TopicFacetPublishedRun:
+    properties:
+      id: string
+      completedAt: optional<datetime>
+      topicCount: integer
+  TopicFacet:
+    properties:
+      id: string
+      name: string
+      description: string
+      isBuiltIn: boolean
+      active:
+        type: boolean
+        docs: Whether the facet is attached to the project's Topics rule.
+      version:
+        type: integer
+        docs: Latest facet version.
+      prompt:
+        type: string
+        docs: Prompt of the latest facet version.
+      publishedRun:
+        type: optional<TopicFacetPublishedRun>
+        docs: The run that produced the facet's current map. Null before the first map.
+  TopicFacetList:
+    properties:
+      data: list<TopicFacet>
+      meta: pagination.MetaResponse
+  TopicFacetRef:
+    properties:
+      id: string
+      name: string
+      version: integer
+  TopicWindow:
+    properties:
+      from: datetime
+      to: datetime
+  Topic:
+    properties:
+      id:
+        type: string
+        docs: Stable topic id, kept across map updates.
+      versionId:
+        type: string
+        docs: Id of this topic version.
+      name: string
+      description: string
+      facet: TopicFacetRef
+      runId:
+        type: string
+        docs: The run that produced this topic version.
+      traceCount:
+        type: integer
+        docs: Traces in the window whose current result for the facet is this topic.
+  TopicWithStatus:
+    extends: Topic
+    properties:
+      inCurrentMap:
+        type: boolean
+        docs: False for retired topics that still have assigned traces in the window.
+      window: TopicWindow
+  TopicStatusCounts:
+    docs: Traces in the window by their current result for one facet.
+    properties:
+      assigned: integer
+      outlier: integer
+      awaitingMap: integer
+      notApplicable: integer
+      insufficientInput: integer
+  TopicFacetCounts:
+    properties:
+      facet: TopicFacetRef
+      publishedRunId: optional<string>
+      counts: TopicStatusCounts
+  TopicList:
+    properties:
+      window: TopicWindow
+      data: list<Topic>
+      facets: list<TopicFacetCounts>
+      meta: pagination.MetaResponse
