@@ -937,6 +937,7 @@ function TableRowComponent<TData>({
   return (
     <TableRow
       data-row-index={row.index}
+      aria-selected={rowIsSelected || shouldHighlightAllRows}
       onClick={(e) => {
         if (shouldIgnoreRowClickTarget(e.target)) return;
         onRowClick?.(row.original, e);

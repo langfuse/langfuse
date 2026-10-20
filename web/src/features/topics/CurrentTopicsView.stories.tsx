@@ -74,6 +74,11 @@ const meta = preview.meta({
   component: CurrentTopicsView,
   args: defaultArgs,
   render: (args) => <ControlledTopics {...args} />,
+  beforeEach: () => {
+    sessionStorage.removeItem("topics-selected-trace:storybook-topics");
+    return () =>
+      sessionStorage.removeItem("topics-selected-trace:storybook-topics");
+  },
 });
 
 export const Default = meta.story({});
@@ -420,3 +425,103 @@ function resetPanelSizes() {
   keys.forEach((key) => localStorage.removeItem(key));
   return () => keys.forEach((key) => localStorage.removeItem(key));
 }
+
+export const TraceSelectionAcrossFacets = meta.story({
+  name: "(Test) Map selection follows traces across facets without opening peek",
+  args: {
+    peekView: { ...defaultArgs.peekView, openPeek: fn() },
+  },
+  render: function Render(args) {
+    const [facetId, setFacetId] = useState("intent");
+    return (
+      <div>
+        <Button
+          text="Switch facet"
+          onClick={() =>
+            setFacetId((value) => (value === "intent" ? "sentiment" : "intent"))
+          }
+        />
+        <ControlledTopics
+          key={facetId}
+          {...args}
+          facet={{
+            ...args.facet,
+            facetId,
+            rows: [...args.facet.rows].reverse(),
+          }}
+        />
+      </div>
+    );
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    const stage = canvas.getByRole("group", { name: /^Interactive topic map/ });
+    await waitFor(() =>
+      expect(stage.getBoundingClientRect().height).toBeGreaterThan(0),
+    );
+    const model = prepareTopicMap(mapData, [topic]);
+    const rect = stage.getBoundingClientRect();
+    const size = { width: rect.width, height: rect.height };
+    const camera = fitCamera(model.bounds, model.bounds, size);
+    const at = screenPoint(
+      model.pointById.get("trace-0")!,
+      camera,
+      model.bounds,
+      size,
+    );
+    await afterPaint();
+    stage.dispatchEvent(
+      new MouseEvent("click", {
+        bubbles: true,
+        clientX: rect.left + at.x,
+        clientY: rect.top + at.y,
+      }),
+    );
+    await expect(args.onOpenTrace).not.toHaveBeenCalled();
+    await waitFor(() => {
+      const row = canvas.getByRole("link", { name: "trace-0" }).closest("tr")!;
+      expect(row).toHaveAttribute("aria-selected", "true");
+      const panel = canvas.getByRole("region", { name: "Topic traces" });
+      expect(row.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+        panel.getBoundingClientRect().bottom,
+      );
+      expect(
+        JSON.parse(
+          sessionStorage.getItem("topics-selected-trace:storybook-topics")!,
+        ),
+      ).toBe("trace-0");
+    });
+    await userEvent.click(canvas.getByRole("button", { name: "Switch facet" }));
+    await expect(
+      canvas.getByRole("link", { name: "trace-0" }).closest("tr"),
+    ).toHaveAttribute("aria-selected", "true");
+    for (
+      let attempt = 0;
+      attempt < 16 &&
+      !canvas.queryByRole("button", {
+        name: /^Select trace:.*Account setup 0/,
+      });
+      attempt++
+    ) {
+      await userEvent.click(
+        canvas.getByRole("button", { name: "Zoom in (+)" }),
+      );
+      await afterPaint();
+    }
+    const selected = canvas.getByRole("button", {
+      name: /^Select trace:.*Account setup 0/,
+    });
+    await expect(selected).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(selected);
+    await expect(args.onOpenTrace).not.toHaveBeenCalled();
+    await userEvent.click(canvas.getByRole("link", { name: "trace-0" }));
+    await expect(args.onOpenTrace).toHaveBeenCalledOnce();
+    await expect(args.onOpenTrace).toHaveBeenCalledWith("trace-0");
+    const table = within(canvas.getByRole("region", { name: "Topic traces" }));
+    await userEvent.click(table.getByText("Account setup 1"));
+    await expect(args.peekView.openPeek).toHaveBeenCalledOnce();
+    await expect(
+      table.getByRole("link", { name: "trace-1" }).closest("tr"),
+    ).toHaveAttribute("aria-selected", "true");
+  },
+});

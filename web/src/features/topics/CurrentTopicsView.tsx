@@ -3,6 +3,7 @@ import { useMemo, useState, type ComponentProps, type ReactNode } from "react";
 import { useMediaQuery } from "react-responsive";
 import { type OnChangeFn, type PaginationState } from "@tanstack/react-table";
 import { DataTable } from "@/src/components/table/data-table";
+import useSessionStorage from "@/src/components/useSessionStorage";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { type RouterOutputs } from "@/src/utils/api";
@@ -40,15 +41,20 @@ export function CurrentTopicsView({
   onGenerateTopics,
   canGenerateTopics,
 }: CurrentTopicsViewProps) {
-  const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null);
+  const [selectedTraceId, setSelectedTraceId] = useSessionStorage<
+    string | null
+  >(`topics-selected-trace:${projectId}`, null);
   const isNarrow = useMediaQuery({ query: "(max-width: 1023px)" });
   const [mobilePanel, setMobilePanel] = useState("traces");
   const { filters, setFilters, searchQuery, setSearchQuery } = traceFilters;
   const filterKey = JSON.stringify([filters, searchQuery]);
   const [pageSize, setPageSize] = useState(20);
   function selectTopic(topicId: string | null) {
-    setSelectedTraceId(null);
     setFilters(selectTopicTraceFilters(filters, topicId));
+  }
+  function openTrace(traceId: string) {
+    setSelectedTraceId(traceId);
+    onOpenTrace(traceId);
   }
   const { visible, matchingTraceKey } = useMemo(() => {
     const isFiltered = filters.length > 0 || Boolean(searchQuery?.trim());
@@ -101,7 +107,6 @@ export function CurrentTopicsView({
         <TopicEmbeddingMap
           key={facet.map.runId}
           query={mapResult}
-          onOpenTrace={onOpenTrace}
           projectId={projectId}
           topics={facet.map.topics}
           selectedTopic={null}
@@ -181,9 +186,11 @@ export function CurrentTopicsView({
         onSearchQueryChange={setSearchQuery}
       />
       <CurrentTraceTable
-        key={filterKey}
+        key={JSON.stringify([filterKey, selectedTraceId])}
         projectId={projectId}
-        onOpenTrace={onOpenTrace}
+        onOpenTrace={openTrace}
+        selectedTraceId={selectedTraceId}
+        onSelectTrace={setSelectedTraceId}
         peekView={peekView}
         rows={visible}
         totalCount={facet.rows.length}
@@ -335,6 +342,8 @@ function TopicsWorkspaceSplit({
 function CurrentTraceTable({
   projectId,
   onOpenTrace,
+  selectedTraceId,
+  onSelectTrace,
   peekView,
   rows,
   totalCount,
@@ -342,7 +351,14 @@ function CurrentTraceTable({
   pageSize,
   onPageSizeChange,
 }: CurrentTraceTableProps) {
-  const [requestedPageIndex, setPageIndex] = useState(0);
+  const [requestedPageIndex, setPageIndex] = useState(() =>
+    Math.floor(
+      Math.max(
+        0,
+        rows.findIndex((row) => row.traceId === selectedTraceId),
+      ) / pageSize,
+    ),
+  );
   const isMobile = useIsMobile();
   const topicColors = new Map(
     topics.map((topic, index) => [topic.id, topicBadgeColor(index)]),
@@ -426,7 +442,10 @@ function CurrentTraceTable({
     },
   ];
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+    <div
+      ref={revealSelectedTrace}
+      className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+    >
       <DataTable
         tableName="topics-current-traces"
         columns={columns}
@@ -452,10 +471,18 @@ function CurrentTraceTable({
         className="min-h-0 overscroll-contain"
         cellPadding="relaxed"
         noResultsMessage="No matches. Adjust or clear your filters."
+        rowSelection={selectedTraceId ? { [selectedTraceId]: true } : {}}
+        onRowClick={(row) => onSelectTrace(row.traceId)}
         peekView={peekView}
       />
     </div>
   );
+}
+
+function revealSelectedTrace(element: HTMLDivElement | null) {
+  element
+    ?.querySelector('[aria-selected="true"]')
+    ?.scrollIntoView({ block: "nearest" });
 }
 
 type TopicsDetailsTabsProps = {
@@ -482,6 +509,8 @@ type TopicsWorkspaceSplitProps = {
 type CurrentTraceTableProps = {
   projectId: string;
   onOpenTrace: (traceId: string) => void;
+  selectedTraceId: string | null;
+  onSelectTrace: (traceId: string) => void;
   peekView: DataTablePeekViewProps;
   rows: Facet["rows"];
   totalCount: number;
