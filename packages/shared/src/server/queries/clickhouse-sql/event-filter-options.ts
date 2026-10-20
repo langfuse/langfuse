@@ -488,7 +488,13 @@ export const buildEventsFilterOptionColumnQuery = (params: {
 
   const valueExpression = (() => {
     if (definition.kind === "scalar" || definition.kind === "labeledScalar") {
-      return `toString(${definition.expression})`;
+      // Every column but traceName restricts to non-NULL/non-empty via
+      // includeWhen (optionPresenceCondition), so ifNull is a no-op there.
+      // traceName has no includeWhen (an unnamed trace is a real, filterable
+      // value), so without it a NULL computed name would surface as SQL NULL
+      // here, which callers such as the MCP filter-values tool silently drop,
+      // making unnamed traces invisible and burning a pagination slot.
+      return stringValueExpression(definition.expression);
     }
     if (definition.kind === "boolean") {
       return `if(${definition.expression}, 'true', 'false')`;
