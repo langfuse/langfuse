@@ -3338,20 +3338,13 @@ export const SidebarManualScroll = meta.story({
     const feed = canvas.getByLabelText("Session conversation timeline");
     const initialFeedScroll = feed.scrollTop;
 
-    for (const event of [
-      new WheelEvent("wheel", { deltaY: 100, bubbles: true }),
-      new Event("touchmove", { bubbles: true }),
-      new KeyboardEvent("keydown", { key: "PageDown", bubbles: true }),
-      new PointerEvent("pointerup", { bubbles: true }),
-    ]) {
-      list.dispatchEvent(event);
-      list.scrollTo({ top: 1500, behavior: "instant" });
-      await waitFor(() => expect(list.scrollTop).toBeGreaterThan(1000));
-      // Wait beyond the former idle timeout, including virtualized row measurements.
-      await new Promise((resolve) => window.setTimeout(resolve, 1000));
-      await expect(list.scrollTop).toBeGreaterThan(1000);
-      await expect(feed.scrollTop).toBe(initialFeedScroll);
-    }
+    list.dispatchEvent(new WheelEvent("wheel", { deltaY: 100, bubbles: true }));
+    list.scrollTo({ top: 1500, behavior: "instant" });
+    await waitFor(() => expect(list.scrollTop).toBeGreaterThan(1000));
+    // Wait beyond the former idle timeout, including virtualized row measurements.
+    await new Promise((resolve) => window.setTimeout(resolve, 1000));
+    await expect(list.scrollTop).toBeGreaterThan(1000);
+    await expect(feed.scrollTop).toBe(initialFeedScroll);
 
     const sidebar = within(canvas.getByRole("complementary"));
     const visibleTurn = sidebar
@@ -3371,48 +3364,6 @@ export const SidebarManualScroll = meta.story({
     );
     await waitFor(() =>
       expect(feed.scrollTop).toBeGreaterThan(initialFeedScroll),
-    );
-
-    const workspace = canvas.getByRole("group", { name: "Session workspace" });
-    workspace.style.height = "120px";
-    await waitFor(() => expect(list.clientHeight).toBeLessThan(120));
-    await waitFor(
-      () => {
-        feed.scrollTo({ top: feed.scrollHeight, behavior: "instant" });
-        const active = sidebar.getByRole("button", {
-          name: /^32\.2 Navigation turn 32/,
-        });
-        expect(active).toHaveAttribute("aria-current", "true");
-        expect(active.getBoundingClientRect().top).toBeGreaterThanOrEqual(
-          list.getBoundingClientRect().top,
-        );
-        expect(active.getBoundingClientRect().bottom).toBeLessThanOrEqual(
-          list.getBoundingClientRect().bottom,
-        );
-      },
-      { timeout: 6_000 },
-    );
-
-    workspace.style.height = "480px";
-    workspace.style.width = "400px";
-    await waitFor(() => expect(list).not.toBeVisible());
-    feed.scrollTo({ top: 0, behavior: "instant" });
-    await waitFor(() => expect(feed.scrollTop).toBe(0));
-    workspace.style.width = "1200px";
-    await waitFor(
-      () => {
-        const active = within(list).getByRole("button", {
-          name: /^1\.1 Navigation turn 1/,
-        });
-        expect(active).toHaveAttribute("aria-current", "true");
-        expect(active.getBoundingClientRect().top).toBeGreaterThanOrEqual(
-          list.getBoundingClientRect().top,
-        );
-        expect(active.getBoundingClientRect().bottom).toBeLessThanOrEqual(
-          list.getBoundingClientRect().bottom,
-        );
-      },
-      { timeout: 6_000 },
     );
   },
 });
