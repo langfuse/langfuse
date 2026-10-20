@@ -9,7 +9,6 @@ import { SEPARATE_GATEWAY_API_KEYS } from "@/src/features/ai-gateway/fns/separat
 import { type AsyncTableData } from "@/src/components/design-system/table/Table";
 import { useIsFeatureEnabled } from "@/src/features/feature-flags";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { ApiKeySettingsTableFilters } from "@/src/features/public-api/components/ApiKeySettingsTable/components/ApiKeySettingsTableFilters";
 import { filterApiKeysByName } from "@/src/features/public-api/components/ApiKeySettingsTable/fns/filterApiKeysByName";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import {
@@ -91,32 +90,25 @@ export function ConnectedApiKeySettingsTable({
           }}
         >
           {({ openDialog: openDeleteDialog }) => (
-            <div className="flex flex-col gap-2">
-              {scope === "organization" ? (
-                <ApiKeySettingsTableFilters
-                  searchQuery={searchQuery}
-                  onSearchQueryChange={setSearchQuery}
-                  gatewayKeyFilter={
-                    showGatewayKeyFilter
-                      ? {
-                          includeGatewayKeys,
-                          onIncludeGatewayKeysChange: setIncludeGatewayKeys,
-                        }
-                      : undefined
-                  }
-                />
-              ) : null}
-              <ApiKeySettingsTable
-                data={tableData}
-                editNameAction={{
-                  hasAccess: hasWriteAccess,
-                  onClick: openEditNameDialog,
-                }}
-                hasWriteAccess={hasWriteAccess}
-                onDelete={openDeleteDialog}
-                noResultsMessage={noResultsMessage}
-              />
-            </div>
+            <ApiKeySettingsTable
+              search={{ value: searchQuery, onChange: setSearchQuery }}
+              gatewayKeyFilter={
+                showGatewayKeyFilter
+                  ? {
+                      includeGatewayKeys,
+                      onIncludeGatewayKeysChange: setIncludeGatewayKeys,
+                    }
+                  : undefined
+              }
+              data={tableData}
+              editNameAction={{
+                hasAccess: hasWriteAccess,
+                onClick: openEditNameDialog,
+              }}
+              hasWriteAccess={hasWriteAccess}
+              onDelete={openDeleteDialog}
+              noResultsMessage={noResultsMessage}
+            />
           )}
         </ConfirmationDialogController>
       )}
