@@ -13,6 +13,7 @@ import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import { apiKeyCreationRoleSchema } from "@/src/features/public-api/server/apiKeyCreationRoleSchema";
 import { excludeGatewayApiKeys } from "@/src/features/ai-gateway/server/apiKey/excludeGatewayApiKeys";
+import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server";
 
 export const organizationApiKeysRouter = createTRPCRouter({
   byOrganizationId: protectedOrganizationProcedure
@@ -196,10 +197,18 @@ export const organizationApiKeysRouter = createTRPCRouter({
         action: "delete",
       });
 
-      return await new ApiAuthService(ctx.prisma, redis).deleteApiKey(
+      const deleted = await new ApiAuthService(ctx.prisma, redis).deleteApiKey(
         input.id,
         input.orgId,
         "ORGANIZATION",
       );
+      // Any organization key whose role grants gateway:invoke may sit in the
+      // gateway resolve cache, which would otherwise keep it usable until the TTL.
+      if (deleted && apiKey.fastHashedSecretKey) {
+        await invalidateGatewayResolveCacheForApiKey(
+          apiKey.fastHashedSecretKey,
+        );
+      }
+      return deleted;
     }),
 });
