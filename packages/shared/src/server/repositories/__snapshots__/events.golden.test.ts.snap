@@ -2468,7 +2468,7 @@ exports[`golden: events point-reads & existence family > getTraceByIdFromEventsT
       "param4": 1,
     },
     "route": "unknown",
-    "sql": "WITH traces AS
+    "sql": "WITH event_traces AS
     (
         SELECT
             e.trace_id AS id,
@@ -2555,7 +2555,7 @@ SELECT
     0 AS is_deleted,
     t.input,
     t.output
-FROM traces AS t
+FROM event_traces AS t
 ORDER BY t.timestamp DESC
 LIMIT {param4:Int64}",
   },
@@ -2575,7 +2575,7 @@ exports[`golden: events point-reads & existence family > getTraceByIdFromEventsT
       "param4": 1,
     },
     "route": "unknown",
-    "sql": "WITH traces AS
+    "sql": "WITH event_traces AS
     (
         SELECT
             e.trace_id AS id,
@@ -2662,7 +2662,7 @@ SELECT
     0 AS is_deleted,
     '' AS input,
     '' AS output
-FROM traces AS t
+FROM event_traces AS t
 ORDER BY t.timestamp DESC
 LIMIT {param4:Int64}",
   },
@@ -2684,7 +2684,7 @@ exports[`golden: events point-reads & existence family > getTraceByIdFromEventsT
       "param6": 1,
     },
     "route": "unknown",
-    "sql": "WITH traces AS
+    "sql": "WITH event_traces AS
     (
         SELECT
             e.trace_id AS id,
@@ -2772,7 +2772,7 @@ SELECT
     0 AS is_deleted,
     t.input,
     t.output
-FROM traces AS t
+FROM event_traces AS t
 WHERE toDate(t.timestamp) = toDate({param5:DateTime64(6)})
 ORDER BY t.timestamp DESC
 LIMIT {param6:Int64}",
@@ -2793,7 +2793,7 @@ exports[`golden: events point-reads & existence family > getTraceByIdFromEventsT
       "param4": 1,
     },
     "route": "unknown",
-    "sql": "WITH traces AS
+    "sql": "WITH event_traces AS
     (
         SELECT
             e.trace_id AS id,
@@ -2880,7 +2880,7 @@ SELECT
     0 AS is_deleted,
     leftUTF8(t.input, 1000) AS input,
     leftUTF8(t.output, 1000) AS output
-FROM traces AS t
+FROM event_traces AS t
 ORDER BY t.timestamp DESC
 LIMIT {param4:Int64}",
   },

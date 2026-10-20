@@ -6,6 +6,7 @@ import {
 } from "kysely";
 
 import { ClickHouseQueryCompiler } from "./compiler";
+import { CteNamePlugin } from "./ctes";
 import { DedupLoweringPlugin } from "./dedup";
 import { EventsTableRoutingPlugin } from "./eventsRouting";
 import { SoftDeleteFilterPlugin } from "./softDelete";
@@ -34,7 +35,8 @@ export type ClickhouseCompilable = {
  * The choke point. Every query that should produce ClickHouse SQL goes
  * through here: the `projectId` parameter is required, so a caller cannot
  * compile without a tenancy scope — omitting it is a compile-time type error.
- * The query reads exactly that one project. The logical `events` relation is
+ * The query reads exactly that one project. CTE names that could mean two
+ * relations are rejected (`ctes.ts`). The logical `events` relation is
  * routed to `events_core` or `events_full`, soft-deleted rows are filtered
  * out, tenancy is injected from that project, per-table dedup is applied from
  * the registry, and the dialect compiler refuses to emit SQL unless the tree
@@ -49,6 +51,7 @@ export function compileClickhouseQuery(
 ): CompiledClickhouseQuery {
   const scope = requireProjectId(projectId);
   const stamped = query
+    .withPlugin(new CteNamePlugin())
     .withPlugin(new EventsTableRoutingPlugin())
     .withPlugin(new SoftDeleteFilterPlugin())
     .withPlugin(new TenancyInjectionPlugin(scope))

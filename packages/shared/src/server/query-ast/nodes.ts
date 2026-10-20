@@ -169,3 +169,19 @@ export function finalTable(table: OperationNode): OperationNode {
 export function unwrapFinalTable(node: { kind: string }): OperationNode {
   return (node as unknown as FinalTableNode).table;
 }
+
+/**
+ * Calls `visit` on every node object under `value`, ClickHouse extra fields
+ * included, parents before children. `visit` returns `false` to skip a
+ * node's children.
+ */
+export function walkNodes(
+  value: unknown,
+  visit: (node: OperationNode) => boolean | void,
+): void {
+  if (!value || typeof value !== "object") return;
+  if ("kind" in value && typeof value.kind === "string") {
+    if (visit(value as OperationNode) === false) return;
+  }
+  for (const child of Object.values(value)) walkNodes(child, visit);
+}
