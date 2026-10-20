@@ -217,6 +217,7 @@ export function TopicMapExplorer({
     }
   };
   const selectTrace = (id: string | null) => {
+    if (id !== null && matchingTraceIds && !matchingTraceIds.has(id)) return;
     clearTopicMapHover(store);
     onSelectTrace(id);
   };

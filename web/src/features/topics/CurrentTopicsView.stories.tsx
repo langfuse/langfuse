@@ -433,14 +433,12 @@ export const TraceSelectionAcrossFacets = meta.story({
   },
   render: function Render(args) {
     const [facetId, setFacetId] = useState("intent");
+    function switchFacet() {
+      setFacetId((value) => (value === "intent" ? "sentiment" : "intent"));
+    }
     return (
       <div>
-        <Button
-          text="Switch facet"
-          onClick={() =>
-            setFacetId((value) => (value === "intent" ? "sentiment" : "intent"))
-          }
-        />
+        <Button text="Switch facet" onClick={switchFacet} />
         <ControlledTopics
           key={facetId}
           {...args}
@@ -469,14 +467,19 @@ export const TraceSelectionAcrossFacets = meta.story({
       model.bounds,
       size,
     );
+    function clickMap(x = at.x, y = at.y) {
+      const map = canvas.getByRole("group", { name: /^Interactive topic map/ });
+      const bounds = map.getBoundingClientRect();
+      map.dispatchEvent(
+        new MouseEvent("click", {
+          bubbles: true,
+          clientX: bounds.left + x,
+          clientY: bounds.top + y,
+        }),
+      );
+    }
     await afterPaint();
-    stage.dispatchEvent(
-      new MouseEvent("click", {
-        bubbles: true,
-        clientX: rect.left + at.x,
-        clientY: rect.top + at.y,
-      }),
-    );
+    clickMap();
     await expect(args.onOpenTrace).not.toHaveBeenCalled();
     await waitFor(() => {
       const row = canvas.getByRole("link", { name: "trace-0" }).closest("tr")!;
@@ -491,6 +494,29 @@ export const TraceSelectionAcrossFacets = meta.story({
         ),
       ).toBe("trace-0");
     });
+    const refresh = canvas.getByRole("button", {
+      name: "Refresh unchanged results",
+    });
+    await userEvent.click(refresh);
+    await expect(
+      canvas.getByRole("link", { name: "trace-0" }).closest("tr"),
+    ).toHaveAttribute("aria-selected", "true");
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Go to next page" }),
+    );
+    await userEvent.click(refresh);
+    await expect(canvas.getByRole("link", { name: "trace-99" })).toBeVisible();
+    clickMap();
+    await waitFor(() =>
+      expect(canvas.getByRole("link", { name: "trace-0" })).toBeVisible(),
+    );
+    clickMap(5, 5);
+    await waitFor(() =>
+      expect(
+        canvas.getByRole("link", { name: "trace-0" }).closest("tr"),
+      ).not.toHaveAttribute("aria-selected"),
+    );
+    clickMap();
     await userEvent.click(canvas.getByRole("button", { name: "Switch facet" }));
     await expect(
       canvas.getByRole("link", { name: "trace-0" }).closest("tr"),
@@ -517,11 +543,28 @@ export const TraceSelectionAcrossFacets = meta.story({
     await userEvent.click(canvas.getByRole("link", { name: "trace-0" }));
     await expect(args.onOpenTrace).toHaveBeenCalledOnce();
     await expect(args.onOpenTrace).toHaveBeenCalledWith("trace-0");
-    const table = within(canvas.getByRole("region", { name: "Topic traces" }));
-    await userEvent.click(table.getByText("Account setup 1"));
+    await userEvent.click(canvas.getByText("Account setup 1"));
     await expect(args.peekView.openPeek).toHaveBeenCalledOnce();
     await expect(
-      table.getByRole("link", { name: "trace-1" }).closest("tr"),
+      canvas.getByRole("link", { name: "trace-1" }).closest("tr"),
     ).toHaveAttribute("aria-selected", "true");
+    const search = canvas.getByRole("combobox", { name: "Search" });
+    await replaceQuery(search, "invoice");
+    await waitFor(() =>
+      expect(
+        canvas.queryByRole("link", { name: "trace-0" }),
+      ).not.toBeInTheDocument(),
+    );
+    clickMap();
+    await afterPaint();
+    await expect(
+      sessionStorage.getItem("topics-selected-trace:storybook-topics"),
+    ).toBe(JSON.stringify("trace-1"));
+    await replaceQuery(search, "");
+    await waitFor(() =>
+      expect(
+        canvas.getByRole("link", { name: "trace-1" }).closest("tr"),
+      ).toHaveAttribute("aria-selected", "true"),
+    );
   },
 });

@@ -20,7 +20,9 @@ project permissions. Processing additionally requires the project allowlist.
   Map clicks select a trace without opening peek. `CurrentTopicsView` keeps
   that trace ID in project-scoped sessionStorage, shared across facets, and
   highlights its map point and table row. Selection changes reveal the trace's
-  table page; filters can hide a selection without discarding it. Table row
+  table page and follow it through result refreshes until the user paginates.
+  Clearing selection preserves the current page. Filtered-out map points cannot
+  replace selection; filters can hide a selection without discarding it. Table row
   and trace-link clicks select the trace and open peek.
   `useTopicTraceFilters.ts` owns URL-backed facet selection; filters and search
   live only in localStorage, scoped to each project/facet. Switching facets
