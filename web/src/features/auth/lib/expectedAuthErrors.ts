@@ -17,15 +17,20 @@ import { MULTI_TENANT_SSO_DOMAIN_MISMATCH_MESSAGE } from "@/src/features/auth/co
 // - OAuthCallback: user cancelled at the provider, expired/mismatched state
 //   cookie, or a provider hiccup during the token exchange. Server-side,
 //   next-auth logs `OAUTH_CALLBACK_ERROR` before issuing this redirect.
+// - OAuthSignin: constructing the authorization URL failed (OIDC discovery
+//   timeout, unreachable issuer, missing client). next-auth logs
+//   `SIGNIN_OAUTH_ERROR` with providerId before this redirect. The client
+//   copy has only the code, so it is not a Cloud-outage canary — a google /
+//   github outage would spike that server log. The form already renders it.
 // - Callback: error thrown in the callback route; always preceded by a
 //   server-side `OAUTH_CALLBACK_ERROR` / `OAUTH_CALLBACK_HANDLER_ERROR` /
 //   `CALLBACK_EMAIL_ERROR` log.
-// Deliberately NOT listed (still capture): OAuthSignin (authorization-URL
-// construction = provider misconfig), OAuthCreateAccount / EmailCreateAccount
+// Deliberately NOT listed (still capture): OAuthCreateAccount / EmailCreateAccount
 // (DB failures), EmailSignin (verification email failed to send), Signin,
 // Configuration, and any unknown/custom string.
 const EXPECTED_SIGN_IN_ERROR_CODES: readonly string[] = [
   "OAuthCallback",
+  "OAuthSignin",
   "Callback",
 ];
 

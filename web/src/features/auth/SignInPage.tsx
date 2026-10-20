@@ -499,6 +499,11 @@ const signInErrors = [
     description:
       "Please sign in with the same provider (e.g. Google, GitHub, Azure AD, etc.) that you used to create this account.",
   },
+  {
+    code: "OAuthSignin",
+    description:
+      "Could not start sign-in with this identity provider. Try another method or contact your administrator.",
+  },
 ];
 
 export default function SignInPage({

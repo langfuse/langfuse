@@ -10,7 +10,7 @@ import { MULTI_TENANT_SSO_DOMAIN_MISMATCH_MESSAGE } from "@/src/features/auth/co
 
 describe("expectedAuthErrors", () => {
   describe("isExpectedSignInError", () => {
-    it.each(["OAuthCallback", "Callback"])(
+    it.each(["OAuthCallback", "Callback", "OAuthSignin"])(
       "classifies %s as expected (user-caused / provider-transient)",
       (code) => {
         expect(isExpectedSignInError(code)).toBe(true);
@@ -20,7 +20,6 @@ describe("expectedAuthErrors", () => {
     // Negative fixtures: codes that indicate misconfiguration or genuine
     // failures must stay captured. An unknown code is never expected.
     it.each([
-      "OAuthSignin", // authorization-URL construction failed → misconfig
       "OAuthCreateAccount", // DB user creation failed
       "EmailCreateAccount",
       "EmailSignin", // verification email failed to send
