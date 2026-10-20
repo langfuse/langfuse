@@ -129,8 +129,10 @@ suffix to run there. Promote it to a required check once it has proven stable.
   joined relations type differently (a computed CTE column counts as its own
   type) or that a relation outside the registry may provide. Qualify the
   column with the alias of a registry relation, or add the table to the
-  registry. A SELECT alias takes the type of the column it names; a computed
-  alias, or a column no relation has, binds by value.
+  registry. A SELECT alias takes the type of the column it names, also
+  through another alias; a computed alias, an ARRAY JOIN alias, or a column
+  no relation has, binds by value. A `*` over a join types a shared column
+  name from the leftmost relation, as ClickHouse does.
 - **Bind dates as JS `Date`**, never as pre-formatted strings. The compiler
   sends a `Date` as the UTC wall-clock string ingestion writes
   (`toClickhouseDateTime`), so binds match stored rows whatever the server

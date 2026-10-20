@@ -158,22 +158,6 @@ function typePreservedOperand(node: OperationNode): OperationNode {
 }
 
 /**
- * Qualifier of a `*` (undefined) or `t.*` selection, or undefined when the
- * selection is no star. `selectAll` parses to a SelectAllNode; `sql.ref("t.*")`
- * and `dynamic.ref("t.*")` to a reference to a column named `*`.
- */
-function starSelection(
-  selection: OperationNode,
-): { qualifier: string | undefined } | undefined {
-  if (SelectAllNode.is(selection)) return { qualifier: undefined };
-  if (ReferenceNode.is(selection) && SelectAllNode.is(selection.column)) {
-    return { qualifier: selection.table?.table.identifier.name };
-  }
-  const ref = columnReference(selection);
-  return ref?.column === "*" ? { qualifier: ref.qualifier } : undefined;
-}
-
-/**
  * Column name and qualifier of a column operand. Kysely parses `"start_time"`
  * to a bare ColumnNode and `"e.start_time"` to a ReferenceNode carrying the
  * table, so only the latter has a qualifier. `sql.ref(…)` wraps either in a
@@ -207,10 +191,11 @@ type SelectScope = {
   /** FROM/JOIN names and aliases → the relation's column bind types. */
   relations: Map<string, RelationBindTypes>;
   /**
-   * This SELECT's output aliases → the expression each names. ClickHouse
-   * resolves an unqualified name to an alias before a relation's column.
+   * This SELECT's output aliases → the expression each names, `null` for an
+   * ARRAY JOIN alias, whose element binds by value. ClickHouse resolves an
+   * unqualified name to an alias before a relation's column.
    */
-  aliases: Map<string, OperationNode>;
+  aliases: Map<string, OperationNode | null>;
 };
 
 /**
@@ -449,6 +434,12 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
         scope.aliases.set(selection.alias.name, selection.node);
       }
     }
+    for (const arrayJoin of (node as ClickHouseSelectQueryNode).arrayJoins ??
+      []) {
+      for (const { alias } of arrayJoin.items) {
+        if (!scope.aliases.has(alias.name)) scope.aliases.set(alias.name, null);
+      }
+    }
     const scopes = [...enclosing, scope];
     for (const { source, table, alias } of selectRelations(node)) {
       const columns = table
@@ -548,25 +539,10 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     const columns: Record<string, BindType | null> = {};
     for (const { selection } of node.selections ?? []) {
       const star = starSelection(selection);
-      // `t.*`: every column of `t`.
-      if (star?.qualifier) {
-        const { qualifier } = star;
-        const relation = scope.relations.get(qualifier);
-        if (relation === undefined) {
-          return new OpaqueRelation(
-            `It selects ${qualifier}.* but no relation in that select is named "${qualifier}".`,
-          );
-        }
-        if (relation instanceof OpaqueRelation) return relation;
-        Object.assign(columns, relation);
-        continue;
-      }
-      // `*`: every column of every relation in this select's FROM/JOIN.
       if (star) {
-        for (const relation of scope.relations.values()) {
-          if (relation instanceof OpaqueRelation) return relation;
-          Object.assign(columns, relation);
-        }
+        const expanded = starBindTypes(star.qualifier, scope.relations);
+        if (expanded instanceof OpaqueRelation) return expanded;
+        addMissingColumns(columns, expanded);
         continue;
       }
       const aliased = AliasNode.is(selection) ? selection : undefined;
@@ -589,23 +565,31 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
    * Bind type of `column` in `scopes` (innermost last), or undefined to bind
    * by value. An unqualified name that is an output alias of the innermost
    * select takes the type of the column it names, through a type-preserving
-   * aggregate; a computed alias binds by value. The aliased expression reads
-   * the relations, not the aliases: `max(start_time) AS start_time`.
+   * aggregate and through other aliases (`count() AS value, value AS v2`); a
+   * computed or ARRAY JOIN alias binds by value. An alias read inside its own
+   * expression reads the relations: `max(start_time) AS start_time`.
    */
   private columnBindType(
     column: string,
     qualifier: string | undefined,
     scopes: readonly SelectScope[] = this.selectScopes,
+    resolving: ReadonlySet<string> = new Set(),
   ): BindType | undefined {
     if (qualifier) return qualifiedBindType(column, qualifier, scopes);
     const scope = scopes.at(-1);
-    const aliased = scope?.aliases.get(column);
-    if (!aliased) return unqualifiedBindType(column, scope);
+    const aliased = resolving.has(column)
+      ? undefined
+      : scope?.aliases.get(column);
+    if (aliased === undefined) return unqualifiedBindType(column, scope);
+    if (aliased === null) return undefined;
     const ref = columnReference(typePreservedOperand(aliased));
     if (!ref) return undefined;
-    return ref.qualifier
-      ? qualifiedBindType(ref.column, ref.qualifier, scopes)
-      : unqualifiedBindType(ref.column, scope);
+    return this.columnBindType(
+      ref.column,
+      ref.qualifier,
+      scopes,
+      new Set(resolving).add(column),
+    );
   }
 
   /** Bind type of a comparison operand that is a column, or undefined. */
@@ -922,8 +906,15 @@ function resolveBindType(
   if (type === undefined) return inferClickHouseType(value);
   if (typeof type === "string") return type;
   if (!isTupleBindType(type)) throw new QueryCompileError(type.reason);
-  // `(a, b) in {p:Array(Tuple(…))}`: the list takes the tuple's type.
-  if (Array.isArray(value)) return `Array(${resolveBindType(value[0], type)})`;
+  // `(a, b) in {p:Array(Tuple(…))}`: the list takes the tuple's type, from
+  // its columns alone when the list is empty and every column is typed.
+  if (Array.isArray(value)) {
+    const { tuple } = type;
+    if (value.length === 0 && tuple.every((t) => typeof t === "string")) {
+      return `Array(Tuple(${tuple.join(", ")}))`;
+    }
+    return `Array(${resolveBindType(value[0], type)})`;
+  }
   if (
     value instanceof TupleParam &&
     value.values.length === type.tuple.length
@@ -934,12 +925,70 @@ function resolveBindType(
     return `Tuple(${elements.join(", ")})`;
   }
   // Any other value binds by inference, unless an element type is unknown.
-  for (const element of type.tuple) {
-    if (element !== undefined && typeof element !== "string") {
-      resolveBindType(undefined, element);
-    }
-  }
+  assertTyped(type);
   return inferClickHouseType(value);
+}
+
+/** Throws the reason of the first unknown type in `type`, a tuple's included. */
+function assertTyped(type: OperandBindType | undefined): void {
+  if (type === undefined || typeof type === "string") return;
+  if (!isTupleBindType(type)) throw new QueryCompileError(type.reason);
+  type.tuple.forEach(assertTyped);
+}
+
+/**
+ * Qualifier of a `*` (undefined) or `t.*` selection, or undefined when the
+ * selection is no star. `selectAll` parses to a SelectAllNode; `sql.ref("t.*")`
+ * and `dynamic.ref("t.*")` to a reference to a column named `*`.
+ */
+function starSelection(
+  selection: OperationNode,
+): { qualifier: string | undefined } | undefined {
+  if (SelectAllNode.is(selection)) return { qualifier: undefined };
+  if (ReferenceNode.is(selection) && SelectAllNode.is(selection.column)) {
+    return { qualifier: selection.table?.table.identifier.name };
+  }
+  const ref = columnReference(selection);
+  return ref?.column === "*" ? { qualifier: ref.qualifier } : undefined;
+}
+
+/**
+ * Columns a `t.*` (every column of `t`) or `*` (every column of every
+ * FROM/JOIN relation) selection outputs. Opaque when a relation it expands is
+ * opaque or `t` is undeclared.
+ */
+function starBindTypes(
+  qualifier: string | undefined,
+  relations: ReadonlyMap<string, RelationBindTypes>,
+): RelationBindTypes {
+  if (qualifier) {
+    return (
+      relations.get(qualifier) ??
+      new OpaqueRelation(
+        `It selects ${qualifier}.* but no relation in that select is named "${qualifier}".`,
+      )
+    );
+  }
+  const columns: Record<string, BindType | null> = {};
+  for (const relation of relations.values()) {
+    if (relation instanceof OpaqueRelation) return relation;
+    addMissingColumns(columns, relation);
+  }
+  return columns;
+}
+
+/**
+ * Copies the columns of `relation` that `columns` lacks. A star over a join
+ * keeps the leftmost relation's column under a shared name; ClickHouse
+ * renames the later one (`o.start_time`).
+ */
+function addMissingColumns(
+  columns: Record<string, BindType | null>,
+  relation: ColumnBindTypes,
+): void {
+  for (const [name, type] of Object.entries(relation)) {
+    if (!(name in columns)) columns[name] = type;
+  }
 }
 
 function isTupleBindType(

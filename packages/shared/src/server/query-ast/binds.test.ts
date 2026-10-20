@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { compileClickhouseQuery } from "./compile";
 import { getClickhouseKysely } from "./dialect";
 import { QueryCompileError, UnscopedRelationError } from "./errors";
-import { tupleIn, useFinal } from "./extensions";
+import { arrayJoin, tupleIn, useFinal } from "./extensions";
 
 const projectId = "proj-1";
 const START = new Date("2026-01-01T00:00:00.000Z");
@@ -436,6 +436,46 @@ describe("typed params from the column registry", () => {
     expect(sql).toMatch(/value > \{p\d+:Int64\}/);
   });
 
+  // ClickHouse resolves `v2` through `value` to `count()`, a UInt64.
+  it("binds an alias of a computed alias by value", () => {
+    const { sql } = compile(
+      getClickhouseKysely()
+        .selectFrom("scores")
+        .select((eb) => [
+          eb.fn.countAll().as("value"),
+          sql_.ref("value").as("v2"),
+        ])
+        .groupBy("trace_id")
+        .having(sql_.ref("v2"), ">", 1),
+    );
+    expect(sql).toMatch(/v2 > \{p\d+:Int64\}/);
+  });
+
+  // ClickHouse resolves `start_time` to the ARRAY JOIN element, a String.
+  it("binds an ARRAY JOIN alias by value, not as the column it shadows", () => {
+    const { sql } = compile(
+      getClickhouseKysely()
+        .selectFrom("events_core as e")
+        .select("e.span_id")
+        .$call(
+          arrayJoin({ start_time: sql_.ref<string[]>("e.metadata_names") }),
+        )
+        .where(sql_.ref("start_time"), "=", "x"),
+    );
+    expect(sql).toMatch(/start_time = \{p\d+:String\}/);
+  });
+
+  // A raw fragment around a column is not the column: `length(...)` is a number.
+  it("binds a raw expression around a sql.ref column by value", () => {
+    const { sql } = compile(
+      getClickhouseKysely()
+        .selectFrom("events_core as e")
+        .select("e.span_id")
+        .where(sql_<number>`length(${sql_.ref("e.input")})`, ">", 5),
+    );
+    expect(sql).toMatch(/length\(e\.input\) > \{p\d+:Int64\}/);
+  });
+
   describe("columns the compiler can't resolve to a relation", () => {
     const db = getClickhouseKysely();
     // A table outside the registry: the compiler can't see its columns.
@@ -613,19 +653,19 @@ describe("typed params from the column registry", () => {
         /no relation in scope is named "x"/,
       ],
       [
-        // Kysely only accepts a declared qualifier, so the test widens it.
         "a CTE qualified * whose qualifier no relation declares",
         () =>
           db
             .with("t", (qb) =>
-              qb.selectFrom("events_core as e").selectAll("x" as string as "e"),
+              qb.selectFrom("events_core as e").select(db.dynamic.ref("x.*")),
             )
             .selectFrom("t as t")
-            .select("t.span_id")
-            .where("t.start_time", ">=", START),
+            .select(db.dynamic.ref("t.span_id"))
+            .where(db.dynamic.ref("t.start_time"), ">=", START),
         /It selects x\.\* but no relation in that select is named "x"/,
       ],
       [
+        // Each tuple position takes its column's type; `x.a` has none.
         "a TupleParam whose tuple has a column declared nowhere",
         () =>
           db
@@ -639,6 +679,7 @@ describe("typed params from the column registry", () => {
         /no relation in scope is named "x"/,
       ],
       [
+        // Each value binds with the type of the column at its position.
         "a tuple of values against a tuple with a column declared nowhere",
         () =>
           db
@@ -648,6 +689,18 @@ describe("typed params from the column registry", () => {
               eb(eb.refTuple(db.dynamic.ref("x.a"), "e.span_id"), "in", [
                 eb.tuple("a", "s"),
               ]),
+            ),
+        /no relation in scope is named "x"/,
+      ],
+      [
+        // An empty list has no value to infer from, so `x.a` decides its type.
+        "an empty TupleParam list whose tuple has a column declared nowhere",
+        () =>
+          db
+            .selectFrom("events_core as e")
+            .select("e.span_id")
+            .where((eb) =>
+              tupleIn(eb.refTuple(db.dynamic.ref("x.a"), "e.span_id"), []),
             ),
         /no relation in scope is named "x"/,
       ],
@@ -748,6 +801,18 @@ describe("typed params from the column registry", () => {
     );
   });
 
+  it("binds an empty TupleParam list with the tuple's column types", () => {
+    const { sql } = compile(
+      getClickhouseKysely()
+        .selectFrom("scores as s")
+        .select("s.id")
+        .where((eb) => tupleIn(eb.refTuple("s.trace_id", "s.value"), [])),
+    );
+    expect(sql).toMatch(
+      /\(s\.trace_id, s\.value\) in \{p\d+:Array\(Tuple\(String, Float64\)\)\}/,
+    );
+  });
+
   it("binds each value of a tuple with the type of the column at its position", () => {
     const { sql } = compile(
       getClickhouseKysely()
@@ -772,6 +837,24 @@ describe("typed params from the column registry", () => {
         .selectFrom("t as t")
         .select(db.dynamic.ref("t.span_id"))
         .where(db.dynamic.ref("t.start_time"), ">=", START),
+    );
+    expect(sql).toMatch(/t\.start_time >= \{p\d+:DateTime64\(6\)\}/);
+  });
+
+  // ClickHouse keeps `e.start_time` as `start_time` and renames `o.start_time`.
+  it("types a CTE * over a join from the leftmost relation with the column", () => {
+    const db = getClickhouseKysely();
+    const { sql } = compile(
+      db
+        .with("t", (qb) =>
+          qb
+            .selectFrom("events_core as e")
+            .innerJoin("observations as o", "o.trace_id", "e.trace_id")
+            .selectAll(),
+        )
+        .selectFrom("t as t")
+        .select("t.span_id")
+        .where("t.start_time", ">=", START),
     );
     expect(sql).toMatch(/t\.start_time >= \{p\d+:DateTime64\(6\)\}/);
   });
