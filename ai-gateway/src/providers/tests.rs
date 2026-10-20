@@ -1202,7 +1202,7 @@ fn assert_chat_upload(payload: &serde_json::Value, request: &str) {
     // The recorded input is the caller's request, not the upstream rewrite.
     assert_eq!(
         parsed("langfuse.observation.input"),
-        json!({"messages":[{"role":"user","content":"Say hello"}]})
+        serde_json::from_str::<Value>(request).unwrap()
     );
     assert_eq!(
         parsed("langfuse.observation.model.parameters").get("stream_options"),

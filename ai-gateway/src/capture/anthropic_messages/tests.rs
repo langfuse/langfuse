@@ -274,7 +274,7 @@ fn stop_events() -> String {
 }
 
 #[tokio::test]
-async fn request_configuration_and_metadata_are_projected_out_of_input_by_mode() {
+async fn request_configuration_and_metadata_are_recorded_by_mode() {
     let observer = new_observer("full").await;
     let facts = &captured(&observer).facts;
     assert_eq!(
@@ -291,25 +291,11 @@ async fn request_configuration_and_metadata_are_projected_out_of_input_by_mode()
             .cloned()
             .unwrap()
     );
-    let input = facts.input_json().unwrap();
-    assert_eq!(input["system"][0]["text"], json!("system-canary"));
     assert_eq!(
-        input["system"][0]["cache_control"]["type"],
-        json!("ephemeral")
+        facts.input.as_ref().unwrap().get().as_bytes(),
+        REQUEST,
+        "the input is the request as sent"
     );
-    assert_eq!(input["messages"][0]["content"], json!("prompt-canary"));
-    assert_eq!(input["tools"][0]["name"], json!("Bash"));
-    assert_eq!(input["future_field"], json!({"kept":true}));
-    for projected in [
-        "model",
-        "max_tokens",
-        "speed",
-        "thinking",
-        "tool_choice",
-        "metadata",
-    ] {
-        assert!(input.get(projected).is_none(), "{projected} left in input");
-    }
     assert!(facts.input_complete);
 
     let mut observer = new_observer("usage").await;

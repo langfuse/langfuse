@@ -189,7 +189,7 @@ async fn usage_mode_excludes_content_and_context_credentials() {
 }
 
 #[tokio::test]
-async fn request_configuration_is_projected_out_of_input() {
+async fn request_configuration_is_recorded_and_stays_in_input() {
     let request = json!({
         "model": "requested", "input": "hello", "instructions": "be brief",
         "tools": [{"type": "function", "name": "weather"}],
@@ -205,14 +205,7 @@ async fn request_configuration_is_projected_out_of_input() {
         IngestionMode::Full,
     )
     .into_facts();
-    assert_eq!(
-        capture.input_json().unwrap(),
-        json!({
-            "input": "hello", "instructions": "be brief",
-            "tools": [{"type": "function", "name": "weather"}],
-            "previous_response_id": "resp-previous", "future_field": {"keep": true}
-        })
-    );
+    assert_eq!(capture.input_json().unwrap(), request);
     assert_eq!(capture.model_parameters["stream"], true);
     assert_eq!(capture.model_parameters["parallel_tool_calls"], false);
     assert_eq!(capture.model_parameters["reasoning"], request["reasoning"]);
@@ -226,7 +219,7 @@ async fn request_configuration_is_projected_out_of_input() {
 }
 
 #[tokio::test]
-async fn agent_client_metadata_is_projected_out_of_input_in_both_modes() {
+async fn agent_client_metadata_is_recognized_in_both_modes() {
     let codex = json!({
         "model": "requested", "input": "hello", "future_field": {"keep": true},
         "client_metadata": {
@@ -243,14 +236,10 @@ async fn agent_client_metadata_is_projected_out_of_input_in_both_modes() {
             "install-1"
         );
         let facts = capture.into_facts();
-        if mode == IngestionMode::Full {
-            assert_eq!(
-                facts.input_json().unwrap(),
-                json!({"input": "hello", "future_field": {"keep": true}})
-            );
-        } else {
-            assert!(facts.input.is_none());
-        }
+        assert_eq!(
+            facts.input_json(),
+            (mode == IngestionMode::Full).then(|| codex.clone())
+        );
     }
 
     for client_metadata in [
@@ -266,24 +255,7 @@ async fn agent_client_metadata_is_projected_out_of_input_in_both_modes() {
             IngestionMode::Full,
         );
         assert!(capture.client_metadata().is_none());
-        assert_eq!(
-            capture.into_facts().input_json().unwrap(),
-            json!({"input": "hello", "client_metadata": client_metadata})
-        );
     }
-}
-
-#[test]
-fn full_mode_input_is_the_clients_raw_json() {
-    let request = br#"{"model": "requested",
-        "input": [ {"role": "user", "content": "hi"} ], "temperature": 1, "future": {"b": 1, "a": 2}}"#;
-    let facts =
-        OpenAiResponsesCapture::new(&HeaderMap::new(), request, IngestionMode::Full).into_facts();
-    assert_eq!(
-        facts.input.unwrap().get(),
-        r#"{"input":[ {"role": "user", "content": "hi"} ],"future":{"b": 1, "a": 2}}"#
-    );
-    assert_eq!(facts.model_parameters["temperature"], 1);
 }
 
 #[tokio::test]
@@ -896,7 +868,7 @@ async fn codex_body_metadata_reaches_the_generation_without_agent_headers() {
     assert_eq!(metadata["langfuse.gateway.response.id"], "resp-1");
     assert_eq!(
         uploaded_attribute(&upload, "langfuse.observation.input"),
-        json!({"input": "hello"})
+        body
     );
 }
 
@@ -997,15 +969,9 @@ async fn capture_regression_preserves_native_request_and_usage() {
                 execution.push_bytes(body.as_bytes());
                 execution.end_body();
                 let facts = &captured(&execution).facts;
-                let mut expected_input = request.clone();
-                expected_input.as_object_mut().unwrap().remove("model");
                 assert_eq!(
                     facts.input_json().as_ref(),
-                    if mode == "full" {
-                        Some(&expected_input)
-                    } else {
-                        None
-                    }
+                    (mode == "full").then_some(&request)
                 );
                 assert_eq!(facts.usage_details.as_ref(), Some(&usage));
                 assert!(facts.capture_complete);

@@ -640,10 +640,8 @@ Codex sends its turn snapshot canonically in the request body as
 flat `client_metadata` keys (`session_id`, `thread_id`, `turn_id`, `root_turn_id`,
 `parent_turn_id`, `x-codex-installation-id`, `x-codex-window-id`,
 `x-codex-parent-thread-id`) are compatibility projections of it. The gateway reads the
-body snapshot first, then the header, and finally the flat keys. A recognized
-`client_metadata` object is removed from the recorded input in full mode because it is
-request metadata rather than prompt content; other clients' `client_metadata` stays in
-the input untouched. Besides the identifiers above, Codex generations carry
+body snapshot first, then the header, and finally the flat keys. Like every
+request field, `client_metadata` also stays in the recorded input in full mode. Besides the identifiers above, Codex generations carry
 `agent.id` (Codex's `agent_name`, the agent's path in a multi-agent team such as
 `/root`), `agent.installation_id`, `agent.root_turn_id`, `agent.parent_turn_id`,
 `agent.parent_thread_id`, `agent.forked_from_thread_id`,
@@ -677,9 +675,9 @@ including at debug level. `LANGFUSE_LOG_FORMAT=json` emits one JSON object per l
 
 Web's resolved ingestion mode controls content capture:
 
-- `full`: input retains native `input`, `instructions`, tools, prompt/context
-  references and unknown fields. Model, configuration and a recognized coding agent's
-  `client_metadata` are projected out of input. Output is an ordered array of native
+- `full`: input is the request body exactly as sent. Model, configuration and request
+  metadata are additionally recorded as their own fields, so they also appear in the
+  input. Output is an ordered array of native
   completed items. Content is sent only through Langfuse ingestion.
 - `usage`: input and output are null. Model, scalar parameters, native usage,
   timing and trusted attribution are retained; request schemas/content are omitted.
@@ -712,11 +710,9 @@ level. Scalar model parameters (`max_tokens`, `temperature`, `top_p`, `top_k`,
 `stream`, `service_tier`, `speed`) are recorded in both modes; `speed` selects the
 fast-mode pricing tier.
 
-In full mode the input is the native request with `model` and parameters projected
-out: `stop_sequences`, `thinking`, `tool_choice`, `context_management` and
-`output_config` become model parameters and `metadata` (where Claude Code stores its
-session identifiers) becomes `request.metadata`; `system`, `messages`, `tools` and
-unknown fields are kept as sent. The output is the native assistant message
+In full mode `stop_sequences`, `thinking`, `tool_choice`, `context_management` and
+`output_config` are also recorded as model parameters and `metadata` (where Claude Code
+stores its session identifiers) as `request.metadata`; the input is the request as sent. The output is the native assistant message
 `{"role":"assistant","content":[...],"stop_reason":...}`. JSON responses contribute
 their `content` array at EOF. Streams rebuild each block from `content_block_start`,
 its deltas and `content_block_stop`: text, thinking and citations are appended, the
@@ -733,9 +729,8 @@ For OpenAI Chat Completions, scalar model parameters (`temperature`, `top_p`, `n
 `verbosity`, `stream`, `store`, `prompt_cache_retention`) are recorded in both modes.
 In full mode `stop`, `response_format`, `tool_choice`, `function_call`, `stream_options`,
 `logit_bias`, `modalities`, `audio`, `prediction` and `web_search_options` also become
-model parameters, `metadata`, `prompt_cache_key`, `safety_identifier` and `user` become
-`langfuse.gateway.request.*`, and `messages`, `tools`, legacy `functions` and unknown
-fields remain the input. The output is the native `{"choices":[...]}` list: JSON
+model parameters and `metadata`, `prompt_cache_key`, `safety_identifier` and `user`
+become `langfuse.gateway.request.*`; the input is the request as sent. The output is the native `{"choices":[...]}` list: JSON
 responses contribute their choices at EOF; streams rebuild each choice from its
 `delta` chunks. Text fragments (`content`, `refusal`, tool and function `arguments`,
 audio data) are appended, `tool_calls` are merged by their `index`, `role`, `id` and
@@ -763,7 +758,7 @@ bytes observed by the gateway for operational metrics. `completion_start_ms` mea
 the first captured SSE content delta independently; it ignores response-created
 events and keepalives and does not retain or reconstruct delta content.
 
-`input_complete` means request input was captured and configuration projected; it is false when
+`input_complete` means request input was captured; it is false when
 content is omitted in usage mode. `output_complete` means response inspection
 finished without capture gaps for the configured mode (including a terminal event
 and all expected completed items for full-mode SSE). It does not promise that the
@@ -782,13 +777,13 @@ batched upload. Capture and upload run independently of log level; debug emissio
 alone is gated.
 
 Capture is limited to 5 MiB request inspection, 1 MiB JSON/SSE event inspection,
-1 MiB retained output and 256 output items per execution. Only the request's
-top-level members are scanned: projected model, configuration and metadata (at
-most 64 KiB in total; larger members stay in the input) are parsed, and full-mode
-input keeps the client's raw JSON for those members, so it retains about one body
-of memory. The retained-output limit counts the parsed output's estimated memory,
-which for many small objects is far larger than its serialized size. The
-memory budget bounds the number of captures. Trusted key metadata is bounded by the resolver's
+1 MiB retained output and 256 output items per execution. Full-mode input is the
+request body exactly as the client sent it, so it retains about one body of memory;
+only the top-level members recorded as model, parameters and metadata are parsed (at
+most 64 KiB in total; larger members are not recorded as parameters). The
+retained-output limit counts the parsed output's estimated memory, which for many
+small objects is far larger than its serialized size. The memory budget
+bounds the number of captures. Trusted key metadata is bounded by the resolver's
 256 KiB response limit. In full mode, an input that is not recorded (over 5 MiB,
 content-encoded or not a JSON object) is explained in generation metadata:
 `langfuse.gateway.request.input_omitted` (`size_limit`, `content_encoding` or

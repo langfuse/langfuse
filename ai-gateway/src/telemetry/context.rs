@@ -124,8 +124,8 @@ impl GenerationContext {
         Self::from_request(headers, None)
     }
 
-    /// `client_metadata` is the request body's agent metadata object, already
-    /// removed from the captured input when [`is_agent_client_metadata`].
+    /// `client_metadata` is the request body's agent metadata object when
+    /// [`is_agent_client_metadata`].
     pub(super) fn from_request(
         headers: &HeaderMap,
         client_metadata: Option<&Map<String, Value>>,
@@ -427,7 +427,7 @@ impl AgentContext {
 }
 
 /// Whether a request's `client_metadata` belongs to a coding agent, so capture
-/// records its identifiers as `agent.*` metadata rather than as prompt input.
+/// records its identifiers as `agent.*` metadata.
 /// Capture parses it only up to [`MAX_CLIENT_METADATA_BYTES`] of raw JSON.
 pub(crate) fn is_agent_client_metadata(client_metadata: &Value) -> bool {
     client_metadata

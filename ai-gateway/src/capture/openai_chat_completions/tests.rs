@@ -182,16 +182,12 @@ async fn json_and_streaming_capture_equivalent_choices_and_facts() {
 }
 
 #[tokio::test]
-async fn request_configuration_and_metadata_are_projected_out_of_input() {
+async fn request_configuration_and_metadata_are_recorded_and_stay_in_input() {
     let mut observer = new_observer("full").await;
     let (_, facts) = finalized(&mut observer);
     assert_eq!(
         facts.input_json(),
-        Some(json!({
-            "messages": [{"role":"system","content":"system-canary"},{"role":"user","content":"prompt-canary"}],
-            "tools": [{"type":"function","function":{"name":"lookup","parameters":{"type":"object"}}}],
-            "future_field": {"kept": true},
-        }))
+        Some(serde_json::from_slice(REQUEST).unwrap())
     );
     assert!(facts.input_complete);
     assert_eq!(

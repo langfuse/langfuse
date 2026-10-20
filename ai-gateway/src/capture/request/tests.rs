@@ -1,58 +1,36 @@
 use super::*;
 use serde_json::json;
 
-fn input(members: RequestMembers<'_>) -> Value {
-    serde_json::from_str(members.into_input().unwrap().get()).unwrap()
-}
-
 #[test]
-fn unprojected_members_stay_raw_in_request_order() {
-    let body = br#"{"z": [1, {"a": 2}], "model": "m", "mod\u0065": 1, "b\"q": null}"#;
-    let mut members = RequestMembers::parse(body, &[&["model"]], true).unwrap();
-    assert_eq!(members.take_value("model"), Some(json!("m")));
+fn input_is_the_body_as_sent() {
+    let body = br#"{"z": [1, {"a": 2}], "model": "m", "mod\u0065": 1, "model": "n"}"#;
+    let mut members = RequestMembers::parse(body).unwrap();
+    assert_eq!(members.value("model"), Some(json!("n")));
+    assert_eq!(members.value("mode"), Some(json!(1)));
     assert_eq!(
-        members.into_input().unwrap().get(),
-        r#"{"z":[1, {"a": 2}],"mode":1,"b\"q":null}"#
+        members.into_input().unwrap().get().as_bytes(),
+        body.as_slice()
     );
 }
 
 #[test]
-fn repeated_projected_key_keeps_the_last_value() {
-    let body = br#"{"model": "a", "input": [], "model": "b"}"#;
-    let mut members = RequestMembers::parse(body, &[&["model"]], true).unwrap();
-    assert_eq!(members.take_value("model"), Some(json!("b")));
-    assert_eq!(input(members), json!({"input": []}));
-}
-
-#[test]
-fn untaken_and_over_budget_members_stay_in_the_input() {
-    let large = "a".repeat(MAX_PROJECTED_BYTES);
-    let body = serde_json::to_vec(&json!({
-        "text": large,
-        "user": "u",
-        "metadata": {"m": 1},
-        "input": "hi",
-    }))
-    .unwrap();
-    let mut members = RequestMembers::parse(&body, &[&["text", "user", "metadata"]], true).unwrap();
-    assert_eq!(members.take_value("text"), None);
-    assert_eq!(members.take_value("user"), Some(json!("u")));
-    assert_eq!(members.take_value_within("metadata", 1024, |_| false), None);
+fn members_over_the_parse_budget_are_not_parsed() {
+    let large = "a".repeat(MAX_PARSED_BYTES);
+    let body =
+        serde_json::to_vec(&json!({"text": large, "user": "u", "metadata": {"m": 1}})).unwrap();
+    let mut members = RequestMembers::parse(&body).unwrap();
+    assert_eq!(members.value("text"), None);
+    assert_eq!(members.value("user"), Some(json!("u")));
+    assert_eq!(members.value_within("metadata", 4), None);
     assert_eq!(
-        input(members),
-        json!({"input": "hi", "text": large, "metadata": {"m": 1}})
+        members.value_within("metadata", 1024),
+        Some(json!({"m": 1}))
     );
-}
-
-#[test]
-fn usage_mode_keeps_no_input() {
-    let members = RequestMembers::parse(br#"{"input": "hi"}"#, &[], false).unwrap();
-    assert!(members.into_input().is_none());
 }
 
 #[test]
 fn only_a_single_json_object_is_accepted() {
     for body in [&b"[]"[..], b"\"x\"", b"{} {}", b"{\"a\":}", b""] {
-        assert!(RequestMembers::parse(body, &[], true).is_err(), "{body:?}");
+        assert!(RequestMembers::parse(body).is_err(), "{body:?}");
     }
 }

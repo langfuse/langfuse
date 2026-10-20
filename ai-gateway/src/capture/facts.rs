@@ -66,7 +66,7 @@ pub(crate) struct ProviderFacts {
     pub request_metadata: Map<String, Value>,
     pub error_message: Option<String>,
     pub usage_details: Option<Value>,
-    /// The request's unprojected members as the client sent them.
+    /// The request body as the client sent it.
     pub input: Option<Box<RawValue>>,
     pub input_omission: Option<InputOmission>,
     pub output: Option<Value>,
