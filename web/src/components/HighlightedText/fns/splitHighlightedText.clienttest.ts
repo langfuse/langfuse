@@ -28,6 +28,18 @@ describe("splitHighlightedText", () => {
     ]);
   });
 
+  it("highlights İstanbul when searching for i, matching the search filter", () => {
+    const text = "İstanbul";
+    const query = "i";
+
+    expect(text.toLowerCase().includes(query.toLowerCase())).toBe(true);
+    expect(splitHighlightedText(text, query)).toEqual([
+      { text: "", isMatch: false },
+      { text: "İ", isMatch: true },
+      { text: "stanbul", isMatch: false },
+    ]);
+  });
+
   it.each([
     ["hello", ""],
     ["hello", "absent"],

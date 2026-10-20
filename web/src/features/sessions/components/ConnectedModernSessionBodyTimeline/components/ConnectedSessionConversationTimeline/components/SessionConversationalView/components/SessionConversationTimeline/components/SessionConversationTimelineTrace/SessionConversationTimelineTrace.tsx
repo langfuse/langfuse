@@ -78,10 +78,11 @@ export function SessionConversationTimelineTrace({
             </span>
             <span
               className="truncate"
-              data-session-search-content
               title={`${trace.name ?? "Trace"} · ${trace.id}`}
             >
-              {trace.name ?? "Trace"} · {trace.id}
+              <span data-session-search-content>{trace.name ?? "Trace"}</span>
+              {" · "}
+              {trace.id}
             </span>
           </button>
           <div className="border-border min-w-0 flex-1 border-t border-dashed" />
