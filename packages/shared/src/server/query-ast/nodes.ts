@@ -155,6 +155,11 @@ export const FinalTableNode = {
   },
 };
 
+/** {@link FinalTableNode.create}, typed as the FROM/JOIN item it stands in for. */
+export function finalTable(table: OperationNode): OperationNode {
+  return FinalTableNode.create(table) as unknown as OperationNode;
+}
+
 /**
  * Read the wrapped table expression. `FinalTableNode.kind` is outside
  * Kysely's closed `OperationNodeKind`, so a narrowed

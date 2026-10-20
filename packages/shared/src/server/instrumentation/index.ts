@@ -319,9 +319,9 @@ export const flushMetricsToCloudWatch = () => {
 // CloudWatch metric name (excluding CW_UNFLATTENED_TAGS). Other metrics are
 // unaffected.
 const CW_TAG_FLATTENED_SUFFIXES = [".depth", ".rate", ".dlq_oldest_age"];
-// "reason" is a Datadog-only breakdown; flattening it would rename existing
-// CloudWatch series.
-const CW_UNFLATTENED_TAGS = new Set(["unit", "reason"]);
+// "reason" and "attempt" are Datadog-only breakdowns; flattening them would
+// rename existing CloudWatch series.
+const CW_UNFLATTENED_TAGS = new Set(["unit", "reason", "attempt"]);
 
 function buildCloudWatchKey(
   stat: string,

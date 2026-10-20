@@ -76,7 +76,7 @@ import {
 } from "../queries/clickhouse-sql/query-fragments";
 import { compileClickhouseQuery } from "../query-ast/compile";
 import { getClickhouseKysely } from "../query-ast/dialect";
-import { limitBy, mapKeys, useFinal } from "../query-ast/extensions";
+import { limitBy, mapKeys, notEmpty, useFinal } from "../query-ast/extensions";
 import { scoresTableCols } from "../../tableDefinitions/scoresTable";
 import { promptGenerationEvents } from "./prompt-events";
 import {
@@ -457,7 +457,7 @@ const scoresForExperimentItemsQuery = (experimentIds: string[]) =>
       "s.updated_at as updated_at",
       "s.event_ts as event_ts",
       "s.is_deleted as is_deleted",
-      eb(eb.fn("length", [mapKeys("s.metadata")]), ">", 0).as("has_metadata"),
+      notEmpty(mapKeys(eb.ref("s.metadata"))).as("has_metadata"),
       "e.experiment_id as experiment_id",
     ])
     .where("s.data_type", "in", [...AGGREGATABLE_SCORE_TYPES])
@@ -465,7 +465,11 @@ const scoresForExperimentItemsQuery = (experimentIds: string[]) =>
     .$call(
       limitBy({
         count: 1,
-        columns: ["s.id", "s.project_id", "e.experiment_id"],
+        columns: (eb) => [
+          eb.ref("s.id"),
+          eb.ref("s.project_id"),
+          eb.ref("e.experiment_id"),
+        ],
       }),
     );
 
@@ -2273,7 +2277,7 @@ const aggregatedScoresForPromptsFromEventsQuery = (
       "s.data_type as data_type",
       "s.comment as comment",
       "s.timestamp as timestamp",
-      eb(eb.fn("length", [mapKeys("s.metadata")]), ">", 0).as("has_metadata"),
+      notEmpty(mapKeys(eb.ref("s.metadata"))).as("has_metadata"),
     ])
     .where("s.name", "is not", null)
     .where("s.data_type", "in", [...LISTABLE_SCORE_TYPES])

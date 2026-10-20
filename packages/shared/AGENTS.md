@@ -118,6 +118,10 @@
     saved evaluator routing independent. Text accepts optional generation tracing;
     worker model calls own tracing allowlisting, organization consent, usage,
     cost and vector validation.
+    Failed text calls retain bounded stop-reason/count diagnostics through
+    `getTopicTextResponseMetadata(error)` without changing the original error.
+    Keep response content out of these diagnostics; opted-in generation traces
+    remain the content-bearing path.
   - `model-config.ts`: per-project `topic_configs` (three connection +
     model slots and the automatic-processing state). Saving keeps the stored
     state and pause (a first save starts off) and tests every slot with a real

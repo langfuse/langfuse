@@ -79,8 +79,20 @@ impl Provider {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum IngestionMode {
+    /// Route only; nothing is delivered to Langfuse.
+    None,
     Usage,
     Full,
+}
+
+impl IngestionMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Usage => "usage",
+            Self::Full => "full",
+        }
+    }
 }
 
 #[derive(Clone, Deserialize)]

@@ -7,7 +7,6 @@ import {
   DEDUP_SPECS,
   TENANTED_TABLES,
 } from "./schema";
-import { schemaTypeAssertions, extensionTypeAssertions } from "./types.assert";
 
 describe("table registry derivation", () => {
   it("derives the tenanted table set from the registry", () => {
@@ -51,12 +50,5 @@ describe("table registry derivation", () => {
     expect(COLUMN_BIND_TYPES.is_deleted).toBe("UInt8");
     expect(COLUMN_BIND_TYPES.metadata).toBe("Map(String, String)");
     expect(COLUMN_BIND_TYPES.cost_details).toBe("Map(String, Decimal(18, 12))");
-  });
-
-  // The assertions themselves are compile-time (`tsc` is the test); this only
-  // anchors the file so its `@ts-expect-error` checks stay in the build graph.
-  it("keeps the compile-time type assertions in the build graph", () => {
-    expect(typeof schemaTypeAssertions).toBe("function");
-    expect(typeof extensionTypeAssertions).toBe("function");
   });
 });

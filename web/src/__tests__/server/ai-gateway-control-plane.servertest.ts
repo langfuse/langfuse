@@ -832,6 +832,57 @@ describe("AI gateway control plane", () => {
     expect(result.ingestion?.expires_at).toBe(ingestionClaims.exp);
   });
 
+  it("resolves NONE ingestion mode on self-hosted and rejects it on cloud", async () => {
+    configureGatewayJwtSigning();
+    const { caller, org, project } = await prepare();
+    const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    try {
+      Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined });
+      await caller.aiGateway.updateConfig({
+        orgId: org.id,
+        defaultIngestionProjectId: project.id,
+        ingestionMode: "NONE",
+      });
+      await caller.aiGateway.createConnection({
+        orgId: org.id,
+        name: "OpenAI",
+        provider: "OPENAI",
+        credential: "sk-test-openai",
+      });
+      const gatewayKey = await caller.aiGateway.createApiKey({
+        orgId: org.id,
+        metadata: {},
+      });
+
+      const result = await authenticateRequest({
+        fastHashedSecretKey: createShaHash(gatewayKey.secretKey, env.SALT),
+        apiFormat: "openai.responses",
+        model: "gpt-4o",
+      });
+      expect(result.ingestion_mode).toBe("none");
+
+      Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU" });
+      await expect(
+        caller.aiGateway.updateConfig({
+          orgId: org.id,
+          defaultIngestionProjectId: project.id,
+          ingestionMode: "NONE",
+        }),
+      ).rejects.toThrow("only available on self-hosted deployments");
+      await expect(
+        caller.aiGateway.updateConfig({
+          orgId: org.id,
+          defaultIngestionProjectId: project.id,
+          ingestionMode: "USAGE",
+        }),
+      ).resolves.toMatchObject({ ingestionMode: "USAGE" });
+    } finally {
+      Object.assign(env, {
+        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalCloudRegion,
+      });
+    }
+  });
+
   it("routes unprefixed models by provider and rejects unknown models", async () => {
     configureGatewayJwtSigning();
     const { caller, org, project } = await prepare();

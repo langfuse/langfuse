@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   embeddingModel: "eu.cohere.embed-v4:0",
 }));
 vi.mock("@langfuse/shared/topics/server", () => ({
+  getTopicTextResponseMetadata: () => undefined,
   pauseTopicsModels: mocks.pause,
   writeTopicSummaries: mocks.write,
   readStagedTopicSummary: mocks.staged,
