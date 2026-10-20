@@ -70,19 +70,45 @@ export function getPrivateChannelViewerSlackUserId(
     : null;
 }
 
-/** canViewPrivateSlackChannels reports whether the user installed the project's Slack integration. */
-export async function canViewPrivateSlackChannels(params: {
+/**
+ * getViewablePrivateSlackChannelIds returns the saved private channels the user
+ * may see: only the installer, and only channels they are still a member of.
+ * Fails closed (nothing viewable) if Slack can't be reached.
+ */
+export async function getViewablePrivateSlackChannelIds(params: {
   projectId: string;
   userId: string;
-}) {
+  actions: { config: unknown }[];
+}): Promise<Set<string>> {
+  const hasPrivateChannel = params.actions.some(
+    ({ config }) => isSlackActionConfig(config) && config.isPrivate,
+  );
+  if (!hasPrivateChannel) return new Set();
+
   const integration = await prisma.slackIntegration.findUnique({
     where: { projectId: params.projectId },
     select: { installerUserId: true, installerSlackUserId: true },
   });
-  return Boolean(
+  const viewerSlackUserId =
     integration &&
-    getPrivateChannelViewerSlackUserId(integration, params.userId),
-  );
+    getPrivateChannelViewerSlackUserId(integration, params.userId);
+  if (!viewerSlackUserId) return new Set();
+
+  try {
+    const slackService = SlackService.getInstance();
+    const client = await slackService.getWebClientForProject(params.projectId);
+    const { channels } = await slackService.getPrivateChannels(client, {
+      slackUserId: viewerSlackUserId,
+      includeArchived: true,
+    });
+    return new Set(channels.map((channel) => channel.id));
+  } catch (error) {
+    logger.warn("Failed to resolve viewable private Slack channels", {
+      error,
+      projectId: params.projectId,
+    });
+    return new Set();
+  }
 }
 
 /**
@@ -91,13 +117,13 @@ export async function canViewPrivateSlackChannels(params: {
  */
 export function maskPrivateSlackChannel<T extends { config: unknown }>(
   action: T,
-  canViewPrivateChannels: boolean,
+  viewablePrivateChannelIds: Set<string>,
 ): T {
   const { config } = action;
   if (
-    canViewPrivateChannels ||
     !isSlackActionConfig(config) ||
-    !config.isPrivate
+    !config.isPrivate ||
+    viewablePrivateChannelIds.has(config.channelId)
   ) {
     return action;
   }
@@ -457,17 +483,20 @@ export class SlackService {
    * user is also a member of. `hasPrivateChannelAccess` is false for installs
    * predating the `groups:read` scope.
    */
-  async getPrivateChannels(client: WebClient, slackUserId?: string) {
+  async getPrivateChannels(
+    client: WebClient,
+    options: { slackUserId?: string; includeArchived?: boolean } = {},
+  ) {
     const channels: SlackChannel[] = [];
     let cursor: string | undefined;
     try {
       do {
         const result = await client.users.conversations({
           types: "private_channel",
-          exclude_archived: true,
+          exclude_archived: !options.includeArchived,
           limit: env.SLACK_PAGE_SIZE,
           cursor,
-          ...(slackUserId ? { user: slackUserId } : {}),
+          ...(options.slackUserId ? { user: options.slackUserId } : {}),
         });
         for (const channel of result.channels ?? []) {
           channels.push({
@@ -492,39 +521,52 @@ export class SlackService {
   }
 
   /**
-   * Resolve whether `channel` (id or `#name`) is a private channel the bot is in,
-   * and whether the viewer may use it. Callers must treat an inaccessible private
-   * channel exactly like a non-existent one so its existence isn't revealed.
+   * Resolve whether the viewer may use `channel` (id or `#name`): `public` if it
+   * is not a private channel the bot is in, `private` if the viewer shares it,
+   * `denied` otherwise. Callers must treat `denied` exactly like a non-existent
+   * channel so its existence isn't revealed.
    */
   async checkPrivateChannelAccess(params: {
     client: WebClient;
     channel: string;
     viewerSlackUserId: string | null;
-  }) {
+  }): Promise<
+    | { access: "public" }
+    | { access: "private"; channel: SlackChannel }
+    | { access: "denied" }
+  > {
     const key = params.channel.replace(/^#/, "");
-    const { channels } = await this.getPrivateChannels(params.client);
-    const privateChannel = channels.find(
+    // Archived channels are included so they can't bypass the check.
+    const botChannels = await this.getPrivateChannels(params.client, {
+      includeArchived: true,
+    });
+
+    // Without groups:read, private channels look like public ones; only accept
+    // ids Slack confirms are public.
+    if (!botChannels.hasPrivateChannelAccess) {
+      const info = params.channel.startsWith("#")
+        ? null
+        : await this.getChannelInfo(params.client, key);
+      return info && !info.isPrivate
+        ? { access: "public" }
+        : { access: "denied" };
+    }
+
+    const privateChannel = botChannels.channels.find(
       (channel) => channel.id === key || channel.name === key,
     );
-    if (!privateChannel) return { isPrivate: false as const };
-    if (!params.viewerSlackUserId) {
-      return {
-        isPrivate: true as const,
-        channel: privateChannel,
-        hasAccess: false,
-      };
-    }
-    const viewerChannels = await this.getPrivateChannels(
-      params.client,
-      params.viewerSlackUserId,
-    );
-    return {
-      isPrivate: true as const,
-      channel: privateChannel,
-      hasAccess: viewerChannels.channels.some(
-        (channel) => channel.id === privateChannel.id,
-      ),
-    };
+    if (!privateChannel) return { access: "public" };
+    if (!params.viewerSlackUserId) return { access: "denied" };
+
+    const viewerChannels = await this.getPrivateChannels(params.client, {
+      slackUserId: params.viewerSlackUserId,
+      includeArchived: true,
+    });
+    return viewerChannels.channels.some(
+      (channel) => channel.id === privateChannel.id,
+    )
+      ? { access: "private", channel: privateChannel }
+      : { access: "denied" };
   }
 
   /**

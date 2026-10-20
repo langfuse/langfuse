@@ -8,6 +8,8 @@ import {
   SLACK_CHANNEL_NOT_FOUND_MESSAGE,
   SlackService,
   getPrivateChannelViewerSlackUserId,
+  getViewablePrivateSlackChannelIds,
+  maskPrivateSlackChannel,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";
@@ -55,26 +57,8 @@ export async function processSlackActionConfig({
     };
   }
 
-  const slackService = SlackService.getInstance();
-  const client = await slackService.getWebClientForProject(projectId);
-  const access = await slackService.checkPrivateChannelAccess({
-    client,
-    channel: actionConfig.channelId,
-    viewerSlackUserId: getPrivateChannelViewerSlackUserId(integration, userId),
-  });
-
-  if (access.isPrivate) {
-    if (!access.hasAccess) throwChannelNotFound();
-    return {
-      ...actionConfig,
-      channelId: access.channel.id,
-      channelName: access.channel.name,
-      isPrivate: true,
-    };
-  }
-
-  // A typed #name can't be looked up without listing every channel; the test
-  // message resolves it to an id.
+  // Rejected before any lookup so the response can't differ between private and
+  // missing channels; the test message resolves a typed #name to an id.
   if (actionConfig.channelId.startsWith("#")) {
     throw new TRPCError({
       code: "BAD_REQUEST",
@@ -83,17 +67,56 @@ export async function processSlackActionConfig({
     });
   }
 
+  const slackService = SlackService.getInstance();
+  const client = await slackService.getWebClientForProject(projectId);
+  const access = await slackService.checkPrivateChannelAccess({
+    client,
+    channel: actionConfig.channelId,
+    viewerSlackUserId: getPrivateChannelViewerSlackUserId(integration, userId),
+  });
+
+  if (access.access === "denied") throwChannelNotFound();
+  if (access.access === "private") {
+    return {
+      ...actionConfig,
+      channelId: access.channel.id,
+      channelName: access.channel.name,
+      isPrivate: true,
+    };
+  }
+
   const channel = await slackService.getChannelInfo(
     client,
     actionConfig.channelId,
   );
-  if (!channel) throwChannelNotFound();
+  // A private result here is one the access check didn't vouch for.
+  if (!channel || channel.isPrivate) throwChannelNotFound();
   return {
     ...actionConfig,
     channelId: channel.id,
     channelName: channel.name,
     isPrivate: false,
   };
+}
+
+/** maskActionForViewer masks a saved private channel name the user may not see. */
+export async function maskActionForViewer<T extends { config: unknown }>({
+  action,
+  projectId,
+  userId,
+}: {
+  action: T;
+  projectId: string;
+  userId: string;
+}) {
+  return maskPrivateSlackChannel(
+    action,
+    await getViewablePrivateSlackChannelIds({
+      projectId,
+      userId,
+      actions: [action],
+    }),
+  );
 }
 
 function throwChannelNotFound(): never {

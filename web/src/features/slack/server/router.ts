@@ -127,7 +127,9 @@ export const slackRouter = createTRPCRouter({
           slackService.getChannels(client, input.cursor),
           // Private channels are not paginated; add them to the first page only
           !input.cursor && viewerSlackUserId
-            ? slackService.getPrivateChannels(client, viewerSlackUserId)
+            ? slackService.getPrivateChannels(client, {
+                slackUserId: viewerSlackUserId,
+              })
             : null,
         ]);
         const channels = [
@@ -272,7 +274,7 @@ export const slackRouter = createTRPCRouter({
               ctx.session.user.id,
             ),
           });
-        if (privateChannelAccess.isPrivate && !privateChannelAccess.hasAccess) {
+        if (privateChannelAccess.access === "denied") {
           throw new SlackApiError(
             "Private channel is not accessible to this user",
             "channel_not_found",
@@ -328,9 +330,10 @@ export const slackRouter = createTRPCRouter({
 
         const result = await SlackService.getInstance().sendMessage({
           client,
-          channelId: privateChannelAccess.isPrivate
-            ? privateChannelAccess.channel.id
-            : input.channelId,
+          channelId:
+            privateChannelAccess.access === "private"
+              ? privateChannelAccess.channel.id
+              : input.channelId,
           blocks: testBlocks,
           text: "Test message from Langfuse",
         });
@@ -345,7 +348,7 @@ export const slackRouter = createTRPCRouter({
           isPrivate?: boolean;
         } = { id: result.channel };
 
-        if (privateChannelAccess.isPrivate) {
+        if (privateChannelAccess.access === "private") {
           channelInfo = privateChannelAccess.channel;
         } else if (input.channelId.startsWith("#")) {
           const resolved = await SlackService.getInstance().getChannelInfo(

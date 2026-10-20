@@ -20,14 +20,14 @@ import {
   getAutomations,
   getAutomationById,
   getConsecutiveAutomationFailures,
-  canViewPrivateSlackChannels,
+  getViewablePrivateSlackChannelIds,
   maskPrivateSlackChannel,
   logger,
 } from "@langfuse/shared/src/server";
 import { generateWebhookSecret, encrypt } from "@langfuse/shared/encryption";
 import { processWebhookActionConfig } from "./webhookHelpers";
 import { processGitHubDispatchActionConfig } from "./githubDispatchHelpers";
-import { processSlackActionConfig } from "./slackHelpers";
+import { maskActionForViewer, processSlackActionConfig } from "./slackHelpers";
 import { updateTriggerEventActions } from "./automationService";
 import { TRPCError } from "@trpc/server";
 import { auditLog } from "@/src/features/audit-logs/server";
@@ -163,21 +163,22 @@ export const automationsRouter = createTRPCRouter({
         scope: "automations:read",
       });
 
-      const [allAutomations, canViewPrivateChannels] = await Promise.all([
-        getAutomations({
-          projectId: input.projectId,
-          eventSource: input.eventSource,
-        }),
-        canViewPrivateSlackChannels({
+      const allAutomations = await getAutomations({
+        projectId: input.projectId,
+        eventSource: input.eventSource,
+      });
+      const viewablePrivateChannelIds = await getViewablePrivateSlackChannelIds(
+        {
           projectId: input.projectId,
           userId: ctx.session.user.id,
-        }),
-      ]);
+          actions: allAutomations.map((automation) => automation.action),
+        },
+      );
       const automations = allAutomations.map((automation) => ({
         ...automation,
         action: maskPrivateSlackChannel(
           automation.action,
-          canViewPrivateChannels,
+          viewablePrivateChannelIds,
         ),
       }));
 
@@ -224,13 +225,11 @@ export const automationsRouter = createTRPCRouter({
 
       return {
         ...automation,
-        action: maskPrivateSlackChannel(
-          automation.action,
-          await canViewPrivateSlackChannels({
-            projectId: input.projectId,
-            userId: ctx.session.user.id,
-          }),
-        ),
+        action: await maskActionForViewer({
+          action: automation.action,
+          projectId: input.projectId,
+          userId: ctx.session.user.id,
+        }),
       };
     }),
 
@@ -385,13 +384,11 @@ export const automationsRouter = createTRPCRouter({
       logger.info(`Created automation ${trigger.id} for action ${action.id}`);
 
       return {
-        action: maskPrivateSlackChannel(
-          convertActionToDomain(action),
-          await canViewPrivateSlackChannels({
-            projectId: input.projectId,
-            userId: ctx.session.user.id,
-          }),
-        ),
+        action: await maskActionForViewer({
+          action: convertActionToDomain(action),
+          projectId: input.projectId,
+          userId: ctx.session.user.id,
+        }),
         trigger,
         automation,
         webhookSecret: newUnencryptedWebhookSecret, // Return webhook secret at top level for one-time display
@@ -513,13 +510,11 @@ export const automationsRouter = createTRPCRouter({
       });
 
       return {
-        action: maskPrivateSlackChannel(
-          convertActionToDomain(action),
-          await canViewPrivateSlackChannels({
-            projectId: input.projectId,
-            userId: ctx.session.user.id,
-          }),
-        ),
+        action: await maskActionForViewer({
+          action: convertActionToDomain(action),
+          projectId: input.projectId,
+          userId: ctx.session.user.id,
+        }),
         trigger,
         automation,
       };

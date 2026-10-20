@@ -24,31 +24,55 @@ import {
 } from "@langfuse/shared/encryption";
 import { TRPCError } from "@trpc/server";
 
-// Fake Slack workspace: the bot is in private channel "G_PRIVATE", which only the
-// installer's Slack user shares. Slack API calls are faked; the access logic is real.
+// Fake Slack workspace: the bot is in private channels "G_PRIVATE" and archived
+// "G_ARCHIVED". Slack API calls are faked; the access logic is real.
+const fakeSlack = vi.hoisted(() => ({
+  installerChannelIds: ["G_PRIVATE", "G_ARCHIVED"],
+  missingScope: false,
+}));
 vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual<typeof SharedServer>(
     "@langfuse/shared/src/server",
   );
-  const privateChannel = {
-    id: "G_PRIVATE",
-    name: "secret-plans",
-    is_private: true,
-  };
+  const channels = [
+    { id: "C123456", name: "general", is_private: false },
+    { id: "G_PRIVATE", name: "secret-plans", is_private: true },
+    {
+      id: "G_ARCHIVED",
+      name: "old-secrets",
+      is_private: true,
+      is_archived: true,
+    },
+  ];
   const client = {
     users: {
-      conversations: async ({ user }: { user?: string }) => ({
-        ok: true,
-        channels: !user || user === "U_INSTALLER" ? [privateChannel] : [],
-      }),
+      conversations: async (args: {
+        user?: string;
+        exclude_archived?: boolean;
+      }) => {
+        if (fakeSlack.missingScope) {
+          throw Object.assign(new Error("missing_scope"), {
+            data: { error: "missing_scope" },
+          });
+        }
+        return {
+          ok: true,
+          channels: channels.filter(
+            (channel) =>
+              channel.is_private &&
+              !(args.exclude_archived && channel.is_archived) &&
+              (!args.user ||
+                (args.user === "U_INSTALLER" &&
+                  fakeSlack.installerChannelIds.includes(channel.id))),
+          ),
+        };
+      },
     },
     conversations: {
       info: async ({ channel }: { channel: string }) => {
-        if (channel !== "C123456") throw new Error("channel_not_found");
-        return {
-          ok: true,
-          channel: { id: "C123456", name: "general", is_private: false },
-        };
+        const found = channels.find(({ id }) => id === channel);
+        if (!found) throw new Error("channel_not_found");
+        return { ok: true, channel: found };
       },
     },
   };
@@ -59,7 +83,10 @@ vi.mock("@langfuse/shared/src/server", async () => {
       actual.SlackService.prototype.checkPrivateChannelAccess,
     getChannelInfo: actual.SlackService.prototype.getChannelInfo,
   };
-  return { ...actual, SlackService: { getInstance: () => slackService } };
+  // Patched on the real class so calls from inside the shared module see it too.
+  actual.SlackService.getInstance = () =>
+    slackService as unknown as SharedServer.SlackService;
+  return actual;
 });
 
 const __orgIds: string[] = [];
@@ -1236,10 +1263,15 @@ describe("automations trpc", () => {
       return { ...prepared, otherUserCaller };
     };
 
+    beforeEach(() => {
+      fakeSlack.installerChannelIds = ["G_PRIVATE", "G_ARCHIVED"];
+      fakeSlack.missingScope = false;
+    });
+
     it("rejects private channels the user can't use exactly like non-existent channels", async () => {
       const { project, caller } = await prepareWithInstaller("someone-else");
 
-      for (const channelId of ["G_PRIVATE", "#secret-plans", "C_MISSING"]) {
+      for (const channelId of ["G_PRIVATE", "G_ARCHIVED", "C_MISSING"]) {
         await expect(
           caller.automations.createAutomation(
             slackAutomationInput(project.id, channelId),
@@ -1248,12 +1280,44 @@ describe("automations trpc", () => {
       }
     });
 
+    it("rejects typed #names identically whether the channel is private or missing", async () => {
+      const { project, caller } = await prepareWithInstaller("someone-else");
+
+      const errors = await Promise.all(
+        ["#secret-plans", "#does-not-exist"].map((channelId) =>
+          caller.automations
+            .createAutomation(slackAutomationInput(project.id, channelId))
+            .catch((error: Error) => error.message),
+        ),
+      );
+      expect(errors[0]).toContain("Send a test message");
+      expect(errors[1]).toBe(errors[0]);
+    });
+
+    it("fails closed for private channels on installs without groups:read", async () => {
+      const { project, caller } = await prepareWithInstaller("user-1");
+      fakeSlack.missingScope = true;
+
+      await expect(
+        caller.automations.createAutomation(
+          slackAutomationInput(project.id, "G_PRIVATE"),
+        ),
+      ).rejects.toThrow(SLACK_CHANNEL_NOT_FOUND_MESSAGE);
+      const created = await caller.automations.createAutomation(
+        slackAutomationInput(project.id, "C123456"),
+      );
+      expect(created.action.config).toMatchObject({
+        channelName: "general",
+        isPrivate: false,
+      });
+    });
+
     it("masks a saved private channel name for everyone but the installer", async () => {
       const { project, caller, otherUserCaller } =
         await prepareWithInstaller("user-1");
 
       const created = await caller.automations.createAutomation(
-        slackAutomationInput(project.id, "#secret-plans"),
+        slackAutomationInput(project.id, "G_PRIVATE"),
       );
       expect(created.action.config).toMatchObject({
         channelId: "G_PRIVATE",
@@ -1294,6 +1358,16 @@ describe("automations trpc", () => {
       expect(installerView.action.config).toMatchObject({
         channelName: "secret-plans",
         isPrivate: true,
+      });
+
+      // The installer loses the name once they leave the channel.
+      fakeSlack.installerChannelIds = [];
+      const afterLeaving = await caller.automations.getAutomation({
+        projectId: project.id,
+        automationId: created.automation.id,
+      });
+      expect(afterLeaving.action.config).toMatchObject({
+        channelName: "private-channel-…ATE",
       });
     });
   });
