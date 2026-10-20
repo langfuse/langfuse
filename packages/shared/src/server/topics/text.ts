@@ -1,8 +1,10 @@
 import { Sha256 } from "@aws-crypto/sha256-js";
 import { SignatureV4 } from "@smithy/signature-v4";
 import {
+  APICallError,
   NoObjectGeneratedError,
   Output,
+  TypeValidationError,
   type LanguageModelUsage,
   type StepResult,
   type ToolSet,
@@ -15,6 +17,7 @@ import {
   canUseBedrockDefaultCredentials,
   resolveBedrockProviderAuth,
 } from "../llm/ai-sdk/providers/bedrock";
+import { isPlainObject } from "../llm/ai-sdk/providers/utils";
 import { generateLLMText } from "../llm/llmText";
 import { LLMAdapter, type TraceSinkParams } from "../llm/types";
 import { logger } from "../logger";
@@ -81,6 +84,17 @@ export async function generateTopicText<T>(
     return result;
   } catch (error) {
     failure = error;
+    // Responses refusal blocks can fail SDK validation before onEnd runs.
+    if (
+      APICallError.isInstance(error) &&
+      error.statusCode === 200 &&
+      TypeValidationError.isInstance(error.cause) &&
+      hasOpenAIRefusal(error.cause.value)
+    ) {
+      responseMetadata = {
+        "langfuse.topics.response.finish_reason": "content-filter",
+      };
+    }
     if (responseMetadata && error !== null && typeof error === "object") {
       responseMetadataByError.set(error, responseMetadata);
     }
@@ -234,6 +248,8 @@ async function generateWithConnection<T>(
     // The AI SDK retries 429 and 5xx responses with exponential backoff.
     maxRetries: 2,
     timeout: params.timeoutMs ?? TIMEOUT_MS,
+    // Retain wire refusal markers in memory; diagnostics only expose their classification.
+    include: { responseBody: true },
     // onEnd runs before structured-output parsing and the output getter can throw.
     onEnd: ({ finalStep }) => {
       const text = finalStep.text;
@@ -256,7 +272,11 @@ function responseAttributes(
   maxOutputTokens: number,
 ): TopicTextResponseMetadata {
   return {
-    "langfuse.topics.response.finish_reason": step.finishReason,
+    "langfuse.topics.response.finish_reason": hasOpenAIRefusal(
+      step.response.body,
+    )
+      ? "content-filter"
+      : step.finishReason,
     "langfuse.topics.response.raw_finish_reason": RAW_FINISH_REASONS.has(
       step.rawFinishReason ?? "",
     )
@@ -274,6 +294,32 @@ function responseAttributes(
       "langfuse.topics.response.output_tokens": step.usage.outputTokens,
     }),
   };
+}
+
+/** Inspect wire markers only; generated text and exception messages are not signals. */
+function hasOpenAIRefusal(body: unknown): boolean {
+  if (!isPlainObject(body)) return false;
+  const choice = Array.isArray(body.choices) ? body.choices[0] : undefined;
+  const message = isPlainObject(choice) ? choice.message : undefined;
+  if (
+    isPlainObject(message) &&
+    typeof message.refusal === "string" &&
+    message.refusal.length > 0
+  )
+    return true;
+  return (
+    Array.isArray(body.output) &&
+    body.output.some(
+      (item: unknown) =>
+        isPlainObject(item) &&
+        item.type === "message" &&
+        item.role === "assistant" &&
+        Array.isArray(item.content) &&
+        item.content.some(
+          (part: unknown) => isPlainObject(part) && part.type === "refusal",
+        ),
+    )
+  );
 }
 
 function topicReasoning(model: TopicsModel): "none" | "minimal" | undefined {
@@ -394,7 +440,10 @@ async function bedrockRequestHeaders(
 
 async function invokeWithCache(
   params: TopicTextParams<unknown>,
-  recordResponse: (result: TopicTextResult) => void,
+  recordResponse: (
+    result: TopicTextResult,
+    metadata?: TopicTextResponseMetadata,
+  ) => void,
 ): Promise<TopicTextResult> {
   const { region } = BedrockConfigSchema.parse(params.model.connection.config);
   assertValidBedrockRegion(region);
@@ -466,7 +515,12 @@ async function invokeWithCache(
     },
   };
   // Retain paid usage and the original response if parsing or validation fails.
-  recordResponse(result);
+  recordResponse(
+    result,
+    hasOpenAIRefusal(json)
+      ? { "langfuse.topics.response.finish_reason": "content-filter" }
+      : undefined,
+  );
 
   if (!message?.content || json.choices?.[0]?.finish_reason === "length")
     throw Object.assign(

@@ -319,105 +319,115 @@ describe("Topics naming boundary", () => {
     expect(state.call).not.toHaveBeenCalled();
   });
 
-  it("excludes provider content from failure logs and spans, including echoed error fields", async () => {
-    // The AI SDK identifies an APICallError by these markers.
-    const rejection = Object.assign(
-      new Error("Invalid input: secret transcript"),
-      {
-        [Symbol.for("vercel.ai.error")]: true,
-        [Symbol.for("vercel.ai.error.AI_APICallError")]: true,
-        name: "AI_APICallError",
-        statusCode: 400,
-        isRetryable: false,
-        requestBodyValues: { messages: "secret transcript" },
-        responseBody: '{"error":{"message":"secret echo"}}',
-        data: {
-          error: {
-            type: "secret error type",
-            code: "secret error code",
-            param: "secret input value",
+  it.each([
+    ["secret error code", "invalid_input"],
+    ["content_filter", "content_filter"],
+  ])(
+    "classifies HTTP 400 naming errors with code %s without logging provider content",
+    async (code, reason) => {
+      // The AI SDK identifies an APICallError by these markers.
+      const rejection = Object.assign(
+        new Error("Invalid input: secret transcript"),
+        {
+          [Symbol.for("vercel.ai.error")]: true,
+          [Symbol.for("vercel.ai.error.AI_APICallError")]: true,
+          name: "AI_APICallError",
+          statusCode: 400,
+          isRetryable: false,
+          requestBodyValues: { messages: "secret transcript" },
+          responseBody: '{"error":{"message":"secret echo"}}',
+          data: {
+            error: {
+              type: "secret error type",
+              code,
+              param: "secret input value",
+            },
           },
         },
-      },
-    );
-    state.call.mockRejectedValue(rejection);
-    await expect(
-      summarizeOne(
-        topicsModels(),
-        "Trace evidence.",
-        topicProcessingConfigSchema.parse({
-          summaryModel: "us.openai.gpt-5.6-luna",
-        }),
-      ),
-    ).rejects.toMatchObject({ reason: "invalid_input" });
-    const [message, fields] = vi.mocked(logger.warn).mock.calls.at(-1)!;
-    expect(message).toBe("Topics model request failed");
-    expect(fields).toMatchObject({
-      "http.status_code": 400,
-    });
-    expect(JSON.stringify(fields)).not.toMatch(/secret/);
-    expect(JSON.stringify(state.spanAttributes.mock.calls)).not.toMatch(
-      /secret/,
-    );
-    expect(state.increment).toHaveBeenCalledWith(
-      "langfuse.topics.llm_calls",
-      1,
-      {
-        stage: "summary",
-        adapter: LLMAdapter.Bedrock,
-        status: "400",
-      },
-    );
-  });
+      );
+      state.call.mockRejectedValue(rejection);
+      await expect(
+        nameTopicGroup(topicsModels(), evidence),
+      ).rejects.toMatchObject({ reason });
+      const [message, fields] = vi.mocked(logger.warn).mock.calls.at(-1)!;
+      expect(message).toBe("Topics model request failed");
+      expect(fields).toMatchObject({
+        "http.status_code": 400,
+      });
+      expect(JSON.stringify(fields)).not.toMatch(/secret/);
+      expect(JSON.stringify(state.spanAttributes.mock.calls)).not.toMatch(
+        /secret/,
+      );
+      expect(state.increment).toHaveBeenCalledWith(
+        "langfuse.topics.llm_calls",
+        1,
+        {
+          stage: "naming",
+          adapter: LLMAdapter.Bedrock,
+          status: "400",
+        },
+      );
+    },
+  );
 
-  it("reports unusable naming output without logging provider content", async () => {
-    const rejection = Object.assign(new Error("secret response text"), {
-      name: "AI_NoOutputGeneratedError",
-      responseBody: "secret response body",
-      text: "secret model output",
-    });
-    const response = {
-      "langfuse.topics.response.finish_reason": "other",
-      "langfuse.topics.response.raw_finish_reason": "refusal",
-      "langfuse.topics.response.text_characters": 0,
-      "langfuse.topics.response.output_tokens": 0,
-    };
-    state.responseMetadata.mockImplementation((error) =>
-      error === rejection ? response : undefined,
-    );
-    state.call.mockRejectedValue(rejection);
+  it.each([
+    ["other", "refusal", "invalid_output"],
+    ["content-filter", "content_filtered", "content_filter"],
+  ])(
+    "reports %s naming output without logging provider content",
+    async (finishReason, rawFinishReason, reason) => {
+      const rejection = Object.assign(new Error("secret response text"), {
+        name: "AI_NoOutputGeneratedError",
+        responseBody: "secret response body",
+        text: "secret model output",
+      });
+      const response = {
+        "langfuse.topics.response.finish_reason": finishReason,
+        "langfuse.topics.response.raw_finish_reason": rawFinishReason,
+        "langfuse.topics.response.text_characters": 0,
+        "langfuse.topics.response.output_tokens": 0,
+      };
+      state.responseMetadata.mockImplementation((error) =>
+        error === rejection ? response : undefined,
+      );
+      state.call.mockRejectedValue(rejection);
 
-    const failure = await nameTopicGroup(topicsModels(), evidence).catch(
-      (error: unknown) => error,
-    );
-    expect(failure).toMatchObject({
-      reason: "invalid_output",
-      message: expect.stringContaining("returned no usable structured output"),
-    });
-    expect((failure as Error).message).not.toMatch(/credentials|secret/);
-    expect(logger.warn).toHaveBeenCalledOnce();
-    const [message, fields] = vi.mocked(logger.warn).mock.calls[0];
-    expect(message).toBe("Topics model request failed");
-    expect(fields).toMatchObject({
-      ...response,
-      "langfuse.topics.error.reason": "invalid_output",
-      "langfuse.topics.error.type": "AI_NoOutputGeneratedError",
-    });
-    expect(state.spanAttributes).toHaveBeenCalledWith(fields);
-    expect(JSON.stringify(fields)).not.toMatch(/secret/);
-    expect(JSON.stringify(state.spanAttributes.mock.calls)).not.toMatch(
-      /secret/,
-    );
-    expect(state.increment).toHaveBeenCalledWith(
-      "langfuse.topics.llm_calls",
-      1,
-      {
-        stage: "naming",
-        adapter: LLMAdapter.Bedrock,
-        status: "invalid_output",
-      },
-    );
-  });
+      const failure = await nameTopicGroup(topicsModels(), evidence).catch(
+        (error: unknown) => error,
+      );
+      expect(failure).toMatchObject({
+        reason,
+        message: expect.stringMatching(
+          reason === "content_filter"
+            ? /filter/i
+            : /returned no usable structured output/,
+        ),
+      });
+      expect((failure as Error).message).not.toMatch(/credentials|secret/);
+      expect(logger.warn).toHaveBeenCalledOnce();
+      const [message, fields] = vi.mocked(logger.warn).mock.calls[0];
+      expect(message).toBe("Topics model request failed");
+      expect(fields).toMatchObject({
+        ...response,
+        "langfuse.topics.error.reason": reason,
+        "langfuse.topics.error.type": "AI_NoOutputGeneratedError",
+      });
+      expect(state.spanAttributes).toHaveBeenCalledWith(fields);
+      expect(JSON.stringify(fields)).not.toMatch(/secret/);
+      expect(JSON.stringify(state.spanAttributes.mock.calls)).not.toMatch(
+        /secret/,
+      );
+      expect(state.increment).toHaveBeenCalledWith(
+        "langfuse.topics.llm_calls",
+        1,
+        {
+          stage: "naming",
+          adapter: LLMAdapter.Bedrock,
+          status: reason,
+        },
+      );
+    },
+  );
 
   it.each([
     [{}, "ok"],
