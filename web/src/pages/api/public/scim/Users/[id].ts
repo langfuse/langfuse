@@ -118,6 +118,7 @@ async function provisionMembership({
         return { kind: "unchanged", role: result.role };
       }
 
+      await evictRevokedApiKeys(result.revokedKeys, { apiKeyId });
       await auditLog({
         resourceType: "orgMembership",
         resourceId: result.after.id,
@@ -127,7 +128,6 @@ async function provisionMembership({
         apiKeyId,
         orgId,
       });
-      await evictRevokedApiKeys(result.revokedKeys, { apiKeyId });
       await getSfdcService()?.setUserRole({
         orgId,
         userId,
@@ -289,6 +289,7 @@ async function deprovisionOrReject(
 
     // Only audit and sync when a membership was actually removed.
     if (outcome.result === "deleted") {
+      await evictRevokedApiKeys(outcome.revokedKeys, { apiKeyId });
       await auditLog({
         resourceType: "orgMembership",
         resourceId: outcome.membership.id,
@@ -297,7 +298,6 @@ async function deprovisionOrReject(
         apiKeyId,
         orgId,
       });
-      await evictRevokedApiKeys(outcome.revokedKeys, { apiKeyId });
       await getSfdcService()?.removeUser({ orgId, userId, email });
     }
   } catch (error) {

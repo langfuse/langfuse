@@ -733,6 +733,7 @@ export const membersRouter = createTRPCRouter({
           return { updatedMembership, revokedKeys };
         },
       );
+      await evictRevokedApiKeys(revokedKeys, { session: ctx.session });
 
       await auditLog({
         session: ctx.session,
@@ -742,7 +743,6 @@ export const membersRouter = createTRPCRouter({
         before: membership,
         after: updatedMembership,
       });
-      await evictRevokedApiKeys(revokedKeys, { session: ctx.session });
 
       await getSfdcService()?.setUserRole({
         orgId: input.orgId,
