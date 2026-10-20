@@ -1,5 +1,5 @@
 import { FolderInput, Lock, Plus } from "@langfuse/icons";
-import { fn } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "@/.storybook/preview";
 import { GatewaySetupEmptyState } from "./GatewaySetupEmptyState";
@@ -21,8 +21,37 @@ export const WithActions = meta.story({
     description:
       "Gateway traffic needs a project to be recorded in. Credentials, models and API keys become available once it is set.",
     actions: [
-      { label: "Create ingestion project", icon: Plus, onClick: fn() },
-      { label: "Use existing project", variant: "secondary", onClick: fn() },
+      {
+        type: "button",
+        label: "Create ingestion project",
+        icon: Plus,
+        onClick: fn(),
+      },
+      {
+        type: "menu",
+        label: "Use existing project",
+        items: [
+          { id: "production", title: "Production" },
+          { id: "staging", title: "Staging" },
+        ],
+        onSelect: fn(),
+      },
     ],
+  },
+});
+
+export const SelectsMenuItem = WithActions.extend({
+  name: "(Test) Selects Menu Item",
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Use existing project" }),
+    );
+    await userEvent.click(body.getByRole("menuitem", { name: "Staging" }));
+
+    const menuAction = args.actions?.find((action) => action.type === "menu");
+    await expect(menuAction?.onSelect).toHaveBeenCalledWith("staging");
   },
 });

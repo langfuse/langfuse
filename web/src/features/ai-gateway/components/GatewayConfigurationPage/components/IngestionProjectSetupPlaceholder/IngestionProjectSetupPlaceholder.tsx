@@ -15,14 +15,16 @@ export type IngestionProjectSetupPlaceholderProps = Pick<
   CreateIngestionProjectDialogControllerProps,
   "ingestionMode" | "isSaving" | "onCreate"
 > & {
-  onUseExistingProject: () => void;
+  projects: ReadonlyArray<{ id: string; name: string }>;
+  onSelectProject: (projectId: string) => void;
 };
 
 export function IngestionProjectSetupPlaceholder({
   ingestionMode,
   isSaving,
   onCreate,
-  onUseExistingProject,
+  projects,
+  onSelectProject,
 }: IngestionProjectSetupPlaceholderProps) {
   return (
     <div className="flex flex-col gap-6">
@@ -44,14 +46,20 @@ export function IngestionProjectSetupPlaceholder({
             description="Gateway traffic needs a project to be recorded in. Credentials, models and API keys become available once it is set."
             actions={[
               {
+                type: "button",
                 label: "Create ingestion project",
                 icon: Plus,
                 onClick: openDialog,
               },
               {
+                type: "menu",
                 label: "Use existing project",
-                variant: "secondary",
-                onClick: onUseExistingProject,
+                items: projects.map((project) => ({
+                  id: project.id,
+                  title: project.name,
+                })),
+                onSelect: onSelectProject,
+                disabled: isSaving,
               },
             ]}
           />

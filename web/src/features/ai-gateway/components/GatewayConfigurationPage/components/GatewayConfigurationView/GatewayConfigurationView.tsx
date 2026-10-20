@@ -69,7 +69,6 @@ export function GatewayConfigurationView({
   initialProjectId,
   initialIngestionMode,
   availableIngestionModes,
-  initialProjectInput,
   isSaving,
   saveError,
   onSave,
@@ -80,8 +79,6 @@ export function GatewayConfigurationView({
   initialProjectId: string | null;
   initialIngestionMode: IngestionMode;
   availableIngestionModes: readonly IngestionMode[];
-  /** Which project control shows first when no active project is configured */
-  initialProjectInput?: "create" | "select";
   isSaving: boolean;
   saveError: boolean;
   onSave: (values: {
@@ -100,9 +97,8 @@ export function GatewayConfigurationView({
   const [projectSelection, setProjectSelection] = useState<string | undefined>(
     initialProjectExists ? initialProjectId : undefined,
   );
-  const [showExistingProjects, setShowExistingProjects] = useState(
-    initialProjectExists || initialProjectInput === "select",
-  );
+  const [showExistingProjects, setShowExistingProjects] =
+    useState(initialProjectExists);
   const [ingestionMode, setIngestionMode] =
     useState<IngestionMode>(initialIngestionMode);
   const projectId = projectSelection ?? null;

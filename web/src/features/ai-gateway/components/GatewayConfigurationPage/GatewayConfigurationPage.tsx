@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useSession } from "next-auth/react";
 
 import Header from "@/src/components/layouts/header";
@@ -38,8 +37,6 @@ export function GatewayConfigurationPage({
   const utils = api.useUtils();
   const createProject = api.projects.create.useMutation();
   const updateConfig = api.aiGateway.updateConfig.useMutation();
-  const [isChoosingExistingProject, setIsChoosingExistingProject] =
-    useState(false);
 
   async function saveGatewayConfig(params: {
     projectId: string | null;
@@ -108,15 +105,21 @@ export function GatewayConfigurationPage({
     }
   }
 
-  function handleUseExistingProject() {
-    setIsChoosingExistingProject(true);
+  async function handleSelectProject(projectId: string) {
+    try {
+      await saveGatewayConfig({
+        projectId,
+        ingestionMode: initialIngestionMode,
+      });
+    } catch (error) {
+      reportNonTrpcError(error, "ai-gateway-configuration");
+    }
   }
 
   // Cloud always captures traffic, so a missing project blocks the whole
   // gateway; self-hosted keeps the inline form because `NONE` needs no project.
   const showSetupPlaceholder =
     isLangfuseCloud &&
-    !isChoosingExistingProject &&
     !hasActiveIngestionProject(config?.defaultIngestionProject, organizationId);
   if (showSetupPlaceholder) {
     return (
@@ -124,7 +127,8 @@ export function GatewayConfigurationPage({
         ingestionMode={initialIngestionMode}
         isSaving={createProject.isPending || updateConfig.isPending}
         onCreate={handleCreateProject}
-        onUseExistingProject={handleUseExistingProject}
+        projects={projects.filter((project) => !project.deletedAt)}
+        onSelectProject={handleSelectProject}
       />
     );
   }
@@ -139,7 +143,6 @@ export function GatewayConfigurationPage({
       availableIngestionModes={
         isLangfuseCloud ? CLOUD_INGESTION_MODES : SELF_HOSTED_INGESTION_MODES
       }
-      initialProjectInput={isChoosingExistingProject ? "select" : "create"}
       isSaving={createProject.isPending || updateConfig.isPending}
       saveError={createProject.isError || updateConfig.isError}
       onSave={async ({ projectId, ingestionMode }) => {
