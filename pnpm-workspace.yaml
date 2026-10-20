@@ -192,6 +192,25 @@ publicHoistPattern:
   - "*prisma*"
   - "@aws-sdk/client-s3"
 minimumReleaseAgeExclude:
+  # Next.js security upgrade; eligible after 2026-10-20 20:58 UTC.
+  - next@16.4.2
+  - "@next/env@16.4.2"
+  - "@next/swc-darwin-arm64@16.4.2"
+  - "@next/swc-darwin-x64@16.4.2"
+  - "@next/swc-linux-arm64-gnu@16.4.2"
+  - "@next/swc-linux-arm64-musl@16.4.2"
+  - "@next/swc-linux-x64-gnu@16.4.2"
+  - "@next/swc-linux-x64-musl@16.4.2"
+  - "@next/swc-win32-arm64-msvc@16.4.2"
+  - "@next/swc-win32-x64-msvc@16.4.2"
+  # Companion toolchain upgrade; eligible after 2026-10-21 19:10 UTC.
+  - turbo@2.11.9
+  - "@turbo/darwin-64@2.11.9"
+  - "@turbo/darwin-arm64@2.11.9"
+  - "@turbo/linux-64@2.11.9"
+  - "@turbo/linux-arm64@2.11.9"
+  - "@turbo/windows-64@2.11.9"
+  - "@turbo/windows-arm64@2.11.9"
   # Undici security fixes; eligible after 2026-10-20 14:20 UTC.
   - undici@6.29.1
   - undici@7.30.1
