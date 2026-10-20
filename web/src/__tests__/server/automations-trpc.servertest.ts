@@ -1,8 +1,12 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
+import type * as SharedServer from "@langfuse/shared/src/server";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { type Prisma, prisma } from "@langfuse/shared/src/db";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import {
+  createOrgProjectAndApiKey,
+  SLACK_CHANNEL_NOT_FOUND_MESSAGE,
+} from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
 import { v4 } from "uuid";
 import {
@@ -19,6 +23,71 @@ import {
   generateWebhookSecret,
 } from "@langfuse/shared/encryption";
 import { TRPCError } from "@trpc/server";
+
+// Fake Slack workspace: the bot is in private channels "G_PRIVATE" and archived
+// "G_ARCHIVED". Slack API calls are faked; the access logic is real.
+const fakeSlack = vi.hoisted(() => ({
+  installerChannelIds: ["G_PRIVATE", "G_ARCHIVED"],
+  missingScope: false,
+}));
+vi.mock("@langfuse/shared/src/server", async () => {
+  const actual = await vi.importActual<typeof SharedServer>(
+    "@langfuse/shared/src/server",
+  );
+  const channels = [
+    { id: "C123456", name: "general", is_private: false },
+    { id: "G_PRIVATE", name: "secret-plans", is_private: true },
+    {
+      id: "G_ARCHIVED",
+      name: "old-secrets",
+      is_private: true,
+      is_archived: true,
+    },
+  ];
+  const client = {
+    users: {
+      conversations: async (args: {
+        user?: string;
+        exclude_archived?: boolean;
+      }) => {
+        if (fakeSlack.missingScope) {
+          throw Object.assign(new Error("missing_scope"), {
+            data: { error: "missing_scope" },
+          });
+        }
+        return {
+          ok: true,
+          channels: channels.filter(
+            (channel) =>
+              channel.is_private &&
+              !(args.exclude_archived && channel.is_archived) &&
+              (!args.user ||
+                (args.user === "U_INSTALLER" &&
+                  fakeSlack.installerChannelIds.includes(channel.id))),
+          ),
+        };
+      },
+    },
+    conversations: {
+      info: async ({ channel }: { channel: string }) => {
+        const found = channels.find(({ id }) => id === channel);
+        if (!found) throw new Error("channel_not_found");
+        return { ok: true, channel: found };
+      },
+    },
+  };
+  const slackService = {
+    getWebClientForProject: async () => client,
+    getPrivateChannels: actual.SlackService.prototype.getPrivateChannels,
+    checkPrivateChannelAccess:
+      actual.SlackService.prototype.checkPrivateChannelAccess,
+    getChannelInfo: actual.SlackService.prototype.getChannelInfo,
+  };
+  // Patched on the real class so calls from inside the shared module see it too.
+  actual.SlackService.getInstance = () =>
+    slackService as unknown as SharedServer.SlackService;
+  return actual;
+});
 
 const __orgIds: string[] = [];
 
@@ -1149,6 +1218,147 @@ describe("automations trpc", () => {
       ).rejects.toThrow(
         "Slack integration not found. Please connect your Slack workspace first.",
       );
+    });
+  });
+
+  describe("Slack private channels", () => {
+    const slackAutomationInput = (projectId: string, channelId: string) => ({
+      projectId,
+      name: "Slack Automation",
+      eventSource: "prompt",
+      eventAction: ["created"],
+      filter: [],
+      status: JobConfigState.ACTIVE,
+      actionType: "SLACK" as const,
+      actionConfig: {
+        type: "SLACK" as const,
+        channelId,
+        channelName: "secret-plans",
+      },
+    });
+
+    const prepareWithInstaller = async (installerUserId: string) => {
+      const prepared = await prepare();
+      await prisma.slackIntegration.create({
+        data: {
+          projectId: prepared.project.id,
+          teamId: "T123456",
+          teamName: "Test Team",
+          botToken: encrypt("xoxb-test-token"),
+          botUserId: "U123456",
+          installerUserId,
+          installerSlackUserId: "U_INSTALLER",
+        },
+      });
+      const otherUserCaller = appRouter.createCaller({
+        ...createInnerTRPCContext({
+          session: {
+            ...prepared.session,
+            user: { ...prepared.session.user!, id: "user-2" },
+          },
+          headers: {},
+        }),
+        prisma,
+      });
+      return { ...prepared, otherUserCaller };
+    };
+
+    beforeEach(() => {
+      fakeSlack.installerChannelIds = ["G_PRIVATE", "G_ARCHIVED"];
+      fakeSlack.missingScope = false;
+    });
+
+    it("rejects private channels the user can't use exactly like non-existent channels", async () => {
+      const { project, caller } = await prepareWithInstaller("someone-else");
+      const errorFor = (channelId: string) =>
+        caller.automations
+          .createAutomation(slackAutomationInput(project.id, channelId))
+          .catch((error: Error) => error.message);
+
+      for (const channelId of ["G_PRIVATE", "G_ARCHIVED", "C_MISSING"]) {
+        expect(await errorFor(channelId)).toBe(SLACK_CHANNEL_NOT_FOUND_MESSAGE);
+      }
+      // Typed names are rejected before any lookup.
+      expect(await errorFor("#secret-plans")).toBe(
+        await errorFor("#does-not-exist"),
+      );
+    });
+
+    it("fails closed for private channels on installs without groups:read", async () => {
+      const { project, caller } = await prepareWithInstaller("user-1");
+      fakeSlack.missingScope = true;
+
+      await expect(
+        caller.automations.createAutomation(
+          slackAutomationInput(project.id, "G_PRIVATE"),
+        ),
+      ).rejects.toThrow(SLACK_CHANNEL_NOT_FOUND_MESSAGE);
+      const created = await caller.automations.createAutomation(
+        slackAutomationInput(project.id, "C123456"),
+      );
+      expect(created.action.config).toMatchObject({
+        channelName: "general",
+        isPrivate: false,
+      });
+    });
+
+    it("masks a saved private channel name for everyone but the installer", async () => {
+      const { project, caller, otherUserCaller } =
+        await prepareWithInstaller("user-1");
+
+      const created = await caller.automations.createAutomation(
+        slackAutomationInput(project.id, "G_PRIVATE"),
+      );
+      expect(created.action.config).toMatchObject({
+        channelId: "G_PRIVATE",
+        channelName: "secret-plans",
+        isPrivate: true,
+      });
+
+      const [otherList, otherSingle] = await Promise.all([
+        otherUserCaller.automations.getAutomations({ projectId: project.id }),
+        otherUserCaller.automations.getAutomation({
+          projectId: project.id,
+          automationId: created.automation.id,
+        }),
+      ]);
+      expect(JSON.stringify([otherList, otherSingle])).not.toContain(
+        "secret-plans",
+      );
+      expect(otherSingle.action.config).toMatchObject({
+        channelId: "G_PRIVATE",
+        channelName: "Private Channel (…ATE)",
+      });
+
+      // Saving the masked config unchanged keeps the real channel.
+      await otherUserCaller.automations.updateAutomation({
+        ...slackAutomationInput(project.id, "G_PRIVATE"),
+        automationId: created.automation.id,
+        name: "Renamed",
+        actionConfig: {
+          ...(otherSingle.action.config as { channelId: string }),
+          type: "SLACK",
+          channelName: "Private Channel (…ATE)",
+        },
+      });
+      const installerView = await caller.automations.getAutomation({
+        projectId: project.id,
+        automationId: created.automation.id,
+      });
+      expect(installerView.action.config).toMatchObject({
+        channelName: "secret-plans",
+        isPrivate: true,
+      });
+
+      // The installer loses the name once they leave the channel.
+      fakeSlack.installerChannelIds = [];
+      const afterLeaving = await caller.automations.getAutomation({
+        projectId: project.id,
+        automationId: created.automation.id,
+      });
+      expect(afterLeaving.action.config).toMatchObject({
+        channelName: "Private Channel (…ATE)",
+      });
     });
   });
 

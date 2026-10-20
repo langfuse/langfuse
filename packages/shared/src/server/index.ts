@@ -180,6 +180,7 @@ export * from "./services/blockEvaluators";
 export * from "./services/getProjectAdminEmails";
 export * from "./services/SlackService";
 export * from "./services/buildColoredAttachmentSlackMessage";
+export * from "./services/buildSlackLinkSection";
 export * from "./tableMappings";
 export * from "./otel";
 export * from "./datasets/executeWithDatasetServiceStrategy";
