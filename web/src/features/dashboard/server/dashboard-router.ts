@@ -47,7 +47,12 @@ const ListDashboardsInput = z.object({
   // The Home-dashboard picker and clone detection fetch the whole list in one
   // page, so allow a higher ceiling than the default table pagination.
   limit: z.coerce.number().int().positive().lte(500).default(50),
-  orderBy: orderBy,
+  orderBy: orderBy.refine(
+    (value) =>
+      value === null ||
+      ["name", "createdAt", "updatedAt"].includes(value.column),
+    { message: "Invalid dashboard sort column", path: ["column"] },
+  ),
 });
 
 // Get dashboard by ID input schema
