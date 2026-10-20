@@ -1895,6 +1895,11 @@ jobs:
             platform_tag: arm64
             runner: blacksmith-4vcpu-ubuntu-2404-arm
     runs-on: ${{ matrix.runner }}
+    # publish-docker-image-release is gated on this whole matrix succeeding, so
+    # a failed gateway leg must not fail the job and block web and worker. The
+    # gateway publish leg then finds fewer than two digests and fails, which
+    # still raises the release Slack alert.
+    continue-on-error: ${{ matrix.component == 'ai-gateway' }}
     permissions:
       packages: write
       contents: read
