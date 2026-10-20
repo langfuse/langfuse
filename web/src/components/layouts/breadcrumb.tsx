@@ -8,7 +8,7 @@ import {
   BreadcrumbSeparator,
 } from "@/src/components/ui/breadcrumb";
 import { Fragment, useState } from "react";
-import { PlusIcon } from "lucide-react";
+import { PlusIcon } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { Button } from "@/src/components/ui/button";
 import { Popover, PopoverTrigger } from "@/src/components/ui/popover";
@@ -28,7 +28,7 @@ import Link from "next/link";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import SwitcherMenuContent, {
   type SwitcherItem,
-} from "@/src/components/layouts/switcher-menu";
+} from "@/src/components/layouts/SwitcherMenuContent";
 
 const BreadcrumbComponent = ({
   items,
@@ -118,7 +118,8 @@ const BreadcrumbComponent = ({
                       onClick={() => setOrgSwitcherOpen(false)}
                     >
                       <PlusIcon
-                        className="icon-base mr-1.5"
+                        size="base"
+                        __rawClassName="mr-1.5"
                         aria-hidden="true"
                       />
                       New Organization
@@ -164,7 +165,8 @@ const BreadcrumbComponent = ({
                         onClick={() => setProjectSwitcherOpen(false)}
                       >
                         <PlusIcon
-                          className="icon-base mr-1.5"
+                          size="base"
+                          __rawClassName="mr-1.5"
                           aria-hidden="true"
                         />
                         New Project

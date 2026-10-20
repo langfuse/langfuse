@@ -9,7 +9,7 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/src/components/ui/command";
-import { Settings } from "lucide-react";
+import { Settings } from "@langfuse/icons";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { Button } from "@/src/components/ui/button";
 import { useRouter } from "next/router";
@@ -136,7 +136,7 @@ const SwitcherMenuContent = ({
                             onClose();
                           }}
                         >
-                          <Settings className="icon-sm" />
+                          <Settings size="sm" aria-hidden="true" />
                         </Link>
                       </Button>
                     </CommandItem>
