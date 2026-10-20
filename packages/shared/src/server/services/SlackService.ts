@@ -54,6 +54,8 @@ export interface GetChannelsResult {
 export const SLACK_CHANNEL_NOT_FOUND_MESSAGE =
   'Channel not found. The channel may not exist or is a private channel the bot has not been invited to. For private channels, invite the app with "/invite @Langfuse" in that channel.';
 
+const SLACK_LOOKUP_TIMEOUT_MS = 5_000;
+
 /**
  * getPrivateChannelViewerSlackUserId returns the installer's Slack user id when
  * the Langfuse user is the installer. Only they may see or use private channels.
@@ -94,37 +96,47 @@ export async function getViewablePrivateSlackChannelIds(params: {
     getPrivateChannelViewerSlackUserId(integration, params.userId);
   if (!viewerSlackUserId) return new Set();
 
-  const lookup = (async () => {
-    const slackService = SlackService.getInstance();
-    const client = await slackService.getWebClientForProject(params.projectId);
-    const { channels } = await slackService.getPrivateChannels(client, {
-      slackUserId: viewerSlackUserId,
-      includeArchived: true,
-    });
-    return new Set(channels.map((channel) => channel.id));
-  })();
-  let timer: NodeJS.Timeout | undefined;
-  // The Slack client retries for up to 90s; reads shouldn't wait on it.
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(
-      () => reject(new Error("Timed out")),
-      VIEWABLE_PRIVATE_CHANNELS_TIMEOUT_MS,
-    );
-  });
   try {
-    return await Promise.race([lookup, timeout]);
+    return await withSlackLookupTimeout(
+      (async () => {
+        const slackService = SlackService.getInstance();
+        const client = await slackService.getWebClientForProject(
+          params.projectId,
+        );
+        const { channels } = await slackService.getPrivateChannels(client, {
+          slackUserId: viewerSlackUserId,
+          includeArchived: true,
+        });
+        return new Set(channels.map((channel) => channel.id));
+      })(),
+    );
   } catch (error) {
     logger.warn("Failed to resolve viewable private Slack channels", {
       error,
       projectId: params.projectId,
     });
     return new Set();
+  }
+}
+
+/**
+ * withSlackLookupTimeout rejects after 5s. The Slack client retries for up to
+ * 90s, so access lookups would otherwise hold requests; callers fail closed.
+ */
+async function withSlackLookupTimeout<T>(lookup: Promise<T>): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error("Slack lookup timed out")),
+      SLACK_LOOKUP_TIMEOUT_MS,
+    );
+  });
+  try {
+    return await Promise.race([lookup, timeout]);
   } finally {
     clearTimeout(timer);
   }
 }
-
-const VIEWABLE_PRIVATE_CHANNELS_TIMEOUT_MS = 5_000;
 
 /**
  * maskPrivateSlackChannel hides the name of a saved private channel from users
@@ -588,7 +600,9 @@ export class SlackService {
     // channels Slack confirms are public.
     if (!botChannels.hasPrivateChannelAccess) {
       const info = params.channel.trim().startsWith("#")
-        ? await this.findPublicChannelByName(params.client, name)
+        ? await withSlackLookupTimeout(
+            this.findPublicChannelByName(params.client, name),
+          ).catch(() => null)
         : await this.getChannelInfo(params.client, key);
       return info && !info.isPrivate
         ? { access: "public" }
