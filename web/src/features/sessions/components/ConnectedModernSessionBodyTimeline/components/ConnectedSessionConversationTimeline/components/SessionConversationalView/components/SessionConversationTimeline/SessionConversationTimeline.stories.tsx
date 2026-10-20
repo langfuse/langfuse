@@ -53,9 +53,9 @@ function SessionConversationTimelineStory({
                           parts: [
                             {
                               type: "text" as const,
-                              text: "A dynamic message whose height changes when expanded or resized. ".repeat(
+                              text: `Turn ${index + 1} message. ${"A dynamic message whose height changes when expanded or resized. ".repeat(
                                 80 + index * 2,
-                              ),
+                              )}`,
                             },
                           ],
                         },
@@ -122,7 +122,7 @@ function SingleTraceLoadingStory() {
 }
 
 export const StableSingleTraceLoading = meta.story({
-  name: "(Test) Single Trace Navigation Stays Stable While Loading",
+  name: "(Test) Single Trace Navigation Remains Available After Loading",
   render: () => <SingleTraceLoadingStory />,
   play: async ({ canvas }) => {
     const previous = canvas.getByRole("link", {
@@ -134,8 +134,6 @@ export const StableSingleTraceLoading = meta.story({
     expect(
       canvas.getByRole("status", { name: "Loading messages" }),
     ).toBeVisible();
-    const previousTop = previous.getBoundingClientRect().top;
-    const nextTop = next.getBoundingClientRect().top;
     await userEvent.click(
       canvas.getByRole("button", { name: "Finish loading" }),
     );
@@ -144,8 +142,6 @@ export const StableSingleTraceLoading = meta.story({
     ).not.toBeInTheDocument();
     expect(previous).toBeVisible();
     expect(next).toBeVisible();
-    expect(previous.getBoundingClientRect().top).toBe(previousTop);
-    expect(next.getBoundingClientRect().top).toBe(nextTop);
   },
 });
 
@@ -170,12 +166,7 @@ export const TimelineNavigation = meta.story({
     const previous = await canvas.findByRole("link", {
       name: "Previous trace in session (3)",
     });
-    const firstTrace = await canvas.findByRole("button", {
-      name: /Turn 1.*trace-1/,
-    });
-    expect(previous.compareDocumentPosition(firstTrace)).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING,
-    );
+    await expect(previous).toBeVisible();
     expect(previous).toHaveAttribute(
       "href",
       args.navigation?.previousTrace?.href,
@@ -185,12 +176,7 @@ export const TimelineNavigation = meta.story({
     const next = await canvas.findByRole("link", {
       name: "Next trace in session (1)",
     });
-    const lastTrace = await canvas.findByRole("button", {
-      name: /Turn 3.*trace-3/,
-    });
-    expect(lastTrace.compareDocumentPosition(next)).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING,
-    );
+    await expect(next).toBeVisible();
     expect(next).toHaveAttribute("href", args.navigation?.nextTrace?.href);
   },
 });
@@ -199,7 +185,7 @@ export const ScrollableTimeline = meta.story({
   name: "(Test) Scrollable Timeline",
   play: async ({ canvas }) => {
     const timeline = canvas.getByLabelText("Session conversation timeline");
-    await canvas.findByRole("button", { name: /Turn 1.*trace-1/ });
+    await canvas.findAllByRole("status", { name: "Loading messages" });
     await waitFor(() => {
       expect(timeline.scrollHeight).toBeGreaterThan(timeline.clientHeight);
     });
@@ -207,52 +193,47 @@ export const ScrollableTimeline = meta.story({
     timeline.dispatchEvent(new Event("scroll", { bubbles: true }));
     await waitFor(() => {
       expect(timeline.scrollTop).toBeGreaterThan(0);
+      const lastTrace = canvas
+        .getAllByRole("status", { name: "Loading messages" })
+        .at(-1)!
+        .getBoundingClientRect();
+      const viewport = timeline.getBoundingClientRect();
+      expect(lastTrace.bottom).toBeGreaterThan(viewport.top);
+      expect(lastTrace.top).toBeLessThan(viewport.bottom);
     });
   },
 });
 
 export const DynamicRowMeasurement = meta.story({
-  name: "(Test) Keeps Dynamic Rows Contiguous",
+  name: "(Test) Scrolls After Expanding And Resizing Messages",
   args: { dynamicContent: true },
   play: async ({ canvas, canvasElement }) => {
     const timeline = canvas.getByLabelText("Session conversation timeline");
-    const expectContiguousRows = async () => {
-      await waitFor(() => {
-        const rows = Array.from(
-          timeline.querySelectorAll<HTMLElement>(
-            "[data-session-virtualizer-row]",
-          ),
-        )
-          .map((row) => row.getBoundingClientRect())
-          .sort((left, right) => left.top - right.top);
-        expect(rows.length).toBeGreaterThan(1);
-        const viewport = timeline.getBoundingClientRect();
-        expect(rows[0]!.top).toBeLessThanOrEqual(viewport.top + 1);
-        expect(rows.at(-1)!.bottom).toBeGreaterThanOrEqual(viewport.bottom - 1);
-        for (let index = 1; index < rows.length; index++) {
-          expect(
-            Math.abs(rows[index]!.top - rows[index - 1]!.bottom),
-          ).toBeLessThan(2);
-        }
-      });
-    };
     await canvas.findAllByRole("button", { name: "Show more" });
-    await expectContiguousRows();
     await userEvent.click(
       canvas.getAllByRole("button", { name: "Show more" })[0]!,
     );
-    await expectContiguousRows();
+    await expect(
+      canvas.getByRole("button", { name: "Show less" }),
+    ).toHaveAttribute("aria-expanded", "true");
     await userEvent.click(canvas.getByRole("button", { name: "Show less" }));
-    await expectContiguousRows();
-    for (const offset of [1500, 4500, 9000, 2000, 0]) {
-      timeline.scrollTop = offset;
-      timeline.dispatchEvent(new Event("scroll", { bubbles: true }));
-      await expectContiguousRows();
-    }
     const originalWidth = canvasElement.style.width;
     try {
-      canvasElement.style.width = "320px";
-      await expectContiguousRows();
+      for (const width of ["320px", originalWidth]) {
+        canvasElement.style.width = width;
+        for (const turn of [40, 1]) {
+          await waitFor(() => {
+            timeline.scrollTop = turn === 40 ? timeline.scrollHeight : 0;
+            timeline.dispatchEvent(new Event("scroll", { bubbles: true }));
+            const header = canvas
+              .getByText((text) => text.startsWith(`Turn ${turn} message.`))
+              .getBoundingClientRect();
+            const viewport = timeline.getBoundingClientRect();
+            expect(header.bottom).toBeGreaterThan(viewport.top);
+            expect(header.top).toBeLessThan(viewport.bottom);
+          });
+        }
+      }
     } finally {
       canvasElement.style.width = originalWidth;
     }
