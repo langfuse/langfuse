@@ -48,6 +48,8 @@ import { TraceDetailViewHeader } from "./components/TraceDetailViewHeader";
 import { TraceLogView } from "../TraceLogView/TraceLogView";
 import { TRACE_VIEW_CONFIG } from "@/src/features/traces/constants/traceViewConfig";
 import { ScoresTable } from "@/src/features/scores";
+import { TraceTopicsTab } from "@/src/features/topics/trace/TraceTopicsTab";
+import { useTraceTopics } from "@/src/features/topics/trace/useTraceTopics";
 import { getMostRecentCorrection } from "@/src/features/corrections";
 import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
 import { useReadPath } from "@/src/features/events";
@@ -134,6 +136,7 @@ function LoadedTraceDetailView({
 
   const isAuthenticatedAndProjectMember =
     useIsAuthenticatedAndProjectMember(projectId);
+  const traceTopics = useTraceTopics(trace);
   const tabs = getDetailTabs({
     target: "trace",
     isV4,
@@ -141,6 +144,7 @@ function LoadedTraceDetailView({
     isAnnotationMode,
     hasObservations: observations.length > 0,
     canViewScores: isAuthenticatedAndProjectMember,
+    hasTopics: traceTopics.length > 0,
   });
   const selectedTab = resolveDetailTab(globalSelectedTab, tabs);
   const showScoresTab = tabs.includes("scores");
@@ -564,6 +568,16 @@ function LoadedTraceDetailView({
                   projectId={projectId}
                   currentView={isLogViewVirtualized ? "pretty" : currentView}
                   target="trace"
+                />
+              </Tabs.Content>
+            )}
+
+            {tabs.includes("topics") && (
+              <Tabs.Content value="topics" layout="fill">
+                <TraceTopicsTab
+                  projectId={projectId}
+                  traceId={trace.id}
+                  facets={traceTopics}
                 />
               </Tabs.Content>
             )}

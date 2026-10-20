@@ -87,7 +87,11 @@ const input: Extract<TopicExecutionInput, { operation: "process" }> = {
   }),
 };
 
-function caller(role: "ADMIN" | "VIEWER" = "ADMIN", langfuseTopics = true) {
+function caller(
+  role: "ADMIN" | "VIEWER" = "ADMIN",
+  langfuseTopics = true,
+  topicsEnabled = true,
+) {
   const session = {
     expires: "1",
     user: {
@@ -98,7 +102,7 @@ function caller(role: "ADMIN" | "VIEWER" = "ADMIN", langfuseTopics = true) {
         {
           id: "org-a",
           role,
-          projects: [{ id: projectId, role }],
+          projects: [{ id: projectId, role, topicsEnabled }],
         },
       ],
     },
@@ -255,12 +259,11 @@ describe("Topics project allowlist", () => {
     expect(mocks.enqueueTopicExecution).not.toHaveBeenCalled();
   });
 
-  it("keeps reads and facet configuration available when processing is disabled", async () => {
-    mocks.isTopicsProjectEnabled.mockReturnValue(false);
-    mocks.listTopicFacets.mockResolvedValue([]);
-
-    await expect(caller().facets({ projectId })).resolves.toEqual([]);
-    expect(mocks.listTopicFacets).toHaveBeenCalledWith(projectId);
+  it("hides Topics reads for projects outside the allowlist", async () => {
+    await expect(
+      caller("ADMIN", true, false).facets({ projectId }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(mocks.listTopicFacets).not.toHaveBeenCalled();
   });
 });
 
@@ -1162,11 +1165,13 @@ describe("Topics current results", () => {
       "intent",
       undefined,
       timeRange,
+      undefined,
     );
     expect(mocks.readLatestTopicAssignments).toHaveBeenCalledWith(
       projectId,
       "intent",
       timeRange,
+      undefined,
     );
     await expect(caller("VIEWER").trigger(input)).rejects.toMatchObject({
       code: "FORBIDDEN",
@@ -1266,6 +1271,7 @@ describe("Topics current results", () => {
         projectId,
         "intent",
         timeRange,
+        undefined,
       );
       expect(mocks.getTopicRuns).toHaveBeenCalledWith(projectId, []);
       expect(result[0]).toMatchObject({

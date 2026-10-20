@@ -11,6 +11,7 @@ const labels: Record<DetailTab, string> = {
   attributes: "Attributes",
   scores: "Scores",
   log: "Log View",
+  topics: "Topics",
 };
 
 const rowClassName = "flex h-9 shrink-0 items-center border-b";

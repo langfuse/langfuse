@@ -37,6 +37,7 @@ import {
   EVENT_FILTER_OPTIONS_COLUMNS,
 } from "./eventsService";
 import { loadTraceTranscript } from "./loadTraceTranscript";
+import { applyTopicFilters } from "@/src/features/topics/server/topicFilters";
 import {
   instrumentAsync,
   getScoresAndCorrectionsForTraces,
@@ -142,14 +143,19 @@ export const eventsRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(GetAllEventsInput)
     .query(async ({ input, ctx }) => {
-      const { filterState, hasNoMatches } = await applyCommentFilters({
+      const topics = await applyTopicFilters({
         filterState: input.filter ?? [],
+        projectId: ctx.session.projectId,
+        session: ctx.session,
+      });
+      const { filterState, hasNoMatches } = await applyCommentFilters({
+        filterState: topics.filterState,
         prisma: ctx.prisma,
         projectId: ctx.session.projectId,
         objectType: "OBSERVATION",
       });
 
-      if (hasNoMatches) {
+      if (topics.hasNoMatches || hasNoMatches) {
         return { observations: [], hasMore: false };
       }
 
@@ -223,14 +229,19 @@ export const eventsRouter = createTRPCRouter({
   listCursor: protectedProjectProcedure
     .input(GetEventsCursorInput)
     .query(async ({ input, ctx }) => {
-      const { filterState, hasNoMatches } = await applyCommentFilters({
+      const topics = await applyTopicFilters({
         filterState: input.filter ?? [],
+        projectId: ctx.session.projectId,
+        session: ctx.session,
+      });
+      const { filterState, hasNoMatches } = await applyCommentFilters({
+        filterState: topics.filterState,
         prisma: ctx.prisma,
         projectId: ctx.session.projectId,
         objectType: "OBSERVATION",
       });
 
-      if (hasNoMatches) {
+      if (topics.hasNoMatches || hasNoMatches) {
         return {
           observations: [],
           hasMore: false,
@@ -261,14 +272,19 @@ export const eventsRouter = createTRPCRouter({
   countAll: protectedProjectProcedure
     .input(EventsTableOptions)
     .query(async ({ input, ctx }) => {
-      const { filterState, hasNoMatches } = await applyCommentFilters({
+      const topics = await applyTopicFilters({
         filterState: input.filter ?? [],
+        projectId: ctx.session.projectId,
+        session: ctx.session,
+      });
+      const { filterState, hasNoMatches } = await applyCommentFilters({
+        filterState: topics.filterState,
         prisma: ctx.prisma,
         projectId: ctx.session.projectId,
         objectType: "OBSERVATION",
       });
 
-      if (hasNoMatches) {
+      if (topics.hasNoMatches || hasNoMatches) {
         return { totalCount: 0, uniqueTraceCount: 0 };
       }
 

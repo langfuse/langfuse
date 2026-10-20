@@ -45,6 +45,7 @@ function resolveTopicResult(
 export async function currentTopicResults(
   projectId: string,
   timeRange: TopicTimeRange,
+  traceIds?: string[],
 ) {
   const facets = await listTopicFacets(projectId);
   const hasStoredSummaries =
@@ -54,8 +55,14 @@ export async function currentTopicResults(
     facets.map(async (facet) => {
       const version = facet.versions[0];
       const [storedAssignments, storedSummaries, run] = await Promise.all([
-        readLatestTopicAssignments(projectId, facet.id, timeRange),
-        getLatestFacetSummaries(projectId, facet.id, undefined, timeRange),
+        readLatestTopicAssignments(projectId, facet.id, timeRange, traceIds),
+        getLatestFacetSummaries(
+          projectId,
+          facet.id,
+          undefined,
+          timeRange,
+          traceIds,
+        ),
         getPublishedTopicRun(projectId, facet.id),
       ]);
       const latestSummaries = storedSummaries.filter(

@@ -422,6 +422,15 @@ function lowerFilter(
     case "metadata":
       lowerMetadata(node, ref.key, negated, conditions, errors, ref.column);
       break;
+    case "keyedOptions":
+      conditions.push({
+        type: "categoryOptions",
+        column: ref.column,
+        key: ref.key,
+        operator: negated ? "none of" : "any of",
+        value: node.values,
+      });
+      break;
     case "scores":
       if (registry.targeting?.scoreTypesError) {
         errors.push(registry.targeting.scoreTypesError);

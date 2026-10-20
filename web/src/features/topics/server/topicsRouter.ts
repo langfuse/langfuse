@@ -25,6 +25,7 @@ import {
   getTopicSummaryCounts,
   listTopicExecutions,
   listTopicFacets,
+  getPublishedTopicRun,
   getTopicFacetVersion,
   getLatestFacetSummaries,
   createTopicFacet,
@@ -34,7 +35,6 @@ import {
   saveTopicRule,
   getTopicRun,
   readTopicMapAssignments,
-  isTopicsEnabled,
   isTopicsProjectEnabled,
   getTopicsModels,
   readTopicsModelSettings,
@@ -52,7 +52,7 @@ import {
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
-import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
+import { canViewTopics } from "@/src/features/topics/topicsAccess";
 import {
   previewTopicTraces,
   resolveTopicTraceSelection,
@@ -61,6 +61,7 @@ import {
 } from "./traceSelection";
 
 import { currentTopicResults } from "./currentResults";
+import { topicContext, tracesTopics } from "./traceTopics";
 
 const projectInput = z.object({ projectId: topicIdSchema });
 const executionInput = projectInput.extend({ executionId: topicIdSchema });
@@ -74,18 +75,8 @@ const mapInput = resultInput.extend({ runId: topicIdSchema });
 const topicsProcedure = protectedProjectProcedureWithoutTracing
   .input(projectInput)
   .use(({ ctx, input, next }) => {
-    if (
-      !isTopicsEnabled() ||
-      getContextualFeatureFlags(ctx.session.user, {
-        projectId: input.projectId,
-      })?.langfuseTopics !== true
-    )
+    if (!canViewTopics(ctx.session, input.projectId))
       throw new LangfuseNotFoundError("Topics is not available.");
-    throwIfNoProjectAccess({
-      session: ctx.session,
-      projectId: input.projectId,
-      scope: "topics:read",
-    });
     return next();
   });
 const topicsWriteProcedure = topicsProcedure.use(({ ctx, input, next }) => {
@@ -316,6 +307,45 @@ export const topicsRouter = createTRPCRouter({
     .query(({ input }) =>
       currentTopicResults(input.projectId, input.timeRange),
     ),
+  forTraces: topicsProcedure
+    .input(
+      projectInput.extend({
+        traces: z
+          .array(z.object({ traceId: z.string().min(1), timestamp: z.date() }))
+          .min(1)
+          .max(500),
+      }),
+    )
+    .query(({ input }) => tracesTopics(input.projectId, input.traces)),
+  topicContext: topicsProcedure
+    .input(
+      projectInput.extend({
+        facetId: topicIdSchema,
+        topicId: topicIdSchema,
+        traceId: z.string().min(1),
+      }),
+    )
+    .query(({ input }) =>
+      topicContext(
+        input.projectId,
+        input.facetId,
+        input.topicId,
+        input.traceId,
+      ),
+    ),
+  /** Sidebar options for the tracing topic filter: facet name → current topic names. */
+  filterOptions: topicsProcedure.query(async ({ input }) => {
+    const facets = await listTopicFacets(input.projectId);
+    const runs = await Promise.all(
+      facets.map((facet) => getPublishedTopicRun(input.projectId, facet.id)),
+    );
+    return Object.fromEntries(
+      facets.flatMap((facet, index) => {
+        const names = runs[index]?.topics.map((topic) => topic.name) ?? [];
+        return names.length ? [[facet.name, names]] : [];
+      }),
+    ) as Record<string, string[]>;
+  }),
   previewTraces: topicsProcedure
     .input(topicTraceSelectionSchema)
     .query(({ input, ctx }) => previewTopicTraces(input, ctx.prisma)),

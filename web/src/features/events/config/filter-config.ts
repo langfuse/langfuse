@@ -70,7 +70,8 @@ const migrateLegacyRootObservationFilters = (
 export type ObservationEventsOmittableFilterColumn =
   | "sessionId"
   | "userId"
-  | "promptName";
+  | "promptName"
+  | "topics";
 
 export const observationEventsFilterConfig: FilterConfig = {
   tableName: "observations-events",
@@ -343,6 +344,11 @@ export const observationEventsFilterConfig: FilterConfig = {
       type: "string" as const,
       column: "commentContent",
       label: "Comment Content",
+    },
+    {
+      type: "keyValue" as const,
+      column: "topics",
+      label: "Topics",
     },
   ],
 };

@@ -138,6 +138,8 @@ import {
 } from "@/src/features/events/hooks/useAppRootDefault";
 import { getAppRootSavedViewComparisonFilters } from "@/src/features/events/lib/appRootDefaultFilterPolicy";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
+import { useCanViewTopics } from "@/src/features/topics/topicsAccess";
+import { TraceTopicChips } from "@/src/features/topics/trace/TraceTopicChips";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
 
 // Disabled for now because perhaps confusing
@@ -326,9 +328,19 @@ export default function ObservationsEventsTable({
     projectId,
     scope: "batchExports:create",
   });
+  const canViewTopics = useCanViewTopics(projectId);
+  // Topic filters resolve on the project-scoped endpoints only, not in a session's events.
+  const showTopicFilter = canViewTopics && !sessionId;
   const eventsFilterConfig = useMemo(
-    () => getObservationEventsFilterConfig(omittedFilter),
-    [omittedFilter],
+    () =>
+      getObservationEventsFilterConfig(
+        showTopicFilter ? omittedFilter : [...omittedFilter, "topics"],
+      ),
+    [omittedFilter, showTopicFilter],
+  );
+  const topicFilterOptions = api.topics.filterOptions.useQuery(
+    { projectId },
+    { enabled: showTopicFilter, staleTime: 5 * 60 * 1000 },
   );
 
   const { setDetailPageList } = useDetailPageLists();
@@ -737,9 +749,13 @@ export default function ObservationsEventsTable({
 
   // The sidebar's Metadata facet suggests the same observed keys/values the
   // search bar does — one store, one projection (LFE-11030).
-  const facetOptions = useFacetOptionsWithObservedMetadata(
+  const observedFacetOptions = useFacetOptionsWithObservedMetadata(
     projectId,
     filterOptions,
+  );
+  const facetOptions = useMemo(
+    () => ({ ...observedFacetOptions, topics: topicFilterOptions.data }),
+    [observedFacetOptions, topicFilterOptions.data],
   );
 
   const queryFilter = useSidebarFilterPresentation(
@@ -813,10 +829,18 @@ export default function ObservationsEventsTable({
   const observedOptions = useMemo(
     () =>
       withMetadataPathOptions(
-        toObservedOptions(filterOptions, isFilterOptionsPending),
+        toObservedOptions(
+          { ...filterOptions, topics: topicFilterOptions.data },
+          isFilterOptionsPending,
+        ),
         observedMetadataPaths,
       ),
-    [filterOptions, isFilterOptionsPending, observedMetadataPaths],
+    [
+      filterOptions,
+      topicFilterOptions.data,
+      isFilterOptionsPending,
+      observedMetadataPaths,
+    ],
   );
 
   const {
@@ -1666,6 +1690,22 @@ export default function ObservationsEventsTable({
       enableHiding: true,
       defaultHidden: true,
     }),
+    ...(canViewTopics
+      ? [
+          {
+            accessorKey: "topics",
+            header: "Topics",
+            size: 300,
+            enableHiding: true,
+            defaultHidden: true,
+            cell: ({ row }) => (
+              <TraceTopicChips
+                facets={rowTopics.data?.[row.original.traceId ?? ""] ?? []}
+              />
+            ),
+          } satisfies LangfuseColumnDef<EventsTableRow>,
+        ]
+      : []),
   ];
 
   const [columnVisibility, setColumnVisibilityState] =
@@ -1673,6 +1713,23 @@ export default function ObservationsEventsTable({
       `eventsColumnVisibility-${projectId}`,
       columns,
     );
+
+  // Topics belong to traces; one lookup per page, only while the column is shown.
+  const topicTraces = (observations.rows ?? []).flatMap((observation) =>
+    observation.traceId
+      ? [{ traceId: observation.traceId, timestamp: observation.startTime }]
+      : [],
+  );
+  const rowTopics = api.topics.forTraces.useQuery(
+    { projectId, traces: topicTraces },
+    {
+      enabled:
+        canViewTopics &&
+        columnVisibility.topics === true &&
+        topicTraces.length > 0,
+      staleTime: 60 * 1000,
+    },
+  );
 
   const [columnOrder, setColumnOrder] = useColumnOrder<EventsTableRow>(
     `eventsColumnOrder-${projectId}`,
