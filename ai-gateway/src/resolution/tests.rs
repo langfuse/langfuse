@@ -149,13 +149,16 @@ async fn signs_the_exact_key_and_sends_api_format_and_model() {
         context.connection().credential(),
         ProviderCredential::Bearer("private-provider-token")
     ));
-    assert_eq!(context.attribution().project_id().as_str(), "project-1");
+    assert_eq!(
+        context.attribution().project_id().map(ProjectId::as_str),
+        Some("project-1")
+    );
     assert_eq!(
         context.attribution().provider_connection_id(),
         "connection-1"
     );
     assert_eq!(
-        context.ingestion().access_token().expose_secret(),
+        context.ingestion().unwrap().access_token().expose_secret(),
         ingestion_token("org-1", "project-1")
     );
     let debug = format!("{context:?}");
@@ -206,7 +209,12 @@ async fn fetches_models_from_the_control_plane() {
 
     let body = web
         .control_plane()
-        .models(GATEWAY_KEY, ApiFormat::OpenAiResponses, REQUEST_ID)
+        .models(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiResponses,
+            REQUEST_ID,
+            &mut |_| Ok(()),
+        )
         .await
         .unwrap();
     assert_eq!(
@@ -237,7 +245,12 @@ async fn model_catalogs_have_a_larger_response_limit_than_resolution() {
     assert!(matches!(resolution, Err(ResolutionError::ResponseTooLarge)));
 
     let models = control_plane
-        .models(GATEWAY_KEY, ApiFormat::OpenAiResponses, REQUEST_ID)
+        .models(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiResponses,
+            REQUEST_ID,
+            &mut |_| Ok(()),
+        )
         .await
         .unwrap();
     assert_eq!(models.len(), 300 * 1024);
@@ -506,12 +519,18 @@ async fn concurrent_resolutions_keep_credentials_and_contexts_isolated() {
     );
     let alice = alice.unwrap();
     let bob = bob.unwrap();
-    assert_eq!(alice.attribution().project_id().as_str(), "project-alice");
+    assert_eq!(
+        alice.attribution().project_id().map(ProjectId::as_str),
+        Some("project-alice")
+    );
     assert!(matches!(
         alice.connection().credential(),
         ProviderCredential::Bearer("token-alice")
     ));
-    assert_eq!(bob.attribution().project_id().as_str(), "project-bob");
+    assert_eq!(
+        bob.attribution().project_id().map(ProjectId::as_str),
+        Some("project-bob")
+    );
     assert!(matches!(
         bob.connection().credential(),
         ProviderCredential::Bearer("token-bob")
@@ -721,7 +740,7 @@ async fn rejects_incompatible_or_incomplete_execution_contexts() {
             json!({"nested": {"key": "value"}}),
         ),
         ("/attribution/key_metadata", json!({"null": null})),
-        ("/ingestion_mode", json!("none")),
+        ("/ingestion_mode", json!("off")),
         ("/ingestion/access_token", json!("")),
         ("/ingestion/token_type", json!("Basic")),
         ("/ingestion/expires_at", json!(NOW)),
@@ -795,6 +814,53 @@ async fn rejects_ingestion_tokens_that_authorize_a_different_tenant() {
             .await
             .is_ok()
     );
+}
+
+#[tokio::test]
+async fn resolves_none_mode_without_an_ingestion_grant_or_project() {
+    let mut body = success("project-1", "provider-token");
+    body["ingestion_mode"] = json!("none");
+    body["ingestion"] = Value::Null;
+    body["attribution"]["project_id"] = Value::Null;
+    let web = FakeWeb::start(move |_| {
+        let body = body.clone();
+        async move { response(body) }
+    })
+    .await;
+    let context = web
+        .control_plane()
+        .resolve_at(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiResponses,
+            "primary:gpt-4.1",
+            NOW_TIME,
+            REQUEST_ID,
+        )
+        .await
+        .unwrap();
+    assert_eq!(context.ingestion_mode(), IngestionMode::None);
+    assert!(context.ingestion().is_none());
+    assert!(context.attribution().project_id().is_none());
+}
+
+#[tokio::test]
+async fn delivering_modes_require_an_ingestion_grant_and_project() {
+    for mode in ["usage", "full"] {
+        let mut body = success("project-1", "provider-token");
+        body["ingestion_mode"] = json!(mode);
+        body["ingestion"] = Value::Null;
+        assert_invalid_context(body).await;
+
+        let mut body = success("project-1", "provider-token");
+        body["ingestion_mode"] = json!(mode);
+        body["attribution"]["project_id"] = Value::Null;
+        assert_invalid_context(body).await;
+    }
+    // A grant sent alongside NONE must still be bound to the attributed tenant.
+    let mut body = success("project-1", "provider-token");
+    body["ingestion_mode"] = json!("none");
+    body["attribution"]["project_id"] = json!("project-2");
+    assert_invalid_context(body).await;
 }
 
 async fn assert_invalid_context(body: Value) {

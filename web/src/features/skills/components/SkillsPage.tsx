@@ -152,7 +152,7 @@ function SkillsHeaderActions({
       <DesignSystemButton
         text="API reference"
         variant="ghost"
-        href="https://api.reference.langfuse.com/#tag/unstableskills"
+        href="https://api.reference.langfuse.com/#tag/skills"
       />
       <DesignSystemButton
         text="Install with CLI"

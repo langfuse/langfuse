@@ -528,14 +528,12 @@ export const ValueCell = memo(
         </span>
         {needsTruncation && !row.original.hasChildren && (
           // Keeps the click from reaching the row, which opens the detail view.
-          <span className="ml-1 inline-flex" onClick={stopPropagation}>
+          <div className="flex" onClick={stopPropagation}>
             <ExpandToggle
               expanded={isCellExpanded}
-              label={`...expand (${getValueStringLength(value) - MAX_CELL_DISPLAY_CHARS} more characters)`}
-              expandedLabel="...collapse"
               onExpandedChange={handleExpandedChange}
             />
-          </span>
+          </div>
         )}
 
         {/* Hover affordance: a one-click copy by default, or an actions menu

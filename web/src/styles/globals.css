@@ -77,7 +77,7 @@
   --color-surface-code: hsl(var(--surface-code));
   --color-surface-code-header: hsl(var(--surface-code-header));
   --color-surface-sunken: hsl(var(--surface-sunken));
-  --color-surface-output: hsl(var(--surface-output));
+  --color-surface-section: hsl(var(--surface-section));
   /* Sticky table chrome; hosts on another surface set --surface-context. */
   --color-surface: var(--surface-context, hsl(var(--background)));
   --color-muted-magenta: hsl(var(--muted-magenta));
@@ -353,7 +353,7 @@
     --surface-code: 0 0% 92%;
     --surface-code-header: 0 0% 86%;
     --surface-sunken: 0 0% 99%; /* between white and zinc-50 */
-    --surface-output: 240 4.8% 95.9%; /* zinc-100 */
+    --surface-section: 240 4.8% 96.5%; /* a hair lighter than zinc-100 */
 
     --popover: 0 0% 100%;
     --popover-foreground: var(--foreground);
@@ -591,7 +591,7 @@
     --surface-code: 0 0% 2.3%;
     --surface-code-header: 0 0% 8.2%;
     --surface-sunken: 0 0% 8%; /* one step below the modal */
-    --surface-output: var(--popover);
+    --surface-section: 0 0% 11%; /* a hair quieter than the popover */
 
     --popover: 0 0% 12%;
     --popover-foreground: var(--foreground);

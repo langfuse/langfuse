@@ -8,8 +8,24 @@ import {
   getScoreById,
   getTraceById,
   createOrgProjectAndApiKey,
+  ingestionEvent,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
+
+describe("ingestion timestamp compatibility", () => {
+  it.each(["2024-02-29T06:15Z", "2024-02-29T06:15:00.123+02:30"])(
+    "accepts %s in both the envelope and body",
+    (timestamp) => {
+      const event = {
+        id: "event-id",
+        type: "trace-create",
+        timestamp,
+        body: { id: "trace-id", timestamp },
+      };
+      expect(ingestionEvent.parse(event)).toMatchObject(event);
+    },
+  );
+});
 
 let projectId: string;
 let auth: string;

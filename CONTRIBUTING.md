@@ -361,8 +361,33 @@ pnpm run db:seed:examples
   ordinary shared TypeScript edits. Production caches exclude Next development output.
 - Turbo keeps successful task/cache hashes visible with `errors-only` logs. Its
   shared worktree cache has a 7.5 GB cleanup target; eviction runs in the background.
-- `pnpm --filter web run analyze` opens Next's experimental bundle analyzer;
+- `pnpm --filter web run analyze` opens Next's Turbopack bundle analyzer;
   `pnpm --filter web run build-trace` opens a Turbopack trace when one is available.
+
+### Bundle analysis
+
+Run `pnpm --filter web run analyze` to inspect the production module graph at
+`http://localhost:4000`. Start with the route summary, select the client environment,
+and exclude async dependencies when investigating initial-load code. Follow import
+chains to identify why a large dependency is included. Graph sizes are not measured
+browser transfer sizes; confirm loading behavior in the browser.
+
+Save named snapshots before and after a change to compare them in the analyzer:
+
+```bash
+pnpm --filter web run analyze --output --snapshot before
+# Make the change, then capture its graph.
+pnpm --filter web run analyze --snapshot after
+```
+
+For scripts or agent analysis, export a saved graph as JSON Lines without rebuilding:
+
+```bash
+pnpm --filter web exec next analyze export --snapshot before > /tmp/langfuse-bundle-before.jsonl
+```
+
+Analysis files live under `web/.next/diagnostics/analyze`; keep them out of Git.
+The analyzer does not produce a deployable application build.
 
 ## System behavior
 
@@ -558,7 +583,7 @@ The background color of the following component will be `hsl(var(--primary))` an
 | --find-match-selected-foreground | Foreground color for selected search matches                       | CodeMirrorEditor                 |
 | --find-match-background          | Background color for search matches                                | CodeMirrorEditor                 |
 | --surface-sunken                 | Off-white panel behind detail content (99%, lighter than zinc-50)  | Trace detail panel, nav sidebar  |
-| --surface-output                 | Background of output blocks in the trace preview (zinc-100)        | IOPreview, MarkdownViewer, CodeView |
+| --surface-section                | Grey box behind every I/O section body in the trace preview        | IOSection, IOPreview, CodeView   |
 | --line-dotted                    | Dotted connector lines; dimmed in dark                             | dotted-line-y, prompt timeline   |
 | --surface                        | Sticky table chrome fill; follows --surface-context                | Table headers, footers           |
 | --observation-<type>-line        | Observation type colour for stroked icons and borders              | ItemTypeIcon, graph nodes        |

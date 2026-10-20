@@ -35,13 +35,10 @@ import {
 } from "kysely";
 
 import { QueryCompileError } from "./errors";
-import {
-  FinalTableNode,
-  unwrapFinalTable,
-  type ClickHouseSelectQueryNode,
-} from "./nodes";
+import { type ClickHouseSelectQueryNode } from "./nodes";
+import { describeRelation } from "./relations";
 import { SOFT_DELETE_COLUMNS } from "./schema";
-import { CteScopedTransformer } from "./transformer";
+import { SelectRewriteTransformer } from "./transformer";
 
 const OUTER_PRESERVING_JOINS = new Set<JoinType>(["RightJoin", "FullJoin"]);
 const AFTER_LIMIT_ALIAS = "latest";
@@ -59,26 +56,21 @@ export class SoftDeleteFilterPlugin implements KyselyPlugin {
   }
 }
 
-class SoftDeleteFilterTransformer extends CteScopedTransformer {
+class SoftDeleteFilterTransformer extends SelectRewriteTransformer {
   protected rewriteSelect(
     node: ClickHouseSelectQueryNode,
   ): ClickHouseSelectQueryNode {
-    return filterSelect(node, (table) => this.isCte(table));
+    return filterSelect(node);
   }
 }
 
 function filterSelect(
   node: ClickHouseSelectQueryNode,
-  isCte: (table: TableNode) => boolean,
 ): ClickHouseSelectQueryNode {
-  const describe = (item: OperationNode) => {
-    const relation = describeRelation(item);
-    return relation && !isCte(relation.node) ? relation : undefined;
-  };
-  const froms = (node.from?.froms ?? []).map(describe);
+  const froms = (node.from?.froms ?? []).map(softDeleteRelation);
   const joins = (node.joins ?? []).map((join) => ({
     join,
-    relation: describe(join.table),
+    relation: softDeleteRelation(join.table),
   }));
 
   const readsSoftDelete =
@@ -273,28 +265,22 @@ function outputName(node: OperationNode): string | undefined {
   return undefined;
 }
 
-function describeRelation(node: OperationNode): SoftDeleteRelation | undefined {
-  if (FinalTableNode.is(node)) {
-    return describeRelation(unwrapFinalTable(node));
-  }
-  if (AliasNode.is(node)) {
-    const inner = describeRelation(node.node);
-    if (!inner || !IdentifierNode.is(node.alias)) return inner;
-    return { ...inner, alias: node.alias.name };
-  }
-  if (TableNode.is(node)) {
-    const tableName = node.table.identifier.name;
-    const flag = SOFT_DELETE_COLUMNS[tableName];
-    return flag ? { tableName, flag, node } : undefined;
-  }
-  return undefined;
+/** The soft-delete table `item` reads. */
+function softDeleteRelation(
+  item: OperationNode,
+): SoftDeleteRelation | undefined {
+  const { table, alias } = describeRelation(item);
+  if (!table) return undefined;
+  const tableName = table.table.identifier.name;
+  const flag = SOFT_DELETE_COLUMNS[tableName];
+  return flag ? { tableName, alias, flag } : undefined;
 }
 
 /**
  * Always qualified (by alias, else table name): a bare flag column would bind
  * to a same-named SELECT alias, e.g. `0 AS is_deleted`.
  */
-function notDeleted(relation: FlagColumn): OperationNode {
+function notDeleted(relation: SoftDeleteRelation): OperationNode {
   return BinaryOperationNode.create(
     qualifiedFlag(relation),
     OperatorNode.create("="),
@@ -302,7 +288,7 @@ function notDeleted(relation: FlagColumn): OperationNode {
   );
 }
 
-function qualifiedFlag(relation: FlagColumn): ReferenceNode {
+function qualifiedFlag(relation: SoftDeleteRelation): ReferenceNode {
   return ReferenceNode.create(
     ColumnNode.create(relation.flag),
     TableNode.create(relation.alias ?? relation.tableName),
@@ -313,8 +299,4 @@ type SoftDeleteRelation = {
   tableName: string;
   alias?: string;
   flag: string;
-  node: TableNode;
 };
-
-/** No `node`: {@link filterAfterLimit} filters a derived table, not a TableNode. */
-type FlagColumn = Pick<SoftDeleteRelation, "tableName" | "alias" | "flag">;

@@ -1,5 +1,5 @@
 import type {
-  SkillsAvailable,
+  SkillsAvailableInput,
   SkillsResourceLoaded,
 } from "../../features/skills/trace";
 import {
@@ -70,7 +70,7 @@ export type InternalTraceEventInput = {
   promptId?: string;
   promptName?: string;
   promptVersion?: string;
-  skillsAvailable?: SkillsAvailable;
+  skillsAvailable?: SkillsAvailableInput;
   skillsResourceLoaded?: SkillsResourceLoaded;
   modelId?: string;
   modelName?: string;

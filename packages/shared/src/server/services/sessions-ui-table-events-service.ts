@@ -25,7 +25,7 @@ import {
   eventsSessionScoresAggregation,
 } from "../queries/clickhouse-sql/query-fragments";
 import { queryClickhouse } from "../repositories";
-import { TRACE_AGGREGATION_SELECTS } from "../repositories/events-selects";
+import { traceAggregationSelects } from "../repositories/events-selects";
 import {
   sessionEventsCols,
   sessionEventsOrderByCols,
@@ -51,7 +51,7 @@ export const getSessionTracesFromEvents = async (props: {
   const { projectId, sessionId } = props;
   const builder = getClickhouseKysely()
     .selectFrom("events_full as e")
-    .select(TRACE_AGGREGATION_SELECTS)
+    .select(traceAggregationSelects)
     .where("e.session_id", "=", sessionId)
     .groupBy(["trace_id", "project_id"])
     .orderBy("timestamp", "asc");

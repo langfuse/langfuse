@@ -17,6 +17,14 @@ export const TOPICS_TRANSCRIPT_VERSION = "shared-transcript-v3";
 const MAX_OBSERVATIONS = 2_000;
 const MAX_SNAPSHOT_BYTES = 10 * 1024 * 1024;
 
+/** The trace is above the transcript limits, whether ClickHouse or the reader stopped it. */
+export class TopicTraceTooLarge extends Error {
+  readonly name = "TopicTraceTooLarge";
+  constructor() {
+    super("Trace exceeds the Topics PoC limit (2,000 observations or 10 MiB)");
+  }
+}
+
 type SnapshotRow = {
   project_id: string;
   trace_id: string;
@@ -121,53 +129,55 @@ export async function loadTopicTranscript(params: {
   let traceName = "";
   let rootName = "";
   let bytes = 0;
-  for await (const row of queryClickhouseStream<SnapshotRow>({
-    query,
-    params: queryParams,
-    preferredClickhouseService: "EventsReadOnly",
-    tags: { projectId },
-    clickhouseSettings: {
-      max_threads: 2,
-      max_execution_time: 30,
-      timeout_overflow_mode: "throw",
-      max_result_bytes: String(MAX_SNAPSHOT_BYTES),
-      result_overflow_mode: "throw",
-    },
-  })) {
-    if (row.project_id !== projectId || row.trace_id !== traceId)
-      throw new Error("Trace snapshot scope mismatch");
-    if (!observations.length) environment = row.environment;
-    // Rows arrive newest first; retain the latest non-empty session and name metadata.
-    if (!sessionId && row.session_id) sessionId = row.session_id;
-    if (!traceName && row.trace_name) traceName = row.trace_name;
-    if (
-      !rootName &&
-      row.name &&
-      isRootObservation({
-        parentObservationId: row.parent_span_id,
-        isAppRoot: row.is_app_root,
-      })
-    )
-      rootName = row.name;
-    bytes += Buffer.byteLength(JSON.stringify(row));
-    if (bytes > MAX_SNAPSHOT_BYTES || observations.length >= MAX_OBSERVATIONS) {
-      throw new Error(
-        "Trace exceeds the Topics PoC limit (2,000 observations or 10 MiB)",
-      );
+  try {
+    for await (const row of queryClickhouseStream<SnapshotRow>({
+      query,
+      params: queryParams,
+      preferredClickhouseService: "EventsReadOnly",
+      tags: { projectId },
+      clickhouseSettings: {
+        max_threads: 2,
+        max_execution_time: 30,
+        timeout_overflow_mode: "throw",
+        max_result_bytes: String(MAX_SNAPSHOT_BYTES),
+        result_overflow_mode: "throw",
+      },
+    })) {
+      if (row.project_id !== projectId || row.trace_id !== traceId)
+        throw new Error("Trace snapshot scope mismatch");
+      if (!observations.length) environment = row.environment;
+      // Rows arrive newest first; retain the latest non-empty session and name metadata.
+      if (!sessionId && row.session_id) sessionId = row.session_id;
+      if (!traceName && row.trace_name) traceName = row.trace_name;
+      if (
+        !rootName &&
+        row.name &&
+        isRootObservation({
+          parentObservationId: row.parent_span_id,
+          isAppRoot: row.is_app_root,
+        })
+      )
+        rootName = row.name;
+      bytes += Buffer.byteLength(JSON.stringify(row));
+      if (bytes > MAX_SNAPSHOT_BYTES || observations.length >= MAX_OBSERVATIONS)
+        throw new TopicTraceTooLarge();
+      observations.push({
+        id: row.span_id,
+        traceId,
+        parentObservationId: row.parent_span_id || null,
+        startTime: new Date(utcTimestamp(row.start_time)),
+        endTime:
+          row.end_time === null ? null : new Date(utcTimestamp(row.end_time)),
+        type: row.type,
+        name: row.name,
+        input: row.input,
+        output: row.output,
+        metadata: row.metadata,
+      });
     }
-    observations.push({
-      id: row.span_id,
-      traceId,
-      parentObservationId: row.parent_span_id || null,
-      startTime: new Date(utcTimestamp(row.start_time)),
-      endTime:
-        row.end_time === null ? null : new Date(utcTimestamp(row.end_time)),
-      type: row.type,
-      name: row.name,
-      input: row.input,
-      output: row.output,
-      metadata: row.metadata,
-    });
+  } catch (error) {
+    if (isResultOverflow(error)) throw new TopicTraceTooLarge();
+    throw error;
   }
   if (!observations.length)
     throw new Error(
@@ -190,4 +200,14 @@ export async function loadTopicTranscript(params: {
     // Uncapped, like trace-batch; the summary input limit rejects oversized traces.
     transcript: assembleTranscript(orderObservations(observations)),
   };
+}
+
+/** ClickHouse stops oversized results before the reader can count them. */
+function isResultOverflow(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) return false;
+  return (
+    ("type" in error && error.type === "TOO_MANY_ROWS_OR_BYTES") ||
+    (error instanceof Error &&
+      error.message.includes("Limit for result exceeded"))
+  );
 }

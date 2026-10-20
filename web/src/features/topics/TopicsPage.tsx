@@ -31,7 +31,7 @@ import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { costFormatter } from "@/src/utils/numbers";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { useCanViewTopics } from "@/src/features/topics/topicsAccess";
 import {
   type TopicFacet,
   type TopicExecutionStatus,
@@ -73,7 +73,7 @@ const executionLabels: Record<TopicExecutionStatus, string> = {
   queued: "Run queued",
   running: "Run in progress",
   completed: "Run complete",
-  completed_with_errors: "Run finished with errors",
+  completed_with_errors: "Run finished with issues",
   failed: "Run failed",
 };
 const executionPhaseLabels: Record<string, string> = {
@@ -104,7 +104,7 @@ export default function TopicsPage() {
   const router = useRouter();
   const projectId =
     typeof router.query.projectId === "string" ? router.query.projectId : "";
-  const topicsEnabled = useIsFeatureEnabled("langfuseTopics", { projectId });
+  const topicsEnabled = useCanViewTopics(projectId);
   if (!topicsEnabled) {
     return (
       <ErrorPage title="Not found" message="This page is not available." />
@@ -482,7 +482,7 @@ function TopicsWorkspaceContent({
                 onTurnBackOn={turnAutomaticProcessingBackOn}
                 showOnboarding={showOnboarding}
                 configured={configured}
-                canProcess={canWrite && !modelSettings.notice.unavailable}
+                canProcess={canWrite}
                 automaticEnabled={automaticProcessing.state.status === "on"}
                 running={running}
                 onAutomaticProcessing={openAutomaticProcessingFromHeader}
@@ -595,12 +595,7 @@ function TopicsWorkspaceContent({
                       traceFilters={traceFilters}
                       tracePanelRef={setTracePanel}
                       onGenerateTopics={openTopicGeneration}
-                      canGenerateTopics={
-                        canWrite &&
-                        !modelSettings.notice.unavailable &&
-                        !running &&
-                        configured
-                      }
+                      canGenerateTopics={canWrite && !running && configured}
                     />
                   </TopicsFilters>
                 )}
@@ -850,7 +845,14 @@ function ExecutionPanel({
                 configuration.
               </p>
             )}
-            {progress.error && <ErrorMessage message={progress.error} />}
+            {progress.error &&
+              (progress.outcome === "published" ? (
+                <Alert variant="warning">
+                  <Alert.Description>{progress.error}</Alert.Description>
+                </Alert>
+              ) : (
+                <ErrorMessage message={progress.error} />
+              ))}
             {progress.outcome === "insufficient_data" &&
               execution.input.operation === "update" && (
                 <p className="text-sm">

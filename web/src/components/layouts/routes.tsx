@@ -72,9 +72,11 @@ export type Route = {
       | NonNullable<Session["user"]>["organizations"][number]
       | undefined;
     projectId: string | undefined;
+    canViewTopics: boolean;
     isLangfuseCloud: boolean;
     hasActiveCloudIncident: boolean;
     canToggleV4: boolean;
+    canRecoverV4: boolean;
     forceV3Experience: boolean;
     v4WriteMode: undefined | "legacy" | "dual" | "events_only"; // undefined until the session has loaded
     v4UpgradeUiAvailable: boolean; // deployment shows the v4 migration UI (see isV4UpgradeUiAvailable)
@@ -152,8 +154,7 @@ export const ROUTES: Route[] = [
     title: "Topics",
     href: "/project/[projectId]/topics",
     icon: Grid2X2,
-    featureFlag: "langfuseTopics",
-    projectRbacScopes: ["topics:read"],
+    show: ({ canViewTopics }) => canViewTopics,
     group: RouteGroup.Observability,
     section: RouteSection.Main,
   },
@@ -259,9 +260,15 @@ export const ROUTES: Route[] = [
     href: "",
     section: RouteSection.Secondary,
     featureFlag: "v4BetaToggleVisible",
-    // v4-upgrade users get this toggle inside the migration panel instead.
-    show: ({ canToggleV4, forceV3Experience, v4UpgradeUiAvailable }) =>
-      canToggleV4 && (!v4UpgradeUiAvailable || forceV3Experience),
+    // Recovery stays in the sidebar; ordinary opt-in lives in the migration panel.
+    show: ({
+      canToggleV4,
+      canRecoverV4,
+      forceV3Experience,
+      v4UpgradeUiAvailable,
+    }) =>
+      canRecoverV4 ||
+      (canToggleV4 && (!v4UpgradeUiAvailable || forceV3Experience)),
     menuNode: <V4SidebarToggle />,
   },
   {
