@@ -100,8 +100,7 @@ function paginate<T>(rows: T[], page: number, limit: number) {
 }
 
 function resolveWindow(from?: Date, to?: Date): TopicTimeRange {
-  const end =
-    to ?? (from ? new Date(from.getTime() + DEFAULT_WINDOW_MS) : new Date());
+  const end = to ?? new Date();
   const start = from ?? new Date(end.getTime() - DEFAULT_WINDOW_MS);
   if (
     start >= end ||

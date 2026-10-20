@@ -310,6 +310,15 @@ describe("unstable Topics public API", () => {
         limit: 50,
       }),
     ).rejects.toMatchObject({ httpCode: 400, code: "invalid_query" });
+    await expect(
+      listPublicTopics({
+        projectId,
+        fromTimestamp: new Date(Date.now() - 100 * 86_400_000),
+        orderBy: "traceCount.desc",
+        page: 1,
+        limit: 50,
+      }),
+    ).rejects.toMatchObject({ httpCode: 400, code: "invalid_query" });
     expect(mocks.getLatestFacetSummaries).not.toHaveBeenCalled();
   });
 
