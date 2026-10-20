@@ -11,7 +11,10 @@ jobs:
     if: github.event_name != 'status' || github.event.context == 'license/cla'
     runs-on: ubuntu-latest
     timeout-minutes: 3
-    permissions: { contents: read, pull-requests: read, statuses: write }
+    permissions:
+      contents: read
+      pull-requests: read
+      statuses: write
     concurrency:
       group: cla-gate-${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha || github.event.sha }}
       cancel-in-progress: false
@@ -26,11 +29,13 @@ jobs:
             if (event.branches?.some(b => b.name.startsWith("gh-readonly-queue/"))) return;
             const prs = event.pull_request ? [event.pull_request] : await github.paginate(github.rest.pulls.list, { owner, repo, state: "open", per_page: 100 });
             const current = prs.filter(pr => pr.state === "open" && pr.head.sha === sha);
-            if (!current.length) return;
+            if (current.length === 0) return;
             await publish("failure", "CLA verification incomplete. Edit PR title/body to retry.");
-            let exempt = true;
+            /** Fork author attribution does not prove who can push to the branch. */
+            let exempt = current.every(pr => pr.head.repo?.full_name === `${owner}/${repo}`);
             const checked = new Set([49699333, 41898282, 206951365, 199161495]); // Dependabot, Actions, Cursor.
             for (const pr of current) {
+              if (!exempt) break;
               const { repository: { pullRequest: live } } = await github.graphql(`
                 query($owner: String!, $repo: String!, $number: Int!) { repository(owner: $owner, name: $repo) { pullRequest(number: $number) {
                   headRefOid commits(first: 100) { totalCount nodes { commit { authors(first: 100) { totalCount nodes { user { login databaseId } } } } } }
@@ -45,6 +50,8 @@ jobs:
                 checked.add(user?.databaseId ?? user?.id);
               }
             }
-            const statuses = exempt ? [] : await github.paginate(github.rest.repos.listCommitStatusesForRef, { owner, repo, ref: sha });
+            if (exempt) return publish("success", "All contributors exempt.");
+            const statuses = await github.paginate(github.rest.repos.listCommitStatusesForRef, { owner, repo, ref: sha });
             const signed = statuses.find(s => s.context === "license/cla" && s.creator?.id === 2834609)?.state === "success"; // CLA Assistant's OAuth publisher.
-            await publish(exempt || signed ? "success" : "failure", exempt ? "All contributors exempt." : signed ? "CLA verified." : "CLA missing or unavailable. Sign, then edit PR title/body to retry.");
+            if (signed) return publish("success", "CLA verified.");
+            return publish("failure", "CLA missing or unavailable. Sign, then edit PR title/body to retry.");
