@@ -76,7 +76,13 @@ import {
 } from "../queries/clickhouse-sql/query-fragments";
 import { compileClickhouseQuery } from "../query-ast/compile";
 import { getClickhouseKysely } from "../query-ast/dialect";
-import { limitBy, mapKeys, notEmpty, useFinal } from "../query-ast/extensions";
+import {
+  limitBy,
+  literal,
+  mapKeys,
+  notEmpty,
+  useFinal,
+} from "../query-ast/extensions";
 import { scoresTableCols } from "../../tableDefinitions/scoresTable";
 import { promptGenerationEvents } from "./prompt-events";
 import {
@@ -423,7 +429,7 @@ const experimentItemEventsQuery = (experimentIds: string[]) =>
     .selectFrom("events as e")
     .select(["e.project_id", "e.experiment_id", "e.trace_id"])
     .where("e.experiment_id", "in", experimentIds)
-    .where("e.experiment_id", "!=", "");
+    .where("e.experiment_id", "!=", literal(""));
 
 const scoresForExperimentItemsQuery = (experimentIds: string[]) =>
   getClickhouseKysely()

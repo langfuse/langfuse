@@ -687,10 +687,16 @@ export const getObservationMetricsForPromptsFromEvents = async (
       eb.fn.min("e.start_time").as("first_observation"),
       eb.fn.max("e.start_time").as("last_observation"),
       medianExact(
-        sumMapValuesWhereKeyContains(eb.ref("e.usage_details"), "input"),
+        sumMapValuesWhereKeyContains(
+          eb.ref("e.usage_details"),
+          literal("input"),
+        ),
       ).as("median_input_usage"),
       medianExact(
-        sumMapValuesWhereKeyContains(eb.ref("e.usage_details"), "output"),
+        sumMapValuesWhereKeyContains(
+          eb.ref("e.usage_details"),
+          literal("output"),
+        ),
       ).as("median_output_usage"),
       medianExact(mapValue(eb.ref("e.cost_details"), literal("total"))).as(
         "median_total_cost",
@@ -744,7 +750,7 @@ export const getObservationsWithPromptNameFromEvents = async (
     .selectFrom("events")
     .select((eb) => [uniq(eb.ref("span_id")).as("count"), "prompt_name"])
     .where("prompt_name", "in", promptNames)
-    .where("prompt_name", "!=", "")
+    .where("prompt_name", "!=", literal(""))
     .$if(fromTimestamp != null, (qb) =>
       qb.where("start_time", ">=", fromTimestamp!),
     )
@@ -1391,10 +1397,12 @@ function compileHasAnyFromEventsTable(opts: {
     .selectFrom("events")
     .select(literal(1).as("one"))
     .$if(opts.kind === "user", (qb) =>
-      qb.where("user_id", "is not", null).where("user_id", "!=", ""),
+      qb.where("user_id", "is not", null).where("user_id", "!=", literal("")),
     )
     .$if(opts.kind === "session", (qb) =>
-      qb.where("session_id", "is not", null).where("session_id", "!=", ""),
+      qb
+        .where("session_id", "is not", null)
+        .where("session_id", "!=", literal("")),
     )
     .limit(1);
 
@@ -3937,7 +3945,7 @@ export const getSessionMetricsFromEvents = async <
         observationsToTraceLowerBound(queryFromTimestamp!),
       ),
     )
-    .where("session_id", "!=", "")
+    .where("session_id", "!=", literal(""))
     .groupBy("session_id")
     .limit(sessionIds.length);
   const { sql: query, params } = compileClickhouseQuery(builder, projectId);
