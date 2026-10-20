@@ -1,4 +1,5 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
+import { canViewTopics } from "@/src/features/topics/topicsAccess";
 import type { Session } from "next-auth";
 import type * as topicsServer from "@langfuse/shared/topics/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -33,6 +34,7 @@ const mocks = vi.hoisted(() => ({
   getTopicRuns: vi.fn(),
   readTopicMapAssignments: vi.fn(),
   getTopicsModels: vi.fn(),
+  isTopicsProjectEnabled: vi.fn(),
   checkTopicsModelSettings: vi.fn(),
   saveTopicsSetup: vi.fn(),
   setTopicsAutomaticProcessing: vi.fn(),
@@ -85,11 +87,7 @@ const input: Extract<TopicExecutionInput, { operation: "process" }> = {
   }),
 };
 
-function caller(
-  role: "ADMIN" | "VIEWER" = "ADMIN",
-  langfuseTopics = true,
-  topicsEnabled = true,
-) {
+function caller(role: "ADMIN" | "VIEWER" = "ADMIN", langfuseTopics = true) {
   const session = {
     expires: "1",
     user: {
@@ -100,7 +98,7 @@ function caller(
         {
           id: "org-a",
           role,
-          projects: [{ id: projectId, role, topicsEnabled }],
+          projects: [{ id: projectId, role }],
         },
       ],
     },
@@ -187,6 +185,7 @@ const summary = {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  mocks.isTopicsProjectEnabled.mockReturnValue(true);
   mocks.queryClickhouse.mockResolvedValue([]);
   mocks.getTopicsModels.mockResolvedValue({
     summary: { model: "us.openai.gpt-5.6-luna" },
@@ -229,7 +228,10 @@ describe("Topics feature access", () => {
 describe("Topics project allowlist", () => {
   // Every Topics API is behind the visibility gate: outside the allowlist it
   // answers NOT_FOUND before reading or writing anything.
-  const outside = () => caller("ADMIN", true, false);
+  const outside = () => {
+    mocks.isTopicsProjectEnabled.mockReturnValue(false);
+    return caller();
+  };
   const reads = [
     [
       "current results",
@@ -292,6 +294,33 @@ describe("Topics project allowlist", () => {
       outside().setAutomaticProcessing({ projectId, enabled: true }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
     expect(mocks.setTopicsAutomaticProcessing).not.toHaveBeenCalled();
+  });
+});
+
+describe("Topics visibility gate", () => {
+  const adminOutsideProject = {
+    expires: "1",
+    user: {
+      id: "admin-a",
+      admin: true,
+      featureFlags: testFeatureFlags({ langfuseTopics: true }),
+      organizations: [],
+    },
+  } as unknown as Session;
+
+  it("lets Langfuse admins see Topics on allowlisted projects they are not members of", () => {
+    expect(
+      canViewTopics(adminOutsideProject, {
+        id: projectId,
+        topicsEnabled: true,
+      }),
+    ).toBe(true);
+    expect(
+      canViewTopics(adminOutsideProject, {
+        id: projectId,
+        topicsEnabled: false,
+      }),
+    ).toBe(false);
   });
 });
 

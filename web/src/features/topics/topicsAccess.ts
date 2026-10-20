@@ -1,30 +1,35 @@
 import { type Session } from "next-auth";
 import { useSession } from "next-auth/react";
 import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
+import { useProject } from "@/src/features/projects/hooks";
 import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
-/** Project gate: Topics is enabled for the project (deployment allowlist, resolved into the session). */
-export function isTopicsEnabledForProject(
-  session: Session | null,
-  projectId: string,
-) {
-  return (
-    session?.user?.organizations
-      .flatMap((organization) => organization.projects)
-      .find((project) => project.id === projectId)?.topicsEnabled === true
-  );
-}
+type TopicsProject = { id: string; topicsEnabled?: boolean };
 
 /** Visibility gate for every Topics surface: project gate, the user's feature preview and topics:read. */
-export function canViewTopics(session: Session | null, projectId: string) {
+export function canViewTopics(
+  session: Session | null,
+  project: TopicsProject | null | undefined,
+) {
   return (
-    isTopicsEnabledForProject(session, projectId) &&
-    getContextualFeatureFlags(session?.user, { projectId })?.langfuseTopics ===
-      true &&
-    hasProjectAccess({ session, projectId, scope: "topics:read" })
+    !!project &&
+    isTopicsEnabledForProject(project) &&
+    getContextualFeatureFlags(session?.user, { projectId: project.id })
+      ?.langfuseTopics === true &&
+    hasProjectAccess({ session, projectId: project.id, scope: "topics:read" })
   );
 }
 
+/** Resolves the project like the rest of the app, including the admin fallback for non-member admins. */
 export function useCanViewTopics(projectId: string) {
-  return canViewTopics(useSession().data, projectId);
+  const session = useSession().data;
+  const { project } = useProject(projectId);
+  return canViewTopics(session, project);
+}
+
+/** Project gate: Topics is enabled for the project (deployment allowlist, resolved on the server). */
+export function isTopicsEnabledForProject(
+  project: TopicsProject | null | undefined,
+) {
+  return project?.topicsEnabled === true;
 }

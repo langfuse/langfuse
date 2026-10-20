@@ -25,6 +25,7 @@ import {
   getTopicSummaryCounts,
   listTopicExecutions,
   listTopicFacets,
+  isTopicsProjectEnabled,
   getTopicFacetVersion,
   getLatestFacetSummaries,
   createTopicFacet,
@@ -72,7 +73,12 @@ const mapInput = resultInput.extend({ runId: topicIdSchema });
 const topicsProcedure = protectedProjectProcedureWithoutTracing
   .input(projectInput)
   .use(({ ctx, input, next }) => {
-    if (!canViewTopics(ctx.session, input.projectId))
+    // The allowlist comes from env here, so admins outside the project are covered too.
+    const project = {
+      id: input.projectId,
+      topicsEnabled: isTopicsProjectEnabled(input.projectId),
+    };
+    if (!canViewTopics(ctx.session, project))
       throw new LangfuseNotFoundError("Topics is not available.");
     return next();
   });

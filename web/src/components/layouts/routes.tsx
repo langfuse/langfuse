@@ -155,8 +155,11 @@ export const ROUTES: Route[] = [
     title: "Topics",
     href: "/project/[projectId]/topics",
     icon: Grid2X2,
-    show: ({ session, projectId }) =>
-      projectId !== undefined && canViewTopics(session, projectId),
+    show: ({ session, organization, projectId }) =>
+      canViewTopics(
+        session,
+        organization?.projects.find((project) => project.id === projectId),
+      ),
     group: RouteGroup.Observability,
     section: RouteSection.Main,
   },
