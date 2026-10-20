@@ -41,6 +41,13 @@ project permissions. Processing additionally requires the project allowlist.
   the same saved facet state. Search actions reuse metadata-only filter analytics with
   `tableName: topics` and `isV4: false`. Query text and topic names remain
   blocked from replay by the shared search bar.
+  "Visualize as" beside the facet tabs switches results between Treemap
+  (default), Grid and Map, remembered in localStorage
+  (`TopicsResultsViewSelect.tsx`). Treemap sizes one tile per topic by trace
+  count; Grid snaps the saved map projection onto one square per trace (sampled
+  above 1,000). Both list the selected topic's traces in `TopicTraceList`, with
+  an Open in Tracing link limited to those trace IDs. Sentiment and Outcome
+  color topics by their answer label (`topic-map-colors.ts`).
   Peek defaults to the trace panel width and has its own resize preference.
   The results workspace stays mounted, including
   while a run's status is open. Execution URL parameters open progress, errors

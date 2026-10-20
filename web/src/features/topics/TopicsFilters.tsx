@@ -9,10 +9,18 @@ export function TopicsFilters({
   facets,
   selectedFacetId,
   onSelectFacet,
+  showTabs = true,
   children,
 }: TopicsFiltersProps) {
   const selectedFacet = resolveTopicFacetId(facets, selectedFacetId);
   if (!selectedFacet) return children;
+  if (!showTabs) {
+    return (
+      <div className="ph-no-capture flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        {children}
+      </div>
+    );
+  }
 
   return (
     <div className="ph-no-capture flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -50,5 +58,6 @@ type TopicsFiltersProps = {
   facets: readonly { facetId: string; name: string }[];
   selectedFacetId: string | undefined;
   onSelectFacet: (facetId: string) => void;
+  showTabs?: boolean;
   children?: ReactNode;
 };
