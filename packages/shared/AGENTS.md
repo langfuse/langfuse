@@ -153,6 +153,13 @@
   `{ maxCharacters?, onTimings? }` to `assembleTranscript`.
   The optional cap bounds `JSON.stringify(result).length`; see its README.
 
+- `src/server/traceBatch`: versioned input storage through the server barrel.
+  `putTraceBatchInputs` and `getTraceBatchInputs` share a project/trace/revision
+  key in the event bucket. The writer skips envelopes over 1,000,000 UTF-16
+  units; the reader validates the stored version and restores message dates.
+  Same-revision PUTs may overwrite. Keep old readers compatible when evolving
+  `storage-schema.ts`; schema versions and readiness revisions are independent.
+
 - `@langfuse/shared` via `src/index.ts`: default shared surface for
   cross-runtime types, zod schemas, table definitions, domain models, prompt
   helpers, eval/model-pricing helpers, product path builders, and other

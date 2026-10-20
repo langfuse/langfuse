@@ -23,6 +23,7 @@ import {
   recordDistribution,
   recordGauge,
   recordIncrement,
+  putTraceBatchInputs,
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
@@ -59,6 +60,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   recordDistribution: vi.fn(),
   recordGauge: vi.fn(),
   recordIncrement: vi.fn(),
+  putTraceBatchInputs: vi.fn(),
 }));
 
 vi.mock("../../features/topics/summarizeAssembledTrace", () => ({
@@ -93,6 +95,8 @@ vi.mock("../../features/tokenisation/async-usage", () => ({
 const originalReadEnabled = env.LANGFUSE_TRACE_BATCH_READ_ENABLED;
 const originalTranscriptMetricsEnabled =
   env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED;
+const originalTranscriptStorageEnabled =
+  env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED;
 const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
 const originalExperimentId = env.LANGFUSE_TRACE_BATCH_EXPERIMENT_ID;
 const processingSpan = trace.wrapSpanContext({
@@ -115,6 +119,11 @@ afterAll(async () => {
 beforeEach(() => {
   exporter.reset();
   env.LANGFUSE_TRACE_BATCH_READ_ENABLED = "true";
+  env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED = "false";
+  vi.mocked(putTraceBatchInputs).mockResolvedValue({
+    outcome: "stored",
+    jsonLength: 100,
+  });
   env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
   vi.mocked(getCurrentSpan).mockReturnValue(processingSpan);
   vi.spyOn(processingSpan, "setAttributes");
@@ -123,6 +132,8 @@ afterEach(() => {
   env.LANGFUSE_TRACE_BATCH_READ_ENABLED = originalReadEnabled;
   env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED =
     originalTranscriptMetricsEnabled;
+  env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED =
+    originalTranscriptStorageEnabled;
   env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
   env.LANGFUSE_TRACE_BATCH_EXPERIMENT_ID = originalExperimentId;
   vi.restoreAllMocks();
@@ -983,7 +994,111 @@ describe("trace batch queue", () => {
     }));
   });
 
+  it.each(["disabled", "stored", "too_large", "upload_failed"] as const)(
+    "preserves Topics processing when optional input storage is %s",
+    async (outcome) => {
+      env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED =
+        outcome === "disabled" ? "false" : "true";
+      const info = vi.spyOn(logger, "info");
+      if (outcome === "upload_failed")
+        vi.mocked(putTraceBatchInputs).mockRejectedValueOnce(
+          new Error("Failed to upload file to S3"),
+        );
+      if (outcome === "too_large")
+        vi.mocked(putTraceBatchInputs).mockResolvedValueOnce({
+          outcome,
+          jsonLength: 1_000_001,
+        });
+      vi.mocked(getTraceBatchEventStream).mockImplementation(
+        async function* () {
+          yield {
+            project_id: "project",
+            trace_id: "trace",
+            environment: "default",
+            span_id: "span",
+            parent_span_id: null,
+            start_time: "2026-09-11 00:00:00.000000",
+            event_ts: "2026-09-11 00:00:00.000000",
+            type: "GENERATION",
+            name: "generation",
+            input: JSON.stringify([{ role: "user", content: "private input" }]),
+            output: JSON.stringify({
+              role: "assistant",
+              content: "private output",
+            }),
+            metadata: {},
+            level: "DEFAULT",
+            status_message: null,
+            tool_definitions: {},
+            tool_calls: [],
+            tool_call_names: [],
+          };
+        },
+      );
+      const job = {
+        data: {
+          id: "storage",
+          name: QueueJobs.TraceBatch,
+          timestamp: new Date(),
+          payload: {
+            traces: [
+              {
+                projectId: "project",
+                traceId: "trace",
+                minStart: 0,
+                maxStart: 1,
+                revision: "queued-revision",
+              },
+            ],
+          },
+        },
+      } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+
+      await expect(
+        traceBatchQueueProcessor(job, undefined),
+      ).resolves.toBeDefined();
+      expect(summarizeAssembledTrace).toHaveBeenCalledTimes(1);
+      expect(
+        vi.mocked(summarizeAssembledTrace).mock.calls[0][0].transcript?.threads,
+      ).toHaveLength(1);
+      expect(putTraceBatchInputs).toHaveBeenCalledTimes(
+        outcome === "disabled" ? 0 : 1,
+      );
+      if (outcome !== "disabled") {
+        expect(putTraceBatchInputs).toHaveBeenCalledWith(
+          {
+            projectId: "project",
+            traceId: "trace",
+            revision: "queued-revision",
+          },
+          vi.mocked(summarizeAssembledTrace).mock.calls[0][0].transcript,
+        );
+        const storageSpan = exporter
+          .getFinishedSpans()
+          .find((span) => span.name === "trace-batch-store-inputs");
+        expect(
+          storageSpan?.attributes["langfuse.trace_batch.input_storage.outcome"],
+        ).toBe(outcome);
+        if (outcome === "upload_failed")
+          expect(storageSpan?.status.code).toBe(SpanStatusCode.ERROR);
+      }
+      if (outcome === "too_large") {
+        expect(info).toHaveBeenCalledWith("Trace batch input storage skipped", {
+          projectId: "project",
+          traceId: "trace",
+          revision: "queued-revision",
+          reason: "input_too_large",
+          jsonLength: 1_000_001,
+          limit: 1_000_000,
+        });
+        expect(JSON.stringify(info.mock.calls)).not.toContain("private input");
+        expect(JSON.stringify(info.mock.calls)).not.toContain("private output");
+      }
+    },
+  );
+
   it("summarizes only the saved rule's facets and skips traces outside its sampling", async () => {
+    env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED = "true";
     vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
       for (const projectId of ["picked", "sampled-out"])
         yield {
@@ -1028,7 +1143,7 @@ describe("trace batch queue", () => {
             traceId: "trace",
             minStart: 0,
             maxStart: 1,
-            revision: "r",
+            revision: `revision-${projectId}`,
           })),
         },
       },
@@ -1044,6 +1159,11 @@ describe("trace batch queue", () => {
           input.facets.map(({ id }) => id),
         ]),
     ).toEqual([["picked", ["issues"]]]);
+    expect(putTraceBatchInputs).toHaveBeenCalledTimes(1);
+    expect(putTraceBatchInputs).toHaveBeenCalledWith(
+      { projectId: "picked", traceId: "trace", revision: "revision-picked" },
+      expect.objectContaining({ threads: expect.any(Array) }),
+    );
     vi.mocked(listTopicFacets).mockResolvedValue([]);
     vi.mocked(listTopicRules).mockResolvedValue([]);
   });
@@ -1112,6 +1232,7 @@ describe("trace batch queue", () => {
   });
 
   it("skips projects without enabled Topics models and pauses a project whose connection is rejected", async () => {
+    env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED = "true";
     const rows = [
       ["off", "trace-1"],
       ["on", "trace-1"],
@@ -1180,6 +1301,12 @@ describe("trace batch queue", () => {
       "on",
     ]);
     expect(listTopicFacets).toHaveBeenCalledExactlyOnceWith("on");
+    expect(
+      vi.mocked(putTraceBatchInputs).mock.calls.map(([reference]) => reference),
+    ).toEqual([
+      { projectId: "on", traceId: "trace-1", revision: "r" },
+      { projectId: "on", traceId: "trace-2", revision: "r" },
+    ]);
     expect(
       vi
         .mocked(summarizeAssembledTrace)

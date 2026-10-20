@@ -293,6 +293,51 @@ rather than accepting partial results. Beyond the dispatcher's weight budgets
 and trace exclusion, this does not cap observation count, query memory or
 dispatcher snapshot memory.
 
+## Optional input storage
+
+`LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED=false` controls writes only.
+When enabled, `storeInputs.ts` captures the assembled transcript for traces that
+pass the existing Topics settings and rule sampling gate. It runs inside the
+Topics concurrency limit and is awaited before in-memory summarization. It does
+not capture every trace admitted by experimental batching.
+
+The shared `server/traceBatch` module uses the event-upload bucket and credentials:
+
+```text
+<prefix>transcripts/trace/<hash>/<projectId>/<safeTraceId>/<revision>.json
+```
+
+`hash` is the first three hex characters of SHA-256 over
+`JSON.stringify([projectId, traceId])`. Identifiers use the shared blob-key
+escaping helpers. The revision comes from the queued readiness entry; a new
+revision uses another key, while an ordinary PUT of the same revision can replace
+its object. A reader needs all three identifiers; no latest-revision lookup or
+durable job reference is stored.
+
+The envelope is `{ schemaVersion: 1, transcript: Transcript | null }`, with
+message dates serialized as ISO strings. The reader validates nested content and
+restores dates. Invalid JSON, unsupported versions and download errors propagate;
+only an explicitly stored null transcript reads as null. Compatible optional
+fields may be added to v1. For a breaking change, retain the old schema, deploy
+readers accepting both versions, then enable the new writer. Schema version and
+readiness revision are independent.
+
+Serialize the full envelope once. Skip the entire upload if `json.length` exceeds
+1,000,000; do not truncate. This measures UTF-16 code units, not UTF-8 bytes, and
+does not bound assembly memory. Size skips emit an info log with identifiers,
+actual length and limit. StorageService owns upload retries and logs; exhausted
+failures mark the `trace-batch-store-inputs` span as failed. Neither outcome stops
+Topics. The span records outcome and JSON length without transcript content;
+there are no additional outcome counters.
+
+Deploy with writes disabled. Before enabling, configure and verify an enabled
+bucket lifecycle rule for the full `<prefix>transcripts/trace/` path, matching
+span-eval retention, including noncurrent versions where applicable. A rule for
+`evals/` alone does not cover this path. Enable on a small worker rollout and
+check storage spans, size-skip logs, S3 failures and Topics latency. Roll back by
+disabling writes. Existing Topics processing continues to use in-memory inputs;
+future consumers that require files must schedule only after a successful PUT.
+
 ## Per-trace transcripts
 
 The reader orders only by project ID and trace ID. The worker keeps
@@ -300,7 +345,8 @@ one trace's observations, assembles it when the pair changes, and flushes the la
 trace only after a successful end of stream. A stream error discards the current
 partial trace; earlier completed traces have already emitted samples. Each trace
 uses the shared depth-first ordering and transcript assembler. Transcripts are
-ephemeral: neither logs nor job results contain their content.
+ephemeral unless optional input capture is enabled. Neither logs nor job results
+contain their content.
 
 Completion means all rows returned for that pair's query window, not that no late
 events can arrive. Event versions follow the current ClickHouse merge state;

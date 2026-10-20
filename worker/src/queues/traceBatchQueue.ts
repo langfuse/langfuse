@@ -15,6 +15,7 @@ import {
   type QueueName,
   type TQueueJobTypes,
   type Transcript,
+  type TraceBatchInputReference,
 } from "@langfuse/shared/src/server";
 import {
   getEnabledTopicsModels,
@@ -41,6 +42,7 @@ import { isRetryableClickhouseInsertError } from "../services/ClickhouseWriter";
 import { summarizeAssembledTrace } from "../features/topics/summarizeAssembledTrace";
 import { enqueueTopicsAutomation } from "../features/topics/topicsAutomation";
 import { recordTraceBatchTranscript } from "../features/traceBatching/traceBatchTranscript";
+import { storeInputs } from "../features/traceBatching/storeInputs";
 
 type TraceBatchObservation = Observation & {
   eventTimestamp: string;
@@ -135,6 +137,7 @@ async function summarizeTraceBatch(
   transcript: Transcript | null,
   topics: TopicsBatchProjects,
   jobEnqueuedAt: Date,
+  inputReference: TraceBatchInputReference | undefined,
 ): Promise<TraceOutcome> {
   const first = observations[0];
   const traceId = first?.traceId;
@@ -165,6 +168,7 @@ async function summarizeTraceBatch(
       })
     )
       return { outcome: "disabled", rows };
+    if (inputReference) await storeInputs(inputReference, transcript);
     const result = await summarizeAssembledTrace({
       projectId: first.projectId,
       traceId,
@@ -324,6 +328,16 @@ export const traceBatchQueueProcessor: Processor<
       return { discarded: "expired" };
     }
     const batch = event.payload;
+    const inputReferences = new Map(
+      batch.traces.map((trace) => [
+        JSON.stringify([trace.projectId, trace.traceId]),
+        {
+          projectId: trace.projectId,
+          traceId: trace.traceId,
+          revision: trace.revision,
+        },
+      ]),
+    );
     const topicsOutcomes: TraceOutcome[] = [];
     let droppedRows = new Set<TopicSummary>();
     const topics = new TopicsBatchProjects(
@@ -424,6 +438,12 @@ export const traceBatchQueueProcessor: Processor<
                   assembled.transcript,
                   topics,
                   event.timestamp,
+                  inputReferences.get(
+                    JSON.stringify([
+                      observations[0]?.projectId,
+                      observations[0]?.traceId,
+                    ]),
+                  ),
                 ),
               );
           });
