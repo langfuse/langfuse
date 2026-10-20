@@ -19,8 +19,8 @@ import {
   Plus,
   Settings,
   Sun,
-  type LucideIcon,
-} from "lucide-react";
+  type IconComponent,
+} from "@langfuse/icons";
 import { useTheme } from "next-themes";
 import { Fragment, useEffect, memo, useState } from "react";
 import { useSession } from "next-auth/react";
@@ -97,7 +97,7 @@ export const getSearchAnalytics = (search: string) => ({
 
 const RECENTS_LIMIT = 4;
 
-const RECENT_ICON_BY_TYPE: Record<string, LucideIcon> = {
+const RECENT_ICON_BY_TYPE: Record<string, IconComponent> = {
   create_action: Plus,
   dashboard: LayoutDashboard,
   project: Grid2X2,
@@ -146,7 +146,7 @@ function RecentGroup({
   onNavigate,
 }: {
   recents: RecentEntry[];
-  iconByUrl: Map<string, LucideIcon | undefined>;
+  iconByUrl: Map<string, IconComponent | undefined>;
   onNavigate: (entry: RecentEntry) => void;
 }) {
   if (recents.length === 0) return null;
@@ -175,7 +175,7 @@ function RecentItem({
   onNavigate,
 }: {
   entry: RecentEntry;
-  icon: LucideIcon | undefined;
+  icon: IconComponent | undefined;
   onNavigate: (entry: RecentEntry) => void;
 }) {
   const router = useRouter();
@@ -193,7 +193,7 @@ function RecentItem({
 
   return (
     <CommandItem value={`recent:${entry.url}`} onSelect={handleSelect}>
-      {Icon && <Icon className="icon-base" />}
+      {Icon && <Icon size="base" />}
       {entry.title}
     </CommandItem>
   );
@@ -229,7 +229,7 @@ function CreateActionItem({
       keywords={action.keywords}
       onSelect={handleSelect}
     >
-      <Plus className="icon-base" />
+      <Plus size="base" />
       {action.title}
     </CommandItem>
   );
@@ -253,7 +253,7 @@ function AssistantItem({ onDone }: { onDone: () => void }) {
       keywords={["assistant", "ai", "agent", "chat", "new chat", "ask"]}
       onSelect={handleSelect}
     >
-      <BotMessageSquare className="icon-base" />
+      <BotMessageSquare size="base" />
       Ask Assistant
       <CommandShortcut keys={["Mod", "I"]} variant="subtle" />
     </CommandItem>
@@ -281,7 +281,7 @@ function ThemeItem({ onDone }: { onDone: () => void }) {
       keywords={["theme", "dark", "light", "mode", "appearance"]}
       onSelect={handleSelect}
     >
-      <Icon className="icon-base" />
+      <Icon size="base" />
       Switch to {nextTheme} theme
     </CommandItem>
   );
@@ -294,7 +294,7 @@ function MainNavigationGroup({
   onNavigate,
   onDone,
 }: {
-  navItems: Array<{ title: string; url: string; icon?: LucideIcon }>;
+  navItems: Array<{ title: string; url: string; icon?: IconComponent }>;
   createActions: CreateActions;
   showCreateActions: boolean;
   onNavigate: (entry: RecentEntry) => void;
@@ -335,7 +335,7 @@ function MainNavigationItem({
   item,
   onNavigate,
 }: {
-  item: { title: string; url: string; icon?: LucideIcon };
+  item: { title: string; url: string; icon?: IconComponent };
   onNavigate: (entry: RecentEntry) => void;
 }) {
   const router = useRouter();
@@ -357,7 +357,7 @@ function MainNavigationItem({
       keywords={[item.title]}
       onSelect={handleSelect}
     >
-      {item.icon && <item.icon className="icon-base" />}
+      {item.icon && <item.icon size="base" />}
       {item.title}
     </CommandItem>
   );
@@ -398,7 +398,7 @@ function ProjectsGroup({
               });
             }}
           >
-            <Grid2X2 className="icon-base" />
+            <Grid2X2 size="base" />
             {item.title}
           </CommandItem>
         ))}
@@ -461,7 +461,7 @@ function DashboardsGroup({
               onNavigate({ title: dashboard.name, url, type: "dashboard" });
             }}
           >
-            <LayoutDashboard className="icon-base" />
+            <LayoutDashboard size="base" />
             {dashboard.name}
           </CommandItem>
         ))}
@@ -513,7 +513,7 @@ function ProjectSettingsGroup({
               });
             }}
           >
-            <Settings className="icon-base" />
+            <Settings size="base" />
             {item.title}
           </CommandItem>
         ))}
@@ -565,7 +565,7 @@ function OrganizationSettingsGroup({
               });
             }}
           >
-            <Settings className="icon-base" />
+            <Settings size="base" />
             {item.title}
           </CommandItem>
         ))}
@@ -616,7 +616,7 @@ function AccountSettingsGroup({
               });
             }}
           >
-            <Settings className="icon-base" />
+            <Settings size="base" />
             {item.title}
           </CommandItem>
         ))}
@@ -747,7 +747,7 @@ function CommandMenuComponent({
                 handleNavigate();
               }}
             >
-              <ListTree className="icon-base" />
+              <ListTree size="base" />
               {idNavigationItem.title}
             </CommandItem>
           </CommandGroup>

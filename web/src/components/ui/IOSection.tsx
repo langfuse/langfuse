@@ -5,8 +5,8 @@ import {
   ChevronRight,
   Copy,
   Info,
-  type LucideIcon,
-} from "lucide-react";
+  type IconComponent,
+} from "@langfuse/icons";
 import Link from "next/link";
 import { Button } from "@/src/components/ui/button";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
@@ -17,7 +17,7 @@ import { cn } from "@/src/utils/tailwind";
 
 /** An icon button in the section header. */
 export type IOSectionAction = {
-  icon: LucideIcon;
+  icon: IconComponent;
   /** Tooltip and accessible name. */
   label: string;
   onClick: () => void;
@@ -53,7 +53,7 @@ export type IOSectionTone = "danger" | "warning" | "muted" | "neutral";
 
 export type IOSectionProps = {
   title: string;
-  titleIcon?: LucideIcon;
+  titleIcon?: IconComponent;
   /** Count badge after the title. */
   count?: number;
   /** Marks a beta feature with a badge after the title. */
@@ -178,15 +178,9 @@ export function IOSection({
           aria-label={`${isCollapsed ? "Expand" : "Collapse"} ${title}`}
           onClick={toggleCollapsed}
         >
-          <Caret
-            className="icon-base text-icon-foreground shrink-0"
-            aria-hidden
-          />
+          <Caret size="base" color="default" aria-hidden />
           {TitleIcon ? (
-            <TitleIcon
-              className="icon-base text-icon-foreground shrink-0"
-              aria-hidden
-            />
+            <TitleIcon size="base" color="default" aria-hidden />
           ) : null}
           {title}
           {count !== undefined ? (
@@ -260,12 +254,11 @@ function IOSectionControls({
           onClick={action.onClick}
           className={HEADER_CONTROL_CLASSES}
         >
-          <action.icon
-            className={cn(
-              "icon-base",
-              action.active ? "text-primary" : "text-icon-foreground",
-            )}
-          />
+          {action.active ? (
+            <action.icon size="base" __rawClassName="text-primary" />
+          ) : (
+            <action.icon size="base" color="default" />
+          )}
         </Button>
       ))}
       {toggle ? (
@@ -295,9 +288,9 @@ function IOSectionControls({
           className={HEADER_CONTROL_CLASSES}
         >
           {isCopied ? (
-            <Check className="icon-base text-icon-foreground" />
+            <Check size="base" color="default" />
           ) : (
-            <Copy className="icon-base text-icon-foreground" />
+            <Copy size="base" color="default" />
           )}
         </Button>
       ) : null}
@@ -312,11 +305,7 @@ function StatusLabel({ status }: { status: IOSectionStatus }) {
   }
   return (
     <div className="flex items-center gap-1 pr-2">
-      {status.kind === "saving" ? (
-        <Spinner size="xxs" />
-      ) : (
-        <Check className="icon-sm" />
-      )}
+      {status.kind === "saving" ? <Spinner size="xxs" /> : <Check size="sm" />}
       <span className="text-muted-foreground text-xs">{status.text}</span>
     </div>
   );
@@ -357,7 +346,7 @@ function IOSectionInfoButton({ info }: { info: IOSectionInfo }) {
           className="text-muted-foreground hover:text-foreground"
           {...getTriggerProps()}
         >
-          <Info className="icon-base" />
+          <Info size="base" />
         </button>
       )}
     </HoverCard>

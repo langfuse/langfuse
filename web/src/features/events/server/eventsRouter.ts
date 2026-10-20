@@ -12,6 +12,7 @@ import {
   protectedGetSessionProcedure,
 } from "@/src/server/api/trpc";
 import {
+  isoDateTime,
   type OrderByState,
   type SkillsAvailable,
   type SkillsResourceLoaded,
@@ -555,8 +556,8 @@ export const eventsRouter = createTRPCRouter({
       zodSchema.object({
         projectId: zodSchema.string(),
         traceId: zodSchema.string(),
-        minStartTime: zodSchema.iso.datetime({ offset: true }),
-        maxStartTime: zodSchema.iso.datetime({ offset: true }),
+        minStartTime: isoDateTime({ offset: true }),
+        maxStartTime: isoDateTime({ offset: true }),
       }),
     )
     .query(async ({ input }): Promise<Required<AgentGraphDataResponse>[]> => {

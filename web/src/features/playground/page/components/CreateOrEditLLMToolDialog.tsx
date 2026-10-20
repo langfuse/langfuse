@@ -1,7 +1,7 @@
 import React, { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "@langfuse/icons";
 import * as z from "zod";
 
 import { Button } from "@/src/components/ui/button";
@@ -229,7 +229,7 @@ export const CreateOrEditLLMToolDialog: React.FC<CreateOrEditLLMToolDialog> = (
                           className="flex items-center"
                         >
                           See JSON Schema examples here
-                          <ArrowUpRight className="icon-sm" />
+                          <ArrowUpRight size="sm" />
                         </a>
                       </FormDescription>
                       <FormControl>

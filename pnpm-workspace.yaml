@@ -96,6 +96,9 @@ allowBuilds:
   ssh2: true
   vue-demi: true
 overrides:
+  # Storybook's compatible Vite adapter pins an older Next.js env prerelease.
+  # Keep its env loader aligned with the app until the adapter updates its pin.
+  "vite-plugin-storybook-nextjs@3.3.2>@next/env": 16.4.2
   # React Email requires html-to-text ^9, which pulls in vulnerable deepmerge
   # (CVE-2026-93753). Version 10.0.1 replaces it with patched deepmerge-ts.
   "@react-email/render>html-to-text": 10.0.1
@@ -105,11 +108,10 @@ overrides:
   browserslist: 4.28.7
   postcss: 8.5.25
   esbuild: "0.28.1"
-  # @ai-sdk/provider-utils depends on undici ^6.28.0 and resolves to the
-  # vulnerable 6.28.0; 6.28.1 is the last release of the 6.x line.
-  "undici@6": 6.28.1
-  "undici@7": 7.29.1
-  zod: 4.3.6
+  # Keep both installed majors on their security-patched releases.
+  "undici@6": 6.29.1
+  "undici@7": 7.30.1
+  zod: 4.6.6
   nanoid: 3.3.18
   katex: ^0.16.21
   tar-fs: ^2.1.2
@@ -193,13 +195,32 @@ publicHoistPattern:
   - "*prisma*"
   - "@aws-sdk/client-s3"
 minimumReleaseAgeExclude:
+  # Next.js security upgrade; eligible after 2026-10-20 20:58 UTC.
+  - next@16.4.2
+  - "@next/env@16.4.2"
+  - "@next/eslint-plugin-next@16.4.2"
+  - "@next/swc-darwin-arm64@16.4.2"
+  - "@next/swc-darwin-x64@16.4.2"
+  - "@next/swc-linux-arm64-gnu@16.4.2"
+  - "@next/swc-linux-arm64-musl@16.4.2"
+  - "@next/swc-linux-x64-gnu@16.4.2"
+  - "@next/swc-linux-x64-musl@16.4.2"
+  - "@next/swc-win32-arm64-msvc@16.4.2"
+  - "@next/swc-win32-x64-msvc@16.4.2"
+  # Companion toolchain upgrade; eligible after 2026-10-21 19:10 UTC.
+  - turbo@2.11.9
+  - eslint-config-turbo@2.11.9
+  - eslint-plugin-turbo@2.11.9
+  - "@turbo/darwin-64@2.11.9"
+  - "@turbo/darwin-arm64@2.11.9"
+  - "@turbo/linux-64@2.11.9"
+  - "@turbo/linux-arm64@2.11.9"
+  - "@turbo/windows-64@2.11.9"
+  - "@turbo/windows-arm64@2.11.9"
+  # Undici security fixes; eligible after 2026-10-20 14:20 UTC.
+  - undici@6.29.1
+  - undici@7.30.1
   # qs security fix; eligible after 2026-10-19 22:06 UTC.
   - qs@6.16.1
-  # AI SDK Decisions API (`experimental_decide`); eligible after 2026-10-12 01:47 UTC.
-  - ai@7.0.130
-  - "@ai-sdk/openai@4.0.86"
-  - "@ai-sdk/gateway@4.0.106"
-  - "@ai-sdk/provider@4.0.24"
-  - "@ai-sdk/provider-utils@5.0.56"
   # Handlebars security fixes; eligible after 2026-10-10 22:37 UTC.
   - handlebars@4.7.10

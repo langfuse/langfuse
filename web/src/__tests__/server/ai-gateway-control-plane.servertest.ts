@@ -717,7 +717,7 @@ describe("AI gateway control plane", () => {
     expect(remainingConnections.nextCursor).toBeNull();
   });
 
-  it("cursor-paginates gateway keys", async () => {
+  it("offset-paginates gateway keys with a total count", async () => {
     const { caller, org } = await prepare();
 
     for (const name of ["First", "Second", "Third"]) {
@@ -733,14 +733,21 @@ describe("AI gateway control plane", () => {
       limit: 2,
     });
     expect(firstKeys.data).toHaveLength(2);
-    expect(firstKeys.nextCursor).toBeTruthy();
+    expect(firstKeys.totalCount).toBe(3);
     const remainingKeys = await caller.aiGateway.listApiKeys({
       orgId: org.id,
+      page: 1,
       limit: 2,
-      cursor: firstKeys.nextCursor ?? undefined,
     });
     expect(remainingKeys.data).toHaveLength(1);
-    expect(remainingKeys.nextCursor).toBeNull();
+    expect(remainingKeys.totalCount).toBe(3);
+    expect(
+      new Set(
+        [...firstKeys.data, ...remainingKeys.data].map(
+          ({ apiKey }) => apiKey.note,
+        ),
+      ),
+    ).toEqual(new Set(["First", "Second", "Third"]));
   });
 
   it("rejects gateway page limits above 100", async () => {
@@ -823,6 +830,57 @@ describe("AI gateway control plane", () => {
     expect(result.ingestion_mode).toBe(rawClaims.ingestion_mode);
     expect(result.ingestion_mode).toBe("full");
     expect(result.ingestion?.expires_at).toBe(ingestionClaims.exp);
+  });
+
+  it("resolves NONE ingestion mode on self-hosted and rejects it on cloud", async () => {
+    configureGatewayJwtSigning();
+    const { caller, org, project } = await prepare();
+    const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    try {
+      Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined });
+      await caller.aiGateway.updateConfig({
+        orgId: org.id,
+        defaultIngestionProjectId: project.id,
+        ingestionMode: "NONE",
+      });
+      await caller.aiGateway.createConnection({
+        orgId: org.id,
+        name: "OpenAI",
+        provider: "OPENAI",
+        credential: "sk-test-openai",
+      });
+      const gatewayKey = await caller.aiGateway.createApiKey({
+        orgId: org.id,
+        metadata: {},
+      });
+
+      const result = await authenticateRequest({
+        fastHashedSecretKey: createShaHash(gatewayKey.secretKey, env.SALT),
+        apiFormat: "openai.responses",
+        model: "gpt-4o",
+      });
+      expect(result.ingestion_mode).toBe("none");
+
+      Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU" });
+      await expect(
+        caller.aiGateway.updateConfig({
+          orgId: org.id,
+          defaultIngestionProjectId: project.id,
+          ingestionMode: "NONE",
+        }),
+      ).rejects.toThrow("only available on self-hosted deployments");
+      await expect(
+        caller.aiGateway.updateConfig({
+          orgId: org.id,
+          defaultIngestionProjectId: project.id,
+          ingestionMode: "USAGE",
+        }),
+      ).resolves.toMatchObject({ ingestionMode: "USAGE" });
+    } finally {
+      Object.assign(env, {
+        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalCloudRegion,
+      });
+    }
   });
 
   it("routes unprefixed models by provider and rejects unknown models", async () => {

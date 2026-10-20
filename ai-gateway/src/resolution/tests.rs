@@ -206,7 +206,12 @@ async fn fetches_models_from_the_control_plane() {
 
     let body = web
         .control_plane()
-        .models(GATEWAY_KEY, ApiFormat::OpenAiResponses, REQUEST_ID)
+        .models(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiResponses,
+            REQUEST_ID,
+            &mut |_| Ok(()),
+        )
         .await
         .unwrap();
     assert_eq!(
@@ -237,7 +242,12 @@ async fn model_catalogs_have_a_larger_response_limit_than_resolution() {
     assert!(matches!(resolution, Err(ResolutionError::ResponseTooLarge)));
 
     let models = control_plane
-        .models(GATEWAY_KEY, ApiFormat::OpenAiResponses, REQUEST_ID)
+        .models(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiResponses,
+            REQUEST_ID,
+            &mut |_| Ok(()),
+        )
         .await
         .unwrap();
     assert_eq!(models.len(), 300 * 1024);
@@ -721,7 +731,7 @@ async fn rejects_incompatible_or_incomplete_execution_contexts() {
             json!({"nested": {"key": "value"}}),
         ),
         ("/attribution/key_metadata", json!({"null": null})),
-        ("/ingestion_mode", json!("none")),
+        ("/ingestion_mode", json!("off")),
         ("/ingestion/access_token", json!("")),
         ("/ingestion/token_type", json!("Basic")),
         ("/ingestion/expires_at", json!(NOW)),

@@ -8,7 +8,7 @@ import { Button } from "@/src/components/ui/button";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import { type MediaReturnType } from "@/src/features/media";
-import { Check, Copy, type LucideIcon } from "lucide-react";
+import { Check, Copy, type IconComponent } from "@langfuse/icons";
 import { type IOSectionAction } from "@/src/components/ui/IOSection";
 import { useMemo, useState } from "react";
 import { type z } from "zod";
@@ -71,9 +71,9 @@ export function MarkdownJsonViewHeader({
             className="text-muted-foreground hover:text-foreground hover:bg-transparent"
           >
             {isCopied ? (
-              <Check className="icon-base text-icon-foreground" />
+              <Check size="base" color="default" />
             ) : (
-              <Copy className="icon-base text-icon-foreground" />
+              <Copy size="base" color="default" />
             )}
           </Button>
         )}
@@ -145,7 +145,7 @@ export function MarkdownJsonView({
 }: {
   content?: unknown;
   title?: string;
-  titleIcon?: LucideIcon;
+  titleIcon?: IconComponent;
   className?: string;
   audio?: OpenAIOutputAudioType;
   media?: MediaReturnType[];

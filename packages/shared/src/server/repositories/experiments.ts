@@ -359,7 +359,7 @@ export const getExperimentMetricsFromEvents = async (props: {
 
   const { projectId, experimentIds } = props;
   const builder = getClickhouseKysely()
-    .selectFrom("events_core as e")
+    .selectFrom("events as e")
     .select((eb) => [
       "e.experiment_id as experiment_id",
       eb.fn.sum("e.total_cost").as("total_cost"),

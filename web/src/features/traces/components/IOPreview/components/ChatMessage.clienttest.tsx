@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { Pencil } from "lucide-react";
+import { Pencil } from "@langfuse/icons";
 import { vi } from "vitest";
 
 const { copyTextToClipboard } = vi.hoisted(() => ({

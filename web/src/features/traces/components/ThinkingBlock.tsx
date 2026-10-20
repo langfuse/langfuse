@@ -1,6 +1,6 @@
 /* eslint-disable @repo/component-file-structure */
 import { useState } from "react";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight } from "@langfuse/icons";
 import { cn } from "@/src/utils/tailwind";
 
 interface ThinkingBlockProps {
@@ -26,8 +26,10 @@ export function ThinkingBlock({
         aria-expanded={expanded}
       >
         <ChevronRight
-          className={cn(
-            "text-foreground-tertiary icon-sm mt-0.5 shrink-0 translate-y-px transition-transform",
+          size="sm"
+          color="tertiary"
+          __rawClassName={cn(
+            "mt-0.5 translate-y-px transition-transform",
             expanded && "rotate-90",
           )}
         />
@@ -69,8 +71,10 @@ export function RedactedThinkingBlock({
         aria-expanded={expanded}
       >
         <ChevronRight
-          className={cn(
-            "text-foreground-tertiary icon-sm mt-0.5 shrink-0 translate-y-px transition-transform",
+          size="sm"
+          color="tertiary"
+          __rawClassName={cn(
+            "mt-0.5 translate-y-px transition-transform",
             expanded && "rotate-90",
           )}
         />

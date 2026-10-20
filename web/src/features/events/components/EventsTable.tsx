@@ -109,7 +109,7 @@ import {
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { BreakdownTooltip } from "@/src/features/traces";
-import { InfoIcon, LightbulbIcon } from "lucide-react";
+import { InfoIcon, LightbulbIcon } from "@langfuse/icons";
 import { ProvidedModelNameCell } from "@/src/features/models";
 import { type RowSelectionState } from "@tanstack/react-table";
 import { TablePeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
@@ -1243,7 +1243,7 @@ export default function ObservationsEventsTable({
       label: "Evaluate",
       description: "Run evaluations on selected observations.",
       customDialog: true,
-      icon: <LightbulbIcon className="icon-base sm:mr-2" />,
+      icon: <LightbulbIcon size="base" __rawClassName="sm:mr-2" />,
       disabled: isSelectAllCountUnavailable,
       disabledReason: selectAllCountUnavailableReason,
       accessCheck: {
@@ -1375,7 +1375,7 @@ export default function ObservationsEventsTable({
           >
             <div className="flex items-center gap-1">
               <span>{usdFormatter(value)}</span>
-              <InfoIcon className="icon-sm" />
+              <InfoIcon size="sm" />
             </div>
           </BreakdownTooltip>
         );

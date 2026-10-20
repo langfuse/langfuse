@@ -15,6 +15,7 @@ import {
   batchProjectCleaners,
   batchDataRetentionCleaners,
   mediaRetentionCleaner,
+  inAppAgentRetentionCleaner,
   batchProjectMediaCleaner,
   batchProjectBlobCleaner,
   batchTraceDeletionCleaner,
@@ -68,6 +69,7 @@ const runDrainAndClose = async () => {
 
   // Stop media retention cleaner
   mediaRetentionCleaner?.stop();
+  inAppAgentRetentionCleaner?.stop();
 
   // Stop batch project media cleaner
   batchProjectMediaCleaner?.stop();
@@ -116,6 +118,11 @@ const runDrainAndClose = async () => {
   // Flush all pending writes to Clickhouse AFTER closing ingestion queue worker that is writing to it
   await ClickhouseWriter.shutdownAll();
   logger.info("Clickhouse writer has been shut down.");
+
+  await Promise.all([
+    inAppAgentRetentionCleaner?.drain(5_000),
+    inAppAgentIntegrityRunner?.drain(5_000),
+  ]);
 
   // Closes the shared client and every per-queue client in one pass. Each
   // queue holds its own client; without this they stay connected, retry

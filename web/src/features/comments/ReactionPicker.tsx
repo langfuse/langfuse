@@ -5,7 +5,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { SmilePlusIcon } from "lucide-react";
+import { SmilePlusIcon } from "@langfuse/icons";
 import { useState } from "react";
 import { EmojiPicker } from "@ferrucc-io/emoji-picker";
 
@@ -30,7 +30,7 @@ export function ReactionPicker({
           className="h-6 gap-1 px-1.5 text-xs opacity-50 transition-opacity hover:opacity-100"
           disabled={disabled}
         >
-          <SmilePlusIcon className="icon-base text-icon-foreground" />
+          <SmilePlusIcon size="base" color="default" />
         </Button>
       </PopoverTrigger>
       <PopoverContent

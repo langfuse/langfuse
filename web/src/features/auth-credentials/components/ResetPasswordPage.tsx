@@ -16,7 +16,7 @@ import { Input } from "@/src/components/ui/input";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { signIn, useSession } from "next-auth/react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "@langfuse/icons";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import { RequestResetPasswordEmailButton } from "@/src/features/auth-credentials/components/ResetPasswordButton";
@@ -213,7 +213,11 @@ export function ResetPasswordPage({
             <div className="mt-2 flex justify-center">
               <Button asChild variant="ghost">
                 <Link href="/auth/sign-in">
-                  <ArrowLeft className="icon-base text-icon-foreground mr-2" />
+                  <ArrowLeft
+                    size="base"
+                    color="default"
+                    __rawClassName="mr-2"
+                  />
                   Back to sign in
                 </Link>
               </Button>

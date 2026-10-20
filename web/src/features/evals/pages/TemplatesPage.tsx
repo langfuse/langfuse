@@ -3,7 +3,7 @@ import { useRouter } from "next/router";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { Lock, Plus } from "lucide-react";
+import { Lock, Plus } from "@langfuse/icons";
 import EvalsTemplateTable from "@/src/features/evals/components/eval-templates-table";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { getEvalsTabs, EVALS_TABS } from "@/src/features/navigation";
@@ -58,9 +58,9 @@ export default function TemplatesPage() {
                 }
               >
                 {hasWriteAccess ? (
-                  <Plus className="icon-base text-icon-foreground mr-2" />
+                  <Plus size="base" color="default" __rawClassName="mr-2" />
                 ) : (
-                  <Lock className="icon-base text-icon-foreground mr-2" />
+                  <Lock size="base" color="default" __rawClassName="mr-2" />
                 )}
                 Custom Evaluator
               </Link>

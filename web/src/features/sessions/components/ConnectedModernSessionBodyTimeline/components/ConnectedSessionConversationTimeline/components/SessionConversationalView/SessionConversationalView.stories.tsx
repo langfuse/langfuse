@@ -12,6 +12,7 @@ import {
 } from "@/src/features/sessions/hooks/useSessionConversationTimelineController";
 import { getSessionConversationEntries } from "../../fns/getSessionConversationEntries";
 import { type Observation } from "@langfuse/shared";
+import { useDebounce } from "@/src/hooks/useDebounce";
 
 type TraceProps = ComponentProps<
   typeof SessionConversationalView
@@ -2306,6 +2307,7 @@ function SessionConversationalViewStory({
   viewportWidth,
   pageOffset = 0,
   delayedLoad = false,
+  delayedSearch = false,
 }: {
   workflowTraces?: WorkflowFixture[];
   transcriptTraces?: TraceProps[];
@@ -2317,9 +2319,12 @@ function SessionConversationalViewStory({
   viewportWidth?: number;
   pageOffset?: number;
   delayedLoad?: boolean;
+  delayedSearch?: boolean;
 }) {
   const [transcriptsLoaded, setTranscriptsLoaded] = useState(!delayedLoad);
   const [search, setSearch] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
+  const applySearch = useDebounce(setAppliedSearch, 500, false);
   const [collapsedTraceIds, setCollapsedTraceIds] = useState<Set<string>>(
     new Set(),
   );
@@ -2429,6 +2434,8 @@ function SessionConversationalViewStory({
   }
   return (
     <div
+      role="group"
+      aria-label="Session workspace"
       className="@container/session-workspace relative flex h-screen min-w-[320px]"
       style={{
         height:
@@ -2451,13 +2458,18 @@ function SessionConversationalViewStory({
       <SessionConversationalView
         state="loaded"
         search={search}
-        searchQuery={searchQueryOverride ?? search.trim()}
+        searchQuery={
+          searchQueryOverride ?? (delayedSearch ? appliedSearch : search.trim())
+        }
         isSearchPending={
           isSearchPending ||
           (searchQueryOverride !== undefined &&
             search.trim() !== searchQueryOverride)
         }
-        onSearchChange={setSearch}
+        onSearchChange={(value) => {
+          setSearch(value);
+          if (delayedSearch) applySearch(value.trim());
+        }}
         expandedTraceIds={
           new Set(
             entries
@@ -3190,7 +3202,11 @@ export const VirtualizedNavigation = meta.story({
 
 export const SearchThreadNavigation = meta.story({
   name: "(Test) Filtered Thread Indices And Individual Tools",
-  args: { transcriptTraces: navigationTraces, viewportHeight: 480 },
+  args: {
+    transcriptTraces: navigationTraces,
+    viewportHeight: 480,
+    delayedSearch: true,
+  },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const sidebar = within(canvas.getByRole("complementary"));
@@ -3200,7 +3216,7 @@ export const SearchThreadNavigation = meta.story({
       sidebar.queryByRole("button", { name: /^9\.1/ }),
     ).not.toBeInTheDocument();
     await userEvent.click(
-      sidebar.getByRole("button", { name: "Assistant message" }),
+      await sidebar.findByRole("button", { name: "Assistant message" }),
     );
     await expectNavigation(
       canvasElement,
@@ -3210,6 +3226,11 @@ export const SearchThreadNavigation = meta.story({
     );
     await userEvent.clear(search);
     await userEvent.type(search, "save");
+    await waitFor(() =>
+      expect(
+        sidebar.queryByRole("button", { name: "Assistant message" }),
+      ).not.toBeInTheDocument(),
+    );
     const header = await sidebar.findByRole("button", {
       name: /^9\.2 Navigation turn 9/,
     });
@@ -3222,11 +3243,31 @@ export const SearchThreadNavigation = meta.story({
       "2:4",
     );
     await userEvent.clear(search);
+    await new Promise((resolve) => window.setTimeout(resolve, 700));
     await waitFor(
       () =>
         expect(
           sidebar.getByRole("button", { name: /^9\.2 Navigation turn 9/ }),
         ).toHaveAttribute("aria-current", "true"),
+      { timeout: 3_000 },
+    );
+    await userEvent.type(search, "no matching transcript");
+    await sidebar.findByText("No matching turns");
+    await userEvent.clear(search);
+    await waitFor(
+      () => {
+        const active = sidebar.getByRole("button", {
+          name: /^9\.2 Navigation turn 9/,
+        });
+        const list = canvas.getByRole("region", { name: "Session turns" });
+        expect(active).toHaveAttribute("aria-current", "true");
+        expect(active.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+          list.getBoundingClientRect().top,
+        );
+        expect(active.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+          list.getBoundingClientRect().bottom,
+        );
+      },
       { timeout: 3_000 },
     );
   },
@@ -3284,40 +3325,49 @@ export const DelayedTranscriptNavigation = meta.story({
   },
 });
 
-export const SidebarFollowResume = meta.story({
-  name: "(Test) Sidebar Follow Resumes After User Idle",
-  args: { transcriptTraces: navigationTraces, viewportHeight: 480 },
+export const SidebarManualScroll = meta.story({
+  name: "(Test) Sidebar Scrolling And Selection",
+  args: {
+    transcriptTraces: navigationTraces,
+    viewportHeight: 480,
+    viewportWidth: 1200,
+  },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const feed = canvas.getByLabelText("Session conversation timeline");
     const list = canvas.getByRole("region", { name: "Session turns" });
-    const sidebar = within(canvas.getByRole("complementary"));
+    const feed = canvas.getByLabelText("Session conversation timeline");
+    const initialFeedScroll = feed.scrollTop;
+
     list.dispatchEvent(new WheelEvent("wheel", { deltaY: 100, bubbles: true }));
-    await waitFor(
-      () => {
-        // Newly mounted rows replace estimates, moving the end of the timeline.
-        feed.scrollTo({ top: feed.scrollHeight, behavior: "instant" });
-        expect(
-          sidebar.getByRole("button", { name: /^32\.2 Navigation turn 32/ }),
-        ).toHaveAttribute("aria-current", "true");
-      },
-      { timeout: 3_000 },
-    );
-    await waitFor(
-      () => {
-        const active = sidebar.getByRole("button", {
-          name: /^32\.2 Navigation turn 32/,
-        });
-        expect(active).toHaveAttribute("aria-current", "true");
-        const activeRect = active.getBoundingClientRect();
+    list.scrollTo({ top: 1500, behavior: "instant" });
+    await waitFor(() => expect(list.scrollTop).toBeGreaterThan(1000));
+    // Wait beyond the former idle timeout, including virtualized row measurements.
+    await new Promise((resolve) => window.setTimeout(resolve, 1000));
+    await expect(list.scrollTop).toBeGreaterThan(1000);
+    await expect(feed.scrollTop).toBe(initialFeedScroll);
+
+    const sidebar = within(canvas.getByRole("complementary"));
+    const visibleTurn = sidebar
+      .getAllByRole("button", {
+        name: /^\d+\.\d+ Navigation turn/,
+      })
+      .find((button) => {
+        const rect = button.getBoundingClientRect();
         const listRect = list.getBoundingClientRect();
-        expect(activeRect.top).toBeGreaterThanOrEqual(listRect.top);
-        expect(activeRect.bottom).toBeLessThanOrEqual(listRect.bottom);
-      },
-      { timeout: 3_000 },
+        return rect.top >= listRect.top && rect.bottom <= listRect.bottom;
+      });
+    if (!visibleTurn)
+      throw new Error("No visible turn available for selection");
+    await userEvent.click(visibleTurn);
+    await waitFor(() =>
+      expect(visibleTurn).toHaveAttribute("aria-current", "true"),
+    );
+    await waitFor(() =>
+      expect(feed.scrollTop).toBeGreaterThan(initialFeedScroll),
     );
   },
 });
+
 export const NestedThreadsHidden = meta.story({
   name: "(Test) Nested Threads Hidden",
   args: {

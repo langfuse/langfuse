@@ -1,7 +1,7 @@
 /* eslint-disable @repo/no-style-props, @repo/no-null-render */
 import type { ReactNode } from "react";
 import type { ChatMlMessage } from "../hooks/useChatMLParser";
-import { Wrench } from "lucide-react";
+import { Wrench } from "@langfuse/icons";
 import { cn } from "@/src/utils/tailwind";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import type { z } from "zod";
@@ -88,7 +88,7 @@ export function ToolCallInvocationsView({
             <div className="flex w-full items-center justify-between gap-2 py-1">
               {/* Left: Tool icon + number + name */}
               <div className="flex items-center gap-2">
-                <Wrench className="text-muted-foreground icon-base" />
+                <Wrench size="base" color="muted" />
                 <span className="text-foreground-secondary text-sm">
                   {invocationNumber !== undefined && (
                     <span className="mr-1">{invocationNumber}.</span>

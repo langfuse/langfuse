@@ -32,10 +32,7 @@ import {
   type IngestionSdkCanonicalName,
 } from "../";
 
-import {
-  AI_FEATURE_OTEL_SDK_NAME,
-  LangfuseOtelSpanAttributes,
-} from "./attributes";
+import { LangfuseOtelSpanAttributes } from "./attributes";
 import {
   isClaudeManagedAgentSessionCreation,
   isClaudeManagedAgentSpan,
@@ -685,6 +682,7 @@ export class OtelIngestionProcessor {
                   userId: this.extractUserId(
                     spanAttributes,
                     decodeMetadataValues,
+                    resourceAttributes,
                   ),
                   sessionId: this.extractSessionId(
                     spanAttributes,
@@ -738,10 +736,6 @@ export class OtelIngestionProcessor {
             return events;
           });
 
-        if (this.sdkName === AI_FEATURE_OTEL_SDK_NAME) {
-          this.denormalizeAiFeatureChildTraceNames(events);
-        }
-
         return events;
       } catch (error) {
         logger.error("Error processing OTEL spans to events:", {
@@ -752,45 +746,6 @@ export class OtelIngestionProcessor {
         throw error;
       }
     });
-  }
-
-  /**
-   * Copy the wrapping root's observation.traceName onto sibling events in the
-   * same batch that omitted langfuse.trace.name. That OTEL attribute is a
-   * trace-update signal; filling the events-table field keeps cost-by-trace-name
-   * filters working without rewriting the trace.
-   */
-  private denormalizeAiFeatureChildTraceNames(
-    events: Array<{
-      traceId?: string;
-      traceName?: string | null;
-      parentSpanId?: string | null;
-      isAppRoot?: boolean;
-    }>,
-  ): void {
-    const traceNameByTraceId = new Map<string, string>();
-
-    for (const event of events) {
-      if (!event.traceId || !event.traceName) {
-        continue;
-      }
-
-      const isRoot = !event.parentSpanId || event.isAppRoot === true;
-      if (isRoot) {
-        traceNameByTraceId.set(event.traceId, event.traceName);
-      }
-    }
-
-    for (const event of events) {
-      if (event.traceName || !event.traceId) {
-        continue;
-      }
-
-      const traceName = traceNameByTraceId.get(event.traceId);
-      if (traceName !== undefined) {
-        event.traceName = traceName;
-      }
-    }
   }
 
   /**
@@ -1172,7 +1127,11 @@ export class OtelIngestionProcessor {
           (attributes?.[LangfuseOtelSpanAttributes.RELEASE] as string) ??
           resourceAttributes?.[LangfuseOtelSpanAttributes.RELEASE] ??
           null,
-        userId: this.extractUserId(attributes, decodeMetadataValues),
+        userId: this.extractUserId(
+          attributes,
+          decodeMetadataValues,
+          resourceAttributes,
+        ),
         sessionId: this.extractSessionId(
           attributes,
           decodeMetadataValues,
@@ -1216,7 +1175,8 @@ export class OtelIngestionProcessor {
           (attributes?.[LangfuseOtelSpanAttributes.RELEASE] as string) ??
           resourceAttributes?.[LangfuseOtelSpanAttributes.RELEASE] ??
           null,
-        userId: this.extractUserId(attributes, decodeMetadataValues),
+        // Child updates must not replace an explicit trace user with a fallback.
+        userId: this.extractExplicitUserId(attributes, decodeMetadataValues),
         /** CMA session inference belongs to root traces and individual observations. */
         sessionId: this.extractSessionId(
           attributes,
@@ -2758,6 +2718,32 @@ export class OtelIngestionProcessor {
   }
 
   private extractUserId(
+    attributes: Record<string, unknown>,
+    decodeMetadataValues: boolean,
+    resourceAttributes: Record<string, unknown>,
+  ): string | undefined {
+    // Explicit identifiers in either scope take precedence over usernames.
+    return (
+      this.extractExplicitUserId(attributes, decodeMetadataValues) ??
+      this.extractStringAttribute(
+        resourceAttributes,
+        ["langfuse.user.id", "user.id"],
+        decodeMetadataValues,
+      ) ??
+      this.extractStringAttribute(
+        attributes,
+        ["user.name"],
+        decodeMetadataValues,
+      ) ??
+      this.extractStringAttribute(
+        resourceAttributes,
+        ["user.name"],
+        decodeMetadataValues,
+      )
+    );
+  }
+
+  private extractExplicitUserId(
     attributes: Record<string, unknown>,
     decodeMetadataValues: boolean,
   ): string | undefined {

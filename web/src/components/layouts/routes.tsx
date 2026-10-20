@@ -7,7 +7,7 @@ import {
   LayoutDashboard,
   LifeBuoy,
   ListTree,
-  type LucideIcon,
+  type IconComponent,
   Settings,
   UsersIcon,
   TerminalIcon,
@@ -22,7 +22,7 @@ import {
   ClipboardPen,
   Clock,
   Beaker,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { type ReactNode } from "react";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
 import { type Session } from "next-auth";
@@ -58,7 +58,7 @@ export type Route = {
   label?: string | ReactNode;
   projectRbacScopes?: ProjectScope[]; // array treated as OR
   organizationRbacScope?: OrganizationScope;
-  icon?: LucideIcon; // ignored for nested routes
+  icon?: IconComponent; // ignored for nested routes
   href: string;
   isActive?: (pathname: string) => boolean;
   legacyPathname?: string; // link used when the V4 preview is disabled
@@ -75,6 +75,7 @@ export type Route = {
     isLangfuseCloud: boolean;
     hasActiveCloudIncident: boolean;
     canToggleV4: boolean;
+    canRecoverV4: boolean;
     forceV3Experience: boolean;
     v4WriteMode: undefined | "legacy" | "dual" | "events_only"; // undefined until the session has loaded
     v4UpgradeUiAvailable: boolean; // deployment shows the v4 migration UI (see isV4UpgradeUiAvailable)
@@ -259,9 +260,15 @@ export const ROUTES: Route[] = [
     href: "",
     section: RouteSection.Secondary,
     featureFlag: "v4BetaToggleVisible",
-    // v4-upgrade users get this toggle inside the migration panel instead.
-    show: ({ canToggleV4, forceV3Experience, v4UpgradeUiAvailable }) =>
-      canToggleV4 && (!v4UpgradeUiAvailable || forceV3Experience),
+    // Recovery stays in the sidebar; ordinary opt-in lives in the migration panel.
+    show: ({
+      canToggleV4,
+      canRecoverV4,
+      forceV3Experience,
+      v4UpgradeUiAvailable,
+    }) =>
+      canRecoverV4 ||
+      (canToggleV4 && (!v4UpgradeUiAvailable || forceV3Experience)),
     menuNode: <V4SidebarToggle />,
   },
   {
@@ -323,7 +330,7 @@ function CommandMenuTrigger() {
       }}
       className="whitespace-nowrap"
     >
-      <Search className="icon-base" />
+      <Search size="base" />
       Go to...
       <span className="-mr-px ml-auto hidden md:inline-flex">
         <KeyboardShortcut keys={["Mod", "K"]} />

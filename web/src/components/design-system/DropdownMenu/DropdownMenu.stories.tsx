@@ -1,4 +1,4 @@
-import { Settings } from "lucide-react";
+import { Settings } from "@langfuse/icons";
 import { type ComponentProps } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 

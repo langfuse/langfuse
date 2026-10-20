@@ -6,8 +6,8 @@ import {
   ChevronsDownUp,
   ChevronsUpDown,
   Copy as CopyIcon,
-  type LucideIcon,
-} from "lucide-react";
+  type IconComponent,
+} from "@langfuse/icons";
 import { type ReactNode, useState } from "react";
 
 import { IconButton } from "../IconButton/IconButton";
@@ -66,7 +66,7 @@ const actionGroupVariants = cva(
 );
 
 type CodeSectionAction = {
-  icon: LucideIcon;
+  icon: IconComponent;
   label: string;
   onClick: () => void;
 };

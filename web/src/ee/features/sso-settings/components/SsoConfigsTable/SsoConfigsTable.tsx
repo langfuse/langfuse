@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { TrashIcon } from "lucide-react";
+import { TrashIcon } from "@langfuse/icons";
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
 import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
 import { createButtonTableColumn } from "@/src/components/design-system/table/columns/createButtonTableColumn";

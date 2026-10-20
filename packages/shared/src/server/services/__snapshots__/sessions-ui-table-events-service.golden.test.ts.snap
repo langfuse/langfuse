@@ -11,59 +11,63 @@ exports[`golden: sessions simple aggregates family > getSessionTracesFromEvents 
     },
     "route": "unknown",
     "sql": "SELECT
-    trace_id AS id,
-    project_id,
+    e.trace_id AS id,
+    e.project_id AS project_id,
     coalesce(
         nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
         nullIf(argMaxIf(e.name, e.event_ts, ((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != '')), '')
     ) AS name,
-    min(start_time) AS timestamp,
-    argMaxIf(environment, event_ts, environment != '') AS environment,
-    argMaxIf(version, event_ts, version != '') AS version,
-    argMaxIf(session_id, event_ts, session_id != '') AS session_id,
-    argMaxIf(user_id, event_ts, user_id != '') AS user_id,
-    argMaxIf(input, event_ts, parent_span_id = '') AS input,
-    argMaxIf(output, event_ts, parent_span_id = '') AS output,
+    min(e.start_time) AS timestamp,
+    argMaxIf(e.environment, e.event_ts, e.environment != '') AS environment,
+    argMaxIf(e.version, e.event_ts, e.version != '') AS version,
+    argMaxIf(e.session_id, e.event_ts, e.session_id != '') AS session_id,
+    argMaxIf(e.user_id, e.event_ts, e.user_id != '') AS user_id,
+    argMaxIf(e.input, e.event_ts, e.parent_span_id = '') AS input,
+    argMaxIf(e.output, e.event_ts, e.parent_span_id = '') AS output,
     argMaxIf(
         mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)),
-        event_ts,
-        parent_span_id = ''
+        e.event_ts,
+        e.parent_span_id = ''
     ) AS metadata,
-    min(created_at) AS created_at,
-    max(updated_at) AS updated_at,
-    sum(total_cost) AS total_cost,
+    min(e.created_at) AS created_at,
+    max(e.updated_at) AS updated_at,
+    sum(e.total_cost) AS total_cost,
     if(
-        max(end_time) IS NULL,
+        max(e.end_time) IS NULL,
         NULL,
-        dateDiff('millisecond', min(start_time), greatest(max(start_time), max(end_time)))
+        dateDiff('millisecond', min(e.start_time), greatest(max(e.start_time), max(e.end_time)))
     ) AS latency_milliseconds,
-    groupUniqArrayIf(span_id, span_id != '') AS observation_ids,
-    length(groupUniqArrayIf(span_id, (span_id != '') AND (span_id != concat('t-', trace_id)))) AS observation_count,
-    argMaxIf(bookmarked, event_ts, parent_span_id = '') AS bookmarked,
-    max(public) AS public,
-    argMaxIf(experiment_item_id, event_ts, experiment_item_id != '') AS experiment_item_id,
-    sumMap(usage_details) AS usage_details,
-    sumMap(cost_details) AS cost_details,
+    groupUniqArrayIf(e.span_id, e.span_id != '') AS observation_ids,
+    length(
+        groupUniqArrayIf(e.span_id, (e.span_id != '') AND (e.span_id != concat('t-', e.trace_id)))
+    ) AS observation_count,
+    argMaxIf(e.bookmarked, e.event_ts, e.parent_span_id = '') AS bookmarked,
+    max(e.public) AS public,
+    argMaxIf(e.experiment_item_id, e.event_ts, e.experiment_item_id != '') AS experiment_item_id,
+    sumMap(e.usage_details) AS usage_details,
+    sumMap(e.cost_details) AS cost_details,
     multiIf(
-        arrayExists(x -> (x = 'ERROR'), groupArray(level)),
+        arrayExists(x -> (x = 'ERROR'), groupArray(e.level)),
         'ERROR',
-        arrayExists(x -> (x = 'WARNING'), groupArray(level)),
+        arrayExists(x -> (x = 'WARNING'), groupArray(e.level)),
         'WARNING',
-        arrayExists(x -> (x = 'DEFAULT'), groupArray(level)),
+        arrayExists(x -> (x = 'DEFAULT'), groupArray(e.level)),
         'DEFAULT',
         'DEBUG'
     ) AS aggregated_level,
-    countIf(level = 'WARNING') AS warning_count,
-    countIf(level = 'ERROR') AS error_count,
-    countIf(level = 'DEFAULT') AS default_count,
-    countIf(level = 'DEBUG') AS debug_count,
-    argMaxIf(tags, event_ts, notEmpty(tags)) AS tags,
-    argMaxIf(release, event_ts, release != '') AS release,
-    argMaxIf(evaluator_id, event_ts, evaluator_id != '') AS evaluator_id,
-    argMaxIf(evaluation_rule_id, event_ts, evaluation_rule_id != '') AS evaluation_rule_id,
-    any(experiment_id) AS experiment_id
+    countIf(e.level = 'WARNING') AS warning_count,
+    countIf(e.level = 'ERROR') AS error_count,
+    countIf(e.level = 'DEFAULT') AS default_count,
+    countIf(e.level = 'DEBUG') AS debug_count,
+    argMaxIf(e.tags, e.event_ts, notEmpty(e.tags)) AS tags,
+    argMaxIf(e.release, e.event_ts, e.release != '') AS release,
+    argMaxIf(e.evaluator_id, e.event_ts, e.evaluator_id != '') AS evaluator_id,
+    argMaxIf(e.evaluation_rule_id, e.event_ts, e.evaluation_rule_id != '') AS evaluation_rule_id,
+    any(e.experiment_id) AS experiment_id
 FROM events_full AS e
-WHERE (e.project_id = {param1:String}) AND (e.is_deleted = {param2:UInt8}) AND (e.session_id = {param3:String})
+WHERE (e.project_id = {param1:String})
+    AND (e.is_deleted = {param2:UInt8})
+    AND (e.session_id = {param3:String})
 GROUP BY
     trace_id,
     project_id

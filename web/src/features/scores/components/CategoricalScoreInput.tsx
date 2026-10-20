@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus } from "@langfuse/icons";
 import {
   type ScoreConfigCategoryDomain,
   type ScoreConfigDomain,
@@ -75,7 +75,7 @@ export function CategoricalScoreInput({
         setPendingLabel(search.trim());
       }}
     >
-      <Plus className="icon-base mr-2 shrink-0" />
+      <Plus size="base" __rawClassName="mr-2" />
       {getAddCategoryActionLabel(search, existingLabels)}
     </button>
   );
@@ -155,7 +155,7 @@ export function CategoricalScoreInput({
               title="Add new category"
               onClick={() => setPendingLabel("")}
             >
-              <Plus className="icon-sm text-icon-foreground" />
+              <Plus size="sm" color="default" />
             </Button>
           ) : null}
         </div>

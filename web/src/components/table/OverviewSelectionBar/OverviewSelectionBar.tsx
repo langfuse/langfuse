@@ -1,5 +1,5 @@
 /* eslint-disable @repo/no-null-render */
-import { X } from "lucide-react";
+import { X } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { Layer } from "@/src/components/design-system/Layer/Layer";
 
@@ -27,7 +27,7 @@ export function OverviewSelectionBar({
             aria-label="Clear selection"
             onClick={onClear}
           >
-            <X className="icon-base text-icon-foreground" />
+            <X size="base" color="default" />
           </Button>
           <div className="bg-border h-5 w-px" />
           <div className="flex items-center gap-2">{children}</div>

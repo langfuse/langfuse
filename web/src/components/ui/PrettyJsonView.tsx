@@ -25,8 +25,8 @@ import {
   ChevronRight,
   UnfoldVertical,
   FoldVertical,
-  type LucideIcon,
-} from "lucide-react";
+  type IconComponent,
+} from "@langfuse/icons";
 import {
   useReactTable,
   getCoreRowModel,
@@ -497,9 +497,9 @@ function JsonPrettyTable({
               className="text-muted-foreground hover:text-foreground h-4 w-4 p-0 hover:bg-transparent"
             >
               {row.getIsExpanded() ? (
-                <ChevronDown className="icon-base text-icon-foreground" />
+                <ChevronDown size="base" color="default" />
               ) : (
-                <ChevronRight className="icon-base text-icon-foreground" />
+                <ChevronRight size="base" color="default" />
               )}
             </Button>
           ) : null}
@@ -715,7 +715,7 @@ export function PrettyJsonView(props: {
   json?: unknown;
   parsedJson?: unknown; // Pre-parsed data (optional, from useParsedObservation hook)
   title?: string;
-  titleIcon?: LucideIcon;
+  titleIcon?: IconComponent;
   /** Drop the Path / Value header row. */
   className?: string;
   isLoading?: boolean;

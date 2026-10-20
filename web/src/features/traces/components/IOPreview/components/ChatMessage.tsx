@@ -4,7 +4,7 @@ import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
 import { IOSection, type IOSectionAction } from "@/src/components/ui/IOSection";
 import { ToolCallInvocationsView } from "@/src/features/traces/components/ToolCallInvocationsView";
-import { ListChevronsDownUp, ListChevronsUpDown } from "lucide-react";
+import { ListChevronsDownUp, ListChevronsUpDown } from "@langfuse/icons";
 import { stringify } from "@langfuse/shared";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import {

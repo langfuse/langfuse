@@ -6,8 +6,8 @@
  *    comparisons).
  *  - `COLUMN_DATA_TYPES` — the coarse runtime type map the aggregate type-check
  *    pass consults (`typecheck.ts`).
- *  - `TABLE_BIND_TYPES` / `COLUMN_BIND_TYPES` — the ClickHouse bind types the
- *    compiler uses when a value is compared to a known column (`compiler.ts`).
+ *  - `TABLE_BIND_TYPES` — the ClickHouse bind types the compiler uses when a
+ *    value is compared to a known column (`compiler.ts`).
  *  - `TENANTED_TABLES` — the relations the tenancy pass must scope
  *    (`tenancy.ts`).
  *  - `DEDUP_SPECS` — the per-table read idiom the lowering pass applies
@@ -229,6 +229,23 @@ const EVENTS_COLUMNS = {
   ingestion_api_key: "String",
 } as const satisfies Record<string, ChColumnType>;
 
+/**
+ * Columns whose `events_core` copy differs from `events_full`:
+ * `events_core_mv` keeps the first 200 code points of `input`, `output`, and
+ * each `metadata_values` element, and `input_length` / `output_length` are
+ * materialized from the truncated copy. Any other read of them needs
+ * `events_full`. Must match the truncations in the latest `events_core_mv`
+ * definition (`clickhouse/migrations/canonical/0053_add_skill_observation_references.up.sql`);
+ * nothing checks this automatically.
+ */
+export const EVENTS_CORE_TRUNCATED_COLUMNS: ReadonlySet<string> = new Set([
+  "input",
+  "output",
+  "metadata_values",
+  "input_length",
+  "output_length",
+] satisfies ReadonlyArray<keyof typeof EVENTS_COLUMNS>);
+
 const TABLE_REGISTRY = {
   traces: defineTable({
     columns: {
@@ -258,6 +275,14 @@ const TABLE_REGISTRY = {
   // for the same reasons; selected when a point-read needs untruncated
   // input/output or metadata.
   events_full: defineTable({
+    columns: EVENTS_COLUMNS,
+    dedup: { strategy: "none" },
+    softDelete: "is_deleted",
+  }),
+  // Logical relation over events_core / events_full. The routing pass
+  // (`eventsRouting.ts`) replaces it with one of them before any other pass
+  // runs, so ClickHouse never sees this name.
+  events: defineTable({
     columns: EVENTS_COLUMNS,
     dedup: { strategy: "none" },
     softDelete: "is_deleted",
@@ -303,14 +328,18 @@ export type ClickHouseDatabase = {
 };
 
 /**
- * Declared ClickHouse type per column, per registry table. A servertest checks
- * it against `system.columns` of the migrated database.
+ * Declared ClickHouse type per column, per physical registry table. A
+ * servertest checks it against `system.columns` of the migrated database. The
+ * logical `events` relation has no table of its own; its columns are
+ * `events_core`'s and `events_full`'s.
  */
 export const TABLE_COLUMN_TYPES: Record<
   string,
   Record<string, ChColumnType>
 > = Object.fromEntries(
-  Object.entries(TABLE_REGISTRY).map(([table, spec]) => [table, spec.columns]),
+  Object.entries(TABLE_REGISTRY)
+    .filter(([table]) => table !== "events")
+    .map(([table, spec]) => [table, spec.columns]),
 );
 
 /**
@@ -389,23 +418,3 @@ export const TABLE_BIND_TYPES: Record<
     ),
   ]),
 );
-
-/**
- * Bind type by bare column name, for operands whose relation is opaque to the
- * compiler (e.g. a qualifier no relation in scope declares). Only names with the same bind type in
- * every table are kept, since `start_time` is `DateTime64(6)` on events but
- * `DateTime64(3)` on observations.
- */
-export const COLUMN_BIND_TYPES: Record<string, string> = (() => {
-  const byName = new Map<string, Set<string>>();
-  for (const columns of Object.values(TABLE_BIND_TYPES)) {
-    for (const [name, bindType] of Object.entries(columns)) {
-      byName.set(name, (byName.get(name) ?? new Set()).add(bindType));
-    }
-  }
-  return Object.fromEntries(
-    [...byName]
-      .filter(([, types]) => types.size === 1)
-      .map(([name, types]) => [name, [...types][0]]),
-  );
-})();
