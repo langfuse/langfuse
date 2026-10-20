@@ -1633,10 +1633,13 @@ const getScoresUiGenericFromEvents = async <T>(props: {
 
   // Inner join when trace filters are active (exclude scores without matching traces)
   // Left join when only sorting (keep all scores)
+  // The traces CTE is unique per trace (LIMIT 1 BY), so the inner join cannot
+  // fan out. It must not be ANY: an inner ANY JOIN also dedups the left side,
+  // keeping only one score per trace.
   const eventsJoin = (() => {
     if (needsTracesCTE) {
       if (traceFilterState.length > 0) {
-        return `ANY JOIN traces e ON s.trace_id = e.id`;
+        return `INNER JOIN traces e ON s.trace_id = e.id`;
       }
       return `LEFT ANY JOIN traces e ON s.trace_id = e.id`;
     }
