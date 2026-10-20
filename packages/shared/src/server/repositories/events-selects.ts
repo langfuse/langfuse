@@ -1,4 +1,9 @@
-import type { Expression, ExpressionBuilder, SelectExpression } from "kysely";
+import type {
+  Expression,
+  ExpressionBuilder,
+  SelectCallback,
+  SelectExpression,
+} from "kysely";
 
 import { renderClickhouseSelections } from "../query-ast/compile";
 import { getClickhouseKysely } from "../query-ast/dialect";
@@ -566,8 +571,8 @@ export const eventsMetricsSecondsSelects = scopedToEvents(
 );
 
 /** {@link traceAggregationSelects} as SQL text, keyed by output name. */
-export const TRACE_AGGREGATION_SQL = renderEventsSelects(
-  traceAggregationSelects,
+export const TRACE_AGGREGATION_SQL = renderEventsSelects((eb) =>
+  traceAggregationSelects(eb),
 );
 
 /** Every session aggregate as SQL text, keyed by field. */
@@ -576,17 +581,17 @@ export const SESSION_AGGREGATION_SQL = renderEventsSelects((eb) =>
 );
 
 /** {@link experimentAggregationSelects} as SQL text, keyed by output name. */
-export const EXPERIMENT_AGGREGATION_SQL = renderEventsSelects(
-  experimentAggregationSelects,
+export const EXPERIMENT_AGGREGATION_SQL = renderEventsSelects((eb) =>
+  experimentAggregationSelects(eb),
 );
 
 /**
  * SQL text of each of `selects`, keyed by output name, for the raw-SQL builders
  * that read events as `e`.
  */
-function renderEventsSelects(
-  selects: (eb: EventsExpressionBuilder) => readonly EventsSelection[],
-): Record<string, string> {
+function renderEventsSelects<S extends SelectCallback<EventsDb, "e">>(
+  selects: S,
+) {
   return renderClickhouseSelections(
     getClickhouseKysely().selectFrom("events_core as e").select(selects),
   );

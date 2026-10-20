@@ -383,6 +383,27 @@ describe("renderClickhouseSelections", () => {
       QueryCompileError,
     );
   });
+
+  it("rejects two selects with one output name", () => {
+    expect(() =>
+      renderClickhouseSelections(
+        events.select((eb) => [
+          "e.trace_id",
+          eb.ref("e.span_id").as("trace_id"),
+        ]),
+      ),
+    ).toThrow(/share the output name "trace_id"/);
+  });
+
+  it("rejects a select containing a subquery", () => {
+    expect(() =>
+      renderClickhouseSelections(
+        events.select((eb) =>
+          eb.selectFrom("events_core as x").select("x.trace_id").as("t"),
+        ),
+      ),
+    ).toThrow(UnscopedRelationError);
+  });
 });
 
 describe("64-bit results", () => {

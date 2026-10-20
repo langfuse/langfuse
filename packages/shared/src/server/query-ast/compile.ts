@@ -9,7 +9,7 @@ import {
   type OperationNode,
   type RootOperationNode,
   type SelectionNode,
-  type SelectQueryNode,
+  type SelectQueryBuilder,
 } from "kysely";
 
 import { ClickHouseQueryCompiler } from "./compiler";
@@ -95,16 +95,20 @@ export function renderClickhouseExpression(
  * FROM just types its columns. Throws like {@link renderClickhouseExpression},
  * and on a select without an output name (`*`, raw SQL).
  */
-export function renderClickhouseSelections(query: {
-  toOperationNode(): SelectQueryNode;
-}): Record<string, string> {
-  const selections = query.toOperationNode().selections ?? [];
-  return Object.fromEntries(
-    selections.map((selection) => [
-      selectionName(selection),
-      renderNode(selection),
-    ]),
-  );
+export function renderClickhouseSelections<O>(
+  query: SelectQueryBuilder<any, any, O>,
+): Record<keyof O & string, string> {
+  const rendered: Record<string, string> = {};
+  for (const selection of query.toOperationNode().selections ?? []) {
+    const name = selectionName(selection);
+    if (name in rendered) {
+      throw new QueryCompileError(
+        `Two rendered selects share the output name "${name}".`,
+      );
+    }
+    rendered[name] = renderNode(selection);
+  }
+  return rendered as Record<keyof O & string, string>;
 }
 
 function renderNode(node: OperationNode): string {

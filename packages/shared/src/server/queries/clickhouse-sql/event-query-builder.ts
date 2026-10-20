@@ -245,7 +245,9 @@ function eventsFieldSelectExpressions(fieldKeys: readonly string[]): string[] {
  * Field sets for aggregation queries
  */
 const AGGREGATION_FIELD_SETS = {
-  all: Object.keys(TRACE_AGGREGATION_SQL),
+  all: Object.keys(TRACE_AGGREGATION_SQL) as Array<
+    keyof typeof TRACE_AGGREGATION_SQL
+  >,
 } as const;
 
 /**
@@ -1061,7 +1063,7 @@ export class EventsAggregationQueryBuilder extends BaseEventsQueryBuilder<
   protected buildSelectClause(): string {
     const fieldExpressions = [...this.selectFields]
       .map((key) => {
-        return this.fields[key];
+        return this.fields[key as keyof typeof TRACE_AGGREGATION_SQL];
       })
       .filter(Boolean);
     return `SELECT\n  ${fieldExpressions.join(",\n  ")}`;
@@ -1133,7 +1135,10 @@ export const SESSION_AGGREGATION_FIELD_SETS = {
   ) as Array<keyof typeof SESSION_AGGREGATION_SQL>,
   metadata: ["metadata_names", "metadata_values"],
   tools: ["tool_names", "called_tool_names", "tool_calls_count"],
-} as const;
+} as const satisfies Record<
+  string,
+  ReadonlyArray<keyof typeof SESSION_AGGREGATION_SQL>
+>;
 
 /**
  * Every session field. Only for a CTE whose outer SELECT picks the columns;
@@ -1640,7 +1645,10 @@ const EXPERIMENTS_AGGREGATION_FIELD_SETS = {
     "start_time",
   ] as const,
   publicApiSummaryMetadata: ["experiment_metadata"] as const,
-} as const;
+} as const satisfies Record<
+  string,
+  ReadonlyArray<keyof typeof EXPERIMENT_AGGREGATION_SQL>
+>;
 
 export type ExperimentsAggregationFieldSetName =
   keyof typeof EXPERIMENTS_AGGREGATION_FIELD_SETS;
