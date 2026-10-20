@@ -309,6 +309,64 @@ describe("AI gateway control plane", () => {
     },
   );
 
+  it("reports the ingestion setup status to gateway readers", async () => {
+    const owner = await prepare();
+    const viewer = await createCallerForOrganizationRole(owner, Role.VIEWER);
+    const noAccess = await createCallerForOrganizationRole(owner, Role.NONE);
+
+    await expect(
+      viewer.aiGateway.getSetupStatus({ orgId: owner.org.id }),
+    ).resolves.toEqual({ isConfigured: false });
+    await expect(
+      noAccess.aiGateway.getSetupStatus({ orgId: owner.org.id }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    await owner.caller.aiGateway.updateConfig({
+      orgId: owner.org.id,
+      defaultIngestionProjectId: owner.project.id,
+      ingestionMode: "USAGE",
+    });
+    await expect(
+      viewer.aiGateway.getSetupStatus({ orgId: owner.org.id }),
+    ).resolves.toEqual({ isConfigured: true });
+
+    await prisma.project.update({
+      where: { id: owner.project.id },
+      data: { deletedAt: new Date() },
+    });
+    await expect(
+      viewer.aiGateway.getSetupStatus({ orgId: owner.org.id }),
+    ).resolves.toEqual({ isConfigured: false });
+  });
+
+  it("requires an ingestion project unless ingestion mode is NONE", async () => {
+    const { caller, org } = await prepare();
+    const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    try {
+      Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined });
+      await expect(
+        caller.aiGateway.updateConfig({
+          orgId: org.id,
+          defaultIngestionProjectId: null,
+          ingestionMode: "USAGE",
+        }),
+      ).rejects.toThrow("default ingestion project is required");
+
+      await caller.aiGateway.updateConfig({
+        orgId: org.id,
+        defaultIngestionProjectId: null,
+        ingestionMode: "NONE",
+      });
+      await expect(
+        caller.aiGateway.getSetupStatus({ orgId: org.id }),
+      ).resolves.toEqual({ isConfigured: true });
+    } finally {
+      Object.assign(env, {
+        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalCloudRegion,
+      });
+    }
+  });
+
   it.each([
     { adminRole: Role.OWNER, readRole: Role.MEMBER },
     { adminRole: Role.ADMIN, readRole: Role.VIEWER },
