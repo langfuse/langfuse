@@ -474,6 +474,18 @@ describe("typed params from the column registry", () => {
     expect(sql).toMatch(/start_time = \{p\d+:String\}/);
   });
 
+  // `kv.1` reads a tuple element of the ARRAY JOIN alias, not a relation.
+  it("binds a tuple element of an ARRAY JOIN alias by value", () => {
+    const { sql } = compile(
+      getClickhouseKysely()
+        .selectFrom("events_core as e")
+        .select("e.span_id")
+        .$call(arrayJoin((eb) => ({ kv: eb.ref("e.metadata_names") })))
+        .where(sql_.ref("kv.1"), "=", "a"),
+    );
+    expect(sql).toMatch(/kv\.1 = \{p\d+:String\}/);
+  });
+
   // A raw fragment around a column is not the column: `length(...)` is a number.
   it("binds a raw expression around a sql.ref column by value", () => {
     const { sql } = compile(

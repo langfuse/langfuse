@@ -852,7 +852,9 @@ function assertPlainName(kind: string, name: string): void {
 
 /**
  * Bind type of `qualifier.column`, from the innermost select that declares
- * `qualifier`. Unknown when no select declares it or its relation is opaque.
+ * `qualifier`. A qualifier that is an alias of that select (`x.1` over
+ * `ARRAY JOIN … AS x`) reads a tuple element, which binds by value. Unknown
+ * when no select declares it or its relation is opaque.
  */
 function qualifiedBindType(
   column: string,
@@ -861,7 +863,10 @@ function qualifiedBindType(
 ): BindType | undefined {
   for (const scope of [...scopes].reverse()) {
     const relation = scope.relations.get(qualifier);
-    if (relation === undefined) continue;
+    if (relation === undefined) {
+      if (scope.aliases.has(qualifier)) return undefined;
+      continue;
+    }
     if (relation instanceof OpaqueRelation) {
       return {
         reason: `Cannot type the value compared to ${qualifier}.${column}: ${relation.reason}`,
