@@ -1,8 +1,8 @@
 import {
   MAX_SKILLS_PER_OBSERVATION,
-  SkillsAvailableSchema,
+  SkillsAvailableInputSchema,
   SkillsResourceLoadedSchema,
-  type SkillsAvailable,
+  type SkillsAvailableInput,
   type SkillsResourceLoaded,
 } from "../../features/skills/trace";
 import {
@@ -32,7 +32,7 @@ export function extractSkillsFromObservation({
   isError: boolean;
   projectId: string;
 }): {
-  skillsAvailable?: SkillsAvailable;
+  skillsAvailable?: SkillsAvailableInput;
   skillsResourceLoaded?: SkillsResourceLoaded;
 } {
   // Skill inference is enabled only when an availability attribute is reported.
@@ -67,7 +67,7 @@ export function extractSkillsFromObservation({
     parsedManifest = undefined;
   }
   const available = Array.isArray(parsedManifest)
-    ? SkillsAvailableSchema.safeParse(parsedManifest)
+    ? SkillsAvailableInputSchema.safeParse(parsedManifest)
     : undefined;
   if (observationType === ObservationType.GENERATION) {
     if (available?.success) return { skillsAvailable: available.data };
@@ -112,7 +112,7 @@ function extractSkillResource(
   toolName: string,
   input: unknown,
   output: unknown,
-  available: SkillsAvailable,
+  available: SkillsAvailableInput,
   projectId: string,
 ) {
   const args = parseJsonPayloadWithMaxSize(
@@ -166,12 +166,12 @@ function extractSkillResource(
 
 function extractSkillResourceFromPath(
   path: unknown,
-  available: SkillsAvailable,
+  available: SkillsAvailableInput,
 ) {
   if (typeof path !== "string") return;
   const segments = path.split("/");
   const matches = segments.filter((segment) =>
-    available.some((skill) => skill.skillName === segment),
+    available.some((skill) => skill.name === segment),
   );
   if (matches.length !== 1) return;
   const skillName = matches[0];

@@ -13,6 +13,26 @@ export const SkillsAvailableSchema = z
   )
   .max(MAX_SKILLS_PER_OBSERVATION);
 
+export const SkillsAvailableInputSchema = z
+  .array(
+    z.union([
+      z.object({
+        name: SkillsAvailableSchema.element.shape.skillName,
+        version: SkillsAvailableSchema.element.shape.skillVersion,
+      }),
+      z
+        .object({
+          skillName: SkillsAvailableSchema.element.shape.skillName,
+          skillVersion: SkillsAvailableSchema.element.shape.skillVersion,
+        })
+        .transform(({ skillName, skillVersion }) => ({
+          name: skillName,
+          version: skillVersion,
+        })),
+    ]),
+  )
+  .max(MAX_SKILLS_PER_OBSERVATION);
+
 export const SkillsResourceLoadedSchema = z
   .array(
     z.object({
@@ -24,5 +44,6 @@ export const SkillsResourceLoadedSchema = z
   )
   .max(MAX_SKILLS_PER_OBSERVATION);
 
+export type SkillsAvailableInput = z.infer<typeof SkillsAvailableInputSchema>;
 export type SkillsAvailable = z.infer<typeof SkillsAvailableSchema>;
 export type SkillsResourceLoaded = z.infer<typeof SkillsResourceLoadedSchema>;
