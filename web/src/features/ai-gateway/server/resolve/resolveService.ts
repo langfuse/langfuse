@@ -117,7 +117,8 @@ export class GatewayResolveService {
           key_metadata: context.keyMetadata,
           provider_connection_id: context.connection.id,
         },
-        ingestion_mode: context.ingestionMode.toLowerCase() as "usage" | "full",
+        ingestion_mode:
+          context.ingestionMode.toLowerCase() as GatewayResolveResponse["ingestion_mode"],
         ingestion: this.createIngestionResponse({
           mode: context.ingestionMode,
           organizationId: context.organizationId,
@@ -146,7 +147,8 @@ export class GatewayResolveService {
           version: 1,
           organization_id: params.organizationId,
           project_id: params.projectId,
-          ingestion_mode: params.mode.toLowerCase() as "usage" | "full",
+          ingestion_mode:
+            params.mode.toLowerCase() as GatewayResolveResponse["ingestion_mode"],
           scope: "gateway-ingest",
         },
       }),

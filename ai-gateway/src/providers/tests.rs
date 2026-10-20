@@ -557,6 +557,42 @@ async fn completed_json_and_sse_upload_once_without_waiting_for_ingestion() {
 }
 
 #[tokio::test]
+async fn ingestion_mode_none_relays_without_uploading() {
+    use crate::{
+        resolution::ControlPlaneConfig, telemetry::Telemetry,
+        test_support::resolved_request_context_with_mode,
+    };
+
+    const JSON: &str = r#"{"id":"resp-1","model":"actual","status":"completed","output":[],"usage":{"input_tokens":2,"output_tokens":1,"total_tokens":3}}"#;
+    let sink = FakeServer::start(|_| async { Response::new(Body::from("{}")) }).await;
+    let telemetry =
+        Telemetry::for_test(&ControlPlaneConfig::new(&sink.url, "service-key").unwrap());
+    let upstream = FakeServer::start(|_| async {
+        Response::builder()
+            .header("content-type", "application/json")
+            .body(Body::from(JSON))
+            .unwrap()
+    })
+    .await;
+    let relay = provider(&upstream).with_telemetry(telemetry.clone());
+    let response = relay
+        .forward(
+            relay.admit(),
+            resolved_request_context_with_mode("provider-secret", "none").await,
+            &HeaderMap::new(),
+            Bytes::from_static(br#"{"model":"requested","input":"prompt-canary"}"#),
+        )
+        .await
+        .unwrap();
+    assert_eq!(to_bytes(response.into_body(), 4096).await.unwrap(), JSON);
+    telemetry
+        .shutdown(Instant::now() + Duration::from_secs(1))
+        .await;
+    assert_eq!(upstream.calls(), 1);
+    assert_eq!(sink.calls(), 0);
+}
+
+#[tokio::test]
 async fn cancelled_and_timed_out_executions_upload_after_provider_context_is_released() {
     use crate::{resolution::ControlPlaneConfig, telemetry::Telemetry};
     use serde_json::Value;
