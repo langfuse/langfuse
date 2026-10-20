@@ -1,5 +1,9 @@
-import { InternalServerError, LangfuseNotFoundError } from "@langfuse/shared";
-import type { PrismaClient } from "@langfuse/shared/src/db";
+import {
+  ForbiddenError,
+  InternalServerError,
+  LangfuseNotFoundError,
+} from "@langfuse/shared";
+import type { Prisma, PrismaClient, Role } from "@langfuse/shared/src/db";
 import {
   createApiKey,
   deleteApiKeyFromDb,
@@ -11,6 +15,7 @@ import { auditLog } from "@/src/features/audit-logs/server";
 import type { GatewayMetadata } from "@/src/features/ai-gateway/server/provider";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
+import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { GatewayApiKeyRepository } from "./gatewayApiKeyRepository";
 
 export class GatewayApiKeyService {
@@ -35,6 +40,7 @@ export class GatewayApiKeyService {
     session: OrgAuthedContext["session"];
   }) {
     const key = await this.prisma.$transaction(async (tx) => {
+      await assertCreatorCanInvokeGateway(tx, params);
       const key = await createApiKey(tx, {
         owner: OrganizationId(params.organizationId),
         role: SystemRoleId("AI_GATEWAY"),
@@ -109,6 +115,28 @@ export class GatewayApiKeyService {
         before: association,
       },
       this.prisma,
+    );
+  }
+}
+
+/** assertCreatorCanInvokeGateway share-locks the creator's membership so removal and demotion order after the key insert. */
+async function assertCreatorCanInvokeGateway(
+  tx: Prisma.TransactionClient,
+  params: { organizationId: string; session: OrgAuthedContext["session"] },
+) {
+  const [membership] = await tx.$queryRaw<{ role: Role }[]>`
+    SELECT role FROM organization_memberships
+    WHERE org_id = ${params.organizationId}
+      AND user_id = ${params.session.user.id}
+    FOR SHARE
+  `;
+  if (params.session.user.admin) return;
+  if (
+    !membership ||
+    !hasOrganizationAccess({ role: membership.role, scope: "gateway:invoke" })
+  ) {
+    throw new ForbiddenError(
+      "Only organization members who can invoke the gateway can create gateway API keys",
     );
   }
 }

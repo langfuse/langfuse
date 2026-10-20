@@ -1,10 +1,10 @@
-import type { Prisma, Role } from "@langfuse/shared/src/db";
+import type { ApiKey, Prisma, Role } from "@langfuse/shared/src/db";
 import { invalidateCachedApiKeys } from "@langfuse/shared/src/server";
 import { auditLog, type AuditLogActor } from "@/src/features/audit-logs/server";
 import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 
-/** deleteUserBoundApiKeys removes gateway keys bound to userId on the caller's transaction and returns them for eviction. */
+/** deleteUserBoundApiKeys removes gateway keys bound to userId on the caller's transaction, evicts their caches, and returns them for post-commit eviction. */
 export async function deleteUserBoundApiKeys(
   tx: Prisma.TransactionClient,
   p: { userId: string; orgId?: string },
@@ -17,6 +17,7 @@ export async function deleteUserBoundApiKeys(
   await tx.apiKey.deleteMany({
     where: { id: { in: keys.map((key) => key.id) } },
   });
+  await evictCaches(keys);
   return keys.filter((key): key is RevokedApiKey => key.orgId !== null);
 }
 
@@ -30,21 +31,28 @@ export async function deleteUserBoundApiKeysForRole(
   return deleteUserBoundApiKeys(tx, { userId: p.userId, orgId: p.orgId });
 }
 
-/** evictRevokedApiKeys clears the auth and gateway resolve caches and writes one audit entry per key; call after commit. */
+/** evictRevokedApiKeys re-clears the caches of committed revocations and writes one audit entry per key; call after commit. */
 export async function evictRevokedApiKeys(
   keys: RevokedApiKey[],
   actor: RevocationActor,
 ): Promise<void> {
   if (keys.length === 0) return;
   await Promise.all([
-    invalidateCachedApiKeys(keys, "user-bound gateway keys"),
-    ...keys.map(evictGatewayResolveCache),
+    evictCaches(keys),
     ...keys.map((key) => auditRevocation(key, actor)),
   ]);
 }
 
+/** evictCaches clears the auth and gateway resolve caches of the keys. */
+async function evictCaches(keys: ApiKey[]) {
+  await Promise.all([
+    invalidateCachedApiKeys(keys, "user-bound gateway keys"),
+    ...keys.map(evictGatewayResolveCache),
+  ]);
+}
+
 /** evictGatewayResolveCache drops the key's cached resolve contexts when it has a hash. */
-async function evictGatewayResolveCache(key: RevokedApiKey) {
+async function evictGatewayResolveCache(key: ApiKey) {
   if (!key.fastHashedSecretKey) return;
   await invalidateGatewayResolveCacheForApiKey(key.fastHashedSecretKey);
 }

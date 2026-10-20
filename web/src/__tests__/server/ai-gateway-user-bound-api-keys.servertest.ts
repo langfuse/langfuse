@@ -1,17 +1,22 @@
 import { randomUUID } from "node:crypto";
+import type { Session } from "next-auth";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { prisma } from "@langfuse/shared/src/db";
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
+import { ForbiddenError } from "@langfuse/shared";
+import { prisma, Role } from "@langfuse/shared/src/db";
 import {
   createApiKey,
   createApiKeyCacheKey,
   createOrgProjectAndApiKey,
   redis,
 } from "@langfuse/shared/src/server";
+import { GatewayApiKeyService } from "@/src/features/ai-gateway/server/apiKey/gatewayApiKeyService";
 import {
   deleteUserBoundApiKeys,
   evictRevokedApiKeys,
 } from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
+import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import {
   GATEWAY_RESOLVE_KEY_NON_EXISTENT,
   GatewayResolveCache,
@@ -76,6 +81,37 @@ async function createGatewayKey(orgId: string, userId: string) {
   });
 }
 
+function orgSession(
+  user: { id: string; name: string | null },
+  org: { id: string; name: string },
+  role: Role,
+): OrgAuthedContext["session"] {
+  const session = {
+    expires: "1",
+    user: {
+      id: user.id,
+      name: user.name,
+      canCreateOrganizations: true,
+      featureFlags: testFeatureFlags({ templateFlag: false }),
+      organizations: [
+        {
+          id: org.id,
+          name: org.name,
+          role,
+          cloudConfig: undefined,
+          plan: "oss",
+          metadata: {},
+          aiFeaturesEnabled: false,
+          aiTelemetryEnabled: true,
+          projects: [],
+        },
+      ],
+    },
+    environment: {} as Session["environment"],
+  } satisfies Session;
+  return { ...session, orgId: org.id, orgRole: role };
+}
+
 async function existingKeyIds() {
   const rows = await prisma.apiKey.findMany({
     where: { orgId: { in: cleanupOrganizations } },
@@ -134,6 +170,57 @@ describe("user-bound API keys", () => {
       });
 
       expect(await boundUserOf(key.id)).toBeNull();
+    });
+  });
+
+  describe("GatewayApiKeyService.create", () => {
+    it("binds the key to a creator who can invoke the gateway", async () => {
+      const org = await createOrg();
+      const user = await createUser();
+      await prisma.organizationMembership.create({
+        data: { orgId: org.id, userId: user.id, role: Role.MEMBER },
+      });
+
+      const key = await new GatewayApiKeyService(prisma).create({
+        organizationId: org.id,
+        metadata: {},
+        session: orgSession(user, org, Role.MEMBER),
+      });
+
+      expect(await boundUserOf(key.id)).toBe(user.id);
+    });
+
+    it("rejects a creator whose current role cannot invoke the gateway", async () => {
+      const org = await createOrg();
+      const user = await createUser();
+      await prisma.organizationMembership.create({
+        data: { orgId: org.id, userId: user.id, role: Role.VIEWER },
+      });
+      const before = await existingKeyIds();
+
+      await expect(
+        new GatewayApiKeyService(prisma).create({
+          organizationId: org.id,
+          metadata: {},
+          session: orgSession(user, org, Role.OWNER),
+        }),
+      ).rejects.toThrow(ForbiddenError);
+      expect(await existingKeyIds()).toEqual(before);
+    });
+
+    it("rejects a creator who is no longer a member", async () => {
+      const org = await createOrg();
+      const user = await createUser();
+      const before = await existingKeyIds();
+
+      await expect(
+        new GatewayApiKeyService(prisma).create({
+          organizationId: org.id,
+          metadata: {},
+          session: orgSession(user, org, Role.OWNER),
+        }),
+      ).rejects.toThrow(ForbiddenError);
+      expect(await existingKeyIds()).toEqual(before);
     });
   });
 
