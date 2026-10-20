@@ -1,9 +1,13 @@
 import { useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { keepPreviousData } from "@tanstack/react-query";
 
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { Input } from "@/src/components/design-system/Input/Input";
+import { SearchInput } from "@/src/components/design-system/SearchInput/SearchInput";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
+import { SEPARATE_GATEWAY_API_KEYS } from "@/src/features/ai-gateway/fns/separateGatewayApiKeys";
 import { type AsyncTableData } from "@/src/components/design-system/table/Table";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api, reportNonTrpcError } from "@/src/utils/api";
@@ -13,6 +17,26 @@ import {
 } from "./ApiKeySettingsTable";
 
 type ApiKeyScope = "project" | "organization";
+
+const KEY_FILTER_WITHOUT_GATEWAY = "without-gateway";
+const KEY_FILTER_ALL = "all";
+type KeyFilter = typeof KEY_FILTER_WITHOUT_GATEWAY | typeof KEY_FILTER_ALL;
+
+const KEY_FILTER_OPTIONS: Array<{ value: KeyFilter; label: string }> = [
+  { value: KEY_FILTER_WITHOUT_GATEWAY, label: "Without gateway keys" },
+  { value: KEY_FILTER_ALL, label: "All API keys" },
+];
+
+function filterApiKeysByName(
+  apiKeys: ApiKeySettingsTableRow[],
+  searchQuery: string,
+) {
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  if (normalizedSearch.length === 0) return apiKeys;
+  return apiKeys.filter((apiKey) =>
+    apiKey.note?.toLowerCase().includes(normalizedSearch),
+  );
+}
 
 export function ConnectedApiKeySettingsTable({
   entityId,
@@ -26,13 +50,19 @@ export function ConnectedApiKeySettingsTable({
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
 
+  const [searchQuery, setSearchQuery] = useState("");
+  const [keyFilter, setKeyFilter] = useState<KeyFilter>(
+    KEY_FILTER_WITHOUT_GATEWAY,
+  );
+  const showKeyFilter = scope === "organization" && SEPARATE_GATEWAY_API_KEYS;
+
   const projectApiKeys = api.projectApiKeys.byProjectId.useQuery(
     { projectId: entityId },
     { enabled: scope === "project" },
   );
   const organizationApiKeys = api.organizationApiKeys.byOrganizationId.useQuery(
-    { orgId: entityId },
-    { enabled: scope === "organization" },
+    { orgId: entityId, includeGatewayKeys: keyFilter === KEY_FILTER_ALL },
+    { enabled: scope === "organization", placeholderData: keepPreviousData },
   );
   const apiKeys = scope === "project" ? projectApiKeys : organizationApiKeys;
 
@@ -47,8 +77,11 @@ export function ConnectedApiKeySettingsTable({
     if (apiKeys.isError) {
       return { status: "error", error: "Failed to load API keys" };
     }
-    return { status: "success", data: apiKeys.data ?? [] };
-  }, [apiKeys.data, apiKeys.isError, apiKeys.isLoading]);
+    return {
+      status: "success",
+      data: filterApiKeysByName(apiKeys.data ?? [], searchQuery),
+    };
+  }, [apiKeys.data, apiKeys.isError, apiKeys.isLoading, searchQuery]);
 
   const deleteApiKey =
     scope === "project" ? deleteProjectApiKey : deleteOrganizationApiKey;
@@ -85,16 +118,44 @@ export function ConnectedApiKeySettingsTable({
           }}
         >
           {({ openDialog: openDeleteDialog }) => (
-            <ApiKeySettingsTable
-              data={tableData}
-              editNameAction={{
-                hasAccess: hasWriteAccess,
-                onClick: openEditNameDialog,
-              }}
-              hasWriteAccess={hasWriteAccess}
-              onDelete={openDeleteDialog}
-              noResultsMessage="None"
-            />
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <div className="w-80 max-w-full">
+                  <SearchInput
+                    value={searchQuery}
+                    onChange={setSearchQuery}
+                    onSubmit={setSearchQuery}
+                    placeholder="Search by name"
+                  />
+                </div>
+                {showKeyFilter ? (
+                  <div className="w-52">
+                    <SelectInput
+                      aria-label="Filter API keys"
+                      value={keyFilter}
+                      options={KEY_FILTER_OPTIONS}
+                      muted={keyFilter === KEY_FILTER_WITHOUT_GATEWAY}
+                      onValueChange={setKeyFilter}
+                      placeholder="Without gateway keys"
+                    />
+                  </div>
+                ) : null}
+              </div>
+              <ApiKeySettingsTable
+                data={tableData}
+                editNameAction={{
+                  hasAccess: hasWriteAccess,
+                  onClick: openEditNameDialog,
+                }}
+                hasWriteAccess={hasWriteAccess}
+                onDelete={openDeleteDialog}
+                noResultsMessage={
+                  searchQuery.trim().length > 0
+                    ? "No API keys match the current search."
+                    : "None"
+                }
+              />
+            </div>
           )}
         </ConfirmationDialogController>
       )}

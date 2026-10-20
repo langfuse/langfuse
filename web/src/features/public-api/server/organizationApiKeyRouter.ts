@@ -19,6 +19,7 @@ export const organizationApiKeysRouter = createTRPCRouter({
     .input(
       z.object({
         orgId: z.string(),
+        includeGatewayKeys: z.boolean().optional(),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -33,7 +34,7 @@ export const organizationApiKeysRouter = createTRPCRouter({
           orgId: input.orgId,
           scope: "ORGANIZATION",
           isInAppAgentKey: false,
-          ...excludeGatewayApiKeys,
+          ...(input.includeGatewayKeys ? {} : excludeGatewayApiKeys),
         },
         select: {
           id: true,

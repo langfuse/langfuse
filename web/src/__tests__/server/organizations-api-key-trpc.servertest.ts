@@ -263,6 +263,14 @@ describe("organization API keys trpc", () => {
 
       expect(ids).not.toContain(gatewayKey.id);
       expect(ids).toContain(ingestKey.id);
+
+      const allApiKeys = await ownerCaller.organizationApiKeys.byOrganizationId(
+        { orgId: organizationId, includeGatewayKeys: true },
+      );
+      const allIds = allApiKeys.map((key) => key.id);
+
+      expect(allIds).toContain(gatewayKey.id);
+      expect(allIds).toContain(ingestKey.id);
     });
 
     it("regular member cannot fetch organization API keys", async () => {
