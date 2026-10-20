@@ -46,6 +46,20 @@ async function createUser(orgId?: string, role?: Role) {
   });
 }
 
+async function grantProjectRoleDirectly(
+  orgId: string,
+  projectId: string,
+  userId: string,
+  role: Role,
+) {
+  const orgMembership = await prisma.organizationMembership.findUniqueOrThrow({
+    where: { orgId_userId: { orgId, userId } },
+  });
+  await prisma.projectMembership.create({
+    data: { projectId, userId, role, orgMembershipId: orgMembership.id },
+  });
+}
+
 function userContext(userId: string, orgId: string) {
   return resolver.resolveUser({ userId, isPlatformAdmin: false, orgId });
 }
@@ -168,7 +182,7 @@ describe("membership service", () => {
   });
 
   describe("authorization", () => {
-    it("caps session callers at their own org role", async () => {
+    it("requires the ownership permission to grant, change or remove OWNER", async () => {
       const { orgId } = await org();
       const owner = await createUser(orgId, Role.OWNER);
       const admin = await createUser(orgId, Role.ADMIN);
@@ -190,39 +204,88 @@ describe("membership service", () => {
       expect(await membershipLogs(orgId)).toEqual([]);
     });
 
-    it("caps project roles at MAX(org role, project role)", async () => {
-      const { orgId, projectId } = await org();
+    it("lets an ADMIN manage other ADMINs", async () => {
+      const { orgId } = await org();
       await createUser(orgId, Role.OWNER);
-      const member = await createUser(orgId, Role.MEMBER);
-      const target = await createUser(orgId, Role.VIEWER);
-      await prisma.projectMembership.create({
-        data: {
-          projectId,
-          userId: member.id,
-          role: Role.ADMIN,
-          orgMembershipId:
-            (await prisma.organizationMembership.findUniqueOrThrow({
-              where: { orgId_userId: { orgId, userId: member.id } },
-            }))!.id,
-        },
-      });
-      const ctx = await userContext(member.id, orgId);
+      const admin = await createUser(orgId, Role.ADMIN);
+      const otherAdmin = await createUser(orgId, Role.ADMIN);
+      const ctx = await userContext(admin.id, orgId);
 
-      const { outcome } = await applyProjectMembership(ctx, {
+      const { after } = await changeOrgRole(ctx, {
         orgId,
-        projectId,
-        userId: target.id,
+        userId: otherAdmin.id,
+        role: Role.MEMBER,
+      });
+      expect(after.role).toBe(Role.MEMBER);
+      await addOrgMember(ctx, {
+        orgId,
+        userId: (await createUser()).id,
         role: Role.ADMIN,
       });
-      expect(outcome).toBe("created");
-      await expect(
+    });
+
+    it("lets a project ADMIN grant project roles below OWNER only", async () => {
+      const { orgId, projectId } = await org();
+      await createUser(orgId, Role.OWNER);
+      const projectAdmin = await createUser(orgId, Role.MEMBER);
+      await grantProjectRoleDirectly(
+        orgId,
+        projectId,
+        projectAdmin.id,
+        Role.ADMIN,
+      );
+      const target = await createUser(orgId, Role.VIEWER);
+      const ctx = await userContext(projectAdmin.id, orgId);
+      const apply = (role: Role) =>
         applyProjectMembership(ctx, {
           orgId,
           projectId,
           userId: target.id,
-          role: Role.OWNER,
+          role,
+        });
+
+      expect((await apply(Role.ADMIN)).outcome).toBe("created");
+      await expect(apply(Role.OWNER)).rejects.toMatchObject({
+        httpCode: 403,
+      });
+    });
+
+    it("treats overriding an org OWNER's inherited project role as an ownership change", async () => {
+      const { orgId, projectId } = await org();
+      const owner = await createUser(orgId, Role.OWNER);
+      const projectAdmin = await createUser(orgId, Role.MEMBER);
+      await grantProjectRoleDirectly(
+        orgId,
+        projectId,
+        projectAdmin.id,
+        Role.ADMIN,
+      );
+      const ctx = await userContext(projectAdmin.id, orgId);
+
+      await expect(
+        applyProjectMembership(ctx, {
+          orgId,
+          projectId,
+          userId: owner.id,
+          role: Role.VIEWER,
         }),
       ).rejects.toMatchObject({ httpCode: 403 });
+    });
+
+    it("lets an org OWNER grant project OWNER despite a lower own project role", async () => {
+      const { orgId, projectId } = await org();
+      const owner = await createUser(orgId, Role.OWNER);
+      await grantProjectRoleDirectly(orgId, projectId, owner.id, Role.VIEWER);
+      const target = await createUser(orgId, Role.MEMBER);
+      const ctx = await userContext(owner.id, orgId);
+
+      const { after } = await applyProjectMembership(ctx, {
+        orgId,
+        projectId,
+        userId: target.id,
+        role: Role.OWNER,
+      });
+      expect(after?.role).toBe(Role.OWNER);
     });
 
     it("lets a member remove themselves but nobody else", async () => {

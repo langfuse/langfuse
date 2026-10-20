@@ -27,7 +27,6 @@ import {
 import { entitlementAccess } from "@/src/features/entitlements/constants/entitlements";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
 import { authorize } from "@/src/features/rbac/authorize";
-import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
 import { SeatLimitExceededError } from "./membershipErrors";
 
 const systemActorUserIds: Record<SystemReason, string> = {
@@ -188,8 +187,7 @@ export async function setProjectRole(
     requireOrgMembership(orgMembership);
     assertMayManageProjectMember(actor, {
       projectId,
-      targetOrgRole: orgMembership.role,
-      from: before?.role,
+      from: effectiveProjectRole(before, orgMembership),
       to: role,
     });
     const after = await upsertProjectMembership(tx, actor, {
@@ -250,17 +248,12 @@ export async function applyProjectMembership(
     }
     requireOrgMembership(orgMembership);
     if (before && (params.keepExistingRole || before.role === role)) {
-      assertMayManageProjectMember(actor, {
-        projectId,
-        targetOrgRole: orgMembership.role,
-        from: before.role,
-      });
+      assertMayManageProjectMember(actor, { projectId });
       return { outcome: "unchanged", before, after: before };
     }
     assertMayManageProjectMember(actor, {
       projectId,
-      targetOrgRole: orgMembership.role,
-      from: before?.role,
+      from: effectiveProjectRole(before, orgMembership),
       to: role,
     });
     const after = await upsertProjectMembership(tx, actor, {
@@ -398,7 +391,7 @@ async function runAfterCommit(effects: (() => Promise<unknown>)[]) {
   }
 }
 
-/** loadActor re-reads a session caller's own roles under the lock. */
+/** loadActor reads a session caller's own org role for the audit rows. */
 async function loadActor(
   tx: Prisma.TransactionClient,
   ctx: AuthorizationContext,
@@ -406,23 +399,11 @@ async function loadActor(
 ): Promise<Actor> {
   const { principal } = ctx;
   if (principal.kind === "admin" && principal.userId !== null) {
-    return { ctx, orgId, ownOrgRole: Role.OWNER, ownProjectRoles: new Map() };
+    return { ctx, orgId, orgRole: Role.OWNER };
   }
-  if (principal.kind !== "user") {
-    return { ctx, orgId, ownOrgRole: null, ownProjectRoles: new Map() };
-  }
-  const own = await tx.organizationMembership.findUnique({
-    where: { orgId_userId: { orgId, userId: principal.userId } },
-    include: { ProjectMemberships: true },
-  });
-  return {
-    ctx,
-    orgId,
-    ownOrgRole: own?.role ?? Role.NONE,
-    ownProjectRoles: new Map(
-      (own?.ProjectMemberships ?? []).map((pm) => [pm.projectId, pm.role]),
-    ),
-  };
+  if (principal.kind !== "user") return { ctx, orgId };
+  const own = await findOrgMembership(tx, orgId, principal.userId);
+  return { ctx, orgId, orgRole: own?.role ?? Role.NONE };
 }
 
 /** assertMayAddMember authorizes a new member or invitation at org level, or at project level when it only grants a project role. */
@@ -438,7 +419,6 @@ function assertMayAddMember(
   if (project) {
     assertMayManageProjectMember(actor, {
       projectId: project.projectId,
-      targetOrgRole: grant.role,
       to: project.role,
     });
   }
@@ -458,8 +438,6 @@ function assertMayManageOrgMember(
   if (change.from === Role.OWNER || change.to === Role.OWNER) {
     assertMayManageOrgOwnership(actor);
   }
-  assertRoleCeiling(actor, change.from);
-  assertRoleCeiling(actor, change.to);
 }
 
 function isSystem(actor: Actor) {
@@ -484,40 +462,23 @@ function mayManageOrgMembers(actor: Actor) {
 }
 
 function assertMayManageOrgOwnership(actor: Actor) {
-  const org = OrganizationId(actor.orgId);
-  const decision = authorize(
-    actor.ctx,
-    org,
-    "organizationMembers:manageOwnership",
-    org,
-  );
+  const decision = authorizeOrgOwnership(actor);
   if (!decision.success) throw decision.error;
 }
 
-/** assertRoleCeiling stops session callers from granting or touching an org role above their own. */
-function assertRoleCeiling(actor: Actor, role: Role | undefined) {
-  if (actor.ownOrgRole === null || role === undefined) return;
-  if (orderedRoles[actor.ownOrgRole] < orderedRoles[role]) {
-    throw new ForbiddenError(
-      "You cannot grant/edit a role higher than your own",
-    );
-  }
+function authorizeOrgOwnership(actor: Actor) {
+  const org = OrganizationId(actor.orgId);
+  return authorize(actor.ctx, org, "organizationMembers:manageOwnership", org);
 }
 
-/** assertMayManageProjectMember authorizes a project role change, capping session callers by role and others by projectMembers:manageOwnership. */
+/** assertMayManageProjectMember authorizes a change of the target's effective project role from `from` to `to`. */
 function assertMayManageProjectMember(
   actor: Actor,
-  change: { projectId: string; targetOrgRole?: Role; from?: Role; to?: Role },
+  change: { projectId: string; from?: Role; to?: Role },
 ) {
   if (isSystem(actor)) return;
   if (!mayManageProjectMembers(actor, change.projectId)) {
     throw new ForbiddenError("You do not have the required access rights");
-  }
-  if (actor.ownOrgRole !== null) {
-    assertRoleCeiling(actor, change.targetOrgRole);
-    assertProjectRoleCeiling(actor, change.projectId, change.from);
-    assertProjectRoleCeiling(actor, change.projectId, change.to);
-    return;
   }
   if (change.from === Role.OWNER || change.to === Role.OWNER) {
     assertMayManageProjectOwnership(actor, change.projectId);
@@ -536,26 +497,8 @@ function mayManageProjectMembers(actor: Actor, projectId: string) {
   );
 }
 
-/** assertProjectRoleCeiling caps session callers at MAX(own org role, own project role). */
-function assertProjectRoleCeiling(
-  actor: Actor,
-  projectId: string,
-  role: Role | undefined,
-) {
-  if (actor.ownOrgRole === null || role === undefined) return;
-  const ownProjectRole = actor.ownProjectRoles.get(projectId) ?? Role.NONE;
-  const own = Math.max(
-    orderedRoles[actor.ownOrgRole],
-    orderedRoles[ownProjectRole],
-  );
-  if (own < orderedRoles[role]) {
-    throw new ForbiddenError(
-      "You cannot grant/edit a role higher than your own",
-    );
-  }
-}
-
 function assertMayManageProjectOwnership(actor: Actor, projectId: string) {
+  if (authorizeOrgOwnership(actor).success) return;
   const decision = authorize(
     actor.ctx,
     OrganizationId(actor.orgId),
@@ -705,7 +648,7 @@ function auditActor(actor: Actor, projectId?: string): AuditLogActor {
       return {
         userId: principal.userId,
         orgId,
-        orgRole: actor.ownOrgRole ?? undefined,
+        orgRole: actor.orgRole,
         projectId,
       };
     case "admin":
@@ -1122,14 +1065,25 @@ async function clearProjectRole(
   },
 ): Promise<ProjectMembership | null> {
   const { projectId, orgMembership, before } = params;
+  if (!before) {
+    assertMayManageProjectMember(actor, { projectId });
+    return null;
+  }
   assertMayManageProjectMember(actor, {
     projectId,
-    targetOrgRole: orgMembership?.role,
-    from: before?.role,
+    from: before.role,
+    to: orgMembership?.role,
   });
-  if (!before) return null;
   await deleteProjectMembership(tx, actor, before);
   return before;
+}
+
+/** effectiveProjectRole is the target's project role, or the org role they inherit without one. */
+function effectiveProjectRole(
+  projectMembership: ProjectMembership | null,
+  orgMembership: OrganizationMembership,
+) {
+  return projectMembership?.role ?? orgMembership.role;
 }
 
 /** deleteProjectMembership deletes and audits a project role. */
@@ -1385,7 +1339,6 @@ type AfterCommit = (effect: () => Promise<unknown>) => void;
 type Actor = {
   ctx: AuthorizationContext;
   orgId: string;
-  /** ownOrgRole is a session caller's role ceiling, OWNER for platform admins, null for other callers. */
-  ownOrgRole: Role | null;
-  ownProjectRoles: Map<string, Role>;
+  /** orgRole is a session caller's own org role, OWNER for platform admins. */
+  orgRole?: Role;
 };
