@@ -444,7 +444,7 @@ describe("AI SDK request shapes", () => {
     });
   });
 
-  it("OpenAI-compatible chat completions: preserves JSON schema response_format", async () => {
+  it("OpenAI-compatible chat completions: preserves optional unconstrained structured output properties", async () => {
     const { result, request } = await runCompletion({
       modelParams: {
         provider: "openai",
@@ -455,7 +455,7 @@ describe("AI SDK request shapes", () => {
       baseURL: "https://openai-compatible.example.com/v1",
       output: createLLMOutput({
         type: "object",
-        properties: { answer: { type: "string" } },
+        properties: { answer: { type: "string" }, metadata: {} },
         required: ["answer"],
         additionalProperties: false,
       }),
@@ -479,7 +479,7 @@ describe("AI SDK request shapes", () => {
         name: "response",
         schema: {
           type: "object",
-          properties: { answer: { type: "string" } },
+          properties: { answer: { type: "string" }, metadata: {} },
           required: ["answer"],
           additionalProperties: false,
         },
