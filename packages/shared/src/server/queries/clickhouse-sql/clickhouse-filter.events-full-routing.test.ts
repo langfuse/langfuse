@@ -111,6 +111,12 @@ describe("filtersRequireEventsFull metadata routing", () => {
     expect(requires(metadataString("=", under200))).toBe(false);
   });
 
+  it("routes JSON-encoded numeric string equality at the truncation boundary", () => {
+    expect(requires(metadataString("=", "7".repeat(197)))).toBe(false);
+    expect(requires(metadataString("=", "7".repeat(198)))).toBe(true);
+    expect(requires(metadataString("=", "7".repeat(199)))).toBe(true);
+  });
+
   it("keeps metadata `starts with` (<=200), numeric, and boolean filters on events_core", () => {
     expect(requires(metadataString("starts with", exactly200))).toBe(false);
     expect(

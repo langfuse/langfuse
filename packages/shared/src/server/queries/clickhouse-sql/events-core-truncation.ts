@@ -1,10 +1,16 @@
 import type { ClickhouseOperator } from "./clickhouse-filter";
+import { safeJsonParse } from "../../../utils/json";
 
 // events_core_mv truncates each metadata_values element (and input/output) to
 // the first 200 UTF-8 code points via leftUTF8(v, 200). A metadata filter is
 // only safe to answer against events_core when 200-char truncation cannot
 // change its result.
 const EVENTS_CORE_TRUNCATION_LIMIT = 200;
+
+export const encodedMetadataStringEqualityValue = (
+  value: string,
+): string | undefined =>
+  safeJsonParse(value) !== undefined ? JSON.stringify(value) : undefined;
 
 // Metadata operators that can be answered correctly against the truncated
 // events_core copy — an allow-list, so any operator not named here defaults to
@@ -50,6 +56,7 @@ const EVENTS_CORE_SAFE_METADATA_OPERATORS = new Set<ClickhouseOperator>([
  *   - `=`, value length < 200 — a stored value longer than 200 truncates to 200
  *     code points and can never equal a sub-200 value. Strict `<` avoids the
  *     exact-200 false positive where a >200 value shares the first 200 chars.
+ *     JSON-encoded string equality must also fit within this limit.
  *   - `is null` / `is not null` — truncation invariant (metadata_names is
  *     untruncated; emptiness is unaffected).
  *   - numeric / boolean metadata comparisons — the value is inherently short,
@@ -75,7 +82,12 @@ export const metadataFilterIsEventsCoreSafe = (
       return codePointLength(value) <= EVENTS_CORE_TRUNCATION_LIMIT;
     }
     if (operator === "=") {
-      return codePointLength(value) < EVENTS_CORE_TRUNCATION_LIMIT;
+      const encodedValue = encodedMetadataStringEqualityValue(value);
+      return (
+        codePointLength(value) < EVENTS_CORE_TRUNCATION_LIMIT &&
+        (encodedValue === undefined ||
+          codePointLength(encodedValue) < EVENTS_CORE_TRUNCATION_LIMIT)
+      );
     }
   }
   return true;

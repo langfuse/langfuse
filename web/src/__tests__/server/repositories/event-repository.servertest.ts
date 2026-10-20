@@ -3584,6 +3584,96 @@ describe("Clickhouse Events Repository Test", () => {
         );
       });
 
+      it("matches an exact string metadata filter after SDK JSON encoding", async () => {
+        const traceId = randomUUID();
+        const observationId = randomUUID();
+        await createEventsCh([
+          createEvent({
+            id: observationId,
+            span_id: observationId,
+            project_id: projectId,
+            trace_id: traceId,
+            type: "SPAN",
+            metadata_names: ["numeric_text", "control"],
+            metadata_values: [JSON.stringify("42"), "abc123"],
+          }),
+        ]);
+
+        for (const [key, value] of [
+          ["numeric_text", "42"],
+          ["control", "abc123"],
+        ]) {
+          const result = await getObservationsWithModelDataFromEventsTable({
+            projectId,
+            filter: [
+              {
+                type: "stringObject",
+                column: "metadata",
+                operator: "=",
+                key,
+                value,
+              },
+              {
+                type: "string",
+                column: "traceId",
+                operator: "=",
+                value: traceId,
+              },
+            ],
+            limit: 1000,
+            offset: 0,
+          });
+          expect(result.map(({ id }) => id)).toEqual([observationId]);
+        }
+      });
+
+      it("matches a JSON-encoded numeric string beyond the events_core truncation boundary", async () => {
+        const traceId = randomUUID();
+        const observationId = randomUUID();
+        const value = "7".repeat(199);
+        const filter: FilterCondition[] = [
+          {
+            type: "stringObject",
+            column: "metadata",
+            operator: "=",
+            key: "numeric_text",
+            value,
+          },
+          {
+            type: "string",
+            column: "traceId",
+            operator: "=",
+            value: traceId,
+          },
+        ];
+
+        await createEventsCh([
+          createEvent({
+            id: observationId,
+            span_id: observationId,
+            project_id: projectId,
+            trace_id: traceId,
+            type: "SPAN",
+            metadata_names: ["numeric_text"],
+            metadata_values: [JSON.stringify(value)],
+          }),
+        ]);
+
+        const result = await getObservationsWithModelDataFromEventsTable({
+          projectId,
+          filter,
+          limit: 1000,
+          offset: 0,
+        });
+        expect(result.map(({ id }) => id)).toEqual([observationId]);
+
+        const count = await getObservationsCountFromEventsTable({
+          projectId,
+          filter,
+        });
+        expect(count).toBe(1);
+      });
+
       it("should filter on the first value when metadata_names contains duplicates", async () => {
         const traceId = randomUUID();
         const now = Date.now();
