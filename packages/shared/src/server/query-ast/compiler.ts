@@ -107,8 +107,9 @@ function inferClickHouseType(value: unknown): string {
 }
 
 /**
- * A name that is neither a CTE in scope nor a registry table never gets here
- * through `compileClickhouseQuery`: `ctes.ts` rejects it first.
+ * Bind types of the innermost CTE named like `table`, else of its registry
+ * table. Any other name throws; `compileClickhouseQuery` rejects it earlier,
+ * in `ctes.ts`.
  */
 function relationBindTypes(
   table: TableNode,
