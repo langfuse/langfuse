@@ -20,10 +20,10 @@
 import type { TupleParam } from "@clickhouse/client";
 import {
   AggregateFunctionNode,
-  AliasNode,
   BinaryOperationNode,
   ColumnNode,
   ExpressionWrapper,
+  expressionBuilder,
   FromNode,
   FunctionNode,
   IdentifierNode,
@@ -33,6 +33,7 @@ import {
   TableNode,
   ValueNode,
   type Expression,
+  type ExpressionBuilder,
   type KyselyPlugin,
   type OperationNode,
   type PluginTransformQueryArgs,
@@ -47,11 +48,12 @@ import {
   ArrayJoinNode,
   FinalTableNode,
   LimitByNode,
-  unwrapFinalTable,
+  finalTable,
   type ArrayJoinVariant,
   type ClickHouseSelectQueryNode,
 } from "./nodes";
 import { QueryCompileError } from "./errors";
+import { describeRelation } from "./relations";
 import { DEDUP_SPECS, type ClickHouseDatabase } from "./schema";
 import { ClickHouseOperationNodeTransformer } from "./transformer";
 
@@ -103,14 +105,19 @@ class ArrayJoinPlugin implements KyselyPlugin {
   }
 }
 
-type LimitBySpec = {
+type LimitBySpec<DB, TB extends keyof DB> = {
   count: number;
-  columns: ReadonlyArray<string>;
+  columns: (
+    eb: ExpressionBuilder<DB, TB>,
+  ) => ReadonlyArray<Expression<unknown>>;
 };
 
 /** Plugin that attaches a {@link LimitByNode} onto the select node. */
 class LimitByPlugin implements KyselyPlugin {
-  constructor(private readonly spec: LimitBySpec) {}
+  constructor(
+    private readonly count: number,
+    private readonly columns: ReadonlyArray<Expression<unknown>>,
+  ) {}
 
   transformQuery(args: PluginTransformQueryArgs): RootOperationNode {
     if (args.node.kind !== "SelectQueryNode") return args.node;
@@ -121,8 +128,8 @@ class LimitByPlugin implements KyselyPlugin {
     return {
       ...node,
       limitBy: LimitByNode.create(
-        ValueNode.createImmediate(this.spec.count),
-        this.spec.columns.map(columnRef),
+        ValueNode.createImmediate(this.count),
+        this.columns.map(toNode),
       ),
     } as RootOperationNode;
   }
@@ -141,38 +148,22 @@ function qualifiedColumn(table: string, column: string): OperationNode {
   );
 }
 
-// For callers whose column arrives as a single, possibly dotted string — e.g.
-// the `limitBy` column list. Kysely only parses `"table.column"` at the
-// expression-builder layer (`eb.ref`) and does not export its string-reference
-// parser, and these plugins build raw OperationNodes with no ExpressionBuilder
-// in scope, so we split the dotted name here rather than route through a string.
-function columnRef(name: string): OperationNode {
-  const parts = name.split(".");
-  return parts.length === 2
-    ? qualifiedColumn(parts[0], parts[1])
-    : ColumnNode.create(name);
+/** ClickHouse `mapKeys(map)`. */
+export function mapKeys(
+  map: Expression<Record<string, unknown>>,
+): ChExpression<string[]> {
+  return functionCall("mapKeys", [map]);
 }
 
-function arrayFunction<T>(fn: string, column: string): Expression<T[]> {
-  return new ExpressionWrapper<
-    ClickHouseDatabase,
-    keyof ClickHouseDatabase,
-    T[]
-  >(FunctionNode.create(fn, [columnRef(column)]) as unknown as OperationNode);
-}
-
-/** `mapKeys(map)` as a typed array expression (element type defaults to string). */
-export function mapKeys<K = string>(column: string): Expression<K[]> {
-  return arrayFunction<K>("mapKeys", column);
-}
-
-/** `mapValues(map)` as a typed array expression (element type defaults to string). */
-export function mapValues<V = string>(column: string): Expression<V[]> {
-  return arrayFunction<V>("mapValues", column);
+/** ClickHouse `mapValues(map)`. */
+export function mapValues<V>(
+  map: Expression<Record<string, V>>,
+): ChExpression<V[]> {
+  return functionCall("mapValues", [map]);
 }
 
 /** ClickHouse `uniq(value)`, an approximate distinct count. */
-export function uniq(value: Expression<unknown>): ChExpression<string> {
+export function uniq(value: Expression<unknown>): ChExpression<number> {
   return aggregate("uniq", [value]);
 }
 
@@ -180,7 +171,7 @@ export function uniq(value: Expression<unknown>): ChExpression<string> {
 export function count(): ExpressionWrapper<
   ClickHouseDatabase,
   keyof ClickHouseDatabase,
-  string
+  number
 > {
   return new ExpressionWrapper(
     AggregateFunctionNode.create("count", []) as unknown as OperationNode,
@@ -190,7 +181,7 @@ export function count(): ExpressionWrapper<
 /** ClickHouse `medianExact(expression)`. */
 export function medianExact(
   expression: Expression<unknown>,
-): ExpressionWrapper<ClickHouseDatabase, keyof ClickHouseDatabase, string> {
+): ExpressionWrapper<ClickHouseDatabase, keyof ClickHouseDatabase, number> {
   return new ExpressionWrapper(
     AggregateFunctionNode.create("medianExact", [
       expression.toOperationNode(),
@@ -392,7 +383,7 @@ export function startsWith(
 /** ClickHouse `length(array)`. */
 export function arrayLength(
   array: Expression<unknown[]>,
-): ChExpression<string> {
+): ChExpression<number> {
   return functionCall("length", [array]);
 }
 
@@ -418,7 +409,7 @@ export function anyValue<T>(value: Expression<T>): ChExpression<T> {
 }
 
 /** ClickHouse `countIf(condition)`. */
-export function countIf(condition: Expression<SqlBool>): ChExpression<string> {
+export function countIf(condition: Expression<SqlBool>): ChExpression<number> {
   return aggregate("countIf", [condition]);
 }
 
@@ -426,7 +417,7 @@ export function countIf(condition: Expression<SqlBool>): ChExpression<string> {
 export function uniqIf(
   value: Expression<unknown>,
   condition: Expression<SqlBool>,
-): ChExpression<string> {
+): ChExpression<number> {
   return aggregate("uniqIf", [value, condition]);
 }
 
@@ -472,12 +463,11 @@ export function sumMap<V>(
 }
 
 /**
- * ClickHouse `leftUTF8(expression, length)`; `expression` is a column name or
- * a string expression. The length is inlined as an integer literal; it must be
- * a positive integer.
+ * ClickHouse `leftUTF8(expression, length)`. The length is inlined as an
+ * integer literal; it must be a positive integer.
  */
 export function leftUTF8(
-  expression: string | Expression<string>,
+  expression: Expression<string>,
   length: number,
 ): ChExpression<string> {
   if (!Number.isInteger(length) || length < 1) {
@@ -486,7 +476,7 @@ export function leftUTF8(
     );
   }
   return functionCall("leftUTF8", [
-    typeof expression === "string" ? columnRef(expression) : expression,
+    expression,
     ValueNode.createImmediate(length),
   ]);
 }
@@ -640,16 +630,9 @@ export function argMaxIf<T>(
  * columns, for a trace-level aggregate over one events table.
  */
 export function traceSessionId(): ChExpression<string> {
-  const sessionId = new ExpressionWrapper<
-    ClickHouseDatabase,
-    keyof ClickHouseDatabase,
-    string
-  >(columnRef("session_id"));
-  return argMaxIf(
-    sessionId,
-    new ExpressionWrapper(columnRef("event_ts")),
-    nonEmpty(sessionId),
-  );
+  const eb = expressionBuilder<ClickHouseDatabase, "events_core">();
+  const sessionId = eb.ref("session_id");
+  return argMaxIf(sessionId, eb.ref("event_ts"), nonEmpty(sessionId));
 }
 
 /**
@@ -685,51 +668,61 @@ type ElementOf<E> =
     : never;
 
 /**
- * ARRAY JOIN clause as a `$call` step: `qb.$call(arrayJoin({ alias: expr }))`.
- * Each entry's alias is added to the builder's output row type, so consumers of
- * the result (e.g. an outer query selecting from a CTE body) can reference the
- * produced columns and typos on the alias name are compile errors. The element
- * value type is opaque (Kysely's Expression hides its type arg), so aliases
- * surface as `unknown`. The alias must still be projected in a `select` to
- * appear in the emitted SQL. Distinct from the `arrayJoin()` SELECT function.
+ * ARRAY JOIN clause as a `$call` step:
+ * `qb.$call(arrayJoin((eb) => ({ alias: mapKeys(eb.ref("e.col")) })))`.
+ * `items` receives the builder's expression builder, so its column references
+ * are checked against the query's tables. Each entry's alias is added to the
+ * builder's output row type, so consumers of the result (e.g. an outer query
+ * selecting from a CTE body) can reference the produced columns and typos on
+ * the alias name are compile errors. The element value type is opaque
+ * (Kysely's Expression hides its type arg), so aliases surface as `unknown`.
+ * The alias must still be projected in a `select` to appear in the emitted
+ * SQL. Distinct from the `arrayJoin()` SELECT function.
  */
 export function arrayJoin<
+  DB,
+  TB extends keyof DB,
   Items extends { [K in keyof Items]: Expression<ReadonlyArray<unknown>> },
->(items: Items, variant: ArrayJoinVariant = "default") {
-  const list: ArrayJoinItem[] = Object.entries(items).map(
-    ([as, expression]) => ({
-      expression: expression as OperationNodeSource,
-      as,
-    }),
-  );
-  return <DB, TB extends keyof DB, O>(
+>(
+  items: (eb: ExpressionBuilder<DB, TB>) => Items,
+  variant: ArrayJoinVariant = "default",
+) {
+  return <O>(
     qb: SelectQueryBuilder<DB, TB, O>,
   ): SelectQueryBuilder<
     DB,
     TB,
     O & { [K in keyof Items]: ElementOf<Items[K]> }
-  > =>
-    qb.withPlugin(
+  > => {
+    const produced: Record<string, Expression<unknown>> = items(
+      expressionBuilder(qb),
+    );
+    const list: ArrayJoinItem[] = Object.entries(produced).map(
+      ([as, expression]) => ({ expression, as }),
+    );
+    return qb.withPlugin(
       new ArrayJoinPlugin(list, variant),
     ) as unknown as SelectQueryBuilder<
       DB,
       TB,
       O & { [K in keyof Items]: ElementOf<Items[K]> }
     >;
+  };
 }
 
-/** LIMIT BY clause as a `$call` step: `qb.$call(limitBy({ count, columns }))`. */
-export function limitBy(spec: LimitBySpec) {
-  return <DB, TB extends keyof DB, O>(
+/**
+ * LIMIT BY clause as a `$call` step:
+ * `qb.$call(limitBy({ count: 1, columns: (eb) => [eb.ref("e.span_id")] }))`.
+ * `columns` receives the builder's expression builder, so its references are
+ * checked against the query's tables.
+ */
+export function limitBy<DB, TB extends keyof DB>(spec: LimitBySpec<DB, TB>) {
+  return <O>(
     qb: SelectQueryBuilder<DB, TB, O>,
-  ): SelectQueryBuilder<DB, TB, O> => qb.withPlugin(new LimitByPlugin(spec));
-}
-
-function physicalTableName(node: OperationNode): string | undefined {
-  if (FinalTableNode.is(node)) return physicalTableName(unwrapFinalTable(node));
-  if (AliasNode.is(node)) return physicalTableName(node.node);
-  if (TableNode.is(node)) return node.table.identifier.name;
-  return undefined;
+  ): SelectQueryBuilder<DB, TB, O> =>
+    qb.withPlugin(
+      new LimitByPlugin(spec.count, spec.columns(expressionBuilder(qb))),
+    );
 }
 
 function wrapFinal(
@@ -737,10 +730,8 @@ function wrapFinal(
   tables: ReadonlySet<string>,
 ): OperationNode {
   if (FinalTableNode.is(node)) return node;
-  const name = physicalTableName(node);
-  return name && tables.has(name)
-    ? (FinalTableNode.create(node) as unknown as OperationNode)
-    : node;
+  const name = describeRelation(node).table?.table.identifier.name;
+  return name && tables.has(name) ? finalTable(node) : node;
 }
 
 /**

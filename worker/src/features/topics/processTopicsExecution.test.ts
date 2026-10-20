@@ -76,6 +76,7 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
   const { TOPICS_TRANSCRIPT_VERSION, TOPIC_EMBEDDING_EXPIRED_ERROR } =
     await importOriginal<typeof import("@langfuse/shared/topics/server")>();
   return {
+    getTopicTextResponseMetadata: () => undefined,
     isTopicsEnabled: () => true,
     getTopicsModels: async () => {
       const slot = (name: string, model: string) => ({

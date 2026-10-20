@@ -22,13 +22,6 @@ type TopicsProviderErrorReason =
 /** Telemetry only; the user-facing message stays generic. */
 export type TopicProviderErrorDetails = {
   httpStatus?: number;
-  // Why a model returned no usable output; never the output itself.
-  finishReason?: string;
-  rawFinishReason?: string;
-  message?: string;
-  type?: string;
-  code?: string;
-  param?: string;
 };
 
 export class TopicsProviderUnavailable extends Error {
@@ -90,7 +83,7 @@ export function topicProviderError(
     invalid_input: `${failed} The provider rejected the request; check that the model ID supports it.`,
     rate_limit: `${failed} The provider rate-limited the request. Try again later.`,
     timeout: `${failed} The request timed out. Try again later.`,
-    invalid_output: `${subject} returned no usable output.`,
+    invalid_output: `${subject} returned no usable structured output. Resume interrupted stages to retry, or choose another model.`,
     configuration: `${failed} Check the Topics model settings.`,
     provider_error: `${failed} Check the model ID and provider availability.`,
   }[reason];
@@ -102,34 +95,14 @@ export function topicProviderError(
   );
 }
 
-/**
- * Like evals, keeps only the AI SDK's parsed provider error fields; plain errors
- * (e.g. the direct Bedrock call) carry the response body, so they keep the status only.
- */
+/** Provider error strings can echo request/response content; retain only status. */
 function providerErrorDetails(
   error: unknown,
   status: number | undefined,
 ): TopicProviderErrorDetails {
-  const record = (value: unknown) =>
-    value && typeof value === "object"
-      ? (value as Record<string, unknown>)
-      : undefined;
-  const text = (value: unknown) =>
-    typeof value === "string" ? value.slice(0, 500) : undefined;
-  const reasons = finishReasons(error);
   const provider = getLLMErrorInfo(error)?.providerError;
   const httpStatus = provider?.statusCode ?? status;
-  if (!httpStatus) return reasons;
-  if (!provider) return { ...reasons, httpStatus };
-  const data = record(record(provider.data)?.error) ?? record(provider.data);
-  return {
-    ...reasons,
-    httpStatus,
-    message: text(provider.message),
-    type: text(data?.type),
-    code: text(data?.code),
-    param: text(data?.param),
-  };
+  return httpStatus ? { httpStatus } : {};
 }
 
 /** The provider rejected the connection's credentials or billing. */
@@ -163,27 +136,4 @@ export async function pauseForRejectedConnection(
         pauseError instanceof Error ? pauseError.message : String(pauseError),
     });
   }
-}
-
-/** Finish reasons are provider enums; anything else could be model text. */
-function finishReasons(
-  error: unknown,
-): Pick<TopicProviderErrorDetails, "finishReason" | "rawFinishReason"> {
-  const record = (value: unknown) =>
-    value && typeof value === "object"
-      ? (value as Record<string, unknown>)
-      : undefined;
-  const enumValue = (value: unknown) =>
-    typeof value === "string" && /^[\w-]{1,40}$/.test(value)
-      ? value
-      : undefined;
-  for (let current = record(error), depth = 0; current && depth < 4; depth++) {
-    if (typeof current.finishReason === "string")
-      return {
-        finishReason: enumValue(current.finishReason),
-        rawFinishReason: enumValue(current.rawFinishReason),
-      };
-    current = record(current.cause);
-  }
-  return {};
 }

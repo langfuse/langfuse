@@ -512,6 +512,38 @@ describe("ClickhouseWriter", () => {
     expect(writer["queue"][TableName.Traces]).toHaveLength(0);
   });
 
+  it("measures a requeued record's wait from the requeue, not from creation", async () => {
+    const distributionSpy = vi.spyOn(serverExports, "recordDistribution");
+    const slowFailureMs = 60_000;
+    vi.spyOn(clickhouseClientMock, "insert")
+      .mockImplementationOnce(
+        () =>
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("DB Error")), slowFailureMs),
+          ),
+      )
+      .mockResolvedValueOnce();
+
+    writer.addToQueue(TableName.Traces, { id: "1", name: "test" });
+
+    await vi.advanceTimersByTimeAsync(writer.writeInterval + slowFailureMs);
+    expect(writer["queue"][TableName.Traces]).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(writer.writeInterval);
+    expect(writer["queue"][TableName.Traces]).toHaveLength(0);
+
+    const waits = distributionSpy.mock.calls.filter(
+      ([name, , tags]) =>
+        name === "langfuse.queue.clickhouse_writer.time_distribution" &&
+        (tags as Record<string, string>).type === "wait",
+    );
+    expect(waits).toHaveLength(2);
+    expect(waits[0][2]).toMatchObject({ attempt: "first" });
+    expect(waits[1][2]).toMatchObject({ attempt: "retry" });
+    // The retry waited at most one write interval after being requeued; the
+    // 60s spent in the failed insert is not wait.
+    expect(waits[1][1]).toBeLessThanOrEqual(writer.writeInterval);
+  });
+
   it("should drop records after max attempts", async () => {
     const mockInsert = vi
       .spyOn(clickhouseClientMock, "insert")
@@ -780,6 +812,7 @@ describe("ClickhouseWriter", () => {
       {
         entity_type: TableName.Traces,
         type: "wait",
+        attempt: "first",
         format: "json",
         unit: "milliseconds",
       },
