@@ -204,8 +204,9 @@ export async function loadTopicTranscript(params: {
 
 /** ClickHouse stops oversized results before the reader can count them. */
 function isResultOverflow(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) return false;
   return (
-    (error as { type?: unknown }).type === "TOO_MANY_ROWS_OR_BYTES" ||
+    ("type" in error && error.type === "TOO_MANY_ROWS_OR_BYTES") ||
     (error instanceof Error &&
       error.message.includes("Limit for result exceeded"))
   );
