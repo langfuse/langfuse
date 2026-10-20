@@ -1,7 +1,11 @@
 import type { SelectExpression } from "kysely";
 
 import { getClickhouseKysely } from "../query-ast/dialect";
-import { limitBy, softDeleteAfterLimit } from "../query-ast/extensions";
+import {
+  limitBy,
+  literal,
+  softDeleteAfterLimit,
+} from "../query-ast/extensions";
 import type { ClickHouseDatabase } from "../query-ast/schema";
 
 type EventsAsE = ClickHouseDatabase & { e: ClickHouseDatabase["events"] };
@@ -22,7 +26,7 @@ export const promptGenerationEvents = <
     .selectFrom("events as e")
     .$call(softDeleteAfterLimit())
     .select(columns)
-    .where("e.type", "=", "GENERATION")
+    .where("e.type", "=", literal("GENERATION"))
     .where("e.prompt_id", "in", promptIds)
     .$if(timeWindow.fromTimestamp !== undefined, (qb) =>
       qb.where("e.start_time", ">=", timeWindow.fromTimestamp!),
