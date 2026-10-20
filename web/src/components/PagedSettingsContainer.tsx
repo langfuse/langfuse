@@ -1,7 +1,8 @@
 import { cn } from "@/src/utils/tailwind";
 import { ArrowUpRight } from "@langfuse/icons";
 import Link from "next/link";
-import { type ReactNode } from "react";
+import { type ReactNode, useEffect } from "react";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import {
   Select,
   SelectContent,
@@ -18,6 +19,8 @@ type SettingsPage = {
   slug: string;
   section?: string;
   show?: boolean | (() => boolean);
+  /** Lists the page but blocks opening it; shown as the entry's tooltip */
+  disabledReason?: string;
 } & (
   | { content: ReactNode }
   | {
@@ -49,20 +52,32 @@ export const PagedSettingsContainer = ({
   );
 
   const contentPages = availablePages.filter((page) => "content" in page);
-  const currentPage =
-    contentPages.find((page) => page.slug === activeSlug) ?? contentPages[0];
+  const enabledContentPages = contentPages.filter(
+    (page) => !page.disabledReason,
+  );
+  const requestedPage = contentPages.find((page) => page.slug === activeSlug);
+  const redirectPage = requestedPage?.disabledReason
+    ? (enabledContentPages.find(
+        (page) => page.section === requestedPage.section,
+      ) ?? enabledContentPages[0])
+    : undefined;
+  const currentPage = redirectPage ?? requestedPage ?? enabledContentPages[0];
+
+  // Disabled state can arrive after the URL (e.g. from a query), so the URL is
+  // corrected once it is known instead of in a navigation handler.
+  const redirectSlug = redirectPage?.slug;
+  useEffect(() => {
+    if (redirectSlug === undefined) return;
+    router.replace(settingsPath(router.asPath, redirectSlug));
+  }, [redirectSlug, router]);
 
   const onChange = (newSlug: string) => {
-    const pathSegments = router.asPath.split("?")[0].split("/");
-    if (pathSegments[pathSegments.length - 1] !== "settings")
-      pathSegments.pop();
-    if (newSlug !== "index") pathSegments.push(newSlug);
-    router.push(pathSegments.join("/"));
+    router.push(settingsPath(router.asPath, newSlug));
   };
 
   const handleSelectPage = (key: string) => {
     const page = availablePages.find((p) => pageKey(p) === key);
-    if (!page) return;
+    if (!page || page.disabledReason) return;
     if ("href" in page) router.push(page.href);
     else onChange(page.slug);
   };
@@ -104,7 +119,11 @@ export const PagedSettingsContainer = ({
                     <SelectLabel>{group.section}</SelectLabel>
                   ) : null}
                   {group.pages.map((page) => (
-                    <SelectItem key={pageKey(page)} value={pageKey(page)}>
+                    <SelectItem
+                      key={pageKey(page)}
+                      value={pageKey(page)}
+                      disabled={!!page.disabledReason}
+                    >
                       {page.title}
                       {"href" in page && !page.internal && (
                         <ArrowUpRight
@@ -142,28 +161,19 @@ export const PagedSettingsContainer = ({
                   ))
                 : null}
               {group.pages.map((page) =>
-                "href" in page ? (
-                  <Link
+                page.disabledReason ? (
+                  <DisabledNavEntry
                     key={pageKey(page)}
-                    href={page.href}
-                    className="hover:bg-muted hover:text-foreground flex h-8 flex-row items-center gap-2 rounded-sm px-2"
-                  >
-                    {page.title}
-                    {!page.internal && (
-                      <ArrowUpRight size="base" __rawClassName="inline" />
-                    )}
-                  </Link>
+                    title={page.title}
+                    reason={page.disabledReason}
+                  />
                 ) : (
-                  <span
+                  <NavEntry
                     key={pageKey(page)}
-                    onClick={() => onChange(page.slug)}
-                    className={cn(
-                      "hover:bg-muted hover:text-foreground flex h-8 cursor-pointer items-center rounded-sm px-2",
-                      page === currentPage && "bg-muted text-primary font-bold",
-                    )}
-                  >
-                    {page.title}
-                  </span>
+                    page={page}
+                    isActive={page === currentPage}
+                    onSelect={onChange}
+                  />
                 ),
               )}
             </div>
@@ -181,6 +191,70 @@ export const PagedSettingsContainer = ({
     </main>
   );
 };
+
+function NavEntry({
+  page,
+  isActive,
+  onSelect,
+}: {
+  page: SettingsPage;
+  isActive: boolean;
+  onSelect: (slug: string) => void;
+}) {
+  if ("href" in page) {
+    return (
+      <Link
+        href={page.href}
+        className="hover:bg-muted hover:text-foreground flex h-8 flex-row items-center gap-2 rounded-sm px-2"
+      >
+        {page.title}
+        {!page.internal && <ArrowUpRight size="base" __rawClassName="inline" />}
+      </Link>
+    );
+  }
+  return (
+    <span
+      onClick={() => onSelect(page.slug)}
+      className={cn(
+        "hover:bg-muted hover:text-foreground flex h-8 cursor-pointer items-center rounded-sm px-2",
+        isActive && "bg-muted text-primary font-bold",
+      )}
+    >
+      {page.title}
+    </span>
+  );
+}
+
+function DisabledNavEntry({
+  title,
+  reason,
+}: {
+  title: string;
+  reason: string;
+}) {
+  return (
+    <Tooltip label={reason} placement="right" hoverableContent={false}>
+      {({ getTriggerProps }) => (
+        <span
+          {...getTriggerProps()}
+          role="link"
+          aria-disabled="true"
+          tabIndex={0}
+          className="text-muted-foreground/50 flex h-8 cursor-not-allowed items-center rounded-sm px-2"
+        >
+          {title}
+        </span>
+      )}
+    </Tooltip>
+  );
+}
+
+function settingsPath(asPath: string, slug: string) {
+  const pathSegments = asPath.split("?")[0].split("/");
+  if (pathSegments[pathSegments.length - 1] !== "settings") pathSegments.pop();
+  if (slug !== "index") pathSegments.push(slug);
+  return pathSegments.join("/");
+}
 
 function groupPagesBySection<T extends { section?: string }>(pages: T[]) {
   return pages.reduce<Array<{ section: string | undefined; pages: T[] }>>(
