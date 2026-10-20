@@ -542,12 +542,15 @@ describe("tenancy injection", () => {
           CommonTableExpressionNode.create(cte.name, finalBody),
         ),
       };
-      expect(() =>
+      const check = () =>
         new CteNamePlugin().transformQuery({
           node: withFinal,
           queryId: createQueryId(),
-        }),
-      ).toThrow(`"a" is neither a registry table nor a CTE in scope`);
+        });
+      expect(check).toThrow(UnscopedRelationError);
+      expect(check).toThrow(
+        `"a" is neither a registry table nor a CTE in scope`,
+      );
     });
 
     it.each(["traces ", "default.recent"])(

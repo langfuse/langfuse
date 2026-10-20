@@ -274,7 +274,9 @@ and it is where tenancy is enforced:
 1. A missing/empty `projectId` throws (`QueryCompileError`) — `projectId` is a
    required parameter, so omitting it is also a compile-time type error.
    `CteNamePlugin` then rejects the CTE names the rules above forbid; it runs
-   before every other pass.
+   before every other pass. A FROM/JOIN name that resolves to no registry
+   table or CTE in scope, and a schema-qualified name, throw
+   `UnscopedRelationError`; naming errors throw `QueryCompileError`.
 2. `SoftDeleteFilterPlugin` adds `<flag> = 0` for every FROM/JOIN relation
    whose table declares `softDelete`, except in selects marked with
    `includeDeleted()`. A select marked `softDeleteAfterLimit()` is left
