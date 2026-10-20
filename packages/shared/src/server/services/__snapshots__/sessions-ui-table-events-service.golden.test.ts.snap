@@ -74,3 +74,159 @@ ORDER BY timestamp ASC",
   },
 ]
 `;
+
+exports[`golden: sessions table aggregation family > getSessionsTableCountFromEvents filter=metadata+tools+sessionIds+createdAt 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param10": [
+        "golden-tool",
+      ],
+      "param11": [
+        "golden-session",
+        "golden-session-b",
+      ],
+      "param12": "2025-12-01 00:00:00.000",
+      "param2": [
+        "golden-session",
+        "golden-session-b",
+      ],
+      "param3": "2025-12-01 00:00:00.000",
+      "param4": "golden-key",
+      "param5": "%golden-value%",
+      "param6": "golden-value",
+      "param7": "golden-key",
+      "param8": "%golden-value%",
+      "param9": "golden-value",
+    },
+    "route": "unknown",
+    "sql": "WITH session_data AS
+    (
+        SELECT
+            session_id,
+            max(start_time) AS max_timestamp,
+            min(start_time) AS min_timestamp,
+            groupUniqArray(trace_id) AS trace_ids,
+            groupUniqArrayIf(user_id, (user_id IS NOT NULL) AND (user_id != '')) AS user_ids,
+            uniq(trace_id) AS trace_count,
+            groupUniqArrayArrayIf(tags, notEmpty(tags)) AS trace_tags,
+            argMaxIf(environment, event_ts, environment != '') AS environment,
+            uniqIf(span_id, parent_span_id != '') AS total_observations,
+            dateDiff('second', min(start_time), max(if(isNull(end_time), start_time, end_time))) AS duration,
+            sumMap(usage_details) AS session_usage_details,
+            sumMap(cost_details) AS session_cost_details,
+            arraySum(
+                mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, 'input') > 0), sumMap(cost_details)))
+            ) AS session_input_cost,
+            arraySum(
+                mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, 'output') > 0), sumMap(cost_details)))
+            ) AS session_output_cost,
+            sumMap(cost_details)['total'] AS session_total_cost,
+            arraySum(
+                mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, 'input') > 0), sumMap(usage_details)))
+            ) AS session_input_usage,
+            arraySum(
+                mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, 'output') > 0), sumMap(usage_details)))
+            ) AS session_output_usage,
+            sumMap(usage_details)['total'] AS session_total_usage,
+            argMax(metadata_names, tuple(start_time, event_ts, span_id)) AS metadata_names,
+            argMax(metadata_values, tuple(start_time, event_ts, span_id)) AS metadata_values,
+            groupUniqArrayArray(mapKeys(tool_definitions)) AS tool_names,
+            groupUniqArrayArray(tool_call_names) AS called_tool_names,
+            sum(length(tool_calls)) AS tool_calls_count
+        FROM events_full AS e
+        WHERE (e.project_id = {param1:String})
+            AND (session_id IN ({param2:Array(String)}))
+            AND (start_time >= ({param3:DateTime64(3)} - toIntervalDay(2)))
+            AND (session_id IN (
+                SELECT m.session_id
+                FROM events_full AS m
+                WHERE (m.project_id = {param1:String})
+                    AND (m.start_time >= ({param3:DateTime64(3)} - toIntervalDay(2)))
+                    AND (m.session_id != '')
+                    AND (has(m.metadata_names, {param4:String}) AND like(arrayStringConcat(m.metadata_values), {param5:String}) AND (position(m.metadata_values[indexOf(m.metadata_names, {param4:String})], {param6:String}) > 0))
+            ))
+            AND (session_id != '')
+        GROUP BY session_id
+    )
+SELECT count(s.session_id) AS count
+FROM session_data AS s
+WHERE has(s.metadata_names, {param7:String})
+    AND like(arrayStringConcat(s.metadata_values), {param8:String})
+    AND (position(s.metadata_values[indexOf(s.metadata_names, {param7:String})], {param9:String}) > 0)
+    AND (hasAny({param10:Array(String)}, s.tool_names) = true)
+    AND (session_id IN ({param11:Array(String)}))
+    AND (min_timestamp >= {param12:DateTime64(3, 'UTC')})",
+  },
+]
+`;
+
+exports[`golden: sessions table aggregation family > getSessionsTableFromEvents filter=none 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": 50,
+    },
+    "route": "unknown",
+    "sql": "WITH session_data AS
+    (
+        SELECT
+            session_id,
+            max(start_time) AS max_timestamp,
+            min(start_time) AS min_timestamp,
+            groupUniqArray(trace_id) AS trace_ids,
+            groupUniqArrayIf(user_id, (user_id IS NOT NULL) AND (user_id != '')) AS user_ids,
+            uniq(trace_id) AS trace_count,
+            groupUniqArrayArrayIf(tags, notEmpty(tags)) AS trace_tags,
+            argMaxIf(environment, event_ts, environment != '') AS environment,
+            uniqIf(span_id, parent_span_id != '') AS total_observations,
+            dateDiff('second', min(start_time), max(if(isNull(end_time), start_time, end_time))) AS duration,
+            sumMap(usage_details) AS session_usage_details,
+            sumMap(cost_details) AS session_cost_details,
+            arraySum(
+                mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, 'input') > 0), sumMap(cost_details)))
+            ) AS session_input_cost,
+            arraySum(
+                mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, 'output') > 0), sumMap(cost_details)))
+            ) AS session_output_cost,
+            sumMap(cost_details)['total'] AS session_total_cost,
+            arraySum(
+                mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, 'input') > 0), sumMap(usage_details)))
+            ) AS session_input_usage,
+            arraySum(
+                mapValues(mapFilter(x -> (positionCaseInsensitive(x.1, 'output') > 0), sumMap(usage_details)))
+            ) AS session_output_usage,
+            sumMap(usage_details)['total'] AS session_total_usage
+        FROM events_core AS e
+        WHERE (e.project_id = {param1:String})
+            AND (session_id != '')
+        GROUP BY session_id
+    )
+SELECT
+    s.session_id,
+    s.max_timestamp,
+    s.min_timestamp,
+    s.trace_ids,
+    s.user_ids,
+    s.trace_count,
+    s.trace_tags,
+    s.environment,
+    s.total_observations,
+    s.duration,
+    s.session_usage_details,
+    s.session_cost_details,
+    s.session_input_cost,
+    s.session_output_cost,
+    s.session_total_cost,
+    s.session_input_usage,
+    s.session_output_usage,
+    s.session_total_usage
+FROM session_data AS s
+LIMIT {param2:Int32}",
+  },
+]
+`;

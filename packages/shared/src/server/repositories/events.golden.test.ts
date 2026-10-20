@@ -46,6 +46,8 @@ import {
   getSessionMetricsFromEvents,
   getTraceByIdFromEventsTable,
   getTraceMetadataByIdsFromEvents,
+  getTracesFromEventsTableForPublicApi,
+  getTracesIdentifierForSessionFromEvents,
   hasAnySessionFromEventsTable,
   hasAnyTraceFromEventsTable,
   hasAnyUserFromEventsTable,
@@ -533,6 +535,41 @@ describeWithClickhouse(
     });
   },
 );
+
+describeWithClickhouse("golden: events trace aggregation family", () => {
+  beforeEach(() => {
+    resetCaptures();
+  });
+
+  it("getTracesFromEventsTableForPublicApi fields=all", async () => {
+    await getTracesFromEventsTableForPublicApi({
+      projectId: FIXED_PROJECT_ID,
+      page: 1,
+      limit: 50,
+      fields: ["core", "io", "scores", "observations", "metrics"],
+    });
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it("getTracesFromEventsTableForPublicApi fields=core fromTimestamp=set", async () => {
+    await getTracesFromEventsTableForPublicApi({
+      projectId: FIXED_PROJECT_ID,
+      page: 1,
+      limit: 50,
+      fields: ["core"],
+      fromTimestamp: FIXED_FROM_TIMESTAMP.toISOString(),
+    });
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it("getTracesIdentifierForSessionFromEvents", async () => {
+    await getTracesIdentifierForSessionFromEvents(
+      FIXED_PROJECT_ID,
+      FIXED_SESSION_IDS[0],
+    );
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+});
 
 describeWithClickhouse("golden: events export streams family", () => {
   beforeEach(() => {
