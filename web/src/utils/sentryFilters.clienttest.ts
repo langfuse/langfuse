@@ -1124,14 +1124,15 @@ describe("isDenylistedNoiseEvent", () => {
     });
   });
 
-  describe("L. drops Safari injected querySelectorAll.find.click (document-attributed)", () => {
-    // Real shape: Safari 26.6 on project settings. Injected page-world JS
-    // does Array.from(document.querySelectorAll("a")).find(...).click()
-    // looking for a link whose innerText is "API Keys". Settings nav items
-    // without href are <span>s, so find() is undefined. WebKit's TypeError
-    // includes the expression. Stack is document-attributed global code —
-    // no /_next/ chunk — so denyUrls cannot match. Langfuse never writes
-    // this querySelectorAll + find + click pattern.
+  describe("L. drops Safari injected querySelectorAll.find.<prop> (document-attributed)", () => {
+    // Real shape: Safari 26.6 on project settings (LANGFUSE-62W) and
+    // Safari 27 on evals/new (LANGFUSE-648). Injected page-world JS
+    // does Array.from(document.querySelectorAll(...)).find(...).<prop>
+    // looking for a control by innerText. find() is undefined. WebKit's
+    // TypeError includes the expression. Stack is document-attributed
+    // global code — no /_next/ chunk — so denyUrls cannot match.
+    // Langfuse never writes this querySelectorAll + find + property
+    // pattern.
     const safariQuerySelectorAllFindClickEvent = (
       value: string,
       mechanismType = "auto.browser.global_handlers.onerror",
@@ -1212,6 +1213,44 @@ describe("isDenylistedNoiseEvent", () => {
                 function: "global code",
               },
             ],
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    // LANGFUSE-648: same injected find-by-innerText scrape, but the
+    // missing match is a <button> and the follow-on access is
+    // `.parentElement` via a wrapped setTimeout — not `.click`.
+    const observedParentElementValue =
+      "undefined is not an object (evaluating 'Array.from(document.querySelectorAll('button')).find(b=>b.innerText==='transcript\\nfrom\\nOutput').parentElement')";
+
+    it("drops the observed WebKit querySelectorAll.find.parentElement TypeError", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          safariQuerySelectorAllFindClickEvent(
+            observedParentElementValue,
+            "auto.browser.browserapierrors.setTimeout",
+            [
+              {
+                filename:
+                  "node_modules/.pnpm/@sentry+browser@10.64.0/node_modules/@sentry/browser/src/helpers.ts",
+                function: "l",
+              },
+              {
+                filename: "app:///project/example/evals/new",
+              },
+            ],
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same parentElement scrape when innerText contains real newlines", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          safariQuerySelectorAllFindClickEvent(
+            "undefined is not an object (evaluating 'Array.from(document.querySelectorAll('button')).find(b=>b.innerText==='transcript\nfrom\nOutput').parentElement')",
+            "auto.browser.browserapierrors.setTimeout",
           ),
         ),
       ).toBe(true);
@@ -1945,6 +1984,91 @@ describe("isDenylistedNoiseEvent", () => {
                   {
                     filename:
                       "https://us.cloud.langfuse.com/_next/static/chunks/pages/project/[projectId]/settings/[page]-abc.js",
+                    function: "onClick",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a longer app message that merely quotes querySelectorAll.find.parentElement", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value:
+                "Failed to open evals: undefined is not an object (evaluating 'Array.from(document.querySelectorAll('button')).find(b=>b.innerText==='transcript').parentElement')",
+              mechanism: {
+                type: "auto.browser.browserapierrors.setTimeout",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a querySelectorAll.find TypeError whose callback has no innerText", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value:
+                "undefined is not an object (evaluating 'Array.from(document.querySelectorAll('button')).find(b=>b.id==='submit').parentElement')",
+              mechanism: {
+                type: "auto.browser.browserapierrors.setTimeout",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps Chromium's generic undefined.parentElement TypeError", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value:
+                "Cannot read properties of undefined (reading 'parentElement')",
+              mechanism: {
+                type: "auto.browser.browserapierrors.setTimeout",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps the Safari parentElement TypeError when a first-party chunk is on the stack", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value:
+                "undefined is not an object (evaluating 'Array.from(document.querySelectorAll('button')).find(b=>b.innerText==='transcript').parentElement')",
+              mechanism: {
+                type: "auto.browser.browserapierrors.setTimeout",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  {
+                    filename:
+                      "https://us.cloud.langfuse.com/_next/static/chunks/pages/project/[projectId]/evals/new-abc.js",
                     function: "onClick",
                   },
                 ],
