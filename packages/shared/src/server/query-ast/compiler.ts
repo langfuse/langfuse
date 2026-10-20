@@ -368,14 +368,8 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
    * would carry the code constants as params.
    */
   protected override visitValueList(node: ValueListNode): void {
-    const immediate = node.values.filter((v) => ValueNode.is(v) && v.immediate);
-    const bound = node.values.filter((v) => ValueNode.is(v) && !v.immediate);
-    if (immediate.length > 0 && bound.length > 0) {
-      throw new QueryCompileError(
-        "An IN list mixes literal(...) items with bound values. Wrap every item in literal(...) or none.",
-      );
-    }
-    if (immediate.length > 0) {
+    assertNotMixedValueList(node);
+    if (node.values.some(isImmediateValue)) {
       super.visitValueList(node);
       return;
     }
@@ -857,6 +851,20 @@ function assertPlainName(kind: string, name: string): void {
       `${kind} name "${name}" is not a plain identifier; the compiler writes it verbatim into the SQL.`,
     );
   }
+}
+
+function assertNotMixedValueList(node: ValueListNode): void {
+  const hasLiteral = node.values.some(isImmediateValue);
+  const hasBound = node.values.some((v) => ValueNode.is(v) && !v.immediate);
+  if (hasLiteral && hasBound) {
+    throw new QueryCompileError(
+      "An IN list mixes literal(...) items with bound values. Wrap every item in literal(...) or none.",
+    );
+  }
+}
+
+function isImmediateValue(node: OperationNode): boolean {
+  return ValueNode.is(node) && node.immediate === true;
 }
 
 /**
