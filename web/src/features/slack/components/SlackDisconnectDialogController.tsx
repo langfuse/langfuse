@@ -65,19 +65,24 @@ export const SlackDisconnectDialogController = ({
 
   return (
     <DialogController
-      renderDialog={({ closeDialog }) => (
-        <SlackDisconnectDialog
-          isPending={disconnectMutation.isPending}
-          onConfirm={() => handleDisconnect(closeDialog)}
-        />
-      )}
+      renderDialog={({ closeDialog }) => {
+        const handleConfirm = () => handleDisconnect(closeDialog);
+        return (
+          <SlackDisconnectDialog
+            isPending={disconnectMutation.isPending}
+            onConfirm={handleConfirm}
+          />
+        );
+      }}
     >
-      {({ openDialog }) =>
-        children({
+      {({ openDialog }) => {
+        // Called without arguments so a click event is never stored as dialog state.
+        const handleOpenDialog = () => openDialog();
+        return children({
           isPending: disconnectMutation.isPending,
-          openDialog: () => openDialog(),
-        })
-      }
+          openDialog: handleOpenDialog,
+        });
+      }}
     </DialogController>
   );
 };

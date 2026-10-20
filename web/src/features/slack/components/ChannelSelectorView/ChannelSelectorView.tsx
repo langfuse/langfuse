@@ -7,6 +7,7 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import {
   Command,
   CommandEmpty,
@@ -17,8 +18,6 @@ import {
 } from "@/src/components/ui/command";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { type SlackChannel } from "@langfuse/shared/src/server";
-import { cn } from "@/src/utils/tailwind";
-
 const ITEM_HEIGHT = 32;
 
 export interface ChannelSelectorViewProps {
@@ -272,19 +271,13 @@ export const ChannelSelectorView: React.FC<ChannelSelectorViewProps> = ({
         </Popover>
 
         {showRefreshButton && (
-          <Button
+          <IconButton
+            icon={RefreshCw}
+            label="Refresh channels"
             variant="outline"
-            size="icon"
-            aria-label="Refresh channels"
             onClick={onRefresh}
             disabled={disabled || isRefreshing || isLoading}
-          >
-            <RefreshCw
-              size="base"
-              color="default"
-              __rawClassName={cn((isRefreshing || isLoading) && "animate-spin")}
-            />
-          </Button>
+          />
         )}
       </div>
 

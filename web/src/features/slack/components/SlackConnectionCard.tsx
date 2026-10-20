@@ -1,7 +1,7 @@
 import React from "react";
 import { CheckCircle, AlertCircle, Unlink } from "@langfuse/icons";
 import { Badge } from "@/src/components/ui/badge";
-import { Button } from "@/src/components/ui/button";
+import { Button } from "@/src/components/design-system/Button/Button";
 import {
   Card,
   CardContent,
@@ -206,25 +206,23 @@ export const SlackConnectionCard: React.FC<SlackConnectionCardProps> = ({
           >
             {({ isPending, openDialog }) => (
               <Button
+                text="Disconnect"
+                icon={Unlink}
                 variant="destructive"
                 size="sm"
                 onClick={openDialog}
                 disabled={disabled || isPending}
-              >
-                <Unlink size="base" __rawClassName="mr-2" />
-                Disconnect
-              </Button>
+              />
             )}
           </SlackDisconnectDialogController>
 
           <Button
-            variant="outline"
+            text="Refresh Status"
+            variant="secondary"
             size="sm"
             onClick={() => refetchStatus()}
             disabled={disabled}
-          >
-            Refresh Status
-          </Button>
+          />
         </div>
       </CardContent>
     </Card>
