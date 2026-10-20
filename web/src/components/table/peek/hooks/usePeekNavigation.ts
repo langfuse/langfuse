@@ -10,6 +10,14 @@ const PEEK_PARAM = "peek";
 // View-mode param shared with the peek component (cleared whenever the peek closes).
 const PEEK_VIEW_PARAM = "peekView";
 
+// The open comments pane stores its object in the URL. That pin must not
+// survive a move to a different peeked row, or a comment is written onto the
+// previous trace. `comments=open` stays so the pane follows the new row.
+function clearPinnedCommentObject(params: URLSearchParams) {
+  params.delete("commentObjectId");
+  params.delete("commentObjectType");
+}
+
 interface BasePeekConfig {
   /**
    * Which table this peek belongs to, for the `peek:*` analytics.
@@ -116,6 +124,7 @@ export function usePeekNavigation(config: PeekConfig | PeekConfigWithExpand) {
         params.delete(PEEK_PARAM);
         params.delete(PEEK_VIEW_PARAM);
         config?.queryParams?.forEach((param) => params.delete(param));
+        clearPinnedCommentObject(params);
       } else {
         // Re-clicking the already-peeked row is a no-op open — don't count it.
         if (id !== currentPeekId) {
@@ -150,6 +159,7 @@ export function usePeekNavigation(config: PeekConfig | PeekConfigWithExpand) {
         Object.entries(options?.queryParams ?? {}).forEach(([key, value]) => {
           params.set(key, value);
         });
+        if (id !== currentPeekId) clearPinnedCommentObject(params);
       }
 
       router.push(
@@ -178,6 +188,7 @@ export function usePeekNavigation(config: PeekConfig | PeekConfigWithExpand) {
     params.delete(PEEK_PARAM);
     params.delete(PEEK_VIEW_PARAM);
     config?.queryParams?.forEach((param) => params.delete(param));
+    clearPinnedCommentObject(params);
 
     router.push(
       {
@@ -217,6 +228,8 @@ export function usePeekNavigation(config: PeekConfig | PeekConfigWithExpand) {
       config?.paramsToMirrorPeekValue?.forEach((param) => {
         params.set(param, entry.id);
       });
+
+      clearPinnedCommentObject(params);
 
       // Set the search part of the URL
       return `${url.pathname}?${params.toString()}`;

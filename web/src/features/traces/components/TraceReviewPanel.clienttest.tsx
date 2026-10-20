@@ -6,6 +6,15 @@ const state = vi.hoisted(() => ({
   query: { annotation: "open" } as Record<string, string>,
   selectedNodeId: "first",
   replace: vi.fn(),
+  urlTarget: undefined as
+    | {
+        type: "comments";
+        objectId: string;
+        objectType: "TRACE" | "OBSERVATION";
+      }
+    | undefined,
+  truncatedAtObservations: undefined as number | undefined,
+  isPlaceholderData: false,
 }));
 const store = createTraceReviewPanelStore({
   projectId: "project",
@@ -30,6 +39,8 @@ vi.mock("../contexts/TraceDataContext", () => ({
       { id: "first", environment: "default" },
       { id: "second", environment: "default" },
     ],
+    truncatedAtObservations: state.truncatedAtObservations,
+    isPlaceholderData: state.isPlaceholderData,
     serverScores: [
       { id: "trace-score", observationId: null },
       { id: "first-score", observationId: "first" },
@@ -66,8 +77,14 @@ vi.mock("@/src/features/comments/CommentList", () => ({
   ),
 }));
 vi.mock("@/src/features/comments/CommentDrawerController", () => ({
-  getCommentDrawerInitialStateFromUrl: () => undefined,
+  getCommentDrawerInitialStateFromUrl: () => state.urlTarget,
 }));
+
+beforeEach(() => {
+  state.urlTarget = undefined;
+  state.truncatedAtObservations = undefined;
+  state.isPlaceholderData = false;
+});
 
 it("follows the selected annotation target and switches panels through the URL", () => {
   const view = render(<TraceReviewPanel projectId="project" />);
@@ -96,6 +113,51 @@ it("follows the selected annotation target and switches panels through the URL",
   expect(screen.getByTestId("annotation")).toHaveTextContent(
     "trace:trace-score",
   );
+});
+
+it("keeps a comment pinned to an observation of the open trace", () => {
+  state.query = { comments: "open" };
+  state.selectedNodeId = "first";
+  state.urlTarget = {
+    type: "comments",
+    objectId: "second",
+    objectType: "OBSERVATION",
+  };
+  render(<TraceReviewPanel projectId="project" />);
+  expect(screen.getByTestId("comments")).toHaveTextContent("second");
+});
+
+it("moves comments onto the selected trace when the pin belongs to another trace", () => {
+  state.query = { comments: "open" };
+  state.selectedNodeId = "first";
+  state.urlTarget = {
+    type: "comments",
+    objectId: "6593595d499d1bc7",
+    objectType: "OBSERVATION",
+  };
+  const view = render(<TraceReviewPanel projectId="project" />);
+  expect(screen.getByTestId("comments")).toHaveTextContent(/^first$/);
+
+  state.urlTarget = {
+    type: "comments",
+    objectId: "other-trace",
+    objectType: "TRACE",
+  };
+  view.rerender(<TraceReviewPanel projectId="project" />);
+  expect(screen.getByTestId("comments")).toHaveTextContent(/^first$/);
+});
+
+it("keeps a comment deep link that the capped tree has not loaded", () => {
+  state.query = { comments: "open" };
+  state.selectedNodeId = "first";
+  state.truncatedAtObservations = 10_000;
+  state.urlTarget = {
+    type: "comments",
+    objectId: "outside-window",
+    objectType: "OBSERVATION",
+  };
+  render(<TraceReviewPanel projectId="project" />);
+  expect(screen.getByTestId("comments")).toHaveTextContent("outside-window");
 });
 
 it("closes comment deep links with Escape and clears their URL target", () => {

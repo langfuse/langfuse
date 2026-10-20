@@ -8,7 +8,7 @@ import { useSelection } from "../contexts/SelectionContext";
 import { useReadPath } from "@/src/features/events";
 import { prepareTraceAnnotation } from "@/src/features/scores/lib/prepareTraceAnnotation";
 import { useStore } from "zustand";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useRouter, type NextRouter } from "next/router";
 import { X } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
@@ -45,22 +45,76 @@ function CloseReviewPanelButton() {
   );
 }
 
+function commentTargetBelongsToTrace(
+  target: CommentTarget,
+  traceId: string,
+  observationIds: ReadonlySet<string>,
+  truncated: boolean,
+): boolean {
+  if (target.objectType === "TRACE") return target.objectId === traceId;
+  if (target.objectType === "OBSERVATION") {
+    if (observationIds.has(target.objectId)) return true;
+    // A capped tree can omit the deep-linked observation. Keep that pin
+    // rather than attaching the thread to whichever node is selected.
+    return truncated;
+  }
+  return false;
+}
+
+function resolveOpenCommentTarget({
+  active,
+  urlTarget,
+  sessionTarget,
+  live,
+  belongs,
+}: {
+  active: boolean;
+  urlTarget: CommentTarget | undefined;
+  sessionTarget: CommentTarget | undefined;
+  live: CommentTarget;
+  belongs: (target: CommentTarget) => boolean;
+}): CommentTarget {
+  // While the pane is closed the session is the pin. While it is open the URL
+  // wins, unless that object is from another trace — then a new comment would
+  // be stored on the trace the user just left.
+  if (!active && sessionTarget && belongs(sessionTarget)) return sessionTarget;
+  if (urlTarget && belongs(urlTarget)) return urlTarget;
+  if (sessionTarget && belongs(sessionTarget)) return sessionTarget;
+  return live;
+}
+
 function TraceCommentsPanel({ projectId }: { projectId: string }) {
   const store = useTraceReviewPanel();
   const router = useRouter();
-  const { trace, observations } = useTraceData();
+  const { trace, observations, truncatedAtObservations } = useTraceData();
   const { selectedNodeId } = useSelection();
   const observation = observations.find((item) => item.id === selectedNodeId);
   const session = useStore(store, (state) => state.comments);
+  const observationIds = useMemo(
+    () => new Set(observations.map((item) => item.id)),
+    [observations],
+  );
   const active =
     router.query.comments === "open" && router.query.annotation !== "open";
-  const target: CommentTarget = (!active ? session?.target : undefined) ??
-    getCommentDrawerInitialStateFromUrl(router.query) ?? {
-      type: "comments" as const,
-      objectId: observation?.id ?? trace.id,
-      objectType: observation ? ("OBSERVATION" as const) : ("TRACE" as const),
-      objectStartTime: observation?.startTime ?? trace.timestamp,
-    };
+  const live: CommentTarget = {
+    type: "comments",
+    objectId: observation?.id ?? trace.id,
+    objectType: observation ? "OBSERVATION" : "TRACE",
+    objectStartTime: observation?.startTime ?? trace.timestamp,
+  };
+  const target = resolveOpenCommentTarget({
+    active,
+    urlTarget: getCommentDrawerInitialStateFromUrl(router.query),
+    sessionTarget: session?.target,
+    live,
+    belongs: (candidate) =>
+      commentTargetBelongsToTrace(
+        candidate,
+        trace.id,
+        observationIds,
+        Boolean(truncatedAtObservations),
+      ),
+  });
   return (
     <CommentsPanel projectId={projectId} target={target} active={active} />
   );
