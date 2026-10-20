@@ -7,8 +7,9 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { authenticator } from "@/src/features/apiKey/server";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import {
-  applyOrgMembership,
-  removeOrgMember,
+  createMembership,
+  deleteMembership,
+  updateMembership,
 } from "@/src/features/memberships/server/membershipService";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
 import { shadowAuth, writeScimError } from "@/src/features/public-api/server";
@@ -55,16 +56,21 @@ async function provisionMembership({
   role?: Role;
   ctx: AuthorizationContext;
 }): Promise<ProvisionOutcome> {
-  const { outcome, after } = await applyOrgMembership(ctx, {
+  if (role === undefined) {
+    const { outcome, orgMembership } = await createMembership(ctx, {
+      orgId,
+      userId,
+      role: "NONE",
+      ifExists: "ignore",
+    });
+    return { kind: outcome, role: orgMembership!.role };
+  }
+  const { outcome, after } = await updateMembership(ctx, {
     orgId,
     userId,
-    role: role ?? "NONE",
-    keepExistingRole: role === undefined,
+    role,
   });
-  return {
-    kind: outcome === "removed" ? "unchanged" : outcome,
-    role: after!.role,
-  };
+  return { kind: outcome, role: after.role };
 }
 
 // Single place for the SCIM provisioning log line so PUT and PATCH stay
@@ -101,7 +107,7 @@ async function deprovisionOrReject(
   orgId: string,
   ctx: AuthorizationContext,
 ): Promise<void> {
-  await removeOrgMember(ctx, { orgId, userId });
+  await deleteMembership(ctx, { orgId, userId });
 }
 
 export default async function handler(

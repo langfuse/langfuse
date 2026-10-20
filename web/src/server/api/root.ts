@@ -7,7 +7,7 @@ import { scoreAnalyticsRouter } from "@/src/features/score-analytics/server/scor
 import { dashboardRouter } from "@/src/features/dashboard/server/dashboard-router";
 import { projectsRouter } from "@/src/features/projects/server";
 import { projectApiKeysRouter } from "@/src/features/public-api/server/projectApiKeyRouter";
-import { membersRouter } from "@/src/features/memberships/server/membersRouter";
+import { membersRouter } from "@/src/features/rbac/server/membersRouter";
 import { userRouter } from "@/src/server/api/routers/users";
 import { userAccountRouter } from "@/src/server/api/routers/userAccount";
 import { datasetRouter } from "@/src/features/datasets/server/dataset-router";

@@ -12,14 +12,11 @@ import {
 } from "@/src/features/auth/policy/contextResolver";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import {
-  acceptInvitations,
-  addOrgMember,
-  applyOrgMembership,
-  applyProjectMembership,
-  changeOrgRole,
-  createInvitation,
-  removeOrgMember,
-  removeUserFromAllOrgs,
+  claimInvitations,
+  createMembership,
+  deleteMembership,
+  deleteMemberships,
+  updateMembership,
 } from "@/src/features/memberships/server/membershipService";
 import { SeatLimitExceededError } from "@/src/features/memberships/server/membershipErrors";
 
@@ -121,8 +118,8 @@ describe("membership service", () => {
       const ctx = await userContext(owner.id, orgId);
 
       const results = await Promise.allSettled([
-        addOrgMember(ctx, { orgId, userId: first.id, role: Role.MEMBER }),
-        addOrgMember(ctx, { orgId, userId: second.id, role: Role.MEMBER }),
+        createMembership(ctx, { orgId, userId: first.id, role: Role.MEMBER }),
+        createMembership(ctx, { orgId, userId: second.id, role: Role.MEMBER }),
       ]);
 
       expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
@@ -138,15 +135,15 @@ describe("membership service", () => {
       const { orgId } = await org("Hobby");
       const owner = await createUser(orgId, Role.OWNER);
       const { context } = await apiKeyContext(orgId, owner.id);
-      await createInvitation(context, {
+      await createMembership(context, {
         orgId,
         email: `${randomUUID()}@example.com`,
-        orgRole: Role.MEMBER,
+        role: Role.MEMBER,
       });
       const user = await createUser();
 
       await expect(
-        applyOrgMembership(context, {
+        updateMembership(context, {
           orgId,
           userId: user.id,
           role: Role.MEMBER,
@@ -158,19 +155,19 @@ describe("membership service", () => {
       const { orgId } = await org("Hobby");
       const owner = await createUser(orgId, Role.OWNER);
       const invitee = `${randomUUID()}@example.com`;
-      await createInvitation(await userContext(owner.id, orgId), {
+      await createMembership(await userContext(owner.id, orgId), {
         orgId,
         email: invitee,
-        orgRole: Role.MEMBER,
+        role: Role.MEMBER,
       });
-      await applyOrgMembership(systemContext("signupDefaults"), {
+      await updateMembership(systemContext("signupDefaults"), {
         orgId,
         userId: (await createUser()).id,
         role: Role.VIEWER,
       });
       const accepting = await prisma.user.create({ data: { email: invitee } });
 
-      await acceptInvitations({ userId: accepting.id, email: invitee });
+      await claimInvitations({ userId: accepting.id, email: invitee });
 
       expect(
         await prisma.organizationMembership.count({ where: { orgId } }),
@@ -189,17 +186,17 @@ describe("membership service", () => {
       const ctx = await userContext(admin.id, orgId);
 
       await expect(
-        addOrgMember(ctx, {
+        createMembership(ctx, {
           orgId,
           userId: (await createUser()).id,
           role: Role.OWNER,
         }),
       ).rejects.toMatchObject({ httpCode: 403 });
       await expect(
-        changeOrgRole(ctx, { orgId, userId: owner.id, role: Role.MEMBER }),
+        updateMembership(ctx, { orgId, userId: owner.id, role: Role.MEMBER }),
       ).rejects.toMatchObject({ httpCode: 403 });
       await expect(
-        removeOrgMember(ctx, { orgId, userId: owner.id }),
+        deleteMembership(ctx, { orgId, userId: owner.id }),
       ).rejects.toMatchObject({ httpCode: 403 });
       expect(await membershipLogs(orgId)).toEqual([]);
     });
@@ -211,13 +208,13 @@ describe("membership service", () => {
       const otherAdmin = await createUser(orgId, Role.ADMIN);
       const ctx = await userContext(admin.id, orgId);
 
-      const { after } = await changeOrgRole(ctx, {
+      const { after } = await updateMembership(ctx, {
         orgId,
         userId: otherAdmin.id,
         role: Role.MEMBER,
       });
       expect(after.role).toBe(Role.MEMBER);
-      await addOrgMember(ctx, {
+      await createMembership(ctx, {
         orgId,
         userId: (await createUser()).id,
         role: Role.ADMIN,
@@ -237,8 +234,7 @@ describe("membership service", () => {
       const target = await createUser(orgId, Role.VIEWER);
       const ctx = await userContext(projectAdmin.id, orgId);
       const apply = (role: Role) =>
-        applyProjectMembership(ctx, {
-          orgId,
+        updateMembership(ctx, {
           projectId,
           userId: target.id,
           role,
@@ -263,8 +259,7 @@ describe("membership service", () => {
       const ctx = await userContext(projectAdmin.id, orgId);
 
       await expect(
-        applyProjectMembership(ctx, {
-          orgId,
+        updateMembership(ctx, {
           projectId,
           userId: owner.id,
           role: Role.VIEWER,
@@ -279,8 +274,7 @@ describe("membership service", () => {
       const target = await createUser(orgId, Role.MEMBER);
       const ctx = await userContext(owner.id, orgId);
 
-      const { after } = await applyProjectMembership(ctx, {
-        orgId,
+      const { after } = await updateMembership(ctx, {
         projectId,
         userId: target.id,
         role: Role.OWNER,
@@ -296,9 +290,9 @@ describe("membership service", () => {
       const ctx = await userContext(member.id, orgId);
 
       await expect(
-        removeOrgMember(ctx, { orgId, userId: other.id }),
+        deleteMembership(ctx, { orgId, userId: other.id }),
       ).rejects.toMatchObject({ httpCode: 403 });
-      expect(await removeOrgMember(ctx, { orgId, userId: member.id })).toEqual(
+      expect(await deleteMembership(ctx, { orgId, userId: member.id })).toEqual(
         expect.objectContaining({ userId: member.id }),
       );
     });
@@ -315,8 +309,8 @@ describe("membership service", () => {
       ];
 
       const results = await Promise.allSettled([
-        removeOrgMember(ctxA, { orgId, userId: b.id }),
-        removeOrgMember(ctxB, { orgId, userId: a.id }),
+        deleteMembership(ctxA, { orgId, userId: b.id }),
+        deleteMembership(ctxB, { orgId, userId: a.id }),
       ]);
 
       expect(results.map((r) => r.status).sort()).toEqual([
@@ -330,7 +324,7 @@ describe("membership service", () => {
       ).toBe(1);
     });
 
-    it("refuses to remove a user from all orgs while they are a last owner", async () => {
+    it("refuses to delete all memberships of a user while they are a last owner", async () => {
       const { orgId } = await org();
       const owner = await createUser(orgId, Role.OWNER);
       const ctx = await resolver.resolveUser({
@@ -338,11 +332,14 @@ describe("membership service", () => {
         isPlatformAdmin: false,
       });
 
-      await expect(removeUserFromAllOrgs(ctx, owner.id)).rejects.toMatchObject({
-        httpCode: 403,
-      });
+      const deleteAll = () =>
+        prisma.$transaction((tx) =>
+          deleteMemberships(tx, ctx, { userId: owner.id }),
+        );
+
+      await expect(deleteAll()).rejects.toMatchObject({ httpCode: 403 });
       await createUser(orgId, Role.OWNER);
-      await removeUserFromAllOrgs(ctx, owner.id);
+      await deleteAll();
       expect(
         await prisma.organizationMembership.count({
           where: { userId: owner.id },
@@ -351,26 +348,78 @@ describe("membership service", () => {
     });
   });
 
-  describe("applyOrgMembership", () => {
-    it("reports each outcome and honours keepExistingRole", async () => {
+  describe("outcomes", () => {
+    it("reports what each change did and audits only real changes", async () => {
       const { orgId } = await org();
       const owner = await createUser(orgId, Role.OWNER);
       const ctx = await userContext(owner.id, orgId);
       const userId = (await createUser()).id;
-      const apply = (role: Role | null, keepExistingRole?: boolean) =>
-        applyOrgMembership(ctx, { orgId, userId, role, keepExistingRole });
+      const update = (role: Role) =>
+        updateMembership(ctx, { orgId, userId, role });
 
-      expect((await apply(Role.MEMBER)).outcome).toBe("created");
-      expect((await apply(Role.MEMBER)).outcome).toBe("unchanged");
-      expect((await apply(Role.NONE, true)).after?.role).toBe(Role.MEMBER);
-      expect((await apply(Role.ADMIN)).outcome).toBe("updated");
-      expect((await apply(null)).outcome).toBe("removed");
-      expect((await apply(null)).outcome).toBe("unchanged");
+      expect((await update(Role.MEMBER)).outcome).toBe("created");
+      expect((await update(Role.MEMBER)).outcome).toBe("unchanged");
+      const ignored = await createMembership(ctx, {
+        orgId,
+        userId,
+        role: Role.NONE,
+        ifExists: "ignore",
+      });
+      expect(ignored).toMatchObject({
+        outcome: "unchanged",
+        orgMembership: { role: Role.MEMBER },
+      });
+      await expect(
+        createMembership(ctx, { orgId, userId, role: Role.VIEWER }),
+      ).rejects.toMatchObject({ httpCode: 400 });
+      expect((await update(Role.ADMIN)).outcome).toBe("updated");
+      expect(await deleteMembership(ctx, { orgId, userId })).not.toBeNull();
+      expect(await deleteMembership(ctx, { orgId, userId })).toBeNull();
       expect((await membershipLogs(orgId)).map((log) => log.action)).toEqual([
         "create",
         "update",
         "delete",
       ]);
+    });
+
+    it("adds only a project role to an existing member with org role NONE", async () => {
+      const { orgId, projectId } = await org();
+      const owner = await createUser(orgId, Role.OWNER);
+      const member = await createUser(orgId, Role.VIEWER);
+      const ctx = await userContext(owner.id, orgId);
+
+      const created = await createMembership(ctx, {
+        orgId,
+        userId: member.id,
+        role: Role.NONE,
+        project: { projectId, role: Role.ADMIN },
+      });
+
+      expect(created).toMatchObject({
+        outcome: "created",
+        orgMembership: { role: Role.VIEWER },
+        projectMembership: { role: Role.ADMIN },
+      });
+    });
+
+    it("refuses project roles without the rbac-project-roles entitlement", async () => {
+      process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "STAGING";
+      const { orgId, projectId } = await org("Hobby");
+      const owner = await createUser(orgId, Role.OWNER);
+      const { context } = await apiKeyContext(orgId, owner.id);
+
+      await expect(
+        updateMembership(context, {
+          projectId,
+          userId: owner.id,
+          role: Role.VIEWER,
+        }),
+      ).rejects.toMatchObject({ httpCode: 403 });
+      await updateMembership(systemContext("bootstrap"), {
+        projectId,
+        userId: owner.id,
+        role: Role.VIEWER,
+      });
     });
   });
 
@@ -398,7 +447,7 @@ describe("membership service", () => {
 
       for (const [ctx, actor] of contexts) {
         const userId = (await createUser()).id;
-        await applyOrgMembership(ctx, { orgId, userId, role: Role.MEMBER });
+        await updateMembership(ctx, { orgId, userId, role: Role.MEMBER });
         const [log] = await prisma.auditLog.findMany({
           where: {
             orgId,
@@ -414,19 +463,18 @@ describe("membership service", () => {
       const { orgId, projectId } = await org();
       const owner = await createUser(orgId, Role.OWNER);
       const email = `${randomUUID()}@example.com`;
-      const invitation = await createInvitation(
+      const { invitation } = await createMembership(
         await userContext(owner.id, orgId),
         {
           orgId,
           email,
-          orgRole: Role.NONE,
+          role: Role.NONE,
           project: { projectId, role: Role.MEMBER },
-          invitedByUserId: owner.id,
         },
       );
       const user = await prisma.user.create({ data: { email } });
 
-      await acceptInvitations({ userId: user.id, email });
+      await claimInvitations({ userId: user.id, email });
 
       const logs = await prisma.auditLog.findMany({
         where: { orgId, userId: user.id },
@@ -438,7 +486,9 @@ describe("membership service", () => {
         "orgMembership.create",
         "projectMembership.create",
       ]);
-      expect(logs.find((log) => log.resourceId === invitation.id)).toBeTruthy();
+      expect(
+        logs.find((log) => log.resourceId === invitation!.id),
+      ).toBeTruthy();
       expect(
         await prisma.projectMembership.findUnique({
           where: { projectId_userId: { projectId, userId: user.id } },

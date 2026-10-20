@@ -13,12 +13,15 @@ type SessionUser = NonNullable<Session["user"]>;
 type SessionProject = SessionUser["organizations"][number]["projects"][number];
 import { v4 as uuidv4 } from "uuid";
 
+// self-hosted plans map to the cloud plan with the same project-role entitlement
 const cloudPlanNames: Partial<Record<Plan, string>> = {
   "cloud:hobby": "Hobby",
   "cloud:core": "Core",
   "cloud:pro": "Pro",
   "cloud:team": "Team",
   "cloud:enterprise": "Enterprise",
+  "self-hosted:pro": "Pro",
+  "self-hosted:enterprise": "Enterprise",
 };
 
 async function createTestOrg(plan: Plan) {
@@ -599,7 +602,7 @@ describe("membersRouter.updateOrgMembership - audit log state capture", () => {
 
     await caller.members.updateOrgMembership({
       orgId: org.id,
-      orgMembershipId: membership.id,
+      userId: membership.userId,
       role: Role.VIEWER,
     });
 
@@ -637,7 +640,7 @@ describe("membersRouter.updateProjectRole - rbac-project-roles entitlement", () 
       const { org, project, caller } = await prepare(plan);
 
       const targetUser = await createTestUser();
-      const orgMembership = await prisma.organizationMembership.create({
+      await prisma.organizationMembership.create({
         data: {
           userId: targetUser.id,
           orgId: org.id,
@@ -648,7 +651,6 @@ describe("membersRouter.updateProjectRole - rbac-project-roles entitlement", () 
       await expect(
         caller.members.updateProjectRole({
           orgId: org.id,
-          orgMembershipId: orgMembership.id,
           userId: targetUser.id,
           projectId: project.id,
           projectRole: Role.VIEWER,
@@ -675,7 +677,7 @@ describe("membersRouter.updateProjectRole - rbac-project-roles entitlement", () 
     const { org, project, caller } = await prepare(plan);
 
     const targetUser = await createTestUser();
-    const orgMembership = await prisma.organizationMembership.create({
+    await prisma.organizationMembership.create({
       data: {
         userId: targetUser.id,
         orgId: org.id,
@@ -686,7 +688,6 @@ describe("membersRouter.updateProjectRole - rbac-project-roles entitlement", () 
     await expect(
       caller.members.updateProjectRole({
         orgId: org.id,
-        orgMembershipId: orgMembership.id,
         userId: targetUser.id,
         projectId: project.id,
         projectRole: Role.VIEWER,
@@ -717,7 +718,6 @@ describe("membersRouter.updateProjectRole - rbac-project-roles entitlement", () 
     await expect(
       caller.members.updateProjectRole({
         orgId: org.id,
-        orgMembershipId: orgMembership.id,
         userId: targetUser.id,
         projectId: project.id,
         projectRole: Role.NONE,
@@ -741,7 +741,7 @@ describe("membersRouter.updateProjectRole - audit log state capture", () => {
     const { org, project, caller } = await prepare("cloud:team");
 
     const targetUser = await createTestUser();
-    const orgMembership = await prisma.organizationMembership.create({
+    await prisma.organizationMembership.create({
       data: {
         userId: targetUser.id,
         orgId: org.id,
@@ -751,7 +751,6 @@ describe("membersRouter.updateProjectRole - audit log state capture", () => {
 
     await caller.members.updateProjectRole({
       orgId: org.id,
-      orgMembershipId: orgMembership.id,
       userId: targetUser.id,
       projectId: project.id,
       projectRole: Role.ADMIN,
@@ -799,7 +798,6 @@ describe("membersRouter.updateProjectRole - audit log state capture", () => {
 
     await caller.members.updateProjectRole({
       orgId: org.id,
-      orgMembershipId: orgMembership.id,
       userId: targetUser.id,
       projectId: project.id,
       projectRole: Role.ADMIN,
@@ -829,7 +827,7 @@ describe("membersRouter.updateProjectRole - audit log state capture", () => {
     const { org, project, caller } = await prepare("cloud:team");
 
     const targetUser = await createTestUser();
-    const orgMembership = await prisma.organizationMembership.create({
+    await prisma.organizationMembership.create({
       data: {
         userId: targetUser.id,
         orgId: org.id,
@@ -840,7 +838,6 @@ describe("membersRouter.updateProjectRole - audit log state capture", () => {
     // create
     await caller.members.updateProjectRole({
       orgId: org.id,
-      orgMembershipId: orgMembership.id,
       userId: targetUser.id,
       projectId: project.id,
       projectRole: Role.VIEWER,
@@ -849,7 +846,6 @@ describe("membersRouter.updateProjectRole - audit log state capture", () => {
     // update
     await caller.members.updateProjectRole({
       orgId: org.id,
-      orgMembershipId: orgMembership.id,
       userId: targetUser.id,
       projectId: project.id,
       projectRole: Role.ADMIN,
@@ -858,7 +854,6 @@ describe("membersRouter.updateProjectRole - audit log state capture", () => {
     // delete
     await caller.members.updateProjectRole({
       orgId: org.id,
-      orgMembershipId: orgMembership.id,
       userId: targetUser.id,
       projectId: project.id,
       projectRole: null,
@@ -879,34 +874,18 @@ describe("membersRouter.updateProjectRole - audit log state capture", () => {
 });
 
 describe("membersRouter.updateProjectRole - orgMembership/userId consistency", () => {
-  it("rejects a mismatched orgMembershipId / userId pair with BAD_REQUEST and writes nothing", async () => {
+  it("rejects a user outside the organization with NOT_FOUND and writes nothing", async () => {
     const { org, project, caller } = await prepare("cloud:team");
-
-    // The org member who actually owns the targeted org membership.
-    const targetUser = await createTestUser();
-    const orgMembership = await prisma.organizationMembership.create({
-      data: {
-        userId: targetUser.id,
-        orgId: org.id,
-        role: Role.MEMBER,
-      },
-    });
-
-    // A different, unrelated user whose id the caller tries to smuggle in.
-    // Project access is resolved via orgMembershipId, so accepting this would
-    // grant the role to targetUser while recording it against otherUser in both
-    // the ProjectMembership row and the audit log.
     const otherUser = await createTestUser();
 
     await expect(
       caller.members.updateProjectRole({
         orgId: org.id,
-        orgMembershipId: orgMembership.id,
         userId: otherUser.id,
         projectId: project.id,
         projectRole: Role.ADMIN,
       }),
-    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
 
     // No ProjectMembership row and no audit log entry should have been written.
     const rows = await prisma.projectMembership.findMany({
@@ -939,7 +918,6 @@ describe("membersRouter.updateProjectRole - orgMembership/userId consistency", (
     await expect(
       caller.members.updateProjectRole({
         orgId: org.id,
-        orgMembershipId: orgMembership.id,
         userId: targetUser.id,
         projectId: project.id,
         projectRole: Role.ADMIN,
@@ -1084,21 +1062,9 @@ describe("membersRouter.updateProjectRole - project organization consistency", (
     const { org, ownerUser, caller } = await prepare("cloud:team");
     const { project: otherOrgProject } = await createTestOrg("cloud:team");
 
-    const orgMembership = await prisma.organizationMembership.findUniqueOrThrow(
-      {
-        where: {
-          orgId_userId: {
-            orgId: org.id,
-            userId: ownerUser.id,
-          },
-        },
-      },
-    );
-
     await expect(
       caller.members.updateProjectRole({
         orgId: org.id,
-        orgMembershipId: orgMembership.id,
         userId: ownerUser.id,
         projectId: otherOrgProject.id,
         projectRole: Role.OWNER,

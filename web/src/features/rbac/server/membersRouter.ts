@@ -20,19 +20,14 @@ import {
   escapeSqlLikePattern,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
-import { hasEntitlement } from "@/src/features/entitlements/server";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { ContextResolver } from "@/src/features/auth/policy/contextResolver";
-import { allMembersRoutes } from "@/src/features/memberships/server/allMembersRoutes";
-import { allInvitesRoutes } from "@/src/features/memberships/server/allInvitesRoutes";
+import { allMembersRoutes } from "@/src/features/rbac/server/allMembersRoutes";
+import { allInvitesRoutes } from "@/src/features/rbac/server/allInvitesRoutes";
 import {
-  addOrgMember,
-  changeOrgRole,
-  createInvitation,
-  removeOrgMember,
-  removeProjectRole,
-  revokeInvitation,
-  setProjectRole,
+  createMembership,
+  deleteMembership,
+  updateMembership,
 } from "@/src/features/memberships/server/membershipService";
 import {
   userFeaturePreviewFlags,
@@ -72,129 +67,34 @@ export const membersRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      /**
-       * Add a user to the organization, or invite them when they have no
-       * account yet. A user who is already a member can only be given a
-       * project role (orgRole NONE). The membership service authorizes the
-       * change, enforces the seat limit, audits it and sends the email.
-       */
-      // check for entitlement (project role)
-      if (input.projectId && input.projectRole) {
-        const entitled = hasEntitlement({
-          entitlement: "rbac-project-roles",
-          sessionUser: ctx.session.user,
-          orgId: input.orgId,
-        });
-        if (!entitled)
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message:
-              "Organization does not have the required entitlement to set project roles",
-          });
-      }
-
-      const authz = await sessionContext(ctx.session);
-      const project =
-        input.projectId && input.projectRole && input.projectRole !== Role.NONE
-          ? { projectId: input.projectId, role: input.projectRole }
-          : undefined;
-      const notify = {
-        inviterEmail: ctx.session.user.email!,
-        inviterName: ctx.session.user.name!,
-      };
-
-      const user = await ctx.prisma.user.findUnique({
-        where: {
-          email: input.email.toLowerCase(),
-        },
-      });
-
-      if (!user) {
-        return await createInvitation(authz, {
+      const { invitation } = await createMembership(
+        await sessionContext(ctx.session),
+        {
           orgId: input.orgId,
           email: input.email,
-          orgRole: input.orgRole,
-          project,
-          invitedByUserId: ctx.session.user.id,
-          notify,
-        });
-      }
-
-      const existingOrgMembership =
-        await ctx.prisma.organizationMembership.findUnique({
-          where: {
-            orgId_userId: { orgId: input.orgId, userId: user.id },
-          },
-        });
-      if (!existingOrgMembership) {
-        await addOrgMember(authz, {
-          orgId: input.orgId,
-          userId: user.id,
           role: input.orgRole,
-          project,
-          notify,
-        });
-        return;
-      }
-
-      // user is already a member and only a project role shall be added
-      if (input.orgRole === Role.NONE && project) {
-        const existingProjectMembership =
-          await ctx.prisma.projectMembership.findUnique({
-            where: {
-              projectId_userId: {
-                projectId: project.projectId,
-                userId: user.id,
-              },
-            },
-          });
-        if (existingProjectMembership) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "User is already a member of this project",
-          });
-        }
-        await setProjectRole(authz, {
-          orgId: input.orgId,
-          projectId: project.projectId,
-          userId: user.id,
-          role: project.role,
-        });
-        return;
-      }
-      throw new TRPCError({
-        code: "BAD_REQUEST",
-        message: "User is already a member of this organization",
-      });
+          project: projectGrant(input),
+          inviter: {
+            userId: ctx.session.user.id,
+            name: ctx.session.user.name!,
+            email: ctx.session.user.email!,
+          },
+        },
+      );
+      return invitation ?? undefined;
     }),
   deleteMembership: protectedOrganizationProcedure
     .input(
       z.object({
         orgId: z.string(),
-        orgMembershipId: z.string(),
+        userId: z.string(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      /**
-       * Delete an organization membership, used in membership table. Members
-       * may always remove themselves.
-       */
-      const orgMembership = await ctx.prisma.organizationMembership.findFirst({
-        where: {
-          orgId: input.orgId,
-          id: input.orgMembershipId,
-        },
-      });
-      if (!orgMembership)
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Organization membership not found",
-        });
-
-      const deleted = await removeOrgMember(await sessionContext(ctx.session), {
-        orgId: input.orgId,
-        userId: orgMembership.userId,
-      });
+      const deleted = await deleteMembership(
+        await sessionContext(ctx.session),
+        { orgId: input.orgId, userId: input.userId },
+      );
       if (!deleted)
         throw new TRPCError({
           code: "NOT_FOUND",
@@ -210,10 +110,7 @@ export const membersRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      /**
-       * Delete a membership invitation, used in membership_invitation table
-       */
-      return await revokeInvitation(await sessionContext(ctx.session), {
+      return await deleteMembership(await sessionContext(ctx.session), {
         orgId: input.orgId,
         invitationId: input.inviteId,
       });
@@ -222,27 +119,15 @@ export const membersRouter = createTRPCRouter({
     .input(
       z.object({
         orgId: z.string(),
-        orgMembershipId: z.string(),
+        userId: z.string(),
         role: z.enum(Role),
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      /**
-       * Used by dropdown in membership table to update the organization role of a user
-       */
-      const membership = await ctx.prisma.organizationMembership.findFirst({
-        where: {
-          orgId: input.orgId,
-          id: input.orgMembershipId,
-        },
-      });
-      if (!membership) throw new TRPCError({ code: "NOT_FOUND" });
-
-      const { after } = await changeOrgRole(await sessionContext(ctx.session), {
-        orgId: input.orgId,
-        userId: membership.userId,
-        role: input.role,
-      });
+      const { after } = await updateMembership(
+        await sessionContext(ctx.session),
+        { orgId: input.orgId, userId: input.userId, role: input.role },
+      );
       return after;
     }),
   setUserFeaturePreviewEnabled: protectedOrganizationProcedure
@@ -316,77 +201,21 @@ export const membersRouter = createTRPCRouter({
     .input(
       z.object({
         orgId: z.string(),
-        orgMembershipId: z.string(),
         userId: z.string(),
         projectId: z.string(),
         projectRole: z.enum(Role).nullable(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      /**
-       * Used by dropdown in membership table to update the project role of a user
-       */
-      // Project-level role assignments require the rbac-project-roles entitlement
-      // (Team/Enterprise cloud, Enterprise self-hosted). Mirror the create path.
-      // Clearing a role (null / NONE) stays allowed so orgs can clean up after a
-      // plan downgrade without needing the paid entitlement.
-      if (input.projectRole !== null && input.projectRole !== Role.NONE) {
-        const entitled = hasEntitlement({
-          entitlement: "rbac-project-roles",
-          sessionUser: ctx.session.user,
-          orgId: input.orgId,
-        });
-        if (!entitled) {
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message:
-              "Organization does not have the required entitlement to set project roles",
-          });
-        }
-      }
-
-      // orgMembershipId and userId are independent client inputs, but project
-      // access is resolved via orgMembershipId (OrganizationMembership.userId),
-      // not this row's userId. A mismatched pair would grant the role to the
-      // org membership owner while recording it against a different user, so
-      // reject it.
-      const orgMembership = await ctx.prisma.organizationMembership.findUnique({
-        where: {
-          id: input.orgMembershipId,
-          orgId: input.orgId,
-        },
-      });
-      if (!orgMembership) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Organization membership not found",
-        });
-      }
-      if (orgMembership.userId !== input.userId) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message:
-            "The provided userId does not match the organization membership",
-        });
-      }
-
       const authz = await sessionContext(ctx.session);
-      // A null or NONE project role removes the project membership.
+      const target = { projectId: input.projectId, userId: input.userId };
+      // NONE in this procedure drops the project role, so the org role applies
       if (input.projectRole === null || input.projectRole === Role.NONE) {
-        await removeProjectRole(authz, {
-          orgId: input.orgId,
-          projectId: input.projectId,
-          userId: input.userId,
-        });
-        return {
-          userId: input.userId,
-        };
+        await deleteMembership(authz, target);
+        return { userId: input.userId };
       }
-
-      const { after } = await setProjectRole(authz, {
-        orgId: input.orgId,
-        projectId: input.projectId,
-        userId: input.userId,
+      const { after } = await updateMembership(authz, {
+        ...target,
         role: input.projectRole,
       });
       return after;
@@ -457,4 +286,11 @@ function sessionContext(session: OrgAuthedContext["session"]) {
     isPlatformAdmin: session.user.admin === true,
     orgId: session.orgId,
   });
+}
+
+/** projectGrant is the project role to add with a new member, if one was chosen. */
+function projectGrant(input: { projectId?: string; projectRole?: Role }) {
+  const { projectId, projectRole } = input;
+  if (!projectId || !projectRole || projectRole === Role.NONE) return undefined;
+  return { projectId, role: projectRole };
 }

@@ -6,10 +6,7 @@ import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { CloudConfigSchema } from "@langfuse/shared";
 import { systemContext } from "@/src/features/auth/policy/contextResolver";
-import {
-  applyOrgMembership,
-  applyProjectMembership,
-} from "@/src/features/memberships/server/membershipService";
+import { updateMembership } from "@/src/features/memberships/server/membershipService";
 import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import {
   initializeClickhouseCompatibility,
@@ -142,7 +139,7 @@ if (env.LANGFUSE_INIT_ORG_ID) {
 
     // Create OrgMembership: Org -> OrgMembership <- User
     const bootstrap = systemContext("bootstrap");
-    await applyOrgMembership(bootstrap, {
+    await updateMembership(bootstrap, {
       orgId: org.id,
       userId,
       role: "OWNER",
@@ -159,8 +156,7 @@ if (env.LANGFUSE_INIT_ORG_ID) {
         entitlement: "rbac-project-roles",
       })
     ) {
-      await applyProjectMembership(bootstrap, {
-        orgId: org.id,
+      await updateMembership(bootstrap, {
         projectId: env.LANGFUSE_INIT_PROJECT_ID,
         userId,
         role: "OWNER",

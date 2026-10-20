@@ -106,21 +106,9 @@ export default async function handler(
     const context = authentication.context;
     switch (req.method) {
       case "PUT":
-        return await handleUpdateMembership(
-          req,
-          res,
-          projectId,
-          authCheck.scope.orgId,
-          context,
-        );
+        return await handleUpdateMembership(req, res, projectId, context);
       case "DELETE":
-        return await handleDeleteMembership(
-          req,
-          res,
-          projectId,
-          authCheck.scope.orgId,
-          context,
-        );
+        return await handleDeleteMembership(req, res, projectId, context);
       default:
         // This should never happen due to the check at the beginning
         return res.status(405).json({

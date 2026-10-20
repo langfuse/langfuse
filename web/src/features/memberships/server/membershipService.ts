@@ -25,7 +25,10 @@ import {
   type SystemReason,
 } from "@/src/features/auth/policy/types";
 import { entitlementAccess } from "@/src/features/entitlements/constants/entitlements";
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
+import {
+  getOrganizationPlanServerSide,
+  hasEntitlementBasedOnPlan,
+} from "@/src/features/entitlements/server";
 import { authorize } from "@/src/features/rbac/authorize";
 import { SeatLimitExceededError } from "./membershipErrors";
 
@@ -40,298 +43,129 @@ const lastOwnerMessage =
 const lastOwnerOfAnyMessage =
   "Cannot delete account. You are the last owner of one or more organizations. Please add another owner or delete the organizations first.";
 
-/** addOrgMember adds an existing user to an organization, optionally with a project role, within the seat limit. */
-export async function addOrgMember(
+/** createMembership adds a user to an org and optionally one of its projects, or invites an email that has no account yet. */
+export async function createMembership(
   ctx: AuthorizationContext,
-  params: {
+  params: ({ userId: string } | { email: string }) & {
     orgId: string;
-    userId: string;
     role: Role;
     project?: ProjectGrant;
-    notify?: InvitationNotice;
+    inviter?: Inviter;
+    ifExists?: "error" | "ignore";
   },
-): Promise<{
-  orgMembership: OrganizationMembership;
-  projectMembership: ProjectMembership | null;
-}> {
-  const { orgId, userId, role, project } = params;
+): Promise<CreatedMembership> {
+  const { orgId, role, project } = params;
   return inMembershipTransaction([orgId], async (tx, afterCommit) => {
     const actor = await loadActor(tx, ctx, orgId);
     assertMayAddMember(actor, { role, project });
-    const user = await loadNewMember(tx, { orgId, userId, project });
-    await assertSeatAvailable(tx, actor, orgId);
-    const orgMembership = await insertOrgMembership(tx, afterCommit, actor, {
+    await assertProjectGrantInOrg(tx, orgId, project);
+    await assertProjectRolesEntitled(tx, actor, project?.role);
+    const user = await findInvitee(tx, params);
+    if (!user) {
+      return inviteEmail(tx, afterCommit, actor, {
+        email: inviteeEmail(params),
+        role,
+        project,
+        inviter: params.inviter,
+      });
+    }
+    const existing = await findOrgMembership(tx, orgId, user.id);
+    if (existing) {
+      return addToExistingMember(tx, actor, {
+        existing,
+        role,
+        project,
+        ifExists: params.ifExists ?? "error",
+      });
+    }
+    return addNewMember(tx, afterCommit, actor, {
       user,
       role,
-    });
-    const projectMembership = await grantProjectRole(tx, actor, {
-      orgMembership,
       project,
+      inviter: params.inviter,
     });
-    await queueInvitationEmail(tx, afterCommit, {
-      notify: params.notify,
-      to: user.email,
-      orgId,
-      userExists: true,
-    });
-    return { orgMembership, projectMembership };
   });
 }
 
-/** changeOrgRole changes an existing member's organization role, keeping at least one owner. */
-export async function changeOrgRole(
+/** updateMembership sets a user's org role, or their project role, creating the membership when they have none. */
+export async function updateMembership(
   ctx: AuthorizationContext,
   params: { orgId: string; userId: string; role: Role },
-): Promise<{ before: OrganizationMembership; after: OrganizationMembership }> {
-  const { orgId, userId, role } = params;
-  return inMembershipTransaction([orgId], async (tx, afterCommit) => {
-    const actor = await loadActor(tx, ctx, orgId);
-    const before = await findOrgMembership(tx, orgId, userId);
-    if (!before) {
-      throw new LangfuseNotFoundError("Organization membership not found");
-    }
-    const after = await updateOrgRole(tx, afterCommit, actor, before, role);
-    return { before, after };
-  });
-}
-
-/** removeOrgMember removes a member with their project memberships, or returns null when the user was not a member. */
-export async function removeOrgMember(
+): Promise<UpdatedMembership<OrganizationMembership>>;
+export async function updateMembership(
   ctx: AuthorizationContext,
-  params: { orgId: string; userId: string },
-): Promise<OrganizationMembership | null> {
-  const { orgId, userId } = params;
-  return inMembershipTransaction([orgId], async (tx, afterCommit) => {
-    const actor = await loadActor(tx, ctx, orgId);
-    const before = await findOrgMembership(tx, orgId, userId);
-    if (!before) {
-      assertMayManageOrgMember(actor, { targetUserId: userId });
-      return null;
-    }
-    await deleteOrgMembership(tx, afterCommit, actor, before);
-    return before;
-  });
-}
-
-/** applyOrgMembership drives a user's org membership to role, removing it for null and leaving an existing one as is with keepExistingRole. */
-export async function applyOrgMembership(
+  params: { projectId: string; userId: string; role: Role },
+): Promise<UpdatedMembership<ProjectMembership>>;
+export async function updateMembership(
   ctx: AuthorizationContext,
-  params: {
-    orgId: string;
+  params: ({ orgId: string } | { projectId: string }) & {
     userId: string;
-    role: Role | null;
-    keepExistingRole?: boolean;
+    role: Role;
   },
-): Promise<MembershipOutcome<OrganizationMembership>> {
-  const { orgId, userId, role } = params;
-  return inMembershipTransaction([orgId], async (tx, afterCommit) => {
-    const actor = await loadActor(tx, ctx, orgId);
-    const before = await findOrgMembership(tx, orgId, userId);
-    if (role === null) {
-      return removeOrgMembershipIfPresent(tx, afterCommit, actor, {
-        userId,
-        before,
-      });
-    }
-    if (!before) {
-      return createOrgMembership(tx, afterCommit, actor, { userId, role });
-    }
-    if (params.keepExistingRole || before.role === role) {
-      assertMayManageOrgMember(actor, { targetUserId: userId });
-      return { outcome: "unchanged", before, after: before };
-    }
-    const after = await updateOrgRole(tx, afterCommit, actor, before, role);
-    return { outcome: "updated", before, after };
-  });
+): Promise<
+  | UpdatedMembership<OrganizationMembership>
+  | UpdatedMembership<ProjectMembership>
+> {
+  if ("projectId" in params) return updateProjectMembership(ctx, params);
+  return updateOrgMembership(ctx, params);
 }
 
-/** removeUserFromAllOrgs removes every org membership of a user ahead of account deletion, unless they are the last owner of any. */
-export async function removeUserFromAllOrgs(
-  ctx: AuthorizationContext,
-  userId: string,
-): Promise<void> {
-  assertMayRemoveAllMemberships(ctx, userId);
-  const orgIds = await findMemberOrgIds(userId);
-  if (orgIds.length === 0) return;
-
-  await inMembershipTransaction(orgIds, async (tx, afterCommit) => {
-    const memberships = await tx.organizationMembership.findMany({
-      where: { userId, orgId: { in: orgIds } },
-      include: { ProjectMemberships: true },
-    });
-    await assertNotLastOwnerOfAny(tx, memberships);
-    const { email } = await findUserOrThrow(tx, userId);
-    for (const membership of memberships) {
-      await deleteMembershipOfLeavingUser(tx, afterCommit, ctx, {
-        membership,
-        email,
-      });
-    }
-  });
-}
-
-/** setProjectRole grants or changes a member's role on one project of their organization. */
-export async function setProjectRole(
-  ctx: AuthorizationContext,
-  params: { orgId: string; projectId: string; userId: string; role: Role },
-): Promise<{ before: ProjectMembership | null; after: ProjectMembership }> {
-  const { orgId, projectId, userId, role } = params;
-  return inMembershipTransaction([orgId], async (tx) => {
-    const actor = await loadActor(tx, ctx, orgId);
-    const { orgMembership, before } = await loadProjectTarget(tx, {
-      orgId,
-      projectId,
-      userId,
-      orgMembershipRequired: true,
-    });
-    requireOrgMembership(orgMembership);
-    assertMayManageProjectMember(actor, {
-      projectId,
-      from: effectiveProjectRole(before, orgMembership),
-      to: role,
-    });
-    const after = await upsertProjectMembership(tx, actor, {
-      orgMembership,
-      projectId,
-      role,
-      before,
-    });
-    return { before, after };
-  });
-}
-
-/** removeProjectRole drops a member's project role so they inherit their org role, or returns null when there was none. */
-export async function removeProjectRole(
-  ctx: AuthorizationContext,
-  params: { orgId: string; projectId: string; userId: string },
-): Promise<ProjectMembership | null> {
-  const { orgId, projectId, userId } = params;
-  return inMembershipTransaction([orgId], async (tx) => {
-    const actor = await loadActor(tx, ctx, orgId);
-    const target = await loadProjectTarget(tx, {
-      orgId,
-      projectId,
-      userId,
-      orgMembershipRequired: false,
-    });
-    return clearProjectRole(tx, actor, { projectId, ...target });
-  });
-}
-
-/** applyProjectMembership drives a member's project role to role, back to inheriting for null, leaving an existing one as is with keepExistingRole. */
-export async function applyProjectMembership(
-  ctx: AuthorizationContext,
-  params: {
-    orgId: string;
-    projectId: string;
-    userId: string;
-    role: Role | null;
-    keepExistingRole?: boolean;
-  },
-): Promise<MembershipOutcome<ProjectMembership>> {
-  const { orgId, projectId, userId, role } = params;
-  return inMembershipTransaction([orgId], async (tx) => {
-    const actor = await loadActor(tx, ctx, orgId);
-    const { orgMembership, before } = await loadProjectTarget(tx, {
-      orgId,
-      projectId,
-      userId,
-      orgMembershipRequired: role !== null,
-    });
-    if (role === null) {
-      const removed = await clearProjectRole(tx, actor, {
-        projectId,
-        orgMembership,
-        before,
-      });
-      return removalOutcome(removed);
-    }
-    requireOrgMembership(orgMembership);
-    if (before && (params.keepExistingRole || before.role === role)) {
-      assertMayManageProjectMember(actor, { projectId });
-      return { outcome: "unchanged", before, after: before };
-    }
-    assertMayManageProjectMember(actor, {
-      projectId,
-      from: effectiveProjectRole(before, orgMembership),
-      to: role,
-    });
-    const after = await upsertProjectMembership(tx, actor, {
-      orgMembership,
-      projectId,
-      role,
-      before,
-    });
-    return { outcome: upsertOutcome(before), before, after };
-  });
-}
-
-/** removeAllProjectMembers deletes a project's memberships inside the caller's transaction, for project transfer only. */
-export async function removeAllProjectMembers(
-  tx: Prisma.TransactionClient,
-  projectId: string,
-): Promise<void> {
-  const project = await tx.project.findUnique({
-    where: { id: projectId },
-    select: { orgId: true },
-  });
-  if (project) await lockOrganizations(tx, [project.orgId]);
-  await tx.projectMembership.deleteMany({ where: { projectId } });
-}
-
-/** createInvitation invites an email address that has no account yet, within the seat limit. */
-export async function createInvitation(
-  ctx: AuthorizationContext,
-  params: {
-    orgId: string;
-    email: string;
-    orgRole: Role;
-    project?: ProjectGrant;
-    invitedByUserId?: string;
-    notify?: InvitationNotice;
-  },
-): Promise<MembershipInvitation> {
-  const { orgId, orgRole, project } = params;
-  const email = params.email.toLowerCase();
-  return inMembershipTransaction([orgId], async (tx, afterCommit) => {
-    const actor = await loadActor(tx, ctx, orgId);
-    assertMayAddMember(actor, { role: orgRole, project });
-    await assertProjectGrantInOrg(tx, orgId, project);
-    await assertNoPendingInvitation(tx, orgId, email);
-    await assertSeatAvailable(tx, actor, orgId);
-    const invitation = await insertInvitation(tx, actor, {
-      email,
-      orgRole,
-      project,
-      invitedByUserId: params.invitedByUserId,
-    });
-    await queueInvitationEmail(tx, afterCommit, {
-      notify: params.notify,
-      to: email,
-      orgId,
-      userExists: false,
-    });
-    return invitation;
-  });
-}
-
-/** revokeInvitation deletes a pending invitation, freeing its seat. */
-export async function revokeInvitation(
+/** deleteMembership removes a user from an org with their project roles, drops one project role, or revokes an invitation. */
+export async function deleteMembership(
   ctx: AuthorizationContext,
   params: { orgId: string; invitationId: string },
-): Promise<MembershipInvitation> {
-  const { orgId, invitationId } = params;
-  return inMembershipTransaction([orgId], async (tx) => {
-    const actor = await loadActor(tx, ctx, orgId);
-    const invitation = await findInvitationOrThrow(tx, orgId, invitationId);
-    assertMayRevokeInvitation(actor, invitation);
-    await deleteInvitation(tx, actor, invitation);
-    return invitation;
-  });
+): Promise<MembershipInvitation>;
+export async function deleteMembership(
+  ctx: AuthorizationContext,
+  params: { projectId: string; userId: string },
+): Promise<ProjectMembership | null>;
+export async function deleteMembership(
+  ctx: AuthorizationContext,
+  params: { orgId: string; userId: string },
+): Promise<OrganizationMembership | null>;
+export async function deleteMembership(
+  ctx: AuthorizationContext,
+  params:
+    | { orgId: string; invitationId: string }
+    | { projectId: string; userId: string }
+    | { orgId: string; userId: string },
+): Promise<
+  MembershipInvitation | ProjectMembership | OrganizationMembership | null
+> {
+  if ("invitationId" in params) return revokeInvitation(ctx, params);
+  if ("projectId" in params) return deleteProjectMembership(ctx, params);
+  return deleteOrgMembership(ctx, params);
 }
 
-/** acceptInvitations turns every pending invitation for the email into memberships, without authorization or the seat limit since the invitation holds both. */
-export async function acceptInvitations(params: {
+/** deleteMemberships removes every org membership of a user inside the caller's transaction, unless they are the last owner of any. */
+export async function deleteMemberships(
+  tx: Prisma.TransactionClient,
+  ctx: AuthorizationContext,
+  params: { userId: string },
+): Promise<{ afterCommit: () => Promise<void> }> {
+  const { userId } = params;
+  assertMayRemoveAllMemberships(ctx, userId);
+  const orgIds = await findMemberOrgIds(tx, userId);
+  await lockOrganizations(tx, orgIds);
+  const memberships = await tx.organizationMembership.findMany({
+    where: { userId, orgId: { in: orgIds } },
+    include: { ProjectMemberships: true },
+  });
+  await assertNotLastOwnerOfAny(tx, memberships);
+  const effects: (() => Promise<unknown>)[] = [];
+  for (const membership of memberships) {
+    await deleteMembershipOfLeavingUser(
+      tx,
+      (effect) => effects.push(effect),
+      ctx,
+      membership,
+    );
+  }
+  return { afterCommit: () => runAfterCommit(effects) };
+}
+
+/** claimInvitations turns every pending invitation for the email into memberships, without authorization or the seat limit since the invitation holds both. */
+export async function claimInvitations(params: {
   userId: string;
   email: string;
 }): Promise<MembershipInvitation[]> {
@@ -351,6 +185,319 @@ export async function acceptInvitations(params: {
       where: { id: { in: invitations.map((invitation) => invitation.id) } },
     });
     return invitations;
+  });
+}
+
+/** removeAllProjectMembers deletes a project's memberships inside the caller's transaction, for project transfer only. */
+export async function removeAllProjectMembers(
+  tx: Prisma.TransactionClient,
+  projectId: string,
+): Promise<void> {
+  const project = await tx.project.findUnique({
+    where: { id: projectId },
+    select: { orgId: true },
+  });
+  if (project) await lockOrganizations(tx, [project.orgId]);
+  await tx.projectMembership.deleteMany({ where: { projectId } });
+}
+
+/** findInvitee resolves the user to add by id, or by email when they may have no account yet. */
+async function findInvitee(
+  tx: Prisma.TransactionClient,
+  params: { userId: string } | { email: string },
+) {
+  if ("userId" in params) return findUserOrThrow(tx, params.userId);
+  return tx.user.findUnique({
+    where: { email: params.email.toLowerCase() },
+    select: { id: true, email: true },
+  });
+}
+
+function inviteeEmail(params: { userId: string } | { email: string }) {
+  if ("email" in params) return params.email.toLowerCase();
+  throw new LangfuseNotFoundError("User not found");
+}
+
+/** inviteEmail creates an invitation for an email without an account, within the seat limit. */
+async function inviteEmail(
+  tx: Prisma.TransactionClient,
+  afterCommit: AfterCommit,
+  actor: Actor,
+  params: {
+    email: string;
+    role: Role;
+    project?: ProjectGrant;
+    inviter?: Inviter;
+  },
+): Promise<CreatedMembership> {
+  const { email, inviter } = params;
+  await assertNoPendingInvitation(tx, actor.orgId, email);
+  await assertSeatAvailable(tx, actor, actor.orgId);
+  const invitation = await insertInvitation(tx, actor, {
+    email,
+    orgRole: params.role,
+    project: params.project,
+    invitedByUserId: inviter?.userId,
+  });
+  await queueInvitationEmail(tx, afterCommit, {
+    inviter,
+    to: email,
+    orgId: actor.orgId,
+    userExists: false,
+  });
+  return {
+    outcome: "created",
+    orgMembership: null,
+    projectMembership: null,
+    invitation,
+  };
+}
+
+/** addToExistingMember adds only the project role to an org member, or leaves them as is with ifExists "ignore". */
+async function addToExistingMember(
+  tx: Prisma.TransactionClient,
+  actor: Actor,
+  params: {
+    existing: OrganizationMembership;
+    role: Role;
+    project?: ProjectGrant;
+    ifExists: "error" | "ignore";
+  },
+): Promise<CreatedMembership> {
+  const { existing, project, ifExists } = params;
+  const projectOnly = params.role === Role.NONE && project !== undefined;
+  if (!projectOnly && ifExists === "error") {
+    throw new InvalidRequestError(
+      "User is already a member of this organization",
+    );
+  }
+  const projectMembership = await addProjectRole(tx, actor, {
+    orgMembership: existing,
+    project,
+    ifExists,
+  });
+  return {
+    outcome: createdIf(projectMembership),
+    orgMembership: existing,
+    projectMembership,
+    invitation: null,
+  };
+}
+
+/** addProjectRole grants an org member a project role they do not hold yet, overriding the org role they inherit there. */
+async function addProjectRole(
+  tx: Prisma.TransactionClient,
+  actor: Actor,
+  params: {
+    orgMembership: OrganizationMembership;
+    project?: ProjectGrant;
+    ifExists: "error" | "ignore";
+  },
+): Promise<ProjectMembership | null> {
+  const { orgMembership, project } = params;
+  if (!project) return null;
+  const { projectId } = project;
+  if (await findProjectMembership(tx, projectId, orgMembership.userId)) {
+    if (params.ifExists === "ignore") return null;
+    throw new InvalidRequestError("User is already a member of this project");
+  }
+  assertMayManageProjectMember(actor, {
+    projectId,
+    from: orgMembership.role,
+    to: project.role,
+  });
+  return upsertProjectMembership(tx, actor, {
+    orgMembership,
+    projectId,
+    role: project.role,
+    before: null,
+  });
+}
+
+function createdIf(written: unknown): "created" | "unchanged" {
+  if (written) return "created";
+  return "unchanged";
+}
+
+/** addNewMember adds a user who is not yet a member, within the seat limit. */
+async function addNewMember(
+  tx: Prisma.TransactionClient,
+  afterCommit: AfterCommit,
+  actor: Actor,
+  params: {
+    user: { id: string; email: string | null };
+    role: Role;
+    project?: ProjectGrant;
+    inviter?: Inviter;
+  },
+): Promise<CreatedMembership> {
+  const { user, role, project } = params;
+  // a stray project membership can outlive another org's membership
+  if (
+    project &&
+    (await findProjectMembership(tx, project.projectId, user.id))
+  ) {
+    throw new InvalidRequestError("User is already a member of this project");
+  }
+  await assertSeatAvailable(tx, actor, actor.orgId);
+  const orgMembership = await insertOrgMembership(tx, afterCommit, actor, {
+    user,
+    role,
+  });
+  const projectMembership = await grantProjectRole(tx, actor, {
+    orgMembership,
+    project,
+  });
+  await queueInvitationEmail(tx, afterCommit, {
+    inviter: params.inviter,
+    to: user.email,
+    orgId: actor.orgId,
+    userExists: true,
+  });
+  return {
+    outcome: "created",
+    orgMembership,
+    projectMembership,
+    invitation: null,
+  };
+}
+
+/** updateOrgMembership sets a user's org role, creating the membership within the seat limit when absent. */
+async function updateOrgMembership(
+  ctx: AuthorizationContext,
+  params: { orgId: string; userId: string; role: Role },
+): Promise<UpdatedMembership<OrganizationMembership>> {
+  const { orgId, userId, role } = params;
+  return inMembershipTransaction([orgId], async (tx, afterCommit) => {
+    const actor = await loadActor(tx, ctx, orgId);
+    const before = await findOrgMembership(tx, orgId, userId);
+    if (!before) {
+      const after = await createOrgMembership(tx, afterCommit, actor, {
+        userId,
+        role,
+      });
+      return { outcome: "created", before: null, after };
+    }
+    if (before.role === role) {
+      assertMayManageOrgMember(actor, { from: role, to: role });
+      return { outcome: "unchanged", before, after: before };
+    }
+    const after = await updateOrgRole(tx, afterCommit, actor, before, role);
+    return { outcome: "updated", before, after };
+  });
+}
+
+/** updateProjectMembership sets a member's project role, overriding the org role they inherit there. */
+async function updateProjectMembership(
+  ctx: AuthorizationContext,
+  params: { projectId: string; userId: string; role: Role },
+): Promise<UpdatedMembership<ProjectMembership>> {
+  const { projectId, userId, role } = params;
+  const orgId = await findVisibleProjectOrgId(ctx, projectId);
+  return inMembershipTransaction([orgId], async (tx) => {
+    const actor = await loadActor(tx, ctx, orgId);
+    await assertProjectRolesEntitled(tx, actor, role);
+    const { orgMembership, before } = await loadProjectTarget(tx, {
+      orgId,
+      projectId,
+      userId,
+      orgMembershipRequired: true,
+    });
+    requireOrgMembership(orgMembership);
+    if (before && before.role === role) {
+      assertMayManageProjectMember(actor, { projectId, from: role, to: role });
+      return { outcome: "unchanged", before, after: before };
+    }
+    assertMayManageProjectMember(actor, {
+      projectId,
+      from: before?.role ?? orgMembership.role,
+      to: role,
+    });
+    const after = await upsertProjectMembership(tx, actor, {
+      orgMembership,
+      projectId,
+      role,
+      before,
+    });
+    return { outcome: updatedIf(before), before, after };
+  });
+}
+
+function updatedIf(before: unknown): "created" | "updated" {
+  if (before) return "updated";
+  return "created";
+}
+
+/** deleteOrgMembership removes a user from an org, or returns null when they were not a member. */
+async function deleteOrgMembership(
+  ctx: AuthorizationContext,
+  params: { orgId: string; userId: string },
+): Promise<OrganizationMembership | null> {
+  const { orgId, userId } = params;
+  return inMembershipTransaction([orgId], async (tx, afterCommit) => {
+    const actor = await loadActor(tx, ctx, orgId);
+    const before = await findOrgMembership(tx, orgId, userId);
+    if (!before) {
+      assertMayManageOrgMember(actor, { targetUserId: userId });
+      return null;
+    }
+    await removeOrgMembership(tx, afterCommit, actor, before);
+    return before;
+  });
+}
+
+/** deleteProjectMembership drops a member's project role so the org role applies again, or returns null when there was none. */
+async function deleteProjectMembership(
+  ctx: AuthorizationContext,
+  params: { projectId: string; userId: string },
+): Promise<ProjectMembership | null> {
+  const { projectId, userId } = params;
+  const orgId = await findVisibleProjectOrgId(ctx, projectId);
+  return inMembershipTransaction([orgId], async (tx) => {
+    const actor = await loadActor(tx, ctx, orgId);
+    const target = await loadProjectTarget(tx, {
+      orgId,
+      projectId,
+      userId,
+      orgMembershipRequired: false,
+    });
+    return clearProjectRole(tx, actor, { projectId, ...target });
+  });
+}
+
+/** findVisibleProjectOrgId resolves a live project's org, hiding projects of orgs the caller does not belong to. */
+async function findVisibleProjectOrgId(
+  ctx: AuthorizationContext,
+  projectId: string,
+): Promise<string> {
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, deletedAt: null },
+    select: { orgId: true },
+  });
+  if (!project || !belongsToOrg(ctx, project.orgId)) {
+    throw new LangfuseNotFoundError("Project not found");
+  }
+  return project.orgId;
+}
+
+function belongsToOrg(ctx: AuthorizationContext, orgId: string) {
+  const { principal } = ctx;
+  if (principal.kind === "admin" || principal.kind === "system") return true;
+  return principal.organizations.some((org) => org.orgId === orgId);
+}
+
+/** revokeInvitation deletes a pending invitation, freeing its seat. */
+async function revokeInvitation(
+  ctx: AuthorizationContext,
+  params: { orgId: string; invitationId: string },
+): Promise<MembershipInvitation> {
+  const { orgId, invitationId } = params;
+  return inMembershipTransaction([orgId], async (tx) => {
+    const actor = await loadActor(tx, ctx, orgId);
+    const invitation = await findInvitationOrThrow(tx, orgId, invitationId);
+    assertMayRevokeInvitation(actor, invitation);
+    await deleteInvitation(tx, actor, invitation);
+    return invitation;
   });
 }
 
@@ -508,26 +655,6 @@ function assertMayManageProjectOwnership(actor: Actor, projectId: string) {
   if (!decision.success) throw decision.error;
 }
 
-/** loadNewMember resolves a user who may join the org: the project exists in it and they hold no membership yet. */
-async function loadNewMember(
-  tx: Prisma.TransactionClient,
-  params: { orgId: string; userId: string; project?: ProjectGrant },
-) {
-  const { orgId, userId, project } = params;
-  await assertProjectGrantInOrg(tx, orgId, project);
-  const user = await findUserOrThrow(tx, userId);
-  if (await findOrgMembership(tx, orgId, userId)) {
-    throw new InvalidRequestError(
-      "User is already a member of this organization",
-    );
-  }
-  // a stray project membership can outlive another org's membership
-  if (project && (await findProjectMembership(tx, project.projectId, userId))) {
-    throw new InvalidRequestError("User is already a member of this project");
-  }
-  return user;
-}
-
 async function assertProjectGrantInOrg(
   tx: Prisma.TransactionClient,
   orgId: string,
@@ -594,15 +721,40 @@ async function assertSeatAvailable(
 
 /** getSeatLimit reads the org's plan seat limit, or false when unlimited. */
 async function getSeatLimit(tx: Prisma.TransactionClient, orgId: string) {
+  const plan = await getOrgPlan(tx, orgId);
+  return entitlementAccess[plan].entitlementLimits["organization-member-count"];
+}
+
+async function getOrgPlan(tx: Prisma.TransactionClient, orgId: string) {
   const org = await tx.organization.findUnique({
     where: { id: orgId },
     select: { cloudConfig: true },
   });
   if (!org) throw new LangfuseNotFoundError("Organization not found");
-  const plan = getOrganizationPlanServerSide(
+  return getOrganizationPlanServerSide(
     CloudConfigSchema.safeParse(org.cloudConfig).data,
   );
-  return entitlementAccess[plan].entitlementLimits["organization-member-count"];
+}
+
+/** assertProjectRolesEntitled requires the rbac-project-roles entitlement to grant a project role other than NONE, except for Langfuse's own flows and platform admins. */
+async function assertProjectRolesEntitled(
+  tx: Prisma.TransactionClient,
+  actor: Actor,
+  role: Role | undefined,
+) {
+  if (role === undefined || role === Role.NONE) return;
+  if (isSystem(actor) || isPlatformAdmin(actor)) return;
+  const plan = await getOrgPlan(tx, actor.orgId);
+  if (!hasEntitlementBasedOnPlan({ plan, entitlement: "rbac-project-roles" })) {
+    throw new ForbiddenError(
+      "Organization does not have the required entitlement to set project roles",
+    );
+  }
+}
+
+function isPlatformAdmin(actor: Actor) {
+  const { principal } = actor.ctx;
+  return principal.kind === "admin" && principal.userId !== null;
 }
 
 async function countSeatsInUse(tx: Prisma.TransactionClient, orgId: string) {
@@ -750,17 +902,17 @@ async function queueInvitationEmail(
   tx: Prisma.TransactionClient,
   afterCommit: AfterCommit,
   params: {
-    notify?: InvitationNotice;
+    inviter?: Inviter;
     to: string | null;
     orgId: string;
     userExists: boolean;
   },
 ) {
-  const { notify, to, orgId, userExists } = params;
-  if (!notify) return;
+  const { inviter, to, orgId, userExists } = params;
+  if (!inviter) return;
   const orgName = await getOrgName(tx, orgId);
   afterCommit(() =>
-    sendInvitationEmail({ ...notify, to, orgId, orgName, userExists }),
+    sendInvitationEmail({ inviter, to, orgId, orgName, userExists }),
   );
 }
 
@@ -773,18 +925,17 @@ async function getOrgName(tx: Prisma.TransactionClient, orgId: string) {
   return org.name;
 }
 
-async function sendInvitationEmail(
-  params: InvitationNotice & {
-    to: string | null;
-    orgId: string;
-    orgName: string;
-    userExists: boolean;
-  },
-) {
+async function sendInvitationEmail(params: {
+  inviter: Inviter;
+  to: string | null;
+  orgId: string;
+  orgName: string;
+  userExists: boolean;
+}) {
   if (!params.to) return;
   await sendMembershipInvitationEmail({
-    inviterEmail: params.inviterEmail,
-    inviterName: params.inviterName,
+    inviterEmail: params.inviter.email,
+    inviterName: params.inviter.name,
     to: params.to,
     orgName: params.orgName,
     orgId: params.orgId,
@@ -850,8 +1001,8 @@ async function assertOtherOwner(
   if (otherOwners === 0) throw new ForbiddenError(message);
 }
 
-/** deleteOrgMembership authorizes, deletes and audits an org membership along with the project memberships that cascade with it. */
-async function deleteOrgMembership(
+/** removeOrgMembership authorizes, deletes and audits an org membership along with the project memberships that cascade with it. */
+async function removeOrgMembership(
   tx: Prisma.TransactionClient,
   afterCommit: AfterCommit,
   actor: Actor,
@@ -911,38 +1062,18 @@ async function sfdcRemoveUser(params: {
   await getSfdcService()?.removeUser(params);
 }
 
-/** removeOrgMembershipIfPresent deletes the membership, reporting an absent one as unchanged. */
-async function removeOrgMembershipIfPresent(
-  tx: Prisma.TransactionClient,
-  afterCommit: AfterCommit,
-  actor: Actor,
-  params: { userId: string; before: OrganizationMembership | null },
-): Promise<MembershipOutcome<OrganizationMembership>> {
-  const { userId, before } = params;
-  if (!before) {
-    assertMayManageOrgMember(actor, { targetUserId: userId });
-    return { outcome: "unchanged", before: null, after: null };
-  }
-  await deleteOrgMembership(tx, afterCommit, actor, before);
-  return { outcome: "removed", before, after: null };
-}
-
 /** createOrgMembership adds a user who is not yet a member, within the seat limit. */
 async function createOrgMembership(
   tx: Prisma.TransactionClient,
   afterCommit: AfterCommit,
   actor: Actor,
   params: { userId: string; role: Role },
-): Promise<MembershipOutcome<OrganizationMembership>> {
+): Promise<OrganizationMembership> {
   const { userId, role } = params;
   assertMayAddMember(actor, { role });
   const user = await findUserOrThrow(tx, userId);
   await assertSeatAvailable(tx, actor, actor.orgId);
-  const after = await insertOrgMembership(tx, afterCommit, actor, {
-    user,
-    role,
-  });
-  return { outcome: "created", before: null, after };
+  return insertOrgMembership(tx, afterCommit, actor, { user, role });
 }
 
 /** assertMayRemoveAllMemberships allows only the user themselves or a platform admin. */
@@ -957,8 +1088,8 @@ function assertMayRemoveAllMemberships(
   }
 }
 
-async function findMemberOrgIds(userId: string) {
-  const memberships = await prisma.organizationMembership.findMany({
+async function findMemberOrgIds(tx: Prisma.TransactionClient, userId: string) {
+  const memberships = await tx.organizationMembership.findMany({
     where: { userId },
     select: { orgId: true },
   });
@@ -985,10 +1116,10 @@ async function deleteMembershipOfLeavingUser(
   tx: Prisma.TransactionClient,
   afterCommit: AfterCommit,
   ctx: AuthorizationContext,
-  params: { membership: OrganizationMembership; email: string | null },
+  membership: OrganizationMembership,
 ) {
-  const { membership, email } = params;
   const actor = await loadActor(tx, ctx, membership.orgId);
+  const { email } = await findUserOrThrow(tx, membership.userId);
   await tx.organizationMembership.delete({ where: { id: membership.id } });
   await auditLog(
     {
@@ -1074,20 +1205,12 @@ async function clearProjectRole(
     from: before.role,
     to: orgMembership?.role,
   });
-  await deleteProjectMembership(tx, actor, before);
+  await removeProjectRole(tx, actor, before);
   return before;
 }
 
-/** effectiveProjectRole is the target's project role, or the org role they inherit without one. */
-function effectiveProjectRole(
-  projectMembership: ProjectMembership | null,
-  orgMembership: OrganizationMembership,
-) {
-  return projectMembership?.role ?? orgMembership.role;
-}
-
-/** deleteProjectMembership deletes and audits a project role. */
-async function deleteProjectMembership(
+/** removeProjectRole deletes and audits a project role. */
+async function removeProjectRole(
   tx: Prisma.TransactionClient,
   actor: Actor,
   before: ProjectMembership,
@@ -1107,20 +1230,6 @@ async function deleteProjectMembership(
     },
     tx,
   );
-}
-
-function removalOutcome(
-  removed: ProjectMembership | null,
-): MembershipOutcome<ProjectMembership> {
-  if (!removed) return { outcome: "unchanged", before: null, after: null };
-  return { outcome: "removed", before: removed, after: null };
-}
-
-function upsertOutcome(
-  before: ProjectMembership | null,
-): "created" | "updated" {
-  if (before) return "updated";
-  return "created";
 }
 
 async function assertNoPendingInvitation(
@@ -1319,15 +1428,23 @@ async function joinInvitedProject(
   );
 }
 
-/** MembershipOutcome reports what a declarative apply changed. */
-export type MembershipOutcome<T> = {
-  outcome: "created" | "updated" | "removed" | "unchanged";
-  before: T | null;
-  after: T | null;
+/** CreatedMembership reports what createMembership wrote: a membership, an invitation, or nothing for an ignored existing member. */
+export type CreatedMembership = {
+  outcome: "created" | "unchanged";
+  orgMembership: OrganizationMembership | null;
+  projectMembership: ProjectMembership | null;
+  invitation: MembershipInvitation | null;
 };
 
-/** InvitationNotice names the inviter for the email sent after a member or invitation is added. */
-export type InvitationNotice = { inviterName: string; inviterEmail: string };
+/** UpdatedMembership reports what updateMembership changed, with the row before and after. */
+export type UpdatedMembership<T> = {
+  outcome: "created" | "updated" | "unchanged";
+  before: T | null;
+  after: T;
+};
+
+/** Inviter names who added a member, for the invitation email and record. */
+export type Inviter = { userId: string; name: string; email: string };
 
 /** ProjectGrant is a project role granted with an org membership or invitation. */
 type ProjectGrant = { projectId: string; role: Role };

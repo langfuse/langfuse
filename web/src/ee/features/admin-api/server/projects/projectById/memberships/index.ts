@@ -3,8 +3,8 @@ import { z } from "zod";
 
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import {
-  removeProjectRole,
-  setProjectRole,
+  deleteMembership,
+  updateMembership,
 } from "@/src/features/memberships/server/membershipService";
 import { Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
@@ -60,7 +60,6 @@ export async function handleUpdateMembership(
   req: NextApiRequest,
   res: NextApiResponse,
   projectId: string,
-  orgId: string,
   context: AuthorizationContext,
 ) {
   const validatedBody = MembershipSchema.safeParse(req.body);
@@ -71,42 +70,21 @@ export async function handleUpdateMembership(
     });
   }
 
-  // Check if user exists and is a member of the organization
-  const orgMembership = await prisma.organizationMembership.findUnique({
-    where: {
-      orgId_userId: {
-        userId: validatedBody.data.userId,
-        orgId: orgId,
-      },
-    },
-    include: {
-      user: {
-        select: {
-          email: true,
-          name: true,
-        },
-      },
-    },
-  });
-
-  if (!orgMembership) {
-    return res.status(404).json({
-      error: "User is not a member of this organization",
-    });
-  }
-
-  const { after } = await setProjectRole(context, {
-    orgId,
+  const { after } = await updateMembership(context, {
     projectId,
     userId: validatedBody.data.userId,
     role: validatedBody.data.role,
+  });
+  const user = await prisma.user.findUnique({
+    where: { id: after.userId },
+    select: { email: true, name: true },
   });
 
   return res.status(200).json({
     userId: after.userId,
     role: after.role,
-    email: orgMembership.user.email,
-    name: orgMembership.user.name,
+    email: user?.email,
+    name: user?.name,
   });
 }
 
@@ -115,7 +93,6 @@ export async function handleDeleteMembership(
   req: NextApiRequest,
   res: NextApiResponse,
   projectId: string,
-  orgId: string,
   context: AuthorizationContext,
 ) {
   const validatedBody = DeleteMembershipSchema.safeParse(req.body);
@@ -126,8 +103,7 @@ export async function handleDeleteMembership(
     });
   }
 
-  const deleted = await removeProjectRole(context, {
-    orgId,
+  const deleted = await deleteMembership(context, {
     projectId,
     userId: validatedBody.data.userId,
   });

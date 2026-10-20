@@ -3,8 +3,8 @@ import { z } from "zod";
 
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import {
-  applyOrgMembership,
-  removeOrgMember,
+  deleteMembership,
+  updateMembership,
 } from "@/src/features/memberships/server/membershipService";
 import { Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
@@ -66,30 +66,21 @@ export async function handleUpdateMembership(
     });
   }
 
-  // Check if user exists
-  const user = await prisma.user.findUnique({
-    where: {
-      id: validatedBody.data.userId,
-    },
-  });
-
-  if (!user) {
-    return res.status(404).json({
-      error: "User not found",
-    });
-  }
-
-  const { after } = await applyOrgMembership(context, {
+  const { after } = await updateMembership(context, {
     orgId,
-    userId: user.id,
+    userId: validatedBody.data.userId,
     role: validatedBody.data.role,
+  });
+  const user = await prisma.user.findUnique({
+    where: { id: after.userId },
+    select: { email: true, name: true },
   });
 
   return res.status(200).json({
-    userId: user.id,
-    role: after!.role,
-    email: user.email,
-    name: user.name,
+    userId: after.userId,
+    role: after.role,
+    email: user?.email,
+    name: user?.name,
   });
 }
 
@@ -108,7 +99,7 @@ export async function handleDeleteMembership(
     });
   }
 
-  await removeOrgMember(context, {
+  await deleteMembership(context, {
     orgId,
     userId: validatedBody.data.userId,
   });

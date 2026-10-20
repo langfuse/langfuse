@@ -1126,7 +1126,7 @@ describe("Project membership safeguards", () => {
       method: "PUT",
       body: { userId, role: Role.OWNER },
     });
-    await handleUpdateProjectMembership(req, res, projectId, orgId, context);
+    await handleUpdateProjectMembership(req, res, projectId, context);
     expect(res.statusCode).toBe(200);
     expect((await membership())?.role).toBe(Role.OWNER);
     expect(await logs()).toHaveLength(1);
@@ -1148,9 +1148,9 @@ describe("Project membership safeguards", () => {
         operation === "delete"
           ? handleDeleteProjectMembership
           : handleUpdateProjectMembership;
-      await expect(
-        handler(req, res, projectId, orgId, adminContext),
-      ).rejects.toThrow("audit unavailable");
+      await expect(handler(req, res, projectId, adminContext)).rejects.toThrow(
+        "audit unavailable",
+      );
       expect(await membership()).toEqual(before);
       expect(await logs()).toEqual([]);
     },

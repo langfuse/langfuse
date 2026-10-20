@@ -14,9 +14,8 @@ import { projectRoleAccessRights } from "@langfuse/shared";
 import { type AdClickIds } from "@/src/features/auth/lib/signupAttribution";
 import { systemContext } from "@/src/features/auth/policy/contextResolver";
 import {
-  acceptInvitations,
-  applyOrgMembership,
-  applyProjectMembership,
+  claimInvitations,
+  createMembership,
 } from "@/src/features/memberships/server/membershipService";
 
 export async function createProjectMembershipsOnSignup(
@@ -52,11 +51,11 @@ export async function createProjectMembershipsOnSignup(
         : undefined;
     const signupDefaults = systemContext("signupDefaults");
     if (demoProject !== undefined) {
-      await applyOrgMembership(signupDefaults, {
+      await createMembership(signupDefaults, {
         orgId: demoProject.orgId,
         userId: user.id,
         role: Role.VIEWER,
-        keepExistingRole: true,
+        ifExists: "ignore",
       });
     }
 
@@ -72,11 +71,11 @@ export async function createProjectMembershipsOnSignup(
         : [];
 
     for (const org of defaultOrgs) {
-      await applyOrgMembership(signupDefaults, {
+      await createMembership(signupDefaults, {
         orgId: org.id,
         userId: user.id,
         role: env.LANGFUSE_DEFAULT_ORG_ROLE ?? "VIEWER",
-        keepExistingRole: true,
+        ifExists: "ignore",
       });
     }
 
@@ -100,24 +99,16 @@ export async function createProjectMembershipsOnSignup(
     });
 
     for (const project of defaultProjects) {
-      // legacy: a default project outside the default orgs joins its org too
-      if (!defaultOrgs.some((org) => org.id === project.orgId)) {
-        await applyOrgMembership(signupDefaults, {
-          orgId: project.orgId,
-          userId: user.id,
-          role: env.LANGFUSE_DEFAULT_PROJECT_ROLE ?? "VIEWER",
-          keepExistingRole: true,
-        });
-      }
-      if (hasProjectRolesEntitlement) {
-        await applyProjectMembership(signupDefaults, {
-          orgId: project.orgId,
-          projectId: project.id,
-          userId: user.id,
-          role: env.LANGFUSE_DEFAULT_PROJECT_ROLE ?? "VIEWER",
-          keepExistingRole: true,
-        });
-      }
+      const inDefaultOrg = defaultOrgs.some((org) => org.id === project.orgId);
+      if (inDefaultOrg && !hasProjectRolesEntitlement) continue;
+      await createMembership(signupDefaults, {
+        orgId: project.orgId,
+        userId: user.id,
+        // legacy: a default project outside the default orgs joins its org with this role
+        role: env.LANGFUSE_DEFAULT_PROJECT_ROLE ?? "VIEWER",
+        project: defaultProjectGrant(project.id, hasProjectRolesEntitlement),
+        ifExists: "ignore",
+      });
     }
 
     // SFDC lead upsert (never throws; no-op when SfdcService is not
@@ -276,7 +267,7 @@ export async function createProjectMembershipsOnSignup(
 }
 
 async function processMembershipInvitations(email: string, userId: string) {
-  const accepted = await acceptInvitations({ userId, email });
+  const accepted = await claimInvitations({ userId, email });
 
   return accepted.some((invitation) => {
     if (
@@ -289,4 +280,10 @@ async function processMembershipInvitations(email: string, userId: string) {
     const projectRole = invitation.projectRole ?? invitation.orgRole;
     return projectRoleAccessRights[projectRole].includes("project:read");
   });
+}
+
+/** defaultProjectGrant is the default project role to grant on signup, when project roles are entitled. */
+function defaultProjectGrant(projectId: string, entitled: boolean) {
+  if (!entitled) return undefined;
+  return { projectId, role: env.LANGFUSE_DEFAULT_PROJECT_ROLE ?? "VIEWER" };
 }

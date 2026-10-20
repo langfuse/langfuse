@@ -234,10 +234,7 @@ export function ConnectedMembersSettingsTable({
             ) {
               return;
             }
-            deleteMember.mutate({
-              orgId,
-              orgMembershipId: member.meta.orgMembershipId,
-            });
+            deleteMember.mutate({ orgId, userId: member.meta.userId });
           }}
           onUpdateOrgRole={(member, role) => {
             if (
@@ -253,7 +250,7 @@ export function ConnectedMembersSettingsTable({
               new Set(current).add(membershipId),
             );
             updateOrgRole.mutate(
-              { orgId, orgMembershipId: membershipId, role },
+              { orgId, userId: member.meta.userId, role },
               {
                 onSettled: () =>
                   setUpdatingOrgRoleMembershipIds((current) => {
@@ -281,7 +278,6 @@ export function ConnectedMembersSettingsTable({
             updateProjectRole.mutate(
               {
                 orgId,
-                orgMembershipId: membershipId,
                 projectId: project.id,
                 userId: member.meta.userId,
                 projectRole,

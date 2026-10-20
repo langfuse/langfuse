@@ -136,7 +136,7 @@ import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/create
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { handleUpdateMembership } from "@/src/ee/features/admin-api/server/memberships";
-import { changeOrgRole } from "@/src/features/memberships/server/membershipService";
+import { updateMembership } from "@/src/features/memberships/server/membershipService";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { CloudConfigSchema, Role } from "@langfuse/shared";
 import { OrganizationId, SystemRoleId } from "@langfuse/shared/rbac";
@@ -917,7 +917,7 @@ const membershipAdminContext: AuthorizationContext = {
   ],
 };
 
-describe("call site: membership service changeOrgRole", () => {
+describe("call site: membership service updateMembership", () => {
   const membership = {
     id: "om-1",
     orgId: "org-1",
@@ -942,7 +942,7 @@ describe("call site: membership service changeOrgRole", () => {
     });
     fetchMock.mockResolvedValueOnce(emptyOkResponse());
 
-    await changeOrgRole(membershipAdminContext, {
+    await updateMembership(membershipAdminContext, {
       orgId: "org-1",
       userId: "member-1",
       role: Role.NONE,
@@ -966,7 +966,7 @@ describe("call site: membership service changeOrgRole", () => {
     });
     fetchMock.mockResolvedValueOnce(emptyOkResponse());
 
-    await changeOrgRole(membershipAdminContext, {
+    await updateMembership(membershipAdminContext, {
       orgId: "org-1",
       userId: "member-1",
       role: Role.MEMBER,
