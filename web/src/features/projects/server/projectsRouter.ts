@@ -1,4 +1,4 @@
-import { removeAllProjectMembers } from "@/src/features/memberships/server/membershipService";
+import { removeAllProjectMembers } from "@/src/features/memberships/server/projectMembershipService";
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,

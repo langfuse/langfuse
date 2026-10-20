@@ -25,10 +25,20 @@ import { ContextResolver } from "@/src/features/auth/policy/contextResolver";
 import { allMembersRoutes } from "@/src/features/rbac/server/allMembersRoutes";
 import { allInvitesRoutes } from "@/src/features/rbac/server/allInvitesRoutes";
 import {
-  createMembership,
-  deleteMembership,
-  updateMembership,
-} from "@/src/features/memberships/server/membershipService";
+  createInvitation,
+  deleteInvitation,
+} from "@/src/features/memberships/server/invitationService";
+import { inMembershipTransaction } from "@/src/features/memberships/server/membershipTransaction";
+import {
+  createOrgMembership,
+  deleteOrgMembership,
+  updateOrgMembership,
+} from "@/src/features/memberships/server/orgMembershipService";
+import {
+  createProjectMembership,
+  deleteProjectMembership,
+  updateProjectMembership,
+} from "@/src/features/memberships/server/projectMembershipService";
 import {
   userFeaturePreviewFlags,
   setUserFeaturePreviewWithAuthorization,
@@ -67,21 +77,43 @@ export const membersRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      const { invitation } = await createMembership(
-        await sessionContext(ctx.session),
-        {
-          orgId: input.orgId,
-          email: input.email,
-          role: input.orgRole,
-          project: projectGrant(input),
-          inviter: {
-            userId: ctx.session.user.id,
-            name: ctx.session.user.name!,
-            email: ctx.session.user.email!,
-          },
-        },
-      );
-      return invitation ?? undefined;
+      const authz = await sessionContext(ctx.session);
+      const invitedByUserId = ctx.session.user.id;
+      const projectRole = grantedProjectRole(input);
+      const user = await ctx.prisma.user.findUnique({
+        where: { email: input.email.toLowerCase() },
+        select: { id: true },
+      });
+      return inMembershipTransaction(async (tx) => {
+        if (!user) {
+          return createInvitation(tx, authz, {
+            orgId: input.orgId,
+            email: input.email,
+            orgRole: input.orgRole,
+            projectId: input.projectId,
+            projectRole,
+            invitedByUserId,
+          });
+        }
+        // an org role of NONE with a project role adds a project-only member
+        if (!projectRole || input.orgRole !== Role.NONE) {
+          await createOrgMembership(tx, authz, {
+            orgId: input.orgId,
+            userId: user.id,
+            role: input.orgRole,
+            invitedByUserId,
+          });
+        }
+        if (projectRole && input.projectId) {
+          await createProjectMembership(tx, authz, {
+            projectId: input.projectId,
+            userId: user.id,
+            role: projectRole,
+            invitedByUserId,
+          });
+        }
+        return undefined;
+      });
     }),
   deleteMembership: protectedOrganizationProcedure
     .input(
@@ -91,9 +123,12 @@ export const membersRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      const deleted = await deleteMembership(
-        await sessionContext(ctx.session),
-        { orgId: input.orgId, userId: input.userId },
+      const authz = await sessionContext(ctx.session);
+      const deleted = await inMembershipTransaction((tx) =>
+        deleteOrgMembership(tx, authz, {
+          orgId: input.orgId,
+          userId: input.userId,
+        }),
       );
       if (!deleted)
         throw new TRPCError({
@@ -110,10 +145,13 @@ export const membersRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      return await deleteMembership(await sessionContext(ctx.session), {
-        orgId: input.orgId,
-        invitationId: input.inviteId,
-      });
+      const authz = await sessionContext(ctx.session);
+      return inMembershipTransaction((tx) =>
+        deleteInvitation(tx, authz, {
+          orgId: input.orgId,
+          invitationId: input.inviteId,
+        }),
+      );
     }),
   updateOrgMembership: protectedOrganizationProcedure
     .input(
@@ -124,9 +162,13 @@ export const membersRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      const { after } = await updateMembership(
-        await sessionContext(ctx.session),
-        { orgId: input.orgId, userId: input.userId, role: input.role },
+      const authz = await sessionContext(ctx.session);
+      const { after } = await inMembershipTransaction((tx) =>
+        updateOrgMembership(tx, authz, {
+          orgId: input.orgId,
+          userId: input.userId,
+          role: input.role,
+        }),
       );
       return after;
     }),
@@ -209,15 +251,17 @@ export const membersRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const authz = await sessionContext(ctx.session);
       const target = { projectId: input.projectId, userId: input.userId };
+      const projectRole = input.projectRole;
       // NONE in this procedure drops the project role, so the org role applies
-      if (input.projectRole === null || input.projectRole === Role.NONE) {
-        await deleteMembership(authz, target);
+      if (projectRole === null || projectRole === Role.NONE) {
+        await inMembershipTransaction((tx) =>
+          deleteProjectMembership(tx, authz, target),
+        );
         return { userId: input.userId };
       }
-      const { after } = await updateMembership(authz, {
-        ...target,
-        role: input.projectRole,
-      });
+      const { after } = await inMembershipTransaction((tx) =>
+        updateProjectMembership(tx, authz, { ...target, role: projectRole }),
+      );
       return after;
     }),
   byProjectId: protectedProjectProcedure
@@ -288,9 +332,9 @@ function sessionContext(session: OrgAuthedContext["session"]) {
   });
 }
 
-/** projectGrant is the project role to add with a new member, if one was chosen. */
-function projectGrant(input: { projectId?: string; projectRole?: Role }) {
+/** grantedProjectRole is the project role to add with a new member, if one was chosen. */
+function grantedProjectRole(input: { projectId?: string; projectRole?: Role }) {
   const { projectId, projectRole } = input;
   if (!projectId || !projectRole || projectRole === Role.NONE) return undefined;
-  return { projectId, role: projectRole };
+  return projectRole;
 }

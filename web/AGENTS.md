@@ -135,13 +135,16 @@ Sentry instrumentation skill first and decide whether it should capture at all
   and the access checks in `src/features/rbac/utils/checkProjectAccess.ts` and
   `src/features/rbac/utils/checkOrganizationAccess.ts`.
 - Every write to organization memberships, project memberships and
-  invitations goes through `src/features/memberships/server/membershipService.ts`
-  (lint rule `langfuse/web/membership-writes-via-service`). It authorizes the
-  change against an `AuthorizationContext` (tRPC resolves one with
-  `ContextResolver.resolveUser`; Langfuse's own flows use `systemContext`),
-  enforces the seat limit and the last-owner rule under the organization's
-  advisory lock, audits inside the transaction, and runs SFDC sync and emails
-  after commit.
+  invitations goes through `orgMembershipService.ts`,
+  `projectMembershipService.ts` and `invitationService.ts` in
+  `src/features/memberships/server` (lint rule
+  `langfuse/web/membership-writes-via-service`). Each write takes a
+  `MembershipTransaction` from `inMembershipTransaction`, so callers can
+  compose several in one transaction; SFDC sync and emails run after it
+  commits. Writes authorize against an `AuthorizationContext` (tRPC resolves
+  one with `ContextResolver.resolveUser`; Langfuse's own flows use
+  `systemContext`), enforce the seat limit and the last-owner rule under the
+  organization's advisory lock, and audit inside the transaction.
 - Entitlements guidance lives in `src/features/entitlements/README.md`.
 - Prefer Shadcn/ui primitives from `src/components/ui`; if a missing component
   must be installed, ask the user before doing so.

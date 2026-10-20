@@ -1,4 +1,4 @@
-import { LangfuseConflictError } from "@langfuse/shared";
+import { InvalidRequestError, LangfuseConflictError } from "@langfuse/shared";
 
 /** SeatLimitExceededError rejects a member or invitation beyond the plan's seat limit with a 409. */
 export class SeatLimitExceededError extends LangfuseConflictError {
@@ -8,3 +8,6 @@ export class SeatLimitExceededError extends LangfuseConflictError {
     );
   }
 }
+
+/** MembershipExistsError rejects creating a membership the user already holds with a 400. */
+export class MembershipExistsError extends InvalidRequestError {}

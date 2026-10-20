@@ -10,7 +10,8 @@ import { canToggleV4 } from "@/src/features/events/server";
 import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
 import { env } from "@/src/env.mjs";
 import { ContextResolver } from "@/src/features/auth/policy/contextResolver";
-import { deleteMemberships } from "@/src/features/memberships/server/membershipService";
+import { inMembershipTransaction } from "@/src/features/memberships/server/membershipTransaction";
+import { deleteOrgMemberships } from "@/src/features/memberships/server/orgMembershipService";
 import {
   isAdminOnlyFeaturePreviewFlag,
   personalFeaturePreviewFlags,
@@ -198,12 +199,10 @@ export const userAccountRouter = createTRPCRouter({
       userId,
       isPlatformAdmin: false,
     });
-    const { afterCommit } = await ctx.prisma.$transaction(async (tx) => {
-      const deletion = await deleteMemberships(tx, authz, { userId });
+    await inMembershipTransaction(async (tx) => {
+      await deleteOrgMemberships(tx, authz, { userId });
       await tx.user.delete({ where: { id: userId } });
-      return deletion;
     });
-    await afterCommit();
 
     return {
       success: true,

@@ -136,7 +136,8 @@ import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/create
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { handleUpdateMembership } from "@/src/ee/features/admin-api/server/memberships";
-import { updateMembership } from "@/src/features/memberships/server/membershipService";
+import { inMembershipTransaction } from "@/src/features/memberships/server/membershipTransaction";
+import { updateOrgMembership } from "@/src/features/memberships/server/orgMembershipService";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { CloudConfigSchema, Role } from "@langfuse/shared";
 import { OrganizationId, SystemRoleId } from "@langfuse/shared/rbac";
@@ -917,7 +918,7 @@ const membershipAdminContext: AuthorizationContext = {
   ],
 };
 
-describe("call site: membership service updateMembership", () => {
+describe("call site: membership service updateOrgMembership", () => {
   const membership = {
     id: "om-1",
     orgId: "org-1",
@@ -942,11 +943,13 @@ describe("call site: membership service updateMembership", () => {
     });
     fetchMock.mockResolvedValueOnce(emptyOkResponse());
 
-    await updateMembership(membershipAdminContext, {
-      orgId: "org-1",
-      userId: "member-1",
-      role: Role.NONE,
-    });
+    await inMembershipTransaction((tx) =>
+      updateOrgMembership(tx, membershipAdminContext, {
+        orgId: "org-1",
+        userId: "member-1",
+        role: Role.NONE,
+      }),
+    );
 
     expect(fetchMock).toHaveBeenCalledOnce();
     const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
@@ -966,11 +969,13 @@ describe("call site: membership service updateMembership", () => {
     });
     fetchMock.mockResolvedValueOnce(emptyOkResponse());
 
-    await updateMembership(membershipAdminContext, {
-      orgId: "org-1",
-      userId: "member-1",
-      role: Role.MEMBER,
-    });
+    await inMembershipTransaction((tx) =>
+      updateOrgMembership(tx, membershipAdminContext, {
+        orgId: "org-1",
+        userId: "member-1",
+        role: Role.MEMBER,
+      }),
+    );
 
     expect(fetchMock).toHaveBeenCalledOnce();
     const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);

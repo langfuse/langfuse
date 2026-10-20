@@ -80,16 +80,16 @@ const dynamicToastBypassSelectors = [
   },
 ];
 
-// The membership service (src/features/memberships/server) owns every write to
-// organization memberships, project memberships and invitations: it authorizes
-// the change, enforces the seat limit and the last-owner rule under the
-// organization's lock, and audits it.
+// The membership services (src/features/memberships/server) own every write to
+// organization memberships, project memberships and invitations: they authorize
+// the change, enforce the seat limit and the last-owner rule under the
+// organization's lock, and audit it.
 const membershipWriteSelectors = [
   {
     selector:
       "MemberExpression[object.property.name=/^(organizationMembership|projectMembership|membershipInvitation)$/][property.name=/^(create|createMany|update|updateMany|upsert|delete|deleteMany)$/]",
     message:
-      "Write memberships and invitations through the membership service (@/src/features/memberships/server/membershipService), which authorizes, seat-limits, locks and audits every change.",
+      "Write memberships and invitations through the membership services (orgMembershipService, projectMembershipService and invitationService in @/src/features/memberships/server), which authorize, seat-limit, lock and audit every change.",
   },
 ];
 

@@ -7,7 +7,8 @@ import { z } from "zod";
 import { isBaseError, type Role } from "@langfuse/shared";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import { authenticator } from "@/src/features/apiKey/server";
-import { createMembership } from "@/src/features/memberships/server/membershipService";
+import { inMembershipTransaction } from "@/src/features/memberships/server/membershipTransaction";
+import { createOrgMembership } from "@/src/features/memberships/server/orgMembershipService";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
 import { shadowAuth, writeScimError } from "@/src/features/public-api/server";
 export default async function handler(
@@ -254,11 +255,10 @@ export default async function handler(
         // SCIM provisioning is org-admin-driven, never an organic signup.
         leadSource: "Langfuse Cloud Invite",
       });
-      await createMembership(ctx, {
-        orgId: authCheck.scope.orgId,
-        userId: user.id,
-        role,
-      });
+      const orgId = authCheck.scope.orgId;
+      await inMembershipTransaction((tx) =>
+        createOrgMembership(tx, ctx, { orgId, userId: user.id, role }),
+      );
       logger.info(
         `[SCIM] Assigned user ${user.id} to org ${authCheck.scope.orgId} with role ${role}`,
       );

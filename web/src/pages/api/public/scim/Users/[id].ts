@@ -6,11 +6,12 @@ import { z } from "zod";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { authenticator } from "@/src/features/apiKey/server";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
+import { inMembershipTransaction } from "@/src/features/memberships/server/membershipTransaction";
 import {
-  createMembership,
-  deleteMembership,
-  updateMembership,
-} from "@/src/features/memberships/server/membershipService";
+  createOrgMembership,
+  deleteOrgMembership,
+  updateOrgMembership,
+} from "@/src/features/memberships/server/orgMembershipService";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
 import { shadowAuth, writeScimError } from "@/src/features/public-api/server";
 
@@ -56,21 +57,26 @@ async function provisionMembership({
   role?: Role;
   ctx: AuthorizationContext;
 }): Promise<ProvisionOutcome> {
-  if (role === undefined) {
-    const { outcome, orgMembership } = await createMembership(ctx, {
+  return inMembershipTransaction(async (tx) => {
+    if (role === undefined) {
+      const existing = await tx.organizationMembership.findUnique({
+        where: { orgId_userId: { orgId, userId } },
+      });
+      if (existing) return { kind: "unchanged", role: existing.role };
+      const created = await createOrgMembership(tx, ctx, {
+        orgId,
+        userId,
+        role: "NONE",
+      });
+      return { kind: "created", role: created.role };
+    }
+    const { outcome, after } = await updateOrgMembership(tx, ctx, {
       orgId,
       userId,
-      role: "NONE",
-      ifExists: "ignore",
+      role,
     });
-    return { kind: outcome, role: orgMembership!.role };
-  }
-  const { outcome, after } = await updateMembership(ctx, {
-    orgId,
-    userId,
-    role,
+    return { kind: outcome, role: after.role };
   });
-  return { kind: outcome, role: after.role };
 }
 
 // Single place for the SCIM provisioning log line so PUT and PATCH stay
@@ -107,7 +113,9 @@ async function deprovisionOrReject(
   orgId: string,
   ctx: AuthorizationContext,
 ): Promise<void> {
-  await deleteMembership(ctx, { orgId, userId });
+  await inMembershipTransaction((tx) =>
+    deleteOrgMembership(tx, ctx, { orgId, userId }),
+  );
 }
 
 export default async function handler(

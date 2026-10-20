@@ -6,7 +6,9 @@ import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { CloudConfigSchema } from "@langfuse/shared";
 import { systemContext } from "@/src/features/auth/policy/contextResolver";
-import { updateMembership } from "@/src/features/memberships/server/membershipService";
+import { inMembershipTransaction } from "@/src/features/memberships/server/membershipTransaction";
+import { updateOrgMembership } from "@/src/features/memberships/server/orgMembershipService";
+import { updateProjectMembership } from "@/src/features/memberships/server/projectMembershipService";
 import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import {
   initializeClickhouseCompatibility,
@@ -139,11 +141,13 @@ if (env.LANGFUSE_INIT_ORG_ID) {
 
     // Create OrgMembership: Org -> OrgMembership <- User
     const bootstrap = systemContext("bootstrap");
-    await updateMembership(bootstrap, {
-      orgId: org.id,
-      userId,
-      role: "OWNER",
-    });
+    await inMembershipTransaction((tx) =>
+      updateOrgMembership(tx, bootstrap, {
+        orgId: org.id,
+        userId,
+        role: "OWNER",
+      }),
+    );
 
     // On EE plans with rbac-project-roles, createUserEmailPassword ->
     // createProjectMembershipsOnSignup may have already created a ProjectMembership
@@ -156,11 +160,14 @@ if (env.LANGFUSE_INIT_ORG_ID) {
         entitlement: "rbac-project-roles",
       })
     ) {
-      await updateMembership(bootstrap, {
-        projectId: env.LANGFUSE_INIT_PROJECT_ID,
-        userId,
-        role: "OWNER",
-      });
+      const projectId = env.LANGFUSE_INIT_PROJECT_ID;
+      await inMembershipTransaction((tx) =>
+        updateProjectMembership(tx, bootstrap, {
+          projectId,
+          userId,
+          role: "OWNER",
+        }),
+      );
     }
   }
 

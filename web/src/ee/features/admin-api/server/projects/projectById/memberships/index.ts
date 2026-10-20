@@ -2,10 +2,11 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
+import { inMembershipTransaction } from "@/src/features/memberships/server/membershipTransaction";
 import {
-  deleteMembership,
-  updateMembership,
-} from "@/src/features/memberships/server/membershipService";
+  deleteProjectMembership,
+  updateProjectMembership,
+} from "@/src/features/memberships/server/projectMembershipService";
 import { Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 
@@ -70,11 +71,13 @@ export async function handleUpdateMembership(
     });
   }
 
-  const { after } = await updateMembership(context, {
-    projectId,
-    userId: validatedBody.data.userId,
-    role: validatedBody.data.role,
-  });
+  const { after } = await inMembershipTransaction((tx) =>
+    updateProjectMembership(tx, context, {
+      projectId,
+      userId: validatedBody.data.userId,
+      role: validatedBody.data.role,
+    }),
+  );
   const user = await prisma.user.findUnique({
     where: { id: after.userId },
     select: { email: true, name: true },
@@ -103,10 +106,12 @@ export async function handleDeleteMembership(
     });
   }
 
-  const deleted = await deleteMembership(context, {
-    projectId,
-    userId: validatedBody.data.userId,
-  });
+  const deleted = await inMembershipTransaction((tx) =>
+    deleteProjectMembership(tx, context, {
+      projectId,
+      userId: validatedBody.data.userId,
+    }),
+  );
 
   if (!deleted) {
     return res.status(404).json({

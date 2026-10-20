@@ -13,10 +13,14 @@ import { provisionStarterOrganizationForNewUser } from "@/src/features/onboardin
 import { projectRoleAccessRights } from "@langfuse/shared";
 import { type AdClickIds } from "@/src/features/auth/lib/signupAttribution";
 import { systemContext } from "@/src/features/auth/policy/contextResolver";
+import { claimInvitations } from "@/src/features/memberships/server/invitationService";
 import {
-  claimInvitations,
-  createMembership,
-} from "@/src/features/memberships/server/membershipService";
+  inMembershipTransaction,
+  type MembershipTransaction,
+} from "@/src/features/memberships/server/membershipTransaction";
+import { createOrgMembership } from "@/src/features/memberships/server/orgMembershipService";
+import { createProjectMembership } from "@/src/features/memberships/server/projectMembershipService";
+import { MembershipExistsError } from "@/src/features/memberships/server/membershipErrors";
 
 export async function createProjectMembershipsOnSignup(
   user: {
@@ -51,12 +55,13 @@ export async function createProjectMembershipsOnSignup(
         : undefined;
     const signupDefaults = systemContext("signupDefaults");
     if (demoProject !== undefined) {
-      await createMembership(signupDefaults, {
-        orgId: demoProject.orgId,
-        userId: user.id,
-        role: Role.VIEWER,
-        ifExists: "ignore",
-      });
+      await grantUnlessMember((tx) =>
+        createOrgMembership(tx, signupDefaults, {
+          orgId: demoProject.orgId,
+          userId: user.id,
+          role: Role.VIEWER,
+        }),
+      );
     }
 
     // self-hosted: LANGFUSE_DEFAULT_ORG_ID (supports comma-separated list of org IDs)
@@ -71,12 +76,13 @@ export async function createProjectMembershipsOnSignup(
         : [];
 
     for (const org of defaultOrgs) {
-      await createMembership(signupDefaults, {
-        orgId: org.id,
-        userId: user.id,
-        role: env.LANGFUSE_DEFAULT_ORG_ROLE ?? "VIEWER",
-        ifExists: "ignore",
-      });
+      await grantUnlessMember((tx) =>
+        createOrgMembership(tx, signupDefaults, {
+          orgId: org.id,
+          userId: user.id,
+          role: env.LANGFUSE_DEFAULT_ORG_ROLE ?? "VIEWER",
+        }),
+      );
     }
 
     // self-hosted: LANGFUSE_DEFAULT_PROJECT_ID (supports comma-separated list of project IDs)
@@ -101,14 +107,24 @@ export async function createProjectMembershipsOnSignup(
     for (const project of defaultProjects) {
       const inDefaultOrg = defaultOrgs.some((org) => org.id === project.orgId);
       if (inDefaultOrg && !hasProjectRolesEntitlement) continue;
-      await createMembership(signupDefaults, {
-        orgId: project.orgId,
-        userId: user.id,
-        // legacy: a default project outside the default orgs joins its org with this role
-        role: env.LANGFUSE_DEFAULT_PROJECT_ROLE ?? "VIEWER",
-        project: defaultProjectGrant(project.id, hasProjectRolesEntitlement),
-        ifExists: "ignore",
-      });
+      const role = env.LANGFUSE_DEFAULT_PROJECT_ROLE ?? "VIEWER";
+      // legacy: a default project outside the default orgs joins its org with this role
+      await grantUnlessMember((tx) =>
+        createOrgMembership(tx, signupDefaults, {
+          orgId: project.orgId,
+          userId: user.id,
+          role,
+        }),
+      );
+      if (hasProjectRolesEntitlement) {
+        await grantUnlessMember((tx) =>
+          createProjectMembership(tx, signupDefaults, {
+            projectId: project.id,
+            userId: user.id,
+            role,
+          }),
+        );
+      }
     }
 
     // SFDC lead upsert (never throws; no-op when SfdcService is not
@@ -267,7 +283,9 @@ export async function createProjectMembershipsOnSignup(
 }
 
 async function processMembershipInvitations(email: string, userId: string) {
-  const accepted = await claimInvitations({ userId, email });
+  const accepted = await inMembershipTransaction((tx) =>
+    claimInvitations(tx, { userId, email }),
+  );
 
   return accepted.some((invitation) => {
     if (
@@ -282,8 +300,13 @@ async function processMembershipInvitations(email: string, userId: string) {
   });
 }
 
-/** defaultProjectGrant is the default project role to grant on signup, when project roles are entitled. */
-function defaultProjectGrant(projectId: string, entitled: boolean) {
-  if (!entitled) return undefined;
-  return { projectId, role: env.LANGFUSE_DEFAULT_PROJECT_ROLE ?? "VIEWER" };
+/** grantUnlessMember grants a default membership on signup, leaving one the user already holds as is. */
+async function grantUnlessMember(
+  create: (tx: MembershipTransaction) => Promise<unknown>,
+) {
+  try {
+    await inMembershipTransaction(create);
+  } catch (error) {
+    if (!(error instanceof MembershipExistsError)) throw error;
+  }
 }
