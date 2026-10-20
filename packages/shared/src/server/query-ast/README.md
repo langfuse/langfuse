@@ -93,11 +93,22 @@ suffix to run there. Promote it to a required check once it has proven stable.
   `metadataValue` stay on `events_core` when
   `metadataFilterIsEventsCoreSafe` accepts the value, as in the raw-SQL
   builders. `*` / `e.*` over `events`, raw SQL text in a select that reads
-  it, an unqualified truncated column, and a CTE named `events_core` /
-  `events_full` are compile errors while `events` is in scope. Name
+  it, and an unqualified truncated column are compile errors while `events`
+  is in scope. Name
   `events_core` to read the truncated copy on purpose; `events_core` /
   `events_full` stay selectable by name, which is also the override for a
   shape the pass rejects.
+- **Give each CTE (and view) its own plain name.** A CTE name is a plain
+  identifier that is not a registry table (`traces`, `events_core`, the
+  logical `events`, …) and doesn't reuse the name of a sibling or an
+  enclosing CTE (a CTE is not in scope inside its own body). Every FROM/JOIN
+  name is a registry table or a CTE in scope, and a schema-qualified name
+  (`default.traces`) is always a physical registry table, never the logical
+  `events`. A CTE body sees only the CTEs declared before it, so recursive
+  and cyclic CTEs are out. The passes then read every registry name as its
+  table. Rename or reorder the CTEs
+  when the compile rejects them; add a physical table to the registry to
+  read it.
 - **Function and aggregate names must be plain identifiers.**
   The compiler writes them verbatim, so anything else fails to compile.
   `collate` is not supported.
@@ -262,6 +273,8 @@ and it is where tenancy is enforced:
 
 1. A missing/empty `projectId` throws (`QueryCompileError`) — `projectId` is a
    required parameter, so omitting it is also a compile-time type error.
+   `CteNamePlugin` then rejects the CTE names the rules above forbid; it runs
+   before every other pass.
 2. `SoftDeleteFilterPlugin` adds `<flag> = 0` for every FROM/JOIN relation
    whose table declares `softDelete`, except in selects marked with
    `includeDeleted()`. A select marked `softDeleteAfterLimit()` is left

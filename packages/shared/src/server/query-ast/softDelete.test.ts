@@ -112,75 +112,16 @@ describe("soft-delete filtering", () => {
     );
   });
 
-  it("treats a CTE named like a physical table as the CTE, in nested scopes too", () => {
+  it("filters a schema-qualified soft-delete table", () => {
     expect(
       compile(
         getClickhouseKysely()
-          .with("events_core", (qb) =>
-            qb.selectFrom("scores").select("trace_id"),
-          )
-          .selectFrom("events_core")
-          .select("trace_id")
-          .where("trace_id", "in", (eb) =>
-            eb.selectFrom("events_core").select("trace_id"),
-          ),
-      ),
-    ).not.toContain("is_deleted");
-  });
-
-  it("filters a schema-qualified table named like a CTE in scope", () => {
-    const db = getClickhouseKysely();
-    expect(
-      compile(
-        db
-          .with("events_core", (qb) =>
-            qb.selectFrom("scores").select("trace_id"),
-          )
-          .selectFrom("events_core")
-          .select("trace_id")
-          .where(
-            "trace_id",
-            "in",
-            db
-              .withSchema("default")
-              .selectFrom("events_core")
-              .select("trace_id"),
-          ),
-      ),
-    ).toContain(
-      "(select trace_id from default.events_core where project_id = {p1:String} and events_core.is_deleted = {p2:UInt8})",
-    );
-  });
-
-  it("resolves a CTE body's own name to the table, and sibling CTE names to the CTE", () => {
-    const sql = compile(
-      getClickhouseKysely()
-        .with("before", (qb) => qb.selectFrom("events_core").select("trace_id"))
-        .with("events_core", (qb) =>
-          qb.selectFrom("events_core").select("trace_id"),
-        )
-        .with("after", (qb) => qb.selectFrom("events_core").select("trace_id"))
-        .selectFrom("after")
-        .select("trace_id"),
-    );
-    expect(sql).toContain(
-      "events_core as (select trace_id from events_core where project_id = {p1:String} and events_core.is_deleted = {p2:UInt8})",
-    );
-    expect(sql.match(/is_deleted/g)).toHaveLength(1);
-  });
-
-  it("filters a recursive CTE body that reads its own name, which is the table outside the recursive member", () => {
-    expect(
-      compile(
-        getClickhouseKysely()
-          .withRecursive("events_core(trace_id)", (qb) =>
-            qb.selectFrom("events_core").select("trace_id"),
-          )
+          .withSchema("default")
           .selectFrom("events_core")
           .select("trace_id"),
       ),
-    ).toContain(
-      "(select trace_id from events_core where project_id = {p1:String} and events_core.is_deleted = {p2:UInt8})",
+    ).toBe(
+      "select trace_id from default.events_core where project_id = {p1:String} and events_core.is_deleted = {p2:UInt8}",
     );
   });
 
@@ -297,10 +238,8 @@ describe("soft-delete filtering", () => {
     expect(() =>
       compile(
         getClickhouseKysely()
-          .with("events_core", (qb) =>
-            qb.selectFrom("scores").select("trace_id"),
-          )
-          .selectFrom("events_core")
+          .with("ev", (qb) => qb.selectFrom("events_core").select("trace_id"))
+          .selectFrom("ev")
           .$call(includeDeleted())
           .select("trace_id"),
       ),

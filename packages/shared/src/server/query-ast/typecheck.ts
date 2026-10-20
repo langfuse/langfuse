@@ -6,6 +6,7 @@ import {
 } from "kysely";
 
 import { TypeCompatibilityError } from "./errors";
+import { walkNodes } from "./nodes";
 import { COLUMN_DATA_TYPES } from "./schema";
 
 // Kysely already type-checks comparisons against the schema; `sum()` / `avg()`
@@ -19,7 +20,7 @@ const NUMERIC_AGGREGATES = new Set(["sum", "avg"]);
  * Walks every node object (including ClickHouse extra fields).
  */
 export function validateTypeCompatibility(root: OperationNode): void {
-  walk(root, (node) => {
+  walkNodes(root, (node) => {
     if (!AggregateFunctionNode.is(node)) return;
     if (!NUMERIC_AGGREGATES.has(node.func.toLowerCase())) return;
     for (const arg of node.aggregated) {
@@ -41,21 +42,4 @@ function columnNameOf(node: OperationNode): string | undefined {
     return node.column.column.name;
   }
   return undefined;
-}
-
-function walk(value: unknown, visit: (node: OperationNode) => void): void {
-  if (!value || typeof value !== "object") return;
-  if (
-    "kind" in value &&
-    typeof (value as { kind: unknown }).kind === "string"
-  ) {
-    visit(value as OperationNode);
-  }
-  for (const child of Object.values(value)) {
-    if (Array.isArray(child)) {
-      for (const item of child) walk(item, visit);
-    } else {
-      walk(child, visit);
-    }
-  }
 }

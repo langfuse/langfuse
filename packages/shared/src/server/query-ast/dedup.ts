@@ -49,7 +49,7 @@ import {
 import { describeRelation } from "./relations";
 import { DEDUP_SPECS, type DedupSpec } from "./schema";
 import { stampCompiledTree } from "./tenancy";
-import { CteScopedTransformer } from "./transformer";
+import { SelectRewriteTransformer } from "./transformer";
 
 type PhysicalFrom = {
   tableName: string;
@@ -74,19 +74,18 @@ export class DedupLoweringPlugin implements KyselyPlugin {
   }
 }
 
-class DedupLoweringTransformer extends CteScopedTransformer {
+class DedupLoweringTransformer extends SelectRewriteTransformer {
   protected rewriteSelect(
     node: ClickHouseSelectQueryNode,
   ): ClickHouseSelectQueryNode {
-    return lowerSelect(node, (table) => this.isCte(table));
+    return lowerSelect(node);
   }
 }
 
 function lowerSelect(
   node: ClickHouseSelectQueryNode,
-  isCte: (table: TableNode) => boolean,
 ): ClickHouseSelectQueryNode {
-  const from = singlePhysicalFrom(node, isCte);
+  const from = singlePhysicalFrom(node);
   if (!from) return node;
 
   const spec = DEDUP_SPECS[from.tableName];
@@ -122,15 +121,12 @@ function assertLowerable(
   }
 }
 
-function singlePhysicalFrom(
-  node: SelectQueryNode,
-  isCte: (table: TableNode) => boolean,
-): PhysicalFrom | undefined {
+function singlePhysicalFrom(node: SelectQueryNode): PhysicalFrom | undefined {
   if (node.joins?.length) return undefined;
   const froms = node.from?.froms ?? [];
   if (froms.length !== 1) return undefined;
   const { node: fromItem, table, alias } = describeRelation(froms[0]);
-  if (!table || isCte(table)) return undefined;
+  if (!table) return undefined;
   return {
     tableName: table.table.identifier.name,
     alias,

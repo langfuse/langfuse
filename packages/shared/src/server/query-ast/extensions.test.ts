@@ -58,6 +58,16 @@ describe("schema-typed selection (condition 7)", () => {
     );
     expect(() => compileClickhouseQuery(qb, projectId)).toThrow(/environment/);
   });
+
+  it("does not type a column named like an Object prototype key", () => {
+    // `constructor` is no registry column, so the pass has no type to reject.
+    const db = getClickhouseKysely();
+    const qb = db
+      .selectFrom("scores")
+      .select((eb) => [eb.fn.sum(db.dynamic.ref("constructor")).as("s")]);
+
+    expect(() => compileClickhouseQuery(qb, projectId)).not.toThrow();
+  });
 });
 
 describe("metadata subscript access (condition 7b)", () => {

@@ -1,15 +1,19 @@
 import {
   AliasNode,
+  CommonTableExpressionNode,
   FromNode,
   SelectQueryNode,
+  WithNode,
   createQueryId,
   sql,
   type KyselyPlugin,
+  type OperationNode,
 } from "kysely";
 import { describe, expect, it } from "vitest";
 
 import { compileClickhouseQuery } from "./compile";
 import { ClickHouseQueryCompiler } from "./compiler";
+import { CteNamePlugin } from "./ctes";
 import { getClickhouseKysely } from "./dialect";
 import { QueryCompileError, UnscopedRelationError } from "./errors";
 import { arrayJoin, limitBy, mapKeys, mapValues, useFinal } from "./extensions";
@@ -21,6 +25,7 @@ import {
   isClickHouseSelectQueryNode,
 } from "./nodes";
 import { TenancyInjectionPlugin } from "./tenancy";
+import { defineView, fromView } from "./views";
 
 const projectId = "proj-1";
 
@@ -309,239 +314,368 @@ describe("tenancy injection", () => {
     expect(matches.length).toBeGreaterThanOrEqual(2);
   });
 
-  describe("CTE named like a tenanted table", () => {
+  describe("CTE names", () => {
     const db = getClickhouseKysely();
-    const tracesCte = db.with("traces", (qb) =>
-      qb.selectFrom("scores").select("trace_id as id"),
-    );
+    // Knows the CTE names `a` and `b` as tables, so a body can read a name
+    // before its CTE is declared without a cast.
+    const loose = db.withTables<{
+      a: { id: string };
+      b: { id: string };
+      "default.a": { id: string };
+    }>();
     const compile = (
       query: Parameters<typeof compileClickhouseQuery>[0],
     ): string => compileClickhouseQuery(query, projectId).sql;
 
-    it("leaves a scalar subquery's read of an outer CTE unscoped", () => {
-      expect(
-        compile(
-          tracesCte
-            .selectFrom("scores as s")
-            .select((eb) => [
-              eb.selectFrom("traces").select("id").limit(1).as("first_id"),
-            ]),
-        ),
-      ).toBe(
-        "with traces as (select trace_id as id from scores where project_id = {p1:String}) select (select id from traces limit {p2:Int64}) as first_id from scores as s where s.project_id = {p1:String}",
-      );
-    });
+    // Every pass treats a FROM/JOIN of a registry name as that table, so a
+    // CTE of that name is rejected whether or not the query reads it. One
+    // physical table, plus the logical `events` that has no table of its own.
+    it.each(["traces", "events"] as const)(
+      "rejects a CTE named like the registry table %s",
+      (name) => {
+        expect(() =>
+          compile(
+            db
+              .with(name, (qb) => qb.selectFrom("scores").select("trace_id"))
+              .selectFrom("scores")
+              .select("id"),
+          ),
+        ).toThrow(`A CTE cannot be named "${name}"`);
+      },
+    );
 
-    it("leaves IN-subquery, FROM-subquery and UNION reads of an outer CTE unscoped", () => {
-      expect(
-        compile(
-          tracesCte
-            .selectFrom((eb) => eb.selectFrom("traces").select("id").as("sub"))
-            .select("sub.id")
-            .where("sub.id", "in", (eb) => eb.selectFrom("traces").select("id"))
-            .unionAll(db.selectFrom("traces").select("id")),
-        ),
-      ).toBe(
-        "with traces as (select trace_id as id from scores where project_id = {p1:String}) select sub.id from (select id from traces) as sub where sub.id in (select id from traces) union all select id from traces",
-      );
-    });
-
-    it("leaves a nested CTE body's read of an outer CTE unscoped", () => {
-      expect(
-        compile(
-          tracesCte
-            .selectFrom(
-              db
-                .with("inner", (qb) => qb.selectFrom("traces").select("id"))
-                .selectFrom("inner")
-                .select("id")
-                .as("sub"),
-            )
-            .select("sub.id"),
-        ),
-      ).toBe(
-        "with traces as (select trace_id as id from scores where project_id = {p1:String}) select sub.id from (with inner as (select id from traces) select id from inner) as sub",
-      );
-    });
-
-    it("scopes a CTE body's read of its own name, which is the table", () => {
-      expect(
+    it("rejects a nested WITH named like a registry table", () => {
+      // The WITH is declared in a FROM subquery, not at the root.
+      expect(() =>
         compile(
           db
-            .with("traces", (qb) =>
-              qb
-                .selectFrom("traces")
-                .select("id")
-                .where("id", "in", (eb) =>
-                  eb.selectFrom("traces").select("id"),
-                ),
-            )
-            .selectFrom("traces")
-            .select("id"),
-        ),
-      ).toBe(
-        "with traces as (select id from traces where project_id = {p1:String} and id in (select id from traces where project_id = {p1:String})) select id from traces",
-      );
-    });
-
-    it("resolves a nested CTE body's own name to an outer CTE of that name", () => {
-      expect(
-        compile(
-          tracesCte
             .selectFrom(
               db
-                .with("traces", (qb) => qb.selectFrom("traces").select("id"))
+                .with("traces", (qb) =>
+                  qb.selectFrom("scores").select("trace_id as id"),
+                )
                 .selectFrom("traces")
                 .select("id")
                 .as("sub"),
             )
             .select("sub.id"),
         ),
-      ).toBe(
-        "with traces as (select trace_id as id from scores where project_id = {p1:String}) select sub.id from (with traces as (select id from traces) select id from traces) as sub",
+      ).toThrow(`A CTE cannot be named "traces"`);
+    });
+
+    it("rejects a view named like a registry table", () => {
+      // `fromView` declares the view as a CTE of its name.
+      const view = defineView("traces")<{ id: string }>(() =>
+        db.selectFrom("scores").select("trace_id as id"),
+      );
+      expect(() => compile(fromView(view).select("id"))).toThrow(
+        `A CTE cannot be named "traces"`,
       );
     });
 
-    it("resolves earlier and later sibling CTE names to the CTE", () => {
-      expect(
-        compile(
-          db
-            .with("before", (qb) => qb.selectFrom("traces").select("id"))
-            .with("traces", (qb) =>
-              qb.selectFrom("scores").select("trace_id as id"),
-            )
-            .with("after", (qb) => qb.selectFrom("traces").select("id"))
-            .selectFrom("before")
-            .innerJoin("after", (join) =>
-              join.onRef("before.id", "=", "after.id"),
-            )
-            .select("before.id"),
-        ),
-      ).toBe(
-        "with before as (select id from traces), traces as (select trace_id as id from scores where project_id = {p1:String}), after as (select id from traces) select before.id from before inner join after on before.id = after.id",
-      );
-    });
-
-    // Each case is a cycle between sibling CTEs. Reading `traces` reads
-    // `observations`, which reads `traces` while it is still being resolved,
-    // so ClickHouse reads the physical `traces` table there. The pass treats
-    // that read as the CTE and would leave it unscoped, so the cycle is
-    // rejected whether or not the main select reads it.
     it.each([
       [
-        // traces → observations → traces.
-        "directly",
+        // Two siblings of one WITH.
+        "a sibling",
         () =>
-          db
-            .with("traces", (qb) =>
-              qb.selectFrom("observations").select("trace_id as id"),
-            )
-            .with("observations", (qb) =>
-              qb.selectFrom("traces").select("id as trace_id"),
-            )
-            .selectFrom("traces")
+          loose
+            .with("a", (qb) => qb.selectFrom("scores").select("id"))
+            .with("a", (qb) => qb.selectFrom("traces").select("id"))
+            .selectFrom("a")
             .select("id"),
       ],
       [
-        // traces → observations (in an IN subquery of its body) → traces.
-        "through a nested subquery",
+        // A FROM subquery redeclares the root's `a`.
+        "an enclosing select's CTE",
         () =>
-          db
-            .with("traces", (qb) =>
-              qb
-                .selectFrom("scores")
-                .select("trace_id as id")
-                .where("trace_id", "in", (eb) =>
-                  eb.selectFrom("observations").select("trace_id"),
-                ),
+          loose
+            .with("a", (qb) => qb.selectFrom("scores").select("id"))
+            .selectFrom(
+              loose
+                .with("a", (qb) => qb.selectFrom("traces").select("id"))
+                .selectFrom("a")
+                .select("id")
+                .as("sub"),
             )
-            .with("observations", (qb) =>
-              qb.selectFrom("traces").select("id as trace_id"),
-            )
-            .selectFrom("scores")
-            .select("id"),
+            .select("sub.id"),
       ],
-      [
-        // traces → observations → scores → traces.
-        "through a third CTE",
-        () =>
-          db
-            .with("traces", (qb) =>
-              qb.selectFrom("observations").select("trace_id as id"),
-            )
-            .with("observations", (qb) =>
-              qb.selectFrom("scores").select("trace_id"),
-            )
-            .with("scores", (qb) =>
-              qb.selectFrom("traces").select("id as trace_id"),
-            )
-            .selectFrom("traces")
-            .select("id"),
-      ],
-      [
-        // traces → observations (read as `o`) → traces.
-        "through an aliased read",
-        () =>
-          db
-            .with("traces", (qb) =>
-              qb.selectFrom("observations as o").select("o.trace_id as id"),
-            )
-            .with("observations", (qb) =>
-              qb.selectFrom("traces").select("id as trace_id"),
-            )
-            .selectFrom("traces")
-            .select("id"),
-      ],
-      [
-        // traces → scores (read with FINAL) → traces.
-        "through a FINAL read",
-        () =>
-          db
-            .with("traces", (qb) =>
-              qb
-                .selectFrom("scores")
-                .select("trace_id as id")
-                .$call(useFinal(["scores"])),
-            )
-            .with("scores", (qb) =>
-              qb.selectFrom("traces").select("id as trace_id"),
-            )
-            .selectFrom("traces")
-            .select("id"),
-      ],
-      [
-        // traces → observations (the joined side) → traces.
-        "through a JOIN",
-        () =>
-          db
-            .with("traces", (qb) =>
-              qb
-                .selectFrom("scores as s")
-                .innerJoin("observations as o", "o.trace_id", "s.trace_id")
-                .select("s.trace_id as id"),
-            )
-            .with("observations", (qb) =>
-              qb.selectFrom("traces").select("id as trace_id"),
-            )
-            .selectFrom("traces")
-            .select("id"),
-      ],
-    ])("rejects sibling CTEs that read each other %s", (_, build) => {
-      expect(() => compile(build())).toThrow(UnscopedRelationError);
+    ])("rejects a CTE that reuses the name of %s", (_, build) => {
+      expect(() => compile(build())).toThrow(`CTE "a" is declared twice`);
     });
 
-    it("scopes a recursive CTE body's read of its own name as the table", () => {
+    it("accepts the same CTE name in two separate subqueries", () => {
+      // Neither `x` is in scope of the other.
+      const sub = db
+        .with("x", (qb) => qb.selectFrom("traces").select("id"))
+        .selectFrom("x")
+        .select("id");
       expect(
         compile(
           db
-            .withRecursive("traces(id)", (qb) =>
-              qb.selectFrom("traces").select("id"),
+            .selectFrom(sub.as("l"))
+            .innerJoin(sub.as("r"), "l.id", "r.id")
+            .select("l.id"),
+        ),
+      ).toBe(
+        "select l.id from (with x as (select id from traces where project_id = {p1:String}) select id from x) as l inner join (with x as (select id from traces where project_id = {p1:String}) select id from x) as r on l.id = r.id",
+      );
+    });
+
+    // A CTE body sees only the CTEs declared before it. Reading its own name
+    // or a later sibling is the only way to build a cycle, and ClickHouse
+    // resolves a read inside a cycle to a table, not the CTE.
+    it.each([
+      [
+        "its own name",
+        () =>
+          loose
+            .with("a", (qb) => qb.selectFrom("a").select("id"))
+            .selectFrom("a")
+            .select("id"),
+      ],
+      [
+        "its own name in an IN subquery",
+        () =>
+          loose
+            .with("a", (qb) =>
+              qb
+                .selectFrom("traces")
+                .select("id")
+                .where("id", "in", (eb) => eb.selectFrom("a").select("id")),
             )
-            .selectFrom("traces")
+            .selectFrom("a")
+            .select("id"),
+      ],
+      [
+        "its own name under an alias",
+        () =>
+          loose
+            .with("a", (qb) => qb.selectFrom("a as x").select("x.id"))
+            .selectFrom("a")
+            .select("id"),
+      ],
+      [
+        "its own name on the joined side",
+        () =>
+          loose
+            .with("a", (qb) =>
+              qb
+                .selectFrom("traces as t")
+                .innerJoin("a", "a.id", "t.id")
+                .select("t.id"),
+            )
+            .selectFrom("a")
+            .select("id"),
+      ],
+      [
+        "a later sibling",
+        () =>
+          loose
+            .with("a", (qb) => qb.selectFrom("b").select("id"))
+            .with("b", (qb) => qb.selectFrom("traces").select("id"))
+            .selectFrom("a")
+            .select("id"),
+      ],
+      [
+        "itself through a recursive CTE",
+        () =>
+          loose
+            .withRecursive("a(id)", (qb) => qb.selectFrom("a").select("id"))
+            .selectFrom("a")
+            .select("id"),
+      ],
+      [
+        // `a` is read inside `sub`, where ClickHouse would resolve its `b`
+        // to the nested `b`; where `a` is declared, `b` names nothing.
+        "a CTE declared only where the body is read",
+        () =>
+          loose
+            .with("a", (qb) => qb.selectFrom("b").select("id"))
+            .selectFrom(
+              loose
+                .with("b", (qb) => qb.selectFrom("traces").select("id"))
+                .selectFrom("a")
+                .select("id")
+                .as("sub"),
+            )
+            .select("sub.id"),
+      ],
+    ])("rejects a CTE body that reads %s", (_, build) => {
+      expect(() => compile(build())).toThrow(
+        "is neither a registry table nor a CTE in scope",
+      );
+    });
+
+    it("rejects a CTE body that reads itself through FINAL", () => {
+      // `useFinal` takes registry tables only, so the FINAL read is built by
+      // hand. FinalTableNode is outside Kysely's node union, hence the cast.
+      const node = loose
+        .with("a", (qb) => qb.selectFrom("a").select("id"))
+        .selectFrom("a")
+        .select("id")
+        .toOperationNode();
+      const cte = node.with?.expressions[0];
+      const body = cte?.expression;
+      if (!cte || !body || !SelectQueryNode.is(body) || !body.from) {
+        throw new Error("not a select");
+      }
+      const final = FinalTableNode.create(body.from.froms[0]) as unknown;
+      const finalBody: SelectQueryNode = {
+        ...body,
+        from: FromNode.create([final as OperationNode]),
+      };
+      const withFinal = {
+        ...node,
+        with: WithNode.create(
+          CommonTableExpressionNode.create(cte.name, finalBody),
+        ),
+      };
+      expect(() =>
+        new CteNamePlugin().transformQuery({
+          node: withFinal,
+          queryId: createQueryId(),
+        }),
+      ).toThrow(`"a" is neither a registry table nor a CTE in scope`);
+    });
+
+    it.each(["traces ", "default.recent"])(
+      "rejects the CTE name %j, which is not a plain identifier",
+      (name) => {
+        // The compiler writes a CTE name verbatim, so `traces ` would reach
+        // ClickHouse as `traces` while the passes read `traces` as the table.
+        expect(() =>
+          compile(
+            db
+              .with(name, (qb) => qb.selectFrom("scores").select("trace_id"))
+              .selectFrom("scores")
+              .select("id"),
+          ),
+        ).toThrow("is not a plain identifier");
+      },
+    );
+
+    it("accepts a nested WITH that reuses the name of the CTE whose body it is in", () => {
+      // Inside its own body `a` is not in scope, so the nested `a` is the
+      // only `a` the body can read.
+      expect(
+        compile(
+          loose
+            .with("a", () =>
+              loose
+                .with("a", (qb) => qb.selectFrom("traces").select("id"))
+                .selectFrom("a")
+                .select("id"),
+            )
+            .selectFrom("a")
             .select("id"),
         ),
       ).toBe(
-        "with recursive traces(id) as (select id from traces where project_id = {p1:String}) select id from traces",
+        "with a as (with a as (select id from traces where project_id = {p1:String}) select id from a) select id from a",
+      );
+    });
+
+    it("accepts reads of an earlier sibling, an enclosing CTE and a CTE of the body's own WITH", () => {
+      expect(
+        compile(
+          db
+            .with("x", (qb) => qb.selectFrom("traces").select("id"))
+            .with("y", (qb) =>
+              qb
+                .selectFrom("x")
+                .select("id")
+                .where(
+                  "id",
+                  "in",
+                  qb
+                    .with("z", (inner) => inner.selectFrom("x").select("id"))
+                    .selectFrom("z")
+                    .select("id"),
+                ),
+            )
+            .selectFrom("y")
+            .select("id"),
+        ),
+      ).toBe(
+        "with x as (select id from traces where project_id = {p1:String}), y as (select id from x where id in (with z as (select id from x) select id from z)) select id from y",
+      );
+    });
+
+    it("rejects a schema-qualified read of a table outside the registry, even with a CTE of that name", () => {
+      // `default.a` is a table, never the CTE `a`, and no pass knows it.
+      expect(() =>
+        compile(
+          loose
+            .with("a", (qb) => qb.selectFrom("traces").select("id"))
+            .selectFrom("default.a")
+            .select("id"),
+        ),
+      ).toThrow(`"default.a" is not a physical registry table`);
+    });
+
+    it("accepts a CTE named like an Object prototype key", () => {
+      // The registry lookups of the soft-delete and dedup passes must not
+      // find `Object.prototype.constructor` for it.
+      expect(
+        compile(
+          db
+            .with("constructor", (qb) => qb.selectFrom("traces").select("id"))
+            .selectFrom("constructor")
+            .select("id"),
+        ),
+      ).toBe(
+        "with constructor as (select id from traces where project_id = {p1:String}) select id from constructor",
+      );
+    });
+
+    it("rejects a schema-qualified name that is only an Object prototype key", () => {
+      // `constructor` is a key of every plain object, never a registry table.
+      expect(() =>
+        compile(
+          loose
+            .withTables<{ "default.constructor": { id: string } }>()
+            .selectFrom("default.constructor")
+            .select("id"),
+        ),
+      ).toThrow(`"default.constructor" is not a physical registry table`);
+    });
+
+    it("rejects a schema-qualified logical events relation", () => {
+      // Routing replaces only the unqualified `events`; `default.events`
+      // would reach ClickHouse as a table that does not exist.
+      expect(() =>
+        compile(
+          db.withSchema("default").selectFrom("events").select("span_id"),
+        ),
+      ).toThrow(`"default.events" is not a physical registry table`);
+    });
+
+    it("accepts and scopes a schema-qualified registry table", () => {
+      expect(
+        compile(
+          db
+            .with("a", (qb) =>
+              qb.withSchema("default").selectFrom("traces").select("id"),
+            )
+            .selectFrom("a")
+            .select("id"),
+        ),
+      ).toBe(
+        "with a as (select id from default.traces where project_id = {p1:String}) select id from a",
+      );
+    });
+
+    it("does not count a column qualifier as a read", () => {
+      // `b.id` qualifies a column of the alias `b`; the body reads `traces`.
+      expect(
+        compile(
+          loose
+            .with("a", (qb) => qb.selectFrom("traces as b").select("b.id"))
+            .with("b", (qb) => qb.selectFrom("traces").select("id"))
+            .selectFrom("a")
+            .select("id"),
+        ),
+      ).toBe(
+        "with a as (select b.id from traces as b where b.project_id = {p1:String}), b as (select id from traces where project_id = {p1:String}) select id from a",
       );
     });
 
@@ -554,233 +688,6 @@ describe("tenancy injection", () => {
             .select("id"),
         ),
       ).toThrow(UnscopedRelationError);
-    });
-
-    it("rejects a nested WITH that redirects an enclosing CTE body's read", () => {
-      // Read inside `sub`, `traces` reads the inner `observations`, which reads
-      // `a`, which reads `traces` while it is still being resolved: the table.
-      expect(() =>
-        compile(
-          db
-            .with("traces", (qb) =>
-              qb.selectFrom("observations").select("trace_id as id"),
-            )
-            .with("observations", (qb) =>
-              qb.selectFrom("scores").select("trace_id"),
-            )
-            .with("a", (qb) => qb.selectFrom("traces").select("id"))
-            .selectFrom(
-              db
-                .withTables<{ a: { id: string } }>()
-                .with("observations", (qb) =>
-                  qb.selectFrom("a").select("id as trace_id"),
-                )
-                .selectFrom("traces")
-                .select("id")
-                .as("sub"),
-            )
-            .select("sub.id"),
-        ),
-      ).toThrow(UnscopedRelationError);
-    });
-
-    it("rejects a nested WITH that redirects a CTE body's own-name read", () => {
-      // The `traces` CTE inside `a` reads its own name, which escapes to the
-      // `traces` CTE in scope where `a` is read.
-      expect(() =>
-        compile(
-          db
-            .with("a", (qb) =>
-              qb
-                .selectFrom(
-                  db
-                    .with("traces", (inner) =>
-                      inner.selectFrom("traces").select("id"),
-                    )
-                    .selectFrom("traces")
-                    .select("id")
-                    .as("sub"),
-                )
-                .select("sub.id"),
-            )
-            .selectFrom(
-              db
-                .withTables<{ a: { id: string } }>()
-                .with("traces", (qb) =>
-                  qb.selectFrom("scores").select("trace_id as id"),
-                )
-                .selectFrom("a")
-                .select("id")
-                .as("u"),
-            )
-            .select("u.id"),
-        ),
-      ).toThrow(UnscopedRelationError);
-    });
-
-    it("accepts a CTE body that reads its own nested CTE", () => {
-      expect(
-        compile(
-          db
-            .with("a", (qb) =>
-              qb
-                .selectFrom(
-                  db
-                    .with("x", (inner) =>
-                      inner.selectFrom("scores").select("trace_id"),
-                    )
-                    .selectFrom("x")
-                    .select("trace_id")
-                    .as("sub"),
-                )
-                .select("sub.trace_id"),
-            )
-            .selectFrom("a")
-            .select("trace_id"),
-        ),
-      ).toBe(
-        "with a as (select sub.trace_id from (with x as (select trace_id from scores where project_id = {p1:String}) select trace_id from x) as sub) select trace_id from a",
-      );
-    });
-
-    it("accepts a CTE body that reads its own nested CTE from a deeper subquery", () => {
-      expect(
-        compile(
-          db
-            .with("a", (qb) =>
-              qb
-                .selectFrom(
-                  db
-                    .with("x", (inner) =>
-                      inner.selectFrom("scores").select("trace_id"),
-                    )
-                    .selectFrom((eb) =>
-                      eb.selectFrom("x").select("trace_id").as("s2"),
-                    )
-                    .select("s2.trace_id")
-                    .as("sub"),
-                )
-                .select("sub.trace_id"),
-            )
-            .selectFrom("a")
-            .select("trace_id"),
-        ),
-      ).toBe(
-        "with a as (select sub.trace_id from (with x as (select trace_id from scores where project_id = {p1:String}) select s2.trace_id from (select trace_id from x) as s2) as sub) select trace_id from a",
-      );
-    });
-
-    it("accepts a nested CTE body that reads an enclosing nested CTE", () => {
-      expect(
-        compile(
-          db
-            .with("a", (qb) =>
-              qb
-                .selectFrom(
-                  db
-                    .with("x", (inner) =>
-                      inner.selectFrom("scores").select("trace_id"),
-                    )
-                    .selectFrom(
-                      db
-                        .withTables<{ x: { trace_id: string } }>()
-                        .with("y", (inner) =>
-                          inner.selectFrom("x").select("trace_id"),
-                        )
-                        .selectFrom("y")
-                        .select("trace_id")
-                        .as("s2"),
-                    )
-                    .select("s2.trace_id")
-                    .as("sub"),
-                )
-                .select("sub.trace_id"),
-            )
-            .selectFrom("a")
-            .select("trace_id"),
-        ),
-      ).toBe(
-        "with a as (select sub.trace_id from (with x as (select trace_id from scores where project_id = {p1:String}) select s2.trace_id from (with y as (select trace_id from x) select trace_id from y) as s2) as sub) select trace_id from a",
-      );
-    });
-
-    it("does not count a schema-qualified read as a sibling read", () => {
-      expect(
-        compile(
-          db
-            .with("traces", (qb) =>
-              qb
-                .withSchema("default")
-                .selectFrom("observations")
-                .select("trace_id as id"),
-            )
-            .with("observations", (qb) =>
-              qb.selectFrom("traces").select("id as trace_id"),
-            )
-            .selectFrom("observations")
-            .select("trace_id"),
-        ),
-      ).toBe(
-        "with traces as (select trace_id as id from default.observations where project_id = {p1:String}), observations as (select id as trace_id from traces) select trace_id from observations",
-      );
-    });
-
-    it("does not count a column qualifier named like a sibling as a read", () => {
-      expect(
-        compile(
-          db
-            .with("a", (qb) =>
-              qb.selectFrom("scores as traces").select("traces.id"),
-            )
-            .with("traces", (qb) => qb.selectFrom("a").select("id"))
-            .selectFrom("traces")
-            .select("id"),
-        ),
-      ).toBe(
-        "with a as (select traces.id from scores as traces where traces.project_id = {p1:String}), traces as (select id from a) select id from traces",
-      );
-    });
-
-    it("scopes a schema-qualified table named like a CTE in scope", () => {
-      expect(
-        compile(
-          tracesCte
-            .selectFrom("traces")
-            .select("id")
-            .where(
-              "id",
-              "in",
-              db.withSchema("default").selectFrom("traces").select("id"),
-            ),
-        ),
-      ).toBe(
-        "with traces as (select trace_id as id from scores where project_id = {p1:String}) select id from traces where id in (select id from default.traces where project_id = {p1:String})",
-      );
-    });
-
-    it("scopes the table again once a subquery leaves the CTE's select", () => {
-      expect(
-        compile(
-          db
-            .selectFrom("scores as s")
-            .select("s.id")
-            .where(
-              "s.trace_id",
-              "in",
-              db
-                .with("traces", (qb) =>
-                  qb.selectFrom("scores").select("trace_id as id"),
-                )
-                .selectFrom("traces")
-                .select("id"),
-            )
-            .where("s.trace_id", "in", (eb) =>
-              eb.selectFrom("traces").select("id"),
-            ),
-        ),
-      ).toBe(
-        "select s.id from scores as s where s.project_id = {p1:String} and s.trace_id in (with traces as (select trace_id as id from scores where project_id = {p1:String}) select id from traces) and s.trace_id in (select id from traces where project_id = {p1:String})",
-      );
     });
   });
 });

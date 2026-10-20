@@ -23,7 +23,7 @@ import { QueryCompileError, UnscopedRelationError } from "./errors";
 import { type ClickHouseSelectQueryNode } from "./nodes";
 import { describeRelation } from "./relations";
 import { TENANTED_TABLES } from "./schema";
-import { CteScopedTransformer } from "./transformer";
+import { SelectRewriteTransformer } from "./transformer";
 
 const PROJECT_ID_COLUMN = "project_id";
 
@@ -35,7 +35,7 @@ const PROJECT_ID_COLUMN = "project_id";
 const TENANCY_STAMPED = new WeakSet<object>();
 
 type ScopedRelation =
-  | { kind: "table"; tableName: string; alias?: string; node: TableNode }
+  | { kind: "table"; tableName: string; alias?: string }
   | { kind: "subquery" }
   | { kind: "raw" }
   | { kind: "other" };
@@ -68,7 +68,7 @@ export class TenancyInjectionPlugin implements KyselyPlugin {
   }
 }
 
-class TenancyInjectionTransformer extends CteScopedTransformer {
+class TenancyInjectionTransformer extends SelectRewriteTransformer {
   constructor(private readonly projectId: string) {
     super();
   }
@@ -76,14 +76,13 @@ class TenancyInjectionTransformer extends CteScopedTransformer {
   protected rewriteSelect(
     node: ClickHouseSelectQueryNode,
   ): ClickHouseSelectQueryNode {
-    return injectSelect(node, this.projectId, (table) => this.isCte(table));
+    return injectSelect(node, this.projectId);
   }
 }
 
 function injectSelect(
   node: ClickHouseSelectQueryNode,
   projectId: string,
-  isCte: (table: TableNode) => boolean,
 ): ClickHouseSelectQueryNode {
   const fromRelations = (node.from?.froms ?? []).map(classifyRelation);
   const joinRelations = (node.joins ?? []).map((join) => ({
@@ -101,7 +100,7 @@ function injectSelect(
   const isTenantedTable = (
     r: ScopedRelation,
   ): r is Extract<ScopedRelation, { kind: "table" }> =>
-    r.kind === "table" && TENANTED_TABLES.has(r.tableName) && !isCte(r.node);
+    r.kind === "table" && TENANTED_TABLES.has(r.tableName);
 
   const tenantedFrom = fromRelations.filter(isTenantedTable);
   const tenantedJoinCount = joinRelations.filter(({ relation }) =>
@@ -169,7 +168,7 @@ function assertRelationAllowed(relation: ScopedRelation): void {
 function classifyRelation(node: OperationNode): ScopedRelation {
   const { source, table, alias } = describeRelation(node);
   if (table) {
-    return { kind: "table", tableName: tableNameOf(table), alias, node: table };
+    return { kind: "table", tableName: tableNameOf(table), alias };
   }
   if (RawNode.is(source)) return { kind: "raw" };
   if (SelectQueryNode.is(source)) return { kind: "subquery" };

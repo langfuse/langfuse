@@ -33,7 +33,6 @@ import {
   AliasNode,
   BinaryOperationNode,
   ColumnNode,
-  CommonTableExpressionNode,
   FromNode,
   FunctionNode,
   IdentifierNode,
@@ -76,7 +75,6 @@ export class EventsTableRoutingPlugin implements KyselyPlugin {
     const analysis = new EventsReadAnalysis();
     analysis.transformNode(tree);
     if (!analysis.readsLogicalEvents) return args.node;
-    rejectPhysicalEventsCte(analysis);
     return new EventsTableRouter(analysis.fullRelations).transformNode(
       tree,
     ) as RootOperationNode;
@@ -87,22 +85,12 @@ export class EventsTableRoutingPlugin implements KyselyPlugin {
   }
 }
 
-function rejectPhysicalEventsCte(analysis: EventsReadAnalysis): void {
-  if (analysis.physicalEventsCte) {
-    throw new QueryCompileError(
-      `A CTE named "${analysis.physicalEventsCte}" would capture the routed logical "${LOGICAL_EVENTS}" relation; rename the CTE.`,
-    );
-  }
-}
-
 /**
  * Read-only walk that resolves column references to relations; the
  * transformer is used for its traversal only.
  */
 class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
   readsLogicalEvents = false;
-  /** Name of a CTE that shadows `events_core` / `events_full`. */
-  physicalEventsCte: string | undefined;
   /** Logical relations that read a truncated column. */
   readonly fullRelations = new Set<OperationNode>();
   /** Relations of each enclosing select, innermost last. */
@@ -117,7 +105,6 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
       this.transformNode(lookup.index, queryId);
       return node;
     }
-    if (CommonTableExpressionNode.is(node)) this.checkCteName(node);
     return super.transformNodeImpl(node, queryId);
   }
 
@@ -245,16 +232,6 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
       );
     }
     return undefined;
-  }
-
-  private checkCteName(node: CommonTableExpressionNode): void {
-    const name = node.name.table.table.identifier.name;
-    if (name === LOGICAL_EVENTS) {
-      throw new QueryCompileError(
-        `A CTE cannot be named "${LOGICAL_EVENTS}": the name is the logical events relation.`,
-      );
-    }
-    if (PHYSICAL_EVENTS.has(name)) this.physicalEventsCte = name;
   }
 
   /** `columns(…)` expands like `*`. */
