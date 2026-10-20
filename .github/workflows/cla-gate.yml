@@ -1,0 +1,50 @@
+# Require "CLA gate" instead of "license/cla" after deploying this workflow.
+name: CLA gate
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, edited, ready_for_review]
+  merge_group:
+  status:
+permissions: {}
+jobs:
+  evaluate:
+    if: github.event_name != 'status' || github.event.context == 'license/cla'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      pull-requests: read
+      statuses: write
+    concurrency:
+      group: cla-gate-${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha || github.event.sha }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const { owner, repo } = context.repo, event = context.payload;
+            const sha = event.merge_group?.head_sha ?? event.pull_request?.head.sha ?? event.sha;
+            const publish = (state, description) => github.rest.repos.createCommitStatus({ owner, repo, sha, context: "CLA gate", state, description });
+            if (context.eventName === "merge_group") return publish("success", "CLA enforcement handled on the pull request.");
+            if (event.branches?.some(b => b.name.startsWith("gh-readonly-queue/"))) return;
+            const prs = event.pull_request ? [event.pull_request] : await github.paginate(github.rest.repos.listPullRequestsAssociatedWithCommit, { owner, repo, commit_sha: sha });
+            const current = prs.filter(pr => pr.state === "open" && pr.head.sha === sha);
+            if (!current.length) return;
+            await publish("failure", "CLA verification incomplete. Comment /check-cla to retry.");
+            let exempt = true;
+            for (const pr of current) {
+              const { repository: { pullRequest: live } } = await github.graphql(`
+                query($owner: String!, $repo: String!, $number: Int!) { repository(owner: $owner, name: $repo) { pullRequest(number: $number) {
+                  headRefOid commits(first: 100) { totalCount nodes { commit { authors(first: 100) { totalCount nodes { user { login databaseId } } } } } }
+                } } }`, { owner, repo, number: pr.number });
+              if (live.headRefOid !== sha) return;
+              exempt &&= live.commits.totalCount === live.commits.nodes.length && live.commits.nodes.every(({ commit: c }) => c.authors.totalCount > 0 && c.authors.totalCount === c.authors.nodes.length);
+              for (const user of [pr.user, ...live.commits.nodes.flatMap(({ commit: c }) => c.authors.nodes.map(a => a.user))]) {
+                if (user && [49699333, 41898282, 206951365, 199161495].includes(user.databaseId ?? user.id)) continue; // Dependabot, Actions, Cursor.
+                const permission = user ? await github.rest.repos.getCollaboratorPermissionLevel({ owner, repo, username: user.login }).then(r => r.data.permission).catch(e => { if (e.status === 404) return "none"; throw e; }) : "none";
+                exempt &&= ["write", "maintain", "admin"].includes(permission);
+              }
+            }
+            const statuses = exempt ? [] : await github.paginate(github.rest.repos.listCommitStatusesForRef, { owner, repo, ref: sha });
+            const signed = statuses.find(s => s.context === "license/cla" && s.creator?.id === 2834609)?.state === "success"; // CLA Assistant's OAuth publisher.
+            await publish(exempt || signed ? "success" : "failure", exempt ? "All contributors exempt." : signed ? "CLA verified." : "CLA missing or unavailable. Sign or comment /check-cla.");
