@@ -1,7 +1,7 @@
 //! `OpenAI` Responses request, JSON response and completed SSE item capture.
 use super::{
     MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, bounded_string, facts::ProviderFacts,
-    parse_request, response::ResponseBody,
+    parse_request, response::ResponseBody, value_memory,
 };
 use crate::{resolution::IngestionMode, telemetry};
 use axum::http::HeaderMap;
@@ -74,11 +74,11 @@ impl OpenAiResponsesCapture {
     pub(super) fn end_body(&mut self) {
         match std::mem::replace(&mut self.body, ResponseBody::Unavailable) {
             ResponseBody::Json(bytes) => match serde_json::from_slice::<Value>(&bytes) {
-                Ok(Value::Object(response)) => {
+                Ok(Value::Object(mut response)) => {
                     self.capture_response_facts(&response);
-                    if let Some(output) = response.get("output").and_then(Value::as_array) {
-                        for (index, item) in output.iter().enumerate() {
-                            self.store_item(index as u64, item.clone());
+                    if let Some(Value::Array(output)) = response.remove("output") {
+                        for (index, item) in output.into_iter().enumerate() {
+                            self.store_item(index as u64, item);
                         }
                         self.facts.output_complete = self.response_valid;
                     }
@@ -250,11 +250,8 @@ impl OpenAiResponsesCapture {
         if self.mode != IngestionMode::Full {
             return;
         }
-        let size = item.to_string().len();
-        let previous = self
-            .items
-            .get(&index)
-            .map_or(0, |item| item.to_string().len());
+        let size = value_memory(&item);
+        let previous = self.items.get(&index).map_or(0, value_memory);
         if self.output_bytes - previous + size > MAX_OUTPUT_CAPTURE_BYTES
             || (!self.items.contains_key(&index) && self.items.len() >= MAX_ITEMS)
         {
