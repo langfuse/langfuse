@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Github, Plus, Slack, Webhook } from "lucide-react";
+import { Github, Plus, Slack, Webhook } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
 import { ActionButton } from "@/src/components/ActionButton";
@@ -20,19 +20,17 @@ const channels: OnboardingChannel[] = [
   {
     actionType: "SLACK",
     label: "Connect Slack",
-    // eslint-disable-next-line @typescript-eslint/no-deprecated -- brand icon retained for parity with MonitorAutomationsPanel.
-    icon: <Slack className="h-4 w-4" aria-hidden="true" />,
+    icon: <Slack size="base" aria-hidden="true" />,
   },
   {
     actionType: "WEBHOOK",
     label: "Connect Webhooks",
-    icon: <Webhook className="h-4 w-4" aria-hidden="true" />,
+    icon: <Webhook size="base" aria-hidden="true" />,
   },
   {
     actionType: "GITHUB_DISPATCH",
     label: "Connect Github Actions",
-    // eslint-disable-next-line @typescript-eslint/no-deprecated -- see Slack note above.
-    icon: <Github className="h-4 w-4" aria-hidden="true" />,
+    icon: <Github size="base" aria-hidden="true" />,
   },
 ];
 
@@ -89,7 +87,7 @@ export function MonitorsOnboarding({
             content: (
               <ActionButton
                 hasAccess={hasCUDAccess}
-                icon={<Plus className="h-4 w-4" aria-hidden="true" />}
+                icon={<Plus size="base" aria-hidden="true" />}
                 href={`/project/${projectId}/alerts/new`}
                 variant="default"
                 size="lg"

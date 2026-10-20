@@ -9,7 +9,6 @@ import {
   instrumentSync,
 } from "../../../server/instrumentation";
 import { logger } from "../../../server/logger";
-import { ClickHouseResourceError } from "../../../server/repositories/clickhouse";
 import {
   getTriggerConfigurations as defaultGetTriggerConfigurations,
   type TriggerDomainWithActions,
@@ -49,7 +48,7 @@ import { renderAlertMessage } from "./renderAlertMessage";
 
 export { monitorEvaluationOffsetMs } from "../types";
 
-/** ErrorBadQuery sentinels a metric whose shape doesn't resolve against the v2 data model or whose batch query failed to execute. */
+/** ErrorBadQuery sentinels a metric rejected by monitor query validation. */
 export const ErrorBadQuery = Symbol("ErrorBadQuery");
 
 /** MonitorProcessor evaluates queued monitor events and emits MonitorAlerts. */
@@ -172,29 +171,13 @@ export class MonitorProcessor {
       }
       metricMap["count_count"] = parseNumericValue(row["count_count"]);
     } catch (error) {
-      // Resource pressure is transient, not a bad query; rethrow so the monitor stays ACTIVE and the scheduler retries.
-      if (ClickHouseResourceError.is(error)) {
-        logger.warn("queryMetrics hit a ClickHouse resource limit; retrying", {
-          errorType: error.errorType,
-          projectId: event.projectId,
-          schedulerBatchId: event.schedulerBatchId.toString(),
-          monitorIds: event.monitors.map((m) => m.monitorId),
-        });
-        throw error;
-      }
-      logger.error(
-        "queryMetrics failed; flipping affected monitors to ERROR_BAD_QUERY",
-        {
-          projectId: event.projectId,
-          schedulerBatchId: event.schedulerBatchId.toString(),
-          monitorIds: event.monitors.map((m) => m.monitorId),
-          error,
-        },
-      );
-      for (const metric of validation.accepted) {
-        metricMap[metricKey(metric)] = ErrorBadQuery;
-      }
-      metricMap["count_count"] = ErrorBadQuery;
+      logger.error("monitor processor failed", {
+        error: error,
+        projectId: event.projectId,
+        schedulerBatchId: event.schedulerBatchId.toString(),
+        monitorIds: event.monitors.map((m) => m.monitorId),
+      });
+      throw error;
     }
     return metricMap;
   }
@@ -541,7 +524,7 @@ export function buildDataWindowPermalink(
     showAllEnvironments: "true",
   });
   const href = `${base}/project/${projectId}/scores?${query.toString()}`;
-  // Slack button URLs are limited to 3000 characters. Dropping predicates to
+  // Slack section text is limited to 3000 characters. Dropping predicates to
   // shorten a link would show scores outside the evaluated query.
   return href.length <= 3000 ? href : undefined;
 }

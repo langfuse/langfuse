@@ -19,7 +19,7 @@ import {
 
 describe("buildEventsFilterOptionsForColumnsQuery", () => {
   it.each([
-    ["cachedInputTokens", eventsTableCachedInputTokensSql, "Decimal64(3)"],
+    ["cachedInputTokens", eventsTableCachedInputTokensSql, "Float64"],
     ["cachedInputCost", eventsTableCachedInputCostSql, "Decimal64(12)"],
   ] as const)(
     "maps %s filters to the cached-read metric expression",
@@ -1010,13 +1010,13 @@ describe("EventsQueryBuilder", () => {
       .selectFieldSet("base", "calculated")
       .buildWithParams().query;
 
-    expect(slimQuery).not.toContain('e.tool_definitions as "tool_definitions"');
-    expect(slimQuery).not.toContain('e.tool_calls as "tool_calls"');
-    expect(slimQuery).toContain('e.tool_call_names as "tool_call_names"');
+    expect(slimQuery).not.toContain("e.tool_definitions as tool_definitions");
+    expect(slimQuery).not.toContain("e.tool_calls as tool_calls");
+    expect(slimQuery).toContain("e.tool_call_names as tool_call_names");
 
-    expect(defaultQuery).toContain('e.tool_definitions as "tool_definitions"');
-    expect(defaultQuery).toContain('e.tool_calls as "tool_calls"');
-    expect(defaultQuery).toContain('e.tool_call_names as "tool_call_names"');
+    expect(defaultQuery).toContain("e.tool_definitions as tool_definitions");
+    expect(defaultQuery).toContain("e.tool_calls as tool_calls");
+    expect(defaultQuery).toContain("e.tool_call_names as tool_call_names");
   });
 
   it("should query events_full when forceFullTable is enabled", () => {
@@ -1030,7 +1030,7 @@ describe("EventsQueryBuilder", () => {
     expect(query).toContain("FROM events_full e");
   });
 
-  it("should include pricing tier fields in observation list, detail, usage, and export field sets", () => {
+  it("should include pricing tier fields in observation list, usage, and export field sets", () => {
     const buildQuery = (
       ...fieldSets: Parameters<EventsQueryBuilder["selectFieldSet"]>
     ) =>
@@ -1042,25 +1042,17 @@ describe("EventsQueryBuilder", () => {
 
     const listQuery = buildQuery("base", "calculated");
     const slimListQuery = buildQuery("baseWithoutTools", "calculated");
-    const byIdQuery = buildQuery(
-      "byIdBase",
-      "byIdModel",
-      "byIdPrompt",
-      "byIdTimestamps",
-    );
     const usageQuery = buildQuery("core", "usage");
     const exportQuery = buildQuery("export");
 
-    [listQuery, slimListQuery, byIdQuery, usageQuery, exportQuery].forEach(
-      (query) => {
-        expect(query).toContain(
-          'e.usage_pricing_tier_id as "usage_pricing_tier_id"',
-        );
-        expect(query).toContain(
-          'e.usage_pricing_tier_name as "usage_pricing_tier_name"',
-        );
-      },
-    );
+    [listQuery, slimListQuery, usageQuery, exportQuery].forEach((query) => {
+      expect(query).toContain(
+        "e.usage_pricing_tier_id as usage_pricing_tier_id",
+      );
+      expect(query).toContain(
+        "e.usage_pricing_tier_name as usage_pricing_tier_name",
+      );
+    });
   });
 
   it("should include experiment item metadata in eval field set", () => {

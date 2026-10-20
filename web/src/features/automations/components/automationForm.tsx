@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import React from "react";
 import {
@@ -52,7 +52,7 @@ import { ActionHandlerRegistry } from "./actions";
 import { webhookSchema } from "./actions/WebhookActionForm";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import Link from "next/link";
-import { Info } from "lucide-react";
+import { Info } from "@langfuse/icons";
 
 // Define Slack action schema
 const slackSchema = z.object({
@@ -75,7 +75,9 @@ const promptEventActionDefaults: string[] = ["created", "updated", "deleted"];
 
 /** projectNotificationName derives the auto-generated channel name from the destination — the name field is hidden for this source. */
 const projectNotificationName = (data: FormValues): string => {
-  if (data.actionType === "SLACK") return `Slack #${data.slack.channelName}`;
+  // Automation names are visible to every project member, so they must not
+  // carry Slack channel names (private ones are only for channel members).
+  if (data.actionType === "SLACK") return "Slack";
   if (data.actionType === "WEBHOOK") {
     try {
       return `Webhook ${new URL(data.webhook.url).hostname}`;
@@ -535,6 +537,11 @@ export const AutomationForm = ({
       showErrorToast(
         "Permission Denied",
         "You don't have permission to modify automations.",
+        {
+          operation: isEditing ? "automation.update" : "automation.create",
+          errorOrigin: "frontend",
+          errorCategory: "permission",
+        },
       );
       return;
     }
@@ -547,6 +554,11 @@ export const AutomationForm = ({
       showErrorToast(
         "Validation Error",
         validation.errors?.join(", ") || "Please fill in all required fields",
+        {
+          operation: isEditing ? "automation.update" : "automation.create",
+          errorOrigin: "frontend",
+          errorCategory: "user_input",
+        },
       );
       return;
     }
@@ -579,6 +591,7 @@ export const AutomationForm = ({
       });
 
       showSuccessToast({
+        operation: "automation.update",
         title: "Automation Updated",
         description: `Successfully updated automation "${resolvedName}".`,
       });
@@ -598,6 +611,7 @@ export const AutomationForm = ({
       });
 
       showSuccessToast({
+        operation: "automation.create",
         title: "Automation Created",
         description: `Successfully created automation "${resolvedName}".`,
       });

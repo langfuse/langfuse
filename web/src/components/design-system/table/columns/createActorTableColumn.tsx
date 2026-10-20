@@ -1,5 +1,5 @@
 import { type RowData } from "@tanstack/react-table";
-import { KeyRound } from "lucide-react";
+import { KeyRound } from "@langfuse/icons";
 
 import {
   UserTableCell,
@@ -43,10 +43,7 @@ export function createActorTableColumn<TData extends RowData>({
             className="flex min-w-0 items-center gap-2"
             title={`API key ${label}`}
           >
-            <KeyRound
-              className="text-muted-foreground size-4 shrink-0"
-              aria-hidden="true"
-            />
+            <KeyRound size="base" color="muted" aria-hidden="true" />
             <span className="truncate font-mono" title={label}>
               {label}
             </span>

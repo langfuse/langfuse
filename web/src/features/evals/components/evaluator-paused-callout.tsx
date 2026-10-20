@@ -1,6 +1,8 @@
+/* eslint-disable @repo/component-file-structure */
 import { Button } from "@/src/components/ui/button";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { formatDistanceToNow } from "date-fns";
 import {
   type EvalTemplate,
@@ -10,7 +12,7 @@ import {
   getEvaluatorBlockMetadata,
   getEvaluatorBlockResolutionPath,
 } from "@langfuse/shared";
-import { AlertTriangle, ExternalLinkIcon, RefreshCcw } from "lucide-react";
+import { AlertTriangle, ExternalLinkIcon, RefreshCcw } from "@langfuse/icons";
 import Link from "next/link";
 import { Fragment } from "react";
 
@@ -59,12 +61,17 @@ export function EvaluatorPausedCallout({
     onSuccess: async () => {
       await utils.evals.invalidate();
       showSuccessToast({
+        operation: "evaluator.reactivate",
         title: "Evaluator reactivated",
         description: "The evaluator is active again.",
       });
     },
     onError: (error) => {
-      showErrorToast("Reactivation failed", error.message);
+      showErrorToast(
+        "Reactivation failed",
+        error.message,
+        classifyTrpcToastError(error, "evaluator.reactivate"),
+      );
     },
   });
 
@@ -94,7 +101,7 @@ export function EvaluatorPausedCallout({
       className="border-light-yellow bg-light-yellow rounded-lg border"
     >
       <div className="flex gap-3 p-4">
-        <AlertTriangle className="text-dark-yellow mt-0.5 h-4 w-4 shrink-0" />
+        <AlertTriangle size="base" __rawClassName="text-dark-yellow mt-0.5" />
 
         <div className="min-w-0 flex-1">
           <h3 className="text-foreground text-base font-bold">
@@ -126,7 +133,11 @@ export function EvaluatorPausedCallout({
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <ExternalLinkIcon className="mr-1.5 h-3.5 w-3.5" />
+                <ExternalLinkIcon
+                  size="base"
+                  color="default"
+                  __rawClassName="mr-1.5"
+                />
                 {resolutionActionLabel}
               </Link>
             </Button>
@@ -147,7 +158,11 @@ export function EvaluatorPausedCallout({
                 }
                 className="h-8 px-3"
               >
-                <RefreshCcw className="mr-1.5 h-3.5 w-3.5" />
+                <RefreshCcw
+                  size="base"
+                  color="default"
+                  __rawClassName="mr-1.5"
+                />
                 Reactivate
               </Button>
             ) : null}

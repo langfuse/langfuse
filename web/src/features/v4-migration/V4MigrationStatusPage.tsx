@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight } from "@langfuse/icons";
 import ContainerPage from "@/src/components/layouts/container-page";
 import { Card } from "@/src/components/ui/card";
 import { SimpleDataTable } from "@/src/components/table/simple-data-table";
@@ -424,7 +424,7 @@ function OrgStatusSection({
       cellPadding: "comfortable",
       cell: () => (
         <span className="text-dark-blue flex items-center justify-end gap-1 whitespace-nowrap opacity-0 transition-opacity group-hover/row:opacity-100">
-          Review <ArrowRight className="h-3 w-3 shrink-0" />
+          Review <ArrowRight size="sm" />
         </span>
       ),
     },

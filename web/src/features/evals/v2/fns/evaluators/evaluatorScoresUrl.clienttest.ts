@@ -6,6 +6,10 @@ import {
 } from "@langfuse/shared";
 import { describe, expect, it } from "vitest";
 import {
+  rangeFromString,
+  TABLE_AGGREGATION_OPTIONS,
+} from "@/src/utils/date-range-utils";
+import {
   evaluatorExecutionsUrl,
   evaluatorScoresUrl,
 } from "./evaluatorScoresUrl";
@@ -75,13 +79,18 @@ describe("evaluatorScoresUrl", () => {
 
 const getFilters = (evaluatorType: EvalTemplateType) => {
   const url = new URL(
-    evaluatorExecutionsUrl("project/id", "Quality", evaluatorType),
+    evaluatorExecutionsUrl("project/id", "evaluator-id", evaluatorType),
     "https://langfuse.local",
   );
 
   return {
     pathname: url.pathname,
     filters: decodeFiltersGeneric(url.searchParams.get("filter") ?? ""),
+    range: rangeFromString(
+      url.searchParams.get("dateRange") ?? "",
+      TABLE_AGGREGATION_OPTIONS,
+      "last1Day",
+    ),
   };
 };
 
@@ -97,12 +106,13 @@ describe("evaluatorExecutionsUrl", () => {
     (type, environment) => {
       expect(getFilters(type)).toEqual({
         pathname: "/project/project%2Fid/traces",
+        range: { range: "last7Days" },
         filters: [
           {
-            column: "traceName",
+            column: "evaluatorId",
             type: "stringOptions",
             operator: "any of",
-            value: ["Execute evaluator: Quality"],
+            value: ["evaluator-id"],
           },
           {
             column: "environment",

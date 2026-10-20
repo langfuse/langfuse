@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
 import { type ReactNode, useCallback, useId, useLayoutEffect } from "react";
 import {
   ResizableHandle,
@@ -40,11 +40,6 @@ interface ResizableSplitLayoutProps {
 const PRIMARY_PANEL_ID = "primary";
 const SECONDARY_PANEL_ID = "secondary";
 
-const NOOP_LAYOUT_STORAGE = {
-  getItem: () => null,
-  setItem: () => {},
-};
-
 /**
  * Horizontal split layout with a collapsible secondary panel.
  *
@@ -75,11 +70,6 @@ export function ResizableSplitLayout({
     ? `resizable-layout-${persistId}`
     : `resizable-layout-${instanceId}`;
 
-  const storage =
-    persistId && typeof window !== "undefined"
-      ? sessionStorage
-      : NOOP_LAYOUT_STORAGE;
-
   const renderSecondaryPanel = keepSecondaryMounted || open;
   const panelIds = (() => {
     if (renderSecondaryPanel) {
@@ -96,7 +86,7 @@ export function ResizableSplitLayout({
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
     id: groupId,
     panelIds,
-    storage,
+    storage: persistId ? "session" : false,
   });
 
   useLayoutEffect(() => {

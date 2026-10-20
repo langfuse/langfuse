@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import * as React from "react";
 
 import { type DropdownMenuItemDefinition } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
@@ -62,7 +63,14 @@ export function HeaderActionMenuRows({
           <HeaderActionMenuRow
             key={item.id}
             label={item.title}
-            icon={Icon && <Icon className="h-4 w-4" />}
+            icon={
+              Icon && (
+                <Icon
+                  size="base"
+                  color={item.variant !== "destructive" ? "default" : "inherit"}
+                />
+              )
+            }
             badge={item.badge}
             variant={item.variant}
             disabled={item.disabled !== undefined}

@@ -3,7 +3,7 @@
 "use client";
 
 import * as React from "react";
-import { NavMain, type NavMainItem } from "@/src/components/nav/nav-main";
+import { NavMain, type NavMainItem } from "@/src/components/nav/NavMain";
 import {
   Sidebar,
   SidebarContent,
@@ -31,9 +31,9 @@ import {
   Map,
   Newspaper,
   X,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
-import { SiGithub } from "react-icons/si";
+import { SiGithub } from "@langfuse/icons/si";
 import { VERSION } from "@/src/constants";
 import {
   DropdownMenu,
@@ -384,7 +384,7 @@ function SidebarNotifications({
             onClick={() => state.onDismiss(frontNotification.id)}
             title="Dismiss"
           >
-            <X className="h-3.5 w-3.5" />
+            <X size="base" color="default" />
           </Button>
           <CardHeader className="px-3 pt-2.5 pr-6 pb-0">
             <CardTitle className="text-sm">{frontNotification.title}</CardTitle>
@@ -485,6 +485,7 @@ function NavUser({
                 shape="rounded"
                 src={user.avatar}
                 displayName={user.name}
+                email={user.email}
               />
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-bold" title={user.name}>
@@ -509,6 +510,7 @@ function NavUser({
                   shape="rounded"
                   src={user.avatar}
                   displayName={user.name}
+                  email={user.email}
                 />
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-bold" title={user.name}>
@@ -546,7 +548,7 @@ const DemoBadge = () => {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <ExternalLink className="h-4 w-4" />
+                <ExternalLink size="base" />
                 <span>Use Demo App</span>
               </Link>
             </SidebarMenuButton>
@@ -554,7 +556,7 @@ const DemoBadge = () => {
           <SidebarMenuItem>
             <SidebarMenuButton asChild tooltip="Your Langfuse Organizations">
               <Link href="/">
-                <Grid2X2 className="h-4 w-4" />
+                <Grid2X2 size="base" />
                 <span>Your Langfuse Orgs</span>
               </Link>
             </SidebarMenuButton>
@@ -591,6 +593,22 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
     return assertUnreachable(update.updateType);
   }, [update]);
 
+  // Radix returns focus to the trigger when the menu closes, and the browser
+  // treats that programmatic focus as `:focus-visible`, so the Button's
+  // `focus-visible:ring-2` ring is left showing on the badge after a
+  // mouse-driven open/close. Keyboard users must keep that ring, so the focus
+  // restore is suppressed only for an interaction that never used the keyboard.
+  //
+  // `pointerOnly` therefore has to be cleared by a key press anywhere in the
+  // interaction, not only on the trigger: the menu is portalled, so once it is
+  // open every key event lands on the content instead. A mouse-opened menu
+  // closed with Escape or Enter is a keyboard interaction and must get focus
+  // back on the trigger.
+  const pointerOnly = React.useRef(false);
+  const noteKeyboardUse = () => {
+    pointerOnly.current = false;
+  };
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -598,6 +616,10 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
           variant="ghost"
           size="xs"
           className="text-muted-foreground h-5 max-w-full min-w-0 translate-y-px py-0 text-[0.625rem] leading-none"
+          onPointerDown={() => {
+            pointerOnly.current = true;
+          }}
+          onKeyDown={noteKeyboardUse}
         >
           <span className="truncate" title={versionText}>
             {versionText}
@@ -610,11 +632,26 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
             />
           )}
           {update && !backgroundMigrationStatus && (
-            <ArrowUp className={`h-3 w-3 ${color}`} />
+            <ArrowUp
+              size="sm"
+              __rawClassName={cn(color ?? "text-icon-foreground")}
+            />
           )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent onClick={(e) => e.stopPropagation()}>
+      <DropdownMenuContent
+        onClick={(e) => e.stopPropagation()}
+        // Both hooks are needed: Radix's DismissableLayer handles Escape before
+        // it reaches the content's own onKeyDown, while onKeyDown covers the
+        // arrow/Enter/typeahead keys used to pick an item.
+        onKeyDown={noteKeyboardUse}
+        onEscapeKeyDown={noteKeyboardUse}
+        onCloseAutoFocus={(event) => {
+          if (!pointerOnly.current) return;
+          pointerOnly.current = false;
+          event.preventDefault();
+        }}
+      >
         {update ? (
           <>
             <DropdownMenuLabel>
@@ -631,7 +668,7 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
         {selfHostedPlanLabel && (
           <>
             <DropdownMenuLabel className="flex items-center font-normal">
-              <BadgeCheck size={16} className="mr-2" />
+              <BadgeCheck size="base" __rawClassName="mr-2" />
               {selfHostedPlanLabel.long}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
@@ -642,14 +679,14 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
             href="https://github.com/langfuse/langfuse/releases"
             target="_blank"
           >
-            <SiGithub size={16} className="mr-2" />
+            <SiGithub size="base" color="default" __rawClassName="mr-2" />
             Releases
           </Link>
         </DropdownMenuItem>
         {state.deployment === "self-hosted" && (
           <DropdownMenuItem asChild>
             <Link href="/background-migrations">
-              <ArrowUp10 size={16} className="mr-2" />
+              <ArrowUp10 size="base" color="default" __rawClassName="mr-2" />
               Background Migrations
               {backgroundMigrationStatus && (
                 <StatusBadge
@@ -663,20 +700,20 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
         )}
         <DropdownMenuItem asChild>
           <Link href="https://langfuse.com/changelog" target="_blank">
-            <Newspaper size={16} className="mr-2" />
+            <Newspaper size="base" color="default" __rawClassName="mr-2" />
             Changelog
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link href="https://langfuse.com/roadmap" target="_blank">
-            <Map size={16} className="mr-2" />
+            <Map size="base" color="default" __rawClassName="mr-2" />
             Roadmap
           </Link>
         </DropdownMenuItem>
         {state.deployment === "self-hosted" && (
           <DropdownMenuItem asChild>
             <Link href="https://langfuse.com/pricing-self-host" target="_blank">
-              <Info size={16} className="mr-2" />
+              <Info size="base" color="default" __rawClassName="mr-2" />
               Compare Versions
             </Link>
           </DropdownMenuItem>
@@ -689,7 +726,11 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
                 href="https://langfuse.com/docs/deployment/self-host#update"
                 target="_blank"
               >
-                <HardDriveDownload size={16} className="mr-2" />
+                <HardDriveDownload
+                  size="base"
+                  color="default"
+                  __rawClassName="mr-2"
+                />
                 Update
               </Link>
             </DropdownMenuItem>

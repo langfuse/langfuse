@@ -1,15 +1,13 @@
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Plus, Webhook, X } from "lucide-react";
+import { Plus, X } from "@langfuse/icons";
 import { useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 
-import { ActionButton } from "@/src/components/ActionButton";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
-import { Card } from "@/src/components/ui/card";
 import {
   DialogBody,
   DialogContent,
@@ -40,6 +38,7 @@ import {
   WEB_CALLOUT_HEADER_NAME_PATTERN,
 } from "@/src/features/web-callouts/headerRules";
 import { api, type RouterOutputs } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { ConnectedWebCalloutSettingsTable } from "./WebCalloutSettingsTable/ConnectedWebCalloutSettingsTable";
 
 type WebCalloutEndpoint = RouterOutputs["webCallouts"]["all"][number];
@@ -176,6 +175,9 @@ function WebCalloutEndpointDialog(props: {
     onSuccess: async () => {
       await utils.webCallouts.invalidate();
       showSuccessToast({
+        operation: props.endpoint
+          ? "web_callout_endpoint.update"
+          : "web_callout_endpoint.create",
         title: props.endpoint
           ? "Callout endpoint updated"
           : "Callout endpoint created",
@@ -184,7 +186,16 @@ function WebCalloutEndpointDialog(props: {
       props.closeDialog();
     },
     onError: (error) => {
-      showErrorToast("Failed to save callout endpoint", error.message);
+      showErrorToast(
+        "Failed to save callout endpoint",
+        error.message,
+        classifyTrpcToastError(
+          error,
+          props.endpoint
+            ? "web_callout_endpoint.update"
+            : "web_callout_endpoint.create",
+        ),
+      );
     },
   });
 
@@ -371,7 +382,7 @@ function WebCalloutEndpointDialog(props: {
                             size="icon"
                             onClick={() => remove(index)}
                           >
-                            <X className="h-4 w-4" />
+                            <X size="base" color="default" />
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent>Remove header</TooltipContent>
@@ -391,7 +402,7 @@ function WebCalloutEndpointDialog(props: {
                   })
                 }
               >
-                <Plus className="mr-1 h-4 w-4" />
+                <Plus size="base" color="default" __rawClassName="mr-1" />
                 Add header
               </Button>
             </div>
@@ -449,28 +460,3 @@ const hasExistingHeaderName = (
     ) ?? false
   );
 };
-
-export function WebCalloutIntegrationCard(props: {
-  projectId: string;
-  hasAccess: boolean;
-}) {
-  return (
-    <Card className="p-3">
-      <div className="mb-4 flex items-center gap-2">
-        <Webhook className="text-foreground h-5 w-5" />
-        <span className="font-bold">Web Callouts</span>
-      </div>
-      <p className="text-primary mb-4 text-sm">
-        Send backend callouts from trace, observation, and session detail views
-        to your own application.
-      </p>
-      <ActionButton
-        variant="secondary"
-        hasAccess={props.hasAccess}
-        href={`/project/${props.projectId}/settings/integrations/web-callouts`}
-      >
-        Configure
-      </ActionButton>
-    </Card>
-  );
-}

@@ -15,13 +15,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
-import { RoleSelectItem } from "@/src/features/rbac/components/RoleSelectItem";
+import { RoleSelect } from "@/src/features/rbac/components/RoleSelect";
 import { reportTrpcErrorWithoutToast } from "@/src/utils/api";
 
 const roleValues = {
@@ -44,6 +38,8 @@ type CreateProjectMemberDialogProps = {
   project: { id: string; name: string } | undefined;
   hasOnlySingleProjectAccess: boolean;
   hasProjectRoleEntitlement: boolean;
+  canManageOrgOwnership: boolean;
+  canManageProjectOwnership: boolean;
   isPending: boolean;
   createProjectMember: (values: FormValues) => Promise<void>;
   onSuccess: () => void;
@@ -53,6 +49,8 @@ export function CreateProjectMemberDialog({
   project,
   hasOnlySingleProjectAccess,
   hasProjectRoleEntitlement,
+  canManageOrgOwnership,
+  canManageProjectOwnership,
   isPending,
   createProjectMember,
   onSuccess,
@@ -125,25 +123,12 @@ export function CreateProjectMemberDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Organization Role</FormLabel>
-                    <Select
-                      defaultValue={field.value}
-                      onValueChange={(value) =>
-                        field.onChange(
-                          value as (typeof roleValues)[keyof typeof roleValues],
-                        )
-                      }
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select an organization role" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {Object.values(roleValues).map((role) => (
-                          <RoleSelectItem role={role} key={role} />
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <RoleSelect
+                      roles={Object.values(roleValues)}
+                      canManageOwnership={canManageOrgOwnership}
+                      value={field.value}
+                      onValueChange={field.onChange}
+                    />
                     <FormMessage />
                   </FormItem>
                 )}
@@ -156,35 +141,17 @@ export function CreateProjectMemberDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Project Role</FormLabel>
-                    <Select
-                      defaultValue={field.value}
-                      onValueChange={(value) =>
-                        field.onChange(
-                          value as (typeof roleValues)[keyof typeof roleValues],
-                        )
-                      }
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a project role" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {Object.values(roleValues)
-                          .filter(
-                            (role) =>
-                              !hasOnlySingleProjectAccess ||
-                              role !== roleValues.NONE,
-                          )
-                          .map((role) => (
-                            <RoleSelectItem
-                              role={role}
-                              key={role}
-                              isProjectRole
-                            />
-                          ))}
-                      </SelectContent>
-                    </Select>
+                    <RoleSelect
+                      isProjectRole
+                      canManageOwnership={canManageProjectOwnership}
+                      roles={Object.values(roleValues).filter(
+                        (role) =>
+                          !hasOnlySingleProjectAccess ||
+                          role !== roleValues.NONE,
+                      )}
+                      value={field.value}
+                      onValueChange={field.onChange}
+                    />
                     {!hasOnlySingleProjectAccess && (
                       <FormDescription>
                         This project role will override the default role for

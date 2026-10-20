@@ -99,6 +99,7 @@ export * from "./features/prompts/constants";
 
 // skills
 export * from "./features/skills/types";
+export * from "./features/skills/trace";
 export * from "./features/skills/constants";
 
 export {
@@ -121,7 +122,10 @@ export * from "./errors/index";
 
 export * from "./utils/environment";
 export * from "./interfaces/search";
-export { normalizeIngestionSdkName } from "./server/ingestion/ingestionAttribution";
+export {
+  LANGFUSE_SDK_LATEST_MAJOR,
+  normalizeIngestionSdkName,
+} from "./server/ingestion/ingestionAttribution";
 
 // domain
 export * from "./domain";
@@ -129,6 +133,7 @@ export * from "./domain";
 // io representation
 export * from "./utils/IORepresentation";
 export * from "./utils/mediaReferences";
+export * from "./utils/s3Uri";
 
 // analytics integrations (client-safe)
 export * from "./features/analytics-integrations";

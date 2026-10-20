@@ -3,7 +3,7 @@ import {
   validateExportSource,
   type ExportSourceContext,
 } from "@langfuse/shared";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink } from "@langfuse/icons";
 import { useMemo } from "react";
 import { useWatch } from "react-hook-form";
 import { type z } from "zod";
@@ -186,13 +186,13 @@ export function PostHogIntegrationForm({
                   ))}
                   <div className="border-t pt-2">
                     <a
-                      href="https://langfuse.com/docs/integrations/export-sources"
+                      href="https://langfuse.com/integrations/analytics/posthog#migrate-export-source"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 text-xs hover:underline"
                     >
                       For further information see
-                      <ExternalLink className="size-3" />
+                      <ExternalLink size="sm" />
                     </a>
                   </div>
                 </div>

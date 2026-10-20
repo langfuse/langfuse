@@ -1,5 +1,5 @@
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
-import { Trash2 } from "lucide-react";
+import { Trash2 } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
@@ -70,7 +70,7 @@ export function TierAccordionItem({
                   remove(index);
                 }}
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 size="base" color="default" />
               </Button>
             )}
           </div>

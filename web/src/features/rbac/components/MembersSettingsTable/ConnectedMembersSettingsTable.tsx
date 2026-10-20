@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { PlusIcon } from "lucide-react";
+import { PlusIcon } from "@langfuse/icons";
 import { useSession } from "next-auth/react";
 import {
   ArrayParam,
@@ -58,6 +58,18 @@ export function ConnectedMembersSettingsTable({
     projectId: project?.id,
     scope: "projectMembers:CUD",
   });
+
+  const canManageOrgOwnership = useHasOrganizationAccess({
+    organizationId: orgId,
+    scope: "organizationMembers:manageOwnership",
+  });
+
+  // Org owners outrank any project role override they hold.
+  const canManageProjectOwnership =
+    useHasProjectAccess({
+      projectId: project?.id,
+      scope: "projectMembers:manageOwnership",
+    }) || canManageOrgOwnership;
 
   const projectRolesEntitlement = useHasEntitlement("rbac-project-roles");
   const [updatingOrgRoleMembershipIds, setUpdatingOrgRoleMembershipIds] =
@@ -136,6 +148,7 @@ export function ConnectedMembersSettingsTable({
       utils.members.invalidate();
       if (data.userId === session.data?.user?.id) session.update();
       showSuccessToast({
+        operation: "organization_role.update",
         title: "Saved",
         description: "Organization role updated successfully",
         duration: 2000,
@@ -148,6 +161,7 @@ export function ConnectedMembersSettingsTable({
       utils.members.invalidate();
       if (data.userId === session.data?.user?.id) session.update();
       showSuccessToast({
+        operation: "project_role.update",
         title: "Saved",
         description: "Project role updated successfully",
         duration: 2000,
@@ -215,6 +229,8 @@ export function ConnectedMembersSettingsTable({
           currentUserId={session.data?.user?.id}
           hasOrgCudAccess={hasOrgCudAccess}
           hasProjectCudAccess={hasProjectCudAccess}
+          canManageOrgOwnership={canManageOrgOwnership}
+          canManageProjectOwnership={canManageProjectOwnership}
           projectRolesEntitlement={projectRolesEntitlement}
           showFeaturePreviews={
             !project && hasOrgCudAccess && orgId !== env.NEXT_PUBLIC_DEMO_ORG_ID
@@ -314,7 +330,7 @@ export function ConnectedMembersSettingsTable({
               loading: isSubmitting,
               hasAccess,
               usageLimit,
-              icon: <PlusIcon className="size-4" aria-hidden="true" />,
+              icon: <PlusIcon size="base" aria-hidden="true" />,
               onClick: openDialog,
             },
           ]}

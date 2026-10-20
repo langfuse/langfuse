@@ -23,6 +23,17 @@ export const CustomModel = meta.story({
   },
 });
 
+/** The saved model references a provider connection that was deleted. */
+export const MissingConnection = meta.story({
+  args: {
+    mode: "custom",
+    defaultModel: projectDefault,
+    selectedModel: { provider: "Anthropic", model: "claude-sonnet-4" },
+    modelAvailability: "missing",
+    disabled: false,
+  },
+});
+
 export const CustomModelMatchingProjectDefault = meta.story({
   args: {
     mode: "custom",

@@ -1,8 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { type ClickHouseSettings } from "@clickhouse/client";
 
-type ExtraSettings = Record<string, string | number | boolean> | undefined;
-
 const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
   close: vi.fn(async () => undefined),
@@ -20,16 +18,13 @@ const mocks = vi.hoisted(() => ({
       | undefined,
     CLICKHOUSE_KEEP_ALIVE_IDLE_SOCKET_TTL: 9000,
     CLICKHOUSE_MAX_OPEN_CONNECTIONS: 25,
-    CLICKHOUSE_ASYNC_INSERT_MAX_DATA_SIZE: undefined as string | undefined,
+    CLICKHOUSE_ASYNC_INSERT_MAX_DATA_SIZE: undefined,
     CLICKHOUSE_ASYNC_INSERT_BUSY_TIMEOUT_MS: undefined,
     CLICKHOUSE_ASYNC_INSERT_BUSY_TIMEOUT_MIN_MS: undefined,
     CLICKHOUSE_LIGHTWEIGHT_DELETE_MODE: "alter_update",
     CLICKHOUSE_UPDATE_PARALLEL_MODE: "auto",
     CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION: "auto",
     CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN: "auto",
-    CLICKHOUSE_EXTRA_SETTINGS: undefined as ExtraSettings,
-    CLICKHOUSE_EXTRA_SETTINGS_READ_ONLY: undefined as ExtraSettings,
-    CLICKHOUSE_EXTRA_SETTINGS_EVENTS_READ_ONLY: undefined as ExtraSettings,
     LANGFUSE_LOG_LEVEL: "error",
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
   },
@@ -63,9 +58,6 @@ describe("ClickHouseClientManager compatibility settings", () => {
     mocks.createClient.mockReturnValue({ close: mocks.close });
     mocks.env.CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION = "auto";
     mocks.env.CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN = "auto";
-    mocks.env.CLICKHOUSE_EXTRA_SETTINGS = undefined;
-    mocks.env.CLICKHOUSE_EXTRA_SETTINGS_READ_ONLY = undefined;
-    mocks.env.CLICKHOUSE_EXTRA_SETTINGS_EVENTS_READ_ONLY = undefined;
     setClickHouseCompatibilityVersionForTests(null);
   });
 
@@ -96,94 +88,6 @@ describe("ClickHouseClientManager compatibility settings", () => {
       mocks.createClient.mock.calls[0][0].clickhouse_settings
         .query_plan_top_k_through_join,
     ).toBe(1);
-  });
-
-  it("sends no extra settings when unset", () => {
-    clickhouseClient();
-
-    expect(
-      mocks.createClient.mock.calls[0][0].clickhouse_settings,
-    ).not.toHaveProperty("use_skip_indexes_for_disjunctions");
-  });
-
-  it("applies extra settings to every client", () => {
-    mocks.env.CLICKHOUSE_EXTRA_SETTINGS = {
-      use_skip_indexes_for_disjunctions: "1",
-    };
-
-    clickhouseClient();
-    clickhouseClient({}, "EventsReadOnly");
-
-    expect(mocks.createClient).toHaveBeenCalledTimes(2);
-    for (const [config] of mocks.createClient.mock.calls) {
-      expect(config.clickhouse_settings).toMatchObject({
-        use_skip_indexes_for_disjunctions: "1",
-      });
-    }
-  });
-
-  it.each([
-    ["ReadWrite", undefined],
-    ["ReadOnly", "read_only"],
-    ["EventsReadOnly", "events_read_only"],
-  ] as const)(
-    "applies only the matching service extra settings to %s",
-    (preferred, expectedMarker) => {
-      mocks.env.CLICKHOUSE_EXTRA_SETTINGS_READ_ONLY = {
-        log_comment: "read_only",
-      };
-      mocks.env.CLICKHOUSE_EXTRA_SETTINGS_EVENTS_READ_ONLY = {
-        log_comment: "events_read_only",
-      };
-
-      clickhouseClient({}, preferred);
-
-      expect(
-        mocks.createClient.mock.calls[0][0].clickhouse_settings.log_comment,
-      ).toBe(expectedMarker);
-    },
-  );
-
-  it("keeps read-only extra settings off the write client on a shared URL", () => {
-    mocks.env.CLICKHOUSE_EXTRA_SETTINGS_READ_ONLY = {
-      log_comment: "read_only",
-    };
-
-    clickhouseClient({}, "ReadOnly");
-    clickhouseClient({}, "ReadWrite");
-
-    expect(mocks.createClient).toHaveBeenCalledTimes(2);
-    expect(
-      mocks.createClient.mock.calls[1][0].clickhouse_settings,
-    ).not.toHaveProperty("log_comment");
-  });
-
-  it("lets derived and per-query settings override extra settings", () => {
-    setClickHouseCompatibilityVersionForTests("26.5.5.8");
-    mocks.env.CLICKHOUSE_ASYNC_INSERT_MAX_DATA_SIZE = "10485760";
-    mocks.env.CLICKHOUSE_EXTRA_SETTINGS = {
-      async_insert_max_data_size: "1",
-      query_plan_top_k_through_join: 1,
-      max_execution_time: 1,
-      date_time_output_format: "simple",
-    };
-
-    try {
-      clickhouseClient({
-        clickhouse_settings: { date_time_output_format: "iso" },
-      });
-    } finally {
-      mocks.env.CLICKHOUSE_ASYNC_INSERT_MAX_DATA_SIZE = undefined;
-    }
-
-    expect(
-      mocks.createClient.mock.calls[0][0].clickhouse_settings,
-    ).toMatchObject({
-      async_insert_max_data_size: "10485760",
-      query_plan_top_k_through_join: 0,
-      max_execution_time: 35,
-      date_time_output_format: "iso",
-    });
   });
 
   it("uses a new cached client key after compatibility settings change", () => {
@@ -351,36 +255,4 @@ describe("resolveClickhouseService", () => {
       }
     },
   );
-});
-
-describe("CLICKHOUSE_EXTRA_SETTINGS validation", () => {
-  const loadEnv = async (value: string) => {
-    vi.stubEnv("CLICKHOUSE_EXTRA_SETTINGS", value);
-    vi.resetModules();
-    try {
-      return await vi.importActual<typeof import("../../env")>("../../env");
-    } finally {
-      vi.unstubAllEnvs();
-    }
-  };
-
-  it("parses a JSON object of settings", async () => {
-    const { env } = await loadEnv(
-      '{"use_skip_indexes_for_disjunctions":"1","max_threads":4}',
-    );
-
-    expect(env.CLICKHOUSE_EXTRA_SETTINGS).toEqual({
-      use_skip_indexes_for_disjunctions: "1",
-      max_threads: 4,
-    });
-  });
-
-  it.each([
-    ["invalid JSON", "{use_skip_indexes_for_disjunctions:1}"],
-    ["a non-object", '["max_threads"]'],
-    ["a nested value", '{"max_threads":{"value":4}}'],
-    ["an invalid setting name", '{"max threads":4}'],
-  ])("rejects %s at startup", async (_, value) => {
-    await expect(loadEnv(value)).rejects.toThrow("CLICKHOUSE_EXTRA_SETTINGS");
-  });
 });

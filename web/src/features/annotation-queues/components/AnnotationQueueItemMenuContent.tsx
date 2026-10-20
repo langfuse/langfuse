@@ -6,7 +6,7 @@ import {
   DropdownMenuSeparator,
 } from "@/src/components/ui/dropdown-menu";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink } from "@langfuse/icons";
 import Link from "next/link";
 import { type MouseEvent } from "react";
 
@@ -70,7 +70,7 @@ export function AnnotationQueueItemMenuContent({
       <DropdownMenuSeparator />
       <DropdownMenuItem className="hover:bg-accent" asChild>
         <div>
-          <ExternalLink className="mr-2 h-4 w-4" />
+          <ExternalLink size="base" color="default" __rawClassName="mr-2" />
           <Link
             href={`/project/${projectId}/annotation-queues`}
             onClick={onManageClick}

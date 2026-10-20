@@ -1,4 +1,4 @@
-import { PlusIcon } from "lucide-react";
+import { PlusIcon } from "@langfuse/icons";
 import {
   Dialog,
   DialogContent,
@@ -33,7 +33,7 @@ export const NewDatasetItemButton = (props: {
           variant="outline"
           hasAccess={hasAccess}
           trackingEventName="dataset_item:new_form_open"
-          icon={<PlusIcon className="h-4 w-4" aria-hidden="true" />}
+          icon={<PlusIcon size="base" aria-hidden="true" />}
         >
           New item
         </ActionButton>

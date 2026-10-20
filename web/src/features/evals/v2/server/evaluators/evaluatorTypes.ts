@@ -73,10 +73,10 @@ export const CodeEvaluatorDefinitionSchema = z.object({
 });
 
 /**
- * Decision-model evaluators (experimental): the state is the JSON object
- * built from the variable mapping (key → extractor), `questions` are the
- * typed questions asked about it, and each question writes its own score.
- * The model connection is always explicit; there is no project default.
+ * Decision-model evaluators use the JSON object built from the variable
+ * mapping (key → extractor) as state. `questions` are the typed questions
+ * asked about it, and each question writes its own score. The model connection
+ * is always explicit; there is no project default.
  */
 const DecisionModelEvaluatorDefinitionSchema =
   EvaluatorVersionBaseSchema.extend({

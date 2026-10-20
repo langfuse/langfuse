@@ -212,6 +212,22 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     approval: "auto",
     availability: { scope: "project:read" },
   },
+  getExternalMediaStorage: {
+    approval: "auto",
+    availability: { scope: "integrations:CRUD" },
+  },
+  configureExternalMediaStorage: {
+    approval: "approval",
+    availability: { scope: "integrations:CRUD" },
+  },
+  deleteExternalMediaStorage: {
+    approval: "approval",
+    availability: { scope: "integrations:CRUD" },
+  },
+  testExternalMediaStorage: {
+    approval: "auto",
+    availability: { scope: "integrations:CRUD" },
+  },
   queryMetrics: {
     approval: "auto",
     availability: { scope: "project:read" },
@@ -288,6 +304,22 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     approval: "approval",
     availability: { scope: "prompts:CUD" },
   },
+  listSkills: {
+    approval: "auto",
+    availability: { scope: "skills:read" },
+  },
+  getSkill: {
+    approval: "auto",
+    availability: { scope: "skills:read" },
+  },
+  loadSkill: {
+    approval: "auto",
+    availability: { scope: "skills:read" },
+  },
+  loadSkillResource: {
+    approval: "auto",
+    availability: { scope: "skills:read" },
+  },
   listScores: {
     approval: "auto",
     availability: { scope: "project:read" },
@@ -298,7 +330,7 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
   },
   createScore: {
     approval: "approval",
-    availability: { scope: "scores:CUD" },
+    availability: { scope: "scores:save" },
   },
   listScoreConfigs: {
     approval: "auto",
@@ -574,11 +606,20 @@ export function withInAppAgentToolApproval<TTool extends InAppAgentTool>(
   return Object.fromEntries(
     Object.entries(tools).map(([toolName, tool]) => [
       toolName,
-      isInAppAgentAutoApprovedToolName(toolName, policy)
+      isInAppAgentAutoApprovedToolName(toolName, policy) ||
+      hasConditionalApproval(tool)
         ? tool
         : { ...tool, requireApproval: true },
     ]),
   ) as Record<string, TTool | (TTool & { requireApproval: true })>;
+}
+
+// A function-valued requireApproval decides per call; Mastra runs it before
+// pausing, so overwriting it would drop the tool's own decision.
+function hasConditionalApproval(tool: InAppAgentTool) {
+  return (
+    "requireApproval" in tool && typeof tool.requireApproval === "function"
+  );
 }
 
 function isInAppAgentAutoApprovedToolName(

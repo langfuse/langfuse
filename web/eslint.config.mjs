@@ -13,14 +13,9 @@ import nextConfig from "@repo/eslint-config/next";
 // no-restricted-imports must spread the full pattern list it wants.
 const restrictedImportPatterns = [
   {
-    regex: "^react-icons$",
+    regex: "^(lucide-react|react-icons)(/|$)",
     message:
-      "Only react-icons/si and react-icons/tb are allowed. Please use lucide-react for other icons.",
-  },
-  {
-    regex: "^react-icons/(?!si(?:/|$)|tb(?:/|$)).*",
-    message:
-      "Only react-icons/si and react-icons/tb are allowed. Please use lucide-react for other icons.",
+      "Import typed icons from @langfuse/icons, @langfuse/icons/si, or @langfuse/icons/tb instead.",
   },
   {
     // Relative paths escaping web/ bypass @langfuse/shared's exports
@@ -51,6 +46,13 @@ const sentryCapturePattern = {
   importNames: ["captureException", "captureMessage"],
   message:
     "Do not capture directly — route through the reportError seam (@/src/utils/reportError) or a helper that wraps it (captureUnknownError, reportParserWorkerError), so one seam owns error classification. See the reportError doc comment and .agents/skills/sentry-instrumentation/SKILL.md.",
+};
+
+const toastImportPattern = {
+  regex: "^sonner(?:/|$)",
+  importNames: ["toast", "default"],
+  message:
+    "Use the notifications feature's typed toast helpers. Every toast must declare its static operation and errors/warnings must declare origin and category.",
 };
 
 const designSystemInternalPattern = {
@@ -87,6 +89,7 @@ export default [
     files: ["src/**/*.stories.{ts,tsx}"],
     rules: {
       "@repo/storybook-play-requires-test-name": "error",
+      "@repo/storybook-play-no-implementation-detail-assertions": "warn",
     },
   },
   {
@@ -333,6 +336,23 @@ export default [
   },
 
   {
+    name: "langfuse/web/component-file-structure",
+    files: ["**/*.{tsx,jsx}"],
+    ignores: [
+      // Next.js owns route filenames and requires framework exports, so component file structure cannot apply.
+      "src/pages/**",
+      // Next.js App Router layouts also require the framework-defined layout filename.
+      "src/app/**/layout.{tsx,jsx}",
+      "src/components/design-system/**/*.stories.{ts,tsx}",
+      "**/*.{test,spec,clienttest,servertest}.{tsx,jsx}",
+      "**/{__tests__,__e2e__,tests,test}/**",
+    ],
+    rules: {
+      "@repo/component-file-structure": "error",
+    },
+  },
+
+  {
     name: "langfuse/web/design-system-component-exports",
     files: ["src/components/design-system/*/*.{ts,tsx}"],
     ignores: [
@@ -341,7 +361,6 @@ export default [
       "src/components/design-system/table/**",
     ],
     rules: {
-      "@repo/filename-matches-export": "error",
       "import/no-default-export": "error",
     },
   },
@@ -485,7 +504,8 @@ export default [
       "src/components/ui/popover.tsx",
       "src/components/ui/dropdown-menu.tsx",
       "src/components/ui/select.tsx",
-      "src/components/ui/hover-card.tsx",
+      "src/components/design-system/HoverCardController/HoverCardController.tsx",
+      "src/components/design-system/ControlledHoverCard/ControlledHoverCard.tsx",
       "src/components/ui/tooltip.tsx",
     ],
     rules: {
@@ -513,6 +533,7 @@ export default [
           patterns: [
             ...restrictedImportPatterns,
             sentryCapturePattern,
+            toastImportPattern,
             designSystemInternalPattern,
           ],
         },
@@ -527,7 +548,11 @@ export default [
       "no-restricted-imports": [
         "error",
         {
-          patterns: [...restrictedImportPatterns, sentryCapturePattern],
+          patterns: [
+            ...restrictedImportPatterns,
+            sentryCapturePattern,
+            toastImportPattern,
+          ],
         },
       ],
     },
@@ -576,7 +601,54 @@ export default [
       "no-restricted-imports": [
         "error",
         {
-          patterns: [...restrictedImportPatterns, designSystemInternalPattern],
+          patterns: [
+            ...restrictedImportPatterns,
+            designSystemInternalPattern,
+            toastImportPattern,
+          ],
+        },
+      ],
+    },
+  },
+  {
+    name: "langfuse/web/toast-seam",
+    files: [
+      "src/features/notifications/showErrorToast.tsx",
+      "src/features/notifications/showSuccessToast.tsx",
+      "src/features/notifications/showToast.tsx",
+    ],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            ...restrictedImportPatterns,
+            sentryCapturePattern,
+            designSystemInternalPattern,
+          ],
+        },
+      ],
+    },
+  },
+  {
+    name: "langfuse/web/no-dynamic-toast-bypass",
+    files: ["src/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "ImportExpression[source.value=/^sonner(?:\\/|$)/]",
+          message: toastImportPattern.message,
+        },
+        {
+          selector:
+            "CallExpression[callee.name='require'][arguments.0.value=/^sonner(?:\\/|$)/]",
+          message: toastImportPattern.message,
+        },
+        {
+          selector:
+            "TSImportEqualsDeclaration[moduleReference.expression.value=/^sonner(?:\\/|$)/]",
+          message: toastImportPattern.message,
         },
       ],
     },

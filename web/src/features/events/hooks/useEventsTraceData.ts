@@ -1,5 +1,11 @@
 import { useMemo } from "react";
-import { api, sendAsPostOption } from "@/src/utils/api";
+import { keepPreviousData } from "@tanstack/react-query";
+import {
+  api,
+  sendAsPostOption,
+  shouldRetryResourceQuery,
+} from "@/src/utils/api";
+import { useLatched } from "@/src/hooks/useLatched";
 import {
   adaptEventsToTraceFormat,
   type AdaptedTraceData,
@@ -40,6 +46,8 @@ interface UseEventsTraceDataResult {
    * server response — never a client-side copy of the constant.
    */
   truncatedAtObservations: number | undefined;
+  /** `data` is the previously loaded trace, kept on screen while this one loads. */
+  isPlaceholderData: boolean;
 }
 
 /**
@@ -67,11 +75,9 @@ export function useEventsTraceData(
     },
     {
       enabled: enabled && !!traceId,
-      retry(failureCount, error) {
-        if (error.data?.code === "UNAUTHORIZED") return false;
-        return failureCount < 3;
-      },
+      retry: shouldRetryResourceQuery,
       staleTime: 60 * 1000, // 1 minute
+      placeholderData: keepPreviousData,
     },
   );
 
@@ -120,8 +126,14 @@ export function useEventsTraceData(
     },
     {
       ...sendAsPostOption,
+      // Not while the observations are the previous trace's: the request would
+      // pair its root with the new trace id.
       enabled:
-        enabled && !!primaryObservation && !!timeRange && !!eventsQuery.data,
+        enabled &&
+        !!primaryObservation &&
+        !!timeRange &&
+        !!eventsQuery.data &&
+        !eventsQuery.isPlaceholderData,
       staleTime: 60 * 1000,
     },
   );
@@ -132,6 +144,7 @@ export function useEventsTraceData(
     {
       enabled: enabled && !!traceId,
       staleTime: 60 * 1000,
+      placeholderData: keepPreviousData,
     },
   );
 
@@ -178,12 +191,26 @@ export function useEventsTraceData(
     };
   }, [observations, traceId, rootIOQuery.data, scoresQuery.data]);
 
+  // After a trace switch the two queries resolve independently, so the previous
+  // trace stays whole (observations, I/O, scores) until both carry the new one.
+  const isPlaceholderData =
+    eventsQuery.isPlaceholderData || scoresQuery.isPlaceholderData;
+  const live = useMemo(
+    () => ({
+      data: transformed ?? undefined,
+      truncatedAtObservations: eventsQuery.data?.cutoffObservationsAfterMaxCount
+        ? eventsQuery.data.maxObservationsPerTrace
+        : undefined,
+    }),
+    [transformed, eventsQuery.data],
+  );
+  const shown = useLatched(live, isPlaceholderData);
+
   return {
-    data: transformed ?? undefined,
+    data: shown.data,
     isLoading: eventsQuery.isLoading || scoresQuery.isLoading,
     error: eventsQuery.error || scoresQuery.error,
-    truncatedAtObservations: eventsQuery.data?.cutoffObservationsAfterMaxCount
-      ? eventsQuery.data.maxObservationsPerTrace
-      : undefined,
+    truncatedAtObservations: shown.truncatedAtObservations,
+    isPlaceholderData,
   };
 }

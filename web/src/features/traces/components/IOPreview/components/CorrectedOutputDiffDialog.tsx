@@ -61,15 +61,34 @@ const formatOutputForDiff = (
 
 export const CorrectedOutputDiffDialog: React.FC<
   CorrectedOutputDiffDialogProps
-> = ({
-  isOpen,
-  setIsOpen,
+> = ({ isOpen, setIsOpen, ...bodyProps }) => {
+  return (
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogContent size="xl">
+        <DialogHeader>
+          <DialogTitle>Output Correction Diff</DialogTitle>
+          <DialogDescription>
+            Compare the original output with the corrected version
+          </DialogDescription>
+        </DialogHeader>
+
+        <CorrectedOutputDiffBody {...bodyProps} />
+
+        <DialogFooter>
+          <Button onClick={() => setIsOpen(false)}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// Rendered inside DialogContent so formatting only runs while the dialog is shown.
+const CorrectedOutputDiffBody = ({
   actualOutput,
   correctedOutput,
   strictJsonMode,
   actualOutputTooLarge = false,
-}) => {
-  // Format both outputs for comparison
+}: Omit<CorrectedOutputDiffDialogProps, "isOpen" | "setIsOpen">) => {
   const formattedActualOutput = formatOutputForDiff(
     actualOutput,
     strictJsonMode,
@@ -87,60 +106,45 @@ export const CorrectedOutputDiffDialog: React.FC<
     (actualOutput === null || actualOutput === undefined);
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogContent size="xl">
-        <DialogHeader>
-          <DialogTitle>Output Correction Diff</DialogTitle>
-          <DialogDescription>
-            Compare the original output with the corrected version
-          </DialogDescription>
-        </DialogHeader>
-
-        <DialogBody>
-          {actualOutputTooLarge ? (
-            <div className="space-y-4">
-              <div className="text-muted-foreground rounded-md border border-dashed p-4 text-sm">
-                <p className="text-foreground font-bold">
-                  Original output too large to diff
-                </p>
-                <p className="mt-1">
-                  The original output is too large to load here, so it cannot be
-                  compared side by side. Your correction is shown below and will
-                  be saved as-is.
-                </p>
-              </div>
-              <div>
-                <p className="mb-1 text-sm font-bold">Corrected Output</p>
-                <pre className="ph-no-capture bg-muted/30 max-h-[50vh] overflow-auto rounded-md border p-3 text-xs break-words whitespace-pre-wrap">
-                  {formattedCorrectedOutput}
-                </pre>
-              </div>
-            </div>
-          ) : hasNoOriginalOutput ? (
-            <div className="flex flex-col items-center justify-center p-8 text-center">
-              <div className="text-muted-foreground">
-                <p className="text-lg font-bold">No original output</p>
-                <p className="mt-2 text-sm">
-                  There is no original output to compare with the correction.
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="ph-no-capture space-y-4">
-              <DiffViewer
-                oldString={formattedActualOutput}
-                newString={formattedCorrectedOutput}
-                oldLabel="Original Output"
-                newLabel="Corrected Output"
-              />
-            </div>
-          )}
-        </DialogBody>
-
-        <DialogFooter>
-          <Button onClick={() => setIsOpen(false)}>Close</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <DialogBody>
+      {actualOutputTooLarge ? (
+        <div className="space-y-4">
+          <div className="text-muted-foreground rounded-md border border-dashed p-4 text-sm">
+            <p className="text-foreground font-bold">
+              Original output too large to diff
+            </p>
+            <p className="mt-1">
+              The original output is too large to load here, so it cannot be
+              compared side by side. Your correction is shown below and will be
+              saved as-is.
+            </p>
+          </div>
+          <div>
+            <p className="mb-1 text-sm font-bold">Corrected Output</p>
+            <pre className="ph-no-capture bg-muted/30 max-h-[50vh] overflow-auto rounded-md border p-3 text-xs break-words whitespace-pre-wrap">
+              {formattedCorrectedOutput}
+            </pre>
+          </div>
+        </div>
+      ) : hasNoOriginalOutput ? (
+        <div className="flex flex-col items-center justify-center p-8 text-center">
+          <div className="text-muted-foreground">
+            <p className="text-lg font-bold">No original output</p>
+            <p className="mt-2 text-sm">
+              There is no original output to compare with the correction.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="ph-no-capture space-y-4">
+          <DiffViewer
+            oldString={formattedActualOutput}
+            newString={formattedCorrectedOutput}
+            oldLabel="Original Output"
+            newLabel="Corrected Output"
+          />
+        </div>
+      )}
+    </DialogBody>
   );
 };

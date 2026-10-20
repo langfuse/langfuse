@@ -12,6 +12,7 @@ import { classifyMediaValue } from "@/src/components/ui/media/mediaUtils";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { Button } from "@/src/components/ui/button";
+import { Button as TextButton } from "@/src/components/design-system/Button/Button";
 import {
   DropdownMenuController,
   DropdownMenuItem,
@@ -22,7 +23,13 @@ import {
   buildEventsTablePathForMetadataFilter,
   type MetadataFilterOperator,
 } from "@/src/features/events";
-import { Copy, Check, EllipsisVertical, Filter, FilterX } from "lucide-react";
+import {
+  Copy,
+  Check,
+  EllipsisVertical,
+  Filter,
+  FilterX,
+} from "@langfuse/icons";
 
 /**
  * Enables the per-row actions menu in a metadata JSON view: copy value/
@@ -42,7 +49,7 @@ const VALUE_TEXT_CLASSES = "font-mono text-xs/5 wrap-break-word";
 const PREVIEW_TEXT_CLASSES = "text-gray-500 dark:text-gray-400";
 
 const ROW_ACTION_BUTTON_CLASSES =
-  "text-muted-foreground absolute top-0 h-5 w-5 rounded-sm p-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100 hover:bg-transparent hover:text-foreground";
+  "text-muted-foreground absolute top-0 h-5 w-5 rounded-sm p-0 opacity-0 transition-opacity duration-200 group-hover/value-cell:opacity-100 hover:bg-transparent hover:text-foreground";
 const ROW_COPY_OFFSET = "-right-0.5";
 const ROW_MENU_OFFSET = "-right-1.5";
 
@@ -294,11 +301,11 @@ function ValueCellActionsMenuContent({
   return (
     <>
       <DropdownMenuItem className="text-xs" onSelect={handleCopyData}>
-        <Copy className="mr-2 h-3.5 w-3.5 shrink-0" />
+        <Copy size="base" color="default" __rawClassName="mr-2" />
         {hasChildren ? "Copy structure" : "Copy value"}
       </DropdownMenuItem>
       <DropdownMenuItem className="text-xs" onSelect={handleCopyPath}>
-        <Copy className="mr-2 h-3.5 w-3.5 shrink-0" />
+        <Copy size="base" color="default" __rawClassName="mr-2" />
         Copy path
       </DropdownMenuItem>
       {isScalarLeaf && (
@@ -308,7 +315,7 @@ function ValueCellActionsMenuContent({
             className="text-xs"
             onSelect={() => navigateWithFilter(includeOperator)}
           >
-            <Filter className="mr-2 h-3.5 w-3.5 shrink-0" />
+            <Filter size="base" color="default" __rawClassName="mr-2" />
             <span className="flex min-w-0 flex-col">
               <span>Include in filter</span>
               <span
@@ -323,7 +330,7 @@ function ValueCellActionsMenuContent({
             className="text-xs"
             onSelect={() => navigateWithFilter(excludeOperator)}
           >
-            <FilterX className="mr-2 h-3.5 w-3.5 shrink-0" />
+            <FilterX size="base" color="default" __rawClassName="mr-2" />
             <span className="flex min-w-0 flex-col">
               <span>Exclude from filter</span>
               <span
@@ -503,7 +510,7 @@ export const ValueCell = memo(
       <div
         className={cn(
           VALUE_TEXT_CLASSES,
-          "group relative max-w-full",
+          "group/value-cell relative max-w-full",
           singleLine && "w-0 min-w-full",
         )}
       >
@@ -514,16 +521,15 @@ export const ValueCell = memo(
           {content}
         </span>
         {needsTruncation && !row.original.hasChildren && (
-          <div
-            className="inline cursor-pointer opacity-50"
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleCellExpansion(cellId);
-            }}
-          >
-            {isCellExpanded
-              ? "\n...collapse"
-              : `\n...expand (${getValueStringLength(value) - MAX_CELL_DISPLAY_CHARS} more characters)`}
+          <div className="flex">
+            <TextButton
+              variant="text"
+              text={isCellExpanded ? "Show less" : "Show more"}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleCellExpansion(cellId);
+              }}
+            />
           </div>
         )}
 
@@ -562,7 +568,7 @@ export const ValueCell = memo(
                   )}
                   onClick={(event) => event.stopPropagation()}
                 >
-                  <EllipsisVertical className="h-3 w-3" />
+                  <EllipsisVertical size="base" color="default" />
                 </Button>
               </Trigger>
             )}
@@ -577,9 +583,9 @@ export const ValueCell = memo(
             aria-label="Copy cell value"
           >
             {showCopySuccess ? (
-              <Check className="h-3 w-3" />
+              <Check size="base" color="default" />
             ) : (
-              <Copy className="h-3 w-3" />
+              <Copy size="base" color="default" />
             )}
           </Button>
         )}

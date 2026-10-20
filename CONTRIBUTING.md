@@ -61,7 +61,7 @@ We recommend checking out DeepWiki to familiarize yourself with the project:
 ### Technologies we use
 
 - Application (this repository)
-  - NextJS 14, pages router
+  - Next.js 16, Pages Router
   - NextAuth.js / Auth.js
   - tRPC: Frontend APIs
   - Prisma ORM
@@ -131,6 +131,7 @@ We built a monorepo using [pnpm](https://pnpm.io/motivation) and [turbo](https:/
 Requirements
 
 - Node.js 24 as specified in the [.nvmrc](.nvmrc)
+- The pnpm version pinned in `package.json` under `devEngines.packageManager`. The Docker setup uses Corepack 0.36.0; CI reads the same pin through `pnpm/setup`.
 - [Rust via rustup](https://rust-lang.org/tools/install/) and a native compiler/linker, for the AI gateway (which starts with `pnpm dev`, see [gateway setup](ai-gateway/README.md#run-locally)) and for the worker's native addon (compiled during the worker build, see [packages/native/README.md](packages/native/README.md)). Each crate pins its own toolchain in `rust-toolchain.toml`; rustup installs it on first use.
 - Docker to run the database locally
 - Clickhouse client
@@ -217,6 +218,11 @@ Europe/Berlin and are not woken with Cursor credentials.
 This repository keeps the shared agent setup in source control so developers
 using different tools can work against the same instructions, bootstrap, and
 MCP server catalog.
+
+The catalog includes Next DevTools for routes, compilation errors, and logs from
+a running `pnpm run dev:web` server. Run `pnpm run agents:sync`, reload your
+agent's MCP configuration, and select this checkout's server with `nextjs_index`.
+Use Playwright for browser interaction; see the [diagnostics guide](.agents/README.md#nextjs-runtime-diagnostics).
 
 - Canonical shared docs:
   - `.agents/AGENTS.md`
@@ -320,7 +326,6 @@ pnpm run db:seed:examples
   pnpm run dev
   pnpm --filter=web run dev # execute command only in one package
   pnpm tc                   # fast typecheck all packages
-  pnpm build:check          # Full Next.js build to alternate dir (can run parallel with dev server)
   ```
 
   In the root `package.json`, you can find scripts which are executed with turbo e.g. `turbo run dev`. These scripts are executed with the help of Turbo. Turbo executes the commands in all packages taking care of the correct order of execution. Task definitions can be found in the `turbo.config.js` file.
@@ -338,6 +343,51 @@ pnpm run db:seed:examples
 
 > [!NOTE]
 > If you find yourself stuck and want to clean the repo, execute `pnpm run nuke`. It will remove all node_modules and build files.
+
+### Toolchain diagnostics and dependency maintenance
+
+- Writable installs automatically deduplicate compatible dependency versions; review
+  the lockfile diff as usual. Frozen installs preserve the lockfile.
+- Use `pnpm add <package> --save-types` to add available companion types. For older
+  runtime majors, explicitly select matching `@types` versions: automatic selection
+  uses the catalog or latest eligible typings, not the runtime's major.
+- `pnpm change check` checks that the root, web, and worker package versions
+  agree. CI runs it too; release-it still owns releases and source version constants.
+- Rust build, lint, typecheck, and test scripts share one machine-wide slot across
+  worktrees using the same pnpm state directory. `pnpm tasks status` shows holders
+  and waiters. Persistent dev servers stay outside this group; direct Cargo commands
+  bypass it. This limits concurrent jobs, not compiler threads.
+- Turbo watch respects task inputs: Prisma regenerates on schema changes, not
+  ordinary shared TypeScript edits. Production caches exclude Next development output.
+- Turbo keeps successful task/cache hashes visible with `errors-only` logs. Its
+  shared worktree cache has a 7.5 GB cleanup target; eviction runs in the background.
+- `pnpm --filter web run analyze` opens Next's Turbopack bundle analyzer;
+  `pnpm --filter web run build-trace` opens a Turbopack trace when one is available.
+
+### Bundle analysis
+
+Run `pnpm --filter web run analyze` to inspect the production module graph at
+`http://localhost:4000`. Start with the route summary, select the client environment,
+and exclude async dependencies when investigating initial-load code. Follow import
+chains to identify why a large dependency is included. Graph sizes are not measured
+browser transfer sizes; confirm loading behavior in the browser.
+
+Save named snapshots before and after a change to compare them in the analyzer:
+
+```bash
+pnpm --filter web run analyze --output --snapshot before
+# Make the change, then capture its graph.
+pnpm --filter web run analyze --snapshot after
+```
+
+For scripts or agent analysis, export a saved graph as JSON Lines without rebuilding:
+
+```bash
+pnpm --filter web exec next analyze export --snapshot before > /tmp/langfuse-bundle-before.jsonl
+```
+
+Analysis files live under `web/.next/diagnostics/analyze`; keep them out of Git.
+The analyzer does not produce a deployable application build.
 
 ## System behavior
 
@@ -524,14 +574,21 @@ The background color of the following component will be `hsl(var(--primary))` an
 | --light-yellow                   | Light yellow for warning background                                | LevelColor                       |
 | --dark-yellow                    | Dark yellow for warning text                                       | LevelColor                       |
 | --light-green                    | Light green for success status badge background                    | StatusBadge                      |
-| --dark-green                     | Dark green for success status badge text and dot                   | StatusBadge                      |
+| --dark-green                     | Dark green for success text, badge text and dots (emerald-800)     | StatusBadge, Badge, Switch       |
 | --light-blue                     | Light blue for background of Staging label                         | LangfuseLogo                     |
-| --dark-blue                      | Dark blue for text and border of Staging label                     | LangfuseLogo                     |
+| --dark-blue                      | Dark blue for info text, links and badge text (blue-800)           | StatusBadge, Badge, Alert        |
 | --accent-light-blue              | Light blue accent for table link hover effect                      | TableLink                        |
 | --accent-dark-blue               | Dark blue accent for table link text                               | TableLink                        |
 | --find-match-selected-background | Background color for selected search matches                       | CodeMirrorEditor                 |
 | --find-match-selected-foreground | Foreground color for selected search matches                       | CodeMirrorEditor                 |
 | --find-match-background          | Background color for search matches                                | CodeMirrorEditor                 |
+| --surface-sunken                 | Off-white panel behind detail content (99%, lighter than zinc-50)  | Trace detail panel, nav sidebar  |
+| --surface-section                | Grey box behind every I/O section body in the trace preview        | IOSection, IOPreview, CodeView   |
+| --line-dotted                    | Dotted connector lines; dimmed in dark                             | dotted-line-y, prompt timeline   |
+| --surface                        | Sticky table chrome fill; follows --surface-context                | Table headers, footers           |
+| --observation-<type>-line        | Observation type colour for stroked icons and borders              | ItemTypeIcon, graph nodes        |
+| --observation-<type>-fill        | Observation type colour for fills under white icons                | ItemTypeTile, timeline bars      |
+| --primary-accent-fill            | Accent fill under white icons; darker than --primary-accent in dark | ItemTypeTile                     |
 
 ### Adding New Colors
 
@@ -583,7 +640,7 @@ This command also syncs standard OpenAPI `deprecated` flags and `**Deprecated:**
 To generate the server SDKs, run:
 
 ```sh
-npx fern-api generate --api server
+pnpm dlx fern-api@3.88.0 generate --api server
 ```
 
 **Note:** You need a signed in fern account to generate SDKs.

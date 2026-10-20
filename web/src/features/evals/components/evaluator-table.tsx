@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 import { encodeFiltersGeneric } from "@langfuse/shared";
 import { LevelCountsDisplay } from "@/src/components/level-counts-display";
 import { DataTable } from "@/src/components/table/data-table";
@@ -26,7 +26,7 @@ import { isEventTarget } from "@/src/features/evals/utils/typeHelpers";
 import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
 import { useOrderByState } from "@/src/features/orderBy";
 import { IdTableCell } from "@/src/components/design-system/table/components/IdTableCell/IdTableCell";
-import { ExternalLinkIcon, Pen } from "lucide-react";
+import { ExternalLinkIcon, Pen } from "@langfuse/icons";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { TablePeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/peek-evaluator-config-detail";
 import {
@@ -275,7 +275,11 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
               );
             }}
           >
-            <ExternalLinkIcon className="mr-1 h-3 w-3" />
+            <ExternalLinkIcon
+              size="base"
+              color="default"
+              __rawClassName="mr-1"
+            />
             View
           </Button>
         );
@@ -377,7 +381,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
           <div className="flex items-center gap-1">
             <IconOnlyButton
               key={id}
-              icon={<Pen className="h-4 w-4" />}
+              icon={<Pen size="base" />}
               label="Edit"
               aria-label="edit"
               disabledReason={
@@ -443,6 +447,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         <SearchableTableFilterLayout
           search={
             <TableSearchBar
+              size="large"
               key={queryFilter.draftResetKey}
               projectId={projectId}
               tableName={evaluatorFilterConfig.tableName}
@@ -543,6 +548,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                 setEditConfigId(null);
                 utils.evals.allConfigs.invalidate();
                 showSuccessToast({
+                  operation: "evaluator.update",
                   title: "Evaluator updated successfully",
                   description:
                     "Changes will automatically be reflected future evaluator runs",

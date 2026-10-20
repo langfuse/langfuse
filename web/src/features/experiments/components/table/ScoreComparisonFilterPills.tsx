@@ -5,7 +5,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { GitCompareArrows, X } from "lucide-react";
+import { GitCompareArrows, X } from "@langfuse/icons";
 import {
   describeScoreComparisonFilter,
   type ScoreComparisonFilter,
@@ -43,7 +43,7 @@ export const ScoreComparisonFilterPills = ({
             variant="secondary"
             className="flex max-w-full items-center gap-1 px-2 py-1 text-xs"
           >
-            <GitCompareArrows className="h-3 w-3 shrink-0" />
+            <GitCompareArrows size="sm" />
             <span className="truncate" title={label}>
               {label}
             </span>
@@ -69,7 +69,7 @@ export const ScoreComparisonFilterPills = ({
                 onRemove(filter);
               }}
             >
-              <X className="h-3 w-3" />
+              <X size="base" color="default" />
             </Button>
           </Badge>
         );

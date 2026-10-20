@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { SessionIO } from "@/src/features/sessions/SessionPages";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";

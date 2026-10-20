@@ -12,6 +12,7 @@
 
 import { toolRegistry, type McpFeatureModule } from "./registry";
 import { promptsFeature } from "./prompts";
+import { skillsFeature } from "./skills";
 import { observationsFeature } from "./observations";
 import { annotationQueuesFeature } from "./annotationQueues";
 import { commentsFeature } from "./comments";
@@ -25,11 +26,13 @@ import { evalsFeature } from "./evals";
 import { dashboardWidgetsFeature } from "./dashboardWidgets";
 import { feedbackFeature } from "./feedback";
 import { experimentsFeature } from "./experiments";
+import { externalMediaStorageFeature } from "./externalMediaStorage";
 import { monitorsFeature } from "./monitors";
 import { v4MigrationFeature } from "./v4Migration";
 
 const MCP_FEATURES = [
   promptsFeature,
+  skillsFeature,
   observationsFeature,
   annotationQueuesFeature,
   commentsFeature,
@@ -43,6 +46,7 @@ const MCP_FEATURES = [
   dashboardWidgetsFeature,
   feedbackFeature,
   experimentsFeature,
+  externalMediaStorageFeature,
   monitorsFeature,
   v4MigrationFeature,
 ] as const satisfies readonly McpFeatureModule[];

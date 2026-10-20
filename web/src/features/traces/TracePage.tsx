@@ -98,7 +98,9 @@ export function TracePage({
   return (
     <Page
       headerProps={{
-        title: trace.data.id,
+        // Route id, not the loaded one: the loaded trace may be the previous
+        // one kept as placeholder.
+        title: traceId,
         itemType: "TRACE",
         divider: false,
         breadcrumb: [
@@ -139,6 +141,7 @@ export function TracePage({
               compact
             />
             <TraceDetailActions
+              isPlaceholderData={trace.isPlaceholderData}
               trace={trace.data}
               traceContext={traceContext}
               timestamp={timestamp}
@@ -147,10 +150,11 @@ export function TracePage({
           </>
         ),
         // Mobile compact header: the same trace actions as full-width labeled
-        // menu rows (Share / Delete) for the `⋯` overflow, instead of the
+        // menu rows (Make Public / Delete) for the `⋯` overflow, instead of the
         // inline icon toolbar. Trace-to-trace nav is desktop-only.
         actionButtonsMenu: (
           <TraceDetailActions
+            isPlaceholderData={trace.isPlaceholderData}
             trace={trace.data}
             traceContext={traceContext}
             timestamp={timestamp}
@@ -165,6 +169,7 @@ export function TracePage({
           trace={trace.data}
           context={traceContext}
           truncatedAtObservations={trace.truncatedAtObservations}
+          isPlaceholderData={trace.isPlaceholderData}
         />
       </div>
     </Page>

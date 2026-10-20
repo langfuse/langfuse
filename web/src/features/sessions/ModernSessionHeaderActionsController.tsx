@@ -1,4 +1,4 @@
-import { CopyIcon, MoreVertical } from "lucide-react";
+import { CopyIcon, MoreVertical } from "@langfuse/icons";
 import { useSession } from "next-auth/react";
 
 import { HeaderActionButton } from "@/src/components/HeaderActionButton";
@@ -181,7 +181,7 @@ export function ModernSessionHeaderActionsController({
             {({ getTriggerProps }) => (
               <HeaderActionButton
                 label="Session actions"
-                icon={<MoreVertical className="h-4 w-4" />}
+                icon={<MoreVertical size="base" />}
                 {...getTriggerProps()}
               />
             )}

@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 /* eslint-disable @repo/no-null-render */
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/src/components/ui/button";
@@ -23,7 +23,7 @@ import {
   type supportedModels,
   type UIModelParams,
 } from "@langfuse/shared";
-import { InfoIcon, PlusIcon, Settings2 } from "lucide-react";
+import { InfoIcon, PlusIcon, Settings2 } from "@langfuse/icons";
 import {
   Popover,
   PopoverContent,
@@ -125,7 +125,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
           className="relative h-7 w-7"
           disabled={formDisabled}
         >
-          <Settings2 size={14} />
+          <Settings2 size="base" color="default" />
           {modelSettingsUsed && (
             <div className="bg-primary absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full" />
           )}
@@ -594,7 +594,7 @@ const ProviderOptionsInput = ({
           </span>
           <Tooltip>
             <TooltipTrigger>
-              <InfoIcon className="text-muted-foreground size-3" />
+              <InfoIcon size="sm" color="muted" />
             </TooltipTrigger>
             <TooltipContent className="max-w-[200px] p-2">
               Additional options to pass to the invocation. Please check your
@@ -714,7 +714,11 @@ function AddLlmConnectionSelectAction({ onOpen }: { onOpen: () => void }) {
     <>
       <SelectSeparator />
       <Button type="button" variant="secondary" onClick={onOpen}>
-        <PlusIcon className="mr-1.5 -ml-0.5 h-5 w-5" aria-hidden="true" />
+        <PlusIcon
+          size="base"
+          __rawClassName="mr-1.5 -ml-0.5"
+          aria-hidden="true"
+        />
         Add LLM Connection
       </Button>
     </>

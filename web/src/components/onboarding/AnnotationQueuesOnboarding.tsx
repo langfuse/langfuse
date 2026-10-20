@@ -2,7 +2,7 @@ import {
   SplashScreen,
   type ValueProposition,
 } from "@/src/components/ui/splash-screen";
-import { ClipboardCheck, Users, BarChart4, GitMerge } from "lucide-react";
+import { ClipboardCheck, Users, BarChart4, GitMerge } from "@langfuse/icons";
 import { CreateOrEditAnnotationQueueButton } from "@/src/features/annotation-queues";
 
 export function AnnotationQueuesOnboarding({

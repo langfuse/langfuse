@@ -1,0 +1,22 @@
+THIRD-PARTY SOFTWARE NOTICES
+
+The Langfuse worker's native addon (@langfuse/native) includes the
+third-party Rust crates listed below. Each license text is reproduced as
+distributed with the crates that use it.
+
+Licenses:
+{{#each overview}}
+  {{{name}}} ({{{count}}})
+{{/each}}
+{{#each licenses}}
+
+================================================================================
+{{{name}}}
+
+Used by:
+{{#each used_by}}
+  {{{crate.name}}} {{{crate.version}}}{{#if crate.repository}} <{{{crate.repository}}}>{{/if}}
+{{/each}}
+
+{{{text}}}
+{{/each}}

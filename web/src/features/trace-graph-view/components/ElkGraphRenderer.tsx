@@ -13,7 +13,7 @@ import {
   type D3ZoomEvent,
   type ZoomBehavior,
 } from "d3-zoom";
-import { ZoomIn, ZoomOut, Maximize } from "lucide-react";
+import { ZoomIn, ZoomOut, Maximize } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
 import { reportError } from "@/src/utils/reportError";
@@ -568,7 +568,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
           className="bg-background/80 h-7 w-7 backdrop-blur"
           title="Zoom in"
         >
-          <ZoomIn className="h-4 w-4" />
+          <ZoomIn size="base" color="default" />
         </Button>
         <Button
           onClick={() => zoomBy(1 / ZOOM_STEP)}
@@ -577,7 +577,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
           className="bg-background/80 h-7 w-7 backdrop-blur"
           title="Zoom out"
         >
-          <ZoomOut className="h-4 w-4" />
+          <ZoomOut size="base" color="default" />
         </Button>
         <Button
           onClick={handleFit}
@@ -586,7 +586,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
           className="bg-background/80 h-7 w-7 backdrop-blur"
           title="Fit to view"
         >
-          <Maximize className="h-4 w-4" />
+          <Maximize size="base" color="default" />
         </Button>
       </div>
     </div>

@@ -4,7 +4,7 @@ import {
   Combobox,
   type ComboboxOptionGroup,
 } from "@/src/components/ui/combobox";
-import { X } from "lucide-react";
+import { X } from "@langfuse/icons";
 import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
 import { formatRunRecency } from "@/src/features/experiments/fns/formatRunRecency";
 import {
@@ -114,7 +114,7 @@ export function ExperimentBaselineControls({
           title="Clear baseline"
           aria-label="Clear baseline"
         >
-          <X className="h-4 w-4" />
+          <X size="base" color="default" />
         </Button>
       )}
     </div>

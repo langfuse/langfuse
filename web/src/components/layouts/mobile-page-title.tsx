@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable @repo/component-file-structure */
 import { ItemBadge } from "@/src/components/ItemBadge";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import { MobilePageActionsContent } from "@/src/components/layouts/mobile-page-actions-content";
@@ -14,7 +14,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { MoreHorizontal } from "lucide-react";
+import { cn } from "@/src/utils/tailwind";
+import { MoreHorizontal } from "@langfuse/icons";
 import { useRef, useState } from "react";
 
 /**
@@ -36,7 +37,6 @@ export const MobilePageTitle = ({
 }) => {
   const {
     title,
-    titleContent,
     titleTooltip,
     help,
     itemType,
@@ -66,7 +66,13 @@ export const MobilePageTitle = ({
   );
 
   return (
-    <div className="bg-background border-b px-3 pt-2 pb-3">
+    <div
+      className={cn(
+        "bg-background px-3 pt-2",
+        tabsProps ? "pb-0" : "pb-3",
+        !tabsProps && headerProps.divider !== false && "border-b",
+      )}
+    >
       {/* Context line: org / project switcher plus any page-supplied
           breadcrumb items (detail pages rely on these for back-navigation). */}
       <div className="flex items-center gap-2">
@@ -95,9 +101,7 @@ export const MobilePageTitle = ({
           title={title}
           className="text-primary min-w-0 truncate text-base leading-tight font-bold"
         >
-          {titleContent ? (
-            titleContent
-          ) : titleTooltip ? (
+          {titleTooltip ? (
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -156,7 +160,7 @@ export const MobilePageTitle = ({
                 aria-label="More actions"
                 className="ml-auto shrink-0"
               >
-                <MoreHorizontal className="h-4 w-4" />
+                <MoreHorizontal size="base" color="default" />
               </Button>
             </PopoverTrigger>
             <MobilePageActionsContent
@@ -192,7 +196,10 @@ export const MobilePageTitle = ({
         <PageHeaderControlsSlotTarget />
       </div>
 
-      {tabsProps && <PageTabs {...tabsProps} scrollable className="mt-2" />}
+      {/** The strip bleeds through the block padding so its divider spans the full width. */}
+      {tabsProps && (
+        <PageTabs {...tabsProps} scrollable className="-mx-3 mt-2" />
+      )}
     </div>
   );
 };

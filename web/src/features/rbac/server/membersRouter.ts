@@ -21,6 +21,7 @@ import {
   sendMembershipInvitationEmail,
   getUserProjectRoles,
   getUserProjectRolesCount,
+  escapeSqlLikePattern,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
@@ -36,7 +37,7 @@ import { allMembersRoutes } from "@/src/features/rbac/server/allMembersRoutes";
 import { allInvitesRoutes } from "@/src/features/rbac/server/allInvitesRoutes";
 import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
 import {
-  featurePreviewFlags,
+  userFeaturePreviewFlags,
   setUserFeaturePreviewWithAuthorization,
 } from "@/src/features/feature-flags/server";
 
@@ -45,11 +46,11 @@ function buildUserSearchFilter(searchQuery: string | undefined | null) {
     return Prisma.empty;
   }
 
-  const q = searchQuery;
+  const pattern = `%${escapeSqlLikePattern(searchQuery)}%`;
   const searchConditions: Prisma.Sql[] = [];
 
-  searchConditions.push(Prisma.sql`u.name ILIKE ${`%${q}%`}`);
-  searchConditions.push(Prisma.sql`u.email ILIKE ${`%${q}%`}`);
+  searchConditions.push(Prisma.sql`u.name ILIKE ${pattern}`);
+  searchConditions.push(Prisma.sql`u.email ILIKE ${pattern}`);
 
   return searchConditions.length > 0
     ? Prisma.sql` AND (${Prisma.join(searchConditions, " OR ")})`
@@ -731,7 +732,7 @@ export const membersRouter = createTRPCRouter({
       z.object({
         orgId: z.string(),
         userId: z.string(),
-        flag: z.enum(featurePreviewFlags),
+        flag: z.enum(userFeaturePreviewFlags),
         enabled: z.boolean(),
       }),
     )

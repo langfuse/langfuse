@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 import { useRouter } from "next/router";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
@@ -13,7 +13,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { AlertTriangle, UserCircle2Icon } from "lucide-react";
+import { AlertTriangle, UserCircle2Icon } from "@langfuse/icons";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { DeleteEvalConfigButton } from "@/src/components/deleteButton";
 import { DeactivateEvalConfig } from "@/src/features/evals/components/deactivate-config";
@@ -185,7 +185,7 @@ const PeekViewEvaluatorConfigDetail = ({
               {evalConfig.evalTemplate.projectId === null ? (
                 <LangfuseIcon size={16} />
               ) : (
-                <UserCircle2Icon className="h-4 w-4" />
+                <UserCircle2Icon size="base" />
               )}
             </TooltipTrigger>
             <TooltipContent>
@@ -213,6 +213,7 @@ const PeekViewEvaluatorConfigDetail = ({
                 setIsEditMode(false);
                 utils.evals.invalidate();
                 showSuccessToast({
+                  operation: "evaluator.update",
                   title: "Running Evaluator updated",
                   description: "The evaluator configuration has been updated.",
                 });

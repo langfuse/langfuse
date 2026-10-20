@@ -2,7 +2,7 @@
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { X } from "lucide-react";
+import { X } from "@langfuse/icons";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -85,7 +85,7 @@ const SupportDrawerContent = ({
               onClick={close}
               aria-label="Close"
             >
-              <X className="h-4 w-4" />
+              <X size="base" color="default" />
             </Button>
           )}
         </div>

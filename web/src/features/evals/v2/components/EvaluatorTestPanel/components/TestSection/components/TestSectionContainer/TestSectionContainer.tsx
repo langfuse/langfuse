@@ -12,7 +12,10 @@ import { TestRunCard } from "@/src/features/evals/v2/components/EvaluatorTestPan
 import { toTestResultPanelState } from "@/src/features/evals/v2/fns/evaluatorTesting/toTestResultPanelState";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 
-const RESULT_TITLES: Record<EvalTemplateType, TestResultPanelTitle> = {
+const RESULT_TITLES: Record<
+  Exclude<EvalTemplateType, "FACET">,
+  TestResultPanelTitle
+> = {
   LLM_AS_JUDGE: "LLM Output",
   CODE: "Code Output",
   DECISION_MODEL: "Decision Model Output",

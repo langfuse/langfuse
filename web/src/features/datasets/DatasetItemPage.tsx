@@ -14,12 +14,10 @@ import { Label } from "@/src/components/ui/label";
 import { Button } from "@/src/components/ui/button";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { History, PanelRightOpen } from "lucide-react";
+import { History, PanelRightOpen } from "@langfuse/icons";
 import { useState } from "react";
-import {
-  RouteParamsPendingFallback,
-  useReadyRouteParams,
-} from "@/src/hooks/useReadyRouteParams";
+import { RouteParamsPendingFallback } from "@/src/components/RouteParamsPendingFallback/RouteParamsPendingFallback";
+import { useReadyRouteParams } from "@/src/hooks/useReadyRouteParams";
 
 export default function DatasetItemPage() {
   const route = useReadyRouteParams(["projectId", "datasetId", "itemId"]);
@@ -142,9 +140,9 @@ function DatasetItemContent({
                   setRenderMode(value === "json" ? "json" : "pretty")
                 }
               >
-                <Tabs.List size="sm">
-                  <Tabs.Trigger value="pretty" size="sm" label="Formatted" />
-                  <Tabs.Trigger value="json" size="sm" label="Raw" />
+                <Tabs.List variant="inset" size="sm">
+                  <Tabs.Trigger value="pretty" label="Formatted" />
+                  <Tabs.Trigger value="json" label="Raw" />
                 </Tabs.List>
               </Tabs>
             )}
@@ -160,12 +158,16 @@ function DatasetItemContent({
             >
               {isVersionPanelOpen ? (
                 <>
-                  <History className="mr-2 h-4 w-4" />
+                  <History size="base" color="default" __rawClassName="mr-2" />
                   Hide Version History
                 </>
               ) : (
                 <>
-                  <PanelRightOpen className="mr-2 h-4 w-4" />
+                  <PanelRightOpen
+                    size="base"
+                    color="default"
+                    __rawClassName="mr-2"
+                  />
                   Show Version History
                 </>
               )}

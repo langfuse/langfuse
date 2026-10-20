@@ -26,8 +26,14 @@ import {
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
 import * as shared from "@langfuse/shared/src/server";
+import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
 import { TraceBatchMetricsRunner } from "../features/traceBatching/TraceBatchMetricsRunner";
+import {
+  getTraceBatchFirstKeys,
+  getTraceBatchReadinessKeys,
+  getTraceBatchShard,
+} from "../features/traceBatching/traceBatchReadiness";
 import {
   prepareLocalityPartials,
   selectTraceBatches,
@@ -38,6 +44,16 @@ import {
 import { otelIngestionQueueProcessorBuilder } from "../queues/otelIngestionQueue";
 import { traceBatchQueueProcessor } from "../queues/traceBatchQueue";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
+import {
+  ensureDefaultTopicFacets,
+  isTopicsProcessingActive,
+  listTopicSummaries,
+  type TopicsModels,
+} from "@langfuse/shared/topics/server";
+import {
+  summarizeTopicTraceFacets,
+  embedTopicSummaries,
+} from "../features/topics/models";
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const original =
@@ -51,8 +67,53 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
     recordGauge: vi.fn(),
     recordIncrement: vi.fn(),
     getS3EventStorageClient: vi.fn(),
+    getTracingReadinessSettings: vi.fn(original.getTracingReadinessSettings),
   };
 });
+
+const topicsProjects = vi.hoisted(() => new Set<string>());
+vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@langfuse/shared/topics/server")>()),
+  isTopicsProjectEnabled: (projectId: string) => topicsProjects.has(projectId),
+  isTopicsProcessingActive: vi.fn(async (projectId: string) =>
+    topicsProjects.has(projectId),
+  ),
+  getEnabledTopicsModels: async (projectIds: string[]) =>
+    new Map(
+      projectIds
+        .filter((id) => topicsProjects.has(id))
+        .map((projectId) => {
+          const slot = (
+            name: "summary" | "embedding" | "clustering",
+            model: string,
+          ) => ({
+            slot: name,
+            provider: "bedrock",
+            adapter: "bedrock",
+            model,
+            connection: { secretKey: "encrypted" },
+          });
+          return [
+            projectId,
+            {
+              projectId,
+              enabled: true,
+              summary: slot("summary", "us.openai.gpt-5.6-luna"),
+              embedding: {
+                ...slot("embedding", "eu.cohere.embed-v4:0"),
+                dimensions: 1024,
+              },
+              clustering: slot("clustering", "us.openai.gpt-5.6-terra"),
+            } as TopicsModels,
+          ] as const;
+        }),
+    ),
+}));
+
+vi.mock("../features/topics/models", () => ({
+  summarizeTopicTraceFacets: vi.fn(),
+  embedTopicSummaries: vi.fn(),
+}));
 
 vi.mock("../features/evaluation/observationEval", async (importOriginal) => ({
   ...(await importOriginal<
@@ -410,11 +471,115 @@ describe("trace batch selection", () => {
     expect(all.every((batch) => batch.length <= 5)).toBe(true);
     expect(new Set(all.flat().map(({ member }) => member)).size).toBe(10);
   });
+
+  describe("weight limits", () => {
+    const weighted = (
+      traceId: string,
+      eventUpdateCount: number,
+      serializedEventBytes = eventUpdateCount * 1_000,
+    ): PendingTrace => ({
+      ...pendingTrace("project", traceId, 1, 0, minute),
+      estimates: { eventUpdateCount, serializedEventBytes },
+    });
+    const limits = { maxEventUpdates: 10, maxSerializedEventBytes: 50_000 };
+    const weightOf = (batch: PendingTrace[]) =>
+      batch.reduce(
+        (total, { estimates }) => ({
+          events: total.events + (estimates?.eventUpdateCount ?? 0),
+          bytes: total.bytes + (estimates?.serializedEventBytes ?? 0),
+        }),
+        { events: 0, bytes: 0 },
+      );
+
+    it.each(["project", "locality"] as const)(
+      "closes %s batches before the event or byte budget and isolates overweight traces",
+      (strategy) => {
+        const candidates = [
+          weighted("a", 4),
+          weighted("b", 4),
+          weighted("c", 4),
+          weighted("heavy", 25),
+          weighted("bytes-1", 1, 30_000),
+          weighted("bytes-2", 1, 30_000),
+          { ...pendingTrace("project", "unknown", 1, 0, minute) },
+        ];
+
+        const batches = selectTraceBatches(candidates, 60, strategy, limits);
+
+        expect(batches.flat()).toHaveLength(candidates.length);
+        for (const batch of batches) {
+          if (batch.length === 1) continue;
+          const { events, bytes } = weightOf(batch);
+          expect(events).toBeLessThanOrEqual(limits.maxEventUpdates);
+          expect(bytes).toBeLessThanOrEqual(limits.maxSerializedEventBytes);
+        }
+        expect(
+          batches.find((batch) =>
+            batch.some(({ trace }) => trace.traceId === "heavy"),
+          ),
+        ).toHaveLength(1);
+        expect(
+          batches.some(
+            (batch) =>
+              batch.some(({ trace }) => trace.traceId === "bytes-1") &&
+              batch.some(({ trace }) => trace.traceId === "bytes-2"),
+          ),
+        ).toBe(false);
+        // Without budgets the same candidates fit one batch.
+        expect(selectTraceBatches(candidates, 60, strategy)).toHaveLength(1);
+      },
+    );
+
+    it("packs light locality neighbors of a heavy trace into full batches", () => {
+      const at = (
+        traceId: string,
+        start: number,
+        eventUpdateCount: number,
+      ): PendingTrace => ({
+        ...pendingTrace("project", traceId, 1, start, start),
+        estimates: {
+          eventUpdateCount,
+          serializedEventBytes: eventUpdateCount * 1_000,
+        },
+      });
+      // Locality order: two light traces, the heavy trace, six light traces.
+      const candidates = [
+        at("light-0", 0, 1),
+        at("light-1", 0, 1),
+        at("heavy", minute, 9),
+        ...Array.from({ length: 6 }, (_, index) =>
+          at(`light-${index + 2}`, 2 * minute, 1),
+        ),
+      ];
+
+      const batches = selectTraceBatches(candidates, 4, "locality", limits);
+
+      expect(batches.flat()).toHaveLength(candidates.length);
+      expect(batches).toHaveLength(3);
+      expect(
+        batches.find((batch) =>
+          batch.some(({ trace }) => trace.traceId === "heavy"),
+        ),
+      ).toHaveLength(1);
+    });
+
+    it("does not coalesce locality partials past the weight budget", () => {
+      const result = prepareLocalityPartials(
+        [[weighted("a", 6)], [weighted("b", 6)], [weighted("c", 4)]],
+        60,
+        limits,
+      );
+      const all = [...result.dispatch, ...result.carry];
+
+      expect(all.flat()).toHaveLength(3);
+      expect(all.every((batch) => weightOf(batch).events <= 10)).toBe(true);
+      expect(all).toHaveLength(2);
+    });
+  });
 });
 
 describe("trace micro-batch scheduling with Redis", () => {
-  const dueKey = "{trace-batch}:due";
-  const stateKey = "{trace-batch}:state";
+  const { due: dueKey, state: stateKey } = getTraceBatchReadinessKeys(0);
   const originalEnabled = env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED;
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   const originalDispatcherEnabled = env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED;
@@ -426,6 +591,12 @@ describe("trace micro-batch scheduling with Redis", () => {
   const originalMaxSize = env.LANGFUSE_TRACE_BATCH_MAX_SIZE;
   const originalPendingTtl = env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS;
   const originalIdle = env.LANGFUSE_TRACE_BATCH_IDLE_MS;
+  const originalFirstTtl = env.LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS;
+  const originalShards = env.LANGFUSE_TRACE_BATCH_SHARD_COUNT;
+  const originalMaxTraceEventUpdates =
+    env.LANGFUSE_TRACE_BATCH_MAX_TRACE_EVENT_UPDATES;
+  const originalMaxTraceBytes =
+    env.LANGFUSE_TRACE_BATCH_MAX_TRACE_SERIALIZED_BYTES;
   let queue: Queue<TQueueJobTypes[QueueName.TraceBatch]>;
   let connection: NonNullable<ReturnType<typeof createNewRedisInstance>>;
   const runners: TraceBatchDispatcher[] = [];
@@ -458,6 +629,18 @@ describe("trace micro-batch scheduling with Redis", () => {
       );
   }
 
+  async function clearReadiness() {
+    for (let shard = 0; shard < env.LANGFUSE_TRACE_BATCH_SHARD_COUNT; shard++) {
+      const keys = getTraceBatchReadinessKeys(shard);
+      await client().del(
+        keys.due,
+        keys.state,
+        ...getTraceBatchFirstKeys(shard, Date.now()).keys,
+      );
+    }
+    await client().del("{trace-batch}:dispatcher");
+  }
+
   beforeEach(async () => {
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
     env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED = "true";
@@ -467,8 +650,13 @@ describe("trace micro-batch scheduling with Redis", () => {
     env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = 1;
     env.LANGFUSE_TRACE_BATCH_STRATEGY = "project";
     env.LANGFUSE_TRACE_BATCH_MAX_SIZE = 60;
+    env.LANGFUSE_TRACE_BATCH_IDLE_MS = 600_000;
     env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = 7_200_000;
-    await client().del(dueKey, stateKey, "{trace-batch}:dispatcher");
+    env.LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS = 86_400_000;
+    env.LANGFUSE_TRACE_BATCH_SHARD_COUNT = 1;
+    // The unset default is 2 minutes on DEV; pin the production idle time.
+    env.LANGFUSE_TRACE_BATCH_IDLE_MS = 600_000;
+    await clearReadiness();
     const redisConnection = createNewRedisInstance();
     if (!redisConnection) throw new Error("Redis is required for this test");
     connection = redisConnection;
@@ -483,6 +671,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     runners.length = 0;
     vi.restoreAllMocks();
     vi.clearAllMocks();
+    await clearReadiness();
     env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = originalEnabled;
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
     env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED = originalDispatcherEnabled;
@@ -493,12 +682,239 @@ describe("trace micro-batch scheduling with Redis", () => {
     env.LANGFUSE_TRACE_BATCH_MAX_SIZE = originalMaxSize;
     env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = originalPendingTtl;
     env.LANGFUSE_TRACE_BATCH_IDLE_MS = originalIdle;
+    env.LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS = originalFirstTtl;
+    env.LANGFUSE_TRACE_BATCH_SHARD_COUNT = originalShards;
+    env.LANGFUSE_TRACE_BATCH_MAX_TRACE_EVENT_UPDATES =
+      originalMaxTraceEventUpdates;
+    env.LANGFUSE_TRACE_BATCH_MAX_TRACE_SERIALIZED_BYTES = originalMaxTraceBytes;
     await queue.obliterate({ force: true });
     await queue.close();
     connection.disconnect();
-    await client().del(dueKey, stateKey, "{trace-batch}:dispatcher");
   });
   afterAll(() => client().disconnect());
+
+  it("re-dispatches late arrivals with the earliest start of the whole trace", async () => {
+    env.LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS = 600;
+    const start = Date.now() - 20 * 60_000;
+    await trackTraceBatchActivity("project", [event("late-trace", start)]);
+    const trackedAt = Date.now();
+    await vi.waitFor(() =>
+      expect(Date.now() - trackedAt).toBeGreaterThanOrEqual(400),
+    );
+    await makeDue("project", "late-trace");
+    await runner().processBatch();
+    const [first] = await queue.getJobs(["wait"]);
+    expect(first.data.payload.traces[0].minStart).toBe(start);
+    expect(await client().zcard(dueKey)).toBe(0);
+    const dispatchedAt = Date.now();
+    await vi.waitFor(() =>
+      expect(Date.now() - dispatchedAt).toBeGreaterThanOrEqual(300),
+    );
+
+    const lateStart = start + 10 * 60_000;
+    await trackTraceBatchActivity("project", [event("late-trace", lateStart)]);
+    await makeDue("project", "late-trace");
+    await runner().processBatch();
+    const jobs = await queue.getJobs(["wait"]);
+    expect(jobs).toHaveLength(2);
+    const later = jobs.find((job) => job.id !== first.id)!;
+    expect(later.data.payload.traces[0]).toMatchObject({
+      minStart: start,
+      maxStart: lateStart,
+    });
+    expect(later.data.payload.traces[0].revision).not.toBe(
+      first.data.payload.traces[0].revision,
+    );
+    const backdatedStart = start + 3 * 60_000;
+    await trackTraceBatchActivity("project", [
+      event("late-trace", backdatedStart),
+    ]);
+    await makeDue("project", "late-trace");
+    await runner().processBatch();
+    const backdated = (await queue.getJobs(["wait"])).find(
+      (job) => job.id !== first.id && job.id !== later.id,
+    )!;
+    expect(backdated.data.payload.traces[0]).toMatchObject({
+      minStart: start,
+      maxStart: lateStart,
+    });
+  });
+
+  it("keeps abandoned pending keys through idle time and the recovery grace", async () => {
+    env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = 200;
+    await trackTraceBatchActivity("project", [event("long-idle")], 500);
+    const due = Number(
+      await client().zscore(dueKey, member("project", "long-idle")),
+    );
+    for (const key of [dueKey, stateKey])
+      expect(Number(await client().pexpiretime(key))).toBeGreaterThanOrEqual(
+        due + 200,
+      );
+    await vi.waitFor(() =>
+      expect(Date.now()).toBeGreaterThanOrEqual(due + 100),
+    );
+    expect(await client().exists(dueKey, stateKey)).toBe(2);
+    await vi.waitFor(async () =>
+      expect(await client().exists(dueKey, stateKey)).toBe(0),
+    );
+  });
+
+  it("expires first-seen history natively while keeping pending state independently", async () => {
+    env.LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS = 150;
+    const first = Date.now() - 600_000;
+    await trackTraceBatchActivity("project", [event("history", first)]);
+    const firstKeys = getTraceBatchFirstKeys(0, Date.now()).keys;
+    expect(
+      (await Promise.all(firstKeys.map((key) => client().hlen(key)))).reduce(
+        (sum, count) => sum + count,
+        0,
+      ),
+    ).toBe(1);
+    await makeDue("project", "history");
+    await runner().processBatch();
+    await vi.waitFor(async () => {
+      expect(await client().exists(...firstKeys)).toBe(0);
+    });
+    const next = first + 300_000;
+    await trackTraceBatchActivity("project", [event("history", next)]);
+    const state = JSON.parse(
+      (await client().hget(stateKey, member("project", "history")))!,
+    );
+    expect(state).toMatchObject({
+      minStart: next,
+      eventUpdateCount: 1,
+      serializedEventBytes: 100,
+    });
+    expect(await client().pttl(dueKey)).toBeGreaterThan(150);
+  });
+
+  it("distributes skewed projects by trace and dispatches every shard with single-slot scripts", async () => {
+    const shardCount = 64;
+    env.LANGFUSE_TRACE_BATCH_SHARD_COUNT = shardCount;
+    const evaluate = client().eval.bind(client());
+    const slots: string[][] = [];
+    vi.spyOn(client(), "eval").mockImplementation(((
+      script: string,
+      count: number,
+      ...args: (string | number | Buffer)[]
+    ) => {
+      slots.push(args.slice(0, count).map(String));
+      return evaluate(script, count, ...args);
+    }) as typeof evaluate);
+    const evaluateCached = client().evalsha.bind(client());
+    vi.spyOn(client(), "evalsha").mockImplementation(((
+      scriptHash: string,
+      count: number,
+      ...args: (string | number | Buffer)[]
+    ) => {
+      slots.push(args.slice(0, count).map(String));
+      return evaluateCached(scriptHash, count, ...args);
+    }) as typeof evaluateCached);
+    const count = 2_000;
+    for (let project = 0; project < 11; project++) {
+      const size = project === 0 ? 600 : 140;
+      await trackTraceBatchActivity(
+        `project-${project}`,
+        Array.from({ length: size }, (_, i) => event(`trace-${project}-${i}`)),
+      );
+    }
+    const counts = [];
+    for (let shard = 0; shard < shardCount; shard++) {
+      const { due } = getTraceBatchReadinessKeys(shard);
+      const members = await client().zrange(due, 0, -1);
+      counts.push(members.length);
+      for (const entry of members)
+        expect(getTraceBatchShard(entry)).toBe(shard);
+      if (members.length)
+        await client().zadd(
+          due,
+          ...members.flatMap((entry) => [Date.now() - 1_000, entry]),
+        );
+    }
+    expect(counts.reduce((sum, n) => sum + n, 0)).toBe(count);
+    expect(Math.max(...counts)).toBeLessThanOrEqual((1.5 * count) / shardCount);
+    await runner().processBatch();
+    const dispatched = (await queue.getJobs(["wait"])).flatMap(
+      (job) => job.data.payload.traces,
+    );
+    expect(dispatched).toHaveLength(count);
+    expect(
+      new Set(
+        dispatched.map(({ projectId, traceId }) => member(projectId, traceId)),
+      ).size,
+    ).toBe(count);
+    for (const keys of slots) {
+      expect(new Set(keys.map((key) => key.match(/\{[^}]+\}/)?.[0])).size).toBe(
+        1,
+      );
+    }
+  });
+
+  it.each(["project", "locality"] as const)(
+    "packs one project's traces across readiness shards with %s",
+    async (strategy) => {
+      env.LANGFUSE_TRACE_BATCH_SHARD_COUNT = 16;
+      env.LANGFUSE_TRACE_BATCH_STRATEGY = strategy;
+      const traceIds = Array.from(
+        { length: 60 },
+        (_, index) => `cross-shard-${index}`,
+      );
+      await trackTraceBatchActivity(
+        "project",
+        traceIds.map((traceId) => event(traceId)),
+      );
+      for (const traceId of traceIds) {
+        const entry = member("project", traceId);
+        await client().zadd(
+          getTraceBatchReadinessKeys(getTraceBatchShard(entry)).due,
+          Date.now() - 1_000,
+          entry,
+        );
+      }
+      await runner().processBatch();
+      const jobs = await queue.getJobs(["wait"]);
+      expect(jobs).toHaveLength(1);
+      expect(jobs[0].data.payload.traces).toHaveLength(60);
+      for (let shard = 0; shard < 16; shard++) {
+        const { due, state } = getTraceBatchReadinessKeys(shard);
+        expect(await client().zcard(due)).toBe(0);
+        expect(await client().hlen(state)).toBe(0);
+      }
+    },
+  );
+
+  it("acknowledges enqueued batches by shard across a hydration window", async () => {
+    env.LANGFUSE_TRACE_BATCH_SHARD_COUNT = 16;
+    env.LANGFUSE_TRACE_BATCH_MAX_SIZE = 30;
+    const traceIds = Array.from(
+      { length: 120 },
+      (_, index) => `trace-${index}`,
+    );
+    await trackTraceBatchActivity(
+      "project",
+      traceIds.map((traceId) => event(traceId)),
+    );
+    for (const traceId of traceIds) {
+      const entry = member("project", traceId);
+      await client().zadd(
+        getTraceBatchReadinessKeys(getTraceBatchShard(entry)).due,
+        Date.now() - 1_000,
+        entry,
+      );
+    }
+    const evaluate = vi.spyOn(client(), "evalsha");
+    await runner().processBatch();
+    expect(await queue.getWaitingCount()).toBe(4);
+    const acknowledgements = evaluate.mock.calls.filter(
+      ([, keyCount]) => Number(keyCount) > 2,
+    );
+    expect(acknowledgements.length).toBeLessThanOrEqual(16);
+    for (let shard = 0; shard < 16; shard++) {
+      const { due, state } = getTraceBatchReadinessKeys(shard);
+      expect(await client().zcard(due)).toBe(0);
+      expect(await client().hlen(state)).toBe(0);
+    }
+  });
 
   it("samples prefixed map memory and paused/delayed queue work, then reports drained zeros", async () => {
     const now = Date.now();
@@ -522,11 +938,11 @@ describe("trace micro-batch scheduling with Redis", () => {
     const evaluate = vi.spyOn(client(), "eval");
     await metrics["execute"]();
 
-    for (const key of ["due", "state"]) {
+    for (const key of ["due", "state", "first"]) {
       expect(recordGauge).toHaveBeenCalledWith(
         "langfuse.trace_batch.redis_key_entries",
         1,
-        { key, unit: "records" },
+        { key, shard: "total", unit: "records" },
       );
       const sample = vi
         .mocked(recordGauge)
@@ -537,13 +953,16 @@ describe("trace micro-batch scheduling with Redis", () => {
         );
       expect(Number(sample?.[1])).toBeGreaterThan(0);
     }
-    for (const type of ["waiting", "delayed"]) {
-      expect(recordGauge).toHaveBeenCalledWith(
-        "langfuse.trace_batch.queue_depth",
-        type === "waiting" ? 2 : 1,
-        { type, unit: "records" },
-      );
-    }
+    expect(recordGauge).toHaveBeenCalledWith(
+      "langfuse.trace_batch.queue_depth",
+      1,
+      { type: "delayed", unit: "records" },
+    );
+    expect(recordGauge).not.toHaveBeenCalledWith(
+      "langfuse.trace_batch.queue_depth",
+      expect.anything(),
+      expect.objectContaining({ type: "waiting" }),
+    );
     expect(recordGauge).toHaveBeenCalledWith(
       "langfuse.trace_batch.queue_waiting_head_age_ms",
       5_000,
@@ -553,7 +972,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     clock.mockReturnValue(now + 30_000);
     await metrics["execute"]();
     expect(evaluate).toHaveBeenCalledTimes(1);
-    await client().del(dueKey, stateKey);
+    await clearReadiness();
     await queue.drain(true);
     vi.mocked(recordGauge).mockClear();
     clock.mockReturnValue(now + 60_000);
@@ -563,7 +982,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       "langfuse.trace_batch.active_reads",
       0,
     );
-    expect(vi.mocked(recordGauge).mock.calls).toHaveLength(10);
+    expect(vi.mocked(recordGauge).mock.calls).toHaveLength(9);
     expect(
       vi.mocked(recordGauge).mock.calls.every(([, value]) => value === 0),
     ).toBe(true);
@@ -659,6 +1078,331 @@ describe("trace micro-batch scheduling with Redis", () => {
     ).toBe(true);
   });
 
+  it("excludes oversized traces from dispatch, removes their state, and reports their IDs", async () => {
+    env.LANGFUSE_TRACE_BATCH_MAX_TRACE_EVENT_UPDATES = 3;
+    env.LANGFUSE_TRACE_BATCH_MAX_TRACE_SERIALIZED_BYTES = 1_000;
+    const warn = vi.spyOn(shared.logger, "warn");
+    await trackTraceBatchActivity("project", [
+      ...Array.from({ length: 4 }, (_, index) =>
+        event("many-updates", 1_000_000 + index),
+      ),
+      event("large-input", 1_000_000, 5_000),
+      event("small", 1_000_000),
+    ]);
+    await makeDue("project", "many-updates", "large-input", "small");
+
+    await runner().processBatch();
+
+    const jobs = await queue.getJobs(["wait"]);
+    expect(
+      jobs.map((job) => job.data.payload.traces.map(({ traceId }) => traceId)),
+    ).toEqual([["small"]]);
+    expect(await client().zcard(dueKey)).toBe(0);
+    expect(await client().hlen(stateKey)).toBe(0);
+    for (const [traceId, reason] of [
+      ["many-updates", "event_updates"],
+      ["large-input", "serialized_bytes"],
+    ] as const) {
+      expect(recordIncrement).toHaveBeenCalledWith(
+        "langfuse.trace_batch.excluded_traces",
+        1,
+        { reason, strategy: "project" },
+      );
+      expect(warn).toHaveBeenCalledWith(
+        "Trace batch excluded oversized trace",
+        expect.objectContaining({ projectId: "project", traceId, reason }),
+      );
+    }
+    await trackTraceBatchActivity("project", [
+      event("many-updates", 1_000_004),
+      event("large-input", 1_000_001),
+    ]);
+    for (const [traceId, eventUpdateCount, serializedEventBytes] of [
+      ["many-updates", 5, 500],
+      ["large-input", 2, 5_100],
+    ] as const)
+      expect(
+        JSON.parse(
+          (await client().hget(stateKey, member("project", traceId)))!,
+        ),
+      ).toMatchObject({ eventUpdateCount, serializedEventBytes });
+    await makeDue("project", "many-updates", "large-input");
+    await runner().processBatch();
+    expect(await queue.getWaitingCount()).toBe(1);
+    expect(await client().zcard(dueKey)).toBe(0);
+    expect(await client().hlen(stateKey)).toBe(0);
+  });
+
+  it("uses retained full-trace estimates for batch budgets after successful dispatch", async () => {
+    const original = env.LANGFUSE_TRACE_BATCH_MAX_BATCH_EVENT_UPDATES;
+    env.LANGFUSE_TRACE_BATCH_MAX_BATCH_EVENT_UPDATES = 6;
+    try {
+      const ingest = async (start: number) => {
+        await trackTraceBatchActivity("project", [
+          event("a", start),
+          event("a", start),
+          event("b", start),
+          event("b", start),
+        ]);
+        await makeDue("project", "a", "b");
+        await runner().processBatch();
+      };
+      await ingest(1_000_000);
+      const [first] = await queue.getJobs(["wait"]);
+      expect(first.data.payload.traces).toHaveLength(2);
+      await ingest(1_000_001);
+      const lateJobs = (await queue.getJobs(["wait"])).filter(
+        (job) => job.id !== first.id,
+      );
+      expect(lateJobs).toHaveLength(2);
+      expect(lateJobs.flatMap((job) => job.data.payload.traces)).toHaveLength(
+        2,
+      );
+      for (const job of lateJobs) {
+        expect(job.data.payload.traces).toHaveLength(1);
+        expect(job.data.payload.traces[0].minStart).toBe(1_000_000);
+      }
+      expect(recordDistribution).toHaveBeenCalledWith(
+        "langfuse.trace_batch.estimated_event_update_count",
+        4,
+        { scope: "trace", strategy: "project" },
+      );
+    } finally {
+      env.LANGFUSE_TRACE_BATCH_MAX_BATCH_EVENT_UPDATES = original;
+    }
+  });
+
+  it("does not report an oversized trace as excluded when new activity keeps it pending", async () => {
+    env.LANGFUSE_TRACE_BATCH_MAX_TRACE_EVENT_UPDATES = 3;
+    const warn = vi.spyOn(shared.logger, "warn");
+    await trackTraceBatchActivity(
+      "project",
+      Array.from({ length: 4 }, (_, index) =>
+        event("reactivated", 1_000_000 + index),
+      ),
+    );
+    await makeDue("project", "reactivated");
+    const evaluate = client().evalsha.bind(client());
+    let reactivated = false;
+    vi.spyOn(client(), "evalsha").mockImplementation((async (
+      scriptHash: string,
+      keyCount: number,
+      ...args: (string | number)[]
+    ) => {
+      if (
+        !reactivated &&
+        keyCount > 2 &&
+        Number(args[keyCount]) === env.LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS
+      ) {
+        reactivated = true;
+        const traceMember = member("project", "reactivated");
+        const state = JSON.parse((await client().hget(stateKey, traceMember))!);
+        await client().hset(
+          stateKey,
+          traceMember,
+          JSON.stringify({ ...state, revision: randomUUID() }),
+        );
+      }
+      return evaluate(scriptHash, keyCount, ...args);
+    }) as typeof evaluate);
+
+    await runner().processBatch();
+
+    expect(reactivated).toBe(true);
+    expect(
+      await client().hexists(stateKey, member("project", "reactivated")),
+    ).toBe(1);
+    expect(recordIncrement).not.toHaveBeenCalledWith(
+      "langfuse.trace_batch.excluded_traces",
+      expect.anything(),
+      expect.anything(),
+    );
+    expect(warn).not.toHaveBeenCalledWith(
+      "Trace batch excluded oversized trace",
+      expect.anything(),
+    );
+    expect(recordIncrement).not.toHaveBeenCalledWith(
+      "langfuse.trace_batch.reactivated_traces",
+      1,
+    );
+  });
+
+  it("sets the due time from the project's trace idle time, capped below the pending TTL", async () => {
+    const orgId = `org-${randomUUID()}`;
+    const projectId = `project-${randomUUID()}`;
+    await prisma.organization.create({
+      data: { id: orgId, name: "Idle time org" },
+    });
+    await prisma.project.create({
+      data: { id: projectId, orgId, name: "Idle time project" },
+    });
+    try {
+      await shared.saveTracingReadinessSettings(projectId, {
+        traceIdleMs: 3_600_000,
+      });
+      const now = Date.now();
+      // The Lua script reads Redis time, so allow for clock skew.
+      const dueOffset = async (traceId: string) =>
+        Number(await client().zscore(dueKey, member(projectId, traceId))) - now;
+
+      await trackTraceBatchActivity(projectId, [event("custom")]);
+      await trackTraceBatchActivity("project", [event("default")]);
+      expect(await dueOffset("custom")).toBeGreaterThan(3_590_000);
+      expect(await dueOffset("custom")).toBeLessThan(3_610_000);
+      expect(
+        Number(await client().zscore(dueKey, member("project", "default"))) -
+          now,
+      ).toBeLessThan(610_000);
+
+      env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = 1_800_000;
+      await trackTraceBatchActivity(projectId, [event("capped")]);
+      expect(await dueOffset("capped")).toBeLessThan(1_780_000);
+      expect(await dueOffset("capped")).toBeGreaterThan(1_760_000);
+    } finally {
+      await prisma.organization.delete({ where: { id: orgId } });
+    }
+  });
+
+  it("caches the project's settings in Redis with an expiry and replaces them on save", async () => {
+    const orgId = `org-${randomUUID()}`;
+    const projectId = `project-${randomUUID()}`;
+    const cacheKey = `langfuse:tracing-readiness-settings:${projectId}`;
+    await prisma.organization.create({
+      data: { id: orgId, name: "Idle time cache org" },
+    });
+    await prisma.project.create({
+      data: { id: projectId, orgId, name: "Idle time cache project" },
+    });
+    try {
+      await trackTraceBatchActivity(projectId, [event("uncached")]);
+      expect(JSON.parse((await connection.get(cacheKey))!)).toEqual({
+        traceIdleMs: null,
+      });
+      const ttl = await connection.ttl(cacheKey);
+      expect(ttl).toBeGreaterThan(0);
+      expect(ttl).toBeLessThanOrEqual(300);
+      await shared.saveTracingReadinessSettings(projectId, {
+        traceIdleMs: 300_000,
+      });
+      expect(JSON.parse((await connection.get(cacheKey))!)).toEqual({
+        traceIdleMs: 300_000,
+      });
+      await trackTraceBatchActivity(projectId, [event("saved")]);
+      const offset =
+        Number(await client().zscore(dueKey, member(projectId, "saved"))) -
+        Date.now();
+      expect(offset).toBeGreaterThan(290_000);
+      expect(offset).toBeLessThan(310_000);
+    } finally {
+      await prisma.organization.delete({ where: { id: orgId } });
+      await connection.del(cacheKey);
+    }
+  });
+
+  it("does not let an earlier database read overwrite newly saved settings", async () => {
+    const orgId = `org-${randomUUID()}`;
+    const projectId = `project-${randomUUID()}`;
+    const cacheKey = `langfuse:tracing-readiness-settings:${projectId}`;
+    await prisma.organization.create({
+      data: { id: orgId, name: "Idle time race org" },
+    });
+    await prisma.project.create({
+      data: { id: projectId, orgId, name: "Idle time race project" },
+    });
+    try {
+      await shared.saveTracingReadinessSettings(projectId, {
+        traceIdleMs: 120_000,
+      });
+      await connection.del(cacheKey);
+
+      let releaseFill!: () => void;
+      const fillHeld = new Promise<void>((resolve) => {
+        releaseFill = resolve;
+      });
+      let signalFill!: () => void;
+      const fillStarted = new Promise<void>((resolve) => {
+        signalFill = resolve;
+      });
+      const actualShared = await vi.importActual<
+        typeof import("@langfuse/shared/src/server")
+      >("@langfuse/shared/src/server");
+      if (!actualShared.redis)
+        throw new Error("Redis is required for this test");
+      const originalSet = actualShared.redis.set.bind(actualShared.redis);
+      vi.spyOn(actualShared.redis, "set").mockImplementationOnce(
+        async (...args) => {
+          signalFill();
+          await fillHeld;
+          return originalSet(...args);
+        },
+      );
+
+      const earlierRead = shared.getTracingReadinessSettings(projectId);
+      await fillStarted;
+      try {
+        await shared.saveTracingReadinessSettings(projectId, {
+          traceIdleMs: 300_000,
+        });
+      } finally {
+        releaseFill();
+      }
+      await earlierRead;
+
+      expect(await shared.getTracingReadinessSettings(projectId)).toEqual({
+        traceIdleMs: 300_000,
+      });
+    } finally {
+      await prisma.organization.delete({ where: { id: orgId } });
+      await connection.del(cacheKey);
+    }
+  });
+
+  it("uses and caches the default for an out-of-range stored idle time", async () => {
+    const orgId = `org-${randomUUID()}`;
+    const projectId = `project-${randomUUID()}`;
+    const cacheKey = `langfuse:tracing-readiness-settings:${projectId}`;
+    await prisma.organization.create({
+      data: { id: orgId, name: "Invalid idle time org" },
+    });
+    await prisma.project.create({
+      data: { id: projectId, orgId, name: "Invalid idle time project" },
+    });
+    try {
+      await prisma.tracingReadinessSettings.create({
+        data: { projectId, traceIdleMs: 1 },
+      });
+
+      expect(await shared.getTracingReadinessSettings(projectId)).toEqual({
+        traceIdleMs: null,
+      });
+      expect(JSON.parse((await connection.get(cacheKey))!)).toEqual({
+        traceIdleMs: null,
+      });
+    } finally {
+      await prisma.organization.delete({ where: { id: orgId } });
+      await connection.del(cacheKey);
+    }
+  });
+
+  it("uses the default when the idle time read fails", async () => {
+    const projectId = `project-${randomUUID()}`;
+    vi.mocked(shared.getTracingReadinessSettings).mockRejectedValueOnce(
+      new Error("Postgres unavailable"),
+    );
+
+    await trackTraceBatchActivity(projectId, [event("failed")]);
+
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.trace_batch.idle_time_read_failures",
+      1,
+    );
+    const offset =
+      Number(await client().zscore(dueKey, member(projectId, "failed"))) -
+      Date.now();
+    expect(offset).toBeGreaterThan(590_000);
+    expect(offset).toBeLessThan(610_000);
+  });
+
   it("does not track or dispatch on self-hosted deployments even with experiment flags enabled", async () => {
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
     const evaluate = vi.spyOn(client(), "eval");
@@ -677,6 +1421,44 @@ describe("trace micro-batch scheduling with Redis", () => {
   });
 
   it("ingests through BullMQ, postpones readiness on new activity, and consumes full ClickHouse payloads once due", async () => {
+    const orgId = randomUUID();
+    const projectId = randomUUID();
+    await prisma.organization.create({
+      data: {
+        id: orgId,
+        name: "Trace batch late arrivals",
+        projects: { create: { id: projectId, name: "Trace batch" } },
+      },
+    });
+    const usage = {
+      providedUsageDetails: {},
+      usageDetails: {},
+      providedCostDetails: {},
+      costDetails: {},
+    };
+    vi.mocked(summarizeTopicTraceFacets).mockImplementation(
+      async (_models, facets) => ({
+        output: Object.fromEntries(
+          facets.map(({ key }) => [
+            key,
+            {
+              notes: "The complete trace was read.",
+              summary: `summary-${vi.mocked(summarizeTopicTraceFacets).mock.calls.length}`,
+              status: "applicable" as const,
+            },
+          ]),
+        ),
+        ...usage,
+      }),
+    );
+    vi.mocked(embedTopicSummaries).mockImplementation(
+      async (_model, summaries, dimensions) => ({
+        embeddings: summaries.map(() =>
+          Array.from({ length: dimensions }, () => 0.1),
+        ),
+        ...usage,
+      }),
+    );
     const original = {
       LANGFUSE_TRACE_BATCH_IDLE_MS: env.LANGFUSE_TRACE_BATCH_IDLE_MS,
       LANGFUSE_MIGRATION_V4_WRITE_MODE: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
@@ -721,21 +1503,25 @@ describe("trace micro-batch scheduling with Redis", () => {
         batchWorker.waitUntilReady(),
         batchEvents.waitUntilReady(),
       ]);
-      const projectId = randomUUID();
       // The evaluator sampler assigns these scores 0.0593, 0.0291 and 0.7116.
       const traceId = "00000000000000000000000000000001";
       const otherTraceId = "00000000000000000000000000000003";
       const excludedTraceId = "00000000000000000000000000000002";
-      const input = JSON.stringify({ message: "input".repeat(1_000) });
-      const output = JSON.stringify({ message: "output".repeat(1_000) });
+      const input = JSON.stringify([
+        { role: "user", content: "input".repeat(1_000) },
+      ]);
+      const output = JSON.stringify({
+        role: "assistant",
+        content: "output".repeat(1_000),
+      });
       const metadata = JSON.stringify({ context: "metadata".repeat(1_000) });
-      const nano = BigInt(Date.now()) * 1_000_000n;
-      const timestamp = {
-        low: Number(nano & 0xffffffffn),
-        high: Number(nano >> 32n),
-        unsigned: true,
-      };
-      async function ingest(traceIds: string[]) {
+      const nano = BigInt(Date.now() - 20 * 60_000) * 1_000_000n;
+      async function ingest(traceIds: string[], start = nano) {
+        const timestamp = {
+          low: Number(start & 0xffffffffn),
+          high: Number(start >> 32n),
+          unsigned: true,
+        };
         // S3 transport and unrelated evaluator configuration are stubbed;
         // OTLP conversion, writer, Redis scripts and both queue workers are real.
         vi.mocked(getS3EventStorageClient).mockReturnValue({
@@ -753,8 +1539,9 @@ describe("trace micro-batch scheduling with Redis", () => {
                       kind: 1,
                       startTimeUnixNano: timestamp,
                       endTimeUnixNano: timestamp,
+                      status: { code: 2, message: "tool call failed" },
                       attributes: Object.entries({
-                        "langfuse.observation.type": "span",
+                        "langfuse.observation.type": "generation",
                         "langfuse.observation.input": input,
                         "langfuse.observation.output": output,
                         "langfuse.observation.metadata": metadata,
@@ -836,10 +1623,16 @@ describe("trace micro-batch scheduling with Redis", () => {
           },
         ],
       })) {
-        expect(observation.trace_id).toBe(excludedTraceId);
+        expect(observation).toMatchObject({
+          trace_id: excludedTraceId,
+          level: "ERROR",
+          status_message: "tool call failed",
+        });
         excludedObservations++;
       }
       expect(excludedObservations).toBe(2);
+      topicsProjects.add(projectId);
+      const facets = await ensureDefaultTopicFacets(projectId);
       env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "false";
       env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = 0;
       await waitUntilRedisTime(renewedDue);
@@ -854,10 +1647,6 @@ describe("trace micro-batch scheduling with Redis", () => {
         traceCount: 2,
         projectCount: 1,
       });
-      expect(recordDistribution).toHaveBeenCalledWith(
-        "langfuse.trace_batch.found_project_count",
-        1,
-      );
       // All three observations must carry their untruncated I/O and metadata.
       expect(result.ioMetadataBytes).toBeGreaterThanOrEqual(
         3 * (Buffer.byteLength(input) + Buffer.byteLength(output) + 8_000),
@@ -866,14 +1655,87 @@ describe("trace micro-batch scheduling with Redis", () => {
         "langfuse.trace_batch.size",
         2,
       );
-      expect(recordDistribution).toHaveBeenCalledWith(
+      expect(recordDistribution).not.toHaveBeenCalledWith(
         "langfuse.trace_batch.io_metadata_bytes",
-        result.ioMetadataBytes,
+        expect.anything(),
       );
       expect(await client().zcard(dueKey)).toBe(0);
       expect(await client().hlen(stateKey)).toBe(0);
       await dispatcher.processBatch();
       expect(await queue.getCompletedCount()).toBe(1);
+      expect(summarizeTopicTraceFacets).toHaveBeenCalledTimes(2);
+      const summaries = async () =>
+        (
+          await Promise.all(
+            facets.map((facet) =>
+              listTopicSummaries(
+                projectId,
+                {
+                  traceIds: [traceId, otherTraceId],
+                  facetId: facet.id,
+                  facetVersion: facet.versions[0].version,
+                },
+                {
+                  from: new Date(Number(nano / 1_000_000n) - 1),
+                  to: new Date(),
+                },
+              ),
+            ),
+          )
+        ).flat();
+      const firstSummaries = await summaries();
+      expect(firstSummaries).toHaveLength(8);
+
+      // One late event stays within the original buffer, while the other is
+      // ten minutes away and requires the retained earliest start.
+      env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "true";
+      env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = 1;
+      await ingest([traceId], nano + 60_000n * 1_000_000n);
+      await ingest([otherTraceId], nano + 10n * 60_000n * 1_000_000n);
+      await writer.flushAll(true);
+      await makeDue(projectId, traceId, otherTraceId);
+      await dispatcher.processBatch();
+      const lateBatch = (
+        await queue.getJobs(["wait", "active", "completed"])
+      ).find((job) => job.id !== batch.id)!;
+      for (const trace of lateBatch.data.payload.traces)
+        expect(trace.minStart).toBe(Number(nano / 1_000_000n));
+      const lateResult = await lateBatch.waitUntilFinished(batchEvents, 10_000);
+      expect(lateResult).toMatchObject({ observationCount: 5, traceCount: 2 });
+      expect(summarizeTopicTraceFacets).toHaveBeenCalledTimes(4);
+
+      await ingest([otherTraceId], nano + 3n * 60_000n * 1_000_000n);
+      await writer.flushAll(true);
+      await makeDue(projectId, otherTraceId);
+      await dispatcher.processBatch();
+      const backdatedBatch = (
+        await queue.getJobs(["wait", "active", "completed"])
+      ).find((job) => job.id !== batch.id && job.id !== lateBatch.id)!;
+      expect(backdatedBatch.data.payload.traces).toMatchObject([
+        {
+          minStart: Number(nano / 1_000_000n),
+          maxStart: Number(nano / 1_000_000n) + 10 * 60_000,
+        },
+      ]);
+      expect(
+        await backdatedBatch.waitUntilFinished(batchEvents, 10_000),
+      ).toMatchObject({ observationCount: 3, traceCount: 1 });
+      expect(summarizeTopicTraceFacets).toHaveBeenCalledTimes(5);
+      const latest = await summaries();
+      expect(latest).toHaveLength(8);
+      for (const summary of latest) {
+        expect(summary.unitStartTime).toBe(
+          firstSummaries.find((row) => row.traceId === summary.traceId)!
+            .unitStartTime,
+        );
+        expect(summary.summary).not.toBe(
+          firstSummaries.find(
+            (row) =>
+              row.traceId === summary.traceId &&
+              row.facetId === summary.facetId,
+          )!.summary,
+        );
+      }
     } finally {
       try {
         await Promise.all([ingestionWorker.close(), batchWorker.close()]);
@@ -882,10 +1744,59 @@ describe("trace micro-batch scheduling with Redis", () => {
         await ingestionQueue.close();
         await writer.shutdown();
       } finally {
+        topicsProjects.delete(projectId);
+        await prisma.organization.deleteMany({ where: { id: orgId } });
         Object.assign(env, original);
       }
     }
   }, 30_000);
+
+  it("at rate 0 tracks only Topics-enabled projects and skips all work for others", async () => {
+    const samplingRate = env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE;
+    env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = 0;
+    topicsProjects.add("topics-project");
+    topicsProjects.add("inactive-project");
+    try {
+      vi.mocked(recordIncrement).mockClear();
+      await trackTraceBatchActivity("other-project", [event("other-trace")]);
+      vi.mocked(isTopicsProcessingActive).mockResolvedValueOnce(false);
+      await trackTraceBatchActivity("inactive-project", [
+        event("inactive-trace"),
+      ]);
+      expect(recordIncrement).not.toHaveBeenCalled();
+      await trackTraceBatchActivity("topics-project", [event("topics-trace")]);
+      // An unreadable gate falls back to the allowlist.
+      vi.mocked(isTopicsProcessingActive).mockRejectedValueOnce(
+        new Error("postgres down"),
+      );
+      await trackTraceBatchActivity("topics-project", [
+        event("fallback-trace"),
+      ]);
+      expect(recordIncrement).toHaveBeenCalledWith(
+        "langfuse.trace_batch.topics_gate_failures",
+        1,
+      );
+      expect((await client().hkeys(stateKey)).sort()).toEqual(
+        [
+          member("topics-project", "topics-trace"),
+          member("topics-project", "fallback-trace"),
+        ].sort(),
+      );
+    } finally {
+      topicsProjects.clear();
+      env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = samplingRate;
+    }
+  });
+
+  it("does not load idle settings when every trace is sampled out", async () => {
+    env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = Number.MIN_VALUE;
+    vi.mocked(shared.getTracingReadinessSettings).mockClear();
+
+    await trackTraceBatchActivity("project", [event("sampled-out")]);
+
+    expect(shared.getTracingReadinessSettings).not.toHaveBeenCalled();
+    expect(await client().hlen(stateKey)).toBe(0);
+  });
 
   it("keeps stable nested trace samples across replay and counts decisions once per trace in each ingestion batch", async () => {
     const traceIds = Array.from({ length: 1_000 }, (_, i) =>
@@ -894,7 +1805,6 @@ describe("trace micro-batch scheduling with Redis", () => {
     let previous: string[] = [];
     // Fixed fixtures pin the evaluator's sampling cohort, including both endpoints.
     for (const [rate, expectedCount] of [
-      [0, 0],
       [0.1, 78],
       [0.1, 78],
       [0.5, 478],
@@ -927,31 +1837,57 @@ describe("trace micro-batch scheduling with Redis", () => {
         1_000 - expectedCount,
         { decision: "excluded" },
       );
+      expect(recordIncrement).not.toHaveBeenCalledWith(
+        "langfuse.trace_batch.event_updates",
+        expect.anything(),
+        { stage: "sampled" },
+      );
       for (const [stage, count] of [
         ["eligible", 1_000],
-        ["sampled", expectedCount],
         ...(expectedCount > 0 ? [["recorded", expectedCount] as const] : []),
       ] as const) {
-        expect(recordIncrement).toHaveBeenCalledWith(
-          "langfuse.trace_batch.event_updates",
-          count * 3,
-          { stage },
-        );
-        expect(recordIncrement).toHaveBeenCalledWith(
-          "langfuse.trace_batch.serialized_event_bytes",
-          count * 350,
-          { stage },
-        );
+        for (const [metric, total] of [
+          ["event_updates", count * 3],
+          ["serialized_event_bytes", count * 350],
+        ] as const)
+          expect(
+            vi
+              .mocked(recordIncrement)
+              .mock.calls.filter(
+                ([name, , tags]) =>
+                  name === `langfuse.trace_batch.${metric}` &&
+                  tags?.stage === stage,
+              )
+              .reduce((sum, [, value]) => sum + value, 0),
+          ).toBe(total);
       }
       previous = selected;
     }
   });
 
   it("counts only acknowledged update volume when tracking fails after a chunk", async () => {
-    const evaluate = client().eval.bind(client());
-    vi.spyOn(client(), "eval")
-      .mockImplementationOnce(evaluate)
-      .mockRejectedValueOnce(new Error("tracking connection failed"));
+    await trackTraceBatchActivity("warm-up", [event("trace")]);
+    await clearReadiness();
+    vi.mocked(recordIncrement).mockClear();
+    const fallback = vi.spyOn(client(), "eval");
+    const pipeline = client().pipeline.bind(client());
+    let commands = 0;
+    vi.spyOn(client(), "pipeline").mockImplementation(() => {
+      const batch = pipeline();
+      const evaluate = batch.evalsha.bind(batch);
+      vi.spyOn(batch, "evalsha").mockImplementation(((
+        scriptHash: string,
+        keyCount: number,
+        ...args: (string | number | Buffer)[]
+      ) => {
+        // Fail one command before mutation; the other pipelined chunks still execute.
+        if (++commands === 2) args[1] = args[0];
+        // Simulate a cache miss for one sibling without flushing shared Redis scripts.
+        if (commands === 3) scriptHash = "0".repeat(40);
+        return evaluate(scriptHash, keyCount, ...args);
+      }) as typeof evaluate);
+      return batch;
+    });
 
     await expect(
       trackTraceBatchActivity("project", [
@@ -962,27 +1898,39 @@ describe("trace micro-batch scheduling with Redis", () => {
       ]),
     ).resolves.toBeUndefined();
 
-    expect(await client().hlen(stateKey)).toBe(1_000);
+    const recorded = await client().hlen(stateKey);
+    expect(recorded).toBe(150);
+    expect(commands).toBe(4);
+    expect(fallback).toHaveBeenCalledOnce();
+    for (const state of await client().hvals(stateKey))
+      expect(JSON.parse(state)).toMatchObject({
+        eventUpdateCount: 1,
+        serializedEventBytes: 7,
+      });
     expect(recordIncrement).toHaveBeenCalledWith(
       "langfuse.trace_batch.event_updates",
       1_001,
       { stage: "eligible" },
     );
-    expect(recordIncrement).toHaveBeenCalledWith(
+    expect(recordIncrement).not.toHaveBeenCalledWith(
       "langfuse.trace_batch.event_updates",
-      1_001,
+      expect.anything(),
       { stage: "sampled" },
     );
-    expect(recordIncrement).toHaveBeenCalledWith(
-      "langfuse.trace_batch.event_updates",
-      1_000,
-      { stage: "recorded" },
-    );
-    expect(recordIncrement).toHaveBeenCalledWith(
-      "langfuse.trace_batch.serialized_event_bytes",
-      7_000,
-      { stage: "recorded" },
-    );
+    for (const [metric, count] of [
+      ["event_updates", recorded],
+      ["serialized_event_bytes", recorded * 7],
+    ] as const)
+      expect(
+        vi
+          .mocked(recordIncrement)
+          .mock.calls.filter(
+            ([name, , tags]) =>
+              name === `langfuse.trace_batch.${metric}` &&
+              tags?.stage === "recorded",
+          )
+          .reduce((sum, [, value]) => sum + value, 0),
+      ).toBe(count);
     expect(recordIncrement).not.toHaveBeenCalledWith(
       "langfuse.trace_batch.event_updates",
       1,
@@ -1182,7 +2130,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     },
   );
 
-  it("keeps legacy estimates unknown through updates and restores them after dispatch", async () => {
+  it("keeps unknown estimates through updates and late-arrival dispatch", async () => {
     const legacyStates = [
       {},
       { eventUpdateCount: 4 },
@@ -1199,6 +2147,11 @@ describe("trace micro-batch scheduling with Redis", () => {
           revision: randomUUID(),
           ...estimates,
         }),
+      );
+      await client().zadd(
+        dueKey,
+        Date.now() + 600_000,
+        member("project", legacyIds[index]),
       );
     }
     await trackTraceBatchActivity("project", [
@@ -1256,34 +2209,26 @@ describe("trace micro-batch scheduling with Redis", () => {
       legacyIds.map((traceId) => event(traceId, 1_000_002, 20)),
     );
     for (const traceId of legacyIds) {
-      expect(
-        JSON.parse(
-          (await client().hget(stateKey, member("project", traceId)))!,
-        ),
-      ).toMatchObject({
-        eventUpdateCount: 1,
-        serializedEventBytes: 20,
-      });
+      const state = JSON.parse(
+        (await client().hget(stateKey, member("project", traceId)))!,
+      );
+      expect(state.eventUpdateCount).toBeUndefined();
+      expect(state.serializedEventBytes).toBeUndefined();
     }
     await makeDue("project", ...legacyIds);
     await dispatcher.processBatch();
-    expect(recordDistribution).toHaveBeenCalledWith(
-      "langfuse.trace_batch.estimated_event_update_count",
-      3,
-      { scope: "batch", strategy: "project" },
-    );
-    expect(recordDistribution).toHaveBeenCalledWith(
-      "langfuse.trace_batch.estimated_serialized_event_bytes",
-      60,
-      { scope: "batch", strategy: "project" },
-    );
     expect(
       vi
-        .mocked(recordIncrement)
-        .mock.calls.some(
-          ([name]) => name === "langfuse.trace_batch.estimates_unavailable",
+        .mocked(recordDistribution)
+        .mock.calls.filter(([name]) =>
+          name.startsWith("langfuse.trace_batch.estimated_"),
         ),
-    ).toBe(false);
+    ).toHaveLength(0);
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.trace_batch.estimates_unavailable",
+      1,
+      { scope: "batch", strategy: "project" },
+    );
   });
 
   it.each(["project", "locality"] as const)(
@@ -1451,15 +2396,11 @@ describe("trace micro-batch scheduling with Redis", () => {
     const hydratedRevision = JSON.parse(
       (await client().hget(stateKey, targetMember))!,
     ).revision;
-    const evaluate = client().eval.bind(client());
+    const evaluate = client().evalsha.bind(client());
     let reactivated = false;
-    vi.spyOn(client(), "eval").mockImplementation(async (...args) => {
+    vi.spyOn(client(), "evalsha").mockImplementation(async (...args) => {
       const result = await evaluate(...args);
-      if (
-        !reactivated &&
-        typeof args[0] === "string" &&
-        args[0].includes("local result = {}")
-      ) {
+      if (!reactivated && Number(args[1]) === 2 && args.length > 6) {
         reactivated = true;
         await trackTraceBatchActivity("project", [
           event(early[0].traceId, 11 * minute),
@@ -1569,12 +2510,12 @@ describe("trace micro-batch scheduling with Redis", () => {
   });
 
   it("expires abandoned pending keys natively without another ingestion or dispatcher run", async () => {
-    env.LANGFUSE_TRACE_BATCH_IDLE_MS = 10_000;
+    env.LANGFUSE_TRACE_BATCH_IDLE_MS = 100;
     env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = 300;
     await trackTraceBatchActivity("project", [event("abandoned")]);
     for (const key of [dueKey, stateKey]) {
       expect(await client().pttl(key)).toBeGreaterThan(0);
-      expect(await client().pttl(key)).toBeLessThanOrEqual(300);
+      expect(await client().pttl(key)).toBeLessThanOrEqual(400);
     }
     await vi.waitFor(async () => {
       expect(await client().exists(dueKey, stateKey)).toBe(0);
@@ -1588,7 +2529,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     await trackTraceBatchActivity("project", [event("long-idle")]);
     const initialDeadline = Number(await client().pexpiretime(dueKey));
     await vi.waitFor(() =>
-      expect(Date.now()).toBeGreaterThan(initialDeadline - 60_000 + 10),
+      expect(Date.now()).toBeGreaterThan(initialDeadline - 70_000 + 10),
     );
     env.LANGFUSE_TRACE_BATCH_IDLE_MS = 20_000;
     await trackTraceBatchActivity("project", [event("later")]);
@@ -1607,6 +2548,24 @@ describe("trace micro-batch scheduling with Redis", () => {
     );
     expect(await client().zcard(dueKey)).toBe(3);
     expect(await client().hlen(stateKey)).toBe(3);
+
+    const roundedDeadline =
+      Math.ceil((Date.now() + 4 * 60 * 60_000) / 100_000_000) * 100_000_000;
+    for (const key of [dueKey, stateKey])
+      await client().pexpireat(key, roundedDeadline);
+    vi.mocked(recordIncrement).mockClear();
+    await trackTraceBatchActivity("project", [event("rounded-expiry")]);
+    expect(recordIncrement).not.toHaveBeenCalledWith(
+      "langfuse.trace_batch.tracking_errors",
+      expect.anything(),
+    );
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.trace_batch.event_updates",
+      1,
+      { stage: "recorded" },
+    );
+    for (const key of [dueKey, stateKey])
+      expect(Number(await client().pexpiretime(key))).toBe(roundedDeadline);
   });
 
   it("drains and removes queued jobs without queries when reads are disabled", async () => {
@@ -1685,8 +2644,10 @@ describe("trace micro-batch scheduling with Redis", () => {
     );
     await makeDue("project", "recent");
     await trackTraceBatchActivity("project", [event("refreshed", 2_000_000)]);
-    expect(await client().zcard(dueKey)).toBe(3);
-    expect(await client().hlen(stateKey)).toBe(3);
+    const pending = await client().zcard(dueKey);
+    expect(pending).toBeGreaterThan(2);
+    expect(pending).toBeLessThan(expired.length + 2);
+    expect(await client().hlen(stateKey)).toBe(pending);
     expect(
       await client().hget(stateKey, member("project", "recent")),
     ).not.toBeNull();
@@ -1695,18 +2656,30 @@ describe("trace micro-batch scheduling with Redis", () => {
     ).toBeGreaterThan(Date.now());
     expect(recordIncrement).toHaveBeenCalledWith(
       "langfuse.trace_batch.expired_traces",
-      1_000,
+      expired.length + 2 - pending,
+      { source: "ingestion" },
     );
-    await trackTraceBatchActivity("project", [event("refreshed", 3_000_000)]);
+    await vi.waitFor(async () => {
+      await trackTraceBatchActivity("project", [event("refreshed", 3_000_000)]);
+      expect(await client().zcard(dueKey)).toBe(2);
+    });
     expect((await client().hkeys(stateKey)).sort()).toEqual([
       member("project", "recent"),
       member("project", "refreshed"),
     ]);
     expect(await client().zcard(dueKey)).toBe(2);
-    expect(recordIncrement).toHaveBeenCalledWith(
-      "langfuse.trace_batch.expired_traces",
-      1,
+    const expirySamples = vi
+      .mocked(recordIncrement)
+      .mock.calls.filter(
+        ([name, , tags]) =>
+          name === "langfuse.trace_batch.expired_traces" &&
+          tags?.source === "ingestion",
+      )
+      .map(([, count]) => count);
+    expect(expirySamples.reduce((sum, count) => sum + count, 0)).toBe(
+      expired.length,
     );
+    expect(expirySamples.every((count) => count < expired.length)).toBe(true);
     expect(await queue.getWaitingCount()).toBe(0);
   });
 
@@ -1727,6 +2700,11 @@ describe("trace micro-batch scheduling with Redis", () => {
     env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "false";
     const dispatcher = runner();
     await dispatcher.processBatch();
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.trace_batch.expired_traces",
+      expect.any(Number),
+      { source: "dispatcher" },
+    );
     expect(
       vi
         .mocked(recordIncrement)
@@ -1772,6 +2750,25 @@ describe("trace micro-batch scheduling with Redis", () => {
     },
   );
 
+  it("acknowledges successful jobs when a later enqueue fails", async () => {
+    env.LANGFUSE_TRACE_BATCH_MAX_SIZE = 1;
+    await trackTraceBatchActivity("project", [event("first"), event("second")]);
+    await makeDue("project", "first", "second");
+    const add = queue.add.bind(queue);
+    vi.spyOn(queue, "add")
+      .mockImplementationOnce((...args) => add(...args))
+      .mockRejectedValueOnce(new Error("enqueue unavailable"));
+    const dispatcher = runner();
+    await dispatcher.processBatch();
+    expect(await queue.getWaitingCount()).toBe(1);
+    expect(await client().zcard(dueKey)).toBe(1);
+    expect(await client().hlen(stateKey)).toBe(1);
+    await dispatcher.processBatch();
+    expect(await queue.getWaitingCount()).toBe(2);
+    expect(await client().zcard(dueKey)).toBe(0);
+    expect(await client().hlen(stateKey)).toBe(0);
+  });
+
   it.each(["updated", "deleted", "expired"] as const)(
     "preserves arrivals during enqueue, including deleted/recreated state: %s",
     async (mode) => {
@@ -1804,6 +2801,10 @@ describe("trace micro-batch scheduling with Redis", () => {
       const [job] = await queue.getJobs(["wait"]);
       expect(current.revision).not.toBe(job.data.payload.traces[0].revision);
       expect(current.maxStart).toBe(2_000_000);
+      expect(current).toMatchObject({
+        eventUpdateCount: 2,
+        serializedEventBytes: 200,
+      });
       await makeDue("project", "trace");
       await dispatcher.processBatch();
       expect(await queue.getWaitingCount()).toBe(2);
@@ -1820,7 +2821,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     vi.spyOn(queue, "add").mockImplementationOnce(async (...args) => {
       const job = await add(...args);
       // The next Redis operation is the post-enqueue acknowledgement.
-      vi.spyOn(client(), "eval").mockRejectedValueOnce(
+      vi.spyOn(client(), "evalsha").mockRejectedValueOnce(
         new Error("ACK unavailable"),
       );
       return job;

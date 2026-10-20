@@ -129,14 +129,18 @@ export function useScoreColumns<T extends Record<string, any>>({
     },
   );
 
-  const scoreColumns = useMemo(() => {
-    if (!scoreColumnsQuery.data?.scoreColumns) return [];
-
-    return createScoreColumns<T>({
-      scoreColumns: withPresentScoreKeys(
-        toOrderedScoresList(scoreColumnsQuery.data.scoreColumns),
+  const scoreDefinitions = useMemo(
+    () =>
+      withPresentScoreKeys(
+        toOrderedScoresList(scoreColumnsQuery.data?.scoreColumns ?? []),
         presentKeys,
       ),
+    [scoreColumnsQuery.data?.scoreColumns, presentKeys],
+  );
+
+  const scoreColumns = useMemo(() => {
+    return createScoreColumns<T>({
+      scoreColumns: scoreDefinitions,
       scoreColumnKey,
       displayFormat,
       prefix,
@@ -145,18 +149,19 @@ export function useScoreColumns<T extends Record<string, any>>({
       rawKey,
     });
   }, [
-    scoreColumnsQuery.data?.scoreColumns,
+    scoreDefinitions,
     scoreColumnKey,
     prefix,
     headerPrefix,
     displayFormat,
     defaultHidden,
     rawKey,
-    presentKeys,
   ]);
 
   return {
     scoreColumns,
+    scoreDefinitions,
+    refetch: scoreColumnsQuery.refetch,
     isLoading: scoreColumnsQuery.isPending,
     error: scoreColumnsQuery.error,
   };

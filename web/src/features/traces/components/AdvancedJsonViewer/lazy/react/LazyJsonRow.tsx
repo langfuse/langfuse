@@ -7,7 +7,7 @@
  */
 
 import React from "react";
-import { ChevronRight, Copy, Loader2 } from "lucide-react";
+import { ChevronRight, Copy, Loader2 } from "@langfuse/icons";
 import { cn } from "@/src/utils/tailwind";
 import type { JsonNodeType, JsonRow } from "../rowModel";
 
@@ -66,7 +66,7 @@ function LazyJsonRowImpl({
         >
           {row.preview}
         </button>
-        {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+        {pending ? <Loader2 size="sm" __rawClassName="animate-spin" /> : null}
       </div>
     );
   }
@@ -83,7 +83,7 @@ function LazyJsonRowImpl({
       <span className="flex h-4 w-4 shrink-0 items-center justify-center">
         {isContainer ? (
           pending ? (
-            <Loader2 className="text-muted-foreground h-3 w-3 animate-spin" />
+            <Loader2 size="sm" color="muted" __rawClassName="animate-spin" />
           ) : (
             <button
               type="button"
@@ -92,8 +92,9 @@ function LazyJsonRowImpl({
               onClick={() => onToggle(row.nodeId, row.expanded)}
             >
               <ChevronRight
-                className={cn(
-                  "h-3 w-3 transition-transform",
+                size="sm"
+                __rawClassName={cn(
+                  "transition-transform",
                   row.expanded && "rotate-90",
                 )}
               />
@@ -143,7 +144,7 @@ function LazyJsonRowImpl({
           className="text-muted-foreground hover:text-foreground ml-1 shrink-0 opacity-0 group-hover:opacity-100"
           onClick={() => onCopyValue(row.nodeId)}
         >
-          <Copy className="h-3 w-3" />
+          <Copy size="sm" />
         </button>
       ) : null}
     </div>

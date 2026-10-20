@@ -1,6 +1,6 @@
 /* eslint-disable boundaries/dependencies */
 import { type CellContext, type RowData } from "@tanstack/react-table";
-import { Check, Copy, InfoIcon, type LucideIcon } from "lucide-react";
+import { Check, Copy, InfoIcon, type IconComponent } from "@langfuse/icons";
 import { type ReactNode } from "react";
 
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
@@ -31,9 +31,9 @@ type TextTableColumnTrailingAction<TData extends RowData, TValue> =
     }
   | {
       type: "custom";
-      icon: LucideIcon;
+      icon: IconComponent;
       label: string;
-      onClick: (context: CellContext<TData, TValue>) => void;
+      onClick: (context: CellContext<TData, TValue | null | undefined>) => void;
     };
 
 export function createTextTableColumn<TData extends RowData, TValue = string>({
@@ -96,7 +96,7 @@ export function createTextTableColumn<TData extends RowData, TValue = string>({
                       aria-label="More information"
                       className="flex items-center"
                     >
-                      <InfoIcon className="text-muted-foreground size-3" />
+                      <InfoIcon size="sm" color="muted" />
                     </button>
                   )}
                 </Tooltip>
@@ -133,19 +133,21 @@ function TextWithTrailingAction<TData extends RowData, TValue>({
     TextTableColumnTrailingAction<TData, TValue>,
     { type: "custom" }
   >;
-  context: CellContext<TData, TValue>;
+  context: CellContext<TData, TValue | null | undefined>;
   value?: string;
 }) {
   return (
     <TextWithAction
       value={value}
       action={
-        <IconButton
-          icon={action.icon}
-          label={action.label}
-          size="xs"
-          onClick={() => action.onClick(context)}
-        />
+        <span className="opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100">
+          <IconButton
+            icon={action.icon}
+            label={action.label}
+            size="xs"
+            onClick={() => action.onClick(context)}
+          />
+        </span>
       }
     />
   );
@@ -185,22 +187,24 @@ function CopyableText({ value }: { value: string }) {
     <TextWithAction
       value={value}
       action={
-        <IconButton
-          icon={isCopied ? Check : Copy}
-          label={isCopied ? "Copied" : "Copy to clipboard"}
-          size="xs"
-          title="Copy to clipboard"
-          onClick={async (event) => {
-            const button = event.currentTarget;
-            try {
-              await copy(value);
-            } catch {
-              // Clipboard failures are intentionally silent.
-            } finally {
-              button.focus();
-            }
-          }}
-        />
+        <span className="inline-flex translate-y-px">
+          <IconButton
+            icon={isCopied ? Check : Copy}
+            label={isCopied ? "Copied" : "Copy to clipboard"}
+            size="xs"
+            title="Copy to clipboard"
+            onClick={async (event) => {
+              const button = event.currentTarget;
+              try {
+                await copy(value);
+              } catch {
+                // Clipboard failures are intentionally silent.
+              } finally {
+                button.focus();
+              }
+            }}
+          />
+        </span>
       }
     />
   );

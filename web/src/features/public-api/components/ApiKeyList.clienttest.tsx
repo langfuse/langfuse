@@ -39,13 +39,13 @@ vi.mock("@/src/utils/api", () => {
             options?.enabled ? { data: projectApiKeys } : {},
         },
         create: { useMutation: noopMutation },
-        updateNote: { useMutation: noopMutation },
+        updateName: { useMutation: noopMutation },
         delete: { useMutation: noopMutation },
       },
       organizationApiKeys: {
         byOrganizationId: { useQuery: () => ({}) },
         create: { useMutation: noopMutation },
-        updateNote: { useMutation: noopMutation },
+        updateName: { useMutation: noopMutation },
         delete: { useMutation: noopMutation },
       },
       useUtils: () => ({

@@ -1,4 +1,3 @@
-import { LayoutGrid } from "lucide-react";
 import {
   gallerySidebarItems,
   visibleGallerySections,
@@ -17,6 +16,7 @@ const template = {
   icon: "gauge",
   description: "Assess whether the answer directly addresses the question.",
   maintainer: "langfuse",
+  previewScores: [{ name: "answer_relevance", value: "Relevant" }],
   evaluator: {
     type: "LLM_AS_JUDGE",
     promptMessages: [{ role: "user", content: "Rate relevance." }],
@@ -77,7 +77,7 @@ describe("gallerySidebarItems", () => {
         qualitySection,
       ]),
     ).toEqual([
-      { key: "all", label: "All", icon: LayoutGrid, count: 13 },
+      { key: "all", label: "All", count: 13 },
       { key: "custom", label: "Your templates", count: 12 },
       { key: "quality", label: "Quality", count: 1 },
     ]);
@@ -100,6 +100,18 @@ describe("visibleGallerySections", () => {
   it("filters to the selected category including Your templates", () => {
     expect(
       visibleGallerySections(sections, "custom").map((section) => section.key),
+    ).toEqual(["custom"]);
+  });
+
+  it("keeps an empty Your templates only when it is selected", () => {
+    const emptyCustom = { ...customSection, templates: [] };
+    const withEmpty = [emptyCustom, qualitySection];
+
+    expect(
+      visibleGallerySections(withEmpty, "all").map((section) => section.key),
+    ).toEqual(["quality"]);
+    expect(
+      visibleGallerySections(withEmpty, "custom").map((section) => section.key),
     ).toEqual(["custom"]);
   });
 });

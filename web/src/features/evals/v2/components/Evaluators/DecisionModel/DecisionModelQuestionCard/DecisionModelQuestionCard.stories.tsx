@@ -11,7 +11,6 @@ const meta = preview.meta({ component: DecisionModelQuestionCard });
 const STATE_KEYS = ["input", "output"];
 
 const base = {
-  index: 0,
   stateKeys: STATE_KEYS,
   expanded: true,
   onExpandedChange: fn(),
@@ -106,7 +105,9 @@ export const Collapsed = meta.story({
     expanded: false,
     question: {
       id: "q1",
-      ...QUESTION_EXAMPLES[DecisionModelQuestionType.CHOICE],
+      ...QUESTION_EXAMPLES[DecisionModelQuestionType.NOUL],
+      scoreName: "user_frustrated",
+      instructions: "Does the user seem frustrated?",
     },
   },
 });

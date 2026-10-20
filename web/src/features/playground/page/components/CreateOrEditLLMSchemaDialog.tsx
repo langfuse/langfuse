@@ -1,7 +1,7 @@
 import React, { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "@langfuse/icons";
 import * as z from "zod";
 
 import { Button } from "@/src/components/ui/button";
@@ -142,6 +142,11 @@ export const CreateOrEditLLMSchemaDialog: React.FC<
       showErrorToast(
         "Failed to prettify JSON",
         "Please verify your input is valid JSON",
+        {
+          operation: "playground_schema.prettify",
+          errorOrigin: "frontend",
+          errorCategory: "user_input",
+        },
         "WARNING",
       );
     }
@@ -225,7 +230,7 @@ export const CreateOrEditLLMSchemaDialog: React.FC<
                           className="flex items-center"
                         >
                           See JSON Schema examples here
-                          <ArrowUpRight className="h-3 w-3" />
+                          <ArrowUpRight size="sm" />
                         </a>
                       </FormDescription>
                       <FormControl>

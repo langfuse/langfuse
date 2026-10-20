@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import Page from "@/src/components/layouts/page";
 import {
   BreadcrumbSeparator,
@@ -6,7 +7,7 @@ import {
   BreadcrumbList,
   Breadcrumb,
 } from "@/src/components/ui/breadcrumb";
-import { Check, Info } from "lucide-react";
+import { Check, Info } from "@langfuse/icons";
 import { cn } from "@/src/utils/tailwind";
 import { useRouter } from "next/router";
 import { SelectEvaluatorList } from "@/src/features/evals/components/select-evaluator-list";
@@ -196,7 +197,7 @@ export default function NewEvaluatorPage() {
             >
               1. Select Evaluator
               {step !== "select" && (
-                <Check className="ml-1 inline-block h-3 w-3" />
+                <Check size="sm" __rawClassName="ml-1 inline-block" />
               )}
             </BreadcrumbPage>
           </BreadcrumbItem>
@@ -211,7 +212,7 @@ export default function NewEvaluatorPage() {
             >
               2. Set up LLM connection
               {isProviderStepComplete && (
-                <Check className="ml-1 inline-block h-3 w-3" />
+                <Check size="sm" __rawClassName="ml-1 inline-block" />
               )}
             </BreadcrumbPage>
           </BreadcrumbItem>

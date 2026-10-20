@@ -2,17 +2,12 @@
 //!
 //! Encoding receives typed, owned fields from the direct JS adapter in `native_js`.
 
-use std::error::Error as StdError;
 use std::sync::Arc;
 
-use bytes::Bytes;
 use chrono::{DateTime, NaiveDateTime, Utc};
-use clickhouse::native::builder::BlockBuilder;
-use clickhouse::native::encode::{Encode, ValueWriter};
-use clickhouse::native::DataTypeNode;
-use clickhouse_types::data_types::{DateTimePrecision, DecimalType};
 use rust_decimal::{Decimal, RoundingStrategy};
 
+use crate::native_columns::NativeColumnError;
 use crate::native_schema::PreparedEventRow;
 
 const DECIMAL_SCALE: u32 = 12;
@@ -20,38 +15,26 @@ const DECIMAL_LIMIT: i128 = 1_000_000_000_000_000_000;
 const DECIMAL_CLAMPED_MAX: i64 = 999_999_999_999_000_000;
 const DECIMAL_CLAMPED_MIN: i64 = -DECIMAL_CLAMPED_MAX;
 const DECIMAL_OVERFLOW_LIMIT: f64 = 1_000_000.0;
-type EncodeError = Box<dyn StdError + Send + Sync>;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct DateTime64Micros(pub(crate) i64);
-
-impl Encode for DateTime64Micros {
-    fn produces() -> DataTypeNode {
-        DataTypeNode::DateTime64(DateTimePrecision::Precision6, None)
-    }
-
-    fn encode(&self, writer: &mut ValueWriter<'_>) -> Result<(), EncodeError> {
-        // clickhouse-rs has no DateTime64 Encode implementation. Keep the DateTime64(6) type tag
-        // while writing ClickHouse's signed microsecond representation as a fixed-width value.
-        writer.write_fixed(&self.0.to_le_bytes())?;
-        Ok(())
-    }
-}
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Decimal64(pub(crate) i64);
 
-impl Encode for Decimal64 {
-    fn produces() -> DataTypeNode {
-        DataTypeNode::Decimal(18, 12, DecimalType::Decimal64)
-    }
+#[derive(Debug)]
+pub(crate) struct SkillReference {
+    pub(crate) langfuse_skill_id: Option<String>,
+    pub(crate) skill_version: Option<u32>,
+    pub(crate) skill_name: String,
+}
 
-    fn encode(&self, writer: &mut ValueWriter<'_>) -> Result<(), EncodeError> {
-        // rust_decimal supplies the policy and coefficient; clickhouse-rs has no Decimal Encode
-        // implementation, so retain the Decimal(18,12) type tag and write its Int64 coefficient.
-        writer.write_fixed(&self.0.to_le_bytes())?;
-        Ok(())
-    }
+#[derive(Debug)]
+pub(crate) struct SkillResourceLoaded {
+    pub(crate) langfuse_skill_id: Option<String>,
+    pub(crate) skill_version: Option<u32>,
+    pub(crate) skill_name: String,
+    pub(crate) file_path: String,
 }
 
 /// An owned ClickHouse Native-format block and its row count.
@@ -60,7 +43,7 @@ impl Encode for Decimal64 {
 /// block after the encoder and source rows have gone out of scope.
 #[derive(Debug)]
 pub struct EncodedBlock {
-    pub bytes: Bytes,
+    pub bytes: Vec<u8>,
     pub row_count: usize,
 }
 
@@ -73,6 +56,8 @@ pub struct EncodedBlock {
 /// Decimal(18,12) overflow policy and truncate toward zero at twelve fractional digits.
 /// Encoding preserves the prepared row's `event_bytes`. The NAPI adapter receives that value
 /// from TypeScript after overflow handling; it does not recompute accounting in Rust.
+/// A block can still split when ch-core's signed String offsets would overflow; a single row that
+/// exceeds that limit remains an error.
 pub(crate) fn encode_v4_native_blocks(
     rows: &[Arc<PreparedEventRow>],
     max_rows_per_block: usize,
@@ -81,26 +66,45 @@ pub(crate) fn encode_v4_native_blocks(
         return Err("max_rows_per_block must be greater than zero".to_owned());
     }
 
-    rows.chunks(max_rows_per_block)
-        .map(|chunk| {
-            let bytes = encode_block(chunk)?;
-            Ok(EncodedBlock {
-                bytes,
-                row_count: chunk.len(),
-            })
-        })
-        .collect()
+    let mut blocks = Vec::new();
+    let mut encode = encode_block;
+    for chunk in rows.chunks(max_rows_per_block) {
+        encode_with_bisection(chunk, &mut encode, &mut blocks)
+            .map_err(|error| error.to_string())?;
+    }
+    Ok(blocks)
 }
 
-fn encode_block(rows: &[Arc<PreparedEventRow>]) -> Result<Bytes, String> {
-    let mut builder = BlockBuilder::new();
-    PreparedEventRow::encode_arcs(&mut builder, rows)?;
+fn encode_block(rows: &[Arc<PreparedEventRow>]) -> Result<Vec<u8>, NativeColumnError> {
+    let schema = PreparedEventRow::schema();
+    let columns = PreparedEventRow::build_columns(rows)?;
+    let batch = ch_core_rs::batch::ColBatch::new(schema, columns, rows.len());
+    ch_core_rs::native::encode::encode_block(
+        &batch,
+        &ch_core_rs::native::encode::EncodeOptions::default(),
+    )
+    .map_err(|error| NativeColumnError::Message(error.to_string()))
+}
 
-    builder
-        .build()
-        .map_err(|error| error.to_string())?
-        .encode()
-        .map_err(|error| error.to_string())
+fn encode_with_bisection<T>(
+    rows: &[T],
+    encode: &mut impl FnMut(&[T]) -> Result<Vec<u8>, NativeColumnError>,
+    blocks: &mut Vec<EncodedBlock>,
+) -> Result<(), NativeColumnError> {
+    match encode(rows) {
+        Ok(bytes) => blocks.push(EncodedBlock {
+            bytes,
+            row_count: rows.len(),
+        }),
+        Err(NativeColumnError::StringColumnTooLarge) if rows.len() > 1 => {
+            let midpoint = rows.len() / 2;
+            let (left, right) = rows.split_at(midpoint);
+            encode_with_bisection(left, encode, blocks)?;
+            encode_with_bisection(right, encode, blocks)?;
+        }
+        Err(error) => return Err(error),
+    }
+    Ok(())
 }
 
 /// Parse the UTC-only datetime values produced by the ingestion pipeline. A ClickHouse datetime

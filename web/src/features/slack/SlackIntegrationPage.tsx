@@ -7,7 +7,8 @@ import {
   type SlackChannel,
 } from "@/src/features/slack/components/ChannelSelector";
 import { SlackTestMessageButton } from "@/src/features/slack/components/SlackTestMessageButton";
-import { api } from "@/src/utils/api";
+import { PrivateChannelsInfoTooltip } from "@/src/features/slack/components/PrivateChannelsInfoTooltip";
+import { useSlackIntegration } from "@/src/features/slack/useSlackIntegration";
 import { useRouter } from "next/router";
 import { useState, useEffect } from "react";
 import { Badge } from "@/src/components/ui/badge";
@@ -64,21 +65,8 @@ export default function SlackIntegrationPage() {
     }
   }, [router.query]);
 
-  const { data: integrationStatus, isLoading } =
-    api.slack.getIntegrationStatus.useQuery(
-      { projectId },
-      { enabled: !!projectId },
-    );
-
-  const status = (() => {
-    if (isLoading) {
-      return undefined;
-    }
-    if (integrationStatus?.isConnected) {
-      return "active";
-    }
-    return "inactive";
-  })();
+  const { query, status } = useSlackIntegration(projectId);
+  const integrationStatus = query.data;
 
   const [selectedChannel, setSelectedChannel] = useState<SlackChannel | null>(
     null,
@@ -100,7 +88,7 @@ export default function SlackIntegrationPage() {
         breadcrumb: [
           { name: "Settings", href: `/project/${projectId}/settings` },
         ],
-        actionButtonsLeft: <>{status && <StatusBadge type={status} />}</>,
+        actionButtonsLeft: status && <StatusBadge type={status} />,
         actionButtonsRight: <AutomationButton projectId={projectId} />,
       }}
     >
@@ -121,7 +109,10 @@ export default function SlackIntegrationPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <h4 className="mb-2 text-sm font-bold">Select Test Channel</h4>
+                <div className="mb-2 flex items-center gap-1.5">
+                  <h4 className="text-sm font-bold">Select Test Channel</h4>
+                  <PrivateChannelsInfoTooltip />
+                </div>
                 <div className="max-w-md">
                   <ChannelSelector
                     projectId={projectId}
@@ -201,11 +192,13 @@ export default function SlackIntegrationPage() {
               {!selectedChannel && (
                 <div className="text-muted-foreground text-sm">
                   Select a channel above to view its details and test message
-                  delivery. For private channels, invite the app first with{" "}
+                  delivery. Private channels appear only for the person who
+                  connected Slack, and only if both they and the app are
+                  members. Invite the app with{" "}
                   <code className="bg-muted rounded px-1 py-0.5">
                     /invite @Langfuse
-                  </code>{" "}
-                  in that channel.
+                  </code>
+                  .
                 </div>
               )}
             </CardContent>

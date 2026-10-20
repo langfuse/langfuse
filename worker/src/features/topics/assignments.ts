@@ -1,0 +1,64 @@
+import type {
+  TopicAssignment,
+  TopicEmbeddingConfig,
+  TopicFacetRef,
+  TopicRun,
+  TopicSummary,
+} from "@langfuse/shared/topics";
+import { classifyTopic } from "./classifier";
+
+/** Classifies trace summaries onto a map built from the same facet version and vector space. */
+export function topicAssignmentRows(input: {
+  projectId: string;
+  facet: TopicFacetRef;
+  embeddingConfig: TopicEmbeddingConfig;
+  summaries: TopicSummary[];
+  run: TopicRun;
+  origin: TopicAssignment["origin"];
+  assignedAt: string;
+  coordinates?: Map<string, [number, number]>;
+}): TopicAssignment[] {
+  const { projectId, facet, embeddingConfig, run } = input;
+  if (
+    run.projectId !== projectId ||
+    run.facetId !== facet.facetId ||
+    run.facetVersion !== facet.version ||
+    run.topics.some(
+      (topic) => topic.centroid.length !== embeddingConfig.embeddingDimensions,
+    ) ||
+    run.config.embeddingModel !== embeddingConfig.embeddingModel
+  )
+    throw new Error("Target map is incompatible with this facet version.");
+  const prototypes = run.topics.map((topic) => ({
+    id: topic.topicVersionId,
+    centroid: topic.centroid,
+    radius: topic.radius,
+  }));
+  return input.summaries.map((summary) => {
+    if (summary.traceId === null)
+      throw new Error("Topics processing requires a trace summary.");
+    const assigned = classifyTopic(summary.embedding, prototypes);
+    const topic = run.topics.find(
+      (candidate) => candidate.topicVersionId === assigned.topicId,
+    );
+    return {
+      coordinates: input.coordinates?.get(summary.traceId) ?? null,
+      projectId,
+      facetId: facet.facetId,
+      facetVersion: facet.version,
+      sessionId: summary.sessionId,
+      traceId: summary.traceId,
+      environment: summary.environment,
+      traceName: summary.traceName,
+      unitStartTime: summary.unitStartTime,
+      summaryProcessedAt: summary.processedAt,
+      runId: run.id,
+      topicId: topic?.topicId ?? null,
+      topicVersionId: topic?.topicVersionId ?? null,
+      distance: assigned.distance,
+      runnerUpDistance: assigned.runnerUpDistance,
+      origin: input.origin,
+      assignedAt: input.assignedAt,
+    };
+  });
+}

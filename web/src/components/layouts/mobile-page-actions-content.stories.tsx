@@ -1,4 +1,8 @@
-import { LayoutDashboard, PencilIcon, SlidersHorizontal } from "lucide-react";
+import {
+  LayoutDashboard,
+  PencilIcon,
+  SlidersHorizontal,
+} from "@langfuse/icons";
 import { fn } from "storybook/test";
 
 import preview from "../../../.storybook/preview";
@@ -32,18 +36,18 @@ export const MixedPageControls = meta.story({
         <div className="flex flex-col gap-1">
           <span className="text-muted-foreground px-2 text-xs">Dashboard</span>
           <Button variant="outline" className="w-full justify-start gap-2">
-            <LayoutDashboard className="h-4 w-4" />
+            <LayoutDashboard size="base" color="default" />
             Langfuse Home
           </Button>
           <Button variant="ghost" className="w-full justify-start gap-2">
-            <PencilIcon className="h-4 w-4" />
+            <PencilIcon size="base" color="default" />
             Edit dashboard
           </Button>
         </div>
         <div className="flex flex-col gap-1 border-t pt-2">
           <span className="text-muted-foreground px-2 text-xs">Data</span>
           <Button variant="outline" className="w-full justify-start gap-2">
-            <SlidersHorizontal className="h-4 w-4" />
+            <SlidersHorizontal size="base" color="default" />
             Environment and filters
           </Button>
         </div>

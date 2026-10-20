@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 /* eslint @repo/no-style-props: "off" */
 import cloneDeep from "lodash/cloneDeep";
 import isEqual from "lodash/isEqual";
@@ -152,6 +152,7 @@ export function UpsertModelFormDialogContent({
 
       utils.models.invalidate();
       showSuccessToast({
+        operation: props.action === "edit" ? "model.update" : "model.create",
         title: `Model ${props.action === "edit" ? "updated" : "created"}`,
         description: `The model '${upsertedModel.modelName}' has been successfully ${props.action === "edit" ? "updated" : "created"}. New generations will use these model prices.`,
       });

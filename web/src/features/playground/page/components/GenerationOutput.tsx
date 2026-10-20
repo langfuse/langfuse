@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { usePlaygroundContext } from "../context";
 import { ChatMessageRole, ChatMessageType } from "@langfuse/shared";
-import { BracesIcon, Check, Copy, Plus } from "lucide-react";
+import { BracesIcon, Check, Copy, Plus } from "@langfuse/icons";
 import { ToolCallCard } from "@/src/components/ChatMessages/ToolCallCard";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { ThinkingBlock } from "@/src/features/traces";
@@ -59,9 +59,9 @@ export const GenerationOutput = () => {
     }
   }, [output]);
 
-  const checkIcon = <Check className="h-2 w-2" />;
-  const copyIcon = <Copy className="h-2 w-2" />;
-  const plusIcon = <Plus className="h-2 w-2" />;
+  const checkIcon = <Check size="sm" />;
+  const copyIcon = <Copy size="sm" />;
+  const plusIcon = <Plus size="sm" />;
 
   const copyButton =
     output || outputToolCalls.length ? (
@@ -74,7 +74,7 @@ export const GenerationOutput = () => {
           }}
           title="Toggle Input/Output JSON"
         >
-          <BracesIcon size={15} />
+          <BracesIcon size="base" />
         </Button>
 
         <Button

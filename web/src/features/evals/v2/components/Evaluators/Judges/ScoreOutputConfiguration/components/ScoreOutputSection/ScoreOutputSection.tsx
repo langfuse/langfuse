@@ -1,5 +1,5 @@
 import { useId, useState, type ReactNode } from "react";
-import { Plus, TriangleAlert } from "lucide-react";
+import { Plus, TriangleAlert } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
 import { Button } from "@/src/components/ui/button";
@@ -313,11 +313,12 @@ export function ScoreOutputSection({
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <span
-                            className="text-dark-yellow h-4 w-4 shrink-0"
+                            className="text-dark-yellow inline-flex shrink-0"
                             aria-label={`Warning: ${categoryWarnings[index]}`}
                           >
                             <TriangleAlert
-                              className="h-4 w-4"
+                              size="base"
+                              color="default"
                               aria-hidden="true"
                             />
                           </span>
@@ -356,7 +357,7 @@ export function ScoreOutputSection({
                     aria-label="Add category"
                     title="Add category"
                   >
-                    <Plus className="h-4 w-4" />
+                    <Plus size="base" color="default" />
                   </Button>
                 </PopoverTrigger>
               </CategoryEditorPopover>

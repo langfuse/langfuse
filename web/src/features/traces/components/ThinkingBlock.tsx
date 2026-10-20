@@ -1,5 +1,6 @@
+/* eslint-disable @repo/component-file-structure */
 import { useState } from "react";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight } from "@langfuse/icons";
 import { cn } from "@/src/utils/tailwind";
 
 interface ThinkingBlockProps {
@@ -17,7 +18,7 @@ export function ThinkingBlock({
   const displayContent = summary || content;
 
   return (
-    <div className="my-2 px-1">
+    <div className="my-2">
       <button
         type="button"
         className="text-muted-foreground hover:text-foreground flex w-full cursor-pointer items-start gap-1 text-left"
@@ -25,8 +26,10 @@ export function ThinkingBlock({
         aria-expanded={expanded}
       >
         <ChevronRight
-          className={cn(
-            "text-foreground-tertiary mt-0.5 size-3 shrink-0 translate-y-px transition-transform",
+          size="sm"
+          color="tertiary"
+          __rawClassName={cn(
+            "mt-0.5 translate-y-px transition-transform",
             expanded && "rotate-90",
           )}
         />
@@ -60,7 +63,7 @@ export function RedactedThinkingBlock({
   const [expanded, setExpanded] = useState(defaultExpanded);
 
   return (
-    <div className="my-2 px-1">
+    <div className="my-2">
       <button
         type="button"
         className="text-muted-foreground hover:text-foreground flex w-full cursor-pointer items-start gap-1 text-left"
@@ -68,8 +71,10 @@ export function RedactedThinkingBlock({
         aria-expanded={expanded}
       >
         <ChevronRight
-          className={cn(
-            "text-foreground-tertiary mt-0.5 size-3 shrink-0 translate-y-px transition-transform",
+          size="sm"
+          color="tertiary"
+          __rawClassName={cn(
+            "mt-0.5 translate-y-px transition-transform",
             expanded && "rotate-90",
           )}
         />

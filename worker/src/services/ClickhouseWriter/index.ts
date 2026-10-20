@@ -22,9 +22,24 @@ import {
   type ClickhouseWriteStrategyFactory,
 } from "./writeStrategies";
 import { TableName, type RecordInsertType } from "./types";
+import { classifyJobFailure } from "../../queues/jobFailureReason";
 export { TableName } from "./types";
 
 const MULTI_PROJECT_LOG_COMMENT_PROJECT_ID = "MULTI_PROJECT";
+
+export function isRetryableClickhouseInsertError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+
+  const errorMessage = (error as Error).message?.toLowerCase() || "";
+
+  // Socket hang up and client-side request timeouts ("Timeout error." from
+  // @clickhouse/client when request_timeout elapses) are transient: a retry
+  // opens a fresh connection that can land on a healthy replica.
+  return (
+    errorMessage.includes("socket hang up") ||
+    errorMessage.includes("timeout error")
+  );
+}
 
 export class ClickhouseWriter<
   PayloadMap extends WriterPayloadMap = JsonWriterPayloadMap,
@@ -201,20 +216,6 @@ export class ClickhouseWriter<
     return flush;
   }
 
-  private isRetryableError(error: unknown): boolean {
-    if (!error || typeof error !== "object") return false;
-
-    const errorMessage = (error as Error).message?.toLowerCase() || "";
-
-    // Socket hang up and client-side request timeouts ("Timeout error." from
-    // @clickhouse/client when request_timeout elapses) are transient: a retry
-    // opens a fresh connection that can land on a healthy replica.
-    return (
-      errorMessage.includes("socket hang up") ||
-      errorMessage.includes("timeout error")
-    );
-  }
-
   private isSizeError(error: unknown): boolean {
     if (!error || typeof error !== "object") return false;
 
@@ -298,7 +299,7 @@ export class ClickhouseWriter<
 
     // Log wait time
     queueItems.forEach((item) => {
-      const waitTime = Date.now() - item.createdAt;
+      const waitTime = Date.now() - item.enqueuedAt;
       recordHistogram("langfuse.queue.clickhouse_writer.wait_time", waitTime, {
         format: this.strategyFactory.format,
         unit: "milliseconds",
@@ -309,6 +310,7 @@ export class ClickhouseWriter<
         {
           entity_type: tableName,
           type: "wait",
+          attempt: item.requeued ? "retry" : "first",
           format: this.strategyFactory.format,
           unit: "milliseconds",
         },
@@ -343,7 +345,7 @@ export class ClickhouseWriter<
         {
           numOfAttempts: env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS,
           retry: (error: Error, attemptNumber: number) => {
-            const isRetryable = this.isRetryableError(error);
+            const isRetryable = isRetryableClickhouseInsertError(error);
             const isSizeError = this.isSizeError(error);
             const isStringLengthError = this.isStringLengthError(error);
 
@@ -383,7 +385,14 @@ export class ClickhouseWriter<
 
               // Prepend requeue items to the front of the queue to maintain order as much as possible with parallel execution.
               if (requeueItems.length > 0) {
-                entityQueue.unshift(...requeueItems);
+                const requeuedAt = Date.now();
+                entityQueue.unshift(
+                  ...requeueItems.map((item) => ({
+                    ...item,
+                    enqueuedAt: requeuedAt,
+                    requeued: true,
+                  })),
+                );
               }
 
               currentSpan?.addEvent("clickhouse-query-split-retry", {
@@ -471,18 +480,24 @@ export class ClickhouseWriter<
         err,
       );
 
+      this.logRejectedRow(tableName, err, queueItems, writeStrategy);
+
       // Re-add the records to the queue with incremented attempts
+      const reason = classifyJobFailure(err);
       let droppedCount = 0;
       queueItems.forEach((item) => {
         if (item.attempts < this.maxAttempts) {
           entityQueue.push({
             ...item,
             attempts: item.attempts + 1,
+            enqueuedAt: Date.now(),
+            requeued: true,
           });
         } else {
           // TODO - Add to a dead letter queue in Redis rather than dropping
           recordIncrement("langfuse.queue.clickhouse_writer.error", 1, {
             format: this.strategyFactory.format,
+            reason,
           });
           droppedCount++;
         }
@@ -492,7 +507,11 @@ export class ClickhouseWriter<
         recordIncrement(
           "langfuse.queue.clickhouse_writer.rows_dropped",
           droppedCount,
-          { entity_type: tableName, format: this.strategyFactory.format },
+          {
+            entity_type: tableName,
+            format: this.strategyFactory.format,
+            reason,
+          },
         );
 
         const droppedIds = queueItems
@@ -507,6 +526,27 @@ export class ClickhouseWriter<
     }
   }
 
+  /** Log the row a ClickHouse parse error names, so its S3 event file can be found. */
+  private logRejectedRow<T extends TableName>(
+    tableName: T,
+    err: unknown,
+    queueItems: ClickhouseWriterQueueItem<PayloadMap[T]>[],
+    strategy: ClickhouseWriteStrategy<PayloadMap[TableName]>,
+  ) {
+    const row = queueItems[failedRowNumber(err) - 1]?.data;
+    if (!row) return;
+    this.logger.error(
+      `${this.logPrefix}ClickhouseWriter: ClickHouse rejected ${tableName} row`,
+      {
+        ...strategy.droppedId(row),
+        blobStorageFilePath:
+          "blob_storage_file_path" in row
+            ? row.blob_storage_file_path
+            : undefined,
+      },
+    );
+  }
+
   public addToQueue<T extends TableName>(tableName: T, data: PayloadMap[T]) {
     if (this.allowedTable && tableName !== this.allowedTable) {
       throw new Error(
@@ -516,7 +556,8 @@ export class ClickhouseWriter<
 
     const entityQueue = this.queue[tableName];
     entityQueue.push({
-      createdAt: Date.now(),
+      enqueuedAt: Date.now(),
+      requeued: false,
       attempts: 1,
       data,
     });
@@ -570,6 +611,12 @@ export class ClickhouseWriter<
   }
 }
 
+/** 1-based row from ClickHouse parse errors, e.g. "Cannot parse input: ... (at row 11)"; NaN if absent. */
+function failedRowNumber(err: unknown): number {
+  const message = err instanceof Error ? err.message : "";
+  return Number(/\(at row (\d+)\)/.exec(message)?.[1]);
+}
+
 type WriterPayloadMap = { [T in TableName]: object };
 
 type JsonWriterPayloadMap = {
@@ -585,7 +632,9 @@ type ClickhouseQueue<PayloadMap extends WriterPayloadMap> = {
 };
 
 type ClickhouseWriterQueueItem<Payload> = {
-  createdAt: number;
+  /** When the item last entered the in-memory queue, including requeues. */
+  enqueuedAt: number;
+  requeued: boolean;
   attempts: number;
   data: Payload;
 };

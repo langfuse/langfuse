@@ -2,6 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 
 import { ForbiddenError } from "@langfuse/shared";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  type ProjectAction,
+} from "@langfuse/shared/rbac";
 
 const { env } = vi.hoisted(() => ({
   env: { API_AUTH_MIGRATION: "enforce" as string },
@@ -22,22 +28,20 @@ import {
   type ApiAction,
 } from "@/src/features/public-api/server";
 import type { ServerContext } from "@/src/features/mcp/types";
-import {
-  type AuthorizationContext,
-  type Policy,
-  type ProjectAction,
-} from "@/src/features/auth/policy/types";
+import { type Policy } from "@/src/features/rbac/types";
+import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 
 const { assertToolAuthorized } = __test;
 
 const PRJ = "prj_1";
 
 const allowPrompts: Policy = {
-  kind: "project",
-  source: { kind: "role", id: "PROJECT" },
+  id: "system/LEGACY_PROJECT_API_KEY:project",
+  tenantId: OrganizationId("org_1"),
+  roleId: SystemRoleId("LEGACY_PROJECT_API_KEY"),
   actions: ["prompts:read"] as ProjectAction[] as never,
-  resources: [PRJ],
-  effect: "allow",
+  resources: [ProjectId(PRJ)],
+  effect: "ALLOW",
 };
 
 const authContext = (policies: Policy[]): AuthorizationContext => ({
@@ -86,7 +90,12 @@ describe("assertToolAuthorized", () => {
         serverContext(authContext([allowPrompts])),
       ),
     ).toThrow(
-      expect.objectContaining({ code: ErrorCode.InvalidRequest }) as Error,
+      expect.objectContaining({
+        code: ErrorCode.InvalidRequest,
+        message: expect.stringContaining(
+          'Access denied. The "prompts:CUD" permission is required to access this resource.',
+        ),
+      }) as Error,
     );
   });
 
@@ -99,6 +108,22 @@ describe("assertToolAuthorized", () => {
     ).not.toThrow();
   });
 
+  it("keeps the generic permission message for an invalid wildcard target", () => {
+    expect(() =>
+      assertToolAuthorized(tool("prompts:read"), {
+        ...serverContext(authContext([allowPrompts])),
+        projectId: "*",
+      }),
+    ).toThrow(
+      expect.objectContaining({
+        code: ErrorCode.InvalidRequest,
+        message: expect.stringContaining(
+          "Access denied. You do not have permission to access this resource.",
+        ),
+      }) as Error,
+    );
+  });
+
   it("passes an ungated tool regardless of context", () => {
     expect(() =>
       assertToolAuthorized(
@@ -108,10 +133,24 @@ describe("assertToolAuthorized", () => {
     ).not.toThrow();
   });
 
-  it("passes when no context resolved (legacy)", () => {
+  it("passes when no context resolved in legacy", () => {
+    env.API_AUTH_MIGRATION = "legacy";
     expect(() =>
       assertToolAuthorized(tool("prompts:CUD"), serverContext(undefined)),
     ).not.toThrow();
+  });
+
+  it("rejects a gated tool without context in enforce", () => {
+    expect(() =>
+      assertToolAuthorized(tool("prompts:CUD"), serverContext()),
+    ).toThrow(
+      expect.objectContaining({
+        code: ErrorCode.InvalidRequest,
+        message: expect.stringContaining(
+          "Authentication failed. Please check your API key.",
+        ),
+      }) as Error,
+    );
   });
 
   describe("shadow mode", () => {
@@ -130,6 +169,11 @@ describe("assertToolAuthorized", () => {
         { success: false, error: expect.any(ForbiddenError) },
         { success: true, scope: { accessLevel: "project" } },
         "prompts:CUD",
+        {
+          apiKeyId: "key_1",
+          publicKey: "pk-lf-1",
+          resource: "unknown",
+        },
       );
     });
 
@@ -142,6 +186,11 @@ describe("assertToolAuthorized", () => {
         { success: true },
         { success: true, scope: { accessLevel: "project" } },
         "prompts:read",
+        {
+          apiKeyId: "key_1",
+          publicKey: "pk-lf-1",
+          resource: "unknown",
+        },
       );
     });
   });

@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
+/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger, @repo/component-file-structure */
 import { type EvalTemplate } from "@langfuse/shared";
 
 import {
@@ -7,7 +7,7 @@ import {
   ExternalLink,
   AlertCircle,
   ExternalLinkIcon,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { Badge } from "@/src/components/ui/badge";
 import {
@@ -157,143 +157,51 @@ export const TemplateSelector = ({
       : "Select evaluators";
 
   return (
-    <>
-      <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            role="combobox"
-            aria-expanded={isPopoverOpen}
-            className={cn(
-              "w-full justify-between gap-2 px-2 font-normal",
-              className,
-            )}
+    <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={isPopoverOpen}
+          className={cn(
+            "w-full justify-between gap-2 px-2 font-normal",
+            className,
+          )}
+        >
+          <div className="flex items-center gap-1 overflow-hidden">
+            <span className="mr-1 truncate" title={triggerLabel}>
+              {triggerLabel}
+            </span>
+          </div>
+          <DropdownIndicator />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[300px] p-0" align="start">
+        <InputCommand>
+          <InputCommandInput
+            placeholder="Search evaluators..."
+            className="h-9"
+            value={search}
+            onValueChange={setSearch}
+            variant="bottom"
+          />
+          <div
+            tabIndex={0}
+            className="overflow-y-auto focus:outline-hidden"
+            style={{ maxHeight: "300px" }}
           >
-            <div className="flex items-center gap-1 overflow-hidden">
-              <span className="mr-1 truncate" title={triggerLabel}>
-                {triggerLabel}
-              </span>
-            </div>
-            <DropdownIndicator />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-[300px] p-0" align="start">
-          <InputCommand>
-            <InputCommandInput
-              placeholder="Search evaluators..."
-              className="h-9"
-              value={search}
-              onValueChange={setSearch}
-              variant="bottom"
-            />
-            <div
-              tabIndex={0}
-              className="overflow-y-auto focus:outline-hidden"
-              style={{ maxHeight: "300px" }}
-            >
-              <InputCommandList className="max-h-full overflow-visible overflow-x-hidden">
-                {!hasResults && (
-                  <InputCommandEmpty>No evaluator found.</InputCommandEmpty>
-                )}
+            <InputCommandList className="max-h-full overflow-visible overflow-x-hidden">
+              {!hasResults && (
+                <InputCommandEmpty>No evaluator found.</InputCommandEmpty>
+              )}
 
-                {filteredTemplates.custom.length > 0 && (
-                  <>
-                    <InputCommandGroup
-                      heading="Custom evaluators"
-                      className="max-h-full"
-                    >
-                      {filteredTemplates.custom.map(([familyKey, template]) => {
-                        const isActive = isTemplateActive(familyKey);
-                        const isInactive = isTemplateInactive(familyKey);
-                        const isInvalid = isTemplateInvalid(template);
-                        const isLegacy =
-                          existingEvaluators[familyKey]?.targetObject ===
-                          "dataset";
-
-                        return (
-                          <InputCommandItem
-                            key={`custom-${familyKey}`}
-                            onSelect={() => {
-                              handleRowClick(template.id, familyKey);
-                            }}
-                            disabled={isInvalid || disabled}
-                          >
-                            {isActive ? (
-                              <CheckIcon className="mr-2 h-4 w-4" />
-                            ) : (
-                              <div className="mr-2 h-4 w-4" />
-                            )}
-                            {template.name}
-                            {isLegacy && (
-                              <Badge variant="outline" className="ml-2 text-xs">
-                                legacy
-                              </Badge>
-                            )}
-                            {isInvalid && (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <AlertCircle className="ml-1 h-4 w-4 text-yellow-500" />
-                                </TooltipTrigger>
-                                <TooltipContent className="max-h-[50dvh] overflow-y-auto text-xs break-normal whitespace-normal">
-                                  <p>Requires project-level evaluation model</p>
-                                  <Link
-                                    href={`/project/${projectId}/evals/default-model`}
-                                    className="mt-2 flex items-center gap-1 text-blue-600 hover:underline"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                  >
-                                    <ExternalLinkIcon className="h-3 w-3" />
-                                    Configure default model
-                                  </Link>
-                                </TooltipContent>
-                              </Tooltip>
-                            )}
-                            {isInactive && (
-                              <div
-                                title="The evaluator has been used in the past but is currently paused. It will not run against outputs created in this dataset run. You can reactivate it if you wish"
-                                className="text-muted-foreground ml-2 text-xs"
-                              >
-                                Paused
-                              </div>
-                            )}
-                            {isActive && (
-                              <Button
-                                variant="ghost"
-                                size="icon-xs"
-                                onClick={(e) =>
-                                  handleConfigureTemplate(
-                                    e,
-                                    existingEvaluators[familyKey]
-                                      ?.evalTemplateId ?? template.id,
-                                  )
-                                }
-                                className="ml-auto"
-                                title={
-                                  isInvalid
-                                    ? "Configure default model first"
-                                    : "Configure evaluator"
-                                }
-                                disabled={isInvalid || disabled}
-                              >
-                                <Cog className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </InputCommandItem>
-                        );
-                      })}
-                    </InputCommandGroup>
-                    {filteredTemplates.custom.length > 0 && (
-                      <InputCommandSeparator />
-                    )}
-                  </>
-                )}
-
-                {filteredTemplates.langfuse.length > 0 && (
+              {filteredTemplates.custom.length > 0 && (
+                <>
                   <InputCommandGroup
-                    heading="Langfuse managed evaluators"
-                    className="max-h-full min-h-0"
+                    heading="Custom evaluators"
+                    className="max-h-full"
                   >
-                    {filteredTemplates.langfuse.map(([familyKey, template]) => {
+                    {filteredTemplates.custom.map(([familyKey, template]) => {
                       const isActive = isTemplateActive(familyKey);
                       const isInactive = isTemplateInactive(familyKey);
                       const isInvalid = isTemplateInvalid(template);
@@ -303,21 +211,18 @@ export const TemplateSelector = ({
 
                       return (
                         <InputCommandItem
-                          key={`langfuse-${familyKey}`}
+                          key={`custom-${familyKey}`}
                           onSelect={() => {
                             handleRowClick(template.id, familyKey);
                           }}
                           disabled={isInvalid || disabled}
                         >
                           {isActive ? (
-                            <CheckIcon className="mr-2 h-4 w-4" />
+                            <CheckIcon size="base" __rawClassName="mr-2" />
                           ) : (
                             <div className="mr-2 h-4 w-4" />
                           )}
-                          <div className="mr-1">{template.name}</div>
-                          <MaintainerTooltip
-                            maintainer={getMaintainer(template)}
-                          />
+                          {template.name}
                           {isLegacy && (
                             <Badge variant="outline" className="ml-2 text-xs">
                               legacy
@@ -326,7 +231,10 @@ export const TemplateSelector = ({
                           {isInvalid && (
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <AlertCircle className="ml-1 h-4 w-4 text-yellow-500" />
+                                <AlertCircle
+                                  size="base"
+                                  __rawClassName="ml-1 text-yellow-500"
+                                />
                               </TooltipTrigger>
                               <TooltipContent className="max-h-[50dvh] overflow-y-auto text-xs break-normal whitespace-normal">
                                 <p>Requires project-level evaluation model</p>
@@ -336,7 +244,7 @@ export const TemplateSelector = ({
                                   target="_blank"
                                   rel="noopener noreferrer"
                                 >
-                                  <ExternalLinkIcon className="h-3 w-3" />
+                                  <ExternalLinkIcon size="base" />
                                   Configure default model
                                 </Link>
                               </TooltipContent>
@@ -354,7 +262,6 @@ export const TemplateSelector = ({
                             <Button
                               variant="ghost"
                               size="icon-xs"
-                              className="ml-auto"
                               onClick={(e) =>
                                 handleConfigureTemplate(
                                   e,
@@ -362,6 +269,7 @@ export const TemplateSelector = ({
                                     ?.evalTemplateId ?? template.id,
                                 )
                               }
+                              className="ml-auto"
                               title={
                                 isInvalid
                                   ? "Configure default model first"
@@ -369,50 +277,145 @@ export const TemplateSelector = ({
                               }
                               disabled={isInvalid || disabled}
                             >
-                              <Cog className="h-4 w-4" />
+                              <Cog size="sm" color="default" />
                             </Button>
                           )}
                         </InputCommandItem>
                       );
                     })}
                   </InputCommandGroup>
-                )}
+                  {filteredTemplates.custom.length > 0 && (
+                    <InputCommandSeparator />
+                  )}
+                </>
+              )}
 
-                <InputCommandSeparator alwaysRender />
-                <InputCommandGroup forceMount>
+              {filteredTemplates.langfuse.length > 0 && (
+                <InputCommandGroup
+                  heading="Langfuse managed evaluators"
+                  className="max-h-full min-h-0"
+                >
+                  {filteredTemplates.langfuse.map(([familyKey, template]) => {
+                    const isActive = isTemplateActive(familyKey);
+                    const isInactive = isTemplateInactive(familyKey);
+                    const isInvalid = isTemplateInvalid(template);
+                    const isLegacy =
+                      existingEvaluators[familyKey]?.targetObject === "dataset";
+
+                    return (
+                      <InputCommandItem
+                        key={`langfuse-${familyKey}`}
+                        onSelect={() => {
+                          handleRowClick(template.id, familyKey);
+                        }}
+                        disabled={isInvalid || disabled}
+                      >
+                        {isActive ? (
+                          <CheckIcon size="base" __rawClassName="mr-2" />
+                        ) : (
+                          <div className="mr-2 h-4 w-4" />
+                        )}
+                        <div className="mr-1">{template.name}</div>
+                        <MaintainerTooltip
+                          maintainer={getMaintainer(template)}
+                        />
+                        {isLegacy && (
+                          <Badge variant="outline" className="ml-2 text-xs">
+                            legacy
+                          </Badge>
+                        )}
+                        {isInvalid && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <AlertCircle
+                                size="base"
+                                __rawClassName="ml-1 text-yellow-500"
+                              />
+                            </TooltipTrigger>
+                            <TooltipContent className="max-h-[50dvh] overflow-y-auto text-xs break-normal whitespace-normal">
+                              <p>Requires project-level evaluation model</p>
+                              <Link
+                                href={`/project/${projectId}/evals/default-model`}
+                                className="mt-2 flex items-center gap-1 text-blue-600 hover:underline"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                <ExternalLinkIcon size="base" />
+                                Configure default model
+                              </Link>
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                        {isInactive && (
+                          <div
+                            title="The evaluator has been used in the past but is currently paused. It will not run against outputs created in this dataset run. You can reactivate it if you wish"
+                            className="text-muted-foreground ml-2 text-xs"
+                          >
+                            Paused
+                          </div>
+                        )}
+                        {isActive && (
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            className="ml-auto"
+                            onClick={(e) =>
+                              handleConfigureTemplate(
+                                e,
+                                existingEvaluators[familyKey]?.evalTemplateId ??
+                                  template.id,
+                              )
+                            }
+                            title={
+                              isInvalid
+                                ? "Configure default model first"
+                                : "Configure evaluator"
+                            }
+                            disabled={isInvalid || disabled}
+                          >
+                            <Cog size="sm" color="default" />
+                          </Button>
+                        )}
+                      </InputCommandItem>
+                    );
+                  })}
+                </InputCommandGroup>
+              )}
+
+              <InputCommandSeparator alwaysRender />
+              <InputCommandGroup forceMount>
+                <InputCommandItem
+                  onSelect={() => {
+                    if (disabled) return;
+                    window.open(
+                      `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/project/${projectId}/evals/templates/new`,
+                      "_blank",
+                    );
+                  }}
+                >
+                  Create custom evaluator
+                  <ExternalLink size="base" __rawClassName="ml-auto" />
+                </InputCommandItem>
+                {!hasDefaultModel && (
                   <InputCommandItem
                     onSelect={() => {
                       if (disabled) return;
                       window.open(
-                        `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/project/${projectId}/evals/templates/new`,
+                        `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/project/${projectId}/evals/default-model`,
                         "_blank",
                       );
                     }}
                   >
-                    Create custom evaluator
-                    <ExternalLink className="ml-auto h-4 w-4" />
+                    Configure default model
+                    <ExternalLink size="base" __rawClassName="ml-auto" />
                   </InputCommandItem>
-                  {!hasDefaultModel && (
-                    <InputCommandItem
-                      onSelect={() => {
-                        if (disabled) return;
-                        window.open(
-                          `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/project/${projectId}/evals/default-model`,
-                          "_blank",
-                        );
-                      }}
-                    >
-                      Configure default model
-                      <ExternalLink className="ml-auto h-4 w-4" />
-                    </InputCommandItem>
-                  )}
-                </InputCommandGroup>
-              </InputCommandList>
-            </div>
-          </InputCommand>
-        </PopoverContent>
-      </Popover>
-    </>
+                )}
+              </InputCommandGroup>
+            </InputCommandList>
+          </div>
+        </InputCommand>
+      </PopoverContent>
+    </Popover>
   );
 };
 

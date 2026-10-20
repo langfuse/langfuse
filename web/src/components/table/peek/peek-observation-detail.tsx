@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import {
   TablePeekView,
   shouldClosePeekAfterDelete,
@@ -40,41 +41,47 @@ export const TablePeekViewObservationDetail = (
     timestamp,
   });
 
-  const actionProps = trace.data
-    ? {
-        trace: trace.data,
-        traceContext: "peek" as const,
-        shareUrl: buildTracePath({
-          projectId: trace.data.projectId,
-          traceId: trace.data.id,
+  const actionProps = {
+    trace: trace.data,
+    traceContext: "peek" as const,
+    shareUrl: traceId
+      ? buildTracePath({
+          projectId,
+          traceId,
           observationId:
             typeof router.query.traceId === "string"
               ? peekObservationId
               : undefined,
           timestamp:
             typeof router.query.traceId === "string" ? undefined : timestamp,
-        }),
-        timestamp,
-        onAfterDelete: (deletedTraceId: string) => {
-          if (shouldClosePeekAfterDelete(traceIdRef.current, deletedTraceId)) {
-            props.closePeek();
-          }
-        },
+        })
+      : undefined,
+    timestamp,
+    onAfterDelete: (deletedTraceId: string) => {
+      if (shouldClosePeekAfterDelete(traceIdRef.current, deletedTraceId)) {
+        props.closePeek();
       }
-    : null;
+    },
+  };
 
   return (
     <TablePeekView
       {...props}
       title={traceId}
       hideExpandToggle
+      preserveContentAcrossItems
       actions={
-        actionProps ? <TraceDetailActions {...actionProps} /> : undefined
+        <TraceDetailActions
+          isPlaceholderData={trace.isPlaceholderData}
+          {...actionProps}
+        />
       }
       actionsMenu={
-        actionProps ? (
-          <TraceDetailActions {...actionProps} layout="menu" />
-        ) : undefined
+        <TraceDetailActions
+          isPlaceholderData={trace.isPlaceholderData}
+          {...actionProps}
+          layout="menu"
+        />
       }
     >
       <TraceDetailBody
@@ -82,6 +89,7 @@ export const TablePeekViewObservationDetail = (
         context="peek"
         keySuffix={peekObservationId}
         truncatedAtObservations={trace.truncatedAtObservations}
+        isPlaceholderData={trace.isPlaceholderData}
       />
     </TablePeekView>
   );

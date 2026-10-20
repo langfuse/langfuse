@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import {
   Tooltip,
@@ -41,7 +41,7 @@ export function EvaluatorSetupFooterView(props: EvaluatorSetupFooterViewProps) {
     >
       {saveLabel}
       {props.mode === "create" ? (
-        <ArrowRight className="h-4 w-4 shrink-0" aria-hidden="true" />
+        <ArrowRight size="base" aria-hidden="true" />
       ) : null}
     </Button>
   );

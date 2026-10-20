@@ -59,9 +59,79 @@ Common flags: `--project` (defaults to the seeded example project),
 `--environment`, `--seed`, `--id-prefix`, `--dry-run` (instant, arithmetic
 counts, writes nothing), `--json` (machine mode: pure-JSON stdout).
 
+For queue setup testing, use `annotation-queue --setup-demo --core-items 4`.
+It seeds Answer quality and Safety review queues with different, nonalphabetical
+score config orders and a shared Feedback config, plus a Start here queue with
+four pending items and intentionally empty `scoreConfigIds`. This empty queue is
+a test fixture; the application still requires a config when saving. The demo
+uses separate queue names and adds `-setup` to the ID prefix, preserving the
+default keyboard QA fixtures. It includes observation, session, and completed
+examples but skips the missing-object item.
+
+Add `--score-config-count 60` to seed a larger, varied project catalog. With
+`--setup-demo`, Answer quality selects 35 fields and Safety review selects 34,
+using different subsets and orders; Start here stays unconfigured. The default
+is nine configs, and the supported range is 9–500. Use a fresh project and
+`--id-prefix` for an independent fixture: queue names are reused within a project.
+
 Scenarios compose: e.g. a session where one trace has zero observations is
 two `long-session` runs sharing a `--session-id` with different
 `--id-prefix` values.
+
+### Experiment filter fixture
+
+`NEXTAUTH_URL=http://localhost:3010 pnpm run seed -- experiment-filters --id-prefix experiment-targets`
+creates the runs **Filter A**, **Filter B**, and **Filter C** over 60 shared
+items. Their distinct numeric `quality`, categorical `verdict`, boolean
+`approved`, status, item metadata (`category`, `cohort`) and event metadata
+(`region`, `variant`) make experiment targeting visible. Filter C omits items
+6, 12, …, 60. Each run also omits ten quality scores.
+
+For `quality > 0.8`, the per-experiment matches are:
+
+| Experiment | Matching item numbers, repeated every six items | Count |
+| ---------- | ----------------------------------------------- | ----- |
+| Filter A   | 4, 5                                            | 20    |
+| Filter B   | 2, 3                                            | 20    |
+| Filter C   | 1                                               | 10    |
+
+Adding `level:ERROR` to Filter B narrows its matching items to 2, 8, …, 56
+(10 items). These are per-experiment matches; the comparison table's item
+coverage mode still determines how the sets are combined.
+
+For query-volume and suggestion-cardinality checks, use a fresh prefix:
+
+`pnpm run seed -- experiment-filters --items 12000 --extra-score-names 600 --id-prefix experiment-options-perf`
+
+This creates 34,000 events and 130,000 scores. Each event gets one additional
+numeric score, cycling through 600 names; Filter B places those scores on the
+trace, while A and C place them on the root observation. Readback verifies both
+row counts and the expected quality matches (4,000 / 4,000 / 2,000).
+
+## Topics
+
+After applying the normal Postgres and ClickHouse migrations, seed either fixture:
+
+```bash
+pnpm run seed -- topics
+pnpm run seed -- topics --batch evaluation --id-prefix topics-eval-s42
+```
+
+The default batch creates 12 discovery traces across three themes and three
+assignment traces (two familiar themes and one new theme), with v4 events enabled
+by default. `--batch discovery` seeds IDs `-t00` through `-t11`;
+`--batch assignment` seeds `-t12` through `-t14`. Process the `discovery` tag,
+choose **Update topics** with **Small sample mode**, then process the
+held-out `assignment` tag after publishing a map.
+
+The evaluation batch creates 100 traces (`-e00` through `-e99`) with five intent
+themes and cross-cutting tool outcomes: 20 each of timeout, denied access,
+invalid JSON, empty results, and success. Each trace has a generation and a
+child tool. Intent has 100 applicable traces; Issues has 80 and needs **Small
+sample mode** with the default minimum-count settings.
+
+Seeding makes no model calls. Theme/outcome labels remain outside trace metadata
+and I/O.
 
 ## The contract (additive-only)
 

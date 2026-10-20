@@ -6,12 +6,10 @@ import { prisma } from "@langfuse/shared/src/db";
 import { decrypt } from "@langfuse/shared/encryption";
 import {
   buildEventBucketPrefix,
-  compileLangfuseMediaMessages,
-  createLLMOutput,
-  createTypeSafeDecisionModelClient,
+  createDecisionModelClient,
   decryptAndParseExtraHeaders,
   DefaultEvalModelService,
-  generateLLMText,
+  generateLlmEvaluatorOutput,
   IngestionQueue,
   LLMAdapter,
   mapLegacyLLMCompletionParams,
@@ -25,17 +23,17 @@ import {
   writeInternalTraceViaOtelIngestion,
 } from "@langfuse/shared/src/server";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
-import { getEvalS3StorageClient } from "./s3StorageClient";
+import { getEvalScoreS3StorageClient } from "./s3StorageClient";
 import { createInternalEventsWriter } from "../internal-tracing/createInternalEventsWriter";
-import { recordExportVolume } from "../../services/exportVolumeMetric";
+import {
+  llmRequestEgressBytes,
+  recordExportVolume,
+} from "../../services/exportVolumeMetric";
 
 type StructuredOutputSchema = z.ZodObject<{
   reasoning: z.ZodString;
   score: z.ZodType;
 }>;
-
-const MODEL_FACING_OUTPUT_SCHEMA_DESCRIPTION =
-  'Return only top-level "score" and "scoreExplanation". Put other requested fields inside "scoreExplanation".';
 
 /**
  * Result of fetching model configuration.
@@ -157,26 +155,11 @@ export interface EvalExecutionDeps {
     params: FetchModelConfigParams,
   ) => Promise<ModelConfigResult>;
 
-  // Decision-model operations (experimental)
+  // Decision-model operations
   callDecisionModel: (
     params: DecisionModelCallParams,
   ) => Promise<DecisionModelEvaluation>;
   writeInternalTrace: InternalTraceWriter;
-}
-
-// Measure the schema as the JSON Schema LangChain ships, not Zod's _def.
-function serializeSchemaForEgress(schema: unknown): string {
-  try {
-    return JSON.stringify(z.toJSONSchema(schema as z.ZodType));
-  } catch {
-    return JSON.stringify(schema);
-  }
-}
-
-function serializeProviderMessagesForEgress(messages: unknown): string {
-  return JSON.stringify(messages, (_key, value) =>
-    value instanceof Uint8Array ? Buffer.from(value).toString("base64") : value,
-  );
 }
 
 /**
@@ -200,7 +183,7 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
       });
       const bucketPath = `${bucketPrefix}${params.eventId}.json`;
 
-      await getEvalS3StorageClient().uploadJson(bucketPath, [
+      await getEvalScoreS3StorageClient().uploadJson(bucketPath, [
         params.event as unknown as Record<string, unknown>,
       ]);
     },
@@ -255,51 +238,17 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
         typeof mapLegacyLLMCompletionParams
       >[0]["modelParams"]["adapter"];
 
-      const modelParams = {
-        provider: params.modelConfig.provider,
-        model: params.modelConfig.model,
-        adapter,
-        ...params.modelConfig.modelParams,
-      };
-      const llmParams = mapLegacyLLMCompletionParams({
+      const result = await generateLlmEvaluatorOutput({
+        projectId: params.traceSinkParams.targetProjectId,
         connection,
-        messages: params.messages,
-        modelParams,
-      });
-      const { providerMessages, traceMessages } =
-        await compileLangfuseMediaMessages({
-          projectId: params.traceSinkParams.targetProjectId,
-          messages: params.messages,
+        modelParams: {
+          provider: params.modelConfig.provider,
+          model: params.modelConfig.model,
           adapter,
-        });
-
-      // Keep the evaluator contract unchanged while the model-facing schema
-      // resolves custom output instructions into the supported fields.
-      const modelFacingStructuredOutputSchema = z
-        .object({
-          scoreExplanation: params.structuredOutputSchema.shape.reasoning,
-          score: params.structuredOutputSchema.shape.score,
-        })
-        .describe(MODEL_FACING_OUTPUT_SCHEMA_DESCRIPTION);
-
-      // llmaj egress: provider-bound messages (including base64-expanded inline
-      // media) plus schema, uncompressed.
-      const bytes =
-        Buffer.byteLength(
-          serializeProviderMessagesForEgress(providerMessages),
-          "utf8",
-        ) +
-        Buffer.byteLength(
-          serializeSchemaForEgress(modelFacingStructuredOutputSchema),
-          "utf8",
-        );
-
-      const result = await generateLLMText({
-        ...llmParams,
-        messages: providerMessages,
-        traceInput: traceMessages,
-        output: createLLMOutput(modelFacingStructuredOutputSchema),
-        maxRetries: 1,
+          ...params.modelConfig.modelParams,
+        },
+        messages: params.messages,
+        outputResultSchema: params.structuredOutputSchema,
         trace: {
           targetProjectId: params.traceSinkParams.targetProjectId,
           traceId: params.traceSinkParams.traceId,
@@ -311,17 +260,19 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
         },
       });
 
-      // Record only after a successful send, like the other integrations.
+      // llmaj egress: provider-bound messages (including base64-expanded inline
+      // media) plus schema, uncompressed. Recorded only after a successful
+      // send, like the other integrations.
       recordExportVolume({
         integration: "llmaj",
-        bytes,
+        bytes: llmRequestEgressBytes(
+          result.providerMessages,
+          result.modelFacingOutputSchema,
+        ),
         projectId: params.traceSinkParams.targetProjectId,
       });
 
-      return {
-        score: result.output.score,
-        reasoning: result.output.scoreExplanation,
-      };
+      return result.output;
     },
 
     fetchModelConfig: async ({ projectId, provider, model, modelParams }) => {
@@ -338,15 +289,10 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
 
     callDecisionModel: async (params) => {
       const { apiKey } = params.modelConfig;
-      if (apiKey.adapter !== LLMAdapter.TypeSafe) {
-        throw new Error(
-          `Decision-model adapter is not supported: ${apiKey.adapter}`,
-        );
-      }
       const secretKey = apiKey.secretKey;
       if (typeof secretKey !== "string") {
         throw new UnrecoverableError(
-          "TypeSafe connection is missing its secret key",
+          "Decision-model connection is missing its secret key",
         );
       }
 
@@ -359,11 +305,12 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
         );
       } catch {
         throw new UnrecoverableError(
-          "TypeSafe connection secrets could not be decrypted",
+          "Decision-model connection secrets could not be decrypted",
         );
       }
 
-      const client = createTypeSafeDecisionModelClient({
+      const client = createDecisionModelClient({
+        adapter: apiKey.adapter,
         apiKey: decryptedSecretKey,
         model: params.modelConfig.model,
         baseURL: typeof apiKey.baseURL === "string" ? apiKey.baseURL : null,
@@ -400,7 +347,7 @@ export function createMockEvalExecutionDeps(
         Object.entries(request.questions).map(([id, question]) => {
           switch (question.type) {
             case "choice": {
-              const [choice = "mock"] = Object.keys(question.criteria);
+              const choice = question.choices[0]?.value ?? "mock";
               return [
                 id,
                 {
@@ -416,7 +363,7 @@ export function createMockEvalExecutionDeps(
                 id,
                 { type: "score", score: 0, probabilities: {}, confidence: 1 },
               ];
-            case "boolean":
+            case "predicate":
               return [id, { type: "boolean", probability: 1 }];
           }
         }),

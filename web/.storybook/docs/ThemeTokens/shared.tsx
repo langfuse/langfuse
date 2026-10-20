@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 /**
  * Shared machinery for the Design reference pages (Color, Typography,
  * Layout, Charts). Everything token-shaped is parsed at build time from
@@ -11,7 +12,7 @@
  *   swatch+value side by side and a compact live usage sample. Samples
  *   repaint under the active Storybook theme (toolbar switcher).
  */
-import { ChevronRight } from "lucide-react";
+import { ChevronRight } from "@langfuse/icons";
 import { type ReactNode, useSyncExternalStore } from "react";
 
 import globalsCss from "../../../src/styles/globals.css?raw";
@@ -133,7 +134,8 @@ const PAGE_TOKEN_MATCHERS: Array<{
 }> = [
   {
     page: "charts",
-    test: (n) => /^--(?:chart-\d+|chart-grid|color-\d+)$/.test(n),
+    test: (n) =>
+      /^--(?:chart-\d+|chart-fill-\d+|chart-grid|color-\d+)$/.test(n),
   },
   { page: "typography", test: (n) => /^--(?:font-|text-)/.test(n) },
   {
@@ -358,7 +360,9 @@ export function CollapsedSection({
       <summary className="flex cursor-pointer list-none items-start gap-2 [&::-webkit-details-marker]:hidden">
         <ChevronRight
           aria-hidden
-          className="text-muted-foreground mt-1.5 size-4 shrink-0 transition-transform group-open:rotate-90"
+          size="base"
+          color="muted"
+          __rawClassName="mt-1.5 transition-transform group-open:rotate-90"
         />
         <div className="flex flex-1 items-baseline justify-between gap-4">
           <div>

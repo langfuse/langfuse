@@ -48,6 +48,16 @@ const meta = preview.meta({
 
 export const Default = meta.story({});
 
+/** `default` for embedded toolbars, `large` for full-page lists. */
+export const Sizes = meta.story({
+  render: (args) => (
+    <div className="flex flex-col gap-3">
+      <InteractiveSearchInput {...args} size="default" />
+      <InteractiveSearchInput {...args} size="large" />
+    </div>
+  ),
+});
+
 export const WithDropdown = meta.story({
   args: {
     dropdown,

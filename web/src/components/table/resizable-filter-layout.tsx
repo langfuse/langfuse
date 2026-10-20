@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 "use client";
 
 import {
@@ -7,7 +8,7 @@ import {
   cloneElement,
   isValidElement,
 } from "react";
-import { X } from "lucide-react";
+import { X } from "@langfuse/icons";
 import { ResizableSplitLayout } from "@/src/components/ui/resizable-split-layout";
 import { Sheet, SheetContent, SheetTitle } from "@/src/components/ui/sheet";
 import { Button } from "@/src/components/ui/button";
@@ -104,7 +105,7 @@ export function StickySearchableTableFilterLayout({
 
   return (
     <SearchBarDraftCacheContext.Provider value={searchDraftCache}>
-      <div className="bg-background sticky top-0 z-30 pb-1.5">
+      <div className="bg-surface sticky top-0 z-30 pb-1.5">
         {isMobile ? null : search}
         {toolbar}
       </div>
@@ -206,7 +207,7 @@ function FilterPanels({
                         emitMobileClose("header");
                       }}
                     >
-                      <X className="h-4 w-4" />
+                      <X size="base" color="default" />
                     </Button>
                   </div>
                   {mobileSearch && (

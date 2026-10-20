@@ -2,7 +2,7 @@
 /* eslint-disable @repo/no-null-render */
 import React, { useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { CheckIcon, Code2, Cog, Wand2 } from "lucide-react";
+import { CheckIcon, Code2, Cog, Wand2 } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { api } from "@/src/utils/api";
 import {
@@ -182,7 +182,7 @@ export const CreateExperimentsForm = ({
             <Card className="flex flex-1 flex-col">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <Wand2 className="size-4" />
+                  <Wand2 size="base" />
                   via User Interface
                 </CardTitle>
                 <CardDescription>
@@ -225,7 +225,7 @@ export const CreateExperimentsForm = ({
             <Card className="flex flex-1 flex-col">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <Code2 className="size-4" />
+                  <Code2 size="base" />
                   via Webhook
                 </CardTitle>
                 <CardDescription>
@@ -294,8 +294,9 @@ export const CreateExperimentsForm = ({
                                 >
                                   {dataset.name}
                                   <CheckIcon
-                                    className={cn(
-                                      "ml-auto h-4 w-4",
+                                    size="base"
+                                    __rawClassName={cn(
+                                      "ml-auto",
                                       dataset.id === datasetId
                                         ? "opacity-100"
                                         : "opacity-0",
@@ -346,7 +347,7 @@ export const CreateExperimentsForm = ({
                       title="Edit remote trigger settings"
                       onClick={() => setShowRemoteExperimentUpsertForm(true)}
                     >
-                      <Cog className="h-3 w-3" />
+                      <Cog size="base" />
                     </Button>
                   </div>
                 ) : (

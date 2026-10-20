@@ -1,13 +1,11 @@
 //! The insertable part of `events_full` and its prepared Rust row.
 //!
 //! The macro invocation below is the only per-column declaration. It drives the prepared row,
-//! column type metadata, JS reads, and typed Native column writes.
+//! column type metadata, JS reads, and typed Native column construction.
 
-use clickhouse::native::builder::BlockBuilder;
-use clickhouse::native::encode::Encode;
-use napi::bindgen_prelude::{Object, Unknown};
+use napi::bindgen_prelude::Object;
 
-use crate::native_codec::{DateTime64Micros, Decimal64};
+use crate::native_codec::{DateTime64Micros, Decimal64, SkillReference, SkillResourceLoaded};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum DefaultPolicy {
@@ -100,34 +98,26 @@ macro_rules! prepare_js_field {
     };
 }
 
-/// Declare the prepared row and every operation that must agree with its shape.
-macro_rules! clickhouse_table_schema {
+macro_rules! define_event_row {
+    ($($field:ident : $ty:ty),* $(,)?) => {
+        #[derive(Debug)]
+        pub(crate) struct PreparedEventRow {
+            $(pub(crate) $field: $ty,)*
+        }
+    };
+}
+
+macro_rules! impl_js_field_reads {
     (
         $(
             $field:ident $(as $name:literal)? : $ty:ty => $( @ $source:ident )? $policy:expr
         ),* $(,)?
     ) => {
-        #[derive(Debug)]
-        pub(crate) struct PreparedEventRow {
-            $(pub(crate) $field: $ty,)*
-        }
-
         impl PreparedEventRow {
-            /// Convert one finalized JavaScript row directly into owned Rust fields.
-            ///
-            /// The schema macro generates typed reads for the declared columns and ignores
-            /// unrelated properties. Only owned typed fields leave the NAPI call.
-            pub(crate) fn from_js(value: Unknown<'_>) -> Result<Self, String> {
-                let object: Object<'_> = match value.get_type().map_err(|error| error.to_string())? {
-                    napi::ValueType::Object => unsafe { value.cast() }
-                        .map_err(|error| error.to_string())?,
-                    value_type => {
-                        return Err(format!(
-                            "prepared event must be an object, got {value_type:?}"
-                        ));
-                    }
-                };
-                let mut metadata = crate::native_js::MetadataValues::from_js(&object)?;
+            pub(crate) fn from_js_fields(
+                object: Object<'_>,
+                mut metadata: crate::native_js::MetadataValues,
+            ) -> Result<Self, String> {
                 $(
                     prepare_js_field!(
                         object,
@@ -151,37 +141,56 @@ macro_rules! clickhouse_table_schema {
                     )*
                 })
             }
+        }
+    };
+}
 
+macro_rules! impl_native_columns {
+    ($($field:ident $(as $name:literal)? : $ty:ty => $policy:expr),* $(,)?) => {
+        impl PreparedEventRow {
             /// Return the insertable columns and their Native type names from this declaration.
             pub(crate) fn columns() -> Vec<(String, String, bool)> {
                 vec![$(
                     (
                         schema_column_name!($field $(as $name)?).to_owned(),
-                        <$ty as Encode>::produces().to_string(),
+                        crate::native_columns::column_type::<$ty>().to_string(),
                         $policy != DefaultPolicy::None,
                     ),
                 )*]
             }
 
-            /// Write shared prepared rows through clickhouse-rs's typed `Encode` implementations.
-            pub(crate) fn encode_arcs(
-                builder: &mut BlockBuilder,
+            pub(crate) fn schema() -> ch_core_rs::schema::Schema {
+                ch_core_rs::schema::Schema::new(vec![
+                    $(
+                        ch_core_rs::schema::Field {
+                            name: schema_column_name!($field $(as $name)?).to_owned(),
+                            ch_type: crate::native_columns::column_type::<$ty>(),
+                        },
+                    )*
+                ])
+            }
+
+            pub(crate) fn build_columns(
                 rows: &[std::sync::Arc<Self>],
-            ) -> Result<(), String> {
-                $(
-                    let name = schema_column_name!($field $(as $name)?);
-                    let mut column = builder
-                        .upsert_column::<&$ty>(name)
-                        .map_err(|error| format!("cannot add column {name}: {error}"))?;
-                    for row in rows {
-                        column
-                            .add(&row.$field)
-                            .map_err(|error| format!("cannot encode column {name}: {error}"))?;
-                    }
-                )*
-                Ok(())
+            ) -> Result<Vec<ch_core_rs::column::Column>, crate::native_columns::NativeColumnError> {
+                Ok(vec![
+                    $(
+                        crate::native_columns::build_column::<$ty, _>(
+                            rows.iter().map(|row| &row.$field),
+                        )?,
+                    )*
+                ])
             }
         }
+    };
+}
+
+/// Keep the row, JS reads, and Native columns in the same declared order.
+macro_rules! clickhouse_table_schema {
+    ($($field:ident $(as $name:literal)? : $ty:ty => $(@ $source:ident)? $policy:expr),* $(,)?) => {
+        define_event_row! { $($field: $ty,)* }
+        impl_js_field_reads! { $($field $(as $name)?: $ty => $(@ $source)? $policy,)* }
+        impl_native_columns! { $($field $(as $name)?: $ty => $policy,)* }
     };
 }
 
@@ -251,6 +260,8 @@ clickhouse_table_schema! {
     tags: Vec<String> => DefaultPolicy::None,
     tool_calls: Vec<String> => DefaultPolicy::None,
     tool_call_names: Vec<String> => DefaultPolicy::None,
+    skills_available: Vec<SkillReference> => DefaultPolicy::None,
+    skills_resource_loaded: Vec<SkillResourceLoaded> => DefaultPolicy::None,
     metadata_names: Vec<String> => @metadata_names DefaultPolicy::None,
     metadata_values: Vec<String> => @metadata_values DefaultPolicy::None,
     experiment_metadata_names: Vec<String> => DefaultPolicy::None,
