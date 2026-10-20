@@ -19,20 +19,14 @@ WHERE (events.project_id = {param1:String})
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param2": [
-        "NUMERIC",
-        "BOOLEAN",
-        "CATEGORICAL",
-        "TEXT",
-      ],
-      "param3": "2026-01-01 00:00:00.000",
+      "param2": "2026-01-01 00:00:00.000",
     },
     "route": "environments.getEnvironmentsForProject",
     "sql": "SELECT DISTINCT environment
 FROM scores
 WHERE (project_id = {param1:String})
-    AND (data_type IN ({param2:Array(String)}))
-    AND (timestamp >= {param3:DateTime64(3)})",
+    AND (data_type IN ('NUMERIC', 'BOOLEAN', 'CATEGORICAL', 'TEXT'))
+    AND (timestamp >= {param2:DateTime64(3)})",
   },
 ]
 `;
@@ -54,18 +48,12 @@ WHERE (events.project_id = {param1:String})
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param2": [
-        "NUMERIC",
-        "BOOLEAN",
-        "CATEGORICAL",
-        "TEXT",
-      ],
     },
     "route": "environments.getEnvironmentsForProject",
     "sql": "SELECT DISTINCT environment
 FROM scores
 WHERE (project_id = {param1:String})
-    AND (data_type IN ({param2:Array(String)}))",
+    AND (data_type IN ('NUMERIC', 'BOOLEAN', 'CATEGORICAL', 'TEXT'))",
   },
 ]
 `;
@@ -93,20 +81,14 @@ WHERE (project_id = {param1:String})
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param2": [
-        "NUMERIC",
-        "BOOLEAN",
-        "CATEGORICAL",
-        "TEXT",
-      ],
-      "param3": "2026-01-01 00:00:00.000",
+      "param2": "2026-01-01 00:00:00.000",
     },
     "route": "environments.getEnvironmentsForProject",
     "sql": "SELECT DISTINCT environment
 FROM scores
 WHERE (project_id = {param1:String})
-    AND (data_type IN ({param2:Array(String)}))
-    AND (timestamp >= {param3:DateTime64(3)})",
+    AND (data_type IN ('NUMERIC', 'BOOLEAN', 'CATEGORICAL', 'TEXT'))
+    AND (timestamp >= {param2:DateTime64(3)})",
   },
 ]
 `;
@@ -131,18 +113,12 @@ WHERE project_id = {param1:String}",
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param2": [
-        "NUMERIC",
-        "BOOLEAN",
-        "CATEGORICAL",
-        "TEXT",
-      ],
     },
     "route": "environments.getEnvironmentsForProject",
     "sql": "SELECT DISTINCT environment
 FROM scores
 WHERE (project_id = {param1:String})
-    AND (data_type IN ({param2:Array(String)}))",
+    AND (data_type IN ('NUMERIC', 'BOOLEAN', 'CATEGORICAL', 'TEXT'))",
   },
 ]
 `;

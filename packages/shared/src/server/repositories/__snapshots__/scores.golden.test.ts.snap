@@ -10,12 +10,6 @@ exports[`golden: scores.getAggregatedScoresForPromptsFromEvents > relation=obser
     ],
     "param3": "2026-01-01 00:00:00.000",
     "param4": "2026-01-31 23:59:59.000",
-    "param5": [
-      "NUMERIC",
-      "BOOLEAN",
-      "CATEGORICAL",
-      "TEXT",
-    ],
   },
   "sql": "WITH prompt_events AS
     (
@@ -61,7 +55,7 @@ FINAL
 INNER JOIN prompt_events AS e ON (s.project_id = e.project_id) AND (s.trace_id = e.trace_id) AND (s.observation_id = e.span_id)
 WHERE (s.project_id = {param1:String})
     AND (s.name IS NOT NULL)
-    AND (s.data_type IN ({param5:Array(String)}))
+    AND (s.data_type IN ('NUMERIC', 'BOOLEAN', 'CATEGORICAL', 'TEXT'))
     AND (s.observation_id IS NOT NULL)
     AND ((s.trace_id, s.observation_id) IN (
         SELECT
@@ -90,12 +84,6 @@ exports[`golden: scores.getAggregatedScoresForPromptsFromEvents > relation=obser
     "param2": [
       "prompt-a",
       "prompt-b",
-    ],
-    "param3": [
-      "NUMERIC",
-      "BOOLEAN",
-      "CATEGORICAL",
-      "TEXT",
     ],
   },
   "sql": "WITH prompt_events AS
@@ -140,7 +128,7 @@ FINAL
 INNER JOIN prompt_events AS e ON (s.project_id = e.project_id) AND (s.trace_id = e.trace_id) AND (s.observation_id = e.span_id)
 WHERE (s.project_id = {param1:String})
     AND (s.name IS NOT NULL)
-    AND (s.data_type IN ({param3:Array(String)}))
+    AND (s.data_type IN ('NUMERIC', 'BOOLEAN', 'CATEGORICAL', 'TEXT'))
     AND (s.observation_id IS NOT NULL)
     AND ((s.trace_id, s.observation_id) IN (
         SELECT
@@ -171,12 +159,6 @@ exports[`golden: scores.getAggregatedScoresForPromptsFromEvents > relation=trace
       "prompt-b",
     ],
     "param3": "2026-01-01 00:00:00.000",
-    "param4": [
-      "NUMERIC",
-      "BOOLEAN",
-      "CATEGORICAL",
-      "TEXT",
-    ],
   },
   "sql": "WITH prompt_events AS
     (
@@ -221,7 +203,7 @@ FINAL
 INNER JOIN prompt_events AS e ON (s.project_id = e.project_id) AND (s.trace_id = e.trace_id)
 WHERE (s.project_id = {param1:String})
     AND (s.name IS NOT NULL)
-    AND (s.data_type IN ({param4:Array(String)}))
+    AND (s.data_type IN ('NUMERIC', 'BOOLEAN', 'CATEGORICAL', 'TEXT'))
     AND (s.observation_id IS NULL)
     AND (s.trace_id IN (
         SELECT trace_id
@@ -248,12 +230,6 @@ exports[`golden: scores.getAggregatedScoresForPromptsFromEvents > relation=trace
     "param2": [
       "prompt-a",
       "prompt-b",
-    ],
-    "param3": [
-      "NUMERIC",
-      "BOOLEAN",
-      "CATEGORICAL",
-      "TEXT",
     ],
   },
   "sql": "WITH prompt_events AS
@@ -298,7 +274,7 @@ FINAL
 INNER JOIN prompt_events AS e ON (s.project_id = e.project_id) AND (s.trace_id = e.trace_id)
 WHERE (s.project_id = {param1:String})
     AND (s.name IS NOT NULL)
-    AND (s.data_type IN ({param3:Array(String)}))
+    AND (s.data_type IN ('NUMERIC', 'BOOLEAN', 'CATEGORICAL', 'TEXT'))
     AND (s.observation_id IS NULL)
     AND (s.trace_id IN (
         SELECT trace_id
@@ -325,11 +301,6 @@ exports[`golden: scores.getScoresForExperimentItems > experimentIds set 1`] = `
     "param2": [
       "exp-a",
       "exp-b",
-    ],
-    "param3": [
-      "NUMERIC",
-      "BOOLEAN",
-      "CATEGORICAL",
     ],
   },
   "sql": "SELECT
@@ -371,7 +342,7 @@ FROM
 ) AS e
 INNER JOIN scores AS s
 FINAL ON (e.trace_id = s.trace_id) AND (e.project_id = s.project_id) AND (s.project_id = {param1:String})
-WHERE s.data_type IN ({param3:Array(String)})
+WHERE s.data_type IN ('NUMERIC', 'BOOLEAN', 'CATEGORICAL')
 ORDER BY s.event_ts DESC
 LIMIT 1 BY
     s.id,

@@ -362,7 +362,23 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     this.append(")");
   }
 
+  /**
+   * A list of `literal(...)` items is inlined, `('a', 'b')`; a list of bound
+   * values binds as one array. Mixing the two is rejected: one array bind
+   * would carry the code constants as params.
+   */
   protected override visitValueList(node: ValueListNode): void {
+    const immediate = node.values.filter((v) => ValueNode.is(v) && v.immediate);
+    const bound = node.values.filter((v) => ValueNode.is(v) && !v.immediate);
+    if (immediate.length > 0 && bound.length > 0) {
+      throw new QueryCompileError(
+        "An IN list mixes literal(...) items with bound values. Wrap every item in literal(...) or none.",
+      );
+    }
+    if (immediate.length > 0) {
+      super.visitValueList(node);
+      return;
+    }
     const values = node.values.map((v) =>
       ValueNode.is(v) ? v.value : undefined,
     );

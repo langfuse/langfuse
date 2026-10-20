@@ -4005,7 +4005,11 @@ export async function getLatestSdkVersionInfoFromEvents(params: {
       eb(toDate(eb.ref("e.start_time")), ">=", toDate(sevenDaysAgo)),
     )
     .where((eb) => startsWith(eb.ref("e.source"), literal("otel")))
-    .where("e.ingestion_sdk_name", "not in", [...INTERNAL_INGESTION_SDK_NAMES])
+    .where(
+      "e.ingestion_sdk_name",
+      "not in",
+      INTERNAL_INGESTION_SDK_NAMES.map((n) => literal(n)),
+    )
     .groupBy([
       "e.ingestion_sdk_name",
       "e.ingestion_sdk_version",

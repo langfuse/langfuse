@@ -466,7 +466,11 @@ const scoresForExperimentItemsQuery = (experimentIds: string[]) =>
       notEmpty(mapKeys(eb.ref("s.metadata"))).as("has_metadata"),
       "e.experiment_id as experiment_id",
     ])
-    .where("s.data_type", "in", [...AGGREGATABLE_SCORE_TYPES])
+    .where(
+      "s.data_type",
+      "in",
+      AGGREGATABLE_SCORE_TYPES.map((t) => literal(t)),
+    )
     .orderBy("s.event_ts", "desc")
     .$call(
       limitBy({
@@ -2289,7 +2293,11 @@ const aggregatedScoresForPromptsFromEventsQuery = (
       notEmpty(mapKeys(eb.ref("s.metadata"))).as("has_metadata"),
     ])
     .where("s.name", "is not", null)
-    .where("s.data_type", "in", [...LISTABLE_SCORE_TYPES])
+    .where(
+      "s.data_type",
+      "in",
+      LISTABLE_SCORE_TYPES.map((t) => literal(t)),
+    )
     .$if(fetchScoreRelation === "trace", (qb) =>
       qb
         .where("s.observation_id", "is", null)

@@ -2922,11 +2922,6 @@ exports[`golden: events simple aggregates family > getLatestSdkVersionInfoFromEv
     "params": {
       "param1": "golden-project",
       "param2": "2025-12-25 00:00:00.000",
-      "param3": [
-        "langfuse-internal-ai-sdk",
-        "langfuse-internal-otel-writer",
-        "langfuse-internal-ai-features",
-      ],
     },
     "route": "unknown",
     "sql": "SELECT
@@ -2942,7 +2937,7 @@ WHERE (e.project_id = {param1:String})
     AND (e.start_time >= {param2:DateTime64(6)})
     AND (toDate(e.start_time) >= toDate({param2:DateTime64(6)}))
     AND startsWith(e.source, 'otel')
-    AND (e.ingestion_sdk_name NOT IN ({param3:Array(String)}))
+    AND (e.ingestion_sdk_name NOT IN ('langfuse-internal-ai-sdk', 'langfuse-internal-otel-writer', 'langfuse-internal-ai-features'))
 GROUP BY
     e.ingestion_sdk_name,
     e.ingestion_sdk_version,
