@@ -65,7 +65,7 @@ export const toolCallPartSchema = normalizedPartBaseSchema.extend({
   /** Raw source type used by compatibility projections. */
   toolType: z.string().optional(),
   providerExecuted: z.boolean().optional(),
-  /** Unparseable arguments: visible for evals, excluded from executable tool columns. */
+  /** Unparsable arguments: visible for evals, excluded from executable tool columns. */
   invalid: z.literal(true).optional(),
 });
 
