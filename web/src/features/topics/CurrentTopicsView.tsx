@@ -225,6 +225,7 @@ export function CurrentTopicsView({
         onSearchQueryChange={setSearchQuery}
       />
       <CurrentTraceTable
+        key={filterKey}
         projectId={projectId}
         onOpenTrace={openTrace}
         selectedTraceId={selectedTraceId}
