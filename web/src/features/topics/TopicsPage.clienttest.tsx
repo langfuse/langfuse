@@ -13,6 +13,7 @@ import { rangeToString, type TimeRange } from "@/src/utils/date-range-utils";
 import { type TopicFacet } from "@langfuse/shared/topics";
 
 const state = vi.hoisted(() => ({
+  canViewTopics: true,
   status: "failed",
   executionUpdatedAt: 110,
   updatedAt: "2026-09-23T12:00:00Z",
@@ -110,8 +111,11 @@ vi.mock("@/src/components/table/peek/peek-trace-detail", () => ({
 vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
   useHasProjectAccess: () => state.canWrite,
 }));
+vi.mock("@/src/components/error-page", () => ({
+  ErrorPage: ({ message }: { message: string }) => <p>{message}</p>,
+}));
 vi.mock("@/src/features/topics/topicsAccess", () => ({
-  useCanViewTopics: () => true,
+  useCanViewTopics: () => state.canViewTopics,
 }));
 vi.mock("./TopicTraceSelector", () => ({
   useTopicTraceSelector: () => ({
@@ -318,6 +322,7 @@ beforeEach(() => {
     },
   );
   state.showGenerateCTA = false;
+  state.canViewTopics = true;
   state.resultsDataAvailable = true;
   state.hasStoredSummaries = true;
   state.status = "failed";
@@ -359,6 +364,13 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.useRealTimers();
+});
+
+it("shows Not found instead of the workspace when the Topics gate is closed", () => {
+  state.canViewTopics = false;
+  render(<TopicsPage />);
+  expect(screen.getByText("This page is not available.")).toBeTruthy();
+  expect(state.currentTopics).not.toHaveBeenCalled();
 });
 
 it.each([

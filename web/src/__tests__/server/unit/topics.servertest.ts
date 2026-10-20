@@ -298,29 +298,44 @@ describe("Topics project allowlist", () => {
 });
 
 describe("Topics visibility gate", () => {
-  const adminOutsideProject = {
-    expires: "1",
-    user: {
-      id: "admin-a",
-      admin: true,
-      featureFlags: testFeatureFlags({ langfuseTopics: true }),
-      organizations: [],
-    },
-  } as unknown as Session;
+  const session = ({
+    admin = false,
+    langfuseTopics = true,
+    role = "VIEWER",
+  }: {
+    admin?: boolean;
+    langfuseTopics?: boolean;
+    role?: string | null;
+  }) =>
+    ({
+      expires: "1",
+      user: {
+        id: "user-a",
+        admin,
+        featureFlags: testFeatureFlags({ langfuseTopics }),
+        organizations: role
+          ? [{ id: "org-a", role, projects: [{ id: projectId, role }] }]
+          : [],
+      },
+    }) as unknown as Session;
 
-  it("lets Langfuse admins see Topics on allowlisted projects they are not members of", () => {
-    expect(
-      canViewTopics(adminOutsideProject, {
-        id: projectId,
-        topicsEnabled: true,
-      }),
-    ).toBe(true);
-    expect(
-      canViewTopics(adminOutsideProject, {
-        id: projectId,
-        topicsEnabled: false,
-      }),
-    ).toBe(false);
+  // Page, sidebar and API all call this one gate.
+  it.each([
+    ["a member on an allowlisted project", {}, true, true],
+    ["a project outside the allowlist", {}, false, false],
+    ["the feature preview turned off", { langfuseTopics: false }, true, false],
+    ["a role without topics:read", { role: "NONE" }, true, false],
+    ["an admin outside the project", { admin: true, role: null }, true, true],
+    [
+      "an admin outside a non-allowlisted project",
+      { admin: true, role: null },
+      false,
+      false,
+    ],
+  ] as const)("%s", (_case, user, topicsEnabled, expected) => {
+    expect(canViewTopics(session(user), { id: projectId, topicsEnabled })).toBe(
+      expected,
+    );
   });
 });
 
