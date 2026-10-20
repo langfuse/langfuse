@@ -2,7 +2,7 @@ import { Lock } from "@langfuse/icons";
 
 import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { EmptyState } from "@/src/components/design-system/EmptyState/EmptyState";
+import { GatewaySetupEmptyState } from "@/src/features/ai-gateway/components/GatewaySetupEmptyState/GatewaySetupEmptyState";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { ConnectedGatewayModelsTable } from "@/src/features/ai-gateway/components/GatewayModelsPage/components/ConnectedGatewayModelsTable/ConnectedGatewayModelsTable";
@@ -79,7 +79,7 @@ function GatewayNotSetUp() {
   return (
     <div className="flex flex-col gap-4">
       <Header title="Models" />
-      <EmptyState
+      <GatewaySetupEmptyState
         icon={Lock}
         title="The AI Gateway isn't set up yet"
         description="Ask your organization admin to set up the AI Gateway."

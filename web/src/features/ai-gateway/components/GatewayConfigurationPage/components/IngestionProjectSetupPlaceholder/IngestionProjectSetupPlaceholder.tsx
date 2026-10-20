@@ -1,12 +1,11 @@
 import { FolderInput, Plus } from "@langfuse/icons";
 
 import Header from "@/src/components/layouts/header";
-import { Button } from "@/src/components/design-system/Button/Button";
-import { EmptyState } from "@/src/components/design-system/EmptyState/EmptyState";
 import {
   CreateIngestionProjectDialogController,
   type CreateIngestionProjectDialogControllerProps,
 } from "@/src/features/ai-gateway/components/GatewayConfigurationPage/components/CreateIngestionProjectDialogController/CreateIngestionProjectDialogController";
+import { GatewaySetupEmptyState } from "@/src/features/ai-gateway/components/GatewaySetupEmptyState/GatewaySetupEmptyState";
 import {
   GATEWAY_CONFIGURATION_DESCRIPTION,
   GATEWAY_CONFIGURATION_TITLE,
@@ -33,30 +32,31 @@ export function IngestionProjectSetupPlaceholder({
           {GATEWAY_CONFIGURATION_DESCRIPTION}
         </p>
       </div>
-      <EmptyState
-        icon={FolderInput}
-        title="Set up an ingestion project first"
-        description="Gateway traffic needs a project to be recorded in. Credentials, models and API keys become available once it is set."
+      <CreateIngestionProjectDialogController
+        ingestionMode={ingestionMode}
+        isSaving={isSaving}
+        onCreate={onCreate}
       >
-        <CreateIngestionProjectDialogController
-          ingestionMode={ingestionMode}
-          isSaving={isSaving}
-          onCreate={onCreate}
-        >
-          {({ openDialog }) => (
-            <Button
-              text="Create ingestion project"
-              icon={Plus}
-              onClick={openDialog}
-            />
-          )}
-        </CreateIngestionProjectDialogController>
-        <Button
-          text="Use existing project"
-          variant="secondary"
-          onClick={onUseExistingProject}
-        />
-      </EmptyState>
+        {({ openDialog }) => (
+          <GatewaySetupEmptyState
+            icon={FolderInput}
+            title="Set up an ingestion project first"
+            description="Gateway traffic needs a project to be recorded in. Credentials, models and API keys become available once it is set."
+            actions={[
+              {
+                label: "Create ingestion project",
+                icon: Plus,
+                onClick: openDialog,
+              },
+              {
+                label: "Use existing project",
+                variant: "secondary",
+                onClick: onUseExistingProject,
+              },
+            ]}
+          />
+        )}
+      </CreateIngestionProjectDialogController>
     </div>
   );
 }
