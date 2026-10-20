@@ -158,6 +158,10 @@ resume. Old execution history remains readable.
 After changing the summary model, start a new **Process traces** execution;
 stored-summary reuse cannot reuse results from a different summary model.
 Existing topic names remain until their definitions change during **Update topics**.
+If a provider's content filter blocks naming, the cluster is published with an
+unnamed placeholder and a warning; its assignments are preserved and other groups
+and facets continue. **Update topics** retries placeholder names. Other naming
+failures still interrupt the update.
 
 ## Trace-batch connection
 

@@ -96,7 +96,9 @@ const isExecutionFailure = (error: unknown) =>
 // Like trace-batch, a rejected input or unusable output fails only that trace.
 const isTraceModelFailure = (error: unknown) =>
   error instanceof TopicsProviderUnavailable &&
-  (error.reason === "invalid_output" || error.reason === "invalid_input");
+  (error.reason === "invalid_output" ||
+    error.reason === "invalid_input" ||
+    error.reason === "content_filter");
 
 async function saveProgress(
   metrics: TopicMetrics,
@@ -698,7 +700,12 @@ async function clusterFacet(
       const old = previous?.topics.find(
         (topic) => topic.topicId === candidate.topicId,
       );
-      if (compatiblePrevious && old && sameTopicGeometry(old, candidate)) {
+      if (
+        compatiblePrevious &&
+        old &&
+        !old.metadata.namingFailure &&
+        sameTopicGeometry(old, candidate)
+      ) {
         reused.set(old.topicVersionId, old);
         return {
           ...candidate,
@@ -790,7 +797,14 @@ async function clusterFacet(
             };
           });
         },
-      );
+      ).catch((error: unknown) => {
+        if (
+          error instanceof TopicsProviderUnavailable &&
+          error.reason === "content_filter"
+        )
+          return null;
+        throw error;
+      });
       const candidate = candidates.find(
         (topic) => topic.topicVersionId === group.id,
       )!;
@@ -800,18 +814,23 @@ async function clusterFacet(
         createdByRunId: run.id,
         createdAt: run.createdAt,
         tags: [],
-        name: label.name,
-        description: label.description,
-        representativeSummaries: label.representativeSummaries,
+        name: label?.name ?? `Unnamed topic ${topics.length + 1}`,
+        description:
+          label?.description ??
+          "The model's content filter prevented naming this topic. Its traces and assignments were preserved.",
+        representativeSummaries: label?.representativeSummaries ?? [],
         metadata: {
           ...candidate.metadata,
           effectiveMemberCount: group.count,
-          selectedMemberCount: label.selectedMemberCount,
-          namingSampled: label.namingSampled,
+          ...(label && {
+            selectedMemberCount: label.selectedMemberCount,
+            namingSampled: label.namingSampled,
+          }),
           namingModel: models.clustering.model,
+          ...(!label && { namingFailure: "content_filter" }),
         },
       });
-      metrics.result("naming", "generated");
+      if (label) metrics.result("naming", "generated");
     }
     run = await saveTopicRun({ ...run, topics });
     // Readback returns the persisted classifier precision before creating any memberships.
@@ -824,12 +843,19 @@ async function clusterFacet(
       run,
       coordinates,
     );
+    const unnamed = run.topics.filter(
+      (topic) => topic.metadata.namingFailure === "content_filter",
+    ).length;
     run = await saveTopicRun({
       ...run,
       status: "completed",
+      error: unnamed
+        ? `The model's content filter prevented naming ${unnamed} topic${unnamed === 1 ? "" : "s"}. Traces and assignments were preserved. Choose another clustering model, then run Update topics to retry naming.`
+        : null,
       finishedAt: new Date().toISOString(),
     });
     progress.outcome = "published";
+    progress.error = run.error;
   } catch (error) {
     await saveTopicRun({
       ...run,
@@ -1227,6 +1253,7 @@ async function updateTopics(
               "Clustering run does not match this facet version.",
             );
           if (accepted?.status === "completed") {
+            progress.error = accepted.error;
             const assignments = await readTopicMapAssignments(
               execution.projectId,
               { facetId: facet.facetId, version: facet.version },
@@ -1466,7 +1493,10 @@ export async function processTopicsExecution({
       await updateTopics(metrics, models, execution as UpdateExecution);
     }
     execution.status = execution.facets.some(
-      (facet) => facet.outcome === "failed" || facet.counts.failed > 0,
+      (facet) =>
+        facet.outcome === "failed" ||
+        facet.counts.failed > 0 ||
+        facet.error !== null,
     )
       ? "completed_with_errors"
       : "completed";
