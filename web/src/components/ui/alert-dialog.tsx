@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements */
+/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements, @repo/component-file-structure */
 "use client";
 
 import * as React from "react";
@@ -10,8 +10,6 @@ import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import motionStyles from "./dialog-motion.module.css";
 
 const AlertDialog = AlertDialogPrimitive.Root;
-
-const AlertDialogTrigger = AlertDialogPrimitive.Trigger;
 
 // Route the portal into the `modal` overlay layer (null until mounted →
 // falls back to <body>, SSR-parity). Layer order, not z-index, stacks it.
@@ -141,7 +139,6 @@ AlertDialogCancel.displayName = AlertDialogPrimitive.Cancel.displayName;
 
 export {
   AlertDialog,
-  AlertDialogTrigger,
   AlertDialogContent,
   AlertDialogHeader,
   AlertDialogFooter,

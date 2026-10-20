@@ -199,6 +199,7 @@ export function DashboardGrid({
     widget.type === "preset" ? (
       <PresetDashboardWidget
         dashboardId={dashboardId}
+        chartSync={chartSync}
         projectId={projectId}
         readPath={readPath}
         placement={widget}
@@ -273,6 +274,7 @@ export function DashboardGrid({
           layouts={{ lg: layout }}
           cols={{ lg: 12, md: 12, sm: 12, xs: 12, xxs: 12 }}
           margin={[16, 16]}
+          containerPadding={[0, 0]}
           rowHeight={rowHeight}
           isDraggable={canEdit}
           isResizable={canEdit}

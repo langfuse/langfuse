@@ -1,13 +1,14 @@
 /* eslint-disable no-nested-ternary */
 /**
- * NavigationHeader - Fixed-height search bar for navigation panel
+ * NavigationHeader - Responsive search and controls for the navigation panel
  *
  * Responsibilities:
  * - Render search input
- * - Render toolbar buttons (expand/collapse, settings, download, timeline)
+ * - Render toolbar buttons (expand/collapse, settings, timeline)
  * - Manage search input state via SearchContext
  *
- * This component has a fixed height and uses shrink-0 to maintain size.
+ * Search moves to a second row when space is tight, while keeping the same DOM
+ * input so focus and the current query survive panel resizing.
  */
 
 import { useSearch } from "@/src/features/traces/contexts/SearchContext";
@@ -20,20 +21,16 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { useReadPath } from "@/src/features/events";
-import { useIsFeatureEnabled } from "@/src/features/feature-flags";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { Button } from "@/src/components/ui/button";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import {
   ChevronDown,
   FoldVertical,
   UnfoldVertical,
-  Download,
-  Loader2,
-  MoreHorizontal,
-  Search,
-  X,
-} from "lucide-react";
+  MoreVertical,
+} from "@langfuse/icons";
 import {
   DropdownMenu,
   DropdownMenuController,
@@ -46,50 +43,81 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { StringParam, useQueryParam } from "use-query-params";
 import { cn } from "@/src/utils/tailwind";
-import { useCallback, useRef, useState } from "react";
+import { useCallback } from "react";
 import {
   TraceSettingsDropdown,
   TraceViewOptionsMenuItems,
 } from "../TraceSettingsDropdown";
-import {
-  downloadLegacyTraceAsJson,
-  downloadServerTraceAsJson,
-} from "../../fns/downloadTrace";
 import { TracePanelNavigationButton } from "./components/TracePanelNavigationButton";
-import { PlaybackControls, PlaybackMenuItems } from "../PlaybackControls";
 import { useDesktopLayoutContextOptional } from "../TraceLayoutDesktop";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
-import { toast } from "sonner";
-import { TRACE_DOWNLOAD_OMIT_LARGE_FIELDS_THRESHOLD } from "@/src/features/traces/constants/traceDownloadConfig";
-import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
+import { useElementSize } from "@/src/hooks/useElementSize";
 
 interface TracePanelNavigationHeaderProps {
   isPanelCollapsed: boolean;
   onTogglePanel: () => void;
-  shouldPulseToggle?: boolean;
 }
 
-export function TracePanelNavigationHeader(
-  props: TracePanelNavigationHeaderProps,
-) {
+export function TracePanelNavigationHeader({
+  isLoading = false,
+  ...props
+}: TracePanelNavigationHeaderProps & { isLoading?: boolean }) {
   if (props.isPanelCollapsed) {
     return <TracePanelNavigationHeaderCollapsed {...props} />;
   }
+  if (isLoading) {
+    return <TracePanelNavigationHeaderLoading {...props} />;
+  }
   return <TracePanelNavigationHeaderExpanded {...props} />;
+}
+
+const frameClassName =
+  "h-auto shrink-0 overflow-hidden rounded-none border-b bg-transparent";
+const gridClassName =
+  "grid min-h-8 grid-cols-[auto_minmax(0,1fr)_auto] items-center py-1 pr-3 pl-1 @max-[299px]/navheader:min-h-0 @max-[299px]/navheader:gap-y-1 @max-[299px]/navheader:pt-1 @max-[299px]/navheader:pb-1.5";
+const toggleSlotClassName =
+  "col-start-1 row-start-1 flex flex-row items-center p-0.5";
+const toolsSlotClassName =
+  "col-start-3 row-start-1 flex shrink-0 flex-row items-center gap-0.5";
+
+/** Same frame and toggle; search, tools and the view switch as placeholders. */
+function TracePanelNavigationHeaderLoading({
+  isPanelCollapsed,
+  onTogglePanel,
+}: TracePanelNavigationHeaderProps) {
+  return (
+    <Command className={frameClassName}>
+      <div className="@container/navheader">
+        <div className={gridClassName}>
+          <div className={toggleSlotClassName}>
+            <TracePanelNavigationButton
+              isPanelCollapsed={isPanelCollapsed}
+              onTogglePanel={onTogglePanel}
+            />
+          </div>
+          <div className="col-start-2 row-start-1 flex h-7 min-w-0 items-center px-2">
+            <Skeleton className="h-3 w-16" />
+          </div>
+          <div className={toolsSlotClassName}>
+            <Skeleton className="size-7 rounded-md" />
+            <Skeleton className="ml-2 h-7 w-56 rounded-md" />
+          </div>
+        </div>
+      </div>
+    </Command>
+  );
 }
 
 function TracePanelNavigationHeaderCollapsed({
   isPanelCollapsed,
   onTogglePanel,
-  shouldPulseToggle = false,
 }: TracePanelNavigationHeaderProps) {
   return (
     <div className="flex w-full flex-row items-center justify-center p-2">
       <TracePanelNavigationButton
         isPanelCollapsed={isPanelCollapsed}
         onTogglePanel={onTogglePanel}
-        shouldPulseToggle={shouldPulseToggle}
       />
     </div>
   );
@@ -98,28 +126,22 @@ function TracePanelNavigationHeaderCollapsed({
 function TracePanelNavigationHeaderExpanded({
   isPanelCollapsed,
   onTogglePanel,
-  shouldPulseToggle = false,
 }: TracePanelNavigationHeaderProps) {
   const { searchInputValue, setSearchInputValue, setSearchQueryImmediate } =
     useSearch();
   const { expandAll, collapseAll, collapsedNodes } = useSelection();
-  const { roots, trace, observations } = useTraceData();
+  const { roots } = useTraceData();
   const {
     isGraphViewAvailable,
     graphAvailability,
     isLoading: isGraphLoading,
   } = useTraceGraphData();
-  const { isV4 } = useReadPath();
-  // Internal preview of the events-backed trace view; legacy traces have no
-  // transcript to offer.
-  const messagesEnabled = useIsFeatureEnabled("traceMessages") && isV4;
   const [viewMode, setViewMode] = useQueryParam("view", StringParam);
-  const [isCompactSearchOpen, setIsCompactSearchOpen] = useState(false);
-  const compactSearchInputRef = useRef<HTMLInputElement>(null);
-  const compactSearchTriggerRef = useRef<HTMLButtonElement>(null);
-  const shouldFocusCompactSearchRef = useRef(false);
   const capture = usePostHogClientCapture();
   const analyticsDimensions = useTraceAnalyticsDimensions();
+  const [headerContainerRef, headerContainerSize] =
+    useElementSize<HTMLDivElement>();
+  const isSearchWrapped = (headerContainerSize?.width ?? Infinity) <= 299;
 
   // When the detail (info) panel is closed, the tree/timeline owns the whole
   // surface — so the left "collapse panel" toggle would only shrink the one
@@ -128,26 +150,11 @@ function TracePanelNavigationHeaderExpanded({
   const layout = useDesktopLayoutContextOptional();
   const isDetailPanelCollapsed = layout?.isDetailPanelCollapsed ?? false;
 
-  const closeCompactSearch = () => {
-    setIsCompactSearchOpen(false);
-    requestAnimationFrame(() => compactSearchTriggerRef.current?.focus());
-  };
-
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       // Skip debouncing and search immediately
       setSearchQueryImmediate(searchInputValue);
     }
-  };
-
-  const handleCompactSearchKeyDown = (
-    e: React.KeyboardEvent<HTMLInputElement>,
-  ) => {
-    if (e.key === "Escape") {
-      closeCompactSearch();
-      return;
-    }
-    handleSearchKeyDown(e);
   };
 
   // Check if everything is collapsed (all roots collapsed)
@@ -182,37 +189,6 @@ function TracePanelNavigationHeaderExpanded({
     analyticsDimensions,
   ]);
 
-  const [handleDownload, isDownloading] =
-    useWatchedPromiseCallback(async () => {
-      capture("trace_detail:download_button_click", analyticsDimensions);
-      try {
-        if (!isV4) {
-          downloadLegacyTraceAsJson({
-            trace,
-            observations,
-          });
-          return;
-        }
-
-        await downloadServerTraceAsJson({
-          traceId: trace.id,
-          projectId: trace.projectId,
-        });
-
-        if (observations.length >= TRACE_DOWNLOAD_OMIT_LARGE_FIELDS_THRESHOLD) {
-          toast.warning(
-            `Trace download excludes IO, metadata, toolDefinitions, and toolCalls for traces with ${TRACE_DOWNLOAD_OMIT_LARGE_FIELDS_THRESHOLD}+ observations.`,
-          );
-        }
-      } catch (error) {
-        toast.error(
-          error instanceof Error
-            ? error.message
-            : "Failed to download trace JSON",
-        );
-      }
-    }, [isV4, observations, trace, capture, analyticsDimensions]);
-
   // Hold the Graph segment while its query loads, else it vanishes and returns
   // on every trace switch. Stale ?view=graph then falls back to tree.
   const graphResolved = isGraphViewAvailable || isGraphLoading;
@@ -225,9 +201,7 @@ function TracePanelNavigationHeaderExpanded({
       ? "timeline"
       : viewMode === "graph" && graphResolved
         ? "graph"
-        : viewMode === "messages" && messagesEnabled
-          ? "messages"
-          : "tree";
+        : "tree";
 
   const handleSelectView = (view: TraceViewMode) => {
     // Clicking the already-active option is a no-op — don't count it.
@@ -238,122 +212,65 @@ function TracePanelNavigationHeaderExpanded({
       });
     }
     setViewMode(view === "tree" ? null : view);
-    // The transcript wants the width; the rail's "Show detail panel" button
-    // and selecting an observation bring it back.
-    if (view === "messages") layout?.detailPanelRef.current?.collapse();
   };
 
-  const renderOverflowMenuItems = (includeSearch: boolean) => (
+  const renderOverflowMenuItems = () => (
     <>
-      {includeSearch && (
-        <>
-          <DropdownMenuItem
-            onSelect={() => {
-              shouldFocusCompactSearchRef.current = true;
-              setIsCompactSearchOpen(true);
-            }}
-          >
-            <Search className="mr-2 h-3.5 w-3.5" />
-            Search
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-        </>
-      )}
       <DropdownMenuItem onSelect={handleToggleTreeNodes}>
         {isEverythingCollapsed ? (
-          <UnfoldVertical className="mr-2 h-3.5 w-3.5" />
+          <UnfoldVertical size="base" color="default" __rawClassName="mr-2" />
         ) : (
-          <FoldVertical className="mr-2 h-3.5 w-3.5" />
+          <FoldVertical size="base" color="default" __rawClassName="mr-2" />
         )}
         {isEverythingCollapsed ? "Expand all" : "Collapse all"}
       </DropdownMenuItem>
-      <DropdownMenuItem
-        onSelect={() => handleDownload()}
-        disabled={isDownloading}
-      >
-        <Download className="mr-2 h-3.5 w-3.5" />
-        Download trace as JSON
-      </DropdownMenuItem>
-      <PlaybackMenuItems />
       <DropdownMenuSeparator />
       <TraceViewOptionsMenuItems />
     </>
   );
+  const searchControl = (
+    <div
+      key="search"
+      className={cn(
+        "@max-[299px]/navheader:bg-background @max-[299px]/navheader:focus-within:border-ring @max-[299px]/navheader:focus-within:ring-ring/30 relative col-start-2 row-start-1 min-w-0 @max-[299px]/navheader:col-span-3 @max-[299px]/navheader:col-start-1 @max-[299px]/navheader:row-start-2 @max-[299px]/navheader:ml-1 @max-[299px]/navheader:rounded-md @max-[299px]/navheader:border @max-[299px]/navheader:shadow-xs @max-[299px]/navheader:focus-within:ring-2 @max-[299px]/navheader:[&>div]:p-0",
+        isDetailPanelCollapsed && "pl-1",
+      )}
+    >
+      <CommandInput
+        showBorder={false}
+        variant="toolbar"
+        placeholder="Search"
+        className="@max-[299px]/navheader:placeholder:text-muted-foreground min-w-0 border-0 pr-0 focus:ring-0 @max-[299px]/navheader:h-[1.625rem]"
+        value={searchInputValue}
+        onValueChange={setSearchInputValue}
+        onKeyDown={handleSearchKeyDown}
+      />
+    </div>
+  );
 
   return (
-    <Command className="flex h-auto shrink-0 flex-col gap-1 overflow-hidden rounded-none border-b">
-      {/* Responsive toolbar via container queries on this row's own width — no JS
-          measurement. The breakpoints are tuned to the row's actual content
-          minimums. Measured states:
-
-            ≥ 510px   search, labelled views, tools and transport inline
-            440-510   tools and transport folded into the "…" menu
-            360-440   labelled views collapse to a current-view dropdown
-            < 360px   search moves into "…" and opens a full-row search mode
-
-          If you add anything to this row, re-measure and retune all three
-          thresholds. */}
-      <div className="@container/navheader flex min-h-8 flex-row items-center pr-2 pl-1">
-        {isCompactSearchOpen && (
-          <div className="hidden min-w-0 flex-1 items-center @max-[359px]/navheader:flex">
-            <div className="min-w-0 flex-1">
-              <CommandInput
-                ref={compactSearchInputRef}
-                showBorder={false}
-                placeholder="Search"
-                className="h-7 min-w-0 border-0 pr-0 focus:ring-0"
-                value={searchInputValue}
-                onValueChange={setSearchInputValue}
-                onKeyDown={handleCompactSearchKeyDown}
-              />
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              title="Close search"
-              aria-label="Close search"
-              className="h-7 w-7 shrink-0"
-              onClick={closeCompactSearch}
-            >
-              <X className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        )}
-        <div
-          className={cn(
-            "flex min-w-0 flex-1 flex-row items-center justify-between",
-            isCompactSearchOpen && "@max-[359px]/navheader:hidden",
-          )}
-        >
+    <Command className={frameClassName}>
+      {/* Container queries keep the primary view switch visible for as long as
+          it fits. Search moves below the controls before that switch collapses,
+          and remains the same input across every layout. */}
+      <div ref={headerContainerRef} className="@container/navheader">
+        <div className={gridClassName}>
           {/* Panel Toggle Button; special p-0.5 offset to pixel align with closed
               version. Hidden while the detail panel is closed (nothing useful to
               collapse the full-width tree/timeline into). */}
           {!isDetailPanelCollapsed && (
-            <div className="flex flex-row items-center p-0.5">
+            <div key="toggle" className={toggleSlotClassName}>
               <TracePanelNavigationButton
                 isPanelCollapsed={isPanelCollapsed}
                 onTogglePanel={onTogglePanel}
-                shouldPulseToggle={shouldPulseToggle}
               />
             </div>
           )}
-          {/* Search Input */}
-          <div
-            className={cn(
-              "relative min-w-0 flex-1 @max-[359px]/navheader:hidden",
-              isDetailPanelCollapsed && "pl-1",
-            )}
-          >
-            <CommandInput
-              showBorder={false}
-              placeholder="Search"
-              className="h-7 min-w-0 border-0 pr-0 focus:ring-0"
-              value={searchInputValue}
-              onValueChange={setSearchInputValue}
-              onKeyDown={handleSearchKeyDown}
-            />
-          </div>
-          <div className="flex shrink-0 flex-row items-center gap-0.5">
+          {/* Keep keyboard order in sync when search wraps below the tools.
+              The keyed element is moved rather than duplicated, preserving its
+              value and focus across panel resizing. */}
+          {!isSearchWrapped ? searchControl : null}
+          <div key="tools" className={toolsSlotClassName}>
             {/* Minor tools — inline when the panel is wide enough. */}
             <div className="hidden flex-row items-center gap-0.5 @min-[510px]/navheader:flex">
               <Button
@@ -364,33 +281,16 @@ function TracePanelNavigationHeaderExpanded({
                 className="h-7 w-7"
               >
                 {isEverythingCollapsed ? (
-                  <UnfoldVertical className="h-3.5 w-3.5" />
+                  <UnfoldVertical size="base" color="default" />
                 ) : (
-                  <FoldVertical className="h-3.5 w-3.5" />
+                  <FoldVertical size="base" color="default" />
                 )}
               </Button>
 
               <TraceSettingsDropdown />
-
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleDownload}
-                disabled={isDownloading}
-                title="Download trace as JSON"
-                className="h-7 w-7"
-              >
-                {isDownloading ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Download className="h-3.5 w-3.5" />
-                )}
-              </Button>
             </div>
 
-            {/* Search remains inline at the intermediate width, so this menu
-                contains only the folded tools. */}
-            <div className="hidden @min-[360px]/navheader:block @min-[510px]/navheader:hidden">
+            <div className="@min-[510px]/navheader:hidden">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -400,63 +300,23 @@ function TracePanelNavigationHeaderExpanded({
                     aria-label="More options"
                     className="h-7 w-7"
                   >
-                    <MoreHorizontal className="h-3.5 w-3.5" />
+                    <MoreVertical size="base" color="default" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="center" className="w-64">
-                  {renderOverflowMenuItems(false)}
+                  {renderOverflowMenuItems()}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
 
-            {/* At the narrowest width Search joins the folded tools. */}
-            <div className="@min-[360px]/navheader:hidden">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    ref={compactSearchTriggerRef}
-                    variant="ghost"
-                    size="icon"
-                    title="More"
-                    aria-label="More options"
-                    className="h-7 w-7"
-                  >
-                    <MoreHorizontal className="h-3.5 w-3.5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="center"
-                  className="w-64"
-                  onCloseAutoFocus={(event) => {
-                    if (!shouldFocusCompactSearchRef.current) return;
-                    event.preventDefault();
-                    shouldFocusCompactSearchRef.current = false;
-                    requestAnimationFrame(() =>
-                      compactSearchInputRef.current?.focus(),
-                    );
-                  }}
-                >
-                  {renderOverflowMenuItems(true)}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-
-            {/* Playback transport + circular time-progress ring. View-agnostic:
-                shown in both Tree and Timeline views (see PlaybackControls) — and
-                folded into the overflow menu on a narrow panel, like the tools. */}
-            <div className="hidden flex-row items-center @min-[510px]/navheader:flex">
-              <PlaybackControls />
-            </div>
-
-            <div className="ml-2 hidden @min-[440px]/navheader:block">
+            <div className="ml-2 hidden @min-[330px]/navheader:block">
               <ViewModeSwitch
                 activeView={activeView}
                 graphDisabledReason={graphDisabledReason}
-                showMessages={messagesEnabled}
                 onSelect={handleSelectView}
               />
             </div>
-            <div className="ml-2 @min-[440px]/navheader:hidden">
+            <div className="ml-2 @min-[330px]/navheader:hidden">
               <DropdownMenuController
                 align="end"
                 renderMenu={() => (
@@ -485,11 +345,6 @@ function TracePanelNavigationHeaderExpanded({
                         )}
                       </span>
                     </DropdownMenuRadioItem>
-                    {messagesEnabled && (
-                      <DropdownMenuRadioItem value="messages">
-                        Messages
-                      </DropdownMenuRadioItem>
-                    )}
                   </DropdownMenuRadioGroup>
                 )}
               >
@@ -503,8 +358,10 @@ function TracePanelNavigationHeaderExpanded({
                     >
                       {TRACE_VIEW_LABELS[activeView]}
                       <ChevronDown
-                        className={cn(
-                          "h-3.5 w-3.5 transition-transform",
+                        size="base"
+                        color="tertiary"
+                        __rawClassName={cn(
+                          "transition-transform",
                           isOpen && "rotate-180",
                         )}
                       />
@@ -518,6 +375,7 @@ function TracePanelNavigationHeaderExpanded({
                 TraceLayoutDesktop, mirroring the navigation panel's rail), so the
                 header needs no re-open button of its own. */}
           </div>
+          {isSearchWrapped ? searchControl : null}
         </div>
       </div>
     </Command>
@@ -530,100 +388,51 @@ const GRAPH_UNAVAILABLE_COPY: Record<GraphUnavailableReason, string> = {
   "no-structure": "Nothing to graph. This trace has only one node.",
 };
 
-type TraceViewMode = "tree" | "timeline" | "graph" | "messages";
+type TraceViewMode = "tree" | "timeline" | "graph";
 
 const TRACE_VIEW_LABELS: Record<TraceViewMode, string> = {
   tree: "Tree",
   timeline: "Timeline",
   graph: "Graph",
-  messages: "Messages",
 };
 
 function ViewModeSwitch({
   activeView,
   graphDisabledReason,
-  showMessages,
   onSelect,
 }: {
   activeView: TraceViewMode;
   /** Present when the trace has no graph: the segment renders disabled. */
   graphDisabledReason?: string;
-  /** Internal preview: the Messages segment exists only for internal users. */
-  showMessages: boolean;
   onSelect: (view: TraceViewMode) => void;
 }) {
   return (
-    <div className="bg-muted/60 inline-flex h-7 shrink-0 items-center rounded-md border p-0.5">
-      <ViewModeSegment
-        active={activeView === "tree"}
-        onClick={() => onSelect("tree")}
-        label="Tree"
-      />
-      {/* One Timeline. What it IS depends on the Compact Timeline feature
-          preview — see TracePanelNavigation — rather than on a third segment
-          the user has to understand. */}
-      <ViewModeSegment
-        active={activeView === "timeline"}
-        onClick={() => onSelect("timeline")}
-        label="Timeline"
-      />
-      <ViewModeSegment
-        active={activeView === "graph"}
-        onClick={() => onSelect("graph")}
-        label="Graph"
-        disabled={Boolean(graphDisabledReason)}
-        title={graphDisabledReason}
-      />
-      {showMessages && (
-        <ViewModeSegment
-          active={activeView === "messages"}
-          onClick={() => onSelect("messages")}
-          label="Messages"
-        />
-      )}
-    </div>
-  );
-}
-
-function ViewModeSegment({
-  active,
-  onClick,
-  label,
-  disabled = false,
-  title,
-}: {
-  active: boolean;
-  onClick: () => void;
-  label: string;
-  disabled?: boolean;
-  /** Why the view is unavailable; shown in a tooltip. */
-  title?: string;
-}) {
-  const segment = (
-    <button
-      type="button"
-      onClick={disabled ? undefined : onClick}
-      aria-disabled={disabled || undefined}
-      aria-pressed={active}
-      title={disabled ? undefined : label}
-      className={cn(
-        "flex h-6 items-center gap-1.5 rounded-md px-2 text-xs font-bold transition-colors",
-        disabled && "cursor-not-allowed opacity-40",
-        active
-          ? "bg-primary text-primary-foreground shadow-sm"
-          : "text-muted-foreground hover:text-foreground",
-      )}
+    <Tabs
+      value={activeView}
+      onValueChange={(value) => onSelect(value as TraceViewMode)}
     >
-      {label}
-    </button>
-  );
-
-  // A native title does not reliably surface on a segment this small.
-  if (!disabled || !title) return segment;
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>{segment}</TooltipTrigger>
-      <TooltipContent>{title}</TooltipContent>
-    </Tooltip>
+      <Tabs.List variant="inset" size="md" aria-label="Trace view">
+        <Tabs.Trigger value="tree" label="Tree" />
+        {/* One Timeline. What it IS depends on the Compact Timeline feature
+            preview — see TracePanelNavigation — rather than on a third segment
+            the user has to understand. */}
+        <Tabs.Trigger value="timeline" label="Timeline" />
+        {graphDisabledReason ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span
+                tabIndex={0}
+                className="focus-visible:ring-ring rounded-sm focus-visible:ring-2 focus-visible:outline-hidden"
+              >
+                <Tabs.Trigger value="graph" disabled label="Graph" />
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>{graphDisabledReason}</TooltipContent>
+          </Tooltip>
+        ) : (
+          <Tabs.Trigger value="graph" label="Graph" />
+        )}
+      </Tabs.List>
+    </Tabs>
   );
 }

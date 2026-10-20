@@ -4,17 +4,12 @@ import { DatasetRunItemsByRunTable } from "@/src/features/datasets/components/Da
 import { DeleteDatasetRunDialogController } from "@/src/features/datasets/components/DeleteDatasetRunDialogController";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages";
 import { api } from "@/src/utils/api";
-import { Columns3, MoreVertical, Trash } from "lucide-react";
+import { Columns3, MoreVertical, Trash } from "@langfuse/icons";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect } from "react";
 import Page from "@/src/components/layouts/page";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import {
   SidePanel,
   SidePanelContent,
@@ -75,7 +70,7 @@ function DatasetRunLegacy() {
               }}
             >
               <Button>
-                <Columns3 className="mr-2 h-4 w-4" />
+                <Columns3 size="base" color="default" __rawClassName="mr-2" />
                 <span>Compare</span>
               </Button>
             </Link>
@@ -93,18 +88,29 @@ function DatasetRunLegacy() {
               redirectUrl={`/project/${projectId}/datasets/${datasetId}/experiments`}
             >
               {({ disabled, openDialog }) => (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="icon">
-                      <MoreVertical className="h-4 w-4" />
+                <DropdownMenu
+                  items={[
+                    {
+                      type: "item",
+                      id: "delete",
+                      title: "Delete",
+                      icon: Trash,
+                      disabled: disabled
+                        ? { reason: "Missing permission to delete this run" }
+                        : undefined,
+                      onClick: openDialog,
+                    },
+                  ]}
+                >
+                  {({ getTriggerProps }) => (
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      {...getTriggerProps()}
+                    >
+                      <MoreVertical size="base" color="default" />
                     </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent>
-                    <DropdownMenuItem disabled={disabled} onSelect={openDialog}>
-                      <Trash className="h-4 w-4" />
-                      <span>Delete</span>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
+                  )}
                 </DropdownMenu>
               )}
             </DeleteDatasetRunDialogController>

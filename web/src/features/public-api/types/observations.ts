@@ -168,6 +168,10 @@ export const transformDbToApiObservation = (
 
     toolCallNames,
 
+    // Exclude skill data from the legacy public API.
+    skillsAvailable,
+    skillsResourceLoaded,
+
     // Exclude publish/bookmark flags from V1 public observations API.
     // V2 observations already exposes these on the events-based contract.
     bookmarked,

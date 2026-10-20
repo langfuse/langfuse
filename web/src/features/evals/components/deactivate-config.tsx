@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger */
+/* eslint-disable @repo/no-abstracted-overlay-trigger, @repo/component-file-structure */
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { EvaluatorStatus } from "@/src/features/evals/types";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";

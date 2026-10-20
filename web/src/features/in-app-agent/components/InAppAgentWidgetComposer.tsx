@@ -1,5 +1,5 @@
 import { type KeyboardEvent, type SyntheticEvent, useState } from "react";
-import { SendHorizontal, Sparkles } from "lucide-react";
+import { SendHorizontal, Sparkles } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
 import { Textarea } from "@/src/components/ui/textarea";
@@ -70,12 +70,12 @@ export function InAppAgentWidgetComposer({
       className="bg-muted/30 flex flex-col gap-2 rounded-lg border p-3"
     >
       <div className="flex items-center gap-2 font-bold">
-        <Sparkles className="h-4 w-4" />
-        Add with Langfuse Assistant
+        <Sparkles size="base" />
+        Add with Langfuse Halo
       </div>
       <p className="text-muted-foreground text-xs">
-        Describe the chart you need. The Assistant will create it as a widget
-        and add it to this dashboard.
+        Describe the chart you need. Halo will create it as a widget and add it
+        to this dashboard.
       </p>
       <div className="flex items-end gap-2">
         <Textarea
@@ -97,10 +97,10 @@ export function InAppAgentWidgetComposer({
           size="icon"
           className="h-8 w-8 shrink-0 rounded-md border"
           variant="outline"
-          aria-label="Add with Langfuse Assistant"
+          aria-label="Add with Langfuse Halo"
           disabled={!request.trim()}
         >
-          <SendHorizontal className="h-4 w-4" />
+          <SendHorizontal size="base" color="default" />
         </Button>
       </div>
     </form>

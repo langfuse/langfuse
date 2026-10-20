@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 /**
  * JsonRowScrollable - Scrollable column content (indent + key + value + badges + copy)
@@ -52,11 +51,15 @@ export function JsonRowScrollable({
   const valueOffset = keyLength + colonLength + quoteLength;
 
   // Calculate background based on search match only (comment highlighting is now character-level)
-  const backgroundColor = isCurrentMatch
-    ? theme.searchCurrentBackground
-    : searchMatch
-      ? theme.searchMatchBackground
-      : "transparent";
+  const backgroundColor = (() => {
+    if (isCurrentMatch) {
+      return theme.searchCurrentBackground;
+    }
+    if (searchMatch) {
+      return theme.searchMatchBackground;
+    }
+    return "transparent";
+  })();
 
   return (
     <div

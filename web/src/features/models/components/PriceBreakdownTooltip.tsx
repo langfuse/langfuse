@@ -1,6 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import Decimal from "decimal.js";
-import { InfoIcon } from "lucide-react";
+import { InfoIcon } from "@langfuse/icons";
 import { useMemo, useState } from "react";
 
 import { type RowHeight } from "@/src/components/table/data-table-row-height-switch";
@@ -10,7 +10,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { usePriceUnitMultiplier } from "@/src/features/models/hooks/usePriceUnitMultiplier";
 import { getMaxDecimals } from "@/src/features/models/fns/getMaxDecimals";
 import { type PriceUnit } from "@/src/features/models/validation";
 
@@ -18,15 +17,16 @@ export const PriceBreakdownTooltip = ({
   modelName,
   prices,
   priceUnit,
+  priceUnitMultiplier,
   rowHeight,
 }: {
   modelName: string;
   prices: Record<string, number>;
   priceUnit: PriceUnit;
+  priceUnitMultiplier: number;
   rowHeight: RowHeight;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const { priceUnitMultiplier } = usePriceUnitMultiplier();
 
   const maxDecimals = useMemo(
     () =>
@@ -38,76 +38,67 @@ export const PriceBreakdownTooltip = ({
     [prices, priceUnitMultiplier],
   );
 
-  return (
-    <>
-      {Object.keys(prices).length === 0 ? (
-        <p>No prices</p>
-      ) : Object.keys(prices).length <= (rowHeight === "m" ? 4 : 2) ? (
-        <div className="grid w-full grid-cols-[2fr_3fr] gap-x-2">
-          {Object.entries(prices).map(([type, price]) => (
-            <span key={type}>
-              <span
-                key={`${type}-label`}
-                className="truncate font-mono text-xs font-bold"
-                title={type}
-              >
-                {type}
-              </span>
-              <span
-                key={`${type}-price`}
-                className="text-left font-mono text-xs font-bold tabular-nums"
-              >
-                $
-                {new Decimal(price)
-                  .mul(priceUnitMultiplier)
-                  .toFixed(maxDecimals)}
-              </span>
-            </span>
-          ))}
-        </div>
-      ) : (
-        <TooltipProvider>
-          <Tooltip open={isOpen} onOpenChange={setIsOpen}>
-            <TooltipTrigger
-              className="flex cursor-pointer items-center gap-2 pr-4 text-xs"
-              onClick={() => setIsOpen(!isOpen)}
-            >
-              <InfoIcon className="h-3 w-3" />
-              {Object.keys(prices).length} prices set
-            </TooltipTrigger>
-            <TooltipContent className="min-w-64 grow p-4">
-              <div className="flex flex-col gap-4">
-                <div className="flex flex-col gap-1">
-                  <span className="font-bold">Price breakdown</span>
-                  <span className="font-mono text-xs font-bold">
-                    {modelName}
+  return Object.keys(prices).length === 0 ? (
+    <p>No prices</p>
+  ) : Object.keys(prices).length <= (rowHeight === "m" ? 4 : 2) ? (
+    <div className="grid w-full grid-cols-[2fr_3fr] gap-x-2">
+      {Object.entries(prices).map(([type, price]) => (
+        <span key={type}>
+          <span
+            key={`${type}-label`}
+            className="truncate font-mono text-xs font-bold"
+            title={type}
+          >
+            {type}
+          </span>
+          <span
+            key={`${type}-price`}
+            className="text-left font-mono text-xs font-bold tabular-nums"
+          >
+            ${new Decimal(price).mul(priceUnitMultiplier).toFixed(maxDecimals)}
+          </span>
+        </span>
+      ))}
+    </div>
+  ) : (
+    <TooltipProvider>
+      <Tooltip open={isOpen} onOpenChange={setIsOpen}>
+        <TooltipTrigger
+          className="flex cursor-pointer items-center gap-2 pr-4 text-xs"
+          onClick={() => setIsOpen(!isOpen)}
+        >
+          <InfoIcon size="sm" />
+          {Object.keys(prices).length} prices set
+        </TooltipTrigger>
+        <TooltipContent className="min-w-64 grow p-4">
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1">
+              <span className="font-bold">Price breakdown</span>
+              <span className="font-mono text-xs font-bold">{modelName}</span>
+            </div>
+            <div className="flex flex-col gap-2">
+              <div className="flex justify-between font-mono text-xs font-bold">
+                <span className="mr-4">Usage Type</span>
+                <span>Price {priceUnit}</span>
+              </div>
+              {Object.entries(prices).map(([usageType, price]) => (
+                <div
+                  key={usageType}
+                  className="flex justify-between font-mono text-xs"
+                >
+                  <span className="mr-4">{usageType}</span>
+                  <span>
+                    {"$" +
+                      new Decimal(price)
+                        .mul(priceUnitMultiplier)
+                        .toFixed(maxDecimals)}
                   </span>
                 </div>
-                <div className="flex flex-col gap-2">
-                  <div className="flex justify-between font-mono text-xs font-bold">
-                    <span className="mr-4">Usage Type</span>
-                    <span>Price {priceUnit}</span>
-                  </div>
-                  {Object.entries(prices).map(([usageType, price]) => (
-                    <div
-                      key={usageType}
-                      className="flex justify-between font-mono text-xs"
-                    >
-                      <span className="mr-4">{usageType}</span>
-                      <span>
-                        {"$" +
-                          new Decimal(price)
-                            .mul(priceUnitMultiplier)
-                            .toFixed(maxDecimals)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      )}
-    </>
+              ))}
+            </div>
+          </div>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 };

@@ -8,6 +8,19 @@ import {
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 
 describe("formatMetric", () => {
+  it("keeps sub-millisecond duration ticks distinct", () => {
+    expect(
+      [0, 0.002, 0.004, 0.006, 0.008, 0.01].map((value) =>
+        formatMetric(value, { unit: "millisecond", style: "compact" }),
+      ),
+    ).toEqual(
+      ["0", "0.002", "0.004", "0.006", "0.008", "0.01"].map((main) => ({
+        main,
+        suffix: "ms",
+      })),
+    );
+  });
+
   it("keeps compact numeric formatting within maxCharacters", () => {
     expect(
       formatMetric(12_345, { style: "compact", maxCharacters: 4 }),

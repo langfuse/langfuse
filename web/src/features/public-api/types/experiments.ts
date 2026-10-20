@@ -1,4 +1,5 @@
 import {
+  isoDateTime,
   APIScoreSchemaV3,
   commaSeparatedEnumArray,
   eventsTableSingleFilter,
@@ -91,7 +92,7 @@ const experimentScoreLimitZod = z.preprocess(
 // start_time (the partition and primary-key column). Keep it required unless a
 // different scan guard is added. The custom error explains the requirement
 // instead of surfacing a bare format error when the parameter is omitted.
-const requiredFromStartTime = z.iso.datetime({
+const requiredFromStartTime = isoDateTime({
   offset: true,
   error: (issue) =>
     issue.input === undefined
@@ -133,7 +134,7 @@ export const GetExperimentsV1ParsedQuery = z.object({
   scoreLimit: experimentScoreLimitZod,
   cursor: EncodedExperimentCursorV1.optional(),
   fromStartTime: requiredFromStartTime,
-  toStartTime: z.iso.datetime({ offset: true }).optional(),
+  toStartTime: isoDateTime({ offset: true }).optional(),
   id: optionalStringArrayZod,
   name: optionalStringArrayZod,
   datasetId: optionalStringArrayZod,
@@ -147,7 +148,7 @@ export const GetExperimentsV1Query = z
     scoreLimit: experimentScoreLimitZod,
     cursor: EncodedExperimentsCursorString.optional(),
     fromStartTime: requiredFromStartTime,
-    toStartTime: z.iso.datetime({ offset: true }).optional(),
+    toStartTime: isoDateTime({ offset: true }).optional(),
     id: optionalCommaSeparatedStringArray,
     name: optionalCommaSeparatedStringArray,
     datasetId: optionalCommaSeparatedStringArray,
@@ -165,7 +166,7 @@ export const GetExperimentItemsV1ParsedQueryBase = z.object({
   scoreLimit: experimentScoreLimitZod,
   cursor: EncodedExperimentCursorV1.optional(),
   fromStartTime: requiredFromStartTime,
-  toStartTime: z.iso.datetime({ offset: true }).optional(),
+  toStartTime: isoDateTime({ offset: true }).optional(),
   experimentId: optionalStringArrayZod,
   experimentName: optionalStringArrayZod,
   experimentItemId: optionalStringArrayZod,
@@ -184,7 +185,7 @@ export const GetExperimentItemsV1Query = z
     scoreLimit: experimentScoreLimitZod,
     cursor: EncodedExperimentsCursorString.optional(),
     fromStartTime: requiredFromStartTime,
-    toStartTime: z.iso.datetime({ offset: true }).optional(),
+    toStartTime: isoDateTime({ offset: true }).optional(),
     experimentId: optionalCommaSeparatedStringArray,
     experimentName: optionalCommaSeparatedStringArray,
     experimentItemId: optionalCommaSeparatedStringArray,

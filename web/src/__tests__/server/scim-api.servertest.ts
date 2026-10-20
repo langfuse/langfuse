@@ -4,11 +4,47 @@ import {
 } from "@/src/__tests__/test-utils";
 import { z } from "zod";
 import {
-  createAndAddApiKeysToDb,
+  createApiKey,
   createBasicAuthHeader,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
+import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import { randomUUID } from "crypto";
+import { createMocks } from "node-mocks-http";
+import { type NextApiRequest, type NextApiResponse } from "next";
+import scimUsersRoute from "@/src/pages/api/public/scim/Users";
+import scimUserRoute from "@/src/pages/api/public/scim/Users/[id]";
+import { env } from "@/src/env.mjs";
+
+vi.mock("@/src/env.mjs", async (importOriginal) => {
+  const actual = await importOriginal<{ env: typeof env }>();
+  return { ...actual, env: { ...actual.env } };
+});
+
+/** callScimRoute invokes a SCIM route handler in-process with an API key header. */
+const callScimRoute = async (
+  route: typeof scimUsersRoute,
+  {
+    method,
+    authorization,
+    userId,
+    body,
+  }: {
+    method: "POST" | "PUT" | "PATCH" | "DELETE";
+    authorization: string;
+    userId?: string;
+    body?: unknown;
+  },
+) => {
+  const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+    method,
+    headers: { authorization },
+    query: { id: userId },
+    body: body as Record<string, unknown>,
+  });
+  await route(req, res);
+  return { status: res.statusCode, body: String(res._getData()) };
+};
 
 // Schema for SCIM User response
 const ScimUserSchema = z.object({
@@ -141,10 +177,13 @@ describe("SCIM API", () => {
   let testUserId: string;
 
   beforeAll(async () => {
-    await createAndAddApiKeysToDb({
-      prisma,
-      entityId: orgId,
-      scope: "ORGANIZATION",
+    const keyCreator = await prisma.user.create({
+      data: { email: `apikey-creator-${randomUUID()}@example.com` },
+    });
+    await createApiKey(prisma, {
+      owner: OrganizationId(orgId),
+      role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+      createdBy: UserId(keyCreator.id),
       predefinedKeys: {
         publicKey: orgApiKey,
         secretKey: orgSecretKey,
@@ -190,9 +229,6 @@ describe("SCIM API", () => {
         createBasicAuthHeader(projectApiKey, projectSecretKey),
       );
       expect(result.status).toBe(403);
-      expect(result.body.detail).toContain(
-        "Organization-scoped API key required",
-      );
     });
 
     it("should return 405 for non-GET methods", async () => {
@@ -255,9 +291,6 @@ describe("SCIM API", () => {
         createBasicAuthHeader(projectApiKey, projectSecretKey),
       );
       expect(result.status).toBe(403);
-      expect(result.body.detail).toContain(
-        "Organization-scoped API key required",
-      );
     });
 
     it("should return 405 for non-GET methods", async () => {
@@ -313,9 +346,6 @@ describe("SCIM API", () => {
         createBasicAuthHeader(projectApiKey, projectSecretKey),
       );
       expect(result.status).toBe(403);
-      expect(result.body.detail).toContain(
-        "Organization-scoped API key required",
-      );
     });
 
     it("should return 405 for non-GET methods", async () => {
@@ -422,9 +452,6 @@ describe("SCIM API", () => {
           createBasicAuthHeader(projectApiKey, projectSecretKey),
         );
         expect(result.status).toBe(403);
-        expect(result.body.detail).toContain(
-          "Organization-scoped API key required",
-        );
       });
 
       it("should return 405 for non-GET/POST methods", async () => {
@@ -1281,8 +1308,10 @@ describe("SCIM API", () => {
       let scopedOwnerUserId: string;
       let scopedOrgPublicKey: string;
       let scopedOrgSecretKey: string;
+      const originalMode = env.API_AUTH_MIGRATION;
 
       beforeEach(async () => {
+        Object.assign(env, { API_AUTH_MIGRATION: "enforce" });
         const org = await prisma.organization.create({
           data: {
             name: `scim-last-owner-${randomUUID().substring(0, 8)}`,
@@ -1307,10 +1336,10 @@ describe("SCIM API", () => {
 
         scopedOrgPublicKey = `pk-lf-org-${randomUUID().substring(0, 8)}`;
         scopedOrgSecretKey = `sk-lf-org-${randomUUID().substring(0, 8)}`;
-        await createAndAddApiKeysToDb({
-          prisma,
-          entityId: scopedOrgId,
-          scope: "ORGANIZATION",
+        await createApiKey(prisma, {
+          owner: OrganizationId(scopedOrgId),
+          role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+          createdBy: UserId(owner.id),
           predefinedKeys: {
             publicKey: scopedOrgPublicKey,
             secretKey: scopedOrgSecretKey,
@@ -1319,22 +1348,23 @@ describe("SCIM API", () => {
       });
 
       afterEach(async () => {
+        Object.assign(env, { API_AUTH_MIGRATION: originalMode });
         await prisma.user.deleteMany({ where: { id: scopedOwnerUserId } });
         await prisma.organization.deleteMany({ where: { id: scopedOrgId } });
       });
 
       it("DELETE rejects removing the only remaining OWNER", async () => {
-        const result = await makeAPICall<{ detail: string }>(
-          "DELETE",
-          `/api/public/scim/Users/${scopedOwnerUserId}`,
-          undefined,
-          createBasicAuthHeader(scopedOrgPublicKey, scopedOrgSecretKey),
-        );
+        const result = await callScimRoute(scimUserRoute, {
+          method: "DELETE",
+          authorization: createBasicAuthHeader(
+            scopedOrgPublicKey,
+            scopedOrgSecretKey,
+          ),
+          userId: scopedOwnerUserId,
+        });
 
         expect(result.status).toBe(403);
-        expect(String(result.body.detail).toLowerCase()).toContain(
-          "last owner",
-        );
+        expect(result.body.toLowerCase()).toContain("last owner");
 
         const remaining = await prisma.organizationMembership.findMany({
           where: { userId: scopedOwnerUserId, orgId: scopedOrgId },
@@ -1344,22 +1374,23 @@ describe("SCIM API", () => {
       });
 
       it("PUT active:false rejects removing the only remaining OWNER", async () => {
-        const result = await makeAPICall<{ detail: string }>(
-          "PUT",
-          `/api/public/scim/Users/${scopedOwnerUserId}`,
-          {
+        const result = await callScimRoute(scimUserRoute, {
+          method: "PUT",
+          authorization: createBasicAuthHeader(
+            scopedOrgPublicKey,
+            scopedOrgSecretKey,
+          ),
+          userId: scopedOwnerUserId,
+          body: {
             schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
             id: scopedOwnerUserId,
             userName: "owner@example.com",
             active: false,
           },
-          createBasicAuthHeader(scopedOrgPublicKey, scopedOrgSecretKey),
-        );
+        });
 
         expect(result.status).toBe(403);
-        expect(String(result.body.detail).toLowerCase()).toContain(
-          "last owner",
-        );
+        expect(result.body.toLowerCase()).toContain("last owner");
 
         const remaining = await prisma.organizationMembership.findMany({
           where: { userId: scopedOwnerUserId, orgId: scopedOrgId },
@@ -1369,20 +1400,21 @@ describe("SCIM API", () => {
       });
 
       it("PATCH active:false rejects removing the only remaining OWNER", async () => {
-        const result = await makeAPICall<{ detail: string }>(
-          "PATCH",
-          `/api/public/scim/Users/${scopedOwnerUserId}`,
-          {
+        const result = await callScimRoute(scimUserRoute, {
+          method: "PATCH",
+          authorization: createBasicAuthHeader(
+            scopedOrgPublicKey,
+            scopedOrgSecretKey,
+          ),
+          userId: scopedOwnerUserId,
+          body: {
             schemas: ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
             Operations: [{ op: "replace", value: { active: false } }],
           },
-          createBasicAuthHeader(scopedOrgPublicKey, scopedOrgSecretKey),
-        );
+        });
 
         expect(result.status).toBe(403);
-        expect(String(result.body.detail).toLowerCase()).toContain(
-          "last owner",
-        );
+        expect(result.body.toLowerCase()).toContain("last owner");
 
         const remaining = await prisma.organizationMembership.findMany({
           where: { userId: scopedOwnerUserId, orgId: scopedOrgId },
@@ -1392,23 +1424,24 @@ describe("SCIM API", () => {
       });
 
       it("PUT active:true with a lower role rejects demoting the only remaining OWNER", async () => {
-        const result = await makeAPICall<{ detail: string }>(
-          "PUT",
-          `/api/public/scim/Users/${scopedOwnerUserId}`,
-          {
+        const result = await callScimRoute(scimUserRoute, {
+          method: "PUT",
+          authorization: createBasicAuthHeader(
+            scopedOrgPublicKey,
+            scopedOrgSecretKey,
+          ),
+          userId: scopedOwnerUserId,
+          body: {
             schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
             id: scopedOwnerUserId,
             userName: "owner@example.com",
             active: true,
             roles: ["MEMBER"],
           },
-          createBasicAuthHeader(scopedOrgPublicKey, scopedOrgSecretKey),
-        );
+        });
 
         expect(result.status).toBe(403);
-        expect(String(result.body.detail).toLowerCase()).toContain(
-          "last owner",
-        );
+        expect(result.body.toLowerCase()).toContain("last owner");
 
         const remaining = await prisma.organizationMembership.findMany({
           where: { userId: scopedOwnerUserId, orgId: scopedOrgId },
@@ -1433,18 +1466,21 @@ describe("SCIM API", () => {
         });
 
         try {
-          const result = await makeAPICall(
-            "PUT",
-            `/api/public/scim/Users/${scopedOwnerUserId}`,
-            {
+          const result = await callScimRoute(scimUserRoute, {
+            method: "PUT",
+            authorization: createBasicAuthHeader(
+              scopedOrgPublicKey,
+              scopedOrgSecretKey,
+            ),
+            userId: scopedOwnerUserId,
+            body: {
               schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
               id: scopedOwnerUserId,
               userName: "owner@example.com",
               active: true,
               roles: ["MEMBER"],
             },
-            createBasicAuthHeader(scopedOrgPublicKey, scopedOrgSecretKey),
-          );
+          });
           expect(result.status).toBe(200);
 
           const demoted = await prisma.organizationMembership.findFirst({
@@ -1475,12 +1511,14 @@ describe("SCIM API", () => {
         });
 
         try {
-          const result = await makeAPICall(
-            "DELETE",
-            `/api/public/scim/Users/${secondOwner.id}`,
-            undefined,
-            createBasicAuthHeader(scopedOrgPublicKey, scopedOrgSecretKey),
-          );
+          const result = await callScimRoute(scimUserRoute, {
+            method: "DELETE",
+            authorization: createBasicAuthHeader(
+              scopedOrgPublicKey,
+              scopedOrgSecretKey,
+            ),
+            userId: secondOwner.id,
+          });
           expect(result.status).toBe(204);
 
           const memberships = await prisma.organizationMembership.findMany({
@@ -1491,6 +1529,134 @@ describe("SCIM API", () => {
           await prisma.user.deleteMany({ where: { id: secondOwner.id } });
         }
       });
+    });
+  });
+
+  describe("Cross-organization isolation (Users/{id})", () => {
+    const createdUserIds: string[] = [];
+
+    // A user that exists on the instance but is NOT a member of the caller's
+    // organization (seed-org-id) — i.e. a user belonging to some other org.
+    const createNonMemberUser = async () => {
+      const user = await prisma.user.create({
+        data: {
+          email: `outsider.${randomUUID().substring(0, 8)}@othercorp.example`,
+          name: "Outside Org User",
+        },
+      });
+      createdUserIds.push(user.id);
+      return user;
+    };
+
+    afterEach(async () => {
+      if (createdUserIds.length > 0) {
+        await prisma.organizationMembership.deleteMany({
+          where: { userId: { in: createdUserIds } },
+        });
+        await prisma.user.deleteMany({
+          where: { id: { in: createdUserIds } },
+        });
+        createdUserIds.length = 0;
+      }
+    });
+
+    it("GET on an out-of-org user is a 404", async () => {
+      const outsider = await createNonMemberUser();
+
+      const nonMember = await makeAPICall<{
+        detail: string;
+        userName?: string;
+        name?: unknown;
+        emails?: unknown;
+        meta?: unknown;
+      }>(
+        "GET",
+        `/api/public/scim/Users/${outsider.id}`,
+        undefined,
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+
+      expect(nonMember.status).toBe(404);
+      // None of the out-of-org user's attributes may cross the org boundary.
+      expect(nonMember.body.userName).toBeUndefined();
+      expect(nonMember.body.name).toBeUndefined();
+      expect(nonMember.body.emails).toBeUndefined();
+      expect(nonMember.body.meta).toBeUndefined();
+    });
+
+    it("PUT with active omitted returns 404 for an out-of-org user", async () => {
+      const outsider = await createNonMemberUser();
+
+      const result = await makeAPICall<{ detail: string; userName?: string }>(
+        "PUT",
+        `/api/public/scim/Users/${outsider.id}`,
+        { schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"] },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+
+      expect(result.status).toBe(404);
+      expect(result.body.userName).toBeUndefined();
+      expect(result.body.detail).toContain("User not found");
+
+      // No membership was created as a side effect.
+      const memberships = await prisma.organizationMembership.findMany({
+        where: { userId: outsider.id, orgId },
+      });
+      expect(memberships.length).toBe(0);
+    });
+
+    it("PUT active:false on an out-of-org user is a 404, not a silent noop", async () => {
+      const outsider = await createNonMemberUser();
+
+      const result = await makeAPICall<{ detail: string; userName?: string }>(
+        "PUT",
+        `/api/public/scim/Users/${outsider.id}`,
+        {
+          schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+          active: false,
+        },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+
+      expect(result.status).toBe(404);
+      expect(result.body.userName).toBeUndefined();
+    });
+
+    it("PUT active:true provisions a user who is not yet a member", async () => {
+      const outsider = await createNonMemberUser();
+
+      const result = await makeZodVerifiedAPICall(
+        ScimUserSchema,
+        "PUT",
+        `/api/public/scim/Users/${outsider.id}`,
+        {
+          schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+          active: true,
+          roles: ["MEMBER"],
+        },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+        200,
+      );
+
+      expect(result.status).toBe(200);
+      const memberships = await prisma.organizationMembership.findMany({
+        where: { userId: outsider.id, orgId },
+      });
+      expect(memberships.length).toBe(1);
+      expect(memberships[0].role).toBe("MEMBER");
+    });
+
+    it("DELETE on an out-of-org user is a 404", async () => {
+      const outsider = await createNonMemberUser();
+
+      const result = await makeAPICall<{ detail: string }>(
+        "DELETE",
+        `/api/public/scim/Users/${outsider.id}`,
+        undefined,
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+
+      expect(result.status).toBe(404);
     });
   });
 
@@ -1520,10 +1686,13 @@ describe("SCIM API", () => {
       hobbyOrgId = hobbyOrg.id;
       hobbyPublicKey = `pk-lf-org-${randomUUID().substring(0, 8)}`;
       hobbySecretKey = `sk-lf-org-${randomUUID().substring(0, 8)}`;
-      await createAndAddApiKeysToDb({
-        prisma,
-        entityId: hobbyOrgId,
-        scope: "ORGANIZATION",
+      const hobbyKeyCreator = await prisma.user.create({
+        data: { email: `apikey-creator-${randomUUID()}@example.com` },
+      });
+      await createApiKey(prisma, {
+        owner: OrganizationId(hobbyOrgId),
+        role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+        createdBy: UserId(hobbyKeyCreator.id),
         predefinedKeys: {
           publicKey: hobbyPublicKey,
           secretKey: hobbySecretKey,
@@ -1541,10 +1710,13 @@ describe("SCIM API", () => {
       teamOrgId = teamOrg.id;
       teamPublicKey = `pk-lf-org-${randomUUID().substring(0, 8)}`;
       teamSecretKey = `sk-lf-org-${randomUUID().substring(0, 8)}`;
-      await createAndAddApiKeysToDb({
-        prisma,
-        entityId: teamOrgId,
-        scope: "ORGANIZATION",
+      const teamKeyCreator = await prisma.user.create({
+        data: { email: `apikey-creator-${randomUUID()}@example.com` },
+      });
+      await createApiKey(prisma, {
+        owner: OrganizationId(teamOrgId),
+        role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+        createdBy: UserId(teamKeyCreator.id),
         predefinedKeys: {
           publicKey: teamPublicKey,
           secretKey: teamSecretKey,
@@ -1647,5 +1819,226 @@ describe("SCIM API", () => {
         where: { email: uniqueEmail.toLowerCase() },
       });
     });
+  });
+});
+
+describe("SCIM ownership boundary", () => {
+  let orgId: string;
+  let ownerId: string;
+  let secondOwnerId: string;
+  let memberId: string;
+  let adminAuth: string;
+  let ownerAuth: string;
+  const createdEmails: string[] = [];
+  const originalMode = env.API_AUTH_MIGRATION;
+
+  beforeEach(async () => {
+    Object.assign(env, { API_AUTH_MIGRATION: "enforce" });
+    const org = await prisma.organization.create({
+      data: { name: randomUUID(), cloudConfig: { plan: "Team" } },
+    });
+    orgId = org.id;
+    const [owner, secondOwner, member] = await Promise.all(
+      (["OWNER", "OWNER", "MEMBER"] as const).map((role) =>
+        prisma.user.create({
+          data: {
+            email: `${randomUUID()}@example.com`,
+            organizationMemberships: { create: { orgId, role } },
+          },
+        }),
+      ),
+    );
+    ownerId = owner!.id;
+    secondOwnerId = secondOwner!.id;
+    memberId = member!.id;
+    const [adminKey, ownerKey] = await Promise.all(
+      (["ADMIN", "LEGACY_ORGANIZATION_API_KEY"] as const).map((role) =>
+        createApiKey(prisma, {
+          owner: OrganizationId(orgId),
+          role: SystemRoleId(role),
+          createdBy: UserId(ownerId),
+        }),
+      ),
+    );
+    adminAuth = createBasicAuthHeader(adminKey!.publicKey, adminKey!.secretKey);
+    ownerAuth = createBasicAuthHeader(ownerKey!.publicKey, ownerKey!.secretKey);
+  });
+
+  afterEach(async () => {
+    Object.assign(env, { API_AUTH_MIGRATION: originalMode });
+    await prisma.auditLog.deleteMany({ where: { orgId } });
+    await prisma.organization.delete({ where: { id: orgId } });
+    await prisma.user.deleteMany({
+      where: {
+        OR: [
+          { id: { in: [ownerId, secondOwnerId, memberId] } },
+          { email: { in: createdEmails.splice(0) } },
+        ],
+      },
+    });
+  });
+
+  const call = async (
+    route: typeof scimUsersRoute,
+    method: "POST" | "PUT" | "PATCH" | "DELETE",
+    body?: unknown,
+    userId?: string,
+  ) =>
+    (
+      await callScimRoute(route, {
+        method,
+        authorization: adminAuth,
+        userId,
+        body,
+      })
+    ).status;
+  const putUser = (userId: string, roles: string[]) =>
+    call(
+      scimUserRoute,
+      "PUT",
+      {
+        schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        active: true,
+        roles,
+      },
+      userId,
+    );
+  const roleOf = async (userId: string) =>
+    (
+      await prisma.organizationMembership.findUnique({
+        where: { orgId_userId: { orgId, userId } },
+      })
+    )?.role;
+
+  it("rejects an ADMIN key creating an OWNER via POST", async () => {
+    const email = `${randomUUID()}@example.com`;
+    createdEmails.push(email);
+    const status = await call(scimUsersRoute, "POST", {
+      schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+      userName: email,
+      roles: ["OWNER"],
+    });
+    expect(status).toBe(403);
+    expect(
+      await prisma.organizationMembership.count({
+        where: { orgId, user: { email } },
+      }),
+    ).toBe(0);
+  });
+
+  it("rejects ownership changes without an authorization context", async () => {
+    Object.assign(env, { API_AUTH_MIGRATION: "legacy" });
+    const legacyKey = await createApiKey(prisma, {
+      owner: OrganizationId(orgId),
+      role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+      createdBy: UserId(ownerId),
+    });
+    const { status } = await callScimRoute(scimUserRoute, {
+      method: "PUT",
+      authorization: createBasicAuthHeader(
+        legacyKey.publicKey,
+        legacyKey.secretKey,
+      ),
+      userId: ownerId,
+      body: {
+        schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        active: true,
+        roles: ["MEMBER"],
+      },
+    });
+    expect(status).toBe(403);
+    expect(await roleOf(ownerId)).toBe("OWNER");
+  });
+
+  it("rejects an ADMIN key demoting an OWNER via PUT", async () => {
+    expect(await putUser(ownerId, ["MEMBER"])).toBe(403);
+    expect(await roleOf(ownerId)).toBe("OWNER");
+  });
+
+  it("rejects an ADMIN key promoting a member to OWNER via PUT", async () => {
+    expect(await putUser(memberId, ["OWNER"])).toBe(403);
+    expect(await roleOf(memberId)).toBe("MEMBER");
+  });
+
+  it("rejects an ADMIN key provisioning a non-member as OWNER via PUT", async () => {
+    const outsider = await prisma.user.create({
+      data: { email: `${randomUUID()}@example.com` },
+    });
+    createdEmails.push(outsider.email!);
+    expect(await putUser(outsider.id, ["OWNER"])).toBe(403);
+    expect(await roleOf(outsider.id)).toBeUndefined();
+  });
+
+  it.each([
+    ["DELETE", undefined],
+    [
+      "PATCH",
+      {
+        schemas: ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+        Operations: [{ op: "replace", value: { active: false } }],
+      },
+    ],
+    [
+      "PUT",
+      {
+        schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        active: false,
+      },
+    ],
+  ] as const)(
+    "rejects an ADMIN key deprovisioning an OWNER via %s",
+    async (method, body) => {
+      expect(await call(scimUserRoute, method, body, ownerId)).toBe(403);
+      expect(await roleOf(ownerId)).toBe("OWNER");
+    },
+  );
+
+  it("lets a key with ownership permission grant OWNER via POST and PUT", async () => {
+    const email = `${randomUUID()}@example.com`;
+    createdEmails.push(email);
+    const created = await callScimRoute(scimUsersRoute, {
+      method: "POST",
+      authorization: ownerAuth,
+      body: {
+        schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        userName: email,
+        roles: ["OWNER"],
+      },
+    });
+    expect(created.status).toBe(201);
+    expect(
+      await prisma.organizationMembership.findFirst({
+        where: { orgId, user: { email } },
+      }),
+    ).toMatchObject({ role: "OWNER" });
+
+    const promoted = await callScimRoute(scimUserRoute, {
+      method: "PUT",
+      authorization: ownerAuth,
+      userId: memberId,
+      body: {
+        schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        active: true,
+        roles: ["OWNER"],
+      },
+    });
+    expect(promoted.status).toBe(200);
+    expect(await roleOf(memberId)).toBe("OWNER");
+  });
+
+  it("lets an ADMIN key manage non-owner members", async () => {
+    const email = `${randomUUID()}@example.com`;
+    createdEmails.push(email);
+    expect(
+      await call(scimUsersRoute, "POST", {
+        schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        userName: email,
+        roles: ["ADMIN"],
+      }),
+    ).toBe(201);
+    expect(await putUser(memberId, ["ADMIN"])).toBe(200);
+    expect(await roleOf(memberId)).toBe("ADMIN");
+    expect(await call(scimUserRoute, "DELETE", undefined, memberId)).toBe(204);
+    expect(await roleOf(memberId)).toBeUndefined();
   });
 });

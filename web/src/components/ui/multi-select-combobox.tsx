@@ -1,9 +1,9 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 /* eslint-disable @repo/no-style-props */
 import { useState, useEffect, useRef, type ReactNode } from "react";
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
-import { Search, X, MoreHorizontal } from "lucide-react";
+import { Search, X, MoreHorizontal } from "@langfuse/icons";
 import { cn } from "@/src/utils/tailwind";
 
 interface MultiSelectComboboxProps<T> {
@@ -156,7 +156,11 @@ export function MultiSelectCombobox<T>({
           style={{ overflowAnchor: "none" }}
         >
           {showSearchIcon && (
-            <Search className="text-muted-foreground absolute top-2.5 left-2 z-10 h-4 w-4" />
+            <Search
+              size="base"
+              color="muted"
+              __rawClassName="absolute top-2.5 left-2 z-10"
+            />
           )}
           <div
             className={cn(
@@ -188,7 +192,7 @@ export function MultiSelectCombobox<T>({
               onFocus={handleInputFocus}
               onBlur={handleInputBlur}
               disabled={disabled}
-              className="placeholder:text-foreground-tertiary min-w-24 flex-1 border-none bg-transparent text-xs outline-hidden"
+              className="placeholder:text-muted-foreground min-w-24 flex-1 border-none bg-transparent text-xs outline-hidden"
             />
           </div>
           {searchQuery && (
@@ -198,7 +202,7 @@ export function MultiSelectCombobox<T>({
               className="absolute top-1 right-2 h-7 w-7 p-0"
               onClick={() => onSearchChange("")}
             >
-              <X className="h-3 w-3" />
+              <X size="base" color="default" />
             </Button>
           )}
         </div>
@@ -236,7 +240,7 @@ export function MultiSelectCombobox<T>({
               ))}
               {hasMoreResults && (
                 <div className="text-muted-foreground flex items-center gap-3 px-3 py-2">
-                  <MoreHorizontal className="h-4 w-4" />
+                  <MoreHorizontal size="base" />
                   <div className="min-w-0 flex-1">
                     <p className="text-xs italic">
                       More results available, refine your search

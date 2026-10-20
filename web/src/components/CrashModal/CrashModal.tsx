@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CircleAlert } from "lucide-react";
+import { CircleAlert } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 
 type CrashModalProps = {
@@ -18,14 +18,14 @@ export const CrashModal = ({
   return (
     <div className="border-border bg-card w-full max-w-xl rounded-xl border p-6 shadow-sm sm:p-8">
       <div className="bg-destructive/10 text-destructive flex size-10 items-center justify-center rounded-full">
-        <CircleAlert className="size-5" aria-hidden="true" />
+        <CircleAlert size="lg" aria-hidden="true" />
       </div>
 
       <div className="mt-4 min-w-0">
         <h1 className="text-2xl font-bold tracking-tight">
           Something went wrong
         </h1>
-        <p className="text-muted-foreground mt-2 text-sm leading-5">
+        <p className="text-muted-foreground mt-2 text-sm">
           {statusCode ? (
             <span className="text-foreground mr-2 font-bold whitespace-nowrap">
               Error {statusCode}

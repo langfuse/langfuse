@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import ContainerPage from "@/src/components/layouts/container-page";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { AutomationButton } from "@/src/features/automations";
@@ -8,7 +7,7 @@ import {
   type SlackChannel,
 } from "@/src/features/slack/components/ChannelSelector";
 import { SlackTestMessageButton } from "@/src/features/slack/components/SlackTestMessageButton";
-import { api } from "@/src/utils/api";
+import { useSlackIntegration } from "@/src/features/slack/useSlackIntegration";
 import { useRouter } from "next/router";
 import { useState, useEffect } from "react";
 import { Badge } from "@/src/components/ui/badge";
@@ -65,17 +64,8 @@ export default function SlackIntegrationPage() {
     }
   }, [router.query]);
 
-  const { data: integrationStatus, isLoading } =
-    api.slack.getIntegrationStatus.useQuery(
-      { projectId },
-      { enabled: !!projectId },
-    );
-
-  const status = isLoading
-    ? undefined
-    : integrationStatus?.isConnected
-      ? "active"
-      : "inactive";
+  const { query, status } = useSlackIntegration(projectId);
+  const integrationStatus = query.data;
 
   const [selectedChannel, setSelectedChannel] = useState<SlackChannel | null>(
     null,
@@ -97,7 +87,7 @@ export default function SlackIntegrationPage() {
         breadcrumb: [
           { name: "Settings", href: `/project/${projectId}/settings` },
         ],
-        actionButtonsLeft: <>{status && <StatusBadge type={status} />}</>,
+        actionButtonsLeft: status && <StatusBadge type={status} />,
         actionButtonsRight: <AutomationButton projectId={projectId} />,
       }}
     >

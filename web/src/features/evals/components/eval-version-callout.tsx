@@ -1,5 +1,6 @@
+/* eslint-disable @repo/component-file-structure */
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle } from "@langfuse/icons";
 import { type EvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
 import {
   isTraceTarget,

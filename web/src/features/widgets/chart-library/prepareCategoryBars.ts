@@ -1,9 +1,9 @@
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
-import { seriesColor } from "@/src/features/widgets/chart-library/TimeSeriesLegend";
+import { seriesFillColor } from "@/src/features/widgets/chart-library/TimeSeriesLegend";
 
 /**
  * How many bars a colour can still IDENTIFY. The chart palette holds 8 slots and
- * `seriesColor` cycles them, so from the ninth bar on two bars share a colour
+ * `seriesFillColor` cycles them, so from the ninth bar on two bars share a colour
  * and a swatch names nothing — a legend built on it would be actively wrong
  * about which bar is which. Past the limit we colour every bar alike and leave
  * identity to the tooltip, rather than shipping a legend that lies.
@@ -13,17 +13,14 @@ export const CATEGORY_COLOR_LIMIT = 8;
 
 type CategoryBarRow = DataPoint & { fill?: string };
 
-export type CategoryBarLegendItem = { category: string; color: string };
-
 export type CategoryBars = {
   /**
-   * Rows for recharts, each carrying its own `fill` when colour can identify.
-   * A per-row `fill` is the recharts idiom the tooltip already reads back for
-   * its swatch (see `getFillColor`), so bar, legend and tooltip cannot diverge.
+   * Rows carrying a `fill` when colour can identify. The widget adapter passes
+   * the same colour to the bar and tooltip, so they match the legend.
    */
   rows: CategoryBarRow[];
   /** One entry per bar, in bar order — empty when colour cannot identify. */
-  legend: CategoryBarLegendItem[];
+  legend: { category: string; color: string }[];
   /** Distinct categories, so a caller can say so when there is no legend. */
   total: number;
 };
@@ -56,11 +53,11 @@ export function prepareCategoryBars(data: DataPoint[]): CategoryBars {
     rows: data.map((point) =>
       point.dimension === undefined
         ? point
-        : { ...point, fill: seriesColor(order.get(point.dimension) ?? 0) },
+        : { ...point, fill: seriesFillColor(order.get(point.dimension) ?? 0) },
     ),
     legend: Array.from(order, ([category, index]) => ({
       category,
-      color: seriesColor(index),
+      color: seriesFillColor(index),
     })),
     total,
   };

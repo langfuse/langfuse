@@ -1,4 +1,5 @@
 import { type Flag } from "@/src/features/feature-flags/types";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { type ProjectScope } from "@langfuse/shared";
 import {
   BellRing,
@@ -6,7 +7,7 @@ import {
   LayoutDashboard,
   LifeBuoy,
   ListTree,
-  type LucideIcon,
+  type IconComponent,
   Settings,
   UsersIcon,
   TerminalIcon,
@@ -14,21 +15,21 @@ import {
   Grid2X2,
   Sparkle,
   FileJson,
+  FolderCode,
   Search,
   Home,
   SquarePercent,
   ClipboardPen,
   Clock,
   Beaker,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { type ReactNode } from "react";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
 import { type Session } from "next-auth";
 import { type OrganizationScope } from "@/src/features/rbac";
-import { SupportButton } from "@/src/components/nav/support-button";
-import { V4MigrationNavItem } from "@/src/features/v4-migration/V4MigrationNavItem";
+import { SupportButton } from "@/src/components/nav/SupportButton";
 import { V4SidebarToggle } from "@/src/features/events";
-import { BookACallButton } from "@/src/components/nav/book-a-call-button";
+import { BookACallButton } from "@/src/components/nav/BookACallButton";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
@@ -45,17 +46,19 @@ export enum RouteSection {
 export enum RouteGroup {
   Observability = "Observability",
   PromptManagement = "Prompt Management",
+  ContextManagement = "Context Management",
   Evaluation = "Evaluation",
 }
 
 export type Route = {
+  id?: "v4-migration";
   title: string;
   menuNode?: ReactNode;
   featureFlag?: Flag;
   label?: string | ReactNode;
   projectRbacScopes?: ProjectScope[]; // array treated as OR
   organizationRbacScope?: OrganizationScope;
-  icon?: LucideIcon; // ignored for nested routes
+  icon?: IconComponent; // ignored for nested routes
   href: string;
   isActive?: (pathname: string) => boolean;
   legacyPathname?: string; // link used when the V4 preview is disabled
@@ -69,9 +72,11 @@ export type Route = {
       | NonNullable<Session["user"]>["organizations"][number]
       | undefined;
     projectId: string | undefined;
+    canViewTopics: boolean;
     isLangfuseCloud: boolean;
     hasActiveCloudIncident: boolean;
     canToggleV4: boolean;
+    canRecoverV4: boolean;
     forceV3Experience: boolean;
     v4WriteMode: undefined | "legacy" | "dual" | "events_only"; // undefined until the session has loaded
     v4UpgradeUiAvailable: boolean; // deployment shows the v4 migration UI (see isV4UpgradeUiAvailable)
@@ -146,12 +151,31 @@ export const ROUTES: Route[] = [
     section: RouteSection.Main,
   },
   {
+    title: "Topics",
+    href: "/project/[projectId]/topics",
+    icon: Grid2X2,
+    show: ({ canViewTopics }) => canViewTopics,
+    group: RouteGroup.Observability,
+    section: RouteSection.Main,
+  },
+  {
     title: "Alerts",
     href: "/project/[projectId]/alerts",
     icon: BellRing,
     projectRbacScopes: ["alerts:read"],
     show: ({ v4WriteMode }) => Boolean(v4WriteMode) && v4WriteMode !== "legacy",
     group: RouteGroup.Observability,
+    section: RouteSection.Main,
+  },
+  {
+    title: "Skills",
+    featureFlag: "skillManagement",
+    label: <Badge text="Beta" color="blue" size="sm" />,
+    href: "/project/[projectId]/skills",
+    icon: FolderCode,
+    projectRbacScopes: ["skills:read"],
+    productModule: "prompt-management",
+    group: RouteGroup.PromptManagement,
     section: RouteSection.Main,
   },
   {
@@ -217,11 +241,11 @@ export const ROUTES: Route[] = [
     // Keep Action required first in the secondary nav so it is not sandwiched
     // between regular items like Upgrade Plan and Settings.
     title: "Update",
+    id: "v4-migration",
     href: "",
     section: RouteSection.Secondary,
     show: ({ projectId, v4UpgradeUiAvailable }) =>
       v4UpgradeUiAvailable && projectId !== undefined,
-    menuNode: <V4MigrationNavItem />,
   },
   {
     title: "Cloud Status",
@@ -236,9 +260,15 @@ export const ROUTES: Route[] = [
     href: "",
     section: RouteSection.Secondary,
     featureFlag: "v4BetaToggleVisible",
-    // v4-upgrade users get this toggle inside the migration panel instead.
-    show: ({ canToggleV4, forceV3Experience, v4UpgradeUiAvailable }) =>
-      canToggleV4 && (!v4UpgradeUiAvailable || forceV3Experience),
+    // Recovery stays in the sidebar; ordinary opt-in lives in the migration panel.
+    show: ({
+      canToggleV4,
+      canRecoverV4,
+      forceV3Experience,
+      v4UpgradeUiAvailable,
+    }) =>
+      canRecoverV4 ||
+      (canToggleV4 && (!v4UpgradeUiAvailable || forceV3Experience)),
     menuNode: <V4SidebarToggle />,
   },
   {
@@ -300,9 +330,9 @@ function CommandMenuTrigger() {
       }}
       className="whitespace-nowrap"
     >
-      <Search className="h-4 w-4" />
+      <Search size="base" />
       Go to...
-      <span className="ml-auto hidden md:inline-flex">
+      <span className="-mr-px ml-auto hidden md:inline-flex">
         <KeyboardShortcut keys={["Mod", "K"]} />
       </span>
     </SidebarMenuButton>

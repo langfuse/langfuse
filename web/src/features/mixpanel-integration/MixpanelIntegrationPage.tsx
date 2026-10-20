@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { MixpanelLogo } from "@/src/components/MixpanelLogo";
 import Header from "@/src/components/layouts/header";
 import ContainerPage from "@/src/components/layouts/container-page";
@@ -45,7 +44,7 @@ import {
 } from "@/src/features/analytics-integrations";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { useQueryProject } from "@/src/features/projects";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useMixpanelIntegration } from "@/src/features/mixpanel-integration/useMixpanelIntegration";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -55,31 +54,15 @@ import { useRouter } from "next/router";
 import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { type z } from "zod";
-import { Info, ExternalLink } from "lucide-react";
+import { Info, ExternalLink } from "@langfuse/icons";
 
 export default function MixpanelIntegrationPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
-  const hasAccess = useHasProjectAccess({
-    projectId,
-    scope: "integrations:CRUD",
-  });
-  const state = api.mixpanelIntegration.get.useQuery(
-    { projectId },
-    {
-      enabled: hasAccess,
-    },
-  );
+  const { hasAccess, query: state, status } = useMixpanelIntegration(projectId);
 
   const { project } = useQueryProject();
-
-  const status =
-    state.isLoading || !hasAccess
-      ? undefined
-      : state.data?.config?.enabled
-        ? "active"
-        : "inactive";
 
   return (
     <ContainerPage
@@ -88,7 +71,7 @@ export default function MixpanelIntegrationPage() {
         breadcrumb: [
           { name: "Settings", href: `/project/${projectId}/settings` },
         ],
-        actionButtonsLeft: <>{status && <StatusBadge type={status} />}</>,
+        actionButtonsLeft: status && <StatusBadge type={status} />,
         actionButtonsRight: (
           <Button asChild variant="secondary">
             <Link href="https://langfuse.com/integrations/analytics/mixpanel">
@@ -312,7 +295,7 @@ const MixpanelIntegrationSettingsForm = ({
                   Export Source
                   <Tooltip>
                     <TooltipTrigger>
-                      <Info className="text-muted-foreground h-3.5 w-3.5" />
+                      <Info size="base" color="muted" />
                     </TooltipTrigger>
                     <TooltipContent
                       side="bottom"
@@ -328,13 +311,13 @@ const MixpanelIntegrationSettingsForm = ({
                       ))}
                       <div className="border-t pt-2">
                         <a
-                          href="https://langfuse.com/docs/integrations/export-sources"
+                          href="https://langfuse.com/integrations/analytics/mixpanel#migrate-export-source"
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 text-xs hover:underline"
                         >
                           For further information see
-                          <ExternalLink className="h-3 w-3" />
+                          <ExternalLink size="sm" />
                         </a>
                       </div>
                     </TooltipContent>

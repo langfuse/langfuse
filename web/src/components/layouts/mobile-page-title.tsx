@@ -1,23 +1,21 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable @repo/component-file-structure */
 import { ItemBadge } from "@/src/components/ItemBadge";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
+import { MobilePageActionsContent } from "@/src/components/layouts/mobile-page-actions-content";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
 import { PageTabs } from "@/src/components/layouts/page-tabs";
 import { type PageHeaderProps } from "@/src/components/layouts/page-header";
 import { Button } from "@/src/components/ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
+import { Popover, PopoverTrigger } from "@/src/components/ui/popover";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { MoreHorizontal } from "lucide-react";
+import { cn } from "@/src/utils/tailwind";
+import { MoreHorizontal } from "@langfuse/icons";
 import { useRef, useState } from "react";
 
 /**
@@ -39,12 +37,12 @@ export const MobilePageTitle = ({
 }) => {
   const {
     title,
-    titleContent,
     titleTooltip,
     help,
     itemType,
     actionButtonsLeft,
     actionButtonsRight,
+    mobileActionButtons,
     actionButtonsMenu,
     titleBadges,
     breadcrumb,
@@ -62,9 +60,19 @@ export const MobilePageTitle = ({
       menuTriggerRef.current?.focus({ preventScroll: true });
     }
   };
+  const hasOverflowActions = Boolean(
+    actionButtonsMenu ||
+    (!mobileActionButtons && (actionButtonsRight || actionButtonsLeft)),
+  );
 
   return (
-    <div className="bg-background border-b px-3 pt-2 pb-3">
+    <div
+      className={cn(
+        "bg-background px-3 pt-2",
+        tabsProps ? "pb-0" : "pb-3",
+        !tabsProps && headerProps.divider !== false && "border-b",
+      )}
+    >
       {/* Context line: org / project switcher plus any page-supplied
           breadcrumb items (detail pages rely on these for back-navigation). */}
       <div className="flex items-center gap-2">
@@ -74,11 +82,10 @@ export const MobilePageTitle = ({
 
       {/* Title row. On desktop the PageHeader packs the title and its action
           clusters onto one justified row; at phone width the compact mobile
-          header keeps the type icon + title on the left and collapses every
-          action cluster into a single `⋯` overflow popover pinned to the right,
-          so the header top block stays ~2 rows instead of the 4–5 it used to
-          take (a big labelled type chip, a text-2xl title, then each action
-          cluster wrapping onto its own row). */}
+          header keeps the type icon + title on the left. Pages can keep one
+          primary action visible; remaining action clusters collapse into a
+          single `⋯` overflow popover pinned to the right, so the header top
+          block stays ~2 rows instead of the 4–5 it used to take. */}
       <div className="mt-2 flex min-w-0 items-center gap-2">
         {/* Icon keeps its size — without shrink-0 a long title (e.g. a full
             session id, the common case) squeezes it. */}
@@ -94,9 +101,7 @@ export const MobilePageTitle = ({
           title={title}
           className="text-primary min-w-0 truncate text-base leading-tight font-bold"
         >
-          {titleContent ? (
-            titleContent
-          ) : titleTooltip ? (
+          {titleTooltip ? (
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -127,14 +132,19 @@ export const MobilePageTitle = ({
         {titleBadges && (
           <div className="flex shrink-0 items-center gap-1">{titleBadges}</div>
         )}
-        {/* Actions collapse into a single right-aligned overflow popover of
+        {mobileActionButtons ? (
+          <div className="ml-auto flex shrink-0 items-center">
+            {mobileActionButtons}
+          </div>
+        ) : null}
+        {/* Remaining actions collapse into a right-aligned overflow popover of
             full-width labeled rows (icon + label) — the same pattern the table
             peek uses. Pages pass `actionButtonsMenu` (a `layout="menu"` variant
             of their actions) for proper menu rows; when they don't, we fall
             back to folding the inline `actionButtonsRight`/`actionButtonsLeft`
             nodes as-is. Either way the actions' own dialogs/drawers portal
             through the layer system, so they keep working from the popover. */}
-        {(actionButtonsMenu || actionButtonsRight || actionButtonsLeft) && (
+        {hasOverflowActions && (
           <Popover
             open={isMenuOpen}
             onOpenChange={(open) => {
@@ -150,12 +160,10 @@ export const MobilePageTitle = ({
                 aria-label="More actions"
                 className="ml-auto shrink-0"
               >
-                <MoreHorizontal className="h-4 w-4" />
+                <MoreHorizontal size="base" color="default" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent
-              align="end"
-              className="w-auto min-w-44 p-1"
+            <MobilePageActionsContent
               onCloseAutoFocus={(event) => {
                 if (!restoreFocus.current) event.preventDefault();
                 restoreFocus.current = true;
@@ -171,7 +179,7 @@ export const MobilePageTitle = ({
                       </>
                     ))}
               </div>
-            </PopoverContent>
+            </MobilePageActionsContent>
           </Popover>
         )}
       </div>
@@ -188,7 +196,10 @@ export const MobilePageTitle = ({
         <PageHeaderControlsSlotTarget />
       </div>
 
-      {tabsProps && <PageTabs {...tabsProps} scrollable className="mt-2" />}
+      {/** The strip bleeds through the block padding so its divider spans the full width. */}
+      {tabsProps && (
+        <PageTabs {...tabsProps} scrollable className="-mx-3 mt-2" />
+      )}
     </div>
   );
 };

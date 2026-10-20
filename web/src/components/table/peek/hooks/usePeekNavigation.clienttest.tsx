@@ -179,3 +179,42 @@ describe("usePeekNavigation analytics", () => {
     expect(capture).not.toHaveBeenCalled();
   });
 });
+
+describe("peek entry parameters", () => {
+  it("sets explicit entry parameters and clears them on ordinary entry and close", () => {
+    mockPush.mockReset();
+    window.history.replaceState(
+      {},
+      "",
+      "/project/p1/traces?peek=old&comments=open",
+    );
+    const { result } = renderHook(() =>
+      usePeekNavigation({
+        queryParams: ["annotation", "comments", "traceId"],
+        tableName: "experimentItems",
+        isV4: true,
+        extractParamsValuesFromRow: (row) => ({ traceId: row.traceId }),
+      }),
+    );
+    result.current.openPeek(
+      "item",
+      { traceId: "trace" },
+      { queryParams: { annotation: "open" } },
+    );
+    expect(mockPush.mock.lastCall?.[0].query).toMatchObject({
+      peek: "item",
+      traceId: "trace",
+      annotation: "open",
+    });
+    expect(mockPush.mock.lastCall?.[0].query).not.toHaveProperty("comments");
+    window.history.replaceState(
+      {},
+      "",
+      "/project/p1/traces?peek=item&annotation=open",
+    );
+    result.current.openPeek("item", { traceId: "trace" });
+    expect(mockPush.mock.lastCall?.[0].query).not.toHaveProperty("annotation");
+    result.current.closePeek();
+    expect(mockPush.mock.lastCall?.[0].query).not.toHaveProperty("annotation");
+  });
+});

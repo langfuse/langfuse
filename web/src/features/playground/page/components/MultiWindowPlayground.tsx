@@ -4,7 +4,7 @@ import { PlaygroundProvider, usePlaygroundContext } from "../context";
 import { SaveToPromptButton } from "./SaveToPromptButton";
 import { SourcePromptHeading } from "./SourcePromptHeading";
 import { Button } from "@/src/components/ui/button";
-import { Plus, X } from "lucide-react";
+import { Plus, X } from "@langfuse/icons";
 import { MULTI_WINDOW_CONFIG, type MultiWindowState } from "../types";
 import { ModelParameters } from "@/src/components/ModelParameters";
 import { Messages } from "@/src/features/playground/page/components/Messages";
@@ -212,7 +212,7 @@ function PlaygroundWindowContent({
                         onClick={handleCopy}
                         className="h-7 gap-1.5 px-2.5 text-xs @xl:hidden"
                       >
-                        <Plus size={14} />
+                        <Plus size="base" color="default" />
                         <span className="sr-only">New split window</span>
                       </Button>
                     </TooltipTrigger>
@@ -225,7 +225,7 @@ function PlaygroundWindowContent({
                     onClick={handleCopy}
                     className="hidden h-7 gap-1.5 px-2.5 text-xs @xl:flex"
                   >
-                    <Plus size={14} />
+                    <Plus size="base" color="default" />
                     <span>New split window</span>
                   </Button>
                 </>
@@ -238,7 +238,7 @@ function PlaygroundWindowContent({
                       onClick={handleRemove}
                       className="hover:bg-destructive/10 hover:text-destructive h-6 w-6 p-0"
                     >
-                      <X size={14} />
+                      <X size="base" />
                       <span className="sr-only">Remove window</span>
                     </Button>
                   </TooltipTrigger>

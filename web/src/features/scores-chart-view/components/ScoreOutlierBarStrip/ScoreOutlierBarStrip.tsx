@@ -1,6 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import { useCallback, useMemo, useRef, useState } from "react";
-import { X } from "lucide-react";
+import { X } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { Layer } from "@/src/components/design-system/Layer/Layer";
 import { formatBucketRange } from "@/src/features/events";
@@ -555,7 +555,7 @@ export function ScoreOutlierBarStrip({
                   onSelectionChange?.(null);
                 }}
               >
-                <X className="h-3 w-3" />
+                <X size="sm" />
               </button>
             </div>
             {previewHasData && (

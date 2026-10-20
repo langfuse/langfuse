@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { User } from "lucide-react";
 import { expect, fn, userEvent, waitFor } from "storybook/test";
 import { EvalTemplateTypeEnum } from "@langfuse/shared";
 import preview from "../../../../../../.storybook/preview";
@@ -54,6 +53,7 @@ const managedTemplate = {
   icon: "gauge",
   description: "Assess whether the answer directly addresses the question.",
   maintainer: "langfuse",
+  previewScores: [{ name: "answer_relevance", value: "Relevant" }],
   evaluator: {
     type: EvalTemplateTypeEnum.LLM_AS_JUDGE,
     promptMessages: [
@@ -182,7 +182,7 @@ const defaultArgs = {
   search: "",
   onSearchChange: fn(),
   navigationItems: [
-    { key: "custom", label: "Your templates", icon: User, count: 2 },
+    { key: "custom", label: "Your templates", count: 2 },
     { key: "recommended", label: "Recommended starting points", count: 3 },
     { key: "conversation", label: "Conversational / Chatbots", count: 2 },
     { key: "quality", label: "Quality", count: 7 },
@@ -211,6 +211,7 @@ const topicDecisionModel = {
   description:
     "Assigns the input to one of your topics with a calibrated probability for each option, in one fast decision-model call.",
   maintainer: "langfuse",
+  previewScores: [{ name: "topic", value: "billing" }],
   evaluator: {
     type: EvalTemplateTypeEnum.DECISION_MODEL,
     questions: [
@@ -244,16 +245,25 @@ export const DecisionModels = meta.story({
   args: {
     ...defaultArgs,
     sections: sectionsWithDecisionModelCard,
-    decisionModel: { bannerDismissed: false, onDismissBanner: fn() },
   },
   render: StatefulEvaluatorGalleryView,
 });
 
-export const DecisionModelsBannerDismissed = meta.story({
+export const DecisionModelsNarrow = meta.story({
+  globals: { viewport: { value: "evaluator-gallery-phone", isRotated: false } },
+  parameters: {
+    viewport: {
+      options: {
+        "evaluator-gallery-phone": {
+          name: "Phone",
+          styles: { width: "390px", height: "844px" },
+        },
+      },
+    },
+  },
   args: {
     ...defaultArgs,
     sections: sectionsWithDecisionModelCard,
-    decisionModel: { bannerDismissed: true, onDismissBanner: fn() },
   },
   render: StatefulEvaluatorGalleryView,
 });
@@ -312,12 +322,14 @@ export const EmptySearch = meta.story({
     await expect(
       canvas.getByText("No templates match your search."),
     ).toBeInTheDocument();
-    await expect(canvas.getByText("Browse")).toBeInTheDocument();
+    await expect(
+      canvas.getAllByRole("navigation", { name: "Browse categories" })[0],
+    ).toBeInTheDocument();
     await expect(
       canvas.getByRole("button", { name: "Quality 0" }),
     ).toBeInTheDocument();
     await expect(
-      canvas.getByRole("button", { name: "New LLM-as-a-judge" }),
+      canvas.getByRole("button", { name: /^LLM-as-a-judge/ }),
     ).toBeInTheDocument();
   },
 });

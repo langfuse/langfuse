@@ -2,6 +2,7 @@
 imports:
   evals: ./evaluation-commons.yml
   errors: ./evaluation-errors.yml
+  pagination: ./utils/pagination.yml
 
 service:
   auth: true
@@ -522,10 +523,9 @@ types:
         docs: Cursor pagination metadata.
 
   CursorMeta:
-    properties:
-      cursor:
-        type: optional<string>
-        docs: Opaque cursor for the next page. Omitted when there is no next page.
+    docs: Cursor pagination metadata.
+    extends:
+      - pagination.CursorMetaResponse
 
   DeletedEvaluator:
     docs: Confirmation returned after successful evaluator deletion.

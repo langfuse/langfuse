@@ -155,13 +155,13 @@ export default function EnterpriseSsoRequiredPage() {
           <h1 className="text-primary mt-6 text-center text-2xl font-bold">
             Use your Enterprise SSO
           </h1>
-          <p className="text-muted-foreground mt-2 text-center text-sm leading-6">
+          <p className="text-muted-foreground mt-2 text-center text-sm">
             {description} Enter your company email so we can send you to the
             correct identity provider.
           </p>
         </div>
 
-        <div className="border-border bg-card mt-10 rounded-lg border px-6 py-8 shadow-sm sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="bg-card mt-10 rounded-lg px-6 py-8 shadow-sm sm:mx-auto sm:w-full sm:max-w-md">
           <Form {...form}>
             <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
               <FormField

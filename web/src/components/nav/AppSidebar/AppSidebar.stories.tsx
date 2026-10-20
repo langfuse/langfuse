@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { Activity, BookOpen, Home, Settings } from "lucide-react";
+import { Activity, BookOpen, Home, Settings } from "@langfuse/icons";
 import { expect, fn } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
@@ -54,7 +54,7 @@ const meta = preview.meta({
     userMenuItems: [
       {
         type: "link",
-        name: "Account Settings",
+        name: "Settings",
         href: "/account/settings",
       },
       { type: "action", name: "Sign out", onClick: fn() },

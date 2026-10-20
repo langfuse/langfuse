@@ -1,4 +1,5 @@
 import { prisma, Prisma } from "../../../db";
+import { isPrismaRecordNotFoundError } from "../../prismaErrors";
 import {
   LangfuseConflictError,
   LangfuseNotFoundError,
@@ -195,10 +196,7 @@ export class DashboardService {
     } catch (e) {
       // P2025 = row not found; also thrown for cross-project ids, so the 404
       // does not leak whether the dashboard exists in another project.
-      if (
-        e instanceof Prisma.PrismaClientKnownRequestError &&
-        e.code === "P2025"
-      ) {
+      if (isPrismaRecordNotFoundError(e)) {
         throw new LangfuseNotFoundError(
           `Dashboard ${dashboardId} not found in project ${projectId}`,
         );
@@ -299,10 +297,7 @@ export class DashboardService {
     } catch (e) {
       // P2025 = row not found; also thrown for cross-project ids, so the 404
       // does not leak whether the dashboard exists in another project.
-      if (
-        e instanceof Prisma.PrismaClientKnownRequestError &&
-        e.code === "P2025"
-      ) {
+      if (isPrismaRecordNotFoundError(e)) {
         throw new LangfuseNotFoundError(
           `Dashboard ${dashboardId} not found in project ${projectId}`,
         );
@@ -464,7 +459,8 @@ export class DashboardService {
 
   /**
    * Deletes a dashboard widget.
-   * Throws an error if the widget is still referenced in any dashboard.
+   * Throws LangfuseConflictError if the widget is still referenced in any
+   * dashboard, and LangfuseNotFoundError if it does not exist in the project.
    */
   public static async deleteWidget(
     widgetId: string,
@@ -495,13 +491,23 @@ export class DashboardService {
       );
     }
 
-    // Delete the widget if it's not referenced
-    await prisma.dashboardWidget.delete({
-      where: {
-        id: widgetId,
-        projectId,
-      },
-    });
+    try {
+      await prisma.dashboardWidget.delete({
+        where: {
+          id: widgetId,
+          projectId,
+        },
+      });
+    } catch (e) {
+      // P2025 = row not found; also thrown for cross-project ids, so the 404
+      // does not leak whether the widget exists in another project.
+      if (isPrismaRecordNotFoundError(e)) {
+        throw new LangfuseNotFoundError(
+          `Widget ${widgetId} not found in project ${projectId}`,
+        );
+      }
+      throw e;
+    }
   }
 
   /**

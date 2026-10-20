@@ -7,7 +7,7 @@ import { useDatasetCompareFields } from "@/src/features/datasets/contexts/Datase
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
-import { ClockIcon, ListTree } from "lucide-react";
+import { ClockIcon, ListTree } from "@langfuse/icons";
 import { usdFormatter } from "@/src/utils/numbers";
 import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
 import {
@@ -51,7 +51,7 @@ const DatasetAggregateCellContent = ({
 
   const hasAnnotationWriteAccess = useHasProjectAccess({
     projectId,
-    scope: "scores:CUD",
+    scope: "scores:save",
   });
 
   // Merge server columns with cache-only columns
@@ -237,8 +237,8 @@ const DatasetAggregateCellContent = ({
                   className="ml-1"
                 />
               ) : (
-                <Badge variant="tertiary" size="sm" className="font-normal">
-                  <ClockIcon className="mr-1 mb-0.5 h-3 w-3" />
+                <Badge variant="tertiary" className="font-normal">
+                  <ClockIcon size="sm" __rawClassName="mr-1 mb-0.5" />
                   <span className="capitalize">
                     {formatIntervalSeconds(latency)}
                   </span>
@@ -253,7 +253,7 @@ const DatasetAggregateCellContent = ({
                   className="ml-1"
                 />
               ) : (
-                <Badge variant="tertiary" size="sm" className="font-normal">
+                <Badge variant="tertiary" className="font-normal">
                   <span className="mr-0.5">{usdFormatter(totalCost)}</span>
                 </Badge>
               ))}
@@ -277,7 +277,7 @@ const DatasetAggregateCellContent = ({
                 title="View trace/observation"
                 onClick={handleOpenPeek}
               >
-                <ListTree className="h-3 w-3" />
+                <ListTree size="base" color="default" />
               </Button>
             </div>
           )}

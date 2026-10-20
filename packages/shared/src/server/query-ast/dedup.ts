@@ -37,15 +37,20 @@ import {
   type OperationNode,
   type PluginTransformQueryArgs,
   type PluginTransformResultArgs,
-  type QueryId,
   type RootOperationNode,
 } from "kysely";
 
 import { QueryCompileError } from "./errors";
-import { LimitByNode, type ClickHouseSelectQueryNode } from "./nodes";
+import {
+  FinalTableNode,
+  LimitByNode,
+  walkNodes,
+  type ClickHouseSelectQueryNode,
+} from "./nodes";
+import { describeRelation } from "./relations";
 import { DEDUP_SPECS, type DedupSpec } from "./schema";
 import { stampCompiledTree } from "./tenancy";
-import { ClickHouseOperationNodeTransformer } from "./transformer";
+import { SelectRewriteTransformer } from "./transformer";
 
 type PhysicalFrom = {
   tableName: string;
@@ -70,42 +75,23 @@ export class DedupLoweringPlugin implements KyselyPlugin {
   }
 }
 
-class DedupLoweringTransformer extends ClickHouseOperationNodeTransformer {
-  protected override transformSelectQuery(
-    node: SelectQueryNode,
-    queryId?: QueryId,
-  ): SelectQueryNode {
-    const withChildren = super.transformSelectQuery(
-      node,
-      queryId,
-    ) as ClickHouseSelectQueryNode;
-    return lowerSelect(withChildren, collectCteNames(withChildren));
+class DedupLoweringTransformer extends SelectRewriteTransformer {
+  protected rewriteSelect(
+    node: ClickHouseSelectQueryNode,
+  ): ClickHouseSelectQueryNode {
+    return lowerSelect(node);
   }
-}
-
-function collectCteNames(node: SelectQueryNode): Set<string> {
-  const names = new Set<string>();
-  for (const expr of node.with?.expressions ?? []) {
-    names.add(expr.name.table.table.identifier.name);
-  }
-  return names;
 }
 
 function lowerSelect(
   node: ClickHouseSelectQueryNode,
-  cteNames: Set<string>,
 ): ClickHouseSelectQueryNode {
-  const from = singlePhysicalFrom(node, cteNames);
+  const from = singlePhysicalFrom(node);
   if (!from) return node;
 
   const spec = DEDUP_SPECS[from.tableName];
   if (!spec || spec.strategy === "none") return node;
-
-  if (spec.strategy === "final") {
-    throw new QueryCompileError(
-      `Dedup strategy "final" is declared on ${from.tableName} but has no emitter. Use strategy "limitBy" or implement FINAL lowering before declaring it.`,
-    );
-  }
+  assertLowerable(from, spec);
 
   if (node.limitBy) {
     // Caller already attached LIMIT BY. Still pin the version sort so the
@@ -119,33 +105,34 @@ function lowerSelect(
   return attachRowDedup(node, from, spec);
 }
 
-function singlePhysicalFrom(
-  node: SelectQueryNode,
-  cteNames: Set<string>,
-): PhysicalFrom | undefined {
+/** Narrows `spec` to `limitBy`: throws on the shapes the pass cannot lower. */
+function assertLowerable(
+  from: PhysicalFrom,
+  spec: DedupSpec,
+): asserts spec is LimitBySpec {
+  if (spec.strategy === "final") {
+    throw new QueryCompileError(
+      `Dedup strategy "final" is declared on ${from.tableName} but has no emitter. Use strategy "limitBy" or implement FINAL lowering before declaring it.`,
+    );
+  }
+  if (FinalTableNode.is(from.fromItem)) {
+    throw new QueryCompileError(
+      `FINAL cannot be combined with the limitBy dedup declared on ${from.tableName}: the registry already picks the latest version. Remove useFinal().`,
+    );
+  }
+}
+
+function singlePhysicalFrom(node: SelectQueryNode): PhysicalFrom | undefined {
   if (node.joins?.length) return undefined;
   const froms = node.from?.froms ?? [];
   if (froms.length !== 1) return undefined;
-  const described = describeFrom(froms[0]);
-  if (!described) return undefined;
-  if (cteNames.has(described.tableName)) return undefined;
-  return described;
-}
-
-function describeFrom(node: OperationNode): PhysicalFrom | undefined {
-  if (AliasNode.is(node)) {
-    const inner = describeFrom(node.node);
-    if (!inner) return undefined;
-    const alias = IdentifierNode.is(node.alias) ? node.alias.name : undefined;
-    return { ...inner, alias, fromItem: node };
-  }
-  if (TableNode.is(node)) {
-    return {
-      tableName: node.table.identifier.name,
-      fromItem: node,
-    };
-  }
-  return undefined;
+  const { node: fromItem, table, alias } = describeRelation(froms[0]);
+  if (!table) return undefined;
+  return {
+    tableName: table.table.identifier.name,
+    alias,
+    fromItem,
+  };
 }
 
 type QueryShape = "row" | "aggregate" | "skip";
@@ -192,7 +179,7 @@ function isLimitOne(node: SelectQueryNode): boolean {
 
 function hasWrappingAggregate(node: SelectQueryNode): boolean {
   let found = false;
-  walk(node.selections, (child) => {
+  walkOuterSelect(node.selections, (child) => {
     if (!AggregateFunctionNode.is(child)) return;
     if (child.over || DOUBLE_COUNT_AGGREGATES.has(child.func.toLowerCase())) {
       found = true;
@@ -203,7 +190,7 @@ function hasWrappingAggregate(node: SelectQueryNode): boolean {
 
 function hasAnyAggregate(node: SelectQueryNode): boolean {
   let found = false;
-  walk(node.selections, (child) => {
+  walkOuterSelect(node.selections, (child) => {
     if (AggregateFunctionNode.is(child)) found = true;
   });
   return found;
@@ -331,23 +318,16 @@ function columnNameOf(node: OperationNode): string | undefined {
   return undefined;
 }
 
-function walk(value: unknown, visit: (node: OperationNode) => void): void {
-  if (!value || typeof value !== "object") return;
-  if (
-    "kind" in value &&
-    typeof (value as { kind: unknown }).kind === "string"
-  ) {
-    const node = value as OperationNode;
+/**
+ * Visits the nodes under `value` but not inside nested selects: those have
+ * their own shape, so their aggregates do not belong to the outer query.
+ */
+function walkOuterSelect(
+  value: unknown,
+  visit: (node: OperationNode) => void,
+): void {
+  walkNodes(value, (node) => {
     visit(node);
-    // Nested selects have their own shape; do not attribute their
-    // aggregates to the outer query.
-    if (SelectQueryNode.is(node)) return;
-  }
-  for (const child of Object.values(value)) {
-    if (Array.isArray(child)) {
-      for (const item of child) walk(item, visit);
-    } else {
-      walk(child, visit);
-    }
-  }
+    return !SelectQueryNode.is(node);
+  });
 }

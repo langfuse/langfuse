@@ -1,8 +1,9 @@
-/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
+/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger, @repo/component-file-structure */
 "use client";
 
 import * as React from "react";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check } from "@langfuse/icons";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
 import { cn } from "@/src/utils/tailwind";
 import { Button } from "@/src/components/ui/button";
@@ -19,7 +20,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 
 interface ComboboxOption<T extends string | number | boolean | { id: string }> {
   value: T;
@@ -151,11 +152,18 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
             {buttonText}
           </span>
           {selectedOption?.badge && (
-            <Badge variant="secondary" className="ml-1.5 shrink-0">
-              {selectedOption.badge}
-            </Badge>
+            <span className="ml-1.5 flex shrink-0">
+              <Badge
+                color="filled"
+                font="mono"
+                size="sm"
+                text={selectedOption.badge}
+              />
+            </span>
           )}
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          <span className="ml-2 flex">
+            <DropdownIndicator direction="up-down" />
+          </span>
         </Button>
       </PopoverTrigger>
       <PopoverContent
@@ -203,8 +211,9 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
                       )}
                     >
                       <Check
-                        className={cn(
-                          "mr-2 h-4 w-4",
+                        size="base"
+                        __rawClassName={cn(
+                          "mr-2",
                           isEqual(value as T | undefined, option.value)
                             ? "opacity-100"
                             : "opacity-0",
@@ -217,9 +226,14 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
                       )}
                       {option.label ?? String(option.value)}
                       {option.badge && (
-                        <Badge variant="secondary" className="ml-auto">
-                          {option.badge}
-                        </Badge>
+                        <span className="ml-auto flex shrink-0">
+                          <Badge
+                            color="filled"
+                            font="mono"
+                            size="sm"
+                            text={option.badge}
+                          />
+                        </span>
                       )}
                     </CommandItem>
                   ))}
@@ -254,8 +268,9 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
                     )}
                   >
                     <Check
-                      className={cn(
-                        "mr-2 h-4 w-4",
+                      size="base"
+                      __rawClassName={cn(
+                        "mr-2",
                         isEqual(value as T | undefined, option.value)
                           ? "opacity-100"
                           : "opacity-0",
@@ -268,9 +283,14 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
                     )}
                     {option.label ?? String(option.value)}
                     {option.badge && (
-                      <Badge variant="secondary" className="ml-auto">
-                        {option.badge}
-                      </Badge>
+                      <span className="ml-auto flex shrink-0">
+                        <Badge
+                          color="filled"
+                          font="mono"
+                          size="sm"
+                          text={option.badge}
+                        />
+                      </span>
                     )}
                   </CommandItem>
                 ))}

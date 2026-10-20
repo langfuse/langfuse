@@ -1,8 +1,8 @@
-/* eslint-disable @repo/no-margin-on-root-elements */
+/* eslint-disable @repo/no-margin-on-root-elements, @repo/component-file-structure */
 import React, { useState } from "react";
 import { cn } from "@/src/utils/tailwind";
 import Image from "next/image";
-import { InfoIcon, type LucideIcon } from "lucide-react";
+import { InfoIcon, type IconComponent } from "@langfuse/icons";
 import { ActionButton } from "@/src/components/ActionButton";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
@@ -10,7 +10,7 @@ import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 export interface ValueProposition {
   title: string;
   description: string;
-  icon?: LucideIcon;
+  icon?: IconComponent;
 }
 
 export interface ActionConfig {
@@ -197,7 +197,7 @@ export function SplashScreen({
                   {step.badge}
                 </div>
                 {step.description && (
-                  <p className="text-muted-foreground text-sm leading-6">
+                  <p className="text-muted-foreground text-sm">
                     {step.description}
                   </p>
                 )}

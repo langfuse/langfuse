@@ -1,5 +1,5 @@
 import React from "react";
-import { CheckCircle, AlertCircle } from "lucide-react";
+import { CheckCircle, AlertCircle } from "@langfuse/icons";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -165,7 +165,7 @@ export const SlackConnectionCard: React.FC<SlackConnectionCardProps> = ({
       <CardContent className="space-y-4">
         {/* Connection Status */}
         <div className="flex items-center gap-2">
-          <CheckCircle className="h-4 w-4 text-green-500" />
+          <CheckCircle size="base" __rawClassName="text-green-500" />
           <span className="text-sm font-bold">Connected</span>
         </div>
 

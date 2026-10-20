@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
+/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger, @repo/component-file-structure */
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { ModelParameters } from "@/src/components/ModelParameters";
 import { CardContent, Card } from "@/src/components/ui/card";
@@ -6,6 +6,7 @@ import { useModelParams } from "@/src/features/playground";
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import { showSuccessToast } from "@/src/features/notifications";
+import type { ToastOperation } from "@/src/features/notifications/toastAnalytics";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useEvaluationModel } from "@/src/features/evals/hooks/useEvaluationModel";
 import { DeleteEvaluationModelButton } from "@/src/components/deleteButton";
@@ -13,14 +14,16 @@ import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-d
 import { useState } from "react";
 import {
   DialogContent,
+  DialogTitle,
   DialogTrigger,
   Dialog,
 } from "@/src/components/ui/dialog";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
-import { Pencil } from "lucide-react";
+import { Pencil } from "@langfuse/icons";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 
 type DefaultEvalModelSuccessMessage = {
+  operation: ToastOperation;
   title: string;
   description: string;
 };
@@ -144,6 +147,7 @@ export function DefaultEvalModelSetup({
       onSuccess?.();
     },
     successMessage: {
+      operation: "evaluation_model.update",
       title: "Default evaluation model updated",
       description: "All running evaluators will use the new model.",
     },
@@ -207,11 +211,14 @@ export function DefaultEvalModelSetup({
                 setIsEditing(true);
               }}
             >
-              <Pencil className="mr-2 h-4 w-4" />
+              <Pencil size="base" __rawClassName="mr-2" />
               {setup.selectedModel ? "Edit" : "Set up"}
             </Button>
           </DialogTrigger>
           <DialogContent className="px-3 py-10">
+            <DialogTitle className="sr-only">
+              Default evaluation model
+            </DialogTitle>
             <div className="flex flex-col gap-2">
               <DefaultEvalModelFields setup={setup} />
               <div className="mt-2 flex justify-end gap-2">
@@ -257,6 +264,7 @@ export function InlineDefaultEvalModelSetup({
     projectId,
     onSuccess,
     successMessage: {
+      operation: "evaluation_model.set",
       title: "Default evaluation model set",
       description: "LLM-as-a-judge evaluators can now use this model.",
     },

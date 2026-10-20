@@ -38,7 +38,10 @@ describe("AI gateway provider registry", () => {
     const validator = vi
       .fn()
       .mockRejectedValue(new Error("invalid provider credential"));
-    const service = new GatewayProviderService({} as PrismaClient, validator);
+    const prisma = {
+      gatewayAiConnection: { findMany: vi.fn().mockResolvedValue([]) },
+    } as unknown as PrismaClient;
+    const service = new GatewayProviderService(prisma, validator);
 
     await expect(
       service.create({
@@ -78,6 +81,7 @@ describe("AI gateway provider registry", () => {
           organizationId: "org-1",
           provider: "OPENAI",
           encryptedCredential: "unused",
+          allowedModels: null,
         }),
       },
     } as unknown as PrismaClient;
@@ -135,6 +139,7 @@ describe("AI gateway provider registry", () => {
           provider: "ANTHROPIC",
           encryptedCredential: encrypt("sk-test"),
           status: "ENABLED",
+          allowedModels: null,
         }),
       },
     } as unknown as PrismaClient;
@@ -183,6 +188,7 @@ describe("AI gateway provider registry", () => {
           provider: "OPENAI",
           encryptedCredential: encrypt("sk-test"),
           status: "ENABLED",
+          allowedModels: null,
         }),
       },
     } as unknown as PrismaClient;
@@ -224,6 +230,7 @@ describe("AI gateway provider registry", () => {
           provider: "OPENAI",
           encryptedCredential: encrypt("sk-test"),
           status: "ENABLED",
+          allowedModels: null,
         }),
       },
     } as unknown as PrismaClient;
@@ -238,7 +245,7 @@ describe("AI gateway provider registry", () => {
     ).resolves.toEqual({
       connectionId: "connection-1",
       success: true,
-      models: ["gpt-5"],
+      models: ["gpt-5", "codex-auto-review"],
     });
     expect(redis.get).not.toHaveBeenCalled();
     expect(redis.del).toHaveBeenCalledWith(
@@ -255,7 +262,45 @@ describe("AI gateway provider registry", () => {
           displayName: "gpt-5",
           createdAt: "1970-01-01T00:00:10.000Z",
         },
+        {
+          id: "codex-auto-review",
+          provider: "OPENAI",
+          canonicalSlug: "codex-auto-review",
+          displayName: "codex-auto-review",
+          createdAt: "1970-01-01T00:00:00.000Z",
+        },
       ]),
     );
+  });
+
+  it("does not duplicate a custom model the provider already lists", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        data: [
+          { id: "codex-auto-review", created: 10 },
+          { id: "gpt-5", created: 10 },
+        ],
+      }),
+    );
+    const prisma = {
+      gatewayAiConnection: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "connection-1",
+          organizationId: "org-1",
+          provider: "OPENAI",
+          encryptedCredential: encrypt("sk-test"),
+          status: "ENABLED",
+          allowedModels: null,
+        }),
+      },
+    } as unknown as PrismaClient;
+    const service = new GatewayModelCatalogService(prisma, fetcher, null);
+
+    await expect(
+      service.refreshModels({
+        organizationId: "org-1",
+        connectionId: "connection-1",
+      }),
+    ).resolves.toMatchObject({ models: ["codex-auto-review", "gpt-5"] });
   });
 });

@@ -6,6 +6,7 @@ import {
   API_KEY_CACHE_KEY_PREFIX,
   AUTHZ_CONTEXT_CACHE_KEY_PREFIX,
   createShaHash,
+  createAuthzContextCacheKey,
   invalidateCachedApiKeys,
 } from "@langfuse/shared/src/server";
 
@@ -48,6 +49,11 @@ describe("invalidateCachedApiKeys clears both cache namespaces", () => {
     const keys = deletedKeys();
     expect(keys).toContain(`${API_KEY_CACHE_KEY_PREFIX}fh1`);
     expect(keys).toContain(`${AUTHZ_CONTEXT_CACHE_KEY_PREFIX}fh1`);
+    expect(keys).toContain(createAuthzContextCacheKey("basic", "fh1"));
+    expect(keys).toContain(createAuthzContextCacheKey("bearer", "fh1"));
+    expect(keys).toContain(
+      createAuthzContextCacheKey("bearer", createShaHash("pk-lf-1", env.SALT!)),
+    );
     expect(keys).toContain(
       `${AUTHZ_CONTEXT_CACHE_KEY_PREFIX}${createShaHash("pk-lf-1", env.SALT!)}`,
     );
@@ -62,6 +68,7 @@ describe("invalidateCachedApiKeys clears both cache namespaces", () => {
     const keys = deletedKeys();
     expect(keys).toEqual([
       `${AUTHZ_CONTEXT_CACHE_KEY_PREFIX}${createShaHash("pk-lf-2", env.SALT!)}`,
+      createAuthzContextCacheKey("bearer", createShaHash("pk-lf-2", env.SALT!)),
     ]);
     expect(keys.some((k) => k.startsWith(API_KEY_CACHE_KEY_PREFIX))).toBe(
       false,

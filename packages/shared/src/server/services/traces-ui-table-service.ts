@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { OrderByState } from "../../interfaces/orderBy";
 import { scoreBooleansAggregation } from "../queries/clickhouse-sql/query-fragments";
 import { tracesTableUiColumnDefinitions } from "../tableMappings";
@@ -312,7 +311,7 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
         COUNT(*) AS observation_count,
         sumMap(usage_details) as usage_details,
         SUM(total_cost) AS total_cost,
-        date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds,
+        if(min(end_time) IS NULL, NULL, date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time)))) as latency_milliseconds,
         countIf(level = 'ERROR') as error_count,
         countIf(level = 'WARNING') as warning_count,
         countIf(level = 'DEFAULT') as default_count,
@@ -483,12 +482,15 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
     usesNonFinalTraceReadPath
       ? "LIMIT 1 BY id, project_id"
       : "";
-  const limitClause =
-    limit !== undefined && traceDeleteCursorOrder
-      ? "LIMIT {limit: Int32}"
-      : limit !== undefined && page !== undefined
-        ? "LIMIT {limit: Int32} OFFSET {offset: Int32}"
-        : "";
+  const limitClause = (() => {
+    if (limit !== undefined && traceDeleteCursorOrder) {
+      return "LIMIT {limit: Int32}";
+    }
+    if (limit !== undefined && page !== undefined) {
+      return "LIMIT {limit: Int32} OFFSET {offset: Int32}";
+    }
+    return "";
+  })();
 
   // complex query ahead:
   // - we only join scores and observations if we really need them to speed up default views

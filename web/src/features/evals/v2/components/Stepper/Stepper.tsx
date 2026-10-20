@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown } from "@langfuse/icons";
 
 import { cn } from "@/src/utils/tailwind";
 
@@ -39,7 +39,7 @@ export function Stepper({
   };
 
   return (
-    <div className="group/step flex gap-3">
+    <div className="group/step flex gap-1.5">
       <div className="flex flex-col items-center">
         <div className="bg-primary text-primary-foreground flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm">
           {number}
@@ -61,15 +61,17 @@ export function Stepper({
           onClick={toggle}
         >
           <ChevronDown
-            className={cn(
-              "text-muted-foreground h-4 w-4 shrink-0 transition-transform",
+            size="base"
+            color="tertiary"
+            __rawClassName={cn(
+              "translate-y-px transition-transform",
               !expanded && "-rotate-90",
             )}
           />
           <span className="text-lg font-bold">{title}</span>
         </button>
         {expanded && (
-          <div className="flex flex-col gap-4 pl-5.5">
+          <div className="flex flex-col gap-4 pl-5">
             {description ? (
               <p className="text-muted-foreground text-sm">{description}</p>
             ) : null}

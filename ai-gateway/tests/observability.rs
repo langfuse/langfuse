@@ -27,6 +27,11 @@ struct Gateway {
 }
 
 impl Gateway {
+    #[expect(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "test helper outside #[test]; a panic fails the test"
+    )]
     fn start(endpoint: &str, shutdown_seconds: &str, level: &str) -> Self {
         let mut child = Command::new(env!("CARGO_BIN_EXE_ai-gateway"))
             .env_clear()
@@ -69,7 +74,11 @@ impl Gateway {
         }
     }
 
-    async fn request(&self, sampled: bool) {
+    #[expect(
+        clippy::unwrap_used,
+        reason = "test helper outside #[test]; a panic fails the test"
+    )]
+    async fn request(&self, sampled: bool) -> String {
         let response = reqwest::Client::new()
             .post(format!(
                 "{}/openai/v1/responses?secret=query-canary",
@@ -87,15 +96,27 @@ impl Gateway {
             .header("tracestate", "caller=state-canary")
             .header("baggage", "langfuse_user_id=baggage-canary")
             .header("langfuse-session-id", "session-canary")
+            .header("x-request-id", "client-request-canary")
             .header("authorization", "Bearer secret-auth-token")
             .body(r#"{"input":"secret-prompt-content"}"#)
             .send()
             .await
             .unwrap();
         assert_eq!(response.status(), 503);
-        let _ = response.bytes().await.unwrap();
+        let id = response.headers()["langfuse-request-id"]
+            .to_str()
+            .unwrap()
+            .to_owned();
+        let body: Value = serde_json::from_slice(&response.bytes().await.unwrap()).unwrap();
+        assert_eq!(body["request_id"], id.as_str());
+        id
     }
 
+    #[expect(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "test helper outside #[test]; a panic fails the test"
+    )]
     async fn stop(&mut self) {
         assert!(
             Command::new("/bin/kill")
@@ -148,8 +169,8 @@ async fn exports_otlp_traces_metrics_and_correlated_content_free_logs() {
     let endpoint = format!("http://{}", listener.local_addr().unwrap());
     let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
     let mut gateway = Gateway::start(&endpoint, "5", "debug");
-    gateway.request(true).await;
-    gateway.request(false).await;
+    let request_ids = [gateway.request(true).await, gateway.request(false).await];
+    assert_ne!(request_ids[0], request_ids[1]);
     assert_eq!(
         reqwest::get(format!("{}/health", gateway.url))
             .await
@@ -182,6 +203,7 @@ async fn exports_otlp_traces_metrics_and_correlated_content_free_logs() {
     assert!(!metrics.is_empty(), "metrics must flush on shutdown");
     let logs = gateway.logs.lock().unwrap();
     assert_operational_traces(&traces, &logs);
+    assert_request_correlation(&traces, &logs, &request_ids);
     let serialized = serde_json::to_string(&*logs).unwrap();
     let exported = format!("{traces:?}{metrics:?}");
     for secret in [
@@ -200,6 +222,10 @@ async fn exports_otlp_traces_metrics_and_correlated_content_free_logs() {
     assert_http_metrics(&metrics);
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "test helper outside #[test]; a panic fails the test"
+)]
 fn assert_operational_traces(traces: &[ResourceSpans], logs: &[Value]) {
     let spans: Vec<_> = traces
         .iter()
@@ -243,6 +269,65 @@ fn assert_operational_traces(traces: &[ResourceSpans], logs: &[Value]) {
     }
 }
 
+/// Every log line emitted while serving a request repeats its gateway request ID at
+/// the top level, and the operational server span carries it as an attribute.
+#[expect(
+    clippy::panic,
+    reason = "test helper outside #[test]; a panic fails the test"
+)]
+fn assert_request_correlation(traces: &[ResourceSpans], logs: &[Value], request_ids: &[String]) {
+    let spans: Vec<_> = traces
+        .iter()
+        .flat_map(|resource| &resource.scope_spans)
+        .flat_map(|scope| &scope.spans)
+        .collect();
+    let attribute = |span: &opentelemetry_proto::tonic::trace::v1::Span, key: &str| {
+        span.attributes
+            .iter()
+            .find(|attribute| attribute.key == key)
+            .and_then(|attribute| attribute.value.as_ref()?.value.clone())
+    };
+    let mut span_ids: Vec<_> = spans
+        .iter()
+        .map(|span| {
+            assert_eq!(
+                attribute(span, "gateway.client.request.id"),
+                Some(AttributeValue::StringValue("client-request-canary".into()))
+            );
+            match attribute(span, "gateway.request.id") {
+                Some(AttributeValue::StringValue(id)) => id,
+                other => panic!("server span lacks gateway.request.id: {other:?}"),
+            }
+        })
+        .collect();
+    span_ids.sort();
+    let mut expected = request_ids.to_vec();
+    expected.sort();
+    assert_eq!(span_ids, expected);
+    let request_logs: Vec<_> = logs
+        .iter()
+        .filter(|log| {
+            log["spans"]
+                .as_array()
+                .is_some_and(|spans| spans.iter().any(|span| span["name"] == "http.server"))
+        })
+        .collect();
+    assert!(request_logs.len() >= 4, "{request_logs:?}");
+    for log in request_logs {
+        let id = log["request_id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("{log}"));
+        assert!(request_ids.iter().any(|expected| expected == id), "{log}");
+        assert_eq!(log["spans"][0]["gateway.request.id"], id, "{log}");
+    }
+}
+
+#[expect(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test helper outside #[test]; a panic fails the test"
+)]
 fn assert_http_metrics(metrics: &[ResourceMetrics]) {
     let http_duration = metrics
         .iter()
@@ -270,7 +355,19 @@ fn assert_http_metrics(metrics: &[ResourceMetrics]) {
             )
         })
         .collect();
-    assert_eq!(attributes.len(), 3);
+    assert_eq!(attributes.len(), 6);
+    // An unconfigured gateway answers 503 itself; dashboards must not blame Web or the provider.
+    for (key, value) in [
+        ("error.origin", "gateway"),
+        ("error.reason", "unavailable"),
+        ("gateway.provider", "openai"),
+    ] {
+        assert_eq!(
+            attributes[key],
+            &AttributeValue::StringValue(value.into()),
+            "{key}"
+        );
+    }
     assert_eq!(
         attributes["http.request.method"],
         &AttributeValue::StringValue("POST".into())

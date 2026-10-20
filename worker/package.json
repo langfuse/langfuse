@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "4.41.0",
+  "version": "4.66.0",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -19,16 +19,17 @@
     "start": "dotenv -e ../.env -- node dist/index.js",
     "build": "tsc",
     "build:test": "tsc",
-    "build:check": "tsc",
     "typecheck": "dotenv -e ../.env -- tsc --noEmit --skipLibCheck --incremental --tsBuildInfoFile .tsbuildinfo",
     "dev": "dotenv -e ../.env -- tsx watch --clear-screen=false --include '../packages/shared/dist/*'  src/index.ts",
-    "lint": "eslint . --cache --cache-location dist/.eslintcache --max-warnings 0 --concurrency 2",
+    "lint": "eslint --cache --cache-location dist/.eslintcache --max-warnings 0 --concurrency 2",
     "lint:fix": "eslint . --cache --cache-location dist/.eslintcache --fix --concurrency 2",
     "refill-ingestion-events": "dotenv -e ../.env -- tsx src/scripts/replayIngestionEvents/s3-ingestion-event-replay.ts",
     "refill-billing-event": "dotenv -e ../.env -- tsx src/scripts/refill-billing-event.ts",
     "refill-queue-event": "dotenv -e ../.env -- tsx src/scripts/refillQueueEvent/index.ts",
     "retry-monitor-bad-query-errors": "dotenv -e ../.env -- tsx src/scripts/retryMonitorBadQueryErrors.ts",
-    "test:native-codec": "LANGFUSE_NATIVE_FAIL_IF_CLICKHOUSE_UNAVAILABLE=1 vitest run nativeCodec.integration"
+    "backfill-topic-traces": "dotenv -e ../.env -- tsx src/scripts/backfillTopicTraces.ts",
+    "test:native-codec": "LANGFUSE_NATIVE_FAIL_IF_CLICKHOUSE_UNAVAILABLE=1 vitest run nativeCodec",
+    "test:otel-replay": "vitest run otelReplay"
   },
   "author": "engineering@langfuse.com",
   "dependencies": {
@@ -57,7 +58,7 @@
     "@opentelemetry/sdk-node": "^0.220.0",
     "@prisma/client": "^6.19.3",
     "@prisma/instrumentation": "^6.19.3",
-    "ai-sdk-amazon-bedrock-v4": "npm:@ai-sdk/amazon-bedrock@4.0.81",
+    "ai-sdk-amazon-bedrock-v4": "npm:@ai-sdk/amazon-bedrock@4.0.197",
     "ai-sdk-anthropic-v4": "npm:@ai-sdk/anthropic@3.0.111",
     "ai-sdk-google-vertex-v4": "npm:@ai-sdk/google-vertex@4.0.186",
     "ai-sdk-openai-compatible-v4": "npm:@ai-sdk/openai-compatible@3.0.3",
@@ -80,7 +81,7 @@
     "stripe": "^17.4.0",
     "tiktoken": "^1.0.20",
     "uuid": "^14.0.2",
-    "zod": "^4.3.6"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",
@@ -92,6 +93,7 @@
     "@types/node": "^24.3.0",
     "@vitest/coverage-v8": "^4.1.11",
     "eslint": "catalog:",
+    "fast-check": "3.23.2",
     "msw": "^2.6.5",
     "tsx": "^4.20.5",
     "typescript": "catalog:",

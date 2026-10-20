@@ -5,19 +5,19 @@ import { GatewayApiKeyAuthenticator } from "@/src/features/ai-gateway/server/aut
 import type { GatewayApiFormat } from "@/src/features/ai-gateway/server/provider";
 import { GatewayResolveService } from "./resolveService";
 
-vi.mock("@/src/env.mjs", () => ({
-  env: {
-    LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST: ["org-1"],
-    // Caching is covered against real Redis in the control-plane servertest;
-    // these cases are about what the service does with a database row.
-    LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED: "false",
-    LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY: "private-key",
-    LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY: "public-key",
-    LANGFUSE_AI_GATEWAY_JWT_KEY_ID: "key-id",
-    LANGFUSE_AI_GATEWAY_JWT_ISSUER: "test-issuer",
-    LANGFUSE_AI_GATEWAY_JWT_AUDIENCE: "test-audience",
-  },
+const mockEnv = vi.hoisted(() => ({
+  LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST: ["org-1"],
+  // Caching is covered against real Redis in the control-plane servertest;
+  // these cases are about what the service does with a database row.
+  LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED: "false",
+  LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY: "private-key" as string | undefined,
+  LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY: "public-key" as string | undefined,
+  LANGFUSE_AI_GATEWAY_JWT_KEY_ID: "key-id" as string | undefined,
+  LANGFUSE_AI_GATEWAY_JWT_ISSUER: "test-issuer",
+  LANGFUSE_AI_GATEWAY_JWT_AUDIENCE: "test-audience",
 }));
+
+vi.mock("@/src/env.mjs", () => ({ env: mockEnv }));
 
 vi.mock("@/src/server/utils/jwt", () => ({
   createEs256JwtSigner: vi.fn(() => ({
@@ -30,9 +30,15 @@ vi.mock("@langfuse/shared/encryption", () => ({
   decrypt: vi.fn(() => "sk-test"),
 }));
 
-const serviceWith = (findFirst: () => Promise<unknown>) => {
+const serviceWith = (findFirst: () => Promise<unknown>, keyOrgId = "org-1") => {
   const prisma = {
-    gatewayApiKeyAssociation: { findFirst },
+    apiKey: { findFirst },
+    roleAssignment: {
+      findMany: () =>
+        Promise.resolve([
+          { systemRole: "AI_GATEWAY", orgId: keyOrgId, projectId: null },
+        ]),
+    },
   } as unknown as PrismaClient;
   const contextResolver = new GatewayApiKeyAuthenticator(prisma);
   const service = new GatewayResolveService();
@@ -42,7 +48,10 @@ const serviceWith = (findFirst: () => Promise<unknown>) => {
       fastHashedSecretKey: string;
       apiFormat: GatewayApiFormat;
     }) => {
-      const context = await contextResolver.authenticateRequest(params);
+      const context = await contextResolver.authenticateRequest({
+        ...params,
+        model: "Production OpenAI:gpt-4o",
+      });
       return service.resolve({ context, apiFormat: params.apiFormat });
     },
   };
@@ -51,30 +60,35 @@ const serviceWith = (findFirst: () => Promise<unknown>) => {
 const row = (overrides: {
   ingestionMode?: string;
   projectOrgId?: string;
+  withoutProject?: boolean;
   metadata?: unknown;
 }) => ({
-  apiKeyId: "key-1",
-  metadata: overrides.metadata,
-  apiKey: {
-    orgId: "org-1",
-    organization: {
-      gatewayConfig: {
-        defaultIngestionProjectId: "project-1",
-        ingestionMode: overrides.ingestionMode ?? "USAGE",
-        defaultIngestionProject: {
-          id: "project-1",
-          orgId: overrides.projectOrgId ?? "org-1",
-          deletedAt: null,
-        },
-      },
-      gatewayAiConnections: [
-        {
-          id: "connection-1",
-          provider: "OPENAI",
-          encryptedCredential: "encrypted-credential",
-        },
-      ],
+  id: "key-1",
+  orgId: "org-1",
+  expiresAt: null,
+  gatewayAssociation:
+    overrides.metadata === undefined ? null : { metadata: overrides.metadata },
+  organization: {
+    gatewayConfig: {
+      defaultIngestionProjectId: overrides.withoutProject ? null : "project-1",
+      ingestionMode: overrides.ingestionMode ?? "USAGE",
+      defaultIngestionProject: overrides.withoutProject
+        ? null
+        : {
+            id: "project-1",
+            orgId: overrides.projectOrgId ?? "org-1",
+            deletedAt: null,
+          },
     },
+    gatewayAiConnections: [
+      {
+        id: "connection-1",
+        name: "Production OpenAI",
+        provider: "OPENAI",
+        encryptedCredential: "encrypted-credential",
+        allowedModels: null,
+      },
+    ],
   },
 });
 
@@ -95,7 +109,9 @@ describe("GatewayResolveService", () => {
       version: 1,
       connection: {
         id: "connection-1",
+        name: "Production OpenAI",
         provider: "openai",
+        provider_model: "gpt-4o",
         api_format: "openai.responses",
         base_url: "https://api.openai.com/v1",
         auth: { type: "Bearer", token: "sk-test" },
@@ -139,6 +155,19 @@ describe("GatewayResolveService", () => {
     });
   });
 
+  it("resolves a key without a gateway association with empty metadata", async () => {
+    const service = serviceWith(() => Promise.resolve(row({})));
+
+    await expect(
+      service.resolve({
+        fastHashedSecretKey: "hashed-secret-key",
+        apiFormat: "openai.responses",
+      }),
+    ).resolves.toMatchObject({
+      attribution: { key_id: "key-1", key_metadata: {} },
+    });
+  });
+
   it("refuses to resolve when the ingestion project belongs to another organization", async () => {
     const service = serviceWith(() =>
       Promise.resolve(row({ projectOrgId: "org-other" })),
@@ -150,6 +179,53 @@ describe("GatewayResolveService", () => {
         apiFormat: "openai.responses",
       }),
     ).rejects.toMatchObject({ status: 403 });
+  });
+
+  it("refuses to resolve USAGE mode without an ingestion project", async () => {
+    const service = serviceWith(() =>
+      Promise.resolve(row({ withoutProject: true })),
+    );
+
+    await expect(
+      service.resolve({
+        fastHashedSecretKey: "hashed-secret-key",
+        apiFormat: "openai.responses",
+      }),
+    ).rejects.toMatchObject({ status: 403 });
+  });
+
+  it("resolves NONE mode without an ingestion project or signing keys", async () => {
+    const signingKeys = {
+      LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY:
+        mockEnv.LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY,
+      LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY:
+        mockEnv.LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY,
+      LANGFUSE_AI_GATEWAY_JWT_KEY_ID: mockEnv.LANGFUSE_AI_GATEWAY_JWT_KEY_ID,
+    };
+    Object.assign(mockEnv, {
+      LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY: undefined,
+      LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY: undefined,
+      LANGFUSE_AI_GATEWAY_JWT_KEY_ID: undefined,
+    });
+    try {
+      const service = serviceWith(() =>
+        Promise.resolve(row({ ingestionMode: "NONE", withoutProject: true })),
+      );
+
+      await expect(
+        service.resolve({
+          fastHashedSecretKey: "hashed-secret-key",
+          apiFormat: "openai.responses",
+        }),
+      ).resolves.toMatchObject({
+        connection: { id: "connection-1", provider_model: "gpt-4o" },
+        attribution: { organization_id: "org-1", project_id: null },
+        ingestion_mode: "none",
+        ingestion: null,
+      });
+    } finally {
+      Object.assign(mockEnv, signingKeys);
+    }
   });
 
   it("rejects an unknown or expired gateway key", async () => {
@@ -164,14 +240,16 @@ describe("GatewayResolveService", () => {
   });
 
   it("rejects gateway keys from organizations outside the allowlist", async () => {
-    const service = serviceWith(() =>
-      Promise.resolve({
-        apiKeyId: "key-1",
-        apiKey: {
+    const service = serviceWith(
+      () =>
+        Promise.resolve({
+          id: "key-1",
           orgId: "org-not-allowed",
+          expiresAt: null,
+          gatewayAssociation: null,
           organization: { gatewayConfig: null, gatewayAiConnections: [] },
-        },
-      }),
+        }),
+      "org-not-allowed",
     );
 
     await expect(
@@ -179,6 +257,9 @@ describe("GatewayResolveService", () => {
         fastHashedSecretKey: "hashed-secret-key",
         apiFormat: "openai.responses",
       }),
-    ).rejects.toMatchObject({ status: 403 });
+    ).rejects.toMatchObject({
+      status: 403,
+      message: "Gateway is not enabled for this organization",
+    });
   });
 });

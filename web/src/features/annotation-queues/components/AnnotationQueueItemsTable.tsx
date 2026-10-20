@@ -10,17 +10,16 @@ import {
   useColumnVisibility,
 } from "@/src/features/column-visibility";
 import { type AnnotationQueueStatus } from "@langfuse/shared";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import { ChevronDown, ListTree, Trash } from "lucide-react";
+import {
+  customRowHeightMenu,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
+import { ListTree, Trash } from "@langfuse/icons";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { type RouterOutput } from "@/src/utils/types";
 import { type RowSelectionState } from "@tanstack/react-table";
 import { useState } from "react";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from "@/src/components/ui/dropdown-menu";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
@@ -98,24 +97,29 @@ const QueueItemTableMultiSelectAction = ({
 
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button disabled={selectedItemIds.length < 1}>
-            Actions ({selectedItemIds.length} selected)
-            <ChevronDown className="h-5 w-5" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent>
-          <DropdownMenuItem
-            disabled={!hasDeleteAccess}
-            onClick={() => {
+      <DropdownMenu
+        disabled={selectedItemIds.length < 1}
+        items={[
+          {
+            type: "item",
+            id: "delete",
+            title: "Delete",
+            icon: Trash,
+            disabled: hasDeleteAccess
+              ? undefined
+              : { reason: "Missing permission to delete queue items" },
+            onClick: () => {
               setOpen(true);
-            }}
-          >
-            <Trash className="mr-2 h-4 w-4" />
-            <span>Delete</span>
-          </DropdownMenuItem>
-        </DropdownMenuContent>
+            },
+          },
+        ]}
+      >
+        {({ getTriggerProps }) => (
+          <Button disabled={selectedItemIds.length < 1} {...getTriggerProps()}>
+            Actions ({selectedItemIds.length} selected)
+            <DropdownIndicator nudge />
+          </Button>
+        )}
       </DropdownMenu>
       <Dialog
         open={open}
@@ -206,7 +210,10 @@ export function AnnotationQueueItemsTable({
   });
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
 
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage("queueItems", "s");
+  const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
+    "queueItems",
+    "s",
+  );
   const items = api.annotationQueueItems.itemsByQueueId.useQuery({
     projectId,
     queueId,
@@ -450,6 +457,7 @@ export function AnnotationQueueItemsTable({
         setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        customRowHeight={customRowHeightMenu(rowHeights)}
         actionButtons={[
           selectedItems.length > 0 ? (
             <QueueItemTableMultiSelectAction
@@ -500,6 +508,9 @@ export function AnnotationQueueItemsTable({
         columnOrder={columnOrder}
         onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
+        customRowHeightPx={rowHeights.activeHeightPx}
+        onCustomRowHeightChange={rowHeights.setCustomPx}
+        onSelectRowHeight={setRowHeight}
       />
     </>
   );

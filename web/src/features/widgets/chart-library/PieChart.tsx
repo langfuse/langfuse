@@ -11,11 +11,10 @@ import {
  * @param data - Data to be displayed. Expects an array of objects with dimension and metric properties.
  */
 export const PieChart: React.FC<
-  Pick<ChartProps, "data" | "metricFormatter" | "subtleFill">
+  Pick<ChartProps, "data" | "metricFormatter">
 > = ({
   data,
   metricFormatter = (value, options) => formatMetric(value, options),
-  subtleFill = false,
 }) => {
   const formatValue = (value: number) =>
     toFullMetricString(metricFormatter(value, { style: "compact" }));
@@ -27,11 +26,5 @@ export const PieChart: React.FC<
     }));
   }, [data]);
 
-  return (
-    <DesignSystemPieChart
-      data={chartData}
-      valueFormatter={formatValue}
-      variant={subtleFill ? "subtle" : "default"}
-    />
-  );
+  return <DesignSystemPieChart data={chartData} valueFormatter={formatValue} />;
 };

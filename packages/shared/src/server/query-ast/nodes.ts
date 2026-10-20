@@ -71,7 +71,7 @@ export const LimitByNode = {
 
 /**
  * ClickHouse array subscript `arr[index]`. Children are traced nodes
- * (typically a column ref and an `indexOf(...)` FunctionNode), not raw SQL.
+ * (typically a `mapFromArrays(...)` FunctionNode and a bound key), not raw SQL.
  *
  * Same closed-`kind` constraint as ARRAY JOIN: not a Kysely visitor-map
  * kind. The dialect compiler and transformer special-case this object.
@@ -80,17 +80,27 @@ export type ArrayIndexNode = {
   readonly kind: "ArrayIndexNode";
   readonly array: OperationNode;
   readonly index: OperationNode;
+  /**
+   * `metadata[key]` over one relation's `metadata_names`/`metadata_values`,
+   * so events routing can keep a short metadata predicate on `events_core`.
+   */
+  readonly metadataLookup?: true;
 };
 
 export const ArrayIndexNode = {
   is(node: { kind: string }): node is ArrayIndexNode {
     return node.kind === "ArrayIndexNode";
   },
-  create(array: OperationNode, index: OperationNode): ArrayIndexNode {
+  create(
+    array: OperationNode,
+    index: OperationNode,
+    metadataLookup = false,
+  ): ArrayIndexNode {
     return Object.freeze({
       kind: "ArrayIndexNode",
       array,
       index,
+      ...(metadataLookup ? { metadataLookup: true as const } : {}),
     });
   },
 };
@@ -105,10 +115,73 @@ export const ArrayIndexNode = {
 export type ClickHouseSelectQueryNode = SelectQueryNode & {
   readonly arrayJoins?: ReadonlyArray<ArrayJoinNode>;
   readonly limitBy?: LimitByNode;
+  /** Set by `includeDeleted()`: the soft-delete pass skips this select. */
+  readonly includeDeleted?: true;
+  /**
+   * Set by `softDeleteAfterLimit()`: the soft-delete pass filters this
+   * select's output instead of its relation.
+   */
+  readonly softDeleteAfterLimit?: true;
 };
 
 export function isClickHouseSelectQueryNode(
   node: OperationNode,
 ): node is ClickHouseSelectQueryNode {
   return node.kind === "SelectQueryNode";
+}
+
+/**
+ * ClickHouse `FROM <table> FINAL` / `JOIN <table> AS alias FINAL`.
+ *
+ * Wraps a table expression (bare `TableNode` or `AliasNode`) so the compiler
+ * emits `final` after that expression. Same closed-`kind` constraint as
+ * ARRAY JOIN: not a Kysely visitor-map kind. The dialect compiler and
+ * transformer special-case this object.
+ */
+export type FinalTableNode = {
+  readonly kind: "FinalTableNode";
+  readonly table: OperationNode;
+};
+
+export const FinalTableNode = {
+  is(node: { kind: string }): node is FinalTableNode {
+    return node.kind === "FinalTableNode";
+  },
+  create(table: OperationNode): FinalTableNode {
+    return Object.freeze({
+      kind: "FinalTableNode",
+      table,
+    });
+  },
+};
+
+/** {@link FinalTableNode.create}, typed as the FROM/JOIN item it stands in for. */
+export function finalTable(table: OperationNode): OperationNode {
+  return FinalTableNode.create(table) as unknown as OperationNode;
+}
+
+/**
+ * Read the wrapped table expression. `FinalTableNode.kind` is outside
+ * Kysely's closed `OperationNodeKind`, so a narrowed
+ * `OperationNode & FinalTableNode` is `never` and `.table` is unreadable
+ * without this cast.
+ */
+export function unwrapFinalTable(node: { kind: string }): OperationNode {
+  return (node as unknown as FinalTableNode).table;
+}
+
+/**
+ * Calls `visit` on every node object under `value`, ClickHouse extra fields
+ * included, parents before children. `visit` returns `false` to skip a
+ * node's children.
+ */
+export function walkNodes(
+  value: unknown,
+  visit: (node: OperationNode) => boolean | void,
+): void {
+  if (!value || typeof value !== "object") return;
+  if ("kind" in value && typeof value.kind === "string") {
+    if (visit(value as OperationNode) === false) return;
+  }
+  for (const child of Object.values(value)) walkNodes(child, visit);
 }

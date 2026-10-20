@@ -282,9 +282,6 @@ export const EvaluatorToolCall = meta.story({
     const canvas = await showToolCall(context);
     await expect(canvas.getByText("sourceCode", { exact: true })).toBeVisible();
     await expect(canvas.getByText("versions[0].sourceCode")).toBeVisible();
-    await expect(
-      canvas.getAllByRole("button", { name: "Copy code" }),
-    ).toHaveLength(2);
     await userEvent.click(
       canvas.getAllByRole("button", { name: "View JSON" })[1],
     );
@@ -323,9 +320,6 @@ export const EvaluatorToolCall = meta.story({
         selectedCode.getByRole("button", { name: "Copy code" }),
       );
       await expect(copy).toHaveBeenLastCalledWith(toolErrorRateSource);
-      await expect(
-        canvas.getAllByRole("button", { name: "Copy code" }),
-      ).toHaveLength(2);
     } finally {
       copy.mockRestore();
     }

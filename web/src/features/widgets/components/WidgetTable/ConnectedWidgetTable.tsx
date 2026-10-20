@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
@@ -21,6 +22,7 @@ import { type z } from "zod";
 import { PaginationBar } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { type AsyncTableData } from "@/src/components/design-system/table/Table";
 import { assertUnreachable } from "@/src/utils/types";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { DashboardWidgetTable, type WidgetTableRow } from "./WidgetTable";
 
 export function ConnectedDashboardWidgetTable() {
@@ -40,11 +42,16 @@ export function ConnectedDashboardWidgetTable() {
         showErrorToast(
           "Widget in use",
           "Widget is still in use. Please remove it from all dashboards before deleting it.",
+          classifyTrpcToastError(error, "widget.delete"),
         );
         return;
       }
 
-      showErrorToast("Failed to delete widget", error.message);
+      showErrorToast(
+        "Failed to delete widget",
+        error.message,
+        classifyTrpcToastError(error, "widget.delete"),
+      );
     },
   });
 
@@ -131,6 +138,7 @@ function ConnectedDashboardWidgetTableContent({
         showErrorToast(
           "Failed to download widget",
           error instanceof Error ? error.message : "Unknown error",
+          classifyTrpcToastError(error, "widget.download"),
         );
       }
     },
@@ -139,8 +147,10 @@ function ConnectedDashboardWidgetTableContent({
 
   const handleCopyToClipboard = useCallback(
     async (widgetId: string) => {
+      let failurePhase: "trpc" | "clipboard" = "trpc";
       try {
         const exportSource = await fetchExportSource(widgetId);
+        failurePhase = "clipboard";
         await copyTextToClipboard(
           JSON.stringify(buildWidgetExport(exportSource), null, 2),
         );
@@ -150,6 +160,7 @@ function ConnectedDashboardWidgetTableContent({
           widget_id: widgetId,
         });
         showSuccessToast({
+          operation: "widget.copy",
           title: "Widget copied",
           description: "Paste it on any dashboard with Cmd/Ctrl+V.",
         });
@@ -157,6 +168,13 @@ function ConnectedDashboardWidgetTableContent({
         showErrorToast(
           "Failed to copy widget",
           error instanceof Error ? error.message : "Unknown error",
+          failurePhase === "trpc"
+            ? classifyTrpcToastError(error, "widget.copy")
+            : {
+                operation: "widget.copy",
+                errorOrigin: "frontend",
+                errorCategory: "permission",
+              },
         );
       }
     },
@@ -182,6 +200,7 @@ function ConnectedDashboardWidgetTableContent({
         });
         utils.dashboardWidgets.invalidate();
         showSuccessToast({
+          operation: "widget.clone",
           title: "Widget cloned",
           description: `Created "${exportSource.name} (Copy)".`,
         });
@@ -189,6 +208,7 @@ function ConnectedDashboardWidgetTableContent({
         showErrorToast(
           "Failed to duplicate widget",
           error instanceof Error ? error.message : "Unknown error",
+          classifyTrpcToastError(error, "widget.clone"),
         );
       }
     },
@@ -264,6 +284,7 @@ function ConnectedDashboardWidgetTableContent({
     <div className="flex min-h-0 flex-1 flex-col">
       <DashboardWidgetTable
         projectId={projectId}
+        topBorder={false}
         hasCUDAccess={hasCUDAccess}
         loadingRowCount={Math.min(paginationState.pageSize, 8)}
         onCopy={(widget) => handleCopyToClipboard(widget.id)}
@@ -280,6 +301,7 @@ function ConnectedDashboardWidgetTableContent({
         }}
       />
       <PaginationBar
+        mode="offset"
         totalCount={widgets.data?.totalCount ?? null}
         onChange={setPaginationState}
         state={paginationState}

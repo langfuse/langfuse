@@ -1,4 +1,4 @@
-import { InfoIcon } from "lucide-react";
+import { InfoIcon } from "@langfuse/icons";
 import type { ReactNode } from "react";
 
 import {
@@ -18,7 +18,9 @@ export function InfoTooltip({
     <Tooltip>
       <TooltipTrigger asChild>
         <InfoIcon
-          className="text-muted-foreground h-3.5 w-3.5 cursor-help"
+          size="base"
+          color="muted"
+          __rawClassName="cursor-help"
           aria-label={label}
         />
       </TooltipTrigger>

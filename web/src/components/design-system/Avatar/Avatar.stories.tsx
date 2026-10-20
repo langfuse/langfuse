@@ -1,4 +1,5 @@
 import React from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
 import { Avatar } from "./Avatar";
@@ -32,6 +33,13 @@ export const Default = meta.story({
 export const Fallback = meta.story({
   args: {
     displayName: "Ben Bachem",
+  },
+});
+
+export const WithEmail = meta.story({
+  args: {
+    displayName: "Ada Lovelace",
+    email: "ada@example.com",
   },
 });
 
@@ -69,4 +77,28 @@ export const VariantMatrix = meta.story({
       ))}
     </div>
   ),
+});
+
+export const TestHoverNameAndEmail = meta.story({
+  name: "(Test) Hover shows name and email",
+  args: {
+    displayName: "Ada Lovelace",
+    email: "ada@example.com",
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    const avatar = canvas.getByRole("img", {
+      name: "Ada Lovelace, ada@example.com",
+    });
+
+    await userEvent.hover(avatar);
+    await waitFor(
+      () =>
+        expect(body.getByRole("tooltip")).toHaveTextContent(
+          "Ada Lovelace ada@example.com",
+        ),
+      { timeout: 2000 },
+    );
+  },
 });

@@ -4,7 +4,11 @@
  */
 
 import { useRouter } from "next/router";
-import { useMemo } from "react";
+import { createElement, useMemo } from "react";
+import {
+  V4MigrationNavItem,
+  useV4MigrationNavItemProject,
+} from "@/src/features/v4-migration/V4MigrationNavItem";
 import type { Session } from "next-auth";
 import { useEntitlements } from "@/src/features/entitlements";
 import { useUiCustomization } from "@/src/ee/features/ui-customization";
@@ -22,6 +26,7 @@ import type { NavigationFilterContext } from "../utils/navigationFilters.types";
 import { isPathActive } from "../utils/pathClassification";
 import { resolveRoutePathname } from "../utils/routePathname";
 import { api } from "@/src/utils/api";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
 
 /** Organization type from user session (can be null when not in project/org context) */
 type Organization =
@@ -57,6 +62,7 @@ function groupNavigationItems(items: NavigationItem[]): GroupedNavigation {
     ? [
         ...(grouped[RouteGroup.Observability] || []),
         ...(grouped[RouteGroup.PromptManagement] || []),
+        ...(grouped[RouteGroup.ContextManagement] || []),
         ...(grouped[RouteGroup.Evaluation] || []),
       ]
     : [];
@@ -87,6 +93,7 @@ export function useFilteredNavigation(
   organization: Organization,
 ) {
   const router = useRouter();
+  const migrationProject = useV4MigrationNavItemProject();
   const entitlements = useEntitlements();
   const uiCustomization = useUiCustomization();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
@@ -103,6 +110,7 @@ export function useFilteredNavigation(
     cloudStatus?.status === "degraded" || cloudStatus?.status === "downtime";
 
   const routerProjectId = router.query.projectId as string | undefined;
+  const internalFeaturesEnabled = useInternalFeaturesEnabled();
   const forceV3Experience = useForceV3Experience(routerProjectId);
   const routerOrganizationId = router.query.organizationId as
     | string
@@ -122,6 +130,7 @@ export function useFilteredNavigation(
       isLangfuseCloud,
       hasActiveCloudIncident,
       forceV3Experience,
+      internalFeaturesEnabled,
       currentPath: router.asPath,
     }),
     [
@@ -134,13 +143,16 @@ export function useFilteredNavigation(
       isLangfuseCloud,
       hasActiveCloudIncident,
       forceV3Experience,
+      internalFeaturesEnabled,
     ],
   );
 
   // Memoize filtered routes
   const filteredRoutes = useMemo(() => {
-    return applyNavigationFilters(ROUTES, filterContext, organization);
-  }, [filterContext, organization]);
+    return applyNavigationFilters(ROUTES, filterContext, organization).filter(
+      (route) => route.id !== "v4-migration" || migrationProject !== null,
+    );
+  }, [filterContext, organization, migrationProject]);
 
   // Map filtered routes to NavigationItems with url and isActive
   // This is O(n) - we map directly over filteredRoutes instead of re-iterating ROUTES
@@ -163,6 +175,10 @@ export function useFilteredNavigation(
 
       return {
         ...route,
+        menuNode:
+          route.id === "v4-migration" && migrationProject
+            ? createElement(V4MigrationNavItem, { project: migrationProject })
+            : route.menuNode,
         url,
         isActive: route.isActive
           ? route.isActive(router.pathname)
@@ -199,6 +215,7 @@ export function useFilteredNavigation(
     };
   }, [
     filteredRoutes,
+    migrationProject,
     routerProjectId,
     routerOrganizationId,
     router.pathname,

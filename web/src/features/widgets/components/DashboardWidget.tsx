@@ -2,6 +2,7 @@
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import {
   buildWidgetOrderBy,
   getResultUnit,
@@ -28,7 +29,7 @@ import {
   FileJsonIcon,
   DownloadIcon,
   TableIcon,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { useRouter } from "next/router";
 import {
   buildTableFilterHref,
@@ -43,13 +44,7 @@ import {
 } from "@/src/features/widgets/utils/import-export-utils";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { useCaptureWidgetHighCardinalityError } from "@/src/features/widgets/hooks/useWidgetQueryErrorCapture";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import {
   formatMetricName,
   mergeWidgetAndDashboardFilters,
@@ -298,12 +293,15 @@ export function DashboardWidget({
     isV4Enabled: isV4,
     version: metricsVersion,
   });
-  const loadingStateLayout =
-    placement.y_size <= 2
-      ? "tight"
-      : placement.x_size <= 4
-        ? "compact"
-        : "default";
+  const loadingStateLayout = (() => {
+    if (placement.y_size <= 2) {
+      return "tight";
+    }
+    if (placement.x_size <= 4) {
+      return "compact";
+    }
+    return "default";
+  })();
   const loadingProgress = getChartLoadingProgress({
     isPending: queryResult.isPending,
     progress: queryResult.progress,
@@ -526,7 +524,11 @@ export function DashboardWidget({
       });
     },
     onError: (e) => {
-      showErrorToast("Failed to clone widget", e.message);
+      showErrorToast(
+        "Failed to clone widget",
+        e.message,
+        classifyTrpcToastError(e, "widget.clone"),
+      );
     },
   });
   const handleCopy = () => {
@@ -594,11 +596,16 @@ export function DashboardWidget({
         dashboard_id: dashboardId,
       });
       showSuccessToast({
+        operation: "widget.copy",
         title: "Widget copied",
         description: "Paste it on any dashboard with Cmd/Ctrl+V.",
       });
     } catch {
-      showErrorToast("Copy failed", "Could not write to the clipboard.");
+      showErrorToast("Copy failed", "Could not write to the clipboard.", {
+        operation: "widget.copy",
+        errorOrigin: "frontend",
+        errorCategory: "permission",
+      });
     }
   };
 
@@ -644,8 +651,8 @@ export function DashboardWidget({
           {!readOnly && (hasCUDAccess || isLockedEditable) && (
             <>
               <GripVerticalIcon
-                size={16}
-                className="drag-handle text-muted-foreground hover:text-foreground hidden cursor-grab active:cursor-grabbing lg:group-hover:block"
+                size="base"
+                __rawClassName="drag-handle text-muted-foreground hover:text-foreground hidden cursor-grab active:cursor-grabbing lg:group-hover:block"
               />
               {isLockedEditable ? (
                 <button
@@ -653,7 +660,7 @@ export function DashboardWidget({
                   className="text-muted-foreground hover:text-foreground hidden group-hover:block"
                   aria-label="Edit widget"
                 >
-                  <PencilIcon size={16} />
+                  <PencilIcon size="base" />
                 </button>
               ) : widget.data.owner === "PROJECT" ? (
                 <button
@@ -661,7 +668,7 @@ export function DashboardWidget({
                   className="text-muted-foreground hover:text-foreground hidden group-hover:block"
                   aria-label="Edit widget"
                 >
-                  <PencilIcon size={16} />
+                  <PencilIcon size="base" />
                 </button>
               ) : widget.data.owner === "LANGFUSE" ? (
                 <button
@@ -675,84 +682,97 @@ export function DashboardWidget({
                   className="text-muted-foreground hover:text-foreground hidden group-hover:block"
                   aria-label="Edit widget"
                 >
-                  <PencilIcon size={16} />
+                  <PencilIcon size="base" />
                 </button>
               ) : null}
             </>
           )}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+          <DropdownMenu
+            placement="bottom-end"
+            items={[
+              ...(tableView
+                ? [
+                    {
+                      type: "item" as const,
+                      id: "view-as-table",
+                      title: viewAsTableHint
+                        ? `View as table (${viewAsTableHint.count} filter${viewAsTableHint.count === 1 ? "" : "s"} not shown in the table)`
+                        : "View as table",
+                      tooltip: viewAsTableHint?.title,
+                      icon: TableIcon,
+                      onClick: handleViewAsTable,
+                    },
+                    {
+                      id: "table-separator",
+                      type: "separator" as const,
+                    },
+                  ]
+                : []),
+              {
+                type: "item",
+                id: "copy",
+                title: "Copy widget",
+                icon: CopyIcon,
+                onClick: handleCopyToClipboard,
+              },
+              ...(onDuplicateWidget
+                ? [
+                    {
+                      type: "item" as const,
+                      id: "clone",
+                      title: "Clone",
+                      icon: CopyPlusIcon,
+                      onClick: () =>
+                        onDuplicateWidget(placement, widgetExportSource),
+                    },
+                  ]
+                : []),
+              { id: "download-separator", type: "separator" },
+              {
+                type: "item",
+                id: "download-json",
+                title: "Download as JSON",
+                icon: FileJsonIcon,
+                onClick: handleDownloadJson,
+              },
+              {
+                type: "item",
+                id: "download-csv",
+                title: "Download data as CSV",
+                icon: DownloadIcon,
+                disabled: queryResult.isPending
+                  ? { reason: "Chart data is still loading" }
+                  : undefined,
+                onClick: () =>
+                  downloadChartDataCsv(transformedData, widget.data.name),
+              },
+              ...(!readOnly && (hasCUDAccess || isLockedEditable)
+                ? [
+                    {
+                      id: "delete-separator",
+                      type: "separator" as const,
+                    },
+                    {
+                      type: "item" as const,
+                      id: "delete",
+                      title: "Delete",
+                      icon: TrashIcon,
+                      variant: "destructive" as const,
+                      onClick: handleDelete,
+                    },
+                  ]
+                : []),
+            ]}
+          >
+            {({ getTriggerProps }) => (
               <button
-                className="text-muted-foreground hover:text-foreground hidden group-hover:block data-[state=open]:block"
+                className="text-muted-foreground hover:text-foreground hidden group-hover:block aria-expanded:block"
                 aria-label="Widget actions"
+                {...getTriggerProps()}
               >
-                <MoreVerticalIcon size={16} />
+                <MoreVerticalIcon size="base" />
               </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {tableView && (
-                <>
-                  <DropdownMenuItem
-                    onClick={handleViewAsTable}
-                    title={viewAsTableHint?.title}
-                  >
-                    <TableIcon className="mr-2 h-4 w-4" />
-                    <span className="flex flex-col">
-                      <span>View as table</span>
-                      {viewAsTableHint && (
-                        <span className="text-muted-foreground text-xs">
-                          {viewAsTableHint.count} filter
-                          {viewAsTableHint.count === 1 ? "" : "s"} not shown in
-                          the table
-                        </span>
-                      )}
-                    </span>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                </>
-              )}
-              <DropdownMenuItem onClick={handleCopyToClipboard}>
-                <CopyIcon className="mr-2 h-4 w-4" />
-                Copy widget
-              </DropdownMenuItem>
-              {onDuplicateWidget && (
-                <DropdownMenuItem
-                  onClick={() =>
-                    onDuplicateWidget(placement, widgetExportSource)
-                  }
-                >
-                  <CopyPlusIcon className="mr-2 h-4 w-4" />
-                  Clone
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleDownloadJson}>
-                <FileJsonIcon className="mr-2 h-4 w-4" />
-                Download as JSON
-              </DropdownMenuItem>
-              {/* Chart data download needs the query result to have loaded */}
-              <DropdownMenuItem
-                disabled={queryResult.isPending}
-                onClick={() =>
-                  downloadChartDataCsv(transformedData, widget.data.name)
-                }
-              >
-                <DownloadIcon className="mr-2 h-4 w-4" />
-                Download data as CSV
-              </DropdownMenuItem>
-              {!readOnly && (hasCUDAccess || isLockedEditable) && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={handleDelete}
-                    className="text-destructive focus:text-destructive"
-                  >
-                    <TrashIcon className="mr-2 h-4 w-4" />
-                    Delete
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
+            )}
           </DropdownMenu>
         </div>
       </div>
@@ -766,7 +786,6 @@ export function DashboardWidget({
         {!queryValidation.valid ? (
           <div className="relative min-h-0 flex-1">
             <ChartLoadingState
-              isLoading={true}
               showSpinner={false}
               showHintImmediately={true}
               hintText={queryValidation.reason}
@@ -808,16 +827,17 @@ export function DashboardWidget({
                 )}
               />
             </div>
-            <ChartLoadingState
-              isLoading={chartLoadingState.isLoading}
-              showSpinner={chartLoadingState.showSpinner}
-              showHintImmediately={chartLoadingState.showHintImmediately}
-              hintText={chartLoadingState.hintText}
-              onRetry={queryResult.isError ? handleRetry : undefined}
-              progress={loadingProgress}
-              layout={loadingStateLayout}
-              className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
-            />
+            {chartLoadingState.isLoading && (
+              <ChartLoadingState
+                showSpinner={chartLoadingState.showSpinner}
+                showHintImmediately={chartLoadingState.showHintImmediately}
+                hintText={chartLoadingState.hintText}
+                onRetry={queryResult.isError ? handleRetry : undefined}
+                progress={loadingProgress}
+                layout={loadingStateLayout}
+                className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
+              />
+            )}
           </div>
         )}
       </div>

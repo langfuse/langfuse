@@ -1,6 +1,6 @@
 import { useRouter } from "next/router";
 import type { EvalTemplateType } from "@langfuse/shared";
-import { Skeleton } from "@/src/components/ui/skeleton";
+import { EvaluatorSetupLoadingPage } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupLoadingPage/EvaluatorSetupLoadingPage";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import type { NormalizedEvaluatorDefinition } from "../server/evaluators/evaluatorTypes";
 import { EvaluatorSetupPage } from "./EvaluatorSetupPage";
@@ -39,6 +39,8 @@ function toSetupDefinition(
         sourceCode: latest.sourceCode ?? "",
         sourceCodeLanguage: latest.sourceCodeLanguage ?? "TYPESCRIPT",
       };
+    case "FACET":
+      throw new Error("Facets are not shown as evaluators");
   }
 }
 
@@ -52,9 +54,9 @@ export default function EvaluatorDetailPage() {
   );
 
   if (evaluator.isPending) {
-    return <Skeleton className="m-6 h-96 w-[calc(100%-3rem)]" />;
+    return <EvaluatorSetupLoadingPage mode="edit" projectId={projectId} />;
   }
-  if (!evaluator.data?.versions[0]) {
+  if (!evaluator.data?.versions[0] || evaluator.data.type === "FACET") {
     return <div className="p-6">Evaluator not found</div>;
   }
 

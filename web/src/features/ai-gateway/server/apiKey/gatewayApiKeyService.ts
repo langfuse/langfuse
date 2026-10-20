@@ -1,9 +1,10 @@
 import { InternalServerError, LangfuseNotFoundError } from "@langfuse/shared";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import {
-  createAndAddApiKeysToDb,
+  createApiKey,
   deleteApiKeyFromDb,
 } from "@langfuse/shared/src/server/auth/apiKeys";
+import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import type { Cluster, Redis } from "ioredis";
 
 import { auditLog } from "@/src/features/audit-logs/server";
@@ -22,24 +23,24 @@ export class GatewayApiKeyService {
     this.repository = new GatewayApiKeyRepository(prisma);
   }
 
-  list(params: { organizationId: string; cursor?: string; limit: number }) {
+  list(params: { organizationId: string; page: number; limit: number }) {
     return this.repository.listGatewayApiKeys(params);
   }
 
   async create(params: {
     organizationId: string;
-    note?: string;
+    name?: string;
     metadata: GatewayMetadata;
+    expiresAt?: Date | null;
     session: OrgAuthedContext["session"];
   }) {
     const key = await this.prisma.$transaction(async (tx) => {
-      // TODO: Narrow this virtual key to the `gateway:invoke` permission once granular API-key scopes are available.
-      const key = await createAndAddApiKeysToDb({
-        prisma: tx,
-        entityId: params.organizationId,
-        scope: "ORGANIZATION",
-        note: params.note,
-        createdByUserId: params.session.user.id,
+      const key = await createApiKey(tx, {
+        owner: OrganizationId(params.organizationId),
+        role: SystemRoleId("AI_GATEWAY"),
+        createdBy: UserId(params.session.user.id),
+        name: params.name,
+        expiresAt: params.expiresAt,
       });
       await tx.gatewayApiKeyAssociation.create({
         data: {
@@ -60,6 +61,7 @@ export class GatewayApiKeyService {
           publicKey: key.publicKey,
           displaySecretKey: key.displaySecretKey,
           note: key.note,
+          expiresAt: params.expiresAt ?? null,
         },
       },
       this.prisma,

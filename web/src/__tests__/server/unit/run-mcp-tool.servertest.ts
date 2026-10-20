@@ -1,5 +1,8 @@
 import type { Span } from "@opentelemetry/api";
 import { InvalidRequestError } from "@langfuse/shared";
+import { ClickHouseResourceError } from "@langfuse/shared/src/server";
+import { ErrorCode } from "@modelcontextprotocol/sdk/types.js";
+import { formatErrorForUser } from "@/src/features/mcp/core/error-formatting";
 import { z } from "zod";
 import type { ServerContext } from "@/src/features/mcp/types";
 
@@ -40,6 +43,35 @@ describe("runMcpTool outcome telemetry", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
+
+  it.each(["TIMEOUT", "MEMORY_LIMIT", "OVERCOMMIT"] as const)(
+    "classifies handled ClickHouse %s errors consistently with the response",
+    async (errorType) => {
+      const error = new ClickHouseResourceError(
+        errorType,
+        new Error("sensitive ClickHouse details"),
+      );
+
+      await expect(
+        runMcpTool({
+          spanName: "mcp.test",
+          context,
+          fn: async () => {
+            throw error;
+          },
+        }),
+      ).rejects.toBe(error);
+
+      expect(fakeSpan.setAttribute).toHaveBeenCalledWith(
+        "mcp.outcome",
+        "request_error",
+      );
+      const response = formatErrorForUser(error);
+      expect(response.code).toBe(ErrorCode.InvalidRequest);
+      expect(response.message).toMatch(/date range/);
+      expect(response.message).not.toContain("sensitive ClickHouse details");
+    },
+  );
 
   it.each([
     {

@@ -4,6 +4,7 @@ import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 
 import { useSupportDrawer } from "@/src/features/support-chat";
+import { useHasOrganizationAccess } from "@/src/features/rbac";
 import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { StripeCustomerPortalButton } from "./StripeCustomerPortalButton";
 import { BillingSwitchPlanDialog } from "./BillingSwitchPlanDialog";
@@ -17,6 +18,10 @@ export const BillingActionButtons = () => {
     hasValidPaymentMethod,
     isLoading,
   } = useBillingInformation();
+  const hasBillingAccess = useHasOrganizationAccess({
+    organizationId: organization?.id,
+    scope: "langfuseCloudBilling:CRUD",
+  });
   const { setOpen } = useSupportDrawer();
   const { setOpen: setMigrationPanelOpen } = useV4MigrationPanel();
 
@@ -58,11 +63,13 @@ export const BillingActionButtons = () => {
 
         {organization && hasActiveSubscription && (
           <>
-            <StripeCustomerPortalButton
-              orgId={organization.id}
-              title="Update Billing Details"
-              variant="secondary"
-            />
+            {hasBillingAccess && (
+              <StripeCustomerPortalButton
+                orgId={organization.id}
+                title="Update Billing Details"
+                variant="secondary"
+              />
+            )}
             <StripeCancellationButton
               orgId={organization.id}
               variant="secondary"

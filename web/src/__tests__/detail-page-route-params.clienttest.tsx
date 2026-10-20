@@ -76,7 +76,7 @@ vi.mock(
   }),
 );
 
-vi.mock("@/src/features/annotation-queues/pages/AnnotationQueueItems", () => ({
+vi.mock("@/src/features/annotation-queues/pages/QueueItems", () => ({
   default: ({ queueId }: { queueId?: string }) => (
     <div data-testid="annotation-queue-items">{queueId ?? "mounted"}</div>
   ),
@@ -139,6 +139,17 @@ describe("detail page deep-link route params", () => {
     mockRouterQuery({ projectId: "p1", sessionId: "s1" });
     render(<SessionPageRoute />);
     expect(screen.getByTestId("session-page")).toHaveTextContent("s1");
+  });
+
+  test("session detail waits inline, without the full-screen branded overlay", () => {
+    mockRouterQuery({});
+    const { container } = render(<SessionPageRoute />);
+    /** A spinner renders, so the negative assertions below cannot pass vacuously. */
+    expect(container.querySelector("svg")).not.toBeNull();
+    /** The branded auth screen is the only pending state with a heading, and the
+     * only one that paints over the navigation shell. */
+    expect(screen.queryByRole("heading")).toBeNull();
+    expect(container.querySelector(".fixed.inset-0")).toBeNull();
   });
 
   test("annotation queue item does not mount while router.query is empty", () => {

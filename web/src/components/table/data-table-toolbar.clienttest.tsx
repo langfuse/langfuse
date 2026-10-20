@@ -1,10 +1,44 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { vi } from "vitest";
-import { ExperimentFormatSetting } from "@/src/features/experiments";
+import type { ColumnDefinition } from "@langfuse/shared";
+import { ExperimentDisplaySettings } from "@/src/features/experiments";
 import {
   DataTableToolbar,
   type MultiSelect,
 } from "@/src/components/table/data-table-toolbar";
+import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import { useStore } from "zustand";
+
+const captureSpy = vi.fn();
+vi.mock("posthog-js/react", () => ({
+  usePostHog: () => ({ capture: captureSpy }),
+}));
+
+function MobileSearchHarness() {
+  const { store } = useEventsSearchBar({
+    tableName: "test-table",
+    enabled: true,
+    isV4: false,
+    filterState: [],
+    searchQuery: null,
+    searchType: ["id"],
+    observed: undefined,
+    setFilterState: vi.fn(),
+    setSearchQuery: vi.fn(),
+    setSearchType: vi.fn(),
+  });
+  const draft = useStore(store, (state) => state.draft);
+
+  return (
+    <input
+      aria-label="Mobile search"
+      value={draft}
+      onChange={(event) =>
+        store.getState().actions.setDraft(event.target.value)
+      }
+    />
+  );
+}
 
 const baseMultiSelect = (overrides: Partial<MultiSelect>): MultiSelect => ({
   selectAll: false,
@@ -212,13 +246,21 @@ describe("DataTableToolbar presentation controls", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("keeps the format switch accessible while the column picker is closed", () => {
+  it("opens display settings independently of the column picker", () => {
     const onIoRenderModeChange = vi.fn();
     render(
       <DataTableToolbar
         {...settingsProps}
         toolbarSettings={
-          <ExperimentFormatSetting
+          <ExperimentDisplaySettings
+            layout="grid"
+            onLayoutChange={vi.fn()}
+            diffMode="comparison"
+            onDiffModeChange={vi.fn()}
+            itemVisibility="all"
+            onItemVisibilityChange={vi.fn()}
+            hasComparisons
+            hasBaseline
             ioRenderMode="json"
             onIoRenderModeChange={onIoRenderModeChange}
           />
@@ -226,13 +268,199 @@ describe("DataTableToolbar presentation controls", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("radio", { name: "JSON" }));
-    expect(onIoRenderModeChange).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("radio", { name: "Formatted" }));
+    expect(screen.queryByRole("menuitem", { name: "Formatted" })).toBeNull();
+    fireEvent.keyDown(screen.getByRole("button", { name: "Display" }), {
+      key: "Enter",
+    });
+    fireEvent.click(screen.getByRole("menuitem", { name: "Formatted" }));
     expect(onIoRenderModeChange).toHaveBeenCalledExactlyOnceWith("text");
     fireEvent.click(screen.getByRole("button", { name: /^Columns/ }));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Row height" })).toBeVisible();
-    expect(screen.getByRole("radio", { name: "JSON" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Display" })).toBeVisible();
+  });
+
+  function openRowHeightMenu() {
+    const button = screen.getByRole("button", { name: /Row height/ });
+    act(() => {
+      // Radix opens the menu on pointerdown. jsdom has no PointerEvent, so
+      // this is a MouseEvent that still carries button and coordinates.
+      button.dispatchEvent(
+        new MouseEvent("pointerdown", {
+          bubbles: true,
+          cancelable: true,
+          button: 0,
+          clientX: 1,
+          clientY: 1,
+        }),
+      );
+    });
+  }
+
+  it("keeps the row-height menu to the presets unless a free height is enabled", () => {
+    render(<DataTableToolbar {...settingsProps} />);
+    openRowHeightMenu();
+
+    expect(
+      screen.getByRole("menuitemcheckbox", { name: "Small" }),
+    ).toBeChecked();
+    expect(
+      screen.queryByRole("menuitemcheckbox", { name: /^Custom/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows Custom as its own row-height state and restores it from the menu", () => {
+    const setRowHeight = vi.fn();
+    const onSelect = vi.fn();
+    render(
+      <DataTableToolbar
+        {...settingsProps}
+        rowHeight="l"
+        setRowHeight={setRowHeight}
+        customRowHeight={{
+          active: true,
+          rememberedPx: 640,
+          onSelect,
+        }}
+      />,
+    );
+    openRowHeightMenu();
+
+    expect(
+      screen.getByRole("menuitemcheckbox", { name: "Custom (640px)" }),
+    ).toBeChecked();
+    expect(
+      screen.getByRole("menuitemcheckbox", { name: "Large" }),
+    ).not.toBeChecked();
+
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Small" }));
+    expect(setRowHeight).toHaveBeenCalledExactlyOnceWith("s");
+
+    fireEvent.click(
+      screen.getByRole("menuitemcheckbox", { name: "Custom (640px)" }),
+    );
+    // Already the active height, so choosing it again is a no-op.
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("returns to a remembered custom height from the menu", () => {
+    const onSelect = vi.fn();
+    render(
+      <DataTableToolbar
+        {...settingsProps}
+        rowHeight="m"
+        customRowHeight={{
+          active: false,
+          rememberedPx: 800,
+          onSelect,
+        }}
+      />,
+    );
+    openRowHeightMenu();
+
+    expect(
+      screen.getByRole("menuitemcheckbox", { name: "Medium" }),
+    ).toBeChecked();
+    const custom = screen.getByRole("menuitemcheckbox", {
+      name: "Custom (800px)",
+    });
+    expect(custom).not.toBeChecked();
+    fireEvent.click(custom);
+    expect(onSelect).toHaveBeenCalledOnce();
+  });
+
+  it("hides Custom until a row has been dragged", () => {
+    render(
+      <DataTableToolbar
+        {...settingsProps}
+        customRowHeight={{
+          active: false,
+          rememberedPx: null,
+          onSelect: vi.fn(),
+        }}
+      />,
+    );
+    openRowHeightMenu();
+
+    expect(
+      screen.queryByRole("menuitemcheckbox", { name: /^Custom/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("opens legacy filters and search together in the mobile sheet", () => {
+    captureSpy.mockClear();
+    const filterColumns: ColumnDefinition[] = [
+      {
+        id: "status",
+        name: "Status",
+        type: "stringOptions",
+        internal: "status",
+        options: [{ value: "active" }],
+      },
+    ];
+
+    render(
+      <DataTableToolbar
+        columns={[]}
+        tableName="test-table"
+        filterColumnDefinition={filterColumns}
+        filterState={[]}
+        setFilterState={vi.fn()}
+        mobileSearch={<MobileSearchHarness />}
+      />,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Filters" })[0]!);
+
+    expect(screen.getByRole("dialog", { name: "Filters" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Add filter" }),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Mobile search" }), {
+      target: { value: "unsubmitted draft" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Close filters" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Filters" })[0]!);
+
+    expect(screen.getByRole("textbox", { name: "Mobile search" })).toHaveValue(
+      "unsubmitted draft",
+    );
+    expect(
+      captureSpy.mock.calls.filter(
+        ([event]) => event === "filters:sidebar_toggled",
+      ),
+    ).toEqual([
+      [
+        "filters:sidebar_toggled",
+        {
+          tableName: "test-table",
+          isV4: false,
+          open: true,
+          trigger: "toolbar",
+        },
+        undefined,
+      ],
+      [
+        "filters:sidebar_toggled",
+        {
+          tableName: "test-table",
+          isV4: false,
+          open: false,
+          trigger: "header",
+        },
+        undefined,
+      ],
+      [
+        "filters:sidebar_toggled",
+        {
+          tableName: "test-table",
+          isV4: false,
+          open: true,
+          trigger: "toolbar",
+        },
+        undefined,
+      ],
+    ]);
   });
 });

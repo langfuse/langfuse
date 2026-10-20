@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import React, { useMemo } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { type ViewVersion } from "@langfuse/shared/query";
@@ -97,12 +96,18 @@ export function ScoresChartView({
     [queryResult.data, config],
   );
 
-  const error = !validRange
-    ? "Pick a wider time range to chart."
-    : queryResult.isError
-      ? (queryResult.error?.message ??
-        "Couldn't build a chart for the current view.")
-      : null;
+  const error = (() => {
+    if (!validRange) {
+      return "Pick a wider time range to chart.";
+    }
+    if (queryResult.isError) {
+      return (
+        queryResult.error?.message ??
+        "Couldn't build a chart for the current view."
+      );
+    }
+    return null;
+  })();
 
   const widgetInput = useMemo(
     () => scoreChartConfigToWidgetInput({ config, filters }),

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 /**
  * ViewPreferencesContext - Manages user display preferences persisted to localStorage.
  *
@@ -42,8 +43,6 @@ interface ViewPreferencesContextValue {
   setShowCostTokens: (value: boolean) => void;
   showScores: boolean;
   setShowScores: (value: boolean) => void;
-  colorCodeMetrics: boolean;
-  setColorCodeMetrics: (value: boolean) => void;
   showComments: boolean;
   setShowComments: (value: boolean) => void;
   /** Graph panel build mode (aggregated vs expanded "as it ran") */
@@ -69,7 +68,7 @@ interface ViewPreferencesContextValue {
   /** Whether JSON Beta (advanced viewer) is enabled */
   jsonBetaEnabled: boolean;
   setJsonBetaEnabled: (value: boolean) => void;
-  /** Whether long system prompts render collapsed to a first-lines preview */
+  /** Whether long system prompts render with their section collapsed */
   collapseSystemPrompt: boolean;
   setCollapseSystemPrompt: (value: boolean) => void;
 }
@@ -111,10 +110,6 @@ export function ViewPreferencesProvider({
     "scoresOnObservationTree",
     true,
   );
-  const [colorCodeMetrics, setColorCodeMetrics] = useLocalStorage(
-    "colorCodeMetricsOnObservationTree",
-    true,
-  );
   const [showComments, setShowComments] = useLocalStorage("showComments", true);
   const [storedGraphViewMode, setGraphViewMode] =
     useLocalStorage<GraphViewMode>("graphViewMode", "aggregated");
@@ -149,7 +144,7 @@ export function ViewPreferencesProvider({
     typeof window !== "undefined" &&
       localStorage.getItem(JSON_VIEW_PREFERENCE_STORAGE_KEY) === '"json-beta"',
   );
-  // Shared with the inline expand/collapse toggle on system prompt messages;
+  // Shared with the section caret on system prompt messages;
   // instances sync via useLocalStorage's localStorageChange events.
   const [collapseSystemPrompt, setCollapseSystemPrompt] =
     useCollapseSystemPromptPreference();
@@ -162,8 +157,6 @@ export function ViewPreferencesProvider({
       setShowCostTokens,
       showScores,
       setShowScores,
-      colorCodeMetrics,
-      setColorCodeMetrics,
       showComments,
       setShowComments,
       graphViewMode,
@@ -191,8 +184,6 @@ export function ViewPreferencesProvider({
       setShowCostTokens,
       showScores,
       setShowScores,
-      colorCodeMetrics,
-      setColorCodeMetrics,
       showComments,
       setShowComments,
       graphViewMode,

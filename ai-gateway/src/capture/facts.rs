@@ -20,6 +20,27 @@ impl RelayOutcome {
             Self::TransportError => "transport_error",
         }
     }
+
+    /// A cancellation is the caller hanging up, so it is not a failure.
+    pub(crate) fn is_failure(self) -> bool {
+        matches!(self, Self::Timeout | Self::TransportError)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum InputOmissionReason {
+    SizeLimit,
+    ContentEncoding,
+    InvalidJson,
+    RecordLimit,
+    TelemetryBuffer,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+pub(crate) struct InputOmission {
+    pub reason: InputOmissionReason,
+    pub body_bytes: usize,
 }
 
 #[derive(Serialize)]
@@ -46,6 +67,7 @@ pub(crate) struct ProviderFacts {
     pub error_message: Option<String>,
     pub usage_details: Option<Value>,
     pub input: Option<Value>,
+    pub input_omission: Option<InputOmission>,
     pub output: Option<Value>,
     pub provider_response_id: Option<String>,
     pub provider_request_id: Option<String>,

@@ -1,0 +1,189 @@
+name: Repair security dependency pull request
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: security-pr-${{ github.event.issue.number }}-${{ github.event.comment.body == '/rebase-security-pr' }}
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    if: >-
+      github.repository == 'langfuse/langfuse' &&
+      github.event.issue.pull_request != null &&
+      github.event.comment.body == '/rebase-security-pr'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      authorized: ${{ steps.authorize.outputs.authorized }}
+      updated: ${{ steps.repair.outputs.updated }}
+    steps:
+      - name: Authorize command and select security PR
+        id: authorize
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const permission = await github.rest.repos.getCollaboratorPermissionLevel({
+              ...context.repo, username: context.payload.comment.user.login,
+            });
+            if (!['admin', 'maintain', 'write'].includes(permission.data.permission))
+              throw new Error('Only repository writers can request a repair.');
+            const { data: pr } = await github.rest.pulls.get({ ...context.repo, pull_number: context.issue.number });
+            const target = pr.title.match(/^chore\(deps\): bump `?((?:@[\w.-]+\/)?[\w.-]+)`? to ([\d]+\.[\d]+\.[\d]+(?:[-+][\w.-]+)?)$/);
+            if (pr.state !== 'open' || pr.user.login !== 'github-actions[bot]' ||
+                pr.base.ref !== 'main' || pr.head.repo?.full_name !== context.payload.repository.full_name ||
+                !pr.head.ref.startsWith('deps/security-') || !target ||
+                !pr.body?.includes('<!-- gh-aw-workflow-id: dependabot-security-maintainer -->'))
+              throw new Error('Expected an open security-maintainer PR from this repository.');
+            for (const [key, value] of Object.entries({ authorized: 'true', head: pr.head.sha,
+              branch: pr.head.ref, dependency: target[1], version: target[2] })) core.setOutput(key, value);
+
+      - name: Checkout trusted main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          install: false
+          cache: false
+      - name: Install trusted tooling
+        run: pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
+
+      - name: Merge main and repair dependency conflicts
+        id: repair
+        env:
+          HEAD_SHA: ${{ steps.authorize.outputs.head }}
+          HEAD_REF: ${{ steps.authorize.outputs.branch }}
+          DEPENDENCY: ${{ steps.authorize.outputs.dependency }}
+          TARGET_VERSION: ${{ steps.authorize.outputs.version }}
+        run: |
+          set -euo pipefail
+          export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
+          git config core.hooksPath /dev/null
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          BASE_SHA="$(git rev-parse HEAD)"
+          export BASE_SHA
+          echo "base=$BASE_SHA" >> "$GITHUB_OUTPUT"
+          git fetch --no-tags origin "refs/heads/$HEAD_REF"
+          [[ "$(git rev-parse FETCH_HEAD)" == "$HEAD_SHA" ]]
+          # This uses main's installed YAML parser before installing PR dependencies.
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import { execFileSync } from 'node:child_process';
+          import { writeFileSync } from 'node:fs';
+          import { createRequire } from 'node:module';
+          const { parse } = createRequire(`${process.cwd()}/web/package.json`)('yaml');
+          const git = (...args) => execFileSync('git', args, { encoding: 'utf8' }).trim();
+          const { BASE_SHA, HEAD_SHA, DEPENDENCY, RUNNER_TEMP } = process.env;
+          const base = git('merge-base', BASE_SHA, HEAD_SHA);
+          const files = git('diff', '--name-only', `${base}..${HEAD_SHA}`).split('\n');
+          for (const path of files) {
+            assert(/^(pnpm-(workspace|lock)\.yaml|(?:[\w.-]+\/)*package\.json)$/.test(path), `Disallowed file: ${path}`);
+            for (const ref of [base, HEAD_SHA]) assert(git('ls-tree', ref, '--', path).startsWith('100644 blob '), `Not a regular file: ${path}`);
+            if (path === 'pnpm-lock.yaml') continue;
+            const [before, after] = [base, HEAD_SHA].map(ref => parse(git('show', `${ref}:${path}`)));
+            const allowed = path.endsWith('.yaml') ? ['overrides', 'catalog', 'catalogs', 'minimumReleaseAgeExclude']
+              : ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'];
+            for (const key of new Set([...Object.keys(before), ...Object.keys(after)]))
+              if (!allowed.includes(key)) assert.deepEqual(after[key], before[key], `Disallowed change: ${path}:${key}`);
+            for (const entry of after.minimumReleaseAgeExclude ?? [])
+              if (!(before.minimumReleaseAgeExclude ?? []).includes(entry)) assert(/^(?:@[\w.-]+\/)?[\w.-]+@\d+\.\d+\.\d+(?:[-+][\w.-]+)?$/.test(entry), 'Expected exact release-age exclusion');
+          }
+          const lock = parse(git('show', `${HEAD_SHA}:pnpm-lock.yaml`));
+          const prefix = `${DEPENDENCY}@`;
+          const versions = Object.keys(lock.packages).filter(key => key.startsWith(prefix)).map(key => key.slice(prefix.length).split('(')[0]);
+          writeFileSync(`${RUNNER_TEMP}/security-versions.json`, JSON.stringify(versions));
+          JS
+          git checkout --detach "$HEAD_SHA"
+          if git merge-base --is-ancestor "$BASE_SHA" HEAD; then
+            echo "updated=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if ! git -c merge.conflictStyle=diff3 merge --no-commit --no-ff "$BASE_SHA"; then
+            [[ -n "$(git diff --name-only --diff-filter=U)" ]]
+            while IFS= read -r path; do
+              case "$path" in
+                pnpm-lock.yaml) ;; # pnpm resolves this generated file below.
+                pnpm-workspace.yaml)
+                  # Only combine insertions; differing edits need a human decision.
+                  awk '/^\|{7}/ {base=1; next} /^=======/ {base=0; next} base {exit 1}' "$path"
+                  for stage in 1 2 3; do git show ":$stage:$path" > "$RUNNER_TEMP/workspace-$stage"; done
+                  git merge-file --union -p "$RUNNER_TEMP/workspace-2" "$RUNNER_TEMP/workspace-1" "$RUNNER_TEMP/workspace-3" > "$path"
+                  ;;
+                *) echo "Cannot automatically resolve $path"; exit 1 ;;
+              esac
+            done < <(git diff --name-only --diff-filter=U)
+          fi
+          # Reject duplicate keys introduced by combining insertions.
+          node -e "require(require.resolve('yaml', { paths: ['./web'] })).parse(require('node:fs').readFileSync('pnpm-workspace.yaml', 'utf8'))"
+          pnpm install --lockfile-only --no-frozen-lockfile --ignore-scripts --ignore-pnpmfile 2>&1 | tee "$RUNNER_TEMP/security-pnpm.log"
+          [[ "$(<"$RUNNER_TEMP/security-pnpm.log")" != *"Ignoring broken lockfile"* ]]
+          pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
+          pnpm why -r --json "$DEPENDENCY" | jq -e --arg target "$TARGET_VERSION" --slurpfile versions "$RUNNER_TEMP/security-versions.json" \
+            'any(.version == $target) and all(.version as $v | $versions[0] | index($v) != null)'
+          pnpm dedupe --check --ignore-scripts --ignore-pnpmfile
+          git add -- 'pnpm-lock.yaml' 'pnpm-workspace.yaml'
+          git diff --exit-code
+          git diff --cached --check
+          while IFS= read -r path; do
+            case "$path" in
+              package.json|*/package.json|pnpm-lock.yaml|pnpm-workspace.yaml) ;;
+              *) echo "Unexpected change relative to main: $path"; exit 1 ;;
+            esac
+          done < <(git diff --cached --name-only "$BASE_SHA")
+          echo "updated=true" >> "$GITHUB_OUTPUT"
+
+      - name: Publish updated branch and trigger CI
+        if: steps.repair.outputs.updated == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+          HEAD_REF: ${{ steps.authorize.outputs.branch }}
+          BASE_SHA: ${{ steps.repair.outputs.base }}
+        run: |
+          set -euo pipefail
+          export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
+          [[ -n "$GH_TOKEN" ]]
+          [[ "$(git ls-remote origin refs/heads/main | cut -f1)" == "$BASE_SHA" ]]
+          git -c core.hooksPath=/dev/null -c user.name='github-actions[bot]' \
+            -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            -c commit.gpgsign=false commit --no-verify -m 'chore(deps): merge main into security upgrade'
+          # Normal push refuses concurrent branch changes; no history is rewritten.
+          git -c core.hooksPath=/dev/null -c credential.helper= \
+            -c 'credential.https://github.com.helper=!gh auth git-credential' \
+            push origin "HEAD:refs/heads/$HEAD_REF"
+
+  report:
+    needs: repair
+    if: always() && needs.repair.outputs.authorized == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          RESULT: ${{ needs.repair.result }}
+          UPDATED: ${{ needs.repair.outputs.updated }}
+        with:
+          script: |
+            const url = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const message = process.env.RESULT !== 'success'
+              ? 'Repair failed. Check the run for the reason; conflicting dependency edits need manual resolution. If a branch advanced, retry `/rebase-security-pr`.'
+              : process.env.UPDATED === 'true'
+                ? 'Merged main into this PR, repaired and verified the lockfile, and pushed the same branch. CI will run again.'
+                : 'This PR already includes main; no changes needed.';
+            await github.rest.issues.createComment({ ...context.repo, issue_number: context.issue.number,
+              body: `${message}\n\n[Workflow run](${url})` });

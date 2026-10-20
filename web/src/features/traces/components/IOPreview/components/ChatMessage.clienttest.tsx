@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { Pencil } from "@langfuse/icons";
 import { vi } from "vitest";
 
 const { copyTextToClipboard } = vi.hoisted(() => ({
@@ -37,7 +38,10 @@ vi.mock("@/src/components/ui/LangfuseMediaView", () => ({
 import { ChatMlArraySchema } from "@langfuse/shared";
 
 import { ChatMessage } from "./ChatMessage";
-import { type ChatMlMessage } from "../../../fns/chatMessageUtils";
+import {
+  type ChatMlMessage,
+  getMessageTitle,
+} from "../../../fns/chatMessageUtils";
 import { type IOPreviewContentMode } from "../IOPreview";
 
 function createMemoryStorage(): Storage {
@@ -71,17 +75,21 @@ function renderChatMessage(
   {
     shouldRenderMarkdown = true,
     contentMode = "all",
+    defaultCollapsed,
   }: {
     shouldRenderMarkdown?: boolean;
     contentMode?: IOPreviewContentMode;
+    defaultCollapsed?: boolean;
   } = {},
 ) {
   return render(
     <ChatMessage
       message={message}
+      title={getMessageTitle(message)}
       shouldRenderMarkdown={shouldRenderMarkdown}
       currentView="pretty"
       contentMode={contentMode}
+      defaultCollapsed={defaultCollapsed}
     />,
   );
 }
@@ -116,23 +124,138 @@ describe("ChatMessage content modes", () => {
 
 // getByRole ignores elements hidden via display:none, so queries only see the
 // active render path (markdown vs json), even though ChatMessage mounts both.
-// Header + inline controls share the same accessible name, so look them up
-// as a set rather than assuming a single toggle.
+// The section caret is labelled by the section title (the message role).
 const expandButtons = () =>
-  screen.queryAllByRole("button", { name: /expand system prompt/i });
+  screen.queryAllByRole("button", { name: /^expand system/i });
 const collapseButtons = () =>
-  screen.queryAllByRole("button", { name: /collapse system prompt/i });
+  screen.queryAllByRole("button", { name: /^collapse system/i });
 const expandButton = () => expandButtons()[0] ?? null;
 const collapseButton = () => collapseButtons()[0] ?? null;
 
-const systemMessageHeader = () => {
-  const headers = screen
-    .getAllByText("system")
-    .map((node) => node.closest(".io-message-header"))
-    .filter((node): node is HTMLElement => node instanceof HTMLElement);
-  expect(headers.length).toBeGreaterThan(0);
-  return headers[0];
-};
+describe("ChatMessage section caret", () => {
+  beforeEach(() => {
+    vi.stubGlobal("localStorage", createMemoryStorage());
+    vi.stubGlobal("sessionStorage", createMemoryStorage());
+  });
+
+  it("hides and restores the message body", () => {
+    renderChatMessage({
+      role: "user",
+      content: "Where is my refund?",
+    } as ChatMlMessage);
+    // The hidden JSON path keeps its own copy of the text, so check visibility.
+    const bodies = () => screen.queryAllByText("Where is my refund?");
+
+    expect(bodies()[0]).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Collapse user" }));
+
+    bodies().forEach((body) => expect(body).not.toBeVisible());
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand user" }));
+
+    expect(bodies()[0]).toBeVisible();
+  });
+
+  it("toggles from the header row, not from its controls", () => {
+    renderChatMessage({
+      role: "user",
+      content: "Where is my refund?",
+    } as ChatMlMessage);
+    const bodies = () => screen.queryAllByText("Where is my refund?");
+
+    // Clicking the title text (inside the row button) collapses.
+    fireEvent.click(screen.getAllByText("user")[0]);
+    bodies().forEach((body) => expect(body).not.toBeVisible());
+
+    fireEvent.click(screen.getAllByText("user")[0]);
+    expect(bodies()[0]).toBeVisible();
+
+    // The copy control sits beside the row button and does not toggle.
+    fireEvent.click(screen.getAllByTitle("Copy to clipboard")[0]);
+    expect(bodies()[0]).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Collapse user" }),
+    ).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("keeps the open state when switching to the passthrough JSON view", () => {
+    renderChatMessage(
+      {
+        role: "user",
+        content: "Where is my refund?",
+        json: { role: "user", content: "Where is my refund?", channel: "web" },
+      } as unknown as ChatMlMessage,
+      { defaultCollapsed: true },
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand user" }));
+    fireEvent.click(screen.getAllByTitle("Show passthrough JSON data")[0]);
+
+    expect(
+      screen.queryByRole("button", { name: "Expand user" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Collapse user" }),
+    ).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getAllByText("channel")[0]).toBeInTheDocument();
+  });
+
+  it("gives a role-less message a header and keeps its tool calls and thinking", () => {
+    render(
+      <ChatMessage
+        message={
+          {
+            content: "Checking that for you.",
+            thinking: [{ content: "Need the trace first." }],
+            tool_calls: [
+              { id: "call-1", name: "search_traces", arguments: "{}" },
+            ],
+          } as unknown as ChatMlMessage
+        }
+        title=""
+        shouldRenderMarkdown
+        currentView="pretty"
+        actions={[{ icon: Pencil, label: "Correct output", onClick: () => {} }]}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Collapse Input" }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText(/search_traces/)[0]).toBeInTheDocument();
+    expect(screen.getAllByText("Need the trace first.")[0]).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Correct output" }),
+    ).toBeInTheDocument();
+  });
+
+  it("mounts only the header while collapsed", () => {
+    renderChatMessage(
+      { role: "user", content: "Where is my refund?" } as ChatMlMessage,
+      { defaultCollapsed: true },
+    );
+
+    expect(screen.queryAllByText("Where is my refund?")).toHaveLength(0);
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand user" }));
+
+    expect(screen.getAllByText("Where is my refund?")[0]).toBeVisible();
+  });
+
+  it("starts collapsed when asked, keeping the header", () => {
+    renderChatMessage(
+      { role: "user", content: "Where is my refund?" } as ChatMlMessage,
+      { defaultCollapsed: true },
+    );
+
+    expect(screen.queryByText("Where is my refund?")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Expand user" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+  });
+});
 
 describe("ChatMessage system prompt collapse", () => {
   beforeEach(() => {
@@ -146,17 +269,10 @@ describe("ChatMessage system prompt collapse", () => {
       content: longSystemPrompt,
     } as ChatMlMessage);
 
-    expect(expandButtons().length).toBeGreaterThan(0);
-    expect(
-      within(systemMessageHeader()).getAllByRole("button", {
-        name: /expand system prompt/i,
-      }).length,
-    ).toBeGreaterThan(0);
-    expect(
-      within(systemMessageHeader()).getByRole("button", {
-        name: /system, expand system prompt/i,
-      }),
-    ).toBeInTheDocument();
+    // One caret in the section header; the body is not rendered.
+    expect(expandButtons()).toHaveLength(1);
+    expect(expandButton()!.closest(".io-message-header")).not.toBeNull();
+    expect(screen.queryByText(/system-prompt-line-1 /)).not.toBeInTheDocument();
   });
 
   it("collapses a long system message that carries a name", () => {
@@ -168,7 +284,9 @@ describe("ChatMessage system prompt collapse", () => {
       content: longSystemPrompt,
     } as ChatMlMessage);
 
-    expect(expandButton()).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /^expand planner-instructions/i }),
+    ).toBeInTheDocument();
   });
 
   it("collapses a long system message on the json/pretty path (markdown off)", () => {
@@ -177,7 +295,9 @@ describe("ChatMessage system prompt collapse", () => {
       { shouldRenderMarkdown: false },
     );
 
-    expect(expandButton()).toBeInTheDocument();
+    // The caret in the section header is the one collapse control here too.
+    expect(expandButtons()).toHaveLength(1);
+    expect(expandButtons()[0].closest(".io-message-header")).not.toBeNull();
   });
 
   it("expands on click and persists the expanded preference", () => {
@@ -189,10 +309,13 @@ describe("ChatMessage system prompt collapse", () => {
     fireEvent.click(expandButton()!);
 
     expect(collapseButton()).toBeInTheDocument();
+    expect(screen.getAllByText(/system-prompt-line-1 /).length).toBeGreaterThan(
+      0,
+    );
     expect(localStorage.getItem("collapseSystemPrompt")).toBe("false");
   });
 
-  it("respects a persisted expanded preference and does not force-collapse", () => {
+  it("respects a persisted expanded preference and collapses back on click", () => {
     localStorage.setItem("collapseSystemPrompt", "false");
 
     renderChatMessage({
@@ -200,44 +323,29 @@ describe("ChatMessage system prompt collapse", () => {
       content: longSystemPrompt,
     } as ChatMlMessage);
 
-    // rendered expanded, with the option to collapse still offered
+    // rendered expanded, with the caret offering to collapse
     expect(expandButtons()).toHaveLength(0);
-    expect(collapseButtons().length).toBeGreaterThan(0);
-  });
+    expect(collapseButtons()).toHaveLength(1);
 
-  it("puts a collapse control on the system message header so it is reachable without scrolling", () => {
-    // The inline "Collapse system prompt" control lives after the prompt body,
-    // so an expanded long prompt hid it below the fold. The header must offer
-    // the same action.
-    localStorage.setItem("collapseSystemPrompt", "false");
-
-    renderChatMessage({
-      role: "system",
-      content: longSystemPrompt,
-    } as ChatMlMessage);
-
-    expect(
-      within(systemMessageHeader()).getAllByRole("button", {
-        name: /collapse system prompt/i,
-      }).length,
-    ).toBeGreaterThan(0);
-  });
-
-  it("collapses from the system message header", () => {
-    localStorage.setItem("collapseSystemPrompt", "false");
-
-    renderChatMessage({
-      role: "system",
-      content: longSystemPrompt,
-    } as ChatMlMessage);
-
-    fireEvent.click(
-      within(systemMessageHeader()).getAllByRole("button", {
-        name: /collapse system prompt/i,
-      })[0],
-    );
+    fireEvent.click(collapseButton()!);
 
     expect(expandButtons().length).toBeGreaterThan(0);
+    expect(localStorage.getItem("collapseSystemPrompt")).toBe("true");
+  });
+
+  it("collapses a long system prompt from the header on the json/pretty path", () => {
+    localStorage.setItem("collapseSystemPrompt", "false");
+
+    renderChatMessage(
+      { role: "system", content: longSystemPrompt } as ChatMlMessage,
+      { shouldRenderMarkdown: false },
+    );
+
+    expect(collapseButtons()).toHaveLength(1);
+
+    fireEvent.click(collapseButton()!);
+
+    expect(expandButtons()).toHaveLength(1);
     expect(localStorage.getItem("collapseSystemPrompt")).toBe("true");
   });
 
@@ -269,9 +377,9 @@ describe("ChatMessage system prompt collapse", () => {
     expect(collapseButton()).toBeInTheDocument();
   });
 
-  it("does not collapse when only media parts push a system prompt over the threshold", () => {
+  it("starts open when only media parts push a system prompt over the threshold", () => {
     // short text + a large image part: the serialized media must not count
-    // toward the collapse threshold (and must never appear in a preview)
+    // toward the long-prompt threshold
     renderChatMessage({
       role: "system",
       content: [
@@ -284,12 +392,11 @@ describe("ChatMessage system prompt collapse", () => {
     } as unknown as ChatMlMessage);
 
     expect(expandButton()).not.toBeInTheDocument();
-    expect(collapseButton()).not.toBeInTheDocument();
+    expect(collapseButton()).toBeInTheDocument();
   });
 
-  it("offers no toggle when the preview would hide nothing", () => {
-    // above the char threshold, but fits within 4 lines / 500 chars, so
-    // collapsing would not hide anything — a toggle would be dead
+  it("starts open when the prompt is short enough to read at a glance", () => {
+    // above the char threshold, but fits within 4 lines / 500 chars
     const content = Array.from(
       { length: 3 },
       (_, i) => `line-${i + 1} ${"x".repeat(90)}`,
@@ -298,7 +405,7 @@ describe("ChatMessage system prompt collapse", () => {
     renderChatMessage({ role: "system", content } as ChatMlMessage);
 
     expect(expandButton()).not.toBeInTheDocument();
-    expect(collapseButton()).not.toBeInTheDocument();
+    expect(collapseButton()).toBeInTheDocument();
   });
 
   it("keeps the toggle functional in-session when localStorage is blocked", () => {
@@ -358,7 +465,7 @@ describe("ChatMessage system prompt collapse", () => {
     } as ChatMlMessage);
 
     expect(expandButton()).not.toBeInTheDocument();
-    expect(collapseButton()).not.toBeInTheDocument();
+    expect(collapseButton()).toBeInTheDocument();
   });
 });
 
@@ -477,9 +584,9 @@ describe("ChatMessage media content parts", () => {
     expect(screen.queryByText("tool_call_id")).not.toBeInTheDocument();
   });
 
-  // The media strip dedupes against what rendered inline, so a collapsed
-  // system prompt must not swallow its attachments.
-  it("keeps media parts visible while a long system prompt is collapsed", () => {
+  // A collapsed section hides its attachments with the text; expanding the
+  // long system prompt brings them back inline.
+  it("shows media parts once a long system prompt is expanded", () => {
     renderChatMessage({
       role: "system",
       content: [
@@ -488,7 +595,10 @@ describe("ChatMessage media content parts", () => {
       ],
     } as unknown as ChatMlMessage);
 
-    expect(expandButton()).toBeInTheDocument();
+    expect(screen.queryByTestId("langfuse-media")).not.toBeInTheDocument();
+
+    fireEvent.click(expandButton()!);
+
     expect(screen.getByTestId("langfuse-media")).toHaveAttribute(
       "data-media-ref",
       referenceString,

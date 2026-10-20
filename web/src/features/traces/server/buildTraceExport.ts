@@ -9,6 +9,7 @@ import {
   getObservationsCountFromEventsTable,
   getObservationsForTraceFromEventsTable,
   getTraceByIdFromEventsTable,
+  isStorableTraceSessionId,
 } from "@langfuse/shared/src/server";
 import { env } from "@langfuse/shared/src/env";
 import { prisma } from "@langfuse/shared/src/db";
@@ -121,17 +122,19 @@ export async function getAuthorizedTrace(params: {
     throw new LangfuseNotFoundError("Trace not found");
   }
 
-  const traceSession = clickhouseTrace.sessionId
-    ? await prisma.traceSession.findFirst({
-        where: {
-          id: clickhouseTrace.sessionId,
-          projectId,
-        },
-        select: {
-          public: true,
-        },
-      })
-    : null;
+  const traceSession =
+    clickhouseTrace.sessionId &&
+    isStorableTraceSessionId(clickhouseTrace.sessionId)
+      ? await prisma.traceSession.findFirst({
+          where: {
+            id: clickhouseTrace.sessionId,
+            projectId,
+          },
+          select: {
+            public: true,
+          },
+        })
+      : null;
 
   const isSessionPublic = traceSession?.public === true;
   const isAdmin = session?.user.admin === true;

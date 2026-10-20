@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Check, X } from "lucide-react";
+import { Check, X } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
 import {
@@ -61,7 +61,7 @@ export function JsonPathEditor({
           title="Apply JSONPath"
           onClick={() => apply(query)}
         >
-          <Check className="h-3.5 w-3.5" />
+          <Check size="sm" color="default" />
         </Button>
         <Button
           type="button"
@@ -70,7 +70,7 @@ export function JsonPathEditor({
           title="Cancel"
           onClick={onCancel}
         >
-          <X className="h-3.5 w-3.5" />
+          <X size="sm" color="default" />
         </Button>
       </div>
       <CommandList>
