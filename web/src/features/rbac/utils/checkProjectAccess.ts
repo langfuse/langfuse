@@ -4,6 +4,19 @@ import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";
 import { useSession } from "next-auth/react";
 import { hasOwnRole } from "./hasOwnRole";
+import { env } from "@/src/env.mjs";
+
+// These permissions can invoke or schedule calls using project LLM connections.
+const demoProjectLlmScopes = new Set<ProjectScope>([
+  "playground:execute",
+  "topics:CUD",
+  "evaluator:CUD",
+  "evaluationRule:CUD",
+  "promptExperiments:CUD",
+  "evalDefaultModel:CUD",
+  "llmApiKeys:create",
+  "llmApiKeys:update",
+]);
 
 type HasProjectAccessParams = (
   | {
@@ -53,6 +66,13 @@ export const useHasProjectAccess = (p: {
 export function hasProjectAccess(p: HasProjectAccessParams): boolean {
   const isAdmin = hasOwnRole(p) ? p.admin : p.session?.user?.admin;
   if (isAdmin) return true;
+
+  if (
+    !hasOwnRole(p) &&
+    p.projectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
+    demoProjectLlmScopes.has(p.scope)
+  )
+    return false;
 
   const projectRole: Role | undefined = hasOwnRole(p)
     ? p.role
