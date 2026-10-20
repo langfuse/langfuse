@@ -4066,46 +4066,41 @@ export const getTracesIdentifierForSessionFromEvents = async (
   projectId: string,
   sessionId: string,
 ) => {
-  // Build traces CTE using eventsTracesAggregation
-  const tracesBuilder = eventsTracesAggregation({
-    projectId,
-    truncated: true,
-    orderByTimestamp: false,
-  });
+  // traces with a span in the session, kept when their aggregated session_id is it
+  const tracesCte = (qb: QueryCreator<ClickHouseDatabase>) =>
+    qb
+      .selectFrom("events_core as e")
+      .select((eb) => traceAggregationSelects(eb))
+      .where("e.trace_id", "in", (eb) =>
+        eb
+          .selectFrom("events_core")
+          .select("trace_id")
+          .distinct()
+          .where("session_id", "=", sessionId),
+      )
+      .groupBy(["trace_id", "project_id"])
+      .having("session_id", "=", sessionId);
 
-  tracesBuilder.whereRaw(
-    `e.trace_id IN (
-      SELECT DISTINCT trace_id
-      FROM events_core
-      WHERE project_id = {projectId: String}
-        AND session_id = {sessionId: String}
-    )`,
-    {
-      projectId: projectId,
-      sessionId: sessionId,
-    },
-  );
-
-  tracesBuilder.havingRaw("session_id = {sessionId: String}", {
-    sessionId: sessionId,
-  });
-
-  // Build the final query
-  const queryBuilder = new CTEQueryBuilder()
-    .withCTEFromBuilder("traces", tracesBuilder)
-    .from("traces", "t")
-    .selectColumns(
+  const builder = getClickhouseKysely()
+    .with("event_traces", tracesCte)
+    .selectFrom("event_traces as t")
+    .select([
       "t.id",
       "t.user_id",
       "t.name",
       "t.timestamp",
       "t.project_id",
       "t.environment",
-    )
-    .orderBy("ORDER BY t.timestamp ASC")
-    .limitBy("t.id", "t.project_id");
+    ])
+    .orderBy("t.timestamp", "asc")
+    .$call(
+      limitBy({
+        count: 1,
+        columns: (eb) => [eb.ref("t.id"), eb.ref("t.project_id")],
+      }),
+    );
 
-  const { query, params } = queryBuilder.buildWithParams();
+  const { sql: query, params } = compileClickhouseQuery(builder, projectId);
 
   const rows = await queryClickhouse<{
     id: string;

@@ -3781,7 +3781,7 @@ exports[`golden: events trace aggregation family > getTracesIdentifierForSession
       "param2": "golden-session",
     },
     "route": "unknown",
-    "sql": "WITH traces AS
+    "sql": "WITH event_traces AS
     (
         SELECT
             e.trace_id AS id,
@@ -3842,10 +3842,12 @@ exports[`golden: events trace aggregation family > getTracesIdentifierForSession
             any(e.experiment_id) AS experiment_id
         FROM events_core AS e
         WHERE (e.project_id = {param1:String})
+            AND (e.is_deleted = 0)
             AND (e.trace_id IN (
                 SELECT DISTINCT trace_id
                 FROM events_core
                 WHERE (project_id = {param1:String})
+                    AND (events_core.is_deleted = 0)
                     AND (session_id = {param2:String})
             ))
         GROUP BY
@@ -3860,7 +3862,7 @@ SELECT
     t.timestamp,
     t.project_id,
     t.environment
-FROM traces AS t
+FROM event_traces AS t
 ORDER BY t.timestamp ASC
 LIMIT 1 BY
     t.id,
