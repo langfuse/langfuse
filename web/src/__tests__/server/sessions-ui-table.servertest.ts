@@ -878,6 +878,53 @@ maybeEventsTable("parity: sessions metrics from events vs legacy", () => {
     expect(tableRows[0].session_id).toEqual(sessionIdWithTrueScore);
   });
 
+  it("pages through sessions from events with each page's own fields", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const now = Date.now();
+    // Newest first: session i starts i+1 minutes ago and has i+1 traces.
+    const sessionIds = [v4(), v4(), v4()];
+    const traces = sessionIds.flatMap((sessionId, i) =>
+      Array.from({ length: i + 1 }, () =>
+        createTrace({
+          session_id: sessionId,
+          project_id: projectId,
+          timestamp: now - (i + 1) * 60_000,
+        }),
+      ),
+    );
+
+    await createTracesCh(traces);
+    await createEventsCh(buildMatchingEvents(traces, []));
+
+    const pages = await Promise.all(
+      [0, 1, 2].map((page) =>
+        getSessionsTableFromEvents({
+          projectId,
+          filter: [
+            {
+              column: "createdAt",
+              type: "datetime",
+              operator: ">=",
+              value: new Date(now - 3_600_000),
+            },
+          ],
+          fields: ["session_id", "trace_count"],
+          orderBy: { column: "createdAt", order: "DESC" },
+          limit: 1,
+          page,
+        }),
+      ),
+    );
+
+    expect(
+      pages.map((rows) => rows.map((row) => [row.session_id, row.trace_count])),
+    ).toEqual([
+      [[sessionIds[0], 1]],
+      [[sessionIds[1], 2]],
+      [[sessionIds[2], 3]],
+    ]);
+  });
+
   it("honours the same filter so only the targeted session is returned", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
     const targetId = v4();
