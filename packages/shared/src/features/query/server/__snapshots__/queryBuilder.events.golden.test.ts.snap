@@ -1,0 +1,98 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`golden: dashboard events views > QueryBuilder v2 view=observations count by hour 1`] = `
+[
+  {
+    "fn": "QueryBuilder.build",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-02 00:00:00.000",
+      "param4": "2026-01-01 00:00:00.000",
+      "param5": "2026-01-02 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    time_dimension,
+    count(count) AS count_count
+FROM
+(
+    SELECT
+        events_core.project_id,
+        events_observations.span_id,
+        any(toStartOfHour(events_core.start_time)) AS time_dimension,
+        count(1) AS count
+    FROM events_core AS events_observations
+    WHERE (events_core.project_id = {param1:String})
+        AND (events_core.start_time >= {param2:DateTime64(3, 'UTC')})
+        AND (events_core.start_time <= {param3:DateTime64(3, 'UTC')})
+    GROUP BY
+        events_core.project_id,
+        events_observations.span_id
+)
+GROUP BY time_dimension
+ORDER BY time_dimension ASC WITH FILL FROM toStartOfHour({param4:DateTime64(3, 'UTC')}) TO toStartOfHour({param5:DateTime64(3, 'UTC')}) STEP toIntervalHour(1)",
+  },
+]
+`;
+
+exports[`golden: dashboard events views > QueryBuilder v2 view=traces count by hour 1`] = `
+[
+  {
+    "fn": "QueryBuilder.build",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-02 00:00:00.000",
+      "param4": "golden-project",
+      "param5": "2026-01-01 00:00:00.000",
+      "param6": "2026-01-02 00:00:00.000",
+      "param7": "2026-01-01 00:00:00.000",
+      "param8": "2026-01-02 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    time_dimension,
+    count(count) AS count_count
+FROM
+(
+    SELECT
+        events_core.project_id,
+        events_traces.trace_id,
+        ifNull(
+            anyIf(
+                toNullable(toStartOfHour(events_core.start_time)),
+                (events_traces.parent_span_id = '') OR (events_traces.is_app_root = true)
+            ),
+            min(toStartOfHour(events_core.start_time))
+        ) AS time_dimension,
+        uniq(events_traces.trace_id) AS count
+    FROM events_core AS events_traces
+    WHERE (events_core.project_id = {param1:String})
+        AND (events_core.start_time >= {param2:DateTime64(3, 'UTC')})
+        AND (events_core.start_time <= {param3:DateTime64(3, 'UTC')})
+        AND ((events_core.trace_id IN (
+            SELECT events_traces.trace_id
+            FROM events_core AS events_traces
+            WHERE (events_traces.project_id = {param4:String})
+                AND ((events_traces.parent_span_id = '') OR (events_traces.is_app_root = true))
+                AND (events_traces.start_time >= {param5:DateTime64(3, 'UTC')})
+                AND (events_traces.start_time <= {param6:DateTime64(3, 'UTC')})
+        )) OR (NOT exists((
+            SELECT events_traces.trace_id
+            FROM events_core AS events_traces
+            WHERE (events_traces.project_id = {param4:String})
+                AND ((events_traces.parent_span_id = '') OR (events_traces.is_app_root = true))
+                AND (events_traces.start_time >= {param5:DateTime64(3, 'UTC')})
+                AND (events_traces.start_time <= {param6:DateTime64(3, 'UTC')})
+            LIMIT 1
+        ))))
+    GROUP BY
+        events_core.project_id,
+        events_traces.trace_id
+)
+GROUP BY time_dimension
+ORDER BY time_dimension ASC WITH FILL FROM toStartOfHour({param7:DateTime64(3, 'UTC')}) TO toStartOfHour({param8:DateTime64(3, 'UTC')}) STEP toIntervalHour(1)",
+  },
+]
+`;

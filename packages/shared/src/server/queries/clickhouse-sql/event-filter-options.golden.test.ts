@@ -48,7 +48,12 @@ vi.mock("../../repositories/clickhouse", async (importOriginal) => {
   return buildClickhouseMock(actual);
 });
 
-import { getEventsExactFilterOptionsForColumns } from "../../repositories/events";
+import {
+  getEventsExactFilterOptionsForColumns,
+  getEventsFilterOptionsForColumns,
+  getEventsGroupedByTraceTags,
+  getEventsMetadataValues,
+} from "../../repositories/events";
 
 const FIXED_PROJECT_ID = "golden-project";
 // Fixed so the captured scope-window params are deterministic across runs.
@@ -120,3 +125,38 @@ describeWithClickhouse(
     });
   },
 );
+
+describeWithClickhouse("golden: events sampled filter options", () => {
+  const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+
+  beforeEach(() => {
+    resetCaptures();
+    env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
+  });
+  afterAll(() => {
+    env.LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
+  });
+
+  it("getEventsGroupedByTraceTags", async () => {
+    await getEventsGroupedByTraceTags(FIXED_PROJECT_ID, []);
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it("getEventsFilterOptionsForColumns", async () => {
+    await getEventsFilterOptionsForColumns({
+      projectId: FIXED_PROJECT_ID,
+      filter: [],
+      columns: COLUMNS,
+    });
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it("getEventsMetadataValues", async () => {
+    await getEventsMetadataValues({
+      projectId: FIXED_PROJECT_ID,
+      filter: [],
+      key: "golden-key",
+    });
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+});

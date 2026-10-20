@@ -1,5 +1,149 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`golden: experiments legacy list reads > getExperimentItemsBatchIO 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": 1000,
+      "param2": "golden-project",
+      "param3": [
+        "golden-experiment",
+        "golden-experiment-b",
+      ],
+      "param4": [
+        "golden-item",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    leftUTF8(input, 1000) AS input,
+    leftUTF8(output, 1000) AS output,
+    leftUTF8(e.experiment_item_expected_output, {param1:UInt32}) AS expected_output,
+    e.experiment_item_id AS item_id,
+    e.experiment_id AS experiment_id
+FROM events_core AS e
+WHERE (e.project_id = {param2:String})
+    AND (e.experiment_id IN ({param3:Array(String)}))
+    AND (e.experiment_id != '')
+    AND (e.experiment_item_id IN ({param4:Array(String)}))
+    AND (e.experiment_item_root_span_id = e.span_id)
+ORDER BY
+    e.project_id DESC,
+    toStartOfMinute(e.start_time) DESC,
+    e.start_time DESC
+LIMIT 1 BY
+    e.experiment_item_id,
+    e.experiment_id",
+  },
+]
+`;
+
+exports[`golden: experiments legacy list reads > getExperimentItemsFromEvents 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-experiment",
+      "param3": "golden-experiment-b",
+      "param4": 50,
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    e.experiment_item_id AS item_id,
+    min(e.start_time) AS start_time
+FROM events_core AS e
+WHERE (e.project_id = {param1:String})
+    AND (e.span_id = e.experiment_item_root_span_id)
+    AND ((e.experiment_id = {param2:String}) OR (e.experiment_id = {param3:String}))
+GROUP BY e.experiment_item_id
+ORDER BY e.experiment_item_id ASC
+LIMIT {param4:Int32}",
+  },
+]
+`;
+
+exports[`golden: experiments legacy list reads > getExperimentItemsFromEvents filter=level 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": [
+        "golden-experiment",
+        "golden-experiment-b",
+      ],
+      "param3": "golden-experiment",
+      "param4": "golden-experiment-b",
+      "param5": [
+        "ERROR",
+      ],
+      "param6": 50,
+    },
+    "route": "unknown",
+    "sql": "WITH item_levels AS
+    (
+        SELECT
+            e.experiment_id AS experiment_id,
+            e.experiment_item_id AS experiment_item_id,
+            multiIf(
+                countIf(e.level = 'ERROR') > 0,
+                'ERROR',
+                countIf(e.level = 'WARNING') > 0,
+                'WARNING',
+                countIf(e.level = 'DEFAULT') > 0,
+                'DEFAULT',
+                'DEBUG'
+            ) AS aggregated_level
+        FROM events_core AS e
+        WHERE (e.project_id = {param1:String})
+            AND (e.experiment_id IN ({param2:Array(String)}))
+            AND (e.experiment_id != '')
+        GROUP BY
+            e.experiment_id,
+            e.experiment_item_id
+    )
+SELECT
+    e.experiment_item_id AS item_id,
+    min(e.start_time) AS start_time
+FROM events_core AS e
+LEFT JOIN item_levels AS il ON (il.experiment_id = e.experiment_id) AND (il.experiment_item_id = e.experiment_item_id)
+WHERE (e.project_id = {param1:String})
+    AND (e.span_id = e.experiment_item_root_span_id)
+    AND ((e.experiment_id = {param3:String}) OR ((e.experiment_id = {param4:String}) AND (il.aggregated_level IN ({param5:Array(String)}))))
+GROUP BY e.experiment_item_id
+ORDER BY e.experiment_item_id ASC
+LIMIT {param6:Int32}",
+  },
+]
+`;
+
+exports[`golden: experiments legacy list reads > getExperimentNamesFromEvents 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": 1000,
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    any(e.experiment_name) AS experimentName,
+    e.experiment_id AS experimentId,
+    nullIf(any(e.experiment_dataset_id), '') AS datasetId,
+    min(e.start_time) AS startTime
+FROM events_core AS e
+WHERE (e.project_id = {param1:String})
+    AND (e.experiment_name IS NOT NULL)
+    AND (length(e.experiment_name) > 0)
+GROUP BY e.experiment_id
+ORDER BY min(e.start_time) DESC
+LIMIT {param2:Int32}",
+  },
+]
+`;
+
 exports[`golden: experiments simple aggregates family > getDatasetExperimentMetricsFromEvents 1`] = `
 [
   {

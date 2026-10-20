@@ -41,13 +41,17 @@ import {
   getObservationMetricsForPromptsFromEvents,
   getObservationFullIOForSessionFromEventsTable,
   getObservationIOFieldByteLengthFromEventsTable,
+  getEventsNumericStatsByFilterColumn,
   getObservationsBatchIOFromEventsTable,
+  getObservationsCountFromEventsTableForPublicApi,
+  getObservationsFromEventsTableForPublicApi,
   getObservationsTraceIdsFromEventsTable,
   getObservationsV2FromEventsTableForPublicApi,
   getObservationsWithPromptNameFromEvents,
   getSessionMetricsFromEvents,
   getTraceByIdFromEventsTable,
   getTraceMetadataByIdsFromEvents,
+  getTracesCountFromEventsTableForPublicApi,
   getTracesFromEventsTableForPublicApi,
   getTracesIdentifierForSessionFromEvents,
   hasAnySessionFromEventsTable,
@@ -579,6 +583,63 @@ describeWithClickhouse("golden: events trace aggregation family", () => {
     await getTracesIdentifierForSessionFromEvents(
       FIXED_PROJECT_ID,
       FIXED_SESSION_IDS[0],
+    );
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+});
+
+describeWithClickhouse("golden: events legacy list reads", () => {
+  beforeEach(() => {
+    resetCaptures();
+  });
+
+  it("getTracesFromEventsTableForPublicApi", async () => {
+    await getTracesFromEventsTableForPublicApi({
+      projectId: FIXED_PROJECT_ID,
+      page: 1,
+      limit: 50,
+    });
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it("getTracesCountFromEventsTableForPublicApi", async () => {
+    // The harness returns no count row, so the wrapper throws after the exec seam.
+    await expect(
+      getTracesCountFromEventsTableForPublicApi({
+        projectId: FIXED_PROJECT_ID,
+        page: 1,
+        limit: 50,
+      }),
+    ).rejects.toThrow(TypeError);
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it("getObservationsFromEventsTableForPublicApi", async () => {
+    await getObservationsFromEventsTableForPublicApi({
+      projectId: FIXED_PROJECT_ID,
+      page: 1,
+      limit: 50,
+    });
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it("getObservationsCountFromEventsTableForPublicApi", async () => {
+    // The harness returns no count row, so the wrapper throws after the exec seam.
+    await expect(
+      getObservationsCountFromEventsTableForPublicApi({
+        projectId: FIXED_PROJECT_ID,
+        page: 1,
+        limit: 50,
+      }),
+    ).rejects.toThrow(TypeError);
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it("getEventsNumericStatsByFilterColumn", async () => {
+    await getEventsNumericStatsByFilterColumn(
+      FIXED_PROJECT_ID,
+      [],
+      "totalCost",
     );
     expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
   });

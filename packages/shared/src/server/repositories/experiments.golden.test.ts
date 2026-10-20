@@ -17,7 +17,10 @@ vi.mock("./clickhouse", async (importOriginal) => {
 // db -> server-barrel -> events import cycle before events.ts initializes.
 import {
   getDatasetExperimentMetricsFromEvents,
+  getExperimentItemsBatchIO,
+  getExperimentItemsFromEvents,
   getExperimentMetricsFromEvents,
+  getExperimentNamesFromEvents,
   getExperimentsCountFromEvents,
   getExperimentsFromEvents,
 } from "../index";
@@ -86,6 +89,63 @@ describeWithClickhouse("golden: experiments simple aggregates family", () => {
         },
       ],
     });
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+});
+
+describeWithClickhouse("golden: experiments legacy list reads", () => {
+  beforeEach(() => {
+    resetCaptures();
+  });
+
+  it("getExperimentItemsFromEvents", async () => {
+    await getExperimentItemsFromEvents({
+      projectId: FIXED_PROJECT_ID,
+      baseExperimentId: FIXED_EXPERIMENT_IDS[0],
+      compExperimentIds: [FIXED_EXPERIMENT_IDS[1]],
+      filterByExperiment: [],
+      limit: 50,
+      offset: 0,
+    });
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it("getExperimentItemsFromEvents filter=level", async () => {
+    await getExperimentItemsFromEvents({
+      projectId: FIXED_PROJECT_ID,
+      baseExperimentId: FIXED_EXPERIMENT_IDS[0],
+      compExperimentIds: [FIXED_EXPERIMENT_IDS[1]],
+      filterByExperiment: [
+        {
+          experimentId: FIXED_EXPERIMENT_IDS[1],
+          filters: [
+            {
+              column: "level",
+              type: "stringOptions",
+              operator: "any of",
+              value: ["ERROR"],
+            },
+          ],
+        },
+      ],
+      limit: 50,
+      offset: 0,
+    });
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it("getExperimentItemsBatchIO", async () => {
+    await getExperimentItemsBatchIO({
+      projectId: FIXED_PROJECT_ID,
+      itemIds: ["golden-item"],
+      baseExperimentId: FIXED_EXPERIMENT_IDS[0],
+      compExperimentIds: [FIXED_EXPERIMENT_IDS[1]],
+    });
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it("getExperimentNamesFromEvents", async () => {
+    await getExperimentNamesFromEvents({ projectId: FIXED_PROJECT_ID });
     expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
   });
 });
