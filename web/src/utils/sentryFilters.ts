@@ -743,6 +743,13 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
     }
   }
 
+  // Third-party CAPTCHA-solver injectors (YesCaptcha / CapSolver class)
+  // console.error when their Cloudflare task returns no token. Observed:
+  // LANGFUSE-645 (`/auth/sign-in`, capture_console, 0 users, AWS Boardman).
+  if (isCaptchaSolverCloudflareQueryTaskEvent(event)) {
+    return true;
+  }
+
   return false;
 }
 
@@ -1003,4 +1010,47 @@ export function isKitesurfInternalEvent(event: ErrorEvent): boolean {
     return false;
   }
   return sawKitesurfVendorFrame;
+}
+
+/**
+ * Vendor wording from CAPTCHA-solver scripts that poll a Cloudflare
+ * Turnstile / challenge task. `cloudflareQueryTask` is their route name,
+ * not a Langfuse identifier. Combined with the "no valid solution"
+ * phrase, this cannot be produced by our Turnstile widget or auth code.
+ */
+const CLOUDFLARE_QUERY_TASK_NO_SOLUTION =
+  "Query result returned no valid solution or future query";
+const CLOUDFLARE_QUERY_TASK_ROUTE = "cloudflareQueryTask";
+
+/**
+ * True for a third-party CAPTCHA solver logging that its Cloudflare task
+ * returned no token. Extra console args on the observed event were
+ * `Failed to solve CAPTCHA:` plus the Error; the stack is only anonymous
+ * `solveCaptcha` / `getTaskResult` / `queryResult`.
+ *
+ * Requires both vendor strings, no first-party `/_next/` frame, and
+ * either `capture_console` or a message-only console event. An
+ * app-captured exception (`generic` mechanism) or a first-party stack
+ * is KEPT — including our own Turnstile script-load / siteverify
+ * failures, which use different wording.
+ */
+function isCaptchaSolverCloudflareQueryTaskEvent(event: ErrorEvent): boolean {
+  const text = eventText(event);
+  if (
+    !text.includes(CLOUDFLARE_QUERY_TASK_NO_SOLUTION) ||
+    !text.includes(CLOUDFLARE_QUERY_TASK_ROUTE)
+  ) {
+    return false;
+  }
+
+  if (hasFirstPartyChunkFrame(event)) {
+    return false;
+  }
+
+  const mechanismType = event.exception?.values?.[0]?.mechanism?.type;
+  if (typeof mechanismType === "string") {
+    return mechanismType === "auto.core.capture_console";
+  }
+
+  return true;
 }
