@@ -32,6 +32,7 @@ import {
   createTopicRun,
   getTopicRun,
   saveTopicRun,
+  readCurrentTopicTraceIds,
 } from "@langfuse/shared/topics/server";
 import { clickhouseClient } from "@langfuse/shared/src/server/clickhouse";
 import { prisma } from "@langfuse/shared/src/db";
@@ -837,5 +838,71 @@ describe("Topics definition persistence", () => {
         to: new Date("2026-10-01T00:00:00.000Z"),
       }),
     ).toEqual([]);
+  });
+
+  it("filters traces by their current topic, skipping superseded, stale and unpublished assignments", async () => {
+    const [current, resummarized, reassigned, unpublished] = [
+      randomUUID(),
+      randomUUID(),
+      randomUUID(),
+      randomUUID(),
+    ];
+    const at = (traceId: string, processedAt = summary.processedAt) => ({
+      ...summary,
+      projectId: otherProjectId,
+      traceId,
+      processedAt,
+    });
+    await writeTopicSummaries([
+      at(current),
+      at(resummarized),
+      at(resummarized, "2026-09-02T00:00:00.000Z"),
+      at(reassigned),
+      at(unpublished),
+    ]);
+    const assign = (
+      traceId: string,
+      topicId: string,
+      overrides: Partial<TopicAssignment> = {},
+    ): TopicAssignment => ({
+      projectId: otherProjectId,
+      facetId: summary.facetId,
+      facetVersion: 1,
+      traceId,
+      sessionId: null,
+      environment: "default",
+      traceName: "trace",
+      unitStartTime: summary.unitStartTime,
+      summaryProcessedAt: summary.processedAt,
+      runId: null,
+      topicId,
+      topicVersionId: `${topicId}-v1`,
+      distance: null,
+      runnerUpDistance: null,
+      origin: "online",
+      coordinates: null,
+      assignedAt: "2026-09-01T00:00:00.000Z",
+      ...overrides,
+    });
+    await writeTopicAssignments([
+      assign(current, "match"),
+      assign(resummarized, "match"),
+      assign(reassigned, "match"),
+      assign(reassigned, "other", { assignedAt: "2026-09-03T00:00:00.000Z" }),
+      assign(unpublished, "match", { runId: "unpublished" }),
+    ]);
+
+    expect(
+      await readCurrentTopicTraceIds(
+        otherProjectId,
+        summary.facetId,
+        ["match"],
+        {
+          from: new Date("2026-08-31T00:00:00.000Z"),
+          to: new Date("2026-09-01T00:00:00.000Z"),
+        },
+        10,
+      ),
+    ).toEqual([current]);
   });
 });

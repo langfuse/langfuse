@@ -26,6 +26,7 @@ import {
 import { type ReactNode } from "react";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
 import { type Session } from "next-auth";
+import { canViewTopics } from "@/src/features/topics/topicsAccess";
 import { type OrganizationScope } from "@/src/features/rbac";
 import { SupportButton } from "@/src/components/nav/SupportButton";
 import { V4SidebarToggle } from "@/src/features/events";
@@ -72,6 +73,7 @@ export type Route = {
       | NonNullable<Session["user"]>["organizations"][number]
       | undefined;
     projectId: string | undefined;
+    session: Session | null;
     isLangfuseCloud: boolean;
     hasActiveCloudIncident: boolean;
     canToggleV4: boolean;
@@ -153,8 +155,8 @@ export const ROUTES: Route[] = [
     title: "Topics",
     href: "/project/[projectId]/topics",
     icon: Grid2X2,
-    featureFlag: "langfuseTopics",
-    projectRbacScopes: ["topics:read"],
+    show: ({ session, projectId }) =>
+      projectId !== undefined && canViewTopics(session, projectId),
     group: RouteGroup.Observability,
     section: RouteSection.Main,
   },

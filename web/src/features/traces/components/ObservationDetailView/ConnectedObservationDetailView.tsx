@@ -51,6 +51,8 @@ import {
 
 // Contexts and hooks
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { TraceTopicsTab } from "@/src/features/topics/trace/TraceTopicsTab";
+import { useTraceTopics } from "@/src/features/topics/trace/useTraceTopics";
 import { useParsedObservation } from "@/src/features/traces/hooks/useParsedObservation";
 import { api } from "@/src/utils/api";
 
@@ -104,6 +106,7 @@ export function ConnectedObservationDetailView({
     enableForAdmins: false,
   });
   const {
+    trace,
     observations,
     roots,
     nodeMap,
@@ -123,9 +126,11 @@ export function ConnectedObservationDetailView({
     isAnnotationMode,
   } = useViewPreferences();
 
+  const traceTopics = useTraceTopics(trace);
   // Tab visibility: hide Log View and Scores tabs in annotation mode
   const tabs = getDetailTabs({
     target: "observation",
+    hasTopics: traceTopics.length > 0,
     isV4: isV4Enabled,
     internalFeaturesEnabled,
     isAnnotationMode,
@@ -591,6 +596,16 @@ export function ConnectedObservationDetailView({
                     disableUrlPersistence={isPeekMode || isAnnotationMode}
                   />
                 </div>
+              </Tabs.Content>
+            ) : null}
+
+            {tabs.includes("topics") ? (
+              <Tabs.Content value="topics" layout="fill">
+                <TraceTopicsTab
+                  projectId={projectId}
+                  traceId={traceId}
+                  facets={traceTopics}
+                />
               </Tabs.Content>
             ) : null}
 

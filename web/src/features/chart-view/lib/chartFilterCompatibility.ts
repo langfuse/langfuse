@@ -188,6 +188,8 @@ export function chartSearchFieldReason(fieldName: string): string | null {
   // A metadata dot-path lowers to the keyed `stringObject` shape the chart
   // query accepts, so it deactivates only if the column policy says so.
   if (ref.type === "metadata") return chartFilterExclusionReason("metadata");
+  if (ref.type === "keyedOptions")
+    return chartFilterExclusionReason(ref.column);
   if (ref.type === "scores")
     return chartFilterExclusionReason(
       ref.level === "trace" ? "trace_scores_avg" : "scores_avg",

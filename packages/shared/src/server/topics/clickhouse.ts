@@ -44,8 +44,12 @@ const summarySourceKeySql =
 // outside that window. State, model and dimension filters apply after this check.
 // Candidate keys scope the metadata scan; a scalar facet_version predicate there
 // prevents ClickHouse from selecting the latest_source_versions projection.
-function latestSummaryFilterSql(scopeSql: string, latestKeySql = sourceKeySql) {
-  return `(${summaryVersionKeySql}) IN (
+function latestSummaryFilterSql(
+  scopeSql: string,
+  latestKeySql = sourceKeySql,
+  versionKeySql = summaryVersionKeySql,
+) {
+  return `(${versionKeySql}) IN (
     SELECT ${summaryVersionKeySql} FROM topic_facet_summaries
     WHERE project_id = {projectId:String}
       AND (${summarySourceKeySql}) IN (
@@ -384,9 +388,11 @@ export async function getLatestFacetSummaries(
   facetId: string,
   facetVersion: number | undefined,
   timeRange: TopicTimeRange,
+  traceIds?: string[],
 ) {
   const scopeSql = `facet_id = {facetId:String}
-    ${facetVersion ? "AND facet_version = {facetVersion:UInt32}" : ""}`;
+    ${facetVersion ? "AND facet_version = {facetVersion:UInt32}" : ""}
+    ${traceIds ? "AND trace_id IN {traceIds:Array(String)}" : ""}`;
   const rows = await queryClickhouse<
     Pick<
       TopicSummary,
@@ -415,6 +421,7 @@ export async function getLatestFacetSummaries(
       ...timeRangeParams(timeRange),
       facetId,
       ...(facetVersion ? { facetVersion } : {}),
+      ...(traceIds ? { traceIds } : {}),
     },
     tags: { route: "topics-latest-summaries", projectId },
   });
@@ -943,6 +950,7 @@ export async function readLatestTopicAssignments(
   projectId: string,
   facetId: string,
   timeRange: TopicTimeRange,
+  traceIds?: string[],
 ): Promise<TopicAssignment[]> {
   const publishedRuns = await prisma.topicClusteringRun.findMany({
     where: {
@@ -956,6 +964,7 @@ export async function readLatestTopicAssignments(
     query: `SELECT ${assignmentColumns} FROM topic_assignments
       WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND facet_id = {facetId:String}
         AND (clustering_run_id = '' OR clustering_run_id IN ({publishedRunIds:Array(String)}))
+        ${traceIds ? "AND trace_id IN {traceIds:Array(String)}" : ""}
       ORDER BY facet_version DESC, assigned_at DESC, clustering_run_id DESC, origin DESC
       LIMIT 1 BY project_id, facet_id, trace_id, if(trace_id = '', session_id, '')`,
     params: {
@@ -963,8 +972,98 @@ export async function readLatestTopicAssignments(
       ...timeRangeParams(timeRange),
       facetId,
       publishedRunIds: publishedRuns.map(({ id }) => id),
+      ...(traceIds ? { traceIds } : {}),
     },
     tags: { route: "topics-current-assignments", projectId },
   });
   return rows.map(assignmentResult);
+}
+
+// Same rule as readLatestTopicAssignments + currentTopicResults: the newest assignment
+// per trace counts only while it still points at the trace's latest summary.
+const currentTraceAssignmentsSql = `SELECT trace_id, unit_start_time, topic_id FROM (
+    SELECT * FROM topic_assignments
+    WHERE project_id = {projectId:String} AND ${unitTimeFilterSql}
+      AND facet_id = {facetId:String} AND trace_id != ''
+      AND (clustering_run_id = '' OR clustering_run_id IN ({publishedRunIds:Array(String)}))
+    ORDER BY facet_version DESC, assigned_at DESC, clustering_run_id DESC, origin DESC
+    LIMIT 1 BY project_id, facet_id, trace_id
+  ) WHERE ${latestSummaryFilterSql(
+    "facet_id = {facetId:String} AND trace_id != ''",
+    summarySourceKeySql,
+    "facet_id, facet_version, trace_id, if(trace_id = '', session_id, ''), unit_start_time, summary_processed_at",
+  )}`;
+
+async function publishedTopicRunIds(projectId: string, facetId: string) {
+  const runs = await prisma.topicClusteringRun.findMany({
+    where: { projectId, facetId, status: "completed" },
+    select: { id: true },
+  });
+  return runs.map(({ id }) => id);
+}
+
+/** Traces whose current assignment for the facet is one of the stable topic ids. */
+export async function readCurrentTopicTraceIds(
+  projectId: string,
+  facetId: string,
+  topicIds: string[],
+  timeRange: TopicTimeRange,
+  limit: number,
+): Promise<string[]> {
+  const rows = await queryClickhouse<{ traceId: string }>({
+    query: `SELECT trace_id AS traceId FROM (${currentTraceAssignmentsSql})
+      WHERE topic_id IN {topicIds:Array(String)} LIMIT {limit:UInt64}`,
+    params: {
+      projectId,
+      ...timeRangeParams(timeRange),
+      facetId,
+      publishedRunIds: await publishedTopicRunIds(projectId, facetId),
+      topicIds,
+      limit,
+    },
+    tags: { route: "topics-current-trace-ids", projectId },
+  });
+  return rows.map((row) => row.traceId);
+}
+
+/** Daily trace counts and the most recent member traces of one topic. */
+export async function getTopicActivity(
+  projectId: string,
+  facetId: string,
+  topicId: string,
+  timeRange: TopicTimeRange,
+  {
+    excludeTraceId,
+    exampleCount,
+  }: { excludeTraceId: string; exampleCount: number },
+) {
+  const params = {
+    projectId,
+    ...timeRangeParams(timeRange),
+    facetId,
+    publishedRunIds: await publishedTopicRunIds(projectId, facetId),
+    topicId,
+    excludeTraceId,
+    exampleCount,
+  };
+  const [daily, examples] = await Promise.all([
+    queryClickhouse<{ day: string; count: string }>({
+      query: `SELECT toString(toDate(unit_start_time)) AS day, count() AS count
+        FROM (${currentTraceAssignmentsSql}) WHERE topic_id = {topicId:String}
+        GROUP BY day ORDER BY day`,
+      params,
+      tags: { route: "topics-activity-daily", projectId },
+    }),
+    queryClickhouse<{ traceId: string }>({
+      query: `SELECT trace_id AS traceId FROM (${currentTraceAssignmentsSql})
+        WHERE topic_id = {topicId:String} AND trace_id != {excludeTraceId:String}
+        ORDER BY unit_start_time DESC LIMIT {exampleCount:UInt64}`,
+      params,
+      tags: { route: "topics-activity-examples", projectId },
+    }),
+  ]);
+  return {
+    daily: daily.map((row) => ({ day: row.day, count: Number(row.count) })),
+    exampleTraceIds: examples.map((row) => row.traceId),
+  };
 }

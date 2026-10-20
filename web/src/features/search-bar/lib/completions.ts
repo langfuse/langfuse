@@ -248,6 +248,15 @@ function fieldOptions(
     });
   }
   if (includeVirtual) {
+    for (const namespace of Object.keys(registry.keyedOptionNamespaces ?? {})) {
+      opts.push({
+        id: `field:${namespace}.`,
+        kind: "field",
+        label: `${namespace}.`,
+        detail: `${namespace} by key, e.g. ${namespace}.<key>:<value>`,
+        fieldId: `${namespace}.`,
+      });
+    }
     for (const namespace of Object.keys(registry.metadataNamespaces ?? {})) {
       opts.push({
         id: `field:${namespace}.`,
@@ -422,6 +431,31 @@ function matchingFilterOptions(
           replaceSpan: span,
         },
       });
+    }
+  }
+  for (const [namespace, column] of Object.entries(
+    registry.keyedOptionNamespaces ?? {},
+  )) {
+    for (const key of observedValues(observed, column)) {
+      for (const o of observedValues(observed, `${column}.${key.value}`)) {
+        const v = o.value.toLowerCase();
+        const rank =
+          v === q ? 0 : v.startsWith(q) ? 1 : v.includes(q) ? 2 : null;
+        if (rank === null) continue;
+        const insert = `${namespace}.${quoteIfNeeded(key.value)}:${serializeValue(o.value)}`;
+        ranked.push({
+          rank,
+          count: o.count ?? 0,
+          option: {
+            id: `match:${insert}`,
+            kind: "pattern",
+            label: insert,
+            detail: `${namespace}: ${key.value}`,
+            insert,
+            replaceSpan: span,
+          },
+        });
+      }
     }
   }
   ranked.sort((a, b) => a.rank - b.rank || b.count - a.count);
@@ -701,9 +735,10 @@ function pathKindOf(
   registry: FieldRegistry,
 ): { kind: PathKind; typedKey: string } | null {
   const lower = keyPart.toLowerCase();
-  for (const [namespace, column] of Object.entries(
-    registry.metadataNamespaces ?? {},
-  )) {
+  for (const [namespace, column] of Object.entries({
+    ...registry.metadataNamespaces,
+    ...registry.keyedOptionNamespaces,
+  })) {
     const prefix = `${namespace}.`;
     if (lower.startsWith(prefix.toLowerCase())) {
       return {
@@ -968,6 +1003,23 @@ function valueStageSections(input: ValueStageInput): {
         ],
         loading: false,
       };
+    }
+
+    case "keyedOptions": {
+      const all = observedValues(observed, `${ref.column}.${ref.key}`).map(
+        (o) => ({
+          id: `value:${o.value}`,
+          kind: "value" as const,
+          label: o.value,
+          value: o.value,
+        }),
+      );
+      return all.length > 0
+        ? {
+            sections: section(SECTION_VALUES, valueOptions(all, typed)),
+            loading: false,
+          }
+        : null;
     }
 
     case "scores": {

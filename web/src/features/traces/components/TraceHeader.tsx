@@ -23,6 +23,14 @@ import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
 import { cn } from "@/src/utils/tailwind";
+import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
+import { TraceTopicBadges } from "@/src/features/topics/trace/TraceTopicBadges";
+import { TraceTopicsHoverCard } from "@/src/features/topics/trace/TraceTopicsHoverCard";
+import { TraceTopicsSummaryStrip } from "@/src/features/topics/trace/TraceTopicsSummaryStrip";
+import {
+  useTraceTopics,
+  useTraceTopicsHeaderVariant,
+} from "@/src/features/topics/trace/useTraceTopics";
 
 const MAX_VISIBLE_TAGS = 3;
 
@@ -67,6 +75,10 @@ function TraceHeaderLoading() {
 function LoadedTraceHeader() {
   const { trace, observations, mergedScores } = useTraceData();
   const [showAllTags, setShowAllTags] = useState(false);
+  const topicFacets = useTraceTopics(trace);
+  const [topicsVariant] = useTraceTopicsHeaderVariant();
+  const { setSelectedTab } = useSelection();
+  const openTopicsTab = () => setSelectedTab("topics");
 
   const aggregatedMetrics = useMemo(
     () => aggregateTraceMetrics(observations),
@@ -114,6 +126,16 @@ function LoadedTraceHeader() {
         {trace.userId && (
           <UserIdBadge userId={trace.userId} projectId={trace.projectId} />
         )}
+        {topicFacets.length > 0 && topicsVariant === "card" && (
+          <TraceTopicsHoverCard
+            projectId={trace.projectId}
+            facets={topicFacets}
+            onOpenTopicsTab={openTopicsTab}
+          />
+        )}
+        {topicFacets.length > 0 && topicsVariant === "badges" && (
+          <TraceTopicBadges projectId={trace.projectId} facets={topicFacets} />
+        )}
         {(traceScores.length > 0 || trace.tags.length > 0) && (
           <div className="flex min-w-0 flex-wrap items-center gap-1">
             {traceScores.length > 0 && (
@@ -141,6 +163,12 @@ function LoadedTraceHeader() {
           </div>
         )}
       </CollapsibleBadgeRow>
+      {topicFacets.length > 0 && topicsVariant === "strip" && (
+        <TraceTopicsSummaryStrip
+          facets={topicFacets}
+          onOpenTopicsTab={openTopicsTab}
+        />
+      )}
     </TraceHeaderFrame>
   );
 }

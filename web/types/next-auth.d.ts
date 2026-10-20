@@ -50,6 +50,7 @@ declare module "next-auth" {
               deletedAt: PrismaProject["deletedAt"];
               retentionDays: PrismaProject["retentionDays"];
               hasTraces: PrismaProject["hasTraces"];
+              topicsEnabled?: boolean; // deployment allowlist, resolved server-side; absent = off
               metadata: Record<string, unknown>;
               role: Role; // include only projects where user has a role
               createdAt: string; // iso datetime string — JWT does not support Date objects
