@@ -45,8 +45,11 @@ function resolveTopicResult(
 export async function currentTopicResults(
   projectId: string,
   timeRange: TopicTimeRange,
+  facetIds?: string[],
 ) {
-  const facets = await listTopicFacets(projectId);
+  const facets = (await listTopicFacets(projectId)).filter(
+    (facet) => !facetIds || facetIds.includes(facet.id),
+  );
   const hasStoredSummaries =
     facets.length > 0 && (await hasStoredTopicSummaries(projectId));
   if (!hasStoredSummaries) return { hasStoredSummaries, facets: [] };
@@ -149,6 +152,11 @@ export async function currentTopicResults(
               topicByVersion.get(topic.assignment.topicVersionId ?? "");
             return {
               id,
+              versionId:
+                definition?.topicVersionId ??
+                topic.assignment.topicVersionId ??
+                "",
+              runId: definition?.createdByRunId ?? topic.assignment.runId ?? "",
               name: definition?.name ?? "Unavailable topic",
               description: definition?.description ?? "",
               count: topic.count,
@@ -160,6 +168,7 @@ export async function currentTopicResults(
               runId: run.id,
               topics: run.topics.map((topic) => ({
                 id: topic.topicId,
+                versionId: topic.topicVersionId,
                 name: topic.name,
                 description: topic.description,
               })),

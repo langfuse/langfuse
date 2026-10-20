@@ -1135,12 +1135,16 @@ describe("Topics current results", () => {
       expect.arrayContaining([
         {
           id: "retained",
+          versionId: "retained",
+          runId: "old-map-retained",
           name: "Specific refund issues",
           description: "Current description",
           count: 1,
         },
         {
           id: "retired",
+          versionId: "retired-new",
+          runId: "old-map-retired-new",
           name: "Old retired-new",
           description: "Historical retired-new",
           count: 2,
