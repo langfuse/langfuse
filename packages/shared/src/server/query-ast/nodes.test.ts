@@ -792,10 +792,10 @@ describe("ARRAY JOIN and LIMIT BY nodes", () => {
       .select("environment")
       .where("project_id", "=", "proj-1")
       .$call(
-        arrayJoin({
-          cost_key: mapKeys("cost_details"),
-          cost: mapValues("cost_details"),
-        }),
+        arrayJoin((eb) => ({
+          cost_key: mapKeys(eb.ref("cost_details")),
+          cost: mapValues(eb.ref("cost_details")),
+        })),
       );
 
     const node = qb
@@ -817,7 +817,9 @@ describe("ARRAY JOIN and LIMIT BY nodes", () => {
       .selectFrom("observations")
       .select("environment")
       .where("project_id", "=", "proj-1")
-      .$call(arrayJoin({ cost_key: mapKeys("cost_details") }));
+      .$call(
+        arrayJoin((eb) => ({ cost_key: mapKeys(eb.ref("cost_details")) })),
+      );
 
     const { sql: compiled } = compileClickhouseQuery(qb, projectId);
     expect(compiled.toLowerCase()).toContain("array join");
@@ -831,7 +833,12 @@ describe("ARRAY JOIN and LIMIT BY nodes", () => {
       .selectFrom("events_core")
       .select("span_id")
       .where("project_id", "=", "proj-1")
-      .$call(limitBy({ count: 1, columns: ["span_id", "project_id"] }));
+      .$call(
+        limitBy({
+          count: 1,
+          columns: (eb) => [eb.ref("span_id"), eb.ref("project_id")],
+        }),
+      );
 
     const node = qb
       .withPlugin(new TenancyInjectionPlugin(projectId))
@@ -844,13 +851,40 @@ describe("ARRAY JOIN and LIMIT BY nodes", () => {
     expect(node.limitBy!.count.kind).toBe("ValueNode");
   });
 
+  it("emits the ARRAY JOIN variant", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("observations")
+      .select("environment")
+      .$call(
+        arrayJoin(
+          (eb) => ({ cost_key: mapKeys(eb.ref("cost_details")) }),
+          "left",
+        ),
+      );
+
+    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
+    expect(compiled.toLowerCase()).toContain(
+      "left array join mapkeys(cost_details) as cost_key",
+    );
+  });
+
+  it("emits the LIMIT BY count", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("events_core")
+      .select("span_id")
+      .$call(limitBy({ count: 2, columns: (eb) => [eb.ref("span_id")] }));
+
+    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
+    expect(compiled.toLowerCase()).toContain("limit 2 by span_id");
+  });
+
   it("emits LIMIT BY before a plain LIMIT", () => {
     const qb = getClickhouseKysely()
       .selectFrom("events_core")
       .select("span_id")
       .where("project_id", "=", "proj-1")
       .limit(50)
-      .$call(limitBy({ count: 1, columns: ["span_id"] }));
+      .$call(limitBy({ count: 1, columns: (eb) => [eb.ref("span_id")] }));
 
     const { sql: compiled } = compileClickhouseQuery(qb, projectId);
     const lower = compiled.toLowerCase();

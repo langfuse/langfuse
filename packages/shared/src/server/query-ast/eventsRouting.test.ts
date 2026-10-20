@@ -332,7 +332,7 @@ describe("logical events routing", () => {
         db
           .selectFrom("events")
           .select("span_id")
-          .$call(limitBy({ count: 1, columns: ["input"] })),
+          .$call(limitBy({ count: 1, columns: (eb) => [eb.ref("input")] })),
       ),
     ).toThrow(QueryCompileError);
     expect(() =>
@@ -340,7 +340,7 @@ describe("logical events routing", () => {
         db
           .selectFrom("events")
           .select("span_id")
-          .$call(limitBy({ count: 1, columns: ["*"] })),
+          .$call(limitBy({ count: 1, columns: () => [sql.ref("*")] })),
       ),
     ).toThrow(QueryCompileError);
   });
@@ -548,7 +548,9 @@ describe("logical events routing of metadata predicates", () => {
             .selectFrom("events as e")
             .select("e.span_id")
             .where((eb) => eb(metadataValue("e", "k"), "=", "x"))
-            .$call(limitBy({ count: 1, columns: ["e.span_id"] })),
+            .$call(
+              limitBy({ count: 1, columns: (eb) => [eb.ref("e.span_id")] }),
+            ),
         ),
       ),
     ).toEqual(["events_core"]);
