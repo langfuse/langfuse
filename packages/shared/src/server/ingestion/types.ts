@@ -1,7 +1,7 @@
 import isEmpty from "lodash/isEmpty";
 import { z } from "zod";
 
-import { NonEmptyString, jsonSchema } from "../../utils/zod";
+import { isoDateTime, NonEmptyString, jsonSchema } from "../../utils/zod";
 import { ModelUsageUnit } from "../../constants";
 import { ScoreSourceType } from "../../domain";
 import { TEXT_SCORE_MAX_LENGTH } from "../../domain/scores";
@@ -40,7 +40,7 @@ const MixedUsage = z.object({
   totalCost: z.number().nullish(),
 });
 
-export const stringDateTime = z.iso.datetime({ offset: true }).nullish();
+export const stringDateTime = isoDateTime({ offset: true }).nullish();
 
 export const usage = MixedUsage.nullish()
   // transform mixed usage model input to new one
@@ -641,7 +641,7 @@ const createAllIngestionSchemas = ({
       BaseScoreBody.extend(
         z.object({
           value: z.union([z.string(), z.number()]),
-          dataType: z.undefined(),
+          dataType: z.undefined().optional(),
           configId: z.string().nullish(),
         }).shape,
       ),
@@ -669,7 +669,7 @@ const createAllIngestionSchemas = ({
   // Event schemas
   const base = z.object({
     id: idSchema,
-    timestamp: z.iso.datetime({ offset: true }),
+    timestamp: isoDateTime({ offset: true }),
     metadata: jsonSchema.nullish(),
   });
 

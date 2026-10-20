@@ -1,4 +1,4 @@
-import { InvalidRequestError } from "@langfuse/shared";
+import { isoDateTime, InvalidRequestError } from "@langfuse/shared";
 import { executeQuery } from "@langfuse/shared/query/server";
 import {
   dimension,
@@ -124,16 +124,12 @@ const MetricsQueryObjectV2BaseSchema = z.object({
       granularity: publicGranularities,
     })
     .optional(),
-  fromTimestamp: z.iso
-    .datetime({ offset: true })
-    .describe(
-      "Required start of the analytics time range, as an ISO 8601 timestamp with timezone (Z or an explicit offset). Must be before toTimestamp.",
-    ),
-  toTimestamp: z.iso
-    .datetime({ offset: true })
-    .describe(
-      "Required end of the analytics time range, as an ISO 8601 timestamp with timezone. Must be after fromTimestamp. timeDimension.granularity controls aggregation buckets; it does not replace these explicit time bounds.",
-    ),
+  fromTimestamp: isoDateTime({ offset: true }).describe(
+    "Required start of the analytics time range, as an ISO 8601 timestamp with timezone (Z or an explicit offset). Must be before toTimestamp.",
+  ),
+  toTimestamp: isoDateTime({ offset: true }).describe(
+    "Required end of the analytics time range, as an ISO 8601 timestamp with timezone. Must be after fromTimestamp. timeDimension.granularity controls aggregation buckets; it does not replace these explicit time bounds.",
+  ),
   orderBy: z
     .array(
       z.object({
