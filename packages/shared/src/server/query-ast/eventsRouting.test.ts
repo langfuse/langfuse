@@ -65,7 +65,7 @@ describe("logical events routing", () => {
           .where("e.trace_id", "=", "t"),
       ),
     ).toMatchInlineSnapshot(
-      `"select e.span_id, e.name from events_core as e where e.project_id = {p1:String} and e.is_deleted = {p2:UInt8} and e.trace_id = {p3:String}"`,
+      `"select e.span_id, e.name from events_core as e where e.project_id = {p1:String} and e.is_deleted = 0 and e.trace_id = {p2:String}"`,
     );
   });
 
@@ -414,7 +414,7 @@ describe("logical events routing", () => {
           .where("span_id", "=", "s"),
       ),
     ).toMatchInlineSnapshot(
-      `"select events.span_id from events_core as events where events.project_id = {p1:String} and events.is_deleted = {p2:UInt8} and span_id = {p3:String}"`,
+      `"select events.span_id from events_core as events where events.project_id = {p1:String} and events.is_deleted = 0 and span_id = {p2:String}"`,
     );
   });
 

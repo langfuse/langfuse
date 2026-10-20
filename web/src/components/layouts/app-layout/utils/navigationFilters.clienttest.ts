@@ -71,3 +71,43 @@ it.each([
     expect(applyNavigationFilters([route], context, undefined)).toEqual([]);
   },
 );
+
+it.each([
+  { topicsEnabled: true, visible: true },
+  { topicsEnabled: false, visible: false },
+])(
+  "shows the Topics entry only when the gate passes for the current project (allowlisted: $topicsEnabled)",
+  ({ topicsEnabled, visible }) => {
+    const route = ROUTES.find((route) => route.title === "Topics")!;
+    const project = { id: "project-1", role: "VIEWER", topicsEnabled };
+    const organization = {
+      id: "org-1",
+      role: "VIEWER",
+      projects: [project],
+    } as unknown as NonNullable<Session["user"]>["organizations"][number];
+    const context: NavigationFilterContext = {
+      routerProjectId: "project-1",
+      routerOrganizationId: undefined,
+      session: {
+        user: {
+          admin: false,
+          featureFlags: testFeatureFlags({ langfuseTopics: true }),
+          organizations: [organization],
+        },
+      } as Session,
+      enableExperimentalFeatures: false,
+      internalFeaturesEnabled: false,
+      cloudAdmin: false,
+      entitlements: [],
+      uiCustomization: null,
+      isLangfuseCloud: true,
+      hasActiveCloudIncident: false,
+      forceV3Experience: false,
+      currentPath: "/project/project-1",
+    };
+
+    expect(applyNavigationFilters([route], context, organization)).toEqual(
+      visible ? [route] : [],
+    );
+  },
+);

@@ -42,7 +42,16 @@ export type ChColumnType =
   | "Array(String)"
   | "Map(String, UInt64)"
   | "Map(String, Decimal(18,12))"
-  | "Map(String, String)";
+  | "Map(String, String)"
+  | "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String))"
+  | "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String, filePath String))";
+
+/** One `skills_available` element, read as an object keyed by tuple name. */
+type SkillRef = {
+  langfuseSkillId: string | null;
+  skillVersion: number | null;
+  skillName: string;
+};
 
 /**
  * Logical TS type of a column: the value a caller binds, and what a result
@@ -76,7 +85,11 @@ type TsTypeOfColumn<T extends ChColumnType> = T extends "String"
                     ? Record<string, number>
                     : T extends "Map(String, String)"
                       ? Record<string, string>
-                      : never;
+                      : T extends "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String))"
+                        ? SkillRef[]
+                        : T extends "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String, filePath String))"
+                          ? (SkillRef & { filePath: string })[]
+                          : never;
 
 /** Coarse runtime category the aggregate type-check pass reasons about. */
 export type ColumnDataType = "string" | "number" | "date" | "array" | "map";
@@ -99,6 +112,10 @@ const RUNTIME_TYPE: Record<ChColumnType, ColumnDataType> = {
   "Map(String, UInt64)": "map",
   "Map(String, Decimal(18,12))": "map",
   "Map(String, String)": "map",
+  "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String))":
+    "array",
+  "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String, filePath String))":
+    "array",
 };
 
 /**
@@ -227,6 +244,10 @@ const EVENTS_COLUMNS = {
   created_at: "DateTime64(6)",
   updated_at: "DateTime64(6)",
   ingestion_api_key: "String",
+  skills_available:
+    "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String))",
+  skills_resource_loaded:
+    "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String, filePath String))",
 } as const satisfies Record<string, ChColumnType>;
 
 /**
@@ -405,6 +426,10 @@ const BIND_TYPE: Record<ChColumnType, string> = {
   "Map(String, UInt64)": "Map(String, UInt64)",
   "Map(String, Decimal(18,12))": "Map(String, Decimal(18, 12))",
   "Map(String, String)": "Map(String, String)",
+  "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String))":
+    "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String))",
+  "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String, filePath String))":
+    "Array(Tuple(langfuseSkillId Nullable(String), skillVersion Nullable(UInt32), skillName String, filePath String))",
 };
 
 /** Bind type per column, per registry table. */

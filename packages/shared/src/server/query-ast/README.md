@@ -152,7 +152,10 @@ suffix to run there. Promote it to a required check once it has proven stable.
 - **Inline code constants with `literal(...)`, bind everything else.**
   `eb("level", "=", literal("ERROR"))` renders `level = 'ERROR'`; a value that
   comes from a caller is a plain bind, `eb("level", "=", level)`. `literal`
-  rejects backslashes and must never receive user input.
+  rejects backslashes and must never receive user input. For a constant `IN`
+  list, wrap each item: `eb("data_type", "in", TYPES.map((t) => literal(t)))`
+  renders `data_type in ('A', 'B')`. A list that mixes `literal(...)` items
+  with bound values is rejected.
 - **Registry types are logical, not wire types.** `DateTime64` is `Date` and
   `UInt64` is `number` so binds type-check, but query results arrive as raw
   JSON (dates as strings). Type rows with a read schema and convert them; do

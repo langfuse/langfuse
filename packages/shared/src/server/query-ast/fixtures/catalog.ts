@@ -71,7 +71,7 @@ export const CATALOG: CatalogEntry[] = [
     referenceSql: `
       SELECT DISTINCT environment
       FROM events_core
-      WHERE (project_id = {p1:String}) AND (events_core.is_deleted = {pd:UInt8})
+      WHERE (project_id = {p1:String}) AND (events_core.is_deleted = 0)
     `,
     build: () =>
       db().selectFrom("events_core").select("environment").distinct(),
@@ -123,7 +123,7 @@ export const CATALOG: CatalogEntry[] = [
     referenceSql: `
       SELECT DISTINCT environment
       FROM events_core
-      WHERE (project_id = {p1:String}) AND (events_core.is_deleted = {pd:UInt8}) AND (start_time >= {p2:DateTime64(6)})
+      WHERE (project_id = {p1:String}) AND (events_core.is_deleted = 0) AND (start_time >= {p2:DateTime64(6)})
     `,
     build: () =>
       db()
@@ -138,7 +138,7 @@ export const CATALOG: CatalogEntry[] = [
     referenceSql: `
       SELECT environment, count(*) AS n
       FROM events_core
-      WHERE (project_id = {p1:String}) AND (events_core.is_deleted = {pd:UInt8})
+      WHERE (project_id = {p1:String}) AND (events_core.is_deleted = 0)
       GROUP BY environment
     `,
     build: () =>
@@ -216,7 +216,7 @@ export const CATALOG: CatalogEntry[] = [
       WITH prompt_events AS (
         SELECT trace_id, span_id
         FROM events_core
-        WHERE (project_id = {p1:String}) AND (events_core.is_deleted = {pd:UInt8})
+        WHERE (project_id = {p1:String}) AND (events_core.is_deleted = 0)
       )
       SELECT s.id
       FROM scores AS s
@@ -268,7 +268,7 @@ export const CATALOG: CatalogEntry[] = [
     referenceSql: `
       SELECT span_id, project_id
       FROM events_core
-      WHERE (project_id = {p1:String}) AND (events_core.is_deleted = {pd:UInt8})
+      WHERE (project_id = {p1:String}) AND (events_core.is_deleted = 0)
       ORDER BY event_ts DESC
       LIMIT 1 BY span_id, project_id
     `,
@@ -290,7 +290,7 @@ export const CATALOG: CatalogEntry[] = [
     referenceSql: `
       SELECT span_id, rank() OVER (PARTITION BY trace_id ORDER BY start_time DESC) AS rk
       FROM events_core
-      WHERE (project_id = {p1:String}) AND (events_core.is_deleted = {pd:UInt8})
+      WHERE (project_id = {p1:String}) AND (events_core.is_deleted = 0)
     `,
     build: () =>
       db()
@@ -316,10 +316,10 @@ export const CATALOG: CatalogEntry[] = [
     referenceSql: `
       SELECT e.span_id
       FROM events_core AS e
-      WHERE (e.project_id = {p1:String}) AND (e.is_deleted = {pd:UInt8}) AND (e.event_ts = (
+      WHERE (e.project_id = {p1:String}) AND (e.is_deleted = 0) AND (e.event_ts = (
         SELECT max(inner.event_ts) AS m
         FROM events_core AS inner
-        WHERE (inner.project_id = {p1:String}) AND (inner.is_deleted = {pd:UInt8}) AND (inner.trace_id = e.trace_id)
+        WHERE (inner.project_id = {p1:String}) AND (inner.is_deleted = 0) AND (inner.trace_id = e.trace_id)
       ))
     `,
     build: () =>
@@ -346,7 +346,7 @@ export const CATALOG: CatalogEntry[] = [
     referenceSql: `
       SELECT mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))[{p1:String}] AS model, count(*) AS n
       FROM events_core AS e
-      WHERE (e.project_id = {p2:String}) AND (e.is_deleted = {pd:UInt8})
+      WHERE (e.project_id = {p2:String}) AND (e.is_deleted = 0)
       GROUP BY model
     `,
     build: () =>
@@ -391,7 +391,7 @@ export const CATALOG: CatalogEntry[] = [
     referenceSql: `
       SELECT DISTINCT environment
       FROM events_core
-      WHERE (project_id = {p1:String}) AND (events_core.is_deleted = {pd:UInt8})
+      WHERE (project_id = {p1:String}) AND (events_core.is_deleted = 0)
     `,
     build: () => environmentsVariant({ writeMode: "events" }),
   },
@@ -402,7 +402,7 @@ export const CATALOG: CatalogEntry[] = [
     referenceSql: `
       SELECT DISTINCT environment
       FROM events_core
-      WHERE (project_id = {p1:String}) AND (events_core.is_deleted = {pd:UInt8}) AND (start_time >= {p2:DateTime64(6)})
+      WHERE (project_id = {p1:String}) AND (events_core.is_deleted = 0) AND (start_time >= {p2:DateTime64(6)})
     `,
     build: () =>
       environmentsVariant({ writeMode: "events", fromTimestamp: FROM_TS }),
