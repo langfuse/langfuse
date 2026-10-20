@@ -127,9 +127,16 @@ export const slackRouter = createTRPCRouter({
           slackService.getChannels(client, input.cursor),
           // Private channels are not paginated; add them to the first page only
           !input.cursor && viewerSlackUserId
-            ? slackService.getPrivateChannels(client, {
-                slackUserId: viewerSlackUserId,
-              })
+            ? slackService
+                .getPrivateChannels(client, { slackUserId: viewerSlackUserId })
+                // A failed private lookup must not hide the public channels.
+                .catch((error) => {
+                  logger.warn("Failed to fetch private Slack channels", {
+                    error,
+                    projectId: input.projectId,
+                  });
+                  return null;
+                })
             : null,
         ]);
         const channels = [

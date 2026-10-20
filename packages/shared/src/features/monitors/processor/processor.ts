@@ -524,9 +524,9 @@ export function buildDataWindowPermalink(
     showAllEnvironments: "true",
   });
   const href = `${base}/project/${projectId}/scores?${query.toString()}`;
-  // Slack button URLs are limited to 3000 characters. Dropping predicates to
-  // shorten a link would show scores outside the evaluated query.
-  return href.length <= 3000 ? href : undefined;
+  // Slack renders this next to the monitor link in one 3000-character section.
+  // Dropping predicates to shorten a link would show scores outside the evaluated query.
+  return href.length <= 2700 ? href : undefined;
 }
 
 /** toMonitorWebhookInputs fans an alert out to one webhook input per matched automation. */

@@ -73,6 +73,18 @@ describe("buildColoredAttachmentSlackMessage", () => {
     );
   });
 
+  // Slack rejects the message if a section's text exceeds 3000 characters.
+  it("drops a secondary link that would overflow the section", () => {
+    const blocks = buildColoredAttachmentSlackMessage({
+      ...base,
+      secondaryUrl: `https://cloud.langfuse.com/y?q=${"a".repeat(2990)}`,
+    }).attachments![0].blocks!;
+    const linkText: string = blocks.at(-1).text.text;
+    expect(linkText.length).toBeLessThanOrEqual(3000);
+    expect(linkText).toContain(`<${base.url}|View in Langfuse>`);
+    expect(linkText).not.toContain("View data");
+  });
+
   it("omits the secondary link when secondaryUrl is absent", () => {
     const blocks =
       buildColoredAttachmentSlackMessage(base).attachments![0].blocks!;

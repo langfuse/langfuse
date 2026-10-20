@@ -513,8 +513,9 @@ export class SlackService {
         return { channels: [], hasPrivateChannelAccess: false };
       }
       logger.error("Failed to fetch private Slack channels", { error });
-      throw new Error(
+      throw new SlackApiError(
         `Failed to fetch private channels: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error?.data?.error,
       );
     }
     return { channels, hasPrivateChannelAccess: true };
@@ -535,7 +536,9 @@ export class SlackService {
     | { access: "private"; channel: SlackChannel }
     | { access: "denied" }
   > {
-    const key = params.channel.replace(/^#/, "");
+    const key = params.channel.trim().replace(/^#/, "");
+    // Slack channel names are lowercase but name lookups ignore case.
+    const name = key.toLowerCase();
     // Archived channels are included so they can't bypass the check.
     const botChannels = await this.getPrivateChannels(params.client, {
       includeArchived: true,
@@ -553,7 +556,7 @@ export class SlackService {
     }
 
     const privateChannel = botChannels.channels.find(
-      (channel) => channel.id === key || channel.name === key,
+      (channel) => channel.id === key || channel.name.toLowerCase() === name,
     );
     if (!privateChannel) return { access: "public" };
     if (!params.viewerSlackUserId) return { access: "denied" };

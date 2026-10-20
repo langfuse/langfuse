@@ -315,6 +315,32 @@ describe("Slack Integration", () => {
         ]);
       });
 
+      it("still lists public channels when the private lookup fails", async () => {
+        mockSlackService.getChannels.mockResolvedValue({
+          channels: [{ id: "C123456", name: "general", isPrivate: false }],
+        });
+        const client = createSlackClient();
+        client.users.conversations.mockRejectedValue(
+          Object.assign(new Error("user_not_found"), {
+            data: { error: "user_not_found" },
+          }),
+        );
+        mockSlackService.getWebClientForProject.mockResolvedValue(client);
+        const { caller, project } = await prepare();
+        await createIntegration(project.id, {
+          installerUserId: "user-1",
+          installerSlackUserId: INSTALLER_SLACK_USER_ID,
+        });
+
+        const result = await caller.slack.getChannels({
+          projectId: project.id,
+        });
+
+        expect(result.channels.map((channel) => channel.name)).toEqual([
+          "general",
+        ]);
+      });
+
       it("never lists private channels for users other than the installer", async () => {
         mockSlackService.getChannels.mockResolvedValue({
           channels: [{ id: "C123456", name: "general", isPrivate: false }],
@@ -506,8 +532,32 @@ describe("Slack Integration", () => {
         expect(await errorFor(installerPrivateChannel.id)).toBe(
           SLACK_CHANNEL_NOT_FOUND_MESSAGE,
         );
+        expect(await errorFor(" #Installer-Private")).toBe(
+          SLACK_CHANNEL_NOT_FOUND_MESSAGE,
+        );
         // Only the non-existent channel reached Slack.
         expect(mockSlackService.sendMessage).toHaveBeenCalledTimes(1);
+      });
+
+      it("reports a revoked token from the private-channel check as an auth failure", async () => {
+        const client = createSlackClient();
+        client.users.conversations.mockRejectedValue(
+          Object.assign(new Error("token_revoked"), {
+            data: { error: "token_revoked" },
+          }),
+        );
+        mockSlackService.getWebClientForProject.mockResolvedValue(client);
+        const { caller, project } = await prepare();
+        await createIntegration(project.id, null);
+
+        await expect(
+          caller.slack.sendTestMessage({
+            projectId: project.id,
+            channelId: "C123456",
+          }),
+        ).rejects.toThrow(
+          "Slack authentication failed. Please reconnect your Slack workspace.",
+        );
       });
 
       it("lets the installer test only private channels they are a member of", async () => {
