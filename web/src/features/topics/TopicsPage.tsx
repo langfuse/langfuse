@@ -57,7 +57,6 @@ import { AutomaticProcessingDialogController } from "./AutomaticProcessingDialog
 import { ConfigureTopicsDialogController } from "./ConfigureTopicsDialogController";
 import { TopicSetupNotice } from "./TopicSetupNotice";
 import { CurrentTopics, useCurrentTopics } from "./CurrentTopics";
-import { TopicsFilters } from "./TopicsFilters";
 import { TopicsActionsMenu } from "./TopicsActionsMenu";
 import { TopicsWorkspaceGate } from "./TopicsWorkspaceGate";
 import { isValidTopicTimeRange } from "./time-range";
@@ -408,16 +407,9 @@ function TopicsWorkspaceContent({
           <Page
             headerProps={{
               title: "Topics",
-              help:
-                resultsView === "map"
-                  ? {
-                      description:
-                        "Explore recurring themes across traces, one facet at a time.",
-                    }
-                  : undefined,
               actionButtonsLeft: showOnboarding ? null : (
                 <div className="flex items-center gap-3">
-                  {resultsView !== "map" && validTimeRange && headerFacetId ? (
+                  {validTimeRange && headerFacetId ? (
                     <TopicsFacetTabs
                       facets={results.data?.facets ?? []}
                       selectedFacet={headerFacetId}
@@ -493,8 +485,8 @@ function TopicsWorkspaceContent({
             )}
             <div
               className={cn(
-                "ph-no-capture flex min-h-0 flex-1 flex-col gap-2 overflow-hidden p-2",
-                resultsView !== "map" && !showOnboarding && "p-0",
+                "ph-no-capture flex min-h-0 flex-1 flex-col gap-2 overflow-hidden",
+                showOnboarding && "p-2",
               )}
             >
               {isTimeRangeCapped && (
@@ -519,7 +511,6 @@ function TopicsWorkspaceContent({
                 onKeepOff={automaticProcessing.clearPause}
                 onTurnBackOn={turnAutomaticProcessingBackOn}
                 showOnboarding={showOnboarding}
-                showModelsNotice={resultsView === "map"}
                 configured={configured}
                 canProcess={canWrite}
                 automaticEnabled={automaticProcessing.state.status === "on"}
@@ -621,24 +612,18 @@ function TopicsWorkspaceContent({
                   widthStorageKey="topicsPeekViewWidthFraction"
                 />
                 {validTimeRange && !showOnboarding && (
-                  <TopicsFilters
-                    facets={results.data?.facets ?? []}
-                    selectedFacetId={selectedFacetId}
-                    onSelectFacet={traceFilters.selectFacet}
-                    showTabs={resultsView === "map"}
-                  >
+                  <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
                     <CurrentTopics
                       projectId={projectId}
                       timeRange={currentTimeRange}
                       result={results}
                       selectedFacetId={selectedFacetId}
                       view={resultsView}
-                      traceFilters={traceFilters}
                       tracePanelRef={setTracePanel}
                       onGenerateTopics={openTopicGeneration}
                       canGenerateTopics={canWrite && !running && configured}
                     />
-                  </TopicsFilters>
+                  </div>
                 )}
                 {facets.isLoading && <p>Loading facets…</p>}
                 {facets.error && (

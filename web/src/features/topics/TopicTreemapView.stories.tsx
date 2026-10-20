@@ -75,6 +75,42 @@ const meta = preview.meta({
 
 export const Default = meta.story({});
 
+const sentimentTopics = [
+  { label: "Positive", name: "Praise for quick answers", count: 48 },
+  { label: "Neutral", name: "Routine status checks", count: 36 },
+  { label: "Mixed", name: "Helpful but slow replies", count: 22 },
+  { label: "Negative", name: "Frustration with wrong results", count: 17 },
+].map((topic, index) => ({
+  ...topic,
+  id: `sentiment-${index}`,
+  description: "",
+}));
+
+export const SentimentTones = meta.story({
+  name: "Sentiment colors by answer label",
+  args: {
+    facet: {
+      ...facet,
+      facetId: "sentiment",
+      name: "Sentiment",
+      topics: sentimentTopics,
+      rows: sentimentTopics.flatMap((topic) =>
+        Array.from({ length: topic.count }, (_, index) => ({
+          traceId: `${topic.id}-trace-${index}`,
+          summary: `${topic.label}: ${topic.name.toLowerCase()} ${index + 1}`,
+          topicId: topic.id,
+          topicName: topic.name,
+          outcome: "assigned" as const,
+          facetVersion: 1,
+          unitStartTime: new Date(
+            Date.now() - index * 7 * 60_000,
+          ).toISOString(),
+        })),
+      ),
+    },
+  },
+});
+
 export const SelectTopic = meta.story({
   name: "(Test) Selecting a tile lists its traces",
   play: async ({ canvasElement }) => {

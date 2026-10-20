@@ -6,11 +6,9 @@ import { getQueryKey } from "@trpc/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { isValidTopicTimeRange } from "./time-range";
-import { CurrentTopicsView } from "./CurrentTopicsView";
 import { TopicGridView } from "./TopicGridView";
 import { TopicTreemapView } from "./TopicTreemapView";
 import { type TopicsResultsView } from "./TopicsResultsViewSelect";
-import type { useTopicTraceFilters } from "./useTopicTraceFilters";
 
 export function CurrentTopics({
   projectId,
@@ -19,7 +17,6 @@ export function CurrentTopics({
   selectedFacetId,
   view,
   tracePanelRef,
-  traceFilters,
   onGenerateTopics,
   canGenerateTopics,
 }: CurrentTopicsProps) {
@@ -51,7 +48,6 @@ export function CurrentTopics({
           timeRange={timeRange}
           view={view}
           tracePanelRef={tracePanelRef}
-          traceFilters={traceFilters}
           onGenerateTopics={onGenerateTopics}
           canGenerateTopics={canGenerateTopics}
         />
@@ -66,7 +62,6 @@ function CurrentFacet({
   timeRange,
   view,
   tracePanelRef,
-  traceFilters,
   onGenerateTopics,
   canGenerateTopics,
 }: CurrentFacetProps) {
@@ -92,26 +87,12 @@ function CurrentFacet({
         peekView={peekView}
       />
     );
-  if (view === "grid")
-    return (
-      <TopicGridView
-        projectId={projectId}
-        facet={facet}
-        mapResult={mapResult}
-        tracePanelRef={tracePanelRef}
-        onGenerateTopics={onGenerateTopics}
-        canGenerateTopics={canGenerateTopics}
-        onOpenTrace={peekNavigation.openPeek}
-        peekView={peekView}
-      />
-    );
   return (
-    <CurrentTopicsView
+    <TopicGridView
       projectId={projectId}
       facet={facet}
       mapResult={mapResult}
       tracePanelRef={tracePanelRef}
-      traceFilters={traceFilters}
       onGenerateTopics={onGenerateTopics}
       canGenerateTopics={canGenerateTopics}
       onOpenTrace={peekNavigation.openPeek}
@@ -179,7 +160,6 @@ type CurrentTopicsProps = {
   selectedFacetId: string | undefined;
   view: TopicsResultsView;
   tracePanelRef?: (element: HTMLElement | null) => void;
-  traceFilters: ReturnType<typeof useTopicTraceFilters>;
   onGenerateTopics: () => void;
   canGenerateTopics: boolean;
 };
@@ -190,7 +170,6 @@ type CurrentFacetProps = {
   timeRange: TopicTimeRange;
   view: TopicsResultsView;
   tracePanelRef?: (element: HTMLElement | null) => void;
-  traceFilters: ReturnType<typeof useTopicTraceFilters>;
   onGenerateTopics: () => void;
   canGenerateTopics: boolean;
 };

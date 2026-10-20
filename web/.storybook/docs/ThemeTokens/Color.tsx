@@ -42,6 +42,7 @@ type SectionId =
   | "qlang"
   | "sidebar"
   | "findMatch"
+  | "topics"
   | "other";
 
 /**
@@ -67,6 +68,7 @@ const SECTION_MATCHERS: Array<{
   { id: "qlang", test: (n) => n.startsWith("--qlang-") },
   { id: "sidebar", test: (n) => n.startsWith("--sidebar-") },
   { id: "findMatch", test: (n) => n.startsWith("--find-match-") },
+  { id: "topics", test: (n) => /^--(?:topic|category)-/.test(n) },
   { id: "controls", test: (n) => n.startsWith("--control-") },
   {
     id: "brand",
@@ -137,6 +139,12 @@ const VISIBLE_SECTIONS: SectionDef[] = [
     id: "sidebar",
     title: "Sidebar",
     blurb: "Side navigation chrome, nav-item states and its hairline.",
+  },
+  {
+    id: "topics",
+    title: "Topic fills",
+    blurb:
+      "Topics treemap hues plus Sentiment and Outcome tone tint / highlight.",
   },
 ];
 

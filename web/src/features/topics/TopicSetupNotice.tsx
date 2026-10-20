@@ -13,7 +13,6 @@ type TopicSetupNoticeProps = {
   onKeepOff: () => void;
   onTurnBackOn: () => void;
   showOnboarding?: boolean;
-  showModelsNotice?: boolean;
   configured?: boolean;
   canProcess?: boolean;
   automaticEnabled?: boolean;
@@ -31,7 +30,6 @@ export function TopicSetupNotice({
   onKeepOff,
   onTurnBackOn,
   showOnboarding = notice.status?.kind === "setup",
-  showModelsNotice = true,
   configured = false,
   canProcess = false,
   automaticEnabled = false,
@@ -145,18 +143,6 @@ export function TopicSetupNotice({
             ]}
           />
         </div>
-      ) : null}
-      {status?.kind === "models" && showModelsNotice && !showOnboarding ? (
-        <Alert variant="info">
-          <Alert.Title>Choose the models Topics runs on</Alert.Title>
-          <Alert.Description>
-            <p>
-              Topics uses your LLM connections for three jobs: facet summaries,
-              embeddings, and topic clustering. Open Configure Topics to set all
-              three.
-            </p>
-          </Alert.Description>
-        </Alert>
       ) : null}
     </>
   );

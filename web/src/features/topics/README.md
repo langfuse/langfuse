@@ -6,48 +6,18 @@ sidebar, direct page, and Topics API also require deployment enablement and
 project permissions. Processing additionally requires the project allowlist.
 
 - `TopicsPage.tsx` owns facet configuration, the execution history drawer,
-  the current-results query and facet selection. A compact header keeps the facet
-  picker, time range and processing action on one row; configuration, history and
-  refresh live in the overflow menu. `CurrentTopics.tsx` owns the map query and
-  trace navigation; `CurrentTopicsView.tsx` presents the selected
-  facet in independently scrolling, resizable panels: map and groups on the left,
-  traces on the right. Both splits use the shared `useDefaultLayout` helper with
-  localStorage preferences shared across facets and projects, with separate
-  map-height preferences for desktop and narrow layouts. Narrow views keep
-  the resizable map above Topics/Traces tabs, with readable
-  summary rows on phones and all processing controls in the mobile overflow
-  menu. Selecting a group filters traces without changing the active tab.
-  Map clicks select a trace without opening peek. `CurrentTopicsView` keeps
-  that trace ID in project-scoped sessionStorage, shared across facets, and
-  highlights its map point and table row. Selection changes reveal the trace's
-  table page and follow it through result refreshes until the user paginates.
-  Clearing selection preserves the current page. Filtered-out map points cannot
-  replace selection; filters can hide a selection without discarding it. Table row
-  and trace-link clicks select the trace and open peek.
-  `useTopicTraceFilters.ts` owns URL-backed facet selection; filters and search
-  live only in localStorage, scoped to each project/facet. Switching facets
-  restores that facet's state, defaulting to unfiltered on first visit. Filter
-  and search URL parameters are neither read nor written.
-  `TopicsTraceToolbar.tsx` uses the shared search bar for topic, assignment, and
-  text filtering. `topic-trace-filters.ts` owns its registry and local evaluation:
-  literal phrase search across summaries, topic names and trace IDs, OR within
-  a selection and AND between fields. Filtering applies before pagination.
-  Saved topic IDs absent from current options remain editable as unavailable
-  topics; their matching semantics are preserved across date-range changes.
-  Table results determine matching map IDs without changing saved positions or
-  the camera; nonmatching dots remain faint and inspectable. The map reports
-  its own matching count because its saved cohort can differ from current rows.
-  Fit/Home/Escape retain table filters; editing or removing search tokens updates
-  the same saved facet state. Search actions reuse metadata-only filter analytics with
-  `tableName: topics` and `isV4: false`. Query text and topic names remain
-  blocked from replay by the shared search bar.
-  "Visualize as" beside the facet tabs switches results between Treemap
-  (default), Grid and Map, remembered in localStorage
-  (`TopicsResultsViewSelect.tsx`). Treemap sizes one tile per topic by trace
-  count; Grid snaps the saved map projection onto one square per trace (sampled
-  above 1,000). Both list the selected topic's traces in `TopicTraceList`, with
-  an Open in Tracing link limited to those trace IDs. Sentiment and Outcome
-  color topics by their answer label (`topic-map-colors.ts`).
+  the current-results query and facet selection. The header shows the facet
+  tabs, then "Visualize as" (`TopicsResultsViewSelect.tsx`) with Treemap
+  (default) and Grid, remembered in localStorage; time range and processing
+  actions sit on the right, configuration and history in the overflow menu.
+  `CurrentTopics.tsx` owns the map query (Grid only) and trace navigation.
+  Treemap sizes one tile per topic by trace count, traces below; Grid snaps the
+  saved map projection onto one square per trace (sampled above 1,000), legend
+  under it and traces on the right. Both list the selected topic's traces in
+  `TopicTraceList`, with an Open in Tracing link limited to those trace IDs.
+  Sentiment and Outcome color topics by their answer label
+  (`topic-map-colors.ts`). `useTopicTraceFilters.ts` owns URL-backed facet
+  selection.
   Peek defaults to the trace panel width and has its own resize preference.
   The results workspace stays mounted, including
   while a run's status is open. Execution URL parameters open progress, errors

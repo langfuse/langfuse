@@ -1,7 +1,7 @@
+import { type RouterOutputs } from "@/src/utils/api";
 import {
   useMemo,
   useState,
-  type ComponentProps,
   type MouseEvent,
   type PointerEvent,
   type ReactNode,
@@ -21,7 +21,6 @@ import {
   facetTopicTones,
   orderedFacetTopics,
 } from "./facet-topics";
-import { type TopicEmbeddingMap } from "./TopicEmbeddingMap";
 import { topicColor, topicToneColor } from "./topic-map-colors";
 import {
   layoutTopicGrid,
@@ -537,7 +536,10 @@ function clamp(value: number, min: number, max: number) {
 type TopicGridViewProps = {
   projectId: string;
   facet: Facet;
-  mapResult: ComponentProps<typeof TopicEmbeddingMap>["query"];
+  mapResult: {
+    data?: RouterOutputs["topics"]["map"];
+    error: { message: string } | null;
+  };
   onOpenTrace: (traceId: string) => void;
   peekView: DataTablePeekViewProps;
   tracePanelRef?: (element: HTMLElement | null) => void;
