@@ -3,7 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   handlers: new Map<string, (...args: unknown[]) => void>(),
   processor: undefined as
-    | ((job: { data: unknown; timestamp: number }) => Promise<unknown>)
+    | ((job: {
+        data: unknown;
+        timestamp: number;
+        attemptsMade?: number;
+        attemptsStarted?: number;
+      }) => Promise<unknown>)
     | undefined,
   legacyRecordGauge: vi.fn(),
   legacyRecordHistogram: vi.fn(),
@@ -102,7 +107,11 @@ describe("WorkerManager queue metrics", () => {
     await Promise.resolve();
 
     expect(mocks.recordIncrement.mock.calls).toEqual([
-      ["langfuse.queue.trace_delete.rate", 1, { type: "request" }],
+      [
+        "langfuse.queue.trace_delete.rate",
+        1,
+        { type: "request", attempt: "first" },
+      ],
     ]);
     expect(
       mocks.recordDistribution.mock.calls.map(([metric, _value, tags]) => [
@@ -112,7 +121,7 @@ describe("WorkerManager queue metrics", () => {
     ).toEqual([
       [
         "langfuse.queue.trace_delete.time_distribution",
-        { type: "wait", unit: "milliseconds" },
+        { type: "wait", attempt: "first", unit: "milliseconds" },
       ],
       [
         "langfuse.queue.trace_delete.time_distribution",
@@ -139,6 +148,29 @@ describe("WorkerManager queue metrics", () => {
       ["langfuse.queue.trace_delete.rate", 1, { type: "error" }],
       ["langfuse.queue.trace_delete.rate", 1, { type: "stalled" }],
     ]);
+  });
+
+  it("tags a retry's request and records no wait sample for it", async () => {
+    // Own queue name: register() no-ops on the statically registered one above.
+    WorkerManager.register("dataset-delete" as never, async () => "processed");
+
+    await mocks.processor!({
+      data: { payload: { projectId: "project-id" } },
+      timestamp: Date.now() - 3_600_000,
+      attemptsMade: 1,
+      attemptsStarted: 2,
+    });
+
+    expect(mocks.recordIncrement.mock.calls).toEqual([
+      [
+        "langfuse.queue.dataset_delete.rate",
+        1,
+        { type: "request", attempt: "retry" },
+      ],
+    ]);
+    expect(
+      mocks.recordDistribution.mock.calls.map(([, , tags]) => tags.type),
+    ).toEqual(["processing"]);
   });
 
   it("emits a rate counter for completed jobs but not for active ones", () => {

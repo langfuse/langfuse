@@ -1,5 +1,5 @@
-import { expressionBuilder, sql } from "kysely";
-import { describe, expect, it } from "vitest";
+import { expressionBuilder, sql, type ExpressionBuilder } from "kysely";
+import { describe, expect, expectTypeOf, it } from "vitest";
 
 import { compileClickhouseQuery, renderClickhouseExpression } from "./compile";
 import { getClickhouseKysely } from "./dialect";
@@ -10,13 +10,19 @@ import {
 } from "./errors";
 import {
   arrayExists,
+  arrayLength,
   arrayMap,
+  count,
+  countIf,
+  latestNonEmpty,
   leftUTF8,
   literal,
   mapValue,
+  medianExact,
   metadataMap,
   metadataValue,
-  traceSessionId,
+  uniq,
+  uniqIf,
 } from "./extensions";
 import { ArrayIndexNode } from "./nodes";
 import type { ClickHouseDatabase } from "./schema";
@@ -24,6 +30,12 @@ import { TenancyInjectionPlugin } from "./tenancy";
 import { defineView, fromView } from "./views";
 
 const projectId = "proj-1";
+
+const eventsMetadata = (
+  eb: ExpressionBuilder<{ e: ClickHouseDatabase["events_core"] }, "e">,
+  key: string,
+) =>
+  metadataValue(eb.ref("e.metadata_names"), eb.ref("e.metadata_values"), key);
 
 describe("schema-typed selection (condition 7)", () => {
   it("accepts sum() over a numeric column and emits SQL", () => {
@@ -59,8 +71,8 @@ describe("metadata subscript access (condition 7b)", () => {
   it("lowers metadata[key] to ArrayIndexNode + mapFromArrays FunctionNode, not RawNode", () => {
     const qb = getClickhouseKysely()
       .selectFrom("events_core as e")
-      .select((_eb) => [metadataValue("e", "a").as("a")])
-      .where((eb) => eb(metadataValue("e", "a"), "=", "x"));
+      .select((eb) => [eventsMetadata(eb, "a").as("a")])
+      .where((eb) => eb(eventsMetadata(eb, "a"), "=", "x"));
 
     const node = qb
       .withPlugin(new TenancyInjectionPlugin(projectId))
@@ -81,8 +93,8 @@ describe("metadata subscript access (condition 7b)", () => {
   it("emits subscript + bound key param in SELECT and WHERE", () => {
     const qb = getClickhouseKysely()
       .selectFrom("events_core as e")
-      .select((_eb) => [metadataValue("e", "a").as("a")])
-      .where((eb) => eb(metadataValue("e", "a"), "=", "x"));
+      .select((eb) => [eventsMetadata(eb, "a").as("a")])
+      .where((eb) => eb(eventsMetadata(eb, "a"), "=", "x"));
 
     const { sql: compiled, params } = compileClickhouseQuery(qb, projectId);
     const lower = compiled.toLowerCase();
@@ -100,7 +112,7 @@ describe("metadata subscript access (condition 7b)", () => {
       .selectFrom("events_core as e")
       .select("environment")
       .groupBy("environment")
-      .having((eb) => eb(metadataValue("e", "a"), "=", "x"));
+      .having((eb) => eb(eventsMetadata(eb, "a"), "=", "x"));
 
     const { sql: compiled, params } = compileClickhouseQuery(qb, projectId);
     expect(compiled.toLowerCase()).toContain("having");
@@ -108,6 +120,71 @@ describe("metadata subscript access (condition 7b)", () => {
       "mapfromarrays(arrayreverse(e.metadata_names), arrayreverse(e.metadata_values))[",
     );
     expect(Object.values(params)).toContain("a");
+  });
+
+  // The routing pass keeps a short metadata `=` / `startsWith` on events_core
+  // by trusting the lookup's marker, so the lookup may only read the metadata
+  // columns of one relation.
+  describe("rejects a lookup over anything but one relation's metadata columns", () => {
+    const eb = expressionBuilder<
+      { e: ClickHouseDatabase["events_core"] },
+      "e"
+    >();
+    it.each([
+      // Any expression, not only `input`: the pass doesn't walk the
+      // arguments, so a column inside `values` would escape routing.
+      [
+        "an expression as values",
+        () =>
+          metadataValue(
+            eb.ref("e.metadata_names"),
+            arrayMap<string, string>(
+              () => eb.ref("e.input"),
+              eb.ref("e.metadata_names"),
+            ),
+            "k",
+          ),
+      ],
+      // Unqualified, the pass can't resolve which relation it reads.
+      [
+        "unqualified columns",
+        () =>
+          metadataValue(
+            eb.ref("metadata_names"),
+            eb.ref("metadata_values"),
+            "k",
+          ),
+      ],
+      // Swapped, the map's keys would be the values.
+      [
+        "swapped columns",
+        () =>
+          metadataValue(
+            eb.ref("e.metadata_values"),
+            eb.ref("e.metadata_names"),
+            "k",
+          ),
+      ],
+    ])("%s", (_, build) => {
+      expect(build).toThrow(QueryCompileError);
+    });
+
+    it("rejects names and values from two relations", () => {
+      const joined = expressionBuilder<
+        {
+          e: ClickHouseDatabase["events_core"];
+          f: ClickHouseDatabase["events_core"];
+        },
+        "e" | "f"
+      >();
+      expect(() =>
+        metadataValue(
+          joined.ref("e.metadata_names"),
+          joined.ref("f.metadata_values"),
+          "k",
+        ),
+      ).toThrow(QueryCompileError);
+    });
   });
 });
 
@@ -239,9 +316,11 @@ describe("renderClickhouseExpression", () => {
     expect(renderClickhouseExpression(metadata)).toBe(
       "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))",
     );
-    expect(renderClickhouseExpression(traceSessionId())).toBe(
-      "argMaxIf(session_id, event_ts, session_id != '')",
-    );
+    expect(
+      renderClickhouseExpression(
+        latestNonEmpty(eb.ref("session_id"), eb.ref("event_ts")),
+      ),
+    ).toBe("argMaxIf(session_id, event_ts, session_id != '')");
   });
 
   it("rejects a subquery", () => {
@@ -263,6 +342,31 @@ describe("renderClickhouseExpression", () => {
     expect(() => renderClickhouseExpression(mapValue(metadata, "key"))).toThrow(
       /cannot bind parameters/,
     );
+  });
+});
+
+describe("64-bit results", () => {
+  const eb = expressionBuilder<{ e: ClickHouseDatabase["events_core"] }, "e">();
+  const isError = eb("e.level", "=", literal("ERROR"));
+
+  // ClickHouse 25.8+ (Langfuse v4 needs 25.12) sends (U)Int64 as JSON numbers.
+  it("types count and length results as number", () => {
+    expectTypeOf(count().expressionType).toEqualTypeOf<number | undefined>();
+    expectTypeOf(countIf(isError).expressionType).toEqualTypeOf<
+      number | undefined
+    >();
+    expectTypeOf(uniq(eb.ref("e.trace_id")).expressionType).toEqualTypeOf<
+      number | undefined
+    >();
+    expectTypeOf(
+      uniqIf(eb.ref("e.trace_id"), isError).expressionType,
+    ).toEqualTypeOf<number | undefined>();
+    expectTypeOf(arrayLength(eb.ref("e.tags")).expressionType).toEqualTypeOf<
+      number | undefined
+    >();
+    expectTypeOf(
+      medianExact(eb.ref("e.total_cost")).expressionType,
+    ).toEqualTypeOf<number | undefined>();
   });
 });
 

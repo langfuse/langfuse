@@ -76,6 +76,7 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
   const { TOPICS_TRANSCRIPT_VERSION, TOPIC_EMBEDDING_EXPIRED_ERROR } =
     await importOriginal<typeof import("@langfuse/shared/topics/server")>();
   return {
+    getTopicTextResponseMetadata: () => undefined,
     isTopicsEnabled: () => true,
     getTopicsModels: async () => {
       const slot = (name: string, model: string) => ({
@@ -1103,17 +1104,104 @@ describe("Topics execution", () => {
     expect(state.name).not.toHaveBeenCalled();
   });
 
-  it("fails only the trace whose model output is unusable", async () => {
-    state.summarize.mockRejectedValueOnce(
-      new TopicsProviderUnavailable("No object generated.", "invalid_output"),
+  it.each(["invalid_output", "content_filter"] as const)(
+    "fails only the trace whose model output is %s",
+    async (reason) => {
+      state.summarize.mockRejectedValueOnce(
+        new TopicsProviderUnavailable("No object generated.", reason),
+      );
+      await processSelection("invalid-output", 3);
+      expect(state.executions.get("invalid-output")?.status).toBe(
+        "completed_with_errors",
+      );
+      expect(
+        state.executions.get("invalid-output")?.facets[0].counts,
+      ).toMatchObject({ complete: 2, failed: 1 });
+    },
+  );
+
+  it("publishes filtered naming groups and later retries their labels without changing membership", async () => {
+    const facets = [facet, { ...facet, facetId: "sibling" }];
+    state.executions.set("source", execution("source", 100, "process", facets));
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: "source",
+    });
+    state.name.mockRejectedValueOnce(
+      new TopicsProviderUnavailable(
+        "The model filtered this response.",
+        "content_filter",
+      ),
     );
-    await processSelection("invalid-output", 3);
-    expect(state.executions.get("invalid-output")?.status).toBe(
-      "completed_with_errors",
+    state.executions.set(
+      "filtered",
+      execution("filtered", 0, "update", facets),
     );
-    expect(
-      state.executions.get("invalid-output")?.facets[0].counts,
-    ).toMatchObject({ complete: 2, failed: 1 });
+
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: "filtered",
+    });
+
+    const completed = state.executions.get("filtered")!;
+    expect(completed).toMatchObject({
+      status: "completed_with_errors",
+      facets: [
+        {
+          outcome: "published",
+          error: expect.any(String),
+          counts: { assigned: 100, outlier: 0, failed: 0 },
+        },
+        {
+          outcome: "published",
+          error: null,
+          counts: { assigned: 100, outlier: 0, failed: 0 },
+        },
+      ],
+    });
+    expect(state.name).toHaveBeenCalledTimes(4);
+    const published = state.runs.get(completed.facets[0].runId!)!;
+    expect(published.status).toBe("completed");
+    expect(published.topics).toHaveLength(2);
+    const placeholder = published.topics.find(
+      (topic) => topic.metadata.namingFailure === "content_filter",
+    )!;
+    const named = published.topics.find((topic) => topic !== placeholder)!;
+    expect(placeholder).toMatchObject({
+      name: expect.any(String),
+      description: expect.stringMatching(/filter/i),
+    });
+    expect(placeholder.name).not.toBe(named.name);
+    // Definition readback must match after metadata passes through JSON storage.
+    expect(JSON.parse(JSON.stringify(placeholder))).toStrictEqual(placeholder);
+    const assignments = [...state.assignments.values()].filter(
+      (row) => row.runId === published.id,
+    );
+    expect(assignments).toHaveLength(100);
+    for (const topic of published.topics)
+      expect(
+        assignments.filter((row) => row.topicId === topic.topicId),
+      ).toHaveLength(50);
+
+    state.name.mockClear();
+    await updateSelection("retry-label");
+
+    expect(state.name).toHaveBeenCalledOnce();
+    const retried = [...state.runs.values()].at(-1)!;
+    expect(state.executions.get("retry-label")?.status).toBe("completed");
+    expect(retried.topics).toContainEqual(named);
+    const relabeled = retried.topics.find(
+      (topic) => topic.topicId === placeholder.topicId,
+    )!;
+    expect(relabeled.metadata.namingFailure).toBeUndefined();
+    expect(relabeled.topicVersionId).not.toBe(placeholder.topicVersionId);
+    expect(relabeled.centroid).toEqual(placeholder.centroid);
+    expect(relabeled.radius).toBe(placeholder.radius);
+    const membership = (runId: string) =>
+      [...state.assignments.values()]
+        .filter((row) => row.runId === runId)
+        .map(({ traceId, topicId }) => ({ traceId, topicId }));
+    expect(membership(retried.id)).toEqual(membership(published.id));
   });
 
   it.each(["summary call", "reuse lookup"])(
@@ -1156,7 +1244,9 @@ describe("Topics execution", () => {
     const naming = state.name.getMockImplementation()!;
     state.name
       .mockImplementationOnce(naming)
-      .mockRejectedValueOnce(new Error("Naming unavailable"));
+      .mockRejectedValueOnce(
+        new TopicsProviderUnavailable("Naming unavailable", "invalid_output"),
+      );
     await updateSelection("retry");
     const failed = [...state.runs.values()].at(-1)!;
     expect(failed.status).toBe("failed");

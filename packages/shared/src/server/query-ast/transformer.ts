@@ -1,5 +1,4 @@
 import {
-  AliasNode,
   OperationNodeTransformer,
   SelectQueryNode,
   TableNode,
@@ -15,9 +14,9 @@ import {
   ArrayIndexNode,
   FinalTableNode,
   LimitByNode,
-  unwrapFinalTable,
   type ClickHouseSelectQueryNode,
 } from "./nodes";
+import { selectRelations } from "./relations";
 
 /**
  * Transformer that knows the ClickHouse extra fields on SelectQueryNode.
@@ -300,12 +299,7 @@ function relationNames(
   }
   // The rest of this select (FROM, JOIN, WHERE, …) sees all of its CTEs.
   const inner = new Set([...shadowed, ...declared]);
-  const relations = [
-    ...(value.from?.froms ?? []),
-    ...(value.joins ?? []).map((join) => join.table),
-  ];
-  for (const relation of relations) {
-    const table = relationTable(relation);
+  for (const { table } of selectRelations(value)) {
     const name = table?.table.identifier.name;
     if (table && name && !table.table.schema && !inner.has(name)) {
       found.add(name);
@@ -320,10 +314,4 @@ function relationNames(
 
 function isOperationNode(value: object): value is OperationNode {
   return "kind" in value && typeof value.kind === "string";
-}
-
-function relationTable(node: OperationNode): TableNode | undefined {
-  if (FinalTableNode.is(node)) return relationTable(unwrapFinalTable(node));
-  if (AliasNode.is(node)) return relationTable(node.node);
-  return TableNode.is(node) ? node : undefined;
 }

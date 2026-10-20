@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   Check,
   Copy,
+  EyeOff,
   Gauge,
   Plus,
   ScanText,
@@ -32,7 +33,7 @@ import { DEFAULT_GATEWAY_INGESTION_PROJECT_NAME } from "@/src/features/ai-gatewa
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { cn } from "@/src/utils/tailwind";
 
-type IngestionMode = "USAGE" | "FULL";
+export type IngestionMode = "NONE" | "USAGE" | "FULL";
 type Project = {
   id: string;
   name: string;
@@ -45,6 +46,12 @@ const ingestionModes: Array<{
   description: string;
   icon: IconComponent;
 }> = [
+  {
+    value: "NONE",
+    title: "None",
+    description: "Route requests without capturing anything in Langfuse.",
+    icon: EyeOff,
+  },
   {
     value: "USAGE",
     title: "Usage",
@@ -64,6 +71,7 @@ export function GatewayConfigurationView({
   gatewayBaseUrl,
   initialProjectId,
   initialIngestionMode,
+  availableIngestionModes,
   isSaving,
   saveError,
   onSave,
@@ -73,6 +81,7 @@ export function GatewayConfigurationView({
   gatewayBaseUrl: string;
   initialProjectId: string | null;
   initialIngestionMode: IngestionMode;
+  availableIngestionModes: readonly IngestionMode[];
   isSaving: boolean;
   saveError: boolean;
   onSave: (values: {
@@ -96,6 +105,9 @@ export function GatewayConfigurationView({
   const [ingestionMode, setIngestionMode] =
     useState<IngestionMode>(initialIngestionMode);
   const projectId = projectSelection ?? null;
+  const visibleIngestionModes = ingestionModes.filter((option) =>
+    availableIngestionModes.includes(option.value),
+  );
   const isDirty =
     projectId !== initialProjectId || ingestionMode !== initialIngestionMode;
 
@@ -173,8 +185,15 @@ export function GatewayConfigurationView({
 
       <div>
         <CardTitle className="mb-4 text-base">Ingestion mode</CardTitle>
-        <div className="grid gap-2 md:grid-cols-2">
-          {ingestionModes.map((option) => {
+        <div
+          className={cn(
+            "grid gap-2",
+            visibleIngestionModes.length > 2
+              ? "md:grid-cols-3"
+              : "md:grid-cols-2",
+          )}
+        >
+          {visibleIngestionModes.map((option) => {
             const Icon = option.icon;
             const selected = ingestionMode === option.value;
             return (

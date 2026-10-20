@@ -164,6 +164,12 @@ function useV4PreviewToggle(source: "sidebar" | "migration_panel") {
 }
 
 export function V4SidebarToggle() {
+  const { canToggleV4 } = useReadPath();
+  // A locked toggle is only shown in the sidebar for one-way recovery.
+  const label = canToggleV4 ? V4_PREVIEW_LABEL : "Enable V4";
+  const description = canToggleV4
+    ? V4_PREVIEW_DESCRIPTION
+    : "Your account is using the legacy experience due to a configuration issue. Enable V4 to return to the default experience. This is a personal setting across all your projects.";
   const {
     isChecked,
     isLoading,
@@ -172,6 +178,10 @@ export function V4SidebarToggle() {
     confirmIntroDialog,
     dismissIntroDialog,
   } = useV4PreviewToggle("sidebar");
+
+  const handleSidebarToggle = (enabled: boolean) => {
+    if (canToggleV4 || enabled) handleToggle(enabled);
+  };
 
   return (
     <>
@@ -185,9 +195,9 @@ export function V4SidebarToggle() {
             <Label
               htmlFor="v4-beta-toggle"
               className="block min-w-0 flex-1 cursor-pointer truncate text-sm font-normal"
-              title={V4_PREVIEW_LABEL}
+              title={label}
             >
-              {V4_PREVIEW_LABEL}
+              {label}
             </Label>
           </div>
           <Tooltip>
@@ -197,19 +207,19 @@ export function V4SidebarToggle() {
                   id="v4-beta-toggle"
                   size="sm"
                   checked={isChecked}
-                  onCheckedChange={handleToggle}
+                  onCheckedChange={handleSidebarToggle}
                   disabled={isLoading}
-                  aria-label="Toggle V4 Preview"
+                  aria-label={canToggleV4 ? "Toggle V4 Preview" : "Enable V4"}
                   aria-describedby="v4-preview-sidebar-description"
                 />
               </div>
             </TooltipTrigger>
             <TooltipContent side="right" className="max-w-xs text-xs">
-              {V4_PREVIEW_DESCRIPTION}
+              {description}
             </TooltipContent>
           </Tooltip>
           <span id="v4-preview-sidebar-description" className="sr-only">
-            {V4_PREVIEW_DESCRIPTION}
+            {description}
           </span>
         </div>
       </SidebarMenuButton>
