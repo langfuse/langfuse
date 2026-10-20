@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useCorrectionCache } from "@/src/features/corrections";
+import { useCorrectionCacheOptional } from "@/src/features/corrections";
 import { type ScoreDomain } from "@langfuse/shared";
 
 /**
@@ -12,11 +12,13 @@ export function useCorrectionData(
   observationId: string | undefined,
   traceId: string,
 ) {
-  const correctionCache = useCorrectionCache();
+  // Without a provider (read-only hosts) the server correction is the truth.
+  const correctionCache = useCorrectionCacheOptional();
 
   // Get cached correction - for observation or trace level
   // NOTE: getForObservation/getForTrace filter out deleted items
   const cachedMeta = useMemo(() => {
+    if (!correctionCache) return null;
     if (observationId) {
       return correctionCache.getForObservation(traceId, observationId);
     }
@@ -38,7 +40,7 @@ export function useCorrectionData(
     // 2. If server correction is marked as deleted, return null
     if (
       existingCorrection?.id &&
-      correctionCache.isDeleted(existingCorrection.id)
+      correctionCache?.isDeleted(existingCorrection.id)
     ) {
       return null;
     }
@@ -50,7 +52,7 @@ export function useCorrectionData(
   // Check if deleted - check server correction ID since that's what we delete
   const isDeleted = useMemo(() => {
     return existingCorrection?.id
-      ? correctionCache.isDeleted(existingCorrection.id)
+      ? (correctionCache?.isDeleted(existingCorrection.id) ?? false)
       : false;
   }, [existingCorrection?.id, correctionCache]);
 
