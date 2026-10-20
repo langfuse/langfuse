@@ -291,7 +291,6 @@ export function ToolCallDefinitionCard({
         )}
       </div>
       {!isCollapsed && (
-        // Same inset as the header so the row carets line up with its caret.
         <div className="io-message-content divide-border flex flex-col divide-y px-1">
           {visibleTools.map((tool, index) => {
             const toolKey = `${activeTab}-${tool.name}-${index}`;
