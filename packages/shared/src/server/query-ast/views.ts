@@ -1,12 +1,9 @@
 import {
-  AliasNode,
   CommonTableExpressionNameNode,
   CommonTableExpressionNode,
   Kysely,
-  TableNode,
   WithNode,
   type KyselyPlugin,
-  type OperationNode,
   type PluginTransformQueryArgs,
   type PluginTransformResultArgs,
   type RootOperationNode,
@@ -16,6 +13,7 @@ import {
 
 import type { ClickhouseCompilable } from "./compile";
 import { ClickHouseCompileDialect } from "./dialect";
+import { describeRelation } from "./relations";
 import { ClickHouseOperationNodeTransformer } from "./transformer";
 
 export type ClickHouseView<N extends string, O> = {
@@ -55,7 +53,7 @@ class VirtualViewPlugin implements KyselyPlugin {
 
     const froms = node.from?.froms ?? [];
     const viewNames = froms
-      .map(tableNameOfFrom)
+      .map((from) => describeRelation(from).table?.table.identifier.name)
       .filter((name): name is string => Boolean(name && this.views.has(name)));
 
     if (viewNames.length === 0) return node;
@@ -79,16 +77,6 @@ class VirtualViewPlugin implements KyselyPlugin {
   async transformResult(args: PluginTransformResultArgs) {
     return args.result;
   }
-}
-
-function tableNameOfFrom(node: OperationNode): string | undefined {
-  if (TableNode.is(node)) {
-    return node.table.identifier.name;
-  }
-  if (AliasNode.is(node)) {
-    return tableNameOfFrom(node.node);
-  }
-  return undefined;
 }
 
 /**

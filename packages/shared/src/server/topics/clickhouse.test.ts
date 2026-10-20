@@ -17,6 +17,7 @@ import {
   getTopicSummaryCounts,
   getTopicExecutionCosts,
   getTopicClusteringSummaries,
+  getTopicClusteringSummaryStats,
   writeTopicSummaries,
   getTopicDefinitions,
   writeTopicDefinitions,
@@ -27,6 +28,7 @@ const mocks = vi.hoisted(() => ({
   insert: vi.fn(),
   exec: vi.fn(),
   query: vi.fn(),
+  queryStream: vi.fn(),
   publishedRuns: vi.fn(),
   cacheGet: vi.fn(),
   cacheSet: vi.fn(),
@@ -46,13 +48,17 @@ vi.mock("../clickhouse/client", () => ({
 vi.mock("../clickhouse/queryTags", () => ({
   buildClickHouseLogComment: () => "{}",
 }));
-vi.mock("../repositories/clickhouse", () => ({ queryClickhouse: mocks.query }));
+vi.mock("../repositories/clickhouse", () => ({
+  queryClickhouse: mocks.query,
+  queryClickhouseStream: mocks.queryStream,
+}));
 vi.mock("../instrumentation", () => ({ traceException: vi.fn() }));
 vi.mock("../logger", () => ({ logger: { warn: vi.fn() } }));
 
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.query.mockResolvedValue([]);
+  mocks.queryStream.mockImplementation(async function* () {});
   mocks.exec.mockImplementation(async () => ({ stream: Readable.from([]) }));
   mocks.publishedRuns.mockResolvedValue([{ id: "published-run" }]);
   mocks.cacheGet.mockResolvedValue(null);
@@ -179,6 +185,131 @@ const timeRange = {
   to: new Date("2026-10-01T00:00:00.000Z"),
 };
 
+describe("Topics clustering capacity", () => {
+  const { unitStartTime, processedAt, metadata, ...summary } = summaryFixture;
+  const row = {
+    ...summary,
+    unitStartTimeMs: String(Date.parse(unitStartTime)),
+    processedAtMs: String(Date.parse(processedAt)),
+    metadataJson: JSON.stringify(metadata),
+  };
+  const embedding = {
+    embeddingModel: summaryFixture.embeddingModel,
+    embeddingDimensions: summaryFixture.embedding.length,
+  };
+
+  const args = ["project-a", "facet-a", 1, embedding, timeRange] as const;
+  const limits = { maxRows: 2, maxBytes: 10_000 };
+
+  beforeEach(() => {
+    mocks.query.mockResolvedValue([
+      { facetId: "facet-a", facetVersion: 1, count: "2" },
+    ]);
+  });
+
+  it.each([
+    { reason: "rows", maxRows: 1, maxBytes: 10_000 },
+    { reason: "embedding bytes", maxRows: 2, maxBytes: 1 },
+  ])(
+    "rejects excessive $reason before inspecting payloads",
+    async (capacity) => {
+      await expect(
+        getTopicClusteringSummaryStats(...args, capacity),
+      ).resolves.toEqual({
+        count: 2,
+        bytes: 2 * embedding.embeddingDimensions * 8,
+      });
+      expect(mocks.query).toHaveBeenCalledOnce();
+      await expect(
+        getTopicClusteringSummaries(...args, capacity),
+      ).rejects.toThrow("smaller time window");
+      expect(mocks.query).toHaveBeenCalledTimes(2);
+      expect(mocks.queryStream).not.toHaveBeenCalled();
+    },
+  );
+
+  it("returns the complete at-limit cohort and bounds the query result", async () => {
+    mocks.queryStream.mockImplementation(async function* () {
+      yield row;
+      yield { ...row, traceId: "trace-b" };
+    });
+    expect(await getTopicClusteringSummaries(...args, limits)).toEqual([
+      summaryFixture,
+      { ...summaryFixture, traceId: "trace-b" },
+    ]);
+    const { query, params, clickhouseSettings } =
+      mocks.queryStream.mock.calls[0][0];
+    expect(query.trim()).toMatch(/LIMIT \{maximumRows:UInt64\}$/);
+    expect(params.maximumRows).toBe(3);
+    expect(clickhouseSettings).toMatchObject({
+      max_result_bytes: "10000",
+      result_overflow_mode: "throw",
+    });
+  });
+
+  it("rejects growth after preflight and closes the stream immediately", async () => {
+    let yielded = 0;
+    let closed = false;
+    mocks.queryStream.mockImplementation(async function* () {
+      try {
+        for (let index = 0; index < 5; index++) {
+          yielded++;
+          yield { ...row, traceId: `trace-${index}` };
+        }
+      } finally {
+        closed = true;
+      }
+    });
+    await expect(getTopicClusteringSummaries(...args, limits)).rejects.toThrow(
+      "no partial cohort",
+    );
+    expect(yielded).toBe(3);
+    expect(closed).toBe(true);
+  });
+
+  it("rejects text exceeding the decoded budget despite a small embedding", async () => {
+    mocks.queryStream.mockImplementation(async function* () {
+      yield { ...row, summary: "x".repeat(10_000) };
+    });
+    await expect(getTopicClusteringSummaries(...args, limits)).rejects.toThrow(
+      "smaller time window",
+    );
+  });
+
+  it.each([
+    ["ClickHouse read failed", "ClickHouse read failed"],
+    [
+      "Limit for result exceeded: TOO_MANY_ROWS_OR_BYTES",
+      "smaller time window",
+    ],
+  ])("rejects a partial stream on %s", async (message, expected) => {
+    mocks.queryStream.mockImplementation(async function* () {
+      yield row;
+      throw new Error(message);
+    });
+    await expect(getTopicClusteringSummaries(...args, limits)).rejects.toThrow(
+      expected,
+    );
+  });
+
+  it("rejects a previous map that exceeds the continuity population limit", async () => {
+    mocks.query.mockResolvedValue([
+      { traceId: "trace-a" },
+      { traceId: "trace-b" },
+      { traceId: "trace-c" },
+    ]);
+    await expect(
+      readTopicRunTraceIds(
+        "project-a",
+        { facetId: "facet-a", version: 1 },
+        "previous-run",
+        timeRange,
+        2,
+      ),
+    ).rejects.toThrow("continuity cohort");
+  });
+});
+
 it("bounds Topics payload reads by their storage timestamp", async () => {
   const facet = { facetId: "facet-a", version: 1 };
   const embedding = {
@@ -201,9 +332,10 @@ it("bounds Topics payload reads by their storage timestamp", async () => {
         1,
         embedding,
         timeRange,
+        { maxRows: 2, maxBytes: 10_000 },
       ),
     () => getTopicSummaryCounts("project-a", [facet], embedding, timeRange),
-    () => readTopicRunTraceIds("project-a", facet, "run-a", timeRange),
+    () => readTopicRunTraceIds("project-a", facet, "run-a", timeRange, 2),
     () => readTopicMapAssignments("project-a", facet, "run-a", timeRange),
     () =>
       readTopicAssignments(
@@ -217,8 +349,10 @@ it("bounds Topics payload reads by their storage timestamp", async () => {
   ];
   for (const [index, read] of reads.entries()) {
     mocks.query.mockClear();
+    mocks.queryStream.mockClear();
     await read();
-    const { query, params } = mocks.query.mock.calls[0][0];
+    const [{ query, params }] =
+      mocks.queryStream.mock.calls[0] ?? mocks.query.mock.calls[0];
     const column = index === 0 ? "created_at" : "unit_start_time";
     expect(query).toContain(`${column} >= {from:DateTime64(3)}`);
     expect(query).toContain(`${column} < {to:DateTime64(3)}`);
@@ -596,6 +730,7 @@ describe("Topics classifications", () => {
         { facetId: "facet-a", version: 1 },
         "run-a",
         timeRange,
+        1,
       ),
     ).toEqual(["discovery-trace"]);
     const discoveryQuery = mocks.query.mock.calls[0][0];
@@ -606,6 +741,7 @@ describe("Topics classifications", () => {
       runId: "run-a",
       facetId: "facet-a",
       facetVersion: 1,
+      maximumRows: 2,
     });
     for (const filter of [
       "project_id = {projectId:String}",
