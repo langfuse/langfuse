@@ -94,7 +94,7 @@ export async function getViewablePrivateSlackChannelIds(params: {
     getPrivateChannelViewerSlackUserId(integration, params.userId);
   if (!viewerSlackUserId) return new Set();
 
-  try {
+  const lookup = (async () => {
     const slackService = SlackService.getInstance();
     const client = await slackService.getWebClientForProject(params.projectId);
     const { channels } = await slackService.getPrivateChannels(client, {
@@ -102,14 +102,29 @@ export async function getViewablePrivateSlackChannelIds(params: {
       includeArchived: true,
     });
     return new Set(channels.map((channel) => channel.id));
+  })();
+  let timer: NodeJS.Timeout | undefined;
+  // The Slack client retries for up to 90s; reads shouldn't wait on it.
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error("Timed out")),
+      VIEWABLE_PRIVATE_CHANNELS_TIMEOUT_MS,
+    );
+  });
+  try {
+    return await Promise.race([lookup, timeout]);
   } catch (error) {
     logger.warn("Failed to resolve viewable private Slack channels", {
       error,
       projectId: params.projectId,
     });
     return new Set();
+  } finally {
+    clearTimeout(timer);
   }
 }
+
+const VIEWABLE_PRIVATE_CHANNELS_TIMEOUT_MS = 5_000;
 
 /**
  * maskPrivateSlackChannel hides the name of a saved private channel from users
@@ -570,10 +585,10 @@ export class SlackService {
     });
 
     // Without groups:read, private channels look like public ones; only accept
-    // ids Slack confirms are public.
+    // channels Slack confirms are public.
     if (!botChannels.hasPrivateChannelAccess) {
-      const info = params.channel.startsWith("#")
-        ? null
+      const info = params.channel.trim().startsWith("#")
+        ? await this.findPublicChannelByName(params.client, name)
         : await this.getChannelInfo(params.client, key);
       return info && !info.isPrivate
         ? { access: "public" }
@@ -595,6 +610,17 @@ export class SlackService {
     )
       ? { access: "private", channel: privateChannel }
       : { access: "denied" };
+  }
+
+  private async findPublicChannelByName(client: WebClient, name: string) {
+    let cursor: string | undefined;
+    do {
+      const page = await this.getChannels(client, cursor);
+      const match = page.channels.find((channel) => channel.name === name);
+      if (match) return match;
+      cursor = page.nextCursor;
+    } while (cursor);
+    return null;
   }
 
   /**

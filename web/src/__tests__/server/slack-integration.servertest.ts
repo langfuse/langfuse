@@ -146,6 +146,8 @@ describe("Slack Integration", () => {
       getPrivateChannels: ActualSlackService.prototype.getPrivateChannels,
       checkPrivateChannelAccess:
         ActualSlackService.prototype.checkPrivateChannelAccess,
+      findPublicChannelByName:
+        ActualSlackService.prototype["findPublicChannelByName"],
     };
 
     // Setup the getInstance mock to return our mock service
@@ -518,6 +520,38 @@ describe("Slack Integration", () => {
         }
         // Only the installer's channel and the non-existent one reached Slack.
         expect(mockSlackService.sendMessage).toHaveBeenCalledTimes(2);
+      });
+
+      it("on installs without groups:read, accepts only typed names of public channels", async () => {
+        const client = createSlackClient();
+        client.users.conversations.mockRejectedValue(
+          Object.assign(new Error("missing_scope"), {
+            data: { error: "missing_scope" },
+          }),
+        );
+        mockSlackService.getWebClientForProject.mockResolvedValue(client);
+        mockSlackService.getChannels.mockResolvedValue({
+          channels: [{ id: "C123456", name: "general", isPrivate: false }],
+        });
+        mockSlackService.sendMessage.mockReset();
+        mockSlackService.sendMessage.mockResolvedValue({
+          messageTs: "1234567890.123456",
+          channel: "C123456",
+        });
+        const { caller, project } = await prepare();
+        await createIntegration(project.id, null);
+
+        await caller.slack.sendTestMessage({
+          projectId: project.id,
+          channelId: "#General",
+        });
+        await expect(
+          caller.slack.sendTestMessage({
+            projectId: project.id,
+            channelId: "#installer-private",
+          }),
+        ).rejects.toThrow(SLACK_CHANNEL_NOT_FOUND_MESSAGE);
+        expect(mockSlackService.sendMessage).toHaveBeenCalledTimes(1);
       });
 
       it("should create audit log entry", async () => {
