@@ -114,13 +114,11 @@ export const AdminViewingOwner = meta.story({
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const roleSelectFor = (name: string) =>
-      within(canvas.getByRole("row", { name: new RegExp(name) })).getByRole(
-        "combobox",
-      );
+    const roleSelectFor = (name: RegExp) =>
+      within(canvas.getByRole("row", { name })).getByRole("combobox");
 
-    await expect(roleSelectFor("Barbara Liskov")).toBeDisabled();
-    await expect(roleSelectFor("Ada Lovelace")).toBeEnabled();
+    await expect(roleSelectFor(/Barbara Liskov/)).toBeDisabled();
+    await expect(roleSelectFor(/Ada Lovelace/)).toBeEnabled();
   },
 });
 
