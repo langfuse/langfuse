@@ -298,7 +298,8 @@ dispatcher snapshot memory.
 `LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED=false` controls writes only.
 When enabled, `storeInputs.ts` captures the assembled transcript for traces that
 pass the existing Topics settings and rule sampling gate. It runs inside the
-Topics concurrency limit and is awaited before in-memory summarization. It does
+Topics concurrency limit alongside in-memory summarization. Both operations must
+settle before releasing the slot, including when summarization fails. It does
 not capture every trace admitted by experimental batching.
 
 The shared `server/traceBatch` module uses the event-upload bucket and credentials:
@@ -324,7 +325,7 @@ readiness revision are independent.
 
 Serialize the full envelope once. Skip the entire upload if `json.length` exceeds
 1,000,000; do not truncate. This measures UTF-16 code units, not UTF-8 bytes, and
-does not bound assembly memory. Size skips emit an info log with identifiers,
+does not bound assembly or serialization memory. Size skips emit an info log with identifiers,
 actual length and limit. StorageService owns upload retries and logs; exhausted
 failures mark the `trace-batch-store-inputs` span as failed. Neither outcome stops
 Topics. The span records outcome and JSON length without transcript content;
@@ -337,6 +338,11 @@ span-eval retention, including noncurrent versions where applicable. A rule for
 check storage spans, size-skip logs, S3 failures and Topics latency. Roll back by
 disabling writes. Existing Topics processing continues to use in-memory inputs;
 future consumers that require files must schedule only after a successful PUT.
+
+Like temporary span-eval inputs, these objects have no ingestion deletion
+references. Trace/project deletion and per-project retention do not immediately
+remove them; bucket expiry is the cleanup mechanism. Before enabling writes,
+explicitly accept this temporary retention or extend the deletion paths.
 
 ## Per-trace transcripts
 

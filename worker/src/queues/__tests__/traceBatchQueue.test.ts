@@ -1097,6 +1097,84 @@ describe("trace batch queue", () => {
     },
   );
 
+  it.each([false, true])(
+    "runs Topics alongside capture and holds the slot until both settle (Topics rejects: %s)",
+    async (summaryRejects) => {
+      env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED = "true";
+      const originalConcurrency = env.LANGFUSE_TOPICS_TRACE_CONCURRENCY;
+      env.LANGFUSE_TOPICS_TRACE_CONCURRENCY = 1;
+      let finishUpload!: () => void;
+      vi.mocked(putTraceBatchInputs).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishUpload = () =>
+              resolve({ outcome: "stored", jsonLength: 100 });
+          }),
+      );
+      vi.mocked(summarizeAssembledTrace).mockImplementationOnce(async () => {
+        if (summaryRejects) throw new Error("summary failed");
+        return { outcome: "unchanged", rows: [] };
+      });
+      vi.mocked(getTraceBatchEventStream).mockImplementation(
+        async function* () {
+          for (const traceId of ["a", "b"])
+            yield {
+              project_id: "project",
+              trace_id: traceId,
+              environment: "default",
+              span_id: "span",
+              parent_span_id: null,
+              start_time: "2026-09-11 00:00:00.000000",
+              event_ts: "2026-09-11 00:00:00.000000",
+              type: "GENERATION",
+              name: "generation",
+              input: JSON.stringify([{ role: "user", content: "hello" }]),
+              output: JSON.stringify({ role: "assistant", content: "answer" }),
+              metadata: {},
+              level: "DEFAULT",
+              status_message: null,
+              tool_definitions: {},
+              tool_calls: [],
+              tool_call_names: [],
+            };
+        },
+      );
+      const job = {
+        data: {
+          id: "concurrent-storage",
+          name: QueueJobs.TraceBatch,
+          timestamp: new Date(),
+          payload: {
+            traces: ["a", "b"].map((traceId) => ({
+              projectId: "project",
+              traceId,
+              minStart: 0,
+              maxStart: 1,
+              revision: "revision",
+            })),
+          },
+        },
+      } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+      const processing = traceBatchQueueProcessor(job, undefined);
+      try {
+        await vi.waitFor(() =>
+          expect(summarizeAssembledTrace).toHaveBeenCalledTimes(1),
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(putTraceBatchInputs).toHaveBeenCalledTimes(1);
+        expect(summarizeAssembledTrace).toHaveBeenCalledTimes(1);
+        finishUpload();
+        await processing;
+        expect(putTraceBatchInputs).toHaveBeenCalledTimes(2);
+        expect(summarizeAssembledTrace).toHaveBeenCalledTimes(2);
+      } finally {
+        finishUpload?.();
+        await processing;
+        env.LANGFUSE_TOPICS_TRACE_CONCURRENCY = originalConcurrency;
+      }
+    },
+  );
+
   it("summarizes only the saved rule's facets and skips traces outside its sampling", async () => {
     env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED = "true";
     vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {

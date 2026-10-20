@@ -168,19 +168,26 @@ async function summarizeTraceBatch(
       })
     )
       return { outcome: "disabled", rows };
-    if (inputReference) await storeInputs(inputReference, transcript);
-    const result = await summarizeAssembledTrace({
-      projectId: first.projectId,
-      traceId,
-      sessionId,
-      traceTimestamp,
-      jobEnqueuedAt,
-      environment: latest.environment,
-      traceName: first.name ?? "",
-      transcript,
-      models: project.models,
-      facets: project.facets,
-    });
+    // Capture reports its own failures; drain both before releasing the Topics slot.
+    const [summary] = await Promise.allSettled([
+      summarizeAssembledTrace({
+        projectId: first.projectId,
+        traceId,
+        sessionId,
+        traceTimestamp,
+        jobEnqueuedAt,
+        environment: latest.environment,
+        traceName: first.name ?? "",
+        transcript,
+        models: project.models,
+        facets: project.facets,
+      }),
+      inputReference
+        ? storeInputs(inputReference, transcript)
+        : Promise.resolve(),
+    ]);
+    if (summary.status === "rejected") throw summary.reason;
+    const result = summary.value;
     rows = result.rows;
     if (result.failure === undefined) return { outcome: result.outcome, rows };
     throw result.failure;

@@ -2,11 +2,9 @@ import { Readable } from "node:stream";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { StorageService } from "../services/StorageService";
 import type { Transcript } from "../transcript/types";
-import {
-  getTraceBatchInputs,
-  getTraceBatchInputsKey,
-  putTraceBatchInputs,
-} from "./storage";
+import { getTraceBatchInputs, putTraceBatchInputs, __test } from "./storage";
+
+const { getTraceBatchInputsKey } = __test;
 
 const storage = vi.hoisted(() => ({
   uploadFile: vi.fn<StorageService["uploadFile"]>(),

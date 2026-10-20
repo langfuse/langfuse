@@ -20,25 +20,6 @@ export type TraceBatchInputReference = {
 export const TRACE_BATCH_INPUT_MAX_CHARACTERS = 1_000_000;
 
 let storage: StorageService | undefined;
-function getStorage(): StorageService {
-  if (!storage)
-    storage = createEventUploadStorageService(
-      env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-    );
-  return storage;
-}
-
-export function getTraceBatchInputsKey({
-  projectId,
-  traceId,
-  revision,
-}: TraceBatchInputReference): string {
-  const hash = createW3CTraceId(JSON.stringify([projectId, traceId])).slice(
-    0,
-    3,
-  );
-  return `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}transcripts/trace/${hash}/${safeBlobKeySegment(projectId)}/${safeBlobKeySegment(traceId)}/${safeBlobFilenameStem(revision, ".json")}.json`;
-}
 
 /** Ordinary PUT: retries using the same revision can replace the saved input. */
 export async function putTraceBatchInputs(
@@ -66,3 +47,25 @@ export async function getTraceBatchInputs(
   const json = await getStorage().download(getTraceBatchInputsKey(reference));
   return traceBatchInputsSchema.parse(JSON.parse(json)).transcript;
 }
+
+function getStorage(): StorageService {
+  if (!storage)
+    storage = createEventUploadStorageService(
+      env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+    );
+  return storage;
+}
+
+function getTraceBatchInputsKey({
+  projectId,
+  traceId,
+  revision,
+}: TraceBatchInputReference): string {
+  const hash = createW3CTraceId(JSON.stringify([projectId, traceId])).slice(
+    0,
+    3,
+  );
+  return `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}transcripts/trace/${hash}/${safeBlobKeySegment(projectId)}/${safeBlobKeySegment(traceId)}/${safeBlobFilenameStem(revision, ".json")}.json`;
+}
+
+export const __test = { getTraceBatchInputsKey };
