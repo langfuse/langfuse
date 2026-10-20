@@ -28,6 +28,7 @@ exports[`golden: topics trace selection > selectTopicTraceRows mode=backfill 1`]
                 WHERE (e.project_id = {param1:String})
                     AND ((((e.parent_span_id = '') OR (e.is_app_root = true)) = {param2:Boolean}) AND (e.start_time >= {param3:DateTime64(3, 'UTC')}) AND (e.start_time < {param4:DateTime64(3, 'UTC')}))
                     AND (e.trace_id != '')
+                    AND (e.is_deleted = 0)
             )
         SELECT
             m.id AS id,
@@ -81,6 +82,7 @@ exports[`golden: topics trace selection > selectTopicTraceRows mode=ids 1`] = `
                 WHERE (e.project_id = {param1:String})
                     AND ((((e.parent_span_id = '') OR (e.is_app_root = true)) = {param2:Boolean}) AND (e.start_time >= {param3:DateTime64(3, 'UTC')}) AND (e.start_time < {param4:DateTime64(3, 'UTC')}))
                     AND (e.trace_id != '')
+                    AND (e.is_deleted = 0)
             )
         SELECT
             m.id AS id,
@@ -137,6 +139,7 @@ exports[`golden: topics trace selection > selectTopicTraceRows mode=preview 1`] 
                 WHERE (e.project_id = {param1:String})
                     AND ((((e.parent_span_id = '') OR (e.is_app_root = true)) = {param2:Boolean}) AND (e.start_time >= {param3:DateTime64(3, 'UTC')}) AND (e.start_time < {param4:DateTime64(3, 'UTC')}))
                     AND (e.trace_id != '')
+                    AND (e.is_deleted = 0)
             )
         SELECT
             m.id AS id,

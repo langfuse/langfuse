@@ -1206,6 +1206,7 @@ const getExperimentItemsFromEventsGeneric = (params: {
       "e.experiment_item_id as item_id, min(e.start_time) as start_time",
   })
     .whereRaw("e.span_id = e.experiment_item_root_span_id")
+    .whereRaw("e.is_deleted = 0")
     .when(hasAgnosticScoreFilters, (b) =>
       b.withCTE(
         "item_scores_agg",
@@ -1599,6 +1600,7 @@ export const getExperimentNamesFromEvents = async (props: {
     min(e.start_time) as startTime`,
   })
     .whereRaw("e.experiment_name IS NOT NULL AND length(e.experiment_name) > 0")
+    .whereRaw("e.is_deleted = 0")
     // Keeps the bound meaningful: the newest 1000 runs, not an arbitrary 1000.
     .orderBy("ORDER BY min(e.start_time) DESC")
     .limit(1000, 0);

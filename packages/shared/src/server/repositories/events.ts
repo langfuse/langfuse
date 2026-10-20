@@ -1647,6 +1647,7 @@ function buildObservationsQueryComponents(
         "ON t.id = e.trace_id AND t.project_id = e.project_id",
       ),
     )
+    .whereRaw("e.is_deleted = 0")
     .where(appliedFilter);
 
   return { queryBuilder, externalCTEs, filtersNeedFullTable };
@@ -2483,6 +2484,7 @@ export const getEventsNumericStatsByFilterColumn = async (
     selectExpression: `min(${valueExpression}) as min, max(${valueExpression}) as max, avg(${valueExpression}) as avg, count(${valueExpression}) as count`,
   })
     .where(appliedEventsFilter)
+    .whereRaw("e.is_deleted = 0")
     .whereRaw(`isNotNull(${valueExpression})`);
 
   const { query, params } = queryBuilder.buildWithParams();

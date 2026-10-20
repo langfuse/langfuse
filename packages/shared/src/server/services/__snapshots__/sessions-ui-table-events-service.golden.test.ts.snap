@@ -148,6 +148,7 @@ exports[`golden: sessions table aggregation family > getSessionsTableCountFromEv
                     AND (m.session_id != '')
                     AND (has(m.metadata_names, {param4:String}) AND like(arrayStringConcat(m.metadata_values), {param5:String}) AND (position(m.metadata_values[indexOf(m.metadata_names, {param4:String})], {param6:String}) > 0))
             ))
+            AND (e.is_deleted = 0)
             AND (session_id != '')
         GROUP BY session_id
     )
@@ -203,6 +204,7 @@ exports[`golden: sessions table aggregation family > getSessionsTableFromEvents 
             sumMap(e.usage_details)['total'] AS session_total_usage
         FROM events_core AS e
         WHERE (e.project_id = {param1:String})
+            AND (e.is_deleted = 0)
             AND (session_id != '')
         GROUP BY session_id
     )

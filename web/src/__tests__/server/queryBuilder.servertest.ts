@@ -2940,6 +2940,45 @@ describe("queryBuilder", () => {
         expect(Number(result[0].count_count)).toBe(2);
       });
 
+      it.each(["traces", "observations"] as const)(
+        "skips soft-deleted events on the v2 %s view",
+        async (view) => {
+          const projectId = randomUUID();
+          const now = Date.now() * 1000;
+          await createEventsCh([
+            createEvent({
+              project_id: projectId,
+              trace_id: randomUUID(),
+              parent_span_id: "",
+              start_time: now,
+            }),
+            createEvent({
+              project_id: projectId,
+              trace_id: randomUUID(),
+              parent_span_id: "",
+              start_time: now,
+              is_deleted: 1,
+            }),
+          ]);
+
+          const result = await executeQuery(
+            projectId,
+            {
+              view,
+              dimensions: [],
+              metrics: [{ measure: "count", aggregation: "count" }],
+              filters: [],
+              timeDimension: null,
+              fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+              toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+              orderBy: null,
+            },
+            "v2",
+          );
+          expect(Number(result[0].count_count)).toBe(1);
+        },
+      );
+
       it("should calculate p95 timeToFirstToken for each trace name using observations view", async () => {
         // Setup
         const projectId = randomUUID();

@@ -32,7 +32,8 @@ exports[`golden: events sampled filter options > getEventsFilterOptionsForColumn
             any(e._sample_factor) AS sample_factor
         FROM events_core AS e
         SAMPLE 6000000
-        WHERE e.project_id = {param2:String}
+        WHERE (e.project_id = {param2:String})
+            AND (e.is_deleted = 0)
     ),
     option_rows AS
     (
@@ -122,6 +123,7 @@ exports[`golden: events sampled filter options > getEventsGroupedByTraceTags 1`]
 FROM events_core AS e
 SAMPLE 6000000
 WHERE (e.project_id = {param1:String})
+    AND (e.is_deleted = 0)
     AND (length(e.tags) > 0)
 GROUP BY value
 ORDER BY value ASC
@@ -146,6 +148,7 @@ exports[`golden: events sampled filter options > getEventsMetadataValues 1`] = `
 FROM events_core AS e
 SAMPLE 6000000
 WHERE (e.project_id = {param2:String})
+    AND (e.is_deleted = 0)
     AND has(e.metadata_names, {param1:String})
     AND (length(e.metadata_values[indexOf(e.metadata_names, {param1:String})]) > 0)
 GROUP BY value
@@ -218,6 +221,7 @@ exports[`golden: events.getEventsExactFilterOptionsForColumns > scope=scoredTrac
         FROM events_core AS e
         SAMPLE 6000000
         WHERE (e.project_id = {param2:String})
+            AND (e.is_deleted = 0)
             AND (e.trace_id IN (
                 SELECT DISTINCT trace_id
                 FROM scores
@@ -354,7 +358,8 @@ exports[`golden: events.getEventsExactFilterOptionsForColumns > scope=unset — 
             any(e._sample_factor) AS sample_factor
         FROM events_core AS e
         SAMPLE 6000000
-        WHERE e.project_id = {param2:String}
+        WHERE (e.project_id = {param2:String})
+            AND (e.is_deleted = 0)
     ),
     option_rows AS
     (

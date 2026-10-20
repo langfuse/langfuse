@@ -68,7 +68,8 @@ export const eventsTracesAggregation = (
     .selectFieldSet("all")
     .withTraceIds(params.traceIds)
     .withStartTimeFrom(params.startTimeFrom)
-    .withTruncated(params.truncated ?? false);
+    .withTruncated(params.truncated ?? false)
+    .whereRaw("e.is_deleted = 0");
 
   if (params.orderByTimestamp ?? true) {
     builder.orderByColumns([{ column: "timestamp", direction: "DESC" }]);
@@ -334,6 +335,7 @@ export const eventsSessionsAggregation = (params: {
       params.metadataSessionPrefilter ?? null,
       params.startTimeFrom,
     )
+    .whereRaw("e.is_deleted = 0")
     .whereRaw("session_id != ''");
 };
 
@@ -349,6 +351,7 @@ export const eventsExperiments = (params: {
           experimentIds: params.experimentIds,
         }),
     )
+    .whereRaw("e.is_deleted = 0")
     .whereRaw("e.experiment_id != ''");
 
 export const eventsExperimentsAggregation = (params: {
@@ -363,6 +366,7 @@ export const eventsExperimentsAggregation = (params: {
     .selectFieldSet(params.fieldSet ?? "base")
     .withExperimentIds(params.experimentIds)
     .withStartTimeFrom(params.startTimeFrom)
+    .whereRaw("e.is_deleted = 0")
     .whereRaw("e.experiment_id != ''");
 };
 
@@ -425,6 +429,7 @@ export const experimentItemLevelsAggregation = (params: {
     .whereRaw("e.experiment_id IN ({itemLevelExperimentIds: Array(String)})", {
       itemLevelExperimentIds: params.experimentIds,
     })
+    .whereRaw("e.is_deleted = 0")
     .whereRaw("e.experiment_id != ''")
     .buildWithParams();
 

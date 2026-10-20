@@ -26,6 +26,7 @@ FROM
     WHERE (events_core.project_id = {param1:String})
         AND (events_core.start_time >= {param2:DateTime64(3, 'UTC')})
         AND (events_core.start_time <= {param3:DateTime64(3, 'UTC')})
+        AND (events_observations.is_deleted = 0)
     GROUP BY
         events_core.project_id,
         events_observations.span_id
@@ -71,10 +72,12 @@ FROM
     WHERE (events_core.project_id = {param1:String})
         AND (events_core.start_time >= {param2:DateTime64(3, 'UTC')})
         AND (events_core.start_time <= {param3:DateTime64(3, 'UTC')})
+        AND (events_traces.is_deleted = 0)
         AND ((events_core.trace_id IN (
             SELECT events_traces.trace_id
             FROM events_core AS events_traces
             WHERE (events_traces.project_id = {param4:String})
+                AND (events_traces.is_deleted = 0)
                 AND ((events_traces.parent_span_id = '') OR (events_traces.is_app_root = true))
                 AND (events_traces.start_time >= {param5:DateTime64(3, 'UTC')})
                 AND (events_traces.start_time <= {param6:DateTime64(3, 'UTC')})
@@ -82,6 +85,7 @@ FROM
             SELECT events_traces.trace_id
             FROM events_core AS events_traces
             WHERE (events_traces.project_id = {param4:String})
+                AND (events_traces.is_deleted = 0)
                 AND ((events_traces.parent_span_id = '') OR (events_traces.is_app_root = true))
                 AND (events_traces.start_time >= {param5:DateTime64(3, 'UTC')})
                 AND (events_traces.start_time <= {param6:DateTime64(3, 'UTC')})

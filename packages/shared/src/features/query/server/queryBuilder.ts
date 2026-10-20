@@ -32,6 +32,11 @@ import {
   type FilterColumnType,
 } from "../../../server/queries/clickhouse-sql/filterTypeCompatibility";
 
+const EVENTS_TABLES: ReadonlySet<string> = new Set([
+  "events_core",
+  "events_full",
+]);
+
 type AppliedDimensionType = {
   table: string;
   sql: string;
@@ -1673,6 +1678,14 @@ export class QueryBuilder {
       Object.assign(parameters, part.params);
     }
 
+    // Events tables keep soft-deleted rows (ReplacingMergeTree is_deleted flag).
+    const notDeletedCondition = EVENTS_TABLES.has(this.actualTableName(view))
+      ? `${this.tableAlias(view)}.is_deleted = 0`
+      : null;
+    if (notDeletedCondition) {
+      fromClause += ` AND ${notDeletedCondition}`;
+    }
+
     // When rootEventCondition is set, add a subquery filter to restrict rows
     // to traces whose root event has timeDimension in the query window.
     // The existing start_time filter above is kept for ClickHouse partition pruning.
@@ -1704,6 +1717,7 @@ export class QueryBuilder {
         const subquery =
           `SELECT ${tableAlias}.${column} FROM ${baseTable} ${tableAlias} ` +
           `WHERE ${tableAlias}.project_id = {${projP}: String} ` +
+          (notDeletedCondition ? `AND ${notDeletedCondition} ` : "") +
           `AND ${condition} ` +
           `AND ${tableAlias}.${view.timeDimension} >= ${fromParam.placeholder} ` +
           `AND ${tableAlias}.${view.timeDimension} <= ${toParam.placeholder}`;

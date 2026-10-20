@@ -25,6 +25,7 @@ exports[`golden: experiments legacy list reads > getExperimentItemsBatchIO 1`] =
 FROM events_core AS e
 WHERE (e.project_id = {param2:String})
     AND (e.experiment_id IN ({param3:Array(String)}))
+    AND (e.is_deleted = 0)
     AND (e.experiment_id != '')
     AND (e.experiment_item_id IN ({param4:Array(String)}))
     AND (e.experiment_item_root_span_id = e.span_id)
@@ -56,6 +57,7 @@ exports[`golden: experiments legacy list reads > getExperimentItemsFromEvents 1`
 FROM events_core AS e
 WHERE (e.project_id = {param1:String})
     AND (e.span_id = e.experiment_item_root_span_id)
+    AND (e.is_deleted = 0)
     AND ((e.experiment_id = {param2:String}) OR (e.experiment_id = {param3:String}))
 GROUP BY e.experiment_item_id
 ORDER BY e.experiment_item_id ASC
@@ -99,6 +101,7 @@ exports[`golden: experiments legacy list reads > getExperimentItemsFromEvents fi
         FROM events_core AS e
         WHERE (e.project_id = {param1:String})
             AND (e.experiment_id IN ({param2:Array(String)}))
+            AND (e.is_deleted = 0)
             AND (e.experiment_id != '')
         GROUP BY
             e.experiment_id,
@@ -111,6 +114,7 @@ FROM events_core AS e
 LEFT JOIN item_levels AS il ON (il.experiment_id = e.experiment_id) AND (il.experiment_item_id = e.experiment_item_id)
 WHERE (e.project_id = {param1:String})
     AND (e.span_id = e.experiment_item_root_span_id)
+    AND (e.is_deleted = 0)
     AND ((e.experiment_id = {param3:String}) OR ((e.experiment_id = {param4:String}) AND (il.aggregated_level IN ({param5:Array(String)}))))
 GROUP BY e.experiment_item_id
 ORDER BY e.experiment_item_id ASC
@@ -137,6 +141,7 @@ FROM events_core AS e
 WHERE (e.project_id = {param1:String})
     AND (e.experiment_name IS NOT NULL)
     AND (length(e.experiment_name) > 0)
+    AND (e.is_deleted = 0)
 GROUP BY e.experiment_id
 ORDER BY min(e.start_time) DESC
 LIMIT {param2:Int32}",
@@ -167,6 +172,7 @@ FROM
         min(e.start_time) AS start_time
     FROM events_core AS e
     WHERE (e.project_id = {param1:String})
+        AND (e.is_deleted = 0)
         AND (e.experiment_id != '')
         AND (e.experiment_dataset_id IN ({param2:Array(String)}))
     GROUP BY
@@ -237,6 +243,7 @@ FROM
     WHERE (e.project_id = {param1:String})
         AND (e.experiment_id IN ({param2:Array(String)}))
         AND (e.start_time >= ({param3:DateTime64(3)} - toIntervalDay(2)))
+        AND (e.is_deleted = 0)
         AND (e.experiment_id != '')
         AND ((e.experiment_id IN ({param4:Array(String)})) AND (e.start_time >= {param5:DateTime64(3, 'UTC')}))
     GROUP BY
@@ -268,6 +275,7 @@ exports[`golden: experiments simple aggregates family > getExperimentsFromEvents
     any(mapFromArrays(e.experiment_metadata_names, e.experiment_metadata_values)) AS experiment_metadata
 FROM events_core AS e
 WHERE (e.project_id = {param1:String})
+    AND (e.is_deleted = 0)
     AND (e.experiment_id != '')
 GROUP BY
     e.project_id,

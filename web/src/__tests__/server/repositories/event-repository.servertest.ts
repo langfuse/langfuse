@@ -16,6 +16,8 @@ import {
   getObservationsBatchIOFromEventsTable,
   getLatestSdkVersionInfoFromEvents,
   getTracesIdentifierForSessionFromEvents,
+  getTracesFromEventsTableForPublicApi,
+  getTracesCountFromEventsTableForPublicApi,
   getEventsFilterOptionsForColumns,
   getEventsExactFilterOptionsForColumns,
   getEventsFilterOptionValuesPage,
@@ -4737,6 +4739,56 @@ describe("Clickhouse Events Repository Test", () => {
           sessionId,
         );
         expect(traces.map((trace) => trace.id)).toEqual([liveTraceId]);
+      });
+    });
+  });
+
+  maybe("public API list reads skip soft-deleted events", () => {
+    it("lists and counts only live traces and observations", async () => {
+      const uniqueProjectId = randomUUID();
+      const deletedTraceId = randomUUID();
+      const liveTraceId = randomUUID();
+      const liveSpanId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: deletedTraceId,
+          parent_span_id: "",
+          start_time: nowMicro + 1_000,
+          event_ts: nowMicro + 1_000,
+          is_deleted: 1,
+        }),
+        createEvent({
+          id: liveSpanId,
+          span_id: liveSpanId,
+          project_id: uniqueProjectId,
+          trace_id: liveTraceId,
+          parent_span_id: "",
+          start_time: nowMicro,
+          event_ts: nowMicro,
+        }),
+      ]);
+
+      const query = { projectId: uniqueProjectId, page: 1, limit: 10 };
+      await waitForExpect(async () => {
+        const traces = await getTracesFromEventsTableForPublicApi(query);
+        expect(traces.map((trace) => trace.id)).toEqual([liveTraceId]);
+        await expect(
+          getTracesCountFromEventsTableForPublicApi(query),
+        ).resolves.toBe(1);
+
+        const observations =
+          await getObservationsFromEventsTableForPublicApi(query);
+        expect(observations.map((observation) => observation.id)).toEqual([
+          liveSpanId,
+        ]);
+        await expect(
+          getObservationsCountFromEventsTableForPublicApi(query),
+        ).resolves.toBe(1);
       });
     });
   });

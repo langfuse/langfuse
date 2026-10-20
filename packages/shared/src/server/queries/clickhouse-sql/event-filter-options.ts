@@ -479,6 +479,7 @@ export const buildEventsFilterOptionColumnQuery = (params: {
     selectExpression: `${eventFilterOptionColumnSqlLiteral(column)} AS column, ${valueExpression} AS value, ${eventFilterOptionCountExpression(sampleRows)} AS count`,
   })
     .where(eventsFilter.apply())
+    .whereRaw("e.is_deleted = 0")
     .whereRaw(optionPresenceCondition(column))
     .orderBy(singleColumnOrderBy(column))
     .limit(params.limit, params.offset ?? 0)
@@ -518,6 +519,7 @@ export const buildEventsFilterOptionsForColumnsQuery = (params: {
   const sampleRows = params.sampleRows ?? 0;
   const sampled = sampleRows > 0;
 
+  aggregatedOptionsBuilder.whereRaw("e.is_deleted = 0");
   aggregatedOptionsBuilder.selectRaw(
     ...columns.map(optionTopKSelectExpression),
     ...(includeApproxTotal ? ["uniq(e.span_id) AS approx_total_count"] : []),
@@ -701,6 +703,7 @@ export const buildEventsExactFilterOptionsForColumnsQuery = (params: {
   const sampleRows = params.sampleRows ?? 0;
   const sampled = sampleRows > 0;
 
+  aggregatedOptionsBuilder.whereRaw("e.is_deleted = 0");
   aggregatedOptionsBuilder.selectRaw(
     ...columns.flatMap(exactOptionAggSelectExpressions),
     ...(sampled ? [EVENTS_SAMPLE_FACTOR_SELECT] : []),
@@ -781,6 +784,7 @@ export const buildEventsMetadataValuesQuery = (params: {
     selectExpression: `${valueAccessor} AS value, ${eventFilterOptionCountExpression(sampleRows)} AS count`,
   })
     .where(eventsFilter.apply())
+    .whereRaw("e.is_deleted = 0")
     .whereRaw("has(e.metadata_names, {metadataKey: String})", {
       metadataKey: params.key,
     })

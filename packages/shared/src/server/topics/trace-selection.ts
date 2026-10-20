@@ -78,6 +78,7 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
       ...(preview ? [`${eventsTableTraceNameSelectSql} AS trace_name`] : []),
     )
     .whereRaw("e.trace_id != ''")
+    .whereRaw("e.is_deleted = 0")
     .buildWithParams();
   const traces = new CTEQueryBuilder()
     .withCTE("matching_observations", {
