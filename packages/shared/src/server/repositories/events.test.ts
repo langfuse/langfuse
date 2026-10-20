@@ -17,7 +17,6 @@ vi.mock("./clickhouse", () => ({
 
 import { getObservationsV2FromEventsTableForPublicApi } from "./events";
 import { type EventsTableFilterState } from "../../types";
-import { eventsSelectsScopeTypeAssertions } from "./events-selects.types.assert";
 
 const inputContainsFilter: EventsTableFilterState = [
   { type: "string", column: "input", operator: "contains", value: "needle" },
@@ -70,13 +69,5 @@ describe("getObservationsV2FromEventsTableForPublicApi query shape", () => {
     expect(query).toContain("FROM events_core");
     expect(query).toContain("FROM base");
     expect(query).toContain("_io_start_time");
-  });
-});
-
-describe("events selects scope", () => {
-  // `tsc` checks the assertions; importing them keeps the file in the build
-  // graph so its `@ts-expect-error` checks stay live.
-  it("keeps the compile-time scope assertions in the build graph", () => {
-    expect(typeof eventsSelectsScopeTypeAssertions).toBe("function");
   });
 });

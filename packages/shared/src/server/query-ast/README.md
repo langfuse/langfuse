@@ -345,9 +345,9 @@ documented-protected API.
 ### Types are asserted at compile time
 
 `types.assert.ts` holds `tsc`-only assertions (schema typing, view opacity,
-arrayJoin widening, limitBy / useFinal preservation). It is never run; `schema.test.ts`
-anchors it so it stays in the build graph. `@ts-expect-error` lines there must
-stay live.
+arrayJoin widening, limitBy / useFinal preservation). It is never run: `tsc`
+checks it through the package's `include`, and knip treats `*types.assert.ts`
+as an entry. `@ts-expect-error` lines there must stay live.
 
 ### Verifying changes
 

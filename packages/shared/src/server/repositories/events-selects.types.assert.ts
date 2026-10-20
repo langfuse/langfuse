@@ -14,7 +14,8 @@ import {
  * Compile-time assertions that the shared events expressions keep their table
  * scope: they type-check only in a query that reads a full events row as `e`
  * and nothing else. Never called at runtime; `tsc` is the test, and every
- * `@ts-expect-error` must stay a real error. `events.test.ts` anchors it.
+ * `@ts-expect-error` must stay a real error. knip treats `*types.assert.ts` as
+ * an entry, so nothing needs to import it.
  */
 export function eventsSelectsScopeTypeAssertions(): void {
   const db = getClickhouseKysely();
@@ -27,7 +28,6 @@ export function eventsSelectsScopeTypeAssertions(): void {
     .innerJoin("traces as t", "t.id", "e.trace_id")
     // @ts-expect-error a join
     .select(traceAggregationSelects);
-
   db.with("e", (qb) => qb.selectFrom("events_core").selectAll())
     .selectFrom("traces as t")
     // @ts-expect-error a CTE named `e` is not read in FROM
