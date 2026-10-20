@@ -1,7 +1,7 @@
 import { cn } from "@/src/utils/tailwind";
 import { ArrowUpRight } from "@langfuse/icons";
 import Link from "next/link";
-import { type ReactNode, useEffect } from "react";
+import { type ReactNode } from "react";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import {
   Select,
@@ -56,20 +56,11 @@ export const PagedSettingsContainer = ({
     (page) => !page.disabledReason,
   );
   const requestedPage = contentPages.find((page) => page.slug === activeSlug);
-  const redirectPage = requestedPage?.disabledReason
+  const currentPage = requestedPage?.disabledReason
     ? (enabledContentPages.find(
         (page) => page.section === requestedPage.section,
       ) ?? enabledContentPages[0])
-    : undefined;
-  const currentPage = redirectPage ?? requestedPage ?? enabledContentPages[0];
-
-  // Disabled state can arrive after the URL (e.g. from a query), so the URL is
-  // corrected once it is known instead of in a navigation handler.
-  const redirectSlug = redirectPage?.slug;
-  useEffect(() => {
-    if (redirectSlug === undefined) return;
-    router.replace(settingsPath(router.asPath, redirectSlug));
-  }, [redirectSlug, router]);
+    : (requestedPage ?? enabledContentPages[0]);
 
   const onChange = (newSlug: string) => {
     router.push(settingsPath(router.asPath, newSlug));

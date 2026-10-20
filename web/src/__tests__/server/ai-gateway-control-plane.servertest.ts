@@ -29,6 +29,7 @@ import {
 import { GatewayModelsService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelsService";
 import { GatewayApiKeyService } from "@/src/features/ai-gateway/server/apiKey/gatewayApiKeyService";
 import { GatewayConfigService } from "@/src/features/ai-gateway/server/config/gatewayConfigService";
+import { getGatewaySetupRedirect } from "@/src/features/ai-gateway/server/gatewaySetupRedirect";
 import {
   GatewayModelCatalogService,
   GatewayProviderService,
@@ -337,6 +338,45 @@ describe("AI gateway control plane", () => {
     await expect(
       viewer.aiGateway.getSetupStatus({ orgId: owner.org.id }),
     ).resolves.toEqual({ isConfigured: false });
+  });
+
+  it("redirects gateway managers to Configuration until ingestion is set up", async () => {
+    const owner = await prepare();
+    const memberSession = {
+      ...owner.session,
+      user: {
+        ...owner.session.user,
+        organizations: owner.session.user.organizations.map((org) => ({
+          ...org,
+          role: Role.MEMBER,
+        })),
+      },
+    };
+    const redirectFor = (session: Session, slug: string) =>
+      getGatewaySetupRedirect({
+        prisma,
+        session,
+        organizationId: owner.org.id,
+        slug,
+      });
+    const configurationPath = `/organization/${owner.org.id}/settings/ai-gateway`;
+
+    await expect(
+      redirectFor(owner.session, "ai-gateway-providers"),
+    ).resolves.toBe(configurationPath);
+    await expect(redirectFor(owner.session, "ai-gateway")).resolves.toBeNull();
+    await expect(
+      redirectFor(memberSession, "ai-gateway-models"),
+    ).resolves.toBeNull();
+
+    await owner.caller.aiGateway.updateConfig({
+      orgId: owner.org.id,
+      defaultIngestionProjectId: owner.project.id,
+      ingestionMode: "USAGE",
+    });
+    await expect(
+      redirectFor(owner.session, "ai-gateway-providers"),
+    ).resolves.toBeNull();
   });
 
   it("requires an ingestion project unless ingestion mode is NONE", async () => {
