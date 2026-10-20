@@ -1,8 +1,12 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
+import type * as SharedServer from "@langfuse/shared/src/server";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { type Prisma, prisma } from "@langfuse/shared/src/db";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import {
+  createOrgProjectAndApiKey,
+  SLACK_CHANNEL_NOT_FOUND_MESSAGE,
+} from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
 import { v4 } from "uuid";
 import {
@@ -19,6 +23,44 @@ import {
   generateWebhookSecret,
 } from "@langfuse/shared/encryption";
 import { TRPCError } from "@trpc/server";
+
+// Fake Slack workspace: the bot is in private channel "G_PRIVATE", which only the
+// installer's Slack user shares. Slack API calls are faked; the access logic is real.
+vi.mock("@langfuse/shared/src/server", async () => {
+  const actual = await vi.importActual<typeof SharedServer>(
+    "@langfuse/shared/src/server",
+  );
+  const privateChannel = {
+    id: "G_PRIVATE",
+    name: "secret-plans",
+    is_private: true,
+  };
+  const client = {
+    users: {
+      conversations: async ({ user }: { user?: string }) => ({
+        ok: true,
+        channels: !user || user === "U_INSTALLER" ? [privateChannel] : [],
+      }),
+    },
+    conversations: {
+      info: async ({ channel }: { channel: string }) => {
+        if (channel !== "C123456") throw new Error("channel_not_found");
+        return {
+          ok: true,
+          channel: { id: "C123456", name: "general", is_private: false },
+        };
+      },
+    },
+  };
+  const slackService = {
+    getWebClientForProject: async () => client,
+    getPrivateChannels: actual.SlackService.prototype.getPrivateChannels,
+    checkPrivateChannelAccess:
+      actual.SlackService.prototype.checkPrivateChannelAccess,
+    getChannelInfo: actual.SlackService.prototype.getChannelInfo,
+  };
+  return { ...actual, SlackService: { getInstance: () => slackService } };
+});
 
 const __orgIds: string[] = [];
 
@@ -1149,6 +1191,110 @@ describe("automations trpc", () => {
       ).rejects.toThrow(
         "Slack integration not found. Please connect your Slack workspace first.",
       );
+    });
+  });
+
+  describe("Slack private channels", () => {
+    const slackAutomationInput = (projectId: string, channelId: string) => ({
+      projectId,
+      name: "Slack Automation",
+      eventSource: "prompt",
+      eventAction: ["created"],
+      filter: [],
+      status: JobConfigState.ACTIVE,
+      actionType: "SLACK" as const,
+      actionConfig: {
+        type: "SLACK" as const,
+        channelId,
+        channelName: "secret-plans",
+      },
+    });
+
+    const prepareWithInstaller = async (installerUserId: string) => {
+      const prepared = await prepare();
+      await prisma.slackIntegration.create({
+        data: {
+          projectId: prepared.project.id,
+          teamId: "T123456",
+          teamName: "Test Team",
+          botToken: encrypt("xoxb-test-token"),
+          botUserId: "U123456",
+          installerUserId,
+          installerSlackUserId: "U_INSTALLER",
+        },
+      });
+      const otherUserCaller = appRouter.createCaller({
+        ...createInnerTRPCContext({
+          session: {
+            ...prepared.session,
+            user: { ...prepared.session.user!, id: "user-2" },
+          },
+          headers: {},
+        }),
+        prisma,
+      });
+      return { ...prepared, otherUserCaller };
+    };
+
+    it("rejects private channels the user can't use exactly like non-existent channels", async () => {
+      const { project, caller } = await prepareWithInstaller("someone-else");
+
+      for (const channelId of ["G_PRIVATE", "#secret-plans", "C_MISSING"]) {
+        await expect(
+          caller.automations.createAutomation(
+            slackAutomationInput(project.id, channelId),
+          ),
+        ).rejects.toThrow(SLACK_CHANNEL_NOT_FOUND_MESSAGE);
+      }
+    });
+
+    it("masks a saved private channel name for everyone but the installer", async () => {
+      const { project, caller, otherUserCaller } =
+        await prepareWithInstaller("user-1");
+
+      const created = await caller.automations.createAutomation(
+        slackAutomationInput(project.id, "#secret-plans"),
+      );
+      expect(created.action.config).toMatchObject({
+        channelId: "G_PRIVATE",
+        channelName: "secret-plans",
+        isPrivate: true,
+      });
+
+      const [otherList, otherSingle] = await Promise.all([
+        otherUserCaller.automations.getAutomations({ projectId: project.id }),
+        otherUserCaller.automations.getAutomation({
+          projectId: project.id,
+          automationId: created.automation.id,
+        }),
+      ]);
+      expect(JSON.stringify([otherList, otherSingle])).not.toContain(
+        "secret-plans",
+      );
+      expect(otherSingle.action.config).toMatchObject({
+        channelId: "G_PRIVATE",
+        channelName: "private-channel-…ATE",
+      });
+
+      // Saving the masked config unchanged keeps the real channel.
+      await otherUserCaller.automations.updateAutomation({
+        ...slackAutomationInput(project.id, "G_PRIVATE"),
+        automationId: created.automation.id,
+        name: "Renamed",
+        actionConfig: {
+          ...(otherSingle.action.config as { channelId: string }),
+          type: "SLACK",
+          channelName: "private-channel-…ATE",
+        },
+      });
+      const installerView = await caller.automations.getAutomation({
+        projectId: project.id,
+        automationId: created.automation.id,
+      });
+      expect(installerView.action.config).toMatchObject({
+        channelName: "secret-plans",
+        isPrivate: true,
+      });
     });
   });
 

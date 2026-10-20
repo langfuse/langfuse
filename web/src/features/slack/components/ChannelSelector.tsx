@@ -1,5 +1,12 @@
 import React, { useState, useMemo, useCallback, useEffect } from "react";
-import { RefreshCw, Search, Hash, Lock, AlertTriangle } from "@langfuse/icons";
+import {
+  RefreshCw,
+  Search,
+  Hash,
+  Lock,
+  AlertTriangle,
+  Info,
+} from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import {
   Popover,
@@ -81,6 +88,7 @@ const useSlackChannels = (projectId: string) => {
       hasPrivateChannelAccess: pages.every(
         (page) => page.hasPrivateChannelAccess,
       ),
+      canListPrivateChannels: pages[0].canListPrivateChannels,
     };
   }, [channelsPages?.pages]);
 
@@ -399,6 +407,15 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
           <Alert.Description>
             Failed to load channels. You can still enter a channel name
             manually, or check your Slack connection and try again.
+          </Alert.Description>
+        </Alert>
+      )}
+
+      {channelsData && !channelsData.canListPrivateChannels && (
+        <Alert icon={Info}>
+          <Alert.Description>
+            Private channels are only listed for the person who connected Slack
+            to this project. Reconnect Slack to list your own private channels.
           </Alert.Description>
         </Alert>
       )}

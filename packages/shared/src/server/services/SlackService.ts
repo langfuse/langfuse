@@ -11,8 +11,9 @@ import { WebClient } from "@slack/web-api";
 import { InstallProvider } from "@slack/oauth";
 import { logger } from "../logger";
 import { env } from "../../env";
-import { prisma } from "../../db";
+import { prisma, type SlackIntegration } from "../../db";
 import { encrypt, decrypt } from "../../encryption";
+import { isSlackActionConfig } from "../../domain/automations";
 
 /**
  * Error thrown by SlackService when a Slack API call fails.
@@ -46,8 +47,67 @@ export interface SlackChannel {
 
 export interface GetChannelsResult {
   channels: SlackChannel[];
-  hasPrivateChannelAccess: boolean;
   nextCursor?: string;
+}
+
+/** Same text as Slack's own channel_not_found, so private channels the viewer can't use look non-existent. */
+export const SLACK_CHANNEL_NOT_FOUND_MESSAGE =
+  'Channel not found. The channel may not exist or is a private channel the bot has not been invited to. For private channels, invite the app with "/invite @Langfuse" in that channel.';
+
+/**
+ * getPrivateChannelViewerSlackUserId returns the installer's Slack user id when
+ * the Langfuse user is the installer. Only they may see or use private channels.
+ */
+export function getPrivateChannelViewerSlackUserId(
+  integration: Pick<
+    SlackIntegration,
+    "installerUserId" | "installerSlackUserId"
+  >,
+  userId: string,
+) {
+  return integration.installerUserId === userId
+    ? integration.installerSlackUserId
+    : null;
+}
+
+/** canViewPrivateSlackChannels reports whether the user installed the project's Slack integration. */
+export async function canViewPrivateSlackChannels(params: {
+  projectId: string;
+  userId: string;
+}) {
+  const integration = await prisma.slackIntegration.findUnique({
+    where: { projectId: params.projectId },
+    select: { installerUserId: true, installerSlackUserId: true },
+  });
+  return Boolean(
+    integration &&
+    getPrivateChannelViewerSlackUserId(integration, params.userId),
+  );
+}
+
+/**
+ * maskPrivateSlackChannel hides the name of a saved private channel from users
+ * who may not see it. The channel id stays intact so unchanged saves keep working.
+ */
+export function maskPrivateSlackChannel<T extends { config: unknown }>(
+  action: T,
+  canViewPrivateChannels: boolean,
+): T {
+  const { config } = action;
+  if (
+    canViewPrivateChannels ||
+    !isSlackActionConfig(config) ||
+    !config.isPrivate
+  ) {
+    return action;
+  }
+  return {
+    ...action,
+    config: {
+      ...config,
+      channelName: `private-channel-…${config.channelId.slice(-3)}`,
+    },
+  };
 }
 
 /** SlackMessage is the Block Kit payload sent to Slack. */
@@ -78,6 +138,8 @@ export interface SlackMessageResponse {
 // Interface for Slack installation metadata
 export interface SlackInstallationMetadata {
   projectId: string;
+  /** Langfuse user who started the install */
+  userId?: string;
 }
 
 /**
@@ -91,7 +153,8 @@ function isSlackInstallationMetadata(
     metadata !== null &&
     "projectId" in metadata &&
     typeof metadata.projectId === "string" &&
-    metadata.projectId.length > 0
+    metadata.projectId.length > 0 &&
+    (!("userId" in metadata) || typeof metadata.userId === "string")
   );
 }
 
@@ -163,12 +226,16 @@ export class SlackService {
                 teamName: installation.team?.name!,
                 botToken: encrypt(installation.bot?.token!),
                 botUserId: installation.bot?.userId!,
+                installerUserId: metadata.userId ?? null,
+                installerSlackUserId: installation.user?.id ?? null,
               },
               update: {
                 teamId: installation.team?.id!,
                 teamName: installation.team?.name!,
                 botToken: encrypt(installation.bot?.token!),
                 botUserId: installation.bot?.userId!,
+                installerUserId: metadata.userId ?? null,
+                installerSlackUserId: installation.user?.id ?? null,
               },
             });
 
@@ -340,18 +407,19 @@ export class SlackService {
   }
 
   /**
-   * Fetch one page of channels accessible to the bot.
+   * Get one page of public channels.
+   * Private channels are excluded: the bot token lists every private channel it
+   * was invited to, including ones the viewer isn't a member of. Use getPrivateChannels.
    * Uses cursor-based pagination defined by Slack API https://api.slack.com/apis/pagination.
    */
-  private async getChannelsPage(
+  async getChannels(
     client: WebClient,
-    channelTypes = "public_channel,private_channel",
     cursor?: string,
-  ): Promise<Omit<GetChannelsResult, "hasPrivateChannelAccess">> {
+  ): Promise<GetChannelsResult> {
     try {
       const result = await client.conversations.list({
         exclude_archived: true,
-        types: channelTypes,
+        types: "public_channel",
         limit: env.SLACK_PAGE_SIZE,
         cursor: cursor,
       });
@@ -364,77 +432,99 @@ export class SlackService {
         (channel) => ({
           id: channel.id!,
           name: channel.name!,
-          isPrivate: channel.is_private || false,
+          isPrivate: false,
           isMember: channel.is_member || false,
         }),
       );
-
-      const nextCursor = result.response_metadata?.next_cursor;
-      return {
-        channels,
-        nextCursor: nextCursor || undefined,
-      };
-    } catch (error) {
-      logger.error("Failed to fetch Slack channels page", { error, cursor });
-      throw error;
-    }
-  }
-
-  /**
-   * Get channels accessible to the bot.
-   */
-  async getChannels(
-    client: WebClient,
-    cursor?: string,
-  ): Promise<GetChannelsResult> {
-    try {
-      const { channels, nextCursor } = await this.getChannelsPage(
-        client,
-        "public_channel,private_channel",
-        cursor,
-      );
+      const nextCursor = result.response_metadata?.next_cursor || undefined;
 
       logger.debug("Retrieved channels from Slack", {
         channelCount: channels.length,
         hasNextPage: Boolean(nextCursor),
       });
 
-      return { channels, hasPrivateChannelAccess: true, nextCursor };
-    } catch (error: any) {
-      // we added `groups:read` scope after initial release, so older installations may not have it.
-      // Detect this case and fall back to fetching only public channels instead of failing completely.
-      const isMissingGroupsRead =
-        error?.data?.error === "missing_scope" &&
-        error?.data?.needed === "groups:read";
-
-      if (isMissingGroupsRead) {
-        logger.info(
-          "Bot token lacks groups:read scope, falling back to public channels only",
-        );
-
-        try {
-          const { channels, nextCursor } = await this.getChannelsPage(
-            client,
-            "public_channel",
-            cursor,
-          );
-
-          return { channels, hasPrivateChannelAccess: false, nextCursor };
-        } catch (fallbackError) {
-          logger.error("Failed to fetch public channels fallback", {
-            error: fallbackError,
-          });
-          throw new Error(
-            `Failed to fetch channels: ${fallbackError instanceof Error ? fallbackError.message : "Unknown error"}`,
-          );
-        }
-      }
-
-      logger.error("Failed to fetch channels", { error });
+      return { channels, nextCursor };
+    } catch (error) {
+      logger.error("Failed to fetch channels", { error, cursor });
       throw new Error(
         `Failed to fetch channels: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
+  }
+
+  /**
+   * Get all private channels the bot is in, or with `slackUserId` only those that
+   * user is also a member of. `hasPrivateChannelAccess` is false for installs
+   * predating the `groups:read` scope.
+   */
+  async getPrivateChannels(client: WebClient, slackUserId?: string) {
+    const channels: SlackChannel[] = [];
+    let cursor: string | undefined;
+    try {
+      do {
+        const result = await client.users.conversations({
+          types: "private_channel",
+          exclude_archived: true,
+          limit: env.SLACK_PAGE_SIZE,
+          cursor,
+          ...(slackUserId ? { user: slackUserId } : {}),
+        });
+        for (const channel of result.channels ?? []) {
+          channels.push({
+            id: channel.id!,
+            name: channel.name!,
+            isPrivate: true,
+            isMember: true,
+          });
+        }
+        cursor = result.response_metadata?.next_cursor || undefined;
+      } while (cursor);
+    } catch (error: any) {
+      if (error?.data?.error === "missing_scope") {
+        return { channels: [], hasPrivateChannelAccess: false };
+      }
+      logger.error("Failed to fetch private Slack channels", { error });
+      throw new Error(
+        `Failed to fetch private channels: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+    return { channels, hasPrivateChannelAccess: true };
+  }
+
+  /**
+   * Resolve whether `channel` (id or `#name`) is a private channel the bot is in,
+   * and whether the viewer may use it. Callers must treat an inaccessible private
+   * channel exactly like a non-existent one so its existence isn't revealed.
+   */
+  async checkPrivateChannelAccess(params: {
+    client: WebClient;
+    channel: string;
+    viewerSlackUserId: string | null;
+  }) {
+    const key = params.channel.replace(/^#/, "");
+    const { channels } = await this.getPrivateChannels(params.client);
+    const privateChannel = channels.find(
+      (channel) => channel.id === key || channel.name === key,
+    );
+    if (!privateChannel) return { isPrivate: false as const };
+    if (!params.viewerSlackUserId) {
+      return {
+        isPrivate: true as const,
+        channel: privateChannel,
+        hasAccess: false,
+      };
+    }
+    const viewerChannels = await this.getPrivateChannels(
+      params.client,
+      params.viewerSlackUserId,
+    );
+    return {
+      isPrivate: true as const,
+      channel: privateChannel,
+      hasAccess: viewerChannels.channels.some(
+        (channel) => channel.id === privateChannel.id,
+      ),
+    };
   }
 
   /**
