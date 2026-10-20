@@ -361,11 +361,6 @@ export const REGISTRY_TABLES: ReadonlySet<string> = new Set(
   Object.keys(TABLE_REGISTRY),
 );
 
-/** Registry tables ClickHouse has, so not the logical `events`. */
-export const PHYSICAL_TABLES: ReadonlySet<string> = new Set(
-  Object.keys(TABLE_COLUMN_TYPES),
-);
-
 /** Derived set of relations the tenancy pass must scope. */
 export const TENANTED_TABLES = new Set<string>(
   Object.entries(TABLE_REGISTRY)

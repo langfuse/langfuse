@@ -218,6 +218,18 @@ describe("tenancy injection", () => {
     );
   });
 
+  it("rejects a table reference inside raw SQL outside FROM/JOIN", () => {
+    // `s.trace_id IN traces` reads every row of `traces`, unscoped.
+    const qb = getClickhouseKysely()
+      .selectFrom("scores as s")
+      .select("s.id")
+      .where(sql<boolean>`s.trace_id IN ${sql.table("traces")}`);
+
+    expect(() => compileClickhouseQuery(qb, projectId)).toThrow(
+      /A table reference inside raw SQL/,
+    );
+  });
+
   it("does not treat a copied langfuseTenancy property as a valid stamp", () => {
     const qb = getClickhouseKysely().selectFrom("traces").select("environment");
     const forged = {
@@ -321,7 +333,6 @@ describe("tenancy injection", () => {
     const loose = db.withTables<{
       a: { id: string };
       b: { id: string };
-      "default.a": { id: string };
     }>();
     const compile = (
       query: Parameters<typeof compileClickhouseQuery>[0],
@@ -600,16 +611,19 @@ describe("tenancy injection", () => {
       );
     });
 
-    it("rejects a schema-qualified read of a table outside the registry, even with a CTE of that name", () => {
-      // `default.a` is a table, never the CTE `a`, and no pass knows it.
+    it("rejects a schema-qualified read, even of a registry table", () => {
+      // The registry describes `traces`, not `default.traces` or
+      // `otherdb.traces`; the read is in a CTE body, so the walk reaches it.
       expect(() =>
         compile(
-          loose
-            .with("a", (qb) => qb.selectFrom("traces").select("id"))
-            .selectFrom("default.a")
+          db
+            .with("a", (qb) =>
+              qb.withSchema("otherdb").selectFrom("traces").select("id"),
+            )
+            .selectFrom("a")
             .select("id"),
         ),
-      ).toThrow(`"default.a" is not a physical registry table`);
+      ).toThrow(`"otherdb.traces" is schema-qualified`);
     });
 
     it("accepts a CTE named like an Object prototype key", () => {
@@ -624,43 +638,6 @@ describe("tenancy injection", () => {
         ),
       ).toBe(
         "with constructor as (select id from traces where project_id = {p1:String}) select id from constructor",
-      );
-    });
-
-    it("rejects a schema-qualified name that is only an Object prototype key", () => {
-      // `constructor` is a key of every plain object, never a registry table.
-      expect(() =>
-        compile(
-          loose
-            .withTables<{ "default.constructor": { id: string } }>()
-            .selectFrom("default.constructor")
-            .select("id"),
-        ),
-      ).toThrow(`"default.constructor" is not a physical registry table`);
-    });
-
-    it("rejects a schema-qualified logical events relation", () => {
-      // Routing replaces only the unqualified `events`; `default.events`
-      // would reach ClickHouse as a table that does not exist.
-      expect(() =>
-        compile(
-          db.withSchema("default").selectFrom("events").select("span_id"),
-        ),
-      ).toThrow(`"default.events" is not a physical registry table`);
-    });
-
-    it("accepts and scopes a schema-qualified registry table", () => {
-      expect(
-        compile(
-          db
-            .with("a", (qb) =>
-              qb.withSchema("default").selectFrom("traces").select("id"),
-            )
-            .selectFrom("a")
-            .select("id"),
-        ),
-      ).toBe(
-        "with a as (select id from default.traces where project_id = {p1:String}) select id from a",
       );
     });
 

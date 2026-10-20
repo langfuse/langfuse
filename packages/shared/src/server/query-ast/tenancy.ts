@@ -313,10 +313,16 @@ function rejectUnscopedRawSql(node: unknown): void {
     return;
   }
   if (RawNode.is(node as OperationNode)) {
-    const fragments = (node as RawNode).sqlFragments;
-    if (fragments.some((fragment) => RAW_RELATION_SQL.test(fragment))) {
+    const { sqlFragments, parameters } = node as RawNode;
+    if (sqlFragments.some((fragment) => RAW_RELATION_SQL.test(fragment))) {
       throw new UnscopedRelationError(
         "Raw SQL fragments that introduce a relation (SELECT/FROM/JOIN) are rejected in any position: they can bypass tenancy injection. Use traced table and column references instead.",
+      );
+    }
+    // `x IN ${sql.table("traces")}` reads a table with no FROM to scope.
+    if (parameters.some((parameter) => TableNode.is(parameter))) {
+      throw new UnscopedRelationError(
+        "A table reference inside raw SQL (sql.table) is rejected in any position: it reads a relation the tenancy pass cannot scope. Read the table through selectFrom/innerJoin or a subquery instead.",
       );
     }
   }

@@ -1,18 +1,17 @@
 import {
-  AliasNode,
   SelectQueryNode,
-  TableNode,
   type CommonTableExpressionNode,
   type KyselyPlugin,
-  type OperationNode,
   type PluginTransformQueryArgs,
   type PluginTransformResultArgs,
   type RootOperationNode,
+  type TableNode,
 } from "kysely";
 
 import { QueryCompileError } from "./errors";
-import { FinalTableNode, unwrapFinalTable, walkNodes } from "./nodes";
-import { PHYSICAL_TABLES, REGISTRY_TABLES } from "./schema";
+import { walkNodes } from "./nodes";
+import { selectRelations } from "./relations";
+import { REGISTRY_TABLES } from "./schema";
 
 /**
  * Rejects every CTE name and FROM/JOIN name that could mean two relations.
@@ -24,13 +23,13 @@ import { PHYSICAL_TABLES, REGISTRY_TABLES } from "./schema";
  * - a CTE that reuses the name of a CTE in scope: a sibling's, or one an
  *   enclosing select declares. Inside its own body a CTE is not in scope,
  *   so a nested WITH there may reuse its name;
+ * - a schema-qualified FROM/JOIN name (`default.traces`): the registry
+ *   describes tables by name only, not per database;
  * - a FROM/JOIN name that is neither a registry table nor a CTE in scope. A
- *   schema-qualified name (`default.traces`) is never a CTE, so it must be a
- *   physical registry table (not the logical `events`). A CTE body's scope is
- *   where the CTE is declared, without the CTE itself and its later
- *   siblings, so recursive and cyclic CTEs are rejected, and so is a body
- *   read that ClickHouse would resolve to a CTE declared where the body is
- *   read.
+ *   CTE body's scope is where the CTE is declared, without the CTE itself
+ *   and its later siblings, so recursive and cyclic CTEs are rejected, and
+ *   so is a body read that ClickHouse would resolve to a CTE declared where
+ *   the body is read.
  */
 export class CteNamePlugin implements KyselyPlugin {
   transformQuery(args: PluginTransformQueryArgs): RootOperationNode {
@@ -84,35 +83,13 @@ function assertNameAllowed(name: string, visible: ReadonlySet<string>): void {
   }
 }
 
-/**
- * Every FROM/JOIN table of `node` is a registry table or a CTE in `visible`.
- * A schema-qualified name (`default.a`) is a physical table, never a CTE.
- */
+/** Every FROM/JOIN table of `node` is a registry table or a CTE in `visible`. */
 function assertReadsResolve(
   node: SelectQueryNode,
   visible: ReadonlySet<string>,
 ): void {
-  const relations = [
-    ...(node.from?.froms ?? []),
-    ...(node.joins ?? []).map((join) => join.table),
-  ];
-  for (const relation of relations) {
-    const table = relationTable(relation);
-    if (table?.table.schema) assertQualifiedReadResolves(table);
-    else if (table) assertReadResolves(table, visible);
-  }
-}
-
-/**
- * `default.events_core` reads that table: a qualified name is never a CTE,
- * and the routing pass routes only the unqualified logical `events`.
- */
-function assertQualifiedReadResolves(table: TableNode): void {
-  const name = table.table.identifier.name;
-  if (!PHYSICAL_TABLES.has(name)) {
-    throw new QueryCompileError(
-      `"${table.table.schema?.name}.${name}" is not a physical registry table, and a schema-qualified name never reads a CTE or the logical "events". Read "events" unqualified, or add the table to the registry in schema.ts.`,
-    );
+  for (const { table } of selectRelations(node)) {
+    if (table) assertReadResolves(table, visible);
   }
 }
 
@@ -121,17 +98,16 @@ function assertReadResolves(
   visible: ReadonlySet<string>,
 ): void {
   const name = table.table.identifier.name;
+  if (table.table.schema) {
+    throw new QueryCompileError(
+      `"${table.table.schema.name}.${name}" is schema-qualified: the registry describes tables by name in the configured database. Read "${name}" unqualified.`,
+    );
+  }
   if (!REGISTRY_TABLES.has(name) && !visible.has(name)) {
     throw new QueryCompileError(
       `"${name}" is neither a registry table nor a CTE in scope. A CTE body reads only CTEs declared before it, so recursive and cyclic CTEs are not supported: declare the CTEs in the order they read each other. To read a physical table, add it to the registry in schema.ts.`,
     );
   }
-}
-
-function relationTable(node: OperationNode): TableNode | undefined {
-  if (FinalTableNode.is(node)) return relationTable(unwrapFinalTable(node));
-  if (AliasNode.is(node)) return relationTable(node.node);
-  return TableNode.is(node) ? node : undefined;
 }
 
 export function cteName(expr: CommonTableExpressionNode): string {

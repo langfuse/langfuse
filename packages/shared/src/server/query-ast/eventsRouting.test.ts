@@ -237,26 +237,6 @@ describe("logical events routing", () => {
     ).toThrow(QueryCompileError);
   });
 
-  it("gives an unaliased schema-qualified table no qualifier name", () => {
-    // `default.events_core` is named by neither `events_core` nor
-    // `default.events_core` here, so the read is rejected, not resolved.
-    expect(() =>
-      compile(
-        db
-          .selectFrom("events as e")
-          .select("e.span_id")
-          .where(
-            "e.span_id",
-            "in",
-            db
-              .withSchema("default")
-              .selectFrom("events_core")
-              .select(sql.ref<string>("events_core.input").as("x")),
-          ),
-      ),
-    ).toThrow(/Qualify by the relation's alias/);
-  });
-
   it("rejects FINAL around the logical relation", () => {
     // useFinal() refuses `events` (dedup: none), so FINAL is wrapped by hand;
     // routing would otherwise swap the table and drop the FINAL silently.

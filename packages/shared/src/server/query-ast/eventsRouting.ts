@@ -307,8 +307,8 @@ class EventsTableRouter extends ClickHouseOperationNodeTransformer {
 }
 
 /**
- * Named by its alias, else by its table name unless schema-qualified:
- * `events as e` → `e`, `events` → `events`, `default.events_core` → none.
+ * Named by its alias, else by its table name: `events as e` → `e`,
+ * `events` → `events`. Schema-qualified names never get here (`ctes.ts`).
  */
 function routingRelation({
   node,
@@ -318,19 +318,13 @@ function routingRelation({
 }: Relation): RoutingRelation {
   return {
     node,
-    name:
-      alias ??
-      (table && !table.table.schema ? table.table.identifier.name : undefined),
+    name: alias ?? table?.table.identifier.name,
     logical: isLogicalEventsTable(source),
   };
 }
 
 function isLogicalEventsTable(node: OperationNode): boolean {
-  return (
-    TableNode.is(node) &&
-    node.table.schema === undefined &&
-    node.table.identifier.name === LOGICAL_EVENTS
-  );
+  return TableNode.is(node) && node.table.identifier.name === LOGICAL_EVENTS;
 }
 
 /** `count(*)` with any `distinct`, `filter`, `over`, … clause. */

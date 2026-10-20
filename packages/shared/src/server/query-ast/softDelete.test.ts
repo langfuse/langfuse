@@ -112,19 +112,6 @@ describe("soft-delete filtering", () => {
     );
   });
 
-  it("filters a schema-qualified soft-delete table", () => {
-    expect(
-      compile(
-        getClickhouseKysely()
-          .withSchema("default")
-          .selectFrom("events_core")
-          .select("trace_id"),
-      ),
-    ).toBe(
-      "select trace_id from default.events_core where project_id = {p1:String} and events_core.is_deleted = {p2:UInt8}",
-    );
-  });
-
   it("filters a soft-delete table wrapped in FINAL", () => {
     // No soft-delete table allows FINAL yet, so the node is built by hand.
     const node = getClickhouseKysely()

@@ -71,27 +71,6 @@ describe("per-table dedup lowering", () => {
     expect(sql.toLowerCase().split("limit 1 by").length - 1).toBe(1);
   });
 
-  it("lowers a schema-qualified read", () => {
-    DEDUP_SPECS.traces = {
-      strategy: "limitBy",
-      key: ["id"],
-      version: "event_ts",
-    };
-    try {
-      const { sql } = compile(
-        getClickhouseKysely()
-          .withSchema("default")
-          .selectFrom("traces")
-          .select("id"),
-      );
-      expect(sql).toBe(
-        "select id from default.traces where project_id = {p1:String} order by event_ts desc limit 1 by id",
-      );
-    } finally {
-      delete DEDUP_SPECS.traces;
-    }
-  });
-
   it("qualifies the version sort and LIMIT BY key with the FROM alias", () => {
     DEDUP_SPECS.traces = {
       strategy: "limitBy",
@@ -160,6 +139,31 @@ describe("per-table dedup lowering", () => {
       ).toThrow(/FINAL cannot be combined with the limitBy dedup/);
     } finally {
       delete DEDUP_SPECS.scores;
+    }
+  });
+
+  it("does not count an aggregate inside a scalar subquery as the outer select's", () => {
+    // `count(*)` belongs to the subquery, so the outer read keeps row dedup.
+    DEDUP_SPECS.traces = {
+      strategy: "limitBy",
+      key: ["id"],
+      version: "event_ts",
+    };
+    try {
+      const { sql } = compile(
+        getClickhouseKysely()
+          .selectFrom("traces as t")
+          .select((eb) => [
+            "t.id",
+            eb
+              .selectFrom("scores as s")
+              .select((inner) => inner.fn.countAll().as("n"))
+              .as("n"),
+          ]),
+      );
+      expect(sql).toMatch(/order by t\.event_ts desc limit 1 by t\.id$/);
+    } finally {
+      delete DEDUP_SPECS.traces;
     }
   });
 

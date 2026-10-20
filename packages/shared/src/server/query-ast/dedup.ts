@@ -44,6 +44,7 @@ import { QueryCompileError } from "./errors";
 import {
   FinalTableNode,
   LimitByNode,
+  walkNodes,
   type ClickHouseSelectQueryNode,
 } from "./nodes";
 import { describeRelation } from "./relations";
@@ -178,7 +179,7 @@ function isLimitOne(node: SelectQueryNode): boolean {
 
 function hasWrappingAggregate(node: SelectQueryNode): boolean {
   let found = false;
-  walk(node.selections, (child) => {
+  walkOuterSelect(node.selections, (child) => {
     if (!AggregateFunctionNode.is(child)) return;
     if (child.over || DOUBLE_COUNT_AGGREGATES.has(child.func.toLowerCase())) {
       found = true;
@@ -189,7 +190,7 @@ function hasWrappingAggregate(node: SelectQueryNode): boolean {
 
 function hasAnyAggregate(node: SelectQueryNode): boolean {
   let found = false;
-  walk(node.selections, (child) => {
+  walkOuterSelect(node.selections, (child) => {
     if (AggregateFunctionNode.is(child)) found = true;
   });
   return found;
@@ -317,23 +318,16 @@ function columnNameOf(node: OperationNode): string | undefined {
   return undefined;
 }
 
-function walk(value: unknown, visit: (node: OperationNode) => void): void {
-  if (!value || typeof value !== "object") return;
-  if (
-    "kind" in value &&
-    typeof (value as { kind: unknown }).kind === "string"
-  ) {
-    const node = value as OperationNode;
+/**
+ * Visits the nodes under `value` but not inside nested selects: those have
+ * their own shape, so their aggregates do not belong to the outer query.
+ */
+function walkOuterSelect(
+  value: unknown,
+  visit: (node: OperationNode) => void,
+): void {
+  walkNodes(value, (node) => {
     visit(node);
-    // Nested selects have their own shape; do not attribute their
-    // aggregates to the outer query.
-    if (SelectQueryNode.is(node)) return;
-  }
-  for (const child of Object.values(value)) {
-    if (Array.isArray(child)) {
-      for (const item of child) walk(item, visit);
-    } else {
-      walk(child, visit);
-    }
-  }
+    return !SelectQueryNode.is(node);
+  });
 }
