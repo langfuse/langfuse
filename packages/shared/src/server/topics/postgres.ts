@@ -447,39 +447,6 @@ export async function createTopicRun(input: {
   return runResult(row, new Map());
 }
 
-/** A written definition did not read back identically; the message names fields, never values. */
-export class TopicDefinitionReadbackError extends Error {
-  readonly name = "TopicDefinitionReadbackError";
-}
-
-/** Names what differs between a stored definition and its candidate, including metadata keys. */
-function definitionDifferences(
-  stored: TopicDefinition | undefined,
-  candidate: TopicDefinition,
-): string[] {
-  if (!stored) return ["not readable"];
-  const differs = (
-    left: Record<string, unknown>,
-    right: Record<string, unknown>,
-    key: string,
-  ) => key in left !== key in right || !isEqual(left[key], right[key]);
-  const differences = sameTopicGeometry(stored, candidate) ? [] : ["geometry"];
-  const fields = new Set([...Object.keys(stored), ...Object.keys(candidate)]);
-  for (const field of fields) {
-    if (field === "centroid" || field === "radius" || field === "metadata")
-      continue;
-    if (differs(stored, candidate, field)) differences.push(field);
-  }
-  const keys = new Set([
-    ...Object.keys(stored.metadata),
-    ...Object.keys(candidate.metadata),
-  ]);
-  for (const key of keys)
-    if (differs(stored.metadata, candidate.metadata, key))
-      differences.push(`metadata.${key}`);
-  return differences;
-}
-
 function sameTopicDefinition(
   stored: TopicDefinition | undefined,
   candidate: TopicDefinition,
@@ -561,7 +528,7 @@ export async function saveTopicRun(run: TopicRun): Promise<TopicRun> {
     const mismatched = missing.filter(
       (topic) => !sameTopicDefinition(saved.get(topic.topicVersionId), topic),
     );
-    if (mismatched.length) {
+    if (mismatched.length > 0) {
       const differences = new Set(
         mismatched.flatMap((topic) =>
           definitionDifferences(saved.get(topic.topicVersionId), topic),
@@ -602,4 +569,38 @@ export async function saveTopicRun(run: TopicRun): Promise<TopicRun> {
   return row.topicVersionIds.every((id) => saved.has(id))
     ? runResult(row, saved)
     : (await hydrateRuns(run.projectId, [row]))[0];
+}
+
+/** A written definition did not read back identically; the message names fields, never values. */
+export class TopicDefinitionReadbackError extends Error {
+  readonly name = "TopicDefinitionReadbackError";
+}
+
+/** Names what differs between a stored definition and its candidate, including metadata keys. */
+function definitionDifferences(
+  stored: TopicDefinition | undefined,
+  candidate: TopicDefinition,
+): string[] {
+  if (!stored) return ["not readable"];
+  const differs = (left: object, right: object, key: string) =>
+    key in left !== key in right ||
+    !isEqual(
+      (left as Record<string, unknown>)[key],
+      (right as Record<string, unknown>)[key],
+    );
+  const differences = sameTopicGeometry(stored, candidate) ? [] : ["geometry"];
+  const fields = new Set([...Object.keys(stored), ...Object.keys(candidate)]);
+  for (const field of fields) {
+    if (field === "centroid" || field === "radius" || field === "metadata")
+      continue;
+    if (differs(stored, candidate, field)) differences.push(field);
+  }
+  const keys = new Set([
+    ...Object.keys(stored.metadata),
+    ...Object.keys(candidate.metadata),
+  ]);
+  for (const key of keys)
+    if (differs(stored.metadata, candidate.metadata, key))
+      differences.push(`metadata.${key}`);
+  return differences;
 }
