@@ -19,6 +19,7 @@ import {
   TupleNode,
   ValueNode,
   type CollateNode,
+  type CommonTableExpressionNameNode,
   type CommonTableExpressionNode,
   type OperationNode,
   type PrimitiveValueListNode,
@@ -36,11 +37,11 @@ import {
   type ClickHouseSelectQueryNode,
   type LimitByNode,
 } from "./nodes";
-import { QueryCompileError } from "./errors";
+import { QueryCompileError, UnscopedRelationError } from "./errors";
 import { selectRelations } from "./relations";
-import { TABLE_BIND_TYPES } from "./schema";
+import { TABLE_BIND_TYPES, lookupTable } from "./schema";
 import { assertTenancyStamped } from "./tenancy";
-import { cteName } from "./transformer";
+import { cteName } from "./ctes";
 
 const ARRAY_JOIN_SQL: Record<ArrayJoinNode["variant"], string> = {
   default: "array join",
@@ -106,27 +107,26 @@ function inferClickHouseType(value: unknown): string {
 }
 
 /**
- * Column bind types of the relation `table` resolves to: the innermost CTE of
- * that name, else the registry table, else opaque. A schema-qualified table
- * (`default.traces`) is never a CTE.
+ * Bind types of the innermost CTE named like `table`, else of its registry
+ * table. Any other name throws; `compileClickhouseQuery` rejects it earlier,
+ * in `ctes.ts`.
  */
 function relationBindTypes(
   table: TableNode,
   scopes: readonly SelectScope[],
 ): RelationBindTypes {
   const name = table.table.identifier.name;
-  if (!table.table.schema) {
-    for (const scope of [...scopes].reverse()) {
-      const cte = scope.cte(name);
-      if (cte) return cte;
-    }
+  for (const scope of [...scopes].reverse()) {
+    const cte = scope.cte(name);
+    if (cte) return cte;
   }
-  return (
-    TABLE_BIND_TYPES[name] ??
-    new OpaqueRelation(
-      `"${name}" is not a registered table. Add it to TABLE_REGISTRY in schema.ts, or read the column from a registered table.`,
-    )
-  );
+  const columns = TABLE_BIND_TYPES[name];
+  if (!columns) {
+    throw new UnscopedRelationError(
+      `"${name}" is not a registry table or a CTE in scope; compile through compileClickhouseQuery(), whose CteNamePlugin (ctes.ts) rejects it.`,
+    );
+  }
+  return columns;
 }
 
 /**
@@ -487,13 +487,9 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
 
   /**
    * Lookup of the CTEs `node`'s WITH declares. A body is typed on its first
-   * read, against `enclosing` plus {@link withoutCte}, so it can read an
-   * earlier or a later sibling as ClickHouse does.
-   *
-   * Typing a body recurses into the siblings it reads, and each body is typed
-   * without its own name, so the recursion only follows sibling reads. Those
-   * never form a cycle: the transformer passes reject
-   * `WITH a AS (… FROM b), b AS (… FROM a)` before the compiler runs.
+   * read, against `enclosing` plus {@link cteBodyScope}. Typing a body
+   * recurses into the siblings it reads, which are all declared before it
+   * (`ctes.ts` rejects the rest before any pass runs), so the recursion ends.
    */
   private cteLookup(
     node: SelectQueryNode,
@@ -511,7 +507,7 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
       if (!cte) return undefined;
       const known = typed.get(name);
       if (known) return known;
-      const bodyScope = withoutCte({ cte: lookup }, name);
+      const bodyScope = cteBodyScope({ cte: lookup });
       const columns = this.outputBindTypes(cte.expression, [
         ...outer,
         bodyScope,
@@ -522,10 +518,15 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     return lookup;
   }
 
-  /**
-   * The declaring SELECT's scope declares this CTE, so a body reading its own
-   * name would otherwise bind against the CTE instead of the table.
-   */
+  /** Written verbatim, so `"traces "` can't pass as a name other than `traces`. */
+  protected override visitCommonTableExpressionName(
+    node: CommonTableExpressionNameNode,
+  ): void {
+    assertPlainName("CTE", node.table.table.identifier.name);
+    super.visitCommonTableExpressionName(node);
+  }
+
+  /** A CTE body does not see the declaring SELECT's FROM relations. */
   protected override visitCommonTableExpression(
     node: CommonTableExpressionNode,
   ): void {
@@ -534,7 +535,7 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
       super.visitCommonTableExpression(node);
       return;
     }
-    this.selectScopes.push(withoutCte(declaring, cteName(node)));
+    this.selectScopes.push(cteBodyScope(declaring));
     try {
       super.visitCommonTableExpression(node);
     } finally {
@@ -561,7 +562,7 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     }
     const scope = this.selectScopeOf(node, enclosing);
     const scopes = [...enclosing, scope];
-    let columns: Record<string, BindType | null> = {};
+    let columns = lookupTable<BindType | null>([]);
     for (const { selection } of node.selections ?? []) {
       const star = starSelection(selection);
       if (star) {
@@ -826,20 +827,12 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
 }
 
 /**
- * The scope a body of CTE `name` sees in place of its declaring SELECT: every
- * sibling CTE but itself, as ClickHouse resolves `WITH traces AS (SELECT …
- * FROM traces)` to the table, or to an enclosing CTE of that name. The
- * declaring SELECT's FROM relations are not visible to the body.
+ * The scope a CTE body sees in place of its declaring SELECT: the sibling
+ * CTEs, but not the declaring SELECT's FROM relations. A body reads only
+ * earlier siblings (`ctes.ts`), so typing a body never reaches itself.
  */
-function withoutCte(
-  scope: Pick<SelectScope, "cte">,
-  name: string,
-): SelectScope {
-  return {
-    cte: (other) => (other === name ? undefined : scope.cte(other)),
-    relations: new Map(),
-    aliases: new Map(),
-  };
+function cteBodyScope(scope: Pick<SelectScope, "cte">): SelectScope {
+  return { cte: scope.cte, relations: new Map(), aliases: new Map() };
 }
 
 function assertPlainName(kind: string, name: string): void {
@@ -1017,7 +1010,7 @@ function withMissingColumns(
   columns: ColumnBindTypes,
   relation: ColumnBindTypes,
 ): Record<string, BindType | null> {
-  return { ...relation, ...columns };
+  return lookupTable([...Object.entries(relation), ...Object.entries(columns)]);
 }
 
 function isTupleBindType(
