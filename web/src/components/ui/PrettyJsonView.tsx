@@ -86,28 +86,6 @@ const PREVIEW_TEXT_CLASSES = "text-gray-500 dark:text-gray-400";
 
 type PrettyJsonViewTone = "danger" | "warning" | "muted" | "neutral";
 
-const PRETTY_JSON_VIEW_TONE_CLASSES: Record<
-  PrettyJsonViewTone,
-  { row: string; cell: string }
-> = {
-  danger: {
-    row: "hover:bg-light-red/50 dark:hover:bg-light-red/35",
-    cell: "border-dark-red/20 dark:border-dark-red/15",
-  },
-  warning: {
-    row: "hover:bg-light-yellow/50 dark:hover:bg-light-yellow/35",
-    cell: "border-dark-yellow/20 dark:border-dark-yellow/15",
-  },
-  muted: {
-    row: "hover:bg-muted",
-    cell: "border-border",
-  },
-  neutral: {
-    row: "hover:bg-muted",
-    cell: "border-border",
-  },
-};
-
 // decodeUnicodeInJson was extracted to a standalone module so that other JSON
 // viewers (e.g. CodeJsonViewer) can reuse it without creating an import cycle.
 // Re-exported here for backward compatibility with existing imports and tests.
@@ -326,7 +304,6 @@ interface JsonTableRowProps {
   expandedCells: Set<string>;
   toggleCellExpansion: (cellId: string) => void;
   stickyTopLevelKey: boolean;
-  toneClasses?: (typeof PRETTY_JSON_VIEW_TONE_CLASSES)[PrettyJsonViewTone];
 }
 
 const JsonTableRowComponent = memo(
@@ -338,7 +315,6 @@ const JsonTableRowComponent = memo(
     expandedCells,
     toggleCellExpansion,
     stickyTopLevelKey,
-    toneClasses,
   }: JsonTableRowProps) => {
     // Hook is now at top level of this component ✅
     const isExpandable =
@@ -372,7 +348,6 @@ const JsonTableRowComponent = memo(
           row.original.level === 0 && stickyTopLevelKey
             ? "bg-background sticky top-0 z-10 shadow-xs"
             : "",
-          toneClasses?.row,
         )}
       >
         {row.getVisibleCells().map((cell) => (
@@ -382,7 +357,6 @@ const JsonTableRowComponent = memo(
               "h-full border-b [:last-child_>_&]:border-b-0",
               CELL_CLASSES,
               cell.column.id === "value" && "[&>div]:wrap-anywhere",
-              toneClasses?.cell,
             )}
             style={{ width: `${cell.column.columnDef.size}%` }}
           >
@@ -412,7 +386,6 @@ function JsonPrettyTable({
   showObservationTypeBadge = false,
   metadataActions,
   rowActions,
-  toneClasses,
 }: {
   data: JsonTableRow[];
   expandAllRef?: React.RefObject<(() => void) | null>;
@@ -431,7 +404,6 @@ function JsonPrettyTable({
   showObservationTypeBadge?: boolean;
   metadataActions?: MetadataFilterActions;
   rowActions?: (row: Row<JsonTableRow>) => React.ReactNode;
-  toneClasses?: (typeof PRETTY_JSON_VIEW_TONE_CLASSES)[PrettyJsonViewTone];
   /** Drop the Path / Value header row. */
 }) {
   const topLevelRowRef = useRef<HTMLTableRowElement>(null);
@@ -702,7 +674,6 @@ function JsonPrettyTable({
               expandedCells={expandedCells}
               toggleCellExpansion={toggleCellExpansion}
               stickyTopLevelKey={stickyTopLevelKey}
-              toneClasses={toneClasses}
             />
           ))}
         </tbody>
@@ -753,9 +724,6 @@ export function PrettyJsonView(props: {
       since the title can carry a message `name` instead of the role). */
   isSystemPrompt?: boolean;
 }) {
-  const toneClasses = props.tone
-    ? PRETTY_JSON_VIEW_TONE_CLASSES[props.tone]
-    : undefined;
   const codeClassName = props.codeClassName;
   // Large plain-string gate (LFE-10991): a multi-MB top-level string skips
   // deepParseJson's object-only `maxSize` guard, so without this it would run
@@ -1316,7 +1284,6 @@ export function PrettyJsonView(props: {
                   showObservationTypeBadge={props.showObservationTypeBadge}
                   metadataActions={props.metadataActions}
                   rowActions={props.rowActions}
-                  toneClasses={toneClasses}
                 />
               )}
             </div>

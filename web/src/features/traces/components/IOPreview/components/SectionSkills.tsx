@@ -30,7 +30,7 @@ export function SectionSkills({ projectId, skills }: SectionSkillsProps) {
   }
 
   return (
-    <IOSection title="Skills" count={groups.length} beta>
+    <IOSection title="Skills" count={groups.length}>
       <Collapsible
         open={isGroupExpanded}
         onOpenChange={handleGroupChange}

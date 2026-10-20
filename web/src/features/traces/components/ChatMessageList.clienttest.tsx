@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { vi } from "vitest";
 
 // The list logic under test lives in ChatMessageList; stub the per-message
@@ -90,6 +90,83 @@ describe("ChatMessageList long history", () => {
       "false",
       "false",
     ]);
+  });
+
+  const longConversation = [
+    { role: "system", content: "Be brief." },
+    ...Array.from({ length: 7 }, (_, i) => ({
+      role: i % 2 === 0 ? "user" : "assistant",
+      content: `turn ${i + 1}`,
+    })),
+  ] as ChatMlMessage[];
+
+  const renderLong = (messages: ChatMlMessage[]) =>
+    render(
+      <ChatMessageList
+        messages={messages}
+        shouldRenderMarkdown={true}
+        currentView="pretty"
+        messageToToolCallNumbers={new Map()}
+      />,
+    );
+
+  it("shows no fold row for six or fewer messages", () => {
+    renderLong(conversation);
+
+    expect(
+      screen.queryByRole("button", { name: /other message/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("folds the middle of a long chat behind one row until it is opened", () => {
+    renderLong(longConversation);
+
+    // 8 rendered: first + 4 folded + last 3
+    const row = screen.getByRole("button", { name: "4 other messages" });
+    expect(row).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getAllByTestId("chat-message")).toHaveLength(4);
+    expect(collapsedFlags()).toEqual(["false", "false", "false", "false"]);
+    const list = row.parentElement!;
+    expect(Array.from(list.children).indexOf(row)).toBe(1);
+
+    fireEvent.click(row);
+
+    expect(row).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getAllByTestId("chat-message")).toHaveLength(8);
+    // the revealed messages start collapsed; first and last three stay open
+    expect(collapsedFlags()).toEqual([
+      "false",
+      "true",
+      "true",
+      "true",
+      "true",
+      "false",
+      "false",
+      "false",
+    ]);
+    expect(Array.from(list.children).indexOf(row)).toBe(1);
+
+    fireEvent.click(row);
+    expect(screen.getAllByTestId("chat-message")).toHaveLength(4);
+  });
+
+  it("does not count an empty message toward the tail", () => {
+    renderLong([
+      ...longConversation.slice(0, 6),
+      { role: "assistant" } as ChatMlMessage,
+      ...longConversation.slice(6),
+    ]);
+
+    // the empty message never renders, so the fold still hides 4 and shows the
+    // last three real messages
+    expect(
+      screen.getByRole("button", { name: "4 other messages" }),
+    ).toBeInTheDocument();
+    expect(
+      screen
+        .getAllByTestId("chat-message")
+        .map((el) => el.getAttribute("data-role")),
+    ).toEqual(["system", "user", "assistant", "user"]);
   });
 
   it("leaves every message open when history collapsing is off", () => {

@@ -56,8 +56,6 @@ export type IOSectionProps = {
   titleIcon?: IconComponent;
   /** Count badge after the title. */
   count?: number;
-  /** Marks a beta feature with a badge after the title. */
-  beta?: boolean;
   info?: IOSectionInfo;
   /** Header copy control; omitted when the section has nothing to copy. */
   onCopy?: (event?: React.MouseEvent<HTMLButtonElement>) => void;
@@ -96,14 +94,12 @@ const TONE_TEXT_CLASSES: Record<IOSectionTone, string> = {
   neutral: "bg-surface-section text-foreground-secondary",
 };
 
-/** Toned table boxes: the table's hairlines sit inside a level-coloured frame. */
-const TONE_TABLE_CLASSES: Record<IOSectionTone, string> = {
-  danger:
-    "border-red-100 bg-red-50 text-red-900 dark:border-dark-red/20 dark:bg-light-red/35 dark:text-red-300",
-  warning:
-    "border-yellow-100 bg-yellow-50 text-yellow-900 dark:border-dark-yellow/20 dark:bg-light-yellow/35 dark:text-yellow-300",
-  muted: "border-transparent text-foreground-secondary",
-  neutral: "border-transparent text-foreground-secondary",
+/** Toned table boxes: the plain table box with the tone as its fill only. */
+const TONE_FILL_CLASSES: Record<IOSectionTone, string> = {
+  danger: "bg-red-50 dark:bg-light-red/35",
+  warning: "bg-yellow-50 dark:bg-light-yellow/35",
+  muted: "bg-surface-section",
+  neutral: "bg-surface-section",
 };
 
 /** The body box: the section's grey fill, or a level-coloured frame. */
@@ -118,7 +114,11 @@ function boxClasses(
     );
   }
   if (variant === "table") {
-    return cn("overflow-hidden rounded-sm border", TONE_TABLE_CLASSES[tone]);
+    return cn(
+      "overflow-hidden rounded-md px-3",
+      BODY_PADDING_CLASSES.table,
+      TONE_FILL_CLASSES[tone],
+    );
   }
   return cn(
     "rounded-md px-3 py-2 text-sm wrap-break-word whitespace-pre-wrap",
@@ -139,7 +139,6 @@ export function IOSection({
   title,
   titleIcon: TitleIcon,
   count,
-  beta = false,
   info,
   onCopy,
   actions,
@@ -186,7 +185,6 @@ export function IOSection({
           {count !== undefined ? (
             <Badge color="filled" size="sm" text={String(count)} />
           ) : null}
-          {beta ? <Badge text="Beta" color="blue" size="sm" /> : null}
         </button>
         {info ? (
           <div className="flex items-center pl-2">

@@ -127,7 +127,7 @@ export const VariantMatrix = meta.story({
         </IOSection>
       </Example>
 
-      <Example caption="Toned table: structured error output">
+      <Example caption="Toned table: the plain table box with the tone as fill, neutral dividers">
         <PrettyJsonView
           title="Output"
           json={ERROR_OUTPUT}
@@ -183,8 +183,8 @@ export const VariantMatrix = meta.story({
         </IOSection>
       </Example>
 
-      <Example caption="Count and beta badges">
-        <IOSection onCopy={args.onCopy} title="Skills" count={3} beta>
+      <Example caption="Count badge">
+        <IOSection onCopy={args.onCopy} title="Skills" count={3}>
           <p className="text-sm">3 skills loaded for this run.</p>
         </IOSection>
       </Example>
