@@ -41,6 +41,7 @@ catalogs:
       version: 6.0.2
 
 overrides:
+  vite-plugin-storybook-nextjs@3.3.2>@next/env: 16.4.2
   '@react-email/render>html-to-text': 10.0.1
   '@ag-ui/mastra@1.1.1>@copilotkit/runtime': '-'
   browserslist: 4.28.7
@@ -162,8 +163,8 @@ importers:
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.8.0(jiti@2.7.0)(supports-color@8.1.1))
       '@next/eslint-plugin-next':
-        specifier: 16.3.8
-        version: 16.3.8(eslint@10.8.0(jiti@2.7.0)(supports-color@8.1.1))
+        specifier: 16.4.2
+        version: 16.4.2(eslint@10.8.0(jiti@2.7.0)(supports-color@8.1.1))
       '@repo/eslint-plugin':
         specifier: workspace:*
         version: link:../eslint-plugin
@@ -174,8 +175,8 @@ importers:
         specifier: ^10.1.8
         version: 10.1.8(eslint@10.8.0(jiti@2.7.0)(supports-color@8.1.1))
       eslint-config-turbo:
-        specifier: 2.11.7
-        version: 2.11.7(eslint@10.8.0(jiti@2.7.0)(supports-color@8.1.1))(turbo@2.11.9)
+        specifier: 2.11.9
+        version: 2.11.9(eslint@10.8.0(jiti@2.7.0)(supports-color@8.1.1))(turbo@2.11.9)
       eslint-import-resolver-node:
         specifier: ^0.3.6
         version: 0.3.10(supports-color@8.1.1)
@@ -3464,14 +3465,11 @@ packages:
       '@prisma/client': '>=2.26.0 || >=3'
       next-auth: ^4
 
-  '@next/env@16.3.0-preview.5':
-    resolution: {integrity: sha512-XqdVR0utAWMsVc1OIyO48D32vrdmC4/uAgI3Ds088YlOO4vfGKXXVyvkGFkOZkOK0xg7bNYNfJAarX4A0tYqGg==}
-
   '@next/env@16.4.2':
     resolution: {integrity: sha512-nTUTFH7G5/J/fmpkjVLegOkqyKOP0CEsJcMsyO4UCYeN1su+YMW/MfaSErnJskL7XM+UDK6aTvslxsRCyya/sA==}
 
-  '@next/eslint-plugin-next@16.3.8':
-    resolution: {integrity: sha512-eCR9RcLTZrVS+K3+VOhi0xMdUUGNuriCHHhU1ZoABC/QQ/Gp0OWbLKQxV2/9DkmihYdYRcQWFmZXW8M1AMUXYw==}
+  '@next/eslint-plugin-next@16.4.2':
+    resolution: {integrity: sha512-gCTWlw0e+Y6kajpFyKKgA195jUJCRhlzJE0lV7ufe8a+ghIsANWZ0/FiJwg6DuOG1+OvRbcZDcFBoRh3mNJx0g==}
 
   '@next/swc-darwin-arm64@16.4.2':
     resolution: {integrity: sha512-ONkhFvZNFWlsEHOM/81AtxdyuJP2KRYKYR0JxPwvcu1AuPMMMgcL+wW2luldJvMtZwKtUxoSkCychW5wIeoYSw==}
@@ -8468,8 +8466,8 @@ packages:
     peerDependencies:
       eslint: '>=7.0.0'
 
-  eslint-config-turbo@2.11.7:
-    resolution: {integrity: sha512-hzByjA0ahc3djytkKDG1IR9lhjYMSd20f601DWQp0omH/iA8tJ1dyBCYnBnuDlvbNEkLXQznHns+qgU6p4ymQQ==}
+  eslint-config-turbo@2.11.9:
+    resolution: {integrity: sha512-yoKkc09YZlmsXp3T+RgmDmWM+5wEEMSYCrKC4GJAm00StEQ2nt1IvBMMGbo9Ob7MVNpuZD+K67wSKWq7tYy6hA==}
     peerDependencies:
       eslint: '>6.6.0'
       turbo: '>2.0.0'
@@ -8579,8 +8577,8 @@ packages:
       typescript:
         optional: true
 
-  eslint-plugin-turbo@2.11.7:
-    resolution: {integrity: sha512-vFjI/0qxA9DFTMAOLhyVo7lFGh5kZ0wrWk+5tsQoafGPWqzTNmIMAjk7hsKLQGHOvLz42y8YIvrevHCbthFuZw==}
+  eslint-plugin-turbo@2.11.9:
+    resolution: {integrity: sha512-nuaiyetSxQmAykZqeW1ywrZ4cEuW4X36ZSGzwxVIa6aq+AwRGMADI+H8kRtGodxaPKHGqztXLO91lkzKHA21jQ==}
     peerDependencies:
       eslint: '>6.6.0'
       turbo: '>2.0.0'
@@ -15183,11 +15181,9 @@ snapshots:
       '@prisma/client': 6.19.3(prisma@6.19.3(magicast@0.5.2)(typescript@7.0.2))(typescript@7.0.2)
       next-auth: 4.24.15(patch_hash=298683aaa31566643f1899990a065b342ad777d8613f50a25ddc44dd46fb5b4d)(next@16.4.2(@babel/core@7.29.7(supports-color@8.1.1))(@opentelemetry/api@1.9.1)(@playwright/test@1.57.0)(@types/node@24.3.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(nodemailer@10.0.13)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
 
-  '@next/env@16.3.0-preview.5': {}
-
   '@next/env@16.4.2': {}
 
-  '@next/eslint-plugin-next@16.3.8(eslint@10.8.0(jiti@2.7.0)(supports-color@8.1.1))':
+  '@next/eslint-plugin-next@16.4.2(eslint@10.8.0(jiti@2.7.0)(supports-color@8.1.1))':
     dependencies:
       '@eslint-community/eslint-utils': 4.9.1(eslint@10.8.0(jiti@2.7.0)(supports-color@8.1.1))
       fast-glob: 3.3.1
@@ -20381,10 +20377,10 @@ snapshots:
     dependencies:
       eslint: 10.8.0(jiti@2.7.0)(supports-color@8.1.1)
 
-  eslint-config-turbo@2.11.7(eslint@10.8.0(jiti@2.7.0)(supports-color@8.1.1))(turbo@2.11.9):
+  eslint-config-turbo@2.11.9(eslint@10.8.0(jiti@2.7.0)(supports-color@8.1.1))(turbo@2.11.9):
     dependencies:
       eslint: 10.8.0(jiti@2.7.0)(supports-color@8.1.1)
-      eslint-plugin-turbo: 2.11.7(eslint@10.8.0(jiti@2.7.0)(supports-color@8.1.1))(turbo@2.11.9)
+      eslint-plugin-turbo: 2.11.9(eslint@10.8.0(jiti@2.7.0)(supports-color@8.1.1))(turbo@2.11.9)
       turbo: 2.11.9
 
   eslint-import-resolver-node@0.3.10(supports-color@8.1.1):
@@ -20571,7 +20567,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  eslint-plugin-turbo@2.11.7(eslint@10.8.0(jiti@2.7.0)(supports-color@8.1.1))(turbo@2.11.9):
+  eslint-plugin-turbo@2.11.9(eslint@10.8.0(jiti@2.7.0)(supports-color@8.1.1))(turbo@2.11.9):
     dependencies:
       dotenv: 16.0.3
       eslint: 10.8.0(jiti@2.7.0)(supports-color@8.1.1)
@@ -25034,7 +25030,7 @@ snapshots:
 
   vite-plugin-storybook-nextjs@3.3.2(next@16.4.2(@babel/core@7.29.7(supports-color@8.1.1))(@opentelemetry/api@1.9.1)(@playwright/test@1.57.0)(@types/node@24.3.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(storybook@10.5.10(@types/react@19.2.14)(prettier@3.8.3)(react@19.2.4))(supports-color@8.1.1)(typescript@7.0.2)(vite@7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0)):
     dependencies:
-      '@next/env': 16.3.0-preview.5
+      '@next/env': 16.4.2
       image-size: 2.0.4
       magic-string: 0.30.21
       module-alias: 2.3.4

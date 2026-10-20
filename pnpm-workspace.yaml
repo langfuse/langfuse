@@ -96,6 +96,9 @@ allowBuilds:
   ssh2: true
   vue-demi: true
 overrides:
+  # Storybook's compatible Vite adapter pins an older Next.js env prerelease.
+  # Keep its env loader aligned with the app until the adapter updates its pin.
+  "vite-plugin-storybook-nextjs@3.3.2>@next/env": 16.4.2
   # React Email requires html-to-text ^9, which pulls in vulnerable deepmerge
   # (CVE-2026-93753). Version 10.0.1 replaces it with patched deepmerge-ts.
   "@react-email/render>html-to-text": 10.0.1
@@ -195,6 +198,7 @@ minimumReleaseAgeExclude:
   # Next.js security upgrade; eligible after 2026-10-20 20:58 UTC.
   - next@16.4.2
   - "@next/env@16.4.2"
+  - "@next/eslint-plugin-next@16.4.2"
   - "@next/swc-darwin-arm64@16.4.2"
   - "@next/swc-darwin-x64@16.4.2"
   - "@next/swc-linux-arm64-gnu@16.4.2"
@@ -205,6 +209,8 @@ minimumReleaseAgeExclude:
   - "@next/swc-win32-x64-msvc@16.4.2"
   # Companion toolchain upgrade; eligible after 2026-10-21 19:10 UTC.
   - turbo@2.11.9
+  - eslint-config-turbo@2.11.9
+  - eslint-plugin-turbo@2.11.9
   - "@turbo/darwin-64@2.11.9"
   - "@turbo/darwin-arm64@2.11.9"
   - "@turbo/linux-64@2.11.9"
