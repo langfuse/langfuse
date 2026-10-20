@@ -89,6 +89,7 @@ model User {
   inAppAgentConversations   InAppAgentConversation[]    @relation("InAppAgentConversationCreatedByUser")
   inAppAgentRuns            InAppAgentRun[]             @relation("InAppAgentRunTriggeredByUser")
   apiKeysCreated            ApiKey[]                    @relation("ApiKeyCreatedByUser")
+  apiKeys                   ApiKey[]                    @relation("ApiKeyUser")
   roleAssignments           RoleAssignment[]
   evaluatorsCreated         Evaluator[]                 @relation("EvaluatorCreatedByUser")
   evaluatorVersionsCreated  EvaluatorVersion[]          @relation("EvaluatorVersionCreatedByUser")
@@ -248,6 +249,9 @@ model ApiKey {
   scope               ApiKeyScope               @default(PROJECT) @map("scope")
   createdByUserId     String?                   @map("created_by_user_id")
   createdByUser       User?                     @relation("ApiKeyCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  // user the key is bound to; the key is revoked when that user leaves the org
+  userId              String?                   @map("user_id")
+  user                User?                     @relation("ApiKeyUser", fields: [userId], references: [id], onDelete: Cascade)
   createdByApiKeyId   String?                   @map("created_by_api_key_id")
   createdByApiKey     ApiKey?                   @relation("ApiKeyCreatedByApiKey", fields: [createdByApiKeyId], references: [id], onDelete: SetNull)
   apiKeysCreated      ApiKey[]                  @relation("ApiKeyCreatedByApiKey")
@@ -259,6 +263,7 @@ model ApiKey {
   @@index(orgId)
   @@index(projectId)
   @@index(createdByApiKeyId)
+  @@index([userId, orgId])
   @@index(publicKey)
   @@index(hashedSecretKey)
   @@index(fastHashedSecretKey)

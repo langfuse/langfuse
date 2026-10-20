@@ -1,4 +1,9 @@
-import { PrismaClient, ApiKeyScope, type Prisma } from "@prisma/client";
+import {
+  PrismaClient,
+  ApiKeyScope,
+  type Prisma,
+  type SystemRole,
+} from "@prisma/client";
 import { compare, hash } from "bcryptjs";
 import { randomUUID } from "crypto";
 import * as crypto from "crypto";
@@ -26,6 +31,9 @@ import { logger } from "../logger";
 import { assignRole } from "../../features/rbac/roleAssignmentService";
 import { invalidateCachedApiKeys } from "./invalidateApiKeys";
 import { withTransaction } from "../utils/withTransaction";
+
+/** userBoundRoles lists the roles whose keys are revoked when the creating user leaves the org. */
+const userBoundRoles: ReadonlySet<SystemRole> = new Set(["AI_GATEWAY"]);
 
 export function getDisplaySecretKey(secretKey: string) {
   return secretKey.slice(0, 6) + "..." + secretKey.slice(-4);
@@ -169,6 +177,7 @@ export async function createApiKey(
     expiresAt: opts.expiresAt ?? null,
     isInAppAgentKey: opts.isInAppAgentKey ?? false,
     ...creatorColumns(opts.createdBy),
+    ...boundUserColumn(opts.role, opts.createdBy),
   };
 
   const created = await withTransaction(prisma, (tx) =>
@@ -188,6 +197,17 @@ function creatorColumns(
   return hasApiKeyKind(createdBy)
     ? { createdByApiKeyId: untag(createdBy) }
     : { createdByUserId: untag(createdBy) };
+}
+
+/** boundUserColumn binds a user-created key to its creator when its role is user-bound. */
+function boundUserColumn(
+  role: RoleId,
+  createdBy: ApiKeyId | UserId | "system",
+): Pick<Prisma.ApiKeyUncheckedCreateInput, "userId"> {
+  if (createdBy === "system" || hasApiKeyKind(createdBy)) return {};
+  if (!hasSystemRoleKind(role) || !userBoundRoles.has(toSystemRole(role)))
+    return {};
+  return { userId: untag(createdBy) };
 }
 
 /** insertApiKey writes the api-key row and its one owner-keyed role assignment on a single transaction client. */

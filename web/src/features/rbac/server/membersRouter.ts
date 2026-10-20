@@ -35,6 +35,11 @@ import {
 } from "@/src/features/rbac/utils/checkProjectAccess";
 import { allMembersRoutes } from "@/src/features/rbac/server/allMembersRoutes";
 import { allInvitesRoutes } from "@/src/features/rbac/server/allInvitesRoutes";
+import {
+  deleteUserBoundApiKeys,
+  deleteUserBoundApiKeysForRole,
+  evictRevokedApiKeys,
+} from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
 import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
 import {
   userFeaturePreviewFlags,
@@ -571,12 +576,22 @@ export const membersRouter = createTRPCRouter({
         before: orgMembership,
       });
 
-      const deleted = await ctx.prisma.organizationMembership.delete({
-        where: {
-          id: orgMembership.id,
-          orgId: input.orgId,
+      const { deleted, revokedKeys } = await ctx.prisma.$transaction(
+        async (tx) => {
+          const deleted = await tx.organizationMembership.delete({
+            where: {
+              id: orgMembership.id,
+              orgId: input.orgId,
+            },
+          });
+          const revokedKeys = await deleteUserBoundApiKeys(tx, {
+            userId: orgMembership.userId,
+            orgId: input.orgId,
+          });
+          return { deleted, revokedKeys };
         },
-      });
+      );
+      await evictRevokedApiKeys(revokedKeys, { session: ctx.session });
 
       // SFDC: remove the org-member bridge.
       await getSfdcService()?.removeUser({
@@ -699,15 +714,25 @@ export const membersRouter = createTRPCRouter({
         });
       }
 
-      const updatedMembership = await ctx.prisma.organizationMembership.update({
-        where: {
-          id: membership.id,
-          orgId: input.orgId,
+      const { updatedMembership, revokedKeys } = await ctx.prisma.$transaction(
+        async (tx) => {
+          const updatedMembership = await tx.organizationMembership.update({
+            where: {
+              id: membership.id,
+              orgId: input.orgId,
+            },
+            data: {
+              role: input.role,
+            },
+          });
+          const revokedKeys = await deleteUserBoundApiKeysForRole(tx, {
+            userId: membership.userId,
+            orgId: input.orgId,
+            role: input.role,
+          });
+          return { updatedMembership, revokedKeys };
         },
-        data: {
-          role: input.role,
-        },
-      });
+      );
 
       await auditLog({
         session: ctx.session,
@@ -717,6 +742,7 @@ export const membersRouter = createTRPCRouter({
         before: membership,
         after: updatedMembership,
       });
+      await evictRevokedApiKeys(revokedKeys, { session: ctx.session });
 
       await getSfdcService()?.setUserRole({
         orgId: input.orgId,

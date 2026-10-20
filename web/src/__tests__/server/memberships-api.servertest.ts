@@ -895,6 +895,66 @@ describe("Organization membership safeguards", () => {
     expect((await membership(memberId))?.role).toBe(Role.ADMIN);
     expect(await logs()).toHaveLength(1);
   });
+
+  describe("gateway key revocation", () => {
+    const createBoundGatewayKey = (userId: string) =>
+      createApiKey(prisma, {
+        owner: OrganizationId(orgId),
+        role: SystemRoleId("AI_GATEWAY"),
+        createdBy: UserId(userId),
+      });
+    const keyExists = async (id: string) =>
+      (await prisma.apiKey.count({ where: { id } })) === 1;
+    const callHandler = async (
+      handler: typeof handleUpdateMembership,
+      method: "PUT" | "DELETE",
+      body: { userId: string; role?: Role },
+    ) => {
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method,
+        body,
+      });
+      await handler(req, res, orgId, apiKeyId, ownerContext);
+      return res.statusCode;
+    };
+
+    it("revokes the gateway keys of a member removed via DELETE", async () => {
+      const key = await createBoundGatewayKey(memberId);
+
+      expect(
+        await callHandler(handleDeleteMembership, "DELETE", {
+          userId: memberId,
+        }),
+      ).toBe(200);
+
+      expect(await keyExists(key.id)).toBe(false);
+    });
+
+    it.each([
+      [Role.MEMBER, true],
+      [Role.VIEWER, false],
+      [Role.NONE, false],
+    ])(
+      "keeps gateway keys of an OWNER moved to %s only while the role can invoke the gateway",
+      async (role, kept) => {
+        await prisma.organizationMembership.update({
+          where: { orgId_userId: { orgId, userId: memberId } },
+          data: { role: Role.OWNER },
+        });
+        const key = await createBoundGatewayKey(memberId);
+
+        expect(
+          await callHandler(handleUpdateMembership, "PUT", {
+            userId: memberId,
+            role,
+          }),
+        ).toBe(200);
+
+        expect((await membership(memberId))?.role).toBe(role);
+        expect(await keyExists(key.id)).toBe(kept);
+      },
+    );
+  });
 });
 
 describe("Project membership safeguards", () => {

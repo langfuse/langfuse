@@ -6,6 +6,8 @@ import { prisma } from "@langfuse/shared/src/db";
 import { Role, type Plan } from "@langfuse/shared";
 import { entitlementAccess } from "@/src/features/entitlements/constants/entitlements";
 import type { Session } from "next-auth";
+import { createApiKey } from "@langfuse/shared/src/server";
+import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 
 // Session fixture sub-object types; casts keep the runtime fixtures unchanged
 // while satisfying newer required fields on the session user type.
@@ -1108,4 +1110,58 @@ describe("membersRouter.updateProjectRole - project organization consistency", (
     });
     expect(auditLogs).toHaveLength(0);
   });
+});
+
+describe("membersRouter - gateway key revocation", () => {
+  async function createBoundGatewayKey(orgId: string, userId: string) {
+    return createApiKey(prisma, {
+      owner: OrganizationId(orgId),
+      role: SystemRoleId("AI_GATEWAY"),
+      createdBy: UserId(userId),
+    });
+  }
+
+  async function keyExists(id: string) {
+    return (await prisma.apiKey.count({ where: { id } })) > 0;
+  }
+
+  it("deleteMembership revokes the removed member's bound gateway keys", async () => {
+    const { org, caller } = await prepare("cloud:core");
+    const member = await createTestUser();
+    const membership = await prisma.organizationMembership.create({
+      data: { userId: member.id, orgId: org.id, role: Role.MEMBER },
+    });
+    const key = await createBoundGatewayKey(org.id, member.id);
+
+    await caller.members.deleteMembership({
+      orgId: org.id,
+      orgMembershipId: membership.id,
+    });
+
+    expect(await keyExists(key.id)).toBe(false);
+  });
+
+  it.each([
+    [Role.MEMBER, true],
+    [Role.VIEWER, false],
+    [Role.NONE, false],
+  ])(
+    "updateOrgMembership from OWNER to %s keeps the bound gateway key: %s",
+    async (role, kept) => {
+      const { org, caller } = await prepare("cloud:core");
+      const otherOwner = await createTestUser();
+      const membership = await prisma.organizationMembership.create({
+        data: { userId: otherOwner.id, orgId: org.id, role: Role.OWNER },
+      });
+      const key = await createBoundGatewayKey(org.id, otherOwner.id);
+
+      await caller.members.updateOrgMembership({
+        orgId: org.id,
+        orgMembershipId: membership.id,
+        role,
+      });
+
+      expect(await keyExists(key.id)).toBe(kept);
+    },
+  );
 });

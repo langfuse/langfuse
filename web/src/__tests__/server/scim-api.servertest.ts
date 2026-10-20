@@ -2041,4 +2041,51 @@ describe("SCIM ownership boundary", () => {
     expect(await call(scimUserRoute, "DELETE", undefined, memberId)).toBe(204);
     expect(await roleOf(memberId)).toBeUndefined();
   });
+
+  describe("gateway key revocation", () => {
+    const createBoundGatewayKey = (userId: string) =>
+      createApiKey(prisma, {
+        owner: OrganizationId(orgId),
+        role: SystemRoleId("AI_GATEWAY"),
+        createdBy: UserId(userId),
+      });
+    const keyExists = async (apiKeyId: string) =>
+      (await prisma.apiKey.count({ where: { id: apiKeyId } })) === 1;
+
+    it("revokes the gateway keys of a user removed via DELETE", async () => {
+      const key = await createBoundGatewayKey(memberId);
+
+      expect(await call(scimUserRoute, "DELETE", undefined, memberId)).toBe(
+        204,
+      );
+
+      expect(await keyExists(key.id)).toBe(false);
+    });
+
+    it.each([
+      ["MEMBER", true],
+      ["VIEWER", false],
+      ["NONE", false],
+    ])(
+      "keeps gateway keys of an OWNER moved to %s only while the role can invoke the gateway",
+      async (role, kept) => {
+        const key = await createBoundGatewayKey(ownerId);
+
+        const response = await callScimRoute(scimUserRoute, {
+          method: "PUT",
+          authorization: ownerAuth,
+          userId: ownerId,
+          body: {
+            schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+            active: true,
+            roles: [role],
+          },
+        });
+
+        expect(response.status).toBe(200);
+        expect(await roleOf(ownerId)).toBe(role);
+        expect(await keyExists(key.id)).toBe(kept);
+      },
+    );
+  });
 });

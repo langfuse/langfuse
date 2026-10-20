@@ -5,6 +5,8 @@ import { randomUUID } from "crypto";
 
 import type { Plan } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import { createApiKey } from "@langfuse/shared/src/server";
+import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -229,6 +231,48 @@ describe("userAccountRouter.signOutAllSessions", () => {
       token: { email, loginAt: reLoginAt },
     });
     expect(admitted.user).not.toBeNull();
+  });
+});
+
+describe("userAccountRouter.delete", () => {
+  it("audits the revocation of the user's bound gateway keys in each organization", async () => {
+    const { caller, userId, orgId } = await createCaller();
+    const otherOrg = await prisma.organization.create({
+      data: { name: `User Account Test Org ${randomUUID()}` },
+    });
+    const keys = await Promise.all(
+      [orgId, otherOrg.id].map((owner) =>
+        createApiKey(prisma, {
+          owner: OrganizationId(owner),
+          role: SystemRoleId("AI_GATEWAY"),
+          createdBy: UserId(userId),
+        }),
+      ),
+    );
+
+    await caller.userAccount.delete();
+
+    const entries = await prisma.auditLog.findMany({
+      where: { resourceId: { in: keys.map((key) => key.id) } },
+      select: { resourceId: true, orgId: true, action: true, userId: true },
+    });
+    expect(entries).toHaveLength(2);
+    expect(entries).toEqual(
+      expect.arrayContaining([
+        { resourceId: keys[0].id, orgId, action: "delete", userId },
+        {
+          resourceId: keys[1].id,
+          orgId: otherOrg.id,
+          action: "delete",
+          userId,
+        },
+      ]),
+    );
+    expect(
+      await prisma.apiKey.count({
+        where: { id: { in: keys.map((key) => key.id) } },
+      }),
+    ).toBe(0);
   });
 });
 
