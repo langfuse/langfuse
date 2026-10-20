@@ -6,8 +6,8 @@
  *    comparisons).
  *  - `COLUMN_DATA_TYPES` — the coarse runtime type map the aggregate type-check
  *    pass consults (`typecheck.ts`).
- *  - `TABLE_BIND_TYPES` / `COLUMN_BIND_TYPES` — the ClickHouse bind types the
- *    compiler uses when a value is compared to a known column (`compiler.ts`).
+ *  - `TABLE_BIND_TYPES` — the ClickHouse bind types the compiler uses when a
+ *    value is compared to a known column (`compiler.ts`).
  *  - `TENANTED_TABLES` — the relations the tenancy pass must scope
  *    (`tenancy.ts`).
  *  - `DEDUP_SPECS` — the per-table read idiom the lowering pass applies
@@ -336,7 +336,7 @@ export type ClickHouseDatabase = {
 export const TABLE_COLUMN_TYPES: Record<
   string,
   Record<string, ChColumnType>
-> = Object.fromEntries(
+> = lookupTable(
   Object.entries(TABLE_REGISTRY)
     .filter(([table]) => table !== "events")
     .map(([table, spec]) => [table, spec.columns]),
@@ -347,15 +347,19 @@ export const TABLE_COLUMN_TYPES: Record<
  * the aggregate type-check pass. Column names are consistent across tables in
  * this schema, so a flat map is unambiguous.
  */
-export const COLUMN_DATA_TYPES: Record<string, ColumnDataType> =
-  Object.fromEntries(
-    Object.values(TABLE_REGISTRY).flatMap((table) =>
-      Object.entries(table.columns).map(([name, chType]) => [
-        name,
-        RUNTIME_TYPE[chType],
-      ]),
-    ),
-  );
+export const COLUMN_DATA_TYPES: Record<string, ColumnDataType> = lookupTable(
+  Object.values(TABLE_REGISTRY).flatMap((table) =>
+    Object.entries(table.columns).map(([name, chType]) => [
+      name,
+      RUNTIME_TYPE[chType],
+    ]),
+  ),
+);
+
+/** Every registry relation name, the logical `events` included. */
+export const REGISTRY_TABLES: ReadonlySet<string> = new Set(
+  Object.keys(TABLE_REGISTRY),
+);
 
 /** Derived set of relations the tenancy pass must scope. */
 export const TENANTED_TABLES = new Set<string>(
@@ -365,14 +369,14 @@ export const TENANTED_TABLES = new Set<string>(
 );
 
 /** Derived per-table read idioms, keyed by table name. */
-export const DEDUP_SPECS: Record<string, DedupSpec> = Object.fromEntries(
+export const DEDUP_SPECS: Record<string, DedupSpec> = lookupTable(
   Object.entries(TABLE_REGISTRY).flatMap(([name, spec]) =>
     spec.dedup ? [[name, spec.dedup]] : [],
   ),
 );
 
 /** Derived soft-delete flag column, keyed by table name. */
-export const SOFT_DELETE_COLUMNS: Record<string, string> = Object.fromEntries(
+export const SOFT_DELETE_COLUMNS: Record<string, string> = lookupTable(
   Object.entries(TABLE_REGISTRY).flatMap(([name, spec]) =>
     spec.softDelete ? [[name, spec.softDelete]] : [],
   ),
@@ -407,10 +411,10 @@ const BIND_TYPE: Record<ChColumnType, string> = {
 export const TABLE_BIND_TYPES: Record<
   string,
   Record<string, string>
-> = Object.fromEntries(
+> = lookupTable(
   Object.entries(TABLE_REGISTRY).map(([table, spec]) => [
     table,
-    Object.fromEntries(
+    lookupTable(
       Object.entries(spec.columns).map(([name, chType]) => [
         name,
         BIND_TYPE[chType],
@@ -420,21 +424,12 @@ export const TABLE_BIND_TYPES: Record<
 );
 
 /**
- * Bind type by bare column name, for operands whose relation is opaque to the
- * compiler (e.g. a qualifier no relation in scope declares). Only names with the same bind type in
- * every table are kept, since `start_time` is `DateTime64(6)` on events but
- * `DateTime64(3)` on observations.
+ * `Object.fromEntries` without `Object.prototype`, so a lookup by a name such
+ * as `constructor` or `toString` finds nothing instead of an inherited
+ * function: `lookupTable([["traces", 1]]).constructor` → undefined.
  */
-export const COLUMN_BIND_TYPES: Record<string, string> = (() => {
-  const byName = new Map<string, Set<string>>();
-  for (const columns of Object.values(TABLE_BIND_TYPES)) {
-    for (const [name, bindType] of Object.entries(columns)) {
-      byName.set(name, (byName.get(name) ?? new Set()).add(bindType));
-    }
-  }
-  return Object.fromEntries(
-    [...byName]
-      .filter(([, types]) => types.size === 1)
-      .map(([name, types]) => [name, [...types][0]]),
-  );
-})();
+export function lookupTable<V>(
+  entries: Iterable<readonly [string, V]>,
+): Record<string, V> {
+  return Object.assign(Object.create(null), Object.fromEntries(entries));
+}

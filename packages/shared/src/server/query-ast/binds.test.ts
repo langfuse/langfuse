@@ -4,8 +4,8 @@ import { describe, expect, it } from "vitest";
 
 import { compileClickhouseQuery } from "./compile";
 import { getClickhouseKysely } from "./dialect";
-import { UnscopedRelationError } from "./errors";
-import { tupleIn, useFinal } from "./extensions";
+import { QueryCompileError } from "./errors";
+import { arrayJoin, countIf, tupleIn, useFinal } from "./extensions";
 
 const projectId = "proj-1";
 const START = new Date("2026-01-01T00:00:00.000Z");
@@ -163,17 +163,6 @@ describe("typed params from the column registry", () => {
   // A CTE or subquery column keeps the type of the column it selects.
   it.each([
     [
-      "a CTE named like a registry table",
-      () =>
-        getClickhouseKysely()
-          .with("observations", (db) =>
-            db.selectFrom("events_core").select("start_time"),
-          )
-          .selectFrom("observations")
-          .select("start_time")
-          .where("start_time", ">=", START),
-    ],
-    [
       "an aliased CTE column read through a table alias",
       () =>
         getClickhouseKysely()
@@ -280,137 +269,47 @@ describe("typed params from the column registry", () => {
     expect(sql).toMatch(/(start_time|ts) >= \{p\d+:DateTime64\(6\)\}/);
   });
 
-  // `observations.start_time` is DateTime64(3); `events_core.start_time` is
-  // DateTime64(6). Which one a bind gets shows which relation a name resolved to.
+  // `events_core.start_time` is DateTime64(6); a Date bound against a column
+  // the compiler can't type binds as DateTime64(3). Which one a bind gets
+  // shows which relation a name resolved to.
   describe("CTE name resolution", () => {
     const db = getClickhouseKysely();
-    const eventsAsObservations = db.with("observations", (qb) =>
+    const withX = db.with("x", (qb) =>
       qb.selectFrom("events_core").select("start_time"),
     );
 
-    it("resolves a later sibling CTE name to the CTE", () => {
+    it("types a subquery's read of an enclosing CTE from its body", () => {
       const { sql } = compile(
-        db
-          .with("early", (qb) =>
-            qb.selectFrom("observations").select("start_time"),
-          )
-          .with("observations", (qb) =>
-            qb.selectFrom("events_core").select("start_time"),
-          )
-          .selectFrom("early")
-          .select("start_time")
-          .where("start_time", ">=", START),
-      );
-      expect(sql).toMatch(/start_time >= \{p\d+:DateTime64\(6\)\}$/);
-    });
-
-    it("resolves a CTE body's read of its own name to the table", () => {
-      const { sql } = compile(
-        db
-          .with("observations", (qb) =>
+        withX
+          .selectFrom((qb) =>
             qb
-              .selectFrom("events_core as e")
-              .innerJoin("observations as o", "o.trace_id", "e.trace_id")
-              .select("e.start_time")
-              .where("o.start_time", ">=", START),
-          )
-          .selectFrom("observations")
-          .select("start_time"),
-      );
-      expect(sql).toMatch(/o\.start_time >= \{p\d+:DateTime64\(3\)\}/);
-    });
-
-    it("types a CTE that reads its own name when it is first read in a subquery", () => {
-      const { sql } = compile(
-        db
-          .with("observations", (qb) =>
-            qb.selectFrom("observations").select(["trace_id", "start_time"]),
-          )
-          .selectFrom("traces")
-          .select("id")
-          .where(
-            "id",
-            "in",
-            db
-              .selectFrom("observations")
-              .select("trace_id")
-              .where("start_time", ">=", START),
-          ),
-      );
-      expect(sql).toMatch(/start_time >= \{p\d+:DateTime64\(3\)\}/);
-    });
-
-    it("resolves a nested CTE body's own name to an outer CTE of that name", () => {
-      const { sql } = compile(
-        eventsAsObservations
-          .selectFrom(
-            db
-              .with("observations", (qb) =>
-                qb.selectFrom("observations").select("start_time"),
-              )
-              .selectFrom("observations")
+              .selectFrom("x")
               .select("start_time")
+              .where("start_time", ">=", START)
               .as("sub"),
           )
-          .select("sub.start_time")
-          .where("sub.start_time", ">=", START),
+          .select("sub.start_time"),
       );
-      expect(sql).toMatch(/sub\.start_time >= \{p\d+:DateTime64\(6\)\}$/);
+      expect(sql).toMatch(/start_time >= \{p\d+:DateTime64\(6\)\}\) as sub$/);
     });
 
-    it("resolves a schema-qualified table to the table, not a CTE of its name", () => {
-      const { sql } = compile(
-        eventsAsObservations
-          .selectFrom("observations")
-          .select("start_time")
-          .where(
-            "start_time",
-            "in",
-            db
-              .withSchema("default")
-              .selectFrom("observations")
-              .select("start_time")
-              .where("start_time", ">=", START),
-          ),
-      );
-      expect(sql).toMatch(
-        /from default\.observations where project_id = \{p\d+:String\} and start_time >= \{p\d+:DateTime64\(3\)\}/,
-      );
-    });
-
-    it("rejects CTEs that read each other", () => {
+    it("does not let a CTE body see the declaring select's FROM aliases", () => {
+      // Inside the body, `o` names nothing, so binding against `o.start_time`
+      // is rejected instead of taking the outer `events_core as o` type.
       expect(() =>
         compile(
           db
-            .with("observations", (qb) =>
-              qb.selectFrom("traces").select("timestamp as start_time"),
+            .with("y", (qb) =>
+              qb
+                .selectFrom("events_core")
+                .select("span_id")
+                .where(db.dynamic.ref("o.start_time"), ">=", START),
             )
-            .with("traces", (qb) =>
-              qb.selectFrom("observations").select("start_time as timestamp"),
-            )
-            .selectFrom("traces")
-            .select("timestamp")
-            .where("timestamp", ">=", START),
+            .selectFrom("events_core as o")
+            .select("o.span_id"),
         ),
-      ).toThrow(UnscopedRelationError);
+      ).toThrow(/no relation in scope is named "o"/);
     });
-  });
-
-  // When the column's table can't be resolved, the bind type falls back to the
-  // JS value: a Date binds as DateTime64(3), even against events.
-  it.each([
-    [
-      "a JOIN where an unqualified column exists with different types",
-      () =>
-        getClickhouseKysely()
-          .selectFrom("events_core as e")
-          .innerJoin("observations as o", "o.trace_id", "e.trace_id")
-          .select("e.span_id")
-          .where("start_time", ">=", START),
-    ],
-  ])("falls back to value inference for %s", (_, build) => {
-    const { sql } = compile(build());
-    expect(sql).toMatch(/start_time >= \{p\d+:DateTime64\(3\)\}/);
   });
 
   it("propagates the source column type through a JOIN to an aliased subquery", () => {
@@ -429,6 +328,91 @@ describe("typed params from the column registry", () => {
     expect(sql).toMatch(/sub\.start_time >= \{p\d+:DateTime64\(6\)\}/);
   });
 
+  // ClickHouse resolves `start_time` to the alias, not to either joined column.
+  it("binds a select alias with the type of the column it names", () => {
+    const { sql } = compile(
+      getClickhouseKysely()
+        .selectFrom("events_core as e")
+        .innerJoin("observations as o", "o.trace_id", "e.trace_id")
+        .select((eb) => eb.fn.max("e.start_time").as("start_time"))
+        .groupBy("e.trace_id")
+        .having("start_time", ">", START),
+    );
+    expect(sql).toMatch(/start_time > \{p\d+:DateTime64\(6\)\}/);
+  });
+
+  it("binds a computed select alias by value, not as the column it shadows", () => {
+    const { sql } = compile(
+      getClickhouseKysely()
+        .selectFrom("scores")
+        .select((eb) => eb.fn.countAll().as("value"))
+        .groupBy("trace_id")
+        .having("value", ">", 1),
+    );
+    expect(sql).toMatch(/value > \{p\d+:Int64\}/);
+  });
+
+  // ClickHouse resolves `v2` through `value` to `count()`, a UInt64.
+  // Inside its own expression, `total_cost` is the column, not the alias.
+  it("types a comparison inside an aggregate aliased to the column's name", () => {
+    const { sql } = compile(
+      getClickhouseKysely()
+        .selectFrom("events_core")
+        .select((eb) => countIf(eb("total_cost", ">", 1)).as("total_cost"))
+        .groupBy("trace_id"),
+    );
+    expect(sql).toMatch(/total_cost > \{p\d+:Decimal\(18, 12\)\}/);
+  });
+
+  it("binds an alias of a computed alias by value", () => {
+    const { sql } = compile(
+      getClickhouseKysely()
+        .selectFrom("scores")
+        .select((eb) => [
+          eb.fn.countAll().as("value"),
+          sql_.ref("value").as("v2"),
+        ])
+        .groupBy("trace_id")
+        .having(sql_.ref("v2"), ">", 1),
+    );
+    expect(sql).toMatch(/v2 > \{p\d+:Int64\}/);
+  });
+
+  // ClickHouse resolves `start_time` to the ARRAY JOIN element, a String.
+  it("binds an ARRAY JOIN alias by value, not as the column it shadows", () => {
+    const { sql } = compile(
+      getClickhouseKysely()
+        .selectFrom("events_core as e")
+        .select("e.span_id")
+        .$call(arrayJoin((eb) => ({ start_time: eb.ref("e.metadata_names") })))
+        .where(sql_.ref("start_time"), "=", "x"),
+    );
+    expect(sql).toMatch(/start_time = \{p\d+:String\}/);
+  });
+
+  // `kv.1` reads a tuple element of the ARRAY JOIN alias, not a relation.
+  it("binds a tuple element of an ARRAY JOIN alias by value", () => {
+    const { sql } = compile(
+      getClickhouseKysely()
+        .selectFrom("events_core as e")
+        .select("e.span_id")
+        .$call(arrayJoin((eb) => ({ kv: eb.ref("e.metadata_names") })))
+        .where(sql_.ref("kv.1"), "=", "a"),
+    );
+    expect(sql).toMatch(/kv\.1 = \{p\d+:String\}/);
+  });
+
+  // A raw fragment around a column is not the column: `length(...)` is a number.
+  it("binds a raw expression around a sql.ref column by value", () => {
+    const { sql } = compile(
+      getClickhouseKysely()
+        .selectFrom("events_core as e")
+        .select("e.span_id")
+        .where(sql_<number>`length(${sql_.ref("e.input")})`, ">", 5),
+    );
+    expect(sql).toMatch(/length\(e\.input\) > \{p\d+:Int64\}/);
+  });
+
   describe("columns the compiler can't resolve to a relation", () => {
     const db = getClickhouseKysely();
 
@@ -440,6 +424,43 @@ describe("typed params from the column registry", () => {
           .where(db.dynamic.ref("total_cost"), ">", 1),
       );
       expect(sql).toMatch(/total_cost > \{p\d+:Int64\}/);
+    });
+
+    it("binds by value a column named like an Object prototype key", () => {
+      // `scores` has no `constructor` column; the lookup must not find
+      // `Object.prototype.constructor` instead.
+      const { sql } = compile(
+        db
+          .selectFrom("scores as s")
+          .select("s.id")
+          .where(db.dynamic.ref("s.constructor"), ">", 1),
+      );
+      expect(sql).toMatch(/s\.constructor > \{p\d+:Int64\}/);
+    });
+
+    it("binds by value a CTE column named like an Object prototype key", () => {
+      // The CTE's output columns are typed from its body, which has no
+      // `constructor` column either.
+      const { sql } = compile(
+        db
+          .with("c", (qb) => qb.selectFrom("traces").select("id"))
+          .selectFrom("c")
+          .select("c.id")
+          .where(db.dynamic.ref("c.constructor"), ">", 1),
+      );
+      expect(sql).toMatch(/c\.constructor > \{p\d+:Int64\}/);
+    });
+
+    it("binds by value a column named like an Object prototype key through a CTE *", () => {
+      // The `*` expands to the columns of `traces`, which has no `constructor`.
+      const { sql } = compile(
+        db
+          .with("c", (qb) => qb.selectFrom("traces").selectAll())
+          .selectFrom("c")
+          .select("c.id")
+          .where(db.dynamic.ref("c.constructor"), ">", 1),
+      );
+      expect(sql).toMatch(/c\.constructor > \{p\d+:Int64\}/);
     });
 
     it("binds a named raw-SQL CTE column by value", () => {
@@ -457,14 +478,158 @@ describe("typed params from the column registry", () => {
       expect(sql).toMatch(/is_deleted = \{p\d+:Int64\}/);
     });
 
-    it("uses the name-only type for a qualifier declared nowhere", () => {
+    // `t` outputs only span_id, so is_deleted is not typed by its name.
+    it("binds by value a column the CTE does not output", () => {
+      const { sql } = compile(
+        db
+          .with("t", (qb) => qb.selectFrom("events_core").select("span_id"))
+          .selectFrom("t")
+          .select("span_id")
+          .where(db.dynamic.ref("is_deleted"), "=", 0),
+      );
+      expect(sql).toMatch(/is_deleted = \{p\d+:Int64\}/);
+    });
+
+    // Nothing is bound, so the column's type is never needed.
+    it("compiles an unresolvable column compared to an inlined constant", () => {
       const { sql } = compile(
         db
           .selectFrom("events_core")
           .select("span_id")
-          .where(db.dynamic.ref("x.is_deleted"), "=", 0),
+          .where((eb) => eb(db.dynamic.ref("x.is_deleted"), "=", eb.lit(0))),
       );
-      expect(sql).toMatch(/x\.is_deleted = \{p\d+:UInt8\}/);
+      expect(sql).toContain("x.is_deleted = 0");
+    });
+
+    it.each([
+      [
+        // No FROM or JOIN in scope is named `x`.
+        "a qualifier declared nowhere",
+        () =>
+          db
+            .selectFrom("events_core")
+            .select("span_id")
+            .where(db.dynamic.ref("x.is_deleted"), "=", 0),
+        /no relation in scope is named "x"/,
+      ],
+      [
+        // start_time is DateTime64(3) on observations, DateTime64(6) on events.
+        "an unqualified column the joined relations type differently",
+        () =>
+          db
+            .selectFrom("events_core as e")
+            .innerJoin("observations as o", "o.trace_id", "e.trace_id")
+            .select("e.span_id")
+            .where("start_time", ">=", START),
+        /joined relations give it different types/,
+      ],
+      [
+        // `t` outputs value computed (UInt64); scores types it Float64.
+        "an unqualified column one relation outputs computed and another types",
+        () =>
+          db
+            .with("t", (qb) =>
+              qb
+                .selectFrom("scores")
+                .select((eb) => [eb.fn.countAll().as("value"), "trace_id"])
+                .groupBy("trace_id"),
+            )
+            .selectFrom("t")
+            .innerJoin("scores as s", "s.trace_id", "t.trace_id")
+            .select("s.id")
+            .where("value", ">", 1),
+        /different types \(.*a computed value.*\)/,
+      ],
+      [
+        // `sql.ref` names a column like a plain reference does.
+        "a sql.ref column whose qualifier is declared nowhere",
+        () =>
+          db
+            .selectFrom("events_core")
+            .select("span_id")
+            .where(sql_.ref("x.is_deleted"), "=", 0),
+        /no relation in scope is named "x"/,
+      ],
+      [
+        "a CTE qualified * whose qualifier no relation declares",
+        () =>
+          db
+            .with("t", (qb) =>
+              qb.selectFrom("events_core as e").select(db.dynamic.ref("x.*")),
+            )
+            .selectFrom("t as t")
+            .select(db.dynamic.ref("t.span_id"))
+            .where(db.dynamic.ref("t.start_time"), ">=", START),
+        /It selects x\.\* but no relation in that select is named "x"/,
+      ],
+      [
+        // `t` selects `x.*` over no relation named `x`, so its columns are
+        // unknown and may include trace_id.
+        "an unqualified column next to a CTE whose columns are unknown",
+        () =>
+          db
+            .with("t", (qb) =>
+              qb.selectFrom("events_core as e").select(db.dynamic.ref("x.*")),
+            )
+            .selectFrom("scores as s")
+            .innerJoin("t", (join) => join.onTrue())
+            .select("s.id")
+            .where("trace_id", "=", "x"),
+        /may come from a relation whose columns are unknown/,
+      ],
+      [
+        // Each tuple position takes its column's type; `x.a` has none.
+        "a TupleParam whose tuple has a column declared nowhere",
+        () =>
+          db
+            .selectFrom("events_core as e")
+            .select("e.span_id")
+            .where((eb) =>
+              tupleIn(eb.refTuple(db.dynamic.ref("x.a"), "e.span_id"), [
+                new TupleParam(["a", "s"]),
+              ]),
+            ),
+        /no relation in scope is named "x"/,
+      ],
+      [
+        // Each value binds with the type of the column at its position.
+        "a tuple of values against a tuple with a column declared nowhere",
+        () =>
+          db
+            .selectFrom("events_core as e")
+            .select("e.span_id")
+            .where((eb) =>
+              eb(eb.refTuple(db.dynamic.ref("x.a"), "e.span_id"), "in", [
+                eb.tuple("a", "s"),
+              ]),
+            ),
+        /no relation in scope is named "x"/,
+      ],
+      [
+        // An empty list has no value to infer from, so `x.a` decides its type.
+        "an empty TupleParam list whose tuple has a column declared nowhere",
+        () =>
+          db
+            .selectFrom("events_core as e")
+            .select("e.span_id")
+            .where((eb) =>
+              tupleIn(eb.refTuple(db.dynamic.ref("x.a"), "e.span_id"), []),
+            ),
+        /no relation in scope is named "x"/,
+      ],
+      [
+        // An IN list binds an array of the column's type.
+        "an IN list against a qualifier declared nowhere",
+        () =>
+          db
+            .selectFrom("events_core")
+            .select("span_id")
+            .where(db.dynamic.ref("x.trace_id"), "in", ["a", "b"]),
+        /no relation in scope is named "x"/,
+      ],
+    ])("rejects a value bound against %s", (_, build, message) => {
+      expect(() => compile(build())).toThrow(QueryCompileError);
+      expect(() => compile(build())).toThrow(message);
     });
   });
 
@@ -531,6 +696,90 @@ describe("typed params from the column registry", () => {
     expect(Object.values(params)).toContainEqual([
       new TupleParam(["t1", "s1"]),
     ]);
+  });
+
+  it("binds a TupleParam list with the type of each tuple column", () => {
+    const { sql } = compile(
+      getClickhouseKysely()
+        .selectFrom("scores as s")
+        .select("s.id")
+        .where((eb) =>
+          tupleIn(eb.refTuple("s.trace_id", "s.value"), [
+            new TupleParam(["t1", 1]),
+          ]),
+        ),
+    );
+    expect(sql).toMatch(
+      /\(s\.trace_id, s\.value\) in \{p\d+:Array\(Tuple\(String, Float64\)\)\}/,
+    );
+  });
+
+  it("binds an empty TupleParam list with the tuple's column types", () => {
+    const { sql } = compile(
+      getClickhouseKysely()
+        .selectFrom("scores as s")
+        .select("s.id")
+        .where((eb) => tupleIn(eb.refTuple("s.trace_id", "s.value"), [])),
+    );
+    expect(sql).toMatch(
+      /\(s\.trace_id, s\.value\) in \{p\d+:Array\(Tuple\(String, Float64\)\)\}/,
+    );
+  });
+
+  it("binds each value of a tuple with the type of the column at its position", () => {
+    const { sql } = compile(
+      getClickhouseKysely()
+        .selectFrom("scores as s")
+        .select("s.id")
+        .where((eb) =>
+          eb(eb.refTuple("s.trace_id", "s.value"), "in", [eb.tuple("t1", 1)]),
+        ),
+    );
+    expect(sql).toMatch(
+      /\(s\.trace_id, s\.value\) in \(\(\{p\d+:String\}, \{p\d+:Float64\}\)\)/,
+    );
+  });
+
+  it("keeps the column types of a CTE that selects a referenced star", () => {
+    const db = getClickhouseKysely();
+    const { sql } = compile(
+      db
+        .with("t", (qb) =>
+          qb.selectFrom("events_core as e").select(db.dynamic.ref("e.*")),
+        )
+        .selectFrom("t as t")
+        .select(db.dynamic.ref("t.span_id"))
+        .where(db.dynamic.ref("t.start_time"), ">=", START),
+    );
+    expect(sql).toMatch(/t\.start_time >= \{p\d+:DateTime64\(6\)\}/);
+  });
+
+  // ClickHouse keeps `e.start_time` as `start_time` and renames `o.start_time`.
+  it("types a CTE * over a join from the leftmost relation with the column", () => {
+    const db = getClickhouseKysely();
+    const { sql } = compile(
+      db
+        .with("t", (qb) =>
+          qb
+            .selectFrom("events_core as e")
+            .innerJoin("observations as o", "o.trace_id", "e.trace_id")
+            .selectAll(),
+        )
+        .selectFrom("t as t")
+        .select("t.span_id")
+        .where("t.start_time", ">=", START),
+    );
+    expect(sql).toMatch(/t\.start_time >= \{p\d+:DateTime64\(6\)\}/);
+  });
+
+  it("binds a sql.ref column with its registry type", () => {
+    const { sql } = compile(
+      getClickhouseKysely()
+        .selectFrom("scores")
+        .select("id")
+        .where(sql_.ref("value"), ">", 1),
+    );
+    expect(sql).toMatch(/value > \{p\d+:Float64\}/);
   });
 
   it("binds distinct bare TupleParams as separate Tuple(...) placeholders", () => {

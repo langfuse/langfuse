@@ -21,6 +21,8 @@ changing how it emits SQL.
 
 - `compile.ts` — the one supported entry point,
   `compileClickhouseQuery(query, projectId)`.
+- `ctes.ts` — the first pass: rejects CTE and FROM/JOIN names that could
+  mean two relations, so later passes read every registry name as its table.
 - `tenancy.ts` — the tenancy injection pass.
 - `schema.ts` — the physical table registry: one `defineTable` declaration per
   relation drives the Kysely row types (`ClickHouseDatabase`), the runtime
@@ -93,11 +95,20 @@ suffix to run there. Promote it to a required check once it has proven stable.
   `metadataValue` stay on `events_core` when
   `metadataFilterIsEventsCoreSafe` accepts the value, as in the raw-SQL
   builders. `*` / `e.*` over `events`, raw SQL text in a select that reads
-  it, an unqualified truncated column, and a CTE named `events_core` /
-  `events_full` are compile errors while `events` is in scope. Name
-  `events_core` to read the truncated copy on purpose; `events_core` /
-  `events_full` stay selectable by name, which is also the override for a
-  shape the pass rejects.
+  it, and an unqualified truncated column are compile errors while `events`
+  is in scope. Name `events_core` to read the truncated copy on purpose;
+  `events_core` / `events_full` stay selectable by name, which is also the
+  override for a shape the pass rejects.
+- **Give each CTE (and view) its own plain name.** A CTE name is a plain
+  identifier that is not a registry table (`traces`, `events_core`, the
+  logical `events`, …) and doesn't reuse the name of a sibling or an
+  enclosing CTE (a CTE is not in scope inside its own body). Every FROM/JOIN
+  name is an unqualified registry table or a CTE in scope; schema-qualified
+  names (`default.traces`) are rejected, since the registry describes tables
+  by name only. A CTE body sees only the CTEs declared before it, so
+  recursive and cyclic CTEs are out. The passes then read every registry
+  name as its table. Rename or reorder the CTEs when the compile rejects
+  them; add a physical table to the registry to read it.
 - **Function and aggregate names must be plain identifiers.**
   The compiler writes them verbatim, so anything else fails to compile.
   `collate` is not supported.
@@ -121,7 +132,18 @@ suffix to run there. Promote it to a required check once it has proven stable.
   `{ strategy: "final" }`; callers opt in with `$call(useFinal(["scores"]))`.
 - **Value binds take their ClickHouse type from the compared column** in the
   table registry (`scores.value > 1` emits `{p:Float64}`, not inferred
-  `{p:Int64}`). Same-value binds still intern to one placeholder.
+  `{p:Int64}`). A `sql.ref` column is typed the same way, and a column tuple
+  (`refTuple`, `tupleIn`) per position. Same-value binds still intern to one
+  placeholder. A value compared to a column the compiler can't type throws
+  `QueryCompileError`: a qualifier no relation declares, a table outside the
+  registry (or a CTE that reads one), and an unqualified column that the
+  joined relations type differently (a computed CTE column counts as its own
+  type) or that a relation outside the registry may provide. Qualify the
+  column with the alias of a registry relation, or add the table to the
+  registry. A SELECT alias takes the type of the column it names, also
+  through another alias; a computed alias, an ARRAY JOIN alias, or a column
+  no relation has, binds by value. A `*` over a join types a shared column
+  name from the leftmost relation, as ClickHouse does.
 - **Bind dates as JS `Date`**, never as pre-formatted strings. The compiler
   sends a `Date` as the UTC wall-clock string ingestion writes
   (`toClickhouseDateTime`), so binds match stored rows whatever the server
@@ -251,6 +273,10 @@ and it is where tenancy is enforced:
 
 1. A missing/empty `projectId` throws (`QueryCompileError`) — `projectId` is a
    required parameter, so omitting it is also a compile-time type error.
+   `CteNamePlugin` then rejects the CTE names the rules above forbid; it runs
+   before every other pass. A FROM/JOIN name that resolves to no registry
+   table or CTE in scope, and a schema-qualified name, throw
+   `UnscopedRelationError`; naming errors throw `QueryCompileError`.
 2. `SoftDeleteFilterPlugin` adds `<flag> = 0` for every FROM/JOIN relation
    whose table declares `softDelete`, except in selects marked with
    `includeDeleted()`. A select marked `softDeleteAfterLimit()` is left
@@ -280,8 +306,9 @@ and it is where tenancy is enforced:
    present, so `qb.compile()` without the plugin also fails. Value binds take
    their ClickHouse type from the compared column's registry entry when one is
    in scope (`scores.value > 1` → `{p:Float64}`).
-6. Raw-SQL table sources (``selectFrom(sql`...`)``) and raw fragments embedding
-   a `SELECT`/`FROM`/`JOIN` in SELECT/WHERE throw `UnscopedRelationError`, as
+6. Raw-SQL table sources (``selectFrom(sql`...`)``), raw fragments embedding
+   a `SELECT`/`FROM`/`JOIN` in SELECT/WHERE, and a `sql.table(...)` reference
+   inside raw SQL in any position throw `UnscopedRelationError`, as
    does any FROM/JOIN source that is neither a table reference nor a subquery
    (table functions such as `remote()`, `clusterAllReplicas()`, `merge()`).
    Kysely's own keyword fragments (`asc`/`desc`) are not relations.

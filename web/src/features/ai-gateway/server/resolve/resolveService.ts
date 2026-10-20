@@ -74,8 +74,12 @@ export class GatewayResolveService {
         params.context.organizationId,
       );
       const { context } = params;
+      const { ingestionMode, ingestionProjectId } = context;
+      // NONE mode delivers nothing to Langfuse, so it needs neither an
+      // ingestion project nor ingestion signing keys.
+      const deliversToLangfuse = ingestionMode !== "NONE";
 
-      if (!context.ingestionProjectId || !context.ingestionMode) {
+      if (!ingestionMode || (deliversToLangfuse && !ingestionProjectId)) {
         throw new GatewayResolveError(
           "Gateway ingestion project is unavailable",
           403,
@@ -112,18 +116,21 @@ export class GatewayResolveService {
         },
         attribution: {
           organization_id: context.organizationId,
-          project_id: context.ingestionProjectId,
+          project_id: ingestionProjectId,
           key_id: context.apiKeyId,
           key_metadata: context.keyMetadata,
           provider_connection_id: context.connection.id,
         },
         ingestion_mode:
-          context.ingestionMode.toLowerCase() as GatewayResolveResponse["ingestion_mode"],
-        ingestion: this.createIngestionResponse({
-          mode: context.ingestionMode,
-          organizationId: context.organizationId,
-          projectId: context.ingestionProjectId,
-        }),
+          ingestionMode.toLowerCase() as GatewayResolveResponse["ingestion_mode"],
+        ingestion:
+          deliversToLangfuse && ingestionProjectId
+            ? this.createIngestionResponse({
+                mode: ingestionMode,
+                organizationId: context.organizationId,
+                projectId: ingestionProjectId,
+              })
+            : null,
       };
     });
   }

@@ -3,7 +3,11 @@ import {
   createOrgProjectAndApiKey,
   DashboardService,
 } from "@langfuse/shared/src/server";
-import { LangfuseNotFoundError, LangfuseConflictError } from "@langfuse/shared";
+import {
+  LangfuseNotFoundError,
+  LangfuseConflictError,
+  type OrderByState,
+} from "@langfuse/shared";
 import { DashboardWidgetViews, prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -76,6 +80,47 @@ async function createOwnerCaller() {
     caller: appRouter.createCaller({ ...ctx, prisma }),
   };
 }
+
+describe("dashboard.allDashboards", () => {
+  it.each(["startTime", "name; SELECT pg_sleep(1)"])(
+    "returns BAD_REQUEST for unsupported sort column %s",
+    async (column) => {
+      const { projectId, caller } = await createOwnerCaller();
+
+      await expect(
+        caller.dashboard.allDashboards({
+          projectId,
+          page: 0,
+          limit: 50,
+          orderBy: { column, order: "DESC" },
+        }),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+      } satisfies Partial<TRPCError>);
+    },
+  );
+
+  it("accepts supported sort columns and the default sort", async () => {
+    const { projectId, caller } = await createOwnerCaller();
+    const sorts: OrderByState[] = [
+      { column: "name", order: "ASC" },
+      { column: "createdAt", order: "DESC" },
+      { column: "updatedAt", order: "DESC" },
+      null,
+    ];
+
+    for (const orderBy of sorts) {
+      await expect(
+        caller.dashboard.allDashboards({
+          projectId,
+          page: 0,
+          limit: 50,
+          orderBy,
+        }),
+      ).resolves.toHaveProperty("dashboards");
+    }
+  });
+});
 
 describe("DashboardService.deleteDashboard", () => {
   it("deletes an existing dashboard and throws LangfuseNotFoundError on repeat delete", async () => {
