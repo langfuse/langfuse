@@ -769,6 +769,55 @@ describe("scores trpc", () => {
 
       expect(result.scores.map(({ id }) => id)).toContain(score.id);
     });
+
+    it("returns every score of a trace, not one per trace", async () => {
+      const traceName = `multi-score-trace-${randomUUID()}`;
+      const traceIds = [randomUUID(), randomUUID()];
+      const scores = traceIds.flatMap((traceId) =>
+        ["a", "b", "c"].map((name) =>
+          createTraceScore({ project_id: projectId, trace_id: traceId, name }),
+        ),
+      );
+
+      await createEventsCh(
+        traceIds.map((traceId) =>
+          createEvent({
+            trace_id: traceId,
+            project_id: projectId,
+            parent_span_id: "",
+            name: traceName,
+            trace_name: traceName,
+          }),
+        ),
+      );
+      await createScoresCh(scores);
+
+      const payload = {
+        projectId,
+        filter: [
+          {
+            column: "traceName",
+            operator: "=" as const,
+            value: traceName,
+            type: "string" as const,
+          },
+        ],
+        page: 0,
+        limit: 50,
+      };
+      const [result, count] = await Promise.all([
+        caller.scores.allFromEvents({
+          ...payload,
+          orderBy: { column: "timestamp", order: "DESC" },
+        }),
+        caller.scores.countAllFromEvents({ ...payload, orderBy: null }),
+      ]);
+
+      expect(result.scores.map(({ id }) => id).sort()).toEqual(
+        scores.map(({ id }) => id).sort(),
+      );
+      expect(count.totalCount).toBe(scores.length);
+    });
   });
 
   describe("scores.createAnnotationScore", () => {
