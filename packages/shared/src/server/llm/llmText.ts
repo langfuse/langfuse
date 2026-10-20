@@ -657,6 +657,8 @@ export function mapLegacyLLMCompletionParams(params: {
     topP: modelParams.top_p,
     reasoning:
       modelParams.adapter === LLMAdapter.OpenAI &&
+      (params.connection.config?.useResponsesApi === true ||
+        !isOpenAICompatibleEndpoint(params.connection.baseURL)) &&
       isOpenAIDefaultNonReasoningModel(modelParams.model)
         ? "none"
         : undefined,

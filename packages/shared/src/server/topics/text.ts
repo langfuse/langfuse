@@ -219,7 +219,7 @@ async function generateWithConnection<T>(
     messages: topicMessages(params),
     output: Output.object({ schema: params.schema }),
     maxOutputTokens: params.maxOutputTokens,
-    reasoning: nativeOpenAI ? openAIReasoning(params.model.model) : "none",
+    reasoning: topicReasoning(params.model),
     // Bedrock ignores portable reasoning for OpenAI models; their default effort
     // is not none.
     ...(isBedrockGPT(params.model)
@@ -274,6 +274,17 @@ function responseAttributes(
       "langfuse.topics.response.output_tokens": step.usage.outputTokens,
     }),
   };
+}
+
+function topicReasoning(model: TopicsModel): "none" | "minimal" | undefined {
+  if (isFirstPartyOpenAI(model)) return openAIReasoning(model.model);
+  /** Compatible endpoints choose their own supported reasoning settings. */
+  if (
+    model.adapter === LLMAdapter.OpenAI &&
+    model.connection.config?.useResponsesApi !== true
+  )
+    return undefined;
+  return "none";
 }
 
 /** Topics owns its OpenAI request options; saved evaluator options keep their routing. */
