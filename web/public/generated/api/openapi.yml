@@ -3511,7 +3511,13 @@ paths:
         The cursor is returned in the response metadata and should be passed in
         subsequent requests
 
-        to retrieve the next page of results.
+        to retrieve the next page of results. The `limit` parameter is a
+        maximum: a page may contain
+
+        fewer items than the requested limit, including zero items, while
+        `meta.cursor` is present.
+
+        Continue requesting pages until `meta.cursor` is absent.
 
 
         ## Field Selection
@@ -3585,7 +3591,10 @@ paths:
             nullable: true
         - name: limit
           in: query
-          description: Number of items to return per page. Maximum 1000, default 50.
+          description: >-
+            Maximum number of items to return per page. A page may contain fewer
+            items, including zero items, while meta.cursor is present. Maximum
+            1000, default 50.
           required: false
           schema:
             type: integer
@@ -12189,7 +12198,13 @@ components:
         The `data` array contains observation objects with only the requested
         field groups included.
 
-        Use the `cursor` in `meta` to retrieve the next page of results.
+        Use the `cursor` in `meta` to retrieve the next page of results. The
+        array may contain fewer
+
+        than the requested `limit` items, or be empty, while a cursor is
+        present. Continue until the
+
+        cursor is absent.
       properties:
         data:
           type: array
