@@ -231,7 +231,7 @@ function DisabledNavEntry({
           role="link"
           aria-disabled="true"
           tabIndex={0}
-          className="text-muted-foreground/50 flex h-8 cursor-not-allowed items-center rounded-sm px-2"
+          className="text-muted-foreground/50 flex h-8 w-fit cursor-not-allowed items-center rounded-sm px-2"
         >
           {title}
         </span>
