@@ -1,8 +1,6 @@
-import { Lock } from "@langfuse/icons";
-
 import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { GatewaySetupEmptyState } from "@/src/features/ai-gateway/components/GatewaySetupEmptyState/GatewaySetupEmptyState";
+import { GatewayNotSetUpNotice } from "@/src/features/ai-gateway/components/GatewayNotSetUpNotice/GatewayNotSetUpNotice";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { ConnectedGatewayModelsTable } from "@/src/features/ai-gateway/components/GatewayModelsPage/components/ConnectedGatewayModelsTable/ConnectedGatewayModelsTable";
@@ -23,7 +21,7 @@ export function GatewayModelsPage({
   }
   // Managers are redirected to Configuration by the settings nav instead.
   if (!canManageGateway && isIngestionConfigured === false) {
-    return <GatewayNotSetUp />;
+    return <GatewayNotSetUpNotice title="Models" />;
   }
   return (
     <GatewayModels
@@ -72,19 +70,6 @@ function GatewayModels({
       isLoading={modelsQuery.isPending || modelsQuery.isFetching}
       syncError={modelsQuery.isError}
     />
-  );
-}
-
-function GatewayNotSetUp() {
-  return (
-    <div className="flex flex-col gap-4">
-      <Header title="Models" />
-      <GatewaySetupEmptyState
-        icon={Lock}
-        title="The AI Gateway isn't set up yet"
-        description="Ask your organization admin to set up the AI Gateway."
-      />
-    </div>
   );
 }
 
