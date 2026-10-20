@@ -93,27 +93,34 @@ export function renderClickhouseExpression(
  * eb.fn.min("e.start_time").as("start")])` → `{ id: "e.span_id as id",
  * start: "min(e.start_time) as start" }`. Only the select list is read; the
  * FROM just types its columns. Throws like {@link renderClickhouseExpression},
- * and on a select without an output name (`*`, raw SQL).
+ * on a select without an output name (`*`, raw SQL), and on two selects
+ * sharing one.
  */
 export function renderClickhouseSelections<O>(
   query: SelectQueryBuilder<any, any, O>,
 ): Record<keyof O & string, string> {
-  const rendered: Record<string, string> = {};
-  for (const selection of query.toOperationNode().selections ?? []) {
-    const name = selectionName(selection);
-    if (name in rendered) {
-      throw new QueryCompileError(
-        `Two rendered selects share the output name "${name}".`,
-      );
-    }
-    rendered[name] = renderNode(selection);
-  }
-  return rendered as Record<keyof O & string, string>;
+  const rendered = (query.toOperationNode().selections ?? []).map(
+    (selection) => [selectionName(selection), renderNode(selection)] as const,
+  );
+  assertDistinctOutputNames(rendered.map(([name]) => name));
+  return Object.fromEntries(rendered) as Record<keyof O & string, string>;
 }
 
 function renderNode(node: OperationNode): string {
   assertRelationFree(node);
   return new ClickHouseQueryCompiler().compileExpression(node);
+}
+
+function assertDistinctOutputNames(names: readonly string[]): void {
+  const seen = new Set<string>();
+  for (const name of names) {
+    if (seen.has(name)) {
+      throw new QueryCompileError(
+        `Two rendered selects share the output name "${name}".`,
+      );
+    }
+    seen.add(name);
+  }
 }
 
 /** `expr as name` → `name`; an unaliased `e.col` → `col`. */

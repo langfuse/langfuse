@@ -376,6 +376,17 @@ describe("renderClickhouseSelections", () => {
       ["trace_id", "e.trace_id"],
       ["start", "min(e.start_time) as start"],
     ]);
+    expectTypeOf(rendered).toEqualTypeOf<
+      Record<"id" | "trace_id" | "start", string>
+    >();
+  });
+
+  it("keys an output name that is also an Object prototype key", () => {
+    expect(
+      renderClickhouseSelections(
+        events.select((eb) => eb.ref("e.trace_id").as("constructor")),
+      ),
+    ).toEqual({ constructor: "e.trace_id as constructor" });
   });
 
   it("rejects a select without an output name", () => {

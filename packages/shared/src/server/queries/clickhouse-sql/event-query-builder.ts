@@ -1196,7 +1196,9 @@ export class EventsSessionAggregationQueryBuilder extends BaseEventsQueryBuilder
     return this;
   }
 
-  selectSessionFields(fields: readonly SessionEventsField[]): this {
+  selectSessionFields(
+    fields: ReadonlyArray<keyof typeof SESSION_AGGREGATION_SQL>,
+  ): this {
     fields.forEach((field) => this.selectFields.add(field));
     return this;
   }
