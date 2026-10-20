@@ -433,19 +433,18 @@ export class SlackService {
   }
 
   /**
-   * Get one page of public channels.
-   * Private channels are excluded: the bot token lists every private channel it
-   * was invited to, including ones the viewer isn't a member of. Use getPrivateChannels.
+   * Fetch one page of channels accessible to the bot.
    * Uses cursor-based pagination defined by Slack API https://api.slack.com/apis/pagination.
    */
-  async getChannels(
+  private async getChannelsPage(
     client: WebClient,
+    channelTypes = "public_channel,private_channel",
     cursor?: string,
-  ): Promise<GetChannelsResult> {
+  ): Promise<Omit<GetChannelsResult, "hasPrivateChannelAccess">> {
     try {
       const result = await client.conversations.list({
         exclude_archived: true,
-        types: "public_channel",
+        types: channelTypes,
         limit: env.SLACK_PAGE_SIZE,
         cursor: cursor,
       });
@@ -458,11 +457,37 @@ export class SlackService {
         (channel) => ({
           id: channel.id!,
           name: channel.name!,
-          isPrivate: false,
+          isPrivate: channel.is_private || false,
           isMember: channel.is_member || false,
         }),
       );
-      const nextCursor = result.response_metadata?.next_cursor || undefined;
+
+      const nextCursor = result.response_metadata?.next_cursor;
+      return {
+        channels,
+        nextCursor: nextCursor || undefined,
+      };
+    } catch (error) {
+      logger.error("Failed to fetch Slack channels page", { error, cursor });
+      throw error;
+    }
+  }
+
+  /**
+   * Get one page of public channels. Private channels come from getPrivateChannels:
+   * the bot token lists every private channel it was invited to, including ones
+   * the viewer isn't a member of.
+   */
+  async getChannels(
+    client: WebClient,
+    cursor?: string,
+  ): Promise<GetChannelsResult> {
+    try {
+      const { channels, nextCursor } = await this.getChannelsPage(
+        client,
+        "public_channel",
+        cursor,
+      );
 
       logger.debug("Retrieved channels from Slack", {
         channelCount: channels.length,
@@ -471,7 +496,7 @@ export class SlackService {
 
       return { channels, nextCursor };
     } catch (error) {
-      logger.error("Failed to fetch channels", { error, cursor });
+      logger.error("Failed to fetch channels", { error });
       throw new Error(
         `Failed to fetch channels: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
