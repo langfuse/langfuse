@@ -289,35 +289,6 @@ fn parse_request<'a>(
     })
 }
 
-/// Approximate bytes a parsed value retains, so the output cap bounds memory
-/// rather than serialized size: small objects cost far more parsed than as text.
-fn value_memory(value: &Value) -> usize {
-    size_of::<Value>()
-        + match value {
-            Value::String(text) => text.capacity(),
-            Value::Array(items) => {
-                items.capacity() * size_of::<Value>()
-                    + items
-                        .iter()
-                        .map(|item| value_memory(item) - size_of::<Value>())
-                        .sum::<usize>()
-            }
-            Value::Object(fields) => object_memory(fields),
-            Value::Null | Value::Bool(_) | Value::Number(_) => 0,
-        }
-}
-
-fn object_memory(fields: &Map<String, Value>) -> usize {
-    // `Map` is a B-tree; each leaf node holds up to 11 entries and is
-    // measured at about 640 bytes, about half full on average.
-    const NODE: usize = 640;
-    fields.len().div_ceil(6) * NODE
-        + fields
-            .iter()
-            .map(|(key, value)| key.capacity() + value_memory(value) - size_of::<Value>())
-            .sum::<usize>()
-}
-
 fn bounded_string(value: &str) -> Option<String> {
     (value.len() <= MAX_FACT_STRING).then(|| value.to_owned())
 }

@@ -1,7 +1,7 @@
 //! `OpenAI` Chat Completions request, JSON response and streamed choice capture.
 use super::{
     MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, RequestMembers, bounded_string,
-    facts::ProviderFacts, object_memory, parse_request, response::ResponseBody, value_memory,
+    facts::ProviderFacts, parse_request, response::ResponseBody,
 };
 use crate::resolution::IngestionMode;
 use axum::http::HeaderMap;
@@ -118,7 +118,7 @@ impl Choices {
                     }
                 }
                 "finish_reason" if !value.is_null() => {
-                    reserve(bytes, value_memory(value))?;
+                    reserve(bytes, value.to_string().len())?;
                     choice.fields.insert(key.clone(), value.clone());
                 }
                 _ => merge_field(&mut choice.fields, key, value, bytes)?,
@@ -145,16 +145,12 @@ impl Choices {
     }
 
     /// A non-streamed response carries its complete choices at once.
-    fn record_choices(&mut self, choices: Vec<Value>) -> Result<(), Gap> {
+    fn record_choices(&mut self, choices: &[Value]) -> Result<(), Gap> {
         if choices.len() > MAX_ITEMS {
             return Err(Gap);
         }
-        for (position, choice) in choices.into_iter().enumerate() {
-            let Value::Object(fields) = choice else {
-                return Err(Gap);
-            };
-            let bytes = object_memory(&fields);
-            reserve(&mut self.bytes, bytes)?;
+        for (position, choice) in choices.iter().enumerate() {
+            let fields = choice.as_object().ok_or(Gap)?.clone();
             let index = fields
                 .get("index")
                 .and_then(Value::as_u64)
@@ -163,7 +159,6 @@ impl Choices {
                 index,
                 Choice {
                     fields,
-                    bytes,
                     ..Choice::default()
                 },
             );
@@ -223,7 +218,7 @@ fn merge_field(
             Ok(())
         }
         (Some(Value::Array(current)), Value::Array(items)) => {
-            reserve(bytes, items.iter().map(value_memory).sum())?;
+            reserve(bytes, value.to_string().len())?;
             current.extend(items.iter().cloned());
             Ok(())
         }
@@ -235,7 +230,7 @@ fn merge_field(
         }
         (Some(current), _) if current.is_object() || current.is_array() => Err(Gap),
         (_, value) => {
-            reserve(bytes, value_memory(value))?;
+            reserve(bytes, value.to_string().len())?;
             target.insert(key.to_owned(), value.clone());
             Ok(())
         }
@@ -326,9 +321,9 @@ impl OpenAiChatCompletionsCapture {
     pub(super) fn end_body(&mut self) {
         match std::mem::replace(&mut self.body, ResponseBody::Unavailable) {
             ResponseBody::Json(bytes) => match serde_json::from_slice::<Value>(&bytes) {
-                Ok(Value::Object(mut response)) => {
+                Ok(Value::Object(response)) => {
                     self.capture_chunk_facts(&response);
-                    if let Some(Value::Array(choices)) = response.remove("choices") {
+                    if let Some(choices) = response.get("choices").and_then(Value::as_array) {
                         self.capture_json_choices(choices);
                         self.terminal = true;
                     }
@@ -387,8 +382,8 @@ impl OpenAiChatCompletionsCapture {
         }
     }
 
-    fn capture_json_choices(&mut self, choices: Vec<Value>) {
-        for choice in &choices {
+    fn capture_json_choices(&mut self, choices: &[Value]) {
+        for choice in choices {
             if let Some(reason) = choice.get("finish_reason") {
                 self.capture_finish_reason(reason);
             }
