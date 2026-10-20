@@ -1,3 +1,4 @@
+import { IOSection } from "@/src/components/ui/IOSection";
 import {
   ToolCallDefinitionCard,
   type ToolDefinition,
@@ -20,12 +21,12 @@ export function SectionToolDefinitions({
   toolCallsByName,
 }: SectionToolDefinitionsProps) {
   return (
-    <div className="mb-4 pb-4">
+    <IOSection title="Tools">
       <ToolCallDefinitionCard
         tools={tools}
         toolCallCounts={toolCallCounts}
         toolCallsByName={toolCallsByName}
       />
-    </div>
+    </IOSection>
   );
 }

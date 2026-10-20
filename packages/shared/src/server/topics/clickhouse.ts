@@ -3,7 +3,10 @@ import {
   convertDateToClickhouseDateTime,
 } from "../clickhouse/client";
 import { buildClickHouseLogComment } from "../clickhouse/queryTags";
-import { queryClickhouse } from "../repositories/clickhouse";
+import {
+  queryClickhouse,
+  queryClickhouseStream,
+} from "../repositories/clickhouse";
 import type {
   TopicAssignment,
   TopicDefinition,
@@ -427,27 +430,55 @@ export async function getLatestFacetSummaries(
     }));
 }
 
-export async function getTopicClusteringSummaries(
+const clusteringSummaryScopeSql = `trace_id != '' AND facet_id = {facetId:String}
+  AND facet_version = {facetVersion:UInt32}`;
+
+function clusteringSummariesSql(columns: string, rowColumns = "*") {
+  return `SELECT ${columns} FROM (
+      SELECT ${rowColumns}, length(embedding) AS dimensions FROM topic_facet_summaries
+      WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${clusteringSummaryScopeSql}
+        AND ${latestSummaryFilterSql(clusteringSummaryScopeSql)}
+      ORDER BY processed_at DESC
+      LIMIT 1 BY ${sourceKeySql}
+    ) WHERE processing_state = 'complete' AND embedding_model = {embeddingModel:String}
+      AND dimensions = {embeddingDimensions:UInt32}
+      AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
+      AND environment != {publicLlmJudgeEnvironment:String}`;
+}
+
+/** Returns aggregate admission estimates; summary payloads stay in ClickHouse. */
+export async function getTopicClusteringSummaryStats(
   projectId: string,
   facetId: string,
   facetVersion: number,
   embeddingConfig: TopicEmbeddingConfig,
   timeRange: TopicTimeRange,
-): Promise<TopicSummary[]> {
-  const scopeSql = `trace_id != '' AND facet_id = {facetId:String}
-    AND facet_version = {facetVersion:UInt32}`;
-  const rows = await queryClickhouse<SummaryRow>({
-    query: `SELECT ${summaryColumns} FROM (
-      SELECT * FROM topic_facet_summaries
-      WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${scopeSql}
-        AND ${latestSummaryFilterSql(scopeSql)}
-      ORDER BY processed_at DESC
-      LIMIT 1 BY ${sourceKeySql}
-    ) WHERE processing_state = 'complete' AND embedding_model = {embeddingModel:String}
-      AND length(embedding) = {embeddingDimensions:UInt32}
-      AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
-      AND environment != {publicLlmJudgeEnvironment:String}
-    ORDER BY trace_id`,
+  limits: { maxRows: number; maxBytes: number },
+): Promise<{ count: number; bytes: number }> {
+  const [{ count }] = await getTopicSummaryCounts(
+    projectId,
+    [{ facetId, version: facetVersion }],
+    embeddingConfig,
+    timeRange,
+  );
+  const vectorBytes = count * embeddingConfig.embeddingDimensions * 8;
+  // Narrow oversized windows using metadata before inspecting their text payloads.
+  if (!count || count > limits.maxRows || vectorBytes > limits.maxBytes)
+    return { count, bytes: vectorBytes };
+  // UTF-8 JSON bytes bound UTF-16 code units, including escaping and map keys.
+  // Allow for field names and row overhead; this is not a total RSS estimate.
+  const estimatedBytesSql = `length(embedding) * 8 + 2 * length(toJSONString(tuple(
+    project_id, facet_id, facet_version, trace_id, session_id, trigger_type,
+    environment, trace_name, toUnixTimestamp64Milli(unit_start_time),
+    processing_state, summary, transcript_id, transcript_version, summary_model,
+    embedding_model, provided_usage_details, usage_details,
+    provided_cost_details, cost_details, toUnixTimestamp64Milli(processed_at), metadata
+  ))) + 2048`;
+  const [row] = await queryClickhouse<{ count: string; bytes: string }>({
+    query: clusteringSummariesSql(
+      "count() AS count, sum(estimated_bytes) AS bytes",
+      `processing_state, embedding_model, environment, ${estimatedBytesSql} AS estimated_bytes`,
+    ),
     params: {
       projectId,
       facetId,
@@ -457,9 +488,82 @@ export async function getTopicClusteringSummaries(
       internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
       publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
     },
-    tags: { route: "topics-clustering-summaries", projectId },
+    tags: { route: "topics-clustering-summary-stats", projectId },
   });
-  return rows.map(summaryResult);
+  return { count: Number(row?.count ?? 0), bytes: Number(row?.bytes ?? 0) };
+}
+
+export const TOPIC_CLUSTERING_CAPACITY_ERROR =
+  "Topics clustering exceeds this worker's capacity. Choose a smaller time window; no partial cohort was used.";
+
+export async function getTopicClusteringSummaries(
+  projectId: string,
+  facetId: string,
+  facetVersion: number,
+  embeddingConfig: TopicEmbeddingConfig,
+  timeRange: TopicTimeRange,
+  limits: { maxRows: number; maxBytes: number },
+): Promise<TopicSummary[]> {
+  const capacityError = () => new Error(TOPIC_CLUSTERING_CAPACITY_ERROR);
+  if (
+    !Number.isSafeInteger(limits.maxRows) ||
+    limits.maxRows < 1 ||
+    limits.maxRows >= Number.MAX_SAFE_INTEGER ||
+    !Number.isSafeInteger(limits.maxBytes) ||
+    limits.maxBytes < 1
+  )
+    throw new Error("Topics clustering limits must be positive safe integers.");
+  const [{ count }] = await getTopicSummaryCounts(
+    projectId,
+    [{ facetId, version: facetVersion }],
+    embeddingConfig,
+    timeRange,
+  );
+  if (
+    count > limits.maxRows ||
+    count * embeddingConfig.embeddingDimensions * 8 > limits.maxBytes
+  )
+    throw capacityError();
+
+  const summaries: TopicSummary[] = [];
+  let bytes = 0;
+  try {
+    for await (const row of queryClickhouseStream<SummaryRow>({
+      query: `${clusteringSummariesSql(summaryColumns)}
+        ORDER BY trace_id LIMIT {maximumRows:UInt64}`,
+      params: {
+        projectId,
+        facetId,
+        facetVersion,
+        ...embeddingConfig,
+        ...timeRangeParams(timeRange),
+        internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
+        publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
+        maximumRows: limits.maxRows + 1,
+      },
+      tags: { route: "topics-clustering-summaries", projectId },
+      clickhouseSettings: {
+        max_result_bytes: String(limits.maxBytes),
+        result_overflow_mode: "throw",
+      },
+    })) {
+      const { embedding, ...fields } = row;
+      // Budget decoded doubles and UTF-16 text separately from transport bytes.
+      // Object headers, parsed metadata, and numerical-fit copies need extra RAM.
+      bytes += embedding.length * 8 + JSON.stringify(fields).length * 2 + 256;
+      if (summaries.length >= limits.maxRows || bytes > limits.maxBytes)
+        throw capacityError();
+      summaries.push(summaryResult(row));
+    }
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      /TOO_MANY_ROWS_OR_BYTES|Limit for result exceeded/.test(error.message)
+    )
+      throw capacityError();
+    throw error;
+  }
+  return summaries;
 }
 
 export async function hasTopicEmbeddings(projectId: string): Promise<boolean> {
@@ -743,23 +847,35 @@ export async function readTopicRunTraceIds(
   facet: TopicFacetRef,
   runId: string,
   timeRange: TopicTimeRange,
+  maxRows: number,
 ): Promise<string[]> {
+  if (
+    !Number.isSafeInteger(maxRows) ||
+    maxRows < 1 ||
+    maxRows >= Number.MAX_SAFE_INTEGER
+  )
+    throw new Error("Topics continuity limit must be a positive safe integer.");
   const rows = await queryClickhouse<{ traceId: string }>({
     query: `SELECT DISTINCT trace_id AS traceId FROM topic_assignments
       WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND clustering_run_id = {runId:String}
         AND facet_id = {facetId:String} AND facet_version = {facetVersion:UInt32}
         AND origin = 'initial'
         AND trace_id != ''
-      ORDER BY traceId`,
+      ORDER BY traceId LIMIT {maximumRows:UInt64}`,
     params: {
       projectId,
       ...timeRangeParams(timeRange),
       runId,
       facetId: facet.facetId,
       facetVersion: facet.version,
+      maximumRows: maxRows + 1,
     },
     tags: { route: "topics-run-summaries", projectId },
   });
+  if (rows.length > maxRows)
+    throw new Error(
+      "Previous Topics map exceeds this worker's clustering capacity; its continuity cohort cannot be loaded.",
+    );
   return rows.map((row) => row.traceId);
 }
 

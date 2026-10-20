@@ -29,7 +29,7 @@ import {
   Plus,
   WandSparkles,
   X,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import {
   Popover,
@@ -303,7 +303,7 @@ export function PopoverFilterBuilder({
               variant="ghost"
               className="relative"
             >
-              <FilterIcon className="icon-base text-icon-foreground" />
+              <FilterIcon size="base" color="default" />
               {filterState.length > 0 && (
                 <span className="bg-input absolute top-0 -right-1 flex h-4 min-w-4 items-center justify-center rounded-sm px-1 text-xs shadow-xs">
                   {filterState.length}
@@ -337,7 +337,7 @@ export function PopoverFilterBuilder({
                 size="icon"
                 className="ml-0.5"
               >
-                <X className="icon-base text-icon-foreground" />
+                <X size="base" color="default" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>Clear all filters</TooltipContent>
@@ -352,7 +352,7 @@ export function PopoverFilterBuilder({
                 size="icon-xs"
                 className="hover:bg-background ml-0.5"
               >
-                <X className="icon-sm text-icon-foreground" />
+                <X size="sm" color="default" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>Clear all filters</TooltipContent>
@@ -763,8 +763,9 @@ function FilterBuilderForm({
                       }}
                     >
                       <Check
-                        className={cn(
-                          "icon-base mr-2",
+                        size="base"
+                        __rawClassName={cn(
+                          "mr-2",
                           option.id === column?.id ? "visible" : "invisible",
                         )}
                       />
@@ -773,10 +774,8 @@ function FilterBuilderForm({
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Info
-                              className={cn(
-                                "icon-base ml-2",
-                                alertStyles.iconColor,
-                              )}
+                              size="base"
+                              __rawClassName={cn("ml-2", alertStyles.iconColor)}
                             />
                           </TooltipTrigger>
                           <TooltipContent
@@ -1120,7 +1119,7 @@ function FilterBuilderForm({
         disabled={disabled}
         size="xs"
       >
-        <X className="icon-sm text-icon-foreground" />
+        <X size="sm" color="default" />
       </Button>
     );
 
@@ -1192,11 +1191,15 @@ function FilterBuilderForm({
             }
             className="text-muted-foreground w-full justify-start"
           >
-            <WandSparkles className="icon-base text-icon-foreground mr-2" />
+            <WandSparkles size="base" color="default" __rawClassName="mr-2" />
             {!aiFilter.aiFeaturesEnabled ? (
               <>
                 AI Filters: Enable in Organization Settings (Admin Only)
-                <ExternalLink className="icon-base text-icon-foreground ml-2" />
+                <ExternalLink
+                  size="base"
+                  color="default"
+                  __rawClassName="ml-2"
+                />
               </>
             ) : showAiFilter ? (
               "Cancel"
@@ -1233,7 +1236,7 @@ function FilterBuilderForm({
                 </Button>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Info className="text-muted-foreground icon-base" />
+                    <Info size="base" color="muted" />
                   </TooltipTrigger>
                   <TooltipContent>
                     <p className="text-xs">
@@ -1280,7 +1283,7 @@ function FilterBuilderForm({
                 variant="outline"
                 size="sm"
               >
-                <Plus className="icon-base text-icon-foreground mr-2 shrink-0" />
+                <Plus size="base" color="default" __rawClassName="mr-2" />
                 Add filter
               </Button>
             )

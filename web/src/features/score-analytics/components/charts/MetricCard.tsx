@@ -6,7 +6,7 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
-import { HelpCircle, AlertCircle } from "lucide-react";
+import { HelpCircle, AlertCircle } from "@langfuse/icons";
 import type { InterpretationResult } from "@/src/features/score-analytics/lib/statistics-utils";
 
 interface MetricCardProps {
@@ -68,7 +68,7 @@ export function MetricCard({
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <HelpCircle className="text-muted-foreground icon-sm" />
+                <HelpCircle size="sm" color="muted" />
               </TooltipTrigger>
               <TooltipContent side="top" className="max-w-xs">
                 <p className="text-xs">{helpText}</p>
@@ -115,7 +115,10 @@ export function MetricCard({
           >
             {({ getTriggerProps }) => (
               <span tabIndex={0} {...getTriggerProps()}>
-                <AlertCircle className="icon-base cursor-help text-amber-500" />
+                <AlertCircle
+                  size="base"
+                  __rawClassName="cursor-help text-amber-500"
+                />
               </span>
             )}
           </HoverCard>

@@ -18,7 +18,7 @@ import {
   RotateCcw,
   Save,
   Terminal,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
@@ -410,9 +410,13 @@ export function SkillEditor({
           aria-label={`Download version ${baseVersion}`}
         >
           {isDownloading ? (
-            <Loader2 className="icon-base text-icon-foreground mr-1.5 animate-spin" />
+            <Loader2
+              size="base"
+              color="default"
+              __rawClassName="mr-1.5 animate-spin"
+            />
           ) : (
-            <Download className="icon-base text-icon-foreground mr-1.5" />
+            <Download size="base" color="default" __rawClassName="mr-1.5" />
           )}
           Download
         </Button>
@@ -437,7 +441,7 @@ export function SkillEditor({
               className="text-dark-yellow flex shrink-0 items-center"
               {...getTriggerProps()}
             >
-              <TriangleAlert className="icon-base" />
+              <TriangleAlert size="base" />
             </button>
           )}
         </Tooltip>
@@ -464,7 +468,7 @@ export function SkillEditor({
             if (view.kind === "version") await view.onEdit();
           }}
         >
-          <Pencil className="icon-base mr-1.5" />
+          <Pencil size="base" __rawClassName="mr-1.5" />
           {view.kind === "version" && view.hasDraft ? "Resume draft" : "Edit"}
         </Button>
       ) : (
@@ -496,7 +500,7 @@ export function SkillEditor({
             }
             title={createButtonTitle}
           >
-            <Save className="icon-base mr-1.5" />
+            <Save size="base" __rawClassName="mr-1.5" />
             Publish
           </Button>
         </>
@@ -843,7 +847,7 @@ function SkillFileEditor({
     if (content === undefined) {
       return (
         <div role="status" className="flex items-center gap-2 text-sm">
-          <Loader2 className="icon-base animate-spin" /> Loading file…
+          <Loader2 size="base" __rawClassName="animate-spin" /> Loading file…
         </div>
       );
     }

@@ -1,4 +1,4 @@
-import { Sparkles } from "lucide-react";
+import { Sparkles } from "@langfuse/icons";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
@@ -41,12 +41,9 @@ export function TopicSetupNotice({
   const processingChoiceDescription = automaticEnabled
     ? "Automatic processing is on for new traces. You can also summarize existing traces in manual batches."
     : "Enable automatic processing for incoming traces, or summarize existing traces in manual batches of up to 1,000.";
-  const availableProcessingDescription = running
+  const processingDescription = running
     ? "Your traces are being processed. Summaries will appear here as they become available."
     : processingChoiceDescription;
-  const processingDescription = notice.unavailable
-    ? "Topics processing is not enabled for this project. You can configure Topics, but an administrator needs to enable processing before you can analyze traces."
-    : availableProcessingDescription;
   return (
     <>
       {status?.kind === "paused" ? (
@@ -73,18 +70,9 @@ export function TopicSetupNotice({
           </Alert.Description>
         </Alert>
       ) : null}
-      {notice.unavailable && !showOnboarding ? (
-        <p role="status" className="text-muted-foreground text-sm">
-          Topics processing is not enabled for this project. Existing summaries
-          and topics remain available.
-        </p>
-      ) : null}
       {showOnboarding ? (
         <div className="mx-auto flex w-full max-w-xl flex-col items-center overflow-y-auto pt-12">
-          <Sparkles
-            aria-hidden="true"
-            className="icon-xl text-muted-foreground"
-          />
+          <Sparkles aria-hidden="true" size="xl" color="muted" />
           <SplashScreen
             title={
               configured

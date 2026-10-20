@@ -17,7 +17,7 @@ const LoadSkillInputSchema = z
 export const [loadSkillTool, handleLoadSkill] = defineTool({
   name: "loadSkill",
   description:
-    "Read a skill's SKILL.md as text. Select a version or label; defaults to production.",
+    "Read a skill's SKILL.md as text. Select a version or label; defaults to production. Reuse the version returned by getSkill when loading multiple files.",
   action: "skills:read",
   baseSchema: LoadSkillBaseSchema,
   inputSchema: LoadSkillInputSchema,

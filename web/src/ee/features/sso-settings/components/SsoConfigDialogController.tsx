@@ -27,7 +27,7 @@ import { Input } from "@/src/components/ui/input";
 import { SsoProviderSchema } from "@/src/ee/features/multi-tenant-sso";
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Check, Copy } from "lucide-react";
+import { Check, Copy } from "@langfuse/icons";
 import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -486,9 +486,9 @@ function CopyableCallbackUrl({ value }: { value: string }) {
         }}
       >
         {isCopied ? (
-          <Check className="icon-sm text-icon-foreground" />
+          <Check size="sm" color="default" />
         ) : (
-          <Copy className="icon-sm text-icon-foreground" />
+          <Copy size="sm" color="default" />
         )}
       </Button>
     </div>

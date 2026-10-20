@@ -3,7 +3,7 @@ import {
   type SkillsAvailable,
   type SkillsResourceLoaded,
 } from "@langfuse/shared";
-import { FileCode2, FileText } from "lucide-react";
+import { FileCode2, FileText } from "@langfuse/icons";
 
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
@@ -13,6 +13,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/src/components/ui/collapsible";
+import { IOSection } from "@/src/components/ui/IOSection";
 
 export function SectionSkills({ projectId, skills }: SectionSkillsProps) {
   const [isGroupExpanded, setGroupExpanded] = useState(false);
@@ -29,15 +30,7 @@ export function SectionSkills({ projectId, skills }: SectionSkillsProps) {
   }
 
   return (
-    <section
-      className="ph-no-capture border-border border-b pb-4"
-      aria-label="Skills"
-    >
-      <div className="flex items-center gap-2 px-1 py-1">
-        <h3 className="io-message-header text-base font-bold">Skills</h3>
-        <Badge color="filled" size="sm" text={String(groups.length)} />
-        <Badge text="Beta" color="blue" size="sm" />
-      </div>
+    <IOSection title="Skills" count={groups.length}>
       <Collapsible
         open={isGroupExpanded}
         onOpenChange={handleGroupChange}
@@ -45,10 +38,7 @@ export function SectionSkills({ projectId, skills }: SectionSkillsProps) {
       >
         <CollapsibleTrigger className="hover:bg-muted/20 flex w-full items-center justify-between gap-2 rounded-sm border px-3 py-2 text-left text-sm font-bold">
           <span className="flex min-w-0 flex-1 items-center gap-2">
-            <FileCode2
-              className="icon-base text-muted-foreground shrink-0"
-              aria-hidden
-            />
+            <FileCode2 size="base" color="muted" aria-hidden />
             <span>
               {groups.length} {isAvailable ? "available" : "loaded"}{" "}
               {groups.length === 1 ? "skill" : "skills"}
@@ -75,7 +65,7 @@ export function SectionSkills({ projectId, skills }: SectionSkillsProps) {
           </ul>
         </CollapsibleContent>
       </Collapsible>
-    </section>
+    </IOSection>
   );
 }
 
@@ -95,10 +85,7 @@ function SkillRow({
     <Collapsible asChild open={expanded} onOpenChange={handleOpenChange}>
       <li className="min-w-0 overflow-hidden rounded-sm border">
         <div className="flex min-w-0 items-center gap-2 px-3 py-1.5">
-          <FileCode2
-            className="icon-base text-muted-foreground shrink-0"
-            aria-hidden
-          />
+          <FileCode2 size="base" color="muted" aria-hidden />
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
             {skill.langfuseSkillId && skill.skillVersion != null ? (
               <LinkBadge
@@ -145,10 +132,7 @@ function SkillRow({
 function SkillFileRow({ filePath }: SkillFileRowProps) {
   return (
     <li className="flex min-w-0 items-start gap-2">
-      <FileText
-        className="icon-base text-muted-foreground mt-0.5 shrink-0"
-        aria-hidden
-      />
+      <FileText size="base" color="muted" __rawClassName="mt-0.5" aria-hidden />
       <span className="min-w-0 font-mono text-xs leading-relaxed break-all">
         {filePath}
       </span>

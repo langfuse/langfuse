@@ -192,3 +192,8 @@ export function useCorrectionCache() {
   }
   return context;
 }
+
+/** The cache when a provider is mounted, else null (read-only hosts). */
+export function useCorrectionCacheOptional() {
+  return useContext(CorrectionCacheContext);
+}

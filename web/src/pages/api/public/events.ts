@@ -4,6 +4,7 @@ import {
 } from "@/src/features/public-api/types/events";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
+import { LEGACY_WRITES_DEPRECATION } from "@/src/features/public-api/server/deprecations";
 import {
   createIngestionAttribution,
   eventTypes,
@@ -21,6 +22,7 @@ export default withMiddlewares({
     // Writes an observation-create event that lands in the legacy observations
     // ClickHouse table; events_only deployments expect OTel ingestion.
     rejectInEventsOnlyMode: true,
+    deprecation: LEGACY_WRITES_DEPRECATION,
     fn: async ({ body, auth, req, res }) => {
       const event = {
         id: v4(),

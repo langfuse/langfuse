@@ -1,5 +1,5 @@
 import React from "react";
-import { CircleCheckIcon, CircleIcon } from "lucide-react";
+import { CircleCheckIcon, CircleIcon } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 
@@ -31,9 +31,13 @@ export const LabelCommandItem = (props: {
       )}
     >
       {isSelected ? (
-        <CircleCheckIcon className="icon-base text-icon-foreground mr-2" />
+        <CircleCheckIcon size="base" color="default" __rawClassName="mr-2" />
       ) : (
-        <CircleIcon className="icon-base text-icon-foreground mr-2 opacity-20" />
+        <CircleIcon
+          size="base"
+          color="default"
+          __rawClassName="mr-2 opacity-20"
+        />
       )}
       {label}
     </Button>

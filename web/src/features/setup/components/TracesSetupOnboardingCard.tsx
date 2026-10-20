@@ -9,7 +9,7 @@ import { useHasProjectAccess } from "@/src/features/rbac";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { Check, Copy, LockIcon, Sparkles } from "lucide-react";
+import { Check, Copy, LockIcon, Sparkles } from "@langfuse/icons";
 import Link from "next/link";
 import { useState } from "react";
 import { showToast } from "@/src/features/notifications";
@@ -60,9 +60,9 @@ function CopyableSnippet({
         onClick={() => handleCopy()}
       >
         {copied ? (
-          <Check className="icon-base text-icon-foreground" />
+          <Check size="base" color="default" />
         ) : (
-          <Copy className="icon-base text-icon-foreground" />
+          <Copy size="base" color="default" />
         )}
         {copied ? "Copied" : "Copy prompt"}
       </Button>
@@ -141,7 +141,8 @@ export function TracesSetupOnboardingCard({
               ) : (
                 <Button disabled className="self-start">
                   <LockIcon
-                    className="icon-base mr-2 -ml-0.5"
+                    size="base"
+                    __rawClassName="mr-2 -ml-0.5"
                     aria-hidden="true"
                   />
                   Create new API key
@@ -160,7 +161,7 @@ export function TracesSetupOnboardingCard({
           title: "Add tracing with your coding agent",
           badge: (
             <Badge variant="tertiary" className="gap-1">
-              <Sparkles className="icon-sm" />
+              <Sparkles size="sm" />
               Recommended
             </Badge>
           ),

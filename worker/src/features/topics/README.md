@@ -114,7 +114,7 @@ Summary and assignment records use `trace_id` as their source when present;
 `session_id` identifies the processed session. At least one ID is required.
 The current pipeline processes traces only. `unit_start_time` (`unitStartTime` in
 TypeScript) is the first observation's start time for the processed source. Summaries set
-`trigger_type=manual_poc`. Each clustering attempt records its own `started_at`. Failed updates start a fresh
+`trigger_type` to `automatic` (trace-batch) or `manual` (manual processing); rows written before that split hold `manual_poc`. Each clustering attempt records its own `started_at`. Failed updates start a fresh
 attempt while keeping the previous published map available.
 
 Summaries snapshot source environment and trace name; assignments copy that
@@ -158,6 +158,10 @@ resume. Old execution history remains readable.
 After changing the summary model, start a new **Process traces** execution;
 stored-summary reuse cannot reuse results from a different summary model.
 Existing topic names remain until their definitions change during **Update topics**.
+If a provider's content filter blocks naming, the cluster is published with an
+unnamed placeholder and a warning; its assignments are preserved and other groups
+and facets continue. **Update topics** retries placeholder names. Other naming
+failures still interrupt the update.
 
 ## Trace-batch connection
 
@@ -191,11 +195,23 @@ switch (`TOPICS`, `TOPICS_UPDATE`, `TOPICS_EMBEDDING`, `TOPICS_AUTOMATION`); set
 them to `false` on fleets that only run trace batches.
 
 A facet version without any map starts one automatic **Update topics** execution
-once it has 100 compatible summaries from the last seven days, while automatic
-processing is on with the embedding model those summaries used. It appears in
-History under the `system:topics` actor. A queued execution is queued again by
-the next job; a failed one is never restarted automatically and is resumed from
-History. An existing map or fit in progress for the version, even an
+once a recent window contains at least 100 compatible summaries, targeting 80%
+of the worker's row and byte limits to leave room for late summaries. The row
+target stays at least 100 when the hard limit permits it. Automatic processing
+must be on with the embedding model those summaries used. It first checks seven
+days, then searches for a smaller recent window using database counts and byte estimates. Metadata-only
+counts narrow row-oversized windows before estimating text payloads; byte
+estimates are projected before sorting. Searches are throttled per facet and
+embedding configuration for 60 seconds. Redis deduplicates deferred checks to
+one pending check per facet/model, including a successor to a running check. The entire
+selected window uses the same clustering and naming pipeline as a manual update.
+It appears in History under the `system:topics` actor. Active discoveries schedule
+a follow-up before dispatch, so a lost queue job or capacity failure is checked
+even without another incoming batch. Each capacity failure can create one new
+request after the cooldown, starting the search at half the failed window's
+duration. Requests keep their selected windows unchanged. If no admissible
+window exists, discovery waits for another summary batch; other failures are
+resumed from History. An existing map or fit in progress for the version, even an
 incompatible one, blocks discovery; replace it with **Update topics**. Summaries
 stored while the first map is being fitted stay unassigned until the next
 **Update topics**.
@@ -380,16 +396,33 @@ Numerical results are held in memory until their assignments and coordinates are
 saved in ClickHouse. An unpublished attempt is rerun from scratch after failure.
 
 The synchronous native fit runs in a credential-free Node child process with a
-120-second kill deadline and output limits proportional to cohort size. No trace
-count cap is imposed. Exact neighbor search has quadratic cost; large cohorts
-can exceed the deadline. Map coordinates are repeatable on the same platform
+120-second kill deadline and output limits proportional to cohort size. Discovery
+admission defaults to 20,000 summaries and a 256 MiB input budget per facet,
+controlled by `LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS` and
+`LANGFUSE_TOPICS_MAX_CLUSTERING_BYTES`. A metadata count rejects excessive rows
+or embedding payload before loading vectors; the streamed read also enforces
+rows and bytes to cover large texts and changes after the count. Exceeding a
+limit fails the update with a smaller-window message. Automatic discovery selects
+a fitting window before queuing; manual updates retain their requested window.
+Neither samples the clustering cohort. These are initial capacity limits, not a guarantee about
+container RSS: parent/child serialization, native fitting, and concurrent queue
+jobs need additional headroom. Exact neighbor search has quadratic cost; admitted
+cohorts can still exceed the deadline. Map coordinates are repeatable on the same platform
 and build, but are not a compatibility contract across backends or architectures.
 Synthetic cohorts do not establish topic quality; validate representative data
 before expanding deployment.
 
 The same classifier determines initial and later memberships. Naming sees its
-effective populations: every member's full facet summary, plus three nearby
-contrasts. Each group gets one naming call with no tool loop. If the name is
+effective populations: all full member summaries that fit the naming request,
+plus up to three nearby contrasts. Each group uses one seeded random traversal
+of its members, retaining whole summaries that fit; this is not a sample of
+the numerical fitting population. Variable-length summaries make this a random
+order with a fitting budget, not an equal-probability fixed-size sample. The
+selection is repeatable for the same run/group and reused by the conflict retry.
+Its additional memory is bounded by the selected prompt; no per-trace cache
+survives the request. Vector calculations reuse per-pass scratch space and yield
+between batches so queue timers can run. Each group gets one naming call with no
+tool loop. If the name is
 already taken in the run, one `topics-naming-conflict` call sees the conflicting
 topic and is asked for a distinguishing name; a name that still repeats is kept,
 since topics are keyed by ID. Member evidence references are validated before
@@ -471,7 +504,13 @@ Embedding costs use Bedrock-reported input tokens at $0.12/million. Missing usag
 is logged and omitted from usage/cost maps, never estimated with an OpenAI tokenizer.
 Model prices and token budgets live in [models.ts](models.ts) and the shared
 Topics contracts. Summary input defaults to 120,000 tokens. Oversized naming
-input fails before calling the provider; member summaries are never silently discarded.
+input is limited to 900,000 estimated tokens and 16 MiB of serialized input.
+The token cap is an application ceiling, not a guarantee that every configured
+model supports that context. Selection reserves bounded space for a conflict
+retry; contrast and conflicting examples are omitted whole when they exceed
+their ancillary budgets. Member text is never truncated, and a group with no
+fitting member fails before inference. Definition metadata records the full
+population and the selected count separately.
 Provider calls retry 429 and 5xx responses twice. Embedding queue jobs retry transient failures
 up to three attempts with exponential backoff; authentication and invalid
 input/output failures stop immediately. A manual resume can retry a failed batch
@@ -488,8 +527,10 @@ no applicable summaries from insufficient data.
 Automatic processing starts only a facet version's first discovery; there is no
 refit schedule yet. The planned six-hour scheduler should invoke the same update
 path as the manual button.
-Large per-project discovery, all-member naming, and distributed stream processing
-remain follow-up work; this is not a 100-million-traces/day throughput validation.
+Large per-project fitting and distributed stream processing remain follow-up
+work; this is not a 100-million-traces/day throughput validation. The incoming
+trace path uses bounded batches; naming and discovery limits apply to individual
+project/facet updates. No process-wide summary or embedding cache is used.
 
 Trace deletion removes stored facet summaries (including embeddings), assignments
 and map coordinates through the existing batched ClickHouse deletion path.
@@ -514,6 +555,51 @@ Queue `.depth` includes `type:delayed`. Topics `.pending_head_age_ms` samples on
 entry from each waiting, paused, delayed and active state without loading job
 payloads. Retries can re-enter behind newer jobs, so this is head age, not the
 oldest creation time anywhere in the backlog.
+
+`.errors` reasons include `input_too_large` (transcript above the summary input
+limit), `trace_too_large` (trace above the transcript load limits) and
+`definition_readback` (a new topic definition did not read back identically; the
+error names the differing fields, never their values).
+
+Summary `.results` carry `source:model|rule` and `facet` (the built-in facet's
+name, or `custom`): the model decides `applicable`, `not_applicable` or
+`insufficient_input`; local rules decide `insufficient_input` (no transcript
+content), `invalid_output` and `input_too_large`.
+
+Every model call counts once in `.llm_calls{stage,adapter,status}`: `ok`,
+`400`, `401`, `403`, `429`, `4xx` or `5xx` for any other code (the exact code is
+on the span), or the failure reason when there is no HTTP status. One
+embedding call can fan out into several provider requests (single-text Bedrock
+models, the retry without dimensions), and AI SDK retries are not counted
+separately. Each successful call adds its egress to the shared
+`langfuse.export.serialized_bytes{integration:topics}`, measured exactly like
+LLM-as-a-judge (`llmRequestEgressBytes`: serialized provider messages plus the
+output JSON Schema, uncompressed); responses (mostly embedding vectors) and
+failed or retried requests are not included.
+
+### Datadog spans and logs
+
+Spans carry tenant and request detail that metrics must not:
+
+- `Worker.run *`: `langfuse.project.id` for every queue; Topics jobs add the
+  execution ID, operation, status and phase. Trace-batch jobs add
+  `langfuse.topics.traces.<outcome>` totals.
+- `topics-trace-summary`: one per summarized trace (both paths), with facet
+  result counts under `langfuse.topics.facets.*`.
+- `topics-facet-update`: one per facet of an update, with its outcome. Children:
+  `topics.clustering` (vectors, dimensions, status), `topics.naming` (one per
+  group) and `topics.assignment` (also used when manual processing assigns).
+  A failed facet marks its enclosing span as an error, although the run handles it.
+- `topics.llm.summary|embedding|naming`: one per provider request, with model,
+  adapter and prompt bytes; on failure, the HTTP status and, when the provider
+  answered, bounded response metadata (`langfuse.topics.response.*`: finish
+  reason, raw finish reason from a fixed list, text length, text and reasoning part counts,
+  output tokens and the output-token cap; never the response text).
+
+A failed provider request logs one `Topics model request failed` warning with the
+same fields. Provider error strings, codes and parameters can echo request or
+response content, so only the HTTP status is kept. A failed facet logs `Topics facet failed`: a warning for provider or
+configuration errors, an error otherwise.
 
 `langfuse.topics.tokens{stage:summary|embedding|naming,direction:input|output}`
 counts available provider-reported usage immediately after each model response,

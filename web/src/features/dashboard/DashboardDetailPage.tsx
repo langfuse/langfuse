@@ -24,7 +24,7 @@ import {
   Loader2,
   MoreVertical,
   PencilIcon,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import {
   SelectWidgetDialog,
@@ -1327,7 +1327,11 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                             role="status"
                             aria-label="Saving"
                           >
-                            <Loader2 className="text-muted-foreground icon-base animate-spin" />
+                            <Loader2
+                              size="base"
+                              color="muted"
+                              __rawClassName="animate-spin"
+                            />
                           </span>
                         )}
                         {hasCUDAccess && hasUnsavedFilterChanges && (
@@ -1343,7 +1347,11 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                         )}
                         {hasRbacCUDAccess && (
                           <Button onClick={handleAddWidget}>
-                            <PlusIcon className="icon-base text-icon-foreground mr-1" />
+                            <PlusIcon
+                              size="base"
+                              color="default"
+                              __rawClassName="mr-1"
+                            />
                             Add Widget
                           </Button>
                         )}
@@ -1353,7 +1361,11 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                             onClick={handleCloneDashboard}
                             disabled={mutateCloneDashboard.isPending}
                           >
-                            <Copy className="icon-base text-icon-foreground mr-1" />
+                            <Copy
+                              size="base"
+                              color="default"
+                              __rawClassName="mr-1"
+                            />
                             Clone
                           </Button>
                         )}
@@ -1365,7 +1377,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                                 size="icon"
                                 aria-label="More actions"
                               >
-                                <MoreVertical className="icon-base text-icon-foreground" />
+                                <MoreVertical size="base" color="default" />
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
@@ -1376,7 +1388,11 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                                     pasteWidgetFromClipboard("dashboard_menu")
                                   }
                                 >
-                                  <ClipboardPasteIcon className="icon-base text-icon-foreground mr-2" />
+                                  <ClipboardPasteIcon
+                                    size="base"
+                                    color="default"
+                                    __rawClassName="mr-2"
+                                  />
                                   Paste widget
                                 </DropdownMenuItem>
                               )}
@@ -1401,14 +1417,22 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                                   });
                                 }}
                               >
-                                <HomeIcon className="icon-base text-icon-foreground mr-2" />
+                                <HomeIcon
+                                  size="base"
+                                  color="default"
+                                  __rawClassName="mr-2"
+                                />
                                 {isCurrentHome
                                   ? "Shown on Home"
                                   : "Use as Home"}
                               </DropdownMenuItem>
                               {hasCUDAccess && (
                                 <DropdownMenuItem onSelect={openEditDialog}>
-                                  <PencilIcon className="icon-base text-icon-foreground mr-2" />
+                                  <PencilIcon
+                                    size="base"
+                                    color="default"
+                                    __rawClassName="mr-2"
+                                  />
                                   Edit name & description
                                 </DropdownMenuItem>
                               )}

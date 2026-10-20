@@ -12,7 +12,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import { TriangleAlert } from "lucide-react";
+import { TriangleAlert } from "@langfuse/icons";
 import { useId } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";

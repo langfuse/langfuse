@@ -1,6 +1,6 @@
 import { useCallback, useMemo, type ReactNode } from "react";
-import { Pencil, PlusIcon, Route, Trash } from "lucide-react";
-import { SiAnthropic, SiOpenai } from "react-icons/si";
+import { Pencil, PlusIcon, Route, Trash } from "@langfuse/icons";
+import { SiAnthropic, SiOpenai } from "@langfuse/icons/si";
 import { LLMAdapter } from "@langfuse/shared";
 
 import { Badge } from "@/src/components/design-system/Badge/Badge";
@@ -142,7 +142,7 @@ export function LLMApiKeySettingsTable({
             id: "add-connection",
             label: createAction.label,
             variant: "secondary",
-            icon: <PlusIcon className="icon-base" aria-hidden="true" />,
+            icon: <PlusIcon size="base" aria-hidden="true" />,
             onClick: createAction.onClick,
           },
         ]
@@ -185,10 +185,10 @@ function AdapterName({ adapter }: { adapter: LLMAdapter }) {
 
 function AdapterIcon({ adapter }: { adapter: LLMAdapter }) {
   if (adapter === LLMAdapter.OpenAI || adapter === LLMAdapter.Azure) {
-    return <SiOpenai className="icon-base" aria-hidden="true" />;
+    return <SiOpenai size="base" aria-hidden="true" />;
   }
   if (adapter === LLMAdapter.Anthropic) {
-    return <SiAnthropic className="icon-base" aria-hidden="true" />;
+    return <SiAnthropic size="base" aria-hidden="true" />;
   }
-  return <Route className="icon-base" aria-hidden="true" />;
+  return <Route size="base" aria-hidden="true" />;
 }

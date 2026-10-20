@@ -1,5 +1,5 @@
 import { useWatch } from "react-hook-form";
-import { Info, ExternalLink } from "lucide-react";
+import { Info, ExternalLink } from "@langfuse/icons";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import {
@@ -65,7 +65,7 @@ export const ExportSourceField = ({
                 Export Source
                 <Tooltip>
                   <TooltipTrigger>
-                    <Info className="text-muted-foreground icon-base" />
+                    <Info size="base" color="muted" />
                   </TooltipTrigger>
                   <TooltipContent
                     side="bottom"
@@ -87,7 +87,7 @@ export const ExportSourceField = ({
                         className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 text-xs hover:underline"
                       >
                         For further information see
-                        <ExternalLink className="icon-sm" />
+                        <ExternalLink size="sm" />
                       </a>
                     </div>
                   </TooltipContent>

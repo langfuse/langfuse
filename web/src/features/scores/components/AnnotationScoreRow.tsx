@@ -11,7 +11,7 @@ import {
   MessageCircle,
   MoreHorizontal,
   Trash,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import {
   Form,
@@ -87,7 +87,7 @@ function CommentField({
                   onValueChange(null);
                 }}
               >
-                <Trash className="icon-sm text-icon-foreground" />
+                <Trash size="sm" color="default" />
               </Button>
             </PopoverClose>
           )}
@@ -269,9 +269,9 @@ export function AnnotationScoreRow({
                       className="flex h-auto shrink-0 items-center self-center px-0 pl-1"
                     >
                       {score.comment ? (
-                        <MessageCircleMore className="icon-sm" />
+                        <MessageCircleMore size="sm" />
                       ) : (
-                        <MessageCircle className="icon-sm" />
+                        <MessageCircle size="sm" />
                       )}
                     </Button>
                   </PopoverTrigger>
@@ -572,7 +572,7 @@ export function AnnotationScoreRow({
                     aria-label={`Score actions for ${score.name}${showTarget ? ` (${target.label})` : ""}`}
                     title="Score actions"
                   >
-                    <MoreHorizontal className="icon-sm text-icon-foreground" />
+                    <MoreHorizontal size="sm" color="default" />
                   </Button>
                 </Trigger>
               )}

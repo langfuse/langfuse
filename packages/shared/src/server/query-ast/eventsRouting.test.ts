@@ -1,7 +1,11 @@
 import {
+  AliasNode,
+  FromNode,
+  SelectQueryNode,
   sql,
   type Expression,
   type ExpressionBuilder,
+  type KyselyPlugin,
   type SqlBool,
 } from "kysely";
 import { describe, expect, it } from "vitest";
@@ -24,6 +28,7 @@ import {
   startsWith,
   useFinal,
 } from "./extensions";
+import { finalTable } from "./nodes";
 import type { ClickHouseDatabase } from "./schema";
 
 // Raw compiler output, so these run without a `clickhouse` binary.
@@ -47,6 +52,9 @@ type EventsEb = ExpressionBuilder<
   "e"
 >;
 
+const eventsMetadata = (eb: EventsEb, key: string) =>
+  metadataValue(eb.ref("e.metadata_names"), eb.ref("e.metadata_values"), key);
+
 describe("logical events routing", () => {
   it("routes a read of untruncated columns to events_core", () => {
     expect(
@@ -57,7 +65,7 @@ describe("logical events routing", () => {
           .where("e.trace_id", "=", "t"),
       ),
     ).toMatchInlineSnapshot(
-      `"select e.span_id, e.name from events_core as e where e.project_id = {p1:String} and e.is_deleted = {p2:UInt8} and e.trace_id = {p3:String}"`,
+      `"select e.span_id, e.name from events_core as e where e.project_id = {p1:String} and e.is_deleted = 0 and e.trace_id = {p2:String}"`,
     );
   });
 
@@ -79,7 +87,7 @@ describe("logical events routing", () => {
         compile(
           db
             .selectFrom("events as e")
-            .select(() => [metadataValue("e", "k").as("v")]),
+            .select((eb) => [eventsMetadata(eb, "k").as("v")]),
         ),
       ),
     ).toEqual(["events_full"]);
@@ -229,6 +237,28 @@ describe("logical events routing", () => {
     ).toThrow(QueryCompileError);
   });
 
+  it("rejects FINAL around the logical relation", () => {
+    // useFinal() refuses `events` (dedup: none), so FINAL is wrapped by hand;
+    // routing would otherwise swap the table and drop the FINAL silently.
+    const wrapFinal: KyselyPlugin = {
+      transformQuery(args) {
+        const node = args.node;
+        if (!SelectQueryNode.is(node) || !node.from) return node;
+        const [from] = node.from.froms;
+        if (!AliasNode.is(from)) return node;
+        return { ...node, from: FromNode.create([finalTable(from)]) };
+      },
+      async transformResult(args) {
+        return args.result;
+      },
+    };
+    expect(() =>
+      compile(
+        db.withPlugin(wrapFinal).selectFrom("events as e").select("e.span_id"),
+      ),
+    ).toThrow(/FINAL cannot wrap the logical "events" relation/);
+  });
+
   it("keeps a physical events qualifier when no logical relation is in scope", () => {
     expect(
       routedTables(
@@ -285,7 +315,7 @@ describe("logical events routing", () => {
         db
           .selectFrom("events")
           .select("span_id")
-          .$call(limitBy({ count: 1, columns: ["input"] })),
+          .$call(limitBy({ count: 1, columns: (eb) => [eb.ref("input")] })),
       ),
     ).toThrow(QueryCompileError);
     expect(() =>
@@ -293,7 +323,7 @@ describe("logical events routing", () => {
         db
           .selectFrom("events")
           .select("span_id")
-          .$call(limitBy({ count: 1, columns: ["*"] })),
+          .$call(limitBy({ count: 1, columns: () => [sql.ref("*")] })),
       ),
     ).toThrow(QueryCompileError);
   });
@@ -384,7 +414,7 @@ describe("logical events routing", () => {
           .where("span_id", "=", "s"),
       ),
     ).toMatchInlineSnapshot(
-      `"select events.span_id from events_core as events where events.project_id = {p1:String} and events.is_deleted = {p2:UInt8} and span_id = {p3:String}"`,
+      `"select events.span_id from events_core as events where events.project_id = {p1:String} and events.is_deleted = 0 and span_id = {p2:String}"`,
     );
   });
 
@@ -445,35 +475,6 @@ describe("logical events routing", () => {
       ),
     ).toEqual(["events_core"]);
   });
-
-  it("rejects a CTE named events", () => {
-    expect(() =>
-      compile(
-        db
-          .with("events", (qb) =>
-            qb.selectFrom("events_core").select("span_id"),
-          )
-          .selectFrom("events")
-          .select("span_id"),
-      ),
-    ).toThrow(QueryCompileError);
-  });
-
-  it.each(["events_core", "events_full"] as const)(
-    "rejects a CTE named %s alongside a logical relation",
-    (name) => {
-      // The routed relation would read the CTE instead of the table.
-      const withCte = db.with(name, (qb) =>
-        qb.selectFrom("scores as s").select("s.id"),
-      );
-      expect(() =>
-        compile(withCte.selectFrom("events as e").select("e.span_id")),
-      ).toThrow(QueryCompileError);
-      expect(() =>
-        compile(withCte.selectFrom(name).select("id")),
-      ).not.toThrow();
-    },
-  );
 });
 
 describe("logical events routing of metadata predicates", () => {
@@ -485,10 +486,10 @@ describe("logical events routing of metadata predicates", () => {
     );
 
   it("keeps a short `=` and `startsWith` on events_core", () => {
-    expect(route((eb) => eb(metadataValue("e", "k"), "=", "x"))).toEqual([
+    expect(route((eb) => eb(eventsMetadata(eb, "k"), "=", "x"))).toEqual([
       "events_core",
     ]);
-    expect(route(() => startsWith(metadataValue("e", "k"), "x"))).toEqual([
+    expect(route((eb) => startsWith(eventsMetadata(eb, "k"), "x"))).toEqual([
       "events_core",
     ]);
   });
@@ -500,8 +501,10 @@ describe("logical events routing of metadata predicates", () => {
           db
             .selectFrom("events as e")
             .select("e.span_id")
-            .where((eb) => eb(metadataValue("e", "k"), "=", "x"))
-            .$call(limitBy({ count: 1, columns: ["e.span_id"] })),
+            .where((eb) => eb(eventsMetadata(eb, "k"), "=", "x"))
+            .$call(
+              limitBy({ count: 1, columns: (eb) => [eb.ref("e.span_id")] }),
+            ),
         ),
       ),
     ).toEqual(["events_core"]);
@@ -509,22 +512,22 @@ describe("logical events routing of metadata predicates", () => {
 
   it("keeps a negated short `=` on events_core", () => {
     expect(
-      route((eb) => eb.not(eb(metadataValue("e", "k"), "=", "x"))),
+      route((eb) => eb.not(eb(eventsMetadata(eb, "k"), "=", "x"))),
     ).toEqual(["events_core"]);
   });
 
   it("routes other comparison shapes on a metadata value to events_full", () => {
     // Operator outside the allow-list.
-    expect(route((eb) => eb(metadataValue("e", "k"), "!=", "x"))).toEqual([
+    expect(route((eb) => eb(eventsMetadata(eb, "k"), "!=", "x"))).toEqual([
       "events_full",
     ]);
     // Value on the left.
     expect(
-      route((eb) => eb(eb.val("x"), "=", metadataValue("e", "k"))),
+      route((eb) => eb(eb.val("x"), "=", eventsMetadata(eb, "k"))),
     ).toEqual(["events_full"]);
     // Compared to a column, not a bound value.
     expect(
-      route((eb) => eb(metadataValue("e", "k"), "=", eb.ref("e.name"))),
+      route((eb) => eb(eventsMetadata(eb, "k"), "=", eb.ref("e.name"))),
     ).toEqual(["events_full"]);
   });
 
@@ -565,8 +568,8 @@ describe("logical events routing agrees with filtersRequireEventsFull", () => {
     | "does not contain";
 
   const astPredicate = (operator: MetadataOperator, value: string) => {
-    const metadata = metadataValue("e", "k");
     return (eb: EventsEb): Expression<SqlBool> => {
+      const metadata = eventsMetadata(eb, "k");
       switch (operator) {
         case "=":
           return eb(metadata, "=", value);

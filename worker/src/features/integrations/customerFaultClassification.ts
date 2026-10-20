@@ -43,6 +43,8 @@ const BUCKET_FAULT_CODES = new Set<string>([
   // S3 — bucket & path
   "NoSuchBucket",
   "InvalidBucketName",
+  // S3 — bucket lives in a different region than the configured region/endpoint
+  "PermanentRedirect",
   // Azure — container & path
   "ContainerNotFound",
   "InvalidResourceName",

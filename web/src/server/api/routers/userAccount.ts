@@ -348,7 +348,8 @@ export const userAccountRouter = createTRPCRouter({
         { isLangfuseCloudAdmin: ctx.session.user.admin === true },
       );
 
-      if (!userCanToggleV4) {
+      // Rollout-locked users may recover a missing opt-in, but cannot opt out.
+      if (!userCanToggleV4 && !input.enabled) {
         return {
           success: true,
           v4BetaEnabled: userRolloutState.v4BetaEnabled,
@@ -364,7 +365,7 @@ export const userAccountRouter = createTRPCRouter({
       return {
         success: true,
         v4BetaEnabled: input.enabled,
-        canToggleV4: true,
+        canToggleV4: userCanToggleV4,
       };
     }),
 });
