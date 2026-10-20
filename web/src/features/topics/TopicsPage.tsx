@@ -482,7 +482,7 @@ function TopicsWorkspaceContent({
                 onTurnBackOn={turnAutomaticProcessingBackOn}
                 showOnboarding={showOnboarding}
                 configured={configured}
-                canProcess={canWrite && !modelSettings.notice.unavailable}
+                canProcess={canWrite}
                 automaticEnabled={automaticProcessing.state.status === "on"}
                 running={running}
                 onAutomaticProcessing={openAutomaticProcessingFromHeader}
@@ -595,12 +595,7 @@ function TopicsWorkspaceContent({
                       traceFilters={traceFilters}
                       tracePanelRef={setTracePanel}
                       onGenerateTopics={openTopicGeneration}
-                      canGenerateTopics={
-                        canWrite &&
-                        !modelSettings.notice.unavailable &&
-                        !running &&
-                        configured
-                      }
+                      canGenerateTopics={canWrite && !running && configured}
                     />
                   </TopicsFilters>
                 )}

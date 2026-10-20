@@ -32,8 +32,6 @@ const mocks = vi.hoisted(() => ({
   getTopicRun: vi.fn(),
   getTopicRuns: vi.fn(),
   readTopicMapAssignments: vi.fn(),
-  isTopicsEnabled: vi.fn(),
-  isTopicsProjectEnabled: vi.fn(),
   getTopicsModels: vi.fn(),
   checkTopicsModelSettings: vi.fn(),
   saveTopicsSetup: vi.fn(),
@@ -190,8 +188,6 @@ const summary = {
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.queryClickhouse.mockResolvedValue([]);
-  mocks.isTopicsEnabled.mockReturnValue(true);
-  mocks.isTopicsProjectEnabled.mockReturnValue(true);
   mocks.getTopicsModels.mockResolvedValue({
     summary: { model: "us.openai.gpt-5.6-luna" },
     embedding: { model: "eu.cohere.embed-v4:0", dimensions: 1024 },
@@ -231,13 +227,50 @@ describe("Topics feature access", () => {
 });
 
 describe("Topics project allowlist", () => {
+  // Every Topics API is behind the visibility gate: outside the allowlist it
+  // answers NOT_FOUND before reading or writing anything.
+  const outside = () => caller("ADMIN", true, false);
+  const reads = [
+    [
+      "current results",
+      () => outside().currentResults({ projectId, timeRange }),
+    ],
+    [
+      "topic map",
+      () => outside().map({ projectId, runId: "run-a", timeRange }),
+    ],
+    [
+      "summary counts",
+      () =>
+        outside().summaryCounts({
+          projectId,
+          facets: selectedFacets,
+          timeRange,
+        }),
+    ],
+    ["facets", () => outside().facets({ projectId })],
+    ["rules", () => outside().rules({ projectId })],
+    ["runs", () => outside().executions({ projectId })],
+    ["model settings", () => outside().modelSettings({ projectId })],
+  ] as const;
+
+  it.each(reads)("hides %s", async (_name, call) => {
+    await expect(call()).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(mocks.queryClickhouse).not.toHaveBeenCalled();
+    expect(mocks.getLatestFacetSummaries).not.toHaveBeenCalled();
+    expect(mocks.readLatestTopicAssignments).not.toHaveBeenCalled();
+    expect(mocks.readTopicMapAssignments).not.toHaveBeenCalled();
+    expect(mocks.getTopicSummaryCounts).not.toHaveBeenCalled();
+    expect(mocks.listTopicFacets).not.toHaveBeenCalled();
+    expect(mocks.listTopicRules).not.toHaveBeenCalled();
+    expect(mocks.listTopicExecutions).not.toHaveBeenCalled();
+    expect(mocks.getTopicsModels).not.toHaveBeenCalled();
+  });
+
   it("rejects triggers before reading or creating execution state", async () => {
-    mocks.isTopicsProjectEnabled.mockReturnValue(false);
-    await expect(caller().trigger(input)).rejects.toMatchObject({
-      code: "BAD_REQUEST",
-      message: "Topics processing is not enabled for this project.",
+    await expect(outside().trigger(input)).rejects.toMatchObject({
+      code: "NOT_FOUND",
     });
-    expect(mocks.isTopicsProjectEnabled).toHaveBeenCalledWith(projectId);
     expect(mocks.readTopicExecutionForRequest).not.toHaveBeenCalled();
     expect(mocks.getTopicFacetVersion).not.toHaveBeenCalled();
     expect(mocks.queryClickhouse).not.toHaveBeenCalled();
@@ -246,24 +279,19 @@ describe("Topics project allowlist", () => {
   });
 
   it("rejects retries before reading or changing execution state", async () => {
-    mocks.isTopicsProjectEnabled.mockReturnValue(false);
     await expect(
-      caller().retry({ projectId, executionId: "execution-a" }),
-    ).rejects.toMatchObject({
-      code: "BAD_REQUEST",
-      message: "Topics processing is not enabled for this project.",
-    });
-    expect(mocks.isTopicsProjectEnabled).toHaveBeenCalledWith(projectId);
+      outside().retry({ projectId, executionId: "execution-a" }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
     expect(mocks.readTopicExecutionSummary).not.toHaveBeenCalled();
     expect(mocks.getTopicExecutionQueueState).not.toHaveBeenCalled();
     expect(mocks.enqueueTopicExecution).not.toHaveBeenCalled();
   });
 
-  it("hides Topics reads for projects outside the allowlist", async () => {
+  it("rejects turning automatic processing on", async () => {
     await expect(
-      caller("ADMIN", true, false).facets({ projectId }),
+      outside().setAutomaticProcessing({ projectId, enabled: true }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
-    expect(mocks.listTopicFacets).not.toHaveBeenCalled();
+    expect(mocks.setTopicsAutomaticProcessing).not.toHaveBeenCalled();
   });
 });
 
@@ -1431,7 +1459,6 @@ describe("Topics automatic processing", () => {
   };
 
   it("turns processing on with sampling and audit-logs the sampling change", async () => {
-    mocks.isTopicsProjectEnabled.mockReturnValue(true);
     mocks.setTopicsAutomaticProcessing.mockResolvedValue({
       ruleBefore: { ...rule, sampling: 1 },
       ruleAfter: { ...rule, sampling: 0.25 },
@@ -1460,17 +1487,7 @@ describe("Topics automatic processing", () => {
     );
   });
 
-  it("refuses to turn on a project that is not on the Topics allowlist", async () => {
-    mocks.isTopicsProjectEnabled.mockReturnValue(false);
-
-    await expect(
-      caller().setAutomaticProcessing({ projectId, enabled: true }),
-    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
-    expect(mocks.setTopicsAutomaticProcessing).not.toHaveBeenCalled();
-  });
-
-  it("turns processing off for a project that is not on the allowlist", async () => {
-    mocks.isTopicsProjectEnabled.mockReturnValue(false);
+  it("turns processing off without logging an unchanged sampling", async () => {
     mocks.setTopicsAutomaticProcessing.mockResolvedValue({
       ruleBefore: { ...rule, sampling: 1 },
       ruleAfter: { ...rule, sampling: 1 },

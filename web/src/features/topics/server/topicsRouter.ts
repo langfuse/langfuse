@@ -34,7 +34,6 @@ import {
   saveTopicRule,
   getTopicRun,
   readTopicMapAssignments,
-  isTopicsProjectEnabled,
   getTopicsModels,
   readTopicsModelSettings,
   checkTopicsModelSettings,
@@ -349,10 +348,9 @@ export const topicsRouter = createTRPCRouter({
       });
       return rule;
     }),
-  modelSettings: topicsProcedure.query(async ({ input }) => ({
-    ...(await readTopicsModelSettings(input.projectId)),
-    processingAvailable: isTopicsProjectEnabled(input.projectId),
-  })),
+  modelSettings: topicsProcedure.query(({ input }) =>
+    readTopicsModelSettings(input.projectId),
+  ),
   tracingReadinessSettings: topicsProcedure.query(({ input }) =>
     getTracingReadinessSettings(input.projectId),
   ),
@@ -379,10 +377,6 @@ export const topicsRouter = createTRPCRouter({
   setAutomaticProcessing: topicsWriteProcedure
     .input(topicsAutomaticProcessingSchema.extend({ projectId: topicIdSchema }))
     .mutation(async ({ input: { projectId, ...input }, ctx }) => {
-      if (input.enabled && !isTopicsProjectEnabled(projectId))
-        throw new InvalidRequestError(
-          "Topics processing is not enabled for this project.",
-        );
       const { ruleBefore, ruleAfter } = await auditedTopicConfigSave(
         ctx,
         projectId,
@@ -458,10 +452,6 @@ export const topicsRouter = createTRPCRouter({
   trigger: topicsWriteProcedure
     .input(topicTriggerInputSchema)
     .mutation(async ({ input, ctx }) => {
-      if (!isTopicsProjectEnabled(input.projectId))
-        throw new InvalidRequestError(
-          "Topics processing is not enabled for this project.",
-        );
       const { summary, embedding } = await requireTopicsModels(input.projectId);
       const models = {
         summaryModel: summary.model,
@@ -543,10 +533,6 @@ export const topicsRouter = createTRPCRouter({
   retry: topicsWriteProcedure
     .input(executionInput)
     .mutation(async ({ input }) => {
-      if (!isTopicsProjectEnabled(input.projectId))
-        throw new InvalidRequestError(
-          "Topics processing is not enabled for this project.",
-        );
       const execution = await executionWithRecovery(
         input.projectId,
         input.executionId,

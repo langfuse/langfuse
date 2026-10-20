@@ -110,8 +110,8 @@ vi.mock("@/src/components/table/peek/peek-trace-detail", () => ({
 vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
   useHasProjectAccess: () => state.canWrite,
 }));
-vi.mock("@/src/features/feature-flags/hooks/useIsFeatureEnabled", () => ({
-  default: () => true,
+vi.mock("@/src/features/topics/topicsAccess", () => ({
+  useCanViewTopics: () => true,
 }));
 vi.mock("./TopicTraceSelector", () => ({
   useTopicTraceSelector: () => ({
@@ -337,7 +337,6 @@ beforeEach(() => {
     embedding: { model: "embedding" },
     embeddingDimensions: 1024,
     clustering: { model: "clustering" },
-    processingAvailable: true,
     blockedAt: null,
     blockMessage: null,
   };
