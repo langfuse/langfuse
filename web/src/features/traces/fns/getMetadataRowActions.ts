@@ -1,4 +1,4 @@
-import { type NextRouter } from "next/router";
+import Router, { type NextRouter } from "next/router";
 import { type Row } from "@tanstack/react-table";
 import { Copy, Filter, FilterX } from "@langfuse/icons";
 import { type ComponentProps } from "react";
@@ -44,13 +44,18 @@ export function getMetadataRowActions({
 }) {
   const { value, type, hasChildren, level } = row.original;
 
-  const filterValue = String(value);
+  const isScalar =
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean";
+  const filterValue = isScalar ? String(value) : "";
   // Nested values are matched against their JSON-encoded top-level branch.
   // Hide shortcuts when escaping would make the displayed value fail to match.
   // Top-level scalars are usually stored raw, including literal newlines.
   const valueMatchesStoredForm =
     level === 0 || JSON.stringify(filterValue).slice(1, -1) === filterValue;
   const isScalarLeaf =
+    isScalar &&
     !hasChildren &&
     (type === "string" || type === "number" || type === "boolean") &&
     // contains "" matches every row, including missing keys; its inverse matches none.
@@ -73,7 +78,7 @@ export function getMetadataRowActions({
   const navigateWithFilter = (operator: MetadataFilterOperator) => {
     router.push(
       buildEventsTablePathForMetadataFilter({
-        currentPath: router.asPath,
+        currentPath: Router.asPath,
         projectId,
         metadataKey,
         value: filterValue,

@@ -1,7 +1,7 @@
 /** Row menu for the Attributes table: copy, then include / exclude via the
  * attribute's own table column. */
 
-import { type NextRouter } from "next/router";
+import Router, { type NextRouter } from "next/router";
 import { type ComponentProps } from "react";
 import { Copy, Filter, FilterX } from "@langfuse/icons";
 import { type Row } from "@tanstack/react-table";
@@ -35,9 +35,13 @@ export function getAttributeRowActions({
   capture: ReturnType<typeof usePostHogClientCapture>;
 }) {
   const { key, value, hasChildren } = row.original;
-  const valueText = String(value);
+  const isScalar =
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean";
+  const valueText = isScalar ? String(value) : "";
   const filter =
-    hasChildren || key == null
+    !isScalar || hasChildren || key == null
       ? null
       : attributeColumnFilter(key, valueText, filterTarget);
   const includeText = filter ? attributeGrammar(key ?? "", valueText) : null;
@@ -55,7 +59,7 @@ export function getAttributeRowActions({
   ) =>
     router.push(
       buildEventsTablePathForColumnFilter({
-        currentPath: router.asPath,
+        currentPath: Router.asPath,
         projectId,
         target,
         filter: clause,
