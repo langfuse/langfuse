@@ -525,19 +525,7 @@ export async function saveTopicRun(run: TopicRun): Promise<TopicRun> {
       definitionTimeRange!,
     );
     for (const topic of inserted) saved.set(topic.topicVersionId, topic);
-    const mismatched = missing.filter(
-      (topic) => !sameTopicDefinition(saved.get(topic.topicVersionId), topic),
-    );
-    if (mismatched.length > 0) {
-      const differences = new Set(
-        mismatched.flatMap((topic) =>
-          definitionDifferences(saved.get(topic.topicVersionId), topic),
-        ),
-      );
-      throw new TopicDefinitionReadbackError(
-        `Topic definition readback did not match for ${mismatched.length} of ${missing.length} new definitions (${[...differences].join(", ")}).`,
-      );
-    }
+    assertDefinitionsReadBack(missing, saved);
   }
   const row = await prisma.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM topic_clustering_runs WHERE project_id = ${run.projectId} AND id = ${run.id} FOR UPDATE`;
@@ -569,6 +557,25 @@ export async function saveTopicRun(run: TopicRun): Promise<TopicRun> {
   return row.topicVersionIds.every((id) => saved.has(id))
     ? runResult(row, saved)
     : (await hydrateRuns(run.projectId, [row]))[0];
+}
+
+/** Throws unless every new definition reads back identically, naming what differs. */
+function assertDefinitionsReadBack(
+  missing: TopicDefinition[],
+  saved: Map<string, TopicDefinition>,
+): void {
+  const mismatched = missing.filter(
+    (topic) => !sameTopicDefinition(saved.get(topic.topicVersionId), topic),
+  );
+  if (mismatched.length === 0) return;
+  const differences = new Set(
+    mismatched.flatMap((topic) =>
+      definitionDifferences(saved.get(topic.topicVersionId), topic),
+    ),
+  );
+  throw new TopicDefinitionReadbackError(
+    `Topic definition readback did not match for ${mismatched.length} of ${missing.length} new definitions (${[...differences].join(", ")}).`,
+  );
 }
 
 /** A written definition did not read back identically; the message names fields, never values. */
