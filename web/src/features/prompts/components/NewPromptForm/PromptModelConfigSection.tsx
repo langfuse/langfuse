@@ -133,6 +133,9 @@ export const PromptModelConfigSection: React.FC<
     typeof ModelParameters
   >["updateModelParamValue"] = (key, paramValue) => {
     if (UI_ONLY_KEYS.includes(key as (typeof UI_ONLY_KEYS)[number])) return;
+    // The picker's hidden native select reports "" when its value changes to
+    // an option it has not registered yet. No provider or model is named "".
+    if ((key === "provider" || key === "model") && !paramValue) return;
 
     writeConfig((previous) => ({ ...previous, [key]: paramValue }));
   };

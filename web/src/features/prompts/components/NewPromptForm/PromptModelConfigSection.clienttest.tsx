@@ -51,6 +51,14 @@ vi.mock("@/src/components/ModelParameters", () => ({
       >
         pick anthropic
       </button>
+      <button
+        onClick={() => {
+          updateModelParamValue("provider", "");
+          updateModelParamValue("model", "");
+        }}
+      >
+        report empty selection
+      </button>
       <button onClick={() => setModelParamEnabled("temperature", true)}>
         enable temperature
       </button>
@@ -150,6 +158,19 @@ describe("PromptModelConfigSection", () => {
       provider: "anthropic-prod",
       model: "claude-x",
     });
+  });
+
+  it("ignores an empty provider or model reported by the picker", () => {
+    const { onChange } = renderSection({
+      provider: "openai-prod",
+      model: "house-model",
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "report empty selection" }),
+    );
+
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it("writes a parameter with its current value when enabled, and drops it when disabled", () => {

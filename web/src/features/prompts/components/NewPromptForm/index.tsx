@@ -114,6 +114,22 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
     initialPromptVariant = null;
   }
 
+  const targetConfig =
+    JSON.stringify(initialPrompt?.config?.valueOf(), null, 2) || "{}";
+  const playgroundModelConfig = shouldLoadPlaygroundCache
+    ? modelConfigFromPlayground(playgroundCache?.modelParams)
+    : {};
+  // Merged before the form mounts so the Model section never sees its config
+  // change underneath it.
+  const initialConfig =
+    Object.keys(playgroundModelConfig).length > 0
+      ? JSON.stringify(
+          { ...safeParseConfig(targetConfig), ...playgroundModelConfig },
+          null,
+          2,
+        )
+      : targetConfig;
+
   const defaultValues = {
     type: initialPromptVariant?.type ?? PromptType.Text,
     chatPrompt:
@@ -125,7 +141,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
         ? initialPromptVariant?.prompt
         : "",
     name: initialPrompt?.name ?? (folderPath ? `${folderPath}/` : ""),
-    config: JSON.stringify(initialPrompt?.config?.valueOf(), null, 2) || "{}",
+    config: initialConfig,
     isActive: !Boolean(initialPrompt),
     commitMessage: undefined,
   };
@@ -220,20 +236,6 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
     if (shouldLoadPlaygroundCache && playgroundCache) {
       form.setValue("type", PromptType.Chat);
       setInitialMessages(playgroundCache.messages);
-
-      const modelConfig = modelConfigFromPlayground(
-        playgroundCache.modelParams,
-      );
-      if (Object.keys(modelConfig).length > 0) {
-        form.setValue(
-          "config",
-          JSON.stringify(
-            { ...safeParseConfig(form.getValues("config")), ...modelConfig },
-            null,
-            2,
-          ),
-        );
-      }
     } else if (initialPrompt?.type === PromptType.Chat) {
       setInitialMessages(initialPrompt.prompt);
     }
