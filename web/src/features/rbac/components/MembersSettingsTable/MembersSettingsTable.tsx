@@ -205,8 +205,9 @@ export function MembersSettingsTable({
                 if (!projectRolesEntitlement) return "N/A on plan";
                 const hasRoleAccess = hasOrgCudAccess || hasProjectCudAccess;
                 const isOwnerLocked =
-                  row.original.projectRole === "OWNER" &&
-                  !canManageProjectOwnership;
+                  (row.original.projectRole === "OWNER" &&
+                    !canManageProjectOwnership) ||
+                  (row.original.orgRole === "OWNER" && !canManageOrgOwnership);
                 const select = (
                   <RoleSelect
                     roles={allRoles}

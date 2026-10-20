@@ -45,10 +45,12 @@ export function CreateProjectMemberDialogController({
     organizationId: orgId,
     scope: "organizationMembers:manageOwnership",
   });
-  const canManageProjectOwnership = useHasProjectAccess({
-    projectId: project?.id,
-    scope: "projectMembers:manageOwnership",
-  });
+  // Org owners outrank any project role override they hold.
+  const canManageProjectOwnership =
+    useHasProjectAccess({
+      projectId: project?.id,
+      scope: "projectMembers:manageOwnership",
+    }) || canManageOrgOwnership;
   const hasProjectRoleEntitlement = useHasEntitlement("rbac-project-roles");
   const hasOnlySingleProjectAccess =
     !hasOrgAccess && hasProjectAccess && hasProjectRoleEntitlement;

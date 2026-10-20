@@ -35,7 +35,7 @@ export const RoleSelectItem = ({
     >
       <div className="flex w-full items-start gap-2 text-left">
         <Icon size="base" __rawClassName="mt-0.5" />
-        <div className="flex flex-col">
+        <div className="flex flex-1 flex-col">
           <span className="font-bold">
             {label}
             {keepDefaultNote ? " (keep default role)" : ""}
@@ -44,7 +44,7 @@ export const RoleSelectItem = ({
             {def.description}
           </span>
           {disabledReason !== undefined && (
-            <span className="text-muted-foreground text-xs italic">
+            <span className="text-muted-foreground self-end text-xs italic">
               {disabledReason}
             </span>
           )}
@@ -62,7 +62,7 @@ export const RoleSelectItem = ({
                 onViewPermissions(role);
               }}
               aria-label={`View ${label} permissions`}
-              className="text-muted-foreground hover:bg-background hover:text-foreground ml-auto flex h-6 w-6 shrink-0 items-center justify-center self-center rounded-full opacity-0 group-hover:opacity-100 group-data-highlighted:opacity-100 focus-visible:opacity-100"
+              className="text-muted-foreground hover:bg-background hover:text-foreground pointer-events-auto ml-auto flex h-6 w-6 shrink-0 items-center justify-center self-center rounded-full opacity-0 group-hover:opacity-100 group-data-disabled:opacity-100 group-data-highlighted:opacity-100 focus-visible:opacity-100"
             >
               <SquareArrowOutUpRight size="base" />
             </button>

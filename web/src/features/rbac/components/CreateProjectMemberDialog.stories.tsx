@@ -70,8 +70,15 @@ export const WithoutOwnershipAccess = meta.story({
     await userEvent.click(body.getAllByRole("combobox")[0]!);
 
     await expect(
-      body.getByRole("option", { name: /Owner.*Requires owner access/ }),
+      body.getByRole("option", { name: /Owner.*requires owner access/ }),
     ).toHaveAttribute("aria-disabled", "true");
+
+    await userEvent.click(
+      body.getByRole("button", { name: "View Owner permissions" }),
+    );
+    await expect(
+      await body.findByRole("dialog", { name: /Owner/ }),
+    ).toBeInTheDocument();
   },
 });
 

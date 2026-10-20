@@ -64,10 +64,12 @@ export function ConnectedMembersSettingsTable({
     scope: "organizationMembers:manageOwnership",
   });
 
-  const canManageProjectOwnership = useHasProjectAccess({
-    projectId: project?.id,
-    scope: "projectMembers:manageOwnership",
-  });
+  // Org owners outrank any project role override they hold.
+  const canManageProjectOwnership =
+    useHasProjectAccess({
+      projectId: project?.id,
+      scope: "projectMembers:manageOwnership",
+    }) || canManageOrgOwnership;
 
   const projectRolesEntitlement = useHasEntitlement("rbac-project-roles");
   const [updatingOrgRoleMembershipIds, setUpdatingOrgRoleMembershipIds] =

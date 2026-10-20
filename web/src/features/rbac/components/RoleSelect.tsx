@@ -94,7 +94,7 @@ export function RoleSelect({
               isProjectRole={isProjectRole}
               disabledReason={
                 role === "OWNER" && !canManageOwnership
-                  ? "Requires owner access"
+                  ? "requires owner access"
                   : undefined
               }
               onViewPermissions={openPermissions}
