@@ -419,6 +419,7 @@ async function queryExperimentItemRowsForPublicApi(
       .whereRaw("e.experiment_id != ''")
       .whereRaw("e.experiment_item_id != ''")
       .whereRaw("e.experiment_item_root_span_id = e.span_id")
+      .whereRaw("e.is_deleted = 0")
       .applyFilters(eventTimeBoundFilters(params.fromTime, params.toTime))
       .applyFilters(filterList),
     params.cursor,

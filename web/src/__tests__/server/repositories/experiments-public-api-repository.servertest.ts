@@ -790,6 +790,45 @@ describe("Public API experiments repository", () => {
       });
     });
 
+    it("skips soft-deleted experiment items", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const startTimeMs = Date.now();
+      const experimentId = `exp-${randomUUID()}`;
+      const liveSpanId = `span-${randomUUID()}`;
+
+      await createEventsCh([
+        {
+          ...createExperimentRootEvent({
+            projectId,
+            experimentId,
+            startTimeMs: startTimeMs + 1_000,
+          }),
+          is_deleted: 1,
+        },
+        createExperimentRootEvent({
+          projectId,
+          experimentId,
+          startTimeMs,
+          spanId: liveSpanId,
+          input: "live question",
+        }),
+      ]);
+
+      const rows = await queryExperimentItemsForPublicApi({
+        projectId,
+        fromTime: new Date(startTimeMs - 1_000),
+        includeDataset: false,
+        includeIo: true,
+        includeMetadata: false,
+        includeItemMetadata: false,
+        includeExperimentMetadata: false,
+        limit: 10,
+      });
+
+      expect(rows.map((row) => row.id)).toEqual([liveSpanId]);
+      expect(rows[0]).toMatchObject({ input: "live question" });
+    });
+
     it("includes experiment items without a dataset id", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       const startTimeMs = Date.now();
