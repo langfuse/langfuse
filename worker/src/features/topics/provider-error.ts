@@ -3,6 +3,7 @@ import {
   type TopicsModelSlotName,
 } from "@langfuse/shared/topics";
 import { EvaluatorBlockReason } from "@prisma/client";
+import { z } from "zod";
 import { getLLMErrorInfo, logger } from "@langfuse/shared/src/server";
 import {
   getTopicTextResponseMetadata,
@@ -79,6 +80,9 @@ export function topicProviderError(
   }
   const subject = `The ${TOPICS_MODEL_SLOT_DETAILS[model.slot].label.toLowerCase()} model ${model.model} on LLM connection "${model.provider}"`;
   if (
+    contentFilterErrorSchema.safeParse(
+      getLLMErrorInfo(error)?.providerError?.data,
+    ).success ||
     getTopicTextResponseMetadata(error)?.[
       "langfuse.topics.response.finish_reason"
     ] === "content-filter"
@@ -87,6 +91,7 @@ export function topicProviderError(
       `${subject} declined the request because of its content filter. You can retry or choose another model.`,
       "content_filter",
       model.slot,
+      providerErrorDetails(error, status),
     );
   const failed = `${subject} failed${status ? ` (HTTP ${status})` : ""}.`;
   // The message names the actual failure; a generic credentials hint misleads for output or rate-limit errors.
@@ -106,6 +111,10 @@ export function topicProviderError(
     providerErrorDetails(error, status),
   );
 }
+
+const contentFilterErrorSchema = z.object({
+  error: z.object({ code: z.literal("content_filter") }),
+});
 
 /** Provider error strings can echo request/response content; retain only status. */
 function providerErrorDetails(

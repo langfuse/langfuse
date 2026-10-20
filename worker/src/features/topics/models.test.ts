@@ -319,56 +319,56 @@ describe("Topics naming boundary", () => {
     expect(state.call).not.toHaveBeenCalled();
   });
 
-  it("excludes provider content from failure logs and spans, including echoed error fields", async () => {
-    // The AI SDK identifies an APICallError by these markers.
-    const rejection = Object.assign(
-      new Error("Invalid input: secret transcript"),
-      {
-        [Symbol.for("vercel.ai.error")]: true,
-        [Symbol.for("vercel.ai.error.AI_APICallError")]: true,
-        name: "AI_APICallError",
-        statusCode: 400,
-        isRetryable: false,
-        requestBodyValues: { messages: "secret transcript" },
-        responseBody: '{"error":{"message":"secret echo"}}',
-        data: {
-          error: {
-            type: "secret error type",
-            code: "secret error code",
-            param: "secret input value",
+  it.each([
+    ["secret error code", "invalid_input"],
+    ["content_filter", "content_filter"],
+  ])(
+    "classifies HTTP 400 naming errors with code %s without logging provider content",
+    async (code, reason) => {
+      // The AI SDK identifies an APICallError by these markers.
+      const rejection = Object.assign(
+        new Error("Invalid input: secret transcript"),
+        {
+          [Symbol.for("vercel.ai.error")]: true,
+          [Symbol.for("vercel.ai.error.AI_APICallError")]: true,
+          name: "AI_APICallError",
+          statusCode: 400,
+          isRetryable: false,
+          requestBodyValues: { messages: "secret transcript" },
+          responseBody: '{"error":{"message":"secret echo"}}',
+          data: {
+            error: {
+              type: "secret error type",
+              code,
+              param: "secret input value",
+            },
           },
         },
-      },
-    );
-    state.call.mockRejectedValue(rejection);
-    await expect(
-      summarizeOne(
-        topicsModels(),
-        "Trace evidence.",
-        topicProcessingConfigSchema.parse({
-          summaryModel: "us.openai.gpt-5.6-luna",
-        }),
-      ),
-    ).rejects.toMatchObject({ reason: "invalid_input" });
-    const [message, fields] = vi.mocked(logger.warn).mock.calls.at(-1)!;
-    expect(message).toBe("Topics model request failed");
-    expect(fields).toMatchObject({
-      "http.status_code": 400,
-    });
-    expect(JSON.stringify(fields)).not.toMatch(/secret/);
-    expect(JSON.stringify(state.spanAttributes.mock.calls)).not.toMatch(
-      /secret/,
-    );
-    expect(state.increment).toHaveBeenCalledWith(
-      "langfuse.topics.llm_calls",
-      1,
-      {
-        stage: "summary",
-        adapter: LLMAdapter.Bedrock,
-        status: "400",
-      },
-    );
-  });
+      );
+      state.call.mockRejectedValue(rejection);
+      await expect(
+        nameTopicGroup(topicsModels(), evidence),
+      ).rejects.toMatchObject({ reason });
+      const [message, fields] = vi.mocked(logger.warn).mock.calls.at(-1)!;
+      expect(message).toBe("Topics model request failed");
+      expect(fields).toMatchObject({
+        "http.status_code": 400,
+      });
+      expect(JSON.stringify(fields)).not.toMatch(/secret/);
+      expect(JSON.stringify(state.spanAttributes.mock.calls)).not.toMatch(
+        /secret/,
+      );
+      expect(state.increment).toHaveBeenCalledWith(
+        "langfuse.topics.llm_calls",
+        1,
+        {
+          stage: "naming",
+          adapter: LLMAdapter.Bedrock,
+          status: "400",
+        },
+      );
+    },
+  );
 
   it.each([
     ["other", "refusal", "invalid_output"],
