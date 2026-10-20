@@ -211,7 +211,7 @@ export const ManyTools = meta.story({
   },
 });
 
-/** Nothing called: no switch, one muted list. */
+/** Nothing called: no switch, one list. */
 export const NoneCalled = meta.story({
   beforeEach: startExpanded,
   args: {

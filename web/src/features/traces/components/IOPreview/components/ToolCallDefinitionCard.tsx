@@ -100,7 +100,6 @@ function ToolDefinitionRow({
   tool,
   isExpanded,
   onToggle,
-  isCalled,
   toolCalls,
   rowNumber,
   currentView,
@@ -109,7 +108,6 @@ function ToolDefinitionRow({
   tool: ToolDefinition;
   isExpanded: boolean;
   onToggle: () => void;
-  isCalled: boolean;
   toolCalls: ToolCallInvocation[];
   rowNumber: number;
   currentView: "formatted" | "json";
@@ -132,10 +130,7 @@ function ToolDefinitionRow({
         <Caret size="base" color="default" aria-hidden />
         <Wrench size="base" color="muted" />
         <span
-          className={cn(
-            "ph-no-capture block truncate text-sm",
-            isCalled ? "text-foreground" : "text-muted-foreground",
-          )}
+          className="ph-no-capture text-foreground block truncate text-sm"
           title={tool.name}
         >
           <span className="mr-1">{rowNumber}.</span>
@@ -305,7 +300,6 @@ export function ToolCallDefinitionCard({
                     current === toolKey ? null : toolKey,
                   )
                 }
-                isCalled={(toolCallCounts.get(tool.name) ?? 0) > 0}
                 toolCalls={toolCallsByName?.get(tool.name) ?? []}
                 rowNumber={index + 1}
                 currentView={currentView}
