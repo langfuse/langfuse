@@ -1536,6 +1536,49 @@ LIMIT 1 BY
 ]
 `;
 
+exports[`golden: events legacy list reads > getEvaluatorExecutionSummaries 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": 50,
+      "param2": "golden-project",
+      "param3": [
+        "golden-evaluator",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    evaluator_id,
+    length(recent) AS total,
+    arrayCount(x -> (x.3), recent) AS failed_count
+FROM
+(
+    SELECT
+        evaluator_id,
+        groupArraySorted({param1:UInt32})((-toUnixTimestamp64Micro(started_at), trace_id, failed)) AS recent
+    FROM
+    (
+        SELECT
+            e.trace_id AS trace_id,
+            e.evaluator_id AS evaluator_id,
+            min(e.start_time) AS started_at,
+            countIf(e.level = 'ERROR') > 0 AS failed
+        FROM events_core AS e
+        WHERE (e.project_id = {param2:String})
+            AND (e.start_time > (now() - toIntervalDay(7)))
+            AND (e.evaluator_id IN ({param3:Array(String)}))
+        GROUP BY
+            e.trace_id,
+            e.evaluator_id
+        HAVING countIf(e.evaluator_execution_is_test OR startsWith(e.trace_name, 'Test evaluator')) = 0
+    )
+    GROUP BY evaluator_id
+)",
+  },
+]
+`;
+
 exports[`golden: events legacy list reads > getEventsNumericStatsByFilterColumn 1`] = `
 [
   {

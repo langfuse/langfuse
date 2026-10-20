@@ -37,6 +37,105 @@ ORDER BY time_dimension ASC WITH FILL FROM toStartOfHour({param4:DateTime64(3, '
 ]
 `;
 
+exports[`golden: dashboard events views > QueryBuilder v2 view=scores-numeric dimension=observationName 1`] = `
+[
+  {
+    "fn": "QueryBuilder.build",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-02 00:00:00.000",
+      "param4": [
+        "NUMERIC",
+        "BOOLEAN",
+      ],
+      "param5": "2026-01-01 00:00:00.000",
+      "param6": "2026-01-02 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    observationName AS observationName,
+    count(count) AS count_count
+FROM
+(
+    SELECT
+        scores.project_id,
+        scores_numeric.id,
+        any(events_observations.name) AS observationName,
+        count(*) AS count
+    FROM scores AS scores_numeric
+    FINAL
+    INNER JOIN events_core AS events_observations ON (scores.project_id = events_observations.project_id) AND (scores.trace_id = events_observations.trace_id) AND (scores.observation_id = events_observations.span_id)
+    WHERE (scores.project_id = {param1:String})
+        AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+        AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+        AND (scores_numeric.data_type IN ({param4:Array(String)}))
+        AND (events_observations.start_time >= {param5:DateTime64(3, 'UTC')})
+        AND (events_observations.start_time <= {param6:DateTime64(3, 'UTC')})
+    GROUP BY
+        scores.project_id,
+        scores_numeric.id
+)
+GROUP BY observationName
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: dashboard events views > QueryBuilder v2 view=scores-numeric dimension=traceName 1`] = `
+[
+  {
+    "fn": "QueryBuilder.build",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-02 00:00:00.000",
+      "param4": [
+        "NUMERIC",
+        "BOOLEAN",
+      ],
+      "param5": "2026-01-01 00:00:00.000",
+      "param6": "2026-01-02 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    traceName AS traceName,
+    count(count) AS count_count
+FROM
+(
+    SELECT
+        scores.project_id,
+        scores_numeric.id,
+        any(
+            COALESCE(
+                nullIf(events_traces.trace_name, ''),
+                if(
+                    (events_traces.parent_span_id = '') OR (events_traces.is_app_root = true),
+                    nullIf(events_traces.name, ''),
+                    NULL
+                )
+            )
+        ) AS traceName,
+        count(*) AS count
+    FROM scores AS scores_numeric
+    FINAL
+    INNER JOIN events_core AS events_traces ON (scores.trace_id = events_traces.trace_id) AND (scores.project_id = events_traces.project_id) AND (events_traces.parent_span_id = '')
+    WHERE (scores.project_id = {param1:String})
+        AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+        AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+        AND (scores_numeric.data_type IN ({param4:Array(String)}))
+        AND (events_traces.start_time >= {param5:DateTime64(3, 'UTC')})
+        AND (events_traces.start_time <= {param6:DateTime64(3, 'UTC')})
+    GROUP BY
+        scores.project_id,
+        scores_numeric.id
+)
+GROUP BY traceName
+ORDER BY count_count DESC",
+  },
+]
+`;
+
 exports[`golden: dashboard events views > QueryBuilder v2 view=traces count by hour 1`] = `
 [
   {

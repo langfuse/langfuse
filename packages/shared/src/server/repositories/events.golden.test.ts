@@ -41,6 +41,7 @@ import {
   getObservationMetricsForPromptsFromEvents,
   getObservationFullIOForSessionFromEventsTable,
   getObservationIOFieldByteLengthFromEventsTable,
+  getEvaluatorExecutionSummaries,
   getEventsNumericStatsByFilterColumn,
   getObservationsBatchIOFromEventsTable,
   getObservationsCountFromEventsTableForPublicApi,
@@ -632,6 +633,13 @@ describeWithClickhouse("golden: events legacy list reads", () => {
         limit: 50,
       }),
     ).rejects.toThrow(TypeError);
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it("getEvaluatorExecutionSummaries", async () => {
+    await getEvaluatorExecutionSummaries(FIXED_PROJECT_ID, [
+      "golden-evaluator",
+    ]);
     expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
   });
 

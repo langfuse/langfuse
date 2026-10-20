@@ -44,4 +44,31 @@ describeWithClickhouse("golden: dashboard events views", () => {
       ).toMatchSnapshot();
     },
   );
+
+  it.each(["traceName", "observationName"] as const)(
+    "QueryBuilder v2 view=scores-numeric dimension=%s",
+    async (dimension) => {
+      const { query: sql, parameters } = await new QueryBuilder(
+        undefined,
+        "v2",
+      ).build(
+        query.parse({
+          view: "scores-numeric",
+          dimensions: [{ field: dimension }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          filters: [],
+          timeDimension: null,
+          fromTimestamp: "2026-01-01T00:00:00.000Z",
+          toTimestamp: "2026-01-02T00:00:00.000Z",
+          orderBy: null,
+        }),
+        "golden-project",
+      );
+      expect(
+        normalizeCapturedQueries([
+          { fn: "QueryBuilder.build", query: sql, params: parameters },
+        ]),
+      ).toMatchSnapshot();
+    },
+  );
 });
