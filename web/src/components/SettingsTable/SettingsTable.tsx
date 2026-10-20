@@ -13,6 +13,7 @@ import {
 } from "@/src/components/design-system/table/Table";
 import { MultiSelectInput } from "@/src/components/design-system/MultiSelectInput/MultiSelectInput";
 import { SearchInput } from "@/src/components/design-system/SearchInput/SearchInput";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
 import { type RowHeight } from "@/src/components/table/data-table-row-height-switch";
@@ -38,13 +39,23 @@ export type SettingsTableToolbarAction = ActionButtonProps extends infer TAction
     : never
   : never;
 
-type SettingsTableFilter = {
+type SettingsTableFilter =
+  | (SettingsTableFilterBase & {
+      type?: "multi-select";
+      value: string[];
+      onChange: (value: string[]) => void;
+    })
+  | (SettingsTableFilterBase & {
+      type: "select";
+      value: string;
+      onChange: (value: string) => void;
+    });
+
+type SettingsTableFilterBase = {
   id: string;
   label: string;
   placeholder: string;
   options: { value: string; label: string }[];
-  value: string[];
-  onChange: (value: string[]) => void;
 };
 
 export type SettingsTableProps<TData extends object> = Omit<
@@ -148,21 +159,7 @@ export function SettingsTable<TData extends object>({
               </div>
             )}
             {filters?.map((filter) => (
-              <div key={filter.id} className="w-44 shrink-0">
-                <MultiSelectInput
-                  aria-label={`Filter by ${filter.label.toLowerCase()}`}
-                  value={filter.value}
-                  options={filter.options}
-                  onValueChange={filter.onChange}
-                  placeholder={filter.placeholder}
-                  selectedLabel={filter.options
-                    .filter((option) => filter.value.includes(option.value))
-                    .map((option) => option.label)
-                    .join(", ")}
-                  searchPlaceholder="Search..."
-                  emptyMessage="No options found."
-                />
-              </div>
+              <SettingsTableFilterInput key={filter.id} filter={filter} />
             ))}
           </div>
 
@@ -254,6 +251,42 @@ export function SettingsTable<TData extends object>({
           {pagination && <PaginationBar {...pagination} />}
         </SettingsTableCard>
       )}
+    </div>
+  );
+}
+
+function SettingsTableFilterInput({ filter }: { filter: SettingsTableFilter }) {
+  const ariaLabel = `Filter by ${filter.label.toLowerCase()}`;
+
+  if (filter.type === "select") {
+    return (
+      <div className="w-52 shrink-0">
+        <SelectInput
+          aria-label={ariaLabel}
+          value={filter.value}
+          options={filter.options}
+          onValueChange={filter.onChange}
+          placeholder={filter.placeholder}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-44 shrink-0">
+      <MultiSelectInput
+        aria-label={ariaLabel}
+        value={filter.value}
+        options={filter.options}
+        onValueChange={filter.onChange}
+        placeholder={filter.placeholder}
+        selectedLabel={filter.options
+          .filter((option) => filter.value.includes(option.value))
+          .map((option) => option.label)
+          .join(", ")}
+        searchPlaceholder="Search..."
+        emptyMessage="No options found."
+      />
     </div>
   );
 }
