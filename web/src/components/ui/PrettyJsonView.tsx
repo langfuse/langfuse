@@ -495,6 +495,8 @@ function JsonPrettyTable({
             <Button
               variant="ghost"
               size="sm"
+              aria-label={`${row.getIsExpanded() ? "Collapse" : "Expand"} ${row.original.key}`}
+              aria-expanded={row.getIsExpanded()}
               onClick={(e) => {
                 e.stopPropagation();
                 handleRowExpansion(
