@@ -631,6 +631,24 @@ describe("tenancy injection", () => {
       expect(build).toThrow(`"otherdb.traces" is schema-qualified`);
     });
 
+    it("has the compiler reject a table outside the registry that skipped the CTE check", () => {
+      // Only tenancy runs here, so the unregistered `a` reaches the compiler,
+      // which must not guess its column types.
+      const node = loose
+        .selectFrom("a")
+        .select("id")
+        .where("id", "=", "x")
+        .toOperationNode();
+      const stamped = new TenancyInjectionPlugin(projectId).transformQuery({
+        node,
+        queryId: createQueryId(),
+      });
+      const check = () =>
+        new ClickHouseQueryCompiler().compileQuery(stamped, createQueryId());
+      expect(check).toThrow(UnscopedRelationError);
+      expect(check).toThrow(`"a" is not a registry table`);
+    });
+
     it("accepts a CTE named like an Object prototype key", () => {
       // The registry lookups of the soft-delete and dedup passes must not
       // find `Object.prototype.constructor` for it.

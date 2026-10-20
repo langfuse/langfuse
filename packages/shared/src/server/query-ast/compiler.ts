@@ -37,7 +37,7 @@ import {
   type ClickHouseSelectQueryNode,
   type LimitByNode,
 } from "./nodes";
-import { QueryCompileError } from "./errors";
+import { QueryCompileError, UnscopedRelationError } from "./errors";
 import { selectRelations } from "./relations";
 import { TABLE_BIND_TYPES, lookupTable } from "./schema";
 import { assertTenancyStamped } from "./tenancy";
@@ -107,9 +107,8 @@ function inferClickHouseType(value: unknown): string {
 }
 
 /**
- * Column bind types of the relation `table` resolves to: the innermost CTE of
- * that name, else the registry table, else opaque. `ctes.ts` rejects
- * schema-qualified names.
+ * A name that is neither a CTE in scope nor a registry table never gets here
+ * through `compileClickhouseQuery`: `ctes.ts` rejects it first.
  */
 function relationBindTypes(
   table: TableNode,
@@ -120,12 +119,13 @@ function relationBindTypes(
     const cte = scope.cte(name);
     if (cte) return cte;
   }
-  return (
-    TABLE_BIND_TYPES[name] ??
-    new OpaqueRelation(
-      `"${name}" is not a registered table. Add it to TABLE_REGISTRY in schema.ts, or read the column from a registered table.`,
-    )
-  );
+  const columns = TABLE_BIND_TYPES[name];
+  if (!columns) {
+    throw new UnscopedRelationError(
+      `"${name}" is not a registry table or a CTE in scope; compile through compileClickhouseQuery(), whose CteNamePlugin (ctes.ts) rejects it.`,
+    );
+  }
+  return columns;
 }
 
 /**
