@@ -1,7 +1,11 @@
 import { expressionBuilder, sql, type ExpressionBuilder } from "kysely";
 import { describe, expect, expectTypeOf, it } from "vitest";
 
-import { compileClickhouseQuery, renderClickhouseExpression } from "./compile";
+import {
+  compileClickhouseQuery,
+  renderClickhouseExpression,
+  renderClickhouseSelections,
+} from "./compile";
 import { getClickhouseKysely } from "./dialect";
 import {
   QueryCompileError,
@@ -352,6 +356,31 @@ describe("renderClickhouseExpression", () => {
   it("rejects a bound value", () => {
     expect(() => renderClickhouseExpression(mapValue(metadata, "key"))).toThrow(
       /cannot bind parameters/,
+    );
+  });
+});
+
+describe("renderClickhouseSelections", () => {
+  const events = getClickhouseKysely().selectFrom("events_core as e");
+
+  it("keys each select by its output name, in select order", () => {
+    const rendered = renderClickhouseSelections(
+      events.select((eb) => [
+        "e.span_id as id",
+        "e.trace_id",
+        eb.fn.min("e.start_time").as("start"),
+      ]),
+    );
+    expect(Object.entries(rendered)).toEqual([
+      ["id", "e.span_id as id"],
+      ["trace_id", "e.trace_id"],
+      ["start", "min(e.start_time) as start"],
+    ]);
+  });
+
+  it("rejects a select without an output name", () => {
+    expect(() => renderClickhouseSelections(events.selectAll())).toThrow(
+      QueryCompileError,
     );
   });
 });

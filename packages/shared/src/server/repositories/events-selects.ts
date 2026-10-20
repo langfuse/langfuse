@@ -1,6 +1,10 @@
 import type { Expression, ExpressionBuilder, SelectExpression } from "kysely";
 
+import { renderClickhouseSelections } from "../query-ast/compile";
+import { getClickhouseKysely } from "../query-ast/dialect";
 import {
+  anyIf,
+  argMax,
   argMaxIf,
   anyValue,
   arrayExists,
@@ -11,6 +15,7 @@ import {
   greatest,
   groupArray,
   groupUniqArray,
+  groupUniqArrayArray,
   groupUniqArrayArrayIf,
   groupUniqArrayIf,
   ifElse,
@@ -18,6 +23,8 @@ import {
   isNull,
   latestNonEmpty,
   literal,
+  mapFromArrays,
+  mapKeys,
   mapValue,
   metadataValue,
   metadataMap,
@@ -27,6 +34,7 @@ import {
   sumMap,
   sumMapValuesWhereKeyContains,
   toBool,
+  tuple,
   uniq,
   uniqIf,
 } from "../query-ast/extensions";
@@ -60,6 +68,16 @@ export type SessionEventsMetricsRow = {
 };
 
 export type SessionEventsField = keyof SessionEventsMetricsRow;
+
+/** Session aggregates that only filters and sorts read, never a result row. */
+type SessionFilterField =
+  | "tool_names"
+  | "called_tool_names"
+  | "tool_calls_count"
+  | "metadata_names"
+  | "metadata_values";
+
+type SessionAggregationField = SessionEventsField | SessionFilterField;
 
 type EventsDb = { e: ClickHouseDatabase["events_core"] };
 type EventsRow = ClickHouseDatabase["events_core"];
@@ -278,6 +296,7 @@ export const traceAggregationSelects = scopedToEvents(
         notEmpty(eb.ref("e.tags")),
       ).as("tags"),
       latestNonEmptyOf(eb, "e.release").as("release"),
+      // Evaluator execution fields are stamped on every internal evaluation span.
       latestNonEmptyOf(eb, "e.evaluator_id").as("evaluator_id"),
       latestNonEmptyOf(eb, "e.evaluation_rule_id").as("evaluation_rule_id"),
       anyValue(eb.ref("e.experiment_id")).as("experiment_id"),
@@ -311,7 +330,23 @@ function sessionAggregationSelectMap(eb: EventsExpressionBuilder) {
       eb.ref("e.tags"),
       notEmpty(eb.ref("e.tags")),
     ).as("trace_tags"),
+    tool_names: groupUniqArrayArray(mapKeys(eb.ref("e.tool_definitions"))).as(
+      "tool_names",
+    ),
+    called_tool_names: groupUniqArrayArray(eb.ref("e.tool_call_names")).as(
+      "called_tool_names",
+    ),
+    tool_calls_count: eb.fn
+      .sum(arrayLength(eb.ref("e.tool_calls")))
+      .as("tool_calls_count"),
     environment: latestNonEmptyOf(eb, "e.environment").as("environment"),
+    metadata_names: argMax(eb.ref("e.metadata_names"), latestSpanOrder(eb)).as(
+      "metadata_names",
+    ),
+    metadata_values: argMax(
+      eb.ref("e.metadata_values"),
+      latestSpanOrder(eb),
+    ).as("metadata_values"),
     total_observations: uniqIf(
       eb.ref("e.span_id"),
       eb("e.parent_span_id", "!=", literal("")),
@@ -357,8 +392,49 @@ function sessionAggregationSelectMap(eb: EventsExpressionBuilder) {
       sumMap(eb.ref("e.usage_details")),
       literal("total"),
     ).as("session_total_usage"),
-  } satisfies Record<SessionEventsField, EventsSelection>;
+  } satisfies Record<SessionAggregationField, EventsSelection>;
 }
+
+/** Orders a session's events by start, then write time, then span id. */
+const latestSpanOrder = (eb: EventsExpressionBuilder) =>
+  tuple(eb.ref("e.start_time"), eb.ref("e.event_ts"), eb.ref("e.span_id"));
+
+/**
+ * One row per experiment, aggregated from its events. Grouped by
+ * `project_id, experiment_id`.
+ */
+const experimentAggregationSelects = scopedToEvents(
+  (eb) =>
+    [
+      "e.experiment_id as experiment_id",
+      anyValue(eb.ref("e.experiment_name")).as("experiment_name"),
+      anyIf(
+        eb.ref("e.experiment_description"),
+        eb("e.span_id", "=", eb.ref("e.experiment_item_root_span_id")),
+      ).as("experiment_description"),
+      nullIf(anyValue(eb.ref("e.experiment_dataset_id")), literal("")).as(
+        "experiment_dataset_id",
+      ),
+      eb.fn.min("e.start_time").as("start_time"),
+      uniq(eb.ref("e.experiment_item_id")).as("item_count"),
+      // Distinct items that carry any ERROR event, so the number matches the
+      // items-view Status=ERROR list the badge opens.
+      uniqIf(
+        eb.ref("e.experiment_item_id"),
+        eb("e.level", "=", literal("ERROR")),
+      ).as("error_count"),
+      groupUniqArrayIf(
+        tuple(eb.ref("e.prompt_name"), eb.ref("e.prompt_version")),
+        eb("e.prompt_name", "!=", literal("")),
+      ).as("prompts"),
+      anyValue(
+        mapFromArrays(
+          eb.ref("e.experiment_metadata_names"),
+          eb.ref("e.experiment_metadata_values"),
+        ),
+      ).as("experiment_metadata"),
+    ] satisfies EventsSelection[],
+);
 
 /** Milliseconds from an event's start to `end`, NULL while `end` is unset. */
 export const millisecondsSinceStart = scopedToEvents(
@@ -489,12 +565,39 @@ export const eventsMetricsSecondsSelects = scopedToEvents(
     ] satisfies EventsSelection[],
 );
 
+/** {@link traceAggregationSelects} as SQL text, keyed by output name. */
+export const TRACE_AGGREGATION_SQL = renderEventsSelects(
+  traceAggregationSelects,
+);
+
+/** Every session aggregate as SQL text, keyed by field. */
+export const SESSION_AGGREGATION_SQL = renderEventsSelects((eb) =>
+  Object.values(sessionAggregationSelectMap(eb)),
+);
+
+/** {@link experimentAggregationSelects} as SQL text, keyed by output name. */
+export const EXPERIMENT_AGGREGATION_SQL = renderEventsSelects(
+  experimentAggregationSelects,
+);
+
+/**
+ * SQL text of each of `selects`, keyed by output name, for the raw-SQL builders
+ * that read events as `e`.
+ */
+function renderEventsSelects(
+  selects: (eb: EventsExpressionBuilder) => readonly EventsSelection[],
+): Record<string, string> {
+  return renderClickhouseSelections(
+    getClickhouseKysely().selectFrom("events_core as e").select(selects),
+  );
+}
+
 /**
  * Makes `build` callable with the calling query's expression builder, which
- * must satisfy {@link ReadsEvents}. Every export of this module goes through
- * it, and so must any helper that composes them: called with the query's own
- * builder, using one outside a query that reads only events as `e` is a type
- * error. Never pass a query's own builder to a helper typed
+ * must satisfy {@link ReadsEvents}. Every expression export of this module
+ * goes through it, and so must any helper that composes them: called with the
+ * query's own builder, using one outside a query that reads only events as `e`
+ * is a type error. Never pass a query's own builder to a helper typed
  * `ExpressionBuilder<{ e: … }, "e">`: that accepts any query's builder and the
  * check is lost. Wrap the helper in `scopedToEvents` instead.
  */
