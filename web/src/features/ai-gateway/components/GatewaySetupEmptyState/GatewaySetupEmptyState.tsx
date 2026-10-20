@@ -5,32 +5,19 @@ import { DropdownIndicator } from "@/src/components/design-system/DropdownIndica
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { Button as MenuTriggerButton } from "@/src/components/ui/button";
 
-type GatewaySetupEmptyStateAction =
-  | {
-      type: "button";
-      label: string;
-      onClick: () => void;
-      icon?: IconComponent;
-    }
-  | {
-      type: "menu";
-      label: string;
-      items: ReadonlyArray<{ id: string; title: string }>;
-      onSelect: (id: string) => void;
-      disabled?: boolean;
-    };
+export type GatewaySetupEmptyStateProps = {
+  icon: IconComponent;
+  title: string;
+  description: string;
+  actions?: ReadonlyArray<GatewaySetupEmptyStateAction>;
+};
 
 export function GatewaySetupEmptyState({
   icon: Icon,
   title,
   description,
   actions = [],
-}: {
-  icon: IconComponent;
-  title: string;
-  description: string;
-  actions?: ReadonlyArray<GatewaySetupEmptyStateAction>;
-}) {
+}: GatewaySetupEmptyStateProps) {
   return (
     <div className="border-border bg-muted/30 flex flex-col items-center justify-center gap-3 rounded-md border border-dashed px-6 py-10 text-center">
       <span className="bg-background flex size-8 items-center justify-center rounded-md border">
@@ -50,7 +37,7 @@ export function GatewaySetupEmptyState({
                 key={action.label}
                 text={action.label}
                 icon={action.icon}
-                onClick={() => action.onClick()}
+                onClick={action.onClick}
               />
             ),
           )}
@@ -60,11 +47,7 @@ export function GatewaySetupEmptyState({
   );
 }
 
-function MenuAction({
-  action,
-}: {
-  action: Extract<GatewaySetupEmptyStateAction, { type: "menu" }>;
-}) {
+function MenuAction({ action }: { action: MenuActionDefinition }) {
   const isDisabled = action.disabled || action.items.length === 0;
   return (
     <DropdownMenu
@@ -77,7 +60,7 @@ function MenuAction({
       }))}
     >
       {({ getTriggerProps }) => (
-        // The design-system Button does not forward floating-ui trigger handlers.
+        /** The design-system Button does not forward floating-ui trigger handlers. */
         <MenuTriggerButton
           variant="outline"
           className="gap-1.5"
@@ -91,3 +74,20 @@ function MenuAction({
     </DropdownMenu>
   );
 }
+
+type MenuActionDefinition = {
+  type: "menu";
+  label: string;
+  items: ReadonlyArray<{ id: string; title: string }>;
+  onSelect: (id: string) => void;
+  disabled?: boolean;
+};
+
+type GatewaySetupEmptyStateAction =
+  | {
+      type: "button";
+      label: string;
+      onClick: () => void;
+      icon?: IconComponent;
+    }
+  | MenuActionDefinition;

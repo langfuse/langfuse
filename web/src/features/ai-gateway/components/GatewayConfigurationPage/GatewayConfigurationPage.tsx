@@ -116,8 +116,7 @@ export function GatewayConfigurationPage({
     }
   }
 
-  // Cloud always captures traffic, so a missing project blocks the whole
-  // gateway; self-hosted keeps the inline form because `NONE` needs no project.
+  /** Cloud always captures traffic, so it needs a project; self-hosted can use `NONE`. */
   const showSetupPlaceholder =
     isLangfuseCloud &&
     !hasActiveIngestionProject(config?.defaultIngestionProject, organizationId);

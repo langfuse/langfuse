@@ -203,9 +203,13 @@ function NavEntry({
       </Link>
     );
   }
+  function handleSelect() {
+    onSelect(page.slug);
+  }
+
   return (
     <span
-      onClick={() => onSelect(page.slug)}
+      onClick={handleSelect}
       className={cn(
         "hover:bg-muted hover:text-foreground flex h-8 cursor-pointer items-center rounded-sm px-2",
         isActive && "bg-muted text-primary font-bold",

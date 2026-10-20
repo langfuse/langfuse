@@ -91,7 +91,7 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     showV4Migration,
     showAiGatewayManagement: gatewayAccess.showManagement,
     showAiGatewayModels: gatewayAccess.showModels,
-    // Readers without management keep Models and see its own setup notice.
+    /** Only managers get disabled entries; readers see a notice on Models. */
     gatewaySetupDisabledReason:
       gatewayAccess.showManagement &&
       gatewayAccess.isIngestionConfigured === false

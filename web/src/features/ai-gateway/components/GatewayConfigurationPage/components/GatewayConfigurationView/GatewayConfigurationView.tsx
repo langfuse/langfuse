@@ -165,7 +165,7 @@ export function GatewayConfigurationView({
                 <DesignSystemButton
                   text="or create a new project"
                   variant="text"
-                  onClick={() => openDialog()}
+                  onClick={openDialog}
                 />
               )}
             </CreateIngestionProjectDialogController>
@@ -181,7 +181,7 @@ export function GatewayConfigurationView({
                 <DesignSystemButton
                   text="Create ingestion project"
                   icon={Plus}
-                  onClick={() => openDialog()}
+                  onClick={openDialog}
                 />
               )}
             </CreateIngestionProjectDialogController>

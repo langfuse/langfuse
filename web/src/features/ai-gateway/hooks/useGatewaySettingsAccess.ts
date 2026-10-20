@@ -7,7 +7,7 @@ import { api } from "@/src/utils/api";
 /**
  * Single source for who sees which gateway settings and whether setup is done.
  * `isIngestionConfigured` stays undefined while loading so callers never gate
- * (or redirect) on a status they have not received yet.
+ * on a status they have not received yet.
  */
 export function useGatewaySettingsAccess(organizationId: string | undefined) {
   const canManageGateway = useHasOrganizationAccess({
