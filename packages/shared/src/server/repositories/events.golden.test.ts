@@ -9,11 +9,13 @@ import {
 } from "vitest";
 
 import { OBSERVATION_FIELD_GROUPS_FULL } from "../../domain/observation-field-groups";
+import { eventsTableTraceNameAggregationSql } from "../../eventsTable";
 import { env } from "../../env";
 import { LangfuseNotFoundError } from "../../errors";
 import {
   capturedQueries,
   clickhouseFormatAvailable,
+  formatSql,
   normalizeCapturedQueries,
   resetCaptures,
 } from "./goldenHarness";
@@ -53,6 +55,7 @@ import {
   hasAnyUserFromEventsTable,
   streamObservationIOFieldFromEventsTable,
 } from "./events";
+import { TRACE_AGGREGATION_SQL } from "./events-selects";
 import { getTraceBatchEventStream } from "./trace-batch";
 import { ALL_SESSION_EVENTS_FIELDS } from "../queries/clickhouse-sql/event-query-builder";
 
@@ -560,6 +563,16 @@ describeWithClickhouse("golden: events trace aggregation family", () => {
       fromTimestamp: FIXED_FROM_TIMESTAMP.toISOString(),
     });
     expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it("raw trace-name aggregation SQL matches the typed trace name", () => {
+    // ClickHouse function names are case-insensitive and `clickhouse format`
+    // keeps their spelling, so `COALESCE` and `coalesce` compare lowercased.
+    const select = (expression: string) =>
+      formatSql(`SELECT ${expression} FROM events_core AS e`).toLowerCase();
+    expect(select(`${eventsTableTraceNameAggregationSql} AS name`)).toBe(
+      select(TRACE_AGGREGATION_SQL.name),
+    );
   });
 
   it("getTracesIdentifierForSessionFromEvents", async () => {
