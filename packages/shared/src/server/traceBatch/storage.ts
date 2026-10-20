@@ -7,8 +7,15 @@ import {
   safeBlobKeySegment,
 } from "../services/safeBlobKeySegment";
 import type { Transcript } from "../transcript/types";
+import {
+  toStoredTranscriptV1,
+  fromStoredTranscriptV1,
+} from "../transcript/serialization";
 import { createW3CTraceId } from "../utils/traceId";
-import { traceBatchInputsSchema } from "./storage-schema";
+import {
+  traceBatchInputsSchema,
+  type TraceBatchInputs,
+} from "./storage-schema";
 
 export type TraceBatchInputReference = {
   projectId: string;
@@ -26,7 +33,11 @@ export async function putTraceBatchInputs(
   reference: TraceBatchInputReference,
   transcript: Transcript | null,
 ): Promise<{ outcome: "stored" | "too_large"; jsonLength: number }> {
-  const json = JSON.stringify({ schemaVersion: 1, transcript });
+  const inputs: TraceBatchInputs = {
+    schemaVersion: 1,
+    transcript: transcript === null ? null : toStoredTranscriptV1(transcript),
+  };
+  const json = JSON.stringify(inputs);
   const jsonLength = json.length;
   if (jsonLength > TRACE_BATCH_INPUT_MAX_CHARACTERS)
     return { outcome: "too_large", jsonLength };
@@ -45,7 +56,10 @@ export async function getTraceBatchInputs(
   reference: TraceBatchInputReference,
 ): Promise<Transcript | null> {
   const json = await getStorage().download(getTraceBatchInputsKey(reference));
-  return traceBatchInputsSchema.parse(JSON.parse(json)).transcript;
+  const inputs = traceBatchInputsSchema.parse(JSON.parse(json));
+  return inputs.transcript === null
+    ? null
+    : fromStoredTranscriptV1(inputs.transcript);
 }
 
 function getStorage(): StorageService {
@@ -67,5 +81,3 @@ function getTraceBatchInputsKey({
   );
   return `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}trace-batch/trace/${hash}/${safeBlobKeySegment(projectId)}/${safeBlobKeySegment(traceId)}/${safeBlobFilenameStem(revision, ".json")}.json`;
 }
-
-export const __test = { getTraceBatchInputsKey };

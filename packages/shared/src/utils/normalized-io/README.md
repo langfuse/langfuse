@@ -36,6 +36,11 @@ Known fields become the normalized shape. Anything else is kept in
 
 ## Interface
 
+`schema.ts` owns the canonical message and content-part shapes. Their public
+TypeScript types in `types.ts` are inferred from Zod; type-only imports keep runtime
+schemas out of consumers that only need types. Raw `SpanIO`, assembly-independent
+tool definitions and compatibility-column types remain separate.
+
 ```ts
 normalizeIO(source: NormalizeIOSource): NormalizedIO
 

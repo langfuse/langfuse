@@ -315,8 +315,10 @@ revision uses another key, while an ordinary PUT of the same revision can replac
 its object. A reader needs all three identifiers; no latest-revision lookup or
 durable job reference is stored.
 
-The envelope is `{ schemaVersion: 1, transcript: Transcript | null }`, with
-message dates serialized as ISO strings. The reader validates nested content and
+The envelope is `{ schemaVersion: 1, transcript: StoredTranscriptV1 | null }`.
+The transcript module owns the canonical schema and typed V1 serialization
+adapters; normalized IO owns the nested message/part schemas. Message dates are
+serialized as ISO strings. The reader validates nested content and
 restores dates. Invalid JSON, unsupported versions and download errors propagate;
 only an explicitly stored null transcript reads as null. Compatible optional
 fields may be added to v1. For a breaking change, retain the old schema, deploy

@@ -82,6 +82,31 @@ remove that second input. Such an extension should keep conversation assembly
 and trace-level facts distinct, so root I/O and operation metadata do not become
 duplicate conversation messages.
 
+## Schema and stored representations
+
+`schema.ts` owns the current transcript shape and composes the message/part schemas
+from `utils/normalized-io/schema.ts`. `types.ts` infers the output types from those
+schemas; assembly inputs and options remain separate. Assembly does not parse
+each intermediate object at runtime.
+
+`serialization.ts` owns `StoredTranscriptV1`, its wire schema, and the typed
+`toStoredTranscriptV1` / `fromStoredTranscriptV1` adapters. V1 shares the current
+content definitions and represents message dates as ISO strings. A compile-time
+JSON constraint requires explicit conversion for additional non-JSON fields. Trace-batch
+storage owns only the enclosing version tag and nullable transcript.
+
+Before a breaking domain change, preserve the complete V1 wire schema under
+`versions/v1.ts`, including its nested message/part definitions. Historical
+versions must not depend on changing current schemas. Add the next stored format
+and explicit adapters, then dispatch reads by the envelope's `schemaVersion`.
+Deploy readers accepting both versions before enabling new writers. Retain the
+old reader until old objects and queued work have expired or drained; no rewrite
+of existing objects is required. Compatible optional additions must allow absent
+fields and remain safe for old readers to ignore.
+
+The fixture suite validates assembled transcripts and their serialized round trip.
+The trace-batch storage suite retains a literal V1 JSON fixture to pin the saved format.
+
 ## Character limit
 
 `assembleTranscript(observations, { maxCharacters: 10_000 })` guarantees
@@ -279,7 +304,9 @@ transcript/
 ├── replay.ts              createMessageDeduplicator
 ├── threads.ts             thread selection and message appending
 ├── tool-calls.ts          tool matching and response association
-├── types.ts               Transcript, Thread, Turn, ThreadMessage
+├── schema.ts              current transcript shape, composing normalized message schemas
+├── serialization.ts       stored V1 schema and typed date adapters
+├── types.ts               inferred output types, assembly inputs and options
 └── fixtures/
     ├── fixture-types.ts   TranscriptFixture
     ├── index.ts           registry of fixtures

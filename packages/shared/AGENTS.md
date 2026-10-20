@@ -152,13 +152,18 @@
   `orderObservations`, then pass the enriched result and optional
   `{ maxCharacters?, onTimings? }` to `assembleTranscript`.
   The optional cap bounds `JSON.stringify(result).length`; see its README.
+  `schema.ts` owns the current transcript shape; `types.ts` infers its output
+  types. Message/part types come from `src/utils/normalized-io/schema.ts`.
+  `serialization.ts` owns stored V1 and typed date adapters. Before breaking
+  changes, preserve the whole historical schema graph, including nested messages,
+  and add version-specific adapters; see the transcript README.
 
 - `src/server/traceBatch`: versioned input storage through the server barrel.
   `putTraceBatchInputs` and `getTraceBatchInputs` share a project/trace/revision
   key in the event bucket. The writer skips envelopes over 1,000,000 UTF-16
   units; the reader validates the stored version and restores message dates.
-  Same-revision PUTs may overwrite. Keep old readers compatible when evolving
-  `storage-schema.ts`; schema versions and readiness revisions are independent.
+  Same-revision PUTs may overwrite. `storage-schema.ts` owns only the versioned
+  envelope; schema versions and readiness revisions are independent.
 
 - `@langfuse/shared` via `src/index.ts`: default shared surface for
   cross-runtime types, zod schemas, table definitions, domain models, prompt
