@@ -414,9 +414,12 @@ function isSafariAddMoreClickMessage(value: string): boolean {
  * `denyUrls` cannot match.
  *
  * Covers:
- *  - `Array.from(document.querySelectorAll(...)).find(...).click`
- *  - `Array.from(document.querySelectorAll(...)).find(...).parentElement`
+ *  - `Array.from(document.querySelectorAll(...)).find(...innerText...).click`
+ *  - `Array.from(document.querySelectorAll(...)).find(...innerText...).parentElement`
  *  - `….querySelector('button[title="…"]').click`
+ *
+ * The find callback must mention `innerText` (locate a control by its
+ * visible label). `[\s\S]` so a label with real newlines still matches.
  *
  * Whole-message only. An app error that quotes the phrase is longer
  * and is KEPT. Do not use {@link coreMessage} — it strips the
@@ -426,7 +429,7 @@ const SAFARI_WEBKIT_EVALUATING_RE =
   /^(?:undefined|null) is not an object \(evaluating '([\s\S]+)'\)$/;
 
 const SAFARI_QUERY_SELECTOR_ALL_FIND_RE =
-  /^Array\.from\(document\.querySelectorAll\(.+\)\)\.find\(.+\)\.(?:click(?:\(\))?|parentElement)$/;
+  /^Array\.from\(document\.querySelectorAll\([\s\S]+?\)\)\.find\([\s\S]*innerText[\s\S]*?\)\.(?:click(?:\(\))?|parentElement)$/;
 
 const SAFARI_QUERY_SELECTOR_BUTTON_TITLE_CLICK_RE =
   /^.+\.querySelector\((['"])button\[title=.+\]\1\)\.click(?:\(\))?$/;

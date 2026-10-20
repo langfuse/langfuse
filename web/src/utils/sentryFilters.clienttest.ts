@@ -1219,6 +1219,17 @@ describe("isDenylistedNoiseEvent", () => {
         ),
       ).toBe(true);
     });
+
+    it("drops the parentElement scrape when innerText contains real newlines", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          safariInjectedQuerySelectorEvent(
+            "undefined is not an object (evaluating 'Array.from(document.querySelectorAll('button')).find(b=>b.innerText==='transcript\nfrom\nOutput').parentElement')",
+            "auto.browser.browserapierrors.setTimeout",
+          ),
+        ),
+      ).toBe(true);
+    });
   });
 
   // The heart of the safety contract: prove that real / similar-looking errors
@@ -1951,6 +1962,25 @@ describe("isDenylistedNoiseEvent", () => {
                     function: "onClick",
                   },
                 ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a querySelectorAll.find TypeError whose callback has no innerText", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value:
+                "undefined is not an object (evaluating 'Array.from(document.querySelectorAll('button')).find(b=>b.id==='submit').parentElement')",
+              mechanism: {
+                type: "auto.browser.browserapierrors.setTimeout",
+                handled: false,
               },
             },
           ],
