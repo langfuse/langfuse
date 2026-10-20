@@ -82,7 +82,16 @@ describe("queryClickhouseWithProgress", () => {
     mocks.query
       .mockResolvedValueOnce(
         response(
-          [{ progress: { read_rows: "3", read_bytes: "30", elapsed_ns: "1" } }],
+          [
+            {
+              progress: {
+                read_rows: "3",
+                read_bytes: "30",
+                elapsed_ns: "10",
+                total_rows_to_read: "10",
+              },
+            },
+          ],
           {},
           () => {
             throw new Error("connection reset");
@@ -91,7 +100,14 @@ describe("queryClickhouseWithProgress", () => {
       )
       .mockResolvedValueOnce(
         response([
-          { progress: { read_rows: "2", read_bytes: "20", elapsed_ns: "1" } },
+          {
+            progress: {
+              read_rows: "8",
+              read_bytes: "80",
+              elapsed_ns: "20",
+              total_rows_to_read: "10",
+            },
+          },
           { row: { id: "row-1" } },
         ]),
       );
@@ -104,9 +120,55 @@ describe("queryClickhouseWithProgress", () => {
         .filter((event) => isProgressRow(event))
         .map((event) => event.progress),
     ).toEqual([
-      { read_rows: "3", read_bytes: "30", elapsed_ns: "1" },
-      { read_rows: "5", read_bytes: "50", elapsed_ns: "1" },
+      {
+        read_rows: "3",
+        read_bytes: "30",
+        elapsed_ns: "10",
+        total_rows_to_read: "10",
+      },
+      {
+        read_rows: "11",
+        read_bytes: "110",
+        elapsed_ns: "30",
+        total_rows_to_read: "13",
+      },
     ]);
+  });
+
+  it.each([1, 3])(
+    "honors abort with %i buffered rows, including at EOF",
+    async (count) => {
+      const controller = new AbortController();
+      mocks.query.mockResolvedValueOnce(
+        response(Array.from({ length: count }, (_, id) => ({ row: { id } }))),
+      );
+      const stream = queryClickhouseWithProgress({
+        query: "SELECT 1",
+        abortSignal: controller.signal,
+      });
+      expect((await stream.next()).value).toEqual({ row: { id: 0 } });
+      controller.abort();
+      await expect(stream.next()).rejects.toBeInstanceOf(
+        ClickHouseQueryAbortedError,
+      );
+      expect(mocks.query).toHaveBeenCalledOnce();
+      expect(mocks.recordOutcome).toHaveBeenCalledOnce();
+      expect(mocks.recordOutcome.mock.calls[0][0]).toBe("cancelled");
+      expect(mocks.recordElapsed).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    [{ row: { id: "row-1" } }, "cancelled"],
+    [{ exception: "Code: 159. DB::Exception: Timeout exceeded" }, "timeout"],
+  ])("counts early consumer closure once: %j", async (event, outcome) => {
+    mocks.query.mockResolvedValueOnce(response([event]));
+    const stream = queryClickhouseWithProgress({ query: "SELECT 1" });
+    await stream.next();
+    await stream.return(undefined);
+    expect(mocks.recordOutcome).toHaveBeenCalledOnce();
+    expect(mocks.recordOutcome.mock.calls[0][0]).toBe(outcome);
+    expect(mocks.recordElapsed).not.toHaveBeenCalled();
   });
 
   it("does not retry after the first data row has been emitted", async () => {

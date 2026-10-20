@@ -66,6 +66,15 @@
   unclustered installs): `clickhouse/migrations/canonical/*`
 - ClickHouse SQL identifier and string quoting:
   `src/server/clickhouse/clickhouseIdentifiers.ts`
+- Streaming reads: `queryClickhouseWithProgress` in
+  `src/server/repositories/clickhouse.ts` accepts `abortSignal` and throws
+  `ClickHouseQueryAbortedError` on cancellation, including buffered events and
+  EOF. Retryable failures are retried only before the first data row.
+  Rows, bytes, and elapsed progress include work from failed attempts; estimated
+  total rows include completed attempts' actual reads plus the current estimate.
+  Consumer `break`/`return()` closes the stream without throwing. Explicit aborts
+  and early closure record one `cancelled` outcome unless an exception frame
+  already recorded the failure.
 - Ingestion masking: `src/server/ee/ingestionMasking` keeps HTTP retries and failure
   policy independent of in-memory representation. The callback always exchanges JSON;
   the optional transport supplies reusable JSON text or UTF-8 bytes and validates
