@@ -4,6 +4,7 @@ import { Button } from "@/src/components/design-system/Button/Button";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { SplashScreen } from "@/src/components/ui/splash-screen";
 import { type TopicSetupNoticeState } from "./TopicModelSettings";
+import { TopicSetupProgressView } from "./TopicSetupProgressView";
 
 type TopicSetupNoticeProps = {
   notice: TopicSetupNoticeState;
@@ -19,6 +20,7 @@ type TopicSetupNoticeProps = {
   running?: boolean;
   onAutomaticProcessing?: () => void;
   onManualProcessing?: () => void;
+  firstRun?: { complete: number; requested: number } | null;
 };
 
 /** Guides projects to their first summaries and surfaces paused processing. */
@@ -36,6 +38,7 @@ export function TopicSetupNotice({
   running = false,
   onAutomaticProcessing,
   onManualProcessing,
+  firstRun = null,
 }: TopicSetupNoticeProps) {
   const { status } = notice;
   const processingChoiceDescription = automaticEnabled
@@ -79,7 +82,13 @@ export function TopicSetupNotice({
           and topics remain available.
         </p>
       ) : null}
-      {showOnboarding ? (
+      {showOnboarding && firstRun ? (
+        <TopicSetupProgressView
+          complete={firstRun.complete}
+          requested={firstRun.requested}
+        />
+      ) : null}
+      {showOnboarding && !firstRun ? (
         <div className="mx-auto flex w-full max-w-xl flex-col items-center overflow-y-auto pt-12">
           <Sparkles aria-hidden="true" size="xl" color="muted" />
           <SplashScreen

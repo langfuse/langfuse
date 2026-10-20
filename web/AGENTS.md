@@ -32,7 +32,10 @@
   selection share `topics/server`'s bounded trace selector with worker
   backfills; preserve sampling and the frozen submission range. Models come
   from the project's LLM connections (`TopicModelSettings.tsx`,
-  `topics.modelSettings` / `saveSetup`). Configure Topics loads and saves idle time
+  `topics.modelSettings` / `saveSetup`). The first-run wizard
+  (`TopicSetupFlowController.tsx`) saves models, facets, and idle time as you
+  leave each step. Start analyzing turns automatic processing on at the chosen
+  sample rate. The trace filter applies only to the optional past-trace batch. Configure Topics loads and saves idle time
   through the project's tracing readiness setting; triggers stamp the configured
   summary and embedding models into the frozen request.
 - Reusable UI components: `src/components/*`

@@ -48,7 +48,9 @@ import { useRegenerateTopics } from "./useRegenerateTopics";
 import { useTopicModelSettings } from "./TopicModelSettings";
 import { AutomaticProcessingDialogController } from "./AutomaticProcessingDialogController";
 import { ConfigureTopicsDialogController } from "./ConfigureTopicsDialogController";
+import { TopicSetupFlowController } from "./TopicSetupFlowController";
 import { TopicSetupNotice } from "./TopicSetupNotice";
+import { summaryRunProgress } from "./topic-setup-flow";
 import { CurrentTopics, useCurrentTopics } from "./CurrentTopics";
 import { TopicsFilters } from "./TopicsFilters";
 import { TopicsActionsMenu } from "./TopicsActionsMenu";
@@ -119,27 +121,6 @@ export default function TopicsPage() {
 
 function TopicsWorkspace({ projectId }: { projectId: string }) {
   const facets = api.topics.facets.useQuery({ projectId });
-  return (
-    <TopicsWorkspaceGate isLoading={facets.isLoading} fallback={loadingPage}>
-      <TopicsWorkspaceView
-        key={(facets.data?.length ?? 0) > 0 ? "configured" : "empty"}
-        projectId={projectId}
-        facets={facets}
-      />
-    </TopicsWorkspaceGate>
-  );
-}
-
-type TopicsWorkspaceViewProps = {
-  projectId: string;
-  facets: UseQueryResult<TopicFacet[], { message: string }>;
-};
-
-/**
- * Wraps the workspace in the dialog controllers whose dialogs open from more
- * than one place, and hands their `openDialog` to the content.
- */
-function TopicsWorkspaceView({ projectId, facets }: TopicsWorkspaceViewProps) {
   const canWrite = useHasProjectAccess({ projectId, scope: "topics:CUD" });
   const modelSettings = useTopicModelSettings({
     projectId,
@@ -147,6 +128,54 @@ function TopicsWorkspaceView({ projectId, facets }: TopicsWorkspaceViewProps) {
     facets: facets.data ?? [],
     facetsReady: facets.isSuccess,
   });
+  const configured = Boolean(
+    modelSettings.configure.settings?.stored.summary &&
+    modelSettings.configure.settings.stored.embedding &&
+    modelSettings.configure.settings.stored.clustering,
+  );
+  return (
+    <TopicsWorkspaceGate isLoading={facets.isLoading} fallback={loadingPage}>
+      <TopicSetupFlowController
+        projectId={projectId}
+        canWrite={canWrite}
+        configured={configured}
+        settings={modelSettings.configure.settings}
+        onSaveSampling={modelSettings.automaticProcessing.save}
+      >
+        {({ openSetup }) => (
+          <TopicsWorkspaceView
+            key={(facets.data?.length ?? 0) > 0 ? "configured" : "empty"}
+            projectId={projectId}
+            facets={facets}
+            canWrite={canWrite}
+            modelSettings={modelSettings}
+            openSetup={openSetup}
+          />
+        )}
+      </TopicSetupFlowController>
+    </TopicsWorkspaceGate>
+  );
+}
+
+type TopicsWorkspaceViewProps = {
+  projectId: string;
+  facets: UseQueryResult<TopicFacet[], { message: string }>;
+  canWrite: boolean;
+  modelSettings: ReturnType<typeof useTopicModelSettings>;
+  openSetup: () => void;
+};
+
+/**
+ * Wraps the workspace in the dialog controllers whose dialogs open from more
+ * than one place, and hands their `openDialog` to the content.
+ */
+function TopicsWorkspaceView({
+  projectId,
+  facets,
+  canWrite,
+  modelSettings,
+  openSetup,
+}: TopicsWorkspaceViewProps) {
   return (
     <ConfigureTopicsDialogController
       projectId={projectId}
@@ -163,6 +192,7 @@ function TopicsWorkspaceView({ projectId, facets }: TopicsWorkspaceViewProps) {
               canWrite={canWrite}
               modelSettings={modelSettings}
               openConfigure={openConfigure}
+              openSetup={openSetup}
               openAutomaticProcessing={openAutomaticProcessing}
             />
           )}
@@ -173,8 +203,6 @@ function TopicsWorkspaceView({ projectId, facets }: TopicsWorkspaceViewProps) {
 }
 
 type TopicsWorkspaceContentProps = TopicsWorkspaceViewProps & {
-  canWrite: boolean;
-  modelSettings: ReturnType<typeof useTopicModelSettings>;
   openConfigure: () => void;
   openAutomaticProcessing: (initialEnabled: boolean) => void;
 };
@@ -185,6 +213,7 @@ function TopicsWorkspaceContent({
   canWrite,
   modelSettings,
   openConfigure,
+  openSetup,
   openAutomaticProcessing,
 }: TopicsWorkspaceContentProps) {
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -386,6 +415,10 @@ function TopicsWorkspaceContent({
           openManual("update");
         }
         const hasStoredSummaries = Boolean(results.data?.hasStoredSummaries);
+        const firstProcess = executions.data?.find(
+          (execution) =>
+            execution.input.operation === "process" && busy(execution.status),
+        );
         const showOnboarding =
           validTimeRange &&
           results.data !== undefined &&
@@ -409,7 +442,7 @@ function TopicsWorkspaceContent({
                   manualAvailable={pipeline.available}
                   openManual={openManualProcessing}
                   onAutomaticProcessing={openAutomaticProcessingFromHeader}
-                  onConfigure={openConfigure}
+                  onConfigure={configured ? openConfigure : openSetup}
                   onHistory={openHistory}
                   onRefresh={refreshResults}
                 />
@@ -477,7 +510,12 @@ function TopicsWorkspaceContent({
                 notice={modelSettings.notice}
                 canWrite={canWrite}
                 canConfigure={modelSettings.configure.settings !== null}
-                onConfigure={openConfigure}
+                onConfigure={configured ? openConfigure : openSetup}
+                firstRun={
+                  showOnboarding && firstProcess
+                    ? summaryRunProgress(firstProcess.facets)
+                    : null
+                }
                 onKeepOff={automaticProcessing.clearPause}
                 onTurnBackOn={turnAutomaticProcessingBackOn}
                 showOnboarding={showOnboarding}

@@ -138,6 +138,13 @@ vi.mock("./ConfigureTopicsDialogController", () => ({
     children: (control: { openDialog: () => void }) => ReactNode;
   }) => children({ openDialog: state.openConfigure }),
 }));
+vi.mock("./TopicSetupFlowController", () => ({
+  TopicSetupFlowController: ({
+    children,
+  }: {
+    children: (control: { openSetup: () => void }) => ReactNode;
+  }) => children({ openSetup: () => {} }),
+}));
 vi.mock("./AutomaticProcessingDialogController", () => ({
   AutomaticProcessingDialogController: ({
     children,

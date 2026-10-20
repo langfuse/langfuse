@@ -497,6 +497,7 @@ const events = {
   // never carry a raw filter value, search text, or AI prompt (PII). Only
   // type/column/operator/key(field-name)/counts/lengths/booleans/enums.
   // `isV4` on every event reflects fast-mode (v4 events table) at action time.
+  topics: ["setup_opened", "setup_step_saved", "setup_started"],
   filters: [
     "applied",
     "cleared",
