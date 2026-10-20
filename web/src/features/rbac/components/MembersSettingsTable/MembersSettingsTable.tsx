@@ -19,6 +19,7 @@ import type { FeaturePreviewFlag } from "@/src/features/feature-flags";
 import { UserFeaturePreviewsControl } from "@/src/features/feature-flags/components/UserFeaturePreviewsControl";
 import type { RouterOutput } from "@/src/utils/types";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import Link from "next/link";
 import { Popover, PopoverTrigger } from "@/src/components/ui/popover";
 import { Button } from "@/src/components/ui/button";
@@ -27,6 +28,8 @@ const formatRoleLabel = (role: Role) =>
   role.charAt(0).toUpperCase() + role.slice(1).toLowerCase();
 
 const allRoles = Object.keys(orderedRoles) as Role[];
+
+const ownerLockedLabel = "Requires owner access";
 
 const roleFilterOptions = allRoles
   .toSorted((a, b) => orderedRoles[b] - orderedRoles[a])
@@ -124,6 +127,8 @@ export function MembersSettingsTable({
         },
         size: 160,
         cell: ({ row }) => {
+          const isOwnerLocked =
+            row.original.orgRole === "OWNER" && !canManageOrgOwnership;
           const select = (
             <RoleSelect
               roles={allRoles}
@@ -133,6 +138,7 @@ export function MembersSettingsTable({
               disabled={
                 !hasOrgCudAccess ||
                 Boolean(project) ||
+                isOwnerLocked ||
                 updatingOrgRoleMembershipIds.has(
                   row.original.meta.orgMembershipId,
                 )
@@ -140,6 +146,18 @@ export function MembersSettingsTable({
               onValueChange={(role) => onUpdateOrgRole(row.original, role)}
             />
           );
+
+          if (!project && hasOrgCudAccess && isOwnerLocked) {
+            return (
+              <Tooltip label={ownerLockedLabel}>
+                {({ getTriggerProps }) => (
+                  <span className="inline-flex" {...getTriggerProps()}>
+                    {select}
+                  </span>
+                )}
+              </Tooltip>
+            );
+          }
 
           if (!project || !hasOrgCudAccess) return select;
 
@@ -185,7 +203,11 @@ export function MembersSettingsTable({
               size: 160,
               cell: ({ row }) => {
                 if (!projectRolesEntitlement) return "N/A on plan";
-                return (
+                const hasRoleAccess = hasOrgCudAccess || hasProjectCudAccess;
+                const isOwnerLocked =
+                  row.original.projectRole === "OWNER" &&
+                  !canManageProjectOwnership;
+                const select = (
                   <RoleSelect
                     roles={allRoles}
                     canManageOwnership={canManageProjectOwnership}
@@ -193,7 +215,8 @@ export function MembersSettingsTable({
                     isProjectRole
                     size="compact"
                     disabled={
-                      (!hasOrgCudAccess && !hasProjectCudAccess) ||
+                      !hasRoleAccess ||
+                      isOwnerLocked ||
                       updatingProjectRoleMembershipIds.has(
                         row.original.meta.orgMembershipId,
                       )
@@ -202,6 +225,16 @@ export function MembersSettingsTable({
                       onUpdateProjectRole(row.original, role)
                     }
                   />
+                );
+                if (!hasRoleAccess || !isOwnerLocked) return select;
+                return (
+                  <Tooltip label={ownerLockedLabel}>
+                    {({ getTriggerProps }) => (
+                      <span className="inline-flex" {...getTriggerProps()}>
+                        {select}
+                      </span>
+                    )}
+                  </Tooltip>
                 );
               },
             },

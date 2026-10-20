@@ -56,6 +56,7 @@ export const SingleProjectAccess = meta.story({
 });
 
 export const WithoutOwnershipAccess = meta.story({
+  name: "(Test) Owner role requires ownership access",
   args: {
     ...defaultArgs,
     project: { id: "project-1", name: "Support assistant" },

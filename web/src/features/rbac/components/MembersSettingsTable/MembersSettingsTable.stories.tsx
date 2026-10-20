@@ -1,4 +1,4 @@
-import { fn } from "storybook/test";
+import { expect, fn, within } from "storybook/test";
 
 import preview from "../../../../../.storybook/preview";
 import {
@@ -87,6 +87,40 @@ export const Default = meta.story({
       onChange: fn(),
     },
     data: { status: "success", data: members },
+  },
+});
+
+export const AdminViewingOwner = meta.story({
+  name: "(Test) Admin cannot change an owner",
+  args: {
+    ...Default.input.args,
+    canManageOrgOwnership: false,
+    data: {
+      status: "success",
+      data: [
+        {
+          user: { name: "Barbara Liskov", image: null },
+          email: "barbara@example.com",
+          providers: ["email"],
+          createdAt: new Date("2026-04-02"),
+          orgRole: "OWNER",
+          featurePreviews: null,
+          featurePreviewManagement: null,
+          meta: { userId: "user-6", orgMembershipId: "membership-6" },
+        },
+        ...members,
+      ],
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const roleSelectFor = (name: string) =>
+      within(canvas.getByRole("row", { name: new RegExp(name) })).getByRole(
+        "combobox",
+      );
+
+    await expect(roleSelectFor("Barbara Liskov")).toBeDisabled();
+    await expect(roleSelectFor("Ada Lovelace")).toBeEnabled();
   },
 });
 
