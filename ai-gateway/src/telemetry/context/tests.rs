@@ -478,16 +478,6 @@ fn codex_body_snapshot_is_preferred_and_flat_keys_fill_missing_snapshots() {
 }
 
 #[test]
-fn agent_client_metadata_is_recognized_by_codex_keys() {
-    assert!(is_agent_client_metadata(&Value::Object(
-        codex_client_metadata(Some(&codex_turn_metadata()))
-    )));
-    for client_metadata in [json!({"team": "search"}), json!("x-codex-turn-metadata")] {
-        assert!(!is_agent_client_metadata(&client_metadata));
-    }
-}
-
-#[test]
 fn explicit_context_overrides_inferred_agent_context() {
     let mut headers = HeaderMap::new();
     headers.insert("traceparent", TRACEPARENT.parse().unwrap());

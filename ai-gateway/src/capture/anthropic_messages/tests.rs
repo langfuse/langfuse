@@ -627,7 +627,7 @@ async fn full_mode_marks_requests_it_cannot_record_as_input() {
         (
             "full",
             HeaderMap::new(),
-            "not json",
+            "[]",
             Some(InputOmissionReason::InvalidJson),
         ),
         ("usage", HeaderMap::new(), over_limit.as_str(), None),
