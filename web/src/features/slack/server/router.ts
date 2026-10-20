@@ -161,8 +161,12 @@ export const slackRouter = createTRPCRouter({
 
         return {
           channels,
+          // Installs without a recorded installer can't list private channels
+          // until someone re-authenticates.
           hasPrivateChannelAccess:
-            privateChannels?.hasPrivateChannelAccess ?? true,
+            privateChannels?.hasPrivateChannelAccess ??
+            (Boolean(input.cursor) ||
+              Boolean(integration.installerSlackUserId)),
           nextCursor,
           teamId: integration.teamId,
           teamName: integration.teamName,

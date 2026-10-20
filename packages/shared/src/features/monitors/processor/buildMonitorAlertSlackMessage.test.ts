@@ -127,6 +127,21 @@ describe("buildMonitorAlertSlackMessage", () => {
     );
   });
 
+  it("explains a score link that does not fit in the link section", () => {
+    const dataPermalink = `https://cloud.langfuse.com/project/proj_01/scores?filter=${"a".repeat(2900)}`;
+    const { attachments } = buildMonitorAlertSlackMessage({
+      ...mockMonitorAlert,
+      view: "scores-numeric",
+      dataPermalink,
+    });
+    expect(attachments![0].blocks![1].text.text).toContain(
+      "A filtered scores link is unavailable",
+    );
+    expect(linkText(attachments)).toBe(
+      `:arrow_right: *<${mockMonitorAlert.permalink}|View in Langfuse>*`,
+    );
+  });
+
   // buildAlert only sets dataPermalink for breaching severities, so recovery
   // (OK) and NO_DATA notifications arrive here with dataPermalink undefined and
   // must render no secondary data link — recovery messages stay unchanged.

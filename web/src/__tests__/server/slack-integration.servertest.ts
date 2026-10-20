@@ -284,9 +284,10 @@ describe("Slack Integration", () => {
           projectId: project.id,
         });
 
+        // Without a recorded installer, the viewer is asked to re-authenticate.
         expect(result).toMatchObject({
           channels: mockChannels,
-          hasPrivateChannelAccess: true,
+          hasPrivateChannelAccess: false,
           teamId: "T123456",
           teamName: "Test Team",
         });
