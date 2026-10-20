@@ -12,6 +12,7 @@ import type {
 } from "@langfuse/shared/topics";
 import {
   TOPICS_TRANSCRIPT_VERSION,
+  getTopicClusteringSummaries,
   type TopicEmbeddingBatch,
   type TopicEmbeddingRef,
 } from "@langfuse/shared/topics/server";
@@ -49,12 +50,14 @@ const state = vi.hoisted(() => ({
   summaryRequests: vi.fn(),
   embed: vi.fn(),
   name: vi.fn(),
+  sampleNaming: false,
   numeric: vi.fn(),
 }));
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const { assembleTranscript, isInternalEvalEnvironment } =
     await importOriginal<typeof import("@langfuse/shared/src/server")>();
   return {
+    ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
     assembleTranscript,
     isInternalEvalEnvironment,
     recordIncrement: vi.fn(),
@@ -73,6 +76,7 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
   const { TOPICS_TRANSCRIPT_VERSION, TOPIC_EMBEDDING_EXPIRED_ERROR } =
     await importOriginal<typeof import("@langfuse/shared/topics/server")>();
   return {
+    getTopicTextResponseMetadata: () => undefined,
     isTopicsEnabled: () => true,
     getTopicsModels: async () => {
       const slot = (name: string, model: string) => ({
@@ -232,28 +236,30 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
             a.createdAt.localeCompare(b.createdAt),
         )
         .at(-1) ?? null,
-    getTopicClusteringSummaries: async (
-      projectId: string,
-      facetId: string,
-      facetVersion: number,
-      embeddingConfig: TopicEmbeddingConfig,
-      timeRange: TopicTimeRange,
-    ) =>
-      [...state.summaries.values()]
-        .filter(
-          (row) =>
-            row.projectId === projectId &&
-            row.facetId === facetId &&
-            row.facetVersion === facetVersion &&
-            row.traceId !== null &&
-            row.state === "complete" &&
-            row.embeddingModel === embeddingConfig.embeddingModel &&
-            row.embedding.length === embeddingConfig.embeddingDimensions &&
-            inTimeRange(row, timeRange),
-        )
-        .sort((a, b) =>
-          a.traceId < b.traceId ? -1 : a.traceId > b.traceId ? 1 : 0,
-        ),
+    getTopicClusteringSummaries: vi.fn(
+      async (
+        projectId: string,
+        facetId: string,
+        facetVersion: number,
+        embeddingConfig: TopicEmbeddingConfig,
+        timeRange: TopicTimeRange,
+      ) =>
+        [...state.summaries.values()]
+          .filter(
+            (row) =>
+              row.projectId === projectId &&
+              row.facetId === facetId &&
+              row.facetVersion === facetVersion &&
+              row.traceId !== null &&
+              row.state === "complete" &&
+              row.embeddingModel === embeddingConfig.embeddingModel &&
+              row.embedding.length === embeddingConfig.embeddingDimensions &&
+              inTimeRange(row, timeRange),
+          )
+          .sort((a, b) =>
+            a.traceId < b.traceId ? -1 : a.traceId > b.traceId ? 1 : 0,
+          ),
+    ),
     getTopicRun: async (_project: string, id: string) =>
       state.runs.get(id) ?? null,
     readTopicRunTraceIds: async (
@@ -324,6 +330,7 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
   };
 });
 vi.mock("./models", () => ({
+  TopicInputTooLarge: class extends Error {},
   // One request per trace; `state.summarize` answers each facet, and one failure fails the request.
   summarizeTopicTraceFacets: async (
     _models: unknown,
@@ -350,6 +357,26 @@ vi.mock("./models", () => ({
     for (const summary of summaries)
       results.push(await state.embed(summary, dimensions));
     return { ...results[0], embeddings: results.map((r) => r.embedding) };
+  },
+  prepareTopicNamingGroup: async (group: {
+    members: { summary: string }[];
+    contrasts: { id: string; summary: string }[];
+  }) => {
+    const members = state.sampleNaming
+      ? group.members
+          .toReversed()
+          .filter((_, index) => index === 2 || index === 4)
+      : group.members;
+    return {
+      // Citation IDs are opaque to the caller; packing can skip candidates.
+      members: members.map((source, index) => ({
+        id: state.sampleNaming ? `selected-${index}` : `m${index + 1}`,
+        summary: source.summary,
+        source,
+      })),
+      totalMemberCount: group.members.length,
+      sampled: state.sampleNaming,
+    };
   },
   nameTopicGroup: (_models: unknown, ...args: unknown[]) => state.name(...args),
 }));
@@ -545,6 +572,7 @@ beforeEach(() => {
   state.assignments.clear();
   state.facets.clear();
   state.visible = true;
+  state.sampleNaming = false;
   state.loadTranscript.mockImplementation(async ({ traceId }) =>
     traceInput(traceId),
   );
@@ -712,6 +740,7 @@ describe("Topics execution", () => {
       environment: "production",
       traceName: "Customer support",
       unitStartTime: "2026-01-01T00:00:00.000Z",
+      triggerType: "manual",
     });
     expect(state.numeric).not.toHaveBeenCalled();
     expect(state.saveExecution).not.toHaveBeenCalled();
@@ -1050,6 +1079,31 @@ describe("Topics execution", () => {
     expect(state.summarize).toHaveBeenCalledTimes(2);
   });
 
+  it("fails the pending discovery run when loading its cohort fails, preserving the published map", async () => {
+    await processSelection("source", 100);
+    await updateSelection("published");
+    const published = [...state.runs.values()].at(-1)!;
+    state.numeric.mockClear();
+    state.name.mockClear();
+    vi.mocked(getTopicClusteringSummaries).mockRejectedValueOnce(
+      new Error("Clustering cohort exceeds capacity"),
+    );
+
+    await updateSelection("capacity-failure");
+
+    const failed = state.executions.get("capacity-failure")!;
+    expect(failed.status).toBe("completed_with_errors");
+    expect(failed.facets[0].outcome).toBe("failed");
+    expect(state.runs.get(failed.facets[0].runId!)).toMatchObject({
+      status: "failed",
+      error: "Clustering cohort exceeds capacity",
+      finishedAt: expect.any(String),
+    });
+    expect(state.runs.get(published.id)).toEqual(published);
+    expect(state.numeric).not.toHaveBeenCalled();
+    expect(state.name).not.toHaveBeenCalled();
+  });
+
   it("fails only the trace whose model output is unusable", async () => {
     state.summarize.mockRejectedValueOnce(
       new TopicsProviderUnavailable("No object generated.", "invalid_output"),
@@ -1251,25 +1305,21 @@ describe("Topics execution", () => {
     expect(state.name).not.toHaveBeenCalled();
   });
 
-  it("maps local naming citations back to their scoped source references", async () => {
+  it("maps sampled naming citations back to their scoped source references", async () => {
+    state.sampleNaming = true;
     await processSelection("source", 100);
     await updateSelection("named");
     const topics = [...state.runs.values()].at(-1)!.topics;
     expect(topics).toHaveLength(2);
     for (const [index, [group]] of state.name.mock.calls.entries()) {
-      for (const member of group.members)
-        expect(member).toEqual({
-          id: expect.stringMatching(/^m\d+$/),
-          summary: expect.any(String),
-        });
-      for (const contrast of group.contrasts)
-        expect(contrast).toEqual({
-          id: expect.stringMatching(/^c\d+$/),
-          summary: expect.any(String),
-        });
       const source = [...state.summaries.values()].find(
         (summary) => summary.summary === group.members[0].summary,
       )!;
+      expect(topics[index].metadata).toMatchObject({
+        effectiveMemberCount: 50,
+        selectedMemberCount: 2,
+        namingSampled: true,
+      });
       expect(topics[index].representativeSummaries).toEqual([
         {
           facetId: source.facetId,
@@ -1456,15 +1506,34 @@ describe("Topics execution", () => {
     },
   );
 
-  it("defers publication when assignments are not visible", async () => {
-    await processSelection("source", 100);
-    state.visible = false;
-    await updateSelection("hidden");
-    expect([...state.runs.values()][0].status).toBe("failed");
+  it("bounds assignment writes and retries publication when a batch is not visible", async () => {
+    await processSelection("source", 1);
+    const template = [...state.summaries.values()][0];
+    for (let index = 1; index < 2001; index++) {
+      const summary = { ...template, traceId: `trace${index}` };
+      state.summaries.set(topicSourceKey(summary), summary);
+    }
+    state.numeric.mockImplementation(async (vectors: number[][]) => ({
+      status: "no_topics",
+      labels: vectors.map(() => -1),
+      coordinates: vectors.map(() => [0, 0]),
+    }));
+    state.assignmentWrites.mockImplementation(async () => {
+      // A late visibility failure must prevent publication of the whole map.
+      if (state.assignmentWrites.mock.calls.length === 3) state.visible = false;
+    });
+    await updateSelection("batched");
+    expect(
+      state.assignmentWrites.mock.calls.map(([rows]) => rows.length),
+    ).toEqual([1000, 1000, 1]);
+    expect([...state.runs.values()].at(-1)?.status).toBe("failed");
+    expect(state.executions.get("batched")?.facets[0].error).toContain(
+      "not fully visible",
+    );
     state.visible = true;
     await processTopicsExecution({
       projectId: "project",
-      executionId: "hidden",
+      executionId: "batched",
     });
     expect([...state.runs.values()].at(-1)?.status).toBe("completed");
     expect(state.numeric).toHaveBeenCalledTimes(2);

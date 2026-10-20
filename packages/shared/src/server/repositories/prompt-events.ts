@@ -31,4 +31,9 @@ export const promptGenerationEvents = <
       qb.where("e.start_time", "<=", timeWindow.toTimestamp!),
     )
     .orderBy("e.event_ts", "desc")
-    .$call(limitBy({ count: 1, columns: ["e.span_id", "e.project_id"] }));
+    .$call(
+      limitBy({
+        count: 1,
+        columns: (eb) => [eb.ref("e.span_id"), eb.ref("e.project_id")],
+      }),
+    );

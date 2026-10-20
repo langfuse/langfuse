@@ -137,9 +137,45 @@ const config: StorybookConfig = {
   // pulled in transitively by the table stories). Pointing at the source makes
   // Storybook resolve named exports exactly like the app does.
   viteFinal: async (viteConfig) => {
+    // Linked workspace packages are not prebundled by default. Bundle the icon
+    // barrels so each browser worker does not request thousands of modules.
+    viteConfig.optimizeDeps = {
+      ...viteConfig.optimizeDeps,
+      include: [
+        ...(viteConfig.optimizeDeps?.include ?? []),
+        "@langfuse/icons",
+        "@langfuse/icons/si",
+        "@langfuse/icons/tb",
+      ],
+    };
     viteConfig.plugins = [
       flatStoryTitlesPlugin(STORY_TITLE_GROUPS),
       ...(viteConfig.plugins ?? []),
+      {
+        name: "exclude-generated-icons-from-docgen",
+        configResolved({ plugins }) {
+          const docgen = plugins.find(
+            (plugin) => plugin.name === "storybook:react-docgen-plugin",
+          );
+          if (!docgen?.transform) return;
+
+          const transform =
+            typeof docgen.transform === "function"
+              ? docgen.transform
+              : docgen.transform.handler;
+          docgen.transform = {
+            ...(typeof docgen.transform === "object" ? docgen.transform : {}),
+            handler(code, id, options) {
+              // Linked generated dependencies bypass docgen's node_modules
+              // exclusion; resolving their icon catalogs dominates build time.
+              if (id.replaceAll("\\", "/").includes("/packages/icons/dist/")) {
+                return null;
+              }
+              return transform.call(this, code, id, options);
+            },
+          };
+        },
+      },
     ];
 
     const sharedSrc = resolve(

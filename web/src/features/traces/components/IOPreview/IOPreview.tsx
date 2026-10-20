@@ -24,7 +24,7 @@ import type { SectionSkillsProps } from "./components/SectionSkills";
 import { type ChatMLParserResult } from "../../hooks/useChatMLParser";
 import { Button } from "@/src/components/ui/button";
 import { ActionButton } from "@/src/components/ActionButton";
-import { BookOpen, X } from "lucide-react";
+import { BookOpen, X } from "@langfuse/icons";
 import type { ObservationStatusMessage } from "./components/statusMessagePresentation";
 
 export type { ViewMode };
@@ -333,11 +333,11 @@ export function IOPreview({
               }}
               title="Dismiss"
             >
-              <X className="icon-base text-icon-foreground" />
+              <X size="base" color="default" />
             </Button>
             <div className="flex w-full flex-row items-center gap-2 pr-6">
               <div className="bg-accent flex h-8 w-8 items-center justify-center rounded-full">
-                <BookOpen className="text-muted-foreground icon-base" />
+                <BookOpen size="base" color="muted" />
               </div>
               <h3 className="text-base font-bold">
                 Looks like this trace didn&apos;t receive an input or output.

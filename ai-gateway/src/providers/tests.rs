@@ -8,17 +8,11 @@ use axum::{
     http::{HeaderName, StatusCode},
 };
 use futures_util::{StreamExt, stream};
-use std::{convert::Infallible, future::pending};
+use std::{convert::Infallible, future::pending, sync::Arc};
 use tokio::sync::Notify;
 
-fn provider(server: &FakeServer, active: usize) -> ProviderTransport {
-    ProviderTransport::for_test(
-        format!("{}/v1", server.url),
-        ProviderLimits {
-            active,
-            ..ProviderLimits::default()
-        },
-    )
+fn provider(server: &FakeServer) -> ProviderTransport {
+    ProviderTransport::for_test(format!("{}/v1", server.url), ProviderLimits::default())
 }
 
 /// Consumed as generation context; never forwarded upstream.
@@ -64,10 +58,10 @@ fn model_rewrite_fails_closed_for_an_invalid_model_range() {
 #[tokio::test]
 async fn invalid_model_rewrite_never_reaches_the_provider() {
     let upstream = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
-    let relay = provider(&upstream, 1);
+    let relay = provider(&upstream);
     let result = relay
         .forward_route(
-            relay.try_admit().unwrap(),
+            relay.admit(),
             resolved_request_context("provider-secret").await,
             &HeaderMap::new(),
             RequestBody {
@@ -177,7 +171,7 @@ async fn rewrites_the_model_and_isolates_request_and_response_headers() {
             .unwrap()
     })
     .await;
-    let relay = provider(&upstream, 1);
+    let relay = provider(&upstream);
     let mut headers = HeaderMap::new();
     for (name, value) in [
         ("authorization", "Bearer gateway-secret"),
@@ -201,7 +195,7 @@ async fn rewrites_the_model_and_isolates_request_and_response_headers() {
     }
     let response = relay
         .forward(
-            relay.try_admit().unwrap(),
+            relay.admit(),
             resolved_request_context("provider-secret").await,
             &headers,
             Bytes::from_static(REQUEST),
@@ -224,7 +218,6 @@ async fn rewrites_the_model_and_isolates_request_and_response_headers() {
         to_bytes(response.into_body(), 1024).await.unwrap(),
         RESPONSE
     );
-    assert!(relay.try_admit().is_ok());
     assert_eq!(upstream.calls(), 1);
 }
 
@@ -245,10 +238,10 @@ async fn preserves_provider_failures_without_retries_or_redirects() {
             }
         })
         .await;
-        let relay = provider(&upstream, 1);
+        let relay = provider(&upstream);
         let response = relay
             .forward(
-                relay.try_admit().unwrap(),
+                relay.admit(),
                 resolved_request_context("provider-secret").await,
                 &HeaderMap::new(),
                 Bytes::from_static(br#"{"model":"requested"}"#),
@@ -268,7 +261,7 @@ async fn preserves_provider_failures_without_retries_or_redirects() {
 }
 
 #[tokio::test]
-async fn streams_sse_incrementally_and_holds_admission_until_eof() {
+async fn streams_sse_incrementally() {
     let release = Arc::new(Notify::new());
     let upstream_release = release.clone();
     let upstream = FakeServer::start(move |_| {
@@ -287,10 +280,10 @@ async fn streams_sse_incrementally_and_holds_admission_until_eof() {
         }
     })
     .await;
-    let relay = provider(&upstream, 1);
+    let relay = provider(&upstream);
     let response = relay
         .forward(
-            relay.try_admit().unwrap(),
+            relay.admit(),
             resolved_request_context("provider-secret").await,
             &HeaderMap::new(),
             Bytes::from_static(br#"{"model":"requested"}"#),
@@ -307,14 +300,12 @@ async fn streams_sse_incrementally_and_holds_admission_until_eof() {
             .unwrap(),
         "data: first\n\n"
     );
-    assert!(matches!(relay.try_admit(), Err(ProviderError::Busy)));
     release.notify_one();
     let mut remaining = Vec::new();
     while let Some(chunk) = body.next().await {
         remaining.extend_from_slice(&chunk.unwrap());
     }
     assert_eq!(remaining, b"data: [DONE]\n\n");
-    assert!(relay.try_admit().is_ok());
 }
 
 #[tokio::test]
@@ -331,19 +322,19 @@ async fn simultaneous_requests_keep_provider_credentials_and_bodies_isolated() {
         )))
     })
     .await;
-    let relay = provider(&upstream, 2);
+    let relay = provider(&upstream);
     let alice = resolved_request_context("alice-secret").await;
     let bob = resolved_request_context("bob-secret").await;
     let headers = HeaderMap::new();
     let (alice, bob) = tokio::join!(
         relay.forward(
-            relay.try_admit().unwrap(),
+            relay.admit(),
             alice,
             &headers,
             Bytes::from_static(br#"{"model":"requested","owner":"alice"}"#)
         ),
         relay.forward(
-            relay.try_admit().unwrap(),
+            relay.admit(),
             bob,
             &headers,
             Bytes::from_static(br#"{"model":"requested","owner":"bob"}"#)
@@ -384,13 +375,13 @@ async fn stalled_provider(dropped: Arc<Notify>) -> FakeServer {
 }
 
 #[tokio::test]
-async fn dropping_downstream_cancels_upstream_and_releases_admission() {
+async fn dropping_downstream_cancels_upstream() {
     let dropped = Arc::new(Notify::new());
     let upstream = stalled_provider(dropped.clone()).await;
-    let relay = provider(&upstream, 1);
+    let relay = provider(&upstream);
     let response = relay
         .forward(
-            relay.try_admit().unwrap(),
+            relay.admit(),
             resolved_request_context("provider-secret").await,
             &HeaderMap::new(),
             Bytes::from_static(br#"{"model":"requested"}"#),
@@ -399,9 +390,7 @@ async fn dropping_downstream_cancels_upstream_and_releases_admission() {
         .unwrap();
     let mut body = response.into_body().into_data_stream();
     assert_eq!(body.next().await.unwrap().unwrap(), "first");
-    assert!(matches!(relay.try_admit(), Err(ProviderError::Busy)));
     drop(body);
-    assert!(relay.try_admit().is_ok());
     tokio::time::timeout(Duration::from_secs(1), dropped.notified())
         .await
         .expect("upstream body should be dropped on cancellation");
@@ -421,19 +410,17 @@ async fn deadlines_bound_headers_and_stalled_bodies_without_exposing_transport_d
                 stall_timeout: Duration::from_millis(30),
                 ..ExecutionLimits::default()
             },
-            ..ProviderLimits::default()
         },
     );
     let response = relay
         .forward(
-            relay.try_admit().unwrap(),
+            relay.admit(),
             resolved_request_context("provider-secret").await,
             &HeaderMap::new(),
             Bytes::from_static(br#"{"model":"requested"}"#),
         )
         .await;
     assert!(matches!(response, Err(ProviderError::Timeout)));
-    assert!(relay.try_admit().is_ok());
 
     let dropped = Arc::new(Notify::new());
     let upstream = stalled_provider(dropped.clone()).await;
@@ -444,13 +431,12 @@ async fn deadlines_bound_headers_and_stalled_bodies_without_exposing_transport_d
                 max_execution_time: Duration::from_millis(100),
                 ..ExecutionLimits::default()
             },
-            ..ProviderLimits::default()
         },
     );
     let context = resolved_request_context("provider-secret").await;
     let response = relay
         .forward(
-            relay.try_admit().unwrap(),
+            relay.admit(),
             context,
             &HeaderMap::new(),
             Bytes::from_static(br#"{"model":"requested"}"#),
@@ -464,7 +450,6 @@ async fn deadlines_bound_headers_and_stalled_bodies_without_exposing_transport_d
     let error = to_bytes(response.into_body(), 1024).await.unwrap_err();
     assert!(!error.to_string().contains(&upstream.url));
     assert!(!error.to_string().contains("provider-secret"));
-    assert!(relay.try_admit().is_ok());
 }
 
 #[tokio::test]
@@ -518,7 +503,7 @@ async fn completed_json_and_sse_upload_once_without_waiting_for_ingestion() {
                 .unwrap()
         })
         .await;
-        let relay = provider(&upstream, 1).with_telemetry(telemetry.clone());
+        let relay = provider(&upstream).with_telemetry(telemetry.clone());
         let headers = HeaderMap::from_iter([
             (
                 axum::http::HeaderName::from_static("traceparent"),
@@ -535,7 +520,7 @@ async fn completed_json_and_sse_upload_once_without_waiting_for_ingestion() {
         ]);
         let response = relay
             .forward(
-                relay.try_admit().unwrap(),
+                relay.admit(),
                 resolved_request_context_with_mode("provider-secret", "full").await,
                 &headers,
                 Bytes::from_static(br#"{"model":"requested","input":"hello"}"#),
@@ -556,7 +541,6 @@ async fn completed_json_and_sse_upload_once_without_waiting_for_ingestion() {
         }
         drop(body);
         assert_eq!(forwarded, native.as_bytes());
-        assert!(relay.try_admit().is_ok());
         let payload = tokio::time::timeout(Duration::from_secs(1), received.recv())
             .await
             .unwrap()
@@ -637,7 +621,6 @@ async fn cancelled_and_timed_out_executions_upload_after_provider_context_is_rel
         let relay = ProviderTransport::for_test(
             upstream.url.clone(),
             ProviderLimits {
-                active: 1,
                 execution: ExecutionLimits {
                     max_execution_time: Duration::from_millis(150),
                     ..ExecutionLimits::default()
@@ -648,7 +631,7 @@ async fn cancelled_and_timed_out_executions_upload_after_provider_context_is_rel
         let context = resolved_request_context("provider-secret").await;
         let response = relay
             .forward(
-                relay.try_admit().unwrap(),
+                relay.admit(),
                 context,
                 &HeaderMap::new(),
                 Bytes::from_static(br#"{"model":"requested","input":"prompt-canary"}"#),
@@ -668,7 +651,6 @@ async fn cancelled_and_timed_out_executions_upload_after_provider_context_is_rel
             .await
             .unwrap()
             .unwrap();
-        assert!(relay.try_admit().is_ok());
         assert!(!payload.to_string().contains("prompt-canary"));
         let attrs = payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0]["attributes"]
             .as_array()
@@ -741,10 +723,10 @@ async fn compact_posts_compact_path_and_captures_ingestion() {
             .unwrap()
     })
     .await;
-    let relay = provider(&upstream, 1).with_telemetry(telemetry.clone());
+    let relay = provider(&upstream).with_telemetry(telemetry.clone());
     let compact = relay
         .forward_route(
-            relay.try_admit().unwrap(),
+            relay.admit(),
             resolved_request_context("provider-secret").await,
             &HeaderMap::new(),
             RequestBody {
@@ -855,13 +837,7 @@ fn assert_completed_upload(payload: &serde_json::Value, streaming: bool) {
 }
 
 fn transport(server: &FakeServer) -> ProviderTransport {
-    ProviderTransport::for_test(
-        format!("{}/v1", server.url),
-        ProviderLimits {
-            active: 1,
-            ..ProviderLimits::default()
-        },
-    )
+    ProviderTransport::for_test(format!("{}/v1", server.url), ProviderLimits::default())
 }
 
 /// Headers the gateway consumes for attribution or that belong to the client
@@ -936,7 +912,7 @@ async fn sends_the_x_api_key_credential_and_forwards_the_open_anthropic_header_f
             .await;
     let response = relay
         .forward_route(
-            relay.try_admit().unwrap(),
+            relay.admit(),
             context,
             &headers(
                 &[
@@ -1011,7 +987,7 @@ async fn count_tokens_relays_the_body() {
             .await;
     let response = relay
         .forward_route(
-            relay.try_admit().unwrap(),
+            relay.admit(),
             context,
             &headers(&[("content-type", "application/json")]),
             RequestBody {
@@ -1032,24 +1008,6 @@ async fn count_tokens_relays_the_body() {
         r#"{"input_tokens":42}"#
     );
     assert_eq!(upstream.calls(), 1);
-}
-
-#[test]
-fn openai_and_anthropic_admissions_draw_from_one_execution_budget() {
-    let relay = ProviderTransport::for_test(
-        "http://127.0.0.1:9".to_owned(),
-        ProviderLimits {
-            active: 1,
-            ..ProviderLimits::default()
-        },
-    );
-    let held = relay.try_admit().unwrap();
-    assert!(relay.try_admit().is_err());
-    drop(held);
-    let held = relay.try_admit().unwrap();
-    assert!(relay.try_admit().is_err());
-    drop(held);
-    assert!(relay.try_admit().is_ok());
 }
 
 const CHAT_CONTENT_CHUNK: &str = "data: {\"id\":\"chatcmpl-1\",\"object\":\"chat.completion.chunk\",\"model\":\"gpt-4.1-mini-2025-04-14\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"Hello\"},\"finish_reason\":\"stop\"}],\"usage\":null}\n\n";
@@ -1120,10 +1078,10 @@ async fn chat_completions_streams_request_usage_and_relay_the_usage_chunk() {
                 .unwrap()
         })
         .await;
-        let relay = provider(&upstream, 1).with_telemetry(telemetry.clone());
+        let relay = provider(&upstream).with_telemetry(telemetry.clone());
         let response = relay
             .forward_route(
-                relay.try_admit().unwrap(),
+                relay.admit(),
                 resolved_request_context_for(
                     ApiFormat::OpenAiChatCompletions,
                     "provider-secret",
@@ -1181,7 +1139,7 @@ async fn chat_completions_rewrite_non_streamed_models() {
     let relay = transport(&upstream);
     let response = relay
         .forward_route(
-            relay.try_admit().unwrap(),
+            relay.admit(),
             resolved_request_context_for(
                 ApiFormat::OpenAiChatCompletions,
                 "provider-secret",

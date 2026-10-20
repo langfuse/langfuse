@@ -3,7 +3,7 @@ import {
   type TopicsModelSlotName,
 } from "@langfuse/shared/topics";
 import { EvaluatorBlockReason } from "@prisma/client";
-import { logger } from "@langfuse/shared/src/server";
+import { getLLMErrorInfo, logger } from "@langfuse/shared/src/server";
 import {
   pauseTopicsModels,
   type TopicsModel,
@@ -19,11 +19,17 @@ type TopicsProviderErrorReason =
   | "invalid_input"
   | "provider_error";
 
+/** Telemetry only; the user-facing message stays generic. */
+export type TopicProviderErrorDetails = {
+  httpStatus?: number;
+};
+
 export class TopicsProviderUnavailable extends Error {
   constructor(
     message: string,
     readonly reason: TopicsProviderErrorReason = "provider_error",
     readonly slot?: TopicsModelSlotName,
+    readonly details: TopicProviderErrorDetails = {},
   ) {
     super(message);
   }
@@ -69,11 +75,34 @@ export function topicProviderError(
       reason = "invalid_output";
     current = record.cause;
   }
+  const subject = `The ${TOPICS_MODEL_SLOT_DETAILS[model.slot].label.toLowerCase()} model ${model.model} on LLM connection "${model.provider}"`;
+  const failed = `${subject} failed${status ? ` (HTTP ${status})` : ""}.`;
+  // The message names the actual failure; a generic credentials hint misleads for output or rate-limit errors.
+  const message = {
+    authentication: `${failed} Check the connection's credentials and billing.`,
+    invalid_input: `${failed} The provider rejected the request; check that the model ID supports it.`,
+    rate_limit: `${failed} The provider rate-limited the request. Try again later.`,
+    timeout: `${failed} The request timed out. Try again later.`,
+    invalid_output: `${subject} returned no usable structured output. Resume interrupted stages to retry, or choose another model.`,
+    configuration: `${failed} Check the Topics model settings.`,
+    provider_error: `${failed} Check the model ID and provider availability.`,
+  }[reason];
   return new TopicsProviderUnavailable(
-    `The ${TOPICS_MODEL_SLOT_DETAILS[model.slot].label.toLowerCase()} model ${model.model} on LLM connection "${model.provider}" failed${status ? ` (HTTP ${status})` : ""}. Check the connection's credentials, the model ID, and provider availability.`,
+    message,
     reason,
     model.slot,
+    providerErrorDetails(error, status),
   );
+}
+
+/** Provider error strings can echo request/response content; retain only status. */
+function providerErrorDetails(
+  error: unknown,
+  status: number | undefined,
+): TopicProviderErrorDetails {
+  const provider = getLLMErrorInfo(error)?.providerError;
+  const httpStatus = provider?.statusCode ?? status;
+  return httpStatus ? { httpStatus } : {};
 }
 
 /** The provider rejected the connection's credentials or billing. */

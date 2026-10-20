@@ -1,6 +1,6 @@
 /* eslint-disable boundaries/dependencies */
 import { type CellContext, type RowData } from "@tanstack/react-table";
-import { MoreVertical } from "lucide-react";
+import { MoreVertical } from "@langfuse/icons";
 
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { DropdownMenuController } from "@/src/components/ui/dropdown-menu";

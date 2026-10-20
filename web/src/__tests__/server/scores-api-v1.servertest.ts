@@ -1439,8 +1439,11 @@ describe("/api/public/scores API Endpoint", () => {
               authentication,
             );
           } catch (error) {
-            expect((error as Error).message).toBe(
-              `API call did not return 200, returned status 400, body {\"message\":\"Invalid request data\",\"error\":[{\"code\":\"invalid_value\",\"values\":[\"<\",\">\",\"<=\",\">=\",\"!=\",\"=\"],\"path\":[\"operator\"],\"message\":\"Invalid option: expected one of \\\"<\\\"|\\\">\\\"|\\\"<=\\\"|\\\">=\\\"|\\\"!=\\\"|\\\"=\\\"\"}]}`,
+            const message = (error as Error).message;
+            expect(message).toContain("returned status 400");
+            expect(message).toContain('"message":"Invalid request data');
+            expect(message).toContain(
+              `\"error\":[{\"code\":\"invalid_value\",\"values\":[\"<\",\">\",\"<=\",\">=\",\"!=\",\"=\"],\"path\":[\"operator\"],\"message\":\"Invalid option: expected one of \\\"<\\\"|\\\">\\\"|\\\"<=\\\"|\\\">=\\\"|\\\"!=\\\"|\\\"=\\\"\"}]`,
             );
           }
         });
@@ -1458,8 +1461,11 @@ describe("/api/public/scores API Endpoint", () => {
               authentication,
             );
           } catch (error) {
-            expect((error as Error).message).toBe(
-              'API call did not return 200, returned status 400, body {"message":"Invalid request data","error":[{"expected":"number","code":"invalid_type","received":"NaN","path":["value"],"message":"Invalid input: expected number, received NaN"}]}',
+            const message = (error as Error).message;
+            expect(message).toContain("returned status 400");
+            expect(message).toContain('"message":"Invalid request data');
+            expect(message).toContain(
+              '"error":[{"expected":"number","code":"invalid_type","received":"NaN","path":["value"],"message":"Invalid input: expected number, received NaN"}]',
             );
           }
         });

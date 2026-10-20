@@ -7,7 +7,7 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { Settings } from "lucide-react";
+import { Settings } from "@langfuse/icons";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { env } from "@/src/env.mjs";
 import { STREAMING_PREF_KEY } from "@/src/features/playground/page/storage/keys";
@@ -73,7 +73,7 @@ const SubmitButton = () => {
             className="h-8 w-8 focus:ring-0 focus:outline-hidden focus-visible:ring-0"
             disabled={isStreaming}
           >
-            <Settings className="icon-base text-icon-foreground" />
+            <Settings size="base" color="default" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-52">

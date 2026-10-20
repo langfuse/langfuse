@@ -24,6 +24,12 @@ const computeDlqOldestAgeMs = (jobs: unknown[], nowMs: number): number =>
     nowMs,
   );
 
+const computeWaitTimeMs = (job: unknown, nowMs: number) =>
+  WorkerManager.computeWaitTimeMs(
+    job as Parameters<typeof WorkerManager.computeWaitTimeMs>[0],
+    nowMs,
+  );
+
 const resolveMetricInfo = (queueName: QueueName) =>
   (
     WorkerManager as unknown as {
@@ -109,6 +115,96 @@ describe("WorkerManager", () => {
         computeDlqOldestAgeMs([undefined, { finishedOn: 1_000 }], 4_000),
       ).toBe(3_000);
     });
+  });
+
+  describe("computeWaitTimeMs", () => {
+    // BullMQ increments attemptsStarted when it moves the job to active, so
+    // the processor sees 1 on the first pickup.
+    const firstPickup = {
+      timestamp: 1_000,
+      opts: {},
+      attemptsMade: 0,
+      attemptsStarted: 1,
+      stalledCounter: 0,
+    };
+
+    it("measures a first attempt from job creation", () => {
+      expect(computeWaitTimeMs(firstPickup, 4_000)).toEqual({
+        attempt: "first",
+        waitMs: 3_000,
+      });
+    });
+
+    it("excludes an intentional delay from a delayed job's wait", () => {
+      // BullMQ resets job.delay to 0 when it promotes the job, so only
+      // opts.delay still carries the original delay at pickup.
+      expect(
+        computeWaitTimeMs(
+          { ...firstPickup, delay: 0, opts: { delay: 10_000 } },
+          12_500,
+        ),
+      ).toEqual({ attempt: "first", waitMs: 1_500 });
+    });
+
+    it("clamps to 0 when a delayed job is picked up early", () => {
+      expect(
+        computeWaitTimeMs({ ...firstPickup, opts: { delay: 10_000 } }, 10_000),
+      ).toEqual({ attempt: "first", waitMs: 0 });
+    });
+
+    it("does not fold earlier attempts and backoff into a retry's wait", () => {
+      // Created at 1s, ran for an hour, failed, backed off, picked up again.
+      expect(
+        computeWaitTimeMs(
+          {
+            ...firstPickup,
+            attemptsMade: 1,
+            attemptsStarted: 2,
+            processedOn: 3_700_000,
+          },
+          3_700_000,
+        ),
+      ).toEqual({ attempt: "retry", waitMs: undefined });
+    });
+
+    it("treats a stall re-run as a retry even though attemptsMade is 0", () => {
+      // The worker host died mid-run; the stalled checker moved the job back
+      // to wait without counting a failed attempt.
+      expect(
+        computeWaitTimeMs(
+          {
+            ...firstPickup,
+            attemptsMade: 0,
+            attemptsStarted: 2,
+            stalledCounter: 1,
+          },
+          7_200_000,
+        ),
+      ).toEqual({ attempt: "retry", waitMs: undefined });
+    });
+
+    it("treats a re-pickup without a stall count as a retry", () => {
+      // e.g. moveJobFromActiveToWait or a manual job.retry() that keeps
+      // attemptsStarted.
+      expect(
+        computeWaitTimeMs({ ...firstPickup, attemptsStarted: 3 }, 7_200_000),
+      ).toEqual({ attempt: "retry", waitMs: undefined });
+    });
+
+    it.each([
+      ["attemptsMade", { attemptsMade: 1, stalledCounter: 0 }],
+      ["stalledCounter", { attemptsMade: 0, stalledCounter: 1 }],
+    ])(
+      "detects a retry from %s alone when attemptsStarted is missing",
+      (_field, counters) => {
+        expect(
+          computeWaitTimeMs(
+            { timestamp: 1_000, opts: {}, ...counters },
+            7_200_000,
+          ),
+        ).toEqual({ attempt: "retry", waitMs: undefined });
+      },
+    );
   });
 
   describe("dlq oldest job lookup", () => {

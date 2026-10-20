@@ -21,7 +21,7 @@ import {
   type EvalTemplate,
   getCodeEvalVariableMapping,
 } from "@langfuse/shared";
-import { ExternalLink, ListTree, Play, RotateCcw } from "lucide-react";
+import { ExternalLink, ListTree, Play, RotateCcw } from "@langfuse/icons";
 import Link from "next/link";
 import { useMemo } from "react";
 import { showToast } from "@/src/features/notifications";
@@ -125,7 +125,11 @@ export function CodeEvalTestRunCard({
                   rel="noopener noreferrer"
                 >
                   Source code
-                  <ExternalLink className="icon-base text-icon-foreground ml-1" />
+                  <ExternalLink
+                    size="base"
+                    color="default"
+                    __rawClassName="ml-1"
+                  />
                 </Link>
               </Button>
             ) : (
@@ -135,7 +139,11 @@ export function CodeEvalTestRunCard({
                 title="Only user-managed templates can be edited"
               >
                 Source code
-                <ExternalLink className="icon-base text-icon-foreground ml-1" />
+                <ExternalLink
+                  size="base"
+                  color="default"
+                  __rawClassName="ml-1"
+                />
               </Button>
             )}
             <Button
@@ -160,9 +168,13 @@ export function CodeEvalTestRunCard({
               }}
             >
               {testRunMutation.data ? (
-                <RotateCcw className="icon-base text-icon-foreground mr-1.5" />
+                <RotateCcw
+                  size="base"
+                  color="default"
+                  __rawClassName="mr-1.5"
+                />
               ) : (
-                <Play className="icon-base text-icon-foreground mr-1.5" />
+                <Play size="base" color="default" __rawClassName="mr-1.5" />
               )}
               Test
             </Button>
@@ -316,7 +328,7 @@ function CodeEvalTestRunResultView({
             size="sm"
             onClick={() => onShowExecutionTrace(result.executionTraceId)}
           >
-            <ListTree className="icon-base text-icon-foreground mr-1.5" />
+            <ListTree size="base" color="default" __rawClassName="mr-1.5" />
             Show execution trace
           </Button>
         ) : null}

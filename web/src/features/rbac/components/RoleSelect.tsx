@@ -78,7 +78,7 @@ export function RoleSelect({
           disableValueLineClamp
         >
           <span className="flex min-w-0 items-center gap-2">
-            <SelectedIcon className="icon-base shrink-0" />
+            <SelectedIcon size="base" />
             <span className="truncate" title={label}>
               {label}
             </span>

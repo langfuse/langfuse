@@ -21,7 +21,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { InfoIcon, GripVertical } from "lucide-react";
+import { InfoIcon, GripVertical } from "@langfuse/icons";
 import { useCsvMapping } from "@/src/features/datasets/hooks/useCsvMapping";
 import { useCsvDragAndDrop } from "@/src/features/datasets/hooks/useCsvDragAndDrop";
 import { useCsvImport } from "@/src/features/datasets/hooks/useCsvImport";
@@ -201,7 +201,10 @@ export function PreviewCsvImport({
                     </div>
                   ) : (
                     <div className="bg-background flex cursor-grabbing items-center gap-2 rounded-md border p-2 shadow-xl">
-                      <GripVertical className="text-muted-foreground/70 icon-base shrink-0" />
+                      <GripVertical
+                        size="base"
+                        __rawClassName="text-muted-foreground/70"
+                      />
                       <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
                         <span
                           className="truncate text-sm"
@@ -250,7 +253,7 @@ export function PreviewCsvImport({
             </Label>
             <Tooltip>
               <TooltipTrigger asChild>
-                <InfoIcon className="text-muted-foreground icon-base" />
+                <InfoIcon size="base" color="muted" />
               </TooltipTrigger>
               <TooltipContent className="max-w-[300px]">
                 When a single csv column is mapped to a dataset item field, wrap

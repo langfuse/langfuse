@@ -1,6 +1,6 @@
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
 import React, { useState } from "react";
-import { Unlink, AlertTriangle } from "lucide-react";
+import { Unlink, AlertTriangle } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
@@ -144,7 +144,7 @@ export const SlackDisconnectButton: React.FC<SlackDisconnectButtonProps> = ({
           <Spinner size="sm" />
         </div>
       ) : (
-        <Unlink className={showText ? "icon-base mr-2" : "icon-base"} />
+        <Unlink size="base" __rawClassName={showText ? "mr-2" : ""} />
       )}
       {showText && (isDisconnecting ? "Disconnecting..." : buttonText)}
     </>
@@ -166,7 +166,7 @@ export const SlackDisconnectButton: React.FC<SlackDisconnectButtonProps> = ({
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="text-destructive icon-lg" />
+              <AlertTriangle size="lg" color="destructive" />
               Disconnect Slack Integration
             </DialogTitle>
             <DialogDescription className="space-y-2">
@@ -211,7 +211,7 @@ export const SlackDisconnectButton: React.FC<SlackDisconnectButtonProps> = ({
                 </>
               ) : (
                 <>
-                  <Unlink className="icon-base mr-2" />
+                  <Unlink size="base" __rawClassName="mr-2" />
                   Disconnect
                 </>
               )}

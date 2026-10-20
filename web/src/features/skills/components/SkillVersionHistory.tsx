@@ -1,5 +1,5 @@
 import { type MouseEvent, useState } from "react";
-import { FileDiffIcon, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { FileDiffIcon, PanelLeftClose, PanelLeftOpen } from "@langfuse/icons";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
@@ -84,9 +84,9 @@ export function SkillVersionHistory(
           onClick={() => setIsCollapsed((collapsed) => !collapsed)}
         >
           {isCollapsed ? (
-            <PanelLeftOpen className="icon-base text-icon-foreground" />
+            <PanelLeftOpen size="base" color="default" />
           ) : (
-            <PanelLeftClose className="icon-base text-icon-foreground" />
+            <PanelLeftClose size="base" color="default" />
           )}
         </Button>
       </div>

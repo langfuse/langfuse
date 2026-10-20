@@ -2,7 +2,7 @@
 import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
-import { Trash } from "lucide-react";
+import { Trash } from "@langfuse/icons";
 import { useState } from "react";
 import {
   Popover,
@@ -73,7 +73,7 @@ export function DeletePromptVersion({
             event.stopPropagation();
           }}
         >
-          <Trash className="icon-base text-icon-foreground mr-2" />
+          <Trash size="base" color="default" __rawClassName="mr-2" />
           Delete version
         </Button>
       </PopoverTrigger>

@@ -256,10 +256,10 @@ export const CATALOG: CatalogEntry[] = [
         .selectFrom("observations")
         .select("environment")
         .$call(
-          arrayJoin({
-            cost_key: mapKeys("cost_details"),
-            cost: mapValues("cost_details"),
-          }),
+          arrayJoin((eb) => ({
+            cost_key: mapKeys(eb.ref("cost_details")),
+            cost: mapValues(eb.ref("cost_details")),
+          })),
         ),
   },
   {
@@ -277,7 +277,12 @@ export const CATALOG: CatalogEntry[] = [
         .selectFrom("events_core")
         .select(["span_id", "project_id"])
         .orderBy("event_ts", "desc")
-        .$call(limitBy({ count: 1, columns: ["span_id", "project_id"] })),
+        .$call(
+          limitBy({
+            count: 1,
+            columns: (eb) => [eb.ref("span_id"), eb.ref("project_id")],
+          }),
+        ),
   },
   {
     id: "window_rank",
@@ -370,7 +375,7 @@ export const CATALOG: CatalogEntry[] = [
         .select("environment")
         .where((eb) =>
           eb
-            .fn("has", [mapKeys("cost_details"), eb.val("input")])
+            .fn("has", [mapKeys(eb.ref("cost_details")), eb.val("input")])
             .$castTo<SqlBool>(),
         ),
   },

@@ -1,5 +1,5 @@
 import { useId, useState } from "react";
-import { AlertTriangle, ExternalLinkIcon } from "lucide-react";
+import { AlertTriangle, ExternalLinkIcon } from "@langfuse/icons";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { Input } from "@/src/components/design-system/Input/Input";
@@ -559,7 +559,7 @@ function PausedNotice({
       className="border-light-yellow bg-light-yellow rounded-lg border"
     >
       <div className="flex gap-3 p-4">
-        <AlertTriangle className="text-dark-yellow icon-base mt-0.5 shrink-0" />
+        <AlertTriangle size="base" __rawClassName="text-dark-yellow mt-0.5" />
         <div className="min-w-0 flex-1">
           <h2 className="text-foreground text-base font-bold">Topics paused</h2>
           <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-2 text-sm">
@@ -579,7 +579,11 @@ function PausedNotice({
               size="sm"
               onClick={onConfigureProviders}
             >
-              <ExternalLinkIcon className="icon-base text-icon-foreground mr-1.5" />
+              <ExternalLinkIcon
+                size="base"
+                color="default"
+                __rawClassName="mr-1.5"
+              />
               Open LLM connections
             </LegacyButton>
           </div>

@@ -2,7 +2,7 @@
  * attribute's own table column. */
 
 import { useRouter } from "next/router";
-import { Copy, Filter, FilterX } from "lucide-react";
+import { Copy, Filter, FilterX } from "@langfuse/icons";
 import { type Row } from "@tanstack/react-table";
 import { type FilterState } from "@langfuse/shared";
 
@@ -74,7 +74,7 @@ export function AttributeRowActions({
           copyTextToClipboard(getCopyValue(value));
         }}
       >
-        <Copy className="icon-base text-icon-foreground mr-2 shrink-0" />
+        <Copy size="base" color="default" __rawClassName="mr-2" />
         {hasChildren ? "Copy structure" : "Copy value"}
       </DropdownMenuItem>
       {filter && includeText ? (
@@ -87,7 +87,7 @@ export function AttributeRowActions({
               navigate(filter.include, filter.target);
             }}
           >
-            <Filter className="icon-base text-icon-foreground mr-2 shrink-0" />
+            <Filter size="base" color="default" __rawClassName="mr-2" />
             <span className="flex min-w-0 flex-col">
               <span>Include in filter</span>
               <span
@@ -106,7 +106,7 @@ export function AttributeRowActions({
                 navigate(excludeClause, filter.target);
               }}
             >
-              <FilterX className="icon-base text-icon-foreground mr-2 shrink-0" />
+              <FilterX size="base" color="default" __rawClassName="mr-2" />
               <span className="flex min-w-0 flex-col">
                 <span>Exclude from filter</span>
                 <span
