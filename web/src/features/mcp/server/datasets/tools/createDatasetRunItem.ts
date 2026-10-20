@@ -1,3 +1,4 @@
+import { isoDateTime } from "@langfuse/shared";
 import { z } from "zod";
 import { PostDatasetRunItemsV1Body } from "@/src/features/public-api/server";
 import { createDatasetRunItemForApi } from "@/src/features/datasets/server";
@@ -24,7 +25,7 @@ const CreateDatasetRunItemBaseSchema = z.object({
       "Trace ID linked to this run item. Provide this or observationId.",
     ),
   datasetVersion: z.string().optional(),
-  createdAt: z.iso.datetime({ offset: true }).optional(),
+  createdAt: isoDateTime({ offset: true }).optional(),
 });
 
 export const [createDatasetRunItemTool, handleCreateDatasetRunItem] =

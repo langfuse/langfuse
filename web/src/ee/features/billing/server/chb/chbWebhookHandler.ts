@@ -6,6 +6,7 @@ import { z } from "zod";
 import { env } from "@/src/env.mjs";
 import { auditLog } from "@/src/features/audit-logs/server";
 import {
+  isoDateTime,
   type ChbPlanCode,
   chbPlanCodes,
   chbPlanCodeToPlan,
@@ -74,7 +75,7 @@ const ChbEventBusTimestampSchema = z.union([z.number(), z.string()]).nullish();
 const ChbWebhookEventSchema = z.object({
   eventId: z.string().min(1),
   type: ChbWebhookEventTypeSchema,
-  occurredAt: z.iso.datetime({ offset: true }),
+  occurredAt: isoDateTime({ offset: true }),
   data: z.object({
     // Event-bus record id, not the attached plan id
     id: z.string().nullish(),
