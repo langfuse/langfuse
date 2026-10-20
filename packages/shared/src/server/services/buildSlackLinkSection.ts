@@ -12,7 +12,7 @@ const SLACK_SECTION_TEXT_MAX_LENGTH = 3000;
 export function buildSlackLinkSection(links: { label: string; url: string }[]) {
   let text = "";
   for (const { label, url } of links) {
-    const link = `🔗 *<${url}|${escapeSlackMrkdwn(label)}>*`;
+    const link = `:arrow_right: *<${url}|${escapeSlackMrkdwn(label)}>*`;
     const next = text ? `${text}    ${link}` : link;
     if (next.length <= SLACK_SECTION_TEXT_MAX_LENGTH) text = next;
   }

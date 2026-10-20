@@ -109,7 +109,7 @@ describe("buildMonitorAlertSlackMessage", () => {
   it("keeps only the config link when dataPermalink is absent", () => {
     const { attachments } = buildMonitorAlertSlackMessage(mockMonitorAlert);
     expect(linkText(attachments)).toBe(
-      `🔗 *<${mockMonitorAlert.permalink}|View in Langfuse>*`,
+      `:arrow_right: *<${mockMonitorAlert.permalink}|View in Langfuse>*`,
     );
   });
 
@@ -123,7 +123,7 @@ describe("buildMonitorAlertSlackMessage", () => {
       "A filtered scores link is unavailable",
     );
     expect(linkText(attachments)).toBe(
-      `🔗 *<${mockMonitorAlert.permalink}|View in Langfuse>*`,
+      `:arrow_right: *<${mockMonitorAlert.permalink}|View in Langfuse>*`,
     );
   });
 
@@ -140,7 +140,7 @@ describe("buildMonitorAlertSlackMessage", () => {
         dataPermalink: undefined,
       });
       expect(linkText(attachments)).toBe(
-        `🔗 *<${mockMonitorAlert.permalink}|View in Langfuse>*`,
+        `:arrow_right: *<${mockMonitorAlert.permalink}|View in Langfuse>*`,
       );
       expect(attachments![0].blocks![1].text.text).not.toContain(
         "scores link is unavailable",
