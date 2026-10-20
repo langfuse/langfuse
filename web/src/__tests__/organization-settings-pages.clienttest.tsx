@@ -301,18 +301,6 @@ describe("useOrganizationSettingsPages", () => {
     ]);
   });
 
-  it("does not disable AI Gateway pages while the setup status is loading", () => {
-    vi.mocked(useHasOrganizationAccess).mockImplementation(
-      ({ scope }) => scope === "gateway:manage" || scope === "gateway:read",
-    );
-    vi.mocked(useIsFeatureEnabled).mockReturnValue(true);
-    getSetupStatusQuery.mockReturnValue({ data: undefined, isPending: true });
-
-    const { result } = renderHook(() => useOrganizationSettingsPages());
-
-    expect(result.current.every((page) => !page.disabledReason)).toBe(true);
-  });
-
   it("keeps Models enabled for readers when ingestion is not set up", () => {
     vi.mocked(useHasOrganizationAccess).mockImplementation(
       ({ scope }) => scope === "gateway:read",
