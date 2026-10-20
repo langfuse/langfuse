@@ -8,8 +8,13 @@ import {
 import { observationToEvent, traceToEvent } from "./event-mirror";
 import { jitter, utcDayStartMs } from "./rng";
 import { topicEvaluationExamples } from "./topics-evaluation";
-import { ScenarioDefinition, SeedError } from "./types";
-import { countRows, traceLink, tracesListLink } from "./verify";
+import {
+  planTopicResults,
+  seedTopicResults,
+  topicResultCounts,
+} from "./topics-results";
+import { chunk, ScenarioDefinition, SeedError } from "./types";
+import { countRows, topicsLink, traceLink, tracesListLink } from "./verify";
 
 // Group labels stay out of trace I/O and metadata: discovery must use the
 // requests and responses, not a planted classification.
@@ -82,14 +87,15 @@ const ASSIGNMENT: ReadonlyArray<readonly [string, string]> = [
 export const topicsScenario: ScenarioDefinition = {
   name: "topics",
   description:
-    "Synthetic topic discovery: 12 traces across three semantic themes, plus three separate assignment traces (two familiar requests and one new theme). Use evaluation for 100 varied requests with cross-cutting tool outcomes. No model calls.",
+    "Synthetic topic discovery: 12 traces across three semantic themes, plus three separate assignment traces (two familiar requests and one new theme). Use evaluation for 100 varied requests with cross-cutting tool outcomes, or results for those traces plus finished topic results for the four built-in facets. No model calls.",
   supportsV4: true,
   flags: [
     {
       flag: "batch",
       type: "string",
       default: "all",
-      description: "all, discovery (12), assignment (3), or evaluation (100)",
+      description:
+        "all, discovery (12), assignment (3), evaluation (100), or results (evaluation traces plus seeded topics, summaries, assignments and a published map per built-in facet)",
     },
     {
       flag: "v4",
@@ -97,44 +103,73 @@ export const topicsScenario: ScenarioDefinition = {
       default: true,
       description: "also mirror traces/observations into v4 events tables",
     },
+    {
+      flag: "traces",
+      type: "number",
+      default: 100,
+      description:
+        "results only: trace count; the 100 requests repeat with varied summaries, and counts above 100 spread timestamps over the last 6 days",
+    },
   ],
   run: async (ctx, params) => {
     const startedAt = Date.now();
     const batch = String(params.batch ?? "all");
-    if (!["all", "discovery", "assignment", "evaluation"].includes(batch)) {
+    if (
+      !["all", "discovery", "assignment", "evaluation", "results"].includes(
+        batch,
+      )
+    ) {
       throw new SeedError(
-        "--batch must be all, discovery, assignment, or evaluation",
+        "--batch must be all, discovery, assignment, evaluation, or results",
       );
     }
     const withV4 = params.v4 !== false;
-    const evaluation = batch === "evaluation" ? topicEvaluationExamples() : [];
-    const examples =
-      batch === "evaluation"
-        ? evaluation
-        : [
-            ...DISCOVERY.map((io, index) => ({
-              io,
-              index,
-              batch: "discovery",
-            })),
-            ...ASSIGNMENT.map((io, index) => ({
-              io,
-              index: index + DISCOVERY.length,
-              batch: "assignment",
-            })),
-          ].filter((example) => batch === "all" || example.batch === batch);
-    const startMs = utcDayStartMs() - 60 * 60 * 1000;
+    const withResults = batch === "results";
+    const traceCount = withResults ? Number(params.traces ?? 100) : 100;
+    if (traceCount < 1 || traceCount > 100_000)
+      throw new SeedError("--traces must be between 1 and 100000");
+    const baseExamples =
+      batch === "evaluation" || withResults ? topicEvaluationExamples() : [];
+    const evaluation = Array.from({ length: traceCount }, (_, index) => ({
+      ...baseExamples[index % baseExamples.length]!,
+      index,
+    })).slice(0, baseExamples.length ? traceCount : 0);
+    const examples = evaluation.length
+      ? evaluation
+      : [
+          ...DISCOVERY.map((io, index) => ({
+            io,
+            index,
+            batch: "discovery",
+          })),
+          ...ASSIGNMENT.map((io, index) => ({
+            io,
+            index: index + DISCOVERY.length,
+            batch: "assignment",
+          })),
+        ].filter((example) => batch === "all" || example.batch === batch);
+    // Larger results runs spread over six days so they stay inside the page's 7-day window.
+    const spread = traceCount > 100;
+    const startMs = spread
+      ? utcDayStartMs() - 6 * 86_400_000
+      : utcDayStartMs() - 60 * 60 * 1000;
+    const strideMs = spread ? Math.floor((6 * 86_400_000) / traceCount) : 60000;
     const timestamps = examples.map(
-      ({ index }) => startMs + index * 60000 + jitter(ctx.seed, index, 1000),
+      ({ index }) =>
+        startMs +
+        index * strideMs +
+        jitter(ctx.seed, index, Math.min(1000, strideMs - 1)),
     );
+    const idWidth = Math.max(2, String(traceCount - 1).length);
     const traceIds = examples.map(
       ({ index }) =>
-        `${ctx.idPrefix}-${batch === "evaluation" ? "e" : "t"}${index.toString().padStart(2, "0")}`,
+        `${ctx.idPrefix}-${evaluation.length ? "e" : "t"}${index.toString().padStart(idWidth, "0")}`,
     );
-    const counts = {
+    const counts: Record<string, number> = {
       traces: examples.length,
       observations: examples.length + evaluation.length,
       events: withV4 ? examples.length * 2 + evaluation.length : 0,
+      ...(withResults ? topicResultCounts(planTopicResults(evaluation)) : {}),
     };
     const summary = {
       scenario: "topics",
@@ -146,8 +181,11 @@ export const topicsScenario: ScenarioDefinition = {
       sessionIds: [],
       counts,
       links: [
+        ...(withResults ? [topicsLink(ctx)] : []),
         tracesListLink(ctx),
-        ...traceIds.map((id, index) => traceLink(ctx, id, timestamps[index]!)),
+        ...traceIds
+          .slice(0, 25)
+          .map((id, index) => traceLink(ctx, id, timestamps[index]!)),
       ],
       dryRun: ctx.dryRun,
     };
@@ -237,9 +275,10 @@ export const topicsScenario: ScenarioDefinition = {
     ctx.log(
       `writing ${counts.traces} traces (${batch}), ${counts.events} events`,
     );
-    await createTracesCh(traces);
-    await createObservationsCh(observations);
-    if (events.length) await createEventsCh(events);
+    for (const part of chunk(traces, 2000)) await createTracesCh(part);
+    for (const part of chunk(observations, 2000))
+      await createObservationsCh(part);
+    for (const part of chunk(events, 2000)) await createEventsCh(part);
 
     const queryParams = { projectId: ctx.projectId, traceIds };
     const verified: Record<string, number> = {
@@ -264,6 +303,15 @@ export const topicsScenario: ScenarioDefinition = {
           )
         : 0,
     };
+    if (withResults) {
+      const results = await seedTopicResults(ctx, {
+        examples: evaluation,
+        traceIds,
+        timestamps,
+        traceName: "assistant-request",
+      });
+      Object.assign(verified, results.verified);
+    }
     for (const [entity, expected] of Object.entries(counts)) {
       if (verified[entity] !== expected) {
         throw new SeedError(

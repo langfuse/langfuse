@@ -36,3 +36,6 @@ export const sessionLink = (ctx: ScenarioContext, sessionId: string): string =>
 
 export const tracesListLink = (ctx: ScenarioContext): string =>
   `${ctx.baseUrl}/project/${ctx.projectId}/traces`;
+
+export const topicsLink = (ctx: ScenarioContext): string =>
+  `${ctx.baseUrl}/project/${ctx.projectId}/topics`;
