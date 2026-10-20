@@ -163,7 +163,6 @@ export const slackRouter = createTRPCRouter({
           channels,
           hasPrivateChannelAccess:
             privateChannels?.hasPrivateChannelAccess ?? true,
-          canListPrivateChannels: Boolean(viewerSlackUserId),
           nextCursor,
           teamId: integration.teamId,
           teamName: integration.teamName,

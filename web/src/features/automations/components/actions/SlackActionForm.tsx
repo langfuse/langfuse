@@ -8,13 +8,14 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { type UseFormReturn } from "react-hook-form";
-import { type ActionDomain } from "@langfuse/shared";
+import { type ActionDomain, isSlackActionConfig } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import {
   SlackConnectionCard,
   ChannelSelector,
   type SlackChannel,
   SlackTestMessageButton,
+  PrivateChannelsInfoTooltip,
 } from "@/src/features/slack";
 import { useState } from "react";
 import { useHasProjectAccess } from "@/src/features/rbac";
@@ -30,12 +31,23 @@ export const SlackActionForm: React.FC<SlackActionFormProps> = ({
   form,
   disabled,
   projectId,
+  action,
 }) => {
   const initialChannelId = form.getValues("slack.channelId") as string;
   const initialChannelName = form.getValues("slack.channelName") as string;
+  // Saved private channels aren't in the list for users who can't see them,
+  // so the lock icon has to come from the saved config.
+  const initialIsPrivate =
+    isSlackActionConfig(action?.config) &&
+    action.config.channelId === initialChannelId &&
+    action.config.isPrivate;
   const [selectedChannel, setSelectedChannel] = useState<SlackChannel | null>(
     initialChannelId && initialChannelName
-      ? { id: initialChannelId, name: initialChannelName }
+      ? {
+          id: initialChannelId,
+          name: initialChannelName,
+          isPrivate: initialIsPrivate,
+        }
       : null,
   );
 
@@ -86,7 +98,10 @@ export const SlackActionForm: React.FC<SlackActionFormProps> = ({
             name="slack.channelId"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Channel</FormLabel>
+                <div className="flex items-center gap-1.5">
+                  <FormLabel>Channel</FormLabel>
+                  <PrivateChannelsInfoTooltip />
+                </div>
                 <FormControl>
                   <div className="max-w-md">
                     <ChannelSelector
