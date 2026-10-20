@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { compileClickhouseQuery } from "./compile";
 import { getClickhouseKysely } from "./dialect";
 import { QueryCompileError, UnscopedRelationError } from "./errors";
-import { arrayJoin, tupleIn, useFinal } from "./extensions";
+import { arrayJoin, countIf, tupleIn, useFinal } from "./extensions";
 
 const projectId = "proj-1";
 const START = new Date("2026-01-01T00:00:00.000Z");
@@ -437,6 +437,17 @@ describe("typed params from the column registry", () => {
   });
 
   // ClickHouse resolves `v2` through `value` to `count()`, a UInt64.
+  // Inside its own expression, `total_cost` is the column, not the alias.
+  it("types a comparison inside an aggregate aliased to the column's name", () => {
+    const { sql } = compile(
+      getClickhouseKysely()
+        .selectFrom("events_core")
+        .select((eb) => countIf(eb("total_cost", ">", 1)).as("total_cost"))
+        .groupBy("trace_id"),
+    );
+    expect(sql).toMatch(/total_cost > \{p\d+:Decimal\(18, 12\)\}/);
+  });
+
   it("binds an alias of a computed alias by value", () => {
     const { sql } = compile(
       getClickhouseKysely()

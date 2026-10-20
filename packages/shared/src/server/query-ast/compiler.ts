@@ -23,6 +23,7 @@ import {
   type OperationNode,
   type PrimitiveValueListNode,
   type RootOperationNode,
+  type SelectionNode,
   type ValueListNode,
 } from "kysely";
 import type { QueryId } from "kysely";
@@ -196,6 +197,11 @@ type SelectScope = {
    * unqualified name to an alias before a relation's column.
    */
   aliases: Map<string, OperationNode | null>;
+  /**
+   * The output alias whose own expression is being compiled. Inside it, that
+   * name reads the relations: `sumIf(total_cost, total_cost > 1) AS total_cost`.
+   */
+  compilingAlias?: string;
 };
 
 /**
@@ -415,6 +421,25 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     }
   }
 
+  protected override visitSelection(node: SelectionNode): void {
+    const scope = this.selectScopes.at(-1);
+    const { selection } = node;
+    if (
+      !scope ||
+      !AliasNode.is(selection) ||
+      !IdentifierNode.is(selection.alias)
+    ) {
+      super.visitSelection(node);
+      return;
+    }
+    scope.compilingAlias = selection.alias.name;
+    try {
+      super.visitSelection(node);
+    } finally {
+      scope.compilingAlias = undefined;
+    }
+  }
+
   /**
    * What one SELECT makes visible to the columns compiled inside it: the CTEs
    * its WITH declares, each FROM/JOIN name or alias mapped to the column bind
@@ -536,13 +561,13 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     }
     const scope = this.selectScopeOf(node, enclosing);
     const scopes = [...enclosing, scope];
-    const columns: Record<string, BindType | null> = {};
+    let columns: Record<string, BindType | null> = {};
     for (const { selection } of node.selections ?? []) {
       const star = starSelection(selection);
       if (star) {
         const expanded = starBindTypes(star.qualifier, scope.relations);
         if (expanded instanceof OpaqueRelation) return expanded;
-        addMissingColumns(columns, expanded);
+        columns = withMissingColumns(columns, expanded);
         continue;
       }
       const aliased = AliasNode.is(selection) ? selection : undefined;
@@ -577,9 +602,10 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
   ): BindType | undefined {
     if (qualifier) return qualifiedBindType(column, qualifier, scopes);
     const scope = scopes.at(-1);
-    const aliased = resolving.has(column)
-      ? undefined
-      : scope?.aliases.get(column);
+    const aliased =
+      resolving.has(column) || scope?.compilingAlias === column
+        ? undefined
+        : scope?.aliases.get(column);
     if (aliased === undefined) return unqualifiedBindType(column, scope);
     if (aliased === null) return undefined;
     const ref = columnReference(typePreservedOperand(aliased));
@@ -969,26 +995,24 @@ function starBindTypes(
       )
     );
   }
-  const columns: Record<string, BindType | null> = {};
+  let columns: Record<string, BindType | null> = {};
   for (const relation of relations.values()) {
     if (relation instanceof OpaqueRelation) return relation;
-    addMissingColumns(columns, relation);
+    columns = withMissingColumns(columns, relation);
   }
   return columns;
 }
 
 /**
- * Copies the columns of `relation` that `columns` lacks. A star over a join
- * keeps the leftmost relation's column under a shared name; ClickHouse
- * renames the later one (`o.start_time`).
+ * `columns` plus the columns of `relation` it lacks. A star over a join keeps
+ * the leftmost relation's column under a shared name; ClickHouse renames the
+ * later one (`o.start_time`).
  */
-function addMissingColumns(
-  columns: Record<string, BindType | null>,
+function withMissingColumns(
+  columns: ColumnBindTypes,
   relation: ColumnBindTypes,
-): void {
-  for (const [name, type] of Object.entries(relation)) {
-    if (!(name in columns)) columns[name] = type;
-  }
+): Record<string, BindType | null> {
+  return { ...relation, ...columns };
 }
 
 function isTupleBindType(
