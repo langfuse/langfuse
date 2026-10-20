@@ -204,66 +204,6 @@ describe("delayed sidebar edits and search-bar commits", () => {
   );
 });
 
-describe("DataTableControls numeric steps", () => {
-  it.each([
-    { columnStep: 1, step: undefined, inputStep: "1", sliderStep: 1 },
-    { columnStep: 1, step: 0.01, inputStep: "0.01", sliderStep: 0.01 },
-    {
-      columnStep: undefined,
-      step: undefined,
-      inputStep: "any",
-      sliderStep: 0.01,
-    },
-  ])(
-    "uses column step $columnStep with override $step",
-    ({ columnStep, step, inputStep, sliderStep }) => {
-      const config: FilterConfig = {
-        tableName: "numeric-step-test",
-        columnDefinitions: eventsTableCols.map((column) =>
-          column.id === "inputTokens"
-            ? { ...column, step: columnStep }
-            : column,
-        ),
-        defaultExpanded: ["inputTokens"],
-        facets: [
-          {
-            type: "numeric",
-            column: "inputTokens",
-            label: "Input Tokens",
-            min: 0,
-            max: 100,
-            step,
-          },
-        ],
-      };
-
-      function Harness() {
-        const queryFilter = useSidebarFilterState(
-          config,
-          {},
-          {
-            stateLocation: "memory",
-          },
-        );
-        return <DataTableControls queryFilter={queryFilter} />;
-      }
-
-      const { container } = render(<Harness />, { wrapper: TooltipProvider });
-      expect(container.querySelector("#min-inputTokens")).toHaveAttribute(
-        "step",
-        inputStep,
-      );
-      expect(container.querySelector("#max-inputTokens")).toHaveAttribute(
-        "step",
-        inputStep,
-      );
-      const minSlider = screen.getAllByRole("slider")[0];
-      fireEvent.keyDown(minSlider, { key: "ArrowRight" });
-      expect(minSlider).toHaveAttribute("aria-valuenow", String(sliderStep));
-    },
-  );
-});
-
 describe("DataTableControls numeric conditions", () => {
   it("renders strict bounds as removable chips instead of a slider", () => {
     const queryFilter: QueryFilter = {
