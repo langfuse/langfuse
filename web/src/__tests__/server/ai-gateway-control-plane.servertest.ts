@@ -832,12 +832,12 @@ describe("AI gateway control plane", () => {
     expect(result.ingestion?.expires_at).toBe(ingestionClaims.exp);
   });
 
-  it("resolves NONE ingestion mode on self-hosted and rejects it on cloud", async () => {
+  it("resolves NONE ingestion mode on cloud without an ingestion grant", async () => {
     configureGatewayJwtSigning();
     const { caller, org, project } = await prepare();
     const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
     try {
-      Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined });
+      Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU" });
       await caller.aiGateway.updateConfig({
         orgId: org.id,
         defaultIngestionProjectId: project.id,
@@ -862,22 +862,6 @@ describe("AI gateway control plane", () => {
       expect(result.ingestion_mode).toBe("none");
       expect(result.ingestion).toBeNull();
       expect(result.attribution.project_id).toBe(project.id);
-
-      Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU" });
-      await expect(
-        caller.aiGateway.updateConfig({
-          orgId: org.id,
-          defaultIngestionProjectId: project.id,
-          ingestionMode: "NONE",
-        }),
-      ).rejects.toThrow("only available on self-hosted deployments");
-      await expect(
-        caller.aiGateway.updateConfig({
-          orgId: org.id,
-          defaultIngestionProjectId: project.id,
-          ingestionMode: "USAGE",
-        }),
-      ).resolves.toMatchObject({ ingestionMode: "USAGE" });
     } finally {
       Object.assign(env, {
         NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalCloudRegion,

@@ -71,7 +71,6 @@ export function GatewayConfigurationView({
   gatewayBaseUrl,
   initialProjectId,
   initialIngestionMode,
-  availableIngestionModes,
   isSaving,
   saveError,
   onSave,
@@ -81,7 +80,6 @@ export function GatewayConfigurationView({
   gatewayBaseUrl: string;
   initialProjectId: string | null;
   initialIngestionMode: IngestionMode;
-  availableIngestionModes: readonly IngestionMode[];
   isSaving: boolean;
   saveError: boolean;
   onSave: (values: {
@@ -105,9 +103,6 @@ export function GatewayConfigurationView({
   const [ingestionMode, setIngestionMode] =
     useState<IngestionMode>(initialIngestionMode);
   const projectId = projectSelection ?? null;
-  const visibleIngestionModes = ingestionModes.filter((option) =>
-    availableIngestionModes.includes(option.value),
-  );
   const isDirty =
     projectId !== initialProjectId || ingestionMode !== initialIngestionMode;
 
@@ -185,15 +180,8 @@ export function GatewayConfigurationView({
 
       <div>
         <CardTitle className="mb-4 text-base">Ingestion mode</CardTitle>
-        <div
-          className={cn(
-            "grid gap-2",
-            visibleIngestionModes.length > 2
-              ? "md:grid-cols-3"
-              : "md:grid-cols-2",
-          )}
-        >
-          {visibleIngestionModes.map((option) => {
+        <div className="grid gap-2 md:grid-cols-3">
+          {ingestionModes.map((option) => {
             const Icon = option.icon;
             const selected = ingestionMode === option.value;
             return (

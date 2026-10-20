@@ -9,11 +9,7 @@ import {
   type IngestionMode,
 } from "@/src/features/ai-gateway/components/GatewayConfigurationPage/components/GatewayConfigurationView/GatewayConfigurationView";
 import { showSuccessToast } from "@/src/features/notifications";
-import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { api, reportNonTrpcError } from "@/src/utils/api";
-
-const CLOUD_INGESTION_MODES = ["USAGE", "FULL"] as const;
-const SELF_HOSTED_INGESTION_MODES = ["NONE", "USAGE", "FULL"] as const;
 
 type Project = {
   id: string;
@@ -29,7 +25,6 @@ export function GatewayConfigurationPage({
   projects: Project[];
 }) {
   const session = useSession();
-  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const configQuery = api.aiGateway.getConfig.useQuery({
     orgId: organizationId,
   });
@@ -87,9 +82,6 @@ export function GatewayConfigurationPage({
       gatewayBaseUrl={gatewayBaseUrl}
       initialProjectId={config?.defaultIngestionProjectId ?? null}
       initialIngestionMode={config?.ingestionMode ?? "USAGE"}
-      availableIngestionModes={
-        isLangfuseCloud ? CLOUD_INGESTION_MODES : SELF_HOSTED_INGESTION_MODES
-      }
       isSaving={createProject.isPending || updateConfig.isPending}
       saveError={createProject.isError || updateConfig.isError}
       onSave={async ({ projectId, ingestionMode }) => {
