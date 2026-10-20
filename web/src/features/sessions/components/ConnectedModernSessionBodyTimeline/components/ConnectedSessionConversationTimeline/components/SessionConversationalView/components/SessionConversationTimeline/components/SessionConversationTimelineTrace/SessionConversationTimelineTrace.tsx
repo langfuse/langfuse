@@ -78,6 +78,7 @@ export function SessionConversationTimelineTrace({
             </span>
             <span
               className="truncate"
+              data-session-search-content
               title={`${trace.name ?? "Trace"} · ${trace.id}`}
             >
               {trace.name ?? "Trace"} · {trace.id}
