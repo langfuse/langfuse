@@ -14,11 +14,14 @@ type TopicStage =
   | "naming"
   | "assignment"
   | "storage";
-type TopicResult =
+export type TopicResult =
   | "generated"
   | "cached"
+  | "applicable"
   | "not_applicable"
   | "insufficient_input"
+  | "invalid_output"
+  | "input_too_large"
   | "topics_found"
   | "no_topics"
   | "insufficient_data"
@@ -33,7 +36,12 @@ type TopicErrorReason =
   | "trace_load"
   | "storage"
   | "numerical"
+  | "input_too_large"
+  | "trace_too_large"
   | "unknown";
+
+// Statuses with their own operational meaning; exact codes are on the span.
+const COUNTED_HTTP_STATUSES = new Set([400, 401, 403, 429]);
 
 /** Provider usage is counted per call, before local validation or persistence. */
 export function recordTopicTokenUsage(
@@ -52,6 +60,20 @@ export function recordTopicTokenUsage(
   }
 }
 
+/** Counts every provider request with a bounded status tag. */
+export function recordTopicModelCall(
+  stage: "summary" | "embedding" | "naming",
+  adapter: string,
+  outcome: { httpStatus?: number; reason?: string },
+): void {
+  const { httpStatus = 0, reason } = outcome;
+  let status = reason ?? "ok";
+  if (COUNTED_HTTP_STATUSES.has(httpStatus)) status = String(httpStatus);
+  else if (httpStatus >= 400 && httpStatus < 500) status = "4xx";
+  else if (httpStatus >= 500 && httpStatus < 600) status = "5xx";
+  recordIncrement("langfuse.topics.llm_calls", 1, { stage, adapter, status });
+}
+
 /** One instance per execution attempt prevents nested catches counting an error twice. */
 export class TopicMetrics {
   private readonly reportedErrors = new WeakSet<object>();
@@ -62,9 +84,19 @@ export class TopicMetrics {
     recordIncrement("langfuse.topics.executions", 1, { outcome });
   }
 
-  result(stage: TopicStage, result: TopicResult, count = 1): void {
+  result(
+    stage: TopicStage,
+    result: TopicResult,
+    count = 1,
+    // Summary outcomes say whether the model or a local rule decided, and for which facet.
+    tags: { source?: "model" | "rule"; facet?: string } = {},
+  ): void {
     if (count > 0)
-      recordIncrement("langfuse.topics.results", count, { stage, result });
+      recordIncrement("langfuse.topics.results", count, {
+        stage,
+        result,
+        ...tags,
+      });
   }
 
   clusteringWorkload(vectors: number, dimensions: number): void {
@@ -119,6 +151,8 @@ export class TopicMetrics {
         reason = "invalid_output";
       if (["AbortError", "TimeoutError"].includes(error.name))
         reason = "timeout";
+      if (error.name === "TopicInputTooLarge") reason = "input_too_large";
+      if (error.name === "TopicTraceTooLarge") reason = "trace_too_large";
       if (
         [
           "PrismaClientKnownRequestError",

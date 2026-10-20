@@ -5,7 +5,7 @@ import { renderClickhouseExpression } from "../../query-ast/compile";
 import {
   metadataMap,
   toBool,
-  traceSessionId,
+  latestNonEmpty,
 } from "../../query-ast/extensions";
 import type { ClickHouseDatabase } from "../../query-ast/schema";
 import { OBSERVATIONS_TO_TRACE_INTERVAL } from "../../repositories/constants";
@@ -40,7 +40,9 @@ const eventsMetadataMap = metadataMap(
 
 const EVENTS_METADATA_MAP_SQL = renderClickhouseExpression(eventsMetadataMap);
 
-const TRACE_SESSION_ID_SQL = renderClickhouseExpression(traceSessionId());
+const TRACE_SESSION_ID_SQL = renderClickhouseExpression(
+  latestNonEmpty(eventsRef.ref("session_id"), eventsRef.ref("event_ts")),
+);
 
 /**
  * Extract the output column alias from a field expression (unquoted).
@@ -154,7 +156,7 @@ const EVENTS_FIELDS = {
   environment: "e.environment as environment",
   type: "e.type as type",
   parentObservationId: "e.parent_span_id as parent_observation_id",
-  isRootObservation: `${renderClickhouseExpression(toBool(eventsIsRootObservation))} as "is_root_observation"`,
+  isRootObservation: `${renderClickhouseExpression(toBool(eventsIsRootObservation(eventsRef)))} as "is_root_observation"`,
   isAppRoot: "e.is_app_root as is_app_root",
   name: "e.name as name",
   level: "e.level as level",
@@ -164,7 +166,7 @@ const EVENTS_FIELDS = {
   public: "e.public as public",
   userId: "e.user_id as user_id",
   sessionId: "e.session_id as session_id",
-  traceName: `${renderClickhouseExpression(eventsTraceNameOrEmpty)} as "trace_name"`,
+  traceName: `${renderClickhouseExpression(eventsTraceNameOrEmpty(eventsRef))} as "trace_name"`,
 
   // Time fields
   startTime: "e.start_time as start_time",
@@ -234,8 +236,8 @@ const EVENTS_FIELDS = {
   experimentItemVersion: "e.experiment_item_version as experiment_item_version",
 
   // Calculated fields
-  latency: `${renderClickhouseExpression(millisecondsSinceStart("e.end_time"))} as latency`,
-  timeToFirstToken: `${renderClickhouseExpression(millisecondsSinceStart("e.completion_start_time"))} as "time_to_first_token"`,
+  latency: `${renderClickhouseExpression(millisecondsSinceStart(eventsRef, "e.end_time"))} as latency`,
+  timeToFirstToken: `${renderClickhouseExpression(millisecondsSinceStart(eventsRef, "e.completion_start_time"))} as "time_to_first_token"`,
 } as const satisfies Record<EventsFieldKey, string>;
 
 function eventsFieldSelectExpressions(fieldKeys: readonly string[]): string[] {

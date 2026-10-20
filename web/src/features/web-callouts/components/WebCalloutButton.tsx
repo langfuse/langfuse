@@ -1,4 +1,4 @@
-import { Webhook } from "lucide-react";
+import { Webhook } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
 import {
@@ -98,7 +98,7 @@ export function WebCalloutButton({
           action.invokeCallout().catch(() => undefined);
         }}
       >
-        <Webhook className="icon-base text-icon-foreground shrink-0" />
+        <Webhook size="base" color="default" />
         <span className="min-w-0 truncate text-sm" title={label}>
           {label}
         </span>
@@ -119,7 +119,7 @@ export function WebCalloutButton({
             action.invokeCallout().catch(() => undefined);
           }}
         >
-          <Webhook className="icon-base text-icon-foreground" />
+          <Webhook size="base" color="default" />
         </Button>
       </TooltipTrigger>
       <TooltipContent>{label}</TooltipContent>

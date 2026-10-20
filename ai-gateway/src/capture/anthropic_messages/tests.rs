@@ -554,7 +554,7 @@ async fn streamed_messages_upload_one_generation_with_native_usage() {
     );
     let forwarded = provider
         .forward_route(
-            provider.try_admit().unwrap(),
+            provider.admit(),
             context,
             &headers,
             crate::providers::RequestBody {

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Trash2 } from "lucide-react";
+import { Trash2 } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
 import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
@@ -42,7 +42,7 @@ export function DeleteMonitorButton({
           title="Delete alert"
           aria-label="Delete alert"
         >
-          <Trash2 className="icon-base text-destructive" />
+          <Trash2 size="base" color="destructive" />
         </Button>
       }
     />

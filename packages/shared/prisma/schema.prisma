@@ -320,6 +320,7 @@ model RoleAssignment {
 }
 
 enum GatewayIngestionMode {
+  NONE  @map("none")
   USAGE @map("usage")
   FULL  @map("full")
 }

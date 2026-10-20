@@ -548,7 +548,6 @@ async fn upstream_read_timeout_is_logged_as_timeout() {
     let provider = ProviderTransport::for_test(
         format!("{}/v1", upstream.url),
         ProviderLimits {
-            active: 1,
             execution: ExecutionLimits {
                 stall_timeout: Duration::from_millis(50),
                 ..ExecutionLimits::default()
@@ -564,7 +563,7 @@ async fn upstream_read_timeout_is_logged_as_timeout() {
     let _guard = tracing::subscriber::set_default(subscriber);
     let response = provider
         .forward(
-            provider.try_admit().unwrap(),
+            provider.admit(),
             context,
             &HeaderMap::new(),
             Bytes::from_static(br#"{"model":"requested"}"#),
@@ -575,7 +574,6 @@ async fn upstream_read_timeout_is_logged_as_timeout() {
     let records = records(&writer);
     assert_eq!(records.len(), 1);
     assert_eq!(records[0]["outcome"], "timeout");
-    assert!(provider.try_admit().is_ok());
 }
 
 #[tokio::test]
@@ -605,7 +603,6 @@ async fn native_http_relay_logs_once_on_eof_drop_and_unpolled_deadline() {
         let provider = ProviderTransport::for_test(
             format!("{}/v1", upstream.url),
             ProviderLimits {
-                active: 1,
                 execution: ExecutionLimits {
                     max_execution_time: Duration::from_secs(1),
                     ..ExecutionLimits::default()
@@ -621,7 +618,7 @@ async fn native_http_relay_logs_once_on_eof_drop_and_unpolled_deadline() {
         let _guard = tracing::subscriber::set_default(subscriber);
         let response = provider
             .forward(
-                provider.try_admit().unwrap(),
+                provider.admit(),
                 context,
                 &HeaderMap::new(),
                 Bytes::from_static(br#"{"model":"requested","input":"request-content"}"#),
@@ -636,7 +633,6 @@ async fn native_http_relay_logs_once_on_eof_drop_and_unpolled_deadline() {
             RelayOutcome::Cancelled => drop(response),
             RelayOutcome::Timeout => {
                 tokio::time::sleep(Duration::from_millis(1100)).await;
-                assert!(provider.try_admit().is_ok());
                 drop(response);
             }
             RelayOutcome::TransportError => unreachable!(),
@@ -649,7 +645,6 @@ async fn native_http_relay_logs_once_on_eof_drop_and_unpolled_deadline() {
             assert_eq!(records[0]["output_complete"], true);
             assert!(records[0]["first_byte_ms"].is_number());
         }
-        assert!(provider.try_admit().is_ok());
         assert_eq!(upstream.calls(), 1);
     }
 }
@@ -671,7 +666,6 @@ async fn provider_future_finalizes_on_timeout_and_cancellation_before_headers() 
         let provider = ProviderTransport::for_test(
             format!("{}/v1", upstream.url),
             ProviderLimits {
-                active: 1,
                 execution: ExecutionLimits {
                     stall_timeout: Duration::from_millis(100),
                     ..ExecutionLimits::default()
@@ -687,7 +681,7 @@ async fn provider_future_finalizes_on_timeout_and_cancellation_before_headers() 
         let _guard = tracing::subscriber::set_default(subscriber);
         let headers = HeaderMap::new();
         let call = provider.forward(
-            provider.try_admit().unwrap(),
+            provider.admit(),
             context,
             &headers,
             Bytes::from_static(br#"{"model":"requested"}"#),
@@ -710,7 +704,6 @@ async fn provider_future_finalizes_on_timeout_and_cancellation_before_headers() 
             if cancel { "cancelled" } else { "timeout" }
         );
         assert!(records[0]["http_status"].is_null());
-        assert!(provider.try_admit().is_ok());
     }
 }
 
@@ -784,7 +777,7 @@ async fn client_compression_preferences_do_not_disable_capture() {
         );
         let forwarded = provider
             .forward(
-                provider.try_admit().unwrap(),
+                provider.admit(),
                 context,
                 &headers,
                 Bytes::from(
@@ -866,7 +859,7 @@ async fn codex_body_metadata_reaches_the_generation_without_agent_headers() {
     });
     let forwarded = provider
         .forward(
-            provider.try_admit().unwrap(),
+            provider.admit(),
             context,
             &HeaderMap::new(),
             Bytes::from(body.to_string()),

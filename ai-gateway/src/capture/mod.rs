@@ -152,7 +152,6 @@ impl ExecutionCapture {
                 (key.clone(), value)
             })
             .collect();
-        let full = context.ingestion_mode() == IngestionMode::Full;
         let span = tracing::Span::current();
         // Scanning the whole request is CPU-bound and scales with the body.
         let protocol = tracing::info_span!(
@@ -175,7 +174,7 @@ impl ExecutionCapture {
                 "key_id": attribution.key_id(),
                 "provider_connection_id": attribution.provider_connection_id(),
                 "key_metadata": key_metadata,
-                "ingestion_mode": if full { "full" } else { "usage" },
+                "ingestion_mode": context.ingestion_mode().as_str(),
             }),
             provider_model: None,
             delivery: None,

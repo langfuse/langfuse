@@ -1,4 +1,4 @@
-import { Sparkles } from "lucide-react";
+import { Sparkles } from "@langfuse/icons";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
@@ -81,10 +81,7 @@ export function TopicSetupNotice({
       ) : null}
       {showOnboarding ? (
         <div className="mx-auto flex w-full max-w-xl flex-col items-center overflow-y-auto pt-12">
-          <Sparkles
-            aria-hidden="true"
-            className="icon-xl text-muted-foreground"
-          />
+          <Sparkles aria-hidden="true" size="xl" color="muted" />
           <SplashScreen
             title={
               configured

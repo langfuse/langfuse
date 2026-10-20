@@ -17,7 +17,7 @@ import { useIsFeatureEnabled } from "@/src/features/feature-flags";
 import { useReadPath } from "@/src/features/events";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { XIcon, Check } from "lucide-react";
+import { XIcon, Check } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { ActionButton } from "@/src/components/ActionButton";
 import { cn } from "@/src/utils/tailwind";
@@ -147,7 +147,7 @@ export default function ProtectedLabelsSettings({
                     }
                   }}
                 >
-                  <XIcon className="icon-base text-icon-foreground" />
+                  <XIcon size="base" color="default" />
                 </Button>
               )}
             </StatusBadge>
@@ -201,8 +201,9 @@ export default function ProtectedLabelsSettings({
                               }}
                             >
                               <Check
-                                className={cn(
-                                  "icon-base mr-2",
+                                size="base"
+                                __rawClassName={cn(
+                                  "mr-2",
                                   field.value === label
                                     ? "opacity-100"
                                     : "opacity-0",

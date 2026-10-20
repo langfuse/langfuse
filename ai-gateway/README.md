@@ -78,11 +78,10 @@ do not load dotenv files:
 | `LANGFUSE_LOG_FORMAT`                          | `text`         | `text`, `json`                                     |
 | `LANGFUSE_LOG_LEVEL`                           | `info`         | `debug`, `info`, `warn`, `error`, `fatal` |
 | `LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS` | `10`           | Integer from 1 to 300                              |
-| `LANGFUSE_AI_GATEWAY_MAX_ACTIVE_REQUESTS` | `128` | Positive integer up to Tokio's semaphore capacity; buffered and active requests per instance |
-| `LANGFUSE_AI_GATEWAY_MAX_CONCURRENT_RESOLUTIONS` | `128` | Positive integer up to Tokio's semaphore capacity; separate model-catalog and Web-resolution budgets per instance |
 | `LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_BYTES` | `67108864` (64 MiB) | Integer from 4194304 (4 MiB) to 4294967296 (4 GiB); span and credential bytes an instance holds for upload before dropping new records |
 | `LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES` | `16777216` (16 MiB) | Integer from 1048576 (1 MiB) to 4294967295; largest accepted request body |
-| `LANGFUSE_AI_GATEWAY_SHARED_REQUEST_BUFFER_BYTES` | `1073741824` (1 GiB) | Integer from the request limit up to Tokio's semaphore capacity; request body bytes all in-flight requests of an instance may buffer together |
+| `LANGFUSE_AI_GATEWAY_MEMORY_BUDGET_BYTES` | `1073741824` (1 GiB) | Integer from the request limit plus the overhead up to Tokio's semaphore capacity; bytes all in-flight requests and model catalogs of an instance may reserve together |
+| `LANGFUSE_AI_GATEWAY_REQUEST_MEMORY_OVERHEAD_BYTES` | `2097152` (2 MiB) | Integer from 0 to 4294967295; fixed bytes each request reserves on top of its body for response capture and buffers |
 | `LANGFUSE_AI_GATEWAY_MAX_EXECUTION_SECONDS` | `600` | Integer of at least 60; ceiling from execution admission until the response completes. Web ingestion tokens last 15 minutes, so traces of longer executions may be dropped |
 | `LANGFUSE_AI_GATEWAY_STALL_TIMEOUT_SECONDS` | `120` | Integer from 1 to the execution ceiling; longest wait without progress |
 
@@ -177,8 +176,7 @@ does not set CORS headers, so no `Access-Control-Expose-Headers` is involved.
 
 Once Web resolution succeeds, the request also carries its tenant, and once it is
 sent upstream, the provider connection it was sent to. Requests rejected before
-resolution, including invalid or oversized bodies, carry none of them. A resolved
-request rejected by execution admission carries only the tenant. Provider failures
+resolution, including invalid or oversized bodies, carry none of them. Provider failures
 before response headers (502/504) still name the connection that was tried.
 
 | Response header | Server span field | JSON log key | Value |
@@ -204,7 +202,7 @@ has no unattributed wall time:
 
 | Span | Covers |
 | --- | --- |
-| `resolution` | Resolution admission, the `resolver` Web call, and execution admission; `gateway.outcome` is `admitted`, `resolution_failed`, or `busy` |
+| `resolution` | The `resolver` Web call; `gateway.outcome` is `admitted` or `resolution_failed` |
 | `request.body` | Buffering the caller's request body, mostly upload time; `http.request.body.size` |
 | `request.capture` | Parsing the request for inference telemetry; CPU-bound and proportional to `http.request.body.size` |
 | `provider.headers` | The provider HTTP send through response headers, including connection setup |
@@ -244,11 +242,15 @@ Gateway-specific metrics:
   `http.server.response.body.size` (`gateway.provider`), in bytes: the buffered
   request body, and the bytes relayed from the provider, including truncated or
   cancelled streams.
-- `gateway.active`, `gateway.admission.capacity`, and `gateway.active.peak`
-  (`phase`): in-flight, configured, and most-held-since-last-export slots for
-  model_catalog/resolution/execution.
+- `gateway.active` and `gateway.active.peak` (`phase`): in-flight and
+  most-in-flight-since-last-export model_catalog/resolution/execution work.
+- `gateway.memory.budget`, `gateway.memory.reserved`, and
+  `gateway.memory.reserved.peak`, in bytes: the configured memory budget, the bytes
+  in-flight requests hold, and the most held since the last export. Peak utilisation
+  is `gateway.memory.reserved.peak / gateway.memory.budget`.
 - `gateway.phase.duration` (execution/provider.first_byte), `gateway.executions`,
-  `gateway.admission.rejected`, and `gateway.telemetry.records`.
+  `gateway.admission.rejected` (`phase`: `request`, `request_body` or
+  `model_catalog`), and `gateway.telemetry.records`.
 
 Durations use seconds; first-byte timing measures provider bytes arriving at the
 gateway, not first-token delivery to the caller. Metric attributes contain
@@ -394,22 +396,28 @@ error type follows the status (`authentication_error`, `permission_error`,
 `not_found_error`, `request_too_large`, `invalid_request_error`, `overloaded_error`,
 `api_error`).
 
-After validating the credential header, the gateway buffers and validates the request
-under the active-request admission budget and a shared request-byte budget, then resolves the credential and
-model-aware route through Web under a separate budget. A declared `Content-Length` is
-checked against the request limit before reading. The byte budget covers the buffer's
-allocation and grows as bytes arrive, so a client that declares a large body and stalls
-holds only what it sent. The body slot and its bytes stay reserved with the execution
-until the response ends. Model catalogs use another budget so slow catalog discovery
-cannot block inference resolution.
-Execution capacity remains reserved through response completion. An exhausted budget
-returns 503 immediately without a waiting queue. Request-body and execution budgets
-use the active-request limit, and buffered bodies also share
-`LANGFUSE_AI_GATEWAY_SHARED_REQUEST_BUFFER_BYTES`; model-catalog and Web-call budgets use the resolution
-limit. Their defaults of 128 are provisional
-guardrails, not measured capacity: tune them using load tests for the instance
-resources, request sizes and stream durations. These limits bound work; they do not
-guarantee fairness between clients or tenants.
+Admission is bounded by memory only. After validating the credential header, the
+gateway reserves a fixed per-request overhead from the instance's memory budget, then
+buffers and validates the request and resolves the credential and model-aware route
+through Web. A declared `Content-Length` is checked against the request limit before
+reading. The reservation grows with the body buffer's allocation as bytes arrive, so a
+client that declares a large body and stalls holds only the overhead and what it sent.
+The whole reservation stays held until the response ends. Model catalog requests
+reserve the overhead, grow it with Web's catalog buffer as it arrives, then to three
+times the catalog for parsing and the provider-shaped response, and hold it until the
+client has read that response; the response is relayed under the same stall timeout and
+execution deadline as provider responses. An exhausted budget returns 503 immediately without a
+waiting queue. There is no request-count limit; file descriptors are bounded by the
+container.
+
+The overhead stands in for what a request holds besides its body: retained capture
+output (up to 1 MiB), one inspected response event (up to 1 MiB), the relay chunk and
+resolution context. The 2 MiB default sits above the typical request: on staging,
+responses average 8 KB (Anthropic) to 210 KB (OpenAI), with a largest of 3 MB. With
+the 1 GiB budget it admits about 400 typical concurrent requests. The parsed request
+input kept for capture is covered by the body's reservation, which outlives the
+buffered bytes. These limits bound work; they do not guarantee fairness between
+clients or tenants.
 
 Request bodies are limited to 16 MiB by default in both namespaces. The body read deadline
 scales with that limit: at least 30 seconds, and enough for the maximal body at 10 MiB per
@@ -421,7 +429,7 @@ upstream chunk, without the downstream accepting a chunk, or, for streamed calls
 headers. A non-streamed generation waits for headers until the ceiling, because
 providers send nothing until the response is generated. Response size is not capped: a single task pumps chunks
 through a one-slot channel, with chunks at most 64 KiB. It stops reading when that
-channel fills. Completion, disconnect, stall and ceiling release admission and context;
+channel fills. Completion, disconnect, stall and ceiling release the memory reservation and context;
 both timeouts run even when the downstream stops polling. A failure after headers
 terminates the response body without adding an error event or retrying.
 
@@ -780,7 +788,7 @@ most 64 KiB in total; larger members stay in the input) are parsed, and full-mod
 input keeps the client's raw JSON for those members, so it retains about one body
 of memory. The retained-output limit counts the parsed output's estimated memory,
 which for many small objects is far larger than its serialized size. The
-active-request limit bounds the number of captures. Trusted key metadata is bounded by the resolver's
+memory budget bounds the number of captures. Trusted key metadata is bounded by the resolver's
 256 KiB response limit. In full mode, an input that is not recorded (over 5 MiB,
 content-encoded or not a JSON object) is explained in generation metadata:
 `langfuse.gateway.request.input_omitted` (`size_limit`, `content_encoding` or
@@ -944,7 +952,7 @@ cargo test --locked
 - `main.rs`: configuration, logging, signal registration and process exit.
 - `http.rs`: credential extraction, bounded body reads and gateway error envelopes.
 - `inference.rs`: `InferenceService` coordinates resolution, admission and forwarding.
-- `providers/mod.rs`: `ProviderTransport` with shared admission, the `Route` enum of
+- `providers/mod.rs`: `ProviderTransport`, the `Route` enum of
   official operations (method, upstream path and capture), model rewriting and credential
   placement.
 - `providers/model_list`: provider-native OpenAI and Anthropic model catalog responses.

@@ -2,7 +2,7 @@
 import { api } from "@/src/utils/api";
 import { useMemo } from "react";
 
-import { ImageOff } from "lucide-react";
+import { ImageOff } from "@langfuse/icons";
 import {
   MediaReferenceStringSchema,
   OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE,
@@ -80,7 +80,7 @@ export const LangfuseMediaView = ({
     return (
       <div className="flex items-center gap-2">
         <span title={text}>
-          <ImageOff className="icon-base" />
+          <ImageOff size="base" />
         </span>
         <span className="truncate text-sm" title={text}>
           {text}

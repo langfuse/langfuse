@@ -1,6 +1,14 @@
 import { Sha256 } from "@aws-crypto/sha256-js";
 import { SignatureV4 } from "@smithy/signature-v4";
-import { NoObjectGeneratedError, Output, type LanguageModelUsage } from "ai";
+import {
+  APICallError,
+  NoObjectGeneratedError,
+  Output,
+  TypeValidationError,
+  type LanguageModelUsage,
+  type StepResult,
+  type ToolSet,
+} from "ai";
 import { z } from "zod";
 import { decrypt } from "../../encryption";
 import { BedrockConfigSchema } from "../../interfaces/customLLMProviderConfigSchemas";
@@ -9,6 +17,7 @@ import {
   canUseBedrockDefaultCredentials,
   resolveBedrockProviderAuth,
 } from "../llm/ai-sdk/providers/bedrock";
+import { isPlainObject } from "../llm/ai-sdk/providers/utils";
 import { generateLLMText } from "../llm/llmText";
 import { LLMAdapter, type TraceSinkParams } from "../llm/types";
 import { logger } from "../logger";
@@ -17,6 +26,35 @@ import { writeInternalTraceViaOtelIngestion } from "../otel/internalTraceOtelWri
 import type { TopicsModel } from "./model-config";
 
 const TIMEOUT_MS = 60_000;
+
+// Error identity and lifetime are preserved, including for frozen SDK errors.
+const responseMetadataByError = new WeakMap<
+  object,
+  TopicTextResponseMetadata
+>();
+
+const RAW_FINISH_REASONS = new Set([
+  "stop",
+  "length",
+  "content_filter",
+  "tool_calls",
+  "function_call",
+  "end_turn",
+  "max_tokens",
+  "stop_sequence",
+  "tool_use",
+  "refusal",
+  "guardrail_intervened",
+  "content_filtered",
+  "model_context_window_exceeded",
+  "malformed_model_output",
+  "pause_turn",
+  "STOP",
+  "MAX_TOKENS",
+  "SAFETY",
+  "RECITATION",
+  "OTHER",
+]);
 
 /**
  * Structured Topics text through the project's LLM connection. GPT-5.6+ models
@@ -29,9 +67,14 @@ export async function generateTopicText<T>(
 ): Promise<TopicTextResult> {
   const startTimeISO = new Date().toISOString();
   let result: TopicTextResult | undefined;
+  let responseMetadata: TopicTextResponseMetadata | undefined;
   let failure: unknown;
-  const recordResponse = (response: TopicTextResult) => {
+  const recordResponse = (
+    response: TopicTextResult,
+    metadata?: TopicTextResponseMetadata,
+  ) => {
     result = response;
+    responseMetadata = metadata;
   };
   try {
     result =
@@ -41,6 +84,20 @@ export async function generateTopicText<T>(
     return result;
   } catch (error) {
     failure = error;
+    // Responses refusal blocks can fail SDK validation before onEnd runs.
+    if (
+      APICallError.isInstance(error) &&
+      error.statusCode === 200 &&
+      TypeValidationError.isInstance(error.cause) &&
+      hasOpenAIRefusal(error.cause.value)
+    ) {
+      responseMetadata = {
+        "langfuse.topics.response.finish_reason": "content-filter",
+      };
+    }
+    if (responseMetadata && error !== null && typeof error === "object") {
+      responseMetadataByError.set(error, responseMetadata);
+    }
     if (NoObjectGeneratedError.isInstance(error)) {
       result = { output: error.text, usage: topicUsage(error.usage) };
     }
@@ -48,6 +105,13 @@ export async function generateTopicText<T>(
   } finally {
     await writeTopicTrace(params, startTimeISO, result, failure);
   }
+}
+
+/** Bounded response diagnostics for the existing Topics failure log; no content. */
+export function getTopicTextResponseMetadata(error: unknown) {
+  return error !== null && typeof error === "object"
+    ? responseMetadataByError.get(error)
+    : undefined;
 }
 
 async function writeTopicTrace<T>(
@@ -86,9 +150,8 @@ async function writeTopicTrace<T>(
         },
       ],
     });
-  } catch (error) {
+  } catch {
     logger.error("Failed to publish Topics model trace", {
-      error,
       traceId: trace.traceId,
     });
   }
@@ -127,7 +190,11 @@ function topicTraceError(failure: unknown) {
   };
 }
 
-function topicMessages(params: { system: TopicPromptPart[]; input: string }) {
+/** The provider-bound messages of a Topics request; also used to measure its egress. */
+export function topicMessages(params: {
+  system: TopicPromptPart[];
+  input: string;
+}) {
   return [
     {
       role: "system" as const,
@@ -151,7 +218,10 @@ function topicUsage(
 
 async function generateWithConnection<T>(
   params: TopicTextParams<T>,
-  recordResponse: (result: TopicTextResult) => void,
+  recordResponse: (
+    result: TopicTextResult,
+    metadata: TopicTextResponseMetadata,
+  ) => void,
 ): Promise<TopicTextResult> {
   const nativeOpenAI = isFirstPartyOpenAI(params.model);
   const result = await generateLLMText({
@@ -163,7 +233,7 @@ async function generateWithConnection<T>(
     messages: topicMessages(params),
     output: Output.object({ schema: params.schema }),
     maxOutputTokens: params.maxOutputTokens,
-    reasoning: nativeOpenAI ? openAIReasoning(params.model.model) : "none",
+    reasoning: topicReasoning(params.model),
     // Bedrock ignores portable reasoning for OpenAI models; their default effort
     // is not none.
     ...(isBedrockGPT(params.model)
@@ -178,14 +248,89 @@ async function generateWithConnection<T>(
     // The AI SDK retries 429 and 5xx responses with exponential backoff.
     maxRetries: 2,
     timeout: params.timeoutMs ?? TIMEOUT_MS,
+    // Retain wire refusal markers in memory; diagnostics only expose their classification.
+    include: { responseBody: true },
+    // onEnd runs before structured-output parsing and the output getter can throw.
+    onEnd: ({ finalStep }) => {
+      const text = finalStep.text;
+      recordResponse(
+        { output: text, usage: topicUsage(finalStep.usage) },
+        responseAttributes(finalStep, text.length, params.maxOutputTokens),
+      );
+    },
   });
   const usage = topicUsage(result.usage);
-  // The SDK's output getter can throw after a response with billable usage.
-  recordResponse({ output: result.text, usage });
   return {
     output: result.output,
     usage,
   };
+}
+
+function responseAttributes(
+  step: StepResult<ToolSet>,
+  textCharacters: number,
+  maxOutputTokens: number,
+): TopicTextResponseMetadata {
+  return {
+    "langfuse.topics.response.finish_reason": hasOpenAIRefusal(
+      step.response.body,
+    )
+      ? "content-filter"
+      : step.finishReason,
+    "langfuse.topics.response.raw_finish_reason": RAW_FINISH_REASONS.has(
+      step.rawFinishReason ?? "",
+    )
+      ? step.rawFinishReason!
+      : "other",
+    "langfuse.topics.response.text_characters": textCharacters,
+    "langfuse.topics.response.text_part_count": step.content.filter(
+      (part) => part.type === "text",
+    ).length,
+    "langfuse.topics.response.reasoning_part_count": step.content.filter(
+      (part) => part.type === "reasoning",
+    ).length,
+    "langfuse.topics.response.max_output_tokens": maxOutputTokens,
+    ...(step.usage.outputTokens !== undefined && {
+      "langfuse.topics.response.output_tokens": step.usage.outputTokens,
+    }),
+  };
+}
+
+/** Inspect wire markers only; generated text and exception messages are not signals. */
+function hasOpenAIRefusal(body: unknown): boolean {
+  if (!isPlainObject(body)) return false;
+  const choice = Array.isArray(body.choices) ? body.choices[0] : undefined;
+  const message = isPlainObject(choice) ? choice.message : undefined;
+  if (
+    isPlainObject(message) &&
+    typeof message.refusal === "string" &&
+    message.refusal.length > 0
+  )
+    return true;
+  return (
+    Array.isArray(body.output) &&
+    body.output.some(
+      (item: unknown) =>
+        isPlainObject(item) &&
+        item.type === "message" &&
+        item.role === "assistant" &&
+        Array.isArray(item.content) &&
+        item.content.some(
+          (part: unknown) => isPlainObject(part) && part.type === "refusal",
+        ),
+    )
+  );
+}
+
+function topicReasoning(model: TopicsModel): "none" | "minimal" | undefined {
+  if (isFirstPartyOpenAI(model)) return openAIReasoning(model.model);
+  /** Compatible endpoints choose their own supported reasoning settings. */
+  if (
+    model.adapter === LLMAdapter.OpenAI &&
+    model.connection.config?.useResponsesApi !== true
+  )
+    return undefined;
+  return "none";
 }
 
 /** Topics owns its OpenAI request options; saved evaluator options keep their routing. */
@@ -295,7 +440,10 @@ async function bedrockRequestHeaders(
 
 async function invokeWithCache(
   params: TopicTextParams<unknown>,
-  recordResponse: (result: TopicTextResult) => void,
+  recordResponse: (
+    result: TopicTextResult,
+    metadata?: TopicTextResponseMetadata,
+  ) => void,
 ): Promise<TopicTextResult> {
   const { region } = BedrockConfigSchema.parse(params.model.connection.config);
   assertValidBedrockRegion(region);
@@ -367,7 +515,12 @@ async function invokeWithCache(
     },
   };
   // Retain paid usage and the original response if parsing or validation fails.
-  recordResponse(result);
+  recordResponse(
+    result,
+    hasOpenAIRefusal(json)
+      ? { "langfuse.topics.response.finish_reason": "content-filter" }
+      : undefined,
+  );
 
   if (!message?.content || json.choices?.[0]?.finish_reason === "length")
     throw Object.assign(
@@ -384,6 +537,8 @@ async function invokeWithCache(
 
 /** A system prompt segment; `cache` ends a reusable prefix with a cache breakpoint. */
 export type TopicPromptPart = { text: string; cache?: boolean };
+
+type TopicTextResponseMetadata = Record<string, string | number>;
 
 type TopicTextResult = {
   output: unknown;

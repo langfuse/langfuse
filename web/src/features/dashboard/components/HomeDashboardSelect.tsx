@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { LayoutDashboard } from "lucide-react";
+import { LayoutDashboard } from "@langfuse/icons";
 import { api } from "@/src/utils/api";
 import { Combobox } from "@/src/components/ui/combobox";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
@@ -76,7 +76,7 @@ export function HomeDashboardSelect({
         title="The dashboard shown on this project's home page"
         className="text-muted-foreground my-0"
       >
-        <LayoutDashboard className="icon-base text-icon-foreground mr-1" />
+        <LayoutDashboard size="base" color="default" __rawClassName="mr-1" />
         {currentDashboardName}
       </Button>
     );

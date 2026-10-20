@@ -17,6 +17,21 @@ export const Enabled = meta.story({
     gatewayBaseUrl: "https://gateway.staging.langfuse.com/v1",
     initialProjectId: "project-production",
     initialIngestionMode: "USAGE",
+    availableIngestionModes: ["USAGE", "FULL"],
+    isSaving: false,
+    saveError: false,
+    onSave: fn(),
+    onCreateProject: fn(),
+  },
+});
+
+export const SelfHostedNoCapture = meta.story({
+  args: {
+    projects,
+    gatewayBaseUrl: "https://gateway.example.com/v1",
+    initialProjectId: "project-production",
+    initialIngestionMode: "NONE",
+    availableIngestionModes: ["NONE", "USAGE", "FULL"],
     isSaving: false,
     saveError: false,
     onSave: fn(),
@@ -30,6 +45,7 @@ export const MissingProjectWarning = meta.story({
     gatewayBaseUrl: "https://gateway.staging.langfuse.com/v1",
     initialProjectId: "deleted-project",
     initialIngestionMode: "FULL",
+    availableIngestionModes: ["USAGE", "FULL"],
     isSaving: false,
     saveError: false,
     onSave: fn(),
