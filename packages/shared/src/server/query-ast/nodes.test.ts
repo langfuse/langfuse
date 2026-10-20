@@ -512,6 +512,7 @@ describe("tenancy injection", () => {
             .select("sub.id"),
       ],
     ])("rejects a CTE body that reads %s", (_, build) => {
+      expect(() => compile(build())).toThrow(UnscopedRelationError);
       expect(() => compile(build())).toThrow(
         "is neither a registry table nor a CTE in scope",
       );
@@ -614,7 +615,7 @@ describe("tenancy injection", () => {
     it("rejects a schema-qualified read, even of a registry table", () => {
       // The registry describes `traces`, not `default.traces` or
       // `otherdb.traces`; the read is in a CTE body, so the walk reaches it.
-      expect(() =>
+      const build = () =>
         compile(
           db
             .with("a", (qb) =>
@@ -622,8 +623,9 @@ describe("tenancy injection", () => {
             )
             .selectFrom("a")
             .select("id"),
-        ),
-      ).toThrow(`"otherdb.traces" is schema-qualified`);
+        );
+      expect(build).toThrow(UnscopedRelationError);
+      expect(build).toThrow(`"otherdb.traces" is schema-qualified`);
     });
 
     it("accepts a CTE named like an Object prototype key", () => {

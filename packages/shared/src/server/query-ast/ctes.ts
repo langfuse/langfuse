@@ -8,7 +8,7 @@ import {
   type TableNode,
 } from "kysely";
 
-import { QueryCompileError } from "./errors";
+import { QueryCompileError, UnscopedRelationError } from "./errors";
 import { walkNodes } from "./nodes";
 import { selectRelations } from "./relations";
 import { REGISTRY_TABLES } from "./schema";
@@ -99,12 +99,12 @@ function assertReadResolves(
 ): void {
   const name = table.table.identifier.name;
   if (table.table.schema) {
-    throw new QueryCompileError(
+    throw new UnscopedRelationError(
       `"${table.table.schema.name}.${name}" is schema-qualified: the registry describes tables by name in the configured database. Read "${name}" unqualified.`,
     );
   }
   if (!REGISTRY_TABLES.has(name) && !visible.has(name)) {
-    throw new QueryCompileError(
+    throw new UnscopedRelationError(
       `"${name}" is neither a registry table nor a CTE in scope. A CTE body reads only CTEs declared before it, so recursive and cyclic CTEs are not supported: declare the CTEs in the order they read each other. To read a physical table, add it to the registry in schema.ts.`,
     );
   }

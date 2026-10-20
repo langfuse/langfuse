@@ -20,7 +20,7 @@ import {
 } from "kysely";
 
 import { QueryCompileError, UnscopedRelationError } from "./errors";
-import { type ClickHouseSelectQueryNode } from "./nodes";
+import { walkNodes, type ClickHouseSelectQueryNode } from "./nodes";
 import { describeRelation } from "./relations";
 import { TENANTED_TABLES } from "./schema";
 import { SelectRewriteTransformer } from "./transformer";
@@ -306,29 +306,21 @@ export function assertTenancyStamped(node: RootOperationNode): void {
 
 const RAW_RELATION_SQL = /\b(?:from|join|select)\b/i;
 
-function rejectUnscopedRawSql(node: unknown): void {
-  if (!node || typeof node !== "object") return;
-  if (Array.isArray(node)) {
-    for (const item of node) rejectUnscopedRawSql(item);
-    return;
-  }
-  if (RawNode.is(node as OperationNode)) {
-    const { sqlFragments, parameters } = node as RawNode;
-    if (sqlFragments.some((fragment) => RAW_RELATION_SQL.test(fragment))) {
+function rejectUnscopedRawSql(root: unknown): void {
+  walkNodes(root, (node) => {
+    if (!RawNode.is(node)) return;
+    if (node.sqlFragments.some((fragment) => RAW_RELATION_SQL.test(fragment))) {
       throw new UnscopedRelationError(
         "Raw SQL fragments that introduce a relation (SELECT/FROM/JOIN) are rejected in any position: they can bypass tenancy injection. Use traced table and column references instead.",
       );
     }
     // `x IN ${sql.table("traces")}` reads a table with no FROM to scope.
-    if (parameters.some((parameter) => TableNode.is(parameter))) {
+    if (node.parameters.some((parameter) => TableNode.is(parameter))) {
       throw new UnscopedRelationError(
         "A table reference inside raw SQL (sql.table) is rejected in any position: it reads a relation the tenancy pass cannot scope. Read the table through selectFrom/innerJoin or a subquery instead.",
       );
     }
-  }
-  for (const value of Object.values(node)) {
-    rejectUnscopedRawSql(value);
-  }
+  });
 }
 
 /**
@@ -341,18 +333,12 @@ export function assertRelationFree(node: OperationNode): void {
   rejectSubqueries(node);
 }
 
-function rejectSubqueries(node: unknown): void {
-  if (!node || typeof node !== "object") return;
-  if (Array.isArray(node)) {
-    for (const item of node) rejectSubqueries(item);
-    return;
-  }
-  if ("kind" in node && node.kind === "SelectQueryNode") {
-    throw new UnscopedRelationError(
-      "A standalone expression cannot contain a subquery: it has no tenancy scope. Compile the query through compileClickhouseQuery() instead.",
-    );
-  }
-  for (const value of Object.values(node)) {
-    rejectSubqueries(value);
-  }
+function rejectSubqueries(root: unknown): void {
+  walkNodes(root, (node) => {
+    if (SelectQueryNode.is(node)) {
+      throw new UnscopedRelationError(
+        "A standalone expression cannot contain a subquery: it has no tenancy scope. Compile the query through compileClickhouseQuery() instead.",
+      );
+    }
+  });
 }
