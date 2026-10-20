@@ -133,4 +133,3 @@ describe("compilePrismaFilters", () => {
     ).toThrow("Unsupported Prisma filter: unknown (string)");
   });
 });
-
