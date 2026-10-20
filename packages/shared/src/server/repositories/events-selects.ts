@@ -1,14 +1,4 @@
-import {
-  sql,
-  type Expression,
-  type ExpressionBuilder,
-  type SelectExpression,
-} from "kysely";
-
-import type {
-  SkillsAvailable,
-  SkillsResourceLoaded,
-} from "../../features/skills/trace";
+import type { Expression, ExpressionBuilder, SelectExpression } from "kysely";
 
 import {
   argMaxIf,
@@ -469,12 +459,8 @@ function rowFieldSelectMap(eb: EventsExpressionBuilder) {
     promptId: "e.prompt_id as prompt_id",
     promptName: "e.prompt_name as prompt_name",
     promptVersion: "e.prompt_version as prompt_version",
-    skillsAvailable: sql
-      .ref<SkillsAvailable>("e.skills_available")
-      .as("skills_available"),
-    skillsResourceLoaded: sql
-      .ref<SkillsResourceLoaded>("e.skills_resource_loaded")
-      .as("skills_resource_loaded"),
+    skillsAvailable: "e.skills_available as skills_available",
+    skillsResourceLoaded: "e.skills_resource_loaded as skills_resource_loaded",
     toolDefinitions: "e.tool_definitions as tool_definitions",
     toolCalls: "e.tool_calls as tool_calls",
     toolCallNames: "e.tool_call_names as tool_call_names",
