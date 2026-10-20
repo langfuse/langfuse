@@ -142,13 +142,14 @@ suffix to run there. Promote it to a required check once it has proven stable.
   `.where((eb) => …)` with the query's own `eb`. That only type-checks in a
   query that reads a full events row as `e` and nothing else: no join, no
   narrower `e`. Columns inside such a helper are written `e.…`, so an alias
-  of the same name in the calling query can't shadow them. Never pass a query's
-  own builder to a helper typed `ExpressionBuilder<{ e: … }, "e">`; wrap the
-  helper in `scopedToEvents` instead. That type is contravariant in `DB` and
-  accepts joins, so it takes any query's builder and the check is lost. A
-  module-level constant built from a detached `expressionBuilder()` loses it
-  too: helper results don't carry their table scope in their type, and
-  Kysely's `select()` / `where()` accept any expression.
+  of the same name in the calling query can't shadow them. A helper typed
+  `ExpressionBuilder<{ e: … }, "e">` checks the alias and the columns its type
+  names, but not joins or the rest of the row: fine for a fixed small column
+  set (`observationIoSelects` over `{ e: IoColumns }`), not a substitute for
+  `scopedToEvents`. A module-level constant built from a detached
+  `expressionBuilder()` loses the check entirely: helper results don't carry
+  their table scope in their type, and Kysely's `select()` / `where()` accept
+  any expression.
 - **ClickHouse-only clauses use `$call(helper())`** — not fluent builder
   methods, so they compose inside CTEs, subqueries, and views. See the recipes
   below.
