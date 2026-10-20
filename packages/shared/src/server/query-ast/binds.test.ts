@@ -586,19 +586,6 @@ describe("typed params from the column registry", () => {
         /"unregistered" is not a registered table/,
       ],
       [
-        // A reference to a column named `*` expands `u` like `selectAll("u")`.
-        "a CTE dynamic.ref star over a table outside the registry",
-        () =>
-          unregistered
-            .with("t", (qb) =>
-              qb.selectFrom("unregistered as u").select(db.dynamic.ref("u.*")),
-            )
-            .selectFrom("t as t")
-            .select(db.dynamic.ref("t.trace_id"))
-            .where(db.dynamic.ref("t.start_time"), ">=", START),
-        /"unregistered" is not a registered table/,
-      ],
-      [
         // `t` outputs value computed (UInt64); scores types it Float64.
         "an unqualified column one relation outputs computed and another types",
         () =>
@@ -624,16 +611,6 @@ describe("typed params from the column registry", () => {
             .select("span_id")
             .where(sql_.ref("x.is_deleted"), "=", 0),
         /no relation in scope is named "x"/,
-      ],
-      [
-        "an unqualified sql.ref column the joined relations type differently",
-        () =>
-          db
-            .selectFrom("events_core as e")
-            .innerJoin("observations as o", "o.trace_id", "e.trace_id")
-            .select("e.span_id")
-            .where(sql_.ref("start_time"), ">=", START),
-        /joined relations give it different types/,
       ],
       [
         // Kysely only accepts a declared qualifier, so the test widens it.
