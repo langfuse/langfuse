@@ -380,12 +380,18 @@ export function concat(...values: Expression<string>[]): ChExpression<string> {
   return functionCall("concat", values);
 }
 
-/** ClickHouse `startsWith(haystack, prefix)`, with `prefix` bound. */
+/**
+ * ClickHouse `startsWith(haystack, prefix)`. A string prefix is bound; pass
+ * `literal(...)` for a code constant so it is inlined.
+ */
 export function startsWith(
   haystack: Expression<string>,
-  prefix: string,
+  prefix: string | Expression<string>,
 ): ChExpression<SqlBool> {
-  return functionCall("startsWith", [haystack, ValueNode.create(prefix)]);
+  return functionCall("startsWith", [
+    haystack,
+    typeof prefix === "string" ? ValueNode.create(prefix) : prefix,
+  ]);
 }
 
 /** ClickHouse `length(array)`. */

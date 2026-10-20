@@ -11,7 +11,6 @@ exports[`golden: events IO payload reads family > getObservationFullIOForSession
       "param4": "golden-span",
       "param5": "2025-12-31 23:59:59.000",
       "param6": "2026-01-01 00:00:01.000",
-      "param7": 1,
     },
     "route": "unknown",
     "sql": "SELECT
@@ -36,7 +35,7 @@ FROM
         AND (e.start_time >= {param5:DateTime64(6)})
         AND (e.start_time <= {param6:DateTime64(6)})
     ORDER BY e.event_ts DESC
-    LIMIT {param7:Int64}
+    LIMIT 1
 ) AS latest
 WHERE latest.is_deleted = 0",
   },
@@ -53,7 +52,6 @@ exports[`golden: events IO payload reads family > getObservationIOFieldByteLengt
       "param3": "golden-span",
       "param4": "2025-12-31 23:59:59.000",
       "param5": "2026-01-01 00:00:01.000",
-      "param6": 1,
     },
     "route": "observation-io-stream-length",
     "sql": "SELECT latest.len
@@ -69,7 +67,7 @@ FROM
         AND (e.start_time >= {param4:DateTime64(6)})
         AND (e.start_time <= {param5:DateTime64(6)})
     ORDER BY e.event_ts DESC
-    LIMIT {param6:Int64}
+    LIMIT 1
 ) AS latest
 WHERE latest.is_deleted = 0",
   },
@@ -86,7 +84,6 @@ exports[`golden: events IO payload reads family > getObservationIOFieldByteLengt
       "param3": "golden-span",
       "param4": "2025-12-31 23:59:59.000",
       "param5": "2026-01-01 00:00:01.000",
-      "param6": 1,
     },
     "route": "observation-io-stream-length",
     "sql": "SELECT latest.len
@@ -102,7 +99,7 @@ FROM
         AND (e.start_time >= {param4:DateTime64(6)})
         AND (e.start_time <= {param5:DateTime64(6)})
     ORDER BY e.event_ts DESC
-    LIMIT {param6:Int64}
+    LIMIT 1
 ) AS latest
 WHERE latest.is_deleted = 0",
   },
@@ -119,7 +116,6 @@ exports[`golden: events IO payload reads family > getObservationIOFieldByteLengt
       "param3": "golden-span",
       "param4": "2025-12-31 23:59:59.000",
       "param5": "2026-01-01 00:00:01.000",
-      "param6": 1,
     },
     "route": "observation-io-stream-length",
     "sql": "SELECT latest.len
@@ -135,7 +131,7 @@ FROM
         AND (e.start_time >= {param4:DateTime64(6)})
         AND (e.start_time <= {param5:DateTime64(6)})
     ORDER BY e.event_ts DESC
-    LIMIT {param6:Int64}
+    LIMIT 1
 ) AS latest
 WHERE latest.is_deleted = 0",
   },
@@ -526,7 +522,6 @@ exports[`golden: events IO payload reads family > streamObservationIOFieldFromEv
       "param3": "golden-span",
       "param4": "2025-12-31 23:59:59.000",
       "param5": "2026-01-01 00:00:01.000",
-      "param6": 1,
     },
     "route": "observation-io-stream",
     "sql": "SELECT latest.field
@@ -542,7 +537,7 @@ FROM
         AND (e.start_time >= {param4:DateTime64(6)})
         AND (e.start_time <= {param5:DateTime64(6)})
     ORDER BY e.event_ts DESC
-    LIMIT {param6:Int64}
+    LIMIT 1
 ) AS latest
 WHERE latest.is_deleted = 0
 FORMAT RawBLOB",
@@ -560,7 +555,6 @@ exports[`golden: events IO payload reads family > streamObservationIOFieldFromEv
       "param3": "golden-span",
       "param4": "2025-12-31 23:59:59.000",
       "param5": "2026-01-01 00:00:01.000",
-      "param6": 1,
     },
     "route": "observation-io-stream",
     "sql": "SELECT latest.field
@@ -576,7 +570,7 @@ FROM
         AND (e.start_time >= {param4:DateTime64(6)})
         AND (e.start_time <= {param5:DateTime64(6)})
     ORDER BY e.event_ts DESC
-    LIMIT {param6:Int64}
+    LIMIT 1
 ) AS latest
 WHERE latest.is_deleted = 0
 FORMAT RawBLOB",
@@ -594,7 +588,6 @@ exports[`golden: events IO payload reads family > streamObservationIOFieldFromEv
       "param3": "golden-span",
       "param4": "2025-12-31 23:59:59.000",
       "param5": "2026-01-01 00:00:01.000",
-      "param6": 1,
     },
     "route": "observation-io-stream",
     "sql": "SELECT latest.field
@@ -610,7 +603,7 @@ FROM
         AND (e.start_time >= {param4:DateTime64(6)})
         AND (e.start_time <= {param5:DateTime64(6)})
     ORDER BY e.event_ts DESC
-    LIMIT {param6:Int64}
+    LIMIT 1
 ) AS latest
 WHERE latest.is_deleted = 0
 FORMAT RawBLOB",
@@ -1911,7 +1904,6 @@ exports[`golden: events point-reads & existence family > getObservationByIdFromE
     "params": {
       "param1": "golden-project",
       "param2": "golden-span",
-      "param3": 1,
     },
     "route": "unknown",
     "sql": "SELECT
@@ -2015,7 +2007,7 @@ FROM
     ORDER BY
         start_time DESC,
         event_ts DESC
-    LIMIT {param3:Int64}
+    LIMIT 1
 ) AS latest
 WHERE latest.is_deleted = 0",
   },
@@ -2029,7 +2021,6 @@ exports[`golden: events point-reads & existence family > getObservationByIdFromE
     "params": {
       "param1": "golden-project",
       "param2": "golden-span",
-      "param3": 1,
     },
     "route": "unknown",
     "sql": "SELECT
@@ -2137,7 +2128,7 @@ FROM
     ORDER BY
         start_time DESC,
         event_ts DESC
-    LIMIT {param3:Int64}
+    LIMIT 1
 ) AS latest
 WHERE latest.is_deleted = 0",
   },
@@ -2151,7 +2142,6 @@ exports[`golden: events point-reads & existence family > getObservationByIdFromE
     "params": {
       "param1": "golden-project",
       "param2": "golden-span",
-      "param3": 1,
     },
     "route": "unknown",
     "sql": "SELECT
@@ -2259,7 +2249,7 @@ FROM
     ORDER BY
         start_time DESC,
         event_ts DESC
-    LIMIT {param3:Int64}
+    LIMIT 1
 ) AS latest
 WHERE latest.is_deleted = 0",
   },
@@ -2277,7 +2267,6 @@ exports[`golden: events point-reads & existence family > getObservationByIdFromE
       "param4": "2025-11-29 00:00:00.000",
       "param5": "GENERATION",
       "param6": "golden-trace",
-      "param7": 1,
     },
     "route": "unknown",
     "sql": "SELECT
@@ -2385,7 +2374,7 @@ FROM
     ORDER BY
         start_time DESC,
         event_ts DESC
-    LIMIT {param7:Int64}
+    LIMIT 1
 ) AS latest
 WHERE latest.is_deleted = 0",
   },
@@ -2424,7 +2413,6 @@ exports[`golden: events point-reads & existence family > getTraceByIdFromEventsT
       "param2": [
         "golden-trace",
       ],
-      "param3": 1,
     },
     "route": "unknown",
     "sql": "WITH event_traces AS
@@ -2516,7 +2504,7 @@ SELECT
     t.output
 FROM event_traces AS t
 ORDER BY t.timestamp DESC
-LIMIT {param3:Int64}",
+LIMIT 1",
   },
 ]
 `;
@@ -2530,7 +2518,6 @@ exports[`golden: events point-reads & existence family > getTraceByIdFromEventsT
       "param2": [
         "golden-trace",
       ],
-      "param3": 1,
     },
     "route": "unknown",
     "sql": "WITH event_traces AS
@@ -2622,7 +2609,7 @@ SELECT
     '' AS output
 FROM event_traces AS t
 ORDER BY t.timestamp DESC
-LIMIT {param3:Int64}",
+LIMIT 1",
   },
 ]
 `;
@@ -2638,7 +2625,6 @@ exports[`golden: events point-reads & existence family > getTraceByIdFromEventsT
       ],
       "param3": "2025-11-29 00:00:00.000",
       "param4": "2026-01-01 00:00:00.000",
-      "param5": 1,
     },
     "route": "unknown",
     "sql": "WITH event_traces AS
@@ -2732,7 +2718,7 @@ SELECT
 FROM event_traces AS t
 WHERE toDate(t.timestamp) = toDate({param4:DateTime64(6)})
 ORDER BY t.timestamp DESC
-LIMIT {param5:Int64}",
+LIMIT 1",
   },
 ]
 `;
@@ -2746,7 +2732,6 @@ exports[`golden: events point-reads & existence family > getTraceByIdFromEventsT
       "param2": [
         "golden-trace",
       ],
-      "param3": 1,
     },
     "route": "unknown",
     "sql": "WITH event_traces AS
@@ -2838,7 +2823,7 @@ SELECT
     leftUTF8(t.output, 1000) AS output
 FROM event_traces AS t
 ORDER BY t.timestamp DESC
-LIMIT {param3:Int64}",
+LIMIT 1",
   },
 ]
 `;
@@ -2881,7 +2866,6 @@ exports[`golden: events point-reads & existence family > hasAnySessionFromEvents
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param2": 1,
     },
     "route": "unknown",
     "sql": "SELECT 1 AS one
@@ -2890,7 +2874,7 @@ WHERE (events.project_id = {param1:String})
     AND (events.is_deleted = 0)
     AND (session_id IS NOT NULL)
     AND (session_id != '')
-LIMIT {param2:Int64}",
+LIMIT 1",
   },
 ]
 `;
@@ -2901,14 +2885,13 @@ exports[`golden: events point-reads & existence family > hasAnyTraceFromEventsTa
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param2": 1,
     },
     "route": "unknown",
     "sql": "SELECT 1 AS one
 FROM events_core AS events
 WHERE (events.project_id = {param1:String})
     AND (events.is_deleted = 0)
-LIMIT {param2:Int64}",
+LIMIT 1",
   },
 ]
 `;
@@ -2919,7 +2902,6 @@ exports[`golden: events point-reads & existence family > hasAnyUserFromEventsTab
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param2": 1,
     },
     "route": "unknown",
     "sql": "SELECT 1 AS one
@@ -2928,7 +2910,7 @@ WHERE (events.project_id = {param1:String})
     AND (events.is_deleted = 0)
     AND (user_id IS NOT NULL)
     AND (user_id != '')
-LIMIT {param2:Int64}",
+LIMIT 1",
   },
 ]
 `;
@@ -2940,8 +2922,7 @@ exports[`golden: events simple aggregates family > getLatestSdkVersionInfoFromEv
     "params": {
       "param1": "golden-project",
       "param2": "2025-12-25 00:00:00.000",
-      "param3": "otel",
-      "param4": [
+      "param3": [
         "langfuse-internal-ai-sdk",
         "langfuse-internal-otel-writer",
         "langfuse-internal-ai-features",
@@ -2960,8 +2941,8 @@ WHERE (e.project_id = {param1:String})
     AND (e.is_deleted = 0)
     AND (e.start_time >= {param2:DateTime64(6)})
     AND (toDate(e.start_time) >= toDate({param2:DateTime64(6)}))
-    AND startsWith(e.source, {param3:String})
-    AND (e.ingestion_sdk_name NOT IN ({param4:Array(String)}))
+    AND startsWith(e.source, 'otel')
+    AND (e.ingestion_sdk_name NOT IN ({param3:Array(String)}))
 GROUP BY
     e.ingestion_sdk_name,
     e.ingestion_sdk_version,

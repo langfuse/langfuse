@@ -12,7 +12,6 @@ import {
   type Expression,
   type ExpressionBuilder,
   type QueryCreator,
-  type SqlBool,
 } from "kysely";
 import type {
   EventsObservation,
@@ -41,6 +40,7 @@ import {
   count,
   dateDiff,
   softDeleteAfterLimit,
+  startsWith,
   leftUTF8,
   limitBy,
   latestNonEmpty,
@@ -1146,7 +1146,7 @@ async function getObservationByIdFromEventsTableInternal({
     .$if(traceId != null, (qb) => qb.where("trace_id", "=", traceId!))
     .orderBy("start_time", "desc")
     .orderBy("event_ts", "desc")
-    .limit(1);
+    .limit(literal(1));
 
   const { sql: query, params } = compileClickhouseQuery(builder, projectId);
 
@@ -1249,7 +1249,7 @@ export const getTraceByIdFromEventsTable = async ({
       ),
     )
     .orderBy("t.timestamp", "desc")
-    .limit(1);
+    .limit(literal(1));
 
   const { sql: query, params } = compileClickhouseQuery(builder, projectId);
 
@@ -1404,7 +1404,7 @@ function compileHasAnyFromEventsTable(opts: {
         .where("session_id", "is not", null)
         .where("session_id", "!=", literal("")),
     )
-    .limit(1);
+    .limit(literal(1));
 
   return compileClickhouseQuery(query, opts.projectId);
 }
@@ -2997,7 +2997,7 @@ function compileObservationIOFieldRead<A extends string>(
     .where("e.start_time", ">=", new Date(opts.startTime.getTime() - 1000))
     .where("e.start_time", "<=", new Date(opts.startTime.getTime() + 1000))
     .orderBy("e.event_ts", "desc")
-    .limit(1);
+    .limit(literal(1));
 
   return compileClickhouseQuery(query, opts.projectId);
 }
@@ -3117,7 +3117,7 @@ export const getObservationFullIOForSessionFromEventsTable = async (opts: {
     .where("e.start_time", ">=", minTimestamp)
     .where("e.start_time", "<=", maxTimestamp)
     .orderBy("e.event_ts", "desc")
-    .limit(1);
+    .limit(literal(1));
   const { sql: query, params } = compileClickhouseQuery(
     builder,
     opts.projectId,
@@ -4004,7 +4004,7 @@ export async function getLatestSdkVersionInfoFromEvents(params: {
     .where((eb) =>
       eb(toDate(eb.ref("e.start_time")), ">=", toDate(sevenDaysAgo)),
     )
-    .where((eb) => eb.fn<SqlBool>("startsWith", ["e.source", eb.val("otel")]))
+    .where((eb) => startsWith(eb.ref("e.source"), literal("otel")))
     .where("e.ingestion_sdk_name", "not in", [...INTERNAL_INGESTION_SDK_NAMES])
     .groupBy([
       "e.ingestion_sdk_name",
