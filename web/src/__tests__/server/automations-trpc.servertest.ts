@@ -1327,7 +1327,7 @@ describe("automations trpc", () => {
       );
       expect(otherSingle.action.config).toMatchObject({
         channelId: "G_PRIVATE",
-        channelName: "private-channel-…ATE",
+        channelName: "Private Channel (…ATE)",
       });
 
       // Saving the masked config unchanged keeps the real channel.
@@ -1338,7 +1338,7 @@ describe("automations trpc", () => {
         actionConfig: {
           ...(otherSingle.action.config as { channelId: string }),
           type: "SLACK",
-          channelName: "private-channel-…ATE",
+          channelName: "Private Channel (…ATE)",
         },
       });
       const installerView = await caller.automations.getAutomation({
@@ -1357,7 +1357,7 @@ describe("automations trpc", () => {
         automationId: created.automation.id,
       });
       expect(afterLeaving.action.config).toMatchObject({
-        channelName: "private-channel-…ATE",
+        channelName: "Private Channel (…ATE)",
       });
     });
   });

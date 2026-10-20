@@ -158,7 +158,7 @@ export function maskPrivateSlackChannel<T extends { config: unknown }>(
     ...action,
     config: {
       ...config,
-      channelName: `private-channel-…${config.channelId.slice(-3)}`,
+      channelName: `Private Channel (…${config.channelId.slice(-3)})`,
     },
   };
 }
