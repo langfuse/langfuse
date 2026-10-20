@@ -23,11 +23,15 @@ export function orderedFacetTopics(facet: Facet) {
 }
 
 /** Tracing link limited to these traces and their time span; null when the IDs exceed the URL budget. */
-export function topicTracesHref(projectId: string, rows: FacetRow[]) {
+export function topicTracesHref(
+  projectId: string,
+  rows: FacetRow[],
+  isV4: boolean,
+) {
   if (rows.length === 0) return null;
   const filter = encodeFiltersGeneric([
     {
-      column: "id",
+      column: isV4 ? "traceId" : "id",
       type: "stringOptions",
       operator: "any of",
       value: rows.map((row) => row.traceId),

@@ -10,24 +10,10 @@ const VIEWS = [
 
 export type TopicsResultsView = (typeof VIEWS)[number]["value"];
 
-export function useTopicsResultsView() {
-  const [view, setView] = useLocalStorage<TopicsResultsView>(
-    "topicsResultsView",
-    "treemap",
-  );
-  return [
-    VIEWS.some((option) => option.value === view) ? view : "treemap",
-    setView,
-  ] as const;
-}
-
 export function TopicsResultsViewSelect({
   value,
   onValueChange,
-}: {
-  value: TopicsResultsView;
-  onValueChange: (view: TopicsResultsView) => void;
-}) {
+}: TopicsResultsViewSelectProps) {
   const capture = usePostHogClientCapture();
   function changeView(view: TopicsResultsView) {
     if (view === value) return;
@@ -59,3 +45,19 @@ export function TopicsResultsViewSelect({
     </DropdownMenu>
   );
 }
+
+export function useTopicsResultsView() {
+  const [view, setView] = useLocalStorage<TopicsResultsView>(
+    "topicsResultsView",
+    "treemap",
+  );
+  return [
+    VIEWS.some((option) => option.value === view) ? view : "treemap",
+    setView,
+  ] as const;
+}
+
+type TopicsResultsViewSelectProps = {
+  value: TopicsResultsView;
+  onValueChange: (view: TopicsResultsView) => void;
+};

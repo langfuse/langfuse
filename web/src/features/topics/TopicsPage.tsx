@@ -409,13 +409,13 @@ function TopicsWorkspaceContent({
               title: "Topics",
               actionButtonsLeft: showOnboarding ? null : (
                 <div className="flex items-center gap-3">
-                  {validTimeRange && headerFacetId ? (
+                  {validTimeRange && headerFacetId && (
                     <TopicsFacetTabs
                       facets={results.data?.facets ?? []}
                       selectedFacet={headerFacetId}
                       onSelectFacet={traceFilters.selectFacet}
                     />
-                  ) : null}
+                  )}
                   <span className="text-muted-foreground flex items-center gap-1 text-sm">
                     Visualize as
                     <TopicsResultsViewSelect

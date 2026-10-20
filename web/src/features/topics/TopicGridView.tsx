@@ -26,7 +26,6 @@ import {
   layoutTopicGrid,
   sampleGridPoints,
   type GridCell,
-  type GridLayout,
   type GridPoint,
 } from "./topic-grid-layout";
 import { TopicTraceList } from "./TopicTraceList";
@@ -135,17 +134,6 @@ export function TopicGridView({
       />
     </div>
   );
-}
-
-function gridMessage(mapResult: TopicGridViewProps["mapResult"]) {
-  if (mapResult.error) return `Grid could not load: ${mapResult.error.message}`;
-  if (!mapResult.data) return "Loading grid…";
-  if (mapResult.data.status !== "ready") {
-    return (
-      mapResult.data.reason ?? "This run has no saved embedding projection."
-    );
-  }
-  return null;
 }
 
 function GridMessage({ children }: { children: ReactNode }) {
@@ -329,7 +317,6 @@ function TopicGrid({
           )}
         </div>
         <GridLegend
-          anchors={layout.anchors}
           topics={topics}
           selectedIndex={selectedIndex}
           onSelectTopic={onSelectTopic}
@@ -354,21 +341,16 @@ function TopicGrid({
 }
 
 function GridLegend({
-  anchors,
   topics,
   selectedIndex,
   onSelectTopic,
   onHoverTopic,
   children,
-}: {
-  children: ReactNode;
-  anchors: GridLayout["anchors"];
-  topics: TopicGridProps["topics"];
-  selectedIndex: number | null;
-  onSelectTopic: (topicId: string | null) => void;
-  onHoverTopic: (topicIndex: number | null) => void;
-}) {
-  const entries = [...anchors].sort((a, b) => b.count - a.count);
+}: GridLegendProps) {
+  const entries = topics
+    .map((topic, topicIndex) => ({ topic, topicIndex }))
+    .filter(({ topic }) => topic.count > 0)
+    .sort((a, b) => b.topic.count - a.topic.count);
   function clearHover() {
     onHoverTopic(null);
   }
@@ -379,7 +361,7 @@ function GridLegend({
         className="grid min-h-0 grid-cols-2 gap-x-4 gap-y-0.5 overflow-y-auto p-2"
       >
         {entries.map((entry) => {
-          const topic = topics[entry.topicIndex];
+          const { topic } = entry;
           const isSelected = entry.topicIndex === selectedIndex;
           function select() {
             onSelectTopic(isSelected ? null : topic.id);
@@ -507,6 +489,17 @@ function GridHoverCard({
   );
 }
 
+function gridMessage(mapResult: TopicGridViewProps["mapResult"]) {
+  if (mapResult.error) return `Grid could not load: ${mapResult.error.message}`;
+  if (!mapResult.data) return "Loading grid…";
+  if (mapResult.data.status !== "ready") {
+    return (
+      mapResult.data.reason ?? "This run has no saved embedding projection."
+    );
+  }
+  return null;
+}
+
 function squareOpacity(
   topicIndex: number,
   selectedIndex: number | null,
@@ -571,4 +564,12 @@ type GridHoverCardProps = {
 type GridTopic = ReturnType<typeof orderedFacetTopics>[number] & {
   count: number;
   color: string;
+};
+
+type GridLegendProps = {
+  children: ReactNode;
+  topics: TopicGridProps["topics"];
+  selectedIndex: number | null;
+  onSelectTopic: (topicId: string | null) => void;
+  onHoverTopic: (topicIndex: number | null) => void;
 };

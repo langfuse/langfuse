@@ -4,11 +4,7 @@ export function TopicsFacetTabs({
   facets,
   selectedFacet,
   onSelectFacet,
-}: {
-  facets: readonly { facetId: string; name: string }[];
-  selectedFacet: string;
-  onSelectFacet: (facetId: string) => void;
-}) {
+}: TopicsFacetTabsProps) {
   return (
     <div className="ph-no-capture">
       <Tabs value={selectedFacet} onValueChange={onSelectFacet}>
@@ -25,3 +21,9 @@ export function TopicsFacetTabs({
     </div>
   );
 }
+
+type TopicsFacetTabsProps = {
+  facets: readonly { facetId: string; name: string }[];
+  selectedFacet: string;
+  onSelectFacet: (facetId: string) => void;
+};

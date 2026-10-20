@@ -46,25 +46,13 @@ describe("layoutTopicGrid", () => {
     );
   });
 
-  it("keeps far-apart clusters apart and anchors labels on their cells", () => {
+  it("keeps far-apart clusters apart", () => {
     const layout = layoutTopicGrid(points, 1);
     const colsOf = (topic: number) =>
       layout.cells
         .filter((cell) => cell.topicIndex === topic)
         .map((c) => c.col);
     expect(Math.max(...colsOf(0))).toBeLessThan(Math.min(...colsOf(1)));
-    expect(layout.anchors.map((anchor) => anchor.topicIndex)).toEqual([0, 1]);
-    for (const anchor of layout.anchors) {
-      expect(anchor.count).toBe(60);
-      expect(
-        layout.cells.some(
-          (cell) =>
-            cell.topicIndex === anchor.topicIndex &&
-            cell.col === anchor.col &&
-            cell.row === anchor.row,
-        ),
-      ).toBe(true);
-    }
   });
 
   it("samples large inputs per topic, keeping topic shares", () => {

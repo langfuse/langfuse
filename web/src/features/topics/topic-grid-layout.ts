@@ -10,18 +10,10 @@ export type GridPoint = {
 
 export type GridCell = GridPoint & { col: number; row: number };
 
-type GridAnchor = {
-  topicIndex: number;
-  col: number;
-  row: number;
-  count: number;
-};
-
 export type GridLayout = {
   cols: number;
   rows: number;
   cells: GridCell[];
-  anchors: GridAnchor[];
 };
 
 /** Most squares drawn; above it each square stands for several traces. */
@@ -71,7 +63,7 @@ export function layoutTopicGrid(
   points: GridPoint[],
   aspectRatio: number,
 ): GridLayout {
-  if (points.length === 0) return { cols: 0, rows: 0, cells: [], anchors: [] };
+  if (points.length === 0) return { cols: 0, rows: 0, cells: [] };
   const aspect =
     aspectRatio > 0 && Number.isFinite(aspectRatio) ? aspectRatio : 1;
   const totalCells = Math.ceil(points.length * CELL_DENSITY);
@@ -127,7 +119,7 @@ export function layoutTopicGrid(
   }
   cells.sort((a, b) => compareIds(a.id, b.id));
 
-  return { cols, rows, cells, anchors: topicAnchors(cells) };
+  return { cols, rows, cells };
 }
 
 function nearestFreeCell(
@@ -155,37 +147,6 @@ function nearestFreeCell(
     if (best) return best;
   }
   throw new Error("Grid has fewer cells than points");
-}
-
-function topicAnchors(cells: GridCell[]): GridAnchor[] {
-  const byTopic = new Map<number, GridCell[]>();
-  for (const cell of cells) {
-    if (cell.topicIndex < 0) continue;
-    const group = byTopic.get(cell.topicIndex) ?? [];
-    group.push(cell);
-    byTopic.set(cell.topicIndex, group);
-  }
-  return [...byTopic.entries()]
-    .sort(([a], [b]) => a - b)
-    .map(([topicIndex, group]) => {
-      const col = group.reduce((sum, cell) => sum + cell.col, 0) / group.length;
-      const row = group.reduce((sum, cell) => sum + cell.row, 0) / group.length;
-      let anchor = group[0];
-      let bestDistance = Infinity;
-      for (const cell of group) {
-        const distance = Math.hypot(cell.col - col, cell.row - row);
-        if (distance < bestDistance) {
-          bestDistance = distance;
-          anchor = cell;
-        }
-      }
-      return {
-        topicIndex,
-        col: anchor.col,
-        row: anchor.row,
-        count: group.length,
-      };
-    });
 }
 
 function compareIds(a: string, b: string) {

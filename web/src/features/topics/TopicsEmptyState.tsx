@@ -3,10 +3,7 @@ import { Button } from "@/src/components/design-system/Button/Button";
 export function TopicsEmptyState({
   onGenerateTopics,
   canGenerateTopics,
-}: {
-  onGenerateTopics: () => void;
-  canGenerateTopics: boolean;
-}) {
+}: TopicsEmptyStateProps) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
       <h3 className="text-lg font-bold">Find patterns in your summaries</h3>
@@ -24,3 +21,8 @@ export function TopicsEmptyState({
     </div>
   );
 }
+
+type TopicsEmptyStateProps = {
+  onGenerateTopics: () => void;
+  canGenerateTopics: boolean;
+};

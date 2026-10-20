@@ -7,6 +7,7 @@ import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { type FacetRow, topicTracesHref } from "./facet-topics";
 
 /** With the table's own 4px (8px on the first column), cells end up 16px from each edge. */
@@ -35,7 +36,8 @@ export function TopicTraceList({
       typeof update === "function" ? update(current) : update,
     );
   };
-  const tracingHref = topicTracesHref(projectId, rows);
+  const { isV4 } = useReadPath();
+  const tracingHref = topicTracesHref(projectId, rows, isV4);
   const columns: LangfuseColumnDef<FacetRow>[] = [
     {
       accessorKey: "traceId",
