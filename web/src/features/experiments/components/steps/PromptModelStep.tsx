@@ -280,7 +280,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
             )}
             {selectedPromptModelConfig.status === "invalid" && (
               <p className="text-dark-yellow flex items-center gap-1.5 text-sm">
-                <TriangleAlert className="h-4 w-4 shrink-0" />
+                <TriangleAlert size="base" />
                 {PROMPT_MODEL_CONFIG_INVALID_MESSAGE}
               </p>
             )}
