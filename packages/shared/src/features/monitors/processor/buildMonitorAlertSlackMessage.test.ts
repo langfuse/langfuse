@@ -22,7 +22,7 @@ const mockMonitorAlert: MonitorAlert = {
 };
 
 describe("buildMonitorAlertSlackMessage", () => {
-  it("ALERT: red attachment; linked title; body mrkdwn; timestamp; neutral view button", () => {
+  it("ALERT: red attachment; linked title; body mrkdwn; timestamp; view link", () => {
     const { blocks, attachments } =
       buildMonitorAlertSlackMessage(mockMonitorAlert);
     expect(blocks).toEqual([]);
@@ -44,12 +44,10 @@ describe("buildMonitorAlertSlackMessage", () => {
     expect(inner[1].text.text).toContain("*count(observations.value)*");
     expect(inner[2]).toMatchObject({ type: "context" });
     expect(inner[2].elements[0].text).toContain("2026-05-18T12:01:00.000Z");
-    expect(inner[3]).toMatchObject({ type: "actions" });
-    expect(inner[3].elements[0]).toMatchObject({
-      type: "button",
-      url: "https://cloud.langfuse.com/project/proj_01/monitors/mon_01",
-    });
-    expect(inner[3].elements[0].style).toBeUndefined();
+    expect(inner[3]).toMatchObject({ type: "section" });
+    expect(inner[3].text.text).toContain(
+      "<https://cloud.langfuse.com/project/proj_01/monitors/mon_01|View in Langfuse>",
+    );
   });
 
   it.each([
@@ -74,41 +72,30 @@ describe("buildMonitorAlertSlackMessage", () => {
     );
   });
 
-  it("renders a plain bold title and omits the button when permalink is absent", () => {
+  it("renders a plain bold title and omits the link when permalink is absent", () => {
     const { attachments } = buildMonitorAlertSlackMessage({
       ...mockMonitorAlert,
       permalink: undefined,
     });
     const inner = attachments![0].blocks!;
     expect(inner[0].text.text).toBe("*High error rate*");
-    expect(inner.some((b: any) => b.type === "actions")).toBe(false);
+    expect(JSON.stringify(inner)).not.toContain("View in Langfuse");
     expect(inner.some((b: any) => b.type === "context")).toBe(true);
   });
 
-  it("adds a 'View observations' button to the windowed data table when dataPermalink is set (observations view)", () => {
+  it("adds a 'View observations' link to the windowed data table when dataPermalink is set (observations view)", () => {
     const dataPermalink =
       "https://cloud.langfuse.com/project/proj_01/observations?dateRange=1779450930000-1779451230000";
     const { attachments } = buildMonitorAlertSlackMessage({
       ...mockMonitorAlert,
       dataPermalink,
     });
-    const actions = attachments![0].blocks!.find(
-      (b: any) => b.type === "actions",
-    );
-    expect(actions.elements).toHaveLength(2);
-    // Config button kept.
-    expect(actions.elements[0]).toMatchObject({
-      text: { text: "View in Langfuse" },
-      url: mockMonitorAlert.permalink,
-    });
-    // Windowed data-table button added.
-    expect(actions.elements[1]).toMatchObject({
-      text: { text: "View observations" },
-      url: dataPermalink,
-    });
+    const links = linkText(attachments);
+    expect(links).toContain(`<${mockMonitorAlert.permalink}|View in Langfuse>`);
+    expect(links).toContain(`<${dataPermalink}|View observations>`);
   });
 
-  it("labels the data button 'View scores' for a scores view", () => {
+  it("labels the data link 'View scores' for a scores view", () => {
     const dataPermalink =
       "https://cloud.langfuse.com/project/proj_01/scores?dateRange=1779450930000-1779451230000";
     const { attachments } = buildMonitorAlertSlackMessage({
@@ -116,26 +103,17 @@ describe("buildMonitorAlertSlackMessage", () => {
       view: "scores-numeric",
       dataPermalink,
     });
-    const actions = attachments![0].blocks!.find(
-      (b: any) => b.type === "actions",
-    );
-    expect(actions.elements).toHaveLength(2);
-    expect(actions.elements[1]).toMatchObject({
-      text: { text: "View scores" },
-      url: dataPermalink,
-    });
+    expect(linkText(attachments)).toContain(`<${dataPermalink}|View scores>`);
   });
 
-  it("keeps only the config button when dataPermalink is absent", () => {
+  it("keeps only the config link when dataPermalink is absent", () => {
     const { attachments } = buildMonitorAlertSlackMessage(mockMonitorAlert);
-    const actions = attachments![0].blocks!.find(
-      (b: any) => b.type === "actions",
+    expect(linkText(attachments)).toBe(
+      `🔗 *<${mockMonitorAlert.permalink}|View in Langfuse>*`,
     );
-    expect(actions.elements).toHaveLength(1);
-    expect(actions.elements[0].text.text).toBe("View in Langfuse");
   });
 
-  it("explains an unavailable score link while retaining the alert action", () => {
+  it("explains an unavailable score link while retaining the alert link", () => {
     const { attachments } = buildMonitorAlertSlackMessage({
       ...mockMonitorAlert,
       view: "scores-numeric",
@@ -144,16 +122,16 @@ describe("buildMonitorAlertSlackMessage", () => {
     expect(blocks[1].text.text).toContain(
       "A filtered scores link is unavailable",
     );
-    const actions = blocks.find((block: any) => block.type === "actions");
-    expect(actions.elements).toHaveLength(1);
-    expect(actions.elements[0].url).toBe(mockMonitorAlert.permalink);
+    expect(linkText(attachments)).toBe(
+      `🔗 *<${mockMonitorAlert.permalink}|View in Langfuse>*`,
+    );
   });
 
   // buildAlert only sets dataPermalink for breaching severities, so recovery
   // (OK) and NO_DATA notifications arrive here with dataPermalink undefined and
-  // must render no secondary data button — recovery messages stay unchanged.
+  // must render no secondary data link — recovery messages stay unchanged.
   it.each(["OK", "NO_DATA"] as const)(
-    "renders no secondary data button for a %s (non-breach) alert",
+    "renders no secondary data link for a %s (non-breach) alert",
     (severity) => {
       const { attachments } = buildMonitorAlertSlackMessage({
         ...mockMonitorAlert,
@@ -161,14 +139,18 @@ describe("buildMonitorAlertSlackMessage", () => {
         severity,
         dataPermalink: undefined,
       });
-      const actions = attachments![0].blocks!.find(
-        (b: any) => b.type === "actions",
+      expect(linkText(attachments)).toBe(
+        `🔗 *<${mockMonitorAlert.permalink}|View in Langfuse>*`,
       );
-      expect(actions.elements).toHaveLength(1);
-      expect(actions.elements[0].text.text).toBe("View in Langfuse");
       expect(attachments![0].blocks![1].text.text).not.toContain(
         "scores link is unavailable",
       );
     },
   );
 });
+
+function linkText(
+  attachments: ReturnType<typeof buildMonitorAlertSlackMessage>["attachments"],
+): string {
+  return attachments![0].blocks!.at(-1).text.text;
+}
