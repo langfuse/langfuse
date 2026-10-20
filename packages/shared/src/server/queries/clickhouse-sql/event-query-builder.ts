@@ -1802,6 +1802,7 @@ export function buildEventsFullTableSplitQuery(opts: {
     `SELECT ${ioSelectParts.join(", ")}`,
     "FROM events_full e",
     "WHERE e.project_id = {projectId: String}",
+    "AND e.is_deleted = 0",
     `AND e.start_time >= ${ioBounds}.1`,
     `AND e.start_time <= ${ioBounds}.2`,
     'AND (e.start_time, e.trace_id, e.span_id) IN (SELECT "start_time", "trace_id", id FROM base)',

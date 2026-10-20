@@ -1712,6 +1712,7 @@ exports[`golden: events metadata map and session resolution > getObservationsV2F
             mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata
         FROM events_full AS e
         WHERE (e.project_id = {param1:String})
+            AND (e.is_deleted = 0)
             AND (e.start_time >= (((
                 SELECT (min(start_time), max(start_time))
                 FROM base

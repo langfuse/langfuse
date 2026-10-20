@@ -198,6 +198,7 @@ const applyExperimentSummaryCursor = (
   SELECT e2.experiment_id
   FROM events_core e2
   WHERE e2.project_id = {projectId: String}
+    AND e2.is_deleted = 0
     AND e2.experiment_id != ''
     -- don't list experiments that were part of the previous page - that means
     -- no newer item exists
@@ -269,6 +270,7 @@ async function queryExperimentSummaryRowsForPublicApi(
       projectId: params.projectId,
     })
       .selectRaw("e.experiment_id AS experiment_id")
+      .whereRaw("e.is_deleted = 0")
       .whereRaw("e.experiment_id != ''")
       .applyFilters(eventTimeBoundFilters(params.fromTime, params.toTime))
       .applyFilters(filterList),
@@ -310,6 +312,7 @@ async function queryExperimentSummaryRowsForPublicApi(
       "uniqIf(e.span_id, e.span_id = e.experiment_item_root_span_id) AS item_count",
     )
     .applyFilters(eventTimeBoundFilters(params.fromTime, params.toTime))
+    .whereRaw("e.is_deleted = 0")
     .withCTE("page_experiments", pageQueryBuilder.buildWithParams())
     .whereRaw("e.experiment_id IN (SELECT experiment_id FROM page_experiments)")
     .orderBy(

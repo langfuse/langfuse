@@ -651,6 +651,74 @@ describe("Public API experiments repository", () => {
         repeatedExperimentId,
       );
     });
+
+    it("pages and anchors experiments on live events, skipping soft-deleted ones", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const startTimeMs = Date.now();
+      const deletedLatestExperimentId = `exp-deleted-${randomUUID()}`;
+      const liveExperimentId = `exp-live-${randomUUID()}`;
+      const liveOlderStartMs = startTimeMs - 10_000;
+
+      await createEventsCh([
+        {
+          ...createExperimentRootEvent({
+            projectId,
+            experimentId: deletedLatestExperimentId,
+            startTimeMs,
+            spanId: "span-deleted",
+          }),
+          is_deleted: 1,
+        },
+        createExperimentRootEvent({
+          projectId,
+          experimentId: deletedLatestExperimentId,
+          startTimeMs: liveOlderStartMs,
+          spanId: "span-live-older",
+        }),
+        createExperimentRootEvent({
+          projectId,
+          experimentId: liveExperimentId,
+          startTimeMs: startTimeMs - 5_000,
+          spanId: "span-live",
+        }),
+      ]);
+
+      const fromTime = new Date(startTimeMs - 60_000);
+      const firstPage = await queryExperimentSummariesForPublicApi({
+        projectId,
+        fromTime,
+        includeMetadata: false,
+        limit: 1,
+      });
+
+      expect(firstPage.map((row) => row.experiment_id)).toEqual([
+        liveExperimentId,
+      ]);
+      const firstRow = firstPage[0];
+      if (!firstRow) throw new Error("expected first page row");
+
+      const secondPage = await queryExperimentSummariesForPublicApi({
+        projectId,
+        fromTime,
+        includeMetadata: false,
+        cursor: {
+          lastTime: firstRow.cursor_time,
+          lastTraceId: firstRow.cursor_trace_id,
+          lastId: firstRow.cursor_span_id,
+          lastExperimentId: firstRow.experiment_id,
+        },
+        limit: 10,
+      });
+
+      expect(secondPage.map((row) => row.experiment_id)).toEqual([
+        deletedLatestExperimentId,
+      ]);
+      const secondRow = secondPage[0];
+      if (!secondRow) throw new Error("expected second page row");
+      expect(
+        parseClickhouseUTCDateTimeFormat(secondRow.cursor_time).getTime(),
+      ).toBe(liveOlderStartMs);
+    });
   });
 
   maybe("queryExperimentItemsForPublicApi", () => {
