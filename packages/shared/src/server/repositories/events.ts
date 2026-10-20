@@ -2830,10 +2830,8 @@ export const getObservationsBatchIOFromEventsTable = async <
     )
     .$if(opts.includeSkillFields === true, (qb) =>
       qb.select([
-        sql.ref<SkillsAvailable>("e.skills_available").as("skills_available"),
-        sql
-          .ref<SkillsResourceLoaded>("e.skills_resource_loaded")
-          .as("skills_resource_loaded"),
+        "e.skills_available as skills_available",
+        "e.skills_resource_loaded as skills_resource_loaded",
       ]),
     )
     .$if(opts.includeToolCallFields === true, (qb) =>
