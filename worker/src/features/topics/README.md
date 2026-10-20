@@ -354,9 +354,9 @@ without a summarization or embedding call.
 The shared producer defines observation eligibility, tool association and replay
 deduplication. It includes generations and matched tool responses. Root-only
 non-generation traces and unmatched tool observations are outside that
-conversation contract. WARNING and ERROR observations reach the model as
-`levelEvents` (type, name, level and status message, without provenance). The
-key is omitted when there are none.
+conversation contract. ERROR observations, and WARNING observations with a
+status message, reach the model as `levelEvents` (type, name, level and status
+message, without provenance). The key is omitted when there are none.
 Topics does not add fallbacks, coverage fields, custom media handling or a
 separate transcript projection.
 See `packages/shared/src/server/transcript/README.md` for the producer's semantics
