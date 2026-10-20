@@ -100,8 +100,7 @@ export async function createProjectMembershipsOnSignup(
     });
 
     for (const project of defaultProjects) {
-      // A project whose org is not in the default org list (legacy behavior)
-      // gets an org membership for the project's org first.
+      // legacy: a default project outside the default orgs joins its org too
       if (!defaultOrgs.some((org) => org.id === project.orgId)) {
         await applyOrgMembership(signupDefaults, {
           orgId: project.orgId,

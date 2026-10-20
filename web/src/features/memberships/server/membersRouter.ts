@@ -39,6 +39,8 @@ import {
   setUserFeaturePreviewWithAuthorization,
 } from "@/src/features/feature-flags/server";
 
+const contextResolver = new ContextResolver();
+
 function buildUserSearchFilter(searchQuery: string | undefined | null) {
   if (searchQuery === undefined || searchQuery === null || searchQuery === "") {
     return Prisma.empty;
@@ -54,17 +56,6 @@ function buildUserSearchFilter(searchQuery: string | undefined | null) {
     ? Prisma.sql` AND (${Prisma.join(searchConditions, " OR ")})`
     : Prisma.empty;
 }
-
-/** sessionContext resolves the signed-in caller's authorization context in the procedure's organization. */
-function sessionContext(session: OrgAuthedContext["session"]) {
-  return contextResolver.resolveUser({
-    userId: session.user.id,
-    isPlatformAdmin: session.user.admin === true,
-    orgId: session.orgId,
-  });
-}
-
-const contextResolver = new ContextResolver();
 
 export const membersRouter = createTRPCRouter({
   ...allMembersRoutes,
@@ -458,3 +449,12 @@ export const membersRouter = createTRPCRouter({
       };
     }),
 });
+
+/** sessionContext resolves the signed-in caller's authorization context in the procedure's organization. */
+function sessionContext(session: OrgAuthedContext["session"]) {
+  return contextResolver.resolveUser({
+    userId: session.user.id,
+    isPlatformAdmin: session.user.admin === true,
+    orgId: session.orgId,
+  });
+}

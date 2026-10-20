@@ -95,7 +95,7 @@ describe("membership service", () => {
   });
 
   describe("seat limit", () => {
-    // The Hobby plan allows 2 seats, and only applies on Cloud.
+    // Hobby's 2-seat limit applies on Cloud only
     beforeEach(() => {
       process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "STAGING";
     });

@@ -26,7 +26,7 @@ export type PrincipalOrganization = {
 /** SystemReason names the Langfuse-internal flow a system principal acts for. */
 export type SystemReason = "bootstrap" | "signupDefaults";
 
-/** Principal is an authorized admin, user, api key, or Langfuse itself, discriminated on kind. A system principal holds no policies and is honoured only by services that accept it explicitly. */
+/** Principal is an authorized admin, user, api key, or Langfuse itself, discriminated on kind. */
 export type Principal =
   | { kind: "admin"; userId: string | null }
   | { kind: "system"; reason: SystemReason }

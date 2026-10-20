@@ -1,6 +1,6 @@
 import { LangfuseConflictError } from "@langfuse/shared";
 
-/** SeatLimitExceededError is a 409 for a membership or invitation that would take the organization past its plan's seat limit; members and pending invitations both hold a seat. */
+/** SeatLimitExceededError rejects a member or invitation beyond the plan's seat limit with a 409. */
 export class SeatLimitExceededError extends LangfuseConflictError {
   constructor(readonly limit: number) {
     super(

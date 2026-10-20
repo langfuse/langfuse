@@ -245,8 +245,7 @@ export default async function handler(
         },
         update: {},
       });
-      // The lead must exist before the membership service links it to the
-      // org after commit.
+      // SFDC needs the lead before the membership links it
       await getSfdcService()?.upsertUser({
         userId: user.id,
         email: user.email,

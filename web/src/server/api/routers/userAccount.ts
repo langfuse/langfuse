@@ -194,9 +194,6 @@ export const userAccountRouter = createTRPCRouter({
   delete: authenticatedProcedure.mutation(async ({ ctx }) => {
     const userId = ctx.session.user.id;
 
-    // Memberships are removed (audited, synced to SFDC) under the membership
-    // locks first, refusing while the user is the last owner of any org; the
-    // user row and everything else cascade afterwards.
     await removeUserFromAllOrgs(
       await new ContextResolver().resolveUser({
         userId,

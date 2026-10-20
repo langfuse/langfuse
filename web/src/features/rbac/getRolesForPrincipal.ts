@@ -38,7 +38,7 @@ function toRole(assignment: RoleAssignment): Role {
   );
 }
 
-/** bindSystemRole binds a catalog role to its tenant and owner: an org owner also covers every project of the tenant, a project owner only itself. */
+/** bindSystemRole binds a catalog role to its tenant and owner. */
 export function bindSystemRole(
   systemRole: SystemRole,
   orgId: string,
@@ -47,9 +47,7 @@ export function bindSystemRole(
   const definition = systemRoleAccessRights[systemRole];
   const roleId = SystemRoleId(systemRole);
   const tenantId = OrganizationId(orgId);
-  const resources = hasProjectKind(ownerId)
-    ? [ownerId]
-    : [ownerId, ProjectId("*")];
+  const resources = ownedResources(ownerId);
   return {
     id: roleId,
     tenantId,
@@ -60,6 +58,12 @@ export function bindSystemRole(
       .filter((policy): policy is Policy => policy !== null),
     tags: definition.tags,
   };
+}
+
+/** ownedResources is what an owner's role covers: an org also covers every project of the tenant. */
+function ownedResources(ownerId: OwnerId): ResourceId[] {
+  if (hasProjectKind(ownerId)) return [ownerId];
+  return [ownerId, ProjectId("*")];
 }
 
 /** toOwnerId tags the populated owner foreign key. */

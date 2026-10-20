@@ -65,7 +65,7 @@ export class ContextResolver {
     };
   }
 
-  /** resolveUser materializes a signed-in user's org and project memberships (in orgId alone, when given) into their policies; a platform admin resolves to the admin principal acting as themselves. */
+  /** resolveUser materializes a signed-in user's memberships, optionally in one org, into their policies. */
   async resolveUser(params: {
     userId: string;
     isPlatformAdmin: boolean;
@@ -75,7 +75,7 @@ export class ContextResolver {
     const memberships = await this.prisma.organizationMembership.findMany({
       where: {
         userId: params.userId,
-        ...(params.orgId ? { orgId: params.orgId } : {}),
+        orgId: params.orgId,
       },
       include: {
         ProjectMemberships: true,
@@ -253,12 +253,12 @@ function publicBearerPolicies(
   }));
 }
 
-/** systemContext is Langfuse itself acting for an internal flow; it holds no policies, so only services that accept a system principal explicitly let it through. */
+/** systemContext is Langfuse itself acting for an internal flow, holding no policies. */
 export function systemContext(reason: SystemReason): AuthorizationContext {
   return { principal: { kind: "system", reason }, policies: [] };
 }
 
-/** adminContext grants the admin principal OWNER permissions across all tenants; userId names the platform admin when one acts through a session. */
+/** adminContext grants the admin principal, or a platform admin acting as userId, OWNER permissions across all tenants. */
 function adminContext(userId: string | null = null): AuthorizationContext {
   const principal: Principal = { kind: "admin", userId };
   const roleId = SystemRoleId("OWNER");
