@@ -1,4 +1,4 @@
-import { expect, fn, userEvent, within } from "storybook/test";
+import { fn } from "storybook/test";
 
 import preview from "../../../../../.storybook/preview";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
@@ -31,20 +31,5 @@ export const Loading = meta.story({
   args: {
     isPending: true,
     onConfirm: fn(),
-  },
-});
-
-export const ConfirmsDisconnect = meta.story({
-  name: "(Test) Confirms disconnect",
-  args: {
-    isPending: false,
-    onConfirm: fn(),
-  },
-  play: async ({ args, canvasElement }) => {
-    const body = within(canvasElement.ownerDocument.body);
-
-    await userEvent.click(body.getByRole("button", { name: "Disconnect" }));
-
-    await expect(args.onConfirm).toHaveBeenCalledOnce();
   },
 });

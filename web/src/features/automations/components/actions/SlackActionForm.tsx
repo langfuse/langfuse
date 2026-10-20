@@ -15,7 +15,6 @@ import {
   ChannelSelector,
   type SlackChannel,
   SlackTestMessageButton,
-  PrivateChannelsInfoTooltip,
 } from "@/src/features/slack";
 import { useState } from "react";
 import { useHasProjectAccess } from "@/src/features/rbac";
@@ -98,10 +97,7 @@ export const SlackActionForm: React.FC<SlackActionFormProps> = ({
             name="slack.channelId"
             render={({ field }) => (
               <FormItem>
-                <div className="flex items-center gap-1.5">
-                  <FormLabel>Channel</FormLabel>
-                  <PrivateChannelsInfoTooltip />
-                </div>
+                <FormLabel>Channel</FormLabel>
                 <FormControl>
                   <div className="max-w-md">
                     <ChannelSelector
@@ -116,12 +112,14 @@ export const SlackActionForm: React.FC<SlackActionFormProps> = ({
                   </div>
                 </FormControl>
                 <FormDescription>
-                  Select the Slack channel where notifications will be sent. For
-                  private channels, invite the app first with{" "}
+                  Select the Slack channel where notifications will be sent.
+                  Private channels appear only for the person who connected
+                  Slack, and only if both they and the app are members. Invite
+                  the app with{" "}
                   <code className="bg-muted rounded px-1 py-0.5">
                     /invite @Langfuse
-                  </code>{" "}
-                  in that channel.
+                  </code>
+                  .
                 </FormDescription>
                 <FormMessage />
               </FormItem>

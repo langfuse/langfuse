@@ -288,14 +288,6 @@ export const ChannelSelectorView: React.FC<ChannelSelectorViewProps> = ({
         )}
       </div>
 
-      {/* Channel stats */}
-      {channelsData?.channels && !isLoading ? (
-        <div className="text-muted-foreground text-xs">
-          {filteredChannels.length} of {channelsData.channels.length} channels
-          {memberOnly && " (member only)"}
-        </div>
-      ) : null}
-
       {hasError && (
         <Alert>
           <Alert.Description>
@@ -307,9 +299,10 @@ export const ChannelSelectorView: React.FC<ChannelSelectorViewProps> = ({
 
       {/* Private channel scope warning */}
       {channelsData && !channelsData.hasPrivateChannelAccess && (
-        <Alert icon={AlertTriangle}>
+        <Alert icon={AlertTriangle} variant="warning" size="sm">
+          <Alert.Title>Private channels are not visible</Alert.Title>
           <Alert.Description>
-            Private channels are not visible. To access private channels,{" "}
+            To access private channels,{" "}
             <button
               type="button"
               className="font-bold underline"

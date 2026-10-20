@@ -4,6 +4,5 @@ export {
   ChannelSelector,
   type SlackChannel,
 } from "@/src/features/slack/components/ChannelSelector";
-export { PrivateChannelsInfoTooltip } from "@/src/features/slack/components/PrivateChannelsInfoTooltip";
 export { SlackConnectionCard } from "@/src/features/slack/components/SlackConnectionCard";
 export { SlackTestMessageButton } from "@/src/features/slack/components/SlackTestMessageButton";
