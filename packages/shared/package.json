@@ -275,7 +275,7 @@
     "undici": "^7.30.1",
     "uuid": "^14.0.2",
     "winston": "^3.15.0",
-    "zod": "^4.3.6"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@opentelemetry/context-async-hooks": "^2.9.0",

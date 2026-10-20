@@ -108,7 +108,7 @@ overrides:
   # Keep both installed majors on their security-patched releases.
   "undici@6": 6.29.1
   "undici@7": 7.30.1
-  zod: 4.3.6
+  zod: 4.6.6
   nanoid: 3.3.18
   katex: ^0.16.21
   tar-fs: ^2.1.2
