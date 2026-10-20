@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useSession } from "next-auth/react";
 
 import Header from "@/src/components/layouts/header";
@@ -8,6 +9,7 @@ import {
   GatewayConfigurationView,
   type IngestionMode,
 } from "@/src/features/ai-gateway/components/GatewayConfigurationPage/components/GatewayConfigurationView/GatewayConfigurationView";
+import { IngestionProjectSetupPlaceholder } from "@/src/features/ai-gateway/components/GatewayConfigurationPage/components/IngestionProjectSetupPlaceholder/IngestionProjectSetupPlaceholder";
 import { showSuccessToast } from "@/src/features/notifications";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { api, reportNonTrpcError } from "@/src/utils/api";
@@ -36,6 +38,8 @@ export function GatewayConfigurationPage({
   const utils = api.useUtils();
   const createProject = api.projects.create.useMutation();
   const updateConfig = api.aiGateway.updateConfig.useMutation();
+  const [isChoosingExistingProject, setIsChoosingExistingProject] =
+    useState(false);
 
   async function saveGatewayConfig(params: {
     projectId: string | null;
@@ -46,7 +50,10 @@ export function GatewayConfigurationPage({
       defaultIngestionProjectId: params.projectId,
       ingestionMode: params.ingestionMode,
     });
-    await utils.aiGateway.getConfig.invalidate({ orgId: organizationId });
+    await Promise.all([
+      utils.aiGateway.getConfig.invalidate({ orgId: organizationId }),
+      utils.aiGateway.getSetupStatus.invalidate({ orgId: organizationId }),
+    ]);
     showSuccessToast({
       operation: "gateway_configuration.save",
       title: "Gateway configuration saved",
@@ -80,16 +87,59 @@ export function GatewayConfigurationPage({
   }
 
   const { config, gatewayBaseUrl } = configQuery.data;
+  const initialIngestionMode = config?.ingestionMode ?? "USAGE";
+
+  async function handleCreateProject(params: {
+    projectName: string;
+    ingestionMode: IngestionMode;
+  }) {
+    try {
+      const project = await createProject.mutateAsync({
+        orgId: organizationId,
+        name: params.projectName,
+      });
+      await session.update();
+      await saveGatewayConfig({
+        projectId: project.id,
+        ingestionMode: params.ingestionMode,
+      });
+    } catch (error) {
+      reportNonTrpcError(error, "ai-gateway-configuration");
+    }
+  }
+
+  function handleUseExistingProject() {
+    setIsChoosingExistingProject(true);
+  }
+
+  // Cloud always captures traffic, so a missing project blocks the whole
+  // gateway; self-hosted keeps the inline form because `NONE` needs no project.
+  const showSetupPlaceholder =
+    isLangfuseCloud &&
+    !isChoosingExistingProject &&
+    !hasActiveProject(projects, config?.defaultIngestionProjectId ?? null);
+  if (showSetupPlaceholder) {
+    return (
+      <IngestionProjectSetupPlaceholder
+        ingestionMode={initialIngestionMode}
+        isSaving={createProject.isPending || updateConfig.isPending}
+        onCreate={handleCreateProject}
+        onUseExistingProject={handleUseExistingProject}
+      />
+    );
+  }
+
   return (
     <GatewayConfigurationView
       key={`${config?.updatedAt?.toISOString() ?? "new"}:${config?.defaultIngestionProjectId ?? "none"}:${config?.ingestionMode ?? "USAGE"}`}
       projects={projects}
       gatewayBaseUrl={gatewayBaseUrl}
       initialProjectId={config?.defaultIngestionProjectId ?? null}
-      initialIngestionMode={config?.ingestionMode ?? "USAGE"}
+      initialIngestionMode={initialIngestionMode}
       availableIngestionModes={
         isLangfuseCloud ? CLOUD_INGESTION_MODES : SELF_HOSTED_INGESTION_MODES
       }
+      initialProjectInput={isChoosingExistingProject ? "select" : "create"}
       isSaving={createProject.isPending || updateConfig.isPending}
       saveError={createProject.isError || updateConfig.isError}
       onSave={async ({ projectId, ingestionMode }) => {
@@ -99,18 +149,7 @@ export function GatewayConfigurationPage({
           reportNonTrpcError(error, "ai-gateway-configuration");
         }
       }}
-      onCreateProject={async ({ projectName, ingestionMode }) => {
-        try {
-          const project = await createProject.mutateAsync({
-            orgId: organizationId,
-            name: projectName,
-          });
-          await session.update();
-          await saveGatewayConfig({ projectId: project.id, ingestionMode });
-        } catch (error) {
-          reportNonTrpcError(error, "ai-gateway-configuration");
-        }
-      }}
+      onCreateProject={handleCreateProject}
     />
   );
 }
@@ -127,5 +166,11 @@ function ConfigurationSkeleton() {
         <Skeleton className="h-36" />
       </div>
     </div>
+  );
+}
+
+function hasActiveProject(projects: Project[], projectId: string | null) {
+  return projects.some(
+    (project) => project.id === projectId && !project.deletedAt,
   );
 }

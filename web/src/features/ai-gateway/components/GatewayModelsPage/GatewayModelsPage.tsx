@@ -1,9 +1,12 @@
+import { Lock } from "@langfuse/icons";
+
 import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { EmptyState } from "@/src/components/design-system/EmptyState/EmptyState";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { ConnectedGatewayModelsTable } from "@/src/features/ai-gateway/components/GatewayModelsPage/components/ConnectedGatewayModelsTable/ConnectedGatewayModelsTable";
-import { useHasOrganizationAccess } from "@/src/features/rbac";
+import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 import { api } from "@/src/utils/api";
 import { aggregateModels } from "./fns/aggregateModels";
 
@@ -12,10 +15,31 @@ export function GatewayModelsPage({
 }: {
   organizationId: string;
 }) {
-  const canManageGateway = useHasOrganizationAccess({
-    organizationId,
-    scope: "gateway:manage",
-  });
+  const { canManageGateway, isIngestionConfigured, isSetupStatusPending } =
+    useGatewaySettingsAccess(organizationId);
+
+  if (isSetupStatusPending) {
+    return <ModelsSkeleton />;
+  }
+  // Managers are redirected to Configuration by the settings nav instead.
+  if (!canManageGateway && isIngestionConfigured === false) {
+    return <GatewayNotSetUp />;
+  }
+  return (
+    <GatewayModels
+      organizationId={organizationId}
+      canManageGateway={canManageGateway}
+    />
+  );
+}
+
+function GatewayModels({
+  organizationId,
+  canManageGateway,
+}: {
+  organizationId: string;
+  canManageGateway: boolean;
+}) {
   const connectionsQuery = api.aiGateway.listModelConnections.useQuery({
     orgId: organizationId,
   });
@@ -48,6 +72,19 @@ export function GatewayModelsPage({
       isLoading={modelsQuery.isPending || modelsQuery.isFetching}
       syncError={modelsQuery.isError}
     />
+  );
+}
+
+function GatewayNotSetUp() {
+  return (
+    <div className="flex flex-col gap-4">
+      <Header title="Models" />
+      <EmptyState
+        icon={Lock}
+        title="The AI Gateway isn't set up yet"
+        description="Ask your organization admin to set up the AI Gateway."
+      />
+    </div>
   );
 }
 
