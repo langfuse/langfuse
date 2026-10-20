@@ -574,10 +574,10 @@ async fn ingestion_mode_none_relays_without_uploading() {
             .unwrap()
     })
     .await;
-    let relay = provider(&upstream, 1).with_telemetry(telemetry.clone());
+    let relay = provider(&upstream).with_telemetry(telemetry.clone());
     let response = relay
         .forward(
-            relay.try_admit().unwrap(),
+            relay.admit(),
             resolved_request_context_with_mode("provider-secret", "none").await,
             &HeaderMap::new(),
             Bytes::from_static(br#"{"model":"requested","input":"prompt-canary"}"#),
