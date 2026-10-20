@@ -780,7 +780,8 @@ Capture is limited to 5 MiB request inspection, 1 MiB JSON/SSE event inspection,
 1 MiB retained output and 256 output items per execution. Full-mode input is the
 request body exactly as the client sent it, so it retains about one body of memory;
 only the top-level members recorded as model, parameters and metadata are parsed (at
-most 64 KiB in total; larger members are not recorded as parameters). The
+most 64 KiB in total, plus up to 64 KiB for Codex `client_metadata`; larger members
+are not recorded as their own fields). The
 retained-output limit counts the parsed output's estimated memory, which for many
 small objects is far larger than its serialized size. The memory budget
 bounds the number of captures. Trusted key metadata is bounded by the resolver's
