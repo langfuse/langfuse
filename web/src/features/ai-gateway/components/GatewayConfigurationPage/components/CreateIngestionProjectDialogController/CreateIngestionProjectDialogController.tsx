@@ -7,23 +7,19 @@ import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { FormField } from "@/src/components/design-system/FormField/FormField";
 import { Input } from "@/src/components/design-system/Input/Input";
-import type { IngestionMode } from "@/src/features/ai-gateway/components/GatewayConfigurationPage/components/GatewayConfigurationView/GatewayConfigurationView";
 import { DEFAULT_GATEWAY_INGESTION_PROJECT_NAME } from "@/src/features/ai-gateway/constants/gatewayConfig";
+import type { GatewayIngestionMode } from "@langfuse/shared";
 
 const createIngestionProjectSchema = z.object({
   projectName: z.string().trim().min(1, "Enter a project name."),
 });
 
-type CreateIngestionProjectValues = z.infer<
-  typeof createIngestionProjectSchema
->;
-
 export type CreateIngestionProjectDialogControllerProps = {
-  ingestionMode: IngestionMode;
+  ingestionMode: GatewayIngestionMode;
   isSaving: boolean;
   onCreate: (values: {
     projectName: string;
-    ingestionMode: IngestionMode;
+    ingestionMode: GatewayIngestionMode;
   }) => void | Promise<void>;
   children: (control: { openDialog: () => void }) => ReactNode;
 };
@@ -34,9 +30,13 @@ export function CreateIngestionProjectDialogController({
   onCreate,
   children,
 }: CreateIngestionProjectDialogControllerProps) {
+  function handleBeforeClose() {
+    return !isSaving;
+  }
+
   return (
     <DialogController
-      onBeforeClose={() => !isSaving}
+      onBeforeClose={handleBeforeClose}
       renderDialog={() => (
         <CreateIngestionProjectDialog
           ingestionMode={ingestionMode}
@@ -106,3 +106,7 @@ function CreateIngestionProjectDialog({
     </Dialog>
   );
 }
+
+type CreateIngestionProjectValues = z.infer<
+  typeof createIngestionProjectSchema
+>;
