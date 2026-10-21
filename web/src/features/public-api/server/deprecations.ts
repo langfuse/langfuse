@@ -49,7 +49,27 @@ const DOCS = {
   otel: "https://langfuse.com/integrations/native/opentelemetry",
   otelMigration:
     "https://langfuse.com/integrations/native/opentelemetry/migration-to-v4.md",
+  sdkUpgrade: "https://langfuse.com/docs/observability/sdk/upgrade-path",
+  v4: "https://langfuse.com/docs/v4",
+  selfHostedV4Upgrade:
+    "https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4",
 } as const;
+
+/** LEGACY_TRACE_WRITE_REPLACEMENT is the SDK and OpenTelemetry pointer shared by legacy trace-write rejections. */
+const LEGACY_TRACE_WRITE_REPLACEMENT = `Upgrade to the latest Langfuse SDKs, which send traces via OpenTelemetry, or send traces directly to ${REPLACEMENT.otelTraces}. Scores can still be sent via ${REPLACEMENT.scoreCreate}. Docs: ${DOCS.sdkUpgrade} ${DOCS.otelMigration}`;
+
+/** LEGACY_INGESTION_ORG_CUTOFF_MESSAGE is the rejection for an organization created at or after the legacy-ingestion cutoff. */
+export const LEGACY_INGESTION_ORG_CUTOFF_MESSAGE = `This ingestion API no longer accepts trace or observation writes for this organization. ${LEGACY_TRACE_WRITE_REPLACEMENT}`;
+
+/** EVENTS_ONLY_UNAVAILABLE_MESSAGE is the 404 for a deployment in v4 events_only mode. */
+export const EVENTS_ONLY_UNAVAILABLE_MESSAGE = `This endpoint is not available on deployments running in Langfuse v4 events_only mode. ${LEGACY_TRACE_WRITE_REPLACEMENT} Learn more about Langfuse v4 at ${DOCS.v4}.`;
+
+/** EVENTS_ONLY_INGESTION_REMEDIATION is the per-event remediation for the legacy batch endpoint in events_only mode. */
+export const EVENTS_ONLY_INGESTION_REMEDIATION = [
+  LEGACY_TRACE_WRITE_REPLACEMENT,
+  "As a temporary migration bridge, set LANGFUSE_MIGRATION_V4_WRITE_MODE=dual on both the web and worker services and redeploy.",
+  `Self-hosted upgrade guide: ${DOCS.selfHostedV4Upgrade}`,
+].join(" ");
 
 export const OBSERVATIONS_V1_DEPRECATION: ApiDeprecationInfo = {
   message: v3Notice(`Use ${REPLACEMENT.observationsV2} instead.`),
