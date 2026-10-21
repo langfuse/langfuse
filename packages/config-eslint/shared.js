@@ -9,8 +9,6 @@ const prismaWriters = {
   apiKey: ["packages/shared/src/server/auth/apiKeys.ts"],
   roleAssignment: [
     "packages/shared/src/features/rbac/roleAssignmentService.ts",
-    "*.test.ts",
-    "*.servertest.ts",
   ],
 };
 

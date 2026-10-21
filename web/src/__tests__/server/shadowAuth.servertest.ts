@@ -11,12 +11,14 @@ import {
   getDisplaySecretKey,
 } from "@langfuse/shared/src/server";
 import {
+  ApiKeyId,
   OrganizationId,
   ProjectId,
   SystemRoleId,
   type OrganizationAction,
   type ProjectAction,
 } from "@langfuse/shared/rbac";
+import { assignRole } from "@langfuse/shared/rbac/server";
 
 import { env } from "@/src/env.mjs";
 import { authorize } from "@/src/features/rbac/authorize";
@@ -257,16 +259,12 @@ describe("shadowAuth maps principals to legacy-identical scopes", () => {
 
     it("preserves a narrow assignment instead of restoring a legacy grant", async () => {
       const { apiKey, authorization } = await createUnassignedApiKey("PROJECT");
-      const assignment = await prisma.roleAssignment.create({
-        data: {
-          orgId,
-          projectId,
-          apiKeyId: apiKey.id,
-          ownerId: `project/${projectId}`,
-          principalId: `apiKey/${apiKey.id}`,
-          roleId: "system/SCORES_INGEST",
-          systemRole: "SCORES_INGEST",
-        },
+      const assignment = await assignRole(prisma, {
+        tenantId: OrganizationId(orgId),
+        ownerId: ProjectId(projectId),
+        principalId: ApiKeyId(apiKey.id),
+        roleId: SystemRoleId("SCORES_INGEST"),
+        tags: [],
       });
       setMode("enforce");
       const result = await shadowAuth({
@@ -510,16 +508,12 @@ describe("shadowAuth maps principals to legacy-identical scopes", () => {
 
   it("a project ADMIN key on a project-nested route authorizes only its own project in enforce", async () => {
     const { apiKey, authorization } = await createUnassignedApiKey("PROJECT");
-    await prisma.roleAssignment.create({
-      data: {
-        orgId,
-        projectId,
-        apiKeyId: apiKey.id,
-        ownerId: `project/${projectId}`,
-        principalId: `apiKey/${apiKey.id}`,
-        roleId: "system/ADMIN",
-        systemRole: "ADMIN",
-      },
+    await assignRole(prisma, {
+      tenantId: OrganizationId(orgId),
+      ownerId: ProjectId(projectId),
+      principalId: ApiKeyId(apiKey.id),
+      roleId: SystemRoleId("ADMIN"),
+      tags: [],
     });
     const sibling = await prisma.project.create({
       data: { orgId, name: `sibling-${randomUUID()}` },

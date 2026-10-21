@@ -8,7 +8,13 @@ import {
   createAuthzContextCacheKey,
   createShaHash,
 } from "@langfuse/shared/src/server";
-import { OrganizationId, SystemRoleId } from "@langfuse/shared/rbac";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
+import { assignRole } from "@langfuse/shared/rbac/server";
 import type { Session } from "next-auth";
 import { v4 as uuidv4 } from "uuid";
 import {
@@ -397,16 +403,12 @@ describe("API-key cache invalidation on project/org lifecycle", () => {
     const keys = await seedOrgScopedKey(orgId);
 
     const user = await createUserInOrgs([orgId]);
-    const assignment = await prisma.roleAssignment.create({
-      data: {
-        orgId,
-        userId: user.id,
-        principalId: `user/${user.id}`,
-        projectId,
-        ownerId: `project/${projectId}`,
-        systemRole: "VIEWER",
-        roleId: "system/VIEWER",
-      },
+    const assignment = await assignRole(prisma, {
+      tenantId: OrganizationId(orgId),
+      ownerId: ProjectId(projectId),
+      principalId: UserId(user.id),
+      roleId: SystemRoleId("VIEWER"),
+      tags: [],
     });
 
     const res = makeRes();

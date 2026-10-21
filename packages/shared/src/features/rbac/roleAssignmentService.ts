@@ -32,15 +32,15 @@ export async function getRoleAssignmentsForPrincipal(
 export async function assignRole(
   prisma: Prisma.TransactionClient,
   ra: Omit<RoleAssignment, "id" | "createdAt" | "updatedAt">,
-): Promise<void> {
+): Promise<StoredRoleAssignment> {
   const roleFields = validateRole(ra.roleId);
-  await withTransaction(prisma, async (tx) => {
+  return await withTransaction(prisma, async (tx) => {
     const ownerAndTenantFields = await validateTenancy(
       tx,
       ra.tenantId,
       ra.ownerId,
     );
-    await tx.roleAssignment.create({
+    return await tx.roleAssignment.create({
       data: {
         ...ownerAndTenantFields,
         ...principalFields(ra.principalId),

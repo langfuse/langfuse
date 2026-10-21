@@ -14,8 +14,16 @@ vi.mock("@/src/ee/features/billing/server/chb/chbProjectEvents", () => ({
 }));
 
 import { createApiKey } from "@langfuse/shared/src/server";
-import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
-import { getRoleAssignmentsForPrincipal } from "@langfuse/shared/rbac/server";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
+import {
+  assignRole,
+  getRoleAssignmentsForPrincipal,
+} from "@langfuse/shared/rbac/server";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
@@ -198,16 +206,12 @@ describe("projectsRouter system role assignments", () => {
       }),
     ).resolves.toBe(1);
 
-    const assignment = await prisma.roleAssignment.create({
-      data: {
-        orgId,
-        userId: user.id,
-        principalId: `user/${user.id}`,
-        projectId,
-        ownerId: `project/${projectId}`,
-        systemRole: "VIEWER",
-        roleId: "system/VIEWER",
-      },
+    const assignment = await assignRole(prisma, {
+      tenantId: OrganizationId(orgId),
+      ownerId: ProjectId(projectId),
+      principalId: UserId(user.id),
+      roleId: SystemRoleId("VIEWER"),
+      tags: [],
     });
 
     await caller.projects.delete({ projectId });

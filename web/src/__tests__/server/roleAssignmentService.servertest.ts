@@ -154,16 +154,12 @@ async function addUserAssignment(orgId: string, projectId: string) {
   const user = await prisma.user.create({
     data: { email: `${v4()}@example.com` },
   });
-  const assignment = await prisma.roleAssignment.create({
-    data: {
-      orgId,
-      userId: user.id,
-      principalId: UserId(user.id),
-      projectId,
-      ownerId: ProjectId(projectId),
-      systemRole: "VIEWER",
-      roleId: SystemRoleId("VIEWER"),
-    },
+  const assignment = await assignRole(prisma, {
+    tenantId: OrganizationId(orgId),
+    ownerId: ProjectId(projectId),
+    principalId: UserId(user.id),
+    roleId: SystemRoleId("VIEWER"),
+    tags: [],
   });
   return { ...assignment, userId: user.id };
 }
@@ -484,6 +480,7 @@ describe("role assignment foreign keys", () => {
       };
 
       await expect(
+        // eslint-disable-next-line @repo/no-restricted-prisma-writes -- writes a row with a dangling foreign key, which assignRole rejects before the database sees it.
         prisma.roleAssignment.create({ data }),
       ).rejects.toMatchObject({
         code: "P2003",
@@ -543,11 +540,18 @@ describe("role assignment foreign keys", () => {
     }[invalidShape];
 
     await expect(
+      // eslint-disable-next-line @repo/no-restricted-prisma-writes -- writes a malformed row, which assignRole rejects before the database sees it.
       prisma.roleAssignment.create({
         data: { ...validData, ...invalidFields },
       }),
     ).rejects.toThrow(/check constraint/);
-    const assignment = await prisma.roleAssignment.create({ data: validData });
+    const assignment = await assignRole(prisma, {
+      tenantId: OrganizationId(orgId),
+      ownerId: ProjectId(projectId),
+      principalId: UserId(user.id),
+      roleId: SystemRoleId("VIEWER"),
+      tags: [],
+    });
     await expect(
       prisma.roleAssignment.update({
         where: { id: assignment.id },
