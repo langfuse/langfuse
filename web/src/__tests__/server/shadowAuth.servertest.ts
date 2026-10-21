@@ -4,6 +4,7 @@ import { type NextApiRequest } from "next";
 
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  createApiKey,
   createBasicAuthHeader,
   createOrgProjectAndApiKey,
   createShaHash,
@@ -12,6 +13,7 @@ import {
 import {
   OrganizationId,
   ProjectId,
+  SystemRoleId,
   type OrganizationAction,
   type ProjectAction,
 } from "@langfuse/shared/rbac";
@@ -137,29 +139,10 @@ const scopeOf = (result: ShadowResult): Record<string, unknown> => {
 };
 
 const createOrgApiKey = async (targetOrgId: string) => {
-  const publicKey = `pk-lf-${randomUUID()}`;
-  const secretKey = `sk-lf-${randomUUID()}`;
-  const apiKeyRowId = randomUUID();
-  await prisma.apiKey.create({
-    data: {
-      id: apiKeyRowId,
-      orgId: targetOrgId,
-      publicKey,
-      hashedSecretKey: `test-hashed-secret-key-${randomUUID()}`,
-      fastHashedSecretKey: createShaHash(secretKey, env.SALT as string),
-      displaySecretKey: getDisplaySecretKey(secretKey),
-      scope: "ORGANIZATION",
-    },
-  });
-  await prisma.roleAssignment.create({
-    data: {
-      orgId: targetOrgId,
-      apiKeyId: apiKeyRowId,
-      principalId: `apiKey/${apiKeyRowId}`,
-      systemRole: "LEGACY_ORGANIZATION_API_KEY",
-      roleId: "system/LEGACY_ORGANIZATION_API_KEY",
-      ownerId: `organization/${targetOrgId}`,
-    },
+  const { publicKey, secretKey } = await createApiKey(prisma, {
+    owner: OrganizationId(targetOrgId),
+    role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+    createdBy: "system",
   });
   return createBasicAuthHeader(publicKey, secretKey);
 };
@@ -189,6 +172,7 @@ const ownedProjectIds = (context: AuthorizationContext): string[] =>
 const createUnassignedApiKey = async (scope: "PROJECT" | "ORGANIZATION") => {
   const publicKey = `pk-lf-${randomUUID()}`;
   const secretKey = `sk-lf-${randomUUID()}`;
+  // eslint-disable-next-line @repo/no-direct-api-key-writes -- needs a key with no role assignment, which createApiKey always adds.
   const apiKey = await prisma.apiKey.create({
     data: {
       scope,

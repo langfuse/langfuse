@@ -3,6 +3,7 @@ import { default as componentFileStructure } from "./rules/component-file-struct
 import { default as noArbitraryColors } from "./rules/no-arbitrary-colors.js";
 import { default as noAbstractedOverlayTrigger } from "./rules/no-abstracted-overlay-trigger.js";
 import { default as noInSourceVitest } from "./rules/no-in-source-vitest.js";
+import { default as noDirectApiKeyWrites } from "./rules/no-direct-api-key-writes.js";
 import { default as noExoticOperators } from "./rules/no-exotic-operators.js";
 import { default as noMarginOnRootElements } from "./rules/no-margin-on-root-elements.js";
 import { default as noNullRender } from "./rules/no-null-render.js";
@@ -22,6 +23,7 @@ const plugin = {
     "component-file-structure": componentFileStructure,
     "no-abstracted-overlay-trigger": noAbstractedOverlayTrigger,
     "no-arbitrary-colors": noArbitraryColors,
+    "no-direct-api-key-writes": noDirectApiKeyWrites,
     "no-exotic-operators": noExoticOperators,
     "no-in-source-vitest": noInSourceVitest,
     "storybook-play-no-implementation-detail-assertions":

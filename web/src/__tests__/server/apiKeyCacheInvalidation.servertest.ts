@@ -2,11 +2,13 @@ import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { LLMAdapter, type Plan, Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  createApiKey,
   createApiKeyCacheKey,
   AUTHZ_CONTEXT_CACHE_KEY_PREFIX,
   createAuthzContextCacheKey,
   createShaHash,
 } from "@langfuse/shared/src/server";
+import { OrganizationId, SystemRoleId } from "@langfuse/shared/rbac";
 import type { Session } from "next-auth";
 import { v4 as uuidv4 } from "uuid";
 import {
@@ -99,19 +101,12 @@ function cacheKeysFor({
 }
 
 async function seedOrgScopedKey(orgId: string) {
-  const suffix = uuidv4().slice(0, 8);
-  const fastHash = `fh-${suffix}`;
-  const publicKey = `pk-lf-${suffix}`;
-  await prisma.apiKey.create({
-    data: {
-      orgId,
-      scope: "ORGANIZATION",
-      publicKey,
-      hashedSecretKey: `hsk-${suffix}`,
-      fastHashedSecretKey: fastHash,
-      displaySecretKey: `sk-...${suffix}`,
-    },
+  const { publicKey, secretKey } = await createApiKey(prisma, {
+    owner: OrganizationId(orgId),
+    role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+    createdBy: "system",
   });
+  const fastHash = createShaHash(secretKey, env.SALT!);
   const keys = cacheKeysFor({ fastHash, publicKey });
   for (const key of keys) {
     await setRedisValue(redis, key, "1");

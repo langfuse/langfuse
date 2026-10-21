@@ -1,17 +1,7 @@
 import { randomUUID } from "crypto";
 import { prisma } from "../../src/db";
-import {
-  createLegacySecretKeyPlaceholder,
-  getDisplaySecretKey,
-  logger,
-} from "../../src/server";
-import { assignRole } from "../../src/features/rbac/roleAssignmentService";
-import {
-  ApiKeyId,
-  OrganizationId,
-  ProjectId,
-  SystemRoleId,
-} from "../../src/features/rbac/types";
+import { createApiKey, logger } from "../../src/server";
+import { ProjectId, SystemRoleId } from "../../src/features/rbac/types";
 import { prepareClickhouse } from "./prepare-clickhouse";
 import { redis } from "../../src/server";
 
@@ -44,7 +34,7 @@ const prepareProjectsAndApiKeys = async (
       },
     });
 
-    const project = await prisma.project.upsert({
+    await prisma.project.upsert({
       where: { id: projectId },
       update: {},
       create: {
@@ -54,35 +44,16 @@ const prepareProjectsAndApiKeys = async (
       },
     });
 
-    const apiKeyId = `api-key-${projectId}`;
-    const apiKeyExists = await prisma.apiKey.findUnique({
-      where: { id: apiKeyId },
+    const name = `API Key for ${projectId}`;
+    const apiKeyExists = await prisma.apiKey.findFirst({
+      where: { projectId, note: name },
     });
     if (!apiKeyExists) {
-      const sk = `sk-lf-${randomUUID()}`;
-      await prisma.$transaction(async (tx) => {
-        await tx.apiKey.create({
-          data: {
-            id: apiKeyId,
-            note: `API Key for ${projectId}`,
-            publicKey: `pk-${Math.random().toString(36).slice(2, 11)}`,
-            hashedSecretKey: createLegacySecretKeyPlaceholder(),
-            displaySecretKey: getDisplaySecretKey(sk),
-            scope: "PROJECT",
-            project: {
-              connect: {
-                id: projectId,
-              },
-            },
-          },
-        });
-        await assignRole(tx, {
-          tenantId: OrganizationId(project.orgId),
-          principalId: ApiKeyId(apiKeyId),
-          roleId: SystemRoleId("LEGACY_PROJECT_API_KEY"),
-          ownerId: ProjectId(projectId),
-          tags: [],
-        });
+      await createApiKey(prisma, {
+        owner: ProjectId(projectId),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+        createdBy: "system",
+        name,
       });
     }
   });

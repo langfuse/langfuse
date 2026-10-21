@@ -1,15 +1,8 @@
 import { v4 } from "uuid";
 import { prisma } from "../../db";
-import { env } from "../../env";
-import {
-  ApiKeyId,
-  OrganizationId,
-  ProjectId,
-  SystemRoleId,
-} from "../../features/rbac/types";
+import { ProjectId, SystemRoleId } from "../../features/rbac/types";
 import { CloudConfigSchema } from "../../interfaces/cloudConfigSchema";
-import { assignRole } from "../../features/rbac/roleAssignmentService";
-import { createShaHash, getDisplaySecretKey } from "../auth/apiKeys";
+import { createApiKey } from "../auth/apiKeys";
 
 export function createBasicAuthHeader(
   username: string,
@@ -46,40 +39,12 @@ export const createOrgProjectAndApiKey = async (
       orgId: org.id,
     },
   });
-  const publicKey = `pk-lf-${v4()}`;
-  const secretKey = `sk-lf-${v4()}`;
-  const salt = env.SALT;
-  if (!salt) {
-    throw new Error("SALT is not set");
-  }
-
-  const auth = createBasicAuthHeader(publicKey, secretKey);
-  const apiKeyRowId = v4();
-  await prisma.$transaction(async (tx) => {
-    await tx.apiKey.create({
-      data: {
-        id: apiKeyRowId,
-        projectId: projectId,
-        publicKey: publicKey,
-        // Test fixtures use the modern fast-hash auth path. Avoid bcrypt here as
-        // cost-11 hashing adds ~100ms per fixture; keep the legacy hash unique to
-        // satisfy the database constraint without affecting authentication.
-        hashedSecretKey: `test-hashed-secret-key-${v4()}`,
-        fastHashedSecretKey: createShaHash(secretKey, salt),
-        displaySecretKey: getDisplaySecretKey(secretKey),
-        scope: "PROJECT",
-      },
-    });
-
-    // Give the fixture key its legacy project permissions.
-    await assignRole(tx, {
-      tenantId: OrganizationId(org.id),
-      principalId: ApiKeyId(apiKeyRowId),
-      roleId: SystemRoleId("LEGACY_PROJECT_API_KEY"),
-      ownerId: ProjectId(projectId),
-      tags: [],
-    });
+  const { publicKey, secretKey } = await createApiKey(prisma, {
+    owner: ProjectId(projectId),
+    role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+    createdBy: "system",
   });
+  const auth = createBasicAuthHeader(publicKey, secretKey);
 
   return { projectId, orgId: org.id, publicKey, secretKey, auth, org, project };
 };

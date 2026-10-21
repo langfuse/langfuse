@@ -35,6 +35,7 @@ export default [
       "no-unneeded-ternary": "warn",
       "no-nested-ternary": "error",
       "@repo/no-exotic-operators": "warn",
+      "@repo/no-direct-api-key-writes": "error",
     },
   },
 
@@ -64,6 +65,15 @@ export default [
     name: "langfuse/shared/repo-plugin",
     plugins: {
       "@repo": langfusePlugin,
+    },
+  },
+
+  // createApiKey is the one sanctioned writer of ApiKey rows (path relative to packages/shared).
+  {
+    name: "langfuse/shared/api-key-writer",
+    files: ["src/server/auth/apiKeys.ts"],
+    rules: {
+      "@repo/no-direct-api-key-writes": "off",
     },
   },
 
