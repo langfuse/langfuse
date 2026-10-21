@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { expect, fn, userEvent, within } from "storybook/test";
 import { type ComponentProps } from "react";
 

@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger, @repo/component-file-structure */
+/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger, @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { ModelParameters } from "@/src/components/ModelParameters";
 import { CardContent, Card } from "@/src/components/ui/card";

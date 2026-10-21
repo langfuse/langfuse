@@ -41,20 +41,22 @@ function createMockResponse() {
 
 describe("public API key list filters", () => {
   it("filters in-app agent keys from project API key responses", async () => {
-    const { projectId } = await createOrgProjectAndApiKey();
+    const { orgId, projectId } = await createOrgProjectAndApiKey();
 
     const keyCreator = await prisma.user.create({
       data: { email: `apikey-creator-${randomUUID()}@example.com` },
     });
     const visibleKey = await createApiKey(prisma, {
-      owner: ProjectId(projectId),
+      tenant: OrganizationId(orgId),
+      scope: ProjectId(projectId),
       role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
       createdBy: UserId(keyCreator.id),
       name: "Visible project key",
     });
 
     const inAppAgentKey = await createApiKey(prisma, {
-      owner: ProjectId(projectId),
+      tenant: OrganizationId(orgId),
+      scope: ProjectId(projectId),
       role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
       createdBy: UserId(keyCreator.id),
       name: "Hidden project in-app agent key",
@@ -81,14 +83,16 @@ describe("public API key list filters", () => {
       data: { email: `apikey-creator-${randomUUID()}@example.com` },
     });
     const visibleKey = await createApiKey(prisma, {
-      owner: OrganizationId(orgId),
+      tenant: OrganizationId(orgId),
+      scope: OrganizationId(orgId),
       role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
       createdBy: UserId(keyCreator.id),
       name: "Visible org key",
     });
 
     const inAppAgentKey = await createApiKey(prisma, {
-      owner: OrganizationId(orgId),
+      tenant: OrganizationId(orgId),
+      scope: OrganizationId(orgId),
       role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
       createdBy: UserId(keyCreator.id),
       name: "Hidden org in-app agent key",
@@ -114,12 +118,14 @@ describe("public API key list filters", () => {
       data: { email: `apikey-creator-${randomUUID()}@example.com` },
     });
     const callerKey = await createApiKey(prisma, {
-      owner: OrganizationId(orgId),
+      tenant: OrganizationId(orgId),
+      scope: OrganizationId(orgId),
       role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
       createdBy: UserId(keyCreator.id),
     });
     const inAppAgentKey = await createApiKey(prisma, {
-      owner: ProjectId(projectId),
+      tenant: OrganizationId(orgId),
+      scope: ProjectId(projectId),
       role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
       createdBy: UserId(keyCreator.id),
       isInAppAgentKey: true,
@@ -147,7 +153,8 @@ describe("public API key list filters", () => {
       data: { email: `apikey-creator-${randomUUID()}@example.com` },
     });
     const inAppAgentKey = await createApiKey(prisma, {
-      owner: OrganizationId(orgId),
+      tenant: OrganizationId(orgId),
+      scope: OrganizationId(orgId),
       role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
       createdBy: UserId(keyCreator.id),
       isInAppAgentKey: true,

@@ -14,7 +14,12 @@ import { Prisma, type PrismaClient, prisma } from "@langfuse/shared/src/db";
 import { env } from "@/src/env.mjs";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { v4 } from "uuid";
-import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
 import {
   clearRedisKeysByPatternSafely,
   createRedisTestClient,
@@ -297,7 +302,8 @@ describe("Authenticate API calls", () => {
         data: { email: `apikey-creator-${v4()}@example.com` },
       });
       const apiKey = await createApiKey(prisma, {
-        owner: ProjectId(testApiKey.projectId),
+        tenant: OrganizationId(testApiKey.orgId),
+        scope: ProjectId(testApiKey.projectId),
         role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
         createdBy: UserId(keyCreator.id),
         isInAppAgentKey: true,
@@ -322,7 +328,8 @@ describe("Authenticate API calls", () => {
         data: { email: `apikey-creator-${v4()}@example.com` },
       });
       const apiKey = await createApiKey(prisma, {
-        owner: ProjectId(testApiKey.projectId),
+        tenant: OrganizationId(testApiKey.orgId),
+        scope: ProjectId(testApiKey.projectId),
         role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
         createdBy: UserId(keyCreator.id),
         isInAppAgentKey: true,
@@ -858,6 +865,7 @@ describe("Authenticate API calls", () => {
         isInAppAgentKey: false,
         createdByUserId: null,
         createdByApiKeyId: null,
+        userId: null,
         projectId: expect.any(String),
         orgId: testApiKey.orgId,
         plan: "cloud:hobby",
