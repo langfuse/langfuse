@@ -1,4 +1,5 @@
 export * from "./observation-field-groups";
+export * from "./export-field-groups";
 export * from "./observations";
 export * from "./traces";
 export * from "./scores";
