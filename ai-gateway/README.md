@@ -135,7 +135,23 @@ stream duration once the body reaches end of stream. Execution summaries and
 completion, cancellation, timeout, or transport error. HTTP status and stream
 outcome are separate: a 200 response can still fail while streaming. The server
 span carries `http.request.body.size`, `gateway.outcome`, and
-`gateway.first_byte_ms` once they are known.
+`gateway.first_byte_ms` once they are known. The execution summary also carries
+`output_complete`, which is true only when the provider stream reached its
+protocol terminal event, so a relay that hit end of stream early still reads
+`outcome=complete` with `output_complete=false`.
+
+An execution `complete` means hyper accepted the last body chunk, not that it
+reached the socket. Each accepted connection therefore logs
+`gateway connection closed` when hyper drops it, with `connection_id`, `peer`
+(the load balancer node), `duration_ms`, `bytes_read`, `bytes_written` (bytes
+the kernel send buffer accepted), `since_last_write_ms`, `write_blocks`,
+`longest_write_block_ms`, `write_blocked_at_close_ms` when a write was still
+waiting for buffer space, `peer_closed`, `shut_down`, and the first IO `error`
+kind. Connections that wrote under 8 KiB without an anomaly, such as health
+checks, log at `debug`; the rest log at `info`. Request log lines carry the same
+top-level `connection_id`, recorded on the server span as
+`gateway.connection.id`. IDs are unique per process, so join them on the task
+as well.
 
 ### Request IDs
 
