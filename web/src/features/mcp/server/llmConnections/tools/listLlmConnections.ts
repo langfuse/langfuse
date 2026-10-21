@@ -2,14 +2,13 @@ import { z } from "zod";
 import { LLMApiKeySchema, LLMConnectionConfigSchema } from "@langfuse/shared";
 
 import { LlmConnectionService } from "@/src/features/llm-api-key/server";
-import { BedrockAuthMethodSchema } from "@/src/features/llm-api-key/types";
+import { BedrockAuthMethodSchema } from "@/src/features/llm-api-key";
 import { defineTool } from "@/src/features/mcp/core/define-tool";
 import { runMcpTool } from "@/src/features/mcp/core/run-mcp-tool";
 
 const ListLlmConnectionsInput = z.object({});
 
-// Rebuilt as a non-strict object (LLMApiKeySchema is strict): parsing strips
-// every field not picked here, so the tool can only ever return metadata.
+/** Non-strict copy of the strict LLMApiKeySchema; parsing strips unpicked fields so only connection metadata is returned. */
 const LlmConnectionOutput = z
   .object(LLMApiKeySchema.shape)
   .pick({

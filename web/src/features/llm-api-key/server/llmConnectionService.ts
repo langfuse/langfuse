@@ -4,6 +4,7 @@ import {
   AuthMethod,
   type BedrockAuthMethod,
 } from "@/src/features/llm-api-key/types";
+import { getConnectionAvailableModels } from "@/src/features/llm-api-key/availableModels";
 import {
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   BedrockConfigSchema,
@@ -144,17 +145,6 @@ const toSafeConnection = (connection: LlmApiKeys): SafeLlmConnection => {
 
   throw new Error(`LLM connection "${connection.id}" has no owner`);
 };
-
-function getAvailableModels(connection: SafeLlmConnection): string[] {
-  return Array.from(
-    new Set([
-      ...connection.customModels,
-      ...(connection.withDefaultModels
-        ? supportedModels[connection.adapter]
-        : []),
-    ]),
-  );
-}
 
 function getDisplaySecretKey(secretKey: string): string {
   if (secretKey === BEDROCK_USE_DEFAULT_CREDENTIALS) {
@@ -518,7 +508,7 @@ export class LlmConnectionService {
     return {
       data: data.map((connection) => ({
         ...connection,
-        availableModels: getAvailableModels(connection),
+        availableModels: getConnectionAvailableModels(connection),
       })),
     };
   }
