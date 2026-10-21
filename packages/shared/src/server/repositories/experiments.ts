@@ -90,12 +90,8 @@ export const getDatasetExperimentMetricsFromEvents = async (props: {
 
   const experimentsQuery = eventsExperimentsAggregation({
     projectId: props.projectId,
-    fieldSet: "count",
+    fieldSet: "datasetMetrics",
   })
-    .selectRaw(
-      "nullIf(any(e.experiment_dataset_id), '') AS experiment_dataset_id",
-      "min(e.start_time) AS start_time",
-    )
     .whereRaw("e.experiment_dataset_id IN ({datasetIds: Array(String)})", {
       datasetIds: props.datasetIds,
     })
