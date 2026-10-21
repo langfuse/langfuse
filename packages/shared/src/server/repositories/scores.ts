@@ -11,6 +11,12 @@ import {
   ListableScoreDataType,
   ScoreDataTypeEnum,
 } from "../../domain/scores";
+import {
+  SCORE_EXPORT_CORE_FIELDS,
+  SCORE_EXPORT_FIELD_GROUPS,
+  SCORE_EXPORT_GROUP_FIELDS,
+  type ScoreExportFieldGroup,
+} from "../../domain/export-field-groups";
 import { InvalidRequestError, InternalServerError } from "../../errors";
 import {
   eventsTableIsRootObservationSql,
@@ -2533,30 +2539,23 @@ export const getDistinctScoreNames = async (
 };
 
 // Shared query for both the standard (parsed) and Parquet (`exec` binary)
-// score export paths.
+// score export paths. Opt-in field group columns are appended after the base
+// columns so the base column order stays stable.
 const buildScoresForBlobStorageExportQuery = (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
+  fieldGroups: ScoreExportFieldGroup[],
 ) => {
+  const columns: string[] = [
+    ...SCORE_EXPORT_CORE_FIELDS,
+    ...SCORE_EXPORT_FIELD_GROUPS.filter((group) =>
+      fieldGroups.includes(group),
+    ).flatMap((group) => SCORE_EXPORT_GROUP_FIELDS[group]),
+  ];
   const query = `
     SELECT
-      id,
-      timestamp,
-      project_id,
-      environment,
-      trace_id,
-      observation_id,
-      session_id,
-      dataset_run_id,
-      name,
-      value,
-      source,
-      comment,
-      data_type,
-      string_value,
-      created_at,
-      updated_at
+      ${columns.join(",\n      ")}
     FROM scores FINAL
     WHERE project_id = {projectId: String}
     AND timestamp >= {minTimestamp: DateTime64(3)}
@@ -2585,9 +2584,15 @@ export const getScoresForBlobStorageExport = function (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
+  fieldGroups: ScoreExportFieldGroup[] = [],
 ) {
   return queryClickhouseStream<Record<string, unknown>>(
-    buildScoresForBlobStorageExportQuery(projectId, minTimestamp, maxTimestamp),
+    buildScoresForBlobStorageExportQuery(
+      projectId,
+      minTimestamp,
+      maxTimestamp,
+      fieldGroups,
+    ),
   );
 };
 
@@ -2597,12 +2602,14 @@ export const getScoresForBlobStorageExportParquet = function (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
+  fieldGroups: ScoreExportFieldGroup[] = [],
 ) {
   return queryClickhouseExecRaw({
     ...buildScoresForBlobStorageExportQuery(
       projectId,
       minTimestamp,
       maxTimestamp,
+      fieldGroups,
     ),
     format: "Parquet",
     clickhouseSettings: BLOB_EXPORT_PARQUET_CLICKHOUSE_SETTINGS,
