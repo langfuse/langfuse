@@ -243,6 +243,7 @@ interface FireQueryOptions {
  * Fires a long-running ClickHouse query, confirms it's tracked in
  * system.processes, then aborts the HTTP connection so the query continues
  * server-side and we poll for completion via pollQueryStatus.
+ * Returns true when the query already finished before the start check.
  */
 async function fireQuery({
   query,
@@ -253,7 +254,7 @@ async function fireQuery({
   initialWaitMs = 10_000,
   retryWaitMs = 30_000,
   logPrefix = "[Backfill]",
-}: FireQueryOptions): Promise<void> {
+}: FireQueryOptions): Promise<boolean> {
   logger.info(`${logPrefix} Firing query ${queryId}`);
 
   const abortController = new AbortController();
@@ -333,7 +334,7 @@ async function fireQuery({
     logger.info(
       `${logPrefix} Query ${queryId} finished before the start check, skipping it`,
     );
-    return;
+    return true;
   }
 
   try {
@@ -357,6 +358,7 @@ async function fireQuery({
     `${logPrefix} Query ${queryId} confirmed running, aborting HTTP connection`,
   );
   abortController.abort();
+  return false;
 }
 
 // ============================================================================
@@ -450,6 +452,11 @@ export abstract class ChunkedClickhouseBackfillMigration<
    * this error so the manager records `failedAt`.
    */
   private haltError: Error | null = null;
+  /**
+   * Queries whose HTTP command already returned successfully. They may not be
+   * flushed to system.query_log yet, so `not_found` counts as completed.
+   */
+  private finishedQueryIds = new Set<string>();
 
   /** Hard-coded UUID of the row in background_migrations. */
   protected abstract readonly migrationId: string;
@@ -726,6 +733,10 @@ export abstract class ChunkedClickhouseBackfillMigration<
 
       active.delete(queryId);
       state.activeQueries = state.activeQueries.filter((q) => q !== queryId);
+      if (status === "not_found" && this.finishedQueryIds.has(queryId)) {
+        status = "completed";
+      }
+      this.finishedQueryIds.delete(queryId);
 
       if (status === "completed") {
         const verificationError = await this.verifyCompletedChunk(todo);
@@ -777,13 +788,14 @@ export abstract class ChunkedClickhouseBackfillMigration<
 
       try {
         const { query, params } = this.buildChunkQuery(next);
-        await fireQuery({
+        const finished = await fireQuery({
           query,
           queryId: next.queryId,
           params,
           attemptNumber: next.retryCount || 0,
           logPrefix: this.logPrefix,
         });
+        if (finished) this.finishedQueryIds.add(next.queryId);
         active.set(next.queryId, next);
         logger.info(
           `${this.logPrefix} Started chunk ${next.id} with query ${next.queryId}`,
