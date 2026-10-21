@@ -1,25 +1,30 @@
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { type ExportFieldGroup } from "@langfuse/shared";
 
-// One export field group toggle. Required groups render checked and locked.
-export const FieldGroupCheckbox = ({
-  value,
-  label,
-  description,
-  selected,
-  onChange,
-  required = false,
-}: {
-  value: ExportFieldGroup;
+type FieldGroupCheckboxProps = {
   label: string;
   description: string;
-  selected: ExportFieldGroup[];
-  onChange: (next: ExportFieldGroup[]) => void;
-  required?: boolean;
-}) => {
-  const id = `field-group-${value}`;
+} & (
+  | {
+      // Always exported: rendered checked and locked.
+      required: true;
+      id: string;
+    }
+  | {
+      required?: false;
+      value: ExportFieldGroup;
+      selected: ExportFieldGroup[];
+      onChange: (next: ExportFieldGroup[]) => void;
+    }
+);
+
+// One export field group toggle.
+export const FieldGroupCheckbox = (props: FieldGroupCheckboxProps) => {
+  const id = props.required ? props.id : `field-group-${props.value}`;
 
   const handleCheckedChange = (checked: boolean | "indeterminate") => {
+    if (props.required) return;
+    const { value, selected, onChange } = props;
     if (checked !== true) {
       onChange(selected.filter((group) => group !== value));
       return;
@@ -32,23 +37,25 @@ export const FieldGroupCheckbox = ({
     <div className="flex items-start gap-2">
       <Checkbox
         id={id}
-        checked={required || selected.includes(value)}
-        disabled={required}
-        onCheckedChange={required ? undefined : handleCheckedChange}
+        checked={props.required || props.selected.includes(props.value)}
+        disabled={props.required}
+        onCheckedChange={props.required ? undefined : handleCheckedChange}
       />
       <label
         htmlFor={id}
-        className={required ? "space-y-0.5" : "cursor-pointer space-y-0.5"}
+        className={
+          props.required ? "space-y-0.5" : "cursor-pointer space-y-0.5"
+        }
       >
         <div className="text-sm leading-none font-bold">
-          {label}
-          {required && (
+          {props.label}
+          {props.required && (
             <span className="text-muted-foreground ml-1 font-normal">
               (required)
             </span>
           )}
         </div>
-        <div className="text-muted-foreground text-xs">{description}</div>
+        <div className="text-muted-foreground text-xs">{props.description}</div>
       </label>
     </div>
   );

@@ -11,7 +11,10 @@ import {
   ListableScoreDataType,
   ScoreDataTypeEnum,
 } from "../../domain/scores";
-import type { ScoreExportFieldGroup } from "../../domain/export-field-groups";
+import {
+  SCORE_EXPORT_CORE_FIELDS,
+  type ScoreExportFieldGroup,
+} from "../../domain/export-field-groups";
 import { InvalidRequestError, InternalServerError } from "../../errors";
 import {
   eventsTableIsRootObservationSql,
@@ -2542,27 +2545,13 @@ const buildScoresForBlobStorageExportQuery = (
   maxTimestamp: Date,
   fieldGroups: ScoreExportFieldGroup[],
 ) => {
-  const optionalColumns = fieldGroups.includes("score_metadata")
-    ? ",\n      metadata"
-    : "";
+  const columns: string[] = [
+    ...SCORE_EXPORT_CORE_FIELDS,
+    ...(fieldGroups.includes("score_metadata") ? ["metadata"] : []),
+  ];
   const query = `
     SELECT
-      id,
-      timestamp,
-      project_id,
-      environment,
-      trace_id,
-      observation_id,
-      session_id,
-      dataset_run_id,
-      name,
-      value,
-      source,
-      comment,
-      data_type,
-      string_value,
-      created_at,
-      updated_at${optionalColumns}
+      ${columns.join(",\n      ")}
     FROM scores FINAL
     WHERE project_id = {projectId: String}
     AND timestamp >= {minTimestamp: DateTime64(3)}

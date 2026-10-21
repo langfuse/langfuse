@@ -13,6 +13,30 @@ import {
  */
 export const SCORE_EXPORT_FIELD_GROUPS = ["score_metadata"] as const;
 
+/**
+ * Columns of every scores export row, in output order. Always exported, so
+ * they are not a stored field group; settings show them as a locked "Core"
+ * group. Optional group columns are appended after these.
+ */
+export const SCORE_EXPORT_CORE_FIELDS = [
+  "id",
+  "timestamp",
+  "project_id",
+  "environment",
+  "trace_id",
+  "observation_id",
+  "session_id",
+  "dataset_run_id",
+  "name",
+  "value",
+  "source",
+  "comment",
+  "data_type",
+  "string_value",
+  "created_at",
+  "updated_at",
+] as const;
+
 export type ScoreExportFieldGroup = (typeof SCORE_EXPORT_FIELD_GROUPS)[number];
 
 /**

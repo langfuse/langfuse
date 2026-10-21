@@ -11,6 +11,7 @@ import {
   AnalyticsIntegrationExportSource,
   BlobStorageIntegrationFileType,
   EXPORT_FIELD_GROUP_OPTIONS,
+  SCORE_EXPORT_CORE_FIELD_GROUP_OPTION,
   SCORE_EXPORT_FIELD_GROUP_OPTIONS,
 } from "@langfuse/shared";
 import { type BlobStorageFormControl } from "@/src/features/blobstorage-integration/components/formValues";
@@ -43,6 +44,17 @@ export const ExportFieldGroupsField = ({
     watchedExportSource ===
       AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS;
 
+  const describeObservationGroup = (
+    option: (typeof EXPORT_FIELD_GROUP_OPTIONS)[number],
+  ) => {
+    if (isParquetExport) {
+      return isLegacyOnlyExport
+        ? option.legacyParquetDescription
+        : option.parquetDescription;
+    }
+    return isLegacyOnlyExport ? option.legacyDescription : option.description;
+  };
+
   return (
     <FormField
       control={control}
@@ -68,28 +80,35 @@ export const ExportFieldGroupsField = ({
               // exports; a saved selection is kept and applies again if
               // the source is migrated to enriched observations.
               (option) => !isLegacyOnlyExport || option.includedInLegacyExport,
-            ).map((option) => (
-              <FieldGroupCheckbox
-                key={option.value}
-                value={option.value}
-                label={option.label}
-                description={
-                  isParquetExport
-                    ? isLegacyOnlyExport
-                      ? option.legacyParquetDescription
-                      : option.parquetDescription
-                    : isLegacyOnlyExport
-                      ? option.legacyDescription
-                      : option.description
-                }
-                selected={field.value ?? []}
-                onChange={field.onChange}
-                required={option.value === "core"}
-              />
-            ))}
+            ).map((option) =>
+              option.value === "core" ? (
+                <FieldGroupCheckbox
+                  key={option.value}
+                  id="field-group-core"
+                  required
+                  label={option.label}
+                  description={describeObservationGroup(option)}
+                />
+              ) : (
+                <FieldGroupCheckbox
+                  key={option.value}
+                  value={option.value}
+                  label={option.label}
+                  description={describeObservationGroup(option)}
+                  selected={field.value ?? []}
+                  onChange={field.onChange}
+                />
+              ),
+            )}
           </div>
           <div className="text-sm font-bold">Scores</div>
           <div className="mt-2 space-y-2">
+            <FieldGroupCheckbox
+              id="field-group-score-core"
+              required
+              label={SCORE_EXPORT_CORE_FIELD_GROUP_OPTION.label}
+              description={SCORE_EXPORT_CORE_FIELD_GROUP_OPTION.description}
+            />
             {SCORE_EXPORT_FIELD_GROUP_OPTIONS.map((option) => (
               <FieldGroupCheckbox
                 key={option.value}

@@ -8,6 +8,7 @@ import {
   type ObservationFieldGroupFull,
 } from "../../domain/observation-field-groups";
 import {
+  SCORE_EXPORT_CORE_FIELDS,
   SCORE_EXPORT_FIELD_GROUPS,
   type ScoreExportFieldGroup,
 } from "../../domain/export-field-groups";
@@ -165,6 +166,13 @@ const SCORE_EXPORT_FIELD_GROUP_LABELS = {
   ScoreExportFieldGroup,
   { label: string; description: string }
 >;
+
+// Shown locked, like the observation core group, but not stored: score core
+// columns are always exported.
+export const SCORE_EXPORT_CORE_FIELD_GROUP_OPTION = {
+  label: "Core",
+  description: SCORE_EXPORT_CORE_FIELDS.join(", "),
+};
 
 export const SCORE_EXPORT_FIELD_GROUP_OPTIONS = SCORE_EXPORT_FIELD_GROUPS.map(
   (value) => ({ value, ...SCORE_EXPORT_FIELD_GROUP_LABELS[value] }),
