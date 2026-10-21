@@ -9,8 +9,6 @@ import {
   ApiKeyId,
   hasApiKeyKind,
   hasProjectKind,
-  hasSystemRoleKind,
-  toSystemRole,
   untag,
   type OrganizationId,
   type OwnerId,
@@ -19,10 +17,6 @@ import {
   type TenantId,
   type UserId,
 } from "../../features/rbac/types";
-import {
-  isApiKeyRole,
-  roleHasProjectPolicy,
-} from "../../features/rbac/systemRoleAccessRights";
 import { logger } from "../logger";
 import { assignRole } from "../../features/rbac/roleAssignmentService";
 import { invalidateCachedApiKeys } from "./invalidateApiKeys";
@@ -134,24 +128,6 @@ export async function createApiKey(
   const salt = env.SALT;
   if (!salt) {
     throw new Error("SALT is not set");
-  }
-
-  if (hasSystemRoleKind(opts.role)) {
-    const role = toSystemRole(opts.role);
-    const isProjectScope =
-      !hasUserScope(opts.scope) && hasProjectKind(opts.scope);
-    // A key can only carry a role tagged for api keys; a project scope also
-    // needs a project-kind policy, or the key grants nothing on its project.
-    if (
-      !isApiKeyRole(role) ||
-      (isProjectScope && !roleHasProjectPolicy(role))
-    ) {
-      throw new InvalidRequestError(
-        `Role ${role} cannot back ${
-          isProjectScope ? "a project" : "an organization"
-        } API key`,
-      );
-    }
   }
 
   const { pk, sk } = opts.predefinedKeys

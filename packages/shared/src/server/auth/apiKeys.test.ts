@@ -302,37 +302,4 @@ describe("createApiKey assignment rows", () => {
       expect(tx.roleAssignment.create).not.toHaveBeenCalled();
     },
   );
-
-  // createApiKey always enforces that the role can back a key: a user-only
-  // role is rejected outright, and a project owner needs a project-capable
-  // role. Legacy api-key roles remain valid.
-  describe("role validation", () => {
-    it("rejects a user-only role that cannot back an api key", async () => {
-      const { tx, assignments } = makeTx();
-
-      await expect(
-        createApiKey(asTx(tx), {
-          tenant: OrganizationId(ORG_ID),
-          scope: OrganizationId(ORG_ID),
-          role: SystemRoleId("OWNER"),
-          createdBy: UserId("user_1"),
-        }),
-      ).rejects.toThrow(/cannot back an organization API key/);
-      expect(assignments).toEqual([]);
-    });
-
-    it("rejects an org-only role on a project owner", async () => {
-      const { tx, assignments } = makeTx();
-
-      await expect(
-        createApiKey(asTx(tx), {
-          tenant: OrganizationId(ORG_ID),
-          scope: ProjectId("proj_1"),
-          role: SystemRoleId("AI_GATEWAY"),
-          createdBy: UserId("user_1"),
-        }),
-      ).rejects.toThrow(/cannot back a project API key/);
-      expect(assignments).toEqual([]);
-    });
-  });
 });
