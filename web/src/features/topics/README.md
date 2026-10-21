@@ -11,7 +11,8 @@ project permissions. Processing additionally requires the project allowlist.
   (default) and Grid, remembered in localStorage; time range and processing
   actions sit on the right, configuration and history in the overflow menu.
   `CurrentTopics.tsx` owns the map query (Grid only) and trace navigation.
-  Treemap sizes one tile per topic by trace count, traces below; Grid snaps the
+  Treemap sizes one tile per topic by trace count, plus a grey Unassigned tile
+  for traces without a topic, traces below; Grid snaps the
   saved map projection onto one square per trace (sampled above 1,000), legend
   under it and traces on the right. Both list the selected topic's traces in
   `TopicTraceList`, with an Open in Tracing link limited to those trace IDs.

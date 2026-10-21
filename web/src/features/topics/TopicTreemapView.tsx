@@ -15,6 +15,7 @@ import { layoutTreemap } from "./topic-treemap-layout";
 import { TopicTraceList } from "./TopicTraceList";
 
 const TILE_GAP = 8;
+const UNASSIGNED_ID = "__unassigned";
 /** Tiles above this area (px²) get the stronger resting tint. */
 const BIG_TILE_AREA = 30_000;
 
@@ -49,14 +50,30 @@ export function TopicTreemapView({
       />
     );
   }
+  const unassignedCount = facet.rows.filter((row) => !row.topicId).length;
+  const topics: FacetTopic[] =
+    unassignedCount > 0
+      ? [
+          ...facet.topics,
+          {
+            id: UNASSIGNED_ID,
+            name: "Unassigned",
+            description: "",
+            count: unassignedCount,
+          },
+        ]
+      : facet.topics;
   const selected =
-    facet.topics.find((topic) => topic.id === selectedTopicId) ??
-    facet.topics[0];
-  const rows = facet.rows.filter((row) => row.topicId === selected.id);
+    topics.find((topic) => topic.id === selectedTopicId) ?? topics[0];
+  const selectedRowTopicId = selected.id === UNASSIGNED_ID ? null : selected.id;
+  const rows = facet.rows.filter(
+    (row) => (row.topicId ?? null) === selectedRowTopicId,
+  );
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <TopicTreemap
         facet={facet}
+        topics={topics}
         selectedTopicId={selected.id}
         onSelectTopic={setSelectedTopicId}
       />
@@ -76,6 +93,7 @@ export function TopicTreemapView({
 
 function TopicTreemap({
   facet,
+  topics,
   selectedTopicId,
   onSelectTopic,
 }: TopicTreemapProps) {
@@ -83,6 +101,7 @@ function TopicTreemap({
   const total = facet.rows.length;
   const tones = facetTopicTones(facet);
   function tileColors(topicId: string, big: boolean) {
+    if (topicId === UNASSIGNED_ID) return topicToneTileClasses("neutral");
     const tone = tones.get(topicId);
     return tone
       ? topicToneTileClasses(tone)
@@ -92,7 +111,7 @@ function TopicTreemap({
         );
   }
   const tiles = size
-    ? layoutTreemap(facet.topics, size.width, size.height, TILE_GAP)
+    ? layoutTreemap(topics, size.width, size.height, TILE_GAP)
     : [];
   return (
     <section
@@ -214,6 +233,7 @@ function tileTier(width: number, height: number): TileTier {
 }
 
 function swatchFor(facet: Facet, topicId: string) {
+  if (topicId === UNASSIGNED_ID) return topicToneSwatchColor("neutral");
   const tone = facetTopicTones(facet).get(topicId);
   return tone
     ? topicToneSwatchColor(tone)
@@ -233,6 +253,7 @@ type TopicTreemapViewProps = {
 
 type TopicTreemapProps = {
   facet: Facet;
+  topics: FacetTopic[];
   selectedTopicId: string;
   onSelectTopic: (topicId: string) => void;
 };

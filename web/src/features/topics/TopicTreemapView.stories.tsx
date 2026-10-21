@@ -27,7 +27,7 @@ const topics = names.map((name, index) => ({
   description: "",
   count: counts[index],
 }));
-const rows = topics.flatMap((topic) =>
+const assignedRows = topics.flatMap((topic) =>
   Array.from({ length: topic.count }, (_, index) => ({
     traceId: `${topic.id}-trace-${index}`,
     summary: `${topic.name} question ${index + 1}`,
@@ -38,6 +38,19 @@ const rows = topics.flatMap((topic) =>
     unitStartTime: new Date(Date.now() - index * 7 * 60_000).toISOString(),
   })),
 );
+
+const rows = [
+  ...assignedRows,
+  ...Array.from({ length: 12 }, (_, index) => ({
+    traceId: `unassigned-trace-${index}`,
+    summary: `Unrelated request ${index + 1} that fit no topic`,
+    topicId: null,
+    topicName: null,
+    outcome: "outlier" as const,
+    facetVersion: 1,
+    unitStartTime: new Date(Date.now() - index * 11 * 60_000).toISOString(),
+  })),
+];
 
 const facet: ComponentProps<typeof TopicTreemapView>["facet"] = {
   facetId: "intent",
