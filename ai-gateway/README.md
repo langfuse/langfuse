@@ -135,22 +135,7 @@ stream duration once the body reaches end of stream. Execution summaries and
 completion, cancellation, timeout, or transport error. HTTP status and stream
 outcome are separate: a 200 response can still fail while streaming. The server
 span carries `http.request.body.size`, `gateway.outcome`, and
-`gateway.first_byte_ms` once they are known. The execution summary also carries
-`output_complete`, which is true only when the captured response was whole (a
-terminal stream event or a valid JSON body), so a provider stream that ended
-early still reads `outcome=complete` with `output_complete=false`.
-
-An execution `complete` means hyper accepted the last body chunk, not that it
-reached the socket. Each accepted connection therefore logs
-`gateway connection closed` when hyper drops it, with `connection_id`, `peer`
-(the load balancer node), `duration_ms`, `bytes_written` (bytes the kernel send
-buffer accepted), `since_last_write_ms`, `longest_write_block_ms`,
-`write_blocked_at_close_ms` when a write was still waiting for buffer space, and
-the first `write_error` kind. Connections that wrote under 8 KiB without a write
-problem, such as health checks, are not logged. Request log lines carry the same
-top-level `connection_id`, recorded on the server span as
-`gateway.connection.id`. IDs are unique per process, so join them on the task
-as well.
+`gateway.first_byte_ms` once they are known.
 
 ### Request IDs
 
@@ -832,7 +817,15 @@ key metadata remain in Langfuse ingestion and are excluded from operational logs
 
 ## Container
 
-From the repository root:
+Each Langfuse release publishes a multi-platform (linux/amd64, linux/arm64)
+image to `langfuse/ai-gateway` on Docker Hub and
+`ghcr.io/langfuse/ai-gateway`, tagged like the web and worker images.
+Every release publishes `<version>` and `sha-<commit>`. Stable releases also
+update `<major>.<minor>` and `<major>`, plus `latest` for v4; release candidates
+(`-rc`) do not move these tags. Release images build on the Iron Bank UBI9
+bases.
+
+To build locally, from the repository root:
 
 ```sh
 docker build --target runtime \
