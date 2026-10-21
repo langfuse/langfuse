@@ -1881,14 +1881,14 @@ jobs:
             runner: blacksmith-4vcpu-ubuntu-2404-arm
           # The gateway crate is its own build context (ai-gateway/.dockerignore).
           - component: ai-gateway
-            image_name: langfuse-ai-gateway
+            image_name: ai-gateway
             context: ./ai-gateway
             dockerfile: ./ai-gateway/Dockerfile
             platform: linux/amd64
             platform_tag: amd64
             runner: blacksmith-4vcpu-ubuntu-2404
           - component: ai-gateway
-            image_name: langfuse-ai-gateway
+            image_name: ai-gateway
             context: ./ai-gateway
             dockerfile: ./ai-gateway/Dockerfile
             platform: linux/arm64
@@ -2043,7 +2043,7 @@ jobs:
           - component: worker
             image_name: langfuse-worker
           - component: ai-gateway
-            image_name: langfuse-ai-gateway
+            image_name: ai-gateway
     runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       packages: write
