@@ -7,7 +7,7 @@ import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { Skeleton, SkeletonGroup } from "@/src/components/ui/skeleton";
 import { GatewayProviderMark } from "@/src/features/ai-gateway/components/GatewayProviderMark";
 import { ConnectionModelsLoadError } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ConnectionModelsLoadError";
-import { ConnectionModelsSkeleton } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ConnectionModelsSkeleton";
+import { ConnectionModelsSkeleton } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ConnectionModelsSkeleton/ConnectionModelsSkeleton";
 import { GatewayConnectionModelsTable } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/GatewayConnectionModelsTable/GatewayConnectionModelsTable";
 import { useGatewayConnectionModels } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/hooks/useGatewayConnectionModels";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
