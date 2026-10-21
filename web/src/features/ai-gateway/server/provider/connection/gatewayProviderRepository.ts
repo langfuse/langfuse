@@ -91,6 +91,7 @@ export class GatewayProviderRepository {
     const candidates = await this.prisma.gatewayAiConnection.findMany({
       where: {
         organizationId: params.organizationId,
+        // eslint-disable-next-line @repo/no-unescaped-like-pattern -- re-checked by exact lowercase match below
         name: { equals: params.name, mode: "insensitive" },
         ...(params.excludeId ? { id: { not: params.excludeId } } : {}),
       },
