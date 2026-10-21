@@ -1,4 +1,3 @@
-/* eslint-disable @repo/component-file-structure */
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { RagasLogoIcon } from "@/src/features/evals/components/RagasLogoIcon";
