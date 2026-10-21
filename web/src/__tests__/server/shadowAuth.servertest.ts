@@ -9,9 +9,11 @@ import {
   createShaHash,
   getDisplaySecretKey,
 } from "@langfuse/shared/src/server";
+import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
   OrganizationId,
   ProjectId,
+  SystemRoleId,
   type OrganizationAction,
   type ProjectAction,
 } from "@langfuse/shared/rbac";
@@ -464,6 +466,25 @@ describe("shadowAuth maps principals to legacy-identical scopes", () => {
     expect(dropScopeKey(scopeOf(enforce))).toEqual(
       dropScopeKey(scopeOf(legacy)),
     );
+  });
+
+  it("a gateway key on an org route 403s in both modes", async () => {
+    const gatewayKey = await createApiKey(prisma, {
+      tenant: OrganizationId(orgId),
+      scope: OrganizationId(orgId),
+      role: SystemRoleId("AI_GATEWAY"),
+      createdBy: "system",
+    });
+    await prisma.gatewayApiKeyAssociation.create({
+      data: { apiKeyId: gatewayKey.id, metadata: {} },
+    });
+
+    const { legacy, enforce } = await orgResultUnderModes(
+      createBasicAuthHeader(gatewayKey.publicKey, gatewayKey.secretKey),
+      "organization:CRUD_apiKeys",
+    );
+    expect(legacy).toMatchObject({ success: false, error: { httpCode: 403 } });
+    expect(enforce).toMatchObject({ success: false, error: { httpCode: 403 } });
   });
 
   it("a project key on an org route 403s in both modes", async () => {

@@ -164,7 +164,10 @@ function runLegacyAuth(params: ShadowAuthParams): Promise<LegacyDecision> {
     : runLegacyProjectAuth(params);
 }
 
-/** runLegacyOrgAuth verifies the credential and its organization access level, capturing every outcome as a value. */
+/**
+ * runLegacyOrgAuth verifies the credential and its organization access level, capturing every outcome as a value.
+ * Gateway keys are organization-scoped but only grant gateway:invoke, and legacy auth reads no roles, so they are refused here.
+ */
 async function runLegacyOrgAuth(req: NextApiRequest): Promise<LegacyDecision> {
   const authCheck = await new ApiAuthService(
     prisma,
@@ -177,6 +180,13 @@ async function runLegacyOrgAuth(req: NextApiRequest): Promise<LegacyDecision> {
     authCheck.scope.accessLevel !== "organization" ||
     !authCheck.scope.orgId
   ) {
+    return forbiddenError();
+  }
+  const gatewayAssociation = await prisma.gatewayApiKeyAssociation.findUnique({
+    where: { apiKeyId: authCheck.scope.apiKeyId },
+    select: { apiKeyId: true },
+  });
+  if (gatewayAssociation) {
     return forbiddenError();
   }
   return { success: true, scope: authCheck.scope };
