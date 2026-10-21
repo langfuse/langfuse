@@ -174,6 +174,19 @@ describe("Topics trace selection", () => {
     expect(mocks.fetch.mock.calls[2][0]).toMatchObject({ limit: 20 });
   });
 
+  it("a click during the reload delay replaces the pending reload", async () => {
+    mocks.fetch.mockResolvedValue(result("trace-0"));
+    setup();
+    await waitFor(() => expect(mocks.fetch).toHaveBeenCalledTimes(1));
+    fireEvent.change(screen.getByLabelText("Maximum traces"), {
+      target: { value: "50" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Preview traces" }));
+    await waitFor(() => expect(mocks.fetch).toHaveBeenCalledTimes(2));
+    await act(() => new Promise((resolve) => setTimeout(resolve, 700)));
+    expect(mocks.fetch).toHaveBeenCalledTimes(2);
+  });
+
   it("preserves exclusions through pagination, then refreshes the cohort", async () => {
     const traces = Array.from({ length: 21 }, (_, i) => `trace-${i}`);
     mocks.fetch.mockResolvedValue(result(...traces));

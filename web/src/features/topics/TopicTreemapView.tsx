@@ -26,7 +26,8 @@ const TILE_PADDING: Record<TileTier, string> = {
   tiny: "p-0",
 };
 
-/** Name line height and count+share block height (px) for tiers that show a name. */
+/** Vertical padding, name line height and count+share block height (px) for tiers that show a name. */
+const PADDING_Y_PX = 24;
 const NAME_LINE_PX = { large: 28, medium: 20 };
 const FOOTER_PX = { large: 54, medium: 46 };
 const NAME_CLAMP = ["line-clamp-1", "line-clamp-2", "line-clamp-3"];
@@ -178,13 +179,15 @@ function TopicTileButton({
     onSelect(topic.id);
   }
   const showName = tier === "large" || tier === "medium";
-  // Clamp the name to whole lines that fit above the count, so it never runs under it.
+  /** Name lines that fit above the count. */
   const nameLines = showName
     ? Math.min(
         3,
         Math.max(
           1,
-          Math.floor((rect.height - 28 - FOOTER_PX[tier]) / NAME_LINE_PX[tier]),
+          Math.floor(
+            (rect.height - PADDING_Y_PX - FOOTER_PX[tier]) / NAME_LINE_PX[tier],
+          ),
         ),
       )
     : 0;
