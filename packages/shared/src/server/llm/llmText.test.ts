@@ -161,7 +161,7 @@ describe("generateLLMText", () => {
         description: "Get the weather",
         parameters: {
           type: "object",
-          properties: { city: { type: "string" }, metadata: {} },
+          properties: { city: { type: "string" } },
           required: ["city"],
         },
       },
