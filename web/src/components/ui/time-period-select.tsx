@@ -43,12 +43,7 @@ export const TimePeriodSelect = React.forwardRef<
     if (date) {
       const hours = display12HourValue(date.getHours());
       setDate(
-        setDateByType(
-          new Date(date),
-          hours.toString(),
-          "12hours",
-          period === "AM" ? "PM" : "AM",
-        ),
+        setDateByType(new Date(date), hours.toString(), "12hours", value),
       );
     }
   };
@@ -56,7 +51,7 @@ export const TimePeriodSelect = React.forwardRef<
   return (
     <div className="flex h-7 items-center">
       <Select
-        defaultValue={period}
+        value={period}
         onValueChange={(value: Period) => handleValueChange(value)}
       >
         <SelectTrigger
