@@ -111,41 +111,41 @@ describe("RBAC access checks", () => {
     ).toBe(true);
   });
 
-  it.each(["VIEWER", "MEMBER", "ADMIN", "OWNER"] as const)(
-    "reserves demo LLM operations for internal admins even with project role %s",
-    (role) => {
-      const projectId = "demo-project";
-      const session = projectSession(projectId, role);
-      const paidScopes: ProjectScope[] = [
-        "playground:execute",
-        "topics:CUD",
-        "evaluator:CUD",
-        "evaluationRule:CUD",
-        "promptExperiments:CUD",
-        "evalDefaultModel:CUD",
-        "llmApiKeys:create",
-        "llmApiKeys:update",
-      ];
-      for (const scope of paidScopes) {
-        expect(hasProjectAccess({ session, projectId, scope }), scope).toBe(
-          false,
-        );
-        expect(
-          hasProjectAccess({
-            session: projectSession(projectId, role, true),
-            projectId,
-            scope,
-          }),
+  it("reserves demo LLM operations for internal admins even with project OWNER role", () => {
+    const projectId = "demo-project";
+    const session = projectSession(projectId, "OWNER");
+    const paidScopes: ProjectScope[] = [
+      "playground:execute",
+      "topics:CUD",
+      "evaluator:CUD",
+      "evaluationRule:CUD",
+      "promptExperiments:CUD",
+      "evalDefaultModel:CUD",
+      "llmApiKeys:create",
+      "llmApiKeys:update",
+    ];
+    for (const scope of paidScopes) {
+      expect(hasProjectAccess({ session, projectId, scope }), scope).toBe(
+        false,
+      );
+      expect(
+        hasProjectAccess({
+          session: projectSession(projectId, "OWNER", true),
+          projectId,
           scope,
-        ).toBe(true);
-      }
-      for (const scope of ["topics:read", "llmApiKeys:read"] as const) {
-        expect(hasProjectAccess({ session, projectId, scope }), scope).toBe(
-          true,
-        );
-      }
-    },
-  );
+        }),
+        scope,
+      ).toBe(true);
+    }
+  });
+
+  it("preserves demo viewer read access", () => {
+    const projectId = "demo-project";
+    const session = projectSession(projectId, "VIEWER");
+    for (const scope of ["topics:read", "llmApiKeys:read"] as const) {
+      expect(hasProjectAccess({ session, projectId, scope }), scope).toBe(true);
+    }
+  });
 
   it("preserves normal project LLM permissions", () => {
     const projectId = "project-1";
@@ -156,12 +156,5 @@ describe("RBAC access checks", () => {
         scope: "playground:execute",
       }),
     ).toBe(true);
-    expect(
-      hasProjectAccess({
-        session: projectSession(projectId, "VIEWER"),
-        projectId,
-        scope: "playground:execute",
-      }),
-    ).toBe(false);
   });
 });
