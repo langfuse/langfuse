@@ -845,7 +845,7 @@ async function* runClickHouseProgressAttempts<T>(
   progressContext: ClickHouseProgressQueryContext,
 ): AsyncGenerator<RowOrProgress<T>> {
   let emittedDataRow = false;
-  let completed = { readRows: 0, readBytes: 0, elapsedNs: 0 };
+  let completed = { read_rows: 0, read_bytes: 0, elapsed_ns: 0 };
   let outcomeRecorded = false;
   const recordError = (error: unknown, queryId?: string) => {
     outcomeRecorded = true;
@@ -896,7 +896,7 @@ async function* runClickHouseProgressAttempts<T>(
             maxAttempts,
           )
         ) {
-          completed = progress.totals();
+          completed = progress.totals;
           await retryClickHouseProgress(
             error,
             attemptNumber,
@@ -961,51 +961,34 @@ async function* streamClickHouseProgressResponse<T>(
   }
 }
 
-/** Own per-attempt maxima; completed work is counted once across retries. */
+/** Own cumulative maxima; completed work is counted once across retries. */
 function createClickHouseProgressAccumulator(
   completed: ClickHouseProgressCounters,
 ) {
-  let readRows = 0;
-  let readBytes = 0;
-  let elapsedNs = 0;
-  const totals = () => ({
-    readRows: completed.readRows + readRows,
-    readBytes: completed.readBytes + readBytes,
-    elapsedNs: completed.elapsedNs + elapsedNs,
-  });
+  const totals = { ...completed };
   return {
     totals,
-    add: (row: ProgressRow): ProgressRow => {
-      readRows = maxClickHouseProgress(readRows, row.progress.read_rows);
-      readBytes = maxClickHouseProgress(readBytes, row.progress.read_bytes);
-      elapsedNs = maxClickHouseProgress(elapsedNs, row.progress.elapsed_ns);
-      const cumulative = totals();
-      return {
-        progress: {
-          ...row.progress,
-          read_rows: String(cumulative.readRows),
-          read_bytes: String(cumulative.readBytes),
-          elapsed_ns: String(cumulative.elapsedNs),
-          ...(Number(row.progress.total_rows_to_read) > 0
-            ? {
-                total_rows_to_read: String(
-                  completed.readRows +
-                    maxClickHouseProgress(
-                      readRows,
-                      row.progress.total_rows_to_read,
-                    ),
-                ),
-              }
-            : {}),
-        },
-      };
+    add: ({ progress }: ProgressRow): ProgressRow => {
+      const result = { ...progress };
+      for (const key of ["read_rows", "read_bytes", "elapsed_ns"] as const) {
+        const value = Number(progress[key]);
+        if (Number.isFinite(value)) {
+          totals[key] = Math.max(totals[key], completed[key] + value);
+        }
+        result[key] = String(totals[key]);
+      }
+      const estimate = Number(progress.total_rows_to_read);
+      if (estimate > 0) {
+        result.total_rows_to_read = String(
+          Math.max(
+            totals.read_rows,
+            completed.read_rows + (Number.isFinite(estimate) ? estimate : 0),
+          ),
+        );
+      }
+      return { progress: result };
     },
   };
-}
-
-function maxClickHouseProgress(previous: number, value: string | undefined) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? Math.max(previous, parsed) : previous;
 }
 
 function recordClickHouseProgressSuccess(
@@ -1100,9 +1083,9 @@ function recordClickHouseProgressError(
 }
 
 type ClickHouseProgressCounters = {
-  readRows: number;
-  readBytes: number;
-  elapsedNs: number;
+  read_rows: number;
+  read_bytes: number;
+  elapsed_ns: number;
 };
 
 type ClickHouseProgressResponse = {
