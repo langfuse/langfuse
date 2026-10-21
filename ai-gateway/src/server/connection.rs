@@ -1,4 +1,4 @@
-//! Socket-level accounting for accepted connections, logged when each closes.
+//! Socket write accounting for accepted connections, logged when each closes.
 //!
 //! The relay reports a stream complete once hyper has taken the last body chunk,
 //! which says nothing about whether those bytes reached the socket. These counters
@@ -23,8 +23,8 @@ use tokio::{
     time::Instant,
 };
 
-/// Connections that wrote less than this, without anomalies, are probes and
-/// log at debug.
+/// Connections that wrote less than this without a write problem, such as
+/// health checks, are not logged.
 const PROBE_BYTES: u64 = 8 * 1024;
 
 static NEXT_CONNECTION_ID: AtomicU64 = AtomicU64::new(1);
@@ -62,15 +62,11 @@ pub(crate) struct ObservedStream {
     id: u64,
     peer: SocketAddr,
     opened: Instant,
-    bytes_read: u64,
     bytes_written: u64,
     last_write: Option<Instant>,
     write_blocked_since: Option<Instant>,
-    write_blocks: u64,
     longest_write_block: Duration,
-    peer_closed: bool,
-    shut_down: bool,
-    error: Option<io::ErrorKind>,
+    write_error: Option<io::ErrorKind>,
 }
 
 impl ObservedStream {
@@ -80,15 +76,11 @@ impl ObservedStream {
             id: NEXT_CONNECTION_ID.fetch_add(1, Ordering::Relaxed),
             peer,
             opened: Instant::now(),
-            bytes_read: 0,
             bytes_written: 0,
             last_write: None,
             write_blocked_since: None,
-            write_blocks: 0,
             longest_write_block: Duration::ZERO,
-            peer_closed: false,
-            shut_down: false,
-            error: None,
+            write_error: None,
         }
     }
 
@@ -96,28 +88,21 @@ impl ObservedStream {
         let now = Instant::now();
         match &poll {
             Poll::Pending => {
-                if self.write_blocked_since.is_none() {
-                    self.write_blocked_since = Some(now);
-                    self.write_blocks += 1;
-                }
+                self.write_blocked_since.get_or_insert(now);
                 return poll;
             }
             Poll::Ready(Ok(written)) => {
-                if *written > 0 {
-                    self.bytes_written += *written as u64;
-                    self.last_write = Some(now);
-                }
+                self.bytes_written += *written as u64;
+                self.last_write = Some(now);
             }
-            Poll::Ready(Err(error)) => self.record_error(error),
+            Poll::Ready(Err(error)) => {
+                self.write_error.get_or_insert_with(|| error.kind());
+            }
         }
         if let Some(since) = self.write_blocked_since.take() {
             self.longest_write_block = self.longest_write_block.max(now - since);
         }
         poll
-    }
-
-    fn record_error(&mut self, error: &io::Error) {
-        self.error.get_or_insert_with(|| error.kind());
     }
 }
 
@@ -127,21 +112,7 @@ impl AsyncRead for ObservedStream {
         cx: &mut Context<'_>,
         buf: &mut ReadBuf<'_>,
     ) -> Poll<io::Result<()>> {
-        let this = self.get_mut();
-        let before = buf.filled().len();
-        let poll = Pin::new(&mut this.io).poll_read(cx, buf);
-        match &poll {
-            Poll::Ready(Ok(())) => {
-                let read = buf.filled().len() - before;
-                if read == 0 && buf.remaining() > 0 {
-                    this.peer_closed = true;
-                }
-                this.bytes_read += read as u64;
-            }
-            Poll::Ready(Err(error)) => this.record_error(error),
-            Poll::Pending => {}
-        }
-        poll
+        Pin::new(&mut self.get_mut().io).poll_read(cx, buf)
     }
 }
 
@@ -175,48 +146,32 @@ impl AsyncWrite for ObservedStream {
     }
 
     fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        let this = self.get_mut();
-        let poll = Pin::new(&mut this.io).poll_shutdown(cx);
-        match &poll {
-            Poll::Ready(Ok(())) => this.shut_down = true,
-            Poll::Ready(Err(error)) => this.record_error(error),
-            Poll::Pending => {}
-        }
-        poll
+        Pin::new(&mut self.get_mut().io).poll_shutdown(cx)
     }
 }
 
 impl Drop for ObservedStream {
     fn drop(&mut self) {
         let now = Instant::now();
-        let millis = |duration: Duration| duration.as_secs_f64() * 1000.0;
         let blocked_at_close = self.write_blocked_since.map(|since| now - since);
-        let notable =
-            self.bytes_written >= PROBE_BYTES || self.error.is_some() || blocked_at_close.is_some();
-        macro_rules! log_closed {
-            ($level:ident) => {
-                tracing::$level!(
-                    connection_id = %self.id,
-                    peer = %self.peer,
-                    duration_ms = millis(now - self.opened),
-                    bytes_read = self.bytes_read,
-                    bytes_written = self.bytes_written,
-                    since_last_write_ms = self.last_write.map(|last| millis(now - last)),
-                    write_blocks = self.write_blocks,
-                    longest_write_block_ms = millis(self.longest_write_block),
-                    write_blocked_at_close_ms = blocked_at_close.map(millis),
-                    peer_closed = self.peer_closed,
-                    shut_down = self.shut_down,
-                    error = self.error.map(tracing::field::display),
-                    "gateway connection closed"
-                )
-            };
+        if self.bytes_written < PROBE_BYTES
+            && self.write_error.is_none()
+            && blocked_at_close.is_none()
+        {
+            return;
         }
-        if notable {
-            log_closed!(info);
-        } else {
-            log_closed!(debug);
-        }
+        let millis = |duration: Duration| duration.as_secs_f64() * 1000.0;
+        tracing::info!(
+            connection_id = %self.id,
+            peer = %self.peer,
+            duration_ms = millis(now - self.opened),
+            bytes_written = self.bytes_written,
+            since_last_write_ms = self.last_write.map(|last| millis(now - last)),
+            longest_write_block_ms = millis(self.longest_write_block),
+            write_blocked_at_close_ms = blocked_at_close.map(millis),
+            write_error = self.write_error.map(tracing::field::display),
+            "gateway connection closed"
+        );
     }
 }
 

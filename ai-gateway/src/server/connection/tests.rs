@@ -90,17 +90,13 @@ async fn close_log_counts_socket_bytes_and_joins_request_logs() {
     .unwrap();
     serving.abort();
 
-    assert_eq!(closed["level"], "INFO");
-    assert_eq!(closed["bytes_read"], request.len());
     assert_eq!(closed["bytes_written"], received);
-    assert_eq!(closed["write_blocks"], 0);
-    assert_eq!(closed["peer_closed"], true);
     assert!(closed["since_last_write_ms"].as_f64().unwrap() >= 0.0);
     assert!(
         closed.get("write_blocked_at_close_ms").is_none(),
         "{closed}"
     );
-    assert!(closed.get("error").is_none(), "{closed}");
+    assert!(closed.get("write_error").is_none(), "{closed}");
     let started = events(&output, "gateway response started");
     assert_eq!(started.len(), 1);
     assert_eq!(started[0]["connection_id"], closed["connection_id"]);
@@ -125,15 +121,12 @@ async fn write_blocked_by_a_peer_that_stops_reading_is_logged_at_close() {
 
     let closed = events(&output, "gateway connection closed");
     assert_eq!(closed.len(), 1);
-    assert_eq!(closed[0]["level"], "INFO");
     assert_eq!(closed[0]["bytes_written"], written);
-    assert_eq!(closed[0]["write_blocks"], 1);
     assert!(closed[0]["write_blocked_at_close_ms"].as_f64().unwrap() >= 0.0);
-    assert_eq!(closed[0]["peer_closed"], false);
 }
 
 #[tokio::test]
-async fn probe_connections_log_at_debug() {
+async fn probe_connections_are_not_logged() {
     let (_guard, output) = record_logs();
     let mut listener = ObservedListener(TcpListener::bind("127.0.0.1:0").await.unwrap());
     let _client = TcpStream::connect(listener.local_addr().unwrap())
@@ -143,7 +136,5 @@ async fn probe_connections_log_at_debug() {
     stream.write_all(b"HTTP/1.1 200 OK\r\n\r\n").await.unwrap();
     drop(stream);
 
-    let closed = events(&output, "gateway connection closed");
-    assert_eq!(closed.len(), 1);
-    assert_eq!(closed[0]["level"], "DEBUG");
+    assert!(events(&output, "gateway connection closed").is_empty());
 }
