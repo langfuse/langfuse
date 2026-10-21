@@ -121,33 +121,36 @@ export async function createApiKey(
   displaySecretKey: string;
   secretKey: string;
 }> {
-  const data = {
+  const apiKeyParams = {
     ...scopeColumns(opts.tenant, opts.scope),
     ...noteColumn({ name, note }),
     expiresAt: opts.expiresAt ?? null,
     isInAppAgentKey: opts.isInAppAgentKey ?? false,
     ...creatorColumns(opts.createdBy),
   };
-  const keyMaterial = await generateKeyMaterial(opts);
+  const { secretKey, ...keyMaterialParams } = await generateKeyMaterial(opts);
 
-  const created = await withTransaction(prisma, (tx) =>
-    insertApiKey(
-      tx,
-      {
-        ...data,
-        publicKey: keyMaterial.publicKey,
-        hashedSecretKey: keyMaterial.hashedSecretKey,
-        fastHashedSecretKey: keyMaterial.fastHashedSecretKey,
-        displaySecretKey: keyMaterial.displaySecretKey,
-      },
-      {
-        tenant: opts.tenant,
-        owner: assignmentOwner(opts.tenant, opts.scope),
-        role: opts.role,
-      },
-    ),
-  );
-  return { ...created, secretKey: keyMaterial.secretKey };
+  const apiKey = await withTransaction(prisma, async (tx) => {
+    const apiKey = await tx.apiKey.create({
+      data: { ...apiKeyParams, ...keyMaterialParams },
+    });
+    await assignRole(tx, {
+      tenantId: opts.tenant,
+      principalId: ApiKeyId(apiKey.id),
+      roleId: opts.role,
+      ownerId: assignmentOwner(opts.tenant, opts.scope),
+      tags: [],
+    });
+    return apiKey;
+  });
+  return {
+    id: apiKey.id,
+    createdAt: apiKey.createdAt,
+    note: apiKey.note,
+    publicKey: apiKey.publicKey,
+    displaySecretKey: apiKey.displaySecretKey,
+    secretKey,
+  };
 }
 
 /** generateKeyMaterial provides the key columns and plaintext secret for api key creation */
@@ -249,29 +252,6 @@ function hasUserScope(
   scope: OrganizationId | ProjectId | UserId,
 ): scope is UserId {
   return scope.startsWith("user/");
-}
-
-/** insertApiKey writes the api-key row and its one role assignment on a single transaction client. */
-async function insertApiKey(
-  tx: Prisma.TransactionClient,
-  data: Prisma.ApiKeyUncheckedCreateInput,
-  opts: { tenant: TenantId; owner: OwnerId; role: RoleId },
-) {
-  const apiKey = await tx.apiKey.create({ data });
-  await assignRole(tx, {
-    tenantId: opts.tenant,
-    principalId: ApiKeyId(apiKey.id),
-    roleId: opts.role,
-    ownerId: opts.owner,
-    tags: [],
-  });
-  return {
-    id: apiKey.id,
-    createdAt: apiKey.createdAt,
-    note: apiKey.note,
-    publicKey: apiKey.publicKey,
-    displaySecretKey: apiKey.displaySecretKey,
-  };
 }
 
 export async function deleteApiKeyFromDb(p: {
