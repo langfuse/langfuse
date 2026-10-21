@@ -1,3 +1,4 @@
+import { shouldSkipScoresDedup } from "../queries/clickhouse-sql/query-options";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import { OrderByState } from "../../interfaces/orderBy";
 import { sessionCols } from "../tableMappings/mapSessionTable";
@@ -285,7 +286,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
         data_type,
         string_value,
         avg(value) avg_value
-      FROM scores s FINAL
+      FROM scores s ${shouldSkipScoresDedup(projectId) ? "" : "FINAL"}
       WHERE
         project_id = {projectId: String}
         ${scoresFilterRes ? `AND ${scoresFilterRes.query}` : ""}

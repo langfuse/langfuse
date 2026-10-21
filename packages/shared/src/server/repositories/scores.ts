@@ -81,6 +81,7 @@ import {
   eventsExperimentTraceIds,
 } from "../queries/clickhouse-sql/query-fragments";
 import { compileClickhouseQuery } from "../query-ast/compile";
+import { shouldSkipScoresDedup } from "../queries/clickhouse-sql/query-options";
 import { getClickhouseKysely } from "../query-ast/dialect";
 import {
   limitBy,
@@ -127,7 +128,7 @@ export const searchExistingAnnotationScore = async (
       ${configId ? `OR s.config_id = {configId: String}` : ""}
     )
     ORDER BY s.event_ts DESC
-    LIMIT 1 BY s.id, s.project_id
+    ${shouldSkipScoresDedup(projectId) ? "" : "LIMIT 1 BY s.id, s.project_id"}
     LIMIT 1
   `;
 
@@ -283,7 +284,7 @@ export const getScoresForSessions = async <
       AND s.session_id IN ({sessionIds: Array(String)})
       AND s.data_type IN ({dataTypes: Array(String)})
       ORDER BY s.event_ts DESC
-      LIMIT 1 BY s.id, s.project_id
+      ${shouldSkipScoresDedup(projectId) ? "" : "LIMIT 1 BY s.id, s.project_id"}
       ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
@@ -333,7 +334,7 @@ export const getScoresForExperiments = async <
       AND s.dataset_run_id IN ({runIds: Array(String)})
       AND s.data_type IN ({dataTypes: Array(String)})
       ORDER BY s.event_ts DESC
-      LIMIT 1 BY s.id, s.project_id
+      ${shouldSkipScoresDedup(projectId) ? "" : "LIMIT 1 BY s.id, s.project_id"}
       ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
@@ -393,7 +394,7 @@ export const getTraceScoresForDatasetRuns = async (
       length(mapKeys(s.metadata)) > 0 AS has_metadata,
       dri.dataset_run_id as run_id
     FROM dataset_run_items_rmt dri
-    JOIN scores s FINAL ON dri.trace_id = s.trace_id
+    JOIN scores s ${shouldSkipScoresDedup(projectId) ? "" : "FINAL"} ON dri.trace_id = s.trace_id
       AND dri.project_id = s.project_id
     WHERE dri.project_id = {projectId: String}
       AND dri.dataset_run_id IN {datasetRunIds: Array(String)}
@@ -437,7 +438,10 @@ const experimentItemEventsQuery = (experimentIds: string[]) =>
     .where("e.experiment_id", "in", experimentIds)
     .where("e.experiment_id", "!=", literal(""));
 
-const scoresForExperimentItemsQuery = (experimentIds: string[]) =>
+const scoresForExperimentItemsQuery = (
+  experimentIds: string[],
+  skipDedup: boolean,
+) =>
   getClickhouseKysely()
     .selectFrom(experimentItemEventsQuery(experimentIds).as("e"))
     .innerJoin("scores as s", (join) =>
@@ -445,7 +449,7 @@ const scoresForExperimentItemsQuery = (experimentIds: string[]) =>
         .onRef("e.trace_id", "=", "s.trace_id")
         .onRef("e.project_id", "=", "s.project_id"),
     )
-    .$call(useFinal(["scores"]))
+    .$if(!skipDedup, useFinal(["scores"]))
     .select((eb) => [
       "s.id as id",
       "s.timestamp as timestamp",
@@ -503,7 +507,10 @@ export const getScoresForExperimentItems = async (
   if (experimentIds.length === 0) return [];
 
   const compiled = compileClickhouseQuery(
-    scoresForExperimentItemsQuery(experimentIds),
+    scoresForExperimentItemsQuery(
+      experimentIds,
+      shouldSkipScoresDedup(projectId),
+    ),
     projectId,
   );
 
@@ -574,7 +581,7 @@ const getScoresForTracesInternal = async <
       ${timestamp ? `AND s.timestamp >= {traceTimestamp: DateTime64(3)} - ${SCORE_TO_TRACE_OBSERVATIONS_INTERVAL}` : ""}
       ${levelFilter}
       ORDER BY s.event_ts DESC
-      LIMIT 1 BY s.id, s.project_id
+      ${shouldSkipScoresDedup(projectId) ? "" : "LIMIT 1 BY s.id, s.project_id"}
       ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
@@ -703,7 +710,7 @@ export const getScoresForObservations = async <
       AND s.data_type IN ({dataTypes: Array(String)})
       ${minTimestamp ? `AND s.timestamp >= {minTimestamp: DateTime64(3)} - ${SCORE_TO_TRACE_OBSERVATIONS_INTERVAL}` : ""}
       ORDER BY s.event_ts DESC
-      LIMIT 1 BY s.id, s.project_id
+      ${shouldSkipScoresDedup(projectId) ? "" : "LIMIT 1 BY s.id, s.project_id"}
       ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
@@ -844,7 +851,7 @@ export async function queryScoreRecordsForExperimentItems({
             )
           )
         ORDER BY s.event_ts DESC
-        LIMIT 1 BY s.id
+        ${shouldSkipScoresDedup(projectId) ? "" : "LIMIT 1 BY s.id"}
       ) s
       ORDER BY s.event_ts DESC
       LIMIT {scoreLimit: UInt32} BY s.trace_id
@@ -907,7 +914,7 @@ export async function queryScoreRecordsForExperiments({
           AND s.observation_id IS NULL
           AND s.session_id IS NULL
         ORDER BY s.event_ts DESC
-        LIMIT 1 BY s.id
+        ${shouldSkipScoresDedup(projectId) ? "" : "LIMIT 1 BY s.id"}
       ) s
       ORDER BY s.dataset_run_id ASC, s.event_ts DESC
       LIMIT {scoreLimit: UInt32} BY s.dataset_run_id
@@ -1435,7 +1442,7 @@ const getScoresUiGeneric = async <T>(props: {
   const query = `
       SELECT
           ${select}
-      FROM scores s final
+      FROM scores s ${shouldSkipScoresDedup(projectId) ? "" : "FINAL"}
       ${performTracesJoin ? "LEFT JOIN traces t ON s.trace_id = t.id AND t.project_id = s.project_id" : ""}
       WHERE s.project_id = {projectId: String}
       AND s.data_type IN ({dataTypes: Array(String)})
@@ -1717,7 +1724,10 @@ const getScoresUiGenericFromEvents = async <T>(props: {
   // re-applying P in the outer WHERE post-dedup. The seek's projection is the
   // dedup key only, all immutable within a group, so the resulting tuple IN
   // touches only dedup-key columns and is safe pre-dedup.
-  const seekEligible = scoreOnlyFiltersAreSeekEligible(scoreOnlyFilters);
+  const skipDedup = shouldSkipScoresDedup(projectId);
+  // The seek only narrows the dedup reconstruction; a plain scan has none.
+  const seekEligible =
+    !skipDedup && scoreOnlyFiltersAreSeekEligible(scoreOnlyFilters);
   const seekSubquery = seekEligible
     ? `
         SELECT DISTINCT s.project_id, toDate(s.timestamp), s.name, s.id
@@ -1769,8 +1779,28 @@ const getScoresUiGenericFromEvents = async <T>(props: {
   // The trace join, ORDER BY, and LIMIT/OFFSET run OUTSIDE the subquery, at one
   // level, so pagination follows the requested sort (and a traces-column sort can
   // reference the joined `e`).
-  const query =
-    props.select === "count"
+  // Projects whose scores are never updated have one row per key, so they
+  // read the table directly instead of reconstructing the latest version.
+  const query = skipDedup
+    ? `
+      ${tracesCTEClause}
+      SELECT
+          ${props.select === "count" ? "count(*) AS count" : rowSelect}
+      FROM (
+        SELECT s.*
+        FROM scores s
+        ${innerScanWhere}
+      ) s
+      ${eventsJoin}
+      ${outerWhereClause}
+      ${
+        props.select === "count"
+          ? ""
+          : `${withIdTiebreaker(orderByToClickhouseSql(orderBy ?? null, scoresTableUiColumnDefinitionsFromEvents), orderBy)}
+      ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}`
+      }
+    `
+    : props.select === "count"
       ? `
       ${tracesCTEClause}
       SELECT count(*) AS count
@@ -2172,7 +2202,7 @@ export const getNumericScoreHistogram = async (
     ${traceFilter ? `AND t.project_id = {projectId: String}` : ""}
     ${chFilterRes?.query ? `AND ${chFilterRes.query}` : ""}
     ORDER BY s.event_ts DESC
-    LIMIT 1 BY s.id, s.project_id
+    ${shouldSkipScoresDedup(projectId) ? "" : "LIMIT 1 BY s.id, s.project_id"}
     ${limit !== undefined ? `limit {limit: Int32}` : ""}
   `;
 
@@ -2213,7 +2243,7 @@ export const getAggregatedScoresForPrompts = async (
       s.comment,
       s.timestamp,
       length(mapKeys(s.metadata)) > 0 AS has_metadata
-    FROM scores s FINAL LEFT JOIN observations o FINAL
+    FROM scores s ${shouldSkipScoresDedup(projectId) ? "" : "FINAL"} LEFT JOIN observations o FINAL
       ON o.trace_id = s.trace_id
       AND o.project_id = s.project_id
       ${fetchScoreRelation === "observation" ? "AND o.id = s.observation_id" : ""}
@@ -2262,6 +2292,7 @@ const aggregatedScoresForPromptsFromEventsQuery = (
   promptIds: string[],
   fetchScoreRelation: "observation" | "trace",
   timeWindow: { fromTimestamp?: Date; toTimestamp?: Date } = {},
+  skipDedup = false,
 ) =>
   getClickhouseKysely()
     .with("prompt_events", () =>
@@ -2277,7 +2308,7 @@ const aggregatedScoresForPromptsFromEventsQuery = (
       ),
     )
     .selectFrom("scores as s")
-    .$call(useFinal(["scores"]))
+    .$if(!skipDedup, useFinal(["scores"]))
     .innerJoin("prompt_events as e", (join) => {
       const base = join
         .onRef("s.project_id", "=", "e.project_id")
@@ -2348,6 +2379,7 @@ export const buildAggregatedScoresForPromptsFromEventsQuery = (
       promptIds,
       fetchScoreRelation,
       timeWindow,
+      shouldSkipScoresDedup(projectId),
     ),
     projectId,
   );
@@ -2556,7 +2588,7 @@ const buildScoresForBlobStorageExportQuery = (
   const query = `
     SELECT
       ${columns.join(",\n      ")}
-    FROM scores FINAL
+    FROM scores ${shouldSkipScoresDedup(projectId) ? "" : "FINAL"}
     WHERE project_id = {projectId: String}
     AND timestamp >= {minTimestamp: DateTime64(3)}
     AND timestamp < {maxTimestamp: DateTime64(3)}
@@ -2745,7 +2777,7 @@ export const getScoresForAnalyticsIntegrations = async function* (
       s.metadata as metadata,
       t.posthog_session_id as posthog_session_id,
       t.mixpanel_session_id as mixpanel_session_id
-    FROM scores s FINAL
+    FROM scores s ${shouldSkipScoresDedup(projectId) ? "" : "FINAL"}
     LEFT JOIN selected_traces t ON s.trace_id = t.id AND s.project_id = t.project_id
     WHERE s.project_id = {projectId: String}
     AND s.timestamp >= {minTimestamp: DateTime64(3)}
@@ -2863,7 +2895,7 @@ export const getScoreMetadataById = async (
     AND s.id = {id: String}
     ${source ? `AND s.source = {source: String}` : ""}
     ORDER BY s.event_ts DESC
-    LIMIT 1 BY s.id, s.project_id
+    ${shouldSkipScoresDedup(projectId) ? "" : "LIMIT 1 BY s.id, s.project_id"}
     LIMIT 1
   `;
 
@@ -3072,8 +3104,7 @@ export const _handleGenerateScoresForPublicApi = async ({
                 ${scoreScope === "traces_only" ? "AND s.session_id IS NULL AND s.dataset_run_id IS NULL" : ""}
               ORDER BY
                 s.timestamp desc
-              LIMIT
-                1 BY s.id, s.project_id
+              ${shouldSkipScoresDedup(projectId) ? "" : "LIMIT 1 BY s.id, s.project_id"}
                 ))
           )
           ${scoreScope === "traces_only" ? "AND s.session_id IS NULL AND s.dataset_run_id IS NULL" : ""}
@@ -3081,8 +3112,7 @@ export const _handleGenerateScoresForPublicApi = async ({
           ${tracesFilter.length() > 0 ? `AND ${appliedTracesFilter.query}` : ""}
       ORDER BY
           s.timestamp desc, s.event_ts desc
-      LIMIT
-          1 BY s.id, s.project_id
+      ${shouldSkipScoresDedup(projectId) ? "" : "LIMIT 1 BY s.id, s.project_id"}
       ${pagination !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
       `;
 
@@ -3171,8 +3201,7 @@ export const _handleGetScoresCountForPublicApi = async ({
             ${scoreScope === "traces_only" ? "AND s.session_id IS NULL" : ""}
           ORDER BY
             s.timestamp desc
-          LIMIT
-            1 BY s.id, s.project_id
+          ${shouldSkipScoresDedup(projectId) ? "" : "LIMIT 1 BY s.id, s.project_id"}
         ))
       )
       ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
@@ -3423,6 +3452,7 @@ const buildV3ListQuery = (
   withCursor: boolean,
   fields: ScoreFieldGroupV3[],
   filterClause: string,
+  skipDedup: boolean,
 ) => `
   SELECT
     ${buildSelectColumns(fields)}
@@ -3439,7 +3469,7 @@ const buildV3ListQuery = (
   }
   ${filterClause ? `AND ${filterClause}` : ""}
   ORDER BY s.timestamp DESC, s.id DESC, s.event_ts DESC
-  LIMIT 1 BY s.id, s.project_id
+  ${skipDedup ? "" : "LIMIT 1 BY s.id, s.project_id"}
   LIMIT {limit: Int32}
 `;
 
@@ -3574,6 +3604,7 @@ export async function listScoresV3ForPublicApi(
       Boolean(params.cursor),
       params.fields,
       filterClause,
+      shouldSkipScoresDedup(params.projectId),
     ),
     params: input.params,
     tags: input.tags,

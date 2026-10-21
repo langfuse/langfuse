@@ -1,3 +1,4 @@
+import { shouldSkipScoresDedup } from "../queries/clickhouse-sql/query-options";
 import {
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
@@ -64,7 +65,7 @@ export const getScoreAggregate = async (
       avg(s.value) as avg_value,
       s.source,
       s.data_type
-    FROM scores s FINAL 
+    FROM scores s ${shouldSkipScoresDedup(projectId) ? "" : "FINAL"} 
      ${hasTraceFilter ? "JOIN traces t FINAL ON t.id = s.trace_id AND t.project_id = s.project_id" : ""}
     WHERE s.project_id = {projectId: String}
     AND ${chFilterApplied.query}

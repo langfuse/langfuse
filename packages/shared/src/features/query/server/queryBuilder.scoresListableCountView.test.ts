@@ -14,6 +14,7 @@ import { QueryBuilder } from "./queryBuilder";
 // Mock it so this stays unit-level and does not need ClickHouse.
 vi.mock("../../../server/queries/clickhouse-sql/query-options", () => ({
   shouldSkipObservationsFinal: vi.fn().mockResolvedValue(false),
+  shouldSkipScoresDedup: vi.fn().mockReturnValue(false),
 }));
 
 const baseQuery = {
