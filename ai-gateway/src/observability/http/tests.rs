@@ -714,6 +714,10 @@ fn assert_request_correlation(
                 assert_eq!(event[key], expected, "{event}");
             }
         }
+        if event["message"] == "gateway execution finished" {
+            assert_eq!(event["outcome"], "complete", "{event}");
+            assert_eq!(event["output_complete"], true, "{event}");
+        }
     }
     for (name, headers, payload) in observed {
         assert_eq!(
