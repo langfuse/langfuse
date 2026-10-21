@@ -139,6 +139,42 @@ const OBSERVATION_BY_ID_FIELDS = orderedFieldKeys([
   "release",
 ] as const satisfies readonly EventsFieldKey[]);
 
+/** Every trace aggregate, in the column order full trace reads select them. */
+export const TRACE_AGGREGATION_FIELDS = [
+  "id",
+  "project_id",
+  "name",
+  "timestamp",
+  "environment",
+  "version",
+  "session_id",
+  "user_id",
+  "input",
+  "output",
+  "metadata",
+  "created_at",
+  "updated_at",
+  "total_cost",
+  "latency_milliseconds",
+  "observation_ids",
+  "observation_count",
+  "bookmarked",
+  "public",
+  "experiment_item_id",
+  "usage_details",
+  "cost_details",
+  "aggregated_level",
+  "warning_count",
+  "error_count",
+  "default_count",
+  "debug_count",
+  "tags",
+  "release",
+  "evaluator_id",
+  "evaluation_rule_id",
+  "experiment_id",
+] as const;
+
 const eventsMetadataMap = (eb: EventsExpressionBuilder) =>
   metadataMap(eb.ref("e.metadata_names"), eb.ref("e.metadata_values"));
 
@@ -203,42 +239,6 @@ const ofRootSpan = (eb: EventsExpressionBuilder, column: `e.${EventsColumn}`) =>
 
 const countLevel = (eb: EventsExpressionBuilder, level: string) =>
   countIf(eb("e.level", "=", literal(level)));
-
-/** Every trace aggregate, in the column order full trace reads select them. */
-export const TRACE_AGGREGATION_FIELDS = [
-  "id",
-  "project_id",
-  "name",
-  "timestamp",
-  "environment",
-  "version",
-  "session_id",
-  "user_id",
-  "input",
-  "output",
-  "metadata",
-  "created_at",
-  "updated_at",
-  "total_cost",
-  "latency_milliseconds",
-  "observation_ids",
-  "observation_count",
-  "bookmarked",
-  "public",
-  "experiment_item_id",
-  "usage_details",
-  "cost_details",
-  "aggregated_level",
-  "warning_count",
-  "error_count",
-  "default_count",
-  "debug_count",
-  "tags",
-  "release",
-  "evaluator_id",
-  "evaluation_rule_id",
-  "experiment_id",
-] as const;
 
 type TraceAggregationField = (typeof TRACE_AGGREGATION_FIELDS)[number];
 

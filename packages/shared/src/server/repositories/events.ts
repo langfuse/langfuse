@@ -4093,7 +4093,7 @@ export const getTracesIdentifierForSessionFromEvents = async (
       .groupBy(["trace_id", "project_id"])
       .having("session_id", "=", sessionId);
 
-  /** builder emits `select t.id, t.user_id, … from event_traces t order by t.timestamp limit 1 by t.id` */
+  /** builder emits `select t.id, t.user_id, … from event_traces t order by t.timestamp limit 1 by t.id, t.project_id` */
   const builder = getClickhouseKysely()
     .with("event_traces", tracesCte)
     .selectFrom("event_traces as t")
