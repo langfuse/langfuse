@@ -1,9 +1,33 @@
 import { env } from "@/src/env.mjs";
 import { getBaseUrl } from "@/src/utils/base-url";
-import { ForbiddenError } from "@langfuse/shared";
+import { ForbiddenError, PayloadTooLargeError } from "@langfuse/shared";
 import { type NextApiRequest, type NextApiResponse } from "next";
 
 const LOCALHOST_HOSTNAMES = ["localhost", "127.0.0.1", "[::1]"] as const;
+const MAX_MCP_REQUEST_ELEMENTS = 10_000;
+
+function validateMcpRequestBody(body: unknown): void {
+  // Bound structure before SDK schema validation; the route separately caps bytes.
+  const pending: unknown[] = [body];
+  let elements = 0;
+
+  while (pending.length > 0) {
+    const value = pending.pop();
+    if (value === null || typeof value !== "object") continue;
+
+    for (const key in value) {
+      if (!Object.hasOwn(value, key)) continue;
+      if (++elements > MAX_MCP_REQUEST_ELEMENTS) {
+        throw new PayloadTooLargeError(
+          `MCP request exceeds ${MAX_MCP_REQUEST_ELEMENTS} object members and array elements`,
+        );
+      }
+
+      const child = (value as Record<string, unknown>)[key];
+      if (child !== null && typeof child === "object") pending.push(child);
+    }
+  }
+}
 
 function parseAllowedMcpHostEntry(
   entry: string,
@@ -68,6 +92,8 @@ function getAllowedMcpOriginsAndHostnames() {
 }
 
 export function validateMcpRequestSecurity(req: NextApiRequest): string | null {
+  validateMcpRequestBody(req.body);
+
   const originHeader = Array.isArray(req.headers.origin)
     ? req.headers.origin[0]
     : req.headers.origin;
