@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { TimePickerInput } from "./time-picker-input";
+import { TimePickerInput } from "./TimePickerInput";
 import { TimePeriodSelect } from "./TimePeriodSelect";
 import { type Period } from "./time-picker-utils";
 import { getTimezoneDetails, getShortLocalTimezone } from "@/src/utils/dates";
