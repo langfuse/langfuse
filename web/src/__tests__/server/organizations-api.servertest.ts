@@ -619,7 +619,7 @@ describe("Admin Organizations API", () => {
       expect(response.body.apiKeys[0]).toMatchObject({
         name: "Test API Key",
         note: "Test API Key",
-        role: null,
+        role: "LEGACY_ORGANIZATION_API_KEY",
       });
     });
 

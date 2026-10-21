@@ -75,7 +75,7 @@ describe("Admin API Key Authentication", () => {
       const publicKey = `pk-org-key-${timestamp}`;
       const secretKey = `sk-org-key-${timestamp}`;
 
-      // eslint-disable-next-line @repo/no-direct-api-key-writes -- needs a project-scoped key without a projectId, which createApiKey never produces.
+      // eslint-disable-next-line @repo/no-restricted-prisma-access -- needs a project-scoped key without a projectId, which createApiKey never produces.
       await prisma.apiKey.create({
         data: {
           id: uniqueId,

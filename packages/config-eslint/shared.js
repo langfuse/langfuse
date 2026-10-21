@@ -4,6 +4,29 @@ import tseslint from "typescript-eslint";
 import langfusePlugin from "@repo/eslint-plugin";
 import "eslint-plugin-only-warn";
 
+// Prisma models whose rows may only be touched through their service layer; allow globs match trailing path segments.
+const restrictedPrismaAccess = [
+  {
+    model: "apiKey",
+    methods: ["create", "createMany", "createManyAndReturn", "upsert"],
+    relations: ["apiKeys", "ApiKey", "apiKeysCreated"],
+    relationKeys: ["create", "createMany", "connectOrCreate", "upsert"],
+    allow: ["packages/shared/src/server/auth/apiKeys.ts"],
+    message:
+      "Use createApiKey from @langfuse/shared/src/server so the key gets its scope columns and role assignment in one transaction.",
+  },
+  {
+    model: "roleAssignment",
+    relations: ["roleAssignments"],
+    allow: [
+      "packages/shared/src/features/rbac/roleAssignmentService.ts",
+      "*.test.ts",
+      "*.servertest.ts",
+    ],
+    message: "Use roleAssignmentService from @langfuse/shared/rbac/server.",
+  },
+];
+
 export default [
   {
     name: "langfuse/shared/ignores",
@@ -35,7 +58,10 @@ export default [
       "no-unneeded-ternary": "warn",
       "no-nested-ternary": "error",
       "@repo/no-exotic-operators": "warn",
-      "@repo/no-direct-api-key-writes": "error",
+      "@repo/no-restricted-prisma-access": [
+        "error",
+        { restrictions: restrictedPrismaAccess },
+      ],
     },
   },
 
@@ -65,15 +91,6 @@ export default [
     name: "langfuse/shared/repo-plugin",
     plugins: {
       "@repo": langfusePlugin,
-    },
-  },
-
-  // createApiKey is the one sanctioned writer of ApiKey rows (path relative to packages/shared).
-  {
-    name: "langfuse/shared/api-key-writer",
-    files: ["src/server/auth/apiKeys.ts"],
-    rules: {
-      "@repo/no-direct-api-key-writes": "off",
     },
   },
 

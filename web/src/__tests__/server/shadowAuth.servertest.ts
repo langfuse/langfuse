@@ -172,7 +172,7 @@ const ownedProjectIds = (context: AuthorizationContext): string[] =>
 const createUnassignedApiKey = async (scope: "PROJECT" | "ORGANIZATION") => {
   const publicKey = `pk-lf-${randomUUID()}`;
   const secretKey = `sk-lf-${randomUUID()}`;
-  // eslint-disable-next-line @repo/no-direct-api-key-writes -- needs a key with no role assignment, which createApiKey always adds.
+  // eslint-disable-next-line @repo/no-restricted-prisma-access -- needs a key with no role assignment, which createApiKey always adds.
   const apiKey = await prisma.apiKey.create({
     data: {
       scope,
