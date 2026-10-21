@@ -77,7 +77,8 @@ do not load dotenv files:
 | `LANGFUSE_AI_GATEWAY_AUTO_INCREMENT_LISTEN_PORT` | `false` | `true`, `false`; the pnpm dev task sets `true` |
 | `LANGFUSE_LOG_FORMAT`                          | `text`         | `text`, `json`                                     |
 | `LANGFUSE_LOG_LEVEL`                           | `info`         | `debug`, `info`, `warn`, `error`, `fatal` |
-| `LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS` | `10`           | Integer from 1 to 300                              |
+| `LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS` | `10`           | Integer from 1 to 300; connection drain after the shutdown signal |
+| `LANGFUSE_AI_GATEWAY_TELEMETRY_SHUTDOWN_TIMEOUT_SECONDS` | `10` | Integer from 1 to 300; telemetry flush after the drain ends |
 | `LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_BYTES` | `67108864` (64 MiB) | Integer from 4194304 (4 MiB) to 4294967296 (4 GiB); span and credential bytes an instance holds for upload before dropping new records |
 | `LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES` | `16777216` (16 MiB) | Integer from 1048576 (1 MiB) to 4294967295; largest accepted request body |
 | `LANGFUSE_AI_GATEWAY_MEMORY_BUDGET_BYTES` | `1073741824` (1 GiB) | Integer from the request limit plus the overhead up to Tokio's semaphore capacity; bytes all in-flight requests and model catalogs of an instance may reserve together |
@@ -258,7 +259,7 @@ bounded categories, not tenant or request identifiers.
 
 Trace export uses a 512-span queue, batches of up to 64, and a one-second interval.
 Metrics export every 30 seconds. Export calls use a three-second timeout; failures
-do not fail inference. Shutdown flushes within the remaining shared drain deadline.
+do not fail inference. Shutdown flushes within the remaining telemetry shutdown budget.
 Telemetry delivery warnings report the first failure/drop and every hundredth;
 metrics count each occurrence. This is best-effort operational telemetry.
 
@@ -545,7 +546,7 @@ span records `gateway.telemetry.attempts`. Sanitized logs
 record failures/drops; shutdown reports accepted, failed and dropped counts.
 
 SIGTERM marks the gateway unready, drains inference, then flushes open batches and
-finishes uploads within the remaining shared shutdown budget. At the deadline, unfinished uploads,
+finishes uploads within the telemetry shutdown budget, which starts when draining ends. At the deadline, unfinished uploads,
 including batches waiting to retry, are cancelled and counted as drops. Process crashes or forced shutdown can lose telemetry;
 these records are not a durable accounting ledger.
 
@@ -814,6 +815,9 @@ key metadata remain in Langfuse ingestion and are excluded from operational logs
   remaining runtime tasks; ordinary shutdown exits zero.
 - The shutdown deadline starts on the shutdown signal. New inference requests
   are rejected while draining; existing response streams share this budget.
+- Inference telemetry and operational OTLP export then flush within
+  `LANGFUSE_AI_GATEWAY_TELEMETRY_SHUTDOWN_TIMEOUT_SECONDS`, starting when draining
+  ends, so a drain that hits its deadline does not drop open batches.
 
 ## Container
 
@@ -826,7 +830,7 @@ docker build --target runtime \
 docker run --rm --name langfuse-ai-gateway-dev \
   -e LANGFUSE_LOG_FORMAT=json -p 127.0.0.1:8080:8080 langfuse-ai-gateway:dev
 # In another terminal:
-docker stop --time 15 langfuse-ai-gateway-dev
+docker stop --time 25 langfuse-ai-gateway-dev
 bash ai-gateway/scripts/smoke-image.sh langfuse-ai-gateway:dev
 ```
 
@@ -836,7 +840,7 @@ package version, or override `BUILD_ID` at runtime.
 
 The runtime image runs as UID/GID 10001, includes CA certificates, and executes
 the binary directly so it receives signals. Set the container/orchestrator stop
-grace period longer than the gateway shutdown timeout. The smoke test uses an
+grace period longer than the gateway shutdown timeout plus the telemetry shutdown timeout. The smoke test uses an
 isolated container and an ephemeral host port, checks read-only/non-root startup,
 probes, rejection of unauthenticated inference and a clean SIGTERM exit, then removes it.
 

@@ -2,7 +2,7 @@ use std::{
     future::{Future, IntoFuture},
     io,
     sync::{
-        Arc, Mutex, PoisonError,
+        Arc,
         atomic::{AtomicBool, Ordering},
     },
     time::Duration,
@@ -16,18 +16,9 @@ use tokio::{net::TcpListener, sync::oneshot};
 pub struct GatewayLifecycleState {
     ready: Arc<AtomicBool>,
     disabled: bool,
-    drain_deadline: Arc<Mutex<Option<tokio::time::Instant>>>,
 }
 
 impl GatewayLifecycleState {
-    /// Deadline shared by connection draining and telemetry delivery.
-    pub fn drain_deadline(&self) -> Option<tokio::time::Instant> {
-        *self
-            .drain_deadline
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-    }
-
     pub fn is_ready(&self) -> bool {
         !self.disabled && self.ready.load(Ordering::Acquire)
     }
@@ -89,11 +80,6 @@ pub async fn serve(
         .with_graceful_shutdown(async move {
             shutdown.await;
             shutdown_state.ready.store(false, Ordering::Release);
-            *shutdown_state
-                .drain_deadline
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner) =
-                Some(tokio::time::Instant::now() + shutdown_timeout);
             tracing::info!("gateway draining");
             let _ = draining_tx.send(());
         })
