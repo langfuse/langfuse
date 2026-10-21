@@ -148,6 +148,62 @@ beforeEach(() => {
 });
 
 describe("publishAiFeatureTraceViaOtelIngestion", () => {
+  it("preserves skill catalogs and links successful native resource loads", async () => {
+    const skillsAvailable = [{ name: "local-check", version: 2 }];
+    const { eventInputs } = buildInternalTraceEventInputs({
+      processedEvents: processedEvents.map((event) => ({
+        ...event,
+        body: {
+          ...event.body,
+          ...(event.type === "generation-create" || event.type === "tool-create"
+            ? { skillsAvailable }
+            : {}),
+          ...(event.type === "tool-create"
+            ? {
+                name: "skill",
+                input: { name: "local-check" },
+                output: { instructions: "Check the local assistant." },
+              }
+            : {}),
+        },
+      })),
+      traceId: TRACE_ID,
+      projectId: "project-1",
+    });
+
+    expect(eventInputs.find((event) => event.type === "TOOL")).toMatchObject({
+      skillsAvailable,
+    });
+    await publishAiFeatureTraceViaOtelIngestion({
+      projectId: "project-1",
+      eventInputs,
+    });
+
+    const events = await processPublishedSpans();
+    expect(events.find((event) => event.type === "GENERATION")).toMatchObject({
+      skillsAvailable,
+    });
+    expect(events.find((event) => event.type === "TOOL")).toMatchObject({
+      skillsAvailable,
+      skillsResourceLoaded: [
+        { skillName: "local-check", filePath: "SKILL.md" },
+      ],
+    });
+
+    const legacyEvents = await processPublishedIngestionEvents();
+    expect(
+      legacyEvents.find((event) => event.type === "generation-create")?.body,
+    ).toMatchObject({ skillsAvailable });
+    expect(
+      legacyEvents.find((event) => event.type === "tool-create")?.body,
+    ).toMatchObject({
+      skillsAvailable,
+      skillsResourceLoaded: [
+        { skillName: "local-check", filePath: "SKILL.md" },
+      ],
+    });
+  });
+
   it("preserves agent and tool observation types from SDK event types", async () => {
     await publishFixture();
 
