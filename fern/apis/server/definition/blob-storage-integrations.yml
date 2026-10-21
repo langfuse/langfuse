@@ -91,7 +91,7 @@ types:
     docs: |
       Field group selecting which columns are included in the export. Applies to all export sources.
       - Observation groups (`core` through `trace_context`) select observation columns; groups without a counterpart in the legacy data model (e.g. `trace_context`) are omitted from the legacy observations export.
-      - Score groups (`score_` prefix) select optional score columns. `score_metadata` adds the score `metadata` column. Score groups are never selected by default.
+      - Score groups (`score_` prefix) select optional score columns. `score_metadata` adds the score `metadata` column. `score_provenance` adds the references to where a score came from: `author_user_id`, `config_id`, `queue_id`, `evaluator_id`, `evaluation_rule_id`, `execution_trace_id`. Score groups are never selected by default.
     enum:
       - core
       - basic
@@ -105,6 +105,7 @@ types:
       - tools
       - trace_context
       - score_metadata
+      - score_provenance
 
   CreateBlobStorageIntegrationRequest:
     properties:

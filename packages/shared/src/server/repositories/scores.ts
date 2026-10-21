@@ -13,6 +13,8 @@ import {
 } from "../../domain/scores";
 import {
   SCORE_EXPORT_CORE_FIELDS,
+  SCORE_EXPORT_FIELD_GROUPS,
+  SCORE_EXPORT_GROUP_FIELDS,
   type ScoreExportFieldGroup,
 } from "../../domain/export-field-groups";
 import { InvalidRequestError, InternalServerError } from "../../errors";
@@ -2547,7 +2549,9 @@ const buildScoresForBlobStorageExportQuery = (
 ) => {
   const columns: string[] = [
     ...SCORE_EXPORT_CORE_FIELDS,
-    ...(fieldGroups.includes("score_metadata") ? ["metadata"] : []),
+    ...SCORE_EXPORT_FIELD_GROUPS.filter((group) =>
+      fieldGroups.includes(group),
+    ).flatMap((group) => SCORE_EXPORT_GROUP_FIELDS[group]),
   ];
   const query = `
     SELECT

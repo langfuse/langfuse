@@ -7771,6 +7771,7 @@ components:
         - tools
         - trace_context
         - score_metadata
+        - score_provenance
       description: >-
         Field group selecting which columns are included in the export. Applies
         to all export sources.
@@ -7780,8 +7781,10 @@ components:
         `trace_context`) are omitted from the legacy observations export.
 
         - Score groups (`score_` prefix) select optional score columns.
-        `score_metadata` adds the score `metadata` column. Score groups are
-        never selected by default.
+        `score_metadata` adds the score `metadata` column. `score_provenance`
+        adds the references to where a score came from: `author_user_id`,
+        `config_id`, `queue_id`, `evaluator_id`, `evaluation_rule_id`,
+        `execution_trace_id`. Score groups are never selected by default.
     CreateBlobStorageIntegrationRequest:
       title: CreateBlobStorageIntegrationRequest
       type: object

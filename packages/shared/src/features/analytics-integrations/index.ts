@@ -10,6 +10,7 @@ import {
 import {
   SCORE_EXPORT_CORE_FIELDS,
   SCORE_EXPORT_FIELD_GROUPS,
+  SCORE_EXPORT_GROUP_FIELDS,
   type ScoreExportFieldGroup,
 } from "../../domain/export-field-groups";
 
@@ -157,14 +158,9 @@ export const EXPORT_FIELD_GROUP_OPTIONS = OBSERVATION_FIELD_GROUPS_FULL.map(
 
 /** Score group labels; groups apply to the scores export of every source and file type. */
 const SCORE_EXPORT_FIELD_GROUP_LABELS = {
-  score_metadata: {
-    label: "Metadata",
-    description: "metadata",
-  },
-} satisfies Record<
-  ScoreExportFieldGroup,
-  { label: string; description: string }
->;
+  score_metadata: { label: "Metadata" },
+  score_provenance: { label: "Provenance" },
+} satisfies Record<ScoreExportFieldGroup, { label: string }>;
 
 /** Locked score core group for settings; display-only, as score core columns are always exported. */
 export const SCORE_EXPORT_CORE_FIELD_GROUP_OPTION = {
@@ -173,5 +169,9 @@ export const SCORE_EXPORT_CORE_FIELD_GROUP_OPTION = {
 };
 
 export const SCORE_EXPORT_FIELD_GROUP_OPTIONS = SCORE_EXPORT_FIELD_GROUPS.map(
-  (value) => ({ value, ...SCORE_EXPORT_FIELD_GROUP_LABELS[value] }),
+  (value) => ({
+    value,
+    ...SCORE_EXPORT_FIELD_GROUP_LABELS[value],
+    description: SCORE_EXPORT_GROUP_FIELDS[value].join(", "),
+  }),
 );

@@ -1207,12 +1207,18 @@ describe("BlobStorageIntegrationProcessingJob", () => {
 
     it.each([
       // observation metadata must not switch on score metadata
-      [["core", "metadata"], false, true],
-      [["core", "score_metadata"], true, false],
-      [["core", "metadata", "score_metadata"], true, true],
+      [["core", "metadata"], false, true, false],
+      [["core", "score_metadata"], true, false, false],
+      [["core", "metadata", "score_metadata"], true, true, false],
+      [["core", "score_provenance"], false, false, true],
     ])(
-      "should apply field groups %j per table (score metadata: %s, observation metadata: %s)",
-      async (exportFieldGroups, expectScoreMetadata, expectEventMetadata) => {
+      "should apply field groups %j per table (score metadata: %s, observation metadata: %s, score provenance: %s)",
+      async (
+        exportFieldGroups,
+        expectScoreMetadata,
+        expectEventMetadata,
+        expectScoreProvenance,
+      ) => {
         const { projectId } = await createOrgProjectAndApiKey();
         s3Prefix = projectId;
         const now = new Date();
@@ -1261,6 +1267,9 @@ describe("BlobStorageIntegrationProcessingJob", () => {
               project_id: projectId,
               timestamp: dataTime,
               metadata: { source: "score" },
+              author_user_id: "author-1",
+              config_id: "config-1",
+              queue_id: "queue-1",
             }),
           ]),
         ]);
@@ -1283,6 +1292,16 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           expect(scoreRow.metadata).toEqual({ source: "score" });
         } else {
           expect(scoreRow).not.toHaveProperty("metadata");
+        }
+        if (expectScoreProvenance) {
+          expect(scoreRow).toMatchObject({
+            author_user_id: "author-1",
+            config_id: "config-1",
+            queue_id: "queue-1",
+          });
+          expect(scoreRow).toHaveProperty("execution_trace_id");
+        } else {
+          expect(scoreRow).not.toHaveProperty("author_user_id");
         }
 
         const eventRow = await readFirstRow("observations_v2");

@@ -11,7 +11,10 @@ import {
  * Score groups are opt-in: they are not part of any default selection, so
  * existing exports keep their columns and size until a group is selected.
  */
-export const SCORE_EXPORT_FIELD_GROUPS = ["score_metadata"] as const;
+export const SCORE_EXPORT_FIELD_GROUPS = [
+  "score_metadata",
+  "score_provenance",
+] as const;
 
 /**
  * Columns of every scores export row, in output order. Always exported, so
@@ -38,6 +41,23 @@ export const SCORE_EXPORT_CORE_FIELDS = [
 ] as const;
 
 export type ScoreExportFieldGroup = (typeof SCORE_EXPORT_FIELD_GROUPS)[number];
+
+/**
+ * Columns each score group adds, appended after the core columns in
+ * `SCORE_EXPORT_FIELD_GROUPS` order. Provenance holds the references to where
+ * a score came from: author, score config, annotation queue, evaluator.
+ */
+export const SCORE_EXPORT_GROUP_FIELDS = {
+  score_metadata: ["metadata"],
+  score_provenance: [
+    "author_user_id",
+    "config_id",
+    "queue_id",
+    "evaluator_id",
+    "evaluation_rule_id",
+    "execution_trace_id",
+  ],
+} as const satisfies Record<ScoreExportFieldGroup, readonly string[]>;
 
 /**
  * Every value that can be stored in an integration's `exportFieldGroups`.
