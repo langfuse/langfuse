@@ -21,7 +21,7 @@ import {
   type LangfuseItemType,
 } from "@/src/components/ItemBadge";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight } from "@langfuse/icons";
 import { cn } from "@/src/utils/tailwind";
 
 export interface TreeNodeMetadata {
@@ -185,7 +185,7 @@ export function VirtualizedTreeNodeWrapper(
                   isCollapsed ? "rotate-0" : "rotate-90",
                 )}
               >
-                <ChevronRight className="icon-base text-icon-foreground" />
+                <ChevronRight size="base" color="default" />
               </span>
             </Button>
           )}

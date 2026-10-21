@@ -251,7 +251,7 @@ const getCellPaddingClassName = (padding: DataTableCellPadding) => {
 
 const cellBackgroundClassNames = {
   gray: "bg-muted/50 [&_[data-slot=skeleton]]:bg-muted-foreground/20",
-  green: "bg-surface-output [&_[data-slot=skeleton]]:bg-muted-foreground/20",
+  green: "bg-surface-section [&_[data-slot=skeleton]]:bg-muted-foreground/20",
 } satisfies Record<DataTableCellBackground, string>;
 
 const getCellBackgroundClassName = (background?: DataTableCellBackground) =>
@@ -937,6 +937,7 @@ function TableRowComponent<TData>({
   return (
     <TableRow
       data-row-index={row.index}
+      aria-selected={rowIsSelected || shouldHighlightAllRows || undefined}
       onClick={(e) => {
         if (shouldIgnoreRowClickTarget(e.target)) return;
         onRowClick?.(row.original, e);

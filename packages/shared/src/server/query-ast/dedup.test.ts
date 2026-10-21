@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { compileClickhouseQuery } from "./compile";
 import { getClickhouseKysely } from "./dialect";
-import { limitBy } from "./extensions";
+import { limitBy, useFinal } from "./extensions";
 import { DEDUP_SPECS } from "./schema";
 
 const projectId = "proj-1";
@@ -61,38 +61,107 @@ describe("per-table dedup lowering", () => {
         .selectFrom("events_core")
         .select("span_id")
         .orderBy("event_ts", "desc")
-        .$call(limitBy({ count: 1, columns: ["span_id", "project_id"] })),
+        .$call(
+          limitBy({
+            count: 1,
+            columns: (eb) => [eb.ref("span_id"), eb.ref("project_id")],
+          }),
+        ),
     );
     expect(sql.toLowerCase().split("limit 1 by").length - 1).toBe(1);
   });
 
-  it("lowers a physical read but not a nested read of an outer CTE of that name", () => {
+  it("qualifies the version sort and LIMIT BY key with the FROM alias", () => {
     DEDUP_SPECS.traces = {
       strategy: "limitBy",
       key: ["id"],
       version: "event_ts",
     };
     try {
-      const db = getClickhouseKysely();
       const { sql } = compile(
-        db
-          .with("traces", (qb) =>
-            qb.selectFrom("scores").select("trace_id as id"),
-          )
-          .selectFrom("scores as s")
-          .select("s.id")
-          .where("s.trace_id", "in", (eb) =>
-            eb.selectFrom("traces").select("id"),
-          )
-          .where(
-            "s.trace_id",
-            "in",
-            db.withSchema("default").selectFrom("traces").select("id"),
-          ),
+        getClickhouseKysely().selectFrom("traces as t").select("t.id"),
       );
       expect(sql).toBe(
-        "with traces as (select trace_id as id from scores where project_id = {p1:String}) select s.id from scores as s where s.project_id = {p1:String} and s.trace_id in (select id from traces) and s.trace_id in (select id from default.traces where project_id = {p1:String} order by event_ts desc limit 1 by id)",
+        "select t.id from traces as t where t.project_id = {p1:String} order by t.event_ts desc limit 1 by t.id",
       );
+    } finally {
+      delete DEDUP_SPECS.traces;
+    }
+  });
+
+  it("rejects a declared final strategy, which has no emitter", () => {
+    DEDUP_SPECS.traces = { strategy: "final" };
+    try {
+      expect(() =>
+        compile(getClickhouseKysely().selectFrom("traces").select("id")),
+      ).toThrow(/Dedup strategy "final" is declared on traces/);
+    } finally {
+      delete DEDUP_SPECS.traces;
+    }
+  });
+
+  it("keeps the FROM alias when it wraps an aggregate", () => {
+    DEDUP_SPECS.scores = {
+      strategy: "limitBy",
+      key: ["id"],
+      version: "event_ts",
+    };
+    try {
+      const { sql } = compile(
+        getClickhouseKysely()
+          .selectFrom("scores as s")
+          .select((eb) => eb.fn.countAll().as("n")),
+      );
+      expect(sql).toBe(
+        "select count(*) as n from (select * from scores as s where s.project_id = {p1:String} order by s.event_ts desc limit 1 by s.id) as s",
+      );
+    } finally {
+      delete DEDUP_SPECS.scores;
+    }
+  });
+
+  it("rejects FINAL on a table that declares limitBy dedup", () => {
+    // FINAL and LIMIT 1 BY both pick the latest version, and the aggregate
+    // wrap would move the FROM item into a subquery, so the pair is refused.
+    DEDUP_SPECS.scores = {
+      strategy: "limitBy",
+      key: ["id"],
+      version: "event_ts",
+    };
+    try {
+      expect(() =>
+        compile(
+          getClickhouseKysely()
+            .selectFrom("scores as s")
+            .$call(useFinal(["scores"]))
+            .select((eb) => eb.fn.countAll().as("n")),
+        ),
+      ).toThrow(/FINAL cannot be combined with the limitBy dedup/);
+    } finally {
+      delete DEDUP_SPECS.scores;
+    }
+  });
+
+  it("does not count an aggregate inside a scalar subquery as the outer select's", () => {
+    // `count(*)` belongs to the subquery, so the outer read keeps row dedup.
+    DEDUP_SPECS.traces = {
+      strategy: "limitBy",
+      key: ["id"],
+      version: "event_ts",
+    };
+    try {
+      const { sql } = compile(
+        getClickhouseKysely()
+          .selectFrom("traces as t")
+          .select((eb) => [
+            "t.id",
+            eb
+              .selectFrom("scores as s")
+              .select((inner) => inner.fn.countAll().as("n"))
+              .as("n"),
+          ]),
+      );
+      expect(sql).toMatch(/order by t\.event_ts desc limit 1 by t\.id$/);
     } finally {
       delete DEDUP_SPECS.traces;
     }

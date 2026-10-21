@@ -620,7 +620,7 @@ describe("AI gateway live end-to-end", () => {
               expires_at: expect.any(Number),
             });
 
-            const ingestionToken = resolved.ingestion.access_token;
+            const ingestionToken = resolved.ingestion!.access_token;
             await ingestTrace(ingestionToken, { provider, apiFormat });
           },
         );

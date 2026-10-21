@@ -1,3 +1,4 @@
+import { isoDateTime } from "@langfuse/shared";
 /**
  * MCP Tool: listPrompts
  *
@@ -18,15 +19,13 @@ import { buildPromptUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { paginationMeta } from "../../publicApi";
 
-const ParamFromUpdatedAt = z.iso
-  .datetime({ offset: true })
+const ParamFromUpdatedAt = isoDateTime({ offset: true })
   .optional()
   .describe(
     "Filter prompts updated at or after this timestamp (ISO 8601 with timezone, e.g. 2026-02-02T00:00:00Z)",
   );
 
-const ParamToUpdatedAt = z.iso
-  .datetime({ offset: true })
+const ParamToUpdatedAt = isoDateTime({ offset: true })
   .optional()
   .describe(
     "Filter prompts updated at or before this timestamp (ISO 8601 with timezone, e.g. 2026-02-02T00:00:00Z)",

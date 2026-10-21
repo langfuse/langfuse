@@ -2,7 +2,7 @@
 /* eslint-disable @repo/no-style-props */
 import { useMemo, useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { FoldVertical, UnfoldVertical } from "lucide-react";
+import { FoldVertical, UnfoldVertical } from "@langfuse/icons";
 import { cn } from "@/src/utils/tailwind";
 import { default as React18JsonView } from "react18-json-view";
 import "react18-json-view/src/dark.css";
@@ -93,7 +93,7 @@ export function JSONView(props: {
           "io-message-content ph-no-capture flex max-w-full min-w-0 gap-2 text-xs wrap-break-word whitespace-pre-wrap",
           props.borderless ? "" : "p-2",
           props.title === "assistant" || props.title === "Output"
-            ? "bg-surface-output dark:border-border"
+            ? "bg-surface-section dark:border-border"
             : "",
           props.scrollable || props.borderless || props.title
             ? ""
@@ -198,9 +198,9 @@ export function JSONView(props: {
                 title={isFullyCollapsed ? "Expand all" : "Collapse all"}
               >
                 {isFullyCollapsed ? (
-                  <UnfoldVertical className="icon-sm text-icon-foreground" />
+                  <UnfoldVertical size="sm" color="default" />
                 ) : (
-                  <FoldVertical className="icon-sm text-icon-foreground" />
+                  <FoldVertical size="sm" color="default" />
                 )}
               </Button>
             </>

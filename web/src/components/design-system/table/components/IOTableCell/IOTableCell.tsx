@@ -31,7 +31,7 @@ export type IOTableCellMediaRenderer = (
 const ioTableCellVariantClassNames: Record<IOTableCellVariant, string> = {
   default: "",
   input: "bg-muted/50",
-  output: "bg-surface-output",
+  output: "bg-surface-section",
 };
 
 const ioTableCellPaddingClassNames: Record<IOTableCellSize, string> = {

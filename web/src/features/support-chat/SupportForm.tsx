@@ -35,7 +35,7 @@ import { Textarea } from "@/src/components/ui/textarea";
 import { useEffect, useState } from "react";
 
 import { Dropzone } from "@/src/components/design-system/Dropzone/Dropzone";
-import { Trash2 } from "lucide-react";
+import { Trash2 } from "@langfuse/icons";
 import { PYLON_MAX_FILE_SIZE_BYTES } from "./pylon/pylonConstants";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
@@ -531,7 +531,7 @@ export function SupportForm({
                             className="p-0"
                           >
                             <span className="sr-only">Remove file</span>
-                            <Trash2 className="icon-sm text-icon-foreground" />
+                            <Trash2 size="sm" color="default" />
                           </Button>
                           {file.name}
                         </div>

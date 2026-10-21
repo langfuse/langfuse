@@ -14,6 +14,7 @@ import {
   listTopicSummaries,
   getLatestFacetSummaries,
   getTopicClusteringSummaries,
+  getTopicClusteringSummaryStats,
   getTopicSummaryCounts,
   getTopicExecutionCosts,
   createTopicFacet,
@@ -578,11 +579,19 @@ describe("Topics definition persistence", () => {
       embeddingModel: "eu.cohere.embed-v4:0" as const,
       embeddingDimensions: 256 as const,
     };
+    const limits = { maxRows: 2, maxBytes: 1024 * 1024 };
     expect(
       await Promise.all([
         listTopicSummaries(projectId, filter, oldRange),
         getLatestFacetSummaries(projectId, "facet", undefined, oldRange),
-        getTopicClusteringSummaries(projectId, "facet", 1, embedding, oldRange),
+        getTopicClusteringSummaries(
+          projectId,
+          "facet",
+          1,
+          embedding,
+          oldRange,
+          limits,
+        ),
         getTopicSummaryCounts(
           projectId,
           [{ facetId: "facet", version: 1 }],
@@ -591,6 +600,16 @@ describe("Topics definition persistence", () => {
         ),
       ]),
     ).toEqual([[], [], [], [{ facetId: "facet", facetVersion: 1, count: 0 }]]);
+    expect(
+      await getTopicClusteringSummaryStats(
+        projectId,
+        "facet",
+        1,
+        embedding,
+        oldRange,
+        limits,
+      ),
+    ).toEqual({ count: 0, bytes: 0 });
 
     const newerVersion = {
       ...summary,
@@ -623,6 +642,7 @@ describe("Topics definition persistence", () => {
     ]);
 
     const internalFacet = "internal-environments";
+    const allowedTraceIds = ["allowed-a", "allowed-b"];
     const internalTraces = [
       "langfuse-topics",
       "llm-as-a-judge",
@@ -640,42 +660,73 @@ describe("Topics definition persistence", () => {
           },
         ];
       }),
-      { ...summary, facetId: internalFacet, traceId: "allowed-trace" },
+      ...allowedTraceIds.toReversed().map((traceId) => ({
+        ...summary,
+        facetId: internalFacet,
+        traceId,
+        metadata: { large: "x".repeat(10_000) },
+      })),
     ]);
-    const [eligible, counts, listed, latestDisplayed] = await Promise.all([
-      getTopicClusteringSummaries(
-        projectId,
-        internalFacet,
-        1,
-        embedding,
-        oldRange,
+    const [eligible, counts, listed, latestDisplayed, stats] =
+      await Promise.all([
+        getTopicClusteringSummaries(
+          projectId,
+          internalFacet,
+          1,
+          embedding,
+          oldRange,
+          limits,
+        ),
+        getTopicSummaryCounts(
+          projectId,
+          [{ facetId: internalFacet, version: 1 }],
+          embedding,
+          oldRange,
+        ),
+        listTopicSummaries(
+          projectId,
+          {
+            facetId: internalFacet,
+            facetVersion: 1,
+            traceIds: allowedTraceIds.concat(
+              internalTraces.map(({ traceId }) => traceId),
+            ),
+          },
+          oldRange,
+        ),
+        getLatestFacetSummaries(projectId, internalFacet, undefined, oldRange),
+        getTopicClusteringSummaryStats(
+          projectId,
+          internalFacet,
+          1,
+          embedding,
+          oldRange,
+          limits,
+        ),
+      ]);
+    expect(eligible.map(({ traceId }) => traceId)).toEqual(allowedTraceIds);
+    expect(stats.count).toBe(eligible.length);
+    expect(stats.bytes).toBeGreaterThanOrEqual(
+      eligible.reduce(
+        (bytes, row) =>
+          bytes +
+          row.embedding.length * 8 +
+          2 * JSON.stringify(row.metadata).length,
+        0,
       ),
-      getTopicSummaryCounts(
-        projectId,
-        [{ facetId: internalFacet, version: 1 }],
-        embedding,
-        oldRange,
-      ),
-      listTopicSummaries(
-        projectId,
-        {
-          facetId: internalFacet,
-          facetVersion: 1,
-          traceIds: ["allowed-trace"].concat(
-            internalTraces.map(({ traceId }) => traceId),
-          ),
-        },
-        oldRange,
-      ),
-      getLatestFacetSummaries(projectId, internalFacet, undefined, oldRange),
-    ]);
-    expect(eligible.map(({ traceId }) => traceId)).toEqual(["allowed-trace"]);
-    expect(listed.map(({ traceId }) => traceId)).toEqual(["allowed-trace"]);
-    expect(latestDisplayed.map(({ traceId }) => traceId)).toEqual([
-      "allowed-trace",
-    ]);
+    );
+    expect(listed.map(({ traceId }) => traceId).sort()).toEqual(
+      allowedTraceIds,
+    );
+    expect(latestDisplayed.map(({ traceId }) => traceId).sort()).toEqual(
+      allowedTraceIds,
+    );
     expect(counts).toEqual([
-      { facetId: internalFacet, facetVersion: 1, count: 1 },
+      {
+        facetId: internalFacet,
+        facetVersion: 1,
+        count: allowedTraceIds.length,
+      },
     ]);
   });
 

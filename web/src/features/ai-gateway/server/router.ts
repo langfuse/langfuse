@@ -34,9 +34,14 @@ import {
 const organizationInput = z.object({ orgId: z.string() });
 /** Naming rules live in `parseGatewayConnectionName` so the dialog can show them on the field. */
 const connectionNameSchema = z.string().max(1_000);
+const pageLimitSchema = z.number().int().min(1).max(100).default(50);
 const paginatedOrganizationInput = organizationInput.extend({
   cursor: z.string().optional(),
-  limit: z.number().int().min(1).max(100).default(50),
+  limit: pageLimitSchema,
+});
+const offsetPaginatedOrganizationInput = organizationInput.extend({
+  page: z.number().int().min(0).default(0),
+  limit: pageLimitSchema,
 });
 const connectionInput = organizationInput.extend({ id: z.string() });
 const allowedModelsSchema = z
@@ -99,11 +104,26 @@ export const aiGatewayRouter = createTRPCRouter({
       };
     }),
 
+  /** Readable by every gateway reader; exposes only whether setup is done, not the config itself. */
+  getSetupStatus: protectedOrganizationProcedure
+    .input(organizationInput)
+    .query(async ({ input, ctx }) => {
+      requireGatewayRead({ session: ctx.session, orgId: input.orgId });
+      return new GatewayConfigService(ctx.prisma).getSetupStatus(input.orgId);
+    }),
+
   updateConfig: protectedOrganizationProcedure
     .input(
       organizationInput.extend({
         defaultIngestionProjectId: z.string().nullable(),
-        ingestionMode: z.enum(GatewayIngestionMode),
+        ingestionMode: z
+          .enum(GatewayIngestionMode)
+          .refine(
+            (mode) =>
+              mode !== GatewayIngestionMode.NONE ||
+              !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+            "Ingestion mode NONE is only available on self-hosted deployments",
+          ),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -315,12 +335,12 @@ export const aiGatewayRouter = createTRPCRouter({
     }),
 
   listApiKeys: protectedOrganizationProcedure
-    .input(paginatedOrganizationInput)
+    .input(offsetPaginatedOrganizationInput)
     .query(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
       return new GatewayApiKeyService(ctx.prisma, redis).list({
         organizationId: input.orgId,
-        cursor: input.cursor,
+        page: input.page,
         limit: input.limit,
       });
     }),

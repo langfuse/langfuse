@@ -8,8 +8,8 @@ import {
   LifeBuoy,
   Radio,
   Calendar,
-} from "lucide-react";
-import { SiDiscord, SiGithub } from "react-icons/si";
+} from "@langfuse/icons";
+import { SiDiscord, SiGithub } from "@langfuse/icons/si";
 import { RainbowButton } from "@/src/components/magicui/rainbow-button";
 import { Separator } from "@/src/components/ui/separator";
 import { usePlan } from "@/src/features/entitlements";
@@ -52,7 +52,7 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
     <div className="mt-1 flex flex-col gap-6">
       <div className="flex flex-col gap-3">
         <div className="flex items-center gap-2 text-base font-bold">
-          <Sparkles className="icon-base" /> Ask AI
+          <Sparkles size="base" /> Ask AI
         </div>
         <p className="text-muted-foreground mt-1 text-sm">
           Get instant, helpful answers. Our AI knows the docs, examples, and
@@ -74,7 +74,7 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
 
       <div className="flex flex-col gap-3">
         <div className="flex items-center gap-2 text-base font-bold">
-          <LibraryBig className="icon-base" /> Docs
+          <LibraryBig size="base" /> Docs
         </div>
         <p className="text-muted-foreground text-sm">
           Dive into guides, concepts, and API reference — clear steps and
@@ -100,7 +100,7 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
         <>
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2 text-base font-bold">
-              <LifeBuoy className="icon-base" /> Support
+              <LifeBuoy size="base" /> Support
             </div>
             <p className="text-muted-foreground text-sm">
               Ask AI & Docs did not unblock you? Get in touch with the support
@@ -158,7 +158,7 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
         <>
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2 text-base font-bold">
-              <LifeBuoy className="icon-base" /> Email a Support Engineer
+              <LifeBuoy size="base" /> Email a Support Engineer
             </div>
             <p className="text-muted-foreground text-sm">
               Ask AI & Docs did not unblock you? One of our support engineers
@@ -177,7 +177,7 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
         <>
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2 text-base font-bold">
-              <LifeBuoy className="icon-base" /> Community Support
+              <LifeBuoy size="base" /> Community Support
             </div>
             <p className="text-muted-foreground text-sm">
               Ask AI & Docs did not unblock you? Get help from and share
@@ -189,8 +189,8 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
                 target="_blank"
                 rel="noopener"
               >
-                <SiGithub className="icon-base text-icon-foreground mr-2" /> Get
-                Help ↗
+                <SiGithub size="base" color="default" __rawClassName="mr-2" />{" "}
+                Get Help ↗
               </a>
             </Button>
             <Button variant="outline" asChild>
@@ -199,7 +199,7 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
                 target="_blank"
                 rel="noopener"
               >
-                <Lightbulb className="icon-base text-icon-foreground mr-2" />{" "}
+                <Lightbulb size="base" color="default" __rawClassName="mr-2" />{" "}
                 Feature request ↗
               </a>
             </Button>
@@ -209,8 +209,8 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
                 target="_blank"
                 rel="noopener"
               >
-                <Bug className="icon-base text-icon-foreground mr-2" /> Report a
-                bug ↗
+                <Bug size="base" color="default" __rawClassName="mr-2" /> Report
+                a bug ↗
               </a>
             </Button>
           </div>
@@ -222,7 +222,7 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
       {supportType !== "custom" && (
         <div>
           <div className="flex items-center gap-2 text-base font-bold">
-            <SiGithub className="icon-base" /> Community & Resources
+            <SiGithub size="base" /> Community & Resources
           </div>
           <p className="text-muted-foreground mt-1 text-sm">
             Join the conversation and connect with the Langfuse community.
@@ -234,7 +234,7 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
                 target="_blank"
                 rel="noopener"
               >
-                <SiGithub className="icon-base text-icon-foreground mr-2" />{" "}
+                <SiGithub size="base" color="default" __rawClassName="mr-2" />{" "}
                 GitHub ↗
               </a>
             </Button>
@@ -245,7 +245,7 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
                 rel="noopener"
                 className="flex items-center"
               >
-                <SiDiscord className="icon-base text-icon-foreground mr-2" />{" "}
+                <SiDiscord size="base" color="default" __rawClassName="mr-2" />{" "}
                 Discord ↗
               </a>
             </Button>
@@ -257,7 +257,7 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
                 className="flex items-center"
                 onClick={() => capture("support_chat:community_hours_click")}
               >
-                <Calendar className="icon-base text-icon-foreground mr-2" />{" "}
+                <Calendar size="base" color="default" __rawClassName="mr-2" />{" "}
                 Community Hours ↗
               </a>
             </Button>
@@ -270,7 +270,7 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
                   rel="noopener"
                   className="flex items-center"
                 >
-                  <Radio className="icon-base text-icon-foreground mr-2" />{" "}
+                  <Radio size="base" color="default" __rawClassName="mr-2" />{" "}
                   Status Page ↗
                 </a>
               </Button>

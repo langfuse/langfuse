@@ -28,7 +28,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod/v4";
 import { zodResolver } from "@hookform/resolvers/zod";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { Copy } from "lucide-react";
+import { Copy } from "@langfuse/icons";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useEntitlementLimit } from "@/src/features/entitlements";
 
@@ -115,7 +115,7 @@ export function DuplicateFolder({ folderPath }: { folderPath: string }) {
           title="Duplicate folder including prompts"
           onClick={() => capture("prompt_detail:duplicate_button_click")}
         >
-          <Copy className="icon-sm text-icon-foreground" />
+          <Copy size="sm" color="default" />
         </Button>
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] min-h-0 sm:max-w-md">

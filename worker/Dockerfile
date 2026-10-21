@@ -30,7 +30,7 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS build-base
 # Pin turbo to avoid nondeterministic prune output from future patch releases.
 # pnpm is installed pinned via npm instead of corepack: the corepack shim would
 # fetch pnpm from an unpinned CDN on first use.
-RUN npm install -g turbo@2.11.7 pnpm@12.8.2
+RUN npm install -g turbo@2.11.9 pnpm@12.8.2
 # Pass --build-arg NODE_USE_ENV_PROXY=1 when building behind a proxy.
 ARG NODE_USE_ENV_PROXY
 
@@ -136,21 +136,17 @@ RUN set -eux; \
     rm -rf /tmp/rust.tar.gz /tmp/rust-1.98.0-${triple}
 
 # cargo-about renders the third-party license notices for the native addon's
-# Rust dependencies. Pinned, checksum-verified static release binary (sha256
-# from the release's `.tar.gz.sha256` assets); keep the version in sync with
-# ai-gateway/Dockerfile.
-RUN set -eux; \
-    case "${TARGETARCH:-amd64}" in \
-    amd64) about_arch=x86_64; about_sha256=9099a59e820c38a68b9d65f300662a567d56562f9a10f6aa4c7e86c17c2566af ;; \
-    arm64) about_arch=aarch64; about_sha256=af5169282fb6f84e13471493f405437e43ac517744c9ae12fbe2cdf0a6f0e5a8 ;; \
-    *) echo "unsupported TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
-    esac; \
-    about_dir="cargo-about-0.9.2-${about_arch}-unknown-linux-musl"; \
-    curl -fsSL -o /tmp/cargo-about.tar.gz "https://github.com/EmbarkStudios/cargo-about/releases/download/0.9.2/${about_dir}.tar.gz"; \
-    echo "${about_sha256}  /tmp/cargo-about.tar.gz" | sha256sum -c -; \
-    tar -xzf /tmp/cargo-about.tar.gz -C /tmp; \
-    install -m 0755 "/tmp/${about_dir}/cargo-about" /usr/local/bin/cargo-about; \
-    rm -rf /tmp/cargo-about.tar.gz "/tmp/${about_dir}"
+# Rust dependencies. cargo-auditable embeds the addon's resolved dependency
+# list in the .node binary so image scanners (Trivy, Grype, Docker Scout) can
+# match its Rust crates against advisories. Both build from crates.io at pinned
+# versions with their own lockfiles; keep the versions in sync with
+# ai-gateway/Dockerfile. `napi build` spawns $CARGO instead of cargo when it is
+# set, so the build step points it at a wrapper that runs `cargo auditable`.
+RUN cargo install --locked --root /usr/local --features cli cargo-about@0.9.2 && \
+    cargo install --locked --root /usr/local cargo-auditable@0.7.7 && \
+    rm -rf "${CARGO_HOME:-$HOME/.cargo}/registry" && \
+    printf '#!/bin/sh\nexec /usr/local/bin/cargo auditable "$@"\n' > /usr/local/bin/cargo-auditable-shim && \
+    chmod 0755 /usr/local/bin/cargo-auditable-shim
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} toolchain AS builder
 
@@ -180,7 +176,7 @@ ARG NEXT_PUBLIC_POSTHOG_HOST
 # Copy source code of isolated subworkspace
 COPY --from=pruner /app/out/full/ .
 
-RUN turbo run build --filter=worker...
+RUN CARGO=/usr/local/bin/cargo-auditable-shim turbo run build --filter=worker...
 
 # Runs after the build so `cargo fetch` adds the sources the build skipped (dev
 # and other-target dependencies) that cargo metadata still reads; `generate`

@@ -2,6 +2,7 @@ import { LISTABLE_SCORE_TYPES } from "../../domain/scores";
 import { env } from "../../env";
 import { compileClickhouseQuery } from "../query-ast/compile";
 import { getClickhouseKysely } from "../query-ast/dialect";
+import { literal } from "../query-ast/extensions";
 import { queryClickhouse } from "./clickhouse";
 
 export type EnvironmentFilterProps = {
@@ -41,7 +42,7 @@ export const getEnvironmentsForProject = async (
               ),
           )
       : db
-          .selectFrom("events_core")
+          .selectFrom("events")
           .select("environment")
           .distinct()
           .$if(fromTimestamp != null, (qb) =>
@@ -52,7 +53,11 @@ export const getEnvironmentsForProject = async (
     .selectFrom("scores")
     .select("environment")
     .distinct()
-    .where("data_type", "in", [...LISTABLE_SCORE_TYPES])
+    .where(
+      "data_type",
+      "in",
+      LISTABLE_SCORE_TYPES.map((t) => literal(t)),
+    )
     .$if(fromTimestamp != null, (qb) =>
       qb.where("timestamp", ">=", fromTimestamp!),
     );

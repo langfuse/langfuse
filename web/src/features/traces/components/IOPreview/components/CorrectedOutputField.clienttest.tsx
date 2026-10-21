@@ -16,19 +16,28 @@ vi.mock("../hooks/useCorrectionMutations", () => ({
   }),
 }));
 
+const editorHook = vi.hoisted(() => ({
+  spy: vi.fn(),
+  handleEdit: vi.fn(),
+}));
+const access = vi.hoisted(() => ({ hasAccess: true }));
+
 vi.mock("../hooks/useCorrectionEditor", () => ({
-  useCorrectionEditor: ({ correctionValue }: { correctionValue: string }) => ({
-    isEditing: false,
-    setIsEditing: vi.fn(),
-    value: correctionValue,
-    isValidJson: true,
-    handleEdit: vi.fn(),
-    handleChange: vi.fn(),
-  }),
+  useCorrectionEditor: (params: { correctionValue: string }) => {
+    editorHook.spy(params);
+    return {
+      isEditing: false,
+      setIsEditing: vi.fn(),
+      value: params.correctionValue,
+      isValidJson: true,
+      handleEdit: editorHook.handleEdit,
+      handleChange: vi.fn(),
+    };
+  },
 }));
 
 vi.mock("@/src/features/rbac", () => ({
-  useHasProjectAccess: () => true,
+  useHasProjectAccess: () => access.hasAccess,
 }));
 
 vi.mock("@/src/features/posthog-analytics", () => ({
@@ -68,6 +77,51 @@ const baseProps = {
 };
 
 describe("CorrectedOutputField visibility", () => {
+  beforeEach(() => {
+    access.hasAccess = true;
+    editorHook.spy.mockClear();
+    editorHook.handleEdit.mockClear();
+  });
+
+  it("does not open the editor for readers without scores:save", () => {
+    access.hasAccess = false;
+    render(
+      <CorrectedOutputField
+        {...baseProps}
+        existingCorrection={null}
+        trigger="header"
+        startEditing
+      />,
+    );
+
+    expect(editorHook.spy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ initialEditing: false }),
+    );
+    expect(
+      screen.getByRole("button", { name: "Click to add corrected output" }),
+    ).toBeDisabled();
+  });
+
+  it("opens the inline link without entering edit mode for readers", () => {
+    access.hasAccess = false;
+    render(<CorrectedOutputField {...baseProps} existingCorrection={null} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Correct output" }));
+
+    expect(editorHook.handleEdit).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("button", { name: "Click to add corrected output" }),
+    ).toBeDisabled();
+  });
+
+  it("opens the inline link straight into edit mode with access", () => {
+    render(<CorrectedOutputField {...baseProps} existingCorrection={null} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Correct output" }));
+
+    expect(editorHook.handleEdit).toHaveBeenCalledTimes(1);
+  });
+
   it("shows an existing correction without requiring a click", () => {
     render(
       <CorrectedOutputField
@@ -102,7 +156,7 @@ describe("CorrectedOutputField visibility", () => {
       />,
     );
 
-    expect(screen.getByText("Corrected Output")).toBeInTheDocument();
+    expect(screen.getByText("Corrected output")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Correct output" }),
     ).not.toBeInTheDocument();
@@ -131,7 +185,23 @@ describe("CorrectedOutputField visibility", () => {
     expect(
       screen.getByRole("button", { name: "Correct output" }),
     ).toBeInTheDocument();
-    expect(screen.queryByText("Corrected Output")).not.toBeInTheDocument();
+    expect(screen.queryByText("Corrected output")).not.toBeInTheDocument();
+  });
+
+  it("in header mode shows the section without its own link", () => {
+    render(
+      <CorrectedOutputField
+        {...baseProps}
+        existingCorrection={null}
+        trigger="header"
+        startEditing
+      />,
+    );
+
+    expect(screen.getByText("Corrected output")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Correct output" }),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps the section collapsed when no correction exists", () => {

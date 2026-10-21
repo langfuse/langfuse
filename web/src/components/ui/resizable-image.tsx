@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/src/components/ui/button";
-import { ImageOff, Maximize2, Minimize2 } from "lucide-react";
+import { ImageOff, Maximize2, Minimize2 } from "@langfuse/icons";
 import { api } from "@/src/utils/api";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useSession } from "next-auth/react";
@@ -40,7 +40,7 @@ const ImageErrorDisplay = ({
   return (
     <div className="grid grid-cols-[auto_1fr] items-center gap-2">
       <span title={displayError} className="h-4 w-4">
-        <ImageOff className="icon-base" />
+        <ImageOff size="base" />
       </span>
       {safeSrc ? (
         <Link
@@ -164,9 +164,9 @@ export const ResizableImage = ({
                 onClick={() => setIsZoomedIn(!isZoomedIn)}
               >
                 {isZoomedIn ? (
-                  <Maximize2 className="icon-base text-icon-foreground"></Maximize2>
+                  <Maximize2 size="base" color="default"></Maximize2>
                 ) : (
-                  <Minimize2 className="icon-base text-icon-foreground"></Minimize2>
+                  <Minimize2 size="base" color="default"></Minimize2>
                 )}
               </Button>
             </>
