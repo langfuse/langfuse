@@ -141,7 +141,7 @@ export abstract class PeriodicRunner {
     } finally {
       const completedAt = Date.now();
       try {
-        logger.info("Periodic runner completed", {
+        logger.info(`${this.name}: Periodic runner completed`, {
           event: "periodic_runner.completed",
           runner: this.metricName,
           ...(this.metricScope ? { scope: this.metricScope } : {}),
