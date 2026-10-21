@@ -1779,10 +1779,13 @@ const getScoresUiGenericFromEvents = async <T>(props: {
   // The trace join, ORDER BY, and LIMIT/OFFSET run OUTSIDE the subquery, at one
   // level, so pagination follows the requested sort (and a traces-column sort can
   // reference the joined `e`).
+  const orderAndPage = `
+      ${withIdTiebreaker(orderByToClickhouseSql(orderBy ?? null, scoresTableUiColumnDefinitionsFromEvents), orderBy)}
+      ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}`;
+
   // Projects whose scores are never updated have one row per key, so they
   // read the table directly instead of reconstructing the latest version.
-  const query = skipDedup
-    ? `
+  const plainScanQuery = () => `
       ${tracesCTEClause}
       SELECT
           ${props.select === "count" ? "count(*) AS count" : rowSelect}
@@ -1793,15 +1796,10 @@ const getScoresUiGenericFromEvents = async <T>(props: {
       ) s
       ${eventsJoin}
       ${outerWhereClause}
-      ${
-        props.select === "count"
-          ? ""
-          : `${withIdTiebreaker(orderByToClickhouseSql(orderBy ?? null, scoresTableUiColumnDefinitionsFromEvents), orderBy)}
-      ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}`
-      }
-    `
-    : props.select === "count"
-      ? `
+      ${props.select === "count" ? "" : orderAndPage}
+    `;
+
+  const dedupCountQuery = () => `
       ${tracesCTEClause}
       SELECT count(*) AS count
       FROM (
@@ -1818,8 +1816,9 @@ const getScoresUiGenericFromEvents = async <T>(props: {
       ) s
       ${eventsJoin}
       ${outerWhereClause}
-    `
-      : `
+    `;
+
+  const dedupRowsQuery = () => `
       ${tracesCTEClause}
       SELECT
           ${rowSelect}
@@ -1846,9 +1845,14 @@ const getScoresUiGenericFromEvents = async <T>(props: {
         LIMIT 1 BY s.project_id, toDate(s.timestamp), s.name, s.id
       ) s
       ${eventsJoin}
-      ${withIdTiebreaker(orderByToClickhouseSql(orderBy ?? null, scoresTableUiColumnDefinitionsFromEvents), orderBy)}
-      ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
+      ${orderAndPage}
     `;
+
+  const query = (() => {
+    if (skipDedup) return plainScanQuery();
+    if (props.select === "count") return dedupCountQuery();
+    return dedupRowsQuery();
+  })();
 
   const input = {
     params: {
