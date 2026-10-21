@@ -696,6 +696,79 @@ describe("BatchDataRetentionCleaner", () => {
       ]);
     });
 
+    it("batches the full project list by cutoff without losing projects at chunk boundaries", async () => {
+      const projectIds = await createProjectsWithRetention(5);
+      await prisma.project.updateMany({
+        where: { id: { in: [projectIds[1]!, projectIds[3]!] } },
+        data: { retentionDays: 30 },
+      });
+      const projects = await prisma.project.findMany({
+        where: { id: { in: projectIds } },
+      });
+      projects.sort(
+        (left, right) =>
+          projectIds.indexOf(left.id) - projectIds.indexOf(right.id),
+      );
+      const findProjects = vi
+        .spyOn(prisma.project, "findMany")
+        .mockResolvedValueOnce(projects);
+      const now = new Date("2026-10-21T12:34:56.123Z");
+      const cutoffs = projects.map(
+        (project) => now.getTime() - project.retentionDays! * 86_400_000,
+      );
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(now);
+
+      try {
+        await insertRetentionTestRows(
+          tableName,
+          projectIds.flatMap((projectId, index) => [
+            { projectId, startTime: cutoffs[index]! - 1 },
+            { projectId, startTime: cutoffs[index]! },
+          ]),
+        );
+        env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_CHUNK_SIZE = 2;
+
+        await new BatchDataRetentionCleaner(table).processBatch();
+
+        expect(
+          integrationHooks.candidateQueries.map(
+            ({ params }) => params?.discoveryProjectIds_0,
+          ),
+        ).toEqual([
+          [projectIds[0], projectIds[2]],
+          [projectIds[4]],
+          [projectIds[1], projectIds[3]],
+        ]);
+        for (const { query, params } of integrationHooks.candidateQueries) {
+          expect(query.match(/project_id IN/g)).toHaveLength(1);
+          const ids = params!.discoveryProjectIds_0 as string[];
+          expect(params!.candidateLimit).toBe(ids.length);
+          expect(params!.discoveryCutoff_0).toBe(
+            toClickhouseDateTime(cutoffs[projectIds.indexOf(ids[0]!)]!),
+          );
+        }
+        const remaining = await queryClickhouse<{
+          project_id: string;
+          timestamp: string;
+        }>({
+          query: `SELECT project_id, toUnixTimestamp64Milli(start_time) AS timestamp FROM ${tableName}`,
+        });
+        expect(
+          remaining
+            .map((row) => [row.project_id, Number(row.timestamp)])
+            .sort(),
+        ).toEqual(
+          projectIds
+            .map((projectId, index) => [projectId, cutoffs[index]])
+            .sort(),
+        );
+      } finally {
+        findProjects.mockRestore();
+        vi.useRealTimers();
+      }
+    });
+
     it("prioritizes lag, breaks ties by total rows, and reports maximum lag", async () => {
       const [
         smallerTieProjectId,

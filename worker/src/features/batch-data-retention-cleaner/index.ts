@@ -384,19 +384,25 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
       }),
     );
 
-    // Step 3: Bound both the project parameters and returned candidates for
-    // each ClickHouse query. A completed query can return every matching
-    // project in its input chunk because both use the same configured limit.
+    // Step 3: Keep each bounded discovery chunk within one exact cutoff so
+    // its predicate uses a single project IN set and timestamp comparison.
+    const projectsByCutoff = new Map<number, ProjectRetention[]>();
+    for (const project of allProjectRetentions) {
+      const cutoff = project.cutoffDate.getTime();
+      const group = projectsByCutoff.get(cutoff);
+      if (group) {
+        group.push(project);
+      } else {
+        projectsByCutoff.set(cutoff, [project]);
+      }
+    }
+
     const chunkSize = env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_CHUNK_SIZE;
     const projectChunks: ProjectRetention[][] = [];
-    for (
-      let offset = 0;
-      offset < allProjectRetentions.length;
-      offset += chunkSize
-    ) {
-      projectChunks.push(
-        allProjectRetentions.slice(offset, offset + chunkSize),
-      );
+    for (const projects of projectsByCutoff.values()) {
+      for (let offset = 0; offset < projects.length; offset += chunkSize) {
+        projectChunks.push(projects.slice(offset, offset + chunkSize));
+      }
     }
 
     // Step 4: Oldest timestamp provides the main ordering signal and total
@@ -531,7 +537,7 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
         query,
         params: {
           ...params,
-          candidateLimit: env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_CHUNK_SIZE,
+          candidateLimit: projects.length,
         },
         useMultipartParamsAuto: true,
         clickhouseConfigs: {
