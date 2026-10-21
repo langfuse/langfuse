@@ -604,7 +604,7 @@ describe("BatchDataRetentionCleaner", () => {
       ]);
     });
 
-    it("groups discovery by exact cutoff while preserving deletion boundaries", async () => {
+    it("discovers separate cutoffs while preserving deletion boundaries", async () => {
       const cutoff = new Date("2026-01-15T12:34:56.123Z");
       const projectIds = [
         "project-'quoted\\id",
@@ -630,7 +630,7 @@ describe("BatchDataRetentionCleaner", () => {
         lock: { extend: () => Promise<boolean> };
         findExpiredProjectCandidates: (
           timestampColumn: string,
-          inputProjects: typeof projects,
+          chunk: { projects: typeof projects; cutoff: string },
         ) => Promise<{ candidates: typeof projects; complete: boolean }>;
         executeBatchDelete: (
           timestampColumn: string,
@@ -643,30 +643,49 @@ describe("BatchDataRetentionCleaner", () => {
         ) => Promise<void>;
       };
       cleaner.lock.extend = async () => true;
-      const result = await cleaner.findExpiredProjectCandidates(
-        "start_time",
-        projects,
-      );
+      const results = [];
+      for (const chunk of [
+        {
+          projects: projects.slice(0, 2),
+          cutoff: "2026-01-15 12:34:56.123",
+        },
+        {
+          projects: projects.slice(2),
+          cutoff: "2026-01-15 12:34:56.124",
+        },
+      ]) {
+        results.push(
+          await cleaner.findExpiredProjectCandidates("start_time", chunk),
+        );
+      }
+      const candidates = results.flatMap((result) => result.candidates);
 
-      expect(result.complete).toBe(true);
-      expect(
-        result.candidates.map((project) => project.projectId).sort(),
-      ).toEqual([projectIds[0], projectIds[2]].sort());
-      const discovery = integrationHooks.candidateQueries[0]!;
-      expect(discovery.query.match(/project_id IN/g)).toHaveLength(2);
-      expect(discovery.query).not.toContain(projectIds[0]);
-      expect(Object.values(discovery.params!)).toEqual(
-        expect.arrayContaining([
-          [projectIds[0], projectIds[1]],
-          [projectIds[2]],
-          "2026-01-15 12:34:56.123",
-          "2026-01-15 12:34:56.124",
-        ]),
+      expect(results.every((result) => result.complete)).toBe(true);
+      expect(candidates.map((project) => project.projectId).sort()).toEqual(
+        [projectIds[0], projectIds[2]].sort(),
       );
+      expect(
+        integrationHooks.candidateQueries.map(({ params }) => params),
+      ).toEqual([
+        {
+          discoveryProjectIds: [projectIds[0], projectIds[1]],
+          discoveryCutoff: "2026-01-15 12:34:56.123",
+          candidateLimit: 2,
+        },
+        {
+          discoveryProjectIds: [projectIds[2]],
+          discoveryCutoff: "2026-01-15 12:34:56.124",
+          candidateLimit: 1,
+        },
+      ]);
+      for (const { query } of integrationHooks.candidateQueries) {
+        expect(query.match(/project_id IN/g)).toHaveLength(1);
+        expect(query).not.toContain(projectIds[0]);
+      }
 
       await cleaner.executeBatchDelete(
         "start_time",
-        result.candidates.map((candidate) => ({
+        candidates.map((candidate) => ({
           ...candidate,
           rowCount: null,
           secondsPastCutoff: null,
@@ -733,7 +752,7 @@ describe("BatchDataRetentionCleaner", () => {
 
         expect(
           integrationHooks.candidateQueries.map(
-            ({ params }) => params?.discoveryProjectIds_0,
+            ({ params }) => params?.discoveryProjectIds,
           ),
         ).toEqual([
           [projectIds[0], projectIds[2]],
@@ -742,9 +761,9 @@ describe("BatchDataRetentionCleaner", () => {
         ]);
         for (const { query, params } of integrationHooks.candidateQueries) {
           expect(query.match(/project_id IN/g)).toHaveLength(1);
-          const ids = params!.discoveryProjectIds_0 as string[];
+          const ids = params!.discoveryProjectIds as string[];
           expect(params!.candidateLimit).toBe(ids.length);
-          expect(params!.discoveryCutoff_0).toBe(
+          expect(params!.discoveryCutoff).toBe(
             toClickhouseDateTime(cutoffs[projectIds.indexOf(ids[0]!)]!),
           );
         }
