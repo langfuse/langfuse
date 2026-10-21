@@ -1,4 +1,5 @@
 import Header from "@/src/components/layouts/header";
+import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { GatewayNotSetUpNotice } from "@/src/features/ai-gateway/components/GatewayNotSetUpNotice/GatewayNotSetUpNotice";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
@@ -21,14 +22,14 @@ export function GatewayApiKeysPage({
   }
   return (
     <div className="flex flex-col gap-4">
-      <Header
-        title="Gateway API keys"
-        help={{
-          description: canManageGateway
+      <div className="flex items-center gap-1">
+        <Header title="Gateway API keys" className="mb-0!" />
+        <InfoTooltip label="About gateway API keys">
+          {canManageGateway
             ? "These organization keys authenticate requests to the AI Gateway only. Each key belongs to the member who created it and is revoked when they leave the organization."
-            : "Your keys authenticate requests to the AI Gateway only. They are revoked when you leave the organization or lose gateway access.",
-        }}
-      />
+            : "Your keys authenticate requests to the AI Gateway only. They are revoked when you leave the organization or lose gateway access."}
+        </InfoTooltip>
+      </div>
       <ConnectedGatewayApiKeysTable
         key={organizationId}
         organizationId={organizationId}
