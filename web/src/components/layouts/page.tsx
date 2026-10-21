@@ -3,7 +3,7 @@ import PageHeader, {
   type PageHeaderProps,
 } from "@/src/components/layouts/page-header";
 import { PageHeaderControlsSlotProvider } from "@/src/components/layouts/page-header-controls-slot";
-import { MobileTopBar } from "@/src/components/layouts/mobile-top-bar";
+import { MobileTopBar } from "@/src/components/layouts/MobileTopBar";
 import { MobilePageTitle } from "@/src/components/layouts/MobilePageTitle";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { cn } from "@/src/utils/tailwind";
