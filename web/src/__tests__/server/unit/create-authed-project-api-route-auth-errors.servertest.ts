@@ -76,8 +76,6 @@ vi.mock("@langfuse/shared/src/db", async () => {
 });
 
 vi.mock("@langfuse/shared/src/server", () => ({
-  eventTypes: { SCORE_CREATE: "score-create", TRACE_CREATE: "trace-create" },
-  getCurrentSpan: vi.fn(() => undefined),
   redis: null,
   instrumentAsync: vi.fn(async (_ctx, callback) =>
     callback({ setAttribute: vi.fn() }),
