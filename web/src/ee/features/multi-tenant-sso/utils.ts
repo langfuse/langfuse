@@ -246,8 +246,7 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
       ...provider.authConfig,
       clientSecret: decrypt(provider.authConfig.clientSecret),
-      // NextAuth's default appends /oidc/2 to any issuer; use the discovery
-      // URL that save-time validation fetched.
+      /** Same discovery URL as save-time validation; NextAuth's default appends /oidc/2 to any issuer. */
       wellKnown: getDiscoveryUrl(
         resolveOneLoginIssuer(provider.authConfig.issuer),
       ),

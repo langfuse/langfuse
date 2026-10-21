@@ -981,20 +981,7 @@ describe("ssoConfigRouter.save — IdP discovery validation", () => {
   });
 
   describe("OneLogin", () => {
-    const oneLoginPayload = (domain: string, issuer: string) => ({
-      domain,
-      authProvider: "onelogin" as const,
-      authConfig: {
-        clientId: "onelogin-client",
-        clientSecret: "onelogin-secret",
-        issuer,
-        allowDangerousEmailAccountLinking: false,
-      },
-    });
-
-    // NextAuth's OneLogin provider appends /oidc/2 to the tenant URL, while
-    // the OneLogin admin console shows the full issuer. Both must validate
-    // against the discovery doc that sign-in fetches.
+    /** Tenant URLs (NextAuth's form) and full issuers (OneLogin console's form) both validate against the sign-in discovery doc. */
     it.each([
       "https://example.com",
       "https://example.com/",
@@ -1056,6 +1043,19 @@ describe("ssoConfigRouter.save — IdP discovery validation", () => {
       const row = await prisma.ssoConfig.findUnique({ where: { domain } });
       expect(row).toBeNull();
     });
+
+    function oneLoginPayload(domain: string, issuer: string) {
+      return {
+        domain,
+        authProvider: "onelogin" as const,
+        authConfig: {
+          clientId: "onelogin-client",
+          clientSecret: "onelogin-secret",
+          issuer,
+          allowDangerousEmailAccountLinking: false,
+        },
+      };
+    }
   });
 
   it("skips discovery for OAuth-only providers (github)", async () => {

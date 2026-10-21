@@ -1,5 +1,6 @@
 import { encrypt } from "@langfuse/shared/encryption";
 import { describe, expect, it, vi } from "vitest";
+import { loadSsoProviders } from "@/src/ee/features/multi-tenant-sso/utils";
 
 const { mockFindMany } = vi.hoisted(() => ({ mockFindMany: vi.fn() }));
 
@@ -15,23 +16,9 @@ vi.mock("@/src/ee/features/multi-tenant-sso/multiTenantSsoAvailable", () => ({
   multiTenantSsoAvailable: true,
 }));
 
-import { loadSsoProviders } from "@/src/ee/features/multi-tenant-sso/utils";
-
-const oneLoginRow = (domain: string, issuer: string) => ({
-  domain,
-  authProvider: "onelogin",
-  authConfig: {
-    clientId: "onelogin-client",
-    clientSecret: encrypt("onelogin-secret"),
-    issuer,
-  },
-  createdAt: new Date(),
-  updatedAt: new Date(),
-});
-
 describe("loadSsoProviders — OneLogin", () => {
   it("uses a single /oidc/2 in the discovery URL for every issuer form", async () => {
-    // One call only: getSsoConfigs caches the rows at module level.
+    /** All rows load in one call because getSsoConfigs caches them at module level. */
     mockFindMany.mockResolvedValue([
       oneLoginRow("tenant.example", "https://example.com"),
       oneLoginRow("issuer.example", "https://example.com/oidc/2"),
@@ -40,8 +27,7 @@ describe("loadSsoProviders — OneLogin", () => {
 
     const providers = await loadSsoProviders();
 
-    // NextAuth merges the provider's `options` over its defaults when it
-    // parses providers; that merge is not exported, so mirror it with `??`.
+    /** `??` mirrors NextAuth's unexported merge of provider `options` over its defaults. */
     const wellKnownById = Object.fromEntries(
       providers.flatMap((p) =>
         p.type === "oauth"
@@ -59,3 +45,17 @@ describe("loadSsoProviders — OneLogin", () => {
     });
   });
 });
+
+function oneLoginRow(domain: string, issuer: string) {
+  return {
+    domain,
+    authProvider: "onelogin",
+    authConfig: {
+      clientId: "onelogin-client",
+      clientSecret: encrypt("onelogin-secret"),
+      issuer,
+    },
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+}

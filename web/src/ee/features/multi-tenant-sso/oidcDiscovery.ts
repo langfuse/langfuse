@@ -1,10 +1,3 @@
-export const stripTrailingSlash = (url: string) => url.replace(/\/$/, "");
-
-/** getDiscoveryUrl builds the discovery-document URL for issuer. */
-export function getDiscoveryUrl(issuer: string): string {
-  return `${stripTrailingSlash(issuer)}/.well-known/openid-configuration`;
-}
-
 const oneLoginOidcPath = "/oidc/2";
 
 /**
@@ -16,4 +9,13 @@ const oneLoginOidcPath = "/oidc/2";
 export function resolveOneLoginIssuer(configured: string): string {
   const base = stripTrailingSlash(configured);
   return base.endsWith(oneLoginOidcPath) ? base : `${base}${oneLoginOidcPath}`;
+}
+
+/** getDiscoveryUrl builds the discovery-document URL for issuer. */
+export function getDiscoveryUrl(issuer: string): string {
+  return `${stripTrailingSlash(issuer)}/.well-known/openid-configuration`;
+}
+
+export function stripTrailingSlash(url: string): string {
+  return url.replace(/\/$/, "");
 }
