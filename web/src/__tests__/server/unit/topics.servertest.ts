@@ -303,27 +303,22 @@ describe("Topics visibility gate", () => {
     email = "user@example.com",
     emailVerified = "2026-01-01T00:00:00.000Z",
     langfuseTopics = true,
-    internalFeatures = true,
-    enableExperimentalFeatures = false,
     role = "VIEWER",
   }: {
     admin?: boolean;
     email?: string;
     emailVerified?: string | null;
     langfuseTopics?: boolean;
-    internalFeatures?: boolean;
-    enableExperimentalFeatures?: boolean;
     role?: string | null;
   }) =>
     ({
       expires: "1",
-      environment: { enableExperimentalFeatures },
       user: {
         id: "user-a",
         admin,
         email,
         emailVerified,
-        featureFlags: testFeatureFlags({ langfuseTopics, internalFeatures }),
+        featureFlags: testFeatureFlags({ langfuseTopics }),
         organizations: role
           ? [{ id: "org-a", role, projects: [{ id: projectId, role }] }]
           : [],
@@ -356,12 +351,8 @@ describe("Topics visibility gate", () => {
       true,
       false,
     ],
-    [
-      "a non-internal user without the flag",
-      { langfuseTopics: false },
-      true,
-      false,
-    ],
+    ["the feature preview turned off", { langfuseTopics: false }, true, false],
+    ["a role without topics:read", { role: "NONE" }, true, false],
     [
       "internal view without the Topics flag",
       { admin: true, langfuseTopics: false, role: null },
@@ -369,32 +360,8 @@ describe("Topics visibility gate", () => {
       true,
     ],
     [
-      "internal view opted out without the Topics flag",
-      { admin: true, internalFeatures: false, langfuseTopics: false },
-      true,
-      false,
-    ],
-    [
-      "internal view opted out with the Topics flag",
-      { admin: true, internalFeatures: false },
-      true,
-      true,
-    ],
-    [
-      "experimental internal view without the Topics flag",
-      { enableExperimentalFeatures: true, langfuseTopics: false },
-      true,
-      true,
-    ],
-    [
-      "internal view without topics:read",
-      { enableExperimentalFeatures: true, langfuseTopics: false, role: "NONE" },
-      true,
-      false,
-    ],
-    [
       "an admin outside a non-allowlisted project",
-      { admin: true, langfuseTopics: false, role: null },
+      { admin: true, role: null },
       false,
       false,
     ],
