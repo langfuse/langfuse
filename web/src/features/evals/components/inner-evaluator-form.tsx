@@ -57,7 +57,7 @@ import {
 } from "@/src/features/evals/utils/evaluator-form-utils";
 import { validateAndTransformVariableMapping } from "@/src/features/evals/utils/variable-mapping-validation";
 import { useVariableMappingSync } from "@/src/features/evals/hooks/useVariableMappingSync";
-import { ExecutionCountTooltip } from "@/src/features/evals/components/execution-count-tooltip";
+import { ExecutionCountTooltip } from "@/src/features/evals/components/ExecutionCountTooltip";
 import {
   getDateFromOption,
   type TableDateRange,
