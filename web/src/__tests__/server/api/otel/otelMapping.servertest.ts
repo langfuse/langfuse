@@ -9860,6 +9860,76 @@ describe("OTel Resource Span Mapping", () => {
         observationEvent?.body.usageDetails.input_cache_creation,
       ).toBeUndefined();
     });
+
+    const buildVercelAISpan = (
+      attributes: Array<{ key: string; value: Record<string, unknown> }>,
+      status: Record<string, unknown> = {},
+    ) => ({
+      scopeSpans: [
+        {
+          scope: { name: "ai", version: "5.0.0" },
+          spans: [
+            {
+              traceId: Buffer.from("abcdef1234567890abcdef1234567890", "hex"),
+              spanId: Buffer.from("1234567890abcdef", "hex"),
+              name: "ai.generateText.doGenerate",
+              kind: 1,
+              startTimeUnixNano: { low: 1000000, high: 406528574 },
+              endTimeUnixNano: { low: 2000000, high: 406528574 },
+              attributes: [
+                {
+                  key: "operation.name",
+                  value: { stringValue: "ai.generateText.doGenerate" },
+                },
+                {
+                  key: "gen_ai.request.model",
+                  value: { stringValue: "gpt-4o" },
+                },
+                ...attributes,
+              ],
+              status,
+            },
+          ],
+        },
+      ],
+    });
+
+    it("should leave input and output absent when a failed call reports no usage", async () => {
+      const events = await convertOtelSpanToIngestionEvent(
+        buildVercelAISpan(
+          [{ key: "error.type", value: { stringValue: "APICallError" } }],
+          { code: 2, message: "Rate limit exceeded" },
+        ),
+        new Set(),
+      );
+
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      expect(observationEvent?.body.usageDetails?.input).toBeUndefined();
+      expect(observationEvent?.body.usageDetails?.output).toBeUndefined();
+    });
+
+    it("should not create a missing output count when only input is reported", async () => {
+      const events = await convertOtelSpanToIngestionEvent(
+        buildVercelAISpan([
+          {
+            key: "gen_ai.usage.input_tokens",
+            value: { intValue: { low: 0, high: 0, unsigned: false } },
+          },
+        ]),
+        new Set(),
+      );
+
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create",
+      );
+
+      expect(observationEvent?.body.usageDetails.input).toBe(0);
+      expect(observationEvent?.body.usageDetails.output).toBeUndefined();
+    });
   });
 
   describe("Input/Output attribute filtering from metadata", () => {
