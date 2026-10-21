@@ -587,7 +587,7 @@ describe("typed params from the column registry", () => {
         () =>
           db
             .with("t", (qb) =>
-              qb.selectFrom("events_core as e").select(db.dynamic.ref("x.*")),
+              qb.selectFrom("events_core as e").selectAll("x" as never),
             )
             .selectFrom("t as t")
             .select(db.dynamic.ref("t.span_id"))
@@ -601,7 +601,7 @@ describe("typed params from the column registry", () => {
         () =>
           db
             .with("t", (qb) =>
-              qb.selectFrom("events_core as e").select(db.dynamic.ref("x.*")),
+              qb.selectFrom("events_core as e").selectAll("x" as never),
             )
             .selectFrom("scores as s")
             .innerJoin("t", (join) => join.onTrue())
@@ -776,9 +776,7 @@ describe("typed params from the column registry", () => {
     const db = getClickhouseKysely();
     const { sql } = compile(
       db
-        .with("t", (qb) =>
-          qb.selectFrom("events_core as e").select(db.dynamic.ref("e.*")),
-        )
+        .with("t", (qb) => qb.selectFrom("events_core as e").selectAll("e"))
         .selectFrom("t as t")
         .select(db.dynamic.ref("t.span_id"))
         .where(db.dynamic.ref("t.start_time"), ">=", START),

@@ -858,6 +858,91 @@ describe("names the compiler writes verbatim", () => {
     },
   );
 
+  // Identifiers are written unquoted, so a name that is not a plain identifier
+  // is raw SQL: the select alias `x from scores --` emits
+  // `select s.id as x from scores -- from scores as s where project_id = …`,
+  // which comments out the tenancy predicate.
+  it.each([
+    [
+      "select alias",
+      db
+        .selectFrom("scores as s")
+        .select((eb) => eb.ref("s.id").as("x from scores --")),
+    ],
+    ["table alias", db.selectFrom("scores as s --").select("s --.id")],
+    [
+      "subquery alias",
+      db
+        .selectFrom(db.selectFrom("scores as s").select("s.id").as("sub, t"))
+        .select("sub, t.id"),
+    ],
+    [
+      "CTE name",
+      db
+        .with("c --", (qb) => qb.selectFrom("scores as s").select("s.id"))
+        .selectFrom("c --")
+        .select("id"),
+    ],
+    [
+      "sql.ref column",
+      db
+        .selectFrom("scores as s")
+        .select(sql.ref<string>("s.id from scores --").as("x")),
+    ],
+    [
+      "sql.ref star",
+      db.selectFrom("scores as s").select(sql.ref<string>("s.*").as("x")),
+    ],
+    // An index only reads a tuple element after a qualifier; alone, `1` would
+    // compile to the literal 1 instead of a column.
+    [
+      "sql.ref unqualified tuple index",
+      db.selectFrom("scores as s").select(sql.ref<string>("1").as("x")),
+    ],
+    // Tuple indexes start at 1; ClickHouse rejects `s.0`.
+    [
+      "sql.ref zero tuple index",
+      db.selectFrom("scores as s").select(sql.ref<string>("s.0").as("x")),
+    ],
+    // Only a whole integer is a tuple index; text after it is raw SQL.
+    [
+      "sql.ref tuple index followed by text",
+      db
+        .selectFrom("scores as s")
+        .select(sql.ref<string>("s.1 from scores --").as("x")),
+    ],
+    [
+      "sql.id",
+      db.selectFrom("scores as s").select(sql.id("s", "id --").as("x")),
+    ],
+    [
+      "array join alias",
+      db
+        .selectFrom("observations")
+        .select("environment")
+        .$call(
+          arrayJoin((eb) => ({
+            "cost_key --": mapKeys(eb.ref("cost_details")),
+          })),
+        ),
+    ],
+  ])("rejects a non-plain identifier in a %s", (_kind, qb) => {
+    expect(() => compileClickhouseQuery(qb, projectId)).toThrow(
+      QueryCompileError,
+    );
+    expect(() => compileClickhouseQuery(qb, projectId)).toThrow(
+      /not a plain identifier/,
+    );
+  });
+
+  it("writes a positive integer after a qualifier as a tuple element", () => {
+    const { sql: compiled } = compileClickhouseQuery(
+      db.selectFrom("scores as s").select(sql.ref<string>("s.1").as("x")),
+      projectId,
+    );
+    expect(compiled).toContain("select s.1 as x from scores as s");
+  });
+
   // ClickHouse parses only a string literal after `collate`, which Kysely
   // does not emit.
   it.each(["en", "'en', s.comment"])(
