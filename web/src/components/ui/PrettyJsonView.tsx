@@ -61,7 +61,6 @@ import {
 import {
   ValueCell,
   getValueStringLength,
-  type MetadataFilterActions,
 } from "@/src/components/table/ValueCell";
 import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import { isLargeRenderString } from "@/src/components/ui/largeStringGate";
@@ -384,7 +383,6 @@ function JsonPrettyTable({
   toggleCellExpansion,
   stickyTopLevelKey = false,
   showObservationTypeBadge = false,
-  metadataActions,
   rowActions,
 }: {
   data: JsonTableRow[];
@@ -402,8 +400,7 @@ function JsonPrettyTable({
   toggleCellExpansion: (cellId: string) => void;
   stickyTopLevelKey?: boolean;
   showObservationTypeBadge?: boolean;
-  metadataActions?: MetadataFilterActions;
-  rowActions?: (row: Row<JsonTableRow>) => React.ReactNode;
+  rowActions?: React.ComponentProps<typeof ValueCell>["rowActions"];
   /** Drop the Path / Value header row. */
 }) {
   const topLevelRowRef = useRef<HTMLTableRowElement>(null);
@@ -496,7 +493,6 @@ function JsonPrettyTable({
       expandedCells={expandedCells}
       toggleCellExpansion={toggleCellExpansion}
       preserveStringWhitespace={row.original.key === "code_eval_source_code"}
-      metadataActions={metadataActions}
       rowActions={rowActions}
     />
   );
@@ -717,11 +713,8 @@ export function PrettyJsonView(props: {
   /** Controlled collapsed state; long system prompts still follow their rule. */
   collapsed?: boolean;
   onCollapsedChange?: (collapsed: boolean) => void;
-  /** When set, rows show an actions menu with copy + add-to-filter shortcuts
-      (metadata views only). */
-  metadataActions?: MetadataFilterActions;
-  /** Replaces the built-in row menu, for tables with their own actions. */
-  rowActions?: (row: Row<JsonTableRow>) => React.ReactNode;
+  /** Shows an actions menu instead of the default one-click copy button. */
+  rowActions?: React.ComponentProps<typeof ValueCell>["rowActions"];
   /** Long system prompts start collapsed (from raw `role === "system"`,
       since the title can carry a message `name` instead of the role). */
   isSystemPrompt?: boolean;
@@ -1284,7 +1277,6 @@ export function PrettyJsonView(props: {
                   toggleCellExpansion={toggleCellExpansion}
                   stickyTopLevelKey={props.stickyTopLevelKey}
                   showObservationTypeBadge={props.showObservationTypeBadge}
-                  metadataActions={props.metadataActions}
                   rowActions={props.rowActions}
                 />
               )}

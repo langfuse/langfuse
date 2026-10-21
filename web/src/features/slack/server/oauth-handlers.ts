@@ -39,6 +39,7 @@ export async function handleInstallPath(
   req: NextApiRequest,
   res: NextApiResponse,
   projectId: string,
+  userId: string,
 ) {
   try {
     // Use InstallProvider's handleInstallPath method to render the installation page
@@ -54,7 +55,7 @@ export async function handleInstallPath(
 
     const installOptions = {
       scopes: [...SLACK_BOT_SCOPES],
-      metadata: JSON.stringify({ projectId: projectId }),
+      metadata: JSON.stringify({ projectId, userId }),
       redirectUri: redirectUri.toString(),
     };
 

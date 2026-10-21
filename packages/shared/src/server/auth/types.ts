@@ -23,6 +23,7 @@ const ApiKeyBaseSchema = z.object({
   // these columns existed
   createdByUserId: z.string().nullish(),
   createdByApiKeyId: z.string().nullish(),
+  userId: z.string().nullish(),
 });
 
 export const OrgEnrichedApiKey = z.discriminatedUnion("scope", [

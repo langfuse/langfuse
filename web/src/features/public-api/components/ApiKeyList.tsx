@@ -78,7 +78,9 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
         copiedMessage="Secrets are not included, create a new key to copy them."
         content={envCode}
       />
+      {/* Remount per entity so search, filter and retained query rows never carry over to another org or project. */}
       <ConnectedApiKeySettingsTable
+        key={entityId}
         entityId={entityId}
         scope={scope}
         hasWriteAccess={hasWriteAccess}

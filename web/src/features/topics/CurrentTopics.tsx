@@ -6,16 +6,17 @@ import { getQueryKey } from "@trpc/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { isValidTopicTimeRange } from "./time-range";
-import { CurrentTopicsView } from "./CurrentTopicsView";
-import type { useTopicTraceFilters } from "./useTopicTraceFilters";
+import { TopicGridView } from "./TopicGridView";
+import { TopicTreemapView } from "./TopicTreemapView";
+import { type TopicsResultsView } from "./TopicsResultsViewSelect";
 
 export function CurrentTopics({
   projectId,
   timeRange,
   result,
   selectedFacetId,
+  view,
   tracePanelRef,
-  traceFilters,
   onGenerateTopics,
   canGenerateTopics,
 }: CurrentTopicsProps) {
@@ -45,8 +46,8 @@ export function CurrentTopics({
           projectId={projectId}
           facet={selectedFacet}
           timeRange={timeRange}
+          view={view}
           tracePanelRef={tracePanelRef}
-          traceFilters={traceFilters}
           onGenerateTopics={onGenerateTopics}
           canGenerateTopics={canGenerateTopics}
         />
@@ -59,25 +60,38 @@ function CurrentFacet({
   projectId,
   facet,
   timeRange,
+  view,
   tracePanelRef,
-  traceFilters,
   onGenerateTopics,
   canGenerateTopics,
 }: CurrentFacetProps) {
-  const mapResult = useCurrentTopicMap(projectId, facet.map?.runId, timeRange);
+  const mapResult = useCurrentTopicMap(
+    projectId,
+    view === "treemap" ? undefined : facet.map?.runId,
+    timeRange,
+  );
   const peekNavigation = usePeekNavigation({
     tableName: "topics-traces",
     isV4: false,
     queryParams: ["observation", "display", "timestamp", "traceId"],
   });
   const peekView = { itemType: "TRACE" as const, ...peekNavigation };
+  if (view === "treemap")
+    return (
+      <TopicTreemapView
+        projectId={projectId}
+        facet={facet}
+        onGenerateTopics={onGenerateTopics}
+        canGenerateTopics={canGenerateTopics}
+        peekView={peekView}
+      />
+    );
   return (
-    <CurrentTopicsView
+    <TopicGridView
       projectId={projectId}
       facet={facet}
       mapResult={mapResult}
       tracePanelRef={tracePanelRef}
-      traceFilters={traceFilters}
       onGenerateTopics={onGenerateTopics}
       canGenerateTopics={canGenerateTopics}
       onOpenTrace={peekNavigation.openPeek}
@@ -143,8 +157,8 @@ type CurrentTopicsProps = {
     "data" | "isLoading" | "error"
   >;
   selectedFacetId: string | undefined;
+  view: TopicsResultsView;
   tracePanelRef?: (element: HTMLElement | null) => void;
-  traceFilters: ReturnType<typeof useTopicTraceFilters>;
   onGenerateTopics: () => void;
   canGenerateTopics: boolean;
 };
@@ -153,8 +167,8 @@ type CurrentFacetProps = {
   projectId: string;
   facet: Facet;
   timeRange: TopicTimeRange;
+  view: TopicsResultsView;
   tracePanelRef?: (element: HTMLElement | null) => void;
-  traceFilters: ReturnType<typeof useTopicTraceFilters>;
   onGenerateTopics: () => void;
   canGenerateTopics: boolean;
 };

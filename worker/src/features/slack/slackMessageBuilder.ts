@@ -1,5 +1,6 @@
 import {
   logger,
+  buildSlackLinkSection,
   escapeSlackMrkdwn,
   type WebhookInput,
   type SlackMessage,
@@ -108,25 +109,8 @@ export class SlackMessageBuilder {
             },
           ]
         : []),
-      // Action buttons
       ...(promptUrl
-        ? [
-            {
-              type: "actions",
-              elements: [
-                {
-                  type: "button",
-                  text: {
-                    type: "plain_text",
-                    text: "View Prompt",
-                    emoji: true,
-                  },
-                  url: promptUrl,
-                  style: "primary",
-                },
-              ],
-            },
-          ]
+        ? [buildSlackLinkSection([{ label: "View Prompt", url: promptUrl }])]
         : []),
     ];
 

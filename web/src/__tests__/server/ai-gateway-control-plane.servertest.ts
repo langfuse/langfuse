@@ -29,6 +29,7 @@ import {
 import { GatewayModelsService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelsService";
 import { GatewayApiKeyService } from "@/src/features/ai-gateway/server/apiKey/gatewayApiKeyService";
 import { GatewayConfigService } from "@/src/features/ai-gateway/server/config/gatewayConfigService";
+import { getGatewaySetupRedirect } from "@/src/features/ai-gateway/server/gatewaySetupRedirect";
 import {
   GatewayModelCatalogService,
   GatewayProviderService,
@@ -308,6 +309,103 @@ describe("AI gateway control plane", () => {
       ).rejects.toMatchObject({ code: "FORBIDDEN" });
     },
   );
+
+  it("reports the ingestion setup status to gateway readers", async () => {
+    const owner = await prepare();
+    const viewer = await createCallerForOrganizationRole(owner, Role.VIEWER);
+    const noAccess = await createCallerForOrganizationRole(owner, Role.NONE);
+
+    await expect(
+      viewer.aiGateway.getSetupStatus({ orgId: owner.org.id }),
+    ).resolves.toEqual({ isConfigured: false });
+    await expect(
+      noAccess.aiGateway.getSetupStatus({ orgId: owner.org.id }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    await owner.caller.aiGateway.updateConfig({
+      orgId: owner.org.id,
+      defaultIngestionProjectId: owner.project.id,
+      ingestionMode: "USAGE",
+    });
+    await expect(
+      viewer.aiGateway.getSetupStatus({ orgId: owner.org.id }),
+    ).resolves.toEqual({ isConfigured: true });
+
+    await prisma.project.update({
+      where: { id: owner.project.id },
+      data: { deletedAt: new Date() },
+    });
+    await expect(
+      viewer.aiGateway.getSetupStatus({ orgId: owner.org.id }),
+    ).resolves.toEqual({ isConfigured: false });
+  });
+
+  it("redirects gateway managers to Configuration until ingestion is set up", async () => {
+    const owner = await prepare();
+    const memberSession = {
+      ...owner.session,
+      user: {
+        ...owner.session.user,
+        organizations: owner.session.user.organizations.map((org) => ({
+          ...org,
+          role: Role.MEMBER,
+        })),
+      },
+    };
+    const redirectFor = (session: Session, slug: string) =>
+      getGatewaySetupRedirect({
+        prisma,
+        session,
+        organizationId: owner.org.id,
+        slug,
+      });
+    const configurationPath = `/organization/${owner.org.id}/settings/ai-gateway`;
+
+    await expect(
+      redirectFor(owner.session, "ai-gateway-providers"),
+    ).resolves.toBe(configurationPath);
+    await expect(redirectFor(owner.session, "ai-gateway")).resolves.toBeNull();
+    await expect(
+      redirectFor(memberSession, "ai-gateway-models"),
+    ).resolves.toBeNull();
+
+    await owner.caller.aiGateway.updateConfig({
+      orgId: owner.org.id,
+      defaultIngestionProjectId: owner.project.id,
+      ingestionMode: "USAGE",
+    });
+    await expect(
+      redirectFor(owner.session, "ai-gateway-providers"),
+    ).resolves.toBeNull();
+  });
+
+  it("requires an ingestion project unless ingestion mode is NONE, also on cloud", async () => {
+    const { caller, org } = await prepare();
+    const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    try {
+      Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU" });
+      await expect(
+        caller.aiGateway.updateConfig({
+          orgId: org.id,
+          defaultIngestionProjectId: null,
+          ingestionMode: "USAGE",
+        }),
+      ).rejects.toThrow("default ingestion project is required");
+
+      await caller.aiGateway.updateConfig({
+        orgId: org.id,
+        defaultIngestionProjectId: null,
+        ingestionMode: "NONE",
+      });
+      await expect(
+        caller.aiGateway.getSetupStatus({ orgId: org.id }),
+      ).resolves.toEqual({ isConfigured: true });
+    } finally {
+      Object.assign(env, {
+        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalCloudRegion,
+      });
+    }
+  });
 
   it.each([
     { adminRole: Role.OWNER, readRole: Role.MEMBER },
@@ -830,59 +928,6 @@ describe("AI gateway control plane", () => {
     expect(result.ingestion_mode).toBe(rawClaims.ingestion_mode);
     expect(result.ingestion_mode).toBe("full");
     expect(result.ingestion?.expires_at).toBe(ingestionClaims.exp);
-  });
-
-  it("resolves NONE ingestion mode on self-hosted and rejects it on cloud", async () => {
-    configureGatewayJwtSigning();
-    const { caller, org, project } = await prepare();
-    const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-    try {
-      Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined });
-      await caller.aiGateway.updateConfig({
-        orgId: org.id,
-        defaultIngestionProjectId: project.id,
-        ingestionMode: "NONE",
-      });
-      await caller.aiGateway.createConnection({
-        orgId: org.id,
-        name: "OpenAI",
-        provider: "OPENAI",
-        credential: "sk-test-openai",
-      });
-      const gatewayKey = await caller.aiGateway.createApiKey({
-        orgId: org.id,
-        metadata: {},
-      });
-
-      const result = await authenticateRequest({
-        fastHashedSecretKey: createShaHash(gatewayKey.secretKey, env.SALT),
-        apiFormat: "openai.responses",
-        model: "gpt-4o",
-      });
-      expect(result.ingestion_mode).toBe("none");
-      expect(result.ingestion).toBeNull();
-      expect(result.attribution.project_id).toBe(project.id);
-
-      Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU" });
-      await expect(
-        caller.aiGateway.updateConfig({
-          orgId: org.id,
-          defaultIngestionProjectId: project.id,
-          ingestionMode: "NONE",
-        }),
-      ).rejects.toThrow("only available on self-hosted deployments");
-      await expect(
-        caller.aiGateway.updateConfig({
-          orgId: org.id,
-          defaultIngestionProjectId: project.id,
-          ingestionMode: "USAGE",
-        }),
-      ).resolves.toMatchObject({ ingestionMode: "USAGE" });
-    } finally {
-      Object.assign(env, {
-        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalCloudRegion,
-      });
-    }
   });
 
   it("routes unprefixed models by provider and rejects unknown models", async () => {
@@ -1539,7 +1584,8 @@ describe("AI gateway control plane", () => {
     try {
       const { org, user } = await prepare();
       const adminKey = await createApiKey(prisma, {
-        owner: OrganizationId(org.id),
+        tenant: OrganizationId(org.id),
+        scope: OrganizationId(org.id),
         role: SystemRoleId("ADMIN"),
         createdBy: UserId(user.id),
       });
