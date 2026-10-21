@@ -35,6 +35,10 @@ import {
 } from "@langfuse/shared/src/server";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import { auditLog } from "@/src/features/audit-logs/server";
+import {
+  createDatasetItemForApi,
+  deleteDatasetItemForApi,
+} from "@/src/features/datasets/server/publicDatasetService";
 
 const queryAuditLogs = async (
   query: string,
@@ -299,6 +303,67 @@ describe("audit log staging", () => {
       });
       return { record, staged };
     };
+
+    it("omits dataset item payloads from both audit sinks while preserving versions", async () => {
+      const { orgId, projectId } = await createOrgProjectAndApiKey();
+      const { id: apiKeyId } = await prisma.apiKey.findFirstOrThrow({
+        where: { projectId },
+      });
+      const dataset = await prisma.dataset.create({
+        data: { name: randomUUID(), projectId },
+      });
+      const payload = {
+        input: { message: "input" },
+        expectedOutput: { answer: "output" },
+        metadata: { source: "test" },
+      };
+      const auditScope = { orgId, projectId, apiKeyId };
+      const created = await createDatasetItemForApi({
+        projectId,
+        auditScope,
+        input: { datasetId: dataset.id, ...payload },
+      });
+      expect(created).toMatchObject(payload);
+      const updatedPayload = { ...payload, input: { message: "updated" } };
+      const updated = await createDatasetItemForApi({
+        projectId,
+        auditScope,
+        input: { datasetId: dataset.id, id: created.id, ...updatedPayload },
+      });
+      expect(updated).toMatchObject(updatedPayload);
+      await deleteDatasetItemForApi({
+        ...auditScope,
+        datasetItemId: created.id,
+      });
+
+      const versions = await prisma.datasetItem.findMany({
+        where: { projectId, id: created.id, isDeleted: false },
+        orderBy: { validFrom: "asc" },
+      });
+      expect(versions).toMatchObject([payload, updatedPayload]);
+
+      const records = await prisma.auditLog.findMany({
+        where: { projectId, resourceId: created.id },
+      });
+      expect(records).toHaveLength(3);
+      for (const record of records) {
+        expect(record.before ?? record.after).not.toBeNull();
+        const id = deriveAuditLogEventId(record.id, record.createdAt);
+        stagedIds.push(id);
+        const staged = await prisma.auditLogStaging.findUniqueOrThrow({
+          where: { id },
+        });
+        expect(convertAuditLogStagingRowToClickhouse(staged)).toMatchObject({
+          before: record.before ?? "",
+          after: record.after ?? "",
+        });
+        for (const snapshot of [record.before, record.after]) {
+          if (snapshot === null) continue;
+          expect(JSON.parse(snapshot).id).toBe(created.id);
+          expect(snapshot).not.toMatch(/"(input|expectedOutput|metadata)":/);
+        }
+      }
+    });
 
     it("stages the change event of the Postgres row under the id derived from it", async () => {
       const { orgId, projectId } = await createOrgProjectAndApiKey();

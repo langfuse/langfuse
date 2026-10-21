@@ -6,6 +6,7 @@ import type {
 import { auditLog } from "@/src/features/audit-logs/server";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
+import { isGatewayIngestionConfigured } from "@/src/features/ai-gateway/fns/isGatewayIngestionConfigured";
 import { GatewayConfigRepository } from "./gatewayConfigRepository";
 
 export class GatewayConfigService {
@@ -19,12 +20,35 @@ export class GatewayConfigService {
     return this.repository.getConfig(organizationId);
   }
 
+  async getSetupStatus(organizationId: string) {
+    const config = await this.getConfig(organizationId);
+    const project = config?.defaultIngestionProject;
+    return {
+      isConfigured: isGatewayIngestionConfigured({
+        ingestionMode: config?.ingestionMode ?? "USAGE",
+        hasActiveIngestionProject:
+          !!project && !project.deletedAt && project.orgId === organizationId,
+      }),
+    };
+  }
+
   async updateConfig(params: {
     organizationId: string;
     defaultIngestionProjectId: string | null;
     ingestionMode: GatewayIngestionMode;
     session: OrgAuthedContext["session"];
   }) {
+    if (
+      !isGatewayIngestionConfigured({
+        ingestionMode: params.ingestionMode,
+        hasActiveIngestionProject: !!params.defaultIngestionProjectId,
+      })
+    ) {
+      throw new InvalidRequestError(
+        "A default ingestion project is required unless ingestion mode is NONE",
+      );
+    }
+
     const before = await this.getConfig(params.organizationId);
 
     if (params.defaultIngestionProjectId) {

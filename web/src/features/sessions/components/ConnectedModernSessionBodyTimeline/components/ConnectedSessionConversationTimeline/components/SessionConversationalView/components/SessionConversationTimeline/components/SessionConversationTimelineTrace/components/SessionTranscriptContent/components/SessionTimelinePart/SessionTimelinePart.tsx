@@ -126,6 +126,15 @@ function SessionTimelineReasoning({
   }
 
   if (content.kind === "text") {
+    if (content.text.trim().length === 0) {
+      return (
+        <SessionTimelineCollapsibleRow
+          label="Reasoning"
+          trailingContent={trailingContent}
+        />
+      );
+    }
+
     return (
       <SessionTimelineCollapsibleRow
         label="Reasoning"
@@ -155,6 +164,15 @@ function SessionTimelineReasoning({
   }
 
   if (content.kind === "redacted") {
+    if (content.data.trim().length === 0) {
+      return (
+        <SessionTimelineCollapsibleRow
+          label="Redacted reasoning"
+          trailingContent={trailingContent}
+        />
+      );
+    }
+
     return (
       <SessionTimelineCollapsibleRow
         label="Redacted reasoning"

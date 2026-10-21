@@ -8,7 +8,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { type UseFormReturn } from "react-hook-form";
-import { type ActionDomain } from "@langfuse/shared";
+import { type ActionDomain, isSlackActionConfig } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import {
   SlackConnectionCard,
@@ -30,12 +30,23 @@ export const SlackActionForm: React.FC<SlackActionFormProps> = ({
   form,
   disabled,
   projectId,
+  action,
 }) => {
   const initialChannelId = form.getValues("slack.channelId") as string;
   const initialChannelName = form.getValues("slack.channelName") as string;
+  // Saved private channels aren't in the list for users who can't see them,
+  // so the lock icon has to come from the saved config.
+  const initialIsPrivate =
+    isSlackActionConfig(action?.config) &&
+    action.config.channelId === initialChannelId &&
+    action.config.isPrivate;
   const [selectedChannel, setSelectedChannel] = useState<SlackChannel | null>(
     initialChannelId && initialChannelName
-      ? { id: initialChannelId, name: initialChannelName }
+      ? {
+          id: initialChannelId,
+          name: initialChannelName,
+          isPrivate: initialIsPrivate,
+        }
       : null,
   );
 
@@ -101,12 +112,14 @@ export const SlackActionForm: React.FC<SlackActionFormProps> = ({
                   </div>
                 </FormControl>
                 <FormDescription>
-                  Select the Slack channel where notifications will be sent. For
-                  private channels, invite the app first with{" "}
+                  Select the Slack channel where notifications will be sent.
+                  Private channels appear only for the person who connected
+                  Slack, and only if both they and the app are members. Invite
+                  the app with{" "}
                   <code className="bg-muted rounded px-1 py-0.5">
                     /invite @Langfuse
-                  </code>{" "}
-                  in that channel.
+                  </code>
+                  .
                 </FormDescription>
                 <FormMessage />
               </FormItem>

@@ -12,6 +12,61 @@ const meta = preview.meta({
 
 export default meta;
 
+export const ReasoningVariants = meta.story({
+  name: "(Test) Reasoning Variants",
+  args: {
+    role: "assistant",
+    parts: [
+      { type: "reasoning", content: { kind: "text", text: "" } },
+      { type: "reasoning", content: { kind: "text", text: " \n\t " } },
+      { type: "reasoning", content: { kind: "redacted", data: "" } },
+      { type: "reasoning", content: { kind: "redacted", data: " \n\t " } },
+      {
+        type: "reasoning",
+        content: { kind: "encrypted", data: "opaque-payload" },
+      },
+      {
+        type: "reasoning",
+        content: { kind: "text", text: "Readable reasoning" },
+      },
+      {
+        type: "reasoning",
+        content: { kind: "redacted", data: "Redacted payload" },
+      },
+      {
+        type: "reasoning",
+        content: {
+          kind: "data",
+          value: { checks: ["source available", "answer supported"] },
+        },
+      },
+      { type: "text", text: "Here is the result." },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getAllByText("Reasoning")).toHaveLength(3);
+    await expect(canvas.getAllByText("Redacted reasoning")).toHaveLength(3);
+    await expect(canvas.getByText("Encrypted reasoning")).toBeVisible();
+
+    const expandButtons = canvas.getAllByRole("button", { name: /^Expand / });
+    await expect(expandButtons).toHaveLength(3);
+    for (const button of expandButtons) {
+      await expect(button).toHaveAttribute("aria-expanded", "false");
+      await userEvent.click(button);
+      await expect(button).toHaveAttribute("aria-expanded", "true");
+    }
+    await expect(canvas.getByText("Readable reasoning")).toBeVisible();
+    await expect(canvas.getByText("Redacted payload")).toBeVisible();
+    await expect(canvas.getByText("Reasoning data")).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: /^(Expand|Collapse) checks$/ }),
+    ).toBeVisible();
+    await expect(canvasElement).toHaveTextContent("source available");
+    await expect(canvasElement).toHaveTextContent("answer supported");
+  },
+});
+
 export const ReasoningActions = meta.story({
   name: "(Test) Reasoning Actions At Every Position",
   args: {
@@ -280,48 +335,6 @@ export const MixedTextAndData = meta.story({
       canvas.getByText("The structured result follows."),
     ).toBeVisible();
     await expect(canvasElement).toHaveTextContent("confidence");
-  },
-});
-
-export const ReasoningData = meta.story({
-  args: {
-    role: "assistant",
-    parts: [
-      {
-        type: "reasoning",
-        content: {
-          kind: "data",
-          value: { checks: ["source available", "answer supported"] },
-        },
-      },
-      { type: "text", text: "The answer is supported by the source." },
-    ],
-  },
-});
-
-export const RedactedReasoning = meta.story({
-  args: {
-    role: "assistant",
-    parts: [
-      {
-        type: "reasoning",
-        content: { kind: "redacted", data: "redacted-provider-payload" },
-      },
-      { type: "text", text: "Here is the result." },
-    ],
-  },
-});
-
-export const EncryptedReasoning = meta.story({
-  args: {
-    role: "assistant",
-    parts: [
-      {
-        type: "reasoning",
-        content: { kind: "encrypted", data: "encrypted-provider-payload" },
-      },
-      { type: "text", text: "Here is the result." },
-    ],
   },
 });
 

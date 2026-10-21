@@ -61,14 +61,12 @@ overrides:
   qs: 6.16.1
   path-to-regexp@0.1.12: 0.1.13
   path-to-regexp@8.3.0: 8.4.0
-  ip-address: 10.7.1
   '@ai-sdk/provider-utils@<=4.0.32': 4.0.33
   '@ai-sdk/provider-utils-v5': npm:@ai-sdk/provider-utils@4.0.33
   '@ai-sdk/provider-utils-v6': npm:@ai-sdk/provider-utils@4.0.33
   '@scalar/agent-chat@0.12.28>ai': 6.0.230
   '@ai-sdk/vue@3.0.33>ai': 6.0.230
   fflate@0.8.1: 0.8.3
-  fast-uri: 3.1.8
   '@ai-sdk/ui-utils>@ai-sdk/provider-utils': 2.2.8
   '@storybook/addon-vitest>@vitest/browser': 4.1.11
   hono: 4.13.11
@@ -1199,8 +1197,8 @@ importers:
         specifier: workspace:*
         version: link:../packages/langfuse-skills
       ai-sdk-amazon-bedrock-v4:
-        specifier: npm:@ai-sdk/amazon-bedrock@4.0.81
-        version: '@ai-sdk/amazon-bedrock@4.0.81(zod@4.6.6)'
+        specifier: npm:@ai-sdk/amazon-bedrock@4.0.197
+        version: '@ai-sdk/amazon-bedrock@4.0.197(zod@4.6.6)'
       ai-sdk-anthropic-v4:
         specifier: npm:@ai-sdk/anthropic@3.0.111
         version: '@ai-sdk/anthropic@3.0.111(zod@4.6.6)'
@@ -1364,8 +1362,8 @@ packages:
   '@ag-ui/proto@0.0.52':
     resolution: {integrity: sha512-+iCGzNUNL50YIoThVmsolWPjG4MJidl+R9k8QAGVwErEfHRtQ64KFyrdpeOXNVuWtM3SViJqPSgFyv7eGVS63A==}
 
-  '@ai-sdk/amazon-bedrock@4.0.81':
-    resolution: {integrity: sha512-SP3LIpFt/JlK0sGs6E5jvjySvQqu/nqA942PehIGk3PZPJ5SMPsUNg+PYTs84PTUYEg8rr4XqkQOTNFq12zo2w==}
+  '@ai-sdk/amazon-bedrock@4.0.197':
+    resolution: {integrity: sha512-VUm47y1e+J7eUvq4DVRjR5AXSd7W5LRzjkUDNAYGWHpOGNXNimhn5W3z+cWiqQWcjgSjMhfyq7ad5mBdH6Cgow==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: 4.6.6
@@ -1382,8 +1380,8 @@ packages:
     peerDependencies:
       zod: 4.6.6
 
-  '@ai-sdk/anthropic@3.0.62':
-    resolution: {integrity: sha512-CkShXR8tmNO7QQnvpKbSMe2Vr1zUUcpqlp69iR+DYrbHm+tDJO9u6zZsjEHjcoRU9/e9z++p0W6NiuLC3aZ4Bg==}
+  '@ai-sdk/anthropic@3.0.131':
+    resolution: {integrity: sha512-u02aB+dFAa0Y9svg7j7utozZPXhsvwuTxMAW6DH/4h4rrT9H+3qC2eK2OdH5jqDiOBUsDn6sb8vlz5BUzQ4Q7g==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: 4.6.6
@@ -1460,6 +1458,12 @@ packages:
     peerDependencies:
       zod: 4.6.6
 
+  '@ai-sdk/openai@3.0.128':
+    resolution: {integrity: sha512-q6xHyoMLph8GqwmFyMHpJnesl3vkfZCklinS0hSCJg+DOoPbUsZW6h3anc73efSOxsgvYxE72CuQ1pw+YpPC5Q==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: 4.6.6
+
   '@ai-sdk/openai@3.0.99':
     resolution: {integrity: sha512-0Y6E5bvR+3eugt5rq2iy39EAAFi4nijXf1kdvcfoMm4erEGMe/6egIpvdvv5ePBU2YsnsxFuLRmMJ76Kv/babQ==}
     engines: {node: '>=18'}
@@ -1492,6 +1496,12 @@ packages:
 
   '@ai-sdk/provider-utils@4.0.46':
     resolution: {integrity: sha512-tEtld97plCFiYevsJuOkGkeuhQndeMWFBVrJS4AjnbD5AqrNSXRCe0p+BZ3Cju/sxDeeZ9ym3q9YUV8fASA7aQ==}
+    engines: {node: '>=18.17'}
+    peerDependencies:
+      zod: 4.6.6
+
+  '@ai-sdk/provider-utils@4.0.59':
+    resolution: {integrity: sha512-HR51CwEHIaGKUTUCLpfVDvajk1C8CGd34ezi34vOeUyxbchBDIKGVNJZRNvILuvHDS8nOvxYUJ9NZvzp0UufUg==}
     engines: {node: '>=18.17'}
     peerDependencies:
       zod: 4.6.6
@@ -1532,8 +1542,8 @@ packages:
     resolution: {integrity: sha512-XeZW1CcDF2GMbH4wejW6xBRI2QCOgnkVYUnxoeDadB1mf85riL2bMUeDoh+6gJ/r4mjNfzUPW8OjLjvwTP0u1Q==}
     engines: {node: '>=18'}
 
-  '@ai-sdk/provider@3.0.8':
-    resolution: {integrity: sha512-oGMAgGoQdBXbZqNG0Ze56CHjDZ1IDYOwGYxYjO5KLSlz5HiNQ9udIXsPZ61VWaHGZ5XW/jyjmr6t2xz2jGVwbQ==}
+  '@ai-sdk/provider@3.0.18':
+    resolution: {integrity: sha512-IpefF5ssZVOZCD4Wu7zxt6PwZoGT2HLVjxpJ10Bjx6EAmRfLYJPjyrfxb0RYDlwvXnDb9nkQ7Do/oJVDuRFzew==}
     engines: {node: '>=18'}
 
   '@ai-sdk/provider@4.0.1':
@@ -8754,8 +8764,8 @@ packages:
   fast-string-width@3.0.2:
     resolution: {integrity: sha512-gX8LrtNEI5hq8DVUfRQMbr5lpaS4nMIWV+7XEbXk2b8kiQIizgnlr12B4dA3ZEx3308ze0O4Q1R+cHts8kyUJg==}
 
-  fast-uri@3.1.8:
-    resolution: {integrity: sha512-GZMtZUTNRpOVIECoXwLNZS5xUGE+mVNbTB8h/7Rwh2TFWcBQiPzTgyZi05BF9UMZKkLJv8XBRJTlU7zg8+ZfMg==}
+  fast-uri@3.1.9:
+    resolution: {integrity: sha512-hS/0Wt3Ya043oKXs0sIxrMpKQITXhMLIrVAKKXi4gozGC9v7YRWVnXIZzjNPTO02M9BdxLCWqK1yRXgNziVyJQ==}
 
   fast-wrap-ansi@0.2.2:
     resolution: {integrity: sha512-7F2Fl+TjRSenLqlU3UjSH0iyqopqoZIu7eZVpEirP2g1GtWa2G/ecEmBdgz31+Mxr+ELclgg6sokpSFIQiZ02Q==}
@@ -8845,8 +8855,8 @@ packages:
   focus-trap@7.8.0:
     resolution: {integrity: sha512-/yNdlIkpWbM0ptxno3ONTuf+2g318kh2ez3KSeZN5dZ8YC6AAmgeWz+GasYYiBJPFaYcSAPeu4GfhUaChzIJXA==}
 
-  follow-redirects@1.16.0:
-    resolution: {integrity: sha512-y5rN/uOsadFT/JfYwhxRS5R7Qce+g3zG97+JrtFZlC9klX/W5hD7iiLzScI4nZqUS7DNUdhPgw4xI8W2LuXlUw==}
+  follow-redirects@1.16.1:
+    resolution: {integrity: sha512-FNvFGzoMLWmE6Yj9spb/zjd7yiNCHiAW9/Tg9CXrQ8wuu32HtlJOwWO11OJafl5FfY3DxTdQ0vj42zU1kvv5jg==}
     engines: {node: '>=4.0'}
     peerDependencies:
       debug: '*'
@@ -9352,8 +9362,8 @@ packages:
     resolution: {integrity: sha512-HuEDBTI70aYdx1v6U97SbNx9F1+svQKBDo30o0b9fw055LMepzpOOd0Ccg9Q6tbqmBSJaMuY0fB7yw9/vjBYCA==}
     engines: {node: '>=12.22.0'}
 
-  ip-address@10.7.1:
-    resolution: {integrity: sha512-4OUAqU9Z1i3vCnS05hzGiFnEMDpQ+62pAD/MVQOp83fYyNC8GleCqaS0QikQBmcWCrKFiUs/B8ztRRiYOAXuCA==}
+  ip-address@10.7.4:
+    resolution: {integrity: sha512-DWBMKyeM25D70nrIiTkgQth59/G+naKOTep6huF9j+GmeK3DMD60Zvxg5d5qQnz+38AHgou6ean2LECX+lrKDg==}
     engines: {node: '>= 12'}
 
   ipaddr.js@1.9.1:
@@ -12735,11 +12745,12 @@ snapshots:
       '@bufbuild/protobuf': 2.12.0
       '@protobuf-ts/protoc': 2.11.1
 
-  '@ai-sdk/amazon-bedrock@4.0.81(zod@4.6.6)':
+  '@ai-sdk/amazon-bedrock@4.0.197(zod@4.6.6)':
     dependencies:
-      '@ai-sdk/anthropic': 3.0.62(zod@4.6.6)
-      '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.33(zod@4.6.6)
+      '@ai-sdk/anthropic': 3.0.131(zod@4.6.6)
+      '@ai-sdk/openai': 3.0.128(zod@4.6.6)
+      '@ai-sdk/provider': 3.0.18
+      '@ai-sdk/provider-utils': 4.0.59(zod@4.6.6)
       '@smithy/eventstream-codec': 4.4.14
       '@smithy/util-utf8': 4.4.14
       aws4fetch: 1.0.20
@@ -12762,10 +12773,10 @@ snapshots:
       '@ai-sdk/provider-utils': 4.0.46(zod@4.6.6)
       zod: 4.6.6
 
-  '@ai-sdk/anthropic@3.0.62(zod@4.6.6)':
+  '@ai-sdk/anthropic@3.0.131(zod@4.6.6)':
     dependencies:
-      '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.33(zod@4.6.6)
+      '@ai-sdk/provider': 3.0.18
+      '@ai-sdk/provider-utils': 4.0.59(zod@4.6.6)
       zod: 4.6.6
 
   '@ai-sdk/anthropic@4.0.79(zod@4.6.6)':
@@ -12856,6 +12867,12 @@ snapshots:
       '@ai-sdk/provider-utils': 5.0.59(zod@4.6.6)
       zod: 4.6.6
 
+  '@ai-sdk/openai@3.0.128(zod@4.6.6)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.18
+      '@ai-sdk/provider-utils': 4.0.59(zod@4.6.6)
+      zod: 4.6.6
+
   '@ai-sdk/openai@3.0.99(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 3.0.15
@@ -12892,6 +12909,14 @@ snapshots:
   '@ai-sdk/provider-utils@4.0.46(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 3.0.15
+      '@standard-schema/spec': 1.1.0
+      eventsource-parser: 3.1.0
+      undici: 6.29.1
+      zod: 4.6.6
+
+  '@ai-sdk/provider-utils@4.0.59(zod@4.6.6)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.18
       '@standard-schema/spec': 1.1.0
       eventsource-parser: 3.1.0
       undici: 6.29.1
@@ -12938,7 +12963,7 @@ snapshots:
     dependencies:
       json-schema: 0.4.0
 
-  '@ai-sdk/provider@3.0.8':
+  '@ai-sdk/provider@3.0.18':
     dependencies:
       json-schema: 0.4.0
 
@@ -19117,7 +19142,7 @@ snapshots:
   ajv@8.20.0:
     dependencies:
       fast-deep-equal: 3.1.3
-      fast-uri: 3.1.8
+      fast-uri: 3.1.9
       json-schema-traverse: 1.0.0
       require-from-string: 2.0.2
 
@@ -19268,7 +19293,7 @@ snapshots:
 
   axios@1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1):
     dependencies:
-      follow-redirects: 1.16.0(debug@4.4.3(supports-color@8.1.1))
+      follow-redirects: 1.16.1(debug@4.4.3(supports-color@8.1.1))
       form-data: 4.0.6
       https-proxy-agent: 5.0.1(supports-color@8.1.1)
       proxy-from-env: 2.1.0
@@ -20699,7 +20724,7 @@ snapshots:
     dependencies:
       debug: 4.4.3(supports-color@8.1.1)
       express: 5.2.1(supports-color@8.1.1)
-      ip-address: 10.7.1
+      ip-address: 10.7.4
     transitivePeerDependencies:
       - supports-color
 
@@ -20786,7 +20811,7 @@ snapshots:
     dependencies:
       fast-string-truncated-width: 3.0.3
 
-  fast-uri@3.1.8: {}
+  fast-uri@3.1.9: {}
 
   fast-wrap-ansi@0.2.2:
     dependencies:
@@ -20877,7 +20902,7 @@ snapshots:
     dependencies:
       tabbable: 6.5.0
 
-  follow-redirects@1.16.0(debug@4.4.3(supports-color@8.1.1)):
+  follow-redirects@1.16.1(debug@4.4.3(supports-color@8.1.1)):
     optionalDependencies:
       debug: 4.4.3(supports-color@8.1.1)
 
@@ -21515,7 +21540,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  ip-address@10.7.1: {}
+  ip-address@10.7.4: {}
 
   ipaddr.js@1.9.1: {}
 
@@ -24219,7 +24244,7 @@ snapshots:
 
   socks@2.8.8:
     dependencies:
-      ip-address: 10.7.1
+      ip-address: 10.7.4
       smart-buffer: 4.2.0
 
   sonner@2.0.7(react-dom@19.2.4(react@19.2.4))(react@19.2.4):

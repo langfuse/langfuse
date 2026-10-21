@@ -38,6 +38,7 @@ type TopicErrorReason =
   | "numerical"
   | "input_too_large"
   | "trace_too_large"
+  | "definition_readback"
   | "unknown";
 
 // Statuses with their own operational meaning; exact codes are on the span.
@@ -153,6 +154,8 @@ export class TopicMetrics {
         reason = "timeout";
       if (error.name === "TopicInputTooLarge") reason = "input_too_large";
       if (error.name === "TopicTraceTooLarge") reason = "trace_too_large";
+      if (error.name === "TopicDefinitionReadbackError")
+        reason = "definition_readback";
       if (
         [
           "PrismaClientKnownRequestError",

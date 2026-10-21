@@ -10,6 +10,7 @@ import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useCallback, useMemo, useState } from "react";
 import { cn } from "@/src/utils/tailwind";
+import { IO_STICKY_HEADERS_CLASS } from "@/src/features/traces/constants/ioSectionClasses";
 import {
   CommentDrawerController,
   getCommentDrawerInitialStateFromUrl,
@@ -417,7 +418,7 @@ function LoadedTraceDetailView({
                   "flex min-h-0 w-full flex-1 flex-col",
                   currentView === "json-beta" && isJSONBetaVirtualized
                     ? "overflow-hidden"
-                    : "overflow-auto pb-4",
+                    : cn("overflow-auto pb-4", IO_STICKY_HEADERS_CLASS),
                   // The JSON beta viewer runs edge to edge with its own toolbar.
                   currentView !== "json-beta" && "px-4",
                 )}
