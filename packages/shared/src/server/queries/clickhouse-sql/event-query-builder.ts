@@ -1647,6 +1647,11 @@ const EXPERIMENTS_AGGREGATION_FIELD_SETS = {
     "start_time",
   ] as const,
   publicApiSummaryMetadata: ["experiment_metadata"] as const,
+  datasetMetrics: [
+    "experiment_id",
+    "experiment_dataset_id",
+    "start_time",
+  ] as const,
 } as const satisfies Record<
   string,
   ReadonlyArray<keyof typeof EXPERIMENT_AGGREGATION_SQL>

@@ -593,7 +593,7 @@ function renderEventsSelects<S extends SelectCallback<EventsDb, "e">>(
   selects: S,
 ) {
   return renderClickhouseSelections(
-    getClickhouseKysely().selectFrom("events_core as e").select(selects),
+    getClickhouseKysely().selectFrom("events as e").select(selects),
   );
 }
 
