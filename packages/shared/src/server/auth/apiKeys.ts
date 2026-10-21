@@ -121,27 +121,33 @@ export async function createApiKey(
   displaySecretKey: string;
   secretKey: string;
 }> {
-  const { secretKey, ...keyColumns } = await generateKeyMaterial({
-    predefinedKeys: opts.predefinedKeys,
-  });
-
-  const data: Prisma.ApiKeyUncheckedCreateInput = {
+  const data = {
     ...scopeColumns(opts.tenant, opts.scope),
-    ...keyColumns,
     ...noteColumn({ name, note }),
     expiresAt: opts.expiresAt ?? null,
     isInAppAgentKey: opts.isInAppAgentKey ?? false,
     ...creatorColumns(opts.createdBy),
   };
+  const keyMaterial = await generateKeyMaterial(opts);
 
   const created = await withTransaction(prisma, (tx) =>
-    insertApiKey(tx, data, {
-      tenant: opts.tenant,
-      owner: assignmentOwner(opts.tenant, opts.scope),
-      role: opts.role,
-    }),
+    insertApiKey(
+      tx,
+      {
+        ...data,
+        publicKey: keyMaterial.publicKey,
+        hashedSecretKey: keyMaterial.hashedSecretKey,
+        fastHashedSecretKey: keyMaterial.fastHashedSecretKey,
+        displaySecretKey: keyMaterial.displaySecretKey,
+      },
+      {
+        tenant: opts.tenant,
+        owner: assignmentOwner(opts.tenant, opts.scope),
+        role: opts.role,
+      },
+    ),
   );
-  return { ...created, secretKey };
+  return { ...created, secretKey: keyMaterial.secretKey };
 }
 
 /** generateKeyMaterial provides the key columns and plaintext secret for api key creation */
