@@ -75,7 +75,9 @@ const promptEventActionDefaults: string[] = ["created", "updated", "deleted"];
 
 /** projectNotificationName derives the auto-generated channel name from the destination — the name field is hidden for this source. */
 const projectNotificationName = (data: FormValues): string => {
-  if (data.actionType === "SLACK") return `Slack #${data.slack.channelName}`;
+  // Automation names are visible to every project member, so they must not
+  // carry Slack channel names (private ones are only for channel members).
+  if (data.actionType === "SLACK") return "Slack";
   if (data.actionType === "WEBHOOK") {
     try {
       return `Webhook ${new URL(data.webhook.url).hostname}`;

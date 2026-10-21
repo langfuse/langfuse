@@ -241,15 +241,16 @@ function subscript<V>(
  * Sum of the map values whose key contains `needle`, case-insensitively:
  * `arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, needle) > 0, map)))`.
  * The lambda is built as a `->` binary operation; Kysely has no lambda node.
+ * Pass a code constant as `literal(...)` so it is inlined.
  */
 export function sumMapValuesWhereKeyContains(
   map: Expression<Record<string, unknown>>,
-  needle: string,
+  needle: Expression<string>,
 ): ChExpression<number> {
   const keyMatches = BinaryOperationNode.create(
     FunctionNode.create("positionCaseInsensitive", [
       qualifiedColumn("x", "1"),
-      ValueNode.create(needle),
+      needle.toOperationNode(),
     ]),
     OperatorNode.create(">"),
     ValueNode.createImmediate(0),
@@ -379,12 +380,18 @@ export function concat(...values: Expression<string>[]): ChExpression<string> {
   return functionCall("concat", values);
 }
 
-/** ClickHouse `startsWith(haystack, prefix)`, with `prefix` bound. */
+/**
+ * ClickHouse `startsWith(haystack, prefix)`. A string prefix is bound; pass
+ * `literal(...)` for a code constant so it is inlined.
+ */
 export function startsWith(
   haystack: Expression<string>,
-  prefix: string,
+  prefix: string | Expression<string>,
 ): ChExpression<SqlBool> {
-  return functionCall("startsWith", [haystack, ValueNode.create(prefix)]);
+  return functionCall("startsWith", [
+    haystack,
+    typeof prefix === "string" ? ValueNode.create(prefix) : prefix,
+  ]);
 }
 
 /** ClickHouse `length(array)`. */

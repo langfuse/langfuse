@@ -573,6 +573,7 @@ export function DataTableControls({
           loading={filter.loading}
           min={filter.min}
           max={filter.max}
+          step={filter.step}
           value={filter.value}
           conditions={filter.conditions}
           onRemoveCondition={filter.onRemoveCondition}
@@ -1321,6 +1322,7 @@ interface CategoricalFacetProps extends BaseFacetProps {
 interface NumericFacetProps extends BaseFacetProps {
   min: number;
   max: number;
+  step?: number;
   value: [number, number] | null;
   conditions: NumericUIFilter["conditions"];
   onRemoveCondition: (index: number) => void;
@@ -1973,6 +1975,7 @@ function NumericFacet({
   loading,
   min,
   max,
+  step,
   value,
   conditions,
   onRemoveCondition,
@@ -2114,7 +2117,7 @@ function NumericFacet({
                     value={isActive ? localValue[0] : ""}
                     placeholder={String(min)}
                     min={min}
-                    step="any"
+                    step={step ?? "any"}
                     onChange={handleMinInputChange}
                     className="h-8"
                   />
@@ -2139,7 +2142,7 @@ function NumericFacet({
                     value={isActive ? localValue[1] : ""}
                     placeholder={String(max)}
                     min={min}
-                    step="any"
+                    step={step ?? "any"}
                     onChange={handleMaxInputChange}
                     className="h-8"
                   />
@@ -2154,7 +2157,7 @@ function NumericFacet({
             <Slider
               min={min}
               max={max}
-              step={max - min <= 1000 ? 0.01 : 1}
+              step={step ?? (max - min <= 1000 ? 0.01 : 1)}
               value={localValue}
               onValueChange={handleSliderChange}
             />

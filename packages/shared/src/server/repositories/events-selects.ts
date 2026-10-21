@@ -335,11 +335,11 @@ function sessionAggregationSelectMap(eb: EventsExpressionBuilder) {
     ),
     session_input_cost: sumMapValuesWhereKeyContains(
       sumMap(eb.ref("e.cost_details")),
-      "input",
+      literal("input"),
     ).as("session_input_cost"),
     session_output_cost: sumMapValuesWhereKeyContains(
       sumMap(eb.ref("e.cost_details")),
-      "output",
+      literal("output"),
     ).as("session_output_cost"),
     session_total_cost: mapValue(
       sumMap(eb.ref("e.cost_details")),
@@ -347,11 +347,11 @@ function sessionAggregationSelectMap(eb: EventsExpressionBuilder) {
     ).as("session_total_cost"),
     session_input_usage: sumMapValuesWhereKeyContains(
       sumMap(eb.ref("e.usage_details")),
-      "input",
+      literal("input"),
     ).as("session_input_usage"),
     session_output_usage: sumMapValuesWhereKeyContains(
       sumMap(eb.ref("e.usage_details")),
-      "output",
+      literal("output"),
     ).as("session_output_usage"),
     session_total_usage: mapValue(
       sumMap(eb.ref("e.usage_details")),
