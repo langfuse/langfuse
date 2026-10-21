@@ -72,6 +72,12 @@ vi.mock("../../../features/tokenisation/usage", async (importOriginal) => {
   };
 });
 
+const sdkAttribution = {
+  ingestionApiKey: "pk-lf-test",
+  ingestionSdkName: "unknown",
+  ingestionSdkVersion: "unknown",
+};
+
 const mockIngestionService = new IngestionService(
   null as any,
   prisma,
@@ -531,6 +537,7 @@ describe("Token Cost Calculation", () => {
       entityId: generationId,
       createdAtTimestamp: new Date(),
       observationEventList: events,
+      attribution: sdkAttribution,
     });
     expect(mockAddToClickhouseWriter).toHaveBeenCalled();
     const args = mockAddToClickhouseWriter.mock.calls[0];
@@ -612,6 +619,7 @@ describe("Token Cost Calculation", () => {
       entityId: generationId,
       createdAtTimestamp: new Date(),
       observationEventList: events,
+      attribution: sdkAttribution,
     });
     expect(mockAddToClickhouseWriter).toHaveBeenCalled();
     const args = mockAddToClickhouseWriter.mock.calls[0];
@@ -691,6 +699,7 @@ describe("Token Cost Calculation", () => {
       entityId: generationId,
       createdAtTimestamp: new Date(),
       observationEventList: events,
+      attribution: sdkAttribution,
     });
     expect(mockAddToClickhouseWriter).toHaveBeenCalled();
     const args = mockAddToClickhouseWriter.mock.calls[0];
@@ -772,6 +781,7 @@ describe("Token Cost Calculation", () => {
       entityId: generationId,
       createdAtTimestamp: new Date(),
       observationEventList: events,
+      attribution: sdkAttribution,
     });
     expect(mockAddToClickhouseWriter).toHaveBeenCalled();
     const args = mockAddToClickhouseWriter.mock.calls[0];
@@ -856,6 +866,7 @@ describe("Token Cost Calculation", () => {
       entityId: generationId,
       createdAtTimestamp: new Date(),
       observationEventList: events,
+      attribution: sdkAttribution,
     });
     expect(mockAddToClickhouseWriter).toHaveBeenCalled();
     const args = mockAddToClickhouseWriter.mock.calls[0];
@@ -946,6 +957,7 @@ describe("Token Cost Calculation", () => {
       entityId: generationId,
       createdAtTimestamp: new Date(),
       observationEventList: events,
+      attribution: sdkAttribution,
     });
     expect(mockAddToClickhouseWriter).toHaveBeenCalled();
     const args = mockAddToClickhouseWriter.mock.calls[0];
@@ -1031,6 +1043,7 @@ describe("Token Cost Calculation", () => {
       entityId: generationId,
       createdAtTimestamp: new Date(),
       observationEventList: events,
+      attribution: sdkAttribution,
     });
     expect(mockAddToClickhouseWriter).toHaveBeenCalled();
     const args = mockAddToClickhouseWriter.mock.calls[0];
@@ -1113,6 +1126,7 @@ describe("Token Cost Calculation", () => {
       entityId: generationId,
       createdAtTimestamp: new Date(),
       observationEventList: events,
+      attribution: sdkAttribution,
     });
     expect(mockAddToClickhouseWriter).toHaveBeenCalled();
     const args = mockAddToClickhouseWriter.mock.calls[0];
@@ -1200,6 +1214,7 @@ describe("Token Cost Calculation", () => {
       entityId: generationId,
       createdAtTimestamp: new Date(),
       observationEventList: events,
+      attribution: sdkAttribution,
     });
     expect(mockAddToClickhouseWriter).toHaveBeenCalled();
     const args = mockAddToClickhouseWriter.mock.calls[0];
@@ -1272,6 +1287,7 @@ describe("Token Cost Calculation", () => {
       entityId: generationId,
       createdAtTimestamp: new Date(),
       observationEventList: events,
+      attribution: sdkAttribution,
     });
     expect(mockAddToClickhouseWriter).toHaveBeenCalled();
     const args = mockAddToClickhouseWriter.mock.calls[0];
@@ -1332,6 +1348,7 @@ describe("Token Cost Calculation", () => {
       entityId: generationId,
       createdAtTimestamp: new Date(),
       observationEventList: events,
+      attribution: sdkAttribution,
     });
 
     expect(mockAddToClickhouseWriter).toHaveBeenCalled();
@@ -1364,6 +1381,10 @@ describe("Token Cost Calculation", () => {
 
   describe("tokenizer inference on failed and cancelled generations", () => {
     const gatewayScope = { name: "langfuse-ai-gateway", version: "0.1.0" };
+    const gatewayAttribution = {
+      ...sdkAttribution,
+      ingestionApiKey: "gateway:grant-1",
+    };
 
     beforeEach(() => {
       tokenisationMocks.tokenCountAsyncOverride = async () => 7;
@@ -1430,6 +1451,7 @@ describe("Token Cost Calculation", () => {
           statusMessage: "Client cancelled the response",
           scopeName: gatewayScope.name,
           metadata: { scope: gatewayScope },
+          ingestionApiKey: gatewayAttribution.ingestionApiKey,
           input: "hello world",
           output: "[]",
         },
@@ -1439,6 +1461,32 @@ describe("Token Cost Calculation", () => {
       expect(eventRecord.model_id).toBe(tokenModelData.id);
       expect(eventRecord.usage_details).toEqual({});
       expect(eventRecord.cost_details).toEqual({});
+    });
+
+    it("should tokenize a generation that only claims the gateway scope on the events table", async () => {
+      const eventRecord = await (mockIngestionService as any).createEventRecord(
+        {
+          spanId: generationId,
+          traceId: uuidv4(),
+          projectId,
+          startTimeISO: new Date().toISOString(),
+          type: "GENERATION",
+          modelName,
+          level: "WARNING",
+          scopeName: gatewayScope.name,
+          metadata: { scope: gatewayScope },
+          ingestionApiKey: sdkAttribution.ingestionApiKey,
+          input: "hello world",
+          output: "hey whassup",
+        },
+        "testfile.txt",
+      );
+
+      expect(eventRecord.usage_details).toEqual({
+        input: 7,
+        output: 7,
+        total: 14,
+      });
     });
 
     it("should cost provider-reported usage on a cancelled gateway generation", async () => {
@@ -1453,6 +1501,7 @@ describe("Token Cost Calculation", () => {
           level: "WARNING",
           scopeName: gatewayScope.name,
           metadata: { scope: gatewayScope },
+          ingestionApiKey: gatewayAttribution.ingestionApiKey,
           providedUsageDetails: { input: 10, output: 5 },
           input: "hello world",
           output: "[]",
@@ -1493,6 +1542,7 @@ describe("Token Cost Calculation", () => {
         entityId: generationId,
         createdAtTimestamp: new Date(),
         observationEventList: events,
+        attribution: gatewayAttribution,
       });
 
       const [tableName, generation] = mockAddToClickhouseWriter.mock.calls[0];
@@ -1500,6 +1550,43 @@ describe("Token Cost Calculation", () => {
       expect(generation.internal_model_id).toBe(tokenModelData.id);
       expect(generation.usage_details).toEqual({});
       expect(generation.cost_details).toEqual({});
+    });
+
+    it("should tokenize a generation that only claims the gateway scope on the observations table", async () => {
+      const events = [
+        {
+          id: uuidv4(),
+          type: "generation-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: generationId,
+            startTime: new Date().toISOString(),
+            model: modelName,
+            level: "WARNING",
+            statusMessage: "Client cancelled the response",
+            metadata: { scope: gatewayScope },
+            input: "hello world",
+            output: "hey whassup",
+          },
+        },
+      ];
+
+      await (mockIngestionService as any).processObservationEventList({
+        projectId,
+        entityId: generationId,
+        createdAtTimestamp: new Date(),
+        observationEventList: events,
+        attribution: sdkAttribution,
+      });
+
+      const [tableName, generation] = mockAddToClickhouseWriter.mock.calls[0];
+      expect(tableName).toBe("observations");
+      expect(generation.internal_model_id).toBe(tokenModelData.id);
+      expect(generation.usage_details).toEqual({
+        input: 7,
+        output: 7,
+        total: 14,
+      });
     });
   });
 
@@ -1533,6 +1620,7 @@ describe("Token Cost Calculation", () => {
       entityId: generationId,
       createdAtTimestamp: new Date(),
       observationEventList: events,
+      attribution: sdkAttribution,
     });
 
     expect(mockAddToClickhouseWriter).toHaveBeenCalled();
@@ -1679,6 +1767,7 @@ describe("Token Cost Calculation", () => {
         entityId: generationId,
         createdAtTimestamp: new Date(),
         observationEventList: events,
+        attribution: sdkAttribution,
       });
 
       // The event loop must never run tokenization on the main thread
@@ -1897,6 +1986,7 @@ describe("Token Cost Calculation", () => {
         entityId: generationId,
         createdAtTimestamp: new Date(),
         observationEventList: events,
+        attribution: sdkAttribution,
       });
 
       const mismatchWarnings = debugSpy.mock.calls.filter(([message]) =>
@@ -1936,6 +2026,7 @@ describe("Token Cost Calculation", () => {
         entityId: generationId,
         createdAtTimestamp: new Date(),
         observationEventList: events,
+        attribution: sdkAttribution,
       });
 
       const mismatchWarnings = debugSpy.mock.calls.filter(([message]) =>

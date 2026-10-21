@@ -554,6 +554,8 @@ describe("organization API keys trpc", () => {
           organizationId,
           apiKeyId: gatewayKey.id,
           userId: null,
+          apiKeyName: "Cached gateway key",
+          userName: null,
           keyMetadata: {},
           ingestionProjectId: null,
           ingestionMode: null,
