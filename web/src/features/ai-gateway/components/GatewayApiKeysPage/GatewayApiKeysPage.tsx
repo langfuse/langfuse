@@ -21,12 +21,14 @@ export function GatewayApiKeysPage({
   }
   return (
     <div className="flex flex-col gap-4">
-      <Header title="Gateway API keys" />
-      <p className="text-muted-foreground text-sm">
-        {canManageGateway
-          ? "These organization keys authenticate requests to the AI Gateway only. Each key belongs to the member who created it and is revoked when they leave the organization."
-          : "Your keys authenticate requests to the AI Gateway only. They are revoked when you leave the organization or lose gateway access."}
-      </p>
+      <Header
+        title="Gateway API keys"
+        help={{
+          description: canManageGateway
+            ? "These organization keys authenticate requests to the AI Gateway only. Each key belongs to the member who created it and is revoked when they leave the organization."
+            : "Your keys authenticate requests to the AI Gateway only. They are revoked when you leave the organization or lose gateway access.",
+        }}
+      />
       <ConnectedGatewayApiKeysTable
         key={organizationId}
         organizationId={organizationId}
