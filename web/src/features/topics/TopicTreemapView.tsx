@@ -80,6 +80,7 @@ export function TopicTreemapView({
         key={selected.id}
         projectId={projectId}
         title={selected.name}
+        description={selected.description}
         swatchColor={swatchFor(facet, selected.id)}
         rows={rows}
         peekView={peekView}

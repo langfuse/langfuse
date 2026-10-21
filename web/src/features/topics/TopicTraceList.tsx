@@ -17,6 +17,7 @@ const FIRST_CELL = "block pr-3 pl-2";
 export function TopicTraceList({
   projectId,
   title,
+  description,
   swatchColor,
   rows,
   peekView,
@@ -120,6 +121,14 @@ export function TopicTraceList({
           />
         ) : null}
       </div>
+      {description ? (
+        <p
+          className="bg-muted text-muted-foreground mx-4 mb-3 line-clamp-3 rounded-md px-3 py-2 text-sm"
+          title={description}
+        >
+          {description}
+        </p>
+      ) : null}
       <DataTable
         tableName="topics-topic-traces"
         columns={columns}
@@ -151,6 +160,7 @@ export function TopicTraceList({
 type TopicTraceListProps = {
   projectId: string;
   title: string;
+  description?: string;
   swatchColor?: string;
   rows: FacetRow[];
   peekView: DataTablePeekViewProps;

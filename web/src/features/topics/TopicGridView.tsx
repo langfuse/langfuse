@@ -119,6 +119,7 @@ export function TopicGridView({
       <TopicTraceList
         projectId={projectId}
         title={selectedTopic?.name ?? allTopicsLabel(facet.name)}
+        description={selectedTopic?.description}
         swatchColor={
           selectedIndex !== null ? topics[selectedIndex]?.color : undefined
         }
