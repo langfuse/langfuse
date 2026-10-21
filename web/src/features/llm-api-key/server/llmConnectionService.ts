@@ -94,6 +94,10 @@ export type SafeLlmConnection = {
   organizationId?: string;
 };
 
+type LlmConnectionWithAvailableModels = SafeLlmConnection & {
+  availableModels: string[];
+};
+
 type TestLlmConnectionParams = Omit<
   LlmConnectionWriteInput,
   "withDefaultModels"
@@ -140,6 +144,17 @@ const toSafeConnection = (connection: LlmApiKeys): SafeLlmConnection => {
 
   throw new Error(`LLM connection "${connection.id}" has no owner`);
 };
+
+function getAvailableModels(connection: SafeLlmConnection): string[] {
+  return Array.from(
+    new Set([
+      ...connection.customModels,
+      ...(connection.withDefaultModels
+        ? supportedModels[connection.adapter]
+        : []),
+    ]),
+  );
+}
 
 function getDisplaySecretKey(secretKey: string): string {
   if (secretKey === BEDROCK_USE_DEFAULT_CREDENTIALS) {
@@ -492,6 +507,20 @@ export class LlmConnectionService {
     });
 
     return { data: connections.map(toSafeConnection) };
+  }
+
+  async listEffectiveWithAvailableModels(params: {
+    owner: Extract<LlmConnectionOwner, { type: "project" }>;
+    includeDecisionModels?: boolean;
+  }): Promise<{ data: LlmConnectionWithAvailableModels[] }> {
+    const { data } = await this.listEffective(params);
+
+    return {
+      data: data.map((connection) => ({
+        ...connection,
+        availableModels: getAvailableModels(connection),
+      })),
+    };
   }
 
   async exists(params: {
