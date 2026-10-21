@@ -464,6 +464,94 @@ describe("MCP Read Tools", () => {
       ).resolves.toBe(fixture.reference);
     });
 
+    it("defaults to production, then latest, when no skill selector is provided", async () => {
+      const fixture = await createSkillForMcpReadTest();
+      const latestRoot = `${fixture.root}\nUpdated instructions.`;
+      const latestReference = "Updated checklist.";
+      await fixture.service.createVersion({
+        projectId: fixture.projectId,
+        createdBy: "API",
+        input: {
+          files: [
+            { path: "SKILL.md", content: latestRoot },
+            { path: "references/checklist.md", content: latestReference },
+            { path: "latest-only.txt", content: "Only in latest." },
+          ],
+        },
+        actor: fixture.actor,
+      });
+
+      const expectDefaultVersion = async (
+        version: number,
+        root: string,
+        reference: string,
+      ) => {
+        await expect(
+          handleGetSkill({ name: fixture.name }, fixture.context),
+        ).resolves.toMatchObject({ version });
+        await expect(
+          handleLoadSkill({ name: fixture.name }, fixture.context),
+        ).resolves.toBe(root);
+        await expect(
+          handleLoadSkillResource(
+            { name: fixture.name, path: "references/checklist.md" },
+            fixture.context,
+          ),
+        ).resolves.toBe(reference);
+      };
+
+      await expectDefaultVersion(2, latestRoot, latestReference);
+      await fixture.service.setLabels({
+        projectId: fixture.projectId,
+        name: fixture.name,
+        version: 1,
+        labels: ["production"],
+        actor: fixture.actor,
+      });
+      await expectDefaultVersion(1, fixture.root, fixture.reference);
+
+      await expect(
+        handleLoadSkillResource(
+          { name: fixture.name, path: "latest-only.txt" },
+          fixture.context,
+        ),
+      ).rejects.toThrow("Skill resource not found");
+      await expect(
+        handleGetSkill({ name: fixture.name, version: 2 }, fixture.context),
+      ).resolves.toMatchObject({ version: 2 });
+      await expect(
+        handleLoadSkill(
+          { name: fixture.name, label: "latest" },
+          fixture.context,
+        ),
+      ).resolves.toBe(latestRoot);
+    });
+
+    it.each([
+      ["getSkill", handleGetSkill],
+      ["loadSkill", handleLoadSkill],
+      ["loadSkillResource", handleLoadSkillResource],
+    ] as const)(
+      "does not fall back for missing explicit selectors in %s",
+      async (_name, handler) => {
+        const fixture = await createSkillForMcpReadTest();
+        for (const selector of [{ version: 99 }, { label: "production" }]) {
+          await expect(
+            handler(
+              { name: fixture.name, path: "SKILL.md", ...selector },
+              fixture.context,
+            ),
+          ).rejects.toThrow("Skill version not found");
+        }
+        await expect(
+          handler(
+            { name: `missing-${randomUUID()}`, path: "SKILL.md" },
+            fixture.context,
+          ),
+        ).rejects.toThrow("Skill version not found");
+      },
+    );
+
     it.each([
       ["getSkill", handleGetSkill],
       ["loadSkill", handleLoadSkill],
@@ -501,12 +589,14 @@ describe("MCP Read Tools", () => {
         handleLoadSkill,
         handleLoadSkillResource,
       ]) {
-        await expect(
-          handler(
-            { ...selector, path: "references/checklist.md" },
-            other.context,
-          ),
-        ).rejects.toThrow("Skill version not found");
+        for (const input of [selector, { name: fixture.name }]) {
+          await expect(
+            handler(
+              { ...input, path: "references/checklist.md" },
+              other.context,
+            ),
+          ).rejects.toThrow("Skill version not found");
+        }
       }
     });
   });

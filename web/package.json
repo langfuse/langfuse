@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "4.65.0",
+  "version": "4.67.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -226,7 +226,7 @@
     "tailwindcss": "^4.2.2",
     "tsx": "^4.20.5",
     "typescript": "^7.0.2",
-    "vite": "^7.3.5",
+    "vite": "^7.3.7",
     "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^4.1.11",
     "wait-for-expect": "^3.0.2"

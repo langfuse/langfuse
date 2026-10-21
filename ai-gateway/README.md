@@ -817,7 +817,15 @@ key metadata remain in Langfuse ingestion and are excluded from operational logs
 
 ## Container
 
-From the repository root:
+Each Langfuse release publishes a multi-platform (linux/amd64, linux/arm64)
+image to `langfuse/ai-gateway` on Docker Hub and
+`ghcr.io/langfuse/ai-gateway`, tagged like the web and worker images.
+Every release publishes `<version>` and `sha-<commit>`. Stable releases also
+update `<major>.<minor>` and `<major>`, plus `latest` for v4; release candidates
+(`-rc`) do not move these tags. Release images build on the Iron Bank UBI9
+bases.
+
+To build locally, from the repository root:
 
 ```sh
 docker build --target runtime \

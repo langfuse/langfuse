@@ -104,18 +104,19 @@ export const aiGatewayRouter = createTRPCRouter({
       };
     }),
 
+  /** Readable by every gateway reader; exposes only whether setup is done, not the config itself. */
+  getSetupStatus: protectedOrganizationProcedure
+    .input(organizationInput)
+    .query(async ({ input, ctx }) => {
+      requireGatewayRead({ session: ctx.session, orgId: input.orgId });
+      return new GatewayConfigService(ctx.prisma).getSetupStatus(input.orgId);
+    }),
+
   updateConfig: protectedOrganizationProcedure
     .input(
       organizationInput.extend({
         defaultIngestionProjectId: z.string().nullable(),
-        ingestionMode: z
-          .enum(GatewayIngestionMode)
-          .refine(
-            (mode) =>
-              mode !== GatewayIngestionMode.NONE ||
-              !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-            "Ingestion mode NONE is only available on self-hosted deployments",
-          ),
+        ingestionMode: z.enum(GatewayIngestionMode),
       }),
     )
     .mutation(async ({ input, ctx }) => {
