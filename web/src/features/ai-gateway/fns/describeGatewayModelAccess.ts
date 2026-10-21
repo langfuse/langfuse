@@ -11,5 +11,5 @@ export function describeGatewayModelAccess(
     return `Gateway keys can call every ${providerLabel} model, including models ${providerLabel} publishes in the future.`;
   }
 
-  return `Gateway keys can call only the models you enabled. Models ${providerLabel} publishes in the future stay off until you enable them here.`;
+  return `Gateway keys can call only the models you selected. Models ${providerLabel} publishes in the future stay off until you enable them here.`;
 }
