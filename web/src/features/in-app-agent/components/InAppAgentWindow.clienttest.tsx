@@ -1,4 +1,4 @@
-/* eslint-disable @repo/prefer-stories-over-client-tests */
+/* eslint-disable @repo/prefer-stories-over-client-tests, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import {
   fireEvent,
   render,

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { StrictMode, useState } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { FilterState } from "@langfuse/shared";

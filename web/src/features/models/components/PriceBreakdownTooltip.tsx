@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import Decimal from "decimal.js";
 import { InfoIcon } from "@langfuse/icons";
 import { useMemo, useState } from "react";

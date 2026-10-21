@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { type ComponentProps } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { Dialog, DialogContent } from "@/src/components/ui/dialog";

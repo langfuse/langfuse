@@ -1,4 +1,4 @@
-/* eslint-disable @repo/component-file-structure */
+/* eslint-disable @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useRef, useState } from "react";
 import { useStore } from "zustand";
 import { parseJsonPrioritised, type BatchActionQuery } from "@langfuse/shared";

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { eventsTableCols, type FilterState } from "@langfuse/shared";
