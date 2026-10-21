@@ -219,7 +219,29 @@ describe("testEvaluator", () => {
     ).rejects.toThrow("Missing mappings for evaluator variables: answer");
   });
 
-  it("loads the selected observation and dispatches a code evaluator with canonical variables", async () => {
+  it.each([
+    {
+      scenario: "an experiment observation",
+      experimentId: "experiment-1",
+      expectedExperiment: {
+        itemExpectedOutput: "It arrives tomorrow.",
+        itemMetadata: { source: "test" },
+      },
+    },
+    {
+      scenario: "an experiment observation without item data",
+      experimentId: "experiment-1",
+      expectedExperiment: { itemExpectedOutput: null, itemMetadata: null },
+    },
+    {
+      scenario: "a non-experiment observation",
+      experimentId: null,
+      expectedExperiment: undefined,
+    },
+  ])("dispatches a code evaluator for $scenario", async ({
+    experimentId,
+    expectedExperiment,
+  }) => {
     const startTime = new Date("2026-08-11T12:00:00.000Z");
     vi.mocked(getObservationForEvalById).mockResolvedValue({
       input: '{"question":"Where is my order?"}',
@@ -227,18 +249,25 @@ describe("testEvaluator", () => {
       metadata: { customerTier: "pro" },
       tool_calls: [],
       tool_call_names: [],
-      experiment_item_expected_output: "It arrives tomorrow.",
-      experiment_item_metadata: { source: "test" },
+      experiment_id: experimentId,
+      experiment_item_expected_output:
+        expectedExperiment?.itemExpectedOutput ?? null,
+      experiment_item_metadata: expectedExperiment?.itemMetadata ?? null,
     } as never);
+    const result = {
+      scores: [{ name: "test-score", dataType: "BOOLEAN", value: true }],
+    };
+    const dispatch = vi.fn().mockResolvedValue(result);
     vi.mocked(resolveConfiguredCodeEvalDispatcher).mockReturnValue({
       name: "test-dispatcher",
-    } as never);
-    vi.mocked(runCodeBasedEvaluationDispatch).mockResolvedValue({
-      success: true,
-      result: { score: 1 },
-      executionTraceId: "execution-trace-1",
-      executionTraceFromTimestamp: startTime,
-    } as never);
+      dispatch,
+    });
+    const actual = await vi.importActual<
+      typeof import("@langfuse/shared/src/server")
+    >("@langfuse/shared/src/server");
+    vi.mocked(runCodeBasedEvaluationDispatch).mockImplementation(
+      actual.runCodeBasedEvaluationDispatch,
+    );
 
     await expect(
       testEvaluator({
@@ -250,11 +279,11 @@ describe("testEvaluator", () => {
         startTime,
         definition: {
           type: "CODE",
-          sourceCode: "return { score: 1 };",
+          sourceCode: `function evaluate() { return ${JSON.stringify(result)}; }`,
           sourceCodeLanguage: "TYPESCRIPT",
         },
       }),
-    ).resolves.toMatchObject({ success: true, result: { score: 1 } });
+    ).resolves.toMatchObject({ success: true, result });
 
     expect(runCodeBasedEvaluationDispatch).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -267,9 +296,12 @@ describe("testEvaluator", () => {
           { var: "toolCalls", value: [] },
           {
             var: "experimentItemExpectedOutput",
-            value: "It arrives tomorrow.",
+            value: expectedExperiment?.itemExpectedOutput ?? null,
           },
-          { var: "experimentItemMetadata", value: { source: "test" } },
+          {
+            var: "experimentItemMetadata",
+            value: expectedExperiment?.itemMetadata ?? null,
+          },
         ],
         evaluationContext: {
           evaluatorId: "evaluator-1",
@@ -281,6 +313,19 @@ describe("testEvaluator", () => {
           target_trace_id: "trace-1",
           target_observation_id: "observation-1",
         }),
+      }),
+    );
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: {
+          observation: {
+            input: { question: "Where is my order?" },
+            output: { answer: "It arrives tomorrow." },
+            metadata: { customerTier: "pro" },
+            toolCalls: [],
+          },
+          ...(expectedExperiment ? { experiment: expectedExperiment } : {}),
+        },
       }),
     );
   });
