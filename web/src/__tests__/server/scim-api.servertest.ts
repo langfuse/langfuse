@@ -181,7 +181,8 @@ describe("SCIM API", () => {
       data: { email: `apikey-creator-${randomUUID()}@example.com` },
     });
     await createApiKey(prisma, {
-      owner: OrganizationId(orgId),
+      tenant: OrganizationId(orgId),
+      scope: OrganizationId(orgId),
       role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
       createdBy: UserId(keyCreator.id),
       predefinedKeys: {
@@ -1337,7 +1338,8 @@ describe("SCIM API", () => {
         scopedOrgPublicKey = `pk-lf-org-${randomUUID().substring(0, 8)}`;
         scopedOrgSecretKey = `sk-lf-org-${randomUUID().substring(0, 8)}`;
         await createApiKey(prisma, {
-          owner: OrganizationId(scopedOrgId),
+          tenant: OrganizationId(scopedOrgId),
+          scope: OrganizationId(scopedOrgId),
           role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
           createdBy: UserId(owner.id),
           predefinedKeys: {
@@ -1690,7 +1692,8 @@ describe("SCIM API", () => {
         data: { email: `apikey-creator-${randomUUID()}@example.com` },
       });
       await createApiKey(prisma, {
-        owner: OrganizationId(hobbyOrgId),
+        tenant: OrganizationId(hobbyOrgId),
+        scope: OrganizationId(hobbyOrgId),
         role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
         createdBy: UserId(hobbyKeyCreator.id),
         predefinedKeys: {
@@ -1714,7 +1717,8 @@ describe("SCIM API", () => {
         data: { email: `apikey-creator-${randomUUID()}@example.com` },
       });
       await createApiKey(prisma, {
-        owner: OrganizationId(teamOrgId),
+        tenant: OrganizationId(teamOrgId),
+        scope: OrganizationId(teamOrgId),
         role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
         createdBy: UserId(teamKeyCreator.id),
         predefinedKeys: {
@@ -1854,7 +1858,8 @@ describe("SCIM ownership boundary", () => {
     const [adminKey, ownerKey] = await Promise.all(
       (["ADMIN", "LEGACY_ORGANIZATION_API_KEY"] as const).map((role) =>
         createApiKey(prisma, {
-          owner: OrganizationId(orgId),
+          tenant: OrganizationId(orgId),
+          scope: OrganizationId(orgId),
           role: SystemRoleId(role),
           createdBy: UserId(ownerId),
         }),
@@ -1929,7 +1934,8 @@ describe("SCIM ownership boundary", () => {
   it("rejects ownership changes without an authorization context", async () => {
     Object.assign(env, { API_AUTH_MIGRATION: "legacy" });
     const legacyKey = await createApiKey(prisma, {
-      owner: OrganizationId(orgId),
+      tenant: OrganizationId(orgId),
+      scope: OrganizationId(orgId),
       role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
       createdBy: UserId(ownerId),
     });
@@ -2040,5 +2046,53 @@ describe("SCIM ownership boundary", () => {
     expect(await roleOf(memberId)).toBe("ADMIN");
     expect(await call(scimUserRoute, "DELETE", undefined, memberId)).toBe(204);
     expect(await roleOf(memberId)).toBeUndefined();
+  });
+
+  describe("gateway key revocation", () => {
+    const createBoundGatewayKey = (userId: string) =>
+      createApiKey(prisma, {
+        tenant: OrganizationId(orgId),
+        scope: UserId(userId),
+        role: SystemRoleId("AI_GATEWAY"),
+        createdBy: UserId(userId),
+      });
+    const keyExists = async (apiKeyId: string) =>
+      (await prisma.apiKey.count({ where: { id: apiKeyId } })) === 1;
+
+    it("revokes the gateway keys of a user removed via DELETE", async () => {
+      const key = await createBoundGatewayKey(memberId);
+
+      expect(await call(scimUserRoute, "DELETE", undefined, memberId)).toBe(
+        204,
+      );
+
+      expect(await keyExists(key.id)).toBe(false);
+    });
+
+    it.each([
+      ["MEMBER", true],
+      ["VIEWER", false],
+      ["NONE", false],
+    ])(
+      "keeps gateway keys of an OWNER moved to %s only while the role can invoke the gateway",
+      async (role, kept) => {
+        const key = await createBoundGatewayKey(ownerId);
+
+        const response = await callScimRoute(scimUserRoute, {
+          method: "PUT",
+          authorization: ownerAuth,
+          userId: ownerId,
+          body: {
+            schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+            active: true,
+            roles: [role],
+          },
+        });
+
+        expect(response.status).toBe(200);
+        expect(await roleOf(ownerId)).toBe(role);
+        expect(await keyExists(key.id)).toBe(kept);
+      },
+    );
   });
 });
