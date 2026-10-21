@@ -5,7 +5,7 @@ import {
   ChevronRight,
   Plus,
   Trash2,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
@@ -157,9 +157,9 @@ export function GroupsSettings({ orgId }: { orgId: string }) {
                   >
                     <TableCell>
                       {isOpen ? (
-                        <ChevronDown className="icon-base" />
+                        <ChevronDown aria-hidden />
                       ) : (
-                        <ChevronRight className="icon-base" />
+                        <ChevronRight aria-hidden />
                       )}
                     </TableCell>
                     <TableCell className="font-bold">
@@ -326,7 +326,7 @@ function GroupRolesEditor({
           {canEdit && unusedProjects.length > 0 && (
             <div className="flex items-center gap-3">
               <span className="w-40 text-sm">
-                <Plus className="icon-base inline" /> Add project
+                <Plus aria-hidden /> Add project
               </span>
               <div className="w-56">
                 <SelectInput
