@@ -8,7 +8,7 @@ import { DetailPageNav } from "@/src/features/navigate-detail-pages";
 import Page from "@/src/components/layouts/page";
 import { LevelCountsDisplay } from "@/src/components/LevelCountsDisplay";
 import { generateJobExecutionCounts } from "@/src/features/evals/utils/job-execution-utils";
-import { EvaluatorPausedCallout } from "@/src/features/evals/components/evaluator-paused-callout";
+import { EvaluatorPausedCallout } from "@/src/features/evals/components/EvaluatorPausedCallout";
 import {
   type EvalTargetObject,
   validateEvaluatorFiltersForTarget,
