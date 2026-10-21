@@ -31,7 +31,7 @@ import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { costFormatter } from "@/src/utils/numbers";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { useCanViewTopics } from "@/src/features/topics/topicsAccess";
 import {
   type TopicFacet,
   type TopicExecutionStatus,
@@ -104,7 +104,7 @@ export default function TopicsPage() {
   const router = useRouter();
   const projectId =
     typeof router.query.projectId === "string" ? router.query.projectId : "";
-  const topicsEnabled = useIsFeatureEnabled("langfuseTopics", { projectId });
+  const topicsEnabled = useCanViewTopics(projectId);
   if (!topicsEnabled) {
     return (
       <ErrorPage title="Not found" message="This page is not available." />
@@ -482,7 +482,7 @@ function TopicsWorkspaceContent({
                 onTurnBackOn={turnAutomaticProcessingBackOn}
                 showOnboarding={showOnboarding}
                 configured={configured}
-                canProcess={canWrite && !modelSettings.notice.unavailable}
+                canProcess={canWrite}
                 automaticEnabled={automaticProcessing.state.status === "on"}
                 running={running}
                 onAutomaticProcessing={openAutomaticProcessingFromHeader}
@@ -595,12 +595,7 @@ function TopicsWorkspaceContent({
                       traceFilters={traceFilters}
                       tracePanelRef={setTracePanel}
                       onGenerateTopics={openTopicGeneration}
-                      canGenerateTopics={
-                        canWrite &&
-                        !modelSettings.notice.unavailable &&
-                        !running &&
-                        configured
-                      }
+                      canGenerateTopics={canWrite && !running && configured}
                     />
                   </TopicsFilters>
                 )}

@@ -1199,8 +1199,8 @@ importers:
         specifier: workspace:*
         version: link:../packages/langfuse-skills
       ai-sdk-amazon-bedrock-v4:
-        specifier: npm:@ai-sdk/amazon-bedrock@4.0.81
-        version: '@ai-sdk/amazon-bedrock@4.0.81(zod@4.6.6)'
+        specifier: npm:@ai-sdk/amazon-bedrock@4.0.197
+        version: '@ai-sdk/amazon-bedrock@4.0.197(zod@4.6.6)'
       ai-sdk-anthropic-v4:
         specifier: npm:@ai-sdk/anthropic@3.0.111
         version: '@ai-sdk/anthropic@3.0.111(zod@4.6.6)'
@@ -1364,8 +1364,8 @@ packages:
   '@ag-ui/proto@0.0.52':
     resolution: {integrity: sha512-+iCGzNUNL50YIoThVmsolWPjG4MJidl+R9k8QAGVwErEfHRtQ64KFyrdpeOXNVuWtM3SViJqPSgFyv7eGVS63A==}
 
-  '@ai-sdk/amazon-bedrock@4.0.81':
-    resolution: {integrity: sha512-SP3LIpFt/JlK0sGs6E5jvjySvQqu/nqA942PehIGk3PZPJ5SMPsUNg+PYTs84PTUYEg8rr4XqkQOTNFq12zo2w==}
+  '@ai-sdk/amazon-bedrock@4.0.197':
+    resolution: {integrity: sha512-VUm47y1e+J7eUvq4DVRjR5AXSd7W5LRzjkUDNAYGWHpOGNXNimhn5W3z+cWiqQWcjgSjMhfyq7ad5mBdH6Cgow==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: 4.6.6
@@ -1382,8 +1382,8 @@ packages:
     peerDependencies:
       zod: 4.6.6
 
-  '@ai-sdk/anthropic@3.0.62':
-    resolution: {integrity: sha512-CkShXR8tmNO7QQnvpKbSMe2Vr1zUUcpqlp69iR+DYrbHm+tDJO9u6zZsjEHjcoRU9/e9z++p0W6NiuLC3aZ4Bg==}
+  '@ai-sdk/anthropic@3.0.131':
+    resolution: {integrity: sha512-u02aB+dFAa0Y9svg7j7utozZPXhsvwuTxMAW6DH/4h4rrT9H+3qC2eK2OdH5jqDiOBUsDn6sb8vlz5BUzQ4Q7g==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: 4.6.6
@@ -1460,6 +1460,12 @@ packages:
     peerDependencies:
       zod: 4.6.6
 
+  '@ai-sdk/openai@3.0.128':
+    resolution: {integrity: sha512-q6xHyoMLph8GqwmFyMHpJnesl3vkfZCklinS0hSCJg+DOoPbUsZW6h3anc73efSOxsgvYxE72CuQ1pw+YpPC5Q==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: 4.6.6
+
   '@ai-sdk/openai@3.0.99':
     resolution: {integrity: sha512-0Y6E5bvR+3eugt5rq2iy39EAAFi4nijXf1kdvcfoMm4erEGMe/6egIpvdvv5ePBU2YsnsxFuLRmMJ76Kv/babQ==}
     engines: {node: '>=18'}
@@ -1492,6 +1498,12 @@ packages:
 
   '@ai-sdk/provider-utils@4.0.46':
     resolution: {integrity: sha512-tEtld97plCFiYevsJuOkGkeuhQndeMWFBVrJS4AjnbD5AqrNSXRCe0p+BZ3Cju/sxDeeZ9ym3q9YUV8fASA7aQ==}
+    engines: {node: '>=18.17'}
+    peerDependencies:
+      zod: 4.6.6
+
+  '@ai-sdk/provider-utils@4.0.59':
+    resolution: {integrity: sha512-HR51CwEHIaGKUTUCLpfVDvajk1C8CGd34ezi34vOeUyxbchBDIKGVNJZRNvILuvHDS8nOvxYUJ9NZvzp0UufUg==}
     engines: {node: '>=18.17'}
     peerDependencies:
       zod: 4.6.6
@@ -1532,8 +1544,8 @@ packages:
     resolution: {integrity: sha512-XeZW1CcDF2GMbH4wejW6xBRI2QCOgnkVYUnxoeDadB1mf85riL2bMUeDoh+6gJ/r4mjNfzUPW8OjLjvwTP0u1Q==}
     engines: {node: '>=18'}
 
-  '@ai-sdk/provider@3.0.8':
-    resolution: {integrity: sha512-oGMAgGoQdBXbZqNG0Ze56CHjDZ1IDYOwGYxYjO5KLSlz5HiNQ9udIXsPZ61VWaHGZ5XW/jyjmr6t2xz2jGVwbQ==}
+  '@ai-sdk/provider@3.0.18':
+    resolution: {integrity: sha512-IpefF5ssZVOZCD4Wu7zxt6PwZoGT2HLVjxpJ10Bjx6EAmRfLYJPjyrfxb0RYDlwvXnDb9nkQ7Do/oJVDuRFzew==}
     engines: {node: '>=18'}
 
   '@ai-sdk/provider@4.0.1':
@@ -12735,11 +12747,12 @@ snapshots:
       '@bufbuild/protobuf': 2.12.0
       '@protobuf-ts/protoc': 2.11.1
 
-  '@ai-sdk/amazon-bedrock@4.0.81(zod@4.6.6)':
+  '@ai-sdk/amazon-bedrock@4.0.197(zod@4.6.6)':
     dependencies:
-      '@ai-sdk/anthropic': 3.0.62(zod@4.6.6)
-      '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.33(zod@4.6.6)
+      '@ai-sdk/anthropic': 3.0.131(zod@4.6.6)
+      '@ai-sdk/openai': 3.0.128(zod@4.6.6)
+      '@ai-sdk/provider': 3.0.18
+      '@ai-sdk/provider-utils': 4.0.59(zod@4.6.6)
       '@smithy/eventstream-codec': 4.4.14
       '@smithy/util-utf8': 4.4.14
       aws4fetch: 1.0.20
@@ -12762,10 +12775,10 @@ snapshots:
       '@ai-sdk/provider-utils': 4.0.46(zod@4.6.6)
       zod: 4.6.6
 
-  '@ai-sdk/anthropic@3.0.62(zod@4.6.6)':
+  '@ai-sdk/anthropic@3.0.131(zod@4.6.6)':
     dependencies:
-      '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.33(zod@4.6.6)
+      '@ai-sdk/provider': 3.0.18
+      '@ai-sdk/provider-utils': 4.0.59(zod@4.6.6)
       zod: 4.6.6
 
   '@ai-sdk/anthropic@4.0.79(zod@4.6.6)':
@@ -12856,6 +12869,12 @@ snapshots:
       '@ai-sdk/provider-utils': 5.0.59(zod@4.6.6)
       zod: 4.6.6
 
+  '@ai-sdk/openai@3.0.128(zod@4.6.6)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.18
+      '@ai-sdk/provider-utils': 4.0.59(zod@4.6.6)
+      zod: 4.6.6
+
   '@ai-sdk/openai@3.0.99(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 3.0.15
@@ -12892,6 +12911,14 @@ snapshots:
   '@ai-sdk/provider-utils@4.0.46(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 3.0.15
+      '@standard-schema/spec': 1.1.0
+      eventsource-parser: 3.1.0
+      undici: 6.29.1
+      zod: 4.6.6
+
+  '@ai-sdk/provider-utils@4.0.59(zod@4.6.6)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.18
       '@standard-schema/spec': 1.1.0
       eventsource-parser: 3.1.0
       undici: 6.29.1
@@ -12938,7 +12965,7 @@ snapshots:
     dependencies:
       json-schema: 0.4.0
 
-  '@ai-sdk/provider@3.0.8':
+  '@ai-sdk/provider@3.0.18':
     dependencies:
       json-schema: 0.4.0
 

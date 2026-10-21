@@ -1,13 +1,16 @@
 /** Trace metadata, or observation attributes, model parameters and metadata. */
 
 import { useMemo } from "react";
+import { useRouter } from "next/router";
 import { type MediaReturnType } from "@/src/features/media";
 
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { IOSection } from "@/src/components/ui/IOSection";
 import { cn } from "@/src/utils/tailwind";
-import { IO_SECTIONS_FLUSH_CLASS } from "@/src/features/traces/constants/ioSectionClasses";
-import { type MetadataFilterActions } from "@/src/components/table/ValueCell";
-import { AttributeRowActions } from "./ObservationDetailView/AttributeRowActions";
+import { IO_STICKY_HEADERS_CLASS } from "@/src/features/traces/constants/ioSectionClasses";
+import { getMetadataRowActions } from "@/src/features/traces/fns/getMetadataRowActions";
+import { getAttributeRowActions } from "@/src/features/traces/fns/getAttributeRowActions";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { LargeJsonFieldFallback } from "@/src/features/traces/components/IOPreview/components/LargeJsonFieldFallback";
 import {
   JSON_VIEW_RENDER_CHAR_LIMIT,
@@ -44,10 +47,8 @@ export function DetailAttributesTab({
   jsonMetadataExpanded?: boolean;
   onJsonMetadataExpandedChange?: (expanded: boolean) => void;
 }) {
-  const metadataActions: MetadataFilterActions = {
-    projectId,
-    filterTarget: observation ? "observations" : "traces",
-  };
+  const router = useRouter();
+  const capture = usePostHogClientCapture();
   const hasAttributes =
     observation && Object.keys(observation.attributes).length > 0;
   const hasMetadata =
@@ -59,22 +60,29 @@ export function DetailAttributesTab({
   const metadataTooLarge = metadataProbe.size > JSON_VIEW_RENDER_CHAR_LIMIT;
 
   return (
-    <div className="flex min-h-0 w-full flex-1 flex-col overflow-auto px-4 pb-4">
-      <div className={cn("space-y-3 pt-3", IO_SECTIONS_FLUSH_CLASS)}>
+    <div
+      className={cn(
+        "flex min-h-0 w-full flex-1 flex-col overflow-auto px-4 pb-4",
+        IO_STICKY_HEADERS_CLASS,
+      )}
+    >
+      <div className="space-y-2 pt-3">
         {observation && hasAttributes ? (
           <PrettyJsonView
             title="Attributes"
             json={observation.attributes}
             currentView={currentView}
-            rowActions={(row) => (
-              <AttributeRowActions
-                row={row}
-                projectId={projectId}
-                filterTarget="observations"
-                anchorTime={observation.attributesAnchorTime}
-                analyticsTable="attributes"
-              />
-            )}
+            rowActions={(row) =>
+              getAttributeRowActions({
+                row,
+                projectId,
+                filterTarget: "observations",
+                anchorTime: observation.attributesAnchorTime,
+                analyticsTable: "attributes",
+                router,
+                capture,
+              })
+            }
           />
         ) : null}
         {observation?.modelParameters ? (
@@ -87,20 +95,30 @@ export function DetailAttributesTab({
         {hasMetadata ? (
           <div>
             {metadataTooLarge ? (
-              <LargeJsonFieldFallback
-                title="Metadata"
-                serialized={metadataProbe.serialized}
-                isString={metadataProbe.isString}
-                charCount={metadataProbe.size}
-                downloadFileBase={`metadata-${objectId}`}
-              />
+              <IOSection title="Metadata">
+                <LargeJsonFieldFallback
+                  title="Metadata"
+                  hideTitle
+                  serialized={metadataProbe.serialized}
+                  isString={metadataProbe.isString}
+                  charCount={metadataProbe.size}
+                  downloadFileBase={`metadata-${objectId}`}
+                />
+              </IOSection>
             ) : (
               <PrettyJsonView
                 title="Metadata"
                 json={metadata}
                 parsedJson={parsedMetadata}
                 currentView={currentView}
-                metadataActions={metadataActions}
+                rowActions={(row) =>
+                  getMetadataRowActions({
+                    row,
+                    projectId,
+                    filterTarget: observation ? "observations" : "traces",
+                    router,
+                  })
+                }
                 media={media?.filter(
                   (attachment) => attachment.field === "metadata",
                 )}
