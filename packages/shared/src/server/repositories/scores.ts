@@ -11,6 +11,7 @@ import {
   ListableScoreDataType,
   ScoreDataTypeEnum,
 } from "../../domain/scores";
+import type { ScoreExportFieldGroup } from "../../domain/export-field-groups";
 import { InvalidRequestError, InternalServerError } from "../../errors";
 import {
   eventsTableIsRootObservationSql,
@@ -2533,12 +2534,17 @@ export const getDistinctScoreNames = async (
 };
 
 // Shared query for both the standard (parsed) and Parquet (`exec` binary)
-// score export paths.
+// score export paths. Opt-in field group columns are appended after the base
+// columns so the base column order stays stable.
 const buildScoresForBlobStorageExportQuery = (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
+  fieldGroups: ScoreExportFieldGroup[],
 ) => {
+  const optionalColumns = fieldGroups.includes("score_metadata")
+    ? ",\n      metadata"
+    : "";
   const query = `
     SELECT
       id,
@@ -2556,7 +2562,7 @@ const buildScoresForBlobStorageExportQuery = (
       data_type,
       string_value,
       created_at,
-      updated_at
+      updated_at${optionalColumns}
     FROM scores FINAL
     WHERE project_id = {projectId: String}
     AND timestamp >= {minTimestamp: DateTime64(3)}
@@ -2585,9 +2591,15 @@ export const getScoresForBlobStorageExport = function (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
+  fieldGroups: ScoreExportFieldGroup[] = [],
 ) {
   return queryClickhouseStream<Record<string, unknown>>(
-    buildScoresForBlobStorageExportQuery(projectId, minTimestamp, maxTimestamp),
+    buildScoresForBlobStorageExportQuery(
+      projectId,
+      minTimestamp,
+      maxTimestamp,
+      fieldGroups,
+    ),
   );
 };
 
@@ -2597,12 +2609,14 @@ export const getScoresForBlobStorageExportParquet = function (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
+  fieldGroups: ScoreExportFieldGroup[] = [],
 ) {
   return queryClickhouseExecRaw({
     ...buildScoresForBlobStorageExportQuery(
       projectId,
       minTimestamp,
       maxTimestamp,
+      fieldGroups,
     ),
     format: "Parquet",
     clickhouseSettings: BLOB_EXPORT_PARQUET_CLICKHOUSE_SETTINGS,

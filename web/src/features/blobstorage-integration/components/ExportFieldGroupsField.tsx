@@ -12,7 +12,8 @@ import {
   AnalyticsIntegrationExportSource,
   BlobStorageIntegrationFileType,
   EXPORT_FIELD_GROUP_OPTIONS,
-  type ObservationFieldGroupFull,
+  SCORE_EXPORT_FIELD_GROUP_OPTIONS,
+  type ExportFieldGroup,
 } from "@langfuse/shared";
 import { type BlobStorageFormControl } from "@/src/features/blobstorage-integration/components/formValues";
 
@@ -51,16 +52,17 @@ export const ExportFieldGroupsField = ({
         <FormItem>
           <FormLabel>Export Field Groups</FormLabel>
           <FormDescription>
-            Choose which field groups to include in the observation exports.
-            Deselect large groups (e.g. Input / Output) to reduce export size,
-            or privacy-sensitive groups (e.g. Metadata) to avoid storing user
-            data.
+            Choose which field groups to include in the observation and score
+            exports. Deselect large groups (e.g. Input / Output) to reduce
+            export size, or privacy-sensitive groups (e.g. Metadata) to avoid
+            storing user data.
             {includesLegacyExport
               ? isLegacyOnlyExport
-                ? " Traces and scores are always exported in full. Field groups that only exist on the enriched observations (e.g. Trace Context) are not available for this export source."
-                : " Traces and scores are always exported in full. Fields that only exist on the enriched observations (e.g. Trace Context) are omitted from the legacy observations export."
-              : " Scores are always exported in full."}
+                ? " Traces are always exported in full. Field groups that only exist on the enriched observations (e.g. Trace Context) are not available for this export source."
+                : " Traces are always exported in full. Fields that only exist on the enriched observations (e.g. Trace Context) are omitted from the legacy observations export."
+              : ""}
           </FormDescription>
+          <div className="text-sm font-bold">Observations</div>
           <div className="mt-2 space-y-2">
             {EXPORT_FIELD_GROUP_OPTIONS.filter(
               // Hide no-op groups (no legacy columns) for legacy-only
@@ -88,8 +90,7 @@ export const ExportFieldGroupsField = ({
                                   ? current
                                   : [...current, option.value]
                                 : current.filter(
-                                    (v: ObservationFieldGroupFull) =>
-                                      v !== option.value,
+                                    (v: ExportFieldGroup) => v !== option.value,
                                   );
                             field.onChange(next);
                           }
@@ -122,6 +123,40 @@ export const ExportFieldGroupsField = ({
                 </div>
               );
             })}
+          </div>
+          <div className="text-sm font-bold">Scores</div>
+          <div className="mt-2 space-y-2">
+            {SCORE_EXPORT_FIELD_GROUP_OPTIONS.map((option) => (
+              <div key={option.value} className="flex items-start gap-2">
+                <Checkbox
+                  id={`field-group-${option.value}`}
+                  checked={(field.value ?? []).includes(option.value)}
+                  onCheckedChange={(checked) => {
+                    const current = field.value ?? [];
+                    field.onChange(
+                      checked === true
+                        ? current.includes(option.value)
+                          ? current
+                          : [...current, option.value]
+                        : current.filter(
+                            (v: ExportFieldGroup) => v !== option.value,
+                          ),
+                    );
+                  }}
+                />
+                <label
+                  htmlFor={`field-group-${option.value}`}
+                  className="cursor-pointer space-y-0.5"
+                >
+                  <div className="text-sm leading-none font-bold">
+                    {option.label}
+                  </div>
+                  <div className="text-muted-foreground text-xs">
+                    {option.description}
+                  </div>
+                </label>
+              </div>
+            ))}
           </div>
           <FormMessage>{errors.exportFieldGroups?.message}</FormMessage>
         </FormItem>

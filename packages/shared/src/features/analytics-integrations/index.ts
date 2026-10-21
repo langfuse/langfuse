@@ -7,6 +7,10 @@ import {
   OBSERVATION_FIELD_GROUPS_FULL,
   type ObservationFieldGroupFull,
 } from "../../domain/observation-field-groups";
+import {
+  SCORE_EXPORT_FIELD_GROUPS,
+  type ScoreExportFieldGroup,
+} from "../../domain/export-field-groups";
 
 export * from "./export-source-policy";
 export * from "./blob-export-tuning";
@@ -148,4 +152,20 @@ export const EXPORT_FIELD_GROUP_OPTIONS = OBSERVATION_FIELD_GROUPS_FULL.map(
     // legacy-only exports; the UI hides them for that source.
     includedInLegacyExport: legacyFieldsForGroup(value).length > 0,
   }),
+);
+
+// Score groups apply to the scores export of every export source and are
+// identical across file types.
+const SCORE_EXPORT_FIELD_GROUP_LABELS = {
+  score_metadata: {
+    label: "Metadata",
+    description: "metadata",
+  },
+} satisfies Record<
+  ScoreExportFieldGroup,
+  { label: string; description: string }
+>;
+
+export const SCORE_EXPORT_FIELD_GROUP_OPTIONS = SCORE_EXPORT_FIELD_GROUPS.map(
+  (value) => ({ value, ...SCORE_EXPORT_FIELD_GROUP_LABELS[value] }),
 );
