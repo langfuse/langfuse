@@ -136,11 +136,10 @@ export async function createApiKey(
     throw new Error("SALT is not set");
   }
 
-  const owner = keyOwner(opts.tenant, opts.scope);
-
   if (hasSystemRoleKind(opts.role)) {
     const role = toSystemRole(opts.role);
-    const isProjectScope = hasProjectKind(owner);
+    const isProjectScope =
+      !hasUserScope(opts.scope) && hasProjectKind(opts.scope);
     // A key can only carry a role tagged for api keys; a project scope also
     // needs a project-kind policy, or the key grants nothing on its project.
     if (
@@ -160,8 +159,7 @@ export async function createApiKey(
     : await generateKeySet();
 
   const data: Prisma.ApiKeyUncheckedCreateInput = {
-    ...ownerColumns(owner),
-    ...boundUserColumn(opts.scope),
+    ...scopeColumns(opts.tenant, opts.scope),
     publicKey: pk,
     hashedSecretKey: createLegacySecretKeyPlaceholder(),
     displaySecretKey: getDisplaySecretKey(sk),
@@ -175,7 +173,7 @@ export async function createApiKey(
   const created = await withTransaction(prisma, (tx) =>
     insertApiKey(tx, data, {
       tenant: opts.tenant,
-      owner,
+      owner: assignmentOwner(opts.tenant, opts.scope),
       role: opts.role,
     }),
   );
@@ -195,31 +193,34 @@ function creatorColumns(
     : { createdByUserId: untag(createdBy) };
 }
 
-/** keyOwner is the organization or project a key belongs to; a user-scoped key belongs to its tenant. */
-function keyOwner(
+/** scopeColumns maps a key's scope to its api-key columns; a user-scoped key is an organization key in its tenant bound to the user. */
+function scopeColumns(
+  tenant: TenantId,
+  scope: OrganizationId | ProjectId | UserId,
+): Pick<
+  Prisma.ApiKeyUncheckedCreateInput,
+  "orgId" | "projectId" | "userId" | "scope"
+> {
+  if (hasUserScope(scope)) {
+    return {
+      orgId: untag(tenant),
+      userId: untag(scope),
+      scope: "ORGANIZATION",
+    };
+  }
+  if (hasProjectKind(scope)) {
+    return { projectId: untag(scope), scope: "PROJECT" };
+  }
+  return { orgId: untag(scope), scope: "ORGANIZATION" };
+}
+
+/** assignmentOwner hangs a user-scoped key's role assignment off its tenant. */
+function assignmentOwner(
   tenant: TenantId,
   scope: OrganizationId | ProjectId | UserId,
 ): OwnerId {
   if (hasUserScope(scope)) return tenant;
   return scope;
-}
-
-/** ownerColumns maps a key's owner to its api-key columns. */
-function ownerColumns(
-  owner: OwnerId,
-): Pick<Prisma.ApiKeyUncheckedCreateInput, "orgId" | "projectId" | "scope"> {
-  if (hasProjectKind(owner)) {
-    return { projectId: untag(owner), scope: "PROJECT" };
-  }
-  return { orgId: untag(owner), scope: "ORGANIZATION" };
-}
-
-/** boundUserColumn binds a user-scoped key to its user. */
-function boundUserColumn(
-  scope: OrganizationId | ProjectId | UserId,
-): Pick<Prisma.ApiKeyUncheckedCreateInput, "userId"> {
-  if (hasUserScope(scope)) return { userId: untag(scope) };
-  return {};
 }
 
 /** hasUserScope narrows an api key's scope to a user. */
