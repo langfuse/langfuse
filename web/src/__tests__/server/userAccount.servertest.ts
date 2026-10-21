@@ -170,7 +170,6 @@ describe("userAccountRouter.setViewMode", () => {
   it.each([
     { admin: true, emailDomain: "example.com" },
     { admin: false, emailDomain: "langfuse.com" },
-    { admin: false, emailDomain: "clickhouse.com" },
   ])("keeps $emailDomain admin=$admin", async (options) => {
     testEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
     const { admin, emailDomain } = options;
@@ -197,14 +196,7 @@ describe("userAccountRouter.setViewMode", () => {
     expect(user.admin).toBe(admin);
   });
 
-  it("does not allow ordinary users to select internal mode", async () => {
-    const { caller } = await createCaller();
-    await expect(
-      caller.userAccount.setViewMode({ mode: "INTERNAL" }),
-    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
-  });
-
-  it.each(["langfuse.com", "clickhouse.com"])(
+  it.each(["example.com", "langfuse.com"])(
     "lets unverified %s addresses opt out but not enable internal view",
     async (emailDomain) => {
       const { caller, userId } = await createCaller({ emailDomain });

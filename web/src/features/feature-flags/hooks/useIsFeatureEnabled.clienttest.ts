@@ -89,45 +89,35 @@ describe("useIsFeatureEnabled", () => {
   );
 
   it.each([
-    ["member@langfuse.com", true],
-    ["member@clickhouse.com", true],
-    ["MEMBER@LANGFUSE.COM", true],
-    ["member@sub.langfuse.com", false],
-    ["member@sub.clickhouse.com", false],
-    ["member@langfuse.com.example.org", false],
-    ["member@clickhouse.com.example.org", false],
-    ["member@notlangfuse.com", false],
-    ["member@notclickhouse.com", false],
-  ])("grants only internal views to %s: %s", (email, expected) => {
-    mockSession({
-      aiGateway: false,
-      email,
-      emailVerified: "2026-01-01T00:00:00.000Z",
-    });
-    const { result } = renderHook(() => ({
-      internal: useInternalFeaturesEnabled(),
-      searchBar: useIsFeatureEnabled("searchBar"),
-      aiGateway: useIsFeatureEnabled("aiGateway"),
-      langfuseTopics: useIsFeatureEnabled("langfuseTopics"),
-    }));
-    expect(result.current).toEqual({
-      internal: expected,
-      searchBar: false,
-      aiGateway: false,
-      langfuseTopics: false,
-    });
-  });
-
-  it.each([null, undefined])(
-    "does not grant internal view without email verification: %s",
-    (emailVerified) => {
+    ["member@langfuse.com", true, true],
+    ["MEMBER@CLICKHOUSE.COM", true, true],
+    ["member@sub.langfuse.com", true, false],
+    ["member@sub.clickhouse.com", true, false],
+    ["member@langfuse.com.example.org", true, false],
+    ["member@clickhouse.com.example.org", true, false],
+    ["member@notlangfuse.com", true, false],
+    ["member@notclickhouse.com", true, false],
+    ["member@langfuse.com", false, false],
+  ] as const)(
+    "internal view for %s (verified=%s): %s",
+    (email, verified, expected) => {
       mockSession({
         aiGateway: false,
-        email: "member@langfuse.com",
-        emailVerified,
+        email,
+        emailVerified: verified ? "2026-01-01T00:00:00.000Z" : null,
       });
-      const { result } = renderHook(() => useInternalFeaturesEnabled());
-      expect(result.current).toBe(false);
+      const { result } = renderHook(() => ({
+        internal: useInternalFeaturesEnabled(),
+        searchBar: useIsFeatureEnabled("searchBar"),
+        aiGateway: useIsFeatureEnabled("aiGateway"),
+        langfuseTopics: useIsFeatureEnabled("langfuseTopics"),
+      }));
+      expect(result.current).toEqual({
+        internal: expected,
+        searchBar: false,
+        aiGateway: false,
+        langfuseTopics: false,
+      });
     },
   );
 

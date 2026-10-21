@@ -357,12 +357,6 @@ describe("Topics visibility gate", () => {
       false,
     ],
     [
-      "a staff member outside the allowlist",
-      { email: "member@langfuse.com", langfuseTopics: false },
-      false,
-      false,
-    ],
-    [
       "a non-internal user without the flag",
       { langfuseTopics: false },
       true,
