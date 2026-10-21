@@ -93,7 +93,8 @@ export const organizationApiKeysRouter = createTRPCRouter({
       });
 
       const apiKeyMeta = await createApiKey(ctx.prisma, {
-        owner: OrganizationId(input.orgId),
+        tenant: OrganizationId(input.orgId),
+        scope: OrganizationId(input.orgId),
         role: SystemRoleId(input.role),
         createdBy: UserId(ctx.session.user.id),
         name: input.name,

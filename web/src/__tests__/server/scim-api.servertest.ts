@@ -181,7 +181,8 @@ describe("SCIM API", () => {
       data: { email: `apikey-creator-${randomUUID()}@example.com` },
     });
     await createApiKey(prisma, {
-      owner: OrganizationId(orgId),
+      tenant: OrganizationId(orgId),
+      scope: OrganizationId(orgId),
       role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
       createdBy: UserId(keyCreator.id),
       predefinedKeys: {
@@ -1337,7 +1338,8 @@ describe("SCIM API", () => {
         scopedOrgPublicKey = `pk-lf-org-${randomUUID().substring(0, 8)}`;
         scopedOrgSecretKey = `sk-lf-org-${randomUUID().substring(0, 8)}`;
         await createApiKey(prisma, {
-          owner: OrganizationId(scopedOrgId),
+          tenant: OrganizationId(scopedOrgId),
+          scope: OrganizationId(scopedOrgId),
           role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
           createdBy: UserId(owner.id),
           predefinedKeys: {
@@ -1690,7 +1692,8 @@ describe("SCIM API", () => {
         data: { email: `apikey-creator-${randomUUID()}@example.com` },
       });
       await createApiKey(prisma, {
-        owner: OrganizationId(hobbyOrgId),
+        tenant: OrganizationId(hobbyOrgId),
+        scope: OrganizationId(hobbyOrgId),
         role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
         createdBy: UserId(hobbyKeyCreator.id),
         predefinedKeys: {
@@ -1714,7 +1717,8 @@ describe("SCIM API", () => {
         data: { email: `apikey-creator-${randomUUID()}@example.com` },
       });
       await createApiKey(prisma, {
-        owner: OrganizationId(teamOrgId),
+        tenant: OrganizationId(teamOrgId),
+        scope: OrganizationId(teamOrgId),
         role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
         createdBy: UserId(teamKeyCreator.id),
         predefinedKeys: {
@@ -1854,7 +1858,8 @@ describe("SCIM ownership boundary", () => {
     const [adminKey, ownerKey] = await Promise.all(
       (["ADMIN", "LEGACY_ORGANIZATION_API_KEY"] as const).map((role) =>
         createApiKey(prisma, {
-          owner: OrganizationId(orgId),
+          tenant: OrganizationId(orgId),
+          scope: OrganizationId(orgId),
           role: SystemRoleId(role),
           createdBy: UserId(ownerId),
         }),
@@ -1929,7 +1934,8 @@ describe("SCIM ownership boundary", () => {
   it("rejects ownership changes without an authorization context", async () => {
     Object.assign(env, { API_AUTH_MIGRATION: "legacy" });
     const legacyKey = await createApiKey(prisma, {
-      owner: OrganizationId(orgId),
+      tenant: OrganizationId(orgId),
+      scope: OrganizationId(orgId),
       role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
       createdBy: UserId(ownerId),
     });
@@ -2045,7 +2051,8 @@ describe("SCIM ownership boundary", () => {
   describe("gateway key revocation", () => {
     const createBoundGatewayKey = (userId: string) =>
       createApiKey(prisma, {
-        owner: OrganizationId(orgId),
+        tenant: OrganizationId(orgId),
+        scope: UserId(userId),
         role: SystemRoleId("AI_GATEWAY"),
         createdBy: UserId(userId),
       });

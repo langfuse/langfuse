@@ -243,7 +243,8 @@ describe("userAccountRouter.delete", () => {
     const keys = await Promise.all(
       [orgId, otherOrg.id].map((owner) =>
         createApiKey(prisma, {
-          owner: OrganizationId(owner),
+          tenant: OrganizationId(owner),
+          scope: UserId(userId),
           role: SystemRoleId("AI_GATEWAY"),
           createdBy: UserId(userId),
         }),

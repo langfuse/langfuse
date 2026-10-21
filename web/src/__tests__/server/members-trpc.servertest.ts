@@ -1115,7 +1115,8 @@ describe("membersRouter.updateProjectRole - project organization consistency", (
 describe("membersRouter - gateway key revocation", () => {
   async function createBoundGatewayKey(orgId: string, userId: string) {
     return createApiKey(prisma, {
-      owner: OrganizationId(orgId),
+      tenant: OrganizationId(orgId),
+      scope: UserId(userId),
       role: SystemRoleId("AI_GATEWAY"),
       createdBy: UserId(userId),
     });

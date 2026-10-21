@@ -21,12 +21,7 @@ import {
   GATEWAY_RESOLVE_KEY_NON_EXISTENT,
   GatewayResolveCache,
 } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
-import {
-  ApiKeyId,
-  OrganizationId,
-  SystemRoleId,
-  UserId,
-} from "@langfuse/shared/rbac";
+import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 
 const cleanupOrganizations: string[] = [];
 const cleanupUsers: string[] = [];
@@ -75,7 +70,8 @@ async function fastHashOf(apiKeyId: string) {
 
 async function createGatewayKey(orgId: string, userId: string) {
   return createApiKey(prisma, {
-    owner: OrganizationId(orgId),
+    tenant: OrganizationId(orgId),
+    scope: UserId(userId),
     role: SystemRoleId("AI_GATEWAY"),
     createdBy: UserId(userId),
   });
@@ -122,50 +118,23 @@ async function existingKeyIds() {
 
 describe("user-bound API keys", () => {
   describe("createApiKey binding", () => {
-    it("binds an AI_GATEWAY key to the user who created it", async () => {
+    it("binds a user-scoped key to its user", async () => {
       const org = await createOrg();
       const user = await createUser();
 
-      const key = await createApiKey(prisma, {
-        owner: OrganizationId(org.id),
-        role: SystemRoleId("AI_GATEWAY"),
-        createdBy: UserId(user.id),
-      });
+      const key = await createGatewayKey(org.id, user.id);
 
       expect(await boundUserOf(key.id)).toBe(user.id);
     });
 
-    it("leaves AI_GATEWAY keys created by the system or by an API key unbound", async () => {
-      const org = await createOrg();
-      const user = await createUser();
-      const creatorKey = await createApiKey(prisma, {
-        owner: OrganizationId(org.id),
-        role: SystemRoleId("ADMIN"),
-        createdBy: UserId(user.id),
-      });
-
-      const bySystem = await createApiKey(prisma, {
-        owner: OrganizationId(org.id),
-        role: SystemRoleId("AI_GATEWAY"),
-        createdBy: "system",
-      });
-      const byApiKey = await createApiKey(prisma, {
-        owner: OrganizationId(org.id),
-        role: SystemRoleId("AI_GATEWAY"),
-        createdBy: ApiKeyId(creatorKey.id),
-      });
-
-      expect(await boundUserOf(bySystem.id)).toBeNull();
-      expect(await boundUserOf(byApiKey.id)).toBeNull();
-    });
-
-    it("leaves user-created keys with other roles unbound", async () => {
+    it("leaves organization-scoped keys unbound even when a user creates them", async () => {
       const org = await createOrg();
       const user = await createUser();
 
       const key = await createApiKey(prisma, {
-        owner: OrganizationId(org.id),
-        role: SystemRoleId("ADMIN"),
+        tenant: OrganizationId(org.id),
+        scope: OrganizationId(org.id),
+        role: SystemRoleId("AI_GATEWAY"),
         createdBy: UserId(user.id),
       });
 
@@ -232,7 +201,8 @@ describe("user-bound API keys", () => {
       const otherOrgKey = await createGatewayKey(otherOrg.id, user.id);
       const otherUserKey = await createGatewayKey(org.id, otherUser.id);
       const unboundKey = await createApiKey(prisma, {
-        owner: OrganizationId(org.id),
+        tenant: OrganizationId(org.id),
+        scope: OrganizationId(org.id),
         role: SystemRoleId("AI_GATEWAY"),
         createdBy: "system",
       });

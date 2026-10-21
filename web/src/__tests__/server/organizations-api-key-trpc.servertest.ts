@@ -225,7 +225,8 @@ describe("organization API keys trpc", () => {
 
     it("filters in-app agent API keys", async () => {
       const inAppAgentKey = await createApiKey(prisma, {
-        owner: OrganizationId(organizationId),
+        tenant: OrganizationId(organizationId),
+        scope: OrganizationId(organizationId),
         role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
         createdBy: UserId("user-1"),
         name: "In-app agent key hidden from org UI",
@@ -244,13 +245,15 @@ describe("organization API keys trpc", () => {
 
     it("filters AI Gateway keys", async () => {
       const gatewayKey = await createApiKey(prisma, {
-        owner: OrganizationId(organizationId),
+        tenant: OrganizationId(organizationId),
+        scope: OrganizationId(organizationId),
         role: SystemRoleId("AI_GATEWAY"),
         createdBy: UserId("user-1"),
         name: "Gateway key",
       });
       const ingestKey = await createApiKey(prisma, {
-        owner: OrganizationId(organizationId),
+        tenant: OrganizationId(organizationId),
+        scope: OrganizationId(organizationId),
         role: SystemRoleId("INGEST"),
         createdBy: UserId("user-1"),
         name: "Ingestion key",
@@ -435,7 +438,8 @@ describe("organization API keys trpc", () => {
 
     it("does not update in-app agent API keys", async () => {
       const inAppAgentKey = await createApiKey(prisma, {
-        owner: OrganizationId(organizationId),
+        tenant: OrganizationId(organizationId),
+        scope: OrganizationId(organizationId),
         role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
         createdBy: UserId("user-1"),
         name: "Original in-app agent note",
@@ -525,7 +529,8 @@ describe("organization API keys trpc", () => {
 
     it("does not delete in-app agent API keys", async () => {
       const inAppAgentKey = await createApiKey(prisma, {
-        owner: OrganizationId(organizationId),
+        tenant: OrganizationId(organizationId),
+        scope: OrganizationId(organizationId),
         role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
         createdBy: UserId("user-1"),
         isInAppAgentKey: true,
@@ -580,7 +585,8 @@ describe("organization API keys trpc", () => {
       // ability to see and revoke keys that were issued while entitled,
       // otherwise a downgrade would strand live credentials.
       const existingKey = await createApiKey(prisma, {
-        owner: OrganizationId(organizationId),
+        tenant: OrganizationId(organizationId),
+        scope: OrganizationId(organizationId),
         role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
         createdBy: UserId("user-1"),
         name: "Issued before downgrade",

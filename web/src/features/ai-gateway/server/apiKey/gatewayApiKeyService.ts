@@ -42,7 +42,8 @@ export class GatewayApiKeyService {
     const key = await this.prisma.$transaction(async (tx) => {
       await assertCreatorCanInvokeGateway(tx, params);
       const key = await createApiKey(tx, {
-        owner: OrganizationId(params.organizationId),
+        tenant: OrganizationId(params.organizationId),
+        scope: UserId(params.session.user.id),
         role: SystemRoleId("AI_GATEWAY"),
         createdBy: UserId(params.session.user.id),
         name: params.name,

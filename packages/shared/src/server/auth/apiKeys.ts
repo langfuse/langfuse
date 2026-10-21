@@ -1,9 +1,4 @@
-import {
-  PrismaClient,
-  ApiKeyScope,
-  type Prisma,
-  type SystemRole,
-} from "@prisma/client";
+import { PrismaClient, ApiKeyScope, type Prisma } from "@prisma/client";
 import { compare, hash } from "bcryptjs";
 import { randomUUID } from "crypto";
 import * as crypto from "crypto";
@@ -12,15 +7,16 @@ import { env } from "../../env";
 import { InvalidRequestError } from "../../errors";
 import {
   ApiKeyId,
-  OrganizationId,
   hasApiKeyKind,
-  hasOrganizationKind,
   hasProjectKind,
   hasSystemRoleKind,
   toSystemRole,
   untag,
+  type OrganizationId,
   type OwnerId,
+  type ProjectId,
   type RoleId,
+  type TenantId,
   type UserId,
 } from "../../features/rbac/types";
 import {
@@ -31,9 +27,6 @@ import { logger } from "../logger";
 import { assignRole } from "../../features/rbac/roleAssignmentService";
 import { invalidateCachedApiKeys } from "./invalidateApiKeys";
 import { withTransaction } from "../utils/withTransaction";
-
-/** userBoundRoles lists the roles whose keys are revoked when the creating user leaves the org. */
-const userBoundRoles: ReadonlySet<SystemRole> = new Set(["AI_GATEWAY"]);
 
 export function getDisplaySecretKey(secretKey: string) {
   return secretKey.slice(0, 6) + "..." + secretKey.slice(-4);
@@ -106,7 +99,7 @@ export function createShaHash(privateKey: string, salt: string): string {
   return hash;
 }
 
-/** createApiKey inserts an api-key row and its single system-role assignment, keyed on the owner. */
+/** createApiKey creates a new api key */
 export async function createApiKey(
   prisma: PrismaClient | Prisma.TransactionClient,
   {
@@ -115,7 +108,8 @@ export async function createApiKey(
     note,
     ...opts
   }: {
-    owner: OwnerId;
+    tenant: TenantId;
+    scope: OrganizationId | ProjectId | UserId;
     role: RoleId;
     createdBy: ApiKeyId | UserId | "system";
     name?: string;
@@ -142,18 +136,20 @@ export async function createApiKey(
     throw new Error("SALT is not set");
   }
 
+  const owner = keyOwner(opts.tenant, opts.scope);
+
   if (hasSystemRoleKind(opts.role)) {
     const role = toSystemRole(opts.role);
-    const isProjectOwner = hasProjectKind(opts.owner);
-    // A key can only carry a role tagged for api keys; a project owner also
+    const isProjectScope = hasProjectKind(owner);
+    // A key can only carry a role tagged for api keys; a project scope also
     // needs a project-kind policy, or the key grants nothing on its project.
     if (
       !isApiKeyRole(role) ||
-      (isProjectOwner && !roleHasProjectPolicy(role))
+      (isProjectScope && !roleHasProjectPolicy(role))
     ) {
       throw new InvalidRequestError(
         `Role ${role} cannot back ${
-          isProjectOwner ? "a project" : "an organization"
+          isProjectScope ? "a project" : "an organization"
         } API key`,
       );
     }
@@ -163,25 +159,25 @@ export async function createApiKey(
     ? { pk: opts.predefinedKeys.publicKey, sk: opts.predefinedKeys.secretKey }
     : await generateKeySet();
 
-  const scope = hasOrganizationKind(opts.owner) ? "ORGANIZATION" : "PROJECT";
   const data: Prisma.ApiKeyUncheckedCreateInput = {
-    ...(scope === "ORGANIZATION"
-      ? { orgId: untag(opts.owner) }
-      : { projectId: untag(opts.owner) }),
+    ...ownerColumns(owner),
+    ...boundUserColumn(opts.scope),
     publicKey: pk,
     hashedSecretKey: createLegacySecretKeyPlaceholder(),
     displaySecretKey: getDisplaySecretKey(sk),
     fastHashedSecretKey: createShaHash(sk, salt),
     note: name ?? note,
-    scope,
     expiresAt: opts.expiresAt ?? null,
     isInAppAgentKey: opts.isInAppAgentKey ?? false,
     ...creatorColumns(opts.createdBy),
-    ...boundUserColumn(opts.role, opts.createdBy),
   };
 
   const created = await withTransaction(prisma, (tx) =>
-    insertApiKey(tx, data, opts),
+    insertApiKey(tx, data, {
+      tenant: opts.tenant,
+      owner,
+      role: opts.role,
+    }),
   );
   return { ...created, secretKey: sk };
 }
@@ -199,34 +195,49 @@ function creatorColumns(
     : { createdByUserId: untag(createdBy) };
 }
 
-/** boundUserColumn binds a user-created key to its creator when its role is user-bound. */
-function boundUserColumn(
-  role: RoleId,
-  createdBy: ApiKeyId | UserId | "system",
-): Pick<Prisma.ApiKeyUncheckedCreateInput, "userId"> {
-  if (createdBy === "system" || hasApiKeyKind(createdBy)) return {};
-  if (!hasSystemRoleKind(role) || !userBoundRoles.has(toSystemRole(role)))
-    return {};
-  return { userId: untag(createdBy) };
+/** keyOwner is the organization or project a key belongs to; a user-scoped key belongs to its tenant. */
+function keyOwner(
+  tenant: TenantId,
+  scope: OrganizationId | ProjectId | UserId,
+): OwnerId {
+  if (hasUserScope(scope)) return tenant;
+  return scope;
 }
 
-/** insertApiKey writes the api-key row and its one owner-keyed role assignment on a single transaction client. */
+/** ownerColumns maps a key's owner to its api-key columns. */
+function ownerColumns(
+  owner: OwnerId,
+): Pick<Prisma.ApiKeyUncheckedCreateInput, "orgId" | "projectId" | "scope"> {
+  if (hasProjectKind(owner)) {
+    return { projectId: untag(owner), scope: "PROJECT" };
+  }
+  return { orgId: untag(owner), scope: "ORGANIZATION" };
+}
+
+/** boundUserColumn binds a user-scoped key to its user. */
+function boundUserColumn(
+  scope: OrganizationId | ProjectId | UserId,
+): Pick<Prisma.ApiKeyUncheckedCreateInput, "userId"> {
+  if (hasUserScope(scope)) return { userId: untag(scope) };
+  return {};
+}
+
+/** hasUserScope narrows an api key's scope to a user. */
+function hasUserScope(
+  scope: OrganizationId | ProjectId | UserId,
+): scope is UserId {
+  return scope.startsWith("user/");
+}
+
+/** insertApiKey writes the api-key row and its one role assignment on a single transaction client. */
 async function insertApiKey(
   tx: Prisma.TransactionClient,
   data: Prisma.ApiKeyUncheckedCreateInput,
-  opts: { owner: OwnerId; role: RoleId },
+  opts: { tenant: TenantId; owner: OwnerId; role: RoleId },
 ) {
   const apiKey = await tx.apiKey.create({ data });
-  const orgId = hasOrganizationKind(opts.owner)
-    ? untag(opts.owner)
-    : (
-        await tx.project.findFirstOrThrow({
-          where: { id: untag(opts.owner) },
-          select: { orgId: true },
-        })
-      ).orgId;
   await assignRole(tx, {
-    tenantId: OrganizationId(orgId),
+    tenantId: opts.tenant,
     principalId: ApiKeyId(apiKey.id),
     roleId: opts.role,
     ownerId: opts.owner,
