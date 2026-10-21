@@ -8,7 +8,7 @@ const mockEnv = vi.hoisted(() => ({
 
 vi.mock("@/src/env.mjs", () => mockEnv);
 
-import type { NextApiRequest } from "next";
+import type { NextApiRequest, NextApiResponse } from "next";
 import { PayloadTooLargeError } from "@langfuse/shared";
 import { validateMcpRequestSecurity } from "@/src/features/mcp/server/security";
 
@@ -16,9 +16,11 @@ const mockRequest = (
   headers: NextApiRequest["headers"],
   body?: unknown,
 ): NextApiRequest => ({ headers, body }) as NextApiRequest;
+const mockResponse = { setHeader: vi.fn() } as unknown as NextApiResponse;
 
 describe("MCP request security", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     mockEnv.env.NEXTAUTH_URL = "https://langfuse.example.com";
     mockEnv.env.NODE_ENV = "production";
     mockEnv.env.LANGFUSE_MCP_ALLOWED_HOSTS = [];
@@ -33,6 +35,7 @@ describe("MCP request security", () => {
           host: "internal-langfuse.example.com",
           origin: "https://internal-langfuse.example.com",
         }),
+        mockResponse,
       ),
     ).toBe("https://internal-langfuse.example.com");
   });
@@ -44,7 +47,10 @@ describe("MCP request security", () => {
     ];
 
     expect(() =>
-      validateMcpRequestSecurity(mockRequest({ host: "evil.example.com" })),
+      validateMcpRequestSecurity(
+        mockRequest({ host: "evil.example.com" }),
+        mockResponse,
+      ),
     ).toThrow("Invalid Host header: evil.example.com");
   });
 
@@ -57,6 +63,7 @@ describe("MCP request security", () => {
           host: "any-host.example.com",
           origin: "https://any-origin.example.com",
         }),
+        mockResponse,
       ),
     ).toBe("https://any-origin.example.com");
   });
@@ -65,11 +72,11 @@ describe("MCP request security", () => {
     [
       "unknown object members",
       () =>
-        Object.fromEntries(Array.from({ length: 10_001 }, (_, i) => [i, null])),
+        Object.fromEntries(Array.from({ length: 50_001 }, (_, i) => [i, null])),
     ],
     [
       "nested array elements",
-      () => ({ params: { arguments: [Array(10_000).fill(null)] } }),
+      () => ({ params: { arguments: [Array(50_000).fill(null)] } }),
     ],
     [
       "metadata aggregated across a batch",
@@ -78,13 +85,13 @@ describe("MCP request security", () => {
           jsonrpc: "2.0",
           id: 1,
           method: "tools/list",
-          params: { _meta: Array(5_000).fill(null) },
+          params: { _meta: Array(25_000).fill(null) },
         },
         {
           jsonrpc: "2.0",
           id: 2,
           method: "tools/list",
-          params: { _meta: Array(5_000).fill(null) },
+          params: { _meta: Array(25_000).fill(null) },
         },
       ],
     ],
@@ -92,7 +99,7 @@ describe("MCP request security", () => {
       "deeply nested input",
       () => {
         let body: unknown = null;
-        for (let i = 0; i < 10_001; i++) body = [body];
+        for (let i = 0; i < 50_001; i++) body = [body];
         return body;
       },
     ],
@@ -102,6 +109,7 @@ describe("MCP request security", () => {
     expect(() =>
       validateMcpRequestSecurity(
         mockRequest({ host: "langfuse.example.com" }, createBody()),
+        mockResponse,
       ),
     ).toThrow(PayloadTooLargeError);
   });
@@ -120,17 +128,68 @@ describe("MCP request security", () => {
     expect(
       validateMcpRequestSecurity(
         mockRequest({ host: "langfuse.example.com" }, body),
+        mockResponse,
       ),
     ).toBeNull();
     expect(
       validateMcpRequestSecurity(
-        mockRequest({ host: "langfuse.example.com" }, Array(10_000).fill(null)),
+        mockRequest({ host: "langfuse.example.com" }, Array(50_000).fill(null)),
+        mockResponse,
       ),
     ).toBeNull();
     expect(() =>
       validateMcpRequestSecurity(
-        mockRequest({ host: "langfuse.example.com" }, Array(10_001).fill(null)),
+        mockRequest({ host: "langfuse.example.com" }, Array(50_001).fill(null)),
+        mockResponse,
       ),
     ).toThrow(PayloadTooLargeError);
+  });
+
+  it("allows a full dataset batch with structured chat inputs", () => {
+    const body = {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/call",
+      params: {
+        name: "batchUpsertDatasetItems",
+        arguments: {
+          datasetId: "test-dataset",
+          items: Array.from({ length: 100 }, () => ({
+            input: Array.from({ length: 100 }, () => ({
+              role: "user",
+              content: "test message",
+            })),
+            expectedOutput: { role: "assistant", content: "test answer" },
+            metadata: { source: "chat", tags: ["test"] },
+          })),
+        },
+      },
+    };
+
+    expect(
+      validateMcpRequestSecurity(
+        mockRequest({ host: "langfuse.example.com" }, body),
+        mockResponse,
+      ),
+    ).toBeNull();
+  });
+
+  it("keeps CORS headers on body-limit errors for allowed origins", () => {
+    expect(() =>
+      validateMcpRequestSecurity(
+        mockRequest(
+          {
+            host: "langfuse.example.com",
+            origin: "https://langfuse.example.com",
+          },
+          Array(50_001).fill(null),
+        ),
+        mockResponse,
+      ),
+    ).toThrow(PayloadTooLargeError);
+    expect(mockResponse.setHeader).toHaveBeenCalledWith(
+      "Access-Control-Allow-Origin",
+      "https://langfuse.example.com",
+    );
   });
 });
