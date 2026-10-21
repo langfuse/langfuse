@@ -84,8 +84,8 @@ type SessionFilterField =
 
 type SessionAggregationField = SessionEventsField | SessionFilterField;
 
-type EventsDb = { e: ClickHouseDatabase["events_core"] };
-type EventsRow = ClickHouseDatabase["events_core"];
+type EventsDb = { e: ClickHouseDatabase["events"] };
+type EventsRow = ClickHouseDatabase["events"];
 type EventsColumn = keyof EventsRow & string;
 type StringColumn = {
   [K in EventsColumn]: EventsRow[K] extends string ? K : never;
