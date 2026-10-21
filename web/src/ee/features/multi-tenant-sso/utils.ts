@@ -164,7 +164,8 @@ type IdTokenSignedResponseAlg =
   | "PS512"
   | "HS256"
   | "HS384"
-  | "HS512";
+  | "HS512"
+  | "EdDSA";
 
 /**
  * Returns the NextAuth `client` config for token endpoint auth method and/or
