@@ -68,10 +68,8 @@ vi.mock("@/src/features/rbac", () => ({
   useHasProjectAccess: () => mocks.hasConfigAccess,
 }));
 vi.mock("@/src/features/notifications", () => ({ showErrorToast: vi.fn() }));
-vi.mock("@/src/features/projects/hooks", () => ({
-  useProject: () => ({
-    project: { scoreEditsDisabled: mocks.scoreEditsDisabled },
-  }),
+vi.mock("@/src/features/scores/hooks/useScoreEditsDisabled", () => ({
+  useScoreEditsDisabled: () => mocks.scoreEditsDisabled,
 }));
 vi.mock("@/src/features/posthog-analytics", () => ({
   usePostHogClientCapture: () => mocks.capture,

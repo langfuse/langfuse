@@ -43,10 +43,8 @@ vi.mock("@/src/features/rbac", () => ({
   useHasProjectAccess: () => access.hasAccess,
 }));
 
-vi.mock("@/src/features/projects/hooks", () => ({
-  useProject: () => ({
-    project: { scoreEditsDisabled: access.scoreEditsDisabled },
-  }),
+vi.mock("@/src/features/scores/hooks/useScoreEditsDisabled", () => ({
+  useScoreEditsDisabled: () => access.scoreEditsDisabled,
 }));
 
 vi.mock("@/src/features/posthog-analytics", () => ({

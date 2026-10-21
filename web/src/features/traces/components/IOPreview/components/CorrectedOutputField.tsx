@@ -14,7 +14,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { useProject } from "@/src/features/projects/hooks";
+import { useScoreEditsDisabled } from "@/src/features/scores/hooks/useScoreEditsDisabled";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { CorrectedOutputDiffDialog } from "./CorrectedOutputDiffDialog";
@@ -47,9 +47,8 @@ interface CorrectedOutputFieldProps {
     read scores without dedup must not do, so editing is off for them. */
 function useCanEditCorrection(projectId: string) {
   const hasAccess = useHasProjectAccess({ projectId, scope: "scores:save" });
-  const project: { scoreEditsDisabled?: boolean } | null | undefined =
-    useProject(projectId).project;
-  return hasAccess && project?.scoreEditsDisabled !== true;
+  const scoreEditsDisabled = useScoreEditsDisabled(projectId);
+  return hasAccess && !scoreEditsDisabled;
 }
 
 /** The Output header's pencil: opens the correction editor. Disabled without
