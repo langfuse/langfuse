@@ -1,11 +1,9 @@
-import { useId, useState } from "react";
+import { useId, useState, type ChangeEvent } from "react";
 import { SkillNameSchema } from "@langfuse/shared";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Input } from "@/src/components/design-system/Input/Input";
-import { Codeblock } from "@/src/components/design-system/Codeblock/Codeblock";
-import { Button } from "@/src/components/design-system/Button/Button";
 import { Accordion } from "@/src/components/design-system/Accordion/Accordion";
-import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
+import { CopyAgentPromptPanel } from "./CopyAgentPromptPanel";
 import { SkillCliSelector } from "./SkillCliSelector";
 import { shellQuote } from "../utils/shellQuote";
 
@@ -31,8 +29,6 @@ export function SkillInstallationOptions({
   names,
 }: SkillInstallationOptionsProps) {
   const id = useId();
-  const { copy, isCopied } = useCopyToClipboard();
-  const [copyError, setCopyError] = useState(false);
   const [by, setBy] = useState<"all" | "name" | "tag">(initialValues.by);
   const [name, setName] = useState(initialValues.name);
   const [selector, setSelector] = useState<string>(
@@ -104,14 +100,13 @@ ${command}
 Use local project credentials. If missing, ask me to configure them locally; never paste secrets into chat or commit them.
 
 Verify the skills are installed in ${JSON.stringify(directory)} and retain langfuse-skills-lock.json for reproducible installs.`;
-  const handleCopyPrompt = async () => {
-    setCopyError(false);
-    try {
-      await copy(prompt);
-    } catch {
-      setCopyError(true);
-    }
+  const handleByChange = (value: string) => {
+    if (value === "all" || value === "name" || value === "tag") setBy(value);
   };
+  const handleTagChange = (event: ChangeEvent<HTMLInputElement>) =>
+    setTag(event.target.value);
+  const handleVersionChange = (event: ChangeEvent<HTMLInputElement>) =>
+    setVersion(event.target.value);
 
   return (
     <div className="ph-no-capture flex flex-col gap-4">
@@ -124,18 +119,7 @@ Verify the skills are installed in ${JSON.stringify(directory)} and retain langf
             <Accordion.Content>
               <div className="flex flex-col gap-3 py-3">
                 <div className="grid min-w-0 gap-4 sm:grid-cols-3">
-                  <Tabs
-                    value={by}
-                    onValueChange={(value) => {
-                      if (
-                        value === "all" ||
-                        value === "name" ||
-                        value === "tag"
-                      ) {
-                        setBy(value);
-                      }
-                    }}
-                  >
+                  <Tabs value={by} onValueChange={handleByChange}>
                     <Tabs.List
                       aria-label="Install by"
                       variant="inset"
@@ -181,7 +165,7 @@ Verify the skills are installed in ${JSON.stringify(directory)} and retain langf
                             <Input
                               id={`${id}-tag`}
                               value={selectedTag}
-                              onChange={(event) => setTag(event.target.value)}
+                              onChange={handleTagChange}
                               placeholder="my-tag"
                             />
                           </div>
@@ -214,7 +198,7 @@ Verify the skills are installed in ${JSON.stringify(directory)} and retain langf
                           id={`${id}-version`}
                           type="number"
                           value={version}
-                          onChange={(event) => setVersion(event.target.value)}
+                          onChange={handleVersionChange}
                           aria-invalid={!validVersion}
                         />
                       </div>
@@ -274,32 +258,7 @@ Verify the skills are installed in ${JSON.stringify(directory)} and retain langf
             {error}
           </p>
         ) : (
-          <>
-            <div className="bg-muted/30 flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
-              <div className="flex flex-col gap-1">
-                <h3 className="font-bold">Set up with your coding agent</h3>
-                <p className="text-muted-foreground text-xs">
-                  Paste this prompt into Claude, Cursor, Copilot, or another
-                  coding agent.
-                </p>
-              </div>
-              <Button
-                text={isCopied && !copyError ? "Copied" : "Copy prompt"}
-                onClick={handleCopyPrompt}
-              />
-            </div>
-            {copyError && (
-              <p role="alert" className="text-destructive">
-                Could not copy the prompt. Please try again.
-              </p>
-            )}
-            <div className="flex flex-col gap-2">
-              <p className="text-muted-foreground text-xs">
-                Or run in your project directory:
-              </p>
-              <Codeblock language="bash" value={command} variant="read-only" />
-            </div>
-          </>
+          <CopyAgentPromptPanel prompt={prompt} command={command} />
         )}
       </div>
     </div>
