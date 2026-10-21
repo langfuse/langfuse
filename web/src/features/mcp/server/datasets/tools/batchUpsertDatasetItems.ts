@@ -1,5 +1,6 @@
 import { createDatasetItemForApi } from "@/src/features/datasets/server";
 import { PostDatasetItemsV1Response } from "@/src/features/public-api/server";
+import { MAX_MCP_REQUEST_ELEMENTS } from "@langfuse/shared";
 import { buildDatasetItemUrl } from "@langfuse/shared/src/server";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
@@ -9,7 +10,9 @@ export const [batchUpsertDatasetItemsTool, handleBatchUpsertDatasetItems] =
   defineTool({
     name: "batchUpsertDatasetItems",
     description:
-      "Upsert multiple dataset items in one dataset. Items are processed in order. The operation stops on the first failure and is not atomic.",
+      "Upsert up to 100 dataset items in one dataset. " +
+      `The entire MCP request must also fit within ${MAX_MCP_REQUEST_ELEMENTS} object members and array elements combined, including nested input, expectedOutput, and metadata. ` +
+      "Use smaller batches for large structured items. Items are processed in order. The operation stops on the first failure and is not atomic.",
     action: "datasets:CUD",
     baseSchema: BatchUpsertDatasetItemsMcpInput,
     inputSchema: BatchUpsertDatasetItemsMcpInput,

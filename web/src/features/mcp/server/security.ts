@@ -1,11 +1,13 @@
 import { env } from "@/src/env.mjs";
 import { getBaseUrl } from "@/src/utils/base-url";
-import { ForbiddenError, PayloadTooLargeError } from "@langfuse/shared";
+import {
+  ForbiddenError,
+  MAX_MCP_REQUEST_ELEMENTS,
+  PayloadTooLargeError,
+} from "@langfuse/shared";
 import { type NextApiRequest, type NextApiResponse } from "next";
 
 const LOCALHOST_HOSTNAMES = ["localhost", "127.0.0.1", "[::1]"] as const;
-/** Leaves headroom for 100 dataset items with 100 chat messages each. */
-const MAX_MCP_REQUEST_ELEMENTS = 50_000;
 
 /** Validates MCP requests and preserves CORS headers on allowed-origin body errors. */
 export function validateMcpRequestSecurity(
@@ -158,7 +160,9 @@ function validateMcpRequestBody(body: unknown): void {
       if (!Object.hasOwn(value, key)) continue;
       if (++elements > MAX_MCP_REQUEST_ELEMENTS) {
         throw new PayloadTooLargeError(
-          `MCP request exceeds ${MAX_MCP_REQUEST_ELEMENTS} object members and array elements`,
+          `MCP request exceeds ${MAX_MCP_REQUEST_ELEMENTS} object members and array elements across the entire request. ` +
+            "No tools in this request were executed. Split batches into smaller requests before retrying. " +
+            "If a single item cannot fit, ask the user how to proceed. Do not truncate data or retry the same request unchanged.",
         );
       }
 

@@ -174,7 +174,7 @@ describe("MCP request security", () => {
     ).toBeNull();
   });
 
-  it("keeps CORS headers on body-limit errors for allowed origins", () => {
+  it("keeps CORS headers and recovery guidance on body-limit errors", () => {
     expect(() =>
       validateMcpRequestSecurity(
         mockRequest(
@@ -186,7 +186,12 @@ describe("MCP request security", () => {
         ),
         mockResponse,
       ),
-    ).toThrow(PayloadTooLargeError);
+    ).toThrow(
+      expect.objectContaining({
+        httpCode: 422,
+        message: expect.stringContaining("Split batches into smaller requests"),
+      }) as Error,
+    );
     expect(mockResponse.setHeader).toHaveBeenCalledWith(
       "Access-Control-Allow-Origin",
       "https://langfuse.example.com",

@@ -56,7 +56,10 @@ import {
 } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 import { LANGFUSE_IN_APP_AGENT_SKILLS } from "./skills";
 import type { InAppAgentSandbox } from "./sandbox";
-import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@langfuse/shared";
+import {
+  DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS,
+  MCP_REQUEST_LIMIT_INSTRUCTIONS,
+} from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
 import {
   IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER,
@@ -1240,7 +1243,12 @@ async function createMastraAdapter(params: {
       id: "langfuse-in-app-assistant",
       name: ASSISTANT_TITLE,
       instructions: () =>
-        [params.instructions, CONTEXT_TOOL_INSTRUCTION, developerGuidance]
+        [
+          params.instructions,
+          CONTEXT_TOOL_INSTRUCTION,
+          MCP_REQUEST_LIMIT_INSTRUCTIONS,
+          developerGuidance,
+        ]
           .filter(Boolean)
           .join("\n\n"),
       model,
