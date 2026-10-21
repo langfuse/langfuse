@@ -97,8 +97,40 @@ function toParamKey(projectId: string): string {
 }
 
 /**
+ * Group exact serialized cutoffs for candidate discovery. Batch deletion uses
+ * separate per-project predicates.
+ */
+function buildCandidateDiscoveryConditions(
+  timestampColumn: string,
+  projects: ProjectRetention[],
+): { conditions: string; params: Record<string, unknown> } {
+  const projectIdsByCutoff = new Map<string, string[]>();
+  for (const project of projects) {
+    const cutoff = convertDateToClickhouseDateTime(project.cutoffDate);
+    const projectIds = projectIdsByCutoff.get(cutoff);
+    if (projectIds) {
+      projectIds.push(project.projectId);
+    } else {
+      projectIdsByCutoff.set(cutoff, [project.projectId]);
+    }
+  }
+
+  const params: Record<string, unknown> = {};
+  const conditions = Array.from(
+    projectIdsByCutoff,
+    ([cutoff, projectIds], index) => {
+      params[`discoveryProjectIds_${index}`] = projectIds;
+      params[`discoveryCutoff_${index}`] = cutoff;
+      return `(project_id IN ({discoveryProjectIds_${index}: Array(String)}) AND ${timestampColumn} < {discoveryCutoff_${index}: DateTime64(3)})`;
+    },
+  ).join(" OR ");
+
+  return { conditions, params };
+}
+
+/**
  * Build OR conditions for project-specific cutoffs.
- * Used by candidate discovery and delete queries.
+ * Used by batch deletion.
  * Uses hashed projectId keys to prevent index mismatch bugs.
  */
 function buildRetentionConditions(
@@ -476,7 +508,7 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
       return { candidates: [], complete: true };
     }
 
-    const { conditions, params } = buildRetentionConditions(
+    const { conditions, params } = buildCandidateDiscoveryConditions(
       timestampColumn,
       projects,
     );
