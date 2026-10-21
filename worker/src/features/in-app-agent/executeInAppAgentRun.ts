@@ -12,7 +12,12 @@ import {
   createApiKey,
   deleteInAppAgentMcpApiKeyFromDb,
 } from "@langfuse/shared/src/server/auth/apiKeys";
-import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
 import {
   InAppAgentRunErrorCode,
   InAppAgentRunRequestSchema,
@@ -393,7 +398,8 @@ export async function executeInAppAgentRun(params: {
     // Link the key atomically to prevent orphan credentials.
     mcpApiKey = await prisma.$transaction(async (tx) => {
       const key = await createApiKey(tx, {
-        owner: ProjectId(projectId),
+        tenant: OrganizationId(project.orgId),
+        scope: ProjectId(projectId),
         role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
         createdBy: UserId(triggeredByUserId),
         name: inAppAgentApiKeyName,
