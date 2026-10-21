@@ -49,6 +49,7 @@ type SettingsTableFilter =
       type: "select";
       value: string;
       onChange: (value: string) => void;
+      muted?: boolean;
     });
 
 type SettingsTableFilterBase = {
@@ -260,14 +261,34 @@ function SettingsTableFilterInput({ filter }: { filter: SettingsTableFilter }) {
 
   if (filter.type === "select") {
     return (
-      <div className="w-52 shrink-0">
-        <SelectInput
-          aria-label={ariaLabel}
-          value={filter.value}
-          options={filter.options}
-          onValueChange={filter.onChange}
-          placeholder={filter.placeholder}
-        />
+      <div className="grid shrink-0">
+        {/* The open menu is as wide as the trigger, so the trigger is sized to
+            its longest option rather than to the current selection. */}
+        {filter.options.map((option) => (
+          <div
+            key={option.value}
+            inert
+            aria-hidden="true"
+            className="invisible col-start-1 row-start-1"
+          >
+            <SelectInput
+              value={option.value}
+              options={filter.options}
+              onValueChange={filter.onChange}
+              placeholder={filter.placeholder}
+            />
+          </div>
+        ))}
+        <div className="col-start-1 row-start-1">
+          <SelectInput
+            aria-label={ariaLabel}
+            value={filter.value}
+            options={filter.options}
+            onValueChange={filter.onChange}
+            placeholder={filter.placeholder}
+            muted={filter.muted}
+          />
+        </div>
       </div>
     );
   }

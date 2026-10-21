@@ -152,6 +152,7 @@ function toGatewayKeySettingsFilter({
     options: GATEWAY_KEY_FILTER_OPTIONS,
     value: includeGatewayKeys ? ALL_KEYS : EXCLUDE_GATEWAY_KEYS,
     onChange: (value) => onIncludeGatewayKeysChange(value === ALL_KEYS),
+    muted: !includeGatewayKeys,
   };
 }
 
