@@ -3,6 +3,7 @@ import {
   convertDateToClickhouseDateTime,
 } from "../clickhouse/client";
 import { buildClickHouseLogComment } from "../clickhouse/queryTags";
+import { OBSERVATIONS_TO_TRACE_INTERVAL_DAYS } from "../repositories/constants";
 import {
   queryClickhouse,
   queryClickhouseStream,
@@ -69,6 +70,10 @@ function timeRangeParams(timeRange: TopicTimeRange) {
     to: convertDateToClickhouseDateTime(to),
   };
 }
+
+/** Summaries start at a trace's first observation; later observations can follow within this window. */
+export const TRACE_START_SLACK_MS =
+  OBSERVATIONS_TO_TRACE_INTERVAL_DAYS * 86_400_000;
 
 const LOOKUP_BATCH_SIZE = 1000;
 const INSERT_BATCH_SIZE = 10_000;
@@ -973,43 +978,34 @@ export async function readLatestTopicAssignments(
   return rows.map(assignmentResult);
 }
 
-// Same rule as readLatestTopicAssignments + currentTopicResults: the newest assignment
-// per trace and facet counts only while it still points at the trace's latest summary.
-function currentTraceAssignmentsSql(scopeSql: string) {
-  return `SELECT trace_id, facet_id, topic_id FROM (
-      SELECT * FROM topic_assignments
-      WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${scopeSql}
-        AND (clustering_run_id = '' OR clustering_run_id IN {publishedRunIds:Array(String)})
-      ORDER BY facet_version DESC, assigned_at DESC, clustering_run_id DESC, origin DESC
-      LIMIT 1 BY project_id, facet_id, trace_id
-    ) WHERE ${latestSummaryFilterSql(
-      scopeSql,
-      summarySourceKeySql,
-      "facet_id, facet_version, trace_id, if(trace_id = '', session_id, ''), unit_start_time, summary_processed_at",
-    )}`;
-}
-
 /** Current topic per facet for a page of traces; empty topic ids are outliers. */
 export async function readCurrentTraceTopics(
   projectId: string,
   {
-    traceIds,
+    traces,
     facetIds,
     publishedRunIds,
-    timeRange,
   }: {
-    traceIds: string[];
+    traces: { traceId: string; timestamp: Date }[];
     facetIds: string[];
     publishedRunIds: string[];
-    timeRange: TopicTimeRange;
   },
 ) {
+  const times = traces.map((trace) => trace.timestamp.getTime());
+  // A row can start up to OBSERVATIONS_TO_TRACE_INTERVAL_DAYS after the trace's first observation.
+  const timeRange = {
+    from: new Date(Math.min(...times) - TRACE_START_SLACK_MS),
+    to: new Date(Math.max(...times) + 1),
+  };
   const rows = await queryClickhouse<{
     traceId: string;
     facetId: string;
     topicId: string;
+    topicVersionId: string;
+    runId: string;
   }>({
-    query: `SELECT trace_id AS traceId, facet_id AS facetId, topic_id AS topicId
+    query: `SELECT trace_id AS traceId, facet_id AS facetId, topic_id AS topicId,
+        topic_version_id AS topicVersionId, clustering_run_id AS runId
       FROM (${currentTraceAssignmentsSql(
         "facet_id IN {facetIds:Array(String)} AND trace_id IN {traceIds:Array(String)}",
       )})`,
@@ -1017,7 +1013,7 @@ export async function readCurrentTraceTopics(
       projectId,
       ...timeRangeParams(timeRange),
       facetIds,
-      traceIds,
+      traceIds: [...new Set(traces.map((trace) => trace.traceId))],
       publishedRunIds,
     },
     tags: { route: "topics-trace-topics", projectId },
@@ -1069,4 +1065,20 @@ export function currentTopicTraceIdsCondition(
       ]),
     ),
   };
+}
+
+// Same rule as readLatestTopicAssignments + currentTopicResults: the newest assignment
+// per trace and facet counts only while it still points at the trace's latest summary.
+function currentTraceAssignmentsSql(scopeSql: string) {
+  return `SELECT trace_id, facet_id, topic_id, topic_version_id, clustering_run_id FROM (
+      SELECT * FROM topic_assignments
+      WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${scopeSql}
+        AND (clustering_run_id = '' OR clustering_run_id IN {publishedRunIds:Array(String)})
+      ORDER BY facet_version DESC, assigned_at DESC, clustering_run_id DESC, origin DESC
+      LIMIT 1 BY project_id, facet_id, trace_id
+    ) WHERE ${latestSummaryFilterSql(
+      scopeSql,
+      summarySourceKeySql,
+      "facet_id, facet_version, trace_id, if(trace_id = '', session_id, ''), unit_start_time, summary_processed_at",
+    )}`;
 }

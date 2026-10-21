@@ -1,5 +1,6 @@
 /* eslint-disable no-nested-ternary */
-import { isTopicFilter, topicFilterConditions } from "../topics/trace-filter";
+import { isTopicFilter } from "../../topics";
+import { topicFilterConditions } from "../topics/trace-filter";
 import { prisma } from "../../db";
 import {
   TupleParam,

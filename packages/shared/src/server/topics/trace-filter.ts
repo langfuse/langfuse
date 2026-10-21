@@ -1,39 +1,12 @@
 import { type FilterState } from "../../types";
+import { isTopicFilter } from "../../topics";
 import { InvalidRequestError } from "../../errors";
 import { isTopicsProjectEnabled } from "./config";
-import { currentTopicTraceIdsCondition } from "./clickhouse";
+import {
+  currentTopicTraceIdsCondition,
+  TRACE_START_SLACK_MS,
+} from "./clickhouse";
 import { getPublishedTopicMaps, listTopicFacets } from "./postgres";
-
-/** Tracing filter column: key is the facet name, values are topic names. */
-export const TOPIC_FILTER_COLUMN = "topics";
-
-const DAY_MS = 86_400_000;
-
-type TopicFilter = Extract<FilterState[number], { type: "categoryOptions" }>;
-
-export function isTopicFilter(
-  filter: FilterState[number],
-): filter is TopicFilter {
-  return (
-    filter.type === "categoryOptions" && filter.column === TOPIC_FILTER_COLUMN
-  );
-}
-
-// Summaries start at a trace's first observation, so the lower bound gets a day of slack.
-function topicTimeRange(filter: FilterState) {
-  const bounds = filter.flatMap((condition) =>
-    condition.type === "datetime" &&
-    (condition.column === "startTime" || condition.column === "Start Time")
-      ? [condition]
-      : [],
-  );
-  const lower = bounds.find((condition) => condition.operator.startsWith(">"));
-  const upper = bounds.find((condition) => condition.operator.startsWith("<"));
-  return {
-    from: lower ? new Date(lower.value.getTime() - DAY_MS) : new Date(0),
-    to: new Date((upper?.value ?? new Date()).getTime() + 1),
-  };
-}
 
 /**
  * Turns topic filters into ClickHouse conditions on the events query, so membership is
@@ -75,4 +48,22 @@ export async function topicFilterConditions(
       }),
     ];
   });
+}
+
+// Summaries start at a trace's first observation, so the lower bound gets the trace slack.
+function topicTimeRange(filter: FilterState) {
+  const bounds = filter.flatMap((condition) =>
+    condition.type === "datetime" &&
+    (condition.column === "startTime" || condition.column === "Start Time")
+      ? [condition]
+      : [],
+  );
+  const lower = bounds.find((condition) => condition.operator.startsWith(">"));
+  const upper = bounds.find((condition) => condition.operator.startsWith("<"));
+  return {
+    from: lower
+      ? new Date(lower.value.getTime() - TRACE_START_SLACK_MS)
+      : new Date(0),
+    to: new Date((upper?.value ?? new Date()).getTime() + 1),
+  };
 }

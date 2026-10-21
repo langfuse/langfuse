@@ -405,18 +405,7 @@ function matchingFilterOptions(
   for (const f of valueMatchFields) {
     for (const o of observedValues(observed, f.id)) {
       const v = o.value.toLowerCase();
-      const rank = (() => {
-        if (v === q) {
-          return 0;
-        }
-        if (v.startsWith(q)) {
-          return 1;
-        }
-        if (v.includes(q)) {
-          return 2;
-        }
-        return null;
-      })();
+      const rank = matchRank(v, q);
       if (rank === null) continue;
       const insert = `${f.id}:${serializeValue(o.value)}`;
       ranked.push({
@@ -439,8 +428,7 @@ function matchingFilterOptions(
     for (const key of observedValues(observed, column)) {
       for (const o of observedValues(observed, `${column}.${key.value}`)) {
         const v = o.value.toLowerCase();
-        const rank =
-          v === q ? 0 : v.startsWith(q) ? 1 : v.includes(q) ? 2 : null;
+        const rank = matchRank(v, q);
         if (rank === null) continue;
         const insert = `${namespace}.${quoteIfNeeded(key.value)}:${serializeValue(o.value)}`;
         ranked.push({
@@ -460,6 +448,14 @@ function matchingFilterOptions(
   }
   ranked.sort((a, b) => a.rank - b.rank || b.count - a.count);
   return ranked.slice(0, MAX_VALUE_MATCHES).map((m) => m.option);
+}
+
+/** Exact match first, then prefix, then substring; null when the value does not match. */
+function matchRank(value: string, query: string) {
+  if (value === query) return 0;
+  if (value.startsWith(query)) return 1;
+  if (value.includes(query)) return 2;
+  return null;
 }
 
 /**

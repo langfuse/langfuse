@@ -38,8 +38,7 @@ import {
   EVENT_FILTER_OPTIONS_COLUMNS,
 } from "./eventsService";
 import { loadTraceTranscript } from "./loadTraceTranscript";
-import { throwIfTopicFiltersNotAllowed } from "@/src/features/topics/server/topicsServerAccess";
-import { isTopicFilter } from "@langfuse/shared/topics/server";
+import { isTopicFilter } from "@langfuse/shared/topics";
 import {
   instrumentAsync,
   getScoresAndCorrectionsForTraces,
@@ -145,11 +144,6 @@ export const eventsRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(GetAllEventsInput)
     .query(async ({ input, ctx }) => {
-      throwIfTopicFiltersNotAllowed(
-        ctx.session,
-        ctx.session.projectId,
-        input.filter ?? [],
-      );
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],
         prisma: ctx.prisma,
@@ -233,11 +227,6 @@ export const eventsRouter = createTRPCRouter({
   listCursor: protectedProjectProcedure
     .input(GetEventsCursorInput)
     .query(async ({ input, ctx }) => {
-      throwIfTopicFiltersNotAllowed(
-        ctx.session,
-        ctx.session.projectId,
-        input.filter ?? [],
-      );
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],
         prisma: ctx.prisma,
@@ -276,11 +265,6 @@ export const eventsRouter = createTRPCRouter({
   countAll: protectedProjectProcedure
     .input(EventsTableOptions)
     .query(async ({ input, ctx }) => {
-      throwIfTopicFiltersNotAllowed(
-        ctx.session,
-        ctx.session.projectId,
-        input.filter ?? [],
-      );
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],
         prisma: ctx.prisma,

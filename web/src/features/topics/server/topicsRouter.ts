@@ -25,6 +25,7 @@ import {
   getTopicSummaryCounts,
   listTopicExecutions,
   listTopicFacets,
+  isTopicsProjectEnabled,
   getTopicFacetVersion,
   getLatestFacetSummaries,
   createTopicFacet,
@@ -50,7 +51,7 @@ import {
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
-import { canViewTopicsOnServer } from "./topicsServerAccess";
+import { canViewTopics } from "@/src/features/topics/topicsAccess";
 import {
   previewTopicTraces,
   resolveTopicTraceSelection,
@@ -73,7 +74,12 @@ const mapInput = resultInput.extend({ runId: topicIdSchema });
 const topicsProcedure = protectedProjectProcedureWithoutTracing
   .input(projectInput)
   .use(({ ctx, input, next }) => {
-    if (!canViewTopicsOnServer(ctx.session, input.projectId))
+    // The allowlist comes from env here, so admins outside the project are covered too.
+    const project = {
+      id: input.projectId,
+      topicsEnabled: isTopicsProjectEnabled(input.projectId),
+    };
+    if (!canViewTopics(ctx.session, project))
       throw new LangfuseNotFoundError("Topics is not available.");
     return next();
   });

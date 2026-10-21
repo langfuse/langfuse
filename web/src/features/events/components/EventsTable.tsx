@@ -139,7 +139,15 @@ import {
 import { getAppRootSavedViewComparisonFilters } from "@/src/features/events/lib/appRootDefaultFilterPolicy";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import { useCanViewTopics } from "@/src/features/topics/topicsAccess";
+import {
+  isTopicFilter,
+  TOPIC_FILTERS_IN_BATCH_JOBS_MESSAGE,
+} from "@langfuse/shared/topics";
 import { TraceTopicChips } from "@/src/features/topics/trace/TraceTopicChips";
+import {
+  useTopicFilterOptions,
+  useTraceTopicsForRows,
+} from "@/src/features/topics/trace/useTracingTopics";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
 
 // Disabled for now because perhaps confusing
@@ -338,10 +346,7 @@ export default function ObservationsEventsTable({
       ),
     [omittedFilter, showTopicFilter],
   );
-  const topicFilterOptions = api.topics.filterOptions.useQuery(
-    { projectId },
-    { enabled: showTopicFilter, staleTime: 5 * 60 * 1000 },
-  );
+  const topicFilterOptions = useTopicFilterOptions(projectId, showTopicFilter);
 
   const { setDetailPageList } = useDetailPageLists();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
@@ -754,8 +759,8 @@ export default function ObservationsEventsTable({
     filterOptions,
   );
   const facetOptions = useMemo(
-    () => ({ ...observedFacetOptions, topics: topicFilterOptions.data }),
-    [observedFacetOptions, topicFilterOptions.data],
+    () => ({ ...observedFacetOptions, topics: topicFilterOptions }),
+    [observedFacetOptions, topicFilterOptions],
   );
 
   const queryFilter = useSidebarFilterPresentation(
@@ -798,6 +803,7 @@ export default function ObservationsEventsTable({
       ...(promptVersion ? ["promptVersion"] : []),
     ],
     tableStatePolicy.useHostSearchScopes,
+    showTopicFilter,
   );
   const sidebarAiFiltersEnabled =
     !searchBarMode || !searchRegistry.aiFilterPrompt;
@@ -830,14 +836,14 @@ export default function ObservationsEventsTable({
     () =>
       withMetadataPathOptions(
         toObservedOptions(
-          { ...filterOptions, topics: topicFilterOptions.data },
+          { ...filterOptions, topics: topicFilterOptions },
           isFilterOptionsPending,
         ),
         observedMetadataPaths,
       ),
     [
       filterOptions,
-      topicFilterOptions.data,
+      topicFilterOptions,
       isFilterOptionsPending,
       observedMetadataPaths,
     ],
@@ -1194,6 +1200,9 @@ export default function ObservationsEventsTable({
     (f) => f.column === "commentCount" || f.column === "commentContent",
   );
 
+  // Query-based batch jobs cannot resolve topic membership yet; the server rejects them too.
+  const hasTopicFilter = filterState.some(isTopicFilter);
+
   const isSelectAllCountUnavailable = isTotalCountLoading || isTotalCountError;
   const selectAllCountUnavailableReason = (() => {
     if (isTotalCountLoading) {
@@ -1216,12 +1225,15 @@ export default function ObservationsEventsTable({
             // batch path deletes by query and ignores traceIds. Page
             // selection needs concrete trace IDs.
             disabled: selectAll
-              ? hasCommentFilter
+              ? hasCommentFilter || hasTopicFilter
               : selectedTraceIds.length === 0,
-            disabledReason:
-              selectAll && hasCommentFilter
-                ? "Batch deletion does not support comment filters. Remove the comment filter to delete."
-                : "Selected observations are missing trace IDs.",
+            disabledReason: (() => {
+              if (selectAll && hasCommentFilter)
+                return "Batch deletion does not support comment filters. Remove the comment filter to delete.";
+              if (selectAll && hasTopicFilter)
+                return TOPIC_FILTERS_IN_BATCH_JOBS_MESSAGE;
+              return "Selected observations are missing trace IDs.";
+            })(),
             // The server keys every trace-delete batch row under the traces
             // table (row id `${projectId}-traces-trace-delete`), whichever
             // view dispatched it — the events-vs-traces read routing travels
@@ -1245,6 +1257,8 @@ export default function ObservationsEventsTable({
       label: "Add to Annotation Queue",
       description: `Add ${itemCountDisplay} selected observations to an annotation queue.`,
       customDialog: true,
+      disabled: selectAll && hasTopicFilter,
+      disabledReason: TOPIC_FILTERS_IN_BATCH_JOBS_MESSAGE,
       accessCheck: {
         scope: "annotationQueues:CUD",
       },
@@ -1255,8 +1269,10 @@ export default function ObservationsEventsTable({
       label: "Add to Dataset",
       description: "Add selected observations to a dataset",
       customDialog: true,
-      disabled: isSelectAllCountUnavailable,
-      disabledReason: selectAllCountUnavailableReason,
+      disabled: hasTopicFilter || isSelectAllCountUnavailable,
+      disabledReason: hasTopicFilter
+        ? TOPIC_FILTERS_IN_BATCH_JOBS_MESSAGE
+        : selectAllCountUnavailableReason,
       accessCheck: {
         scope: "datasets:CUD",
       },
@@ -1268,8 +1284,10 @@ export default function ObservationsEventsTable({
       description: "Run evaluations on selected observations.",
       customDialog: true,
       icon: <LightbulbIcon size="base" __rawClassName="sm:mr-2" />,
-      disabled: isSelectAllCountUnavailable,
-      disabledReason: selectAllCountUnavailableReason,
+      disabled: hasTopicFilter || isSelectAllCountUnavailable,
+      disabledReason: hasTopicFilter
+        ? TOPIC_FILTERS_IN_BATCH_JOBS_MESSAGE
+        : selectAllCountUnavailableReason,
       accessCheck: {
         scope: "evaluationRule:CUD",
       },
@@ -1700,7 +1718,7 @@ export default function ObservationsEventsTable({
             defaultHidden: true,
             cell: ({ row }) => (
               <TraceTopicChips
-                topics={rowTopics.data?.[row.original.traceId ?? ""] ?? []}
+                topics={rowTopics?.[row.original.traceId ?? ""] ?? []}
               />
             ),
           } satisfies LangfuseColumnDef<EventsTableRow>,
@@ -1714,21 +1732,10 @@ export default function ObservationsEventsTable({
       columns,
     );
 
-  // Topics belong to traces; one lookup per page, only while the column is shown.
-  const topicTraces = (observations.rows ?? []).flatMap((observation) =>
-    observation.traceId
-      ? [{ traceId: observation.traceId, timestamp: observation.startTime }]
-      : [],
-  );
-  const rowTopics = api.topics.forTraces.useQuery(
-    { projectId, traces: topicTraces },
-    {
-      enabled:
-        canViewTopics &&
-        columnVisibility.topics === true &&
-        topicTraces.length > 0,
-      staleTime: 60 * 1000,
-    },
+  const rowTopics = useTraceTopicsForRows(
+    projectId,
+    observations.rows ?? [],
+    canViewTopics && columnVisibility.topics === true,
   );
 
   const [columnOrder, setColumnOrder] = useColumnOrder<EventsTableRow>(
@@ -1971,7 +1978,10 @@ export default function ObservationsEventsTable({
                       observed={observedOptions}
                       erroredColumns={erroredColumns}
                       fieldReason={
-                        chartActive ? chartSearchFieldReason : undefined
+                        chartActive
+                          ? (name: string) =>
+                              chartSearchFieldReason(name, searchRegistry)
+                          : undefined
                       }
                       freeTextReason={
                         chartFreeTextIgnored
@@ -2105,7 +2115,10 @@ export default function ObservationsEventsTable({
                     observed={observedOptions}
                     erroredColumns={erroredColumns}
                     fieldReason={
-                      chartActive ? chartSearchFieldReason : undefined
+                      chartActive
+                        ? (name: string) =>
+                            chartSearchFieldReason(name, searchRegistry)
+                        : undefined
                     }
                     freeTextReason={
                       chartFreeTextIgnored

@@ -3,13 +3,18 @@ import {
   EVENTS_FIELD_REGISTRY,
 } from "@/src/features/search-bar";
 
+/** `topics` adds the `topics.<facet>:<topic>` syntax; only pass it when canViewTopics passes. */
 export function eventsSearchRegistry(
   omittedColumns: readonly string[],
   useHostSearchScopes = false,
+  topics = false,
 ) {
-  if (omittedColumns.length === 0 && !useHostSearchScopes)
+  // Topics is gated by `topics`, not the omitted columns, and is not part of the Ask AI vocabulary.
+  const omitted = new Set(
+    omittedColumns.filter((column) => column !== "topics"),
+  );
+  if (omitted.size === 0 && !useHostSearchScopes && !topics)
     return EVENTS_FIELD_REGISTRY;
-  const omitted = new Set(omittedColumns);
   return createFieldRegistry({
     ...EVENTS_FIELD_REGISTRY,
     fields: EVENTS_FIELD_REGISTRY.fields.filter(
@@ -19,11 +24,7 @@ export function eventsSearchRegistry(
       (column) => !omitted.has(column.id),
     ),
     metadata: EVENTS_FIELD_REGISTRY.metadata && !omitted.has("metadata"),
-    keyedOptionNamespaces: Object.fromEntries(
-      Object.entries(EVENTS_FIELD_REGISTRY.keyedOptionNamespaces ?? {}).filter(
-        ([, column]) => !omitted.has(column),
-      ),
-    ),
+    keyedOptionNamespaces: topics ? { topics: "topics" } : undefined,
     scores:
       EVENTS_FIELD_REGISTRY.scores &&
       !["scores_avg", "score_categories", "score_booleans"].some((column) =>
@@ -42,8 +43,7 @@ export function eventsSearchRegistry(
     freeTextScopeLabel: useHostSearchScopes
       ? "IDs, user IDs and names"
       : EVENTS_FIELD_REGISTRY.freeTextScopeLabel,
-    // A scoped registry cannot use the full events AI vocabulary. Topics is not part
-    // of that vocabulary, so hiding it (Topics unavailable) keeps Ask AI on.
-    aiFilterPrompt: omittedColumns.every((column) => column === "topics"),
+    // A scoped registry cannot use the full events AI vocabulary.
+    aiFilterPrompt: omitted.size === 0,
   });
 }

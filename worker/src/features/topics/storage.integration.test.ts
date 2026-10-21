@@ -896,14 +896,18 @@ describe("Topics definition persistence", () => {
       from: new Date("2026-08-31T00:00:00.000Z"),
       to: new Date("2026-09-01T00:00:00.000Z"),
     };
-    const traceIds = [current, resummarized, reassigned, unpublished];
+    // Rows can start well after the trace's first observation (here 30 hours).
+    const rowStart = new Date(
+      Date.parse(summary.unitStartTime) + 30 * 3_600_000,
+    );
 
     // Column: one read across facets for a page of traces.
     const topics = await readCurrentTraceTopics(otherProjectId, {
-      traceIds,
+      traces: [current, resummarized, reassigned, unpublished].map(
+        (traceId) => ({ traceId, timestamp: rowStart }),
+      ),
       facetIds: [summary.facetId],
       publishedRunIds: [],
-      timeRange,
     });
     expect(
       topics.map(({ traceId, topicId }) => [traceId, topicId]).sort(),

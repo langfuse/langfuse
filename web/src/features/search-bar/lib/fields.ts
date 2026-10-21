@@ -583,7 +583,6 @@ export const EVENTS_FIELD_REGISTRY = createFieldRegistry({
   fields: FIELDS,
   columns: eventsTableCols,
   metadata: true,
-  keyedOptionNamespaces: { topics: "topics" },
   scores: true,
   traceScores: true,
   allowFreeText: true,

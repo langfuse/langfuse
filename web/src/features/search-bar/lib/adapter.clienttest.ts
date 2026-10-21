@@ -1354,10 +1354,17 @@ describe("topic filters", () => {
         value: ["Missing requested final results"],
       },
     ];
-    const { text, skipped } = filterStateToQueryText(filters);
+    // The tracing table adds `topics.` only for projects that can view Topics.
+    const registry = createFieldRegistry({
+      ...EVENTS_FIELD_REGISTRY,
+      keyedOptionNamespaces: { topics: "topics" },
+    });
+    const { text, skipped } = filterStateToQueryText(filters, {}, registry);
     expect(skipped).toEqual([]);
-    const v = validateQuery(text);
+    const v = validateQuery(text, undefined, registry);
     expect(v.valid, text).toBe(true);
-    expect(astToFilterState(v.ast).filters).toEqual(filters);
+    expect(astToFilterState(v.ast, undefined, registry).filters).toEqual(
+      filters,
+    );
   });
 });

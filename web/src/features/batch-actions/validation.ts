@@ -5,20 +5,30 @@ import {
   BatchEvalEvaluatorMappingSchema,
   BatchEvalSourceTableSchema,
 } from "@langfuse/shared";
+import {
+  isTopicFilter,
+  TOPIC_FILTERS_IN_BATCH_JOBS_MESSAGE,
+} from "@langfuse/shared/topics";
+
+// These actions always run from the query, which cannot resolve topic membership yet.
+const QueryWithoutTopicFiltersSchema = BatchActionQuerySchema.refine(
+  (query) => !(query.filter ?? []).some(isTopicFilter),
+  { message: TOPIC_FILTERS_IN_BATCH_JOBS_MESSAGE, path: ["filter"] },
+);
 
 /** Matches the evaluator options page size used by the run-evaluation dialog. */
 export const BATCH_EVAL_EVALUATOR_LIMIT = 100;
 
 export const CreateObservationAddToDatasetActionSchema = z.object({
   projectId: z.string(),
-  query: BatchActionQuerySchema,
+  query: QueryWithoutTopicFiltersSchema,
   config: ObservationAddToDatasetConfigSchema,
 });
 
 export const CreateObservationBatchEvaluationActionSchema = z
   .object({
     projectId: z.string(),
-    query: BatchActionQuerySchema,
+    query: QueryWithoutTopicFiltersSchema,
     evaluatorIds: z.array(z.string()).min(1).max(BATCH_EVAL_EVALUATOR_LIMIT),
     sourceTable: BatchEvalSourceTableSchema.default("events"),
     evalVersion: z.literal("v2").optional(),
