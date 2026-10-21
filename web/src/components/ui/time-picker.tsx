@@ -3,7 +3,7 @@
 
 import * as React from "react";
 import { TimePickerInput } from "./time-picker-input";
-import { TimePeriodSelect } from "./time-period-select";
+import { TimePeriodSelect } from "./TimePeriodSelect";
 import { type Period } from "./time-picker-utils";
 import { getTimezoneDetails, getShortLocalTimezone } from "@/src/utils/dates";
 import { TimeIcon } from "@/src/components/ui/TimeIcon";
