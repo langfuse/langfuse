@@ -33,6 +33,7 @@ import {
 import {
   getEventsColumnName,
   getObservationEventsFilterConfig,
+  topicsFilterFacet,
   type ObservationEventsOmittableFilterColumn,
 } from "../config/filter-config";
 import {
@@ -339,13 +340,15 @@ export default function ObservationsEventsTable({
   const canViewTopics = useCanViewTopics(projectId);
   // Topic filters resolve on the project-scoped endpoints only, not in a session's events.
   const showTopicFilter = canViewTopics && !sessionId;
-  const eventsFilterConfig = useMemo(
-    () =>
-      getObservationEventsFilterConfig(
-        showTopicFilter ? omittedFilter : [...omittedFilter, "topics"],
-      ),
-    [omittedFilter, showTopicFilter],
-  );
+  const eventsFilterConfig = useMemo(() => {
+    // Omitting `topics` without access also drops a topic filter arriving by URL or saved view.
+    const config = getObservationEventsFilterConfig(
+      showTopicFilter ? omittedFilter : [...omittedFilter, "topics"],
+    );
+    return showTopicFilter
+      ? { ...config, facets: [...config.facets, topicsFilterFacet] }
+      : config;
+  }, [omittedFilter, showTopicFilter]);
   const topicFilterOptions = useTopicFilterOptions(projectId, showTopicFilter);
 
   const { setDetailPageList } = useDetailPageLists();

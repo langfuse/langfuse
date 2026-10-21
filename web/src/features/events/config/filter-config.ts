@@ -345,12 +345,14 @@ export const observationEventsFilterConfig: FilterConfig = {
       column: "commentContent",
       label: "Comment Content",
     },
-    {
-      type: "keyValue" as const,
-      column: "topics",
-      label: "Topics",
-    },
   ],
+};
+
+/** Added by the tracing table only when canViewTopics passes, so inheriting sidebars never show it. */
+export const topicsFilterFacet = {
+  type: "keyValue" as const,
+  column: "topics",
+  label: "Topics",
 };
 
 export function getObservationEventsFilterConfig(
