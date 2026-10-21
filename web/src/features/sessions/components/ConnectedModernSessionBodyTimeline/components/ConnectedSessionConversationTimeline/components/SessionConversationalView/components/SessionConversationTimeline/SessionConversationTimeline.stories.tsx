@@ -171,6 +171,10 @@ export const TimelineNavigation = meta.story({
       "href",
       args.navigation?.previousTrace?.href,
     );
+    const firstHeader = canvas.getByRole("button", { name: "1 Turn 1" });
+    expect(previous.compareDocumentPosition(firstHeader)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
     timeline.scrollTop = timeline.scrollHeight;
     timeline.dispatchEvent(new Event("scroll", { bubbles: true }));
     const next = await canvas.findByRole("link", {
@@ -178,6 +182,10 @@ export const TimelineNavigation = meta.story({
     });
     await expect(next).toBeVisible();
     expect(next).toHaveAttribute("href", args.navigation?.nextTrace?.href);
+    const lastHeader = canvas.getByRole("button", { name: "3 Turn 3" });
+    expect(lastHeader.compareDocumentPosition(next)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
   },
 });
 
@@ -210,13 +218,31 @@ export const DynamicRowMeasurement = meta.story({
   play: async ({ canvas, canvasElement }) => {
     const timeline = canvas.getByLabelText("Session conversation timeline");
     await canvas.findAllByRole("button", { name: "Show more" });
+    const expectContiguousRows = async () => {
+      await waitFor(() => {
+        const rows = Array.from(
+          timeline.querySelectorAll<HTMLElement>(
+            "[data-session-virtualizer-row]",
+          ),
+        );
+        expect(rows.length).toBeGreaterThan(1);
+        for (let index = 1; index < rows.length; index++) {
+          expect(rows[index]!.getBoundingClientRect().top).toBeCloseTo(
+            rows[index - 1]!.getBoundingClientRect().bottom,
+            0,
+          );
+        }
+      });
+    };
     await userEvent.click(
       canvas.getAllByRole("button", { name: "Show more" })[0]!,
     );
     await expect(
       canvas.getByRole("button", { name: "Show less" }),
     ).toHaveAttribute("aria-expanded", "true");
+    await expectContiguousRows();
     await userEvent.click(canvas.getByRole("button", { name: "Show less" }));
+    await expectContiguousRows();
     const originalWidth = canvasElement.style.width;
     try {
       for (const width of ["320px", originalWidth]) {
@@ -232,6 +258,7 @@ export const DynamicRowMeasurement = meta.story({
             expect(header.bottom).toBeGreaterThan(viewport.top);
             expect(header.top).toBeLessThan(viewport.bottom);
           });
+          await expectContiguousRows();
         }
       }
     } finally {

@@ -152,7 +152,7 @@ export function SessionConversationTimelineTrace({
               <div className="border-border min-w-0 flex-1 border-t border-dashed" />
               <button
                 type="button"
-                className="text-muted-foreground hover:text-foreground hidden shrink-0 font-mono text-xs group-focus-within/thread-header:block group-hover/thread-header:block hover:underline"
+                className="text-muted-foreground hover:text-foreground shrink-0 font-mono text-xs opacity-0 group-focus-within/thread-header:opacity-100 group-hover/thread-header:opacity-100 hover:underline focus-visible:opacity-100"
                 onClick={onOpenTrace}
               >
                 Open trace

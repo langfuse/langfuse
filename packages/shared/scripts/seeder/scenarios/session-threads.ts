@@ -13,6 +13,7 @@ import { orderObservations } from "../../../src/server/transcript/ordering";
 import { observationToEvent, traceToEvent } from "./event-mirror";
 import { type ScenarioDefinition, SeedError } from "./types";
 import { countRows, sessionLink } from "./verify";
+import { utcDayStartMs } from "./rng";
 
 export const sessionThreadsScenario: ScenarioDefinition = {
   name: "session-threads",
@@ -58,7 +59,7 @@ export const sessionThreadsScenario: ScenarioDefinition = {
     const traces: TraceRecordInsertType[] = [];
     const observations: ObservationRecordInsertType[] = [];
     const threadCounts: Record<string, number> = {};
-    const sessionStart = startedAt - 30 * 60 * 1000;
+    const sessionStart = utcDayStartMs() - 30 * 60 * 1000;
 
     for (const [sessionIndex, session] of sessions.entries()) {
       const sessionId = sessionIds[sessionIndex]!;

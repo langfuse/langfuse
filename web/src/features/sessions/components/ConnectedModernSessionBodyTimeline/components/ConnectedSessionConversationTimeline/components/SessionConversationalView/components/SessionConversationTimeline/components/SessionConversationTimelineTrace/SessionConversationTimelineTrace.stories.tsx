@@ -293,10 +293,22 @@ export const SubsequentThreadHeader = meta.story({
     threadCount: 2,
     displayNumber: "1.2",
     state: { type: "transcript", result },
+    onOpenTrace: fn(),
   },
-  play: async ({ canvasElement }) => {
+  play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByText("Open trace")).toBeInTheDocument();
+    const openTrace = canvas.getByRole("button", { name: "Open trace" });
+    canvasElement.setAttribute("tabindex", "-1");
+    canvasElement.focus();
+    try {
+      await userEvent.tab();
+      await expect(openTrace).toHaveFocus();
+      await expect(openTrace).toHaveStyle({ opacity: "1" });
+      await userEvent.keyboard("{Enter}");
+      await expect(args.onOpenTrace).toHaveBeenCalledOnce();
+    } finally {
+      canvasElement.removeAttribute("tabindex");
+    }
     await expect(
       canvas.queryByRole("button", { name: "Copy trace ID" }),
     ).not.toBeInTheDocument();
@@ -434,13 +446,13 @@ export const ToolPreviewJsonHighlighting = meta.story({
 
 const largeToolPreviewCases = [
   {
-    name: "highlight-limit",
-    input: { text: "x".repeat(9_984) },
-    output: { text: "x".repeat(9_985) },
+    name: "large-json",
+    input: { text: "x".repeat(20_000) },
+    output: { text: "y".repeat(20_000) },
   },
   {
     name: "large-multiline",
-    input: { text: "x".repeat(9_985) },
+    input: { text: "x".repeat(20_000) },
     output: `${"\n".repeat(10_000)}full value ends here`,
   },
 ];
