@@ -21,6 +21,7 @@ const apiKeys = [
       note: "Production application",
       createdAt: new Date("2026-09-04T12:00:00.000Z"),
       expiresAt: new Date("2027-09-04T23:59:59.999Z"),
+      user: { name: "Marc Klingen", email: "marc@example.com", image: null },
     },
   },
 ] satisfies Extract<
@@ -40,6 +41,10 @@ const manyApiKeys = Array.from({ length: 30 }, (_, index) => ({
     note: `Application ${index + 1}`,
     createdAt: new Date(Date.UTC(2026, 8, 4 - (index % 28))),
     expiresAt: null,
+    user:
+      index % 5 === 0
+        ? null
+        : { name: `Member ${index + 1}`, email: null, image: null },
   },
 })) satisfies Extract<
   ComponentProps<typeof GatewayApiKeysTable>["data"],
@@ -69,7 +74,7 @@ export const PopulatedMetadata = meta.story({
   play: async ({ canvas }) => {
     const cells = canvas.getAllByRole("row")[1]!.querySelectorAll("td");
     await expect(cells[1]).toHaveClass("ph-no-capture");
-    await expect(cells[4]).toHaveClass("ph-no-capture");
+    await expect(cells[5]).toHaveClass("ph-no-capture");
   },
 });
 
@@ -100,7 +105,7 @@ export const OverflowingMetadata = meta.story({
   play: async ({ canvas }) => {
     const metadataCell = canvas
       .getAllByRole("row")[1]!
-      .querySelectorAll("td")[4]!;
+      .querySelectorAll("td")[5]!;
     await waitFor(() => {
       expect(metadataCell).toHaveTextContent(/\+\d+/);
     });

@@ -5,6 +5,7 @@ import type { PaginationBarProps } from "@/src/components/design-system/Paginati
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createBadgeListTableColumn } from "@/src/components/design-system/table/columns/createBadgeListTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
+import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 import type { AsyncTableData } from "@/src/components/design-system/table/Table";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { isApiKeyExpired } from "@/src/features/apiKey";
@@ -18,6 +19,11 @@ type GatewayApiKey = {
     note: string | null;
     createdAt: Date;
     expiresAt: Date | null;
+    user: {
+      name: string | null;
+      email: string | null;
+      image: string | null;
+    } | null;
   };
 };
 
@@ -51,6 +57,15 @@ export function GatewayApiKeysTable({
       id: "description",
       header: "Description",
       nullValue: "-",
+      enableResizing: false,
+    }),
+    createUserTableColumn<GatewayApiKey>({
+      accessorFn: (row) => row.apiKey.user,
+      id: "user",
+      header: "User",
+      variant: "avatar",
+      nullValue: "-",
+      hideBelowMd: true,
       enableResizing: false,
     }),
     createDateTableColumn<GatewayApiKey>({

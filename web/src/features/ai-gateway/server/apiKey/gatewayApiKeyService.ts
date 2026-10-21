@@ -28,7 +28,13 @@ export class GatewayApiKeyService {
     this.repository = new GatewayApiKeyRepository(prisma);
   }
 
-  list(params: { organizationId: string; page: number; limit: number }) {
+  /** Without ownerUserId, lists every gateway key in the organization. */
+  list(params: {
+    organizationId: string;
+    ownerUserId?: string;
+    page: number;
+    limit: number;
+  }) {
     return this.repository.listGatewayApiKeys(params);
   }
 
@@ -79,8 +85,10 @@ export class GatewayApiKeyService {
     return key;
   }
 
+  /** With ownerUserId, another user's key is reported as not found. */
   async revoke(params: {
     organizationId: string;
+    ownerUserId?: string;
     apiKeyId: string;
     session: OrgAuthedContext["session"];
   }): Promise<void> {
