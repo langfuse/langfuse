@@ -4,6 +4,7 @@ import {
   createNewRedisInstance,
   redisQueueRetryOptions,
   getQueuePrefix,
+  toBullMQConnection,
 } from "./redis";
 import { logger } from "../logger";
 
@@ -26,7 +27,7 @@ export class MonitorQueue {
       ? new Queue<TQueueJobTypes[QueueName.MonitorQueue]>(
           QueueName.MonitorQueue,
           {
-            connection: newRedis,
+            connection: toBullMQConnection(newRedis),
             prefix: getQueuePrefix(QueueName.MonitorQueue),
             defaultJobOptions: {
               removeOnComplete: true,

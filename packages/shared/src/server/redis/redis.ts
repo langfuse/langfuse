@@ -19,6 +19,11 @@ const logRedisError = (
 };
 
 const defaultRedisOptions: Partial<RedisOptions> = {
+  // ioredis defaults to RESP3 and opens every connection with HELLO 3. It only
+  // falls back to RESP2 on NOPROTO or an unknown-command error, so a
+  // Redis-compatible server or proxy that rejects HELLO any other way fails
+  // the connection. RESP2 skips that negotiation entirely.
+  protocol: 2,
   enableReadyCheck: true,
   maxRetriesPerRequest: null,
   enableAutoPipelining: env.REDIS_ENABLE_AUTO_PIPELINING === "true",
@@ -83,6 +88,18 @@ type BullMQOptionsWithRedis = Pick<
   "connection" | "prefix" | "skipVersionCheck"
 > &
   Pick<QueueOptions, "settings">;
+
+/**
+ * BullMQ 5 bundles its own ioredis 5 and types `connection` against those
+ * classes, so our ioredis 6 clients do not type-check against it. At runtime
+ * BullMQ only duck-types a passed instance (connect/disconnect/duplicate and
+ * `isCluster`) and duplicates it for blocking connections, so every queue and
+ * worker connection is still one of our clients.
+ */
+export const toBullMQConnection = (
+  redis: Redis | Cluster,
+): QueueBaseOptions["connection"] =>
+  redis as unknown as QueueBaseOptions["connection"];
 
 /**
  * Parse Redis node definitions from environment variable
@@ -368,9 +385,9 @@ export const getQueuePrefix = (queueName: string): string | undefined => {
 
 const getBullMQOptionsForRedisConnection = (
   queueName: string,
-  connection: BullMQOptionsWithRedis["connection"],
+  connection: Redis | Cluster,
 ): BullMQOptionsWithRedis => ({
-  connection,
+  connection: toBullMQConnection(connection),
   prefix: getQueuePrefix(queueName),
   // bullmq hashes with md5 by default, and an OpenSSL FIPS provider refuses
   // md5, so any call into the legacy repeat API throws
