@@ -148,6 +148,12 @@
   --color-category-orange: #c2410c;
   --color-category-lime: #65a30d;
   --color-category-fuchsia: #a21caf;
+  /* Category fills at one OKLCH lightness and chroma per state. */
+  --color-category-violet-highlight: var(--category-violet-highlight);
+  --color-category-blue-highlight: var(--category-blue-highlight);
+  --color-category-amber-highlight: var(--category-amber-highlight);
+  --color-category-neutral-tint: var(--category-neutral-tint);
+  --color-category-neutral-highlight: var(--category-neutral-highlight);
 
   /* Search-bar query syntax highlighting (key:value token parts). Operators
      (`:` `-` `(` `)`) reuse muted-foreground, so no token for them here. */
@@ -335,6 +341,11 @@
 
 @layer base {
   :root {
+    --category-violet-highlight: oklch(0.82 0.11 293);
+    --category-blue-highlight: oklch(0.82 0.11 252);
+    --category-amber-highlight: oklch(0.82 0.11 70);
+    --category-neutral-tint: oklch(0.92 0 0);
+    --category-neutral-highlight: oklch(0.82 0 0);
     --background: 0 0% 100%;
     --foreground: 240 3.7% 15.9%; /* zinc-800 */
 
@@ -561,6 +572,11 @@
   }
 
   .dark {
+    --category-violet-highlight: oklch(0.45 0.11 293);
+    --category-blue-highlight: oklch(0.45 0.11 252);
+    --category-amber-highlight: oklch(0.45 0.11 70);
+    --category-neutral-tint: oklch(0.3 0 0);
+    --category-neutral-highlight: oklch(0.45 0 0);
     /* Surface ladder — "layers become one step lighter with each added
        layer" (Carbon's dark-theme layering model; Hex and Cloudflare Kumo
        follow the same structure). The GLOBAL FRAME (header/sidebar chrome)
