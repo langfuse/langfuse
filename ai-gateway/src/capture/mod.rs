@@ -170,6 +170,7 @@ impl ExecutionCapture {
                 "organization_id": attribution.organization_id().as_str(),
                 "project_id": attribution.project_id().map(ProjectId::as_str),
                 "key_id": attribution.key_id(),
+                "user_id": attribution.user_id(),
                 "provider_connection_id": attribution.provider_connection_id(),
                 "key_metadata": key_metadata,
                 "ingestion_mode": context.ingestion_mode().as_str(),

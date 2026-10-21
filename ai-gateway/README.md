@@ -499,6 +499,7 @@ each field describes:
 | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
 | `organization.id`, `project.id`                                                             | Resolved Langfuse organization and ingestion project                        |
 | `api_key.id`, `connection.id`                                                               | Authenticated gateway key and selected Langfuse connection                  |
+| `api_key.user.id`                                                                           | Langfuse user the gateway key belongs to; null for keys created before keys were bound to users |
 | `ingestion.mode`                                                                            | Effective capture mode                                                      |
 | `request.api_format`                                                                        | Native API contract: `openai.responses`, `openai.chat-completions` or `anthropic.messages` |
 | `request.metadata`, `request.prompt_cache_key`, `request.safety_identifier`, `request.user` | Native caller-supplied fields, captured only in full mode                   |

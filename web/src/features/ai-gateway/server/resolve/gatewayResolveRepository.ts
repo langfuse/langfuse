@@ -19,6 +19,7 @@ export class GatewayResolveRepository {
       select: {
         id: true,
         orgId: true,
+        userId: true,
         expiresAt: true,
         gatewayAssociation: { select: { metadata: true } },
         organization: {

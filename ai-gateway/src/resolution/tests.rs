@@ -106,6 +106,7 @@ fn success(project: &str, provider_token: &str) -> Value {
             "organization_id": "org-1",
             "project_id": project,
             "key_id": "key-1",
+            "user_id": "user-1",
             "key_metadata": {"customer": "private-customer-label", "enabled": true, "number": 42},
             "provider_connection_id": "connection-1"
         },
@@ -157,6 +158,7 @@ async fn signs_the_exact_key_and_sends_api_format_and_model() {
         context.attribution().provider_connection_id(),
         "connection-1"
     );
+    assert_eq!(context.attribution().user_id(), Some("user-1"));
     assert_eq!(
         context.ingestion().unwrap().access_token().expose_secret(),
         ingestion_token("org-1", "project-1")
@@ -735,6 +737,8 @@ async fn rejects_incompatible_or_incomplete_execution_contexts() {
         ("/connection/provider_model", json!("")),
         ("/attribution/project_id", json!("")),
         ("/attribution/provider_connection_id", json!("")),
+        ("/attribution/user_id", json!("")),
+        ("/attribution/user_id", json!(42)),
         (
             "/attribution/key_metadata",
             json!({"nested": {"key": "value"}}),
@@ -841,6 +845,38 @@ async fn resolves_none_mode_without_an_ingestion_grant_or_project() {
     assert_eq!(context.ingestion_mode(), IngestionMode::None);
     assert!(context.ingestion().is_none());
     assert!(context.attribution().project_id().is_none());
+}
+
+#[tokio::test]
+async fn resolves_keys_that_are_not_bound_to_a_user() {
+    let unbound: fn(&mut Value) = |body| body["attribution"]["user_id"] = Value::Null;
+    let predates_field: fn(&mut Value) = |body| {
+        body["attribution"]
+            .as_object_mut()
+            .unwrap()
+            .remove("user_id");
+    };
+    for strip in [unbound, predates_field] {
+        let mut body = success("project-1", "provider-token");
+        strip(&mut body);
+        let web = FakeWeb::start(move |_| {
+            let body = body.clone();
+            async move { response(body) }
+        })
+        .await;
+        let context = web
+            .control_plane()
+            .resolve_at(
+                GATEWAY_KEY,
+                ApiFormat::OpenAiResponses,
+                "primary:gpt-4.1",
+                NOW_TIME,
+                REQUEST_ID,
+            )
+            .await
+            .unwrap();
+        assert!(context.attribution().user_id().is_none());
+    }
 }
 
 #[tokio::test]
