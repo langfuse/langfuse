@@ -67,7 +67,7 @@ import { type EvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabil
 import {
   EvalVersionCallout,
   getEvalVersionCalloutContent,
-} from "@/src/features/evals/components/eval-version-callout";
+} from "@/src/features/evals/components/EvalVersionCallout";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   Dialog,
