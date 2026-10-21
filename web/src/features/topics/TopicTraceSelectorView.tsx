@@ -204,7 +204,7 @@ export function TopicTraceSelectorView({
                 erroredColumns={erroredColumns}
               />
               <p className="text-muted-foreground text-xs">
-                Press Enter to apply your query.
+                Press Enter to apply your query before previewing.
               </p>
             </>
           )}
@@ -272,9 +272,8 @@ export function TopicTraceSelectorView({
             </>
           ) : (
             <p className="text-muted-foreground text-xs">
-              Matching traces load automatically. Review the selection, then
-              choose Summarize &amp; embed to start the run. Previewing does not
-              use a model.
+              First preview and select your traces. Then choose Summarize &amp;
+              embed to start the run. Previewing does not use a model.
             </p>
           )}
         </>

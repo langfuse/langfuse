@@ -82,8 +82,8 @@ project permissions. Processing additionally requires the project allowlist.
   trace-selection draft while retaining sampling settings; dates stay specific
   to each execution.
   The hook supplies selection, criteria and controls so the dialog can unmount
-  without losing the reviewed cohort. The preview counts the cohort and
-  reloads automatically when criteria change (the limit field is debounced). Rows can be excluded across preview pages.
+  without losing the reviewed cohort. Explicit preview counts the cohort;
+  changing criteria invalidates it. Rows can be excluded across preview pages.
   The form submits reviewed criteria and exclusions. Paste IDs remains available.
   `server/traceSelection.ts` applies canonical observation filters within a
   maximum 93-day window, then deduplicates traces before counting and optional

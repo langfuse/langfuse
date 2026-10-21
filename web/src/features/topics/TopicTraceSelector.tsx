@@ -1,6 +1,4 @@
-import { useRef, useState } from "react";
-import { isEqual } from "lodash";
-import { useDebounce } from "@/src/hooks/useDebounce";
+import { useState } from "react";
 import {
   eventsEvalFilterColumns,
   experimentEvalFilterColsWithOptions,
@@ -51,54 +49,8 @@ export function useTopicTraceSelector({
   const [limit, setLimit] = useState(String(TOPICS_BACKFILL_TRACE_LIMIT));
   const [sampling, setSampling] = useState<"random" | "latest">("random");
   const [paste, setPaste] = useState("");
-  const [request, setRequest] = useState<PreviewInput | null>(() => ({
-    projectId,
-    filter: [],
-    ...range,
-    limit: TOPICS_BACKFILL_TRACE_LIMIT,
-    sampling: "random",
-    seed: crypto.randomUUID(),
-  }));
+  const [request, setRequest] = useState<PreviewInput | null>(null);
   const [excluded, setExcluded] = useState<string[]>([]);
-  const validLimit =
-    Number.isSafeInteger(Number(limit)) &&
-    Number(limit) >= 1 &&
-    Number(limit) <= TOPICS_BACKFILL_TRACE_LIMIT;
-  const validRange = isValidTopicTimeRange(range);
-  const refreshPreview = () => {
-    setExcluded([]);
-    setRequest(
-      mode === "filters" && validLimit && validRange
-        ? {
-            projectId,
-            filter,
-            ...range,
-            limit: Number(limit),
-            sampling,
-            seed: crypto.randomUUID(),
-          }
-        : null,
-    );
-  };
-  /** Bumped by every refresh so a direct one cancels the pending delayed one. */
-  const refreshGeneration = useRef(0);
-  /** Reloads the preview 500ms after the last criteria change. */
-  const refreshPreviewSoon = useDebounce(
-    (generation: number) => {
-      if (generation === refreshGeneration.current) refreshPreview();
-    },
-    500,
-    false,
-  );
-  const invalidatePreview = () => {
-    setRequest(null);
-    setExcluded([]);
-    refreshPreviewSoon(++refreshGeneration.current);
-  };
-  const previewNow = () => {
-    refreshGeneration.current++;
-    refreshPreview();
-  };
   const reset = (filter: FilterState = []) => {
     setMode("filters");
     setFilterMode("builder");
@@ -106,8 +58,14 @@ export function useTopicTraceSelector({
     setTimeWindow("7");
     setRange(relativeTopicTimeRange(7));
     setPaste("");
-    invalidatePreview();
+    setRequest(null);
+    setExcluded([]);
   };
+  const validLimit =
+    Number.isSafeInteger(Number(limit)) &&
+    Number(limit) >= 1 &&
+    Number(limit) <= TOPICS_BACKFILL_TRACE_LIMIT;
+  const validRange = isValidTopicTimeRange(range);
   const preview = api.topics.previewTraces.useQuery(
     request ?? {
       projectId,
@@ -206,38 +164,49 @@ export function useTopicTraceSelector({
       ? [{ ...column, options: options.filterOptions?.experimentId ?? [] }]
       : [column];
   });
+  const previewTraces = () => {
+    setExcluded([]);
+    setRequest({
+      projectId,
+      filter,
+      ...range,
+      limit: Number(limit),
+      sampling,
+      seed: crypto.randomUUID(),
+    });
+  };
+
   const handleModeChange = (value: string) => {
     setMode(value);
-    invalidatePreview();
+    setRequest(null);
   };
   const handleFilterChange = (value: FilterState) => {
-    if (isEqual(value, filter)) return;
     setFilter(value);
-    invalidatePreview();
+    setRequest(null);
   };
   const handleTimeWindowChange = (value: string) => {
     setTimeWindow(value);
+    setRequest(null);
     setRange(
       value === "custom"
         ? topicCalendarRange(topicCalendarDates(range))
         : relativeTopicTimeRange(Number(value)),
     );
-    invalidatePreview();
   };
   const handleRangeChange: TopicTraceSelectorViewProps["onRangeChange"] = (
     value,
   ) => {
     setRange(value);
-    invalidatePreview();
+    setRequest(null);
   };
   const handleLimitChange = (value: string) => {
     setLimit(value);
-    invalidatePreview();
+    setRequest(null);
   };
   const handleSamplingChange: TopicTraceSelectorViewProps["onSamplingChange"] =
     (value) => {
       setSampling(value);
-      invalidatePreview();
+      setRequest(null);
     };
   let previewState: TopicTraceSelectorViewProps["preview"] = { status: "idle" };
   if (ready && request) {
@@ -269,7 +238,7 @@ export function useTopicTraceSelector({
       pastedCount={pastedIds?.length ?? null}
       pasteError={pasteError}
       preview={previewState}
-      onPreview={previewNow}
+      onPreview={previewTraces}
       excluded={excluded}
       onExcludedChange={setExcluded}
       builderColumns={builderColumns}
