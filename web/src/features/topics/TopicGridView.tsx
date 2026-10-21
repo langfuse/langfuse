@@ -96,7 +96,9 @@ export function TopicGridView({
   const selectedIndex = selectedTopic
     ? topics.findIndex((topic) => topic.id === selectedTopic.id)
     : null;
-  const message = gridMessage(mapResult);
+  const message = facet.map
+    ? gridMessage(mapResult)
+    : "No map published for this facet.";
   const listRows = selectedTopic
     ? facet.rows.filter((row) => row.topicId === selectedTopic.id)
     : facet.rows;
