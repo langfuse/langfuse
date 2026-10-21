@@ -138,7 +138,7 @@ export async function createApiKey(
       tenantId: opts.tenant,
       principalId: ApiKeyId(apiKey.id),
       roleId: opts.role,
-      ownerId: assignmentOwner(opts.tenant, opts.scope),
+      ownerId: toOwnerId(opts),
       tags: [],
     });
     return apiKey;
@@ -238,11 +238,14 @@ function scopeColumns(
   return { orgId: untag(scope), scope: "ORGANIZATION" };
 }
 
-/** assignmentOwner hangs a user-scoped key's role assignment off its tenant. */
-function assignmentOwner(
-  tenant: TenantId,
-  scope: OrganizationId | ProjectId | UserId,
-): OwnerId {
+/** toOwnerId provides the role assignment owner for an api key's scope */
+function toOwnerId({
+  tenant,
+  scope,
+}: {
+  tenant: TenantId;
+  scope: OrganizationId | ProjectId | UserId;
+}): OwnerId {
   if (hasUserScope(scope)) return tenant;
   return scope;
 }
