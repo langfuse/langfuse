@@ -322,6 +322,7 @@ function planPackageChecks(
   const prepare = (taskId) => {
     const task = taskGraph.tasks.get(taskId);
     if (!task) throw new Error(`Missing Turbo task graph for ${taskId}`);
+    const directPrerequisites = [];
     for (const dependency of task.dependencies) {
       // Related suites need build/generation prerequisites, not upstream suites.
       if (
@@ -331,7 +332,22 @@ function planPackageChecks(
       )
         continue;
       targets.add(dependency);
+      directPrerequisites.push(dependency);
     }
+    const prerequisites = new Set();
+    const visit = (taskId) => {
+      if (prerequisites.has(taskId)) return;
+      prerequisites.add(taskId);
+      const prerequisite = taskGraph.tasks.get(taskId);
+      if (!prerequisite)
+        throw new Error(`Missing Turbo task graph for ${taskId}`);
+      for (const dependency of prerequisite.dependencies) visit(dependency);
+    };
+    for (const dependency of directPrerequisites) visit(dependency);
+    // Turbo traverses packages without a matching script but does not execute them.
+    return [...prerequisites].filter(
+      (taskId) => taskGraph.tasks.get(taskId).command !== "<NONEXISTENT>",
+    );
   };
   // File-only TypeScript checks miss downstream errors. Keep project-wide
   // incremental checks and let Turbo run prerequisite builds/code generation;
@@ -367,7 +383,7 @@ function planPackageChecks(
         ) {
           // Turbo cannot append ESLint-only flags to a mixed task batch.
           // Keep dependency preparation in Turbo; ESLint retains its own cache.
-          prepare(`${pkg.name}#${task.name}`);
+          const prerequisites = prepare(`${pkg.name}#${task.name}`);
           const details = related
             ? planNarrowedCheck(task, pkg, ownFiles, base, exists)
             : { label: `${task.label} · ${pkg.name}`, args: [] };
@@ -383,6 +399,7 @@ function planPackageChecks(
               "off",
             ],
             requiresTurbo: true,
+            prerequisites,
           });
           continue;
         }
@@ -815,7 +832,13 @@ async function runCheck(check, outputDirectory, checkIndex) {
     }
     // Do not run a suite whose prerequisite generation/build failed.
     if (result.error || result.signal || result.status !== 0) {
-      return { failure: { ...result, outputFile }, reports };
+      return {
+        failure: { ...result, outputFile },
+        reports,
+        successfulTurboTasks: check.isTurboBatch
+          ? collectDiagnostics(outputFile, true).successfulTaskIds
+          : [],
+      };
     }
   }
   return { failure: null, reports };
@@ -840,6 +863,7 @@ export async function* runPlan(plan, outputDirectory, cpus, run = runCheck) {
   let nextIndex = 0;
   let foreground = null;
   let turboFailed = false;
+  let successfulTurboTasks = new Set();
   try {
     while (nextIndex < plan.length || pending.size > 0) {
       const weight = plan[nextIndex]?.isTurboBatch ? Math.max(1, cpus - 1) : 1;
@@ -851,14 +875,20 @@ export async function* runPlan(plan, outputDirectory, cpus, run = runCheck) {
       ) {
         const checkIndex = nextIndex++;
         const check = plan[checkIndex];
-        if (check.requiresTurbo && turboFailed) {
+        if (
+          check.requiresTurbo &&
+          turboFailed &&
+          !check.prerequisites?.every((taskId) =>
+            successfulTurboTasks.has(taskId),
+          )
+        ) {
           yield { type: "skipped", check, checkIndex };
           continue;
         }
         const promise = (async () => {
           const startedAt = performance.now();
           try {
-            const { failure, reports } = await run(
+            const { failure, reports, successfulTurboTasks } = await run(
               check,
               outputDirectory,
               checkIndex,
@@ -869,6 +899,7 @@ export async function* runPlan(plan, outputDirectory, cpus, run = runCheck) {
               checkIndex,
               result: failure,
               reports,
+              successfulTurboTasks,
               durationMs: performance.now() - startedAt,
             };
           } catch (error) {
@@ -887,7 +918,10 @@ export async function* runPlan(plan, outputDirectory, cpus, run = runCheck) {
       pending.delete(outcome.checkIndex);
       weights.delete(outcome.checkIndex);
       if (outcome.checkIndex === foreground) foreground = null;
-      if (outcome.check.isTurboBatch && outcome.result) turboFailed = true;
+      if (outcome.check.isTurboBatch && outcome.result) {
+        turboFailed = true;
+        successfulTurboTasks = new Set(outcome.successfulTurboTasks);
+      }
       yield outcome;
     }
   } finally {
@@ -907,11 +941,18 @@ function collectDiagnostics(outputFile, isTurboBatch) {
     .match(/^\s*Summary:\s+(.+\.json)\s*$/m)?.[1]
     ?.trim();
   let failedTasks = [];
+  let successfulTaskIds = [];
   if (summaryPath) {
     try {
       const summary = JSON.parse(
         readFileSync(resolve(root, summaryPath), "utf8"),
       );
+      successfulTaskIds = summary.tasks
+        .filter(
+          (task) =>
+            task.execution?.exitCode === 0 || task.cache?.status === "HIT",
+        )
+        .map((task) => task.taskId);
       failedTasks = summary.tasks.filter(
         (task) =>
           Number.isInteger(task.execution?.exitCode) &&
@@ -937,6 +978,7 @@ function collectDiagnostics(outputFile, isTurboBatch) {
   return {
     captured,
     tasks,
+    successfulTaskIds,
     complete: tasks.length > 0 && tasks.every((task) => task.diagnostics),
   };
 }
