@@ -508,9 +508,13 @@ export function isReactDevtoolsInternalEvent(event: ErrorEvent): boolean {
  *    occurred` — it aggregates real exceptions with no stack; hard-dropping it
  *    could blind us if the underlying exceptions are not captured separately.
  *  - `OAuthCallback` sign-in errors — could be a genuine auth-config break.
- *  - auth/permission (`UNAUTHORIZED`, not-a-member), query-timeout, and Sentry
- *    perf detectors / third-party scripts — handled as UX or in Sentry project
- *    settings, not by a blind client-side drop.
+ *  - a HANDLED / app-captured auth/permission error (`UNAUTHORIZED`,
+ *    not-a-member), query-timeout, and Sentry perf detectors / third-party
+ *    scripts — handled as UX or in Sentry project settings, not by a blind
+ *    client-side drop. The unhandled `TRPCClientError` whose WHOLE message
+ *    is an expected code is the seam leak (an uncaught `.fetch()` /
+ *    async onClick); that narrow signature is dropped via
+ *    {@link isUnhandledExpectedTrpcClientError}.
  *  - the chunk-load / stale-deploy `SyntaxError` family — GROUPED (not dropped)
  *    via {@link isStaleChunkParseErrorEvent} so a genuinely broken deploy still
  *    surfaces as a spike on one issue.
@@ -591,6 +595,19 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
       exceptionType === "AbortError" &&
       (exceptionValue.includes("signal is aborted") ||
         exceptionValue.includes("The operation was aborted"))
+    ) {
+      return true;
+    }
+
+    // Expected tRPC product-state codes that leaked as an unhandled
+    // rejection after `handleTrpcError` already classified them. See
+    // {@link isUnhandledExpectedTrpcClientError}.
+    if (
+      isUnhandledExpectedTrpcClientError(
+        exceptionType,
+        exceptionValue,
+        exception?.mechanism?.type,
+      )
     ) {
       return true;
     }
@@ -756,6 +773,46 @@ const UNSUPPORTED_MEDIA_RESOURCE_MESSAGES: readonly string[] = [
   // Chromium / WebKit
   "Failed to load because no supported source was found.",
 ];
+
+/**
+ * Expected tRPC codes when the server threw `new TRPCError({ code })` with
+ * no custom message, so the client error's whole message IS the code.
+ * `handleTrpcError` already breadcrumbs these and skips capture; an
+ * uncaught `.fetch()` / `refetch()` / async onClick still rejects, and
+ * Sentry's global handler mints a second `handled: no` event.
+ *
+ * Must stay aligned with `EXPECTED_TRPC_ERROR_CODES` in `api.ts`. Only
+ * the code-as-message shape is listed — a custom server message
+ * (`You are not a member of this organization`) is KEPT.
+ */
+const EXPECTED_TRPC_CODE_MESSAGES = [
+  "UNAUTHORIZED",
+  "FORBIDDEN",
+  "NOT_FOUND",
+  "UNPROCESSABLE_CONTENT",
+] as const;
+
+/**
+ * True for an unhandled `TRPCClientError` whose whole message is an
+ * expected product-state code. Guarded so:
+ *  - a handleTrpcError / `reportError` capture of the same text is KEPT
+ *    (seam regression — different mechanism);
+ *  - `TRPCClientError: <custom message>` is KEPT;
+ *  - a 5xx / unknown code is KEPT.
+ */
+function isUnhandledExpectedTrpcClientError(
+  exceptionType: string | undefined,
+  exceptionValue: string,
+  mechanismType: string | undefined,
+): boolean {
+  if (exceptionType !== "TRPCClientError") return false;
+  if (mechanismType !== "auto.browser.global_handlers.onunhandledrejection") {
+    return false;
+  }
+  return (EXPECTED_TRPC_CODE_MESSAGES as readonly string[]).includes(
+    coreMessage(exceptionValue),
+  );
+}
 
 /**
  * True for a native HTMLMediaElement NotSupportedError delivered by the
