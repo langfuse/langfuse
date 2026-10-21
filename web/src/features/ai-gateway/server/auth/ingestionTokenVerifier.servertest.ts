@@ -1,9 +1,9 @@
-import { createHash } from "node:crypto";
+import { createHash, generateKeyPairSync } from "node:crypto";
 
 import { describe, expect, it, vi } from "vitest";
 
 import { signHmacSha256 } from "@/src/server/utils/hmac";
-import { createEs256JwtSigner } from "@/src/server/utils/jwt";
+import { createEs256JwtSigner, deriveEs256KeyId } from "@/src/server/utils/jwt";
 import { UnauthorizedError } from "@langfuse/shared";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 
@@ -102,28 +102,137 @@ function database(input: { project?: object | null } = {}) {
   } as unknown as PrismaClient;
 }
 
-describe("verifyGatewayIngestionAuthorization without signing keys", () => {
-  it("rejects a public key without its stable key ID", async () => {
+describe("verifyGatewayIngestionAuthorization with derived key config", () => {
+  it.each([
+    { name: "only the private key", privateKey, publicKey: undefined },
+    { name: "only the public key", privateKey: undefined, publicKey },
+  ])(
+    "accepts tokens signed under the default key ID with $name",
+    async (configured) => {
+      vi.resetModules();
+      vi.doMock("@/src/env.mjs", () => ({
+        env: {
+          LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY: configured.privateKey,
+          LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY: configured.publicKey,
+          LANGFUSE_AI_GATEWAY_JWT_KEY_ID: undefined,
+          LANGFUSE_AI_GATEWAY_JWT_ISSUER: "test-issuer",
+          LANGFUSE_AI_GATEWAY_JWT_AUDIENCE: "test-audience",
+          LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST: ["org-1"],
+          LANGFUSE_AI_GATEWAY_SERVICE_KEY: "current-service-key",
+        },
+      }));
+      const { verifyGatewayIngestionAuthorization: verifyWithDerivedKeys } =
+        await import("./ingestionTokenVerifier");
+      const { resolveGatewayJwtKeys } = await import("./gatewayJwtKeys");
+
+      // The signing side resolves from the private key, as resolveService does.
+      const { keyId } = resolveGatewayJwtKeys({
+        privateKey,
+        publicKey: undefined,
+        keyId: undefined,
+      });
+      const ingestionToken = createEs256JwtSigner({
+        privateKey,
+        keyId: keyId!,
+        issuer: "test-issuer",
+        audience: "test-audience",
+      }).sign({
+        expiresInSeconds: 60,
+        claims: {
+          version: 1,
+          organization_id: "org-1",
+          project_id: "project-1",
+          ingestion_mode: "full",
+          scope: "gateway-ingest",
+        },
+      });
+
+      await expect(
+        verifyWithDerivedKeys(
+          `Bearer ${ingestionToken}`,
+          gatewayAuthorization(ingestionToken),
+          database(),
+        ),
+      ).resolves.toMatchObject({ scope: { projectId: "project-1" } });
+
+      vi.doUnmock("@/src/env.mjs");
+      vi.resetModules();
+    },
+  );
+
+  it("accepts tokens from the previous key under its default key ID", async () => {
+    const current = generateKeyPairSync("ec", { namedCurve: "P-256" });
     vi.resetModules();
     vi.doMock("@/src/env.mjs", () => ({
       env: {
-        LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY: publicKey,
-        LANGFUSE_AI_GATEWAY_JWT_KEY_ID: undefined,
-        LANGFUSE_AI_GATEWAY_JWT_PREVIOUS_KEY_ID: undefined,
-        LANGFUSE_AI_GATEWAY_JWT_PREVIOUS_PUBLIC_KEY: undefined,
+        LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY: current.privateKey
+          .export({ type: "pkcs8", format: "pem" })
+          .toString(),
+        LANGFUSE_AI_GATEWAY_JWT_PREVIOUS_PUBLIC_KEY: publicKey,
         LANGFUSE_AI_GATEWAY_JWT_ISSUER: "test-issuer",
         LANGFUSE_AI_GATEWAY_JWT_AUDIENCE: "test-audience",
+        LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST: ["org-1"],
+        LANGFUSE_AI_GATEWAY_SERVICE_KEY: "current-service-key",
       },
     }));
+    const { verifyGatewayIngestionAuthorization: verifyWithRotatedKeys } =
+      await import("./ingestionTokenVerifier");
 
-    await expect(import("./ingestionTokenVerifier")).rejects.toThrow(
-      "LANGFUSE_AI_GATEWAY_JWT_KEY_ID and LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY must be set together",
-    );
+    const ingestionToken = createEs256JwtSigner({
+      privateKey,
+      keyId: deriveEs256KeyId(publicKey),
+      issuer: "test-issuer",
+      audience: "test-audience",
+    }).sign({
+      expiresInSeconds: 60,
+      claims: {
+        version: 1,
+        organization_id: "org-1",
+        project_id: "project-1",
+        ingestion_mode: "full",
+        scope: "gateway-ingest",
+      },
+    });
+
+    await expect(
+      verifyWithRotatedKeys(
+        `Bearer ${ingestionToken}`,
+        gatewayAuthorization(ingestionToken),
+        database(),
+      ),
+    ).resolves.toMatchObject({ scope: { projectId: "project-1" } });
 
     vi.doUnmock("@/src/env.mjs");
     vi.resetModules();
   });
 
+  it("stays inert instead of failing the import on an invalid private key", async () => {
+    vi.resetModules();
+    vi.doMock("@/src/env.mjs", () => ({
+      env: {
+        LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY: "not a pem",
+        LANGFUSE_AI_GATEWAY_JWT_ISSUER: "test-issuer",
+        LANGFUSE_AI_GATEWAY_JWT_AUDIENCE: "test-audience",
+        LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST: ["org-1"],
+      },
+    }));
+    const { verifyGatewayIngestionAuthorization: verifyWithInvalidKey } =
+      await import("./ingestionTokenVerifier");
+
+    await expect(
+      verifyWithInvalidKey(
+        `Bearer ${token()}`,
+        undefined,
+        {} as unknown as PrismaClient,
+      ),
+    ).resolves.toBeNull();
+
+    vi.doUnmock("@/src/env.mjs");
+    vi.resetModules();
+  });
+});
+
+describe("verifyGatewayIngestionAuthorization without signing keys", () => {
   it("stays inert so the regular API-key verifier still sees the header", async () => {
     // Every deployment that never enabled the gateway is in this state. If the
     // verifier rejected here, any three-part bearer token would 401 before the

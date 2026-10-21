@@ -5,6 +5,9 @@ import {
   queryClickhouseExecRaw,
   queryClickhouseWithProgress,
   ClickHouseResourceError,
+  ClickHouseQueryAbortedError,
+  isRow,
+  isProgressRow,
 } from "@langfuse/shared/src/server";
 import { fail } from "assert";
 import { randomUUID } from "node:crypto";
@@ -203,6 +206,43 @@ describe("ClickHouse Resource Error Handling", () => {
   });
 
   describe("queryClickhouseWithProgress", () => {
+    it("streams the same rows and reports scan counters", async () => {
+      const query = "SELECT toUInt32(number) AS n FROM numbers(5)";
+      const rows: { n: number }[] = [];
+      let readRows = 0;
+      let readBytes = 0;
+      for await (const item of queryClickhouseWithProgress<{ n: number }>({
+        query,
+        clickhouseSettings: { interactive_delay: "0", max_block_size: "1" },
+      })) {
+        if (isRow(item)) rows.push(item.row);
+        if (isProgressRow(item)) {
+          readRows = Number(item.progress.read_rows);
+          readBytes = Number(item.progress.read_bytes);
+        }
+      }
+      expect(rows).toEqual(await queryClickhouse({ query }));
+      expect(readRows).toBeGreaterThanOrEqual(5);
+      expect(readBytes).toBeGreaterThan(0);
+    });
+
+    it.each(["before", "during"])(
+      "returns a typed cancellation error when aborted %s a query",
+      async (when) => {
+        const stream = queryClickhouseWithProgress({
+          query: "SELECT sleepEachRow(0.02) FROM numbers(100)",
+          abortSignal:
+            when === "before" ? AbortSignal.abort() : AbortSignal.timeout(50),
+          clickhouseSettings: {
+            cancel_http_readonly_queries_on_client_close: 1,
+          },
+        });
+        await expect(Array.fromAsync(stream)).rejects.toBeInstanceOf(
+          ClickHouseQueryAbortedError,
+        );
+      },
+    );
+
     it("should include query_id exactly once in errors thrown before streaming starts", async () => {
       const generator = queryClickhouseWithProgress({
         query: `SELECT * FROM non_existent_table_xyz123`,
