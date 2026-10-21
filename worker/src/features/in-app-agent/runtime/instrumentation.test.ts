@@ -148,7 +148,12 @@ describe("InAppAgentInstrumentation", () => {
         userId: "user-1",
         sessionId: "conversation-1",
         input: { limit: 10 },
-        output: toolOutput,
+        output: {
+          role: "tool",
+          name: "listObservations",
+          tool_call_id: "tool-1",
+          content: toolOutput,
+        },
         startTime: expect.any(Date),
         endTime: expect.any(Date),
         completionStartTime: expect.any(Date),
@@ -235,7 +240,12 @@ describe("InAppAgentInstrumentation", () => {
       const root = mocks.recordObservation.mock.calls
         .filter(([type]) => type === "AGENT")
         .at(-1)?.[1];
-      expect(tool.output).toEqual(output);
+      expect(tool.output).toEqual({
+        role: "tool",
+        name: "listObservations",
+        tool_call_id: tool.id,
+        content: output,
+      });
       expect(root.output.messages).toEqual([
         {
           role: "assistant",
@@ -259,6 +269,59 @@ describe("InAppAgentInstrumentation", () => {
       expect(Buffer.byteLength(JSON.stringify(root.output))).toBeLessThan(1024);
     },
   );
+
+  it("preserves supported media in structured tool responses", () => {
+    const instrumentation = createInstrumentation();
+    const content = [
+      { type: "text", text: "Preview" },
+      {
+        type: "image_url",
+        image_url: { url: "https://example.com/preview.png" },
+      },
+    ];
+    instrumentation.recordModelCallStart({
+      prompt: [{ role: "user", content: "Preview" }],
+    });
+    instrumentation.recordModelStreamPart({
+      type: "tool-call",
+      toolCallId: "media-tool",
+      toolName: "preview",
+      input: "{}",
+    });
+    instrumentation.recordModelStreamPart({
+      type: "finish",
+      finishReason: "tool-calls",
+    });
+    instrumentation.recordEvents([
+      {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: "media-tool",
+        toolCallName: "preview",
+      },
+      { type: EventType.TOOL_CALL_END, toolCallId: "media-tool" },
+      {
+        type: EventType.TOOL_CALL_RESULT,
+        toolCallId: "media-tool",
+        content: JSON.stringify(content),
+      },
+    ]);
+    instrumentation.end({});
+    const observations: TranscriptObservation[] =
+      mocks.recordObservation.mock.calls
+        .filter(([type]) => type === "GENERATION" || type === "TOOL")
+        .map(([type, body]) => ({ ...body, type, metadata: {} }));
+    expect(observations.find(({ type }) => type === "TOOL")?.output).toEqual({
+      role: "tool",
+      name: "preview",
+      tool_call_id: "media-tool",
+      content,
+    });
+    const transcript = assembleTranscript(orderObservations(observations));
+    expect(JSON.stringify(transcript)).toContain(
+      "https://example.com/preview.png",
+    );
+    expect(JSON.stringify(transcript)).toContain('"mediaType":"image/*"');
+  });
 
   it("references every root tool result, including small results", () => {
     const instrumentation = createInstrumentation();
@@ -287,7 +350,12 @@ describe("InAppAgentInstrumentation", () => {
     );
     expect(tools).toHaveLength(40);
     for (const [, tool] of tools) {
-      expect(tool.output).toEqual(output);
+      expect(tool.output).toEqual({
+        role: "tool",
+        name: "listObservations",
+        tool_call_id: tool.id,
+        content: output,
+      });
     }
     const root = mocks.recordObservation.mock.calls
       .filter(([type]) => type === "AGENT")
@@ -430,6 +498,114 @@ describe("InAppAgentInstrumentation", () => {
     expect(
       JSON.stringify(transcript?.threads[0]?.conversationHistory),
     ).toContain(toolOutput.value.data);
+  });
+
+  it("pairs parallel filter results by ID without metadata or duplicate history results", () => {
+    const instrumentation = createInstrumentation();
+    const name = "langfuse_getObservationFilterValues";
+    const calls = ["userId", "sessionId"].map((column, index) => ({
+      toolCallId: `tooluse_sanitized_${index}`,
+      toolName: name,
+      input: JSON.stringify({ column }),
+      result: { type: "VALUES", column, values: [], meta: {} },
+    }));
+    const user = {
+      role: "user",
+      content: "List available user and session IDs",
+    };
+    instrumentation.recordModelCallStart({ prompt: [user] });
+    for (const call of calls) {
+      instrumentation.recordModelStreamPart({ type: "tool-call", ...call });
+      instrumentation.recordEvents([
+        {
+          type: EventType.TOOL_CALL_START,
+          toolCallId: call.toolCallId,
+          toolCallName: name,
+        },
+        {
+          type: EventType.TOOL_CALL_ARGS,
+          toolCallId: call.toolCallId,
+          delta: call.input,
+        },
+        { type: EventType.TOOL_CALL_END, toolCallId: call.toolCallId },
+      ]);
+    }
+    instrumentation.recordModelStreamPart({
+      type: "finish",
+      finishReason: "tool-calls",
+    });
+    // Name-based FIFO matching would swap these responses.
+    for (const call of [...calls].reverse()) {
+      instrumentation.recordEvents([
+        {
+          type: EventType.TOOL_CALL_RESULT,
+          toolCallId: call.toolCallId,
+          content: JSON.stringify(call.result),
+        },
+      ]);
+    }
+    instrumentation.recordModelCallStart({
+      prompt: [
+        user,
+        {
+          role: "assistant",
+          content: calls.map((call) => ({
+            type: "tool-call",
+            toolCallId: call.toolCallId,
+            toolName: name,
+            input: JSON.parse(call.input),
+          })),
+        },
+        {
+          role: "tool",
+          content: calls.map((call) => ({
+            type: "tool-result",
+            toolCallId: call.toolCallId,
+            toolName: name,
+            output: { type: "json", value: call.result },
+          })),
+        },
+      ],
+    });
+    instrumentation.recordModelStreamPart({
+      type: "text-delta",
+      delta: "No values found",
+    });
+    instrumentation.recordModelStreamPart({
+      type: "finish",
+      finishReason: "stop",
+    });
+    instrumentation.end({});
+
+    const observations: TranscriptObservation[] =
+      mocks.recordObservation.mock.calls
+        .filter(([type]) => type === "GENERATION" || type === "TOOL")
+        .map(([type, body]) => ({ ...body, type, metadata: {} }));
+    for (const call of calls) {
+      expect(
+        observations.find(({ id }) => id === call.toolCallId)?.output,
+      ).toEqual({
+        role: "tool",
+        name,
+        tool_call_id: call.toolCallId,
+        content: call.result,
+      });
+    }
+    const transcript = assembleTranscript(orderObservations(observations));
+    expect(transcript?.threads).toHaveLength(1);
+    const messages = transcript!.threads[0]!.currentTurn.messages;
+    const results = messages
+      .flatMap(({ parts }) => parts)
+      .filter((part) => part.type === "tool-result");
+    expect(results).toHaveLength(2);
+    for (const call of calls) {
+      expect(
+        results.find((part) => part.toolCallId === call.toolCallId),
+      ).toMatchObject({
+        toolName: name,
+        output: { type: "json", value: call.result },
+      });
+    }
   });
 
   it("keeps batched tool-result identities but omits their payloads from generation telemetry", () => {
@@ -793,8 +969,10 @@ describe("InAppAgentInstrumentation", () => {
       expect.objectContaining({
         input: { type: "TRACE" },
         output: {
-          error: true,
-          message: "Tool input validation failed",
+          role: "tool",
+          name: "listObservations",
+          tool_call_id: "tool-1",
+          content: { error: true, message: "Tool input validation failed" },
         },
         level: "ERROR",
         statusMessage: "Tool input validation failed",
@@ -938,7 +1116,12 @@ describe("InAppAgentInstrumentation", () => {
       expect(mocks.recordObservation).toHaveBeenCalledWith(
         "TOOL",
         expect.objectContaining({
-          output: expectedOutput,
+          output: {
+            role: "tool",
+            name: "createScoreConfig",
+            tool_call_id: "tool-1",
+            content: expectedOutput,
+          },
           level: "ERROR",
           statusMessage: expectedMessage,
         }),
@@ -1002,7 +1185,12 @@ describe("InAppAgentInstrumentation", () => {
       )?.[1];
       expect(toolCreateBody).toEqual(
         expect.objectContaining({
-          output: expectedOutput,
+          output: {
+            role: "tool",
+            name: "search",
+            tool_call_id: "tool-1",
+            content: expectedOutput,
+          },
         }),
       );
       expect(toolCreateBody).not.toHaveProperty("level");
@@ -1318,7 +1506,8 @@ describe("InAppAgentInstrumentation", () => {
               {
                 role: "tool",
                 tool_call_id: "tool-1",
-                content: { name: "FOO", version: 1 },
+                content:
+                  "Output recorded in the corresponding TOOL observation.",
               },
             ],
           }),

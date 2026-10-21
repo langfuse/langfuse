@@ -712,7 +712,15 @@ export class InAppAgentInstrumentation {
       endTime,
       completionStartTime: startTime,
       input,
-      output,
+      output:
+        output === undefined
+          ? undefined
+          : {
+              role: "tool",
+              name: tool.name,
+              tool_call_id: toolCallId,
+              content: output,
+            },
       ...(failureMessage
         ? { level: "ERROR", statusMessage: failureMessage }
         : {}),
