@@ -1,195 +1,130 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const {
-  mockExportLocalEvents,
-  mockProcessEventBatch,
-  mockWrite,
-  mockPublishAiFeatureTrace,
-} = vi.hoisted(() => ({
-  mockExportLocalEvents: vi.fn(),
-  mockProcessEventBatch: vi.fn(),
-  mockWrite: vi.fn(),
-  mockPublishAiFeatureTrace: vi.fn(),
+const { publish, traceException, logError } = vi.hoisted(() => ({
+  publish: vi.fn(),
+  traceException: vi.fn(),
+  logError: vi.fn(),
 }));
-
-vi.mock("langfuse", () => {
-  return {
-    Langfuse: class MockLangfuse {
-      public _exportLocalEvents = mockExportLocalEvents;
-    },
-  };
-});
-
-vi.mock(
-  "../../../../../packages/shared/src/server/ingestion/processEventBatch",
-  () => ({
-    processEventBatch: mockProcessEventBatch,
-  }),
-);
 
 vi.mock(
   "../../../../../packages/shared/src/server/otel/internalAiFeatureOtelWriter",
   () => ({
-    publishAiFeatureTraceViaOtelIngestion: mockPublishAiFeatureTrace,
+    publishAiFeatureTraceViaOtelIngestion: publish,
   }),
 );
+vi.mock("../../../../../packages/shared/src/server/instrumentation", () => ({
+  traceException,
+}));
+vi.mock("../../../../../packages/shared/src/server/logger", () => ({
+  logger: { error: logError },
+}));
 
 import { getInternalTracingHandler } from "../../../../../packages/shared/src/server/llm/getInternalTracingHandler";
-import { LangfuseInternalTraceEnvironment } from "@langfuse/shared";
 import { env } from "../../../../../packages/shared/src/env";
 
-const traceId = "trace-123";
-const processedEventsFixture = [
-  {
-    type: "trace-create",
-    timestamp: "2026-01-31T06:58:02.221Z",
-    body: {
-      id: traceId,
-      traceId,
-      startTime: "2026-01-31T06:58:02.218Z",
-      environment: LangfuseInternalTraceEnvironment.PromptExperiments,
-      name: "dataset-run-item-008e4",
-      input: [{ role: "user", content: "Hello" }],
-    },
-  },
-  {
-    type: "generation-create",
-    timestamp: "2026-01-31T06:58:02.222Z",
-    body: {
-      id: "generation-123",
-      traceId,
-      parentObservationId: traceId,
-      startTime: "2026-01-31T06:58:02.220Z",
-      environment: LangfuseInternalTraceEnvironment.PromptExperiments,
-      name: "ChatOpenAI",
-      input: [{ role: "user", content: "Hello" }],
-      model: "gpt-4.1",
-    },
-  },
-  {
-    type: "generation-update",
-    timestamp: "2026-01-31T06:58:03.708Z",
-    body: {
-      id: "generation-123",
-      traceId,
-      output: { role: "assistant", content: "Hi" },
-      endTime: "2026-01-31T06:58:03.707Z",
-      usageDetails: {
-        input: 10,
-        output: 5,
-        total: 15,
-      },
-    },
-  },
-];
+const params = {
+  targetProjectId: "project-123",
+  traceId: "trace-123",
+  traceName: "agent-turn",
+  environment: "production",
+  userId: "user-123",
+  sessionId: "session-123",
+  metadata: { feature: "in-app-agent" },
+};
+const agent = {
+  id: "agent-123",
+  traceId: params.traceId,
+  name: "agent-turn",
+  startTime: new Date("2026-01-31T06:58:02.218Z"),
+  endTime: new Date("2026-01-31T06:58:03.707Z"),
+  input: { messages: [{ role: "user", content: "Hello" }] },
+  tags: ["in-app-agent"],
+};
 
 describe("getInternalTracingHandler", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockExportLocalEvents.mockResolvedValue(processedEventsFixture);
-    mockProcessEventBatch.mockResolvedValue({
-      successes: [],
-      errors: [],
+    publish.mockResolvedValue(undefined);
+  });
+
+  it("publishes one root AGENT with its latest output and child generations", async () => {
+    const handler = getInternalTracingHandler(params);
+    handler.recordObservation("AGENT", agent);
+    handler.recordObservation("GENERATION", {
+      ...agent,
+      id: "generation-123",
+      parentObservationId: agent.id,
+      name: "invoke-model",
+      model: "gpt-4.1",
+      completionStartTime: agent.endTime,
+      usageDetails: { input: 10, output: 5, total: 15 },
+      promptName: "system-prompt",
+      promptVersion: 3,
     });
-    mockWrite.mockResolvedValue(undefined);
-    mockPublishAiFeatureTrace.mockResolvedValue(undefined);
-  });
+    handler.recordObservation("AGENT", { ...agent, output: { text: "Hi" } });
+    await handler.processTracedEvents();
 
-  it("disables staging propagation when direct event write is enabled", async () => {
-    const { processTracedEvents } = getInternalTracingHandler({
-      targetProjectId: "project-123",
-      traceId,
-      traceName: "internal-trace",
-      environment: LangfuseInternalTraceEnvironment.PromptExperiments,
-      eventsWriter: {
-        experimentContext: {
-          id: "run-123",
-          name: "Prompt run",
-          datasetId: "dataset-123",
-          itemId: "item-123",
-          itemVersion: "2026-01-31T06:57:38.646Z",
-        },
-        write: mockWrite,
-      },
+    expect(publish).toHaveBeenCalledExactlyOnceWith({
+      projectId: params.targetProjectId,
+      eventInputs: [
+        expect.objectContaining({
+          spanId: agent.id,
+          traceId: params.traceId,
+          parentSpanId: undefined,
+          type: "AGENT",
+          input: JSON.stringify(agent.input),
+          output: JSON.stringify({ text: "Hi" }),
+          environment: "production",
+          userId: params.userId,
+          sessionId: params.sessionId,
+          metadata: params.metadata,
+          tags: ["in-app-agent"],
+        }),
+        expect.objectContaining({
+          spanId: "generation-123",
+          parentSpanId: agent.id,
+          type: "GENERATION",
+          modelName: "gpt-4.1",
+          providedUsageDetails: { input: 10, output: 5, total: 15 },
+          promptName: "system-prompt",
+          promptVersion: "3",
+          completionStartTime: agent.endTime.toISOString(),
+        }),
+      ],
     });
-
-    await processTracedEvents();
-
-    expect(mockProcessEventBatch).toHaveBeenCalledWith(
-      expect.any(Array),
-      expect.any(Object),
-      expect.objectContaining({
-        isLangfuseInternal: true,
-        forwardToEventsTable: false,
-      }),
-    );
+    await handler.processTracedEvents();
+    expect(publish).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps legacy forwarding behavior when direct event write is disabled", async () => {
-    const { processTracedEvents } = getInternalTracingHandler({
-      targetProjectId: "project-123",
-      traceId,
-      traceName: "internal-trace",
-      environment: LangfuseInternalTraceEnvironment.LLMJudge,
-    });
-
-    await processTracedEvents();
-
-    expect(mockProcessEventBatch).toHaveBeenCalledWith(
-      expect.any(Array),
-      expect.any(Object),
-      expect.objectContaining({
-        isLangfuseInternal: true,
-        forwardToEventsTable: undefined,
-      }),
-    );
-    expect(mockWrite).not.toHaveBeenCalled();
-  });
-
-  it("publishes AI-feature traces via OTel on v4 write modes", async () => {
-    const previousWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
-    env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
-
-    try {
-      const { processTracedEvents } = getInternalTracingHandler({
-        targetProjectId: "project-123",
-        traceId,
-        traceName: "agent-turn",
-        environment: "production",
-        aiFeatureOtelIngestion: true,
-      });
-
-      await processTracedEvents();
-
-      expect(mockProcessEventBatch).not.toHaveBeenCalled();
-      expect(mockPublishAiFeatureTrace).toHaveBeenCalledWith({
-        projectId: "project-123",
-        eventInputs: expect.any(Array),
-      });
-    } finally {
-      env.LANGFUSE_MIGRATION_V4_WRITE_MODE = previousWriteMode;
-    }
-  });
-
-  it("keeps processEventBatch for AI-feature traces in legacy write mode", async () => {
-    const previousWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+  it("publishes via OTel even when legacy write mode is configured", async () => {
+    const previous = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
     env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
-
     try {
-      const { processTracedEvents } = getInternalTracingHandler({
-        targetProjectId: "project-123",
-        traceId,
-        traceName: "agent-turn",
-        environment: "production",
-        aiFeatureOtelIngestion: true,
-      });
-
-      await processTracedEvents();
-
-      expect(mockProcessEventBatch).toHaveBeenCalled();
-      expect(mockPublishAiFeatureTrace).not.toHaveBeenCalled();
+      const handler = getInternalTracingHandler(params);
+      handler.recordObservation("AGENT", agent);
+      await handler.processTracedEvents();
+      expect(publish).toHaveBeenCalledOnce();
     } finally {
-      env.LANGFUSE_MIGRATION_V4_WRITE_MODE = previousWriteMode;
+      env.LANGFUSE_MIGRATION_V4_WRITE_MODE = previous;
     }
+  });
+
+  it("does not publish an empty batch", async () => {
+    await getInternalTracingHandler(params).processTracedEvents();
+    expect(publish).not.toHaveBeenCalled();
+  });
+
+  it("records errors without failing the agent", async () => {
+    const error = new Error("queue unavailable");
+    publish.mockRejectedValueOnce(error);
+    const handler = getInternalTracingHandler(params);
+    handler.recordObservation("AGENT", {
+      ...agent,
+      level: "ERROR",
+      statusMessage: "agent failed",
+    });
+    await expect(handler.processTracedEvents()).resolves.toBeUndefined();
+    expect(traceException).toHaveBeenCalledWith(error);
+    expect(logError).toHaveBeenCalledWith(expect.any(String), { error });
   });
 });

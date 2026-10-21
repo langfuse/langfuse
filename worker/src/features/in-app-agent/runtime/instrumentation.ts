@@ -36,6 +36,7 @@ export type InAppAgentTracingConfig = {
     isAdmin: boolean;
   };
   runId: string;
+  runStartedAt: Date;
   targetProjectId: string;
   prompt?: InAppAgentPromptMetadata;
 };
@@ -54,10 +55,6 @@ export type InAppAgentPromptMetadata = {
 const IN_APP_AGENT_TURN_NAME = "agent-turn";
 const IN_APP_AGENT_LLM_CALL_NAME = "invoke-model";
 type InternalTracingHandler = ReturnType<typeof getInternalTracingHandler>;
-type InAppAgentTrace = ReturnType<
-  InternalTracingHandler["handler"]["langfuse"]["trace"]
->;
-type InAppAgentLangfuse = InternalTracingHandler["handler"]["langfuse"];
 type AgentRunToolCall = {
   id: string;
   name: string;
@@ -91,27 +88,9 @@ type AgentRunChatMessage = {
   tool_calls?: AgentRunToolCall[];
   tool_call_id?: string;
 };
-type ObservationBody = {
-  id: string;
-  traceId: string;
-  parentObservationId?: string | null;
-  name: string;
-  startTime: Date;
-  endTime: Date;
-  completionStartTime?: Date;
-  input?: unknown;
-  output?: unknown;
-  model?: string;
-  usageDetails?: Record<string, number>;
-  level?: "DEFAULT" | "ERROR";
-  statusMessage?: string | null;
-  metadata?: Record<string, unknown>;
-  promptName?: string;
-  promptVersion?: number;
-  userId?: string;
-  sessionId?: string;
-  skillsAvailable?: SkillsAvailableInput;
-};
+type ObservationBody = Parameters<
+  InternalTracingHandler["recordObservation"]
+>[1];
 type ToolCallApprovalStatus = "approved" | "rejected";
 type AgentRunToolSpan = {
   name: string;
@@ -171,6 +150,7 @@ export function createInAppAgentInstrumentation({
       userProjectRole: tracing.user.projectRole,
       userIsAdmin: tracing.user.isAdmin,
       runId: tracing.runId,
+      runStartedAt: tracing.runStartedAt,
       targetProjectId: tracing.targetProjectId,
       environment: tracing.environment,
       prompt: tracing.prompt,
@@ -185,8 +165,7 @@ export function createInAppAgentInstrumentation({
 export class InAppAgentInstrumentation {
   private readonly processTracedEvents: () => Promise<void>;
   private flushPromise?: Promise<void>;
-  private readonly langfuse: InAppAgentLangfuse;
-  private readonly trace: InAppAgentTrace;
+  private readonly recordObservation: InternalTracingHandler["recordObservation"];
   private readonly runId: string;
   private readonly traceId: string;
   private readonly rootObservationId: string;
@@ -195,7 +174,6 @@ export class InAppAgentInstrumentation {
   private readonly traceStartTime: Date;
   private readonly agentRunStartTime: Date;
   private agentRunInput: unknown;
-  private readonly wrappingRootInput: string | undefined;
   private readonly approvalContinuation?: ApprovalContinuation;
   private readonly prompt?: InAppAgentPromptMetadata;
   private readonly toolSpans = new Map<string, AgentRunToolSpan>();
@@ -232,6 +210,7 @@ export class InAppAgentInstrumentation {
     userProjectRole?: InAppAgentUserAccess["projectRole"];
     userIsAdmin: boolean;
     runId: string;
+    runStartedAt: Date;
     targetProjectId: string;
     environment: string;
     prompt?: InAppAgentPromptMetadata;
@@ -259,7 +238,6 @@ export class InAppAgentInstrumentation {
         : {}),
     };
     this.agentRunInput = getAgentRunInput(params.input);
-    this.wrappingRootInput = getWrappingRootUserText(params.input);
     this.prompt = params.prompt;
     this.targetProjectId = params.targetProjectId;
     this.model = params.model;
@@ -271,8 +249,10 @@ export class InAppAgentInstrumentation {
     this.rootObservationId =
       getInAppAgentInstrumentationObservationId(rootRunId);
     this.agentRunStartTime = new Date();
+    // V4 replacement keys include exact start_time; continuations must reuse
+    // the persisted root timestamp rather than instrumentation initialization.
     this.traceStartTime =
-      this.approvalContinuation?.traceStartedAt ?? this.agentRunStartTime;
+      this.approvalContinuation?.traceStartedAt ?? params.runStartedAt;
 
     const traceSinkParams = {
       targetProjectId: params.targetProjectId,
@@ -283,23 +263,11 @@ export class InAppAgentInstrumentation {
       sessionId: params.input.threadId,
       metadata: this.metadata,
       prompt: params.prompt,
-      aiFeatureOtelIngestion: true,
     };
-    const { handler, processTracedEvents } =
+    const { recordObservation, processTracedEvents } =
       getInternalTracingHandler(traceSinkParams);
     this.processTracedEvents = processTracedEvents;
-    this.langfuse = handler.langfuse;
-
-    this.trace = this.langfuse.trace({
-      id: this.traceId,
-      name: IN_APP_AGENT_TURN_NAME,
-      userId: params.userId,
-      sessionId: params.input.threadId,
-      timestamp: this.traceStartTime,
-      input: this.wrappingRootInput,
-      metadata: this.metadata,
-      tags: ["in-app-agent"],
-    });
+    this.recordObservation = recordObservation;
 
     // Create the root observation immediately so tool/generation children
     // emitted during the run have a parent that already exists (avoids
@@ -500,11 +468,6 @@ export class InAppAgentInstrumentation {
         error: message,
       },
     });
-    this.trace.update({
-      input: this.wrappingRootInput,
-      output: this.getWrappingRootOutput(),
-      metadata: { ...this.metadata, error: message },
-    });
     this.ended = true;
   }
 
@@ -526,11 +489,6 @@ export class InAppAgentInstrumentation {
       ...(params?.result ? { result: params.result } : {}),
     };
     this.emitRootAgentObservation({ metadata });
-    this.trace.update({
-      input: this.wrappingRootInput,
-      output: this.getWrappingRootOutput(),
-      metadata,
-    });
     this.ended = true;
   }
 
@@ -775,7 +733,7 @@ export class InAppAgentInstrumentation {
     this.toolCallApprovalSources.delete(toolCallId);
     this.toolExecutionTimes.delete(toolCallId);
 
-    this.enqueueObservation("tool-create", body);
+    this.enqueueObservation("TOOL", body);
   }
 
   private emitRootAgentObservation(params: {
@@ -783,10 +741,11 @@ export class InAppAgentInstrumentation {
     level?: "ERROR";
     statusMessage?: string;
   }) {
-    this.enqueueObservation("agent-create", {
+    this.enqueueObservation("AGENT", {
       id: this.rootObservationId,
       traceId: this.traceId,
       name: IN_APP_AGENT_TURN_NAME,
+      tags: ["in-app-agent"],
       startTime: this.traceStartTime,
       endTime: new Date(),
       input: this.getTraceInput(),
@@ -832,7 +791,7 @@ export class InAppAgentInstrumentation {
           }
         : undefined;
 
-    this.enqueueObservation("generation-create", {
+    this.enqueueObservation("GENERATION", {
       id,
       traceId: this.traceId,
       parentObservationId: this.rootObservationId,
@@ -937,12 +896,11 @@ export class InAppAgentInstrumentation {
     );
   }
 
-  private enqueueObservation(type: string, body: ObservationBody) {
-    (
-      this.langfuse as unknown as {
-        enqueue: (type: string, body: ObservationBody) => void;
-      }
-    ).enqueue(type, {
+  private enqueueObservation(
+    type: Parameters<InternalTracingHandler["recordObservation"]>[0],
+    body: ObservationBody,
+  ) {
+    this.recordObservation(type, {
       ...body,
       ...((type === "generation-create" || type === "tool-create") &&
       this.skillsAvailable.length > 0
@@ -1048,23 +1006,6 @@ export class InAppAgentInstrumentation {
     }
   }
 
-  private getWrappingRootOutput(): string | undefined {
-    const texts = this.getAgentRunOutputMessages().flatMap((message) => {
-      if (message.role !== "assistant") {
-        return [];
-      }
-
-      const text = getRenderedMessageText(message.content);
-      return text.trim() ? [text] : [];
-    });
-
-    if (texts.length === 0) {
-      return undefined;
-    }
-
-    return texts.join("\n\n");
-  }
-
   private getAgentRunOutput() {
     const messages = this.getAgentRunOutputMessages();
 
@@ -1111,7 +1052,7 @@ export class InAppAgentInstrumentation {
     const endTime =
       decidedAt.getTime() < requestedAt.getTime() ? requestedAt : decidedAt;
 
-    this.enqueueObservation("span-create", {
+    this.enqueueObservation("SPAN", {
       id: `${this.runId}-approval-wait`,
       traceId: this.traceId,
       parentObservationId: this.rootObservationId,
@@ -1190,37 +1131,6 @@ function getPriorAgentRunOutputMessages(
       isRecord(message) &&
       (message.role === "assistant" || message.role === "tool"),
   );
-}
-
-function getWrappingRootUserText(input: AgUiRunAgentInput): string | undefined {
-  const lastUserMessage = input.messages.findLast(
-    (message) => message.role === "user",
-  );
-
-  if (!lastUserMessage) {
-    return undefined;
-  }
-
-  const text = getRenderedMessageText(lastUserMessage.content);
-  return text.length > 0 ? text : undefined;
-}
-
-function getRenderedMessageText(content: unknown): string {
-  if (typeof content === "string") {
-    return content;
-  }
-
-  if (Array.isArray(content)) {
-    return content
-      .flatMap((part) =>
-        isRecord(part) && part.type === "text" && typeof part.text === "string"
-          ? [part.text]
-          : [],
-      )
-      .join("");
-  }
-
-  return "";
 }
 
 function getAgentRunInput(input: AgUiRunAgentInput): unknown {

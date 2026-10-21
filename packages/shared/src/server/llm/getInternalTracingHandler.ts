@@ -1,9 +1,15 @@
-import { Langfuse } from "langfuse";
-import { env } from "../../env";
 import { ProcessedTraceEvent, TraceSinkParams } from "./types";
-import { buildInternalTraceEventInputs } from "./internalTraceEvents";
-import { processEventBatch } from "../ingestion/processEventBatch";
-import { createUnknownSdkIngestionAttribution } from "../ingestion/ingestionAttribution";
+import {
+  INTERNAL_TRACE_EVENT_SOURCE,
+  type InternalTraceEventInput,
+} from "./internalTraceEvents";
+import type { ObservationType } from "../../domain/observations";
+import { stringifyValue } from "../../utils/stringChecks";
+import {
+  convertCallsToArrays,
+  convertDefinitionsToMap,
+  extractToolsFromObservation,
+} from "../ingestion/extractToolsBackend";
 import { logger } from "../logger";
 import { traceException } from "../instrumentation";
 import { publishAiFeatureTraceViaOtelIngestion } from "../otel/internalAiFeatureOtelWriter";
@@ -74,120 +80,111 @@ export function prepareInternalTraceEvents(params: {
     });
 }
 
-export function getInternalTracingHandler(traceSinkParams: TraceSinkParams): {
-  handler: { langfuse: Langfuse };
-  processTracedEvents: () => Promise<void>;
-} {
-  const { prompt, targetProjectId, environment, eventsWriter } =
-    traceSinkParams;
-  const handler = {
-    langfuse: new Langfuse({
-      _projectId: targetProjectId,
-      _isLocalEventExportEnabled: true,
-      environment,
-      persistence: "memory",
-      sdkIntegration: "LANGCHAIN",
-    }),
+export type InternalObservation = {
+  id: string;
+  traceId: string;
+  parentObservationId?: string | null;
+  name: string;
+  startTime: Date;
+  endTime: Date;
+  completionStartTime?: Date;
+  input?: unknown;
+  output?: unknown;
+  model?: string;
+  usageDetails?: Record<string, number>;
+  level?: "DEFAULT" | "ERROR";
+  statusMessage?: string | null;
+  metadata?: Record<string, unknown>;
+  promptName?: string;
+  promptVersion?: number;
+  userId?: string;
+  sessionId?: string;
+  tags?: string[];
+};
+
+export function getInternalTracingHandler(
+  params: Pick<
+    TraceSinkParams,
+    | "targetProjectId"
+    | "traceId"
+    | "traceName"
+    | "environment"
+    | "userId"
+    | "sessionId"
+    | "metadata"
+    | "prompt"
+  >,
+) {
+  const observations = new Map<string, InternalTraceEventInput>();
+
+  const recordObservation = (
+    type: ObservationType,
+    observation: InternalObservation,
+  ) => {
+    const { toolDefinitions, toolArguments } = extractToolsFromObservation(
+      observation.input,
+      observation.output,
+    );
+    const toolCalls = convertCallsToArrays(toolArguments);
+    observations.set(observation.id, {
+      projectId: params.targetProjectId,
+      traceId: params.traceId,
+      spanId: observation.id,
+      parentSpanId: observation.parentObservationId ?? undefined,
+      name: observation.name,
+      type,
+      environment: params.environment,
+      traceName: params.traceName,
+      startTimeISO: observation.startTime.toISOString(),
+      endTimeISO: observation.endTime.toISOString(),
+      completionStartTime: observation.completionStartTime?.toISOString(),
+      input:
+        observation.input === undefined
+          ? undefined
+          : stringifyValue(observation.input),
+      output:
+        observation.output === undefined
+          ? undefined
+          : stringifyValue(observation.output),
+      modelName: observation.model,
+      providedUsageDetails: observation.usageDetails,
+      level: observation.level ?? "DEFAULT",
+      statusMessage: observation.statusMessage ?? undefined,
+      promptName:
+        observation.promptName ??
+        (type === "GENERATION" ? params.prompt?.name : undefined),
+      promptVersion: (
+        observation.promptVersion ??
+        (type === "GENERATION" ? params.prompt?.version : undefined)
+      )?.toString(),
+      userId: observation.userId ?? params.userId,
+      sessionId: observation.sessionId ?? params.sessionId,
+      tags: observation.tags,
+      metadata: { ...params.metadata, ...observation.metadata },
+      toolDefinitions: convertDefinitionsToMap(toolDefinitions),
+      toolCalls: toolCalls.tool_calls,
+      toolCallNames: toolCalls.tool_call_names,
+      source: INTERNAL_TRACE_EVENT_SOURCE,
+    });
   };
 
   const processTracedEvents = async () => {
+    if (observations.size === 0) return;
+    const eventInputs = [...observations.values()];
+    observations.clear();
     try {
-      const events = await handler.langfuse._exportLocalEvents(
-        traceSinkParams.targetProjectId,
-      );
-      const processedEvents = prepareInternalTraceEvents({
-        events,
-        environment,
-        prompt,
+      await publishAiFeatureTraceViaOtelIngestion({
+        eventInputs,
+        projectId: params.targetProjectId,
       });
-
-      const useAiFeatureOtel =
-        Boolean(traceSinkParams.aiFeatureOtelIngestion) &&
-        env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "legacy";
-
-      if (useAiFeatureOtel) {
-        try {
-          const { eventInputs } = buildInternalTraceEventInputs({
-            processedEvents,
-            traceId: traceSinkParams.traceId,
-            projectId: targetProjectId,
-            userId: traceSinkParams.userId,
-            sessionId: traceSinkParams.sessionId,
-          });
-
-          if (eventInputs.length > 0) {
-            await publishAiFeatureTraceViaOtelIngestion({
-              eventInputs,
-              projectId: targetProjectId,
-            });
-          }
-        } catch (otelError) {
-          traceException(otelError);
-          logger.error(
-            "Failed to process AI-feature traces via OTel ingestion",
-            {
-              error: otelError,
-            },
-          );
-        }
-
-        return;
-      }
-
-      // Legacy write to traces/observations tables
-      try {
-        const auth = {
-          validKey: true as const,
-          scope: {
-            projectId: traceSinkParams.targetProjectId, // Important: this controls into what project traces are ingested.
-            accessLevel: "project",
-          } as any,
-        };
-
-        await processEventBatch(
-          JSON.parse(JSON.stringify(processedEvents)), // stringify to emulate network event batch from network call
-          auth,
-          {
-            isLangfuseInternal: true,
-            forwardToEventsTable: eventsWriter ? false : undefined, // Do not dual write when we already direct event write
-            attribution: createUnknownSdkIngestionAttribution({
-              authCheck: auth,
-            }),
-          },
-        );
-      } catch (processingError) {
-        traceException(processingError);
-        logger.error("Failed to process traced events via legacy ingestion", {
-          error: processingError,
-        });
-      }
-
-      // Direct write to events table
-      if (eventsWriter) {
-        try {
-          const { rootSpanId, eventInputs } = buildInternalTraceEventInputs({
-            processedEvents,
-            traceId: traceSinkParams.traceId,
-            projectId: targetProjectId,
-            userId: traceSinkParams.userId,
-            sessionId: traceSinkParams.sessionId,
-            experimentContext: eventsWriter.experimentContext,
-          });
-
-          if (eventInputs.length > 0) {
-            await eventsWriter.write({ rootSpanId, eventInputs });
-          }
-        } catch (writeError) {
-          traceException(writeError);
-          logger.error("Failed to direct-write internal traced events", {
-            error: writeError,
-          });
-        }
-      }
-    } catch (e) {
-      logger.error("Failed to process traced events", { error: e });
+    } catch (error) {
+      traceException(error);
+      logger.error(
+        "Failed to process AI-feature observations via OTel ingestion",
+        { error },
+      );
     }
   };
 
-  return { handler, processTracedEvents };
+  return { recordObservation, processTracedEvents };
 }
