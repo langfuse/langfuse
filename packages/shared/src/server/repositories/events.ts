@@ -4078,7 +4078,7 @@ export const getTracesIdentifierForSessionFromEvents = async (
   projectId: string,
   sessionId: string,
 ) => {
-  // traces with a span in the session, kept when their aggregated session_id equals sessionId
+  /** tracesCte aggregates traces with a span in the session, keeping those whose aggregated session_id equals sessionId */
   const tracesCte = (qb: QueryCreator<ClickHouseDatabase>) =>
     qb
       .selectFrom("events as e")
@@ -4093,7 +4093,7 @@ export const getTracesIdentifierForSessionFromEvents = async (
       .groupBy(["trace_id", "project_id"])
       .having("session_id", "=", sessionId);
 
-  // select t.id, t.user_id, … from event_traces t order by t.timestamp limit 1 by t.id
+  /** builder emits `select t.id, t.user_id, … from event_traces t order by t.timestamp limit 1 by t.id` */
   const builder = getClickhouseKysely()
     .with("event_traces", tracesCte)
     .selectFrom("event_traces as t")
