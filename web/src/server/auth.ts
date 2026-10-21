@@ -6,7 +6,7 @@ import {
   type Session,
 } from "next-auth";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, type Role } from "@langfuse/shared/src/db";
 import { isInAppAgentInstanceEnabled } from "@langfuse/shared/in-app-agent/server/modelProvider";
 import {
   hashPassword,
@@ -77,6 +77,7 @@ import {
   sendResetPasswordVerificationRequest,
   instrumentAsync,
   logger,
+  resolveOrganizationRole,
   resolveProjectRole,
   isLangfuseAITracingConfigured,
 } from "@langfuse/shared/src/server";
@@ -841,6 +842,17 @@ export async function getAuthOptions(
                       project: true,
                     },
                   },
+                  groupMemberships: {
+                    select: {
+                      group: {
+                        select: {
+                          roleAssignments: {
+                            select: { projectId: true, systemRole: true },
+                          },
+                        },
+                      },
+                    },
+                  },
                 },
               },
             },
@@ -948,10 +960,21 @@ export async function getAuthOptions(
                         const parsedCloudConfig = CloudConfigSchema.safeParse(
                           orgMembership.organization.cloudConfig,
                         );
+                        // Groups only hold ADMIN, MEMBER or VIEWER (see groupsRouter).
+                        const groupRoles =
+                          orgMembership.groupMemberships.flatMap(({ group }) =>
+                            group.roleAssignments.map((assignment) => ({
+                              projectId: assignment.projectId,
+                              role: assignment.systemRole as Role,
+                            })),
+                          );
                         return {
                           id: orgMembership.organization.id,
                           name: orgMembership.organization.name,
-                          role: orgMembership.role,
+                          role: resolveOrganizationRole({
+                            orgMembershipRole: orgMembership.role,
+                            groupRoles,
+                          }),
                           metadata:
                             (orgMembership.organization.metadata as Record<
                               string,
@@ -980,6 +1003,7 @@ export async function getAuthOptions(
                                 projectMemberships:
                                   orgMembership.ProjectMemberships,
                                 orgMembershipRole: orgMembership.role,
+                                groupRoles,
                               });
                               return {
                                 id: project.id,

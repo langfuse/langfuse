@@ -13,6 +13,7 @@ import { BillingSettings } from "@/src/ee/features/billing/components/BillingSet
 import { OrganizationUsageBreakdown } from "@/src/features/organization-usage";
 import { useHasEntitlement, usePlan } from "@/src/features/entitlements";
 import { SSOSettings } from "@/src/ee/features/sso-settings";
+import { GroupsSettings } from "@/src/features/groups/components/GroupsSettings";
 import { type CloudConfigSchema, isCloudPlan } from "@langfuse/shared";
 import { Building2 } from "lucide-react";
 import { useQueryProjectOrOrganization } from "@/src/features/projects";
@@ -53,6 +54,11 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     scope: "organization:CRUD_apiKeys",
   });
   const showOrgApiKeySettings = hasAdminApiEntitlement && hasOrgApiKeyAccess;
+  const canReadMembers = useHasOrganizationAccess({
+    organizationId: organization?.id,
+    scope: "organizationMembers:read",
+  });
+  const showGroups = hasAdminApiEntitlement && canReadMembers;
   const showAuditLogs = useHasEntitlement("audit-logs");
   const canUpdateOrganization = useHasOrganizationAccess({
     organizationId: organization?.id,
@@ -94,6 +100,7 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     // covers deployments without one (self-hosted).
     showUsageSettings: canReadUsage && !showBillingPage,
     showOrgApiKeySettings,
+    showGroups,
     showAuditLogs,
     isLangfuseCloud,
     showV4Migration,
@@ -117,6 +124,7 @@ const getOrganizationSettingsPages = ({
   showBillingSettings,
   showUsageSettings,
   showOrgApiKeySettings,
+  showGroups,
   showAuditLogs,
   isLangfuseCloud,
   showV4Migration,
@@ -139,6 +147,7 @@ const getOrganizationSettingsPages = ({
   showBillingSettings: boolean;
   showUsageSettings: boolean;
   showOrgApiKeySettings: boolean;
+  showGroups: boolean;
   showAuditLogs: boolean;
   isLangfuseCloud: boolean;
   showV4Migration: boolean;
@@ -260,6 +269,14 @@ const getOrganizationSettingsPages = ({
     section: "Organization",
     cmdKKeywords: ["invite", "user", "rbac"],
     content: <OrganizationMembersSettings orgId={organization.id} />,
+  },
+  {
+    title: "Groups",
+    slug: "groups",
+    section: "Organization",
+    cmdKKeywords: ["scim", "groups", "okta", "entra", "azure", "idp"],
+    content: <GroupsSettings orgId={organization.id} />,
+    show: showGroups,
   },
   {
     title: "Audit Logs",

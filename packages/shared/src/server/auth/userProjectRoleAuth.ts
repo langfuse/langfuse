@@ -3,19 +3,68 @@ import type { FilterState } from "../../types";
 import { tableColumnsToSqlFilterAndPrefix } from "../filterToPrisma";
 import { usersTableCols } from "../../tableDefinitions/usersTable";
 
+/** A role a user holds through one of their groups; `projectId` is null for org-wide grants. */
+export type GroupRoleGrant = { projectId: string | null; role: Role };
+
+const ROLE_RANK: Record<Role, number> = {
+  NONE: 0,
+  VIEWER: 1,
+  MEMBER: 2,
+  ADMIN: 3,
+  OWNER: 4,
+};
+
+const highestRole = (roles: Role[]): Role =>
+  roles.reduce((best, role) =>
+    ROLE_RANK[role] > ROLE_RANK[best] ? role : best,
+  );
+
+/**
+ * A user's role on the organization: the highest of their direct org role and
+ * the org-wide roles of their groups.
+ */
+export function resolveOrganizationRole({
+  orgMembershipRole,
+  groupRoles = [],
+}: {
+  orgMembershipRole: Role;
+  groupRoles?: GroupRoleGrant[];
+}): Role {
+  return highestRole([
+    orgMembershipRole,
+    ...groupRoles
+      .filter((grant) => grant.projectId === null)
+      .map((grant) => grant.role),
+  ]);
+}
+
+/**
+ * A user's role on a project. Direct roles resolve as before: a direct project
+ * role replaces the direct org role, up or down. Group roles only ever add on
+ * top, org-wide and project grants alike, and the highest role wins.
+ */
 export function resolveProjectRole({
   projectId,
   projectMemberships,
   orgMembershipRole,
+  groupRoles = [],
 }: {
   projectId: string;
-  projectMemberships: ProjectMembership[];
+  projectMemberships: Pick<ProjectMembership, "projectId" | "role">[];
   orgMembershipRole: Role;
+  groupRoles?: GroupRoleGrant[];
 }): Role {
-  return (
+  const directRole =
     projectMemberships.find((membership) => membership.projectId === projectId)
-      ?.role ?? orgMembershipRole
-  );
+      ?.role ?? orgMembershipRole;
+  return highestRole([
+    directRole,
+    ...groupRoles
+      .filter(
+        (grant) => grant.projectId === null || grant.projectId === projectId,
+      )
+      .map((grant) => grant.role),
+  ]);
 }
 
 /**

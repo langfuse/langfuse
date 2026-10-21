@@ -206,7 +206,7 @@ describe("SCIM API", () => {
       expect(response.body.schemas).toContain(
         "urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig",
       );
-      expect(response.body.patch.supported).toBe(false);
+      expect(response.body.patch.supported).toBe(true);
       expect(response.body.filter.supported).toBe(true);
     });
 

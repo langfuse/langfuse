@@ -163,6 +163,8 @@ const orgRoutes: Route[] = [
   { route: "scim/ServiceProviderConfig", methods: ["GET"] },
   { route: "scim/Users/index", methods: ["GET", "POST"] },
   { route: "scim/Users/[id]", methods: ["GET", "PUT", "PATCH", "DELETE"] },
+  { route: "scim/Groups/index", methods: ["GET", "POST"] },
+  { route: "scim/Groups/[id]", methods: ["GET", "PUT", "PATCH", "DELETE"] },
   { route: "integrations/blob-storage/index", methods: ["GET", "PUT"] },
   { route: "integrations/blob-storage/[id]", methods: ["GET", "DELETE"] },
 ];

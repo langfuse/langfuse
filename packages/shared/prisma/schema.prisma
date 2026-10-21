@@ -138,6 +138,7 @@ model Organization {
   gatewayAiConnections             GatewayAiConnection[]
   organizationLlmApiKeys           LlmApiKeys[]             @relation("OrganizationLlmApiKeys")
   roleAssignments                  RoleAssignment[]         @relation("RoleAssignmentTenant")
+  groups                           Group[]
 
   deprecatedRoleAssignments RoleAssignment[] @relation("DeprecatedRoleAssignmentOrganization") @ignore
 
@@ -290,6 +291,8 @@ model RoleAssignment {
   user         User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
   apiKeyId     String?      @map("api_key_id")
   apiKey       ApiKey?      @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  groupId      String?      @map("group_id")
+  group        Group?       @relation(fields: [groupId], references: [id], onDelete: Cascade)
   roleId       String       @map("role_id")
   systemRole   SystemRole   @map("system_role")
   createdAt    DateTime     @default(now()) @map("created_at")
@@ -316,6 +319,7 @@ model RoleAssignment {
   @@index([principalId])
   @@index([userId])
   @@index([apiKeyId])
+  @@index([groupId])
   @@map("role_assignments")
 }
 
@@ -532,10 +536,51 @@ model OrganizationMembership {
   createdAt          DateTime            @default(now()) @map("created_at")
   updatedAt          DateTime            @default(now()) @updatedAt @map("updated_at")
   ProjectMemberships ProjectMembership[]
+  groupMemberships   GroupMembership[]
 
   @@unique([orgId, userId])
   @@index([userId])
   @@map("organization_memberships")
+}
+
+enum GroupSource {
+  SCIM // provisioned by the IdP through SCIM /Groups, members read-only in the UI
+  SYSTEM // created by Langfuse itself
+}
+
+// An org-scoped set of org members. Groups get access only through
+// role_assignments rows whose principal is `group/<id>`; group roles only ever
+// add to the roles a member has directly.
+model Group {
+  id              String            @id @default(cuid())
+  orgId           String            @map("org_id")
+  organization    Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  // Not unique: Entra ID allows several groups with the same name.
+  displayName     String            @map("display_name")
+  // The IdP's own identifier, unique per org when set (partial index in the migration).
+  externalId      String?           @map("external_id")
+  source          GroupSource       @default(SCIM)
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @default(now()) @updatedAt @map("updated_at")
+  members         GroupMembership[]
+  roleAssignments RoleAssignment[]
+
+  @@index([orgId, displayName])
+  @@map("groups")
+}
+
+// Puts an org member into a group. Hangs off the org membership so that
+// removing a user from the org also removes them from all its groups.
+model GroupMembership {
+  groupId                String                 @map("group_id")
+  group                  Group                  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  orgMembershipId        String                 @map("org_membership_id")
+  organizationMembership OrganizationMembership @relation(fields: [orgMembershipId], references: [id], onDelete: Cascade)
+  createdAt              DateTime               @default(now()) @map("created_at")
+
+  @@id([groupId, orgMembershipId])
+  @@index([orgMembershipId])
+  @@map("group_memberships")
 }
 
 // Set a project-specific role for a user in an organization

@@ -34,7 +34,7 @@ export default async function handler(
   // Return the resource types
   return res.status(200).json({
     schemas: ["urn:ietf:params:scim:api:messages:2.0:ListResponse"],
-    totalResults: 1,
+    totalResults: 2,
     Resources: [
       {
         schemas: ["urn:ietf:params:scim:schemas:core:2.0:ResourceType"],
@@ -47,6 +47,19 @@ export default async function handler(
         meta: {
           resourceType: "ResourceType",
           location: "/api/public/scim/ResourceTypes/User",
+        },
+      },
+      {
+        schemas: ["urn:ietf:params:scim:schemas:core:2.0:ResourceType"],
+        id: "Group",
+        name: "Group",
+        endpoint: "/api/public/scim/Groups",
+        description: "Group",
+        schema: "urn:ietf:params:scim:schemas:core:2.0:Group",
+        schemaExtensions: [],
+        meta: {
+          resourceType: "ResourceType",
+          location: "/api/public/scim/ResourceTypes/Group",
         },
       },
     ],
