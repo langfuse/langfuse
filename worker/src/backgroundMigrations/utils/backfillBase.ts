@@ -328,10 +328,7 @@ async function fireQuery({
       : new Error(String(earlyError));
   }
 
-  // The command returned without an error, so the query ran to completion. It
-  // has left system.processes and may not be flushed to system.query_log yet, so
-  // a start check here would misreport it as never started. pollActiveQueries
-  // picks up the final status on its next cycle.
+  // The command returned true without an error, so the query ran to completion.
   if (finished) {
     logger.info(
       `${logPrefix} Query ${queryId} finished before the start check, skipping it`,
