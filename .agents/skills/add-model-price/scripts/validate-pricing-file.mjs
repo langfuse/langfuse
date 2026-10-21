@@ -192,6 +192,20 @@ function validateUsageKeyCoverage(model) {
       requireAliasFamily(
         model,
         tier,
+        "Anthropic five-minute cache-write",
+        ["input_cache_creation_5m", "input_ephemeral_5m_input_tokens"],
+        false,
+      );
+      requireAliasFamily(
+        model,
+        tier,
+        "Anthropic one-hour cache-write",
+        ["input_cache_creation_1h", "input_ephemeral_1h_input_tokens"],
+        false,
+      );
+      requireAliasFamily(
+        model,
+        tier,
         "Anthropic cache-read",
         ["cache_read_input_tokens", "input_cache_read", "input_cached_tokens"],
         false,
