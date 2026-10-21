@@ -33,7 +33,7 @@ describe("soft-delete filtering", () => {
           .select((eb) => ["span_id", eb.lit(0).as("is_deleted")]),
       ),
     ).toMatchInlineSnapshot(
-      `"select span_id, 0 as is_deleted from events_core where project_id = {p1:String} and events_core.is_deleted = {p2:UInt8}"`,
+      `"select span_id, 0 as is_deleted from events_core where project_id = {p1:String} and events_core.is_deleted = 0"`,
     );
   });
 
@@ -46,7 +46,7 @@ describe("soft-delete filtering", () => {
           .where("e.trace_id", "=", "t"),
       ),
     ).toMatchInlineSnapshot(
-      `"select e.span_id from events_full as e where e.project_id = {p1:String} and e.is_deleted = {p2:UInt8} and e.trace_id = {p3:String}"`,
+      `"select e.span_id from events_full as e where e.project_id = {p1:String} and e.is_deleted = 0 and e.trace_id = {p2:String}"`,
     );
   });
 
@@ -61,7 +61,7 @@ describe("soft-delete filtering", () => {
           .select("s.id"),
       ),
     ).toMatchInlineSnapshot(
-      `"select s.id from scores as s left join events_core as e on e.trace_id = s.trace_id and e.is_deleted = {p1:UInt8} and e.project_id = {p2:String} where s.project_id = {p2:String}"`,
+      `"select s.id from scores as s left join events_core as e on e.trace_id = s.trace_id and e.is_deleted = 0 and e.project_id = {p1:String} where s.project_id = {p1:String}"`,
     );
   });
 
@@ -73,9 +73,7 @@ describe("soft-delete filtering", () => {
           .crossJoin("events_core as e")
           .select("s.id"),
       ),
-    ).toMatch(
-      / where s\.project_id = \{p1:String\} and e\.is_deleted = \{p2:UInt8\}$/,
-    );
+    ).toMatch(/ where s\.project_id = \{p1:String\} and e\.is_deleted = 0$/);
   });
 
   it("filters inside CTE bodies, subqueries, and UNION branches", () => {
@@ -95,7 +93,7 @@ describe("soft-delete filtering", () => {
           .unionAll(db.selectFrom("events_core").select("span_id as id")),
       ),
     ).toMatchInlineSnapshot(
-      `"with ev as (select trace_id from events_core where project_id = {p1:String} and events_core.is_deleted = {p2:UInt8}) select s.id from scores as s where s.project_id = {p1:String} and s.trace_id in (select trace_id from events_full where project_id = {p1:String} and events_full.is_deleted = {p2:UInt8}) and s.trace_id in (select trace_id from ev) union all select span_id as id from events_core where project_id = {p1:String} and events_core.is_deleted = {p2:UInt8}"`,
+      `"with ev as (select trace_id from events_core where project_id = {p1:String} and events_core.is_deleted = 0) select s.id from scores as s where s.project_id = {p1:String} and s.trace_id in (select trace_id from events_full where project_id = {p1:String} and events_full.is_deleted = 0) and s.trace_id in (select trace_id from ev) union all select span_id as id from events_core where project_id = {p1:String} and events_core.is_deleted = 0"`,
     );
   });
 
@@ -108,7 +106,7 @@ describe("soft-delete filtering", () => {
           .select("sub.span_id"),
       ),
     ).toMatchInlineSnapshot(
-      `"select sub.span_id from (select span_id from events_core where project_id = {p1:String} and events_core.is_deleted = {p2:UInt8}) as sub"`,
+      `"select sub.span_id from (select span_id from events_core where project_id = {p1:String} and events_core.is_deleted = 0) as sub"`,
     );
   });
 
@@ -148,7 +146,7 @@ describe("soft-delete filtering", () => {
           ),
       ),
     ).toMatchInlineSnapshot(
-      `"select e.span_id from events_core as e where e.project_id = {p1:String} and e.trace_id in (select trace_id from events_core where project_id = {p1:String} and events_core.is_deleted = {p2:UInt8})"`,
+      `"select e.span_id from events_core as e where e.project_id = {p1:String} and e.trace_id in (select trace_id from events_core where project_id = {p1:String} and events_core.is_deleted = 0)"`,
     );
   });
 
@@ -250,7 +248,7 @@ describe("soft-delete filtering", () => {
           .limit(1),
       ),
     ).toMatchInlineSnapshot(
-      `"select latest.id, latest.event_ts, latest.input, latest.len from (select e.span_id as id, e.event_ts, input, length(e.output) as len, e.is_deleted as is_deleted from events_full as e where e.project_id = {p1:String} and e.span_id = {p2:String} order by e.event_ts desc limit {p3:Int64}) as latest where latest.is_deleted = {p4:UInt8}"`,
+      `"select latest.id, latest.event_ts, latest.input, latest.len from (select e.span_id as id, e.event_ts, input, length(e.output) as len, e.is_deleted as is_deleted from events_full as e where e.project_id = {p1:String} and e.span_id = {p2:String} order by e.event_ts desc limit {p3:Int64}) as latest where latest.is_deleted = 0"`,
     );
   });
 
@@ -272,7 +270,7 @@ describe("soft-delete filtering", () => {
           .select("e.trace_id"),
       ),
     ).toMatchInlineSnapshot(
-      `"with latest_events as (select latest.span_id, latest.trace_id from (select e.span_id as span_id, e.trace_id as trace_id, e.is_deleted as is_deleted from events_core as e where e.project_id = {p1:String} order by e.event_ts desc limit 1 by e.span_id) as latest where latest.is_deleted = {p2:UInt8}) select e.trace_id from latest_events as e"`,
+      `"with latest_events as (select latest.span_id, latest.trace_id from (select e.span_id as span_id, e.trace_id as trace_id, e.is_deleted as is_deleted from events_core as e where e.project_id = {p1:String} order by e.event_ts desc limit 1 by e.span_id) as latest where latest.is_deleted = 0) select e.trace_id from latest_events as e"`,
     );
   });
 
@@ -286,7 +284,7 @@ describe("soft-delete filtering", () => {
           .limit(1),
       ),
     ).toMatchInlineSnapshot(
-      `"select latest.span_id from (select span_id, events_core.is_deleted as is_deleted from events_core where project_id = {p1:String} limit {p2:Int64}) as latest where latest.is_deleted = {p3:UInt8}"`,
+      `"select latest.span_id from (select span_id, events_core.is_deleted as is_deleted from events_core where project_id = {p1:String} limit {p2:Int64}) as latest where latest.is_deleted = 0"`,
     );
   });
 
@@ -302,7 +300,7 @@ describe("soft-delete filtering", () => {
           )
           .limit(1),
       ),
-    ).toContain("events_core.is_deleted = {p2:UInt8}");
+    ).toContain("events_core.is_deleted = 0");
   });
 
   it("rejects softDeleteAfterLimit() on selects it cannot wrap", () => {

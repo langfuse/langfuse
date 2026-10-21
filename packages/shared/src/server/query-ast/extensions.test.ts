@@ -21,6 +21,7 @@ import {
   medianExact,
   metadataMap,
   metadataValue,
+  startsWith,
   uniq,
   uniqIf,
 } from "./extensions";
@@ -387,5 +388,21 @@ describe("literal", () => {
 
   it("rejects a backslash, which ClickHouse reads as an escape", () => {
     expect(() => literal("a\\")).toThrow(QueryCompileError);
+  });
+});
+
+describe("startsWith", () => {
+  it("binds a string prefix and inlines a literal one", () => {
+    const { sql, params } = compileClickhouseQuery(
+      getClickhouseKysely()
+        .selectFrom("events_core as e")
+        .select("e.span_id")
+        .where((eb) => startsWith(eb.ref("e.name"), "caller"))
+        .where((eb) => startsWith(eb.ref("e.user_id"), literal("const"))),
+      projectId,
+    );
+    expect(sql).toMatch(/startsWith\(e\.name, \{p\d+:String\}\)/);
+    expect(sql).toContain("startsWith(e.user_id, 'const')");
+    expect(Object.values(params)).toContain("caller");
   });
 });

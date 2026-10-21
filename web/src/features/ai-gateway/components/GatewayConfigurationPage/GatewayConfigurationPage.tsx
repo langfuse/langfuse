@@ -41,7 +41,10 @@ export function GatewayConfigurationPage({
       defaultIngestionProjectId: params.projectId,
       ingestionMode: params.ingestionMode,
     });
-    await utils.aiGateway.getConfig.invalidate({ orgId: organizationId });
+    await Promise.all([
+      utils.aiGateway.getConfig.invalidate({ orgId: organizationId }),
+      utils.aiGateway.getSetupStatus.invalidate({ orgId: organizationId }),
+    ]);
     showSuccessToast({
       operation: "gateway_configuration.save",
       title: "Gateway configuration saved",
@@ -75,13 +78,34 @@ export function GatewayConfigurationPage({
   }
 
   const { config, gatewayBaseUrl } = configQuery.data;
+  const initialIngestionMode = config?.ingestionMode ?? "USAGE";
+
+  async function handleCreateProject(params: {
+    projectName: string;
+    ingestionMode: IngestionMode;
+  }) {
+    try {
+      const project = await createProject.mutateAsync({
+        orgId: organizationId,
+        name: params.projectName,
+      });
+      await session.update();
+      await saveGatewayConfig({
+        projectId: project.id,
+        ingestionMode: params.ingestionMode,
+      });
+    } catch (error) {
+      reportNonTrpcError(error, "ai-gateway-configuration");
+    }
+  }
+
   return (
     <GatewayConfigurationView
-      key={`${config?.updatedAt?.toISOString() ?? "new"}:${config?.defaultIngestionProjectId ?? "none"}:${config?.ingestionMode ?? "USAGE"}`}
+      key={`${config?.updatedAt?.toISOString() ?? "new"}:${config?.defaultIngestionProjectId ?? "none"}:${initialIngestionMode}`}
       projects={projects}
       gatewayBaseUrl={gatewayBaseUrl}
       initialProjectId={config?.defaultIngestionProjectId ?? null}
-      initialIngestionMode={config?.ingestionMode ?? "USAGE"}
+      initialIngestionMode={initialIngestionMode}
       isSaving={createProject.isPending || updateConfig.isPending}
       saveError={createProject.isError || updateConfig.isError}
       onSave={async ({ projectId, ingestionMode }) => {
@@ -91,18 +115,7 @@ export function GatewayConfigurationPage({
           reportNonTrpcError(error, "ai-gateway-configuration");
         }
       }}
-      onCreateProject={async ({ projectName, ingestionMode }) => {
-        try {
-          const project = await createProject.mutateAsync({
-            orgId: organizationId,
-            name: projectName,
-          });
-          await session.update();
-          await saveGatewayConfig({ projectId: project.id, ingestionMode });
-        } catch (error) {
-          reportNonTrpcError(error, "ai-gateway-configuration");
-        }
-      }}
+      onCreateProject={handleCreateProject}
     />
   );
 }
