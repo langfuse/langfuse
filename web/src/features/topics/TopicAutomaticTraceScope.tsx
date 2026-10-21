@@ -67,6 +67,10 @@ const BUILDER_OPTION_COLUMNS = [
   "calledToolNames",
 ] as const;
 
+// The filter controls below are not interactive yet. Keep the option scan off
+// so opening this dialog does not run events.filterOptions.
+const TRACE_SCOPE_FILTERS_INTERACTIVE = false;
+
 function authoredTraceFilters(filters: FilterState): FilterState {
   return filters.flatMap((filter) => {
     if (filter.column === "isRootObservation") return [];
@@ -167,8 +171,8 @@ function ProjectTraceScope({
     isRootObservation: true,
     includeApproxCount: true,
     lazy: mode === "query",
-    columns: mode === "query" ? undefined : [...BUILDER_OPTION_COLUMNS],
-    enabled: true,
+    columns: [...BUILDER_OPTION_COLUMNS],
+    enabled: TRACE_SCOPE_FILTERS_INTERACTIVE,
   });
   const observed = useMemo(
     () =>
@@ -353,11 +357,20 @@ function TraceScopeFrame({
       <section className="flex flex-col gap-2">
         <SectionHeader
           title="Filter traces"
-          meta={<Badge text="Coming soon" color="blue" size="sm" />}
+          meta={
+            TRACE_SCOPE_FILTERS_INTERACTIVE ? null : (
+              <Badge text="Coming soon" color="blue" size="sm" />
+            )
+          }
           description="The sampling rate applies to all incoming traces. Custom trace filters are coming soon."
           tooltip="Only traces matching this filter will be summarized. Topics always runs on whole traces."
           trailing={
-            <div inert className="opacity-50">
+            <div
+              inert={TRACE_SCOPE_FILTERS_INTERACTIVE ? undefined : true}
+              className={
+                TRACE_SCOPE_FILTERS_INTERACTIVE ? undefined : "opacity-50"
+              }
+            >
               <FilterModeToggle
                 mode={mode}
                 onChange={(next) => {
@@ -369,7 +382,11 @@ function TraceScopeFrame({
             </div>
           }
         />
-        <div inert aria-disabled className="opacity-50">
+        <div
+          inert={TRACE_SCOPE_FILTERS_INTERACTIVE ? undefined : true}
+          aria-disabled={TRACE_SCOPE_FILTERS_INTERACTIVE ? undefined : true}
+          className={TRACE_SCOPE_FILTERS_INTERACTIVE ? undefined : "opacity-50"}
+        >
           {mode === "query" ? (
             <EventsSearchBarRow
               projectId={projectId}

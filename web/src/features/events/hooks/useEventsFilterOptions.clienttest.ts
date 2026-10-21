@@ -199,6 +199,23 @@ describe("useEventsFilterOptions filtered facet counts (LFE-14489)", () => {
     expect(perColumn).toHaveLength(0);
   });
 
+  it("uses an explicit column list as the eager set in lazy mode", () => {
+    renderHook(() =>
+      useEventsFilterOptions({
+        projectId: "p",
+        startTimeFilter: [START_TIME],
+        refiningFilter: [],
+        lazy: true,
+        columns: ["environment", "name", "traceName"],
+      }),
+    );
+
+    const bulk = mocks.bulkInputs.at(-1);
+    expect(bulk.columns).toEqual(["environment", "name", "traceName"]);
+    expect(bulk.columns).not.toContain("scores_avg");
+    expect(mocks.perColumnInputs).toHaveLength(0);
+  });
+
   it("re-routes user-authored start-time conditions into startTimeFilter", () => {
     // A search-bar `startTime:>…` narrows the rows; the server ignores it in
     // `filter`, so it must reach the queries via the authoritative channel.

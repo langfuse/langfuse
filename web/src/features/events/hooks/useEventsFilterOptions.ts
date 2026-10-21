@@ -131,8 +131,12 @@ type UseEventsFilterOptionsParams = {
    */
   includeApproxCount?: boolean;
   isRootObservation?: boolean;
-  /** Explicit column subset (non-lazy; ignored when `lazy`). Omit to request
-   *  all — request-all cannot self-exclude, so only valid unfiltered. */
+  /** Columns loaded up front.
+   *  Lazy mode: this list is the eager set. Omit it to use the default eager
+   *  set (sidebar facets plus score catalogs) and load everything else on
+   *  demand. Non-lazy mode: this list is the entire request. Omit it only when
+   *  unfiltered — request-all cannot self-exclude.
+   */
   columns?: EventFilterOptionColumnsInput;
   /**
    * Lazy mode (v4 events table): request only the eagerly-visible columns up
@@ -231,7 +235,9 @@ export function useEventsFilterOptions({
     () =>
       planEventFacetQueries<EventFilterOptionColumn>({
         refiningFilter: splitFilter.refiningFilter,
-        eagerColumns: lazy ? EAGER_EVENT_FILTER_OPTION_COLUMNS : columns,
+        eagerColumns: lazy
+          ? (columns ?? EAGER_EVENT_FILTER_OPTION_COLUMNS)
+          : columns,
         lazyColumns,
       }),
     [splitFilter.refiningFilter, lazy, columns, lazyColumns],
