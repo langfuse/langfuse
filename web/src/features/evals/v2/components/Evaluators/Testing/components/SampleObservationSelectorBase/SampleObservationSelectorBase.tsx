@@ -7,7 +7,7 @@ import {
   ListTree,
   Sparkles,
   Wrench,
-} from "lucide-react";
+} from "@langfuse/icons";
 import {
   type FilterState,
   type TimeFilter,
@@ -558,7 +558,7 @@ export function SampleObservationSelectorBase(
                   );
                 }}
               >
-                <example.icon className="icon-base" />
+                <example.icon size="base" />
                 <span>{example.label}</span>
               </Button>
             ))}

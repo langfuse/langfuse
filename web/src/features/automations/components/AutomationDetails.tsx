@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
-import { Edit } from "lucide-react";
+import { Edit } from "@langfuse/icons";
 import { AutomationForm } from "./automationForm";
 import { AutomationExecutionsTable } from "./AutomationExecutionsTable";
 import { AutomationFailureBanner } from "./AutomationFailureBanner";
@@ -130,7 +130,7 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
             actionButtons={
               <div className="flex gap-2">
                 <Button variant="outline" onClick={handleEdit}>
-                  <Edit className="icon-base text-icon-foreground mr-2" />
+                  <Edit size="base" color="default" __rawClassName="mr-2" />
                   Edit
                 </Button>
                 <DeleteAutomationDialogController

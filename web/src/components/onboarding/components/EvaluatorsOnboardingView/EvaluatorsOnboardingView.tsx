@@ -1,4 +1,4 @@
-import { Bot, Gauge, Zap, BarChart4 } from "lucide-react";
+import { Bot, Gauge, Zap, BarChart4 } from "@langfuse/icons";
 
 import {
   type ActionConfig,

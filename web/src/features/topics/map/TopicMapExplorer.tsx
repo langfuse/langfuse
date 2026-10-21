@@ -9,7 +9,7 @@ import {
   type TransitionEvent as ReactTransitionEvent,
 } from "react";
 import { useStore } from "zustand";
-import { LocateFixed, Maximize2, Minus, Plus, X } from "lucide-react";
+import { LocateFixed, Maximize2, Minus, Plus, X } from "@langfuse/icons";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { useElementSize } from "@/src/hooks/useElementSize";
@@ -71,7 +71,6 @@ export function TopicMapExplorer({
   onSelectTrace,
   selectedTraceId,
   matchingTraceIds,
-  onOpenTrace,
   fillContainer = false,
 }: TopicMapExplorerProps) {
   // Projection preparation is independent of the high-frequency camera store.
@@ -217,15 +216,10 @@ export function TopicMapExplorer({
       store.setState({ fullscreenError: true });
     }
   };
-  const openTrace = async (id: string) => {
+  const selectTrace = (id: string | null) => {
+    if (id !== null && matchingTraceIds && !matchingTraceIds.has(id)) return;
     clearTopicMapHover(store);
-    try {
-      if (document.fullscreenElement === sectionRef.current)
-        await document.exitFullscreen();
-      onOpenTrace(id);
-    } catch {
-      store.setState({ fullscreenError: true });
-    }
+    onSelectTrace(id);
   };
   const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     gestures.pointerHandlers.onPointerMove(event);
@@ -300,8 +294,7 @@ export function TopicMapExplorer({
             y: event.clientY - rect.top,
           })
         : null;
-    onSelectTrace(point?.traceId ?? null);
-    if (point) openTrace(point.traceId);
+    selectTrace(point?.traceId ?? null);
   };
   const handleStageDoubleClick = (event: ReactMouseEvent<HTMLDivElement>) => {
     if (event.target !== event.currentTarget) return;
@@ -358,10 +351,6 @@ export function TopicMapExplorer({
   };
   const handleToggleFullscreen = () => {
     toggleFullscreen();
-  };
-  const handleSelectTrace = (id: string) => {
-    onSelectTrace(id);
-    openTrace(id);
   };
   return (
     <section
@@ -446,7 +435,7 @@ export function TopicMapExplorer({
           selectedTopic={selectedTopic}
           selectedTraceId={selectedTraceId}
           matchingTraceIds={matchingTraceIds}
-          onSelectTrace={handleSelectTrace}
+          onSelectTrace={selectTrace}
         />
         {model.points.length === 0 && (
           <div className="text-muted-foreground pointer-events-none absolute inset-0 flex items-center justify-center p-6 text-center text-sm">
@@ -771,7 +760,6 @@ export type TopicMapExplorerProps = {
   onSelectTrace: (traceId: string | null) => void;
   selectedTraceId: string | null;
   matchingTraceIds?: ReadonlySet<string>;
-  onOpenTrace: (traceId: string) => void;
   fillContainer?: boolean;
 };
 

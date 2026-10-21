@@ -2,24 +2,16 @@ import { useState } from "react";
 import {
   Check,
   Copy,
+  EyeOff,
   Gauge,
   Plus,
   ScanText,
-  type LucideIcon,
-} from "lucide-react";
+  type IconComponent,
+} from "@langfuse/icons";
 
 import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
-import {
-  DialogBody,
-  DialogController,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/src/components/ui/dialog";
-import { Input } from "@/src/components/ui/input";
-import { Label } from "@/src/components/ui/label";
 import { CardDescription, CardTitle } from "@/src/components/ui/card";
 import {
   Select,
@@ -28,11 +20,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { DEFAULT_GATEWAY_INGESTION_PROJECT_NAME } from "@/src/features/ai-gateway/constants/gatewayConfig";
+import { Button as DesignSystemButton } from "@/src/components/design-system/Button/Button";
+import { CreateIngestionProjectDialogController } from "@/src/features/ai-gateway/components/GatewayConfigurationPage/components/CreateIngestionProjectDialogController/CreateIngestionProjectDialogController";
+import {
+  GATEWAY_CONFIGURATION_DESCRIPTION,
+  GATEWAY_CONFIGURATION_TITLE,
+} from "@/src/features/ai-gateway/constants/gatewayConfig";
+import { isGatewayIngestionConfigured } from "@/src/features/ai-gateway/fns/isGatewayIngestionConfigured";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { cn } from "@/src/utils/tailwind";
 
-type IngestionMode = "USAGE" | "FULL";
+export type IngestionMode = "NONE" | "USAGE" | "FULL";
 type Project = {
   id: string;
   name: string;
@@ -43,8 +41,14 @@ const ingestionModes: Array<{
   value: IngestionMode;
   title: string;
   description: string;
-  icon: LucideIcon;
+  icon: IconComponent;
 }> = [
+  {
+    value: "NONE",
+    title: "None",
+    description: "Route requests without capturing anything in Langfuse.",
+    icon: EyeOff,
+  },
   {
     value: "USAGE",
     title: "Usage",
@@ -98,14 +102,21 @@ export function GatewayConfigurationView({
   const projectId = projectSelection ?? null;
   const isDirty =
     projectId !== initialProjectId || ingestionMode !== initialIngestionMode;
+  const isConfigured = isGatewayIngestionConfigured({
+    ingestionMode,
+    hasActiveIngestionProject: projectId !== null,
+  });
+
+  function handleUseExistingProject() {
+    setShowExistingProjects(true);
+  }
 
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <Header title="AI Gateway configuration" />
+        <Header title={GATEWAY_CONFIGURATION_TITLE} />
         <p className="text-muted-foreground text-sm">
-          Configure how requests routed through the organization gateway are
-          ingested into Langfuse.
+          {GATEWAY_CONFIGURATION_DESCRIPTION}
         </p>
       </div>
 
@@ -140,29 +151,40 @@ export function GatewayConfigurationView({
                 ))}
               </SelectContent>
             </Select>
-            <CreateIngestionProjectDialog
+            <CreateIngestionProjectDialogController
               ingestionMode={ingestionMode}
               isSaving={isSaving}
               onCreate={onCreateProject}
-              triggerLabel="or create a new project"
-            />
+            >
+              {({ openDialog }) => (
+                <DesignSystemButton
+                  text="or create a new project"
+                  variant="text"
+                  onClick={openDialog}
+                />
+              )}
+            </CreateIngestionProjectDialogController>
           </div>
         ) : (
           <div className="flex flex-row items-center gap-2">
-            <CreateIngestionProjectDialog
+            <CreateIngestionProjectDialogController
               ingestionMode={ingestionMode}
               isSaving={isSaving}
               onCreate={onCreateProject}
-              triggerLabel="Create ingestion project"
-              showIcon
-            />
-            <button
-              type="button"
-              className="text-primary text-sm hover:underline"
-              onClick={() => setShowExistingProjects(true)}
             >
-              or use an existing project
-            </button>
+              {({ openDialog }) => (
+                <DesignSystemButton
+                  text="Create ingestion project"
+                  icon={Plus}
+                  onClick={openDialog}
+                />
+              )}
+            </CreateIngestionProjectDialogController>
+            <DesignSystemButton
+              text="or use an existing project"
+              variant="text"
+              onClick={handleUseExistingProject}
+            />
           </div>
         )}
         <p className="text-muted-foreground mt-2 text-xs">
@@ -173,7 +195,7 @@ export function GatewayConfigurationView({
 
       <div>
         <CardTitle className="mb-4 text-base">Ingestion mode</CardTitle>
-        <div className="grid gap-2 md:grid-cols-2">
+        <div className="grid gap-2 md:grid-cols-3">
           {ingestionModes.map((option) => {
             const Icon = option.icon;
             const selected = ingestionMode === option.value;
@@ -189,9 +211,9 @@ export function GatewayConfigurationView({
                 )}
               >
                 <div className="flex w-full items-center justify-between gap-2">
-                  <Icon className="text-muted-foreground icon-base" />
+                  <Icon size="base" color="muted" />
                   {selected ? (
-                    <Check className="text-primary icon-base" />
+                    <Check size="base" __rawClassName="text-primary " />
                   ) : null}
                 </div>
                 <div>
@@ -215,9 +237,15 @@ export function GatewayConfigurationView({
         </Alert>
       ) : null}
 
-      <div className="flex justify-end">
+      <div className="flex items-center justify-end gap-3">
+        {isConfigured ? null : (
+          <p className="text-destructive text-sm">
+            Select an ingestion project, or choose None to route without
+            capturing.
+          </p>
+        )}
         <Button
-          disabled={!isDirty || isSaving}
+          disabled={!isDirty || !isConfigured || isSaving}
           loading={isSaving}
           onClick={() => onSave({ projectId, ingestionMode })}
         >
@@ -225,89 +253,6 @@ export function GatewayConfigurationView({
         </Button>
       </div>
     </div>
-  );
-}
-
-function CreateIngestionProjectDialog({
-  ingestionMode,
-  isSaving,
-  onCreate,
-  triggerLabel,
-  showIcon = false,
-}: {
-  ingestionMode: IngestionMode;
-  isSaving: boolean;
-  onCreate: (values: {
-    projectName: string;
-    ingestionMode: IngestionMode;
-  }) => void | Promise<void>;
-  triggerLabel: string;
-  showIcon?: boolean;
-}) {
-  const [projectName, setProjectName] = useState(
-    DEFAULT_GATEWAY_INGESTION_PROJECT_NAME,
-  );
-
-  return (
-    <DialogController
-      size="default"
-      closeOnInteractionOutside={false}
-      onBeforeClose={() => !isSaving}
-      onDismiss={() => setProjectName(DEFAULT_GATEWAY_INGESTION_PROJECT_NAME)}
-      renderContent={() => (
-        <>
-          <DialogHeader>
-            <DialogTitle>Create ingestion project</DialogTitle>
-          </DialogHeader>
-          <DialogBody>
-            <div>
-              <Label htmlFor="gateway-project-name">Project name</Label>
-              <Input
-                id="gateway-project-name"
-                className="ph-no-capture mt-1.5"
-                value={projectName}
-                onChange={(event) => setProjectName(event.target.value)}
-              />
-              <p className="text-muted-foreground mt-1.5 text-xs">
-                Project access follows organization roles and can be restricted
-                in project settings.
-              </p>
-            </div>
-          </DialogBody>
-          <DialogFooter>
-            <Button
-              disabled={!projectName.trim() || isSaving}
-              loading={isSaving}
-              onClick={() =>
-                onCreate({
-                  projectName: projectName.trim(),
-                  ingestionMode,
-                })
-              }
-            >
-              Create project
-            </Button>
-          </DialogFooter>
-        </>
-      )}
-    >
-      {({ openDialog }) =>
-        showIcon ? (
-          <Button onClick={openDialog}>
-            <Plus className="icon-base mr-1.5" />
-            {triggerLabel}
-          </Button>
-        ) : (
-          <button
-            type="button"
-            className="text-primary text-sm hover:underline"
-            onClick={openDialog}
-          >
-            {triggerLabel}
-          </button>
-        )
-      }
-    </DialogController>
   );
 }
 
@@ -325,9 +270,9 @@ function GatewayUrl({ gatewayBaseUrl }: { gatewayBaseUrl: string }) {
         onClick={() => copy(gatewayBaseUrl)}
       >
         {isCopied ? (
-          <Check className="icon-sm text-icon-foreground" />
+          <Check size="sm" color="default" />
         ) : (
-          <Copy className="icon-sm text-icon-foreground" />
+          <Copy size="sm" color="default" />
         )}
       </Button>
     </div>

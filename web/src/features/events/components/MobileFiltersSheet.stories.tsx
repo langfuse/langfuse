@@ -1,7 +1,7 @@
 import preview from "../../../../.storybook/preview";
 import { useState, type ComponentProps } from "react";
 import { fn } from "storybook/test";
-import { ChevronDown, RefreshCw } from "lucide-react";
+import { ChevronDown, RefreshCw } from "@langfuse/icons";
 
 import { MobileFiltersSheet } from "@/src/features/events/components/MobileFiltersSheet";
 import { ControlsContext } from "@/src/components/table/data-table-controls";
@@ -40,14 +40,14 @@ const fakeHeaderControls = (
         size="icon"
         className="h-8 w-8 rounded-r-none border-r-0"
       >
-        <RefreshCw className="icon-base text-icon-foreground" />
+        <RefreshCw size="base" color="default" />
       </Button>
       <Button
         variant="outline"
         size="icon"
         className="h-8 w-auto rounded-l-none border-l-0 px-2"
       >
-        <ChevronDown className="icon-base text-icon-foreground" />
+        <ChevronDown size="base" color="default" />
       </Button>
     </div>
   </div>

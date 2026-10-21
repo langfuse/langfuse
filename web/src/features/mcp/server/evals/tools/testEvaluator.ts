@@ -1,4 +1,4 @@
-import { DecisionModelQuestionsSchema } from "@langfuse/shared";
+import { isoDateTime, DecisionModelQuestionsSchema } from "@langfuse/shared";
 import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
@@ -26,7 +26,7 @@ const TestEvaluatorInputBase = z
     ...DraftEvaluatorFields.shape,
     observationId: z.string().min(1),
     traceId: z.string().min(1),
-    startTime: z.iso.datetime({ offset: true }),
+    startTime: isoDateTime({ offset: true }),
   })
   .strict();
 

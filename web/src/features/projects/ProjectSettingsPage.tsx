@@ -23,7 +23,7 @@ import { useHasEntitlement } from "@/src/features/entitlements";
 import { useRouter } from "next/router";
 import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
 import { ActionButton } from "@/src/components/ActionButton";
-import { Webhook } from "lucide-react";
+import { Webhook } from "@langfuse/icons";
 import { BatchExportsSettingsPage } from "@/src/features/batch-exports";
 import { BatchActionsSettingsPage } from "@/src/features/batch-actions";
 import { AuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer";
@@ -32,7 +32,7 @@ import ConfigureRetention from "@/src/features/projects/components/ConfigureRete
 import ContainerPage from "@/src/components/layouts/container-page";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { ProtectedLabelsSettings } from "@/src/features/prompts";
-import { SiSlack } from "react-icons/si";
+import { SiSlack } from "@langfuse/icons/si";
 import { ScoreConfigSettings } from "@/src/features/score-configs";
 import { env } from "@/src/env.mjs";
 import { PersonalNotificationSettings } from "@/src/features/notifications/components/PersonalNotificationSettings";
@@ -591,7 +591,7 @@ const Integrations = (props: { projectId: string }) => {
             isLoading={slack.query.isLoading}
             hasAccess={hasAccess}
           >
-            <SiSlack className="text-foreground icon-lg" />
+            <SiSlack size="lg" color="foreground" />
             <span className="font-bold">Slack</span>
           </IntegrationCardHeader>
           <p className="text-primary mb-4 text-sm">
@@ -615,7 +615,7 @@ const Integrations = (props: { projectId: string }) => {
             isLoading={webCallouts.query.isLoading}
             hasAccess={hasAccess}
           >
-            <Webhook className="text-foreground icon-lg" />
+            <Webhook size="lg" color="foreground" />
             <span className="font-bold">Web Callouts</span>
           </IntegrationCardHeader>
           <p className="text-primary mb-4 text-sm">

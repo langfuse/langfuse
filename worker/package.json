@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "4.63.0",
+  "version": "4.67.0",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -58,7 +58,7 @@
     "@opentelemetry/sdk-node": "^0.220.0",
     "@prisma/client": "^6.19.3",
     "@prisma/instrumentation": "^6.19.3",
-    "ai-sdk-amazon-bedrock-v4": "npm:@ai-sdk/amazon-bedrock@4.0.81",
+    "ai-sdk-amazon-bedrock-v4": "npm:@ai-sdk/amazon-bedrock@4.0.197",
     "ai-sdk-anthropic-v4": "npm:@ai-sdk/anthropic@3.0.111",
     "ai-sdk-google-vertex-v4": "npm:@ai-sdk/google-vertex@4.0.186",
     "ai-sdk-openai-compatible-v4": "npm:@ai-sdk/openai-compatible@3.0.3",
@@ -81,7 +81,7 @@
     "stripe": "^17.4.0",
     "tiktoken": "^1.0.20",
     "uuid": "^14.0.2",
-    "zod": "^4.3.6"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",

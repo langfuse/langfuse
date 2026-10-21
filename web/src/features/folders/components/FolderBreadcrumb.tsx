@@ -7,7 +7,7 @@ import {
   BreadcrumbSeparator,
 } from "@/src/components/ui/breadcrumb";
 import { createBreadcrumbItems } from "@/src/features/folders/utils";
-import { Home } from "lucide-react";
+import { Home } from "@langfuse/icons";
 
 /**
  * Breadcrumb navigation for folders.
@@ -31,7 +31,7 @@ export const FolderBreadcrumb = ({
               className="cursor-pointer hover:underline"
               onClick={() => navigateToFolder(undefined)}
             >
-              <Home className="icon-base" />
+              <Home size="base" />
             </BreadcrumbLink>
           </BreadcrumbItem>
           {createBreadcrumbItems(currentFolderPath).flatMap(

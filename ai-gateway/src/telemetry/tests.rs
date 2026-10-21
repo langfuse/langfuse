@@ -39,6 +39,7 @@ async fn grant() -> DeliveryContext {
         &HeaderMap::new(),
         None,
     )
+    .unwrap()
 }
 
 fn uploader(url: &str) -> Uploader {
@@ -642,7 +643,8 @@ async fn retained_byte_budget_is_released_after_successful_drain() {
         &resolved_request_context("provider-secret").await,
         &HeaderMap::new(),
         None,
-    );
+    )
+    .unwrap();
     telemetry.record(second, facts("project-1"));
     assert_eq!(telemetry.0.stats.dropped.load(Ordering::Relaxed), 1);
     release.notify_one();

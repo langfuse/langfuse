@@ -96,14 +96,14 @@ export const PostScoreConfigBody = z
       // Boolean config API POST body will always infer the categories based on data type
       ...z.object({
         dataType: z.literal("BOOLEAN"),
-        categories: z.undefined(),
+        categories: z.undefined().optional(),
       }).shape,
     }),
     z.object({
       ...PostScoreConfigBase.shape,
       ...z.object({
         dataType: z.literal("TEXT"),
-        categories: z.undefined(),
+        categories: z.undefined().optional(),
         maxValue: z.undefined().nullish(),
         minValue: z.undefined().nullish(),
       }).shape,

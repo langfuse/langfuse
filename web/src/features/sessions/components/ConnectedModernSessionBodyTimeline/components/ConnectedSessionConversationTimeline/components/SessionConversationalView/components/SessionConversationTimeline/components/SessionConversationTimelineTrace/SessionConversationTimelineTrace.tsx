@@ -1,4 +1,4 @@
-import { GitBranch, MessageSquareOff } from "lucide-react";
+import { GitBranch, MessageSquareOff } from "@langfuse/icons";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
@@ -80,7 +80,9 @@ export function SessionConversationTimelineTrace({
               className="truncate"
               title={`${trace.name ?? "Trace"} · ${trace.id}`}
             >
-              {trace.name ?? "Trace"} · {trace.id}
+              <span data-session-search-content>{trace.name ?? "Trace"}</span>
+              {" · "}
+              {trace.id}
             </span>
           </button>
           <div className="border-border min-w-0 flex-1 border-t border-dashed" />
@@ -102,7 +104,7 @@ export function SessionConversationTimelineTrace({
                   className="bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors"
                   aria-label={`${hiddenThreadCount} nested ${hiddenThreadCount === 1 ? "thread" : "threads"} hidden`}
                 >
-                  <GitBranch className="icon-base" aria-hidden="true" />
+                  <GitBranch size="base" aria-hidden="true" />
                 </button>
               )}
             </Tooltip>
@@ -116,7 +118,7 @@ export function SessionConversationTimelineTrace({
                   className="bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors"
                   aria-label="Some messages may be missing"
                 >
-                  <MessageSquareOff className="icon-base" aria-hidden="true" />
+                  <MessageSquareOff size="base" aria-hidden="true" />
                 </button>
               )}
             </Tooltip>

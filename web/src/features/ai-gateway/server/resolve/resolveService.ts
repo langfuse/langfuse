@@ -74,8 +74,12 @@ export class GatewayResolveService {
         params.context.organizationId,
       );
       const { context } = params;
+      const { ingestionMode, ingestionProjectId } = context;
+      // NONE mode delivers nothing to Langfuse, so it needs neither an
+      // ingestion project nor ingestion signing keys.
+      const deliversToLangfuse = ingestionMode !== "NONE";
 
-      if (!context.ingestionProjectId || !context.ingestionMode) {
+      if (!ingestionMode || (deliversToLangfuse && !ingestionProjectId)) {
         throw new GatewayResolveError(
           "Gateway ingestion project is unavailable",
           403,
@@ -112,17 +116,21 @@ export class GatewayResolveService {
         },
         attribution: {
           organization_id: context.organizationId,
-          project_id: context.ingestionProjectId,
+          project_id: ingestionProjectId,
           key_id: context.apiKeyId,
           key_metadata: context.keyMetadata,
           provider_connection_id: context.connection.id,
         },
-        ingestion_mode: context.ingestionMode.toLowerCase() as "usage" | "full",
-        ingestion: this.createIngestionResponse({
-          mode: context.ingestionMode,
-          organizationId: context.organizationId,
-          projectId: context.ingestionProjectId,
-        }),
+        ingestion_mode:
+          ingestionMode.toLowerCase() as GatewayResolveResponse["ingestion_mode"],
+        ingestion:
+          deliversToLangfuse && ingestionProjectId
+            ? this.createIngestionResponse({
+                mode: ingestionMode,
+                organizationId: context.organizationId,
+                projectId: ingestionProjectId,
+              })
+            : null,
       };
     });
   }
@@ -146,7 +154,8 @@ export class GatewayResolveService {
           version: 1,
           organization_id: params.organizationId,
           project_id: params.projectId,
-          ingestion_mode: params.mode.toLowerCase() as "usage" | "full",
+          ingestion_mode:
+            params.mode.toLowerCase() as GatewayResolveResponse["ingestion_mode"],
           scope: "gateway-ingest",
         },
       }),

@@ -1,5 +1,5 @@
 import React from "react";
-import { ExternalLinkIcon } from "lucide-react";
+import { ExternalLinkIcon } from "@langfuse/icons";
 import { expect } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
