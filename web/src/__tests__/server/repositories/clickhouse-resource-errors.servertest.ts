@@ -229,21 +229,15 @@ describe("ClickHouse Resource Error Handling", () => {
     it.each(["before", "during"])(
       "returns a typed cancellation error when aborted %s a query",
       async (when) => {
-        const consume = async () => {
-          const rows = [];
-          for await (const item of queryClickhouseWithProgress({
-            query: "SELECT sleepEachRow(0.02) FROM numbers(100)",
-            abortSignal:
-              when === "before" ? AbortSignal.abort() : AbortSignal.timeout(50),
-            clickhouseSettings: {
-              cancel_http_readonly_queries_on_client_close: 1,
-            },
-          })) {
-            rows.push(item);
-          }
-          return rows;
-        };
-        await expect(consume()).rejects.toBeInstanceOf(
+        const stream = queryClickhouseWithProgress({
+          query: "SELECT sleepEachRow(0.02) FROM numbers(100)",
+          abortSignal:
+            when === "before" ? AbortSignal.abort() : AbortSignal.timeout(50),
+          clickhouseSettings: {
+            cancel_http_readonly_queries_on_client_close: 1,
+          },
+        });
+        await expect(Array.fromAsync(stream)).rejects.toBeInstanceOf(
           ClickHouseQueryAbortedError,
         );
       },
