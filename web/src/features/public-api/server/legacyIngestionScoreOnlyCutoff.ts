@@ -8,7 +8,7 @@ const LEGACY_INGESTION_NON_SCORE_REJECTED_METRIC =
 /**
  * isLegacyIngestionScoreOnlyOrg reports whether this organization takes the
  * v4 events_only ingestion path. An unset cutoff, a missing
- * organizationCreatedAt, or an unparseable timestamp leaves ingestion
+ * organizationCreatedAt, or a timestamp that does not parse leaves ingestion
  * unchanged. Organizations created at the cutoff instant are included.
  */
 export function isLegacyIngestionScoreOnlyOrg(
