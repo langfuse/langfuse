@@ -4,7 +4,6 @@ import { prisma } from "@langfuse/shared/src/db";
 import { SkillService } from "@/src/features/skills/server";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
-import { resolveSkillSelector } from "../resolve-skill-selector";
 
 const GetSkillBaseSchema = z.object({
   name: SkillNameSchema,
@@ -30,11 +29,8 @@ export const [getSkillTool, handleGetSkill] = defineTool({
         new SkillService(prisma).get({
           projectId: context.projectId,
           name,
-          selector: await resolveSkillSelector({
-            projectId: context.projectId,
-            name,
-            selector,
-          }),
+          selector,
+          fallbackToLatest: true,
         }),
     }),
   readOnlyHint: true,
