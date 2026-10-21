@@ -3,9 +3,12 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
 
 import { OrganizationId, ProjectId, SystemRoleId } from "@langfuse/shared/rbac";
-import { processEventBatch } from "@langfuse/shared/src/server";
+import { logger, processEventBatch } from "@langfuse/shared/src/server";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
-import { filterBatchForLegacyIngestionScoreOnlyOrg } from "@/src/features/public-api/server/legacyIngestionScoreOnlyCutoff";
+import {
+  filterBatchForLegacyIngestionScoreOnlyOrg,
+  noteLegacyIngestionScoreOnlyRejections,
+} from "@/src/features/public-api/server/legacyIngestionScoreOnlyCutoff";
 import handler, {
   filterBatchForEventsOnly,
 } from "@/src/pages/api/public/ingestion";
@@ -235,10 +238,25 @@ describe("legacy ingestion score-only organization cutoff", () => {
       expect(vi.mocked(processEventBatch).mock.calls[0][0]).toEqual([
         mixedBatch[1],
       ]);
-      expect(recordIncrement).toHaveBeenCalledWith(
+      for (const eventType of [
+        "trace-create",
+        "sdk-log",
+        "generation-update",
+      ]) {
+        expect(recordIncrement).toHaveBeenCalledWith(
+          "langfuse.public_api.legacy_ingestion_non_score_rejected",
+          1,
+          {
+            route: "POST /api/public/ingestion",
+            ingestion_path: "batch",
+            event_type: eventType,
+          },
+        );
+      }
+      expect(recordIncrement).not.toHaveBeenCalledWith(
         "langfuse.public_api.legacy_ingestion_non_score_rejected",
-        3,
-        {},
+        expect.anything(),
+        expect.objectContaining({ event_type: "score-create" }),
       );
     },
   );
@@ -272,6 +290,63 @@ describe("legacy ingestion score-only organization cutoff", () => {
       batchForProcessing: [mixedBatch[1]],
       rejectedErrors: [],
     });
+  });
+
+  it("logs one rejection per project and route per minute and reports what it suppressed", () => {
+    legacyIngestionGate.scoreOnlyCutoff = CUTOFF;
+    const info = vi.spyOn(logger, "info").mockImplementation(() => logger);
+    const now = vi.spyOn(Date, "now");
+    const note = (rejectedEventTypes: (string | null)[]) =>
+      noteLegacyIngestionScoreOnlyRejections({
+        rejectedEventTypes,
+        ingestionPath: "batch",
+        route: "POST /api/public/ingestion",
+        organizationCreatedAt: "2026-10-02T00:00:00.000Z",
+        orgId: "org",
+        projectId: "throttled-project",
+        headers: {},
+      });
+
+    try {
+      now.mockReturnValue(1_000_000);
+      note(["trace-create", "not-a-real-type"]);
+      now.mockReturnValue(1_030_000);
+      note(["span-create"]);
+      now.mockReturnValue(1_061_000);
+      note(["sdk-log"]);
+
+      const rejectionLogs = (
+        info.mock.calls as unknown as [string, Record<string, unknown>][]
+      ).filter(([message]) =>
+        message.startsWith("Rejected legacy ingestion writes"),
+      );
+      expect(rejectionLogs).toHaveLength(2);
+      expect(rejectionLogs[0][1]).toMatchObject({
+        orgId: "org",
+        projectId: "throttled-project",
+        organizationCreatedAt: "2026-10-02T00:00:00.000Z",
+        rejectedEventTypes: { "trace-create": 1, unknown: 1 },
+        suppressedRequestCount: 0,
+      });
+      expect(rejectionLogs[1][1]).toMatchObject({
+        rejectedEventTypes: { "sdk-log": 1 },
+        suppressedRequestCount: 1,
+        suppressedEventCount: 1,
+      });
+      expect(recordIncrement).toHaveBeenCalledWith(
+        "langfuse.public_api.legacy_ingestion_non_score_rejected",
+        1,
+        expect.objectContaining({ event_type: "unknown" }),
+      );
+      expect(recordIncrement).toHaveBeenCalledWith(
+        "langfuse.public_api.legacy_ingestion_non_score_rejected",
+        1,
+        expect.objectContaining({ event_type: "span-create" }),
+      );
+    } finally {
+      info.mockRestore();
+      now.mockRestore();
+    }
   });
 
   it("does not copy the batch when the organization is not cut off", () => {

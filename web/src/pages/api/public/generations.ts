@@ -25,7 +25,10 @@ export default withMiddlewares({
     // Writes an observation-create event that lands in the legacy observations
     // ClickHouse table; events_only deployments expect OTel ingestion.
     rejectInEventsOnlyMode: true,
-    rejectLegacyTracingWritesForNewOrgs: true,
+    rejectLegacyTracingWritesForNewOrgs: {
+      route: "POST /api/public/generations",
+      eventType: eventTypes.OBSERVATION_CREATE,
+    },
     deprecation: LEGACY_WRITES_DEPRECATION,
     fn: async ({ body, auth, req, res }) => {
       const { prompt, completion, ...rest } = body;
@@ -70,7 +73,10 @@ export default withMiddlewares({
     responseSchema: PatchGenerationsV1Response,
     rateLimitResource: "legacy-ingestion",
     rejectInEventsOnlyMode: true,
-    rejectLegacyTracingWritesForNewOrgs: true,
+    rejectLegacyTracingWritesForNewOrgs: {
+      route: "PATCH /api/public/generations",
+      eventType: eventTypes.OBSERVATION_UPDATE,
+    },
     deprecation: LEGACY_WRITES_DEPRECATION,
     fn: async ({ body, auth, req, res }) => {
       const { generationId, prompt, completion, ...rest } = body;

@@ -204,12 +204,16 @@ export default async function handler(
           scope.organizationCreatedAt,
         );
         if (scoreOnly.rejectedErrors.length > 0) {
+          const kept = new Set(scoreOnly.batchForProcessing);
           noteLegacyIngestionScoreOnlyRejections({
-            rejectedCount: scoreOnly.rejectedErrors.length,
+            rejectedEventTypes: batchForProcessing
+              .filter((event) => !kept.has(event))
+              .map(ingestionEventTypeOf),
+            ingestionPath: "batch",
+            route: "POST /api/public/ingestion",
             organizationCreatedAt: scope.organizationCreatedAt,
             orgId: scope.orgId,
             projectId,
-            routeName: "POST /api/public/ingestion",
             headers: req.headers,
           });
         }

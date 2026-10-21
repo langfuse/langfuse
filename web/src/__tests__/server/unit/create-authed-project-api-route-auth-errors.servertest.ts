@@ -79,7 +79,8 @@ vi.mock("@langfuse/shared/src/db", async () => {
 });
 
 vi.mock("@langfuse/shared/src/server", () => ({
-  eventTypes: { SCORE_CREATE: "score-create" },
+  eventTypes: { SCORE_CREATE: "score-create", TRACE_CREATE: "trace-create" },
+  getCurrentSpan: vi.fn(() => undefined),
   redis: null,
   instrumentAsync: vi.fn(async (_ctx, callback) =>
     callback({ setAttribute: vi.fn() }),
@@ -645,7 +646,10 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
         name: "Create Trace (Legacy)",
         action: "traces:create",
         responseSchema: z.object({ ok: z.literal(true) }),
-        rejectLegacyTracingWritesForNewOrgs: true,
+        rejectLegacyTracingWritesForNewOrgs: {
+          route: "POST /api/public/traces",
+          eventType: "trace-create",
+        },
         fn,
       });
       mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce({
@@ -679,7 +683,13 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
       expect(mockRecordIncrement).toHaveBeenCalledWith(
         "langfuse.public_api.legacy_ingestion_non_score_rejected",
         1,
-        expect.any(Object),
+        {
+          route: "POST /api/public/traces",
+          ingestion_path: "single_write",
+          event_type: "trace-create",
+          sdkName: "python",
+          sdkVersion: "4.8.1",
+        },
       );
     });
 

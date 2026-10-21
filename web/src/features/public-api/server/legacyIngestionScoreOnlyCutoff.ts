@@ -1,6 +1,7 @@
 import {
   eventTypes,
   extractPublicApiCallerAttribution,
+  getCurrentSpan,
   logger,
   recordIncrement,
 } from "@langfuse/shared/src/server";
@@ -19,6 +20,31 @@ export const LEGACY_INGESTION_SCORE_ONLY_REJECTION_MESSAGE =
 
 const LEGACY_INGESTION_NON_SCORE_REJECTED_METRIC =
   "langfuse.public_api.legacy_ingestion_non_score_rejected";
+
+const SPAN_ATTRIBUTE_PREFIX = "langfuse.public_api.legacy_ingestion_score_only";
+
+const KNOWN_EVENT_TYPES = new Set<string>(Object.values(eventTypes));
+
+/** One rejection log per project and route per interval; the counter still sees every rejection. */
+const REJECTION_LOG_INTERVAL_MS = 60_000;
+const REJECTION_LOG_STATE_MAX_KEYS = 10_000;
+
+type RejectionLogState = {
+  lastLoggedAtMs: number;
+  suppressedRequestCount: number;
+  suppressedEventCount: number;
+};
+
+const rejectionLogState = new Map<string, RejectionLogState>();
+
+/** LegacyIngestionPath separates the 207 batch endpoint from the single-write routes that answer 400. */
+export type LegacyIngestionPath = "batch" | "single_write";
+
+/** LegacyTracingWriteRoute names a single-write legacy route and the ingestion event it would write. */
+export type LegacyTracingWriteRoute = {
+  route: string;
+  eventType: (typeof eventTypes)[keyof typeof eventTypes];
+};
 
 export type LegacyIngestionEventRejection = {
   id: string;
@@ -105,42 +131,126 @@ export function legacyTracingWriteRejectionBody(): {
   };
 }
 
-/** noteLegacyIngestionScoreOnlyRejections counts and logs one request's rejected legacy writes. Caller attribution tags stay bounded; the user agent is log-only. */
+/**
+ * noteLegacyIngestionScoreOnlyRejections records one request's rejected
+ * legacy writes. Metric tags stay bounded: route, ingestion path, known event
+ * type, and SDK name/version. Organization and project ids, the organization
+ * createdAt, and the user agent go only to span attributes and the log.
+ */
 export function noteLegacyIngestionScoreOnlyRejections(params: {
-  rejectedCount: number;
+  rejectedEventTypes: (string | null)[];
+  ingestionPath: LegacyIngestionPath;
+  route: string;
   organizationCreatedAt: string | null | undefined;
   orgId: string | undefined;
   projectId: string | undefined;
-  routeName: string;
   headers: Parameters<typeof extractPublicApiCallerAttribution>[0];
 }): void {
-  if (params.rejectedCount <= 0) return;
+  const rejectedEventCount = params.rejectedEventTypes.length;
+  if (rejectedEventCount <= 0) return;
+
+  const countsByEventType = new Map<string, number>();
+  for (const type of params.rejectedEventTypes) {
+    const tag = type !== null && KNOWN_EVENT_TYPES.has(type) ? type : "unknown";
+    countsByEventType.set(tag, (countsByEventType.get(tag) ?? 0) + 1);
+  }
+  const rejectedEventTypes = Object.fromEntries(
+    [...countsByEventType].sort(([a], [b]) => a.localeCompare(b)),
+  );
 
   const callerAttribution = extractPublicApiCallerAttribution(params.headers);
-  recordIncrement(
-    LEGACY_INGESTION_NON_SCORE_REJECTED_METRIC,
-    params.rejectedCount,
-    {
+  for (const [eventType, count] of countsByEventType) {
+    recordIncrement(LEGACY_INGESTION_NON_SCORE_REJECTED_METRIC, count, {
+      route: params.route,
+      ingestion_path: params.ingestionPath,
+      event_type: eventType,
       ...(callerAttribution.sdkName
         ? { sdkName: callerAttribution.sdkName }
         : {}),
       ...(callerAttribution.sdkVersion
         ? { sdkVersion: callerAttribution.sdkVersion }
         : {}),
-    },
+    });
+  }
+
+  const span = getCurrentSpan();
+  span?.setAttribute(
+    `${SPAN_ATTRIBUTE_PREFIX}.rejected_count`,
+    rejectedEventCount,
   );
+  span?.setAttribute(
+    `${SPAN_ATTRIBUTE_PREFIX}.rejected_event_types`,
+    Object.keys(rejectedEventTypes),
+  );
+  span?.setAttribute(
+    `${SPAN_ATTRIBUTE_PREFIX}.ingestion_path`,
+    params.ingestionPath,
+  );
+  if (params.organizationCreatedAt) {
+    span?.setAttribute(
+      `${SPAN_ATTRIBUTE_PREFIX}.organization_created_at`,
+      params.organizationCreatedAt,
+    );
+  }
+  if (params.projectId)
+    span?.setAttribute("langfuse.project.id", params.projectId);
+  if (params.orgId) span?.setAttribute("langfuse.org.id", params.orgId);
+
+  const throttle = takeRejectionLogSlot(
+    `${params.projectId ?? "unknown"}|${params.route}`,
+    rejectedEventCount,
+  );
+  if (!throttle) return;
+
   logger.info(
     "Rejected legacy ingestion writes for organization created at or after cutoff",
     {
       orgId: params.orgId,
       projectId: params.projectId,
-      apiRoute: params.routeName,
-      rejectedEventCount: params.rejectedCount,
+      apiRoute: params.route,
+      ingestionPath: params.ingestionPath,
+      rejectedEventCount,
+      rejectedEventTypes,
+      suppressedRequestCount: throttle.suppressedRequestCount,
+      suppressedEventCount: throttle.suppressedEventCount,
       organizationCreatedAt: params.organizationCreatedAt,
       cutoff: env.LANGFUSE_LEGACY_INGESTION_SCORE_ONLY_ORG_CREATED_CUTOFF,
       ...callerAttribution,
     },
   );
+}
+
+/**
+ * takeRejectionLogSlot returns the suppressed totals since the last log for
+ * this key, or null while the key is inside its interval. Per web process,
+ * so a busy client logs about once per interval per replica.
+ */
+function takeRejectionLogSlot(
+  key: string,
+  rejectedEventCount: number,
+): { suppressedRequestCount: number; suppressedEventCount: number } | null {
+  const now = Date.now();
+  const state = rejectionLogState.get(key);
+  if (state && now - state.lastLoggedAtMs < REJECTION_LOG_INTERVAL_MS) {
+    state.suppressedRequestCount += 1;
+    state.suppressedEventCount += rejectedEventCount;
+    return null;
+  }
+
+  if (!state && rejectionLogState.size >= REJECTION_LOG_STATE_MAX_KEYS) {
+    const oldestKey = rejectionLogState.keys().next().value;
+    if (oldestKey !== undefined) rejectionLogState.delete(oldestKey);
+  }
+  rejectionLogState.delete(key);
+  rejectionLogState.set(key, {
+    lastLoggedAtMs: now,
+    suppressedRequestCount: 0,
+    suppressedEventCount: 0,
+  });
+  return {
+    suppressedRequestCount: state?.suppressedRequestCount ?? 0,
+    suppressedEventCount: state?.suppressedEventCount ?? 0,
+  };
 }
 
 function legacyIngestionNonScoreError(type: string | null): string {
