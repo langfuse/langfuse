@@ -1,6 +1,6 @@
 /* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { encodeFiltersGeneric } from "@langfuse/shared";
-import { LevelCountsDisplay } from "@/src/components/level-counts-display";
+import { LevelCountsDisplay } from "@/src/components/LevelCountsDisplay";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {

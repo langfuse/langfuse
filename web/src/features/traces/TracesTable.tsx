@@ -87,7 +87,7 @@ import { showSuccessToast } from "@/src/features/notifications";
 import {
   LevelCountsDisplay,
   type LevelCount,
-} from "@/src/components/level-counts-display";
+} from "@/src/components/LevelCountsDisplay";
 import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import {
   type UseSidebarFilterStateOptions,

@@ -6,7 +6,7 @@ import EvalLogTable from "@/src/features/evals/components/eval-log";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages";
 import Page from "@/src/components/layouts/page";
-import { LevelCountsDisplay } from "@/src/components/level-counts-display";
+import { LevelCountsDisplay } from "@/src/components/LevelCountsDisplay";
 import { generateJobExecutionCounts } from "@/src/features/evals/utils/job-execution-utils";
 import { EvaluatorPausedCallout } from "@/src/features/evals/components/evaluator-paused-callout";
 import {
