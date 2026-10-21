@@ -21,6 +21,7 @@ import {
   medianExact,
   metadataMap,
   metadataValue,
+  startsWith,
   uniq,
   uniqIf,
 } from "./extensions";
@@ -57,6 +58,16 @@ describe("schema-typed selection (condition 7)", () => {
       TypeCompatibilityError,
     );
     expect(() => compileClickhouseQuery(qb, projectId)).toThrow(/environment/);
+  });
+
+  it("does not type a column named like an Object prototype key", () => {
+    // `constructor` is no registry column, so the pass has no type to reject.
+    const db = getClickhouseKysely();
+    const qb = db
+      .selectFrom("scores")
+      .select((eb) => [eb.fn.sum(db.dynamic.ref("constructor")).as("s")]);
+
+    expect(() => compileClickhouseQuery(qb, projectId)).not.toThrow();
   });
 });
 
@@ -377,5 +388,21 @@ describe("literal", () => {
 
   it("rejects a backslash, which ClickHouse reads as an escape", () => {
     expect(() => literal("a\\")).toThrow(QueryCompileError);
+  });
+});
+
+describe("startsWith", () => {
+  it("binds a string prefix and inlines a literal one", () => {
+    const { sql, params } = compileClickhouseQuery(
+      getClickhouseKysely()
+        .selectFrom("events_core as e")
+        .select("e.span_id")
+        .where((eb) => startsWith(eb.ref("e.name"), "caller"))
+        .where((eb) => startsWith(eb.ref("e.user_id"), literal("const"))),
+      projectId,
+    );
+    expect(sql).toMatch(/startsWith\(e\.name, \{p\d+:String\}\)/);
+    expect(sql).toContain("startsWith(e.user_id, 'const')");
+    expect(Object.values(params)).toContain("caller");
   });
 });

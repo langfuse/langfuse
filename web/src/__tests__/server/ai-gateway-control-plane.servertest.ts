@@ -958,6 +958,8 @@ describe("AI gateway control plane", () => {
         model: "gpt-4o",
       });
       expect(result.ingestion_mode).toBe("none");
+      expect(result.ingestion).toBeNull();
+      expect(result.attribution.project_id).toBe(project.id);
 
       Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU" });
       await expect(

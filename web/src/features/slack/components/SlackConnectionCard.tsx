@@ -1,7 +1,7 @@
 import React from "react";
-import { CheckCircle, AlertCircle } from "@langfuse/icons";
+import { CheckCircle, AlertCircle, Unlink } from "@langfuse/icons";
 import { Badge } from "@/src/components/ui/badge";
-import { Button } from "@/src/components/ui/button";
+import { Button } from "@/src/components/design-system/Button/Button";
 import {
   Card,
   CardContent,
@@ -12,7 +12,7 @@ import {
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { api } from "@/src/utils/api";
 import { SlackConnectButton } from "@/src/features/slack/components/SlackConnectButton";
-import { SlackDisconnectButton } from "@/src/features/slack/components/SlackDisconnectButton";
+import { SlackDisconnectDialogController } from "@/src/features/slack/components/SlackDisconnectDialogController";
 
 /**
  * Props for the SlackConnectionCard component
@@ -197,23 +197,32 @@ export const SlackConnectionCard: React.FC<SlackConnectionCardProps> = ({
 
         {/* Management Actions */}
         <div className="flex gap-2 pt-2">
-          <SlackDisconnectButton
+          <SlackDisconnectDialogController
             projectId={projectId}
-            disabled={disabled}
             onSuccess={() => handleConnectionChange(false)}
             onError={(error: Error) => {
               console.error("Slack disconnection error:", error);
             }}
-          />
+          >
+            {({ isPending, openDialog }) => (
+              <Button
+                text="Disconnect"
+                icon={Unlink}
+                variant="destructive"
+                size="sm"
+                onClick={openDialog}
+                disabled={disabled || isPending}
+              />
+            )}
+          </SlackDisconnectDialogController>
 
           <Button
-            variant="outline"
+            text="Refresh Status"
+            variant="secondary"
             size="sm"
             onClick={() => refetchStatus()}
             disabled={disabled}
-          >
-            Refresh Status
-          </Button>
+          />
         </div>
       </CardContent>
     </Card>

@@ -11,7 +11,7 @@ import {
   type AliasedExpression,
   type Expression,
   type ExpressionBuilder,
-  type SqlBool,
+  type QueryCreator,
 } from "kysely";
 import type {
   EventsObservation,
@@ -32,6 +32,7 @@ import { recordDistribution } from "../instrumentation";
 import { logger } from "../logger";
 import { compileClickhouseQuery } from "../query-ast/compile";
 import { getClickhouseKysely } from "../query-ast/dialect";
+import type { ClickHouseDatabase } from "../query-ast/schema";
 import { promptGenerationEvents } from "./prompt-events";
 import {
   arrayMap,
@@ -39,6 +40,7 @@ import {
   count,
   dateDiff,
   softDeleteAfterLimit,
+  startsWith,
   leftUTF8,
   limitBy,
   latestNonEmpty,
@@ -685,10 +687,16 @@ export const getObservationMetricsForPromptsFromEvents = async (
       eb.fn.min("e.start_time").as("first_observation"),
       eb.fn.max("e.start_time").as("last_observation"),
       medianExact(
-        sumMapValuesWhereKeyContains(eb.ref("e.usage_details"), "input"),
+        sumMapValuesWhereKeyContains(
+          eb.ref("e.usage_details"),
+          literal("input"),
+        ),
       ).as("median_input_usage"),
       medianExact(
-        sumMapValuesWhereKeyContains(eb.ref("e.usage_details"), "output"),
+        sumMapValuesWhereKeyContains(
+          eb.ref("e.usage_details"),
+          literal("output"),
+        ),
       ).as("median_output_usage"),
       medianExact(mapValue(eb.ref("e.cost_details"), literal("total"))).as(
         "median_total_cost",
@@ -742,7 +750,7 @@ export const getObservationsWithPromptNameFromEvents = async (
     .selectFrom("events")
     .select((eb) => [uniq(eb.ref("span_id")).as("count"), "prompt_name"])
     .where("prompt_name", "in", promptNames)
-    .where("prompt_name", "!=", "")
+    .where("prompt_name", "!=", literal(""))
     .$if(fromTimestamp != null, (qb) =>
       qb.where("start_time", ">=", fromTimestamp!),
     )
@@ -1138,7 +1146,7 @@ async function getObservationByIdFromEventsTableInternal({
     .$if(traceId != null, (qb) => qb.where("trace_id", "=", traceId!))
     .orderBy("start_time", "desc")
     .orderBy("event_ts", "desc")
-    .limit(1);
+    .limit(literal(1));
 
   const { sql: query, params } = compileClickhouseQuery(builder, projectId);
 
@@ -1194,12 +1202,10 @@ export const getTraceByIdFromEventsTable = async ({
   const db = getClickhouseKysely();
   const truncated = renderingProps.truncated === true;
 
-  const tracesCte = (qb: ReturnType<typeof getClickhouseKysely>) => {
-    const from = truncated
-      ? qb.selectFrom("events_core as e")
-      : qb.selectFrom("events_full as e");
-    return from
-      .select(traceAggregationSelects)
+  const tracesCte = (qb: QueryCreator<ClickHouseDatabase>) =>
+    qb
+      .selectFrom(truncated ? "events_core as e" : "events_full as e")
+      .select((eb) => traceAggregationSelects(eb))
       .where("trace_id", "in", [traceId])
       .$if(fromTimestamp != null, (inner) =>
         inner.where(
@@ -1210,17 +1216,14 @@ export const getTraceByIdFromEventsTable = async ({
       )
       .groupBy(["trace_id", "project_id"])
       .orderBy("timestamp", "desc");
-  };
 
   const metadataSelect = excludeMetadata
     ? sql`map()`.as("metadata")
     : "t.metadata";
 
   const builder = db
-    .with("traces", (qb) =>
-      tracesCte(qb as ReturnType<typeof getClickhouseKysely>),
-    )
-    .selectFrom("traces as t")
+    .with("event_traces", tracesCte)
+    .selectFrom("event_traces as t")
     .select((eb) => [
       "t.id",
       "t.name",
@@ -1246,7 +1249,7 @@ export const getTraceByIdFromEventsTable = async ({
       ),
     )
     .orderBy("t.timestamp", "desc")
-    .limit(1);
+    .limit(literal(1));
 
   const { sql: query, params } = compileClickhouseQuery(builder, projectId);
 
@@ -1394,12 +1397,14 @@ function compileHasAnyFromEventsTable(opts: {
     .selectFrom("events")
     .select(literal(1).as("one"))
     .$if(opts.kind === "user", (qb) =>
-      qb.where("user_id", "is not", null).where("user_id", "!=", ""),
+      qb.where("user_id", "is not", null).where("user_id", "!=", literal("")),
     )
     .$if(opts.kind === "session", (qb) =>
-      qb.where("session_id", "is not", null).where("session_id", "!=", ""),
+      qb
+        .where("session_id", "is not", null)
+        .where("session_id", "!=", literal("")),
     )
-    .limit(1);
+    .limit(literal(1));
 
   return compileClickhouseQuery(query, opts.projectId);
 }
@@ -2833,10 +2838,8 @@ export const getObservationsBatchIOFromEventsTable = async <
     )
     .$if(opts.includeSkillFields === true, (qb) =>
       qb.select([
-        sql.ref<SkillsAvailable>("e.skills_available").as("skills_available"),
-        sql
-          .ref<SkillsResourceLoaded>("e.skills_resource_loaded")
-          .as("skills_resource_loaded"),
+        "e.skills_available as skills_available",
+        "e.skills_resource_loaded as skills_resource_loaded",
       ]),
     )
     .$if(opts.includeToolCallFields === true, (qb) =>
@@ -2992,7 +2995,7 @@ function compileObservationIOFieldRead<A extends string>(
     .where("e.start_time", ">=", new Date(opts.startTime.getTime() - 1000))
     .where("e.start_time", "<=", new Date(opts.startTime.getTime() + 1000))
     .orderBy("e.event_ts", "desc")
-    .limit(1);
+    .limit(literal(1));
 
   return compileClickhouseQuery(query, opts.projectId);
 }
@@ -3112,7 +3115,7 @@ export const getObservationFullIOForSessionFromEventsTable = async (opts: {
     .where("e.start_time", ">=", minTimestamp)
     .where("e.start_time", "<=", maxTimestamp)
     .orderBy("e.event_ts", "desc")
-    .limit(1);
+    .limit(literal(1));
   const { sql: query, params } = compileClickhouseQuery(
     builder,
     opts.projectId,
@@ -3940,7 +3943,7 @@ export const getSessionMetricsFromEvents = async <
         observationsToTraceLowerBound(queryFromTimestamp!),
       ),
     )
-    .where("session_id", "!=", "")
+    .where("session_id", "!=", literal(""))
     .groupBy("session_id")
     .limit(sessionIds.length);
   const { sql: query, params } = compileClickhouseQuery(builder, projectId);
@@ -3999,8 +4002,12 @@ export async function getLatestSdkVersionInfoFromEvents(params: {
     .where((eb) =>
       eb(toDate(eb.ref("e.start_time")), ">=", toDate(sevenDaysAgo)),
     )
-    .where((eb) => eb.fn<SqlBool>("startsWith", ["e.source", eb.val("otel")]))
-    .where("e.ingestion_sdk_name", "not in", [...INTERNAL_INGESTION_SDK_NAMES])
+    .where((eb) => startsWith(eb.ref("e.source"), literal("otel")))
+    .where(
+      "e.ingestion_sdk_name",
+      "not in",
+      INTERNAL_INGESTION_SDK_NAMES.map((n) => literal(n)),
+    )
     .groupBy([
       "e.ingestion_sdk_name",
       "e.ingestion_sdk_version",

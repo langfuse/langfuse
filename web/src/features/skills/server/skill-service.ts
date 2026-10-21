@@ -19,7 +19,11 @@ import {
   type SkillSelector,
 } from "@langfuse/shared";
 import type { Prisma, PrismaClient, SkillBlob } from "@langfuse/shared/src/db";
-import { SkillCacheService, redis } from "@langfuse/shared/src/server";
+import {
+  SkillCacheService,
+  escapeSqlLikePattern,
+  redis,
+} from "@langfuse/shared/src/server";
 import type { ProjectAuthedContext } from "@/src/server/api/trpc";
 import type { AuthorizationContext } from "@/src/features/auth/policy/types";
 import { auditLog } from "@/src/features/audit-logs/server";
@@ -349,13 +353,13 @@ export class SkillService {
             OR: [
               {
                 name: {
-                  contains: params.input.search,
+                  contains: escapeSqlLikePattern(params.input.search),
                   mode: "insensitive" as const,
                 },
               },
               {
                 description: {
-                  contains: params.input.search,
+                  contains: escapeSqlLikePattern(params.input.search),
                   mode: "insensitive" as const,
                 },
               },

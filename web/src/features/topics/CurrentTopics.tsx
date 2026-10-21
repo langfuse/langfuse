@@ -41,7 +41,7 @@ export function CurrentTopics({
       {result.isLoading && <p className="text-sm">Loading topics…</p>}
       {selectedFacet && (
         <CurrentFacet
-          key={selectedFacet.facetId}
+          key={JSON.stringify([projectId, selectedFacet.facetId])}
           projectId={projectId}
           facet={selectedFacet}
           timeRange={timeRange}

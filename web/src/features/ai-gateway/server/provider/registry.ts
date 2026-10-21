@@ -45,20 +45,23 @@ export const GatewayResolveResponseSchema = z
     attribution: z
       .object({
         organization_id: z.string(),
-        project_id: z.string(),
+        // Null only in "none" mode, which needs no ingestion project.
+        project_id: z.string().nullable(),
         key_id: z.string(),
         key_metadata: GatewayMetadataSchema,
         provider_connection_id: z.string(),
       })
       .strict(),
     ingestion_mode: z.enum(["none", "usage", "full"]),
+    // Null exactly in "none" mode: nothing is delivered, so no grant is minted.
     ingestion: z
       .object({
         access_token: z.string(),
         token_type: z.literal("Bearer"),
         expires_at: z.number().int().positive(),
       })
-      .strict(),
+      .strict()
+      .nullable(),
   })
   .strict();
 export type GatewayResolveResponse = z.infer<

@@ -46,6 +46,27 @@ export function schemaTypeAssertions(): void {
   fromView(view)
     // @ts-expect-error view is a black box: inner columns are not exposed
     .select("span_id");
+
+  // Named-tuple arrays read as arrays of objects keyed by tuple name; a typo
+  // in the column type would make the row field `never` and reject these.
+  const _skills = db
+    .selectFrom("events_core")
+    .select(["skills_available", "skills_resource_loaded"]);
+  type SkillsRow = InferResult<typeof _skills>[number];
+  const _available: SkillsRow["skills_available"] = [
+    { langfuseSkillId: null, skillVersion: null, skillName: "s" },
+    { langfuseSkillId: "id", skillVersion: 1, skillName: "s" },
+  ];
+  const _loaded: SkillsRow["skills_resource_loaded"] = [
+    {
+      langfuseSkillId: null,
+      skillVersion: null,
+      skillName: "s",
+      filePath: "f",
+    },
+  ];
+  // @ts-expect-error skills_available elements have no filePath
+  type _NoFilePath = SkillsRow["skills_available"][number]["filePath"];
 }
 
 /**

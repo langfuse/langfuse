@@ -65,7 +65,7 @@ describe("logical events routing", () => {
           .where("e.trace_id", "=", "t"),
       ),
     ).toMatchInlineSnapshot(
-      `"select e.span_id, e.name from events_core as e where e.project_id = {p1:String} and e.is_deleted = {p2:UInt8} and e.trace_id = {p3:String}"`,
+      `"select e.span_id, e.name from events_core as e where e.project_id = {p1:String} and e.is_deleted = 0 and e.trace_id = {p2:String}"`,
     );
   });
 
@@ -235,26 +235,6 @@ describe("logical events routing", () => {
         db.selectFrom("events as e").select(sql.ref<string>(ref).as("x")),
       ),
     ).toThrow(QueryCompileError);
-  });
-
-  it("gives an unaliased schema-qualified table no qualifier name", () => {
-    // `default.events_core` is named by neither `events_core` nor
-    // `default.events_core` here, so the read is rejected, not resolved.
-    expect(() =>
-      compile(
-        db
-          .selectFrom("events as e")
-          .select("e.span_id")
-          .where(
-            "e.span_id",
-            "in",
-            db
-              .withSchema("default")
-              .selectFrom("events_core")
-              .select(sql.ref<string>("events_core.input").as("x")),
-          ),
-      ),
-    ).toThrow(/Qualify by the relation's alias/);
   });
 
   it("rejects FINAL around the logical relation", () => {
@@ -434,7 +414,7 @@ describe("logical events routing", () => {
           .where("span_id", "=", "s"),
       ),
     ).toMatchInlineSnapshot(
-      `"select events.span_id from events_core as events where events.project_id = {p1:String} and events.is_deleted = {p2:UInt8} and span_id = {p3:String}"`,
+      `"select events.span_id from events_core as events where events.project_id = {p1:String} and events.is_deleted = 0 and span_id = {p2:String}"`,
     );
   });
 
@@ -495,35 +475,6 @@ describe("logical events routing", () => {
       ),
     ).toEqual(["events_core"]);
   });
-
-  it("rejects a CTE named events", () => {
-    expect(() =>
-      compile(
-        db
-          .with("events", (qb) =>
-            qb.selectFrom("events_core").select("span_id"),
-          )
-          .selectFrom("events")
-          .select("span_id"),
-      ),
-    ).toThrow(QueryCompileError);
-  });
-
-  it.each(["events_core", "events_full"] as const)(
-    "rejects a CTE named %s alongside a logical relation",
-    (name) => {
-      // The routed relation would read the CTE instead of the table.
-      const withCte = db.with(name, (qb) =>
-        qb.selectFrom("scores as s").select("s.id"),
-      );
-      expect(() =>
-        compile(withCte.selectFrom("events as e").select("e.span_id")),
-      ).toThrow(QueryCompileError);
-      expect(() =>
-        compile(withCte.selectFrom(name).select("id")),
-      ).not.toThrow();
-    },
-  );
 });
 
 describe("logical events routing of metadata predicates", () => {

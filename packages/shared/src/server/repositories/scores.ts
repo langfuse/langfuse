@@ -76,7 +76,13 @@ import {
 } from "../queries/clickhouse-sql/query-fragments";
 import { compileClickhouseQuery } from "../query-ast/compile";
 import { getClickhouseKysely } from "../query-ast/dialect";
-import { limitBy, mapKeys, notEmpty, useFinal } from "../query-ast/extensions";
+import {
+  limitBy,
+  literal,
+  mapKeys,
+  notEmpty,
+  useFinal,
+} from "../query-ast/extensions";
 import { scoresTableCols } from "../../tableDefinitions/scoresTable";
 import { promptGenerationEvents } from "./prompt-events";
 import {
@@ -423,7 +429,7 @@ const experimentItemEventsQuery = (experimentIds: string[]) =>
     .selectFrom("events as e")
     .select(["e.project_id", "e.experiment_id", "e.trace_id"])
     .where("e.experiment_id", "in", experimentIds)
-    .where("e.experiment_id", "!=", "");
+    .where("e.experiment_id", "!=", literal(""));
 
 const scoresForExperimentItemsQuery = (experimentIds: string[]) =>
   getClickhouseKysely()
@@ -460,7 +466,11 @@ const scoresForExperimentItemsQuery = (experimentIds: string[]) =>
       notEmpty(mapKeys(eb.ref("s.metadata"))).as("has_metadata"),
       "e.experiment_id as experiment_id",
     ])
-    .where("s.data_type", "in", [...AGGREGATABLE_SCORE_TYPES])
+    .where(
+      "s.data_type",
+      "in",
+      AGGREGATABLE_SCORE_TYPES.map((t) => literal(t)),
+    )
     .orderBy("s.event_ts", "desc")
     .$call(
       limitBy({
@@ -1633,10 +1643,13 @@ const getScoresUiGenericFromEvents = async <T>(props: {
 
   // Inner join when trace filters are active (exclude scores without matching traces)
   // Left join when only sorting (keep all scores)
+  // The traces CTE is unique per trace (LIMIT 1 BY), so the inner join cannot
+  // fan out. It must not be ANY: an inner ANY JOIN also dedups the left side,
+  // keeping only one score per trace.
   const eventsJoin = (() => {
     if (needsTracesCTE) {
       if (traceFilterState.length > 0) {
-        return `ANY JOIN traces e ON s.trace_id = e.id`;
+        return `INNER JOIN traces e ON s.trace_id = e.id`;
       }
       return `LEFT ANY JOIN traces e ON s.trace_id = e.id`;
     }
@@ -2280,7 +2293,11 @@ const aggregatedScoresForPromptsFromEventsQuery = (
       notEmpty(mapKeys(eb.ref("s.metadata"))).as("has_metadata"),
     ])
     .where("s.name", "is not", null)
-    .where("s.data_type", "in", [...LISTABLE_SCORE_TYPES])
+    .where(
+      "s.data_type",
+      "in",
+      LISTABLE_SCORE_TYPES.map((t) => literal(t)),
+    )
     .$if(fetchScoreRelation === "trace", (qb) =>
       qb
         .where("s.observation_id", "is", null)
