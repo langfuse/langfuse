@@ -11,6 +11,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
+import { availableParallelism } from "node:os";
 import { fileURLToPath } from "node:url";
 import { stripVTControlCharacters } from "node:util";
 
@@ -89,6 +90,7 @@ export function parseOptions(args) {
     base: "origin/main",
     all: false,
     dryRun: false,
+    cpus: Math.max(1, Math.floor(availableParallelism() / 2)),
   };
   for (let index = 0; index < args.length; index++) {
     const arg = args[index];
@@ -108,6 +110,14 @@ export function parseOptions(args) {
       }
       const key = arg === "--only" || arg === "-o" ? "only" : "skip";
       options[key] = [...new Set([...(options[key] ?? []), ...names])];
+    } else if (arg === "--cpus") {
+      const value = args[++index];
+      if (
+        !/^[1-9]\d*$/.test(value ?? "") ||
+        !Number.isSafeInteger(Number(value))
+      )
+        throw new Error("--cpus requires a positive integer");
+      options.cpus = Number(value);
     } else if (arg === "--base") {
       const base = args[++index];
       if (!base || base.startsWith("-"))
@@ -189,6 +199,7 @@ export function createPlan(
     taskGraph,
     exists,
     changes,
+    options.cpus ?? parseOptions([]).cpus,
   );
   return [
     ...planRepositoryChecks(
@@ -293,6 +304,7 @@ function planPackageChecks(
   taskGraph,
   exists,
   changes,
+  cpus,
 ) {
   const selected = selectPackageChecks(
     codeFiles,
@@ -349,6 +361,31 @@ function planPackageChecks(
             pkg.scripts[task.name].includes(task.runner),
         );
       for (const task of checks) {
+        if (
+          task.runner === "eslint" &&
+          pkg.scripts[task.name].includes("eslint")
+        ) {
+          // Turbo cannot append ESLint-only flags to a mixed task batch.
+          // Keep dependency preparation in Turbo; ESLint retains its own cache.
+          prepare(`${pkg.name}#${task.name}`);
+          const details = related
+            ? planNarrowedCheck(task, pkg, ownFiles, base, exists)
+            : { label: `${task.label} · ${pkg.name}`, args: [] };
+          packageChecks.push({
+            ...details,
+            args: [
+              "--filter",
+              pkg.name,
+              "run",
+              task.name,
+              ...details.args,
+              "--concurrency",
+              "off",
+            ],
+            requiresTurbo: true,
+          });
+          continue;
+        }
         if (!related) {
           full.get(task.name).push(pkg.name);
           continue;
@@ -399,6 +436,7 @@ function planPackageChecks(
         "--output-logs=errors-only",
         "--ui=stream",
         "--log-prefix=none",
+        `--concurrency=${Math.max(1, cpus - 1)}`,
         ...targets,
         "--continue=dependencies-successful",
       ],
@@ -739,7 +777,7 @@ async function runCheck(check, outputDirectory, checkIndex) {
       result = await new Promise((resolve) => {
         const child = spawn("pnpm", args, {
           cwd: root,
-          env: createOutput().childEnv,
+          env: createCheckEnv(),
           stdio: ["ignore", output, output],
         });
         let error;
@@ -783,15 +821,34 @@ async function runCheck(check, outputDirectory, checkIndex) {
   return { failure: null, reports };
 }
 
-async function* runPlan(plan, outputDirectory) {
+export function createCheckEnv(env = process.env) {
+  return createOutput({
+    ...env,
+    VITEST_MAX_WORKERS: "1",
+    CARGO_BUILD_JOBS: "1",
+    RUST_TEST_THREADS: "1",
+    RAYON_NUM_THREADS: "1",
+    GOMAXPROCS: "1",
+    UV_THREADPOOL_SIZE: "1",
+  }).childEnv;
+}
+
+export async function* runPlan(plan, outputDirectory, cpus, run = runCheck) {
   const pending = new Map();
+  const weights = new Map();
   const hasTurbo = plan.some((check) => check.isTurboBatch);
   let nextIndex = 0;
   let foreground = null;
   let turboFailed = false;
   try {
     while (nextIndex < plan.length || pending.size > 0) {
-      if (foreground === null && nextIndex < plan.length) {
+      const weight = plan[nextIndex]?.isTurboBatch ? Math.max(1, cpus - 1) : 1;
+      const used = [...weights.values()].reduce((sum, value) => sum + value, 0);
+      if (
+        foreground === null &&
+        nextIndex < plan.length &&
+        used + weight <= cpus
+      ) {
         const checkIndex = nextIndex++;
         const check = plan[checkIndex];
         if (check.requiresTurbo && turboFailed) {
@@ -801,7 +858,7 @@ async function* runPlan(plan, outputDirectory) {
         const promise = (async () => {
           const startedAt = performance.now();
           try {
-            const { failure, reports } = await runCheck(
+            const { failure, reports } = await run(
               check,
               outputDirectory,
               checkIndex,
@@ -819,6 +876,7 @@ async function* runPlan(plan, outputDirectory) {
           }
         })();
         pending.set(checkIndex, promise);
+        weights.set(checkIndex, weight);
         if (!check.requiresTurbo && !(check.isKnip && hasTurbo)) {
           foreground = checkIndex;
         }
@@ -827,6 +885,7 @@ async function* runPlan(plan, outputDirectory) {
       }
       const outcome = await Promise.race(pending.values());
       pending.delete(outcome.checkIndex);
+      weights.delete(outcome.checkIndex);
       if (outcome.checkIndex === foreground) foreground = null;
       if (outcome.check.isTurboBatch && outcome.result) turboFailed = true;
       yield outcome;
@@ -886,6 +945,9 @@ async function main() {
   const options = parseOptions(process.argv.slice(2));
   if (options.help) {
     console.log(
+      "--cpus <n>: concurrent task budget (default: half available CPUs, minimum 1).\nNested worker pools are limited to one worker during check. This is not a hard CPU quota.\n",
+    );
+    console.log(
       "Usage: pnpm check [--branch] [--base <ref>] [--all] [--only <checks> | --skip <checks>] [--dry-run]\n\nDefault: all applicable checks for staged, unstaged, and untracked changes.\n--branch: changes since merge-base with origin/main, plus local changes.\n--base: override branch target (implies --branch).\n--all: check every package within the selected checks.\n--only, -o: run only the comma-separated checks.\n--skip, -s: exclude the comma-separated checks. Cannot combine with --only.\nChecks: format, typecheck, lint, knip, tests. Build/generation prerequisites still run.\n--dry-run: print checks without running them.",
     );
     return;
@@ -900,6 +962,7 @@ async function main() {
     : git(["rev-parse", "HEAD"]).trim();
   const files = collectChanges(git, base);
   const output = createOutput();
+  console.log(`Task concurrency budget: ${options.cpus}`);
   printHeader(files, options, output);
   const { packages, taskGraph } = loadWorkspace(base);
   const plan = createPlan(files, packages, options, base, taskGraph);
@@ -911,7 +974,7 @@ async function main() {
     printPlan(plan);
     return;
   }
-  const results = await executePlan(plan, output);
+  const results = await executePlan(plan, output, options.cpus);
   if (results.interrupted) {
     process.exitCode = 1;
     return;
@@ -958,7 +1021,7 @@ function printPlan(plan) {
   }
 }
 
-async function executePlan(plan, { terminal, paint, indent }) {
+async function executePlan(plan, { terminal, paint, indent }, cpus) {
   mkdirSync(resolve(root, ".turbo"), { recursive: true });
   const outputDirectory = mkdtempSync(resolve(root, ".turbo/check-"));
   let retainLogs = false;
@@ -982,7 +1045,7 @@ async function executePlan(plan, { terminal, paint, indent }) {
     progressLines = 0;
   };
   try {
-    for await (const outcome of runPlan(plan, outputDirectory)) {
+    for await (const outcome of runPlan(plan, outputDirectory, cpus)) {
       clearProgress();
       if (outcome.type === "started") {
         active.set(outcome.checkIndex, outcome.check);
