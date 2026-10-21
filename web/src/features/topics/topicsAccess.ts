@@ -1,21 +1,32 @@
 import { type Session } from "next-auth";
 import { useSession } from "next-auth/react";
-import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
+import {
+  getContextualFeatureFlags,
+  hasInternalAccess,
+} from "@/src/features/feature-flags/utils";
 import { useProject } from "@/src/features/projects/hooks";
 import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 type TopicsProject = { id: string; topicsEnabled?: boolean };
 
-/** Visibility gate for every Topics surface: project gate, the user's feature preview and topics:read. */
+/** Visibility gate for every Topics surface: project gate, internal view or feature preview, and topics:read. */
 export function canViewTopics(
   session: Session | null,
   project: TopicsProject | null | undefined,
 ) {
+  const internalFeaturesEnabled =
+    hasInternalAccess({
+      isAdmin: session?.user?.admin ?? false,
+      isExperimentalFeaturesEnabled:
+        session?.environment?.enableExperimentalFeatures ?? false,
+    }) && session?.user?.featureFlags.internalFeatures !== false;
+
   return (
     !!project &&
     isTopicsEnabledForProject(project) &&
-    getContextualFeatureFlags(session?.user, { projectId: project.id })
-      ?.langfuseTopics === true &&
+    (internalFeaturesEnabled ||
+      getContextualFeatureFlags(session?.user, { projectId: project.id })
+        ?.langfuseTopics === true) &&
     hasProjectAccess({ session, projectId: project.id, scope: "topics:read" })
   );
 }
