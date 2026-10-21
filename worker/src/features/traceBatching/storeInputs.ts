@@ -5,14 +5,14 @@ import {
   TRACE_BATCH_INPUT_MAX_CHARACTERS,
   traceException,
   type TraceBatchInputReference,
-  type Transcript,
+  type TraceBatchInputData,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 
 /** Optional capture; storage failures must not stop in-memory Topics processing. */
 export async function storeInputs(
   reference: TraceBatchInputReference,
-  transcript: Transcript | null,
+  inputs: TraceBatchInputData,
 ): Promise<void> {
   if (env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED !== "true") return;
 
@@ -23,7 +23,7 @@ export async function storeInputs(
       "langfuse.trace_batch.revision": reference.revision,
     });
     try {
-      const result = await putTraceBatchInputs(reference, transcript);
+      const result = await putTraceBatchInputs(reference, inputs);
       span.setAttributes({
         "langfuse.trace_batch.input_storage.outcome": result.outcome,
         "langfuse.trace_batch.input_storage.json_characters": result.jsonLength,

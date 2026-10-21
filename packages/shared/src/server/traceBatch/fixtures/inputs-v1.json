@@ -1,5 +1,11 @@
 {
   "schemaVersion": 1,
+  "traceContext": {
+    "sessionId": null,
+    "traceName": null,
+    "traceTimestamp": "2026-10-20T10:00:00.123Z",
+    "environment": "production"
+  },
   "transcript": {
     "threads": [
       {

@@ -24,19 +24,52 @@ const reference = {
   revision: "revision",
 };
 
+const traceContext = {
+  sessionId: null,
+  traceName: null,
+  traceTimestamp: "2026-10-20T10:00:00.123Z",
+  environment: "production",
+};
+
 beforeEach(() => {
   storage.uploadFile.mockReset().mockResolvedValue(undefined);
   storage.download.mockReset().mockResolvedValue(JSON.stringify(storedV1));
 });
 
 describe("trace batch input storage", () => {
+  it.each([
+    { sessionId: "session", traceName: "agent" },
+    { sessionId: null, traceName: null },
+  ])("round trips nested trace context with %j", async (nullableFields) => {
+    const inputs = {
+      transcript: transcript(),
+      traceContext: {
+        ...traceContext,
+        ...nullableFields,
+      },
+    };
+    await putTraceBatchInputs(reference, inputs);
+    let json = "";
+    for await (const chunk of storage.uploadFile.mock.calls[0][0].data)
+      json += chunk;
+    expect(JSON.parse(json)).toEqual({
+      ...storedV1,
+      traceContext: inputs.traceContext,
+    });
+    storage.download.mockResolvedValueOnce(json);
+    expect(await getTraceBatchInputs(reference)).toEqual(inputs);
+  });
+
   it("reads the saved v1 format and writes it at the deterministic revision key", async () => {
     const value = transcript();
     const key = "test/trace-batch/trace/ecb/project/trace/revision.json";
-    expect(await getTraceBatchInputs(reference)).toEqual(value);
+    expect(await getTraceBatchInputs(reference)).toEqual({
+      transcript: value,
+      traceContext,
+    });
     expect(storage.download).toHaveBeenCalledWith(key);
 
-    await putTraceBatchInputs(reference, value);
+    await putTraceBatchInputs(reference, { transcript: value, traceContext });
     const upload = storage.uploadFile.mock.calls[0][0];
     expect(upload).toMatchObject({
       fileName: key,
@@ -50,9 +83,12 @@ describe("trace batch input storage", () => {
 
   it("reads an explicitly stored null transcript", async () => {
     storage.download.mockResolvedValueOnce(
-      '{"schemaVersion":1,"transcript":null}',
+      JSON.stringify({ schemaVersion: 1, transcript: null, traceContext }),
     );
-    expect(await getTraceBatchInputs(reference)).toBeNull();
+    expect(await getTraceBatchInputs(reference)).toEqual({
+      transcript: null,
+      traceContext,
+    });
   });
 
   it.each([1_000_000, 1_000_001])(
@@ -62,11 +98,17 @@ describe("trace batch input storage", () => {
       const overhead = JSON.stringify({
         schemaVersion: 1,
         transcript: value,
+        traceContext,
       }).length;
       value.threads[0].currentTurn.messages[0].parts = [
         { type: "text", text: "x".repeat(size - overhead) },
       ];
-      expect(await putTraceBatchInputs(reference, value)).toEqual({
+      expect(
+        await putTraceBatchInputs(reference, {
+          transcript: value,
+          traceContext,
+        }),
+      ).toEqual({
         outcome: size > 1_000_000 ? "too_large" : "stored",
         jsonLength: size,
       });
@@ -80,17 +122,45 @@ describe("trace batch input storage", () => {
     storage.download.mockRejectedValueOnce(new Error("NoSuchKey"));
     await expect(getTraceBatchInputs(reference)).rejects.toThrow("NoSuchKey");
     storage.uploadFile.mockRejectedValueOnce(new Error("SlowDown"));
-    await expect(putTraceBatchInputs(reference, null)).rejects.toThrow(
-      "SlowDown",
-    );
+    await expect(
+      putTraceBatchInputs(reference, { transcript: null, traceContext }),
+    ).rejects.toThrow("SlowDown");
   });
 
   it.each([
     ["invalid JSON", "{"],
-    ["unsupported version", '{"schemaVersion":2,"transcript":null}'],
+    ["missing trace context", '{"schemaVersion":1,"transcript":null}'],
+    [
+      "unsupported version",
+      JSON.stringify({ schemaVersion: 2, transcript: null, traceContext }),
+    ],
     [
       "invalid transcript",
-      '{"schemaVersion":1,"transcript":{"threads":"bad"}}',
+      JSON.stringify({
+        schemaVersion: 1,
+        transcript: { threads: "bad" },
+        traceContext,
+      }),
+    ],
+    ...["sessionId", "traceName", "environment", "traceTimestamp"].map(
+      (field) => [
+        `missing trace context ${field}`,
+        JSON.stringify({
+          schemaVersion: 1,
+          transcript: null,
+          traceContext: Object.fromEntries(
+            Object.entries(traceContext).filter(([key]) => key !== field),
+          ),
+        }),
+      ],
+    ),
+    [
+      "invalid trace timestamp",
+      JSON.stringify({
+        schemaVersion: 1,
+        transcript: null,
+        traceContext: { ...traceContext, traceTimestamp: "not a date" },
+      }),
     ],
   ])("rejects %s", async (_label, json) => {
     storage.download.mockResolvedValueOnce(json);

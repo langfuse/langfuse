@@ -315,13 +315,36 @@ revision uses another key, while an ordinary PUT of the same revision can replac
 its object. A reader needs all three identifiers; no latest-revision lookup or
 durable job reference is stored.
 
-The envelope is `{ schemaVersion: 1, transcript: StoredTranscriptV1 | null }`.
+Objects contain a versioned envelope:
+
+```ts
+{
+  schemaVersion: 1,
+  transcript: StoredTranscriptV1 | null,
+  traceContext: {
+    sessionId: string | null,
+    traceTimestamp: string, // ISO timestamp
+    environment: string,
+    traceName: string | null,
+  },
+}
+```
+
+`putTraceBatchInputs(reference, { transcript, traceContext })` requires all context
+fields, with null for an absent session ID or name. Context uses the event-domain
+field schemas and the existing Topics selection: earliest observation start,
+newest nonempty session ID, newest-event environment and first observation name.
+The transcript alone cannot reconstruct this context. The original job enqueue
+time remains execution state rather than trace context.
+
 The transcript module owns the canonical schema and typed V1 serialization
 adapters; normalized IO owns the nested message/part schemas. Message dates are
-serialized as ISO strings. The reader validates nested content and
-restores dates. Invalid JSON, unsupported versions and download errors propagate;
-only an explicitly stored null transcript reads as null. Compatible optional
-fields may be added to v1. For a breaking change, retain the old schema, deploy
+serialized as ISO strings. `getTraceBatchInputs(reference)` returns
+`{ transcript, traceContext }`, validates nested content and restores message
+dates; `traceContext.traceTimestamp` remains an ISO string. Missing context,
+invalid JSON, unsupported versions and download errors propagate; an explicitly
+stored null transcript returns `transcript: null`. Compatible optional fields may be added to v1.
+For a breaking change, retain the old schema, deploy
 readers accepting both versions, then enable the new writer. Schema version and
 readiness revision are independent.
 
@@ -345,6 +368,30 @@ Like temporary span-eval inputs, these objects have no ingestion deletion
 references. Trace/project deletion and per-project retention do not immediately
 remove them; bucket expiry is the cleanup mechanism. Before enabling writes,
 explicitly accept this temporary retention or extend the deletion paths.
+
+### Storage portability
+
+Keep producers and consumers behind `putTraceBatchInputs` / `getTraceBatchInputs`.
+`TraceBatchInputData` is the application contract; the S3 key layout, client,
+serialization and physical retention belong to the storage implementation.
+The logical identity `(projectId, traceId, revision)` must remain stable across
+storage backends. A ClickHouse implementation can return the same transcript
+and trace context without exposing its table layout to callers.
+
+When adding file-dependent consumers, persist a backend-aware input reference
+on the execution record and carry it in the queue job. For S3 this reference
+must retain the exact object key. Only the storage module should interpret the
+backend and locator. During a migration, keep readers for both backends until
+queued references have drained or expired; changing the writer backend must
+not redirect reads of existing references.
+
+Replacing S3 also requires preserving behavior: report `stored` only after the
+input is durable and available to the consumer's read path; retain the size
+limit and define retry/same-revision replacement semantics explicitly. ClickHouse
+needs batched or safely acknowledged async inserts rather than one synchronous
+insert per trace, and its retention/deletion policy must be configured separately.
+These are requirements for a future backend, not a second implementation in this
+optional-capture stage.
 
 ## Per-trace transcripts
 

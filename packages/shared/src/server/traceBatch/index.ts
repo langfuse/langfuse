@@ -3,4 +3,5 @@ export {
   putTraceBatchInputs,
   TRACE_BATCH_INPUT_MAX_CHARACTERS,
   type TraceBatchInputReference,
+  type TraceBatchInputData,
 } from "./storage";

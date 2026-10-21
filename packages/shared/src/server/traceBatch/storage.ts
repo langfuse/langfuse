@@ -23,6 +23,11 @@ export type TraceBatchInputReference = {
   revision: string;
 };
 
+export type TraceBatchInputData = {
+  transcript: Transcript | null;
+  traceContext: TraceBatchInputs["traceContext"];
+};
+
 // UTF-16 length of the complete JSON envelope, not a UTF-8 byte limit.
 export const TRACE_BATCH_INPUT_MAX_CHARACTERS = 1_000_000;
 
@@ -31,11 +36,12 @@ let storage: StorageService | undefined;
 /** Ordinary PUT: retries using the same revision can replace the saved input. */
 export async function putTraceBatchInputs(
   reference: TraceBatchInputReference,
-  transcript: Transcript | null,
+  { transcript, traceContext }: TraceBatchInputData,
 ): Promise<{ outcome: "stored" | "too_large"; jsonLength: number }> {
   const inputs: TraceBatchInputs = {
     schemaVersion: 1,
     transcript: transcript === null ? null : toStoredTranscriptV1(transcript),
+    traceContext,
   };
   const json = JSON.stringify(inputs);
   const jsonLength = json.length;
@@ -54,12 +60,16 @@ export async function putTraceBatchInputs(
 /** Missing objects, invalid JSON and unsupported schemas propagate to the caller. */
 export async function getTraceBatchInputs(
   reference: TraceBatchInputReference,
-): Promise<Transcript | null> {
+): Promise<TraceBatchInputData> {
   const json = await getStorage().download(getTraceBatchInputsKey(reference));
   const inputs = traceBatchInputsSchema.parse(JSON.parse(json));
-  return inputs.transcript === null
-    ? null
-    : fromStoredTranscriptV1(inputs.transcript);
+  return {
+    transcript:
+      inputs.transcript === null
+        ? null
+        : fromStoredTranscriptV1(inputs.transcript),
+    traceContext: inputs.traceContext,
+  };
 }
 
 function getStorage(): StorageService {
@@ -75,9 +85,12 @@ function getTraceBatchInputsKey({
   traceId,
   revision,
 }: TraceBatchInputReference): string {
+  const safeProjectId = safeBlobKeySegment(projectId);
+  const safeTraceId = safeBlobKeySegment(traceId);
+  const safeRevision = safeBlobFilenameStem(revision, ".json");
   const hash = createW3CTraceId(JSON.stringify([projectId, traceId])).slice(
     0,
     3,
   );
-  return `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}trace-batch/trace/${hash}/${safeBlobKeySegment(projectId)}/${safeBlobKeySegment(traceId)}/${safeBlobFilenameStem(revision, ".json")}.json`;
+  return `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}trace-batch/trace/${hash}/${safeProjectId}/${safeTraceId}/${safeRevision}.json`;
 }

@@ -1071,7 +1071,16 @@ describe("trace batch queue", () => {
             traceId: "trace",
             revision: "queued-revision",
           },
-          vi.mocked(summarizeAssembledTrace).mock.calls[0][0].transcript,
+          {
+            transcript: vi.mocked(summarizeAssembledTrace).mock.calls[0][0]
+              .transcript,
+            traceContext: {
+              sessionId: null,
+              traceTimestamp: "2026-09-11T00:00:00.000Z",
+              environment: "default",
+              traceName: "generation",
+            },
+          },
         );
         const storageSpan = exporter
           .getFinishedSpans()
@@ -1240,13 +1249,16 @@ describe("trace batch queue", () => {
     expect(putTraceBatchInputs).toHaveBeenCalledTimes(1);
     expect(putTraceBatchInputs).toHaveBeenCalledWith(
       { projectId: "picked", traceId: "trace", revision: "revision-picked" },
-      expect.objectContaining({ threads: expect.any(Array) }),
+      expect.objectContaining({
+        transcript: expect.objectContaining({ threads: expect.any(Array) }),
+      }),
     );
     vi.mocked(listTopicFacets).mockResolvedValue([]);
     vi.mocked(listTopicRules).mockResolvedValue([]);
   });
 
   it("passes the session of the newest event that has one, breaking timestamp ties by span ID", async () => {
+    env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED = "true";
     vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
       for (const [span, eventTs, sessionId] of [
         ["a", "2026-09-11 00:00:01.000000", "session-old"],
@@ -1258,13 +1270,13 @@ describe("trace batch queue", () => {
           project_id: "project",
           trace_id: "trace",
           session_id: sessionId,
-          environment: "default",
+          environment: `env-${span}`,
           span_id: span,
           parent_span_id: null,
-          start_time: "2026-09-11 00:00:00.000000",
+          start_time: `2026-09-11 00:00:0${span === "d" ? "0" : "1"}.000000`,
           event_ts: eventTs,
           type: "GENERATION",
-          name: "generation",
+          name: `generation-${span}`,
           input: JSON.stringify([{ role: "user", content: span }]),
           output: JSON.stringify({ role: "assistant", content: "answer" }),
           metadata: {},
@@ -1304,7 +1316,24 @@ describe("trace batch queue", () => {
 
     expect(
       vi.mocked(summarizeAssembledTrace).mock.calls.at(-1)?.[0],
-    ).toMatchObject({ traceId: "trace", sessionId: "session-tie" });
+    ).toMatchObject({
+      traceId: "trace",
+      sessionId: "session-tie",
+      traceTimestamp: "2026-09-11T00:00:00.000Z",
+      environment: "env-c",
+      traceName: "generation-a",
+    });
+    expect(putTraceBatchInputs).toHaveBeenCalledWith(
+      { projectId: "project", traceId: "trace", revision: "r" },
+      expect.objectContaining({
+        traceContext: {
+          sessionId: "session-tie",
+          traceTimestamp: "2026-09-11T00:00:00.000Z",
+          environment: "env-c",
+          traceName: "generation-a",
+        },
+      }),
+    );
     vi.mocked(listTopicFacets).mockResolvedValue([]);
     vi.mocked(listTopicRules).mockResolvedValue([]);
   });

@@ -157,6 +157,12 @@ async function summarizeTraceBatch(
   // Match manual processing and discovery, preserving event_ts microseconds.
   const latest = newestEvent(observations)!;
   const sessionId = newestSessionId(observations);
+  const traceContext = {
+    sessionId,
+    traceTimestamp,
+    environment: latest.environment,
+    traceName: first.name,
+  };
   let rows: TopicSummary[] = [];
   try {
     const project = await topics.get(first.projectId);
@@ -173,17 +179,15 @@ async function summarizeTraceBatch(
       summarizeAssembledTrace({
         projectId: first.projectId,
         traceId,
-        sessionId,
-        traceTimestamp,
+        ...traceContext,
         jobEnqueuedAt,
-        environment: latest.environment,
-        traceName: first.name ?? "",
+        traceName: traceContext.traceName ?? "",
         transcript,
         models: project.models,
         facets: project.facets,
       }),
       inputReference
-        ? storeInputs(inputReference, transcript)
+        ? storeInputs(inputReference, { transcript, traceContext })
         : Promise.resolve(),
     ]);
     if (summary.status === "rejected") throw summary.reason;

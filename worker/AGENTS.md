@@ -88,7 +88,10 @@
   Allowlisted projects are then summarized from that assembled transcript.
   Optional `src/features/traceBatching/storeInputs.ts` capture runs after Topics
   eligibility/sampling, within the same concurrency limit, using the queued
-  revision. `LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED` defaults off.
+  revision. Store `{ transcript, traceContext }` using the same metadata selection
+  as Topics; preserve nullable session ID/name in storage and apply the Topics
+  name fallback only at its call site.
+  `LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED` defaults off.
   Oversized inputs and exhausted storage errors leave in-memory Topics running;
   file-dependent consumers must require successful storage before scheduling.
   Allow one pending tokenization promise per batch while

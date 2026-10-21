@@ -160,7 +160,10 @@
 
 - `src/server/traceBatch`: versioned input storage through the server barrel.
   `putTraceBatchInputs` and `getTraceBatchInputs` share a project/trace/revision
-  key in the event bucket. The writer skips envelopes over 1,000,000 UTF-16
+  key in the event bucket. The writer takes `TraceBatchInputData` with transcript
+  and required `traceContext`; session ID and trace name are nullable. The reader
+  requires and returns both. Context timestamps
+  stay ISO strings. The writer skips envelopes over 1,000,000 UTF-16
   units; the reader validates the stored version and restores message dates.
   Same-revision PUTs may overwrite. `storage-schema.ts` owns only the versioned
   envelope; schema versions and readiness revisions are independent.
