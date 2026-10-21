@@ -12,6 +12,7 @@ import { manyTracesScenario } from "./many-traces";
 import { outlierTrafficScenario } from "./outlier-traffic";
 import { scoredTracesScenario } from "./scored-traces";
 import { sessionShapesScenario } from "./session-shapes";
+import { sessionThreadsScenario } from "./session-threads";
 import { sessionVarietyScenario } from "./session-variety";
 import { supportAgentScenario } from "./support-agent";
 import { timelineAnnotatedScenario } from "./timeline-annotated";
@@ -36,6 +37,7 @@ export const scenarios: Record<string, ScenarioDefinition> = {
   "outlier-traffic": outlierTrafficScenario,
   "scored-traces": scoredTracesScenario,
   "session-shapes": sessionShapesScenario,
+  "session-threads": sessionThreadsScenario,
   "session-variety": sessionVarietyScenario,
   "annotation-queue": annotationQueueScenario,
   "custom-models": customModelsScenario,
