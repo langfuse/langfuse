@@ -6,7 +6,7 @@ import { useSession } from "next-auth/react";
 import { hasOwnRole } from "./hasOwnRole";
 import { env } from "@/src/env.mjs";
 
-// These permissions can invoke or schedule calls using project LLM connections.
+/** LLM execution scopes require an internal admin in the demo project. */
 const demoProjectLlmScopes = new Set<ProjectScope>([
   "playground:execute",
   "topics:CUD",
@@ -67,12 +67,7 @@ export function hasProjectAccess(p: HasProjectAccessParams): boolean {
   const isAdmin = hasOwnRole(p) ? p.admin : p.session?.user?.admin;
   if (isAdmin) return true;
 
-  if (
-    !hasOwnRole(p) &&
-    p.projectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
-    demoProjectLlmScopes.has(p.scope)
-  )
-    return false;
+  if (isDemoProjectLlmScope(p)) return false;
 
   const projectRole: Role | undefined = hasOwnRole(p)
     ? p.role
@@ -82,4 +77,12 @@ export function hasProjectAccess(p: HasProjectAccessParams): boolean {
   if (projectRole === undefined) return false;
 
   return projectRoleAccessRights[projectRole].includes(p.scope);
+}
+
+function isDemoProjectLlmScope(p: HasProjectAccessParams): boolean {
+  return (
+    !hasOwnRole(p) &&
+    p.projectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
+    demoProjectLlmScopes.has(p.scope)
+  );
 }
