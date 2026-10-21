@@ -450,9 +450,6 @@ importers:
       kysely:
         specifier: 0.28.17
         version: 0.28.17
-      langfuse:
-        specifier: 3.38.4
-        version: 3.38.4
       lodash:
         specifier: ^4.18.1
         version: 4.18.1
