@@ -582,7 +582,8 @@ describe("Admin Organizations API", () => {
 
       // Create a test API key for the organization
       await createApiKey(prisma, {
-        owner: OrganizationId(testOrgId),
+        tenant: OrganizationId(testOrgId),
+        scope: OrganizationId(testOrgId),
         role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
         createdBy: "system",
         name: "Test API Key",
@@ -852,7 +853,8 @@ describe("Admin Organizations API", () => {
 
       // Create a test API key for the organization
       const apiKey = await createApiKey(prisma, {
-        owner: OrganizationId(testOrgId),
+        tenant: OrganizationId(testOrgId),
+        scope: OrganizationId(testOrgId),
         role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
         createdBy: "system",
         name: "Test API Key",

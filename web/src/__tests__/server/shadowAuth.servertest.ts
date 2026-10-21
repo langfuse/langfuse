@@ -142,7 +142,8 @@ const scopeOf = (result: ShadowResult): Record<string, unknown> => {
 
 const createOrgApiKey = async (targetOrgId: string) => {
   const { publicKey, secretKey } = await createApiKey(prisma, {
-    owner: OrganizationId(targetOrgId),
+    tenant: OrganizationId(targetOrgId),
+    scope: OrganizationId(targetOrgId),
     role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
     createdBy: "system",
   });

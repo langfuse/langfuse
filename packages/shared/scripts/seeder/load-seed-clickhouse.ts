@@ -1,7 +1,11 @@
 import { randomUUID } from "crypto";
 import { prisma } from "../../src/db";
 import { createApiKey, logger } from "../../src/server";
-import { ProjectId, SystemRoleId } from "../../src/features/rbac/types";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+} from "../../src/features/rbac/types";
 import { prepareClickhouse } from "./prepare-clickhouse";
 import { redis } from "../../src/server";
 
@@ -50,7 +54,8 @@ const prepareProjectsAndApiKeys = async (
     });
     if (!apiKeyExists) {
       await createApiKey(prisma, {
-        owner: ProjectId(projectId),
+        tenant: OrganizationId(orgId),
+        scope: ProjectId(projectId),
         role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
         createdBy: "system",
         name,

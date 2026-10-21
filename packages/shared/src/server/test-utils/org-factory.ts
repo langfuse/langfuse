@@ -1,6 +1,10 @@
 import { v4 } from "uuid";
 import { prisma } from "../../db";
-import { ProjectId, SystemRoleId } from "../../features/rbac/types";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+} from "../../features/rbac/types";
 import { CloudConfigSchema } from "../../interfaces/cloudConfigSchema";
 import { createApiKey } from "../auth/apiKeys";
 
@@ -40,7 +44,8 @@ export const createOrgProjectAndApiKey = async (
     },
   });
   const { publicKey, secretKey } = await createApiKey(prisma, {
-    owner: ProjectId(projectId),
+    tenant: OrganizationId(org.id),
+    scope: ProjectId(projectId),
     role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
     createdBy: "system",
   });
