@@ -48,11 +48,8 @@ import {
   type AuthorizationContext,
 } from "@/src/features/auth/policy/types";
 import {
-  filterBatchForLegacyIngestionScoreOnlyOrg,
-  ingestionEventIdOf,
-  ingestionEventTypeOf,
-  noteLegacyIngestionScoreOnlyRejections,
-  rejectNonScoreCreateEvents,
+  isLegacyIngestionScoreOnlyOrg,
+  recordLegacyIngestionScoreOnlyRejection,
 } from "@/src/features/public-api/server/legacyIngestionScoreOnlyCutoff";
 
 export const config = {
@@ -186,35 +183,26 @@ export default async function handler(
 
         await telemetry();
 
-        // V4 events_only mode: refuse every non-score event because trace and
+        // V4 events_only mode refuses every non-score event because trace and
         // observation writes target legacy ClickHouse tables this deployment
-        // no longer reads. SDK logs are no longer accepted in this mode.
-        // Reject per-event so a mixed batch still processes its score events.
+        // no longer reads. An organization created at or after the cutoff
+        // takes that same path. SDK logs are refused too. Reject per event so
+        // a mixed batch still processes its score events.
         const isEventsOnlyMode =
           env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only";
-        const { batchForProcessing, rejectedErrors } = filterBatchForEventsOnly(
-          parsedSchema.data.batch,
-          isEventsOnlyMode,
-        );
-        // Per-organization score-only gate. Runs after the deployment-wide
-        // events_only filter so that mode keeps its own error text. Score
-        // events stay in the batch and are still returned as 201s inside the 207.
-        const scoreOnly = filterBatchForLegacyIngestionScoreOnlyOrg(
-          batchForProcessing,
+        const scoreOnlyForOrg = isLegacyIngestionScoreOnlyOrg(
           scope.organizationCreatedAt,
         );
-        if (scoreOnly.rejectedErrors.length > 0) {
-          const kept = new Set(scoreOnly.batchForProcessing);
-          noteLegacyIngestionScoreOnlyRejections({
-            rejectedEventTypes: batchForProcessing
-              .filter((event) => !kept.has(event))
-              .map(ingestionEventTypeOf),
-            ingestionPath: "batch",
+        const { batchForProcessing, rejectedErrors } = filterBatchForEventsOnly(
+          parsedSchema.data.batch,
+          isEventsOnlyMode || scoreOnlyForOrg,
+        );
+        if (scoreOnlyForOrg && !isEventsOnlyMode) {
+          recordLegacyIngestionScoreOnlyRejection({
             route: "POST /api/public/ingestion",
-            organizationCreatedAt: scope.organizationCreatedAt,
+            count: rejectedErrors.length,
             orgId: scope.orgId,
             projectId,
-            headers: req.headers,
           });
         }
 
@@ -234,7 +222,7 @@ export default async function handler(
         }
 
         const authorized = authorizeIngestionBatch(
-          scoreOnly.batchForProcessing,
+          batchForProcessing,
           authCtx,
           scope.accessLevel,
           projectId,
@@ -248,7 +236,6 @@ export default async function handler(
         result.errors = [
           ...result.errors,
           ...rejectedErrors,
-          ...scoreOnly.rejectedErrors,
           ...authorized.rejectedErrors,
         ];
 
@@ -344,6 +331,10 @@ const EVENTS_ONLY_INGESTION_REMEDIATION = [
   `Docs: ${EVENTS_ONLY_INGESTION_DOCS_URL}`,
 ].join(" ");
 
+// Scores keep their own ClickHouse table and are the only event type accepted
+// by this endpoint in V4 events_only mode.
+const EVENTS_ONLY_ALLOWED_TYPES = new Set<string>([eventTypes.SCORE_CREATE]);
+
 export function filterBatchForEventsOnly(
   batch: unknown[],
   isEventsOnlyMode: boolean,
@@ -352,11 +343,24 @@ export function filterBatchForEventsOnly(
     return { batchForProcessing: batch, rejectedErrors: [] };
   }
 
-  return rejectNonScoreCreateEvents(
-    batch,
-    (type) =>
-      `Event type "${type ?? "unknown"}" is not accepted by /api/public/ingestion when LANGFUSE_MIGRATION_V4_WRITE_MODE is events_only. This endpoint only accepts score events. ${EVENTS_ONLY_INGESTION_REMEDIATION}`,
-  );
+  const batchForProcessing: unknown[] = [];
+  const rejectedErrors: IngestionEventRejection[] = [];
+
+  for (const event of batch) {
+    const type = ingestionEventTypeOf(event);
+    if (type && EVENTS_ONLY_ALLOWED_TYPES.has(type)) {
+      batchForProcessing.push(event);
+    } else {
+      rejectedErrors.push({
+        id: ingestionEventIdOf(event),
+        status: 400,
+        message: "Event type not accepted",
+        error: `Event type "${type ?? "unknown"}" is not accepted by /api/public/ingestion when LANGFUSE_MIGRATION_V4_WRITE_MODE is events_only. This endpoint only accepts score events. ${EVENTS_ONLY_INGESTION_REMEDIATION}`,
+      });
+    }
+  }
+
+  return { batchForProcessing, rejectedErrors };
 }
 
 /** authorizeIngestionBatch filters out unauthorized events from the batch */
@@ -418,6 +422,20 @@ function batchContainsTraceOrObservationEvent(batch: unknown[]): boolean {
     const type = ingestionEventTypeOf(event);
     return type !== null && TRACE_OR_OBSERVATION_EVENT_TYPES.has(type);
   });
+}
+
+/** ingestionEventTypeOf reads an event's `type`, or null when the event is malformed. */
+function ingestionEventTypeOf(event: unknown): string | null {
+  if (typeof event !== "object" || event === null) return null;
+  const type = (event as { type?: unknown }).type;
+  return typeof type === "string" ? type : null;
+}
+
+/** ingestionEventIdOf reads an event's `id`, defaulting to `unknown` for a malformed event. */
+function ingestionEventIdOf(event: unknown): string {
+  if (typeof event !== "object" || event === null) return "unknown";
+  const id = (event as { id?: unknown }).id;
+  return typeof id === "string" ? id : "unknown";
 }
 
 /** IngestionEventRejection is one event dropped from a batch, rendered in the 207 result's errors. */

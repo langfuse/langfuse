@@ -647,9 +647,9 @@ export const env = createEnv({
     LANGFUSE_API_ORGANIZATION_CUTOFF_DATE: z.iso
       .datetime()
       .default("2026-09-16T00:00:00.000Z"),
-    // Organizations created at or after this instant may send only score-create
-    // events through the legacy ingestion API. Unset leaves that API unchanged.
-    // Read on the web request path; the worker never re-checks event types.
+    // Organizations created at or after this instant take the v4 events_only
+    // path on legacy ingestion. Unset leaves that API unchanged. Read on the
+    // web request path; the worker never re-checks event types.
     LANGFUSE_LEGACY_INGESTION_SCORE_ONLY_ORG_CREATED_CUTOFF: z.iso
       .datetime()
       .optional(),

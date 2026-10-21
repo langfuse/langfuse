@@ -3,12 +3,8 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
 
 import { OrganizationId, ProjectId, SystemRoleId } from "@langfuse/shared/rbac";
-import { logger, processEventBatch } from "@langfuse/shared/src/server";
+import { processEventBatch } from "@langfuse/shared/src/server";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
-import {
-  filterBatchForLegacyIngestionScoreOnlyOrg,
-  noteLegacyIngestionScoreOnlyRejections,
-} from "@/src/features/public-api/server/legacyIngestionScoreOnlyCutoff";
 import handler, {
   filterBatchForEventsOnly,
 } from "@/src/pages/api/public/ingestion";
@@ -198,13 +194,18 @@ describe("legacy ingestion score-only organization cutoff", () => {
     expect(res._getStatusCode()).toBe(207);
     expect(res._getJSONData().errors).toEqual([]);
     expect(vi.mocked(processEventBatch).mock.calls[0][0]).toEqual(mixedBatch);
+    expect(recordIncrement).not.toHaveBeenCalledWith(
+      "langfuse.public_api.legacy_ingestion_non_score_rejected",
+      expect.anything(),
+      expect.anything(),
+    );
   });
 
   it.each([
     ["on the cutoff", CUTOFF],
     ["after the cutoff", "2026-10-02T00:00:00.000Z"],
   ])(
-    "rejects non-score events and accepts scores for an organization created %s",
+    "rejects non-score events with the events_only error for an organization created %s",
     async (_label, organizationCreatedAt) => {
       legacyIngestionGate.scoreOnlyCutoff = CUTOFF;
       authorizeOrg(organizationCreatedAt);
@@ -219,44 +220,30 @@ describe("legacy ingestion score-only organization cutoff", () => {
             id: "trace-event",
             status: 400,
             message: "Event type not accepted",
-            error: expect.stringContaining("trace-create"),
+            error: expect.stringContaining("events_only"),
           },
           {
             id: "log-event",
             status: 400,
             message: "Event type not accepted",
-            error: expect.stringContaining("sdk-log"),
+            error: expect.stringContaining("events_only"),
           },
           {
             id: "generation-event",
             status: 400,
             message: "Event type not accepted",
-            error: expect.stringContaining("generation-update"),
+            error: expect.stringContaining("events_only"),
           },
         ],
       });
       expect(vi.mocked(processEventBatch).mock.calls[0][0]).toEqual([
         mixedBatch[1],
       ]);
-      for (const eventType of [
-        "trace-create",
-        "sdk-log",
-        "generation-update",
-      ]) {
-        expect(recordIncrement).toHaveBeenCalledWith(
-          "langfuse.public_api.legacy_ingestion_non_score_rejected",
-          1,
-          {
-            route: "POST /api/public/ingestion",
-            ingestion_path: "batch",
-            event_type: eventType,
-          },
-        );
-      }
-      expect(recordIncrement).not.toHaveBeenCalledWith(
+      expect(recordIncrement).toHaveBeenCalledTimes(1);
+      expect(recordIncrement).toHaveBeenCalledWith(
         "langfuse.public_api.legacy_ingestion_non_score_rejected",
-        expect.anything(),
-        expect.objectContaining({ event_type: "score-create" }),
+        3,
+        { route: "POST /api/public/ingestion" },
       );
     },
   );
@@ -269,94 +256,7 @@ describe("legacy ingestion score-only organization cutoff", () => {
 
     expect(res._getJSONData().errors).toEqual([]);
     expect(vi.mocked(processEventBatch).mock.calls[0][0]).toEqual(mixedBatch);
-  });
-
-  it("returns the events_only rejection when that mode already removed the event", () => {
-    legacyIngestionGate.scoreOnlyCutoff = CUTOFF;
-    const batch = [mixedBatch[0], mixedBatch[1]];
-    const eventsOnly = filterBatchForEventsOnly(batch, true);
-    const scoreOnly = filterBatchForLegacyIngestionScoreOnlyOrg(
-      eventsOnly.batchForProcessing,
-      "2026-10-02T00:00:00.000Z",
-    );
-
-    expect(eventsOnly.rejectedErrors).toEqual([
-      expect.objectContaining({
-        id: "trace-event",
-        error: expect.stringContaining("events_only"),
-      }),
-    ]);
-    expect(scoreOnly).toEqual({
-      batchForProcessing: [mixedBatch[1]],
-      rejectedErrors: [],
-    });
-  });
-
-  it("logs one rejection per project and route per minute and reports what it suppressed", () => {
-    legacyIngestionGate.scoreOnlyCutoff = CUTOFF;
-    const info = vi.spyOn(logger, "info").mockImplementation(() => logger);
-    const now = vi.spyOn(Date, "now");
-    const note = (rejectedEventTypes: (string | null)[]) =>
-      noteLegacyIngestionScoreOnlyRejections({
-        rejectedEventTypes,
-        ingestionPath: "batch",
-        route: "POST /api/public/ingestion",
-        organizationCreatedAt: "2026-10-02T00:00:00.000Z",
-        orgId: "org",
-        projectId: "throttled-project",
-        headers: {},
-      });
-
-    try {
-      now.mockReturnValue(1_000_000);
-      note(["trace-create", "not-a-real-type"]);
-      now.mockReturnValue(1_030_000);
-      note(["span-create"]);
-      now.mockReturnValue(1_061_000);
-      note(["sdk-log"]);
-
-      const rejectionLogs = (
-        info.mock.calls as unknown as [string, Record<string, unknown>][]
-      ).filter(([message]) =>
-        message.startsWith("Rejected legacy ingestion writes"),
-      );
-      expect(rejectionLogs).toHaveLength(2);
-      expect(rejectionLogs[0][1]).toMatchObject({
-        orgId: "org",
-        projectId: "throttled-project",
-        organizationCreatedAt: "2026-10-02T00:00:00.000Z",
-        rejectedEventTypes: { "trace-create": 1, unknown: 1 },
-        suppressedRequestCount: 0,
-      });
-      expect(rejectionLogs[1][1]).toMatchObject({
-        rejectedEventTypes: { "sdk-log": 1 },
-        suppressedRequestCount: 1,
-        suppressedEventCount: 1,
-      });
-      expect(recordIncrement).toHaveBeenCalledWith(
-        "langfuse.public_api.legacy_ingestion_non_score_rejected",
-        1,
-        expect.objectContaining({ event_type: "unknown" }),
-      );
-      expect(recordIncrement).toHaveBeenCalledWith(
-        "langfuse.public_api.legacy_ingestion_non_score_rejected",
-        1,
-        expect.objectContaining({ event_type: "span-create" }),
-      );
-    } finally {
-      info.mockRestore();
-      now.mockRestore();
-    }
-  });
-
-  it("does not copy the batch when the organization is not cut off", () => {
-    legacyIngestionGate.scoreOnlyCutoff = undefined;
-    const batch = [mixedBatch[0]];
-
-    expect(
-      filterBatchForLegacyIngestionScoreOnlyOrg(batch, CUTOFF)
-        .batchForProcessing,
-    ).toBe(batch);
+    expect(recordIncrement).not.toHaveBeenCalled();
   });
 });
 

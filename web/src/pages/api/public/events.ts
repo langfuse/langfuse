@@ -22,10 +22,6 @@ export default withMiddlewares({
     // Writes an observation-create event that lands in the legacy observations
     // ClickHouse table; events_only deployments expect OTel ingestion.
     rejectInEventsOnlyMode: true,
-    rejectLegacyTracingWritesForNewOrgs: {
-      route: "POST /api/public/events",
-      eventType: eventTypes.OBSERVATION_CREATE,
-    },
     deprecation: LEGACY_WRITES_DEPRECATION,
     fn: async ({ body, auth, req, res }) => {
       const event = {

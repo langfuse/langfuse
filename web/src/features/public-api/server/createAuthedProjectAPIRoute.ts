@@ -38,14 +38,17 @@ import { sendAuthErrorJson } from "@/src/features/public-api/server/deprecations
 import { applyLegacyApiOrganizationCutoff } from "@/src/features/public-api/server/legacyApiOrganizationCutoff";
 import {
   isLegacyIngestionScoreOnlyOrg,
-  legacyTracingWriteRejectionBody,
-  noteLegacyIngestionScoreOnlyRejections,
-  type LegacyTracingWriteRoute,
+  recordLegacyIngestionScoreOnlyRejection,
 } from "@/src/features/public-api/server/legacyIngestionScoreOnlyCutoff";
 import { type RouteAccessLevel } from "@/src/features/public-api/server/verifyProjectApiKeyAuth";
 import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
 import { type ProjectAction } from "@langfuse/shared/rbac";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
+
+const EVENTS_ONLY_UNAVAILABLE_BODY = {
+  message:
+    "This endpoint is not available on deployments running in Langfuse v4 events_only mode. Learn more about Langfuse v4 at: https://langfuse.com/docs/v4",
+};
 
 // Next's res.json uses JSON.stringify; V8 throws this when the JSON string
 // exceeds the engine limit. Keep this check scoped to the response write.
@@ -131,15 +134,6 @@ export type AuthedProjectAPIRouteConfig<
    * events_only mode and would silently return stale or empty data.
    */
   rejectInEventsOnlyMode?: boolean;
-  /**
-   * When set, organizations created at or after
-   * LANGFUSE_LEGACY_INGESTION_SCORE_ONLY_ORG_CREATED_CUTOFF receive the same
-   * 400 "Event type not accepted" rejection the batch ingestion endpoint puts
-   * on each non-score event. This route is a single write, so that 400 is the
-   * HTTP status. An unset cutoff leaves the route unchanged. The route and
-   * event type become the rejection metric's `route` and `event_type` tags.
-   */
-  rejectLegacyTracingWritesForNewOrgs?: LegacyTracingWriteRoute;
   /** Marks the route as deprecated; withMiddlewares stamps it onto every JSON response and sets deprecation headers. */
   deprecation?: ApiDeprecationInfo;
   fn: (params: {
@@ -179,10 +173,7 @@ export const createAuthedProjectAPIRoute = <
       routeConfig.rejectInEventsOnlyMode &&
       env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only"
     ) {
-      res.status(404).json({
-        message:
-          "This endpoint is not available on deployments running in Langfuse v4 events_only mode. Learn more about Langfuse v4 at: https://langfuse.com/docs/v4",
-      });
+      res.status(404).json(EVENTS_ONLY_UNAVAILABLE_BODY);
       return;
     }
 
@@ -288,22 +279,21 @@ export const createAuthedProjectAPIRoute = <
       return;
     }
 
+    // These POST and PATCH handlers already 404 for a deployment in events_only
+    // mode. The same flag is also set on legacy reads, which this cutoff leaves
+    // open, so only POST and PATCH reuse that 404 for a cutoff organization.
     if (
-      routeConfig.rejectLegacyTracingWritesForNewOrgs &&
+      routeConfig.rejectInEventsOnlyMode &&
+      (req.method === "POST" || req.method === "PATCH") &&
       isLegacyIngestionScoreOnlyOrg(auth.scope.organizationCreatedAt)
     ) {
-      noteLegacyIngestionScoreOnlyRejections({
-        rejectedEventTypes: [
-          routeConfig.rejectLegacyTracingWritesForNewOrgs.eventType,
-        ],
-        ingestionPath: "single_write",
-        route: routeConfig.rejectLegacyTracingWritesForNewOrgs.route,
-        organizationCreatedAt: auth.scope.organizationCreatedAt,
+      recordLegacyIngestionScoreOnlyRejection({
+        route: routeConfig.name,
+        count: 1,
         orgId: auth.scope.orgId,
         projectId: auth.scope.projectId,
-        headers: req.headers,
       });
-      res.status(400).json(legacyTracingWriteRejectionBody());
+      res.status(404).json(EVENTS_ONLY_UNAVAILABLE_BODY);
       return;
     }
 

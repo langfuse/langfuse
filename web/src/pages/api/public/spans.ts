@@ -24,10 +24,6 @@ export default withMiddlewares({
     // Writes an observation-create event that lands in the legacy observations
     // ClickHouse table; events_only deployments expect OTel ingestion.
     rejectInEventsOnlyMode: true,
-    rejectLegacyTracingWritesForNewOrgs: {
-      route: "POST /api/public/spans",
-      eventType: eventTypes.OBSERVATION_CREATE,
-    },
     deprecation: LEGACY_WRITES_DEPRECATION,
     fn: async ({ body, auth, req, res }) => {
       const event = {
@@ -68,10 +64,6 @@ export default withMiddlewares({
     bodySchema: PatchSpansV1Body,
     responseSchema: PatchSpansV1Response,
     rejectInEventsOnlyMode: true,
-    rejectLegacyTracingWritesForNewOrgs: {
-      route: "PATCH /api/public/spans",
-      eventType: eventTypes.OBSERVATION_UPDATE,
-    },
     deprecation: LEGACY_WRITES_DEPRECATION,
     fn: async ({ body, auth, req, res }) => {
       const event = {
