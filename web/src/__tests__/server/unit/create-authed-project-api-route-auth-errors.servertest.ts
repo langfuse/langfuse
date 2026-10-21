@@ -645,6 +645,7 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
         action: "traces:create",
         responseSchema: z.object({ ok: z.literal(true) }),
         rejectInEventsOnlyMode: true,
+        isLegacyTraceWrite: true,
         fn,
       });
       mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
@@ -672,6 +673,30 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
       expect(message).toContain("POST /api/public/otel/v1/traces");
       expect(message).not.toContain("events_only");
       expect(fn).not.toHaveBeenCalled();
+    });
+
+    it("leaves legacy reads open for a cutoff organization", async () => {
+      mockEnv.LANGFUSE_LEGACY_INGESTION_SCORE_ONLY_ORG_CREATED_CUTOFF =
+        validAuth.scope.organizationCreatedAt;
+      const fn = vi.fn(async () => ({ ok: true as const }));
+      const handler = createAuthedProjectAPIRoute({
+        name: "Get Traces",
+        action: "traces:read",
+        responseSchema: z.object({ ok: z.literal(true) }),
+        rejectInEventsOnlyMode: true,
+        fn,
+      });
+      mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "GET",
+        url: "/api/public/traces",
+        headers: { authorization: "Basic test" },
+      });
+
+      await handler(req, res);
+
+      expect(res.statusCode).toBe(200);
+      expect(fn).toHaveBeenCalledOnce();
     });
 
     it("keeps the events_only explanation and adds the SDK and OTel pointer", async () => {

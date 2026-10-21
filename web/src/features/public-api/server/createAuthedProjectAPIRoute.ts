@@ -141,6 +141,12 @@ export type AuthedProjectAPIRouteConfig<
    * events_only mode and would silently return stale or empty data.
    */
   rejectInEventsOnlyMode?: boolean;
+  /**
+   * Marks a legacy trace or observation write. Organizations created on or
+   * after LANGFUSE_LEGACY_INGESTION_SCORE_ONLY_ORG_CREATED_CUTOFF get a 404
+   * pointing them to the SDKs and the OpenTelemetry endpoint.
+   */
+  isLegacyTraceWrite?: boolean;
   /** Marks the route as deprecated; withMiddlewares stamps it onto every JSON response and sets deprecation headers. */
   deprecation?: ApiDeprecationInfo;
   fn: (params: {
@@ -286,12 +292,8 @@ export const createAuthedProjectAPIRoute = <
       return;
     }
 
-    // These POST and PATCH handlers already 404 for a deployment in events_only
-    // mode. The same flag is also set on legacy reads, which this cutoff leaves
-    // open, so only POST and PATCH reuse that 404 for a cutoff organization.
     if (
-      routeConfig.rejectInEventsOnlyMode &&
-      (req.method === "POST" || req.method === "PATCH") &&
+      routeConfig.isLegacyTraceWrite &&
       isLegacyIngestionScoreOnlyOrg(auth.scope.organizationCreatedAt)
     ) {
       recordLegacyIngestionScoreOnlyRejection({
