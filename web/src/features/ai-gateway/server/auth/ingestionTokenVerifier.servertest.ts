@@ -3,7 +3,7 @@ import { createHash, generateKeyPairSync } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 
 import { signHmacSha256 } from "@/src/server/utils/hmac";
-import { createEs256JwtSigner } from "@/src/server/utils/jwt";
+import { createEs256JwtSigner, deriveEs256KeyId } from "@/src/server/utils/jwt";
 import { UnauthorizedError } from "@langfuse/shared";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 
@@ -177,11 +177,10 @@ describe("verifyGatewayIngestionAuthorization with derived key config", () => {
     }));
     const { verifyGatewayIngestionAuthorization: verifyWithRotatedKeys } =
       await import("./ingestionTokenVerifier");
-    const { deriveGatewayJwtKeyId } = await import("./gatewayJwtKeys");
 
     const ingestionToken = createEs256JwtSigner({
       privateKey,
-      keyId: deriveGatewayJwtKeyId(publicKey),
+      keyId: deriveEs256KeyId(publicKey),
       issuer: "test-issuer",
       audience: "test-audience",
     }).sign({

@@ -10,10 +10,11 @@ import { z } from "zod/v4";
 
 import {
   createEs256JwtVerifier,
+  deriveEs256KeyId,
   type JwtRegisteredClaims,
 } from "@/src/server/utils/jwt";
 import { requireGatewayEnabledForOrganization } from "../availability";
-import { deriveGatewayJwtKeyId, resolveGatewayJwtKeys } from "./gatewayJwtKeys";
+import { resolveGatewayJwtKeys } from "./gatewayJwtKeys";
 import { verifyGatewayRequestSignature } from "./gatewayRequestSignatureVerifier";
 
 /** Outlives the gateway's default ten-minute execution ceiling plus upload batching. */
@@ -90,9 +91,7 @@ function createGatewayIngestionTokenVerifier() {
     ...configuredPublicKey({
       keyId:
         env.LANGFUSE_AI_GATEWAY_JWT_PREVIOUS_KEY_ID ??
-        (previousPublicKey
-          ? deriveGatewayJwtKeyId(previousPublicKey)
-          : undefined),
+        (previousPublicKey ? deriveEs256KeyId(previousPublicKey) : undefined),
       publicKey: previousPublicKey,
       keyIdVariable: "LANGFUSE_AI_GATEWAY_JWT_PREVIOUS_KEY_ID",
       publicKeyVariable: "LANGFUSE_AI_GATEWAY_JWT_PREVIOUS_PUBLIC_KEY",
