@@ -36,7 +36,8 @@ export function ConnectedApiKeySettingsTable({
     enableForAdmins: false,
     organizationId: scope === "organization" ? entityId : undefined,
   });
-  const showGatewayKeyFilter = SEPARATE_GATEWAY_API_KEYS && isAiGatewayEnabled;
+  const showGatewayKeyFilter =
+    SEPARATE_GATEWAY_API_KEYS && scope === "organization" && isAiGatewayEnabled;
   const tableData = useApiKeySettingsTableData({
     entityId,
     scope,
