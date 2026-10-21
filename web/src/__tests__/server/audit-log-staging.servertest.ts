@@ -18,7 +18,12 @@ vi.mock("@/src/env.mjs", async (importOriginal) => {
 
 import { toAuditLogResourceRef, type AuditLogActor } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
 import {
   clickhouseClient,
   convertAuditLogStagingRowToClickhouse,
@@ -417,7 +422,8 @@ describe("audit log staging", () => {
         data: { email: `${randomUUID()}@test.com`, name: "Agent Owner" },
       });
       const agentKey = await createApiKey(prisma, {
-        owner: ProjectId(projectId),
+        tenant: OrganizationId(orgId),
+        scope: ProjectId(projectId),
         role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
         createdBy: UserId(creator.id),
         name: "In-app agent MCP session",
