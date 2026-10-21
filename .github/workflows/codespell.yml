@@ -29,5 +29,6 @@ jobs:
         uses: codespell-project/actions-codespell@8f01853be192eb0f849a5c7d721450e7a467c579 # v2.2
         with:
           # patches/ holds pnpm-patch diffs of vendored (often minified)
-          # package code, whose identifiers are not prose.
-          skip: "./.git,./patches"
+          # package code, whose identifiers are not prose. The Topics seed
+          # fixture is a generated base64 blob.
+          skip: "./.git,./patches,./packages/shared/scripts/seeder/scenarios/topics-demo-fixture.ts"
