@@ -18,7 +18,7 @@ type FieldGroupCheckboxProps = {
     }
 );
 
-// One export field group toggle.
+/** Toggles one export field group; required groups render checked and locked. */
 export const FieldGroupCheckbox = (props: FieldGroupCheckboxProps) => {
   const id = props.required ? props.id : `field-group-${props.value}`;
 

@@ -155,8 +155,7 @@ export const EXPORT_FIELD_GROUP_OPTIONS = OBSERVATION_FIELD_GROUPS_FULL.map(
   }),
 );
 
-// Score groups apply to the scores export of every export source and are
-// identical across file types.
+/** Score group labels; groups apply to the scores export of every source and file type. */
 const SCORE_EXPORT_FIELD_GROUP_LABELS = {
   score_metadata: {
     label: "Metadata",
@@ -167,8 +166,7 @@ const SCORE_EXPORT_FIELD_GROUP_LABELS = {
   { label: string; description: string }
 >;
 
-// Shown locked, like the observation core group, but not stored: score core
-// columns are always exported.
+/** Locked score core group for settings; display-only, as score core columns are always exported. */
 export const SCORE_EXPORT_CORE_FIELD_GROUP_OPTION = {
   label: "Core",
   description: SCORE_EXPORT_CORE_FIELDS.join(", "),
