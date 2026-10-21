@@ -27,6 +27,7 @@ export const DYNAMIC_API_ROUTE_TEMPLATES = [
   "/api/public/projects/[projectId]/apiKeys",
   "/api/public/projects/[projectId]/apiKeys/[apiKeyId]",
   "/api/public/projects/[projectId]/memberships",
+  "/api/public/scim/Groups/[id]",
   "/api/public/scim/Users/[id]",
   "/api/public/score-configs/[configId]",
   "/api/public/scores/[scoreId]",
