@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { LLMConnectionConfigSchema } from "@langfuse/shared";
+import { LLMApiKeySchema, LLMConnectionConfigSchema } from "@langfuse/shared";
 
 import { LlmConnectionService } from "@/src/features/llm-api-key/server";
 import { BedrockAuthMethodSchema } from "@/src/features/llm-api-key/types";
@@ -8,23 +8,27 @@ import { runMcpTool } from "@/src/features/mcp/core/run-mcp-tool";
 
 const ListLlmConnectionsInput = z.object({});
 
-// Non-strict object: parsing strips every field not listed here, so the tool
-// can only ever return connection metadata.
-const LlmConnectionOutput = z.object({
-  id: z.string(),
-  provider: z.string(),
-  adapter: z.string(),
-  scope: z.enum(["project", "organization"]),
-  displaySecretKey: z.string(),
-  baseURL: z.string().nullable(),
-  customModels: z.array(z.string()),
-  withDefaultModels: z.boolean(),
-  availableModels: z.array(z.string()),
-  config: LLMConnectionConfigSchema.nullable(),
-  authMethod: BedrockAuthMethodSchema.optional(),
-  createdAt: z.date(),
-  updatedAt: z.date(),
-});
+// Rebuilt as a non-strict object (LLMApiKeySchema is strict): parsing strips
+// every field not picked here, so the tool can only ever return metadata.
+const LlmConnectionOutput = z
+  .object(LLMApiKeySchema.shape)
+  .pick({
+    id: true,
+    provider: true,
+    adapter: true,
+    displaySecretKey: true,
+    baseURL: true,
+    customModels: true,
+    withDefaultModels: true,
+    createdAt: true,
+    updatedAt: true,
+  })
+  .extend({
+    scope: z.enum(["project", "organization"]),
+    availableModels: z.array(z.string()),
+    config: LLMConnectionConfigSchema.nullable(),
+    authMethod: BedrockAuthMethodSchema.optional(),
+  });
 
 export const [listLlmConnectionsTool, handleListLlmConnections] = defineTool({
   name: "listLlmConnections",
