@@ -12,11 +12,52 @@ audit date.
 
 ## Latest useful snapshot
 
-**Audit date:** 2026-10-14
+**Audit date:** 2026-10-21
 
 All prices listed as `$X / MTok` (per million tokens). Per-token JSON values: divide by 1,000,000.
 
-The 2026-10-14 run re-fetched the full Anthropic pricing page (model table, cache-hits
+The 2026-10-21 run re-fetched the full Anthropic pricing page (model table, cache-hits
+footnote, Fast mode table, Batch table) and the Anthropic model-deprecations page (full
+"Model status" table), the OpenAI aggregate Standard pricing table (every
+`gpt-6`/`gpt-5.6`/`gpt-5.5`/`gpt-5.4`/`gpt-5.3-codex`/`gpt-5.2`/`gpt-5.1`/`gpt-5`/o-series/
+`gpt-4.1`/`gpt-4o` row, plus every GPT-6/GPT-5.6-family Large Context row) and deprecations
+page, the OpenAI model catalog, both Gemini pricing pages (3.x and 2.5 families), the Gemini
+models catalog, the Gemini deprecations page, the AWS Bedrock pricing page, and the TypeSafe
+Jev models page. Every price was cross-checked field-by-field against the live pricing JSON
+with `jq` (not just visually against a WebFetch summary) and matched exactly; no pricing-file
+edits were needed. This run resolved one standing gap and reconfirmed one recurring fetch
+hazard, neither requiring a code change:
+1. **gemini-3.5-flash and gemini-3.7-flash's "model not found" pricing-page gap (open since
+   October 13, 2026) is now explained, not just worked around**: the Gemini deprecations page
+   carries an explicit row for each with Shutdown date `N/A` and a replacement note stating
+   the endpoint "is not shutting down" but auto-routes requests to `gemini-3.6-flash` /
+   `gemini-3.8-flash` respectively, and that it is "not available to select in Google AI
+   Studio." Both IDs are also fully absent from the models catalog page (not even labeled
+   "Shut down"). This is a new lifecycle category the existing three removal criteria in
+   `automated-audit.md` do not cover (not shut down, not a preview/dated snapshot, still
+   callable — just silently proxied) — left unchanged in both selectable arrays and reported
+   as unresolved; see the detailed entry in `provider-sources-and-price-keys.md` for why this
+   needs a human decision, especially since `gemini-3.5-flash` is the first/default entry of
+   `vertexAIModels`.
+2. **A second confirmed instance of the OpenAI deprecations-page date-confusion failure mode**
+   (first seen October 9, 2026): a WebFetch of `developers.openai.com/api/docs/deprecations`
+   mischaracterized the October 23, 2026 "Legacy GPT model snapshots" shutdown (still 2 days
+   in the future as of this run) as "has now expired (2 days ago)." Not actioned; this batch
+   remains correctly un-removed from `openAIModels` pending October 23, 2026 actually passing.
+No other drift was found: `claude-haiku-4-5-20251001`'s "Not sooner than October 15, 2026"
+retirement floor has passed without a firm date being announced (still `Active`,
+`Deprecated: N/A`) — not actionable, a floor rather than a trigger. The January 14, 2027
+"GPT-4 series" batch is unchanged and still 85 days out. No new flagship text/chat/reasoning
+model was found on any provider. AWS Bedrock's pricing page again yielded no extractable
+per-model numeric rows for any Claude model (standing limitation). TypeSafe's Jev page
+confirms `jev-1.13.0`/`jev-1.14.0` unchanged. This run independently re-verified (via `jq`
+against the live JSON) every Anthropic model in the main pricing table, every OpenAI
+`gpt-6`/`gpt-5.6`/`gpt-5.5`/`gpt-5.4`/`gpt-5.3-codex`/`gpt-5.2`/`gpt-5.1`/`gpt-5`/o-series/
+`gpt-4.1`/`gpt-4o` entry (Standard and Large Context tiers), every priced Gemini 2.5/3.x
+model, and the Jev entry; the legacy OpenAI catalog tail (`gpt-4-turbo`, `gpt-4-0613`,
+`gpt-3.5-turbo*`, `davinci-002`, `babbage-002`) was not independently re-fetched this run,
+consistent with prior audits' "flagship model" scoping.
+The 2026-10-14 run before it re-fetched the full Anthropic pricing page (model table, cache-hits
 footnote, Fast mode, Batch, and tool-use tables) and the Anthropic model-deprecations page,
 the OpenAI aggregate Standard pricing table and the OpenAI deprecations page, both Gemini
 3.x pricing fetches and the Gemini models catalog, the AWS Bedrock pricing page, and the
