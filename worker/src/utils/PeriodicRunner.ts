@@ -140,17 +140,6 @@ export abstract class PeriodicRunner {
       logger.error(`Unexpected error in ${this.name}`, error);
     } finally {
       const completedAt = Date.now();
-      try {
-        logger.info(`${this.name}: Periodic runner completed`, {
-          event: "periodic_runner.completed",
-          runner: this.metricName,
-          ...(this.metricScope ? { scope: this.metricScope } : {}),
-          outcome: run.outcome,
-          durationMs: completedAt - startedAt,
-        });
-      } catch {
-        // Logging is best effort; a logger transport failure must not stop scheduling.
-      }
       this.emitTelemetry(() => {
         const outcomeTags = { ...metricTags, outcome: run.outcome };
         recordIncrement(`${METRIC_PREFIX}.completed`, 1, outcomeTags);

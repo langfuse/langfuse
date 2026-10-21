@@ -33,7 +33,8 @@ export const BATCH_DATA_RETENTION_TABLES = [
 export type BatchDataRetentionTable =
   (typeof BATCH_DATA_RETENTION_TABLES)[number];
 
-const METRIC_PREFIX = "langfuse.batch_data_retention_cleaner";
+const RUNNER_NAME = "batch_data_retention_cleaner";
+const METRIC_PREFIX = `langfuse.${RUNNER_NAME}`;
 
 const BATCH_DATA_RETENTION_CLEANER_LOCK_PREFIX =
   "langfuse:batch-data-retention-cleaner";
@@ -188,6 +189,7 @@ function buildRetentionConditions(
 export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
   private readonly tableName: BatchDataRetentionTable;
   private readonly candidateQueryHttpTimeoutSeconds: number;
+  private runOutcome: "success" | "failed" | "skipped" = "success";
 
   protected get defaultIntervalMs(): number {
     return env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_INTERVAL_MS;
@@ -208,7 +210,7 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
 
     super({
       name: `BatchDataRetentionCleaner(${tableName})`,
-      metricName: "batch_data_retention_cleaner",
+      metricName: RUNNER_NAME,
       metricScope: tableName,
       lockKey: `${BATCH_DATA_RETENTION_CLEANER_LOCK_PREFIX}:${tableName}`,
       lockTtlSeconds,
@@ -242,6 +244,31 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
    * Preflight and deletion are both under lock to avoid redundant expensive queries.
    */
   protected async execute(): Promise<void> {
+    this.runOutcome = "success";
+    const startedAt = Date.now();
+    try {
+      await this.executeRetentionBatch();
+    } catch (error) {
+      this.runOutcome = "failed";
+      throw error;
+    } finally {
+      this.logCompletion(Date.now() - startedAt);
+    }
+  }
+
+  protected override markRunFailed(error: unknown): void {
+    this.runOutcome = "failed";
+    super.markRunFailed(error);
+  }
+
+  protected override markRunSkipped(): void {
+    if (this.runOutcome === "success") {
+      this.runOutcome = "skipped";
+    }
+    super.markRunSkipped();
+  }
+
+  private async executeRetentionBatch(): Promise<void> {
     // Data retention is an enterprise feature. Without a license the setting
     // cannot be viewed or changed, so stored policies must not be enforced
     // either: a deployment that loses its license would otherwise keep
@@ -343,6 +370,20 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
       },
       () => recordBacklog({ pendingProjects: 0, secondsPastCutoff: 0 }),
     );
+  }
+
+  private logCompletion(durationMs: number): void {
+    try {
+      logger.info(`${this.instanceName}: Retention run completed`, {
+        event: "periodic_runner.completed",
+        runner: RUNNER_NAME,
+        scope: this.tableName,
+        outcome: this.runOutcome,
+        durationMs,
+      });
+    } catch {
+      /** Best-effort logging preserves the cleanup outcome. */
+    }
   }
 
   /**
