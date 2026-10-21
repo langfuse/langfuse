@@ -7,8 +7,9 @@ import {
 
 import { env } from "@/src/env.mjs";
 
-const LEGACY_INGESTION_OTLP_TRACES = "POST /api/public/otel/v1/traces";
-const LEGACY_INGESTION_SCORES = "POST /api/public/scores";
+// Current write paths. The cutoff closes the old batch ingestion API, not these.
+const OTLP_TRACES_ROUTE = "POST /api/public/otel/v1/traces";
+const SCORES_ROUTE = "POST /api/public/scores";
 const LEGACY_INGESTION_SCORE_ONLY_DOCS =
   "https://langfuse.com/integrations/native/opentelemetry/migration-to-v4.md";
 
@@ -100,7 +101,7 @@ export function legacyTracingWriteRejectionBody(): {
   const cutoff = env.LANGFUSE_LEGACY_INGESTION_SCORE_ONLY_ORG_CREATED_CUTOFF;
   return {
     message: LEGACY_INGESTION_SCORE_ONLY_REJECTION_MESSAGE,
-    error: `Legacy trace and observation writes are not accepted for organizations created at or after ${cutoff}. Send traces and observations to ${LEGACY_INGESTION_OTLP_TRACES}. Scores remain available through score-create events on POST /api/public/ingestion and through ${LEGACY_INGESTION_SCORES}. Docs: ${LEGACY_INGESTION_SCORE_ONLY_DOCS}`,
+    error: `Legacy trace and observation writes are not accepted for organizations created at or after ${cutoff}. Send traces and observations to ${OTLP_TRACES_ROUTE}. Scores remain available through score-create events on POST /api/public/ingestion and through ${SCORES_ROUTE}. Docs: ${LEGACY_INGESTION_SCORE_ONLY_DOCS}`,
   };
 }
 
@@ -144,7 +145,7 @@ export function noteLegacyIngestionScoreOnlyRejections(params: {
 
 function legacyIngestionNonScoreError(type: string | null): string {
   const cutoff = env.LANGFUSE_LEGACY_INGESTION_SCORE_ONLY_ORG_CREATED_CUTOFF;
-  return `Event type "${type ?? "unknown"}" is not accepted by the legacy ingestion API for organizations created at or after ${cutoff}. Only score-create events are accepted for those organizations. Send traces and observations to ${LEGACY_INGESTION_OTLP_TRACES}. Send scores as score-create events to POST /api/public/ingestion or to ${LEGACY_INGESTION_SCORES}. Docs: ${LEGACY_INGESTION_SCORE_ONLY_DOCS}`;
+  return `Event type "${type ?? "unknown"}" is not accepted by the legacy ingestion API for organizations created at or after ${cutoff}. Only score-create events are accepted for those organizations. Send traces and observations to ${OTLP_TRACES_ROUTE}. Send scores as score-create events to POST /api/public/ingestion or to ${SCORES_ROUTE}. Docs: ${LEGACY_INGESTION_SCORE_ONLY_DOCS}`;
 }
 
 /** ingestionEventTypeOf reads an event's `type`, or null when the event is malformed. */
