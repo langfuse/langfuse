@@ -32,6 +32,7 @@ export class GatewayApiKeyService {
   list(params: {
     organizationId: string;
     ownerUserId?: string;
+    searchQuery?: string;
     page: number;
     limit: number;
   }) {

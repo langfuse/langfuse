@@ -60,9 +60,10 @@ const actions = {
     state: { pageIndex: 0, pageSize: 10 },
     onChange: onPageChange,
   },
+  search: { value: "", onChange: fn() },
 } satisfies Pick<
   ComponentProps<typeof GatewayApiKeysTable>,
-  "createAction" | "onRevoke" | "pagination"
+  "createAction" | "onRevoke" | "pagination" | "search"
 >;
 
 export const PopulatedMetadata = meta.story({

@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@langfuse/shared/src/db";
+import { escapeSqlLikePattern } from "@langfuse/shared/src/server";
 
 const GATEWAY_API_KEY_SELECT = {
   metadata: true,
@@ -23,10 +24,16 @@ export class GatewayApiKeyRepository {
   async listGatewayApiKeys(params: {
     organizationId: string;
     ownerUserId?: string;
+    searchQuery?: string;
     page: number;
     limit: number;
   }) {
-    const where = { apiKey: gatewayApiKeyWhere(params) };
+    const where = {
+      apiKey: {
+        ...gatewayApiKeyWhere(params),
+        ...(params.searchQuery && gatewayApiKeySearch(params.searchQuery)),
+      },
+    };
     const findPage = this.prisma.gatewayApiKeyAssociation.findMany({
       where,
       select: GATEWAY_API_KEY_SELECT,
@@ -63,4 +70,19 @@ function gatewayApiKeyWhere(params: {
     scope: "ORGANIZATION",
     ...(params.ownerUserId !== undefined && { userId: params.ownerUserId }),
   } as const;
+}
+
+/** gatewayApiKeySearch matches the key name or the name or email of the user the key is bound to. */
+function gatewayApiKeySearch(searchQuery: string) {
+  const contains = {
+    contains: escapeSqlLikePattern(searchQuery),
+    mode: "insensitive",
+  } as const;
+  return {
+    OR: [
+      { note: contains },
+      { user: { name: contains } },
+      { user: { email: contains } },
+    ],
+  };
 }

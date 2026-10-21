@@ -32,11 +32,13 @@ export function GatewayApiKeysTable({
   createAction,
   onRevoke,
   pagination,
+  search,
 }: {
   data: AsyncTableData<GatewayApiKey[]>;
   createAction: () => void;
   onRevoke: (apiKeyId: string) => void;
   pagination: PaginationBarProps;
+  search: { value: string; onChange: (value: string) => void };
 }) {
   const columns: LangfuseColumnDef<GatewayApiKey>[] = [
     createDateTableColumn<GatewayApiKey>({
@@ -103,6 +105,7 @@ export function GatewayApiKeysTable({
         },
       ]}
       pagination={pagination}
+      search={{ ...search, placeholder: "Search by name or user" }}
       toolbarActions={[
         {
           id: "create-key",
@@ -111,7 +114,11 @@ export function GatewayApiKeysTable({
           onClick: createAction,
         },
       ]}
-      noResultsMessage="No gateway API keys created."
+      noResultsMessage={
+        search.value.trim().length > 0
+          ? "No gateway API keys match the current search."
+          : "No gateway API keys created."
+      }
     />
   );
 }

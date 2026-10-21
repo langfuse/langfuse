@@ -348,7 +348,11 @@ export const aiGatewayRouter = createTRPCRouter({
     }),
 
   listApiKeys: protectedOrganizationProcedure
-    .input(offsetPaginatedOrganizationInput)
+    .input(
+      offsetPaginatedOrganizationInput.extend({
+        searchQuery: z.string().trim().max(500).optional(),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       const { ownerUserId } = requireGatewayInvoke({
         session: ctx.session,
@@ -357,6 +361,7 @@ export const aiGatewayRouter = createTRPCRouter({
       return new GatewayApiKeyService(ctx.prisma, redis).list({
         organizationId: input.orgId,
         ownerUserId,
+        searchQuery: input.searchQuery,
         page: input.page,
         limit: input.limit,
       });

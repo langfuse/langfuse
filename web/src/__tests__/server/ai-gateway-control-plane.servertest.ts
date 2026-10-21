@@ -735,6 +735,20 @@ describe("AI gateway control plane", () => {
       ]),
     );
 
+    const search = async (
+      caller: typeof member,
+      searchQuery: string,
+    ): Promise<string[]> =>
+      (
+        await caller.aiGateway.listApiKeys({ orgId: owner.org.id, searchQuery })
+      ).data.map(({ apiKey }) => apiKey.id);
+    expect(await search(owner.caller, "owner KEY")).toEqual([ownerKey.id]);
+    expect(await search(owner.caller, "gateway member")).toEqual([
+      memberKey.id,
+    ]);
+    expect(await search(owner.caller, "%")).toEqual([]);
+    expect(await search(member, "owner key")).toEqual([]);
+
     await expect(
       member.aiGateway.revokeApiKey({ orgId: owner.org.id, id: ownerKey.id }),
     ).rejects.toThrow("Gateway API key not found");
