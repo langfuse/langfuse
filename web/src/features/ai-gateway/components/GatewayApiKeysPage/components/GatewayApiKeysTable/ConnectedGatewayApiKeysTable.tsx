@@ -31,6 +31,11 @@ export function ConnectedGatewayApiKeysTable({
   const utils = api.useUtils();
   const revoke = api.aiGateway.revokeApiKey.useMutation();
 
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    setPaginationState({ ...paginationState, pageIndex: 0 });
+  };
+
   if (apiKeysQuery.isError) {
     return (
       <div className="flex flex-col gap-4">
@@ -92,13 +97,7 @@ export function ConnectedGatewayApiKeysTable({
                   state: paginationState,
                   onChange: setPaginationState,
                 }}
-                search={{
-                  value: searchQuery,
-                  onChange: (value) => {
-                    setSearchQuery(value);
-                    setPaginationState({ ...paginationState, pageIndex: 0 });
-                  },
-                }}
+                search={{ value: searchQuery, onChange: handleSearchChange }}
                 createAction={openDialog}
                 onRevoke={openRevokeDialog}
               />
