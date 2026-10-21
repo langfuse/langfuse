@@ -121,26 +121,14 @@ export async function createApiKey(
   displaySecretKey: string;
   secretKey: string;
 }> {
-  if (name !== undefined && note !== undefined) {
-    throw new InvalidRequestError("Provide either name or note, not both");
-  }
-
-  const salt = env.SALT;
-  if (!salt) {
-    throw new Error("SALT is not set");
-  }
-
-  const { pk, sk } = opts.predefinedKeys
-    ? { pk: opts.predefinedKeys.publicKey, sk: opts.predefinedKeys.secretKey }
-    : await generateKeySet();
+  const { secretKey, ...keyColumns } = await generateKeyMaterial({
+    predefinedKeys: opts.predefinedKeys,
+  });
 
   const data: Prisma.ApiKeyUncheckedCreateInput = {
     ...scopeColumns(opts.tenant, opts.scope),
-    publicKey: pk,
-    hashedSecretKey: createLegacySecretKeyPlaceholder(),
-    displaySecretKey: getDisplaySecretKey(sk),
-    fastHashedSecretKey: createShaHash(sk, salt),
-    note: name ?? note,
+    ...keyColumns,
+    ...noteColumn({ name, note }),
     expiresAt: opts.expiresAt ?? null,
     isInAppAgentKey: opts.isInAppAgentKey ?? false,
     ...creatorColumns(opts.createdBy),
@@ -153,7 +141,58 @@ export async function createApiKey(
       role: opts.role,
     }),
   );
-  return { ...created, secretKey: sk };
+  return { ...created, secretKey };
+}
+
+/** generateKeyMaterial provides the key columns and plaintext secret for api key creation */
+async function generateKeyMaterial({
+  predefinedKeys,
+}: {
+  predefinedKeys?: { secretKey: string; publicKey: string };
+}): Promise<
+  Pick<
+    Prisma.ApiKeyUncheckedCreateInput,
+    "publicKey" | "hashedSecretKey" | "fastHashedSecretKey" | "displaySecretKey"
+  > & { secretKey: string }
+> {
+  const salt = env.SALT;
+  if (!salt) {
+    throw new Error("SALT is not set");
+  }
+
+  const { pk, sk } = await keySet(predefinedKeys);
+  return {
+    publicKey: pk,
+    hashedSecretKey: createLegacySecretKeyPlaceholder(),
+    fastHashedSecretKey: createShaHash(sk, salt),
+    displaySecretKey: getDisplaySecretKey(sk),
+    secretKey: sk,
+  };
+}
+
+/** keySet uses the predefined keys or generates a new set */
+async function keySet(predefinedKeys?: {
+  secretKey: string;
+  publicKey: string;
+}): Promise<{ pk: string; sk: string }> {
+  if (predefinedKeys) {
+    return { pk: predefinedKeys.publicKey, sk: predefinedKeys.secretKey };
+  }
+  return generateKeySet();
+}
+
+/** noteColumn provides the note column for api key creation */
+function noteColumn({
+  name,
+  note,
+}: {
+  name?: string;
+  note?: string;
+}): Pick<Prisma.ApiKeyUncheckedCreateInput, "note"> {
+  if (name !== undefined && note !== undefined) {
+    throw new InvalidRequestError("Provide either name or note, not both");
+  }
+  return { note: name ?? note };
 }
 
 /** creatorColumns maps a key's creator to its api-key columns; "system" records none. */
@@ -169,7 +208,7 @@ function creatorColumns(
     : { createdByUserId: untag(createdBy) };
 }
 
-/** scopeColumns maps a key's scope to its api-key columns; a user-scoped key is an organization key in its tenant bound to the user. */
+/** scopeColumns provides scope columns for api key creation */
 function scopeColumns(
   tenant: TenantId,
   scope: OrganizationId | ProjectId | UserId,
