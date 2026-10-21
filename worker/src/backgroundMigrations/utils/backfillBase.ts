@@ -318,11 +318,25 @@ async function fireQuery({
 
   // Surface fast failures (connection refused, auth, SQL parse errors) right
   // away instead of polling for a query that never started.
-  await Promise.race([queryPromise, sleep(initialWaitMs)]);
+  const finished = await Promise.race([
+    queryPromise.then(() => true),
+    sleep(initialWaitMs).then(() => false),
+  ]);
   if (earlyError) {
     throw earlyError instanceof Error
       ? earlyError
       : new Error(String(earlyError));
+  }
+
+  // The command returned without an error, so the query ran to completion. It
+  // has left system.processes and may not be flushed to system.query_log yet, so
+  // a start check here would misreport it as never started. pollActiveQueries
+  // picks up the final status on its next cycle.
+  if (finished) {
+    logger.info(
+      `${logPrefix} Query ${queryId} finished before the start check, skipping it`,
+    );
+    return;
   }
 
   try {
