@@ -27,6 +27,8 @@ organization administrator roles do not grant toggle access. The flag is
 excluded from public previews, organization defaults, and member preview
 management. Both access paths still require the Topics project/deployment gate
 and `topics:read` permission.
+While Internal view is on, the Topics preview toggle shows as enabled and
+cannot be changed. Switch to External view to manage the personal flag.
 
 Admin-only personal previews are registered in `adminOnlyFeaturePreviewFlags`;
 the personal modal and self-toggle mutation use `personalFeaturePreviewFlags`.
