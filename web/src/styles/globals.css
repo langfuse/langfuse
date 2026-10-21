@@ -148,41 +148,9 @@
   --color-category-orange: #c2410c;
   --color-category-lime: #65a30d;
   --color-category-fuchsia: #a21caf;
-  /* Treemap topic fills: base when hovered or selected; mixed toward the page for resting big and small tiles. */
-  --color-topic-violet: var(--topic-violet);
-  --color-topic-violet-big: color-mix(
-    in oklch,
-    var(--topic-violet) 60%,
-    hsl(var(--background))
-  );
-  --color-topic-violet-small: color-mix(
-    in oklch,
-    var(--topic-violet) 35%,
-    hsl(var(--background))
-  );
-  --color-topic-blue: var(--topic-blue);
-  --color-topic-blue-big: color-mix(
-    in oklch,
-    var(--topic-blue) 60%,
-    hsl(var(--background))
-  );
-  --color-topic-blue-small: color-mix(
-    in oklch,
-    var(--topic-blue) 35%,
-    hsl(var(--background))
-  );
-  --color-topic-orange: var(--topic-orange);
-  --color-topic-orange-big: color-mix(
-    in oklch,
-    var(--topic-orange) 60%,
-    hsl(var(--background))
-  );
-  --color-topic-orange-small: color-mix(
-    in oklch,
-    var(--topic-orange) 35%,
-    hsl(var(--background))
-  );
-  /* Tone fills (Sentiment, Outcome) at one OKLCH lightness and chroma per state. */
+  /* Category fills at one OKLCH lightness and chroma per state. */
+  --color-category-violet-highlight: var(--category-violet-highlight);
+  --color-category-blue-highlight: var(--category-blue-highlight);
   --color-category-emerald-tint: var(--category-emerald-tint);
   --color-category-emerald-highlight: var(--category-emerald-highlight);
   --color-category-amber-tint: var(--category-amber-tint);
@@ -380,9 +348,8 @@
 
 @layer base {
   :root {
-    --topic-violet: oklch(81.1% 0.111 293.571);
-    --topic-blue: oklch(80.9% 0.105 251.813);
-    --topic-orange: oklch(83.7% 0.128 66.29);
+    --category-violet-highlight: oklch(0.82 0.11 293);
+    --category-blue-highlight: oklch(0.82 0.11 252);
     --category-emerald-tint: oklch(0.92 0.04 163);
     --category-emerald-highlight: oklch(0.82 0.11 163);
     --category-amber-tint: oklch(0.92 0.04 70);
@@ -619,9 +586,8 @@
   }
 
   .dark {
-    --topic-violet: oklch(45% 0.111 293.571);
-    --topic-blue: oklch(45% 0.105 251.813);
-    --topic-orange: oklch(47% 0.128 66.29);
+    --category-violet-highlight: oklch(0.45 0.11 293);
+    --category-blue-highlight: oklch(0.45 0.11 252);
     --category-emerald-tint: oklch(0.3 0.04 163);
     --category-emerald-highlight: oklch(0.45 0.11 163);
     --category-amber-tint: oklch(0.3 0.04 70);

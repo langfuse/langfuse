@@ -17,22 +17,22 @@ export const topicColor = (index: number) =>
 
 const TREEMAP_HUES = [
   {
-    big: "bg-topic-violet-big/60",
-    small: "bg-topic-violet-small/60",
-    active: "bg-topic-violet",
-    hover: "hover:bg-topic-violet",
+    big: "bg-category-violet-highlight/35",
+    small: "bg-category-violet-highlight/20",
+    active: "bg-category-violet-highlight",
+    hover: "hover:bg-category-violet-highlight",
   },
   {
-    big: "bg-topic-blue-big/60",
-    small: "bg-topic-blue-small/60",
-    active: "bg-topic-blue",
-    hover: "hover:bg-topic-blue",
+    big: "bg-category-blue-highlight/35",
+    small: "bg-category-blue-highlight/20",
+    active: "bg-category-blue-highlight",
+    hover: "hover:bg-category-blue-highlight",
   },
   {
-    big: "bg-topic-orange-big/60",
-    small: "bg-topic-orange-small/60",
-    active: "bg-topic-orange",
-    hover: "hover:bg-topic-orange",
+    big: "bg-category-amber-highlight/35",
+    small: "bg-category-amber-highlight/20",
+    active: "bg-category-amber-highlight",
+    hover: "hover:bg-category-amber-highlight",
   },
 ] as const;
 
@@ -46,7 +46,7 @@ export const treemapTileClasses = (rank: number, big: boolean) => {
 };
 
 export const treemapSwatchColor = (rank: number) =>
-  `var(--topic-${["violet", "blue", "orange"][Math.max(0, rank) % 3]})`;
+  `var(--category-${["violet", "blue", "amber"][Math.max(0, rank) % 3]}-highlight)`;
 
 const TONE_TILES = {
   good: {

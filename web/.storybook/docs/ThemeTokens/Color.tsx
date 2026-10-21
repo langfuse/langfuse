@@ -42,7 +42,7 @@ type SectionId =
   | "qlang"
   | "sidebar"
   | "findMatch"
-  | "topics"
+  | "category"
   | "other";
 
 /**
@@ -68,7 +68,7 @@ const SECTION_MATCHERS: Array<{
   { id: "qlang", test: (n) => n.startsWith("--qlang-") },
   { id: "sidebar", test: (n) => n.startsWith("--sidebar-") },
   { id: "findMatch", test: (n) => n.startsWith("--find-match-") },
-  { id: "topics", test: (n) => /^--(?:topic|category)-/.test(n) },
+  { id: "category", test: (n) => n.startsWith("--category-") },
   { id: "controls", test: (n) => n.startsWith("--control-") },
   {
     id: "brand",
@@ -141,10 +141,9 @@ const VISIBLE_SECTIONS: SectionDef[] = [
     blurb: "Side navigation chrome, nav-item states and its hairline.",
   },
   {
-    id: "topics",
-    title: "Topic fills",
-    blurb:
-      "Topics treemap hues plus Sentiment and Outcome tone tint / highlight.",
+    id: "category",
+    title: "Category fills",
+    blurb: "Tint and highlight pairs for categorical tiles (treemap, tones).",
   },
 ];
 
