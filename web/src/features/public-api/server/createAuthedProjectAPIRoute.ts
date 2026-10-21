@@ -34,7 +34,11 @@ import {
   type PublicApiErrorContract,
 } from "./structuredPublicApiErrorContract";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
-import { sendAuthErrorJson } from "@/src/features/public-api/server/deprecations";
+import {
+  EVENTS_ONLY_UNAVAILABLE_MESSAGE,
+  LEGACY_INGESTION_ORG_CUTOFF_MESSAGE,
+  sendAuthErrorJson,
+} from "@/src/features/public-api/server/deprecations";
 import { applyLegacyApiOrganizationCutoff } from "@/src/features/public-api/server/legacyApiOrganizationCutoff";
 import {
   isLegacyIngestionScoreOnlyOrg,
@@ -46,8 +50,11 @@ import { type ProjectAction } from "@langfuse/shared/rbac";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 
 const EVENTS_ONLY_UNAVAILABLE_BODY = {
-  message:
-    "This endpoint is not available on deployments running in Langfuse v4 events_only mode. Learn more about Langfuse v4 at: https://langfuse.com/docs/v4",
+  message: EVENTS_ONLY_UNAVAILABLE_MESSAGE,
+};
+
+const ORG_CUTOFF_UNAVAILABLE_BODY = {
+  message: LEGACY_INGESTION_ORG_CUTOFF_MESSAGE,
 };
 
 // Next's res.json uses JSON.stringify; V8 throws this when the JSON string
@@ -293,7 +300,7 @@ export const createAuthedProjectAPIRoute = <
         orgId: auth.scope.orgId,
         projectId: auth.scope.projectId,
       });
-      res.status(404).json(EVENTS_ONLY_UNAVAILABLE_BODY);
+      res.status(404).json(ORG_CUTOFF_UNAVAILABLE_BODY);
       return;
     }
 

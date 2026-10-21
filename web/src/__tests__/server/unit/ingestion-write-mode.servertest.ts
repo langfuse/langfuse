@@ -90,6 +90,17 @@ describe("legacy ingestion write-mode filter", () => {
     });
   });
 
+  it("points events_only rejections at the SDK upgrade, the OTel endpoint, and the write-mode bridge", () => {
+    const [rejection] = filterBatchForEventsOnly(
+      [sdkLogEvent],
+      true,
+    ).rejectedErrors;
+
+    expect(rejection.error).toContain("Upgrade to the latest Langfuse SDKs");
+    expect(rejection.error).toContain("POST /api/public/otel/v1/traces");
+    expect(rejection.error).toContain("LANGFUSE_MIGRATION_V4_WRITE_MODE=dual");
+  });
+
   it("preserves sdk-log compatibility outside v4-only mode", () => {
     expect(filterBatchForEventsOnly([sdkLogEvent], false)).toEqual({
       batchForProcessing: [sdkLogEvent],
@@ -205,13 +216,16 @@ describe("legacy ingestion score-only organization cutoff", () => {
     ["on the cutoff", CUTOFF],
     ["after the cutoff", "2026-10-02T00:00:00.000Z"],
   ])(
-    "rejects non-score events with the events_only error for an organization created %s",
+    "rejects non-score events with the organization cutoff error for an organization created %s",
     async (_label, organizationCreatedAt) => {
       legacyIngestionGate.scoreOnlyCutoff = CUTOFF;
       authorizeOrg(organizationCreatedAt);
 
       const res = await postBatch();
 
+      const cutoffError = expect.stringContaining(
+        "no longer accepts trace or observation writes for this organization",
+      );
       expect(res._getStatusCode()).toBe(207);
       expect(res._getJSONData()).toMatchObject({
         successes: [{ id: "score-event", status: 201 }],
@@ -220,22 +234,27 @@ describe("legacy ingestion score-only organization cutoff", () => {
             id: "trace-event",
             status: 400,
             message: "Event type not accepted",
-            error: expect.stringContaining("events_only"),
+            error: cutoffError,
           },
           {
             id: "log-event",
             status: 400,
             message: "Event type not accepted",
-            error: expect.stringContaining("events_only"),
+            error: cutoffError,
           },
           {
             id: "generation-event",
             status: 400,
             message: "Event type not accepted",
-            error: expect.stringContaining("events_only"),
+            error: cutoffError,
           },
         ],
       });
+      const [rejection] = res._getJSONData().errors as { error: string }[];
+      expect(rejection.error).toContain("POST /api/public/otel/v1/traces");
+      expect(rejection.error).toContain("POST /api/public/scores");
+      expect(rejection.error).not.toContain("events_only");
+      expect(rejection.error).not.toContain("LANGFUSE_MIGRATION_V4_WRITE_MODE");
       expect(vi.mocked(processEventBatch).mock.calls[0][0]).toEqual([
         mixedBatch[1],
       ]);

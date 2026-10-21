@@ -47,6 +47,10 @@ const {
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined as string | undefined,
     LANGFUSE_API_ORGANIZATION_CUTOFF_ENABLED: "false" as "true" | "false",
     LANGFUSE_API_ORGANIZATION_CUTOFF_DATE: "2026-09-16T00:00:00.000Z",
+    LANGFUSE_MIGRATION_V4_WRITE_MODE: "dual" as "dual" | "events_only",
+    LANGFUSE_LEGACY_INGESTION_SCORE_ONLY_ORG_CREATED_CUTOFF: undefined as
+      | string
+      | undefined,
   },
 }));
 
@@ -168,6 +172,8 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     });
     mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
     mockEnv.LANGFUSE_API_ORGANIZATION_CUTOFF_ENABLED = "false";
+    mockEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+    mockEnv.LANGFUSE_LEGACY_INGESTION_SCORE_ONLY_ORG_CREATED_CUTOFF = undefined;
   });
 
   async function callRoute(options?: {
@@ -629,5 +635,55 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     expect(res.statusCode).toBe(204);
     expect(res._isEndCalled()).toBe(true);
     expect(res._getData()).toBe("");
+  });
+
+  describe("legacy write rejection messages", () => {
+    async function callLegacyWrite() {
+      const fn = vi.fn(async () => ({ ok: true as const }));
+      const handler = createAuthedProjectAPIRoute({
+        name: "Create Trace (Legacy)",
+        action: "traces:create",
+        responseSchema: z.object({ ok: z.literal(true) }),
+        rejectInEventsOnlyMode: true,
+        fn,
+      });
+      mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "POST",
+        url: "/api/public/traces",
+        headers: { authorization: "Basic test" },
+      });
+      await handler(req, res);
+      return { res, fn };
+    }
+
+    it("tells a cutoff organization to upgrade SDKs or use OTel, without events_only text", async () => {
+      mockEnv.LANGFUSE_LEGACY_INGESTION_SCORE_ONLY_ORG_CREATED_CUTOFF =
+        validAuth.scope.organizationCreatedAt;
+
+      const { res, fn } = await callLegacyWrite();
+
+      expect(res.statusCode).toBe(404);
+      const { message } = res._getJSONData() as { message: string };
+      expect(message).toContain(
+        "no longer accepts trace or observation writes for this organization",
+      );
+      expect(message).toContain("Upgrade to the latest Langfuse SDKs");
+      expect(message).toContain("POST /api/public/otel/v1/traces");
+      expect(message).not.toContain("events_only");
+      expect(fn).not.toHaveBeenCalled();
+    });
+
+    it("keeps the events_only explanation and adds the SDK and OTel pointer", async () => {
+      mockEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
+
+      const { res } = await callLegacyWrite();
+
+      expect(res.statusCode).toBe(404);
+      const { message } = res._getJSONData() as { message: string };
+      expect(message).toContain("Langfuse v4 events_only mode");
+      expect(message).toContain("Upgrade to the latest Langfuse SDKs");
+      expect(message).toContain("POST /api/public/otel/v1/traces");
+    });
   });
 });

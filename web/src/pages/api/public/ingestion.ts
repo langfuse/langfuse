@@ -29,7 +29,9 @@ import * as opentelemetry from "@opentelemetry/api";
 import { env } from "@/src/env.mjs";
 import {
   attachDeprecation,
+  EVENTS_ONLY_INGESTION_REMEDIATION,
   INGESTION_DEPRECATION,
+  LEGACY_INGESTION_ORG_CUTOFF_MESSAGE,
   setDeprecationHeaders,
 } from "@/src/features/public-api/server/deprecations";
 import {
@@ -185,9 +187,9 @@ export default async function handler(
 
         // V4 events_only mode refuses every non-score event because trace and
         // observation writes target legacy ClickHouse tables this deployment
-        // no longer reads. An organization created at or after the cutoff
-        // takes that same path. SDK logs are refused too. Reject per event so
-        // a mixed batch still processes its score events.
+        // no longer reads. An organization created at or after the cutoff uses
+        // the same allow-list and its own error text. SDK logs are refused
+        // too. Reject per event so a mixed batch still processes its score events.
         const isEventsOnlyMode =
           env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only";
         const scoreOnlyForOrg = isLegacyIngestionScoreOnlyOrg(
@@ -195,7 +197,8 @@ export default async function handler(
         );
         const { batchForProcessing, rejectedErrors } = filterBatchForEventsOnly(
           parsedSchema.data.batch,
-          isEventsOnlyMode || scoreOnlyForOrg,
+          isEventsOnlyMode,
+          scoreOnlyForOrg,
         );
         if (scoreOnlyForOrg && !isEventsOnlyMode) {
           recordLegacyIngestionScoreOnlyRejection({
@@ -322,26 +325,26 @@ const TRACE_OR_OBSERVATION_EVENT_TYPES = new Set<string>(
   ),
 );
 
-const EVENTS_ONLY_INGESTION_DOCS_URL =
-  "https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4";
-
-const EVENTS_ONLY_INGESTION_REMEDIATION = [
-  "Upgrade the client or integration to a v4-compatible SDK or OTLP ingestion path.",
-  "As a temporary migration bridge, set LANGFUSE_MIGRATION_V4_WRITE_MODE=dual on both the web and worker services and redeploy.",
-  `Docs: ${EVENTS_ONLY_INGESTION_DOCS_URL}`,
-].join(" ");
-
 // Scores keep their own ClickHouse table and are the only event type accepted
-// by this endpoint in V4 events_only mode.
+// by this endpoint in V4 events_only mode and for cutoff organizations.
 const EVENTS_ONLY_ALLOWED_TYPES = new Set<string>([eventTypes.SCORE_CREATE]);
 
 export function filterBatchForEventsOnly(
   batch: unknown[],
   isEventsOnlyMode: boolean,
+  organizationCutoff = false,
 ): IngestionBatchFilter {
-  if (!isEventsOnlyMode) {
+  if (!isEventsOnlyMode && !organizationCutoff) {
     return { batchForProcessing: batch, rejectedErrors: [] };
   }
+
+  // A deployment already in events_only mode keeps that explanation, including
+  // the self-hosted write-mode bridge. The organization cutoff does not.
+  const errorForType = isEventsOnlyMode
+    ? (type: string | null) =>
+        `Event type "${type ?? "unknown"}" is not accepted by /api/public/ingestion when LANGFUSE_MIGRATION_V4_WRITE_MODE is events_only. This endpoint only accepts score events. ${EVENTS_ONLY_INGESTION_REMEDIATION}`
+    : (type: string | null) =>
+        `Event type "${type ?? "unknown"}" is not accepted. ${LEGACY_INGESTION_ORG_CUTOFF_MESSAGE}`;
 
   const batchForProcessing: unknown[] = [];
   const rejectedErrors: IngestionEventRejection[] = [];
@@ -355,7 +358,7 @@ export function filterBatchForEventsOnly(
         id: ingestionEventIdOf(event),
         status: 400,
         message: "Event type not accepted",
-        error: `Event type "${type ?? "unknown"}" is not accepted by /api/public/ingestion when LANGFUSE_MIGRATION_V4_WRITE_MODE is events_only. This endpoint only accepts score events. ${EVENTS_ONLY_INGESTION_REMEDIATION}`,
+        error: errorForType(type),
       });
     }
   }
