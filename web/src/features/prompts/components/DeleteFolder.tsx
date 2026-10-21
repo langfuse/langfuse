@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac";
@@ -15,7 +15,7 @@ import {
 } from "@/src/components/ui/dialog";
 import { Input } from "@/src/components/ui/input";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { Trash, Folder, FileText } from "lucide-react";
+import { Trash, Folder, FileText } from "@langfuse/icons";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 export function DeleteFolder({ folderPath }: { folderPath: string }) {
@@ -67,7 +67,7 @@ export function DeleteFolder({ folderPath }: { folderPath: string }) {
     >
       <DialogTrigger asChild>
         <Button variant="ghost" size="xs" disabled={!hasAccess}>
-          <Trash className="icon-sm text-icon-foreground" />
+          <Trash size="sm" color="default" />
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
@@ -106,9 +106,9 @@ export function DeleteFolder({ folderPath }: { folderPath: string }) {
                     className="text-muted-foreground flex items-center gap-2"
                   >
                     {p.row_type === "folder" ? (
-                      <Folder className="icon-sm text-blue-500" />
+                      <Folder size="sm" __rawClassName="text-blue-500" />
                     ) : (
-                      <FileText className="icon-sm" />
+                      <FileText size="sm" />
                     )}
                     <span className="break-all">
                       {folderPath}/{p.name}

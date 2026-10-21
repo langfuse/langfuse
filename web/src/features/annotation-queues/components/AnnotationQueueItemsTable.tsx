@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api } from "@/src/utils/api";
@@ -14,7 +14,7 @@ import {
   customRowHeightMenu,
   useRowHeightLocalStorage,
 } from "@/src/components/table/data-table-row-height-switch";
-import { ListTree, Trash } from "lucide-react";
+import { ListTree, Trash } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { type RouterOutput } from "@/src/utils/types";
 import { type RowSelectionState } from "@tanstack/react-table";

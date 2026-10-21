@@ -1,4 +1,4 @@
-import { Building2, Plug } from "lucide-react";
+import { Building2, Plug } from "@langfuse/icons";
 
 import preview from "@/.storybook/preview";
 import { LlmConnectionEmptyState } from "./LlmConnectionEmptyState";

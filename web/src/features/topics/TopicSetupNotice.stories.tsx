@@ -6,7 +6,7 @@ const meta = preview.meta({ component: TopicSetupNotice });
 
 export const Setup = meta.story({
   args: {
-    notice: { unavailable: false, status: { kind: "setup" } },
+    notice: { status: { kind: "setup" } },
     canWrite: true,
     canConfigure: true,
     onConfigure: fn(),
@@ -22,7 +22,7 @@ export const ReadyToProcess = meta.story({
     onConfigure: fn(),
     onKeepOff: fn(),
     onTurnBackOn: fn(),
-    notice: { unavailable: false, status: null },
+    notice: { status: null },
     showOnboarding: true,
     configured: true,
     canProcess: true,
@@ -33,7 +33,7 @@ export const ReadyToProcess = meta.story({
 
 export const Processing = meta.story({
   args: {
-    notice: { unavailable: false, status: null },
+    notice: { status: null },
     canWrite: true,
     canConfigure: true,
     onConfigure: fn(),

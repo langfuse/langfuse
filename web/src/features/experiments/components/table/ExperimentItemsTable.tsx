@@ -9,7 +9,7 @@ import { ExperimentFilterSidebar } from "../filters/ExperimentFilterSidebar";
 import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { RunEvaluationDialog } from "@/src/features/batch-actions";
-import { LightbulbIcon } from "lucide-react";
+import { LightbulbIcon } from "@langfuse/icons";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import {
   TableActionMenu,
@@ -1913,7 +1913,7 @@ export default function ExperimentItemsTable({
           disabledReason: groupedFilters.error
             ? "Fix unavailable filter targets before evaluating items."
             : "Select individual rows to evaluate when experiments have different filters.",
-          icon: <LightbulbIcon className="icon-base sm:mr-2" />,
+          icon: <LightbulbIcon size="base" __rawClassName="sm:mr-2" />,
           customDialog: true,
           accessCheck: {
             scope: "evaluationRule:CUD",

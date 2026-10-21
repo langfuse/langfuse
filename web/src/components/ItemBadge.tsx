@@ -21,7 +21,7 @@ import {
   Search,
   Layers3,
   ShieldCheck,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { cva } from "class-variance-authority";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { type ObservationType } from "@langfuse/shared";
@@ -66,7 +66,7 @@ const iconMap = {
   EXPERIMENT: FlaskConical,
 } as const;
 
-const iconVariants = cva("shrink-0", {
+const iconVariants = cva("", {
   variants: {
     type: {
       TRACE: "text-observation-trace-line",
@@ -104,7 +104,7 @@ export function ItemTypeIcon({
 }) {
   const Icon = iconMap[type];
   return (
-    <Icon className={cn("icon-base", iconVariants({ type }), className)} />
+    <Icon size="base" __rawClassName={cn(iconVariants({ type }), className)} />
   );
 }
 
@@ -159,7 +159,7 @@ export function ItemTypeTile({
           )}
           {...getTriggerProps()}
         >
-          <Icon className="icon-base text-white" />
+          <Icon size="base" __rawClassName="text-white" />
         </span>
       )}
     </Tooltip>
@@ -170,7 +170,7 @@ export function renderFilterIcon(value: string): React.ReactNode {
   const type = value as LangfuseItemType;
   const Icon = iconMap[type];
   if (!Icon) return null;
-  return <Icon className={cn("icon-base", iconVariants({ type }))} />;
+  return <Icon size="base" __rawClassName={cn(iconVariants({ type }))} />;
 }
 
 /**
@@ -196,11 +196,7 @@ export function ItemBadge({
 }) {
   const Icon = iconMap[type] || ListTree;
 
-  const iconClass = cn(
-    isSmall ? "icon-sm" : "icon-base",
-    iconVariants({ type }),
-    className,
-  );
+  const iconClass = cn(iconVariants({ type }), className);
 
   const { label, displayLabel } = getItemTypeLabels(type);
 
@@ -220,7 +216,9 @@ export function ItemBadge({
         isSmall && showLabel && "h-4",
       )}
     >
-      {!showLabel && <Icon className={iconClass} />}
+      {!showLabel && (
+        <Icon size={isSmall ? "sm" : "base"} __rawClassName={iconClass} />
+      )}
       {showLabel && (
         <span className="truncate" title={displayLabel}>
           {displayLabel}

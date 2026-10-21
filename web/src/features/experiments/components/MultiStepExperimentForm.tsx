@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-null-render */
+/* eslint-disable @repo/no-null-render, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useHasProjectAccess } from "@/src/features/rbac";
 import React, { useEffect, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
@@ -18,7 +18,7 @@ import {
   DialogBody,
   DialogFooter,
 } from "@/src/components/ui/dialog";
-import { Check, ChevronLeft, ChevronRight, CircleX } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, CircleX } from "@langfuse/icons";
 import Link from "next/link";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type UseFormReturn } from "react-hook-form";
@@ -465,7 +465,7 @@ export const MultiStepExperimentForm = ({
     }
 
     if (isStepValid(stepId)) {
-      return <Check className="icon-base mr-1.5 text-green-600" />;
+      return <Check size="base" __rawClassName="mr-1.5 text-green-600" />;
     }
 
     if (
@@ -475,7 +475,8 @@ export const MultiStepExperimentForm = ({
       return (
         <CircleX
           aria-label={`${stepLabel} has errors`}
-          className="icon-base mr-1.5 text-red-500"
+          size="base"
+          __rawClassName="mr-1.5 text-red-500"
         />
       );
     }
@@ -710,7 +711,11 @@ export const MultiStepExperimentForm = ({
                 }}
                 disabled={activeStep === "prompt"}
               >
-                <ChevronLeft className="icon-base text-icon-foreground mr-2" />
+                <ChevronLeft
+                  size="base"
+                  color="default"
+                  __rawClassName="mr-2"
+                />
                 Previous
               </Button>
 
@@ -732,7 +737,7 @@ export const MultiStepExperimentForm = ({
                     }
                   >
                     Next
-                    <ChevronRight className="icon-base ml-2" />
+                    <ChevronRight size="base" __rawClassName="ml-2" />
                   </Button>
                 ) : (
                   <Button

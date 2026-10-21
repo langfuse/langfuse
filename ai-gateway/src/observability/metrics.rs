@@ -127,83 +127,103 @@ pub(crate) fn response_body_size(provider: &'static str, bytes: u64) {
         .record(bytes, &[KeyValue::new("gateway.provider", provider)]);
 }
 
-/// In-use, high-water, and configured slots of one admission semaphore.
-struct Slots {
-    phase: &'static str,
-    in_use: AtomicU64,
+/// A current level and its high-water mark since the previous export.
+struct Level {
+    current: AtomicU64,
     peak: AtomicU64,
-    capacity: AtomicU64,
 }
 
-impl Slots {
-    const fn new(phase: &'static str) -> Self {
+impl Level {
+    const fn new() -> Self {
         Self {
-            phase,
-            in_use: AtomicU64::new(0),
+            current: AtomicU64::new(0),
             peak: AtomicU64::new(0),
-            capacity: AtomicU64::new(0),
         }
     }
 
-    fn acquire(&self) {
-        let in_use = self.in_use.fetch_add(1, Ordering::Relaxed) + 1;
-        self.peak.fetch_max(in_use, Ordering::Relaxed);
+    fn add(&self, amount: u64) {
+        let current = self.current.fetch_add(amount, Ordering::Relaxed) + amount;
+        self.peak.fetch_max(current, Ordering::Relaxed);
     }
 
-    fn release(&self) {
-        self.in_use.fetch_sub(1, Ordering::Relaxed);
+    fn sub(&self, amount: u64) {
+        self.current.fetch_sub(amount, Ordering::Relaxed);
     }
 
-    /// The highest in-use count since the previous read. The next interval starts
-    /// from the slots still held, so a long request is not reported as idle.
+    /// The highest level since the previous read. The next interval starts from the
+    /// level still held, so a long request is not reported as idle.
     fn take_peak(&self) -> u64 {
         let peak = self
             .peak
-            .swap(self.in_use.load(Ordering::Relaxed), Ordering::Relaxed);
+            .swap(self.current.load(Ordering::Relaxed), Ordering::Relaxed);
         self.peak
-            .fetch_max(self.in_use.load(Ordering::Relaxed), Ordering::Relaxed);
+            .fetch_max(self.current.load(Ordering::Relaxed), Ordering::Relaxed);
         peak
     }
 }
 
-static SLOTS: [Slots; 3] = [
-    Slots::new("model_catalog"),
-    Slots::new("resolution"),
-    Slots::new("execution"),
-];
-
-fn slots(phase: &str) -> Option<&'static Slots> {
-    SLOTS.iter().find(|slots| slots.phase == phase)
+struct Phase {
+    name: &'static str,
+    in_flight: Level,
 }
 
-/// Report a semaphore's configured size for `gateway.admission.capacity`. The
-/// gateway runs one inference service per process, so the latest value wins.
-pub(crate) fn record_capacity(phase: &'static str, capacity: usize) {
-    if let Some(slots) = slots(phase) {
-        slots.capacity.store(
-            u64::try_from(capacity).unwrap_or(u64::MAX),
-            Ordering::Relaxed,
-        );
-    }
+static PHASES: [Phase; 3] = [
+    Phase {
+        name: "model_catalog",
+        in_flight: Level::new(),
+    },
+    Phase {
+        name: "resolution",
+        in_flight: Level::new(),
+    },
+    Phase {
+        name: "execution",
+        in_flight: Level::new(),
+    },
+];
+
+fn phase(name: &str) -> Option<&'static Phase> {
+    PHASES.iter().find(|phase| phase.name == name)
+}
+
+static MEMORY_RESERVED: Level = Level::new();
+static MEMORY_BUDGET: AtomicU64 = AtomicU64::new(0);
+
+fn bytes(amount: usize) -> u64 {
+    u64::try_from(amount).unwrap_or(u64::MAX)
+}
+
+/// Report the configured budget for `gateway.memory.budget`. The gateway runs one
+/// inference service per process, so the latest value wins.
+pub(crate) fn record_memory_budget(budget: usize) {
+    MEMORY_BUDGET.store(bytes(budget), Ordering::Relaxed);
+}
+
+pub(crate) fn memory_reserved(amount: usize) {
+    MEMORY_RESERVED.add(bytes(amount));
+}
+
+pub(crate) fn memory_released(amount: usize) {
+    MEMORY_RESERVED.sub(bytes(amount));
 }
 
 pub(crate) struct Active(&'static str);
 
 impl Active {
-    pub(crate) fn new(phase: &'static str) -> Self {
-        METRICS.active.add(1, &[KeyValue::new("phase", phase)]);
-        if let Some(slots) = slots(phase) {
-            slots.acquire();
+    pub(crate) fn new(name: &'static str) -> Self {
+        METRICS.active.add(1, &[KeyValue::new("phase", name)]);
+        if let Some(phase) = phase(name) {
+            phase.in_flight.add(1);
         }
-        Self(phase)
+        Self(name)
     }
 }
 
 impl Drop for Active {
     fn drop(&mut self) {
         METRICS.active.add(-1, &[KeyValue::new("phase", self.0)]);
-        if let Some(slots) = slots(self.0) {
-            slots.release();
+        if let Some(phase) = phase(self.0) {
+            phase.in_flight.sub(1);
         }
     }
 }
@@ -256,7 +276,7 @@ pub(crate) fn execution_finished(facts: &InferenceFacts) {
     let context = tracing::Span::current().context();
     let context_span = context.span();
     let ids = context_span.span_context();
-    tracing::info!(trace_id = %ids.trace_id(), span_id = %ids.span_id(), outcome, duration_ms = facts.duration_ms, "gateway execution finished");
+    tracing::info!(trace_id = %ids.trace_id(), span_id = %ids.span_id(), outcome, duration_ms = facts.duration_ms, output_complete = facts.inference.output_complete, "gateway execution finished");
 }
 
 /// Marks the server span failed when the provider body breaks after headers were
@@ -279,58 +299,74 @@ pub(crate) fn execution_failed(outcome: RelayOutcome) {
 
 /// Keeps the admission callbacks registered for the life of the meter provider.
 pub(super) struct AdmissionInstruments {
-    _capacity: ObservableGauge<u64>,
-    _peak: ObservableGauge<u64>,
+    _active_peak: ObservableGauge<u64>,
+    _memory_budget: ObservableGauge<u64>,
+    _memory_reserved: ObservableGauge<u64>,
+    _memory_reserved_peak: ObservableGauge<u64>,
 }
 
-/// Free slots are `gateway.admission.capacity - gateway.active`. The 30-second
-/// average of `gateway.active` hides bursts, so `gateway.active.peak` reports the
-/// most slots held at once since the previous export.
+/// Free memory is `gateway.memory.budget - gateway.memory.reserved`. A 30-second
+/// average hides bursts, so the `.peak` gauges report the highest level since the
+/// previous export.
 pub(super) fn register_admission() -> AdmissionInstruments {
     let meter = global::meter("ai-gateway");
-    let capacity = meter
-        .u64_observable_gauge("gateway.admission.capacity")
-        .with_callback(|observer| {
-            for slots in &SLOTS {
-                let capacity = slots.capacity.load(Ordering::Relaxed);
-                if capacity > 0 {
-                    observer.observe(capacity, &[KeyValue::new("phase", slots.phase)]);
-                }
-            }
-        })
-        .build();
     // The SDK reads observable instruments once per collection, which is once
     // per export with the single periodic reader.
-    let peak = meter
+    let active_peak = meter
         .u64_observable_gauge("gateway.active.peak")
         .with_callback(|observer| {
-            for slots in &SLOTS {
-                observer.observe(slots.take_peak(), &[KeyValue::new("phase", slots.phase)]);
+            for phase in &PHASES {
+                observer.observe(
+                    phase.in_flight.take_peak(),
+                    &[KeyValue::new("phase", phase.name)],
+                );
             }
         })
         .build();
+    let memory_budget = meter
+        .u64_observable_gauge("gateway.memory.budget")
+        .with_unit("By")
+        .with_callback(|observer| {
+            let budget = MEMORY_BUDGET.load(Ordering::Relaxed);
+            if budget > 0 {
+                observer.observe(budget, &[]);
+            }
+        })
+        .build();
+    let memory_reserved = meter
+        .u64_observable_gauge("gateway.memory.reserved")
+        .with_unit("By")
+        .with_callback(|observer| {
+            observer.observe(MEMORY_RESERVED.current.load(Ordering::Relaxed), &[]);
+        })
+        .build();
+    let memory_reserved_peak = meter
+        .u64_observable_gauge("gateway.memory.reserved.peak")
+        .with_unit("By")
+        .with_callback(|observer| observer.observe(MEMORY_RESERVED.take_peak(), &[]))
+        .build();
     AdmissionInstruments {
-        _capacity: capacity,
-        _peak: peak,
+        _active_peak: active_peak,
+        _memory_budget: memory_budget,
+        _memory_reserved: memory_reserved,
+        _memory_reserved_peak: memory_reserved_peak,
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::Slots;
+    use super::Level;
 
     #[test]
-    fn peak_reports_the_interval_burst_then_restarts_from_held_slots() {
-        let slots = Slots::new("execution");
-        for _ in 0..3 {
-            slots.acquire();
-        }
-        slots.release();
-        slots.release();
-        assert_eq!(slots.take_peak(), 3, "a burst between exports is kept");
-        assert_eq!(slots.take_peak(), 1, "a slot still held stays visible");
-        slots.release();
-        assert_eq!(slots.take_peak(), 1);
-        assert_eq!(slots.take_peak(), 0);
+    fn peak_reports_the_interval_burst_then_restarts_from_the_held_level() {
+        let level = Level::new();
+        level.add(1);
+        level.add(2);
+        level.sub(2);
+        assert_eq!(level.take_peak(), 3, "a burst between exports is kept");
+        assert_eq!(level.take_peak(), 1, "a level still held stays visible");
+        level.sub(1);
+        assert_eq!(level.take_peak(), 1);
+        assert_eq!(level.take_peak(), 0);
     }
 }

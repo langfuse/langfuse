@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @repo/component-file-structure */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useState } from "react";
 import Link from "next/link";
 import { useFieldArray, useForm } from "react-hook-form";
@@ -53,7 +53,7 @@ import { useEvaluationModel } from "@/src/features/evals/hooks/useEvaluationMode
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
 import { DialogFooter, DialogBody } from "@/src/components/ui/dialog";
-import { AlertCircle, AlertTriangle, PlusIcon, Trash } from "lucide-react";
+import { AlertCircle, AlertTriangle, PlusIcon, Trash } from "@langfuse/icons";
 import { useValidateCustomModel } from "@/src/features/evals/hooks/useValidateCustomModel";
 import {
   Select,
@@ -715,7 +715,7 @@ const InnerEvalTemplateForm = (props: {
               {!useDefaultModel &&
                 (!props.isEditing && !isCustomModelValid ? (
                   <div className="text-destructive mt-2 flex items-center space-x-1 text-sm">
-                    <AlertCircle className="icon-base" />
+                    <AlertCircle size="base" />
                     <p>
                       This evaluator is configured to use{" "}
                       {modelParams.provider.value}s models but no API key
@@ -898,7 +898,7 @@ const InnerEvalTemplateForm = (props: {
                                 disabled={!props.isEditing}
                                 onClick={() => remove(index)}
                               >
-                                <Trash className="icon-base text-muted-foreground" />
+                                <Trash size="base" color="muted" />
                               </Button>
                             </div>
                           </div>
@@ -911,7 +911,11 @@ const InnerEvalTemplateForm = (props: {
                         disabled={!props.isEditing}
                         onClick={() => append({ value: "" })}
                       >
-                        <PlusIcon className="icon-base text-icon-foreground mr-1.5" />
+                        <PlusIcon
+                          size="base"
+                          color="default"
+                          __rawClassName="mr-1.5"
+                        />
                         Add category
                       </Button>
                       <FormField

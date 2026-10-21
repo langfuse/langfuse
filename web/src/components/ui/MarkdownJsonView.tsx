@@ -8,7 +8,8 @@ import { Button } from "@/src/components/ui/button";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import { type MediaReturnType } from "@/src/features/media";
-import { Check, Copy } from "lucide-react";
+import { Check, Copy, type IconComponent } from "@langfuse/icons";
+import { type IOSectionAction } from "@/src/components/ui/IOSection";
 import { useMemo, useState } from "react";
 import { type z } from "zod";
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
@@ -38,19 +39,13 @@ export function MarkdownJsonViewHeader({
 }: MarkdownJsonViewHeaderProps) {
   const [isCopied, setIsCopied] = useState(false);
 
-  const titleContent = (
-    <>
-      {titleIcon}
-      {title}
-    </>
-  );
-
   return (
-    <div className="io-message-header flex flex-row items-center justify-between px-1 py-1 text-base font-bold capitalize">
+    <div className="io-message-header flex h-8 flex-row items-center justify-between px-1 text-sm font-bold capitalize">
       {/* Masked from session recordings: the title can be a customer-provided
           message `name` (or tool name) rather than a fixed role string. */}
       <div className="ph-no-capture flex items-center gap-2">
-        {titleContent}
+        {titleIcon}
+        {title}
       </div>
       <div
         className={cn(
@@ -76,9 +71,9 @@ export function MarkdownJsonViewHeader({
             className="text-muted-foreground hover:text-foreground hover:bg-transparent"
           >
             {isCopied ? (
-              <Check className="icon-base text-icon-foreground" />
+              <Check size="base" color="default" />
             ) : (
-              <Copy className="icon-base text-icon-foreground" />
+              <Copy size="base" color="default" />
             )}
           </Button>
         )}
@@ -140,22 +135,34 @@ export function MarkdownJsonView({
   className,
   audio,
   media,
-  controlButtons,
-  afterHeader,
+  actions,
+  beforeContent,
+  afterContent,
   isSystemPrompt,
+  defaultCollapsed,
+  collapsed,
+  onCollapsedChange,
 }: {
   content?: unknown;
   title?: string;
-  titleIcon?: React.ReactNode;
+  titleIcon?: IconComponent;
   className?: string;
   audio?: OpenAIOutputAudioType;
   media?: MediaReturnType[];
-  controlButtons?: React.ReactNode;
-  /** Content to render between header and main content (e.g., thinking blocks) */
-  afterHeader?: React.ReactNode;
-  /** Collapse long content to a preview (from raw `role === "system"`, since
+  /** Section header actions. */
+  actions?: IOSectionAction[];
+  /** Rendered inside the section box above the content (e.g. thinking blocks). */
+  beforeContent?: React.ReactNode;
+  /** Rendered inside the section box below the content (e.g. tool calls). */
+  afterContent?: React.ReactNode;
+  /** Long system prompts start collapsed (from raw `role === "system"`, since
       the title can carry a message `name` instead of the role). */
   isSystemPrompt?: boolean;
+  /** Initial collapsed state of the section; system prompts use their own rule. */
+  defaultCollapsed?: boolean;
+  /** Controlled collapsed state; long system prompts still follow their rule. */
+  collapsed?: boolean;
+  onCollapsedChange?: (collapsed: boolean) => void;
 }) {
   const characterLimit = useMarkdownRenderCharacterLimit();
   // Boxed so a renderable `null` content stays distinguishable from
@@ -175,9 +182,13 @@ export function MarkdownJsonView({
       titleIcon={titleIcon}
       audio={audio}
       media={media}
-      controlButtons={controlButtons}
-      afterHeader={afterHeader}
+      actions={actions}
+      beforeContent={beforeContent}
+      afterContent={afterContent}
       isSystemPrompt={isSystemPrompt}
+      defaultCollapsed={defaultCollapsed}
+      collapsed={collapsed}
+      onCollapsedChange={onCollapsedChange}
     />
   ) : (
     <PrettyJsonView
@@ -187,9 +198,13 @@ export function MarkdownJsonView({
       className={className}
       media={media}
       currentView="pretty"
-      controlButtons={controlButtons}
-      afterHeader={afterHeader}
+      actions={actions}
+      beforeContent={beforeContent}
+      afterContent={afterContent}
       isSystemPrompt={isSystemPrompt}
+      defaultCollapsed={defaultCollapsed}
+      collapsed={collapsed}
+      onCollapsedChange={onCollapsedChange}
     />
   );
 }

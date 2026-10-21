@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { type SystemRole } from "@langfuse/shared/src/db";
 import { systemRoleAccessRights } from "@langfuse/shared/rbac";
 
@@ -48,7 +49,7 @@ export function RolePermissionPopup({
           <>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <Icon className="icon-base shrink-0" />
+                <Icon size="base" />
                 <span>{transformName(def.name)}</span>
                 <Badge
                   variant="tertiary"

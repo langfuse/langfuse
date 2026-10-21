@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import {
   SplashScreen,
   type ValueProposition,
@@ -5,7 +6,14 @@ import {
 import { ButtonWithIcon } from "@/src/components/ButtonWithIcon";
 import { DialogTrigger } from "@/src/components/ui/dialog";
 import { CreateDatasetDialogController } from "@/src/features/datasets/components/CreateDatasetDialogController";
-import { Database, Beaker, Zap, Code, LockIcon, PlusIcon } from "lucide-react";
+import {
+  Database,
+  Beaker,
+  Zap,
+  Code,
+  LockIcon,
+  PlusIcon,
+} from "@langfuse/icons";
 
 export function DatasetsOnboarding({ projectId }: { projectId: string }) {
   const valuePropositions: ValueProposition[] = [

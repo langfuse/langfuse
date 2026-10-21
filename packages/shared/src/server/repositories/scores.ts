@@ -11,6 +11,12 @@ import {
   ListableScoreDataType,
   ScoreDataTypeEnum,
 } from "../../domain/scores";
+import {
+  SCORE_EXPORT_CORE_FIELDS,
+  SCORE_EXPORT_FIELD_GROUPS,
+  SCORE_EXPORT_GROUP_FIELDS,
+  type ScoreExportFieldGroup,
+} from "../../domain/export-field-groups";
 import { InvalidRequestError, InternalServerError } from "../../errors";
 import {
   eventsTableIsRootObservationSql,
@@ -76,7 +82,13 @@ import {
 } from "../queries/clickhouse-sql/query-fragments";
 import { compileClickhouseQuery } from "../query-ast/compile";
 import { getClickhouseKysely } from "../query-ast/dialect";
-import { limitBy, mapKeys, useFinal } from "../query-ast/extensions";
+import {
+  limitBy,
+  literal,
+  mapKeys,
+  notEmpty,
+  useFinal,
+} from "../query-ast/extensions";
 import { scoresTableCols } from "../../tableDefinitions/scoresTable";
 import { promptGenerationEvents } from "./prompt-events";
 import {
@@ -420,10 +432,10 @@ export const getTraceScoresForDatasetRuns = async (
 
 const experimentItemEventsQuery = (experimentIds: string[]) =>
   getClickhouseKysely()
-    .selectFrom("events_core as e")
+    .selectFrom("events as e")
     .select(["e.project_id", "e.experiment_id", "e.trace_id"])
     .where("e.experiment_id", "in", experimentIds)
-    .where("e.experiment_id", "!=", "");
+    .where("e.experiment_id", "!=", literal(""));
 
 const scoresForExperimentItemsQuery = (experimentIds: string[]) =>
   getClickhouseKysely()
@@ -457,15 +469,23 @@ const scoresForExperimentItemsQuery = (experimentIds: string[]) =>
       "s.updated_at as updated_at",
       "s.event_ts as event_ts",
       "s.is_deleted as is_deleted",
-      eb(eb.fn("length", [mapKeys("s.metadata")]), ">", 0).as("has_metadata"),
+      notEmpty(mapKeys(eb.ref("s.metadata"))).as("has_metadata"),
       "e.experiment_id as experiment_id",
     ])
-    .where("s.data_type", "in", [...AGGREGATABLE_SCORE_TYPES])
+    .where(
+      "s.data_type",
+      "in",
+      AGGREGATABLE_SCORE_TYPES.map((t) => literal(t)),
+    )
     .orderBy("s.event_ts", "desc")
     .$call(
       limitBy({
         count: 1,
-        columns: ["s.id", "s.project_id", "e.experiment_id"],
+        columns: (eb) => [
+          eb.ref("s.id"),
+          eb.ref("s.project_id"),
+          eb.ref("e.experiment_id"),
+        ],
       }),
     );
 
@@ -1629,10 +1649,13 @@ const getScoresUiGenericFromEvents = async <T>(props: {
 
   // Inner join when trace filters are active (exclude scores without matching traces)
   // Left join when only sorting (keep all scores)
+  // The traces CTE is unique per trace (LIMIT 1 BY), so the inner join cannot
+  // fan out. It must not be ANY: an inner ANY JOIN also dedups the left side,
+  // keeping only one score per trace.
   const eventsJoin = (() => {
     if (needsTracesCTE) {
       if (traceFilterState.length > 0) {
-        return `ANY JOIN traces e ON s.trace_id = e.id`;
+        return `INNER JOIN traces e ON s.trace_id = e.id`;
       }
       return `LEFT ANY JOIN traces e ON s.trace_id = e.id`;
     }
@@ -2273,10 +2296,14 @@ const aggregatedScoresForPromptsFromEventsQuery = (
       "s.data_type as data_type",
       "s.comment as comment",
       "s.timestamp as timestamp",
-      eb(eb.fn("length", [mapKeys("s.metadata")]), ">", 0).as("has_metadata"),
+      notEmpty(mapKeys(eb.ref("s.metadata"))).as("has_metadata"),
     ])
     .where("s.name", "is not", null)
-    .where("s.data_type", "in", [...LISTABLE_SCORE_TYPES])
+    .where(
+      "s.data_type",
+      "in",
+      LISTABLE_SCORE_TYPES.map((t) => literal(t)),
+    )
     .$if(fetchScoreRelation === "trace", (qb) =>
       qb
         .where("s.observation_id", "is", null)
@@ -2512,30 +2539,23 @@ export const getDistinctScoreNames = async (
 };
 
 // Shared query for both the standard (parsed) and Parquet (`exec` binary)
-// score export paths.
+// score export paths. Opt-in field group columns are appended after the base
+// columns so the base column order stays stable.
 const buildScoresForBlobStorageExportQuery = (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
+  fieldGroups: ScoreExportFieldGroup[],
 ) => {
+  const columns: string[] = [
+    ...SCORE_EXPORT_CORE_FIELDS,
+    ...SCORE_EXPORT_FIELD_GROUPS.filter((group) =>
+      fieldGroups.includes(group),
+    ).flatMap((group) => SCORE_EXPORT_GROUP_FIELDS[group]),
+  ];
   const query = `
     SELECT
-      id,
-      timestamp,
-      project_id,
-      environment,
-      trace_id,
-      observation_id,
-      session_id,
-      dataset_run_id,
-      name,
-      value,
-      source,
-      comment,
-      data_type,
-      string_value,
-      created_at,
-      updated_at
+      ${columns.join(",\n      ")}
     FROM scores FINAL
     WHERE project_id = {projectId: String}
     AND timestamp >= {minTimestamp: DateTime64(3)}
@@ -2564,9 +2584,15 @@ export const getScoresForBlobStorageExport = function (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
+  fieldGroups: ScoreExportFieldGroup[] = [],
 ) {
   return queryClickhouseStream<Record<string, unknown>>(
-    buildScoresForBlobStorageExportQuery(projectId, minTimestamp, maxTimestamp),
+    buildScoresForBlobStorageExportQuery(
+      projectId,
+      minTimestamp,
+      maxTimestamp,
+      fieldGroups,
+    ),
   );
 };
 
@@ -2576,12 +2602,14 @@ export const getScoresForBlobStorageExportParquet = function (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
+  fieldGroups: ScoreExportFieldGroup[] = [],
 ) {
   return queryClickhouseExecRaw({
     ...buildScoresForBlobStorageExportQuery(
       projectId,
       minTimestamp,
       maxTimestamp,
+      fieldGroups,
     ),
     format: "Parquet",
     clickhouseSettings: BLOB_EXPORT_PARQUET_CLICKHOUSE_SETTINGS,

@@ -252,6 +252,10 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     approval: "approval",
     availability: { scope: "models:CUD" },
   },
+  listLlmConnections: {
+    approval: "auto",
+    availability: { scope: "llmApiKeys:read" },
+  },
   listObservations: {
     approval: "auto",
     availability: { scope: "project:read" },
@@ -303,6 +307,22 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
   updatePromptLabels: {
     approval: "approval",
     availability: { scope: "prompts:CUD" },
+  },
+  listSkills: {
+    approval: "auto",
+    availability: { scope: "skills:read" },
+  },
+  getSkill: {
+    approval: "auto",
+    availability: { scope: "skills:read" },
+  },
+  loadSkill: {
+    approval: "auto",
+    availability: { scope: "skills:read" },
+  },
+  loadSkillResource: {
+    approval: "auto",
+    availability: { scope: "skills:read" },
   },
   listScores: {
     approval: "auto",

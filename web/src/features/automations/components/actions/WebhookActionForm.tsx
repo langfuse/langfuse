@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -8,7 +9,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import { X, Plus, RefreshCw, Lock, LockOpen } from "lucide-react";
+import { X, Plus, RefreshCw, Lock, LockOpen } from "@langfuse/icons";
 import { useFieldArray, type UseFormReturn } from "react-hook-form";
 import { z } from "zod";
 import {
@@ -235,9 +236,9 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
                 title={isSecret ? "Make header public" : "Make header secret"}
               >
                 {isSecret ? (
-                  <Lock className="icon-base text-orange-500" />
+                  <Lock size="base" __rawClassName="text-orange-500" />
                 ) : (
-                  <LockOpen className="icon-base text-muted-foreground" />
+                  <LockOpen size="base" color="muted" />
                 )}
               </Button>
               <Button
@@ -247,7 +248,7 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
                 onClick={() => removeHeader(originalIndex)}
                 disabled={disabled}
               >
-                <X className="icon-base text-icon-foreground" />
+                <X size="base" color="default" />
               </Button>
             </div>
           );
@@ -260,7 +261,7 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
           disabled={disabled}
           className="mt-2"
         >
-          <Plus className="icon-base text-icon-foreground mr-1" />
+          <Plus size="base" color="default" __rawClassName="mr-1" />
           Add Custom Header
         </Button>
       </div>
@@ -359,8 +360,10 @@ const RegenerateWebhookSecretButton = ({
             disabled={regenerateSecretMutation.isPending}
           >
             <RefreshCw
-              className={cn(
-                "icon-base text-icon-foreground mr-2",
+              size="base"
+              color="default"
+              __rawClassName={cn(
+                "mr-2",
                 regenerateSecretMutation.isPending && "animate-spin",
               )}
             />

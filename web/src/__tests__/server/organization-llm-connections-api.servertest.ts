@@ -22,7 +22,8 @@ import {
 
 async function createOrganizationApiKey(orgId: string): Promise<string> {
   const { publicKey, secretKey } = await createApiKey(prisma, {
-    owner: OrganizationId(orgId),
+    tenant: OrganizationId(orgId),
+    scope: OrganizationId(orgId),
     role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
     createdBy: "system",
   });

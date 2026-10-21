@@ -1,4 +1,4 @@
-import { Minus } from "lucide-react";
+import { Minus } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
@@ -31,7 +31,7 @@ export function InAppAgentBackgroundHint({
           className="-my-0.5 h-5 shrink-0 gap-1 px-1"
           onClick={onMinimize}
         >
-          <Minus className="icon-base text-icon-foreground" />
+          <Minus size="base" color="default" />
           <span className="hidden md:inline-flex">
             <KeyboardShortcut variant="subtle" keys={["Mod", "I"]} />
           </span>

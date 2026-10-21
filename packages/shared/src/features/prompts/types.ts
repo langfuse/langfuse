@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { Prompt } from "@prisma/client";
-import { jsonSchema, optionalJsonParam } from "../../utils/zod";
+import { isoDateTime, jsonSchema, optionalJsonParam } from "../../utils/zod";
 import {
   arrayOptionsFilter,
   coerceLegacyEmptyMetadataFilters,
@@ -111,8 +111,8 @@ export const GetPromptsMetaSchema = z.object({
   tag: z.string().optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(10),
-  fromUpdatedAt: z.iso.datetime({ offset: true }).nullish(),
-  toUpdatedAt: z.iso.datetime({ offset: true }).nullish(),
+  fromUpdatedAt: isoDateTime({ offset: true }).nullish(),
+  toUpdatedAt: isoDateTime({ offset: true }).nullish(),
   filter: optionalJsonParam(promptFilterSchema, "filter"),
 });
 

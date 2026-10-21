@@ -1,11 +1,11 @@
 /* eslint-disable @repo/component-file-structure */
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
-import { type LucideIcon, X } from "lucide-react";
+import { type IconComponent, X } from "@langfuse/icons";
 import { type ComponentPropsWithoutRef } from "react";
 
 const tagVariants = cva(
-  "inline-flex h-5 w-fit max-w-full min-w-0 shrink-0 items-center gap-1 rounded-sm border px-1.5 pb-px font-mono text-xs leading-none font-normal",
+  "inline-flex h-5 w-fit max-w-full min-w-0 shrink-0 items-center gap-1 rounded-sm border px-1.5 font-mono text-xs leading-none font-normal",
   {
     variants: {
       status: {
@@ -47,7 +47,7 @@ type TagProps = {
   /** Muted text after the value, e.g. `(current)`. */
   secondaryText?: string;
   /** Shown before the text. */
-  icon?: LucideIcon;
+  icon?: IconComponent;
   /** Warning and error tint the chip; default keeps the filled look. */
   status?: TagShellProps["status"];
   /** Shows a remove button after the text. */
@@ -69,12 +69,7 @@ export function Tag({
 
   return (
     <TagShell status={status}>
-      {Icon && (
-        <Icon
-          className="text-foreground-tertiary icon-sm shrink-0"
-          aria-hidden
-        />
-      )}
+      {Icon && <Icon size="sm" color="tertiary" aria-hidden />}
       <span
         className="min-w-0 truncate py-0.5"
         title={[text, secondaryText].filter(Boolean).join(" ")}
@@ -94,7 +89,7 @@ export function Tag({
           className="text-foreground-tertiary hover:text-foreground -mr-0.5 flex shrink-0 items-center rounded-sm disabled:cursor-not-allowed"
           onClick={handleRemoveClick}
         >
-          <X className="icon-sm" />
+          <X size="sm" />
         </button>
       )}
     </TagShell>

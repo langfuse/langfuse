@@ -32,10 +32,7 @@ import {
   type IngestionSdkCanonicalName,
 } from "../";
 
-import {
-  AI_FEATURE_OTEL_SDK_NAME,
-  LangfuseOtelSpanAttributes,
-} from "./attributes";
+import { LangfuseOtelSpanAttributes } from "./attributes";
 import {
   isClaudeManagedAgentSessionCreation,
   isClaudeManagedAgentSpan,
@@ -46,7 +43,6 @@ import { OtelIngestionQueue } from "../redis/otelIngestionQueue";
 import { isValidDateString, flattenJsonToPathArrays } from "./utils";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { isNullOrUndefined } from "../../utils/isNullOrUndefined";
-import { safeJsonParse } from "../../utils/json";
 import { defineOwnValue } from "../../utils/objects";
 
 export const AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME = "langfuse-ai-gateway";
@@ -685,6 +681,7 @@ export class OtelIngestionProcessor {
                   userId: this.extractUserId(
                     spanAttributes,
                     decodeMetadataValues,
+                    resourceAttributes,
                   ),
                   sessionId: this.extractSessionId(
                     spanAttributes,
@@ -738,10 +735,6 @@ export class OtelIngestionProcessor {
             return events;
           });
 
-        if (this.sdkName === AI_FEATURE_OTEL_SDK_NAME) {
-          this.denormalizeAiFeatureChildTraceNames(events);
-        }
-
         return events;
       } catch (error) {
         logger.error("Error processing OTEL spans to events:", {
@@ -752,45 +745,6 @@ export class OtelIngestionProcessor {
         throw error;
       }
     });
-  }
-
-  /**
-   * Copy the wrapping root's observation.traceName onto sibling events in the
-   * same batch that omitted langfuse.trace.name. That OTEL attribute is a
-   * trace-update signal; filling the events-table field keeps cost-by-trace-name
-   * filters working without rewriting the trace.
-   */
-  private denormalizeAiFeatureChildTraceNames(
-    events: Array<{
-      traceId?: string;
-      traceName?: string | null;
-      parentSpanId?: string | null;
-      isAppRoot?: boolean;
-    }>,
-  ): void {
-    const traceNameByTraceId = new Map<string, string>();
-
-    for (const event of events) {
-      if (!event.traceId || !event.traceName) {
-        continue;
-      }
-
-      const isRoot = !event.parentSpanId || event.isAppRoot === true;
-      if (isRoot) {
-        traceNameByTraceId.set(event.traceId, event.traceName);
-      }
-    }
-
-    for (const event of events) {
-      if (event.traceName || !event.traceId) {
-        continue;
-      }
-
-      const traceName = traceNameByTraceId.get(event.traceId);
-      if (traceName !== undefined) {
-        event.traceName = traceName;
-      }
-    }
   }
 
   /**
@@ -1172,7 +1126,11 @@ export class OtelIngestionProcessor {
           (attributes?.[LangfuseOtelSpanAttributes.RELEASE] as string) ??
           resourceAttributes?.[LangfuseOtelSpanAttributes.RELEASE] ??
           null,
-        userId: this.extractUserId(attributes, decodeMetadataValues),
+        userId: this.extractUserId(
+          attributes,
+          decodeMetadataValues,
+          resourceAttributes,
+        ),
         sessionId: this.extractSessionId(
           attributes,
           decodeMetadataValues,
@@ -1216,7 +1174,8 @@ export class OtelIngestionProcessor {
           (attributes?.[LangfuseOtelSpanAttributes.RELEASE] as string) ??
           resourceAttributes?.[LangfuseOtelSpanAttributes.RELEASE] ??
           null,
-        userId: this.extractUserId(attributes, decodeMetadataValues),
+        // Child updates must not replace an explicit trace user with a fallback.
+        userId: this.extractExplicitUserId(attributes, decodeMetadataValues),
         /** CMA session inference belongs to root traces and individual observations. */
         sessionId: this.extractSessionId(
           attributes,
@@ -2760,6 +2719,32 @@ export class OtelIngestionProcessor {
   private extractUserId(
     attributes: Record<string, unknown>,
     decodeMetadataValues: boolean,
+    resourceAttributes: Record<string, unknown>,
+  ): string | undefined {
+    // Explicit identifiers in either scope take precedence over usernames.
+    return (
+      this.extractExplicitUserId(attributes, decodeMetadataValues) ??
+      this.extractStringAttribute(
+        resourceAttributes,
+        ["langfuse.user.id", "user.id"],
+        decodeMetadataValues,
+      ) ??
+      this.extractStringAttribute(
+        attributes,
+        ["user.name"],
+        decodeMetadataValues,
+      ) ??
+      this.extractStringAttribute(
+        resourceAttributes,
+        ["user.name"],
+        decodeMetadataValues,
+      )
+    );
+  }
+
+  private extractExplicitUserId(
+    attributes: Record<string, unknown>,
+    decodeMetadataValues: boolean,
   ): string | undefined {
     return this.extractStringAttribute(
       attributes,
@@ -3720,14 +3705,7 @@ export class OtelIngestionProcessor {
         // undecodable value (e.g. cut by an attribute length limit) is kept as
         // sent so its content is not lost.
         try {
-          const decoded = JSON.parse(value);
-          // Strings are stored raw and metadata reads JSON-parse every stored
-          // value, so a string such as "42" or '{"a":1}' would read back as a
-          // number or object. Keeping its encoding preserves the string type.
-          metadata[metadataKey] =
-            typeof decoded === "string" && safeJsonParse(decoded) !== undefined
-              ? value
-              : decoded;
+          metadata[metadataKey] = JSON.parse(value);
         } catch {
           metadata[metadataKey] = value;
           recordIncrement("langfuse.ingestion.metadata_undecoded", 1, {

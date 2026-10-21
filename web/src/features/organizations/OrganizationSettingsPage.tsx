@@ -14,7 +14,7 @@ import { OrganizationUsageBreakdown } from "@/src/features/organization-usage";
 import { useHasEntitlement, usePlan } from "@/src/features/entitlements";
 import { SSOSettings } from "@/src/ee/features/sso-settings";
 import { type CloudConfigSchema, isCloudPlan } from "@langfuse/shared";
-import { Building2 } from "lucide-react";
+import { Building2 } from "@langfuse/icons";
 import { useQueryProjectOrOrganization } from "@/src/features/projects";
 import { LlmConnectionEmptyState } from "@/src/features/public-api";
 import { ApiKeyList } from "@/src/features/public-api/components/ApiKeyList";
@@ -24,23 +24,26 @@ import { env } from "@/src/env.mjs";
 import { OrgAuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { OrganizationFeaturePreviewsSettings } from "@/src/features/feature-flags/components/OrganizationFeaturePreviewsSettings";
-import { useIsFeatureEnabled } from "@/src/features/feature-flags";
 import {
   GatewayApiKeysPage,
   GatewayConfigurationPage,
   GatewayModelsPage,
   GatewayProvidersPage,
 } from "@/src/features/ai-gateway";
-import { canReadGatewayModels } from "@/src/features/ai-gateway/fns/canReadGatewayModels";
+import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { api } from "@/src/utils/api";
 import { ConnectedLLMApiKeySettingsTable } from "@/src/features/public-api/components/LLMApiKeySettingsTable/ConnectedLLMApiKeySettingsTable";
+
+const GATEWAY_SETUP_REQUIRED_REASON =
+  "Set up an ingestion project in Configuration first.";
 
 type OrganizationSettingsPage = {
   title: string;
   slug: string;
   section?: string;
   show?: boolean | (() => boolean);
+  disabledReason?: string;
   cmdKKeywords?: string[];
 } & ({ content: React.ReactNode } | { href: string });
 
@@ -58,17 +61,10 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     organizationId: organization?.id,
     scope: "organization:update",
   });
-  const canManageGateway = useHasOrganizationAccess({
-    organizationId: organization?.id,
-    scope: "gateway:manage",
-  });
+  const gatewayAccess = useGatewaySettingsAccess(organization?.id);
   const canReadOrganizationLlmConnections = useHasOrganizationAccess({
     organizationId: organization?.id,
     scope: "organizationLlmApiKeys:read",
-  });
-  const canReadGateway = useHasOrganizationAccess({
-    organizationId: organization?.id,
-    scope: "gateway:read",
   });
   const canReadUsage = useHasOrganizationAccess({
     organizationId: organization?.id,
@@ -78,10 +74,6 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
   const isLangfuseCloud = isCloudPlan(plan) ?? false;
   const isCloudBillingAvailable = useIsCloudBillingAvailable();
   const showV4Migration = useV4UpgradeUiFlag();
-  const isAiGatewayEnabled = useIsFeatureEnabled("aiGateway", {
-    enableForAdmins: false,
-    organizationId: organization?.id,
-  });
 
   if (!organization) return [];
 
@@ -97,15 +89,14 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     showAuditLogs,
     isLangfuseCloud,
     showV4Migration,
-    showAiGatewayManagement: canManageGateway && isAiGatewayEnabled,
-    showAiGatewayModels:
-      isAiGatewayEnabled &&
-      canReadGatewayModels({
-        organizationId: organization.id,
-        demoOrganizationId: env.NEXT_PUBLIC_DEMO_ORG_ID,
-        canReadGateway,
-        canManageGateway,
-      }),
+    showAiGatewayManagement: gatewayAccess.showManagement,
+    showAiGatewayModels: gatewayAccess.showModels,
+    /** Only managers get disabled entries; readers see a notice on Models. */
+    gatewaySetupDisabledReason:
+      gatewayAccess.showManagement &&
+      gatewayAccess.isIngestionConfigured === false
+        ? GATEWAY_SETUP_REQUIRED_REASON
+        : undefined,
     showOrganizationLlmConnections: canReadOrganizationLlmConnections,
     showFeaturePreviews:
       canUpdateOrganization && organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID,
@@ -122,6 +113,7 @@ const getOrganizationSettingsPages = ({
   showV4Migration,
   showAiGatewayManagement,
   showAiGatewayModels,
+  gatewaySetupDisabledReason,
   showOrganizationLlmConnections,
   showFeaturePreviews,
 }: {
@@ -144,6 +136,7 @@ const getOrganizationSettingsPages = ({
   showV4Migration: boolean;
   showAiGatewayManagement: boolean;
   showAiGatewayModels: boolean;
+  gatewaySetupDisabledReason: string | undefined;
   showOrganizationLlmConnections: boolean;
   showFeaturePreviews: boolean;
 }): OrganizationSettingsPage[] => [
@@ -348,6 +341,7 @@ const getOrganizationSettingsPages = ({
     ],
     content: <GatewayProvidersPage organizationId={organization.id} />,
     show: showAiGatewayManagement,
+    disabledReason: gatewaySetupDisabledReason,
   },
   {
     title: "Models",
@@ -356,6 +350,7 @@ const getOrganizationSettingsPages = ({
     cmdKKeywords: ["gateway", "models", "discovery", "sync"],
     content: <GatewayModelsPage organizationId={organization.id} />,
     show: showAiGatewayModels,
+    disabledReason: gatewaySetupDisabledReason,
   },
   {
     title: "Gateway keys",
@@ -364,6 +359,7 @@ const getOrganizationSettingsPages = ({
     cmdKKeywords: ["gateway", "api", "keys", "metadata", "credentials"],
     content: <GatewayApiKeysPage organizationId={organization.id} />,
     show: showAiGatewayManagement,
+    disabledReason: gatewaySetupDisabledReason,
   },
 ];
 

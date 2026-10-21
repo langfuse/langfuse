@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { type RouterOutputs } from "@/src/utils/api";
 import { useRef, useEffect } from "react";
 import { PromptVersionDiffDialogContent } from "./PromptVersionDiffDialogContent";
@@ -10,7 +11,7 @@ import { toPromptLabelListItems } from "@/src/features/prompts/utils";
 import { CommandItem } from "@/src/components/ui/command";
 import { DialogController } from "@/src/components/ui/dialog";
 import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
-import { FileDiffIcon } from "lucide-react";
+import { FileDiffIcon } from "@langfuse/icons";
 
 const PromptHistoryTraceNode = (props: {
   index: number;

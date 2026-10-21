@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -5,7 +6,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { GitCompareArrows, X } from "lucide-react";
+import { GitCompareArrows, X } from "@langfuse/icons";
 import {
   describeScoreComparisonFilter,
   type ScoreComparisonFilter,
@@ -43,7 +44,7 @@ export const ScoreComparisonFilterPills = ({
             variant="secondary"
             className="flex max-w-full items-center gap-1 px-2 py-1 text-xs"
           >
-            <GitCompareArrows className="icon-sm shrink-0" />
+            <GitCompareArrows size="sm" />
             <span className="truncate" title={label}>
               {label}
             </span>
@@ -69,7 +70,7 @@ export const ScoreComparisonFilterPills = ({
                 onRemove(filter);
               }}
             >
-              <X className="icon-base text-icon-foreground" />
+              <X size="base" color="default" />
             </Button>
           </Badge>
         );

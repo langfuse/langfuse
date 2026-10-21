@@ -1,4 +1,4 @@
-/* eslint-disable @repo/component-file-structure */
+/* eslint-disable @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { Button } from "@/src/components/ui/button";
 import { Label } from "@/src/components/ui/label";
 import {
@@ -21,7 +21,7 @@ import { cn } from "@/src/utils/tailwind";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { type RouterInput } from "@/src/utils/types";
 import { useMutation } from "@tanstack/react-query";
-import { CheckIcon, Globe, Link, Share2 } from "lucide-react";
+import { CheckIcon, Globe, Link, Share2 } from "@langfuse/icons";
 import { useState } from "react";
 
 type PublishObjectProps = {
@@ -264,21 +264,15 @@ const Base = (props: {
                 >
                   {props.isPublic ? (
                     <Globe
-                      className={
-                        props.label
-                          ? "icon-base text-icon-foreground"
-                          : "icon-base"
-                      }
+                      size="base"
+                      color={props.label ? "default" : "inherit"}
                       fill="#b3d9ff"
                       stroke="#4d94ff"
                     />
                   ) : (
                     <Share2
-                      className={
-                        props.label
-                          ? "icon-base text-icon-foreground"
-                          : "icon-base"
-                      }
+                      size="base"
+                      color={props.label ? "default" : "inherit"}
                     />
                   )}
                   {props.label ? (
@@ -310,12 +304,20 @@ const Base = (props: {
                   <Button variant="outline" size="sm" onClick={copyUrl}>
                     {isCopied ? (
                       <>
-                        <CheckIcon className="icon-base text-icon-foreground mr-1" />
+                        <CheckIcon
+                          size="base"
+                          color="default"
+                          __rawClassName="mr-1"
+                        />
                         Copied
                       </>
                     ) : (
                       <>
-                        <Link className="icon-base text-icon-foreground mr-1" />
+                        <Link
+                          size="base"
+                          color="default"
+                          __rawClassName="mr-1"
+                        />
                         Copy
                       </>
                     )}

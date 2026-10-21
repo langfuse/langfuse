@@ -16,7 +16,6 @@ export type ConfigureTopicsSettingsInput = {
 };
 
 export type TopicSetupNoticeState = {
-  unavailable: boolean;
   status:
     | { kind: "paused"; message: string }
     | { kind: "setup" }
@@ -108,7 +107,6 @@ export function useTopicModelSettings({
       },
     },
     notice: {
-      unavailable: Boolean(settings.data && !settings.data.processingAvailable),
       status,
     } satisfies TopicSetupNoticeState,
   };

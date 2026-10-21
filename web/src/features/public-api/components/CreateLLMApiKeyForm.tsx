@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useFieldArray, useForm } from "react-hook-form";
 import { useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -15,7 +15,7 @@ import {
   resolveTypeSafeUpstream,
   type TypeSafeUpstream,
 } from "@langfuse/shared";
-import { ChevronDown, PlusIcon, TrashIcon } from "lucide-react";
+import { ChevronDown, PlusIcon, TrashIcon } from "@langfuse/icons";
 import { z } from "zod";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -531,7 +531,7 @@ export function CreateLLMApiKeyForm({
                 variant="ghost"
                 onClick={() => remove(index)}
               >
-                <TrashIcon className="icon-base text-icon-foreground" />
+                <TrashIcon size="base" color="default" />
               </Button>
             </span>
           ))}
@@ -542,7 +542,9 @@ export function CreateLLMApiKeyForm({
             className="w-full"
           >
             <PlusIcon
-              className="icon-base text-icon-foreground mr-1.5 -ml-0.5"
+              size="base"
+              color="default"
+              __rawClassName="mr-1.5 -ml-0.5"
               aria-hidden="true"
             />
             Add custom model name
@@ -586,7 +588,7 @@ export function CreateLLMApiKeyForm({
                 variant="ghost"
                 onClick={() => removeHeader(index)}
               >
-                <TrashIcon className="icon-base text-icon-foreground" />
+                <TrashIcon size="base" color="default" />
               </Button>
             </div>
           ))}
@@ -598,7 +600,9 @@ export function CreateLLMApiKeyForm({
             className="w-full"
           >
             <PlusIcon
-              className="icon-base text-icon-foreground mr-1.5 -ml-0.5"
+              size="base"
+              color="default"
+              __rawClassName="mr-1.5 -ml-0.5"
               aria-hidden="true"
             />
             Add Header
@@ -1439,7 +1443,8 @@ export function CreateLLMApiKeyForm({
                         : "Show advanced settings"}
                     </span>
                     <ChevronDown
-                      className={`text-foreground-tertiary icon-base ml-1 translate-y-px transition-transform ${showAdvancedSettings ? "rotate-180" : "rotate-0"}`}
+                      size="base"
+                      __rawClassName={`text-foreground-tertiary ml-1 translate-y-px transition-transform ${showAdvancedSettings ? "rotate-180" : "rotate-0"}`}
                     />
                   </Button>
                 </div>

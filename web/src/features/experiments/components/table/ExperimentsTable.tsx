@@ -50,7 +50,7 @@ import {
   useColumnOrder,
   useColumnVisibility,
 } from "@/src/features/column-visibility";
-import { GitCompareArrows, LightbulbIcon } from "lucide-react";
+import { GitCompareArrows, LightbulbIcon } from "@langfuse/icons";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
@@ -229,7 +229,7 @@ function ExperimentsMultiSelectActionMenu({
       type: BatchActionType.Create,
       label: "Compare",
       description: "Compare selected experiments",
-      icon: <GitCompareArrows className="icon-base sm:mr-2" />,
+      icon: <GitCompareArrows size="base" __rawClassName="sm:mr-2" />,
       customDialog: true,
       disabled: tooManySelected,
       disabledReason: tooManySelected
@@ -246,7 +246,7 @@ function ExperimentsMultiSelectActionMenu({
             type: BatchActionType.Create,
             label: "Run Evaluator",
             description: "Run evaluators on selected experiments",
-            icon: <LightbulbIcon className="icon-base sm:mr-2" />,
+            icon: <LightbulbIcon size="base" __rawClassName="sm:mr-2" />,
             customDialog: true,
             accessCheck: {
               scope: "evaluationRule:CUD",

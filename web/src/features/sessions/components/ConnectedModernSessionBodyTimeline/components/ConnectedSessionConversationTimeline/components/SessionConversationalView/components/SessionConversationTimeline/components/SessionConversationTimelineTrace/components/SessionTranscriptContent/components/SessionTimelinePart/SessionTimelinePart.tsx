@@ -1,4 +1,4 @@
-import { FileIcon, Wrench } from "lucide-react";
+import { FileIcon, Wrench } from "@langfuse/icons";
 import { useState, type ComponentProps, type ReactNode } from "react";
 import { SessionTimelineCollapsibleRow } from "../SessionTimelineCollapsibleRow/SessionTimelineCollapsibleRow";
 import { assertUnreachable } from "@langfuse/shared";
@@ -126,6 +126,15 @@ function SessionTimelineReasoning({
   }
 
   if (content.kind === "text") {
+    if (content.text.trim().length === 0) {
+      return (
+        <SessionTimelineCollapsibleRow
+          label="Reasoning"
+          trailingContent={trailingContent}
+        />
+      );
+    }
+
     return (
       <SessionTimelineCollapsibleRow
         label="Reasoning"
@@ -155,6 +164,15 @@ function SessionTimelineReasoning({
   }
 
   if (content.kind === "redacted") {
+    if (content.data.trim().length === 0) {
+      return (
+        <SessionTimelineCollapsibleRow
+          label="Redacted reasoning"
+          trailingContent={trailingContent}
+        />
+      );
+    }
+
     return (
       <SessionTimelineCollapsibleRow
         label="Redacted reasoning"
@@ -203,7 +221,7 @@ function SessionTimelineFile({
           variant === "tool-output" ? "border-b px-2 py-1" : "font-bold",
         )}
       >
-        <FileIcon className="icon-base" />
+        <FileIcon size="base" />
         {part.filename ?? part.mediaType ?? "File"}
       </div>
       {variant === "tool-output" ? (

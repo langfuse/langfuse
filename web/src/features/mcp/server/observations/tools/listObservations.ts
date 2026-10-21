@@ -1,4 +1,5 @@
 import {
+  isoDateTime,
   InvalidRequestError,
   OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMNS,
   booleanFilter,
@@ -287,16 +288,12 @@ const ListObservationsBaseSchema = z.object({
     .describe(
       "Environment to filter by. Multiple environments are temporarily unsupported until the public observations API applies allow-multiple environment filters correctly.",
     ),
-  fromStartTime: z.iso
-    .datetime({ offset: true })
-    .describe(
-      "Required inclusive lower bound on observation startTime, as an ISO 8601 timestamp with timezone (Z or an explicit offset). Must be before toStartTime; the elapsed duration must not exceed 14 days (336 hours).",
-    ),
-  toStartTime: z.iso
-    .datetime({ offset: true })
-    .describe(
-      "Required exclusive upper bound on observation startTime, as an ISO 8601 timestamp with timezone. Must be after fromStartTime and at most 336 hours later. For 14 full UTC calendar days starting 2026-10-01T00:00:00Z, use 2026-10-15T00:00:00Z, not 2026-10-15T23:59:59Z. Split longer ranges into adjacent requests of at most 336 hours each.",
-    ),
+  fromStartTime: isoDateTime({ offset: true }).describe(
+    "Required inclusive lower bound on observation startTime, as an ISO 8601 timestamp with timezone (Z or an explicit offset). Must be before toStartTime; the elapsed duration must not exceed 14 days (336 hours).",
+  ),
+  toStartTime: isoDateTime({ offset: true }).describe(
+    "Required exclusive upper bound on observation startTime, as an ISO 8601 timestamp with timezone. Must be after fromStartTime and at most 336 hours later. For 14 full UTC calendar days starting 2026-10-01T00:00:00Z, use 2026-10-15T00:00:00Z, not 2026-10-15T23:59:59Z. Split longer ranges into adjacent requests of at most 336 hours each.",
+  ),
   filter: z
     .array(ObservationMcpFilterBaseSchema)
     .optional()

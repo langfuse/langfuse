@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import React, { useState } from "react";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "@langfuse/icons";
 import { useSession } from "next-auth/react";
 
 import { type SystemRole } from "@langfuse/shared/src/db";
@@ -177,7 +178,7 @@ function ApiKeyCreateForm({
               >
                 <SelectTrigger className="h-auto" disableValueLineClamp>
                   <div className="flex items-start gap-2 text-left">
-                    <SelectedRoleIcon className="icon-base mt-0.5 shrink-0" />
+                    <SelectedRoleIcon size="base" __rawClassName="mt-0.5" />
                     <div className="flex flex-col">
                       <span className="font-bold">
                         {transformApiKeyRoleName(selectedRoleDef.name)}
@@ -210,7 +211,7 @@ function ApiKeyCreateForm({
                 View{" "}
                 <span className="inline-flex items-center gap-0.5 underline">
                   {rolePermissionCountLabel(role)}
-                  <ArrowUpRight className="icon-sm" />
+                  <ArrowUpRight size="sm" />
                 </span>
               </button>
             </div>

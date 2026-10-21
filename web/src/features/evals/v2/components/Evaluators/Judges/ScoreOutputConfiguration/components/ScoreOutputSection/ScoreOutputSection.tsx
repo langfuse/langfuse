@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useId, useState, type ReactNode } from "react";
-import { Plus, TriangleAlert } from "lucide-react";
+import { Plus, TriangleAlert } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
 import { Button } from "@/src/components/ui/button";
@@ -317,7 +318,8 @@ export function ScoreOutputSection({
                             aria-label={`Warning: ${categoryWarnings[index]}`}
                           >
                             <TriangleAlert
-                              className="icon-base text-icon-foreground"
+                              size="base"
+                              color="default"
                               aria-hidden="true"
                             />
                           </span>
@@ -356,7 +358,7 @@ export function ScoreOutputSection({
                     aria-label="Add category"
                     title="Add category"
                   >
-                    <Plus className="icon-base text-icon-foreground" />
+                    <Plus size="base" color="default" />
                   </Button>
                 </PopoverTrigger>
               </CategoryEditorPopover>

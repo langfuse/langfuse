@@ -9,7 +9,7 @@
  * rows show light and dark side by side with a compact live usage sample;
  * samples repaint under the active Storybook theme (toolbar switcher).
  */
-import { ChevronRight } from "lucide-react";
+import { ChevronRight } from "@langfuse/icons";
 import { type CSSProperties, type ReactNode } from "react";
 
 import {
@@ -42,6 +42,7 @@ type SectionId =
   | "qlang"
   | "sidebar"
   | "findMatch"
+  | "category"
   | "other";
 
 /**
@@ -67,6 +68,7 @@ const SECTION_MATCHERS: Array<{
   { id: "qlang", test: (n) => n.startsWith("--qlang-") },
   { id: "sidebar", test: (n) => n.startsWith("--sidebar-") },
   { id: "findMatch", test: (n) => n.startsWith("--find-match-") },
+  { id: "category", test: (n) => n.startsWith("--category-") },
   { id: "controls", test: (n) => n.startsWith("--control-") },
   {
     id: "brand",
@@ -86,7 +88,7 @@ const SECTION_MATCHERS: Array<{
   {
     id: "surfaces",
     test: (n) =>
-      /^--(?:background|foreground|foreground-secondary|foreground-tertiary|icon|muted|surface-code(?:-header)?|popover|card|modal|header)(?:-foreground)?$/.test(
+      /^--(?:background|foreground|foreground-secondary|foreground-tertiary|icon|muted|surface-code(?:-header)?|surface-section|popover|card|modal|header)(?:-foreground)?$/.test(
         n,
       ),
   },
@@ -137,6 +139,11 @@ const VISIBLE_SECTIONS: SectionDef[] = [
     id: "sidebar",
     title: "Sidebar",
     blurb: "Side navigation chrome, nav-item states and its hairline.",
+  },
+  {
+    id: "category",
+    title: "Category fills",
+    blurb: "Tint and highlight pairs for categorical tiles (treemap).",
   },
 ];
 
@@ -765,7 +772,9 @@ function ColorMappingsSection({ ctx }: { ctx: TokenContext }) {
       <summary className="flex cursor-pointer list-none items-start gap-2 [&::-webkit-details-marker]:hidden">
         <ChevronRight
           aria-hidden
-          className="text-muted-foreground icon-base mt-1.5 shrink-0 transition-transform group-open:rotate-90"
+          size="base"
+          color="muted"
+          __rawClassName="mt-1.5 transition-transform group-open:rotate-90"
         />
         <div className="flex flex-1 items-baseline justify-between gap-4">
           <div>

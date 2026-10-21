@@ -1,6 +1,7 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { type ReactNode, useMemo, useRef } from "react";
 import { useRouter } from "next/router";
-import { ExternalLinkIcon } from "lucide-react";
+import { ExternalLinkIcon } from "@langfuse/icons";
 import { api } from "@/src/utils/api";
 import {
   DialogController,
@@ -219,7 +220,11 @@ function CloneFirstDialogContent({
                   );
                 }}
               >
-                <ExternalLinkIcon className="icon-base text-icon-foreground mr-1" />
+                <ExternalLinkIcon
+                  size="base"
+                  color="default"
+                  __rawClassName="mr-1"
+                />
                 Open it instead
               </Button>
             </div>

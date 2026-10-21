@@ -18,6 +18,10 @@ import {
   INTERNAL_FEATURE_FLAG,
 } from "@/src/features/feature-flags/server";
 import { advanceSessionsExpiredAtForUser } from "@/src/features/auth/lib/sessionExpiration";
+import {
+  deleteUserBoundApiKeys,
+  evictRevokedApiKeys,
+} from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
 
 const updateDisplayNameSchema = z.object({
   name: StringNoHTML.min(1, "Name cannot be empty").max(
@@ -195,7 +199,7 @@ export const userAccountRouter = createTRPCRouter({
 
     // Wrap check and delete in a serializable transaction to prevent race conditions
     // when organization owners are removed concurrently
-    const sfdcRemovals = await ctx.prisma.$transaction(
+    const { sfdcRemovals, revokedKeys } = await ctx.prisma.$transaction(
       async (tx) => {
         // Verify user can be deleted
         const { canDelete } = await checkUserCanBeDeleted(userId, tx);
@@ -220,20 +224,27 @@ export const userAccountRouter = createTRPCRouter({
           select: { orgId: true },
         });
 
+        const revokedKeys = await deleteUserBoundApiKeys(tx, { userId });
+
         // Delete the user (cascade will handle related records)
         await tx.user.delete({
           where: { id: userId },
         });
 
-        return memberships.map(({ orgId }) => ({
-          orgId,
-          email: user?.email,
-        }));
+        return {
+          sfdcRemovals: memberships.map(({ orgId }) => ({
+            orgId,
+            email: user?.email,
+          })),
+          revokedKeys,
+        };
       },
       {
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
       },
     );
+
+    await evictRevokedApiKeys(revokedKeys, { userId });
 
     // SFDC: remove every org-member bridge the cascade just deleted. After
     // commit so a rolled-back delete never desyncs SFDC; removeUser never
@@ -348,7 +359,8 @@ export const userAccountRouter = createTRPCRouter({
         { isLangfuseCloudAdmin: ctx.session.user.admin === true },
       );
 
-      if (!userCanToggleV4) {
+      // Rollout-locked users may recover a missing opt-in, but cannot opt out.
+      if (!userCanToggleV4 && !input.enabled) {
         return {
           success: true,
           v4BetaEnabled: userRolloutState.v4BetaEnabled,
@@ -364,7 +376,7 @@ export const userAccountRouter = createTRPCRouter({
       return {
         success: true,
         v4BetaEnabled: input.enabled,
-        canToggleV4: true,
+        canToggleV4: userCanToggleV4,
       };
     }),
 });

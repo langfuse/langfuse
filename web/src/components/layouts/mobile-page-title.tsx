@@ -1,4 +1,4 @@
-/* eslint-disable @repo/component-file-structure */
+/* eslint-disable @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { ItemBadge } from "@/src/components/ItemBadge";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import { MobilePageActionsContent } from "@/src/components/layouts/mobile-page-actions-content";
@@ -15,7 +15,7 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { cn } from "@/src/utils/tailwind";
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal } from "@langfuse/icons";
 import { useRef, useState } from "react";
 
 /**
@@ -160,7 +160,7 @@ export const MobilePageTitle = ({
                 aria-label="More actions"
                 className="ml-auto shrink-0"
               >
-                <MoreHorizontal className="icon-base text-icon-foreground" />
+                <MoreHorizontal size="base" color="default" />
               </Button>
             </PopoverTrigger>
             <MobilePageActionsContent

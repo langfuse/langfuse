@@ -13,7 +13,7 @@ import {
   MessageSquareOff,
   PlusIcon,
   SquarePen,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
 type TraceScores =
@@ -79,7 +79,7 @@ export function SessionTraceActionButtons({
               className="gap-1.5"
               {...getTriggerProps()}
             >
-              <PlusIcon className="icon-base text-icon-foreground" />
+              <PlusIcon size="base" color="default" />
               <span>Add to</span>
               <DropdownIndicator size="sm" nudge />
             </Button>
@@ -110,9 +110,13 @@ export function SessionTraceActionButtons({
               }
             >
               {disabled ? (
-                <LockIcon className="icon-sm text-icon-foreground mr-1.5" />
+                <LockIcon size="sm" color="default" __rawClassName="mr-1.5" />
               ) : (
-                <SquarePen className="icon-base text-icon-foreground mr-1.5" />
+                <SquarePen
+                  size="base"
+                  color="default"
+                  __rawClassName="mr-1.5"
+                />
               )}
               <span>Annotate</span>
             </Button>
@@ -136,10 +140,10 @@ export function SessionTraceActionButtons({
             className="gap-1"
           >
             {disabled ? (
-              <MessageSquareOff className="text-muted-foreground icon-base" />
+              <MessageSquareOff size="base" color="muted" />
             ) : (
               <>
-                <MessageSquare className="icon-base text-icon-foreground" />
+                <MessageSquare size="base" color="default" />
                 <span>{commentCount ? "Comments" : "Comment"}</span>
                 {!!commentCount ? (
                   <ActionButtonCountBadge count={commentCount} />

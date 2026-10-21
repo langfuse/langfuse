@@ -13,13 +13,14 @@ import {
 } from "@/src/components/design-system/table/Table";
 import { MultiSelectInput } from "@/src/components/design-system/MultiSelectInput/MultiSelectInput";
 import { SearchInput } from "@/src/components/design-system/SearchInput/SearchInput";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
 import { type RowHeight } from "@/src/components/table/data-table-row-height-switch";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { Rows3 } from "lucide-react";
+import { Rows3 } from "@langfuse/icons";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { cn } from "@/src/utils/tailwind";
 import {
@@ -38,13 +39,24 @@ export type SettingsTableToolbarAction = ActionButtonProps extends infer TAction
     : never
   : never;
 
-type SettingsTableFilter = {
+type SettingsTableFilter =
+  | (SettingsTableFilterBase & {
+      type?: "multi-select";
+      value: string[];
+      onChange: (value: string[]) => void;
+    })
+  | (SettingsTableFilterBase & {
+      type: "select";
+      value: string;
+      onChange: (value: string) => void;
+      muted?: boolean;
+    });
+
+type SettingsTableFilterBase = {
   id: string;
   label: string;
   placeholder: string;
   options: { value: string; label: string }[];
-  value: string[];
-  onChange: (value: string[]) => void;
 };
 
 export type SettingsTableProps<TData extends object> = Omit<
@@ -148,21 +160,7 @@ export function SettingsTable<TData extends object>({
               </div>
             )}
             {filters?.map((filter) => (
-              <div key={filter.id} className="w-44 shrink-0">
-                <MultiSelectInput
-                  aria-label={`Filter by ${filter.label.toLowerCase()}`}
-                  value={filter.value}
-                  options={filter.options}
-                  onValueChange={filter.onChange}
-                  placeholder={filter.placeholder}
-                  selectedLabel={filter.options
-                    .filter((option) => filter.value.includes(option.value))
-                    .map((option) => option.label)
-                    .join(", ")}
-                  searchPlaceholder="Search..."
-                  emptyMessage="No options found."
-                />
-              </div>
+              <SettingsTableFilterInput key={filter.id} filter={filter} />
             ))}
           </div>
 
@@ -211,7 +209,7 @@ export function SettingsTable<TData extends object>({
                     title="Row height"
                     aria-label="Row height"
                   >
-                    <Rows3 className="icon-base text-icon-foreground" />
+                    <Rows3 size="base" color="default" />
                   </Button>
                 )}
               </DropdownMenu>
@@ -254,6 +252,62 @@ export function SettingsTable<TData extends object>({
           {pagination && <PaginationBar {...pagination} />}
         </SettingsTableCard>
       )}
+    </div>
+  );
+}
+
+function SettingsTableFilterInput({ filter }: { filter: SettingsTableFilter }) {
+  const ariaLabel = `Filter by ${filter.label.toLowerCase()}`;
+
+  if (filter.type === "select") {
+    return (
+      <div className="grid shrink-0">
+        {/* The open menu is as wide as the trigger, so the trigger is sized to
+            its longest option rather than to the current selection. */}
+        {filter.options.map((option) => (
+          <div
+            key={option.value}
+            inert
+            aria-hidden="true"
+            className="invisible col-start-1 row-start-1"
+          >
+            <SelectInput
+              value={option.value}
+              options={filter.options}
+              onValueChange={filter.onChange}
+              placeholder={filter.placeholder}
+            />
+          </div>
+        ))}
+        <div className="col-start-1 row-start-1">
+          <SelectInput
+            aria-label={ariaLabel}
+            value={filter.value}
+            options={filter.options}
+            onValueChange={filter.onChange}
+            placeholder={filter.placeholder}
+            muted={filter.muted}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-44 shrink-0">
+      <MultiSelectInput
+        aria-label={ariaLabel}
+        value={filter.value}
+        options={filter.options}
+        onValueChange={filter.onChange}
+        placeholder={filter.placeholder}
+        selectedLabel={filter.options
+          .filter((option) => filter.value.includes(option.value))
+          .map((option) => option.label)
+          .join(", ")}
+        searchPlaceholder="Search..."
+        emptyMessage="No options found."
+      />
     </div>
   );
 }

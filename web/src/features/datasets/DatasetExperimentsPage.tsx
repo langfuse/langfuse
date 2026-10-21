@@ -1,8 +1,9 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { DatasetRunsTable } from "@/src/features/datasets/components/DatasetRunsTable";
 import { api } from "@/src/utils/api";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages";
 import { useState, useCallback } from "react";
-import { FlaskConical, MoreVertical } from "lucide-react";
+import { FlaskConical, MoreVertical } from "@langfuse/icons";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import {
   Dialog,
@@ -213,7 +214,7 @@ function DatasetExperimentsView({
                   disabled={!hasExperimentWriteAccess}
                   onClick={() => capture("dataset_run:new_form_open")}
                 >
-                  <FlaskConical className="icon-base text-icon-foreground" />
+                  <FlaskConical size="base" color="default" />
                   <span className="ml-2 hidden md:block">Run experiment</span>
                 </Button>
               </DialogTrigger>
@@ -276,7 +277,7 @@ function DatasetExperimentsView({
                   disabled={!hasExperimentWriteAccess}
                   onClick={() => capture("dataset_run:new_form_open")}
                 >
-                  <FlaskConical className="icon-base text-icon-foreground" />
+                  <FlaskConical size="base" color="default" />
                   <span className="ml-2 hidden md:block">Run experiment</span>
                 </Button>
               </DialogTrigger>
@@ -344,7 +345,7 @@ function DatasetExperimentsView({
                   aria-label="Dataset actions"
                   {...getTriggerProps()}
                 >
-                  <MoreVertical className="icon-base text-icon-foreground" />
+                  <MoreVertical size="base" color="default" />
                 </Button>
               )}
             </DatasetActionMenu>

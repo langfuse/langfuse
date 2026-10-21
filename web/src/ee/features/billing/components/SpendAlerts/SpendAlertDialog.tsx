@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -23,7 +23,7 @@ import { api, reportNonTrpcError } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { showSuccessToast, showToast } from "@/src/features/notifications";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
-import { Info } from "lucide-react";
+import { Info } from "@langfuse/icons";
 
 const spendAlertSchema = z.object({
   title: z
@@ -181,7 +181,7 @@ export function SpendAlertDialog({
             />
             <div className="text-muted-foreground text-xs">
               <div className="flex flex-row items-center">
-                <Info className="icon-sm mr-2" />
+                <Info size="sm" __rawClassName="mr-2" />
                 <span className="font-bold">How it works</span>
               </div>
               <ul className="list-disc pl-5">

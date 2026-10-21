@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @repo/component-file-structure */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 /* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements */
 import {
   type default as React,
@@ -50,7 +50,7 @@ import {
   Search,
   WandSparkles,
   InfoIcon,
-} from "lucide-react";
+} from "@langfuse/icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -572,6 +572,7 @@ export function DataTableControls({
           loading={filter.loading}
           min={filter.min}
           max={filter.max}
+          step={filter.step}
           value={filter.value}
           conditions={filter.conditions}
           onRemoveCondition={filter.onRemoveCondition}
@@ -825,7 +826,7 @@ export function DataTableControls({
                 className="w-full text-xs"
                 disabled={addableFilters.length === 0}
               >
-                <Plus className="icon-base text-icon-foreground mr-1.5" />
+                <Plus size="base" color="default" __rawClassName="mr-1.5" />
                 Add filter
               </Button>
             </PopoverTrigger>
@@ -902,7 +903,7 @@ export function DataTableControls({
                 aria-label="Show filters"
                 className="h-6 w-6"
               >
-                <PanelLeftOpen className="icon-base text-icon-foreground" />
+                <PanelLeftOpen size="base" color="default" />
               </Button>
             </TooltipTrigger>
             <TooltipContent side="right">Show filters</TooltipContent>
@@ -984,7 +985,7 @@ export function DataTableControls({
                 aria-label="Close filters"
                 className="-ml-1 h-6 w-6"
               >
-                <X className="icon-base text-icon-foreground" />
+                <X size="base" color="default" />
               </Button>
             ) : (
               <Tooltip>
@@ -999,7 +1000,7 @@ export function DataTableControls({
                     aria-label="Hide filters"
                     className="-ml-1 h-6 w-6"
                   >
-                    <PanelLeftClose className="icon-base text-icon-foreground" />
+                    <PanelLeftClose size="base" color="default" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Hide filters</TooltipContent>
@@ -1023,7 +1024,7 @@ export function DataTableControls({
                   <TooltipTrigger asChild>
                     <PopoverTrigger asChild>
                       <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <WandSparkles className="icon-base text-icon-foreground" />
+                        <WandSparkles size="base" color="default" />
                       </Button>
                     </PopoverTrigger>
                   </TooltipTrigger>
@@ -1076,9 +1077,9 @@ export function DataTableControls({
                   }
                 >
                   {expandedVisibleCount === 0 ? (
-                    <UnfoldVertical className="icon-base text-icon-foreground" />
+                    <UnfoldVertical size="base" color="default" />
                   ) : (
-                    <FoldVertical className="icon-base text-icon-foreground" />
+                    <FoldVertical size="base" color="default" />
                   )}
                 </Button>
               </TooltipTrigger>
@@ -1098,7 +1099,7 @@ export function DataTableControls({
                       className="h-6 w-6"
                       aria-label="Filter options"
                     >
-                      <MoreVertical className="icon-base text-icon-foreground" />
+                      <MoreVertical size="base" color="default" />
                     </Button>
                   </DropdownMenuTrigger>
                 </TooltipTrigger>
@@ -1146,7 +1147,11 @@ export function DataTableControls({
                 >
                   Show only active
                   {showOnlyActive && (
-                    <Check className="icon-base text-icon-foreground ml-auto" />
+                    <Check
+                      size="base"
+                      color="default"
+                      __rawClassName="ml-auto"
+                    />
                   )}
                 </DropdownMenuItem>
                 {/* "Collapse sidebar" is desktop-rail chrome — there's no rail
@@ -1187,7 +1192,11 @@ export function DataTableControls({
           // the field, at rest and scrolled alike.
           <div className="bg-surface shrink-0 px-3 pt-0.5 pb-2.5">
             <div className="relative">
-              <Search className="text-muted-foreground icon-base absolute top-1/2 left-2 -translate-y-1/2" />
+              <Search
+                size="base"
+                color="muted"
+                __rawClassName="absolute top-1/2 left-2 -translate-y-1/2"
+              />
               <Input
                 placeholder="Search filters"
                 aria-label="Search filters"
@@ -1223,7 +1232,7 @@ export function DataTableControls({
                   aria-label="Clear filter search"
                   className="absolute top-1/2 right-0.5 h-5 w-5 -translate-y-1/2"
                 >
-                  <IconX className="icon-base text-icon-foreground" />
+                  <IconX size="base" color="default" />
                 </Button>
               )}
             </div>
@@ -1312,6 +1321,7 @@ interface CategoricalFacetProps extends BaseFacetProps {
 interface NumericFacetProps extends BaseFacetProps {
   min: number;
   max: number;
+  step?: number;
   value: [number, number] | null;
   conditions: NumericUIFilter["conditions"];
   onRemoveCondition: (index: number) => void;
@@ -1452,7 +1462,7 @@ function FilterAccordionItem({
                 </span>
                 <Tooltip delayDuration={80}>
                   <TooltipTrigger asChild>
-                    <InfoIcon className="text-muted-foreground icon-sm shrink-0" />
+                    <InfoIcon size="sm" color="muted" />
                   </TooltipTrigger>
                   <TooltipContent className="max-w-80 text-xs">
                     {tooltip}
@@ -1868,7 +1878,11 @@ function CategoricalSelectContent({
           {hasMoreOptions && (
             <div className="mb-2">
               <div className="relative">
-                <Search className="text-muted-foreground icon-base absolute top-1/2 left-2 -translate-y-1/2" />
+                <Search
+                  size="base"
+                  color="muted"
+                  __rawClassName="absolute top-1/2 left-2 -translate-y-1/2"
+                />
                 <Input
                   placeholder="Filter values"
                   value={searchQuery}
@@ -1962,6 +1976,7 @@ function NumericFacet({
   loading,
   min,
   max,
+  step,
   value,
   conditions,
   onRemoveCondition,
@@ -2081,7 +2096,7 @@ function NumericFacet({
                   onClick={() => onRemoveCondition(index)}
                   className="text-muted-foreground hover:text-foreground h-5 w-5 shrink-0 p-0"
                 >
-                  <X className="icon-base text-icon-foreground" />
+                  <X size="base" color="default" />
                 </Button>
               </div>
             ))}
@@ -2103,7 +2118,7 @@ function NumericFacet({
                     value={isActive ? localValue[0] : ""}
                     placeholder={String(min)}
                     min={min}
-                    step="any"
+                    step={step ?? "any"}
                     onChange={handleMinInputChange}
                     className="h-8"
                   />
@@ -2128,7 +2143,7 @@ function NumericFacet({
                     value={isActive ? localValue[1] : ""}
                     placeholder={String(max)}
                     min={min}
-                    step="any"
+                    step={step ?? "any"}
                     onChange={handleMaxInputChange}
                     className="h-8"
                   />
@@ -2143,7 +2158,7 @@ function NumericFacet({
             <Slider
               min={min}
               max={max}
-              step={max - min <= 1000 ? 0.01 : 1}
+              step={step ?? (max - min <= 1000 ? 0.01 : 1)}
               value={localValue}
               onValueChange={handleSliderChange}
             />

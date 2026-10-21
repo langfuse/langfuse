@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @repo/component-file-structure */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useStore } from "zustand";
@@ -24,7 +24,7 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
-import { ChevronLeft, ExternalLink, Plus } from "lucide-react";
+import { ChevronLeft, ExternalLink, Plus } from "@langfuse/icons";
 import {
   EvaluatorSelectionStep,
   type BatchEvaluator,
@@ -421,7 +421,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
               onClick={() => setStep("select-evaluator")}
               disabled={runEvaluationMutation.isPending}
             >
-              <ChevronLeft className="icon-base text-icon-foreground mr-1" />
+              <ChevronLeft size="base" color="default" __rawClassName="mr-1" />
               Back
             </Button>
           ) : (
@@ -489,9 +489,9 @@ function CreateEvaluatorButton({
         rel="noreferrer"
         aria-label="Create new Evaluator (opens in a new tab)"
       >
-        <Plus className="icon-base shrink-0" aria-hidden="true" />
+        <Plus size="base" aria-hidden="true" />
         Create new Evaluator
-        <ExternalLink className="icon-base shrink-0" aria-hidden="true" />
+        <ExternalLink size="base" aria-hidden="true" />
       </Link>
     </Button>
   );

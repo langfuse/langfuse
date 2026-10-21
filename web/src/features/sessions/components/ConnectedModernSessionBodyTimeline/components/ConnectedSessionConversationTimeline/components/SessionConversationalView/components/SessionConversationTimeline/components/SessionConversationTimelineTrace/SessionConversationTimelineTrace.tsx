@@ -1,4 +1,4 @@
-import { GitBranch, MessageSquareOff } from "lucide-react";
+import { GitBranch, MessageSquareOff } from "@langfuse/icons";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
@@ -49,38 +49,50 @@ export function SessionConversationTimelineTrace({
     requestId: number;
   } | null;
 }) {
-  const showHeader = variant === "session" || (threadCount ?? 0) > 1;
-  const hiddenThreadCount =
+  const { visibleThreads, hiddenThreadCount } =
     state.type === "transcript"
       ? getSessionTranscriptThreads(
           state.result.transcript,
           includeNestedThreads,
-        ).hiddenThreadCount
-      : 0;
+        )
+      : { visibleThreads: [], hiddenThreadCount: 0 };
+  const visibleThreadIndex = visibleThreads.findIndex(
+    (thread) => thread.threadIndex === threadIndex,
+  );
+  const showHeader =
+    variant === "session" ? visibleThreadIndex <= 0 : (threadCount ?? 0) > 1;
+  const showThreadHeader =
+    variant === "session" &&
+    visibleThreads.length > 1 &&
+    visibleThreadIndex >= 0;
   return (
     <div
       className={cn(
-        variant === "single-trace" ? "p-0" : "px-4 pb-14 sm:px-6 lg:px-10",
+        variant === "single-trace" ? "p-0" : "px-4 pb-8 sm:px-6 lg:px-10",
       )}
       data-session-trace-id={trace.id}
       data-session-item-id={itemId}
     >
       {showHeader && (
-        <div className="group/trace-header mb-6 flex items-center gap-4 pt-5">
+        <div
+          className={cn(
+            "group/trace-header flex items-center gap-3 pt-4",
+            showThreadHeader ? "mb-3" : "mb-6",
+          )}
+        >
           <button
             type="button"
-            className="text-muted-foreground hover:text-foreground ph-no-capture flex min-w-0 items-center gap-2 font-mono text-xs transition-colors"
+            className="text-foreground hover:text-primary ph-no-capture flex min-w-0 items-center gap-2 text-sm font-bold transition-colors"
             onClick={onOpenTrace}
             title={`${trace.name ?? "Trace"} (${trace.id})`}
           >
             <span className="border-border bg-tertiary text-foreground flex h-4 min-w-4 shrink-0 items-center justify-center rounded-sm border px-0.5 font-mono text-[10px]">
-              {displayNumber ?? turnNumber}
+              {variant === "session"
+                ? turnNumber
+                : (displayNumber ?? turnNumber)}
             </span>
-            <span
-              className="truncate"
-              title={`${trace.name ?? "Trace"} · ${trace.id}`}
-            >
-              {trace.name ?? "Trace"} · {trace.id}
+            <span className="truncate" title={trace.name ?? "Trace"}>
+              <span data-session-search-content>{trace.name ?? "Trace"}</span>
             </span>
           </button>
           <div className="border-border min-w-0 flex-1 border-t border-dashed" />
@@ -102,7 +114,7 @@ export function SessionConversationTimelineTrace({
                   className="bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors"
                   aria-label={`${hiddenThreadCount} nested ${hiddenThreadCount === 1 ? "thread" : "threads"} hidden`}
                 >
-                  <GitBranch className="icon-base" aria-hidden="true" />
+                  <GitBranch size="base" aria-hidden="true" />
                 </button>
               )}
             </Tooltip>
@@ -116,10 +128,36 @@ export function SessionConversationTimelineTrace({
                   className="bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors"
                   aria-label="Some messages may be missing"
                 >
-                  <MessageSquareOff className="icon-base" aria-hidden="true" />
+                  <MessageSquareOff size="base" aria-hidden="true" />
                 </button>
               )}
             </Tooltip>
+          )}
+        </div>
+      )}
+
+      {showThreadHeader && (
+        <div
+          className={cn(
+            "group/thread-header text-muted-foreground mb-5 flex items-center gap-2 text-xs",
+            !showHeader && "pt-3",
+          )}
+        >
+          <span className="bg-muted text-muted-foreground flex h-4 min-w-4 shrink-0 items-center justify-center rounded-sm px-1 font-mono text-[10px]">
+            {displayNumber ?? `${turnNumber}.${visibleThreadIndex + 1}`}
+          </span>
+          <h3>Thread {visibleThreadIndex + 1}</h3>
+          {visibleThreadIndex > 0 && (
+            <>
+              <div className="border-border min-w-0 flex-1 border-t border-dashed" />
+              <button
+                type="button"
+                className="text-muted-foreground hover:text-foreground shrink-0 font-mono text-xs opacity-0 group-focus-within/thread-header:opacity-100 group-hover/thread-header:opacity-100 hover:underline focus-visible:opacity-100"
+                onClick={onOpenTrace}
+              >
+                Open trace
+              </button>
+            </>
           )}
         </div>
       )}

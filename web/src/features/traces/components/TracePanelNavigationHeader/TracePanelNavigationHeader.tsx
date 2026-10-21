@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 /**
  * NavigationHeader - Responsive search and controls for the navigation panel
  *
@@ -30,7 +30,7 @@ import {
   FoldVertical,
   UnfoldVertical,
   MoreVertical,
-} from "lucide-react";
+} from "@langfuse/icons";
 import {
   DropdownMenu,
   DropdownMenuController,
@@ -218,9 +218,9 @@ function TracePanelNavigationHeaderExpanded({
     <>
       <DropdownMenuItem onSelect={handleToggleTreeNodes}>
         {isEverythingCollapsed ? (
-          <UnfoldVertical className="icon-base text-icon-foreground mr-2" />
+          <UnfoldVertical size="base" color="default" __rawClassName="mr-2" />
         ) : (
-          <FoldVertical className="icon-base text-icon-foreground mr-2" />
+          <FoldVertical size="base" color="default" __rawClassName="mr-2" />
         )}
         {isEverythingCollapsed ? "Expand all" : "Collapse all"}
       </DropdownMenuItem>
@@ -281,9 +281,9 @@ function TracePanelNavigationHeaderExpanded({
                 className="h-7 w-7"
               >
                 {isEverythingCollapsed ? (
-                  <UnfoldVertical className="icon-base text-icon-foreground" />
+                  <UnfoldVertical size="base" color="default" />
                 ) : (
-                  <FoldVertical className="icon-base text-icon-foreground" />
+                  <FoldVertical size="base" color="default" />
                 )}
               </Button>
 
@@ -300,7 +300,7 @@ function TracePanelNavigationHeaderExpanded({
                     aria-label="More options"
                     className="h-7 w-7"
                   >
-                    <MoreVertical className="icon-base text-icon-foreground" />
+                    <MoreVertical size="base" color="default" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="center" className="w-64">
@@ -358,8 +358,10 @@ function TracePanelNavigationHeaderExpanded({
                     >
                       {TRACE_VIEW_LABELS[activeView]}
                       <ChevronDown
-                        className={cn(
-                          "text-foreground-tertiary icon-base transition-transform",
+                        size="base"
+                        color="tertiary"
+                        __rawClassName={cn(
+                          "transition-transform",
                           isOpen && "rotate-180",
                         )}
                       />

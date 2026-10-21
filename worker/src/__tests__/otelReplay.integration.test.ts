@@ -725,16 +725,13 @@ describe(
             imageBytes.toString("base64"),
             "@@@langfuseMedia:type=image/png|id=overflow-media-id|source=bytes@@@",
           );
-          // A string value that looks like JSON keeps its per-key encoding.
-          // The reference path does not scan inside that encoding and leaves
-          // its media inline; only the early path extracts it.
-          const expandedJsonString = JSON.stringify(
-            JSON.stringify({ image: expandedImage }),
-          );
+          // The TS text scan misses escaped MIME separators and bare base64
+          // provider data; only native extraction handles them.
+          const expandedJsonString = JSON.stringify({ image: expandedImage });
           const earlyExpandedValues = {
             json_string: expandedJsonString,
             escaped_json_string: expandedJsonString,
-            quoted_provider: JSON.stringify(expandedProvider),
+            quoted_provider: expandedProvider,
           };
           expectSdkMetadataExpansion(
             comparison,
@@ -764,11 +761,9 @@ describe(
               ? "@@@langfuseMedia:type=image/png|id=overflow-media-id|source=base64_data_uri@@@"
               : dataUri;
           const inlineJsonLookingValues = {
-            json_string: JSON.stringify(structuredMetadata.jsonString),
-            escaped_json_string: JSON.stringify(
-              structuredMetadata.escapedJsonString,
-            ),
-            quoted_provider: JSON.stringify(structuredMetadata.providerJson),
+            json_string: JSON.stringify({ image: expectedImage }),
+            escaped_json_string: structuredMetadata.escapedJsonString,
+            quoted_provider: structuredMetadata.providerJson,
           };
           expect(comparison.originalTs.storedRows).toHaveLength(1);
           const originalMetadata = Object.fromEntries(

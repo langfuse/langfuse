@@ -36,7 +36,7 @@ export function ProviderSelect({
               <SelectItem key={provider} value={provider}>
                 <span className="flex items-center gap-2">
                   <span className="bg-background flex size-6 shrink-0 items-center justify-center rounded-md border">
-                    <ProviderIcon aria-hidden className="icon-sm" />
+                    <ProviderIcon aria-hidden size="sm" />
                   </span>
                   {providerLabels[provider]}
                 </span>

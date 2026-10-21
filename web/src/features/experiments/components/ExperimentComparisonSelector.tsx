@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useCallback, useMemo, useRef, useState } from "react";
-import { Check, X } from "lucide-react";
+import { Check, X } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { MultiSelectCombobox } from "@/src/components/ui/multi-select-combobox";
 import { Badge } from "@/src/components/ui/badge";
@@ -356,7 +357,7 @@ export function ExperimentComparisonSelector({
                 className="text-muted-foreground hover:bg-muted/50 flex w-full items-center gap-3 px-3 py-2 text-left"
               >
                 <div className="border-input flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border">
-                  {isAutoSelectEnabled && <Check className="icon-sm" />}
+                  {isAutoSelectEnabled && <Check size="sm" />}
                 </div>
                 <span className="text-xs">
                   Auto-select a comparison experiment by default
@@ -410,7 +411,9 @@ export function ExperimentComparisonSelector({
               className="hover:bg-muted/50 flex w-full items-center gap-3 px-3 py-2 text-left disabled:cursor-not-allowed disabled:opacity-50"
             >
               <div className="flex h-4 w-4 shrink-0 items-center justify-center">
-                {isSelected && <Check className="text-primary icon-base" />}
+                {isSelected && (
+                  <Check size="base" __rawClassName="text-primary " />
+                )}
               </div>
               <span
                 className="min-w-0 flex-1 truncate text-sm font-bold"
@@ -531,7 +534,7 @@ export function ExperimentComparisonSelector({
                 className="hover:bg-muted ml-0.5 rounded-full"
                 aria-label={`Remove ${option.experimentName}`}
               >
-                <X className="icon-sm" />
+                <X size="sm" />
               </button>
             </Badge>
           );

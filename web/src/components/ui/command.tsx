@@ -1,10 +1,10 @@
-/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements, @repo/component-file-structure */
+/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements, @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 "use client";
 
 import * as React from "react";
 import { DialogTitle, type DialogProps } from "@radix-ui/react-dialog";
 import { Command as CommandPrimitive } from "cmdk";
-import { Search } from "lucide-react";
+import { Search } from "@langfuse/icons";
 
 import { cn } from "@/src/utils/tailwind";
 import {
@@ -62,7 +62,7 @@ const CommandDialog = ({
             filter={filter}
             className={cn(
               commandDialogSurfaceClass,
-              "**:[[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-item]_svg]:icon-base [&_[cmdk-item]_svg]:text-muted-foreground [&_[cmdk-item][data-selected=true]]:text-primary **:[[cmdk-input]]:text-primary **:[[cmdk-list]]:scroll-fade-b [&_.cmdk-input-wrapper>svg]:left-4 [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-item]]:py-2.5 **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:font-normal **:[[cmdk-group]]:px-2 **:[[cmdk-input]]:h-11 **:[[cmdk-input]]:pl-8.5 **:[[cmdk-list]]:max-h-[min(24rem,calc(100dvh-var(--banner-offset)-clamp(4rem,20dvh,12rem)-4.5rem))] **:[[cmdk-list]]:scroll-py-2 **:[[cmdk-list]]:pb-1",
+              "**:[[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-item]_svg]:text-muted-foreground [&_[cmdk-item][data-selected=true]]:text-primary **:[[cmdk-input]]:text-primary **:[[cmdk-list]]:scroll-fade-b [&_.cmdk-input-wrapper>svg]:left-4 [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-item]]:py-2.5 **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:font-normal **:[[cmdk-group]]:px-2 **:[[cmdk-input]]:h-11 **:[[cmdk-input]]:pl-8.5 **:[[cmdk-list]]:max-h-[min(24rem,calc(100dvh-var(--banner-offset)-clamp(4rem,20dvh,12rem)-4.5rem))] **:[[cmdk-list]]:scroll-py-2 **:[[cmdk-list]]:pb-1",
             )}
           >
             {children}
@@ -88,7 +88,10 @@ const CommandInput = React.forwardRef<
       "cmdk-input-wrapper",
     )}
   >
-    <Search className="icon-base absolute top-1/2 left-2 mr-2 shrink-0 -translate-y-1/2 opacity-50" />
+    <Search
+      size="base"
+      __rawClassName="absolute top-1/2 left-2 mr-2 -translate-y-1/2 opacity-50"
+    />
     <CommandPrimitive.Input
       ref={ref}
       className={cn(

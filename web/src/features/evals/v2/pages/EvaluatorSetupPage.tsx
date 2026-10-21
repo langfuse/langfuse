@@ -1,9 +1,9 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { TRPCClientError } from "@trpc/client";
-import { History, Trash2 } from "lucide-react";
+import { History, Trash2 } from "@langfuse/icons";
 import {
   observationVariableMappingList,
   isEvaluatorBlockReasonRecoverableByDefinitionUpdate,
@@ -905,7 +905,7 @@ export function EvaluatorSetupPage(
                 setHistoryOpen(true);
               }}
             >
-              <History className="icon-base text-icon-foreground mr-2" />
+              <History size="base" color="default" __rawClassName="mr-2" />
               Version history
             </Button>
             <Button
@@ -914,7 +914,7 @@ export function EvaluatorSetupPage(
               title="Delete evaluator"
               onClick={() => setDeleteOpen(true)}
             >
-              <Trash2 className="icon-base text-destructive" />
+              <Trash2 size="base" color="destructive" />
             </Button>
           </div>
         ) : undefined,

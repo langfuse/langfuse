@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
@@ -12,7 +13,7 @@ import { Button } from "@/src/components/ui/button";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Label } from "@/src/components/ui/label";
 import { api } from "@/src/utils/api";
-import { CopyIcon, ExternalLinkIcon } from "lucide-react";
+import { CopyIcon, ExternalLinkIcon } from "@langfuse/icons";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { getPromptDetailHref } from "@/src/features/prompts/utils";
 
@@ -182,7 +183,7 @@ export function PromptSelectionDialog({
                       passHref
                     >
                       <Button type="button" variant="outline" size="icon">
-                        <ExternalLinkIcon className="icon-base text-icon-foreground" />
+                        <ExternalLinkIcon size="base" color="default" />
                       </Button>
                     </Link>
                   )}
@@ -205,7 +206,7 @@ export function PromptSelectionDialog({
                   className="absolute top-2 right-2"
                   onClick={copySelectedTag}
                 >
-                  <CopyIcon className="icon-base text-icon-foreground" />
+                  <CopyIcon size="base" color="default" />
                 </Button>
               </div>
               <p className="text-muted-foreground text-xs">
