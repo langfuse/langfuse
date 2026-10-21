@@ -1,4 +1,4 @@
-/* eslint-disable @repo/prefer-stories-over-client-tests, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable @repo/prefer-stories-over-client-tests */
 import { render, screen } from "@testing-library/react";
 import { ScoreDataTypeEnum } from "@langfuse/shared";
 import { describe, expect, it, vi } from "vitest";

@@ -1,4 +1,4 @@
-/* eslint-disable @repo/prefer-stories-over-client-tests, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable @repo/prefer-stories-over-client-tests */
 import { fireEvent, render, screen } from "@testing-library/react";
 import { EvalTemplateTypeEnum } from "@langfuse/shared";
 

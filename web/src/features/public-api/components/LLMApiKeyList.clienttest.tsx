@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { PropsWithChildren } from "react";
 

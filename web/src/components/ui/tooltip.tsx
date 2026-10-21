@@ -9,10 +9,7 @@ import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 
 const TOOLTIP_DELAY_MS = 150;
 
-/**
- * Nested providers reset the delay, so every provider carries the app default.
- * @deprecated Use design-system/Tooltip/Tooltip or design-system/CustomTooltip/CustomTooltip.
- */
+/** Nested providers reset the delay, so every provider carries the app default. */
 const TooltipProvider = ({
   delayDuration = TOOLTIP_DELAY_MS,
   ...props
