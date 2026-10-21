@@ -44,6 +44,7 @@ describe("blob storage form — exportFieldGroups validation", () => {
     ],
     [AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS, []],
     [AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS, ["basic", "io"]],
+    [AnalyticsIntegrationExportSource.EVENTS, ["score_metadata"]],
   ] as const)(
     "blocks submission when exportSource is %s and core is absent (groups: %s)",
     async (source, exportFieldGroups) => {
@@ -75,6 +76,25 @@ describe("blob storage form — exportFieldGroups validation", () => {
           ...VALID_BASE,
           exportSource: AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
           exportFieldGroups: ["core", "io"],
+        },
+      }),
+    );
+
+    const onSubmit = vi.fn();
+    await act(async () => {
+      await result.current.handleSubmit(onSubmit)();
+    });
+
+    expect(onSubmit).toHaveBeenCalledOnce();
+  });
+
+  it("allows submission with score groups next to observation groups", async () => {
+    const { result } = renderHook(() =>
+      useForm({
+        resolver: zodResolver(blobStorageIntegrationFormSchema),
+        defaultValues: {
+          ...VALID_BASE,
+          exportFieldGroups: ["core", "score_metadata"],
         },
       }),
     );

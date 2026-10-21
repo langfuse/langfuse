@@ -99,6 +99,7 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
   langfuse_createModel: ["models"],
   langfuse_getModel: [],
   langfuse_deleteModel: ["models"],
+  langfuse_listLlmConnections: [],
   langfuse_listObservations: [],
   langfuse_getObservation: [],
   langfuse_getObservationFieldSchema: [],

@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 "use client";
 
 import * as React from "react";

@@ -3,7 +3,10 @@ import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { useSession } from "next-auth/react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useReadPath, V4_PREVIEW_LABEL } from "@/src/features/events";
-import { featurePreviewLabels } from "@/src/features/feature-flags";
+import {
+  featurePreviewLabels,
+  useInternalFeaturesEnabled,
+} from "@/src/features/feature-flags";
 import { api } from "@/src/utils/api";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
@@ -23,6 +26,7 @@ export function ControlledFeaturePreviewModal({
   onOpenChange,
 }: ControlledFeaturePreviewModalProps) {
   const authSession = useSession();
+  const internalViewEnabled = useInternalFeaturesEnabled();
   const { isV4 } = useReadPath();
   const capture = usePostHogClientCapture();
   const setFeaturePreviewEnabled =
@@ -52,8 +56,9 @@ export function ControlledFeaturePreviewModal({
     setFeaturePreviewEnabled.mutate({ flag, enabled });
 
   const isModernSessionEnabled =
-    authSession.data?.user?.featureFlags.sessionViewV2 === true ||
-    authSession.data?.environment.enableExperimentalFeatures === true;
+    isV4 &&
+    (authSession.data?.user?.featureFlags.sessionViewV2 === true ||
+      authSession.data?.environment.enableExperimentalFeatures === true);
 
   const state: Partial<Record<PreviewFlag, PreviewState>> = {
     skillManagement: {
@@ -75,7 +80,13 @@ export function ControlledFeaturePreviewModal({
     ...(authSession.data?.user?.admin === true
       ? {
           langfuseTopics: {
-            enabled: authSession.data.user.featureFlags.langfuseTopics === true,
+            enabled:
+              internalViewEnabled ||
+              authSession.data.user.featureFlags.langfuseTopics === true,
+            disabled: internalViewEnabled,
+            warningReason: internalViewEnabled
+              ? "Topics is enabled by Internal view. Switch to External view to manage this preview separately."
+              : undefined,
             onToggle: onToggle("langfuseTopics"),
             isToggling: setFeaturePreviewEnabled.isPending,
           },
@@ -96,8 +107,9 @@ export function ControlledFeaturePreviewModal({
     },
     sessionViewV2Timeline: {
       enabled:
-        authSession.data?.user?.featureFlags.sessionViewV2Timeline === true ||
-        authSession.data?.environment.enableExperimentalFeatures === true,
+        isModernSessionEnabled &&
+        (authSession.data?.user?.featureFlags.sessionViewV2Timeline === true ||
+          authSession.data?.environment.enableExperimentalFeatures === true),
       disabled:
         !isV4 ||
         !isModernSessionEnabled ||

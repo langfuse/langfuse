@@ -368,6 +368,9 @@ export const env = createEnv({
       .optional(),
     LANGFUSE_AI_GATEWAY_SERVICE_KEY: z.string().min(1).optional(),
     LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS: z.string().min(1).optional(),
+    // Enables the gateway for every organization, e.g. on self-hosted
+    // deployments. When false, LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST applies.
+    LANGFUSE_AI_GATEWAY_ENABLED: z.enum(["true", "false"]).default("false"),
     LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST: z
       .string()
       .optional()
@@ -1150,6 +1153,7 @@ export const env = createEnv({
       process.env.LANGFUSE_AI_GATEWAY_SERVICE_KEY,
     LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS:
       process.env.LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS,
+    LANGFUSE_AI_GATEWAY_ENABLED: process.env.LANGFUSE_AI_GATEWAY_ENABLED,
     LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST:
       process.env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST,
     LANGFUSE_AI_GATEWAY_JWT_KEY_ID: process.env.LANGFUSE_AI_GATEWAY_JWT_KEY_ID,
