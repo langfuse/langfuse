@@ -8,6 +8,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { SkillService } from "@/src/features/skills/server";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
+import { resolveSkillSelector } from "../resolve-skill-selector";
 
 const LoadSkillResourceBaseSchema = z.object({
   name: SkillNameSchema,
@@ -22,7 +23,7 @@ const LoadSkillResourceInputSchema = z
 export const [loadSkillResourceTool, handleLoadSkillResource] = defineTool({
   name: "loadSkillResource",
   description:
-    "Read a skill file as text by path (see getSkill). Select a version or label; defaults to production. Reuse the version returned by getSkill when loading multiple files.",
+    "Read a skill file as text by path (see getSkill). Version and label are optional; defaults to production, or latest if no production label is set. Reuse the version returned by getSkill when loading multiple files.",
   action: "skills:read",
   baseSchema: LoadSkillResourceBaseSchema,
   inputSchema: LoadSkillResourceInputSchema,
@@ -34,7 +35,11 @@ export const [loadSkillResourceTool, handleLoadSkillResource] = defineTool({
         new SkillService(prisma).loadResource({
           projectId: context.projectId,
           name,
-          selector,
+          selector: await resolveSkillSelector({
+            projectId: context.projectId,
+            name,
+            selector,
+          }),
           path,
         }),
     }),
