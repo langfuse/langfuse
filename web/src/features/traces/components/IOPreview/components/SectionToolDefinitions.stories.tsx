@@ -221,28 +221,71 @@ export const AllCalled = meta.story({
   },
 });
 
+const TOOLS_COLLAPSED_KEY = "toolsSectionCollapsed";
+/** Stories start without a remembered collapse choice. */
+const forgetCollapse = () => {
+  sessionStorage.removeItem(TOOLS_COLLAPSED_KEY);
+};
+
 export const NotCalledTab = meta.story({
   name: "(Test) Not Called Tab",
+  beforeEach: forgetCollapse,
   args: ManyTools.input.args,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
       canvas.getByRole("tab", { name: /^Called\s*6$/ }),
     ).toHaveAttribute("aria-selected", "true");
+    await expect(
+      canvas.getByRole("button", {
+        name: /^1\.\s*langfuse_searchLangfuseDocs$/,
+      }),
+    ).toBeVisible();
     await userEvent.click(
       canvas.getByRole("tab", { name: /^Not called\s*12$/ }),
     );
-    const firstRow = canvas.getByRole("button", {
-      name: /langfuse_getPrompt$/,
-    });
-    await expect(within(firstRow).getByText("1.")).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: /^1\.\s*langfuse_getPrompt$/ }),
+    ).toBeVisible();
     await expect(canvas.queryByText("langfuse_getSession")).toBeNull();
   },
 });
 
-/** More than five tools: the section starts collapsed to its header, switch hidden. */
+/** One side empty: no switch, the whole list shows. */
+export const NoSwitchWhenOneSideEmpty = meta.story({
+  name: "(Test) No Switch When One Side Empty",
+  beforeEach: forgetCollapse,
+  args: NoneCalled.input.args,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.queryByRole("tab")).toBeNull();
+    await expect(
+      canvas.getByRole("button", { name: /^18\.\s*langfuse_getSession$/ }),
+    ).toBeVisible();
+  },
+});
+
+export const RowTogglesDetails = meta.story({
+  name: "(Test) Row Toggles Details",
+  beforeEach: forgetCollapse,
+  args: Called.input.args,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const row = canvas.getByRole("button", { name: /^1\.\s*search_docs$/ });
+    await expect(row).toHaveAttribute("aria-expanded", "false");
+    await expect(canvas.queryByText("Description")).toBeNull();
+    await userEvent.click(row);
+    await expect(row).toHaveAttribute("aria-expanded", "true");
+    await expect(canvas.getByText("Description")).toBeVisible();
+    await userEvent.click(row);
+    await expect(row).toHaveAttribute("aria-expanded", "false");
+  },
+});
+
+/** More than five tools: collapsed to the header, switch hidden; opening it is remembered for the session. */
 export const CollapsedByDefault = meta.story({
   name: "(Test) Collapsed By Default",
+  beforeEach: forgetCollapse,
   args: { ...ManyTools.input.args, defaultCollapsed: undefined },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -255,5 +298,7 @@ export const CollapsedByDefault = meta.story({
     await expect(
       canvas.getByRole("tab", { name: /^Called\s*6$/ }),
     ).toBeVisible();
+    await expect(sessionStorage.getItem(TOOLS_COLLAPSED_KEY)).toBe("false");
+    sessionStorage.removeItem(TOOLS_COLLAPSED_KEY);
   },
 });

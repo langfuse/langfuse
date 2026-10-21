@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { IOSection } from "@/src/components/ui/IOSection";
+import useSessionStorage from "@/src/components/useSessionStorage";
 import {
   ToolCallDefinitionCard,
   type ToolDefinition,
@@ -11,7 +12,7 @@ export interface SectionToolDefinitionsProps {
   tools: ToolDefinition[];
   toolCallCounts: Map<string, number>;
   toolCallsByName: Map<string, ToolCallInvocation[]>;
-  /** Initial state; by default long lists (more than five tools) start collapsed. */
+  /** Initial state before the user toggles; by default long lists (more than five tools) start collapsed. */
   defaultCollapsed?: boolean;
 }
 
@@ -19,6 +20,8 @@ type ToolTab = "called" | "not-called";
 
 /** Above this many tools the section starts collapsed. */
 const TOOLS_COLLAPSE_THRESHOLD = 5;
+/** The user's collapse choice lasts the session, across observations. */
+const TOOLS_COLLAPSED_KEY = "toolsSectionCollapsed";
 
 /**
  * SectionToolDefinitions renders the Tools section at the top of IOPreview:
@@ -32,6 +35,9 @@ export function SectionToolDefinitions({
   defaultCollapsed,
 }: SectionToolDefinitionsProps) {
   const [activeTab, setActiveTab] = useState<ToolTab>("called");
+  const [storedCollapsed, setStoredCollapsed] = useSessionStorage<
+    boolean | null
+  >(TOOLS_COLLAPSED_KEY, null);
 
   const { calledTools, notCalledTools } = useMemo(
     () =>
@@ -60,9 +66,12 @@ export function SectionToolDefinitions({
     <IOSection
       title="Tools"
       variant="table"
-      defaultCollapsed={
-        defaultCollapsed ?? tools.length > TOOLS_COLLAPSE_THRESHOLD
+      collapsed={
+        storedCollapsed ??
+        defaultCollapsed ??
+        tools.length > TOOLS_COLLAPSE_THRESHOLD
       }
+      onCollapsedChange={setStoredCollapsed}
       tabs={
         hasSwitch
           ? {
