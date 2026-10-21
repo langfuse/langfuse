@@ -259,7 +259,7 @@ describe("Authenticate API calls", () => {
     it("should fail on wrong api key without new key", async () => {
       const legacySecretKey = ["legacy", "secret", "key"].join("-");
       const legacyPublicKey = `legacy-public-key-${v4()}`;
-      // eslint-disable-next-line @repo/no-restricted-prisma-access -- needs a bcrypt-only legacy key, which createApiKey never produces.
+      // eslint-disable-next-line @repo/no-restricted-prisma-writes -- needs a bcrypt-only legacy key, which createApiKey never produces.
       await prisma.apiKey.create({
         data: {
           id: v4(),
@@ -533,7 +533,7 @@ describe("Authenticate API calls", () => {
         legacyPublicKey,
         legacySecretKey,
       );
-      // eslint-disable-next-line @repo/no-restricted-prisma-access -- needs a bcrypt-only legacy key, which createApiKey never produces.
+      // eslint-disable-next-line @repo/no-restricted-prisma-writes -- needs a bcrypt-only legacy key, which createApiKey never produces.
       await prisma.apiKey.create({
         data: {
           id: v4(),

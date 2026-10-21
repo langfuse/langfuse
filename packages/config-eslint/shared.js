@@ -4,28 +4,15 @@ import tseslint from "typescript-eslint";
 import langfusePlugin from "@repo/eslint-plugin";
 import "eslint-plugin-only-warn";
 
-// Prisma models whose rows may only be touched through their service layer; allow globs match trailing path segments.
-const restrictedPrismaAccess = [
-  {
-    model: "apiKey",
-    methods: ["create", "createMany", "createManyAndReturn", "upsert"],
-    relations: ["apiKeys", "ApiKey", "apiKeysCreated"],
-    relationKeys: ["create", "createMany", "connectOrCreate", "upsert"],
-    allow: ["packages/shared/src/server/auth/apiKeys.ts"],
-    message:
-      "Use createApiKey from @langfuse/shared/src/server so the key gets its scope columns and role assignment in one transaction.",
-  },
-  {
-    model: "roleAssignment",
-    relations: ["roleAssignments"],
-    allow: [
-      "packages/shared/src/features/rbac/roleAssignmentService.ts",
-      "*.test.ts",
-      "*.servertest.ts",
-    ],
-    message: "Use roleAssignmentService from @langfuse/shared/rbac/server.",
-  },
-];
+// Files allowed to create each Prisma model's rows; globs match trailing path segments.
+const prismaWriters = {
+  apiKey: ["packages/shared/src/server/auth/apiKeys.ts"],
+  roleAssignment: [
+    "packages/shared/src/features/rbac/roleAssignmentService.ts",
+    "*.test.ts",
+    "*.servertest.ts",
+  ],
+};
 
 export default [
   {
@@ -58,10 +45,7 @@ export default [
       "no-unneeded-ternary": "warn",
       "no-nested-ternary": "error",
       "@repo/no-exotic-operators": "warn",
-      "@repo/no-restricted-prisma-access": [
-        "error",
-        { restrictions: restrictedPrismaAccess },
-      ],
+      "@repo/no-restricted-prisma-writes": ["error", { models: prismaWriters }],
     },
   },
 

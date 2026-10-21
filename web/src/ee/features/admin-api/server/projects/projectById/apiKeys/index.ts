@@ -5,7 +5,6 @@ import { auditLog } from "@/src/features/audit-logs/server";
 import { z } from "zod";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import { ApiKeyId, ProjectId, SystemRoleId } from "@langfuse/shared/rbac";
-import { apiKeySystemRolesSelect } from "@langfuse/shared/rbac/server";
 import {
   projectApiKeyCreationSchema,
   apiKeyToResponse,
@@ -41,7 +40,7 @@ export async function handleGetApiKeys(
       note: true,
       publicKey: true,
       displaySecretKey: true,
-      ...apiKeySystemRolesSelect,
+      roleAssignments: { select: { systemRole: true } },
     },
     orderBy: {
       createdAt: "asc",

@@ -18,18 +18,6 @@ import {
   type TenantId,
 } from "./types";
 
-/** apiKeySystemRolesSelect selects an api key's assigned system roles alongside it */
-export const apiKeySystemRolesSelect = {
-  roleAssignments: { select: { systemRole: true } },
-} satisfies Prisma.ApiKeySelect;
-
-/** apiKeysWithoutSystemRole filters out api keys assigned the given system role */
-export function apiKeysWithoutSystemRole(
-  systemRole: SystemRole,
-): Prisma.ApiKeyWhereInput {
-  return { roleAssignments: { none: { systemRole } } };
-}
-
 /** getRoleAssignmentsForPrincipal loads a principal's stored assignments. */
 export async function getRoleAssignmentsForPrincipal(
   tx: Prisma.TransactionClient,

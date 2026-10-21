@@ -3,7 +3,7 @@ import { default as componentFileStructure } from "./rules/component-file-struct
 import { default as noArbitraryColors } from "./rules/no-arbitrary-colors.js";
 import { default as noAbstractedOverlayTrigger } from "./rules/no-abstracted-overlay-trigger.js";
 import { default as noInSourceVitest } from "./rules/no-in-source-vitest.js";
-import { default as noRestrictedPrismaAccess } from "./rules/no-restricted-prisma-access.js";
+import { default as noRestrictedPrismaWrites } from "./rules/no-restricted-prisma-writes.js";
 import { default as noExoticOperators } from "./rules/no-exotic-operators.js";
 import { default as noMarginOnRootElements } from "./rules/no-margin-on-root-elements.js";
 import { default as noNullRender } from "./rules/no-null-render.js";
@@ -31,7 +31,7 @@ const plugin = {
     "no-null-render": noNullRender,
     "no-let-assign-in-react": noLetAssignInReact,
     "no-overlay-zindex": noOverlayZindex,
-    "no-restricted-prisma-access": noRestrictedPrismaAccess,
+    "no-restricted-prisma-writes": noRestrictedPrismaWrites,
     "no-raw-font-weight": noRawFontWeight,
     "no-style-props": noStyleProps,
     "no-switch-statements": noSwitchStatements,

@@ -1,5 +1,4 @@
 import type { Prisma } from "@langfuse/shared/src/db";
-import { apiKeysWithoutSystemRole } from "@langfuse/shared/rbac/server";
 
 import {
   GATEWAY_ROLE,
@@ -8,4 +7,6 @@ import {
 
 /** excludeGatewayApiKeys filters gateway-role keys out of the organization API key settings list. */
 export const excludeGatewayApiKeys: Prisma.ApiKeyWhereInput =
-  SEPARATE_GATEWAY_API_KEYS ? apiKeysWithoutSystemRole(GATEWAY_ROLE) : {};
+  SEPARATE_GATEWAY_API_KEYS
+    ? { roleAssignments: { none: { systemRole: GATEWAY_ROLE } } }
+    : {};
