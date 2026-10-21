@@ -2,10 +2,8 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { vi } from "vitest";
 
-import {
-  ToolCallDefinitionCard,
-  type ToolDefinition,
-} from "./ToolCallDefinitionCard";
+import { SectionToolDefinitions } from "./SectionToolDefinitions";
+import type { ToolDefinition } from "./ToolCallDefinitionCard";
 import type { ToolCallInvocation } from "../../../hooks/useChatMLParser";
 
 function createMemoryStorage(): Storage {
@@ -64,7 +62,7 @@ function renderTools({
   });
 
   return render(
-    <ToolCallDefinitionCard
+    <SectionToolDefinitions
       tools={tools}
       toolCallCounts={toolCallCounts}
       toolCallsByName={toolCallsByName}
@@ -80,41 +78,12 @@ const rowFor = (toolName: string) =>
   });
 const rowNumberOf = (toolName: string) =>
   within(rowFor(toolName)!).getByText(/^\d+\.$/).textContent;
+const sectionHeader = () =>
+  screen.getByRole("button", { name: /(Expand|Collapse) Tools/ });
 
-describe("ToolCallDefinitionCard", () => {
+describe("SectionToolDefinitions", () => {
   beforeEach(() => {
     vi.stubGlobal("localStorage", createMemoryStorage());
-    vi.stubGlobal("sessionStorage", createMemoryStorage());
-  });
-
-  it("starts long lists collapsed and keeps the user's choice for the session", () => {
-    const first = renderTools({ calledToolCount: 2, notCalledToolCount: 4 });
-    const header = screen.getByRole("button", { name: "Tools" });
-
-    expect(header).toHaveAttribute("aria-expanded", "false");
-    expect(rowFor("called_tool_1")).not.toBeInTheDocument();
-    expect(screen.queryByRole("tab")).not.toBeInTheDocument();
-
-    fireEvent.click(header);
-    expect(header).toHaveAttribute("aria-expanded", "true");
-    expect(rowFor("called_tool_1")).toBeInTheDocument();
-    first.unmount();
-
-    renderTools({ calledToolCount: 2, notCalledToolCount: 4 });
-    expect(screen.getByRole("button", { name: "Tools" })).toHaveAttribute(
-      "aria-expanded",
-      "true",
-    );
-    expect(rowFor("called_tool_1")).toBeInTheDocument();
-  });
-
-  it("starts short lists expanded", () => {
-    renderTools({ calledToolCount: 2, notCalledToolCount: 3 });
-
-    expect(screen.getByRole("button", { name: "Tools" })).toHaveAttribute(
-      "aria-expanded",
-      "true",
-    );
   });
 
   it("shows the Called / Not called switch only when both sides have tools", () => {
@@ -163,6 +132,22 @@ describe("ToolCallDefinitionCard", () => {
     expect(rowFor("called_tool_1")).not.toBeInTheDocument();
     expect(rowNumberOf("not_called_tool_1")).toBe("1.");
     expect(rowNumberOf("not_called_tool_3")).toBe("3.");
+  });
+
+  it("starts collapsed above five tools and hides the switch until opened", () => {
+    renderTools({ calledToolCount: 2, notCalledToolCount: 4 });
+
+    expect(sectionHeader()).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("tab")).not.toBeInTheDocument();
+    expect(rowFor("called_tool_1")).not.toBeInTheDocument();
+
+    fireEvent.click(sectionHeader());
+
+    expect(sectionHeader()).toHaveAttribute("aria-expanded", "true");
+    expect(
+      screen.getByRole("tab", { name: /^Called\s*2$/ }),
+    ).toBeInTheDocument();
+    expect(rowFor("called_tool_1")).toBeInTheDocument();
   });
 
   it("toggles a row's details on click", () => {
