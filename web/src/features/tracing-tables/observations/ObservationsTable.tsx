@@ -1,7 +1,7 @@
 /* eslint-disable no-nested-ternary */
 import { api } from "@/src/utils/api";
 import { DataTable } from "@/src/components/table/data-table";
-import { TRACING_PAGE_SIZE_OPTIONS } from "@/src/components/table/data-table-pagination";
+import { TRACING_PAGE_SIZE_OPTIONS } from "@/src/components/table/DataTablePagination";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
   DataTableControlsProvider,

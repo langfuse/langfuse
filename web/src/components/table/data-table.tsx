@@ -13,7 +13,7 @@ import React, {
   type UIEventHandler,
 } from "react";
 import DocPopup from "@/src/components/layouts/doc-popup";
-import { DataTablePagination } from "@/src/components/table/data-table-pagination";
+import { DataTablePagination } from "@/src/components/table/DataTablePagination";
 import { shouldIgnoreRowClickTarget } from "@/src/components/table/shouldIgnoreRowClickTarget";
 import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
 import {
